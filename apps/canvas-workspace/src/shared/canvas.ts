@@ -114,6 +114,8 @@ export interface WorkspaceNodeListItem {
   /** Friendlier label derived from the canvas node (text preview, mindmap root, ...). */
   displayTitle?: string;
   summary?: string;
+  /** Optional local media path for a lightweight list thumbnail. */
+  previewPath?: string;
   tags: string[];
   links?: WorkspaceNodeLink[];
   updatedAt?: number;

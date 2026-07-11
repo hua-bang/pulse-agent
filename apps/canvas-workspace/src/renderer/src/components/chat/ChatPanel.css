@@ -1701,6 +1701,208 @@
   min-width: 0;
 }
 
+/* ─── Reviewed AI node changes ─────────────────────────── */
+
+.knowledge-change-card {
+  margin: 10px 0 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.knowledge-change-card__header {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 12px 8px;
+}
+
+.knowledge-change-card__spark {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.knowledge-change-card__eyebrow,
+.knowledge-change-card__field-label {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.knowledge-change-card h4 {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-change-card__workspace {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-change-card__type {
+  padding: 3px 7px;
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  background: var(--surface-alt);
+  font-size: 10px;
+}
+
+.knowledge-change-card__summary {
+  margin: 0;
+  padding: 0 12px 10px 48px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.knowledge-change-card__diffs {
+  border-top: 1px solid var(--border-light);
+}
+
+.knowledge-change-card__diff-row {
+  padding: 10px 12px;
+}
+
+.knowledge-change-card__diff-row + .knowledge-change-card__diff-row {
+  border-top: 1px solid var(--border-light);
+}
+
+.knowledge-change-card__field-label {
+  margin-bottom: 6px;
+}
+
+.knowledge-change-card__compare {
+  display: grid;
+  gap: 5px;
+}
+
+.knowledge-change-card__value {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.knowledge-change-card__value > span {
+  padding-top: 1px;
+  font-weight: 700;
+}
+
+.knowledge-change-card__comparison-label {
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.knowledge-change-card__value p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.knowledge-change-card__value--before {
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 6%, transparent);
+}
+
+.knowledge-change-card__value--after {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 7%, transparent);
+}
+
+.knowledge-change-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.knowledge-change-card__tags span {
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  opacity: 0.78;
+}
+
+.knowledge-change-card__full-review {
+  margin-top: 6px;
+}
+
+.knowledge-change-card__full-review > summary {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.knowledge-change-card__full-review > summary:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+.knowledge-change-card__full-review pre.knowledge-change-card__value {
+  max-height: 220px;
+  display: block;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.knowledge-change-card__actions {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.knowledge-change-card__error {
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--error) 14%, transparent);
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 6%, transparent);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.knowledge-change-card__success {
+  color: var(--success);
+  font-weight: 600;
+}
+
 /* Back bar shown after a session jump (return to where the jump started). */
 .chat-session-back {
   flex-shrink: 0;

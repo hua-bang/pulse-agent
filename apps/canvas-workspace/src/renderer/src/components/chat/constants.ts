@@ -1,6 +1,20 @@
 import type { MentionItem, QuickAction } from './types';
 import type { I18nKey } from '../../i18n';
 
+type LocalizedCanvasQuickAction = QuickAction & {
+  labelKey: I18nKey;
+  promptKey: I18nKey;
+};
+
+export interface KnowledgeQuickAction {
+  key: 'summarize_knowledge' | 'discover_themes' | 'improve_node';
+  labelKey: I18nKey;
+  promptKey: I18nKey;
+  requiresSelection?: boolean;
+}
+
+export type EmptyStateQuickAction = LocalizedCanvasQuickAction | KnowledgeQuickAction;
+
 export const CANVAS_MENTION_PREFIX = 'canvas:';
 export const SKILL_MENTION_PREFIX = 'skill:';
 export const FOLDER_MENTION_PREFIX = 'folder:';
@@ -40,7 +54,7 @@ export const MENTION_GROUP_LABEL_KEY: Record<MentionGroupKey, I18nKey> = Object.
 
 export const MENTION_MAX_ITEMS = 30;
 
-export const QUICK_ACTIONS: QuickAction[] = [
+export const QUICK_ACTIONS: LocalizedCanvasQuickAction[] = [
   {
     key: 'summarize_canvas',
     label: 'Summarize canvas',
@@ -68,6 +82,25 @@ export const QUICK_ACTIONS: QuickAction[] = [
     labelKey: 'chat.quick.organizeSelection',
     prompt: 'Organize the currently selected nodes.',
     promptKey: 'chat.quick.organizeSelectionPrompt',
+    requiresSelection: true,
+  },
+];
+
+export const KNOWLEDGE_QUICK_ACTIONS: KnowledgeQuickAction[] = [
+  {
+    key: 'summarize_knowledge',
+    labelKey: 'chat.quick.summarizeKnowledge',
+    promptKey: 'chat.quick.summarizeKnowledgePrompt',
+  },
+  {
+    key: 'discover_themes',
+    labelKey: 'chat.quick.discoverThemes',
+    promptKey: 'chat.quick.discoverThemesPrompt',
+  },
+  {
+    key: 'improve_node',
+    labelKey: 'chat.quick.improveNode',
+    promptKey: 'chat.quick.improveNodePrompt',
     requiresSelection: true,
   },
 ];

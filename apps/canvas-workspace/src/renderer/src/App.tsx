@@ -11,6 +11,7 @@ import type { SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
+import { resolveKnowledgeChatRouteContext } from './components/Workbench/knowledgeChatContext';
 import { GraphPageLazy as GraphPage } from './components/WorkspaceNodes/GraphPageLazy';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
@@ -20,7 +21,7 @@ import {
   EXPERIMENTAL_FLAG_WORKSPACE_NODES,
 } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
-type SelectedWorkspaceNode = { workspaceId: string; nodeId: string };
+import type { KnowledgeNodeSelection } from './types';
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
 const ROUTE_NODES = '/nodes';
@@ -47,16 +48,12 @@ const writeSidebarCollapsedPreference = (collapsed: boolean): void => {
   }
 };
 
-// Plugin flags are snapshotted at preload-time, so reading once at module
-// init is fine — toggling in Settings only takes effect after a reload.
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
 const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true;
 const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true;
 
-// Plugin routes contribute their own URL paths; activeView widens to
-// 'canvas' | 'chat' | <plugin route path>.
 type ActiveView = 'canvas' | 'chat' | string;
 
 const AppContent = () => {
@@ -72,6 +69,9 @@ const AppContent = () => {
   const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
   const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
   const detailNodeMatch = routePath.match(/^\/nodes\/([^/]+)\/([^/]+)$/);
+  const detailNode: KnowledgeNodeSelection | null = detailNodeMatch
+    ? { workspaceId: decodeURIComponent(detailNodeMatch[1]), nodeId: decodeURIComponent(detailNodeMatch[2]) }
+    : null;
   // Disabled experimental routes silently fall back to canvas so a stale
   // bookmark / deep link still loads something usable.
   const nodesRouteActive =
@@ -96,9 +96,9 @@ const AppContent = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
-  const [selectedNode, setSelectedNode] = useState<SelectedWorkspaceNode | null>(null);
-  // null = global Settings drawer closed. Setting to a section name opens
-  // the drawer focused on that section.
+  const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
+  const knowledgeChatContext = resolveKnowledgeChatRouteContext({ activeView, selectedNode, detailNode });
+  // null = global Settings drawer closed; a section name opens that section.
   const [appSettingsSection, setAppSettingsSection] = useState<SettingsSection | null>(null);
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
   const openAppSettings = useCallback((section: SettingsSection) => {
@@ -517,6 +517,7 @@ const AppContent = () => {
               activeWorkspaceId={activeId}
               workspaces={workspaces}
               controller={workbench}
+              knowledgeChatContext={knowledgeChatContext}
               onSelectWorkspace={handleSelectWorkspace}
               onOpenAppSettings={openAppSettings}
               onOpenWorkspaceSettings={openWorkspaceSettings}
@@ -536,7 +537,7 @@ const AppContent = () => {
             />
           </PulseRouterView>
           {NODES_ENABLED && (
-            <PulseRouterView name="nodes">
+            <PulseRouterView name="nodes" keepAlive>
               <Suspense fallback={null}>
                 <NodesPage
                   workspaces={workspaces}
@@ -551,8 +552,8 @@ const AppContent = () => {
             <PulseRouterView name="node-detail">
               <Suspense fallback={null}>
                 <NodeDetailPage
-                  workspaceId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[1]) : ''}
-                  nodeId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[2]) : null}
+                  workspaceId={detailNode?.workspaceId ?? ''}
+                  nodeId={detailNode?.nodeId ?? null}
                   workspaces={workspaces}
                   onBack={enterNodesView}
                 />

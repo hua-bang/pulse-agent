@@ -2,6 +2,7 @@ import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from './useWorkspaceNodes';
 import { useI18n } from '../../i18n';
+import { Button } from '../ui';
 import './index.css';
 
 interface NodeDetailPageProps {
@@ -26,7 +27,7 @@ export const NodeDetailPage = ({
   return (
     <main className="workspace-node-detail-page">
       <header className="workspace-node-detail-page__top">
-        <button className="workspace-node-button" onClick={onBack}>{t('workspaceNodes.backToNodes')}</button>
+        <Button size="sm" onClick={onBack}>{t('workspaceNodes.backToNodes')}</Button>
         <span>{workspace?.name ?? workspaceId}</span>
       </header>
       <div className="workspace-node-detail-page__body">

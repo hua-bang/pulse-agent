@@ -52,6 +52,18 @@ The workbench has exactly two side regions plus a modal tier:
   mounted while collapsed. On workbench routes it reserves its width via
   the `--right-dock-inset` custom property consumed by `.app-body`, so it
   behaves like an in-flow column and page content remains fully visible.
+  Nodes and node-detail routes reuse this same chat pane with the global
+  agent scope. Their current knowledge node is passed as explicit
+  cross-workspace context; the Nodes list starts with no automatic context,
+  while Graph remains on the active workspace's chat.
+  Workspace ChatPanels remain mounted but hidden while that global instance
+  is visible, and the Nodes route itself is kept alive so filters and scroll
+  survive a detail-page round trip.
+  Knowledge content edits use a review boundary rather than a raw global
+  write tool: `canvas_propose_node_change` emits a transient proposal card,
+  then `workspaceNodes.applyProposal` validates its size and node fingerprint
+  before the confirmed v1 node update. The proposal is chat state, not a new
+  persisted node schema.
   The dedicated `/chat` route hides the dock chat tab to avoid duplicating
   the full-page chat surface. Chat internals stay owned by `Workbench`,
   which portals its per-workspace `ChatPanel` instances into the dock's

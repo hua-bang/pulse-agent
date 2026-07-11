@@ -2,8 +2,8 @@
  * Canvas Agent — the workspace-scoped AI Copilot.
  *
  * Uses pulse-coder-engine's Engine class to run an agentic loop with
- * canvas-specific tools + built-in filesystem tools (read, write, edit,
- * grep, ls, bash). Runs in the Electron main process.
+ * canvas-specific tools + scope-appropriate engine tools: complete filesystem
+ * access in workspace chat and a read-only allowlist globally. Runs in Electron.
  */
 import { Engine } from 'pulse-coder-engine';
 import { createSkillsPlugin, createMcpPlugin } from 'pulse-coder-engine/built-in';
@@ -18,7 +18,7 @@ import {
   formatSummaryForPrompt,
   resolveWorkspaceNames,
 } from './context-builder';
-import { createCanvasTools, createGlobalCanvasTools } from './tools';
+import { createCanvasAgentToolPolicy } from './tool-policy';
 import { SessionStore } from './session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
@@ -50,14 +50,13 @@ const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
 This is a global chat, not bound to any specific canvas workspace.
 
 ## Your Role
-You can answer questions, reason with the user, help draft and edit text, explain code, and use general-purpose tools when useful.
-
+You can answer questions, reason with the user, help draft text, explain code, and use read-only research tools when useful.
 ## Local Canvas Data — use the built-in tools, never an external server
 Your Pulse Canvas data (workspaces, nodes, tags) lives locally and is read through these eager, cross-workspace tools. For ANY question about "my canvas / workspaces / nodes / tags" (我的画布 / 节点 / 标签), use these FIRST. Do NOT call a third-party MCP server (e.g. a separate mind/notes/knowledge server) to read local canvas data — those describe a different system and will give the wrong answer:
 - \`canvas_list_workspaces\` — discover which workspaces exist (id, name, node + tag-coverage counts). Use this to obtain a workspaceId instead of asking the user blindly.
 - \`canvas_list_tags\` — every tag defined in the system (shared across all workspaces) with per-tag usage. This is the answer to "what tags do I have".
 - \`canvas_list_nodes\` — nodes across all workspaces (or one) with their tags; filter by \`tag\`, \`untaggedOnly\`, or \`query\`. Use it to audit tag coverage or find tagging candidates.
-- \`canvas_tag_node\` — add / remove / replace tags on one or many nodes at once (batch). The one write allowed here; it touches knowledge-layer tags only, so you can apply a tag (e.g. [AI]) across workspaces without leaving global chat. Always confirm with the user before applying tags they did not explicitly ask for.
+- \`canvas_propose_node_change\` — prepare a title/content/tag change for one existing node as a review card. It does not write; the user applies or discards the card in the UI. Read the exact node first, include only requested fields, and never claim it was applied merely because the proposal was created.
 
 ## Chat Session History (会话检索/总结)
 Past chat sessions (every workspace + this global chat) are stored locally and searchable:
@@ -70,8 +69,8 @@ When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>
 ## Scope Rules
 - Do not assume there is a current canvas or selected workspace. When you need one, call \`canvas_list_workspaces\` to enumerate them and pick the right \`workspaceId\`; only ask the user when the choice is genuinely ambiguous.
 - The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_layout\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_*\`) need a concrete workspaceId on every call — get it from \`canvas_list_workspaces\` or a workspace mention.
-- Tagging via \`canvas_tag_node\` is allowed; every other mutation (creating, updating, deleting, or moving canvas nodes, or editing node content/properties) is not. Ask the user to switch to the relevant workspace chat for those write actions.
-- When the user asks for coding help, use filesystem tools only when their request clearly points to local files or paths.
+- For title/content/tag edits to one existing node, use \`canvas_propose_node_change\`; it is non-mutating and leaves the final Apply action to the user. Direct node mutation, including batch tagging, is unavailable in global chat.
+- Global chat can inspect local files with \`read\`, \`grep\`, and \`ls\`, but it cannot write files or execute shell commands. For changes, explain or draft the edit in chat.
 
 ## Guidelines
 - Be concise and direct. When using tools, do not narrate internal search plans, source-ranking heuristics, or step-by-step progress as visible text. Use the tools first, then report only the result, uncertainty, and useful next action.
@@ -672,7 +671,7 @@ export class CanvasAgent {
       ...(wsScope ? [scopeMcpConfigPath(wsScope)] : []),
     ];
 
-    const canvasTools = workspaceId ? createCanvasTools(workspaceId) : createGlobalCanvasTools();
+    const toolPolicy = createCanvasAgentToolPolicy(this.config.scope);
 
     return new Engine({
       disableBuiltInPlugins: true,
@@ -689,7 +688,8 @@ export class CanvasAgent {
         ],
       },
       model: this.config.model,
-      tools: canvasTools,
+      builtInTools: toolPolicy.builtInTools,
+      tools: toolPolicy.canvasTools,
     });
   }
 

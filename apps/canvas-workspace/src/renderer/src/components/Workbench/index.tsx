@@ -18,14 +18,17 @@ import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 import { useChatInsertionBridge } from './useChatInsertionBridge';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
+import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
 const ReferenceDrawer = lazy(() => import('../ReferenceDrawer').then((module) => ({ default: module.ReferenceDrawer })));
+const KnowledgeChatPortal = lazy(() => import('./KnowledgeChatPortal').then((module) => ({ default: module.KnowledgeChatPortal })));
 interface WorkbenchProps {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
   controller: WorkbenchController;
+  knowledgeChatContext: KnowledgeChatRouteContext;
   onSelectWorkspace: (workspaceId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
@@ -37,6 +40,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   activeWorkspaceId,
   workspaces,
   controller,
+  knowledgeChatContext,
   onSelectWorkspace,
   onOpenAppSettings,
   onOpenWorkspaceSettings,
@@ -59,9 +63,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     clearDeleteRequest,
     clearRenameRequest,
   } = controller;
-  // Chat lives in the right dock as its pinned tab; Workbench keeps owning
-  // the per-workspace ChatPanel instances (sessions, mentions, keep-alive)
-  // and portals them into the dock's chat pane.
   const dock = useRightDock();
   const dockState = useRightDockState();
   const chatHost = useRightDockChatHost();
@@ -88,7 +89,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       if (ref?.kind === 'workspace-node') ensureWorkspaceNodesLoaded(ref.workspaceId);
     }
   }, [activeNodes, ensureWorkspaceNodesLoaded]);
-
   const references = referencesByWorkspace[activeWorkspaceId] ?? EMPTY_REFERENCES;
   const activeReferenceId = activeReferenceIdByWorkspace[activeWorkspaceId];
   const activeReference = activeReferenceId
@@ -97,7 +97,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const activeReferenceNode = activeReference && activeReference.kind === 'node'
     ? (allNodes[activeReference.workspaceId] ?? []).find((node) => node.id === activeReference.nodeId)
     : undefined;
-
   const removeReference = useCallback((referenceId: string) => {
     setReferencesByWorkspace((prev) => {
       const current = prev[activeWorkspaceId] ?? [];
@@ -110,7 +109,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       return { ...prev, [activeWorkspaceId]: undefined };
     });
   }, [activeWorkspaceId]);
-
   const clearAllReferences = useCallback(() => {
     setReferencesByWorkspace((prev) => {
       if (!prev[activeWorkspaceId]?.length) return prev;
@@ -128,12 +126,10 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       [activeWorkspaceId]: nodeId,
     }));
   }, [activeWorkspaceId]);
-
   const handleFocusReferenceNode = useCallback((workspaceId: string, nodeId: string) => {
     if (workspaceId !== activeWorkspaceId) onSelectWorkspace(workspaceId);
     requestNodeFocus(workspaceId, nodeId);
   }, [activeWorkspaceId, onSelectWorkspace, requestNodeFocus]);
-
   useEffect(() => {
     const current = referencesByWorkspace[activeWorkspaceId];
     if (!current?.length) return;
@@ -469,34 +465,38 @@ export const Workbench: React.FC<WorkbenchProps> = ({
             );
           })}
         </div>
-        {/* Per-workspace ChatPanels render into the right dock's chat pane.
-            The portal escapes the keep-alive router's display:none wrapper,
-            so chat stays usable from any route while its state and handlers
-            keep living here next to the canvases. */}
         {chatHost && createPortal(
-          workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id) && loadedChatWorkspaceIds.has(ws.id)).map((ws) => (
-            <div
-              key={ws.id}
-              className="right-dock__chat-instance"
-              style={ws.id !== activeWorkspaceId ? { display: 'none' } : undefined}
-            >
-              <ChatPanel
-                workspaceId={ws.id}
-                allWorkspaces={workspaces}
-                nodes={allNodes[ws.id] || []}
-                selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
-                rootFolder={ws.rootFolder}
-                onClose={dock.collapse}
-                onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
-                onOpenAppSettings={onOpenAppSettings}
-                onOpenWorkspaceSettings={onOpenWorkspaceSettings}
-                onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
-                onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
-                onRegisterSubmitDomReviewComments={(fn) => registerSubmitDomReviewComments(ws.id, fn)}
-                onTurnComplete={dock.notifyChatActivity}
-              />
-            </div>
-          )),
+          <>
+            {workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id) && loadedChatWorkspaceIds.has(ws.id)).map((ws) => (
+              <div
+                key={ws.id}
+                className="right-dock__chat-instance"
+                style={knowledgeChatContext.active || ws.id !== activeWorkspaceId ? { display: 'none' } : undefined}
+              >
+                <ChatPanel
+                  workspaceId={ws.id}
+                  allWorkspaces={workspaces}
+                  nodes={allNodes[ws.id] || []}
+                  selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
+                  rootFolder={ws.rootFolder}
+                  onClose={dock.collapse}
+                  onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
+                  onOpenAppSettings={onOpenAppSettings}
+                  onOpenWorkspaceSettings={onOpenWorkspaceSettings}
+                  onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
+                  onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
+                  onRegisterSubmitDomReviewComments={(fn) => registerSubmitDomReviewComments(ws.id, fn)}
+                  onTurnComplete={dock.notifyChatActivity}
+                />
+              </div>
+            ))}
+            {knowledgeChatContext.active && (
+              <Suspense fallback={null}>
+                <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces}
+                  onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTurnComplete={dock.notifyChatActivity} />
+              </Suspense>
+            )}
+          </>,
           chatHost,
         )}
       <WorkspaceTerminalPortal

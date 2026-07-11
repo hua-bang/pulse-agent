@@ -10,6 +10,7 @@ import {
   isSafeNodeId,
   listWorkspaceNodeIds,
   listWorkspaceNodes,
+  mutateWorkspaceNode,
   readWorkspaceNode,
   writeWorkspaceNode,
   type WorkspaceNodeRecord,
@@ -103,6 +104,39 @@ describe('workspace-node-store', () => {
         root,
       ),
     ).rejects.toThrow(/unsafe node id/);
+  });
+
+  it('serializes compare-and-write mutations for the same node', async () => {
+    await writeWorkspaceNode(wsId, {
+      schemaVersion: WORKSPACE_NODE_SCHEMA_VERSION,
+      id: 'n1',
+      type: 'text',
+      title: 'Before',
+      data: { content: 'before' },
+      updatedAt: 1,
+    }, root);
+
+    let releaseEdit!: () => void;
+    const holdEdit = new Promise<void>((resolve) => { releaseEdit = resolve; });
+    let editEntered!: () => void;
+    const entered = new Promise<void>((resolve) => { editEntered = resolve; });
+    const edit = mutateWorkspaceNode(wsId, 'n1', async (current) => {
+      editEntered();
+      await holdEdit;
+      return {
+        record: { ...current!, title: 'Newer edit', updatedAt: 2 },
+        result: undefined,
+      };
+    }, root);
+    await entered;
+
+    const observed = mutateWorkspaceNode(wsId, 'n1', (current) => ({
+      result: current?.updatedAt,
+    }), root);
+    releaseEdit();
+
+    await edit;
+    expect(await observed).toBe(2);
   });
 
   it('deletes a workspace node explicitly', async () => {

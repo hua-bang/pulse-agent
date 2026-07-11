@@ -26,6 +26,7 @@
 
 .workspace-nodes-page {
   display: flex;
+  container-type: inline-size;
 }
 
 .workspace-nodes-page__main {
@@ -473,6 +474,20 @@
   top: 0;
   right: 0;
   bottom: 0;
+}
+
+/* At the default 1200px window, a 480px AI dock leaves too little room for
+ * an in-flow 520px Side Peek. Switch only the detail drawer to an overlay so
+ * the selected document and AI remain usable without crushing list cards. */
+@container (max-width: 900px) {
+  .workspace-nodes-page .node-detail-drawer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    min-width: min(320px, 100%);
+    max-width: min(520px, 100%);
+  }
 }
 
 .node-detail-panel {

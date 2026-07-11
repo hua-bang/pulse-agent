@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import { basename, dirname, join } from 'path';
 import { STORE_DIR } from './store';
+import { withStoreMutationLock } from './mutation-lock';
 
 export const TAGS_FILENAME = 'tags.json';
 export const TAGS_SCHEMA_VERSION = 1;
@@ -94,9 +95,9 @@ export async function readKnowledgeTags(root: string = STORE_DIR): Promise<Knowl
   }
 }
 
-export async function writeKnowledgeTags(
+async function writeKnowledgeTagsUnlocked(
   tags: KnowledgeTagDefinition[],
-  root: string = STORE_DIR,
+  root: string,
 ): Promise<void> {
   const normalized = normalizeTagsFile(tags);
   const file: TagsFile = {
@@ -104,6 +105,16 @@ export async function writeKnowledgeTags(
     tags: normalized,
   };
   await atomicWriteJson(getTagsFilePath(root), JSON.stringify(file, null, 2));
+}
+
+export async function writeKnowledgeTags(
+  tags: KnowledgeTagDefinition[],
+  root: string = STORE_DIR,
+): Promise<void> {
+  await withStoreMutationLock(
+    getTagsFilePath(root),
+    () => writeKnowledgeTagsUnlocked(tags, root),
+  );
 }
 
 function slugifyTagName(name: string): string {
@@ -135,24 +146,26 @@ export async function upsertKnowledgeTag(
   const name = normalizeOptionalText(input.name);
   if (!name) throw new Error('Tag name is required.');
 
-  const existing = await readKnowledgeTags(root);
-  const existingIds = new Set(existing.map((tag) => tag.id));
-  const id = normalizeOptionalText(input.id) ?? uniqueTagId(name, existingIds);
-  assertSafeTagId(id);
+  return withStoreMutationLock(getTagsFilePath(root), async () => {
+    const existing = await readKnowledgeTags(root);
+    const existingIds = new Set(existing.map((tag) => tag.id));
+    const id = normalizeOptionalText(input.id) ?? uniqueTagId(name, existingIds);
+    assertSafeTagId(id);
 
-  const now = Date.now();
-  const index = existing.findIndex((tag) => tag.id === id);
-  const next: KnowledgeTagDefinition = {
-    id,
-    name,
-    description: normalizeOptionalText(input.description),
-    createdAt: index >= 0 ? existing[index].createdAt : now,
-    updatedAt: now,
-  };
+    const now = Date.now();
+    const index = existing.findIndex((tag) => tag.id === id);
+    const next: KnowledgeTagDefinition = {
+      id,
+      name,
+      description: normalizeOptionalText(input.description),
+      createdAt: index >= 0 ? existing[index].createdAt : now,
+      updatedAt: now,
+    };
 
-  const tags = index >= 0
-    ? existing.map((tag, tagIndex) => (tagIndex === index ? next : tag))
-    : [...existing, next];
-  await writeKnowledgeTags(tags, root);
-  return next;
+    const tags = index >= 0
+      ? existing.map((tag, tagIndex) => (tagIndex === index ? next : tag))
+      : [...existing, next];
+    await writeKnowledgeTagsUnlocked(tags, root);
+    return next;
+  });
 }

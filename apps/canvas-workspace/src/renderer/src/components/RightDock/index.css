@@ -512,9 +512,9 @@
   pointer-events: auto;
 }
 
-/* Per-workspace ChatPanel instances portaled in by Workbench; the active
- * workspace's instance fills the pane, the rest are display-hidden by an
- * inline style (no webviews inside chat, so display:none is safe). */
+/* Workspace/global ChatPanel instances portaled in by Workbench; the active
+ * route's instance fills the pane, the rest are display-hidden by an inline
+ * style (no webviews inside chat, so display:none is safe). */
 .right-dock__chat-instance {
   position: absolute;
   inset: 0;

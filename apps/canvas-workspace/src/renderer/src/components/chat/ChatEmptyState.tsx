@@ -1,18 +1,23 @@
 import type { CanvasModelStatus } from '../../types';
-import { QUICK_ACTIONS } from './constants';
-import type { QuickAction } from './types';
+import {
+  KNOWLEDGE_QUICK_ACTIONS,
+  QUICK_ACTIONS,
+  type EmptyStateQuickAction,
+} from './constants';
 import { AppLogoIcon } from '../icons';
 import { useI18n } from '../../i18n';
 
-function QuickActionIcon({ action }: { action: QuickAction }) {
+function QuickActionIcon({ action }: { action: EmptyStateQuickAction }) {
   switch (action.key) {
     case 'summarize_canvas':
+    case 'summarize_knowledge':
       return (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M2.5 4h11M2.5 8h7.5M2.5 12h9" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
         </svg>
       );
     case 'analyze_relations':
+    case 'discover_themes':
       return (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <circle cx="4" cy="8" r="1.7" stroke="currentColor" strokeWidth="1.25" />
@@ -32,6 +37,7 @@ function QuickActionIcon({ action }: { action: QuickAction }) {
         </svg>
       );
     case 'organize_selection':
+    case 'improve_node':
     default:
       return (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -53,6 +59,7 @@ interface ChatEmptyStateProps {
   modelStatus?: CanvasModelStatus;
   /** Called when the user clicks the "Configure" CTA in the banner. */
   onConfigureModel?: () => void;
+  knowledgeMode?: boolean;
 }
 
 export const ChatEmptyState = ({
@@ -60,6 +67,7 @@ export const ChatEmptyState = ({
   onQuickAction,
   modelStatus,
   onConfigureModel,
+  knowledgeMode = false,
 }: ChatEmptyStateProps) => {
   const { t } = useI18n();
   const showConfigureBanner = modelStatus !== undefined && !modelStatus.apiKeyPresent;
@@ -68,18 +76,21 @@ export const ChatEmptyState = ({
       <div className="chat-empty-icon">
         <AppLogoIcon size={36} />
       </div>
-      <div className="chat-empty-greeting">{t('chat.emptyGreeting')}</div>
+      <div className="chat-empty-greeting">
+        {t(knowledgeMode ? 'chat.emptyKnowledgeGreeting' : 'chat.emptyGreeting')}
+      </div>
       <div className="chat-quick-actions">
-        {QUICK_ACTIONS.filter(action => !action.requiresSelection || selectedCount > 0).map(action => (
+        {(knowledgeMode ? KNOWLEDGE_QUICK_ACTIONS : QUICK_ACTIONS)
+          .filter(action => !action.requiresSelection || selectedCount > 0).map(action => (
           <button
             key={action.key}
             className="chat-quick-action"
-            onClick={() => onQuickAction(action.promptKey ? t(action.promptKey) : action.prompt, action.key)}
+            onClick={() => onQuickAction(t(action.promptKey), action.key)}
           >
             <span className="chat-quick-action-icon">
               <QuickActionIcon action={action} />
             </span>
-            <span>{action.labelKey ? t(action.labelKey) : action.label}</span>
+            <span>{t(action.labelKey)}</span>
           </button>
         ))}
       </div>

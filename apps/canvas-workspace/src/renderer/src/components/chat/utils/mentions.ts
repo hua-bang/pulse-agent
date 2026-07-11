@@ -228,7 +228,7 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
 
 /**
  * Collect structured, workspace-aware context refs from the inline mention
- * chips a user inserted into the composer. Used by the global (Nodes/Graph)
+ * chips a user inserted into the composer. Used by the global Nodes/detail
  * assistant so cross-workspace `@`-mentions resolve precisely — node refs carry
  * their workspaceId, tags the workspaces they occur in, canvases their id.
  */

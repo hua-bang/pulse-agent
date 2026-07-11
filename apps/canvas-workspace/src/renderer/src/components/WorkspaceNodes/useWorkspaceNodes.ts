@@ -171,6 +171,16 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
     void reload();
   }, [reload]);
 
+  useEffect(() => {
+    const api = window.canvasWorkspace?.workspaceNodes;
+    if (!api?.onChange) return undefined;
+    return api.onChange((event) => {
+      if (!event.workspaceIds?.length || event.workspaceIds.includes(workspaceId)) {
+        void reload();
+      }
+    });
+  }, [reload, workspaceId]);
+
   return { node, loading, error, reload, setNode };
 }
 

@@ -24,6 +24,16 @@ export interface EngineOptions {
   // 是否禁用内置插件（默认启用）
   disableBuiltInPlugins?: boolean;
 
+  /**
+   * Host-selected built-in tool set. Omit to use every engine built-in tool.
+   * Passing an empty object disables built-in tools while preserving plugin
+   * tools and the higher-priority `tools` layer.
+   *
+   * This is intentionally a replacement rather than a blocklist: hosts with a
+   * narrower trust boundary can opt in only the capabilities they reviewed.
+   */
+  builtInTools?: Record<string, Tool>;
+
   // 全局配置
   config?: Record<string, any>;
 
@@ -129,7 +139,7 @@ export interface EngineOptions {
  */
 export class Engine {
   private pluginManager: PluginManager;
-  private tools: Record<string, any> = { ...BuiltinToolsMap };
+  private tools: Record<string, any>;
   private options: EngineOptions = {};
   private config: Record<string, any> = {};
 
@@ -140,6 +150,7 @@ export class Engine {
   }
 
   constructor(options?: EngineOptions) {
+    this.tools = { ...(options?.builtInTools ?? BuiltinToolsMap) };
     this.pluginManager = new PluginManager(() => this.instance, options?.logger);
 
     // 初始化全局配置

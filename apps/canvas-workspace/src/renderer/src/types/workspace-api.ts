@@ -6,6 +6,10 @@ import type {
   WorkspaceNodeRecord,
 } from '../../../shared/canvas';
 import type { AgentApi } from './agent-chat';
+import type {
+  KnowledgeChangeApplyResult,
+  KnowledgeChangeProposal,
+} from '../../../shared/knowledge-change';
 import type { AgentTeamsApi } from './agent-teams';
 import type { AppInfoApi } from './app-info';
 import type { ArtifactsApi } from './artifacts';
@@ -154,6 +158,7 @@ export interface CanvasWorkspaceApi {
       node?: WorkspaceNodeRecord | null;
       error?: string;
     }>;
+    applyProposal: (proposal: KnowledgeChangeProposal) => Promise<KnowledgeChangeApplyResult>;
     /** Fires when workspace-node metadata changes in the main process. */
     onChange: (
       callback: (event: { workspaceIds: string[]; source: 'canvas-agent' | 'renderer' }) => void,
