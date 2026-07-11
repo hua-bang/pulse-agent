@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { SkillsInstallResult, SkillsStatusResult, SkillTargetResult } from '../../types';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
+import { Button } from '../ui';
 import './AgentSection.css';
 
 interface AgentSectionProps {
@@ -138,14 +139,9 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
                 {t('agent.description')}
               </div>
             </div>
-            <button
-              type="button"
-              className="agent-section-primary-btn"
-              onClick={() => void install()}
-              disabled={installing}
-            >
+            <Button variant="primary" size="sm" onClick={() => void install()} disabled={installing}>
               {buttonLabel}
-            </button>
+            </Button>
           </div>
 
           {error && <div className="agent-section-error">{error}</div>}
@@ -161,14 +157,9 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
                     {t('agent.legacyDescription')}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="agent-section-secondary-btn"
-                  onClick={() => void cleanupLegacy()}
-                  disabled={cleaningLegacy}
-                >
+                <Button variant="secondary" size="sm" onClick={() => void cleanupLegacy()} disabled={cleaningLegacy}>
                   {cleaningLegacy ? t('agent.removing') : t('agent.removeLegacyDirs')}
-                </button>
+                </Button>
               </div>
               <ul className="agent-section-warning-list">
                 {legacyDirs.map((dir) => (
@@ -209,13 +200,9 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
               </div>
               <div className="agent-section-cli-cmd-row">
                 <code className="agent-section-cli-cmd">{manualCommand}</code>
-                <button
-                  type="button"
-                  className="agent-section-secondary-btn"
-                  onClick={() => void copyManualCommand()}
-                >
+                <Button variant="secondary" size="sm" onClick={() => void copyManualCommand()}>
                   {copied ? t('agent.copied') : t('agent.copy')}
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -223,9 +210,9 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
       </div>
 
       <div className="agent-section-footer">
-        <button type="button" className="agent-section-secondary-btn" onClick={onClose}>
+        <Button variant="secondary" size="sm" onClick={onClose}>
           {t('agent.close')}
-        </button>
+        </Button>
       </div>
     </div>
   );

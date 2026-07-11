@@ -13,6 +13,7 @@ import {
   specsFromCanvasPluginsStatus,
 } from '../../../../plugins/renderer';
 import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../constants/canvasPlugins';
+import { Button, TextField } from '../ui';
 import './settings-config.css';
 
 const countImportEntries = (entries: CanvasPluginsImportEntry[]) => {
@@ -83,23 +84,22 @@ const PluginConfigEditor = ({ plugin, saving, onSave }: PluginConfigEditorProps)
           const inputType = field.type === 'password' ? 'password' : field.type === 'url' ? 'url' : 'text';
           return (
             <div key={field.key} className="cfg-plugin-config-row">
-              <label className="cfg-field cfg-plugin-config-field">
-                <span>
-                  {field.label ?? field.key}
-                  {field.required && <span className="cfg-required">*</span>}
-                </span>
-                <input
-                  className="cfg-input"
-                  type={inputType}
-                  value={value}
-                  placeholder={
-                    field.configured
-                      ? t('pluginConfig.configKeepPlaceholder')
-                      : field.placeholder ?? t('pluginConfig.configEnterPlaceholder')
-                  }
-                  onChange={(event) => setDraft(field.key, event.target.value)}
-                />
-              </label>
+              <TextField
+                label={
+                  <>
+                    {field.label ?? field.key}
+                    {field.required && <span className="cfg-required">*</span>}
+                  </>
+                }
+                type={inputType}
+                value={value}
+                placeholder={
+                  field.configured
+                    ? t('pluginConfig.configKeepPlaceholder')
+                    : field.placeholder ?? t('pluginConfig.configEnterPlaceholder')
+                }
+                onChange={(event) => setDraft(field.key, event.target.value)}
+              />
               <div className="cfg-plugin-config-meta">
                 <span className={`cfg-health cfg-health--${field.source === 'missing' ? 'unknown' : 'ok'}`}>
                   {configStatusLabel(field, t)}
@@ -115,18 +115,13 @@ const PluginConfigEditor = ({ plugin, saving, onSave }: PluginConfigEditorProps)
               </div>
               <div className="cfg-plugin-config-actions">
                 {field.source === 'stored' && (
-                  <button
-                    type="button"
-                    className="cfg-secondary-btn"
-                    onClick={() => void onSave(plugin.id, field.key, '')}
-                    disabled={saving}
-                  >
+                  <Button variant="secondary" size="sm" onClick={() => void onSave(plugin.id, field.key, '')} disabled={saving}>
                     {t('pluginConfig.configClear')}
-                  </button>
+                  </Button>
                 )}
-                <button
-                  type="button"
-                  className="cfg-primary-btn"
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={() => {
                     void onSave(plugin.id, field.key, value);
                     setDraft(field.key, '');
@@ -134,7 +129,7 @@ const PluginConfigEditor = ({ plugin, saving, onSave }: PluginConfigEditorProps)
                   disabled={saving || !value.trim()}
                 >
                   {t('pluginConfig.configSave')}
-                </button>
+                </Button>
               </div>
             </div>
           );
@@ -311,20 +306,17 @@ export const PluginsManager = () => {
     <div className="cfg-manager">
       <div className="cfg-toolbar">
         <span className="cfg-toolbar-hint">{t('pluginConfig.reloadHint')}</span>
-        <button type="button" className="cfg-secondary-btn" onClick={() => void load()} disabled={loading || saving}>
+        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>
           {t('pluginConfig.refresh')}
-        </button>
-        <button type="button" className="cfg-secondary-btn" onClick={chooseDirectory} disabled={saving}>
+        </Button>
+        <Button variant="secondary" size="sm" onClick={chooseDirectory} disabled={saving}>
           {t('pluginConfig.chooseDirectory')}
-        </button>
-        <button
-          type="button"
-          className="cfg-secondary-btn"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={saving}
-        >
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()} disabled={saving}>
           {t('pluginConfig.importJson')}
-        </button>
+        </Button>
+        {/* Hidden, programmatically-triggered file picker — no visible label/
+         * chrome for ui/TextField to replace. */}
         <input
           ref={fileInputRef}
           type="file"
@@ -335,22 +327,19 @@ export const PluginsManager = () => {
       </div>
 
       <div className="cfg-form">
-        <label className="cfg-field">
-          <span>{t('pluginConfig.manualPath')}</span>
-          <input
-            className="cfg-input"
-            value={pathText}
-            placeholder={t('pluginConfig.manualPathPlaceholder')}
-            onChange={(event) => setPathText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') void addPath();
-            }}
-          />
-        </label>
+        <TextField
+          label={t('pluginConfig.manualPath')}
+          value={pathText}
+          placeholder={t('pluginConfig.manualPathPlaceholder')}
+          onChange={(event) => setPathText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') void addPath();
+          }}
+        />
         <div className="cfg-form-actions">
-          <button type="button" className="cfg-primary-btn" onClick={addPath} disabled={saving}>
+          <Button variant="primary" size="sm" onClick={addPath} disabled={saving}>
             {t('pluginConfig.addPath')}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -374,14 +363,9 @@ export const PluginsManager = () => {
                   </div>
                 </div>
                 <div className="cfg-list-actions">
-                  <button
-                    type="button"
-                    className="cfg-danger-btn"
-                    onClick={() => void removeDirectory(plugin.dir)}
-                    disabled={saving}
-                  >
+                  <Button variant="danger" size="sm" onClick={() => void removeDirectory(plugin.dir)} disabled={saving}>
                     {t('pluginConfig.remove')}
-                  </button>
+                  </Button>
                 </div>
               </div>
 

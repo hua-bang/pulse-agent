@@ -56,18 +56,40 @@ const RATCHET_BASELINE: Record<string, number> = {
   // count) — 5 such declarations (Shape had two: fill + stroke) collapsed
   // onto ui/SwatchRow's one shared `<button>` declaration. -5 removed, +1
   // for SwatchRow itself (landmine #2) = -4 net.
-  rawButtonTags: 392,
+  // 392→353 (settings/panel slice, first settings-family batch):
+  // Settings/{AgentSection,BuiltInToolsSection,ExperimentalSection,
+  // UpdateSection}.tsx and settings-config/{SkillsManager,McpManager,
+  // PluginsManager}.tsx migrated their standard action buttons onto
+  // ui/Button — 39 declarations collapsed (net, no new ui/ piece added this
+  // batch since Button/TextField/Select already existed). See
+  // ui-reuse-burndown.md's "Settings/panel surface slice" for the per-file
+  // census and skip verdicts (nav rail, card-radiogroup, ghost secondary
+  // button, compact list-row expanders, ChannelConfigPanel's bespoke
+  // translucent palette all stayed hand-rolled).
+  rawButtonTags: 353,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
-  rawInputTags: 54,
+  // 54→40 (settings/panel slice): 14 text/secret <input> declarations
+  // (BuiltInToolsSection apiKey+baseUrl, PluginsManager path+per-field,
+  // SkillsManager name+description+search, McpManager name+command+cwd+url+
+  // oauthClientId+oauthClientSecret+oauthScope) migrated onto ui/TextField.
+  // Hidden file-picker inputs, checkboxes (deferTools, experimental toggle),
+  // and ChannelConfigPanel's 3 fields stayed hand-rolled — see
+  // ui-reuse-burndown.md.
+  rawInputTags: 40,
   // raw <textarea> tags in .tsx — falls as ui/TextField(multiline) absorbs
   // them. Held at the pre-extension 13: ui/TextField's own <textarea> (+1)
   // is offset by PromptSettings' custom-prompt field adopting TextField (-1).
   // 13→15 (2026-07-10, drift recorded): 8d848aa's iframe review-comment
   // composer added 2 raw <textarea>s off-ratchet — same recording as
   // rawButtonTags above.
-  rawTextareaTags: 15,
+  // 15→9 (settings/panel slice): all 6 remaining cfg-textarea declarations
+  // (SkillsManager mdText+body, McpManager jsonText+args+env+headers)
+  // migrated onto ui/TextField multiline, with a small `.cfg-textarea-mono`
+  // className preserving the monospace font for code/markdown content —
+  // see ui-reuse-burndown.md.
+  rawTextareaTags: 9,
   // real native <select> elements — the blessed control is the ui/Select
   // custom popover. 0: none exist; this is a pure backstop against
   // reintroduction (doc mentions no longer count — comment-stripped).
@@ -110,7 +132,11 @@ const RATCHET_BASELINE: Record<string, number> = {
   // `border-radius: 50%;` — -3 removed, +1 for SwatchRow itself = -2 net.
   // (ShapeNodeBody's pre-migration swatch already used `var(--radius-xs)`,
   // so it didn't move this counter either way.)
-  borderRadiusLiterals: 122,
+  // 122→121 (settings/panel slice): UpdateSection's dead
+  // `.updates-section-primary-btn,.updates-section-secondary-btn` rule
+  // carried a literal `border-radius: 7px;` (not tokenized) — deleted along
+  // with the rest of that now-unused button CSS.
+  borderRadiusLiterals: 121,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -232,7 +258,16 @@ const RATCHET_BASELINE: Record<string, number> = {
   // `--none` diagonal-slash rule (no existing token for that red; same
   // "content palette, not chrome" reasoning this suite's own top comment
   // already carves out for tsx inline-style color pickers). Net -7.
-  hardcodedColorLiterals: 1952,
+  // 1952→1893 (settings/panel slice): deleting the now-dead per-section
+  // button/input CSS clusters (agent-section-*-btn, experimental-section-
+  // *-btn, updates-section-*-btn, built-in-tool-field/-primary-btn, the
+  // shared cfg-primary-btn/cfg-secondary-btn/cfg-danger-btn/cfg-input/
+  // cfg-textarea/select.cfg-input rules in settings-config.css, and the
+  // now-unreachable `.cfg-list-actions .cfg-secondary-btn/.cfg-danger-btn`
+  // override) removed 59 hex/rgba() literals — real deletions, matching
+  // ui/Button's and ui/TextField's near-byte-identical existing chrome, not
+  // new tokenization.
+  hardcodedColorLiterals: 1893,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -285,7 +320,12 @@ const RATCHET_BASELINE: Record<string, number> = {
   // specifically, not just "any var"). ui/SwatchRow reuses EdgeStylePanel's
   // exact active-ring declaration once (+1 counted, same reason) and adds
   // no other box-shadow. Net -3.
-  shadowLiterals: 157,
+  // 157→154 (settings/panel slice): BuiltInToolsSection's dead
+  // `.built-in-tool-field input` rules carried 2 literal box-shadow lines
+  // (inset base ring + a 2px literal focus ring, a near-variant of
+  // --shadow-focus's 3px) and `.built-in-tool-primary-btn` carried 1 more —
+  // all 3 deleted with the now-unused CSS.
+  shadowLiterals: 154,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw
@@ -310,7 +350,12 @@ const RATCHET_BASELINE: Record<string, number> = {
   // WorkspaceSettings, ChannelConfigPanel, BuiltInToolsSection, ChatPanel,
   // settings-config) are frozen stock — new-code ratchet, not a sweep, per
   // the deliverable's explicit scope limit.
-  sectionFieldCssClusters: 14,
+  // 14→12 (settings/panel slice): BuiltInToolsSection's `.built-in-tool-
+  // field` and settings-config's `.cfg-plugin-config-field` rule openers
+  // (both matching this counter's `*-field` shape) were deleted once their
+  // last consumer migrated onto ui/TextField (which already carries
+  // equivalent layout via `.ui-textfield`'s own min-width:0/gap).
+  sectionFieldCssClusters: 12,
   // non-ui, non-test .tsx files whose content has BOTH useClickOutside( AND
   // useMenuKeyboardNav( and NOT createPortal( — the signature of a
   // hand-rolled trigger-anchored dropdown living outside ui/DropdownShell.

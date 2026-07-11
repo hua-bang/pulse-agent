@@ -190,42 +190,6 @@
   cursor: progress;
 }
 
-.experimental-section-primary-btn {
-  border: none;
-  background: #2383e2;
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 600;
-  border-radius: var(--radius-sm);
-  padding: 7px 14px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.experimental-section-primary-btn:hover {
-  background: #1f76cc;
-}
-
-.experimental-section-primary-btn:disabled {
-  background: rgba(35, 131, 226, 0.45);
-  cursor: not-allowed;
-}
-
-.experimental-section-secondary-btn {
-  border: 1px solid rgba(55, 53, 47, 0.12);
-  background: #fff;
-  color: #37352f;
-  font-size: 12.5px;
-  font-weight: 500;
-  border-radius: var(--radius-sm);
-  padding: 6px 14px;
-  cursor: pointer;
-}
-
-.experimental-section-secondary-btn:hover {
-  background: rgba(55, 53, 47, 0.04);
-}
-
 .experimental-section-footer {
   border-top: 1px solid rgba(55, 53, 47, 0.07);
   padding: 12px 24px;

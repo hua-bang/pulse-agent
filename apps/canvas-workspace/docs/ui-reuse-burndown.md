@@ -469,6 +469,115 @@ old `<strong>` was presentational emphasis, already carried by the title's
 font-weight — stays on the default). (3) the mousedown "3 of 4" miscount
 above was corrected to 2-of-4.
 
+## Settings/panel surface slice — DONE 2026-07-11
+
+The first SETTINGS-FAMILY slice of C3's "migrate `rawButtonTags`/
+`rawInputTags` by SURFACE SLICE" bullet, following the "pilot surface slice"
+precedent (IframeNodeBody, 2026-07-10) — one component family, per-instance
+judgment, not a mechanical pass. This slice is exactly the surface the pilot
+predicted would fit: `src/renderer/src/components/Settings/` (the global
+settings drawer's sections) and `src/renderer/src/components/settings-config/`
+(the Skills/MCP/Plugins CRUD managers shared by global settings and the
+per-workspace drawer). Unlike the pilot, this slice is NOT a near-miss —
+`settings-config.css`'s own header comment already documented that its
+`cfg-primary-btn`/`cfg-secondary-btn`/`cfg-danger-btn` (30px, `var(--radius-md)`,
+`#2383e2`/`#fff`/`#37352f`) and `cfg-input`/`cfg-textarea` (34px, same border/
+focus-ring) were the DOMINANT cluster `ui/Button` and `ui/TextField` were
+literally built from (see each piece's own JSDoc). Several MORE near-twin
+button clusters turned up in `Settings/*.css` (`agent-section-*-btn`,
+`experimental-section-*-btn` — byte-identical CSS to agent-section's,
+`built-in-tool-*-btn`, `updates-section-*-btn`) — un-consolidated stock from
+before `ui/Button` existed, now absorbed.
+
+Census (raw `<button>`/`<input>`/`<textarea>`/native-select instances,
+production files only, one JSX declaration counted regardless of `.map()`
+repeat count — matching the ratchet's own counting):
+
+| File | Raw (btn/input/textarea) | Migrated | Skipped — verdict |
+|---|---|---|---|
+| `Settings/index.tsx` | 1 / 0 / 0 | 0 | 1 button: `.settings-rail-item` — a vertical nav-rail row (label + description, two lines), not a CTA/tab shape either `ui/Button` or `ui/SegmentedControl` expresses. Same class of skip as RightDock's tab strip (governance's own `segmentedRoles` comment). |
+| `Settings/AgentSection.tsx` | 4 / 0 / 0 | 4 buttons | — |
+| `Settings/BuiltInToolsSection.tsx` | 3 / 2 / 0 | 2 buttons + 2 inputs | 1 button: "Clear stored" — `.built-in-tool-actions .built-in-tool-secondary-btn` overrides to a borderless/transparent "ghost" style to de-emphasize it next to Save; `ui/Button`'s `secondary` variant is always bordered+white, no ghost variant exists. Stayed hand-rolled; base `.built-in-tool-secondary-btn` CSS simplified to just this one surviving ghost declaration. |
+| `Settings/ChannelConfigPanel.tsx` | 3 / 3 / 0 | 0 | All 6: deliberately styled as a distinct translucent dark-chrome sub-panel (`--surface-1: rgba(0,0,0,0.2)`, `--border-subtle: rgba(255,255,255,0.14)`, literal `border-radius: 7px`) nested inside the (otherwise opaque light) `ExperimentalSection` feature list — `--accent` resolves to the same `#2383e2` everywhere, but the surface/border tokens are unique to this file and render a visibly muted-gray card, not `ui/Button`'s/`ui/TextField`'s opaque white chrome. Same class of skip as the iframe review popover's bespoke slate palette (pilot slice). |
+| `Settings/ExperimentalSection.tsx` | 3 / 1 / 0 | 3 buttons | 1 input: the feature-toggle switch (`type="checkbox"` driving a track+thumb visual) — a switch component, not a text field; no `ui/` equivalent exists yet. |
+| `Settings/LanguageSection/index.tsx` | 1 / 0 / 0 | 0 | 1 button: the language `role="radio"` option — already evaluated and left as frozen stock by the governance test's own `segmentedRoles` comment (card/grid chooser, a different visual language than `SegmentedControl`'s compact pill). Re-confirmed, not re-litigated. |
+| `Settings/UpdateSection.tsx` | 2 / 0 / 0 | 2 buttons | — |
+| `settings-config/McpManager.tsx` | 14 / 8 / 4 | 12 buttons + 7 inputs + 4 textareas | 2 buttons: `.cfg-expander` disclosure-triangle toggles (18×18px, compact icon-row chrome — same skip class as the pilot slice's iframe toolbar icon buttons). 1 input: `deferTools` checkbox (not a text field). |
+| `settings-config/McpManagerParts.tsx` | 0 / 1 / 0 | 0 | 1 input: per-tool enable checkbox (not a text field; file untouched). |
+| `settings-config/PluginsManager.tsx` | 7 / 3 / 0 | 7 buttons + 2 inputs | 1 input: hidden `type="file"` picker, triggered programmatically via ref, no visible label/chrome for `ui/TextField` to replace. |
+| `settings-config/SkillsManager.tsx` | 9 / 4 / 2 | 9 buttons + 3 inputs + 2 textareas | 1 input: hidden `type="file"` picker (same shape as PluginsManager's). |
+| **Total** | **47 / 22 / 6 = 75** | **39 buttons + 14 inputs + 6 textareas = 59** | **8 buttons + 8 inputs = 16** |
+
+Notes on the migrated set:
+- `McpManager.tsx`'s and `SkillsManager.tsx`'s multi-line textareas
+  (`jsonText`/`mdText`/`draft.body`, all pre-migration `rows={10}`) kept
+  `rows={10}` explicitly — `rows`-driven intrinsic height (~214px) is TALLER
+  than `ui/TextField`'s CSS `min-height: 140px` floor, so dropping `rows`
+  would have silently shrunk these fields. `args`/`env`/`headers`
+  (pre-migration `rows={3}`) had the opposite relationship — `rows={3}`'s
+  intrinsic height is already smaller than the 140px CSS floor, so the floor
+  was already winning pre-migration; `rows` was dropped there with zero
+  visual change.
+- A new `.cfg-textarea-mono` helper (`font-family: var(--font-mono);
+  font-size: 12.5px;`) preserves the one visual difference `ui/TextField`'s
+  textarea doesn't carry — monospacing for SKILL.md/JSON/args/env/headers
+  content — passed via `className`, which lands on the control per
+  `ui/TextField`'s contract.
+- `PluginsManager.tsx`'s `PluginConfigEditor` fields sit in a CSS grid
+  (`.cfg-plugin-config-row`); `ui/TextField`'s own `.ui-textfield` wrapper
+  already carries `min-width: 0` and an equivalent `flex-column` layout, so
+  no extra `className` was needed to preserve the grid-item behavior once
+  `.cfg-plugin-config-field`'s now-redundant `min-width: 0` was deleted.
+- Bespoke dead CSS was deleted, not left orphaned: the per-section button
+  clusters (`agent-section-*-btn`, `experimental-section-*-btn`,
+  `updates-section-*-btn`, `built-in-tool-field`/`built-in-tool-primary-btn`)
+  and the shared `settings-config.css` rules
+  (`cfg-primary-btn`/`cfg-secondary-btn`/`cfg-danger-btn`, base `cfg-input`/
+  `cfg-textarea`, `select.cfg-input`, the now-unreachable
+  `.cfg-list-actions .cfg-secondary-btn/.cfg-danger-btn` compact override,
+  the small-viewport button-width media rule) are gone. `settings-config.css`
+  shrank from 665 to 557 lines; `SkillsManager.tsx` 510→498 (file-size
+  baseline 510, still a must-not-grow ceiling, not moved — same treatment
+  GraphPage.tsx got in the API-extension batch); `McpManager.tsx` 780→748
+  (baseline 786, likewise not moved).
+
+Counter movement (baselines lowered in the same commit, with provenance
+comments in `src/main/__tests__/ui-reuse-governance.test.ts`):
+
+| Counter | Before | After |
+|---|---|---|
+| `rawButtonTags` | 392 | 353 |
+| `rawInputTags` | 54 | 40 |
+| `rawTextareaTags` | 15 | 9 |
+| `borderRadiusLiterals` | 122 | 121 |
+| `hardcodedColorLiterals` | 1952 | 1893 |
+| `shadowLiterals` | 157 | 154 |
+| `sectionFieldCssClusters` | 14 | 12 |
+
+18/18 governance tests green with the new baselines. `pnpm --filter
+canvas-workspace typecheck` clean. `pnpm run visual` 13/13, every baseline PNG
+byte-identical (settings panels are not in the showcase — confirms this slice
+never touched a `ui/` piece's own chrome, only call sites). Full `npx vitest
+run`: 971 passed, the same 5 pre-existing Electron-dependent files fail
+(`Electron failed to install correctly` — a container/environment limitation,
+not a regression: `main/__tests__/{codex-sessions,welcome-workspace,
+workspace-export-external-files}.test.ts`,
+`main/agent/__tests__/knowledge-tools.test.ts`,
+`plugins/main/__tests__/external.test.ts`). `node
+harness/tools/describe-canvas.mjs` exits 0, no drift.
+
+**Behavior tests — not added, stated plainly.** Every migrated file in this
+slice loads and mutates its data by calling `window.canvasWorkspace.*`
+directly inside effects/callbacks (`skills.*`, `builtInTools.*`,
+`experimental.*`, `appInfo.checkForUpdates`, `canvasSkills.*`, `canvasMcp.*`,
+`canvasPlugins.*`) with no props-level injection seam — the same shape as
+`WorkspaceSettings/index.tsx` (this family's own migrated reference, also
+untested for the identical reason). No test anywhere in this renderer mocks
+`window.canvasWorkspace`; introducing that mocking convention is new test
+infrastructure, out of scope for a per-instance chrome migration. This
+matches the brief's own escape hatch and the established precedent — these
+panels are too IPC-coupled to mount meaningfully without it.
+
 ## Batch C3 — normalization + the big two (visual gate first)
 
 **Prerequisite — DONE 2026-07-10**: `ui/` showcase page + Playwright
