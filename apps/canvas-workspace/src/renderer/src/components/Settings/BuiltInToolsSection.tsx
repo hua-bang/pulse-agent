@@ -6,6 +6,7 @@ import type {
 } from '../../types';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
+import { Button, TextField } from '../ui';
 import './BuiltInToolsSection.css';
 
 interface BuiltInToolsSectionProps {
@@ -196,29 +197,30 @@ export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
                 </div>
 
                 <div className="built-in-tool-form">
-                  <label className="built-in-tool-field">
-                    <span>{t('toolsConfig.apiKey')}</span>
-                    <input
-                      type="password"
-                      value={apiKeyDraft}
-                      placeholder={
-                        credential.apiKeyPresent
-                          ? t('toolsConfig.keepSavedPlaceholder')
-                          : t('toolsConfig.enterKeyPlaceholder')
-                      }
-                      onChange={(event) => setDraftField(credential.id, 'apiKey', event.target.value)}
-                    />
-                  </label>
-                  <label className="built-in-tool-field">
-                    <span>{t('toolsConfig.baseUrl')}</span>
-                    <input
-                      value={baseUrlDraft}
-                      placeholder={credential.baseUrl}
-                      onChange={(event) => setDraftField(credential.id, 'baseUrl', event.target.value)}
-                    />
-                  </label>
+                  <TextField
+                    label={t('toolsConfig.apiKey')}
+                    type="password"
+                    value={apiKeyDraft}
+                    placeholder={
+                      credential.apiKeyPresent
+                        ? t('toolsConfig.keepSavedPlaceholder')
+                        : t('toolsConfig.enterKeyPlaceholder')
+                    }
+                    onChange={(event) => setDraftField(credential.id, 'apiKey', event.target.value)}
+                  />
+                  <TextField
+                    label={t('toolsConfig.baseUrl')}
+                    value={baseUrlDraft}
+                    placeholder={credential.baseUrl}
+                    onChange={(event) => setDraftField(credential.id, 'baseUrl', event.target.value)}
+                  />
                   <div className="built-in-tool-actions">
                     {hasStoredConfig && (
+                      // Bespoke ghost/borderless style (`.built-in-tool-actions
+                      // .built-in-tool-secondary-btn`) deliberately de-emphasizes
+                      // this destructive-adjacent action next to Save — ui/Button's
+                      // secondary variant always renders bordered+white, so this
+                      // stays hand-rolled (see ui-reuse-burndown.md).
                       <button
                         type="button"
                         className="built-in-tool-secondary-btn"
@@ -228,14 +230,9 @@ export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
                         {clearingId === credential.id ? t('toolsConfig.clearing') : t('toolsConfig.clearStored')}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className="built-in-tool-primary-btn"
-                      onClick={() => void save(credential)}
-                      disabled={savingId === credential.id}
-                    >
+                    <Button variant="primary" size="sm" onClick={() => void save(credential)} disabled={savingId === credential.id}>
                       {savingId === credential.id ? t('toolsConfig.saving') : t('toolsConfig.saveKey')}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -245,9 +242,9 @@ export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
       </div>
 
       <div className="built-in-tools-footer">
-        <button type="button" className="built-in-tool-secondary-btn" onClick={onClose}>
+        <Button variant="secondary" size="sm" onClick={onClose}>
           {t('agent.close')}
-        </button>
+        </Button>
       </div>
     </div>
   );

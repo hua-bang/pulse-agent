@@ -32,9 +32,15 @@ export const useMenuKeyboardNav = (
   // `onClose` don't yank focus back to the top mid-navigation.
   useEffect(() => {
     if (!enabled || !autoFocus) return;
-    const initial = ref.current?.querySelector<HTMLButtonElement>(
-      '[data-menu-autofocus="true"]:not(:disabled), button:not(:disabled)',
-    );
+    // Two-step lookup, NOT a single comma-selector: querySelector on
+    // 'a, b' returns the first DOM-order match of EITHER clause, so a
+    // combined selector can never PRIORITIZE the marked item — every
+    // enabled <button> before it wins (review finding: the marker was
+    // inert since introduction, silently defeating selected-item focus
+    // in ui/Select, EdgeStylePanel, and ui/SwatchRow hosts).
+    const initial =
+      ref.current?.querySelector<HTMLButtonElement>('[data-menu-autofocus="true"]:not(:disabled)') ??
+      ref.current?.querySelector<HTMLButtonElement>('button:not(:disabled)');
     initial?.focus();
   }, [autoFocus, enabled, ref]);
 

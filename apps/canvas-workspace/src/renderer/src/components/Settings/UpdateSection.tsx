@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { UpdateCheckResult, UpdateManifestSummary } from '../../types';
 import { CheckIcon, ImportIcon, RefreshIcon, SpinnerIcon } from '../icons';
-import { SectionHeader } from '../ui';
+import { Button, SectionHeader } from '../ui';
 import { useI18n } from '../../i18n';
 import './UpdateSection.css';
 
@@ -149,10 +149,10 @@ export const UpdateSection = () => {
           ) : null}
         </div>
         {result.updateAvailable ? (
-          <button type="button" className="updates-section-primary-btn" onClick={openDownload}>
+          <Button variant="primary" size="sm" onClick={openDownload}>
             <ImportIcon size={14} />
             <span>{t('updateNotice.download')}</span>
-          </button>
+          </Button>
         ) : null}
       </div>
     );
@@ -168,15 +168,15 @@ export const UpdateSection = () => {
               title={t('settings.updates.introTitle')}
               description={t('settings.updates.introDescription')}
             />
-            <button
-              type="button"
-              className="updates-section-secondary-btn"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => void checkForUpdates()}
               disabled={updateStatus.status === 'checking'}
             >
               <RefreshIcon size={14} />
               <span>{t('settings.updates.checkAgain')}</span>
-            </button>
+            </Button>
           </div>
           {body}
         </div>

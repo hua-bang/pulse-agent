@@ -54,6 +54,10 @@ Keep source-of-truth routing lightweight and human-readable. Do not maintain a s
 
 ## Principles
 
+> "Everything should be made as simple as possible, but not simpler." — attributed to Einstein
+
+Both halves are load-bearing here: "as simple as possible" is the Occam/reuse-first rule (no parallel entries, no speculative assets, delete what stops earning its place); "but not simpler" is the honesty rule (do not pretend a doc line is a mechanism, do not delete complexity a real contract still needs).
+
 - Root entry files route; they do not duplicate workspace knowledge.
 - `pnpm-workspace.yaml` maps workspaces; workspace-local `harness/validate/validation.yaml` maps local checks; root `validate/validation.yaml` maps root config and cross-workspace impact. Keep other routing in Markdown until it proves stable enough to mechanize.
 - Workspace facts live near the workspace.

@@ -5,6 +5,17 @@ import './index.css';
 
 type Placement = 'top' | 'bottom';
 type Align = 'start' | 'center' | 'end';
+/**
+ * Why the panel closed itself (dismissal paths the shell owns). Omitted for
+ * open transitions and for closes the shell can't attribute to one of these
+ * two paths (trigger re-click, an item pick via the render-prop `close()`) —
+ * those keep calling `onOpenChange(open)` with no second argument, so
+ * existing single-arg callers are unaffected. `'escape'` is the only reason
+ * that should ever move focus: `'outside'` means the user's attention is
+ * already elsewhere (e.g. clicked another control), so yanking focus back to
+ * the trigger would fight that.
+ */
+type DropdownCloseReason = 'escape' | 'outside';
 
 interface Props {
   /** Caller renders its own trigger button(s); receives the live open state
@@ -16,6 +27,14 @@ interface Props {
   align?: Align;
   /** ARIA role on the panel. Default 'menu'. */
   role?: string;
+  /** Accessible name for the panel — a bare role="menu" announces as an
+   *  unnamed menu, so pass one whenever the menu's purpose isn't obvious
+   *  from its items. */
+  ariaLabel?: string;
+  /** `id` rendered on the panel so the caller's trigger can point
+   *  `aria-controls` at it (the trigger is caller-rendered, so the shell
+   *  can't wire the linkage itself). */
+  panelId?: string;
   /** Extra class on the ROOT wrapper (the `position: relative` element). */
   className?: string;
   /** Extra class on the anchored panel. */
@@ -28,7 +47,15 @@ interface Props {
    * defined outside the component has no other way to close it.
    */
   children: ReactNode | ((args: { open: boolean; close: () => void }) => ReactNode);
-  onOpenChange?: (open: boolean) => void;
+  /**
+   * Fires on every open/close transition. `reason` is only set for the two
+   * dismissal paths a caller might treat differently — `'escape'` (restore
+   * focus to the trigger) vs `'outside'` (don't: the user already moved
+   * focus/attention elsewhere by clicking outside). It is omitted (single-arg
+   * call, same as before this option existed) for opening, trigger-toggle
+   * closes, and item-pick closes via the render-prop `close()`.
+   */
+  onOpenChange?: (open: boolean, reason?: DropdownCloseReason) => void;
   /**
    * Extra mousedown handling on the panel, on top of the built-in
    * stopPropagation (e.g. `preventDefault` to keep an editor focused while
@@ -72,6 +99,8 @@ export const DropdownShell = ({
   placement = 'bottom',
   align = 'start',
   role = 'menu',
+  ariaLabel,
+  panelId,
   className,
   panelClassName,
   children,
@@ -82,15 +111,20 @@ export const DropdownShell = ({
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const applyOpen = (next: boolean) => {
+  const applyOpen = (next: boolean, reason?: DropdownCloseReason) => {
     setOpen(next);
-    onOpenChange?.(next);
+    if (reason) onOpenChange?.(next, reason);
+    else onOpenChange?.(next);
   };
   const toggle = () => applyOpen(!open);
+  // Exposed to children via the render-prop — an item pick dismissing the
+  // panel isn't a reason a caller needs to react to differently.
   const close = () => applyOpen(false);
+  const closeFromOutside = () => applyOpen(false, 'outside');
+  const closeFromEscape = () => applyOpen(false, 'escape');
 
-  useClickOutside(rootRef, close, open);
-  useMenuKeyboardNav(panelRef, close, open);
+  useClickOutside(rootRef, closeFromOutside, open);
+  useMenuKeyboardNav(panelRef, closeFromEscape, open);
 
   const rootClass = ['ui-dropdown', open && 'ui-dropdown--open', className].filter(Boolean).join(' ');
   const panelClass = [
@@ -110,6 +144,8 @@ export const DropdownShell = ({
           ref={panelRef}
           className={panelClass}
           role={role}
+          aria-label={ariaLabel}
+          id={panelId}
           onMouseDown={(event) => {
             onPanelMouseDown?.(event);
             event.stopPropagation();

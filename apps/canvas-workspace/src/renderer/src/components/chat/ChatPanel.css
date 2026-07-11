@@ -41,7 +41,7 @@
   color: #37352f;
   border: none;
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 5px 7px;
   cursor: pointer;
   transition: background 0.1s;
@@ -100,7 +100,7 @@
   max-width: 280px;
   background: #fff;
   border: 1px solid rgba(55, 53, 47, 0.09);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
   padding: 4px;
   animation: chat-menu-in 0.12s ease-out;
@@ -119,7 +119,7 @@
   padding: 6px 10px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: 13px;
   color: #37352f;
@@ -162,7 +162,7 @@
 }
 
 .chat-spin {
-  animation: tool-call-spin 0.7s linear infinite;
+  animation: spin 0.7s linear infinite;
 }
 
 .chat-session-menu-item {
@@ -173,7 +173,7 @@
   padding: 5px 10px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: 13px;
   color: #37352f;
@@ -232,7 +232,7 @@
   height: 28px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -266,7 +266,7 @@
   padding: 10px 12px;
   margin-top: 20px;
   border: 1px solid rgba(55, 53, 47, 0.1);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.74);
   color: #37352f;
   text-align: left;
@@ -398,7 +398,7 @@
   gap: 5px;
   padding: 5px 12px;
   border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #fff;
   color: #37352f;
   font-size: 12px;
@@ -444,7 +444,7 @@
 .chat-message-avatar {
   width: 26px;
   height: 26px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
   border: 1px solid rgba(55, 53, 47, 0.1);
   box-shadow: 0 1px 2px rgba(55, 53, 47, 0.06);
@@ -498,7 +498,7 @@
 .chat-message-user .chat-message-content {
   background: rgba(55, 53, 47, 0.06);
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   border-bottom-right-radius: 4px;
   max-width: 100%;
   text-align: left;
@@ -572,7 +572,7 @@
 
 .chat-input-box {
   border: 1px solid rgba(55, 53, 47, 0.16);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #fff;
   overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -673,7 +673,7 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -760,7 +760,7 @@
   gap: 6px;
   height: 28px;
   padding: 0 11px 0 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid rgba(55, 53, 47, 0.12);
   background: rgba(55, 53, 47, 0.04);
   color: #595853;
@@ -894,7 +894,7 @@
 
 .chat-clarify-card {
   border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #fafaf9;
   padding: 12px 14px;
   max-width: 100%;
@@ -942,7 +942,7 @@
   color: #37352f;
   background: #fff;
   border: 1px solid rgba(55, 53, 47, 0.16);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   outline: none;
   transition: border-color 0.15s;
 }
@@ -959,7 +959,7 @@
   color: #fff;
   background: #37352f;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.1s;
 }
@@ -1022,7 +1022,7 @@
 .chat-md pre {
   margin: 8px 0;
   background: rgba(55, 53, 47, 0.04);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow-x: auto;
   padding: 10px 12px;
 }
@@ -1096,7 +1096,7 @@
 .chat-code-block {
   margin: 8px 0;
   border: 1px solid rgba(55, 53, 47, 0.09);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fafaf8;
   overflow: hidden;
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
@@ -1127,7 +1127,7 @@
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
 }
@@ -1259,7 +1259,7 @@
   font-size: 11px;
   font-weight: 600;
   padding: 3px 9px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.1s, color 0.1s, border-color 0.1s;
   display: inline-flex;
@@ -1317,7 +1317,7 @@
   max-width: min(92%, 560px);
   background: #fff;
   border: 1px solid rgba(35, 131, 226, 0.4);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   border-bottom-right-radius: 4px;
   padding: 8px 10px 6px;
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
@@ -1361,7 +1361,7 @@
   margin: 10px 0;
   padding: 12px;
   border: 1px solid rgba(55, 53, 47, 0.08);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
   overflow-x: auto;
   text-align: center;
@@ -1491,7 +1491,7 @@
   align-items: center;
   gap: 5px;
   padding: 3px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: 12px;
   color: rgba(55, 53, 47, 0.4);
@@ -1525,7 +1525,7 @@
   align-items: center;
   gap: 4px;
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   transition: background 0.1s;
 }
@@ -1555,7 +1555,7 @@
   align-items: center;
   gap: 5px;
   padding: 1px 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .chat-tool-call-header--expandable {
@@ -1577,11 +1577,7 @@
 }
 
 .chat-tool-call-spinner {
-  animation: tool-call-spin 0.8s linear infinite;
-}
-
-@keyframes tool-call-spin {
-  to { transform: rotate(360deg); }
+  animation: spin 0.8s linear infinite;
 }
 
 .chat-tool-call-sig {
@@ -1628,7 +1624,7 @@
   padding: 6px 8px;
   background: rgba(55, 53, 47, 0.03);
   border: 1px solid rgba(55, 53, 47, 0.06);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: auto;
   max-height: 200px;
 }
@@ -1673,7 +1669,7 @@
   gap: 6px;
   padding: 5px 10px;
   border: 1px solid rgba(55, 53, 47, 0.09);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: rgba(55, 53, 47, 0.028);
   font-family: inherit;
   font-size: 12px;
@@ -1735,7 +1731,7 @@
   min-width: 0;
   padding: 4px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   font-family: inherit;
   font-size: 11.5px;
@@ -1807,7 +1803,7 @@
   margin-bottom: 4px;
   background: #fff;
   border: 1px solid rgba(55, 53, 47, 0.09);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: 0 4px 16px rgba(15, 15, 15, 0.1), 0 0 0 1px rgba(15, 15, 15, 0.04);
   max-height: 240px;
   overflow-y: auto;
@@ -1836,7 +1832,7 @@
   width: 100%;
   padding: 6px 8px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   cursor: pointer;
   font-size: 13px;
@@ -1857,7 +1853,7 @@
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: rgba(55, 53, 47, 0.06);
   color: rgba(55, 53, 47, 0.5);
 }
@@ -1899,7 +1895,7 @@
   margin: 2px 1.5px;
   background: rgba(55, 53, 47, 0.05);
   border: 1px solid rgba(55, 53, 47, 0.08);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 0.92em;
   line-height: 1.35;
   color: rgb(55, 53, 47);
@@ -2046,7 +2042,7 @@
   max-width: 180px;
   padding: 4px 6px 4px 4px;
   border: 1px solid rgba(31, 35, 40, 0.1);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.86);
   font-size: 12px;
   color: #4b5563;
@@ -2143,7 +2139,7 @@
 
 .chat-generated-image-card__action {
   border: 1px solid rgba(31, 35, 40, 0.12);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #fff;
   color: #374151;
   cursor: pointer;
@@ -2217,22 +2213,52 @@
   outline-offset: 2px;
 }
 
-.chat-image-lightbox-backdrop {
+/* Re-shelled onto ui/Modal (C1): Modal owns the portal, backdrop, ESC,
+ * dialog role, and focus trap now. `.chat-image-lightbox-card` lands on
+ * Modal's card via `className` and resets it to a transparent, full-viewport
+ * positioning shell (`position: fixed; inset: 0`) instead of Modal's default
+ * centered white card — the entrance animation (fade + slight scale) still
+ * comes from Modal's own `uiModalAppear`, so the bespoke fade-only keyframe
+ * this used to carry is gone. `.chat-image-lightbox-surface` (a plain child
+ * div, not a shell) is what actually paints the dim/blurred background and
+ * hosts the arrow-key nav + backdrop-click-to-close that Modal can't own
+ * (Modal's own backdrop sits fully behind this and is never the click
+ * target — the surface covers it edge to edge).
+ */
+.chat-image-lightbox-card {
+  /* No border-radius/box-shadow override needed: with no visible background
+   * or border of its own (transparent, borderless) and no overflow clip,
+   * Modal's default card radius/shadow render nothing visible here — only
+   * `background`/`border` actually paint, so only those are reset. */
   position: fixed;
   inset: 0;
-  z-index: var(--layer-dialog);
+  background: transparent;
+  border: none;
+}
+
+.chat-image-lightbox-surface {
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 56px 72px;
   background: rgba(15, 15, 15, 0.82);
   backdrop-filter: blur(4px);
-  animation: chat-image-lightbox-in 0.14s ease;
+  outline: none;
 }
 
-@keyframes chat-image-lightbox-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+.chat-image-lightbox-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .chat-image-lightbox-figure {
@@ -2249,7 +2275,7 @@
   max-width: min(92vw, 1400px);
   max-height: 82vh;
   object-fit: contain;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
   background: #fff;
 }
@@ -2260,7 +2286,7 @@
   gap: 12px;
   max-width: 92vw;
   padding: 6px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(0, 0, 0, 0.45);
   color: rgba(255, 255, 255, 0.92);
   font-size: 13px;
@@ -2350,7 +2376,7 @@
   border: 1px solid rgba(55, 53, 47, 0.1);
   background: rgba(55, 53, 47, 0.035);
   color: #5f5e59;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0 9px 0 8px;
   display: inline-flex;
   align-items: center;
@@ -2419,7 +2445,7 @@
   overflow-y: auto;
   background: #fff;
   border: 1px solid rgba(55, 53, 47, 0.1);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 6px;
   box-shadow: 0 18px 44px rgba(55, 53, 47, 0.13), 0 0 0 1px rgba(55, 53, 47, 0.02);
   animation: chat-menu-in 0.12s ease-out;
@@ -2559,7 +2585,7 @@
   width: 100%;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 9px 10px;
   display: flex;
   align-items: center;
@@ -2623,7 +2649,7 @@
 
 .chat-model-settings-card {
   border: 1px solid rgba(55, 53, 47, 0.08);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: #fff;
   box-shadow: 0 8px 24px rgba(55, 53, 47, 0.04);
 }
@@ -2671,7 +2697,7 @@
   min-height: 66px;
   padding: 10px 11px;
   border: 1px solid rgba(55, 53, 47, 0.1);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #fff;
   color: #37352f;
   cursor: pointer;
@@ -2687,7 +2713,7 @@
 .chat-model-preset--active {
   border-color: #2383e2;
   background: rgba(35, 131, 226, 0.08);
-  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+  box-shadow: var(--shadow-focus);
 }
 
 .chat-model-preset__title {
@@ -2717,7 +2743,7 @@
 .chat-model-field select {
   height: 34px;
   border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
   color: #37352f;
   font: inherit;
@@ -2729,7 +2755,7 @@
 .chat-model-field input:focus,
 .chat-model-field select:focus {
   border-color: rgba(35, 131, 226, 0.45);
-  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+  box-shadow: var(--shadow-focus);
 }
 
 .chat-model-field .chat-model-field-hint {
@@ -2767,7 +2793,7 @@
   gap: 3px;
   padding: 9px 11px;
   border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #fff;
   text-align: left;
   cursor: pointer;
@@ -2828,7 +2854,7 @@
 .chat-model-primary-btn,
 .chat-model-danger-btn {
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(55, 53, 47, 0.12);
   background: #fff;
   color: #37352f;
@@ -2901,7 +2927,7 @@
   max-width: 100%;
   height: 28px;
   border: 1px solid rgba(55, 53, 47, 0.1);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0 5px 0 10px;
   display: inline-flex;
   align-items: center;
@@ -2930,7 +2956,7 @@
 .chat-model-settings-empty {
   width: 100%;
   border: 1px dashed rgba(55, 53, 47, 0.14);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 12px;
   color: rgba(55, 53, 47, 0.48);
   font-size: 12px;
@@ -2997,7 +3023,7 @@
 .chat-prompt-custom-textarea {
   min-height: 132px;
   border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
   color: #37352f;
   font: inherit;
@@ -3010,7 +3036,7 @@
 
 .chat-prompt-custom-textarea:focus {
   border-color: rgba(35, 131, 226, 0.45);
-  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+  box-shadow: var(--shadow-focus);
 }
 
 /* ─── Chat anchors (TOC) ──────────────────────────────────── */
@@ -3019,8 +3045,18 @@
   position: relative;
 }
 
-.chat-anchors-menu {
-  position: absolute;
+/* Compound selector (.ui-dropdown__panel.chat-anchors-menu) so this wins on
+ * specificity over ui/DropdownShell's own base panel chrome regardless of
+ * CSS import/bundle order — the panel now renders through DropdownShell
+ * (ui-reuse-burndown.md's API-extension batch: bespokeDropdownShells 2→1),
+ * but keeps its pre-migration pixels exactly (own radius/shadow/bg/z-index),
+ * same "extend, don't force-normalize" precedent as ShapeNodeBody's/
+ * FloatingToolbar's panelClassName overrides. */
+.ui-dropdown__panel.chat-anchors-menu {
+  /* Pre-migration panel was a plain block with no gap — undo the shell's
+   * flex/gap:2px base so pixels stay byte-identical (review finding). */
+  display: block;
+  gap: 0;
   top: calc(100% + 4px);
   right: 0;
   z-index: 120;
@@ -3028,7 +3064,7 @@
   max-width: 320px;
   background: #fff;
   border: 1px solid rgba(55, 53, 47, 0.09);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
   padding: 4px;
   animation: chat-menu-in 0.12s ease-out;
@@ -3058,7 +3094,7 @@
   padding: 6px 10px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: 13px;
   color: #37352f;
@@ -3100,7 +3136,7 @@
 /* Brief highlight pulse on the anchored message after a jump. */
 .chat-message--anchor-flash {
   animation: chat-anchor-flash 1.2s ease-out;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 @keyframes chat-anchor-flash {

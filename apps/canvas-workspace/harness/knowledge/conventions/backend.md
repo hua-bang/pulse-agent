@@ -64,6 +64,11 @@ Rules:
   `~/.pulse-coder/canvas/**`); never write into the repo tree at runtime.
 - Route aborts/clarifications back to the correct instance via explicit maps
   (e.g. `sessionScopeMap`) rather than global mutable state.
+- Secret-bearing settings: reuse an existing encrypt/decrypt helper —
+  `channel/config.ts` and `settings/built-in-tools-config.ts` currently carry
+  two independent copies of the same Electron-safeStorage logic (including
+  the identical legacy-Keychain-prompt workaround, a lesson learned twice).
+  If you'd be the third copy, extract a shared helper instead (rule of three).
 
 ## Preload bridge
 

@@ -71,7 +71,7 @@
   height: 26px;
   padding: 0;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   cursor: pointer;
@@ -96,19 +96,14 @@
   display: block;
 }
 
+/* Position/border/background/shadow/z-index come from ui/DropdownShell's
+ * base .ui-dropdown__panel + .ui-dropdown--bottom/--align-start (re-shelled
+ * from a bespoke click-outside/keydown popover, C1); this rule now only
+ * carries the layout specifics DropdownShell doesn't own. */
 .shape-style-popover {
-  position: absolute;
-  top: 32px;
-  left: 0;
   min-width: 240px;
   padding: 10px;
-  display: flex;
-  flex-direction: column;
   gap: 10px;
-  background: var(--surface, #ffffff);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
 }
 
 .shape-style-row {
@@ -125,32 +120,6 @@
   color: var(--text-muted, #6e7681);
 }
 
-.shape-style-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.shape-style-swatch-btn {
-  position: relative;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 4px;
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.shape-style-swatch-btn:hover {
-  transform: scale(1.1);
-}
-
-.shape-style-swatch-btn--active {
-  outline: 2px solid var(--accent, #2383e2);
-  outline-offset: 1px;
-}
-
 .shape-style-widths {
   display: flex;
   gap: 5px;
@@ -161,7 +130,7 @@
   height: 24px;
   padding: 0;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: #fff;
   cursor: pointer;
   display: flex;

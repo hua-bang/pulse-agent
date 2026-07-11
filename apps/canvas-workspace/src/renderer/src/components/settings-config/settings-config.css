@@ -1,8 +1,12 @@
-/* Shared styles for SkillsManager / McpManager.
- * Designed to drop into both the global Settings panel and the per-workspace
- * settings drawer — no outer padding, no card chrome. Matches the existing
- * WorkspaceSettings vocabulary (34px controls, 8px radii, 11px uppercase
- * labels, soft #2383e2 focus ring). */
+/* Shared chrome for SkillsManager / McpManager / PluginsManager — layout,
+ * lists, badges, and the few controls that stay bespoke (compact list-row
+ * icon buttons, checkboxes). Buttons/inputs/textareas migrated onto
+ * ui/Button + ui/TextField (settings/panel-slice batch, ui-reuse-burndown.md)
+ * — this file's original "34px controls, 8px radii, soft #2383e2 focus ring"
+ * vocabulary is exactly what those two pieces already carry, so the swap was
+ * pixel-identical (see ui-reuse-burndown.md for the fit analysis and the
+ * bespoke-chrome skips). No outer padding, no card chrome — designed to drop
+ * into both the global Settings panel and the per-workspace settings drawer. */
 
 .cfg-manager {
   display: flex;
@@ -32,7 +36,7 @@
   position: absolute;
   inset: -4px;
   border: 2px dashed rgba(35, 131, 226, 0.5);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: rgba(35, 131, 226, 0.04);
   pointer-events: none;
   z-index: 1;
@@ -68,64 +72,6 @@
   line-height: 1.4;
 }
 
-/* ─── Buttons ─────────────────────────────────────────────────── */
-
-.cfg-primary-btn,
-.cfg-secondary-btn,
-.cfg-danger-btn {
-  height: 30px;
-  border-radius: 8px;
-  padding: 0 12px;
-  font-size: 12px;
-  font-weight: 650;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  white-space: nowrap;
-  font-family: inherit;
-}
-
-.cfg-secondary-btn {
-  border: 1px solid rgba(55, 53, 47, 0.12);
-  background: #fff;
-  color: #37352f;
-}
-
-.cfg-secondary-btn:hover:not(:disabled) {
-  background: rgba(55, 53, 47, 0.05);
-}
-
-.cfg-primary-btn {
-  border: 1px solid #2383e2;
-  background: #2383e2;
-  color: #fff;
-}
-
-.cfg-primary-btn:hover:not(:disabled) {
-  background: #1f76cc;
-  border-color: #1f76cc;
-}
-
-.cfg-danger-btn {
-  border: 1px solid rgba(55, 53, 47, 0.12);
-  background: #fff;
-  color: rgba(180, 47, 47, 0.85);
-}
-
-.cfg-danger-btn:hover:not(:disabled) {
-  background: rgba(180, 47, 47, 0.05);
-  border-color: rgba(180, 47, 47, 0.3);
-}
-
-.cfg-primary-btn:disabled,
-.cfg-secondary-btn:disabled,
-.cfg-danger-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* ─── Form (inline, no inner card) ────────────────────────────── */
 
 .cfg-form {
@@ -154,43 +100,14 @@
   margin-left: 3px;
 }
 
-.cfg-input,
-.cfg-textarea {
-  width: 100%;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 8px;
-  background: #fff;
-  color: #37352f;
-  font: inherit;
-  font-size: 13px;
-  outline: none;
-  box-sizing: border-box;
-}
-
-.cfg-input:focus,
-.cfg-textarea:focus {
-  border-color: rgba(35, 131, 226, 0.45);
-  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
-}
-
-.cfg-textarea {
-  height: auto;
-  min-height: 140px;
-  padding: 10px 12px;
+/* ui/TextField absorbed the base cfg-input/cfg-textarea control chrome
+ * (byte-identical metrics — see this file's header comment). This is the one
+ * residual: SKILL.md/JSON/args/env/headers content reads better monospaced,
+ * which ui/TextField's own control doesn't set. className lands on the
+ * control per ui/TextField's contract. */
+.cfg-textarea-mono {
   font-family: var(--font-mono);
   font-size: 12.5px;
-  line-height: 1.55;
-  resize: vertical;
-}
-
-select.cfg-input {
-  padding-right: 26px;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2337352f' stroke-opacity='0.4' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
 }
 
 .cfg-checkbox {
@@ -218,7 +135,7 @@ select.cfg-input {
 
 .cfg-empty {
   border: 1px dashed rgba(55, 53, 47, 0.14);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 18px;
   text-align: center;
   font-size: 12px;
@@ -261,7 +178,7 @@ select.cfg-input {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 9px 12px;
   background: transparent;
   transition: background 0.12s;
@@ -292,7 +209,7 @@ select.cfg-input {
   font-weight: 500;
   color: rgba(55, 53, 47, 0.55);
   background: rgba(55, 53, 47, 0.06);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 1px 6px;
   text-transform: lowercase;
   letter-spacing: 0.02em;
@@ -304,7 +221,7 @@ select.cfg-input {
 .cfg-health {
   font-size: 10px;
   font-weight: 600;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 1px 6px;
   letter-spacing: 0.02em;
   flex-shrink: 0;
@@ -356,14 +273,6 @@ select.cfg-input {
   opacity: 1;
 }
 
-.cfg-list-actions .cfg-secondary-btn,
-.cfg-list-actions .cfg-danger-btn {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 11.5px;
-  font-weight: 600;
-}
-
 /* ─── Expandable per-server tool list ─────────────────────────── */
 
 /* Each server row becomes a column: the existing `.cfg-list-item` row plus
@@ -381,7 +290,7 @@ select.cfg-input {
   padding: 0;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: rgba(55, 53, 47, 0.4);
   font-size: 10px;
   line-height: 1;
@@ -415,7 +324,7 @@ select.cfg-input {
   align-items: center;
   gap: 10px;
   padding: 3px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   min-width: 0;
 }
 
@@ -498,10 +407,6 @@ select.cfg-input {
   min-width: 0;
 }
 
-.cfg-plugin-config-field {
-  min-width: 0;
-}
-
 .cfg-plugin-config-meta {
   min-width: 0;
   display: flex;
@@ -522,13 +427,6 @@ select.cfg-input {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
-}
-
-.cfg-plugin-config-actions .cfg-primary-btn,
-.cfg-plugin-config-actions .cfg-secondary-btn {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 11.5px;
 }
 
 @media (max-width: 720px) {
@@ -585,9 +483,10 @@ select.cfg-input {
     padding: 12px;
   }
 
-  .cfg-primary-btn,
-  .cfg-secondary-btn,
-  .cfg-danger-btn {
+  /* Pre-migration .cfg-*-btn stretched full-width at this breakpoint; the
+   * migrated ui/Button is inline-flex and doesn't. Restore the stacking
+   * behavior for narrow panes (review finding on the settings slice). */
+  .cfg-pane .ui-btn {
     width: 100%;
   }
 }
@@ -644,7 +543,7 @@ select.cfg-input {
   color: rgba(180, 130, 0, 0.95);
   background: rgba(255, 196, 0, 0.1);
   border: 1px solid rgba(180, 130, 0, 0.2);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 7px;
   white-space: nowrap;
   flex-shrink: 0;

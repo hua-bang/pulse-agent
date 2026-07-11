@@ -31,7 +31,7 @@
 
   background: oklch(0.984 calc(var(--_c) * 0.10) var(--_h) / var(--_a));
   border: 1px solid oklch(0.88 calc(var(--_c) * 0.30) var(--_h));
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: none;
   /* Header pill floats above the body, so we mustn't clip it. */
   overflow: visible;
@@ -124,7 +124,7 @@
 
   background: oklch(0.945 calc(var(--_c) * 0.34) var(--_h));
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
 
   /* Soft tinted shadow — pill reads as floating, not glued to the body. */
@@ -157,7 +157,7 @@
 
 .canvas-node--frame .node-header .node-title:focus {
   background: rgba(255, 255, 255, 0.55);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 /* ---- Children-collapse toggle / count badge ----
@@ -310,7 +310,7 @@
 .canvas-node--frame .node-header .node-header__actions .node-close {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: oklch(0.48 calc(var(--_c) * 0.72) var(--_h));
 }
 
@@ -482,33 +482,12 @@
   transform: scale(1.15);
 }
 
-/* Positioning/surface/z-index now come from ui/DropdownShell's
+/* Positioning/surface/z-index come from ui/DropdownShell's
  * `.ui-dropdown__panel` (placement="top" already floats it above the pill,
  * into empty canvas space instead of overlapping child nodes); this rule
- * only overrides the default flex column with the swatch row. */
+ * only carries the padding this picker's ui/SwatchRow child needs (the
+ * panel's own `flex-direction`/`gap` are moot now that it has a single
+ * child). */
 .frame-color-popover {
-  flex-direction: row;
-  gap: 4px;
   padding: 6px 8px;
-  white-space: nowrap;
-}
-
-.frame-color-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(0, 0, 0, 0.08);
-  cursor: pointer;
-  padding: 0;
-  transition: transform 0.1s ease, border-color 0.1s ease;
-}
-
-.frame-color-swatch:hover {
-  transform: scale(1.25);
-  border-color: rgba(0, 0, 0, 0.25);
-}
-
-.frame-color-swatch--active {
-  border-color: rgba(0, 0, 0, 0.45);
-  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.12);
 }

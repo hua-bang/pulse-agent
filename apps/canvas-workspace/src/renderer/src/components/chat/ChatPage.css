@@ -47,7 +47,7 @@
   padding: 7px 10px;
   border: none;
   background: rgba(55, 53, 47, 0.05);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 13px;
   color: #37352f;
@@ -103,7 +103,7 @@
   padding: 6px 10px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: 13px;
   color: #37352f;

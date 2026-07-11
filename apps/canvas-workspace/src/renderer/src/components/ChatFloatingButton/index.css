@@ -3,7 +3,7 @@
   height: 40px;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface);
   color: var(--text-secondary);
   box-shadow: var(--shadow-float);

@@ -65,7 +65,7 @@
   right: 3px;
   width: 3px;
   height: 28px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--text-muted);
   opacity: 0;
   transform: translateY(-50%);
@@ -124,7 +124,7 @@
   width: 24px;
   height: 24px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -205,7 +205,7 @@
   padding: 6px;
   background: var(--surface);
   border: 1px solid var(--border-light);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
   z-index: 8;
   display: flex;
@@ -313,7 +313,7 @@
   gap: 7px;
   padding: 0 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
   font: inherit;
@@ -471,7 +471,7 @@
   width: 100%;
   padding: 7px 8px;
   border: 1px solid var(--border-light);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font-size: 12px;
@@ -501,7 +501,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -577,7 +577,7 @@
   height: 16px;
   display: inline-grid;
   place-items: center;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: rgba(0, 0, 0, 0.045);
   color: var(--text-secondary);
   font-size: 10px;
@@ -681,7 +681,7 @@
 .reference-group-item-meta {
   max-width: 86px;
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: rgba(0, 0, 0, 0.035);
   color: var(--text-muted);
   font-size: 10px;
@@ -711,7 +711,7 @@
   height: 18px;
   flex: 0 0 18px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-muted);
   font-size: 13px;
@@ -756,7 +756,7 @@
   margin: 16px 18px;
   padding: 18px;
   border: 1px dashed var(--border-light);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   text-align: center;
   color: var(--text-muted);
   font-size: 12px;
@@ -819,17 +819,23 @@
   margin: 12px 14px;
   padding: 22px 18px;
   border: 1px solid var(--border-light);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: transparent;
   text-align: center;
   color: var(--text-secondary);
 }
 
+/* Icon size/tile stay here (per-surface styling — see ui/EmptyState's own
+ * doc comment); the spacing below it now comes from ui/EmptyState's
+ * `gap: 8px` flex column instead of this rule's own bottom margin (a minor,
+ * documented normalization: 14px -> 8px, same class of difference Batch C1
+ * accepted for Button heights). `margin: 0 auto` still self-centers the
+ * icon horizontally regardless of the flex column's `stretch` sizing. */
 .reference-empty-icon {
   width: 36px;
   height: 36px;
-  margin: 0 auto 14px;
-  border-radius: 8px;
+  margin: 0 auto;
+  border-radius: var(--radius-md);
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.035);
@@ -837,24 +843,16 @@
   font-size: 18px;
 }
 
-.reference-empty h3 {
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 650;
-  margin-bottom: 7px;
-}
-
-.reference-empty p {
-  font-size: 12px;
-  line-height: 1.6;
-  margin: 0;
-}
-
+/* Title/description typography moved to ui/EmptyState's
+ * `.ui-emptystate__title`/`.ui-emptystate__desc` (byte-identical values —
+ * see its index.css). This hint block keeps its own spacing/border/
+ * background (per-surface styling stays with the caller); its top margin
+ * moved to ui/EmptyState's `gap: 8px` (was 16px — same normalization as
+ * the icon above). */
 .reference-selected-hint {
-  margin-top: 16px;
   padding: 9px 10px;
   border: 1px solid var(--border-light);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.48);
   display: flex;
   flex-direction: column;
@@ -894,7 +892,7 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border-light);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
@@ -979,7 +977,7 @@
   width: 44px;
   height: 44px;
   margin-bottom: 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   display: grid;
   place-items: center;
   background: rgba(35, 131, 226, 0.08);

@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent as ReactKeyboardEvent,
   type MutableRefObject,
 } from 'react';
 import ForceGraph2D, {
@@ -23,8 +22,7 @@ import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
-import { useClickOutside } from '../../hooks/useClickOutside';
-import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { DropdownShell } from '../ui';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
@@ -220,18 +218,18 @@ export const GraphPage = ({
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(selectedGraphId(selectedNode));
   const [searchOpen, setSearchOpen] = useState(false);
-  const [overflowOpen, setOverflowOpen] = useState(false);
   const [showWorkspaceHubs, setShowWorkspaceHubs] = useState(true);
   // Off-canvas nodes (knowledge records with no matching canvas node — e.g.
   // stale/orphan records) are hidden by default; toggle to reveal them.
   const [showOffCanvas, setShowOffCanvas] = useState(false);
-  const overflowMenuId = useId();
   const searchListboxId = useId();
+  const overflowMenuId = useId();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchListboxRef = useRef<HTMLDivElement>(null);
-  const overflowRef = useRef<HTMLDivElement>(null);
+  // ui/DropdownShell owns the overflow menu's open state, click-outside,
+  // and Escape/arrow-nav now — this ref is only for restoring focus on an
+  // Escape-close (the shell's onOpenChange close-reason).
   const overflowButtonRef = useRef<HTMLButtonElement>(null);
-  const overflowMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -247,28 +245,6 @@ export const GraphPage = ({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [searchOpen]);
-
-  useClickOutside(overflowRef, () => setOverflowOpen(false), overflowOpen);
-  const closeOverflowAndRestoreFocus = useCallback(() => {
-    setOverflowOpen(false);
-    overflowButtonRef.current?.focus();
-  }, []);
-  useMenuKeyboardNav(overflowMenuRef, closeOverflowAndRestoreFocus, overflowOpen);
-
-  const handleOverflowKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    event.preventDefault();
-    event.stopPropagation();
-    if (!overflowOpen) {
-      setOverflowOpen(true);
-      return;
-    }
-    const items = Array.from(
-      overflowMenuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
-    );
-    const target = event.key === 'ArrowUp' ? items[items.length - 1] : items[0];
-    target?.focus();
-  }, [overflowOpen]);
 
   useEffect(() => {
     setActiveNodeId(selectedGraphId(selectedNode));
@@ -578,29 +554,46 @@ export const GraphPage = ({
             {showOffCanvas ? t('workspaceGraph.hideOffCanvas') : t('workspaceGraph.showOffCanvas')}
           </button>
           <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 140)}>{t('workspaceGraph.fit')}</button>
-          <div className="workspace-graph-toolbar__more" ref={overflowRef}>
-            <button
-              ref={overflowButtonRef}
-              type="button"
-              className="workspace-node-chip workspace-node-chip--toolbar-action"
-              onClick={() => setOverflowOpen((value) => !value)}
-              onKeyDown={handleOverflowKeyDown}
-              title={t('workspaceGraph.moreOptions')}
-              aria-label={t('workspaceGraph.moreOptions')}
-              aria-haspopup="menu"
-              aria-expanded={overflowOpen}
-              aria-controls={overflowOpen ? overflowMenuId : undefined}
-            >
-              {t('workspaceGraph.more')}
-            </button>
-            {overflowOpen && (
-              <div
-                ref={overflowMenuRef}
-                id={overflowMenuId}
-                className="workspace-graph-toolbar__menu"
-                role="menu"
-                aria-label={t('workspaceGraph.moreMenuLabel')}
+          <DropdownShell
+            className="workspace-graph-toolbar__more"
+            panelClassName="workspace-graph-toolbar__menu"
+            align="end"
+            role="menu"
+            ariaLabel={t('workspaceGraph.moreMenuLabel')}
+            panelId={overflowMenuId}
+            onOpenChange={(open, reason) => {
+              // Escape restores focus to the trigger; an outside-press does
+              // not — same distinction ChatAnchors uses this shell for.
+              if (!open && reason === 'escape') overflowButtonRef.current?.focus();
+            }}
+            trigger={({ open, toggle }) => (
+              <button
+                ref={overflowButtonRef}
+                type="button"
+                className="workspace-node-chip workspace-node-chip--toolbar-action"
+                onClick={toggle}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+                  // Once open, the shell's own useMenuKeyboardNav (global
+                  // scope) already owns ArrowDown/Up and stops propagation
+                  // before this handler sees the event.
+                  if (open) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  toggle();
+                }}
+                title={t('workspaceGraph.moreOptions')}
+                aria-label={t('workspaceGraph.moreOptions')}
+                aria-haspopup="menu"
+                aria-expanded={open}
+                aria-controls={open ? overflowMenuId : undefined}
               >
+                {t('workspaceGraph.more')}
+              </button>
+            )}
+          >
+            {({ close }) => (
+              <>
                 <button
                   type="button"
                   className="workspace-graph-toolbar__menu-item"
@@ -633,13 +626,13 @@ export const GraphPage = ({
                   type="button"
                   className="workspace-graph-toolbar__menu-item"
                   role="menuitem"
-                  onClick={() => { setOverflowOpen(false); void reload(); }}
+                  onClick={() => { close(); void reload(); }}
                 >
                   {t('workspaceNodes.refresh')}
                 </button>
-              </div>
+              </>
             )}
-          </div>
+          </DropdownShell>
         </div>
       </div>
 

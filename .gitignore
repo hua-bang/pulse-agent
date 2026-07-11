@@ -177,4 +177,16 @@ worktrees/
 *.tiff
 *.avif
 *.ico
+
+# Deliberate exception: ui/ showcase Playwright visual-regression baselines
+# (apps/canvas-workspace/harness/tools/ui-showcase/README.md). These PNGs
+# ARE the tool's output — a visual-regression baseline with no baseline
+# images isn't a baseline.
+!apps/canvas-workspace/harness/tools/ui-showcase/tests/__screenshots__/**/*.png
+
+# Playwright's own run-state output (traces/videos are off in
+# playwright.config.ts, so normally just a small .last-run.json, but the
+# whole dir is transient either way).
+apps/canvas-workspace/test-results/
+
 tsup.config.bundled_*.mjs

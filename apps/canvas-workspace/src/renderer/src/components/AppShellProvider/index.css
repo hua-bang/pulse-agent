@@ -40,7 +40,7 @@
   flex-shrink: 0;
   width: 28px;
   height: 28px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -82,7 +82,7 @@
   height: 20px;
   border: none;
   background: transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -104,7 +104,7 @@
   font-size: 12px;
   font-weight: 600;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.12s ease;
 }
@@ -116,10 +116,10 @@
 .shell-spinner {
   width: 14px;
   height: 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1.6px solid rgba(35, 131, 226, 0.22);
   border-top-color: currentColor;
-  animation: shellSpin 0.7s linear infinite;
+  animation: spin 0.7s linear infinite;
 }
 
 /* The centered dialog shell (backdrop, card, sizing, entrance animation)
@@ -137,7 +137,7 @@
   gap: 6px;
   padding: 4px 8px;
   margin-bottom: 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -175,7 +175,7 @@
   height: 36px;
   padding: 0 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
@@ -275,7 +275,7 @@
   padding: 0 8px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-bottom-width: 2px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #ffffff;
   font-size: 11px;
   font-weight: 700;
@@ -298,15 +298,6 @@
 
   .shell-shortcuts__grid {
     grid-template-columns: 1fr;
-  }
-}
-
-@keyframes shellSpin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
   }
 }
 

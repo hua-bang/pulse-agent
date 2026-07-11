@@ -32,10 +32,23 @@ before that the directory held only the Electron driver):
   still points at it.
 - `harness/tools/describe-canvas.mjs` — static structure snapshot: agent-tool
   registry (45), IPC handle↔invoke contract diff, node-type union↔factory
-  sync. Run before touching any of those registries; exits non-zero on a
-  broken invoke or union/factory drift.
+  sync, and app↔canvas-cli parity (NodeType union subset + storage
+  schema-version constants). Run before touching any of those registries;
+  exits non-zero on a broken invoke, union/factory drift, a CLI-only node
+  type, an unallowlisted app-only type, or a schema-version mismatch.
+- `harness/tools/ui-showcase/` — Playwright screenshot baseline for
+  `components/ui/` (the blessed design-system set): a plain-React vite page
+  (zero Electron/preload imports) mounting every `ui/` piece in its
+  meaningful variants/states, plus the one Playwright spec that captures
+  and compares against committed baselines. `pnpm run visual` /
+  `visual:update` from this package; Linux-rendered baselines only (fonts
+  differ per OS) — see `harness/tools/ui-showcase/README.md`. Built as the
+  prerequisite for `docs/ui-reuse-burndown.md`'s Batch C3.
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
-  app (`canvas-harness`, `canvas-onboard-harness`, `add-canvas-node`).
+  app: `canvas-harness`, `canvas-onboard-harness` (drive the real app),
+  `add-canvas-node`, `add-agent-tool`, `add-builtin-main-plugin`,
+  `extend-blessed-ui`, `add-ipc-surface` (safe-change procedures for the
+  five recurring extension shapes).
 - `harness/spec/` — decision-pending intent, currently **empty** (the
   success state). Two entries completed their full lifecycle: UI-reuse
   (2026-07-07: decided → mechanized as `ui-reuse-governance.test.ts` +
@@ -65,9 +78,11 @@ installs the latter. Do not mix them.
 | Main domain map | `harness/knowledge/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
 | Renderer routes and full-app surfaces | `harness/knowledge/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
 | Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
+| Add a capability spanning main + preload + renderer | `harness/skills/add-ipc-surface/SKILL.md` (ordered procedure — contract placement, streaming pattern, bootstrap wire, lockstep rule) |
 | Canvas node/edge schema | `src/shared/canvas.ts` |
 | Add a new canvas node capability | `harness/skills/add-canvas-node/SKILL.md` (ordered procedure — plugin is the default path, host type is the exception); background: `harness/knowledge/plugin-node-mf2.md` (plugin path), `src/shared/canvas.ts`, `src/renderer/src/utils/nodeFactory.ts`, `src/renderer/src/components/CanvasNodeView/` (host-type touch points) |
 | Current registries (agent tools / IPC pairs / node types) | run `node harness/tools/describe-canvas.mjs` (from this dir; `--json` for machines) |
+| Visual-regression baseline for ui/ pieces | `harness/tools/ui-showcase/README.md`; run `pnpm run visual` / `pnpm run visual:update` |
 | Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` (NB: `nodes/` here = knowledge-node records + tags, NOT node types) |
 | Canvas Agent and tools | `src/main/agent/`, `src/main/agent/tools/`, `src/renderer/src/components/chat/` |
 | Agent teams | `src/main/agent-teams/`, `src/renderer/src/components/AgentTeamFrame/` |

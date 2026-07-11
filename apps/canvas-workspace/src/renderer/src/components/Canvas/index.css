@@ -186,7 +186,7 @@
 
 .canvas-gesture-hud__badge {
   padding: 2px 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(35, 131, 226, 0.1);
   color: var(--accent);
   font-size: 10px;
@@ -285,7 +285,7 @@
   justify-content: center;
   border: none;
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
   transition: background 0.1s, color 0.1s;

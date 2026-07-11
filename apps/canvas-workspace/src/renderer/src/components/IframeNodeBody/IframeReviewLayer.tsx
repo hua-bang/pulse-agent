@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef } from '../../types';
+import { Button } from '../ui/Button';
 
 interface IframeReviewLayerProps {
   comments: AgentContextDomReviewComment[];
@@ -95,8 +96,8 @@ export function IframeReviewLayer({
             rows={3}
           />
           <div className="iframe-review-popover__actions">
-            <button type="button" className="iframe-review-mini-btn" onClick={() => setActiveId(null)}>Close</button>
-            <button type="button" className="iframe-review-mini-btn" onClick={() => onRemoveComment(activeComment.id)}>Delete</button>
+            <Button type="button" variant="secondary" size="xs" onClick={() => setActiveId(null)}>Close</Button>
+            <Button type="button" variant="danger" size="xs" onClick={() => onRemoveComment(activeComment.id)}>Delete</Button>
           </div>
         </div>
       )}
@@ -119,10 +120,10 @@ export function IframeReviewLayer({
               rows={3}
             />
             <div className="iframe-review-popover__actions">
-              <button type="button" className="iframe-review-mini-btn" onClick={onCancelDraft}>Cancel</button>
-              <button type="button" className="iframe-review-mini-btn iframe-review-mini-btn--primary" onClick={onSaveDraft} disabled={!draftText.trim()}>
+              <Button type="button" variant="secondary" size="xs" onClick={onCancelDraft}>Cancel</Button>
+              <Button type="button" variant="primary" size="xs" onClick={onSaveDraft} disabled={!draftText.trim()}>
                 Add
-              </button>
+              </Button>
             </div>
           </div>
         </>
@@ -131,10 +132,10 @@ export function IframeReviewLayer({
       {comments.length > 0 && (
         <div className="iframe-review-pending-bar">
           <span>{comments.length} review comment{comments.length === 1 ? '' : 's'}</span>
-          <button type="button" className="iframe-review-mini-btn" onClick={onClear} disabled={sending}>Clear</button>
-          <button type="button" className="iframe-review-mini-btn iframe-review-mini-btn--primary" onClick={onSubmit} disabled={!canSubmit || sending}>
+          <Button type="button" variant="danger" size="xs" onClick={onClear} disabled={sending}>Clear</Button>
+          <Button type="button" variant="primary" size="xs" onClick={onSubmit} disabled={!canSubmit || sending}>
             {sending ? 'Sending...' : 'Send to Chat'}
-          </button>
+          </Button>
         </div>
       )}
     </div>

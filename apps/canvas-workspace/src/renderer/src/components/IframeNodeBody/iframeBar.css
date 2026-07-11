@@ -34,38 +34,29 @@
   position: static;
 }
 
+/* .iframe-bar-btn's own chrome (22×22px square, border/background/color/
+ * hover/disabled) now comes from ui/Button's icon `xs` tier — this cluster
+ * IS that tier's literal metrics origin (see ui-reuse-burndown.md, "absorb
+ * the recorded node-chrome skips"). Two things Button's variant system
+ * doesn't express stay here: `flex-shrink` (so these fixed-size toolbar
+ * buttons never compress under a narrow bar / long address text) and the
+ * DOM-picker/review-picker toggle's "active" tint. The active rule is
+ * compounded onto `.ui-btn--icon` (not just `.iframe-bar-btn--active`) so
+ * its specificity reliably beats Button's own `:hover:not(:disabled)` rule
+ * regardless of CSS import order — same pattern as
+ * `.ui-dropdown__panel.text-color-popover` elsewhere. Radius normalizes
+ * from the old `var(--radius-xs)` (4px) to Button's `var(--radius)` (8px)
+ * and default color from `var(--text-muted)` to `var(--text-secondary)` —
+ * both deliberate, owner-approved normalizations (same class as
+ * LinkDrawer's earlier icon-button migration); the hover background token
+ * `var(--surface-alt)` and hover color token `var(--text)` resolve to
+ * exactly this cluster's former hover literals, so hover is unchanged. */
 .iframe-bar-btn {
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-  transition: background 0.1s, color 0.1s;
 }
 
-.iframe-bar-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text);
-}
-
-.iframe-bar-btn:disabled {
-  cursor: default;
-  opacity: 0.48;
-}
-
-.iframe-bar-btn:disabled:hover {
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.iframe-bar-btn--active,
-.iframe-bar-btn--active:hover {
+.ui-btn--icon.iframe-bar-btn--active,
+.ui-btn--icon.iframe-bar-btn--active:hover:not(:disabled) {
   background: rgba(35, 131, 226, 0.12);
   color: var(--accent);
 }
@@ -76,7 +67,7 @@
   height: 22px;
   border: 1px solid var(--border);
   background: var(--surface-subtle, rgba(0, 0, 0, 0.02));
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 0 8px;
   text-align: left;
   cursor: text;

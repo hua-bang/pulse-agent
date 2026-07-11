@@ -1,0 +1,186 @@
+/* ui/ showcase — layout + determinism overrides ONLY. Never edit ui/ pieces'
+ * own CSS from here; this file styles the showcase harness around them. */
+
+/* Determinism: screenshots must be pixel-stable run over run. Kill CSS
+ * animation/transition (entrance animations, hover transitions, the
+ * borrowed `spin`/`menuAppear`/`uiModalAppear`/`ui-drawer-in` keyframes)
+ * and the blinking text-input caret. This is a showcase-only override —
+ * it is not shipped to the real app and must never be copied there. */
+*,
+*::before,
+*::after {
+  animation: none !important;
+  transition: none !important;
+  caret-color: transparent !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.showcase-root {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 1200px;
+  padding: 24px 24px 120px;
+  box-sizing: border-box;
+}
+
+.showcase-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.showcase-heading h1 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.showcase-heading p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.showcase-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.showcase-section h2 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text);
+}
+
+.showcase-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.showcase-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.showcase-cell-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.showcase-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.showcase-columns > * {
+  flex: 1 1 320px;
+  min-width: 260px;
+}
+
+.showcase-fieldrow-demo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* Popover/DropdownShell menu items — the showcase's own minimal item
+ * chrome (Popover ships no default appearance by design; DropdownShell's
+ * panel supplies its own chrome already). Mirrors NodeContextMenu's
+ * `.context-menu-item` shape so the showcase looks representative of a
+ * real caller, without importing feature-component CSS. */
+.showcase-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.showcase-menu-item:hover {
+  background: var(--accent-light);
+}
+
+/* Popover ships no default appearance (by design — see ui/Popover's
+ * doc comment); the caller supplies position:fixed + surface chrome via
+ * `className`. This mirrors NodeContextMenu's `.context-menu`. */
+.showcase-popover-panel {
+  position: fixed;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  padding: 4px;
+}
+
+.showcase-trigger-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.showcase-trigger-status {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Exists ONLY to keep the Modal/Drawer/Popover pinned-scroll screenshots
+ * stable — see the comment above this element's usage in Showcase.tsx and
+ * `pinScrollForModalTrio` in ui-showcase.visual.ts. Not a real showcase
+ * section; renders nothing visible. */
+.showcase-modal-trio-spacer {
+  height: 200px;
+}
+
+/* ui/EmptyState ships zero decorative chrome by design (see its own doc
+ * comment) — this mirrors a real caller's own bordered-card treatment
+ * (e.g. ReferenceEmptyState's `.reference-empty`) so the showcase looks
+ * representative, without importing feature-component CSS. */
+.showcase-emptystate-card {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.showcase-emptystate-card .ui-emptystate__icon {
+  justify-content: center;
+}

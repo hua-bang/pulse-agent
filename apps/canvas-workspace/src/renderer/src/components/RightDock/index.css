@@ -136,7 +136,7 @@
   z-index: 0;
   height: 30px;
   border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.98), transparent 58%),
     linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.92));
@@ -173,7 +173,7 @@
   flex: 0 0 auto;
   border: 1px solid transparent;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 0 7px 0 10px;
   height: 30px;
   font-size: 12px;
@@ -359,7 +359,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: #aaa6a0;
   font-size: 14px;
   line-height: 1;

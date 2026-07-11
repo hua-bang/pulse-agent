@@ -233,6 +233,17 @@ index.ts             ChannelMainPlugin (registered in built-in.ts)
 The core (`bridge.ts`, binding, commands, dedupe) needs no changes — it only
 speaks the channel-agnostic contracts.
 
+**Honest scope of "channel-agnostic":** the claim above holds for `core/`
+only. The CONFIG/UI layer is currently Feishu-shaped end to end —
+`config.ts` persists a single `feishu` field, `config-ipc.ts` exposes
+`setFeishu`-style handlers, and the renderer `ChannelConfigPanel.tsx` reads
+`status.feishu` directly. A second first-class channel (with its own
+settings UI) therefore also needs: a config field + persistence,
+config-ipc handlers, preload bridge additions, and a settings panel section
+— Feishu is the copy-reference for each. Env-var-only credentials avoid all
+of that. No second channel has been built yet; whoever builds the first one
+should generalize this layer rather than cloning the `feishu` naming.
+
 ## Host integration
 
 The plugin relies on two small extension points on the canvas plugin system:

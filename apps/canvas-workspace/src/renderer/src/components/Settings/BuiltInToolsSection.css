@@ -17,7 +17,7 @@
 .built-in-tools-summary,
 .built-in-tool-card {
   border: 1px solid rgba(55, 53, 47, 0.09);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
 }
 
@@ -45,7 +45,7 @@
 
 .built-in-tools-count {
   flex-shrink: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(35, 131, 226, 0.08);
   color: #1f76cc;
   font-size: 12px;
@@ -58,7 +58,7 @@
   color: #b3261e;
   font-size: 12px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .built-in-tools-loading {
@@ -126,7 +126,7 @@
 
 .built-in-tool-badge {
   flex-shrink: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 4px 9px;
   font-size: 11.5px;
   font-weight: 600;
@@ -163,7 +163,7 @@
 .built-in-tool-meta code {
   background: rgba(55, 53, 47, 0.06);
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 11px;
   color: #37352f;
 }
@@ -180,7 +180,7 @@
   gap: 9px 10px;
   padding: 10px;
   border: 1px solid rgba(55, 53, 47, 0.07);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: linear-gradient(180deg, rgba(55, 53, 47, 0.025), rgba(55, 53, 47, 0.014));
   transition: border-color 0.12s, background 0.12s;
 }
@@ -188,41 +188,6 @@
 .built-in-tool-form:focus-within {
   border-color: rgba(35, 131, 226, 0.22);
   background: #fff;
-}
-
-.built-in-tool-field {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: rgba(55, 53, 47, 0.62);
-}
-
-.built-in-tool-field input {
-  width: 100%;
-  border: 1px solid rgba(55, 53, 47, 0.14);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.92);
-  min-height: 34px;
-  padding: 7px 10px;
-  font-size: 12.5px;
-  line-height: 1.4;
-  color: #37352f;
-  outline: none;
-  box-shadow: inset 0 1px 0 rgba(55, 53, 47, 0.025);
-  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
-}
-
-.built-in-tool-field input::placeholder {
-  color: rgba(55, 53, 47, 0.42);
-}
-
-.built-in-tool-field input:focus {
-  background: #fff;
-  border-color: rgba(35, 131, 226, 0.55);
-  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.1);
 }
 
 .built-in-tool-actions {
@@ -236,52 +201,23 @@
   border-top: 1px solid rgba(55, 53, 47, 0.06);
 }
 
-.built-in-tool-primary-btn,
+/* Only surviving consumer: the "Clear stored" ghost action inside
+ * .built-in-tool-actions (see BuiltInToolsSection.tsx) — Save/Close both
+ * migrated to ui/Button, which has no borderless "ghost" variant. */
 .built-in-tool-secondary-btn {
   font-size: 12.5px;
   font-weight: 600;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   min-height: 32px;
-  padding: 7px 13px;
+  padding: 7px 8px;
   cursor: pointer;
   white-space: nowrap;
-}
-
-.built-in-tool-primary-btn {
-  border: none;
-  background: #2383e2;
-  color: #fff;
-  box-shadow: 0 1px 2px rgba(35, 131, 226, 0.18);
-}
-
-.built-in-tool-primary-btn:hover {
-  background: #1f76cc;
-}
-
-.built-in-tool-primary-btn:disabled {
-  background: rgba(35, 131, 226, 0.45);
-  cursor: not-allowed;
-}
-
-.built-in-tool-secondary-btn {
-  border: 1px solid rgba(55, 53, 47, 0.12);
-  background: #fff;
-  color: #37352f;
-}
-
-.built-in-tool-actions .built-in-tool-secondary-btn {
   border-color: transparent;
   background: transparent;
   color: rgba(55, 53, 47, 0.62);
-  padding-left: 8px;
-  padding-right: 8px;
 }
 
 .built-in-tool-secondary-btn:hover {
-  background: rgba(55, 53, 47, 0.04);
-}
-
-.built-in-tool-actions .built-in-tool-secondary-btn:hover {
   background: rgba(55, 53, 47, 0.055);
   color: #37352f;
 }

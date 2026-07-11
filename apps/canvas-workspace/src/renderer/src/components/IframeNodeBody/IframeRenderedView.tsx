@@ -1,5 +1,6 @@
 import { useMemo, type KeyboardEventHandler, type RefObject } from 'react';
 import type { Artifact } from '../../types';
+import { Button } from '../ui/Button';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
 import { appendDomPickerBridge } from './domPickerBridge';
 import type { LoadState } from './types';
@@ -85,14 +86,18 @@ export const IframeRenderedView = ({
   return (
     <div className="iframe-body">
       <div className="iframe-bar">
-        <button
+        <Button
+          type="button"
+          variant="icon"
+          size="xs"
           className="iframe-bar-btn"
           onClick={handleReload}
           title="Reload"
+          aria-label="Reload"
           disabled={generating}
         >
           <ReloadIcon />
-        </button>
+        </Button>
 
         <IframeAddressButton
           artifact={artifact}
@@ -116,43 +121,59 @@ export const IframeRenderedView = ({
 
         <div className="iframe-bar-actions">
           {mode === 'ai' && !generating && !readOnly && (
-            <button
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
               className="iframe-bar-btn"
               onClick={() => void handleRegenerate()}
               title="Regenerate"
+              aria-label="Regenerate"
             >
               <SparkIcon />
-            </button>
+            </Button>
           )}
 
-          <button
+          <Button
+            type="button"
+            variant="icon"
+            size="xs"
             className={`iframe-bar-btn${domPickerActive ? ' iframe-bar-btn--active' : ''}`}
             onClick={() => void handlePickDomElement()}
             title={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
+            aria-label={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
             disabled={generating || domPickerActive || reviewPickerActive || !workspaceId}
           >
             <InspectIcon />
-          </button>
+          </Button>
 
           {mode === 'url' && (
-            <button
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
               className={`iframe-bar-btn${reviewPickerActive ? ' iframe-bar-btn--active' : ''}`}
               onClick={() => void handlePickReviewElement()}
               title={reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
+              aria-label={reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
               disabled={generating || domPickerActive || reviewPickerActive || !workspaceId || readOnly}
             >
               <ReviewIcon />
-            </button>
+            </Button>
           )}
 
           {mode === 'url' && (
-            <button
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
               className="iframe-bar-btn"
               onClick={handleOpenExternal}
               title="Open externally"
+              aria-label="Open externally"
             >
               <OpenIcon />
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -178,12 +199,12 @@ export const IframeRenderedView = ({
                     It stays on the canvas as a reference.
                   </div>
                   <div className="iframe-load-error-actions">
-                    <button type="button" className="iframe-empty-btn iframe-empty-btn--primary" onClick={handleReload}>
+                    <Button type="button" variant="primary" size="sm" onClick={handleReload}>
                       Reload
-                    </button>
-                    <button type="button" className="iframe-empty-btn" onClick={handleOpenExternal}>
+                    </Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={handleOpenExternal}>
                       Open externally
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
