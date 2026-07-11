@@ -58,11 +58,14 @@ function baseProps(overrides: Partial<Parameters<typeof IframeReviewLayer>[0]> =
 }
 
 /**
- * Pilot slice (IframeNodeBody family, batch 2). IframeReviewLayer's buttons
- * and textareas were evaluated for migration onto ui/Button and
- * ui/TextField and kept as-is (see ui-reuse-burndown.md's "pilot slice"
- * section for the per-instance verdicts) — this component has no Electron/
- * webview coupling, so its composer behavior is directly testable.
+ * Pilot slice (IframeNodeBody family, batch 2) kept this component's
+ * buttons/textareas bespoke. The follow-up "absorb the recorded node-chrome
+ * skips" batch migrated the 6 popover/pending-bar mini-buttons onto
+ * ui/Button's new `xs` tier (Close/Cancel → secondary, Delete/Clear →
+ * danger, Add/Send → primary — see ui-reuse-burndown.md); the numbered pins
+ * and the draft/active-comment textareas stay bespoke (different verdicts,
+ * unchanged). This component has no Electron/webview coupling, so its
+ * composer behavior is directly testable.
  */
 describe('IframeReviewLayer', () => {
   it('typing in the draft textarea reports the new value via onDraftTextChange', () => {
@@ -104,11 +107,13 @@ describe('IframeReviewLayer', () => {
       <IframeReviewLayer {...baseProps({ draftSelection: SELECTION, draftText: '', onCancelDraft })} />,
     );
     const buttons = Array.from(
-      document.querySelectorAll('.iframe-review-popover--draft .iframe-review-mini-btn'),
+      document.querySelectorAll('.iframe-review-popover--draft button'),
     ) as HTMLButtonElement[];
     const addBtn = buttons.find((b) => b.textContent === 'Add')!;
     const cancelBtn = buttons.find((b) => b.textContent === 'Cancel')!;
     expect(addBtn.disabled).toBe(true);
+    expect(addBtn.classList.contains('ui-btn--primary')).toBe(true);
+    expect(cancelBtn.classList.contains('ui-btn--secondary')).toBe(true);
 
     act(() => {
       cancelBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -124,9 +129,10 @@ describe('IframeReviewLayer', () => {
       />,
     );
     const addBtn = Array.from(
-      document.querySelectorAll('.iframe-review-popover--draft .iframe-review-mini-btn'),
+      document.querySelectorAll('.iframe-review-popover--draft button'),
     ).find((b) => b.textContent === 'Add') as HTMLButtonElement;
     expect(addBtn.disabled).toBe(false);
+    expect(addBtn.classList.contains('ui-btn--xs')).toBe(true);
     act(() => {
       addBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
@@ -145,8 +151,11 @@ describe('IframeReviewLayer', () => {
     const popover = document.querySelector('.iframe-review-popover:not(.iframe-review-popover--draft)');
     expect(popover).not.toBeNull();
 
-    const actionButtons = Array.from(popover!.querySelectorAll('.iframe-review-mini-btn')) as HTMLButtonElement[];
+    const actionButtons = Array.from(popover!.querySelectorAll('button')) as HTMLButtonElement[];
+    const closeBtn = actionButtons.find((b) => b.textContent === 'Close')!;
     const deleteBtn = actionButtons.find((b) => b.textContent === 'Delete')!;
+    expect(closeBtn.classList.contains('ui-btn--secondary')).toBe(true);
+    expect(deleteBtn.classList.contains('ui-btn--danger')).toBe(true);
     act(() => {
       deleteBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
@@ -160,10 +169,12 @@ describe('IframeReviewLayer', () => {
     const bar = document.querySelector('.iframe-review-pending-bar');
     expect(bar?.textContent).toContain('1 review comment');
 
-    const buttons = Array.from(bar!.querySelectorAll('.iframe-review-mini-btn')) as HTMLButtonElement[];
+    const buttons = Array.from(bar!.querySelectorAll('button')) as HTMLButtonElement[];
     const clearBtn = buttons.find((b) => b.textContent === 'Clear')!;
     const sendBtn = buttons.find((b) => b.textContent?.includes('Send'))!;
     expect(sendBtn.disabled).toBe(false);
+    expect(clearBtn.classList.contains('ui-btn--danger')).toBe(true);
+    expect(sendBtn.classList.contains('ui-btn--primary')).toBe(true);
 
     act(() => {
       sendBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));

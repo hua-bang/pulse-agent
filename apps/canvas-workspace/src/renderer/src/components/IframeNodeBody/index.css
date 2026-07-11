@@ -517,38 +517,12 @@
   margin-top: 7px;
 }
 
-.iframe-review-mini-btn {
-  height: 24px;
-  border: 1px solid rgba(17, 24, 39, 0.14);
-  border-radius: 5px;
-  padding: 0 8px;
-  background: #fff;
-  color: #374151;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.iframe-review-mini-btn:hover:not(:disabled) {
-  border-color: rgba(17, 24, 39, 0.28);
-  background: #f9fafb;
-}
-
-.iframe-review-mini-btn:disabled {
-  cursor: default;
-  opacity: 0.48;
-}
-
-.iframe-review-mini-btn--primary {
-  border-color: #2383e2;
-  background: #2383e2;
-  color: #fff;
-}
-
-.iframe-review-mini-btn--primary:hover:not(:disabled) {
-  border-color: #1d6fc1;
-  background: #1d6fc1;
-}
+/* The popovers' Close/Delete/Cancel/Add and the pending bar's Clear/Send
+ * mini-buttons moved onto ui/Button's `xs` tier (secondary/danger/primary
+ * as semantically fits — see ui-reuse-burndown.md, "absorb the recorded
+ * node-chrome skips"). This bespoke `.iframe-review-mini-btn`(`--primary`)
+ * chrome is gone; the popover's own label/box/pending-bar chrome below is
+ * unrelated and stays. */
 
 .iframe-review-pending-bar {
   position: absolute;

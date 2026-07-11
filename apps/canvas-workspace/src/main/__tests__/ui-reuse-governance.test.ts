@@ -66,7 +66,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // census and skip verdicts (nav rail, card-radiogroup, ghost secondary
   // button, compact list-row expanders, ChannelConfigPanel's bespoke
   // translucent palette all stayed hand-rolled).
-  rawButtonTags: 353,
+  // 353→347 (absorb node-chrome skips, ui/Button xs tier): IframeReviewLayer's
+  // 6 popover/pending-bar mini-buttons (Close/Delete/Cancel/Add/Clear/Send)
+  // migrated onto ui/Button's new `xs` size — see ui-reuse-burndown.md.
+  rawButtonTags: 347,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -136,7 +139,11 @@ const RATCHET_BASELINE: Record<string, number> = {
   // `.updates-section-primary-btn,.updates-section-secondary-btn` rule
   // carried a literal `border-radius: 7px;` (not tokenized) — deleted along
   // with the rest of that now-unused button CSS.
-  borderRadiusLiterals: 121,
+  // 121→120 (absorb node-chrome skips): IframeReviewLayer's deleted
+  // `.iframe-review-mini-btn { border-radius: 5px; }` literal is gone; the
+  // migrated buttons use ui/Button's existing `var(--radius)`, already
+  // untokenized-exempt.
+  borderRadiusLiterals: 120,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -272,7 +279,14 @@ const RATCHET_BASELINE: Record<string, number> = {
   // override) removed 59 hex/rgba() literals — real deletions, matching
   // ui/Button's and ui/TextField's near-byte-identical existing chrome, not
   // new tokenization.
-  hardcodedColorLiterals: 1893,
+  // 1893→1883 (absorb node-chrome skips): IframeReviewLayer's deleted
+  // `.iframe-review-mini-btn`(`--primary`) base/hover rules carried 10
+  // hex/rgba() literals (border/background/color × base, hover, and the
+  // primary variant's border/background/hover) — a real deletion; the
+  // migrated buttons' bespoke SLATE palette (rgba(17,24,39,...)/#374151)
+  // normalizes onto ui/Button's warm-gray secondary/danger/primary chrome
+  // (owner-approved palette normalization — see ui-reuse-burndown.md).
+  hardcodedColorLiterals: 1883,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
