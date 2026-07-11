@@ -64,6 +64,8 @@ describe('welcome workspace seed', () => {
     });
     expect(iframe?.data?.html).toContain('https://pulse-canvas-download.pages.dev/');
     expect(iframe?.data?.html).toContain('target="_blank"');
+    expect(iframe?.data?.html).toContain('<html lang="zh-Hans">');
+    expect(iframe?.data?.html).toContain('应用内预览');
 
     expect(detail).toMatchObject({ x: 56, y: 584.5, width: 502, height: 853 });
     expect(detail?.data?.content).toContain('## 1. 先把工作区连到项目');
@@ -79,11 +81,14 @@ describe('welcome workspace seed', () => {
     const canvas = await readCanvasFull(WELCOME_WORKSPACE_ID, root);
     const note = canvas.data?.nodes?.find((node) => node.type === 'file' && node.id !== 'node-welcome-detail');
     const detail = canvas.data?.nodes?.find((node) => node.id === 'node-welcome-detail');
+    const download = canvas.data?.nodes?.find((node) => node.id === 'node-welcome-download');
 
     expect(note?.title).toBe('Welcome to Pulse Canvas');
     expect(note?.data?.content).toContain('Pulse Canvas is a local-first visual workspace');
     expect(detail?.title).toBe('Pulse Canvas — Detailed Usage');
     expect(detail?.data?.content).toContain('## 1. Connect the workspace to your project');
+    expect(download?.data?.html).toContain('<html lang="en">');
+    expect(download?.data?.html).toContain('opens in the app preview');
   });
 
   it('migrates the untouched remote Welcome download node to local HTML', async () => {

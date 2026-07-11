@@ -8,6 +8,7 @@ import {
   listWorkspaces,
 } from './workspaces';
 import type { CanvasNode } from './storage';
+import { makeWelcomeDownloadHtml } from './welcome-download-html';
 
 export const WELCOME_WORKSPACE_ID = 'default';
 export const WELCOME_WORKSPACE_NAME = 'Pulse Canvas';
@@ -31,6 +32,7 @@ interface WelcomeStrings {
   downloadTitle: string;
   downloadBody: string;
   downloadAction: string;
+  downloadNote: string;
   noteContent: string;
   detailContent: string;
 }
@@ -40,8 +42,9 @@ const WELCOME_STRINGS: Record<WelcomeLanguage, WelcomeStrings> = {
     noteTitle: '欢迎使用 Pulse Canvas',
     detailTitle: 'Pulse Canvas 使用详细',
     downloadTitle: '获取最新版 Pulse Canvas',
-    downloadBody: '下载页面将在系统浏览器中打开，不会阻塞工作区启动。',
+    downloadBody: '下载页面将在应用内预览中打开，你也可以从预览中选择系统浏览器。',
     downloadAction: '查看最新版与下载',
+    downloadNote: '本地欢迎内容已就绪；最新版本信息仅在你打开下载页时加载。',
     noteContent: `# 欢迎使用 Pulse Canvas
 
 Pulse Canvas 是一个本地优先的可视化工作区：你可以把笔记、网页、文件、终端和 AI Agent 放在同一张画布上，一边整理信息，一边推进动作。
@@ -104,8 +107,9 @@ Pulse Canvas 是一个本地优先的可视化工作区：你可以把笔记、�
     noteTitle: 'Welcome to Pulse Canvas',
     detailTitle: 'Pulse Canvas — Detailed Usage',
     downloadTitle: 'Get the latest Pulse Canvas',
-    downloadBody: 'The download page opens in your browser without delaying workspace startup.',
+    downloadBody: 'The download page opens in the app preview, where you can continue in your browser.',
     downloadAction: 'View latest release and download',
+    downloadNote: 'Local welcome content is ready; release data loads only when you open the download page.',
     noteContent: `# Welcome to Pulse Canvas
 
 Pulse Canvas is a local-first visual workspace: you can place notes, web pages, files, terminals, and AI agents on the same canvas — organizing information on one side while moving work forward on the other.
@@ -166,11 +170,13 @@ Suggested workflow: write goals and to-dos in a Note first, drag key web pages i
   },
 };
 
-const makeWelcomeDownloadHtml = (strings: WelcomeStrings): string => `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:48px;background:linear-gradient(145deg,#f7f9fc,#edf3ff);font:16px/1.6 system-ui,-apple-system,sans-serif;color:#172033}.card{width:min(680px,100%);padding:48px;border:1px solid #dbe4f2;border-radius:24px;background:rgba(255,255,255,.92);box-shadow:0 24px 70px rgba(39,72,122,.12)}.eyebrow{color:#3974d5;font-weight:700;letter-spacing:.08em;text-transform:uppercase}h1{margin:.35em 0 .4em;font-size:clamp(32px,5vw,52px);line-height:1.08}p{color:#566176;font-size:18px}.button{display:inline-block;margin-top:20px;padding:13px 20px;border-radius:12px;background:#1769e0;color:#fff;text-decoration:none;font-weight:700}.button:focus-visible{outline:3px solid #8db9f8;outline-offset:3px}
-</style></head><body><main class="card"><div class="eyebrow">Pulse Canvas</div><h1>${strings.downloadTitle}</h1><p>${strings.downloadBody}</p><a class="button" href="${DOWNLOAD_URL}" target="_blank" rel="noopener noreferrer">${strings.downloadAction}</a></main></body></html>`;
+const makeLocalDownloadHtml = (language: WelcomeLanguage, strings: WelcomeStrings): string =>
+  makeWelcomeDownloadHtml(language, DOWNLOAD_URL, {
+    title: strings.downloadTitle,
+    body: strings.downloadBody,
+    action: strings.downloadAction,
+    note: strings.downloadNote,
+  });
 
 /**
  * Resolve the welcome content language. An explicit override wins; otherwise
@@ -200,6 +206,7 @@ const makeWelcomeNodes = (
   welcomeNotePath: string,
   detailNotePath: string,
   strings: WelcomeStrings,
+  language: WelcomeLanguage,
 ): CanvasNode[] => [
     {
       id: WELCOME_NOTE_NODE_ID,
@@ -227,7 +234,7 @@ const makeWelcomeNodes = (
       height: 1369,
       data: {
         url: '',
-        html: makeWelcomeDownloadHtml(strings),
+        html: makeLocalDownloadHtml(language, strings),
         mode: 'html',
         prompt: '',
       },
@@ -271,7 +278,8 @@ export async function ensureWelcomeWorkspaceSeeded(
   root: string = STORE_DIR,
   language?: WelcomeLanguage,
 ): Promise<WelcomeWorkspaceSeedResult> {
-  const strings = WELCOME_STRINGS[resolveWelcomeLanguage(language)];
+  const resolvedLanguage = resolveWelcomeLanguage(language);
+  const strings = WELCOME_STRINGS[resolvedLanguage];
   const existing = await listWorkspaces(root);
   if (existing.workspaces.length > 0) {
     if (existing.workspaces.some((workspace) => workspace.id === WELCOME_WORKSPACE_ID)) {
@@ -284,7 +292,7 @@ export async function ensureWelcomeWorkspaceSeeded(
         const nextNodes = [...nodes];
         nextNodes[index] = {
           ...node,
-          data: { ...node.data, mode: 'html', url: '', html: makeWelcomeDownloadHtml(strings) },
+          data: { ...node.data, mode: 'html', url: '', html: makeLocalDownloadHtml(resolvedLanguage, strings) },
           updatedAt: Date.now(),
         };
         await saveCanvas(WELCOME_WORKSPACE_ID, { ...current.data, nodes: nextNodes }, { root });
@@ -307,7 +315,7 @@ export async function ensureWelcomeWorkspaceSeeded(
   await saveCanvas(
     WELCOME_WORKSPACE_ID,
     {
-      nodes: makeWelcomeNodes(now, welcomeNotePath, detailNotePath, strings),
+      nodes: makeWelcomeNodes(now, welcomeNotePath, detailNotePath, strings, resolvedLanguage),
       edges: [],
       transform: {
         x: 86.65451428822593,

@@ -60,7 +60,7 @@
     },
     "startup.welcome_local_content_ms": {
       "profile": "local-darwin-arm64-n100-r3", "target": 500, "warning": 800,
-      "confidence": "high", "basis": "本地 srcDoc 隔离启动实测 120.1ms，不依赖 Guest WebContents 或网络", "asOf": "2026-07-11"
+      "confidence": "high", "basis": "复用下载站样式的本地 srcDoc 隔离启动实测 127.6ms，不依赖 Guest WebContents 或网络", "asOf": "2026-07-11"
     },
     "startup.renderer_reload.lcp_ms": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 800, "warning": 1000,
