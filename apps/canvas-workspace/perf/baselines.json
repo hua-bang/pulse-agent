@@ -6,6 +6,10 @@
       "label": "机器无关的确定性产物/计数器",
       "appliesTo": {}
     },
+    "darwin-arm64-package": {
+      "label": "macOS arm64 正式发布包",
+      "appliesTo": { "os": "darwin", "arch": "arm64" }
+    },
     "local-darwin-arm64-n100-r3": {
       "label": "machine 109429d5 · darwin arm64 · 100 节点/0 seeded webviews · repeat 3 · perf-v1",
       "appliesTo": {
@@ -161,6 +165,31 @@
       "profile": "global-deterministic", "target": true,
       "confidence": "high", "basis": "六个重依赖的构建产物探针", "asOf": "2026-07-10",
       "gate": { "kind": "true", "scope": "bundle" }
+    },
+    "package.dmg_mb": {
+      "profile": "darwin-arm64-package", "target": 105, "warning": 115,
+      "confidence": "high", "basis": "electron-builder 26.15.6 production dependency collector + 3 locales;arm64 实测 96.6MB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 96.6, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "package.app_unpacked_mib": {
+      "profile": "darwin-arm64-package", "target": 250, "warning": 275,
+      "confidence": "high", "basis": "arm64 .app 逻辑文件体积实测 235.1MiB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 235.1, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "package.asar_mib": {
+      "profile": "darwin-arm64-package", "target": 50, "warning": 60,
+      "confidence": "high", "basis": "Renderer-only dependencies 去重后 app.asar 实测 44MiB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 44, "tolerancePct": 5, "scope": "bundle" }
+    },
+    "package.native_unpacked_mib": {
+      "profile": "darwin-arm64-package", "target": 5, "warning": 8,
+      "confidence": "high", "basis": "仅保留 node-pty native unpacked;实测 2.3MiB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 2.3, "tolerancePct": 10, "scope": "bundle" }
+    },
+    "package.electron_locale_count": {
+      "profile": "darwin-arm64-package", "target": 3, "warning": 4,
+      "confidence": "high", "basis": "产品语言范围 en/zh_CN/zh_TW", "asOf": "2026-07-11",
+      "gate": { "kind": "max", "value": 3, "scope": "bundle" }
     },
 
     "memory.ws_cycle.post_capacity_heap_slope": {

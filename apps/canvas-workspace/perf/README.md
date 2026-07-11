@@ -15,6 +15,10 @@ read it before implementation.
 For a presentation-friendly view of the current state, actions, and expected
 benefits, open **`bundle-optimization-overview.html`** directly in a browser.
 
+After producing a macOS arm64 release, run `pnpm --filter canvas-workspace
+perf:package` to record DMG, unpacked app, ASAR, native unpacked, and Electron
+locale metrics in `perf/out/package-report.json`.
+
 ## One command (start here)
 
 ```bash

@@ -18,8 +18,7 @@ import { fileURLToPath } from 'url';
  *  - chat/lazy.tsx (C3) React.lazy-loads ChatPage + ChatPanel, evicting
  *    highlight.js + markdown-it + the chat tree.
  *  - WorkspaceTerminalPortal (C2) React.lazy-loads WorkspaceTerminalDock,
- *    evicting @xterm/xterm (main.tsx keeps only its CSS, which vite extracts
- *    to a stylesheet — no JS cost).
+ *    evicting @xterm/xterm and its CSS from the startup closure.
  *  - federation.ts (C7) dynamic-imports @module-federation/runtime.
  *  - useCanvasSearch (chain B) dynamic-imports noteSearchExtension, evicting
  *    @tiptap/react + @tiptap/pm.
@@ -50,6 +49,43 @@ const WATCHLIST = [
 const testDir = dirname(fileURLToPath(import.meta.url));
 const srcRoot = resolve(testDir, '../..'); // apps/canvas-workspace/src
 const entryFile = join(srcRoot, 'renderer/src/main.tsx');
+const packageJson = JSON.parse(readFileSync(resolve(srcRoot, '../package.json'), 'utf-8')) as {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+
+const RENDERER_ONLY_DEPENDENCIES = [
+  '@module-federation/runtime',
+  '@tiptap/extension-bubble-menu',
+  '@tiptap/extension-code-block-lowlight',
+  '@tiptap/extension-highlight',
+  '@tiptap/extension-image',
+  '@tiptap/extension-link',
+  '@tiptap/extension-paragraph',
+  '@tiptap/extension-placeholder',
+  '@tiptap/extension-table',
+  '@tiptap/extension-table-cell',
+  '@tiptap/extension-table-header',
+  '@tiptap/extension-table-row',
+  '@tiptap/extension-task-item',
+  '@tiptap/extension-task-list',
+  '@tiptap/extension-underline',
+  '@tiptap/pm',
+  '@tiptap/react',
+  '@tiptap/starter-kit',
+  '@xterm/addon-fit',
+  '@xterm/xterm',
+  'highlight.js',
+  'lowlight',
+  'markdown-it',
+  'markdown-it-task-lists',
+  'mermaid',
+  'react',
+  'react-dom',
+  'react-force-graph-2d',
+  'tiptap-markdown',
+  'wouter',
+];
 
 const RESOLVE_SUFFIXES = ['', '.ts', '.tsx', '/index.ts', '/index.tsx'];
 // Static `import ... from 'x'`, `export ... from 'x'`, bare `import 'x'`.
@@ -119,4 +155,11 @@ describe('bundle boundaries (static import graph from renderer entry)', () => {
     expect(mermaidUtil).toMatch(/import\(\s*['"]mermaid['"]\s*\)/);
   });
 
+});
+
+describe('packaged dependency boundary', () => {
+  it.each(RENDERER_ONLY_DEPENDENCIES)('%s is build-time only', (pkg) => {
+    expect(packageJson.dependencies?.[pkg]).toBeUndefined();
+    expect(packageJson.devDependencies?.[pkg]).toBeTypeOf('string');
+  });
 });

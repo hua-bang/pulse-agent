@@ -183,6 +183,23 @@ export const collectPtyStreamMetric = (scenarios) => {
   };
 };
 
+export const collectPackageMetrics = (packageReport) => [
+  ['dmgMB', 'package.dmg_mb'],
+  ['appUnpackedMiB', 'package.app_unpacked_mib'],
+  ['asarMiB', 'package.asar_mib'],
+  ['nativeUnpackedMiB', 'package.native_unpacked_mib'],
+  ['electronLocaleCount', 'package.electron_locale_count'],
+].flatMap(([reportKey, id]) => {
+  const value = packageReport?.metrics?.[reportKey];
+  if (!Number.isFinite(value)) return [];
+  return [{
+    id,
+    value,
+    runs: 1,
+    detail: `${packageReport.platform}/${packageReport.arch} · commit ${packageReport.commit}`,
+  }];
+});
+
 export const collectRendererTraceMetrics = (scenarios) => {
   const trace = scenarios?.scenarios?.['renderer-trace'];
   if (trace?.status !== 'measured') return [];
@@ -325,6 +342,7 @@ export const collectWorkspaceCycleMetrics = (scenarios) => {
 
 export const collectMetrics = () => {
   const bundle = readJson(join(outDir, 'bundle-report.json'));
+  const packageReport = readJson(join(outDir, 'package-report.json'));
   const scenarios = readJson(join(outDir, 'scenarios-report.json'));
   const inferredRepeat = scenarios
     ? Math.max(
@@ -393,6 +411,10 @@ export const collectMetrics = () => {
       pass: watchlistPass,
       ...(regressed.length ? { detail: regressed.join(' · ') } : {}),
     });
+  }
+
+  if (packageReport) {
+    metrics.push(...collectPackageMetrics(packageReport));
   }
 
   const phases = scenarios?.scenarios?.startup?.mainPhases;

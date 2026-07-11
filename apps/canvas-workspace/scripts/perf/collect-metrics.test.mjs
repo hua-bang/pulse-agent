@@ -5,10 +5,26 @@ import {
   collectInteractionScenarioMetrics,
   collectPanzoomMetrics,
   collectPtyStreamMetric,
+  collectPackageMetrics,
   collectRendererTraceMetrics,
   collectWelcomeWebviewMetric,
   collectWorkspaceCycleMetrics,
 } from './collect-metrics.mjs';
+
+describe('collectPackageMetrics', () => {
+  it('maps the packaged artifact report without inventing missing values', () => {
+    expect(collectPackageMetrics({
+      platform: 'darwin',
+      arch: 'arm64',
+      commit: 'abc123',
+      metrics: { dmgMB: 96.6, appUnpackedMiB: 235.1, electronLocaleCount: 3 },
+    })).toEqual([
+      { id: 'package.dmg_mb', value: 96.6, runs: 1, detail: 'darwin/arm64 · commit abc123' },
+      { id: 'package.app_unpacked_mib', value: 235.1, runs: 1, detail: 'darwin/arm64 · commit abc123' },
+      { id: 'package.electron_locale_count', value: 3, runs: 1, detail: 'darwin/arm64 · commit abc123' },
+    ]);
+  });
+});
 
 describe('collectInteractionScenarioMetrics', () => {
   it('normalizes resize timing, counters, repeat samples, and gate results', () => {

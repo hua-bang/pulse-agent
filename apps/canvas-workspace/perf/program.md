@@ -78,6 +78,9 @@
 | `bundle.total_css_raw_kb` | `dist/renderer` 内全部 CSS 原始字节先求和、最后换算 KB | KB | 全局 | record | ✅ 已建 |
 | `bundle.main_raw_kb` / `bundle.preload_raw_kb` | Main / Preload 入口构建输出原始字节 | KB | 全局 | record | ✅ 已建 |
 | `bundle.feature_first_load.<feature>_raw_kb` | File/Chat/Terminal/Graph/Mermaid/MF 的 manifest 静态闭包扣除启动已加载文件后的 JS+CSS 增量 | KB | 全局 | record | ✅ 已建 |
+| `package.dmg_mb` / `package.app_unpacked_mib` | `perf:package` 采集的 macOS arm64 DMG 与解压 `.app` | MB/MiB | 同平台架构 | **gate** | ✅ 96.6 / 235.1 |
+| `package.asar_mib` / `package.native_unpacked_mib` | app.asar 与 native unpacked 载荷 | MiB | 同平台架构 | **gate** | ✅ 44.0 / 2.3 |
+| `package.electron_locale_count` | Electron Framework 保留的 `.lproj` 数量 | 个 | 同平台架构 | **gate** | ✅ 3 |
 | `bundle.chunk_count` | JS chunk 数 | 个 | 全局 | record | ✅ 77 |
 | `bundle.lazy_boundary_watchlist` | Rollup entry module IDs 中 WATCHLIST 包保持缺席 | bool | 全局 | **gate** | ✅ 6/6 保持 lazy |
 | `bundle.heavy_in_entry_count` | 入口模块图的重依赖命中数(xterm/tiptap/hljs/d3/MF/mermaid) | 个 | 全局 | record | ✅ 0/6 在 entry |
