@@ -21,6 +21,10 @@ pathRules:
       - harness/tools/driver/**
     required:
       - pnpm --filter canvas-workspace test
+    manual:
+      - pnpm --filter canvas-workspace harness start --profile demo --reset --force --enable-webview-page-control --json
+      - pnpm --filter canvas-workspace harness verify-webview-input-focus --json
+      - pnpm --filter canvas-workspace harness close --cleanup --json
 
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.

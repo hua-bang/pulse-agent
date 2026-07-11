@@ -142,9 +142,7 @@ export class CdpClient {
 }
 
 export async function getPageTarget(session) {
-  const res = await fetch(`http://127.0.0.1:${session.cdpPort}/json/list`);
-  if (!res.ok) throw new Error(`CDP target list failed: HTTP ${res.status}`);
-  const targets = await res.json();
+  const targets = await getTargets(session);
   const page = targets.find((target) =>
     target.type === 'page' &&
     target.webSocketDebuggerUrl &&
@@ -154,12 +152,29 @@ export async function getPageTarget(session) {
   return page;
 }
 
+export async function getTargets(session) {
+  const res = await fetch(`http://127.0.0.1:${session.cdpPort}/json/list`);
+  if (!res.ok) throw new Error(`CDP target list failed: HTTP ${res.status}`);
+  return res.json();
+}
+
 export async function waitForPageTarget(session, timeoutMs) {
   return waitFor(() => getPageTarget(session), timeoutMs);
 }
 
 export async function withPage(session, fn) {
   const target = await getPageTarget(session);
+  const cdp = new CdpClient(target.webSocketDebuggerUrl);
+  await cdp.connect();
+  try {
+    return await fn(cdp, target);
+  } finally {
+    cdp.close();
+  }
+}
+
+export async function withTarget(target, fn) {
+  if (!target?.webSocketDebuggerUrl) throw new Error('CDP target has no debugger WebSocket URL.');
   const cdp = new CdpClient(target.webSocketDebuggerUrl);
   await cdp.connect();
   try {

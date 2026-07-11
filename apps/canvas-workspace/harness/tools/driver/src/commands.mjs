@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { parseArgs } from './args.mjs';
-import { getPageTarget, withPage } from './cdp.mjs';
+import { getPageTarget, getTargets, withPage, withTarget } from './cdp.mjs';
 import { HarnessError } from './errors.mjs';
 import { assertPoint, parseKeyCombo } from './input.mjs';
 import { onboardHashRoute, openOnboard } from './navigation.mjs';
@@ -152,4 +152,65 @@ export async function resetArtifactsCommand(rawArgs) {
   const session = await requireSession();
   await fs.rm(session.artifactsDir, { recursive: true, force: true });
   printResult(opts.json, { removed: session.artifactsDir }, [`Removed artifacts: ${session.artifactsDir}`]);
+}
+
+function targetMatches(target, needle) {
+  const value = String(needle ?? '').toLowerCase();
+  return String(target.url ?? '').toLowerCase().includes(value)
+    || String(target.title ?? '').toLowerCase().includes(value);
+}
+
+export async function verifyWebviewInputFocusCommand(rawArgs) {
+  const { opts } = parseArgs(rawArgs);
+  const session = await requireLiveSession();
+  const hostSelector = opts['host-selector'] ?? '.sidebar-layer-search-input';
+  const guestSelector = opts['guest-selector'] ?? '#guest-input';
+  const targetNeedle = opts.target ?? 'webview-input-fixture';
+  const text = opts.text ?? 'webview-focus-check';
+
+  const hostBefore = await evaluateRenderer(session, `(${focusAndClearExpression})(${JSON.stringify(hostSelector)})`);
+  if (!hostBefore?.ok) throw new HarnessError(hostBefore?.error ?? `Could not focus host input ${hostSelector}`);
+
+  const targets = await getTargets(session);
+  const guest = targets.find((target) => target.webSocketDebuggerUrl && targetMatches(target, targetNeedle));
+  if (!guest) throw new HarnessError(`No guest WebView target matching ${JSON.stringify(targetNeedle)}.`);
+
+  // Mirror the product's `webContents.focus()` guard by focusing the owning
+  // <webview> element from the host renderer. Page.bringToFront (and even
+  // Target.activateTarget) alone does not transfer Chromium's input route.
+  const webviewFocused = await evaluateRenderer(session, `(() => {
+    const needle = ${JSON.stringify(targetNeedle)}.toLowerCase();
+    const el = Array.from(document.querySelectorAll('webview')).find((candidate) =>
+      String(candidate.getURL?.() || candidate.src || '').toLowerCase().includes(needle));
+    if (!el) return false;
+    el.focus();
+    return true;
+  })()`);
+  if (!webviewFocused) throw new HarnessError(`No host <webview> element matching ${JSON.stringify(targetNeedle)}.`);
+
+  const guestValue = await withTarget(guest, async (cdp) => {
+    await cdp.send('Page.bringToFront');
+    const prepared = await cdp.send('Runtime.evaluate', {
+      expression: `(${focusAndClearExpression})(${JSON.stringify(guestSelector)})`,
+      returnByValue: true,
+      awaitPromise: true,
+    });
+    if (!prepared?.result?.value?.ok) {
+      throw new HarnessError(prepared?.result?.value?.error ?? `Could not focus guest input ${guestSelector}`);
+    }
+    await cdp.send('Input.insertText', { text });
+    const value = await cdp.send('Runtime.evaluate', {
+      expression: `document.querySelector(${JSON.stringify(guestSelector)})?.value ?? null`,
+      returnByValue: true,
+    });
+    return value?.result?.value;
+  });
+
+  const hostValue = await evaluateRenderer(session,
+    `(() => { const el = document.querySelector(${JSON.stringify(hostSelector)}); return el?.value ?? el?.textContent ?? null; })()`);
+  const result = { ok: guestValue === text && !hostValue, guestValue, hostValue, target: guest.url };
+  if (!result.ok) {
+    throw new HarnessError(`WebView input focus leaked: ${JSON.stringify(result)}`);
+  }
+  printResult(opts.json, result, ['WebView input stayed in the guest target; host input remained empty.']);
 }
