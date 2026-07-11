@@ -1,4 +1,4 @@
-import { useMemo, type KeyboardEventHandler, type RefObject } from 'react';
+import { useEffect, useMemo, type KeyboardEventHandler, type RefObject } from 'react';
 import type { Artifact } from '../../types';
 import { Button } from '../ui/Button';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
@@ -25,6 +25,7 @@ interface IframeRenderedViewProps {
   isResizing?: boolean;
   loadError: string | null;
   loadState: LoadState;
+  localUrl: string;
   mode: string;
   nodeId: string;
   openArtifact: (workspaceId: string, artifactId: string) => void;
@@ -62,6 +63,7 @@ export const IframeRenderedView = ({
   isResizing,
   loadError,
   loadState,
+  localUrl,
   mode,
   nodeId,
   openArtifact,
@@ -85,6 +87,18 @@ export const IframeRenderedView = ({
     () => renderMode === 'html' ? appendDomPickerBridge(renderedHtml) : renderedHtml,
     [renderMode, renderedHtml],
   );
+
+  useEffect(() => {
+    if (nodeId !== 'node-welcome-download' || !localUrl) return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== renderIframeRef.current?.contentWindow) return;
+      if (event.data?.type === 'pulse-canvas-welcome-content-ready') {
+        markOnce('welcome:local-content-ready');
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [localUrl, nodeId, renderIframeRef]);
 
   return (
     <div className="iframe-body">
@@ -227,8 +241,9 @@ export const IframeRenderedView = ({
             ref={renderIframeRef}
             key={isArtifactMode ? `artifact-${artifact?.currentVersionId ?? 'loading'}` : webviewKey}
             className="iframe-frame"
-            srcDoc={inspectableHtml}
-            onLoad={nodeId === 'node-welcome-download'
+            src={localUrl || undefined}
+            srcDoc={localUrl ? undefined : inspectableHtml}
+            onLoad={nodeId === 'node-welcome-download' && !localUrl
               ? () => markOnce('welcome:local-content-ready')
               : undefined}
             sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"

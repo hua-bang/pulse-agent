@@ -156,6 +156,7 @@ export const IframeNodeBody = ({
         isResizing={isResizing}
         loadError={state.loadError}
         loadState={state.loadState}
+        localUrl={state.localUrl}
         mode={state.mode}
         nodeId={node.id}
         openArtifact={openArtifact}

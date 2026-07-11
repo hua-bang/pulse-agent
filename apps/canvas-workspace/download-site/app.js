@@ -1,7 +1,8 @@
+const manifestOverride = new URLSearchParams(window.location.search).get('manifest');
 const configuredManifestUrl = document.documentElement.dataset.manifestUrl;
-const manifestUrl = configuredManifestUrl && !configuredManifestUrl.includes('__PULSE_CANVAS_MANIFEST_URL__')
+const manifestUrl = manifestOverride || (configuredManifestUrl && !configuredManifestUrl.includes('__PULSE_CANVAS_MANIFEST_URL__')
   ? configuredManifestUrl
-  : './latest.sample.json';
+  : './latest.sample.json');
 const versionLabel = document.querySelector('#version-label');
 const downloadLabel = document.querySelector('#download-label');
 const primaryDownload = document.querySelector('#primary-download');

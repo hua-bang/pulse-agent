@@ -8,12 +8,12 @@ import {
   listWorkspaces,
 } from './workspaces';
 import type { CanvasNode } from './storage';
-import { makeWelcomeDownloadHtml } from './welcome-download-html';
 
 export const WELCOME_WORKSPACE_ID = 'default';
 export const WELCOME_WORKSPACE_NAME = 'Pulse Canvas';
 
 const DOWNLOAD_URL = 'https://pulse-canvas-download.pages.dev/';
+const DOWNLOAD_MANIFEST_URL = `${DOWNLOAD_URL}latest.json`;
 const WELCOME_NOTE_NODE_ID = 'node-welcome-note';
 const WELCOME_DOWNLOAD_NODE_ID = 'node-welcome-download';
 const WELCOME_DETAIL_NODE_ID = 'node-welcome-detail';
@@ -29,10 +29,6 @@ export type WelcomeLanguage = 'zh' | 'en';
 interface WelcomeStrings {
   noteTitle: string;
   detailTitle: string;
-  downloadTitle: string;
-  downloadBody: string;
-  downloadAction: string;
-  downloadNote: string;
   noteContent: string;
   detailContent: string;
 }
@@ -41,10 +37,6 @@ const WELCOME_STRINGS: Record<WelcomeLanguage, WelcomeStrings> = {
   zh: {
     noteTitle: '欢迎使用 Pulse Canvas',
     detailTitle: 'Pulse Canvas 使用详细',
-    downloadTitle: '获取最新版 Pulse Canvas',
-    downloadBody: '下载页面将在应用内预览中打开，你也可以从预览中选择系统浏览器。',
-    downloadAction: '查看最新版与下载',
-    downloadNote: '本地欢迎内容已就绪；最新版本信息仅在你打开下载页时加载。',
     noteContent: `# 欢迎使用 Pulse Canvas
 
 Pulse Canvas 是一个本地优先的可视化工作区：你可以把笔记、网页、文件、终端和 AI Agent 放在同一张画布上，一边整理信息，一边推进动作。
@@ -106,10 +98,6 @@ Pulse Canvas 是一个本地优先的可视化工作区：你可以把笔记、�
   en: {
     noteTitle: 'Welcome to Pulse Canvas',
     detailTitle: 'Pulse Canvas — Detailed Usage',
-    downloadTitle: 'Get the latest Pulse Canvas',
-    downloadBody: 'The download page opens in the app preview, where you can continue in your browser.',
-    downloadAction: 'View latest release and download',
-    downloadNote: 'Local welcome content is ready; release data loads only when you open the download page.',
     noteContent: `# Welcome to Pulse Canvas
 
 Pulse Canvas is a local-first visual workspace: you can place notes, web pages, files, terminals, and AI agents on the same canvas — organizing information on one side while moving work forward on the other.
@@ -170,13 +158,10 @@ Suggested workflow: write goals and to-dos in a Note first, drag key web pages i
   },
 };
 
-const makeLocalDownloadHtml = (language: WelcomeLanguage, strings: WelcomeStrings): string =>
-  makeWelcomeDownloadHtml(language, DOWNLOAD_URL, {
-    title: strings.downloadTitle,
-    body: strings.downloadBody,
-    action: strings.downloadAction,
-    note: strings.downloadNote,
-  });
+const makeLocalDownloadUrl = (language: WelcomeLanguage): string => {
+  const params = new URLSearchParams({ lang: language, manifest: DOWNLOAD_MANIFEST_URL });
+  return `pulse-canvas://app/download-site/index.html?${params}`;
+};
 
 /**
  * Resolve the welcome content language. An explicit override wins; otherwise
@@ -234,7 +219,8 @@ const makeWelcomeNodes = (
       height: 1369,
       data: {
         url: '',
-        html: makeLocalDownloadHtml(language, strings),
+        html: '',
+        localUrl: makeLocalDownloadUrl(language),
         mode: 'html',
         prompt: '',
       },
@@ -287,12 +273,22 @@ export async function ensureWelcomeWorkspaceSeeded(
       const nodes = current.data?.nodes ?? [];
       const index = nodes.findIndex((node) => node.id === WELCOME_DOWNLOAD_NODE_ID);
       const node = index >= 0 ? nodes[index] : null;
-      const data = node?.data as { mode?: string; url?: string } | undefined;
-      if (node && data?.mode === 'url' && data.url === DOWNLOAD_URL && current.data) {
+      const data = node?.data as { mode?: string; url?: string; localUrl?: string; html?: string } | undefined;
+      const isLegacyRemote = data?.mode === 'url' && data.url === DOWNLOAD_URL;
+      const isGeneratedLocalCard = data?.mode === 'html'
+        && !data.localUrl
+        && data.html?.includes('pulse-canvas-download.pages.dev');
+      if (node && (isLegacyRemote || isGeneratedLocalCard) && current.data) {
         const nextNodes = [...nodes];
         nextNodes[index] = {
           ...node,
-          data: { ...node.data, mode: 'html', url: '', html: makeLocalDownloadHtml(resolvedLanguage, strings) },
+          data: {
+            ...node.data,
+            mode: 'html',
+            url: '',
+            html: '',
+            localUrl: makeLocalDownloadUrl(resolvedLanguage),
+          },
           updatedAt: Date.now(),
         };
         await saveCanvas(WELCOME_WORKSPACE_ID, { ...current.data, nodes: nextNodes }, { root });

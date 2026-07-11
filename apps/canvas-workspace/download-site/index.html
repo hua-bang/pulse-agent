@@ -9,7 +9,7 @@
   <body>
     <main class="page-shell">
       <header class="site-header">
-        <a class="brand" href="/" aria-label="Pulse Canvas home">
+        <a class="brand" href="./index.html" aria-label="Pulse Canvas home">
           <img class="brand-icon" src="./icon.png" alt="" />
           <span>Pulse Canvas</span>
         </a>
@@ -86,6 +86,11 @@
         </article>
       </section>
     </main>
+    <script>
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'pulse-canvas-welcome-content-ready' }, '*');
+      }
+    </script>
     <script src="./app.js" type="module"></script>
   </body>
 </html>

@@ -33,12 +33,13 @@ export const useIframeNodeState = ({
   const mode = data.mode ?? 'url';
   const url = data.url ?? '';
   const html = data.html ?? '';
+  const localUrl = data.localUrl ?? '';
   const savedPrompt = data.prompt ?? '';
   const artifactId = data.artifactId ?? null;
   const isArtifactMode = mode === 'artifact' && !!artifactId && !!workspaceId;
   const { artifact, artifactHtml } = useIframeArtifact({ artifactId, isArtifactMode, workspaceId });
 
-  const hasContent = isArtifactMode ? !!artifactHtml : (mode === 'url' ? !!url : !!html);
+  const hasContent = isArtifactMode ? !!artifactHtml : (mode === 'url' ? !!url : !!html || !!localUrl);
   const [editing, setEditing] = useState(!readOnly && !isArtifactMode && !hasContent);
   const [draftUrl, setDraftUrl] = useState(url);
   const [draftHtml, setDraftHtml] = useState(html);
@@ -476,6 +477,7 @@ export const useIframeNodeState = ({
     isArtifactMode,
     loadError,
     loadState,
+    localUrl,
     mode,
     openBlankPage,
     pickDomElement,
