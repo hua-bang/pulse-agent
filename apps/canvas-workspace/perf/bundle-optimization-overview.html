@@ -444,8 +444,8 @@
         <article class="matrix-row">
           <div><h3>Renderer 构建</h3><p>产物压缩</p></div>
           <p>生产构建没有启用 minify。<span class="current-value">Total JS 10.60 MB</span></p>
-          <p>Renderer 使用 Terser、CSS 使用 esbuild minify；Chat 与编辑器共享 16 种主流 grammar。</p>
-          <p class="benefit">Total JS → 5.28 MB<br />降低 50.2%</p>
+          <p>Renderer 使用 Terser、CSS 使用 esbuild minify；Chat 与编辑器共享完整 36 种 common grammar。</p>
+          <p class="benefit">Total JS → 5.35 MB<br />降低 49.5%</p>
         </article>
         <article class="matrix-row">
           <div><h3>首屏入口</h3><p>应用功能边界</p></div>
@@ -463,7 +463,7 @@
           <div><h3>发布安装包</h3><p>依赖去重</p></div>
           <p>Renderer 依赖既进入 Vite bundle，又被 Builder 复制进 node_modules。<span class="current-value">DMG 160.8 MB</span></p>
           <p>迁移 Renderer-only 依赖、删除无引用 Requesty、精简 Electron locales 与发布资源。</p>
-          <p class="benefit">DMG → 96.5 MB<br />降低 40.0%</p>
+          <p class="benefit">DMG → 96.4 MB<br />降低 40.0%</p>
         </article>
         <article class="matrix-row">
           <div><h3>Main 进程</h3><p>插件按需加载</p></div>
@@ -499,16 +499,16 @@
         headline: [
           ['Renderer entry JS', '614 KB', '较基线降低 55.5%'],
           ['真实启动资源闭包', '892.9 KB', '较基线降低约 72.9%'],
-          ['arm64 DMG', '96.5 MB', '较基线降低 40.0%'],
-          ['解压应用体积', '234.9 MiB', '较基线降低 50.2%']
+          ['arm64 DMG', '96.4 MB', '较基线降低 40.0%'],
+          ['解压应用体积', '234.6 MiB', '较基线降低 50.3%']
         ],
         rows: [
           ['Renderer entry JS', '基线 1,380 KB', '614 KB', 44.5, '降低 55.5%'],
           ['启动 CSS', '基线 284 KB', '105 KB', 37.0, '降低 63.0%'],
-          ['Renderer total JS', '基线 10.60 MB', '5.28 MB', 49.8, '降低 50.2%'],
+          ['Renderer total JS', '基线 10.60 MB', '5.35 MB', 50.5, '降低 49.5%'],
           ['Canvas / LCP 资源闭包', '基线约 3.22 MB', '888.1 / 892.9 KB', 27.1, '降低约 72.9%'],
-          ['arm64 DMG', '基线 160.8 MB', '96.5 MB', 60.0, '降低 40.0%'],
-          ['解压 .app', '基线 471.7 MiB', '234.9 MiB', 49.8, '降低 50.2%']
+          ['arm64 DMG', '基线 160.8 MB', '96.4 MB', 60.0, '降低 40.0%'],
+          ['解压 .app', '基线 471.7 MiB', '234.6 MiB', 49.7, '降低 50.3%']
         ]
       },
       aggressive: {

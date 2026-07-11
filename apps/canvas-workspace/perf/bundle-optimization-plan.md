@@ -42,14 +42,14 @@
 | Renderer entry JS raw | 1,380 KB | 614 KB | -55.5% |
 | Renderer entry JS gzip | 285 KB | 179 KB | -37.2% |
 | 启动 CSS raw | 284 KB | 105 KB | -63.0% |
-| Renderer total JS raw | 10.60 MB | 5.28 MB | -50.2% |
+| Renderer total JS raw | 10.60 MB | 5.35 MB | -49.5% |
 | Canvas / LCP 前真实资源闭包 | 约 3.22 MB | 888.1 / 892.9 KB | 约 -72.9% |
 | Main bundle raw | 953 KB | 495 KB | -48.1% |
-| arm64 DMG | 160.8 MB | 96.5 MB | -40.0% |
-| 解压 `.app` | 471.7 MiB | 234.9 MiB | -50.2% |
+| arm64 DMG | 160.8 MB | 96.4 MB | -40.0% |
+| 解压 `.app` | 471.7 MiB | 234.6 MiB | -50.3% |
 
-Renderer total JS 已通过 Terser 与 chat/editor 共享 16 种主流 grammar 回到
-5.3 MB 推荐目标内；未注册语言的代码块仍安全显示并沿用自动检测。进一步空间主要是
+Renderer total JS 已通过 Terser 与 chat/editor 共享完整 36 种 common grammar 回到
+5.35 MB 推荐目标内；36 种 common 语言及自动检测能力均保留。进一步空间主要是
 limited Mermaid 等会改变能力边界的可选项，不纳入默认承诺。最终 Gate 为
 23/23，packaged app 已验证首屏、File 预览与编辑器动态加载。
 
@@ -290,8 +290,8 @@ Mermaid、Tiptap、Graph、MF remote。源码 build 通过不能证明 packaged 
 1. 非编辑态渲染轻量、安全的 Markdown preview。
 2. 用户聚焦/进入编辑态后加载 Tiptap，加载完成前显示稳定尺寸 fallback。
 3. 编辑器加载后保留实例，避免频繁进出编辑态反复初始化。
-4. Chat 与 File 建共享 grammar registry；明确支持语言后，将两套 35/36
-   grammar 收敛到 10–16 种常用语言。
+4. Chat 与 File 建共享 grammar registry；最终复用完整 36 种 common
+   grammar，在不缩减语言支持的前提下消除两套重复注册。
 
 **备选方案**：只用 `requestIdleCallback` 延后 Tiptap。实现更小，但只是把
 长任务后移，内容也可能闪烁，不是推荐终态。

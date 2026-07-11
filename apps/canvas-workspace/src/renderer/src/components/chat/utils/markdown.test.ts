@@ -10,6 +10,14 @@ describe('chat Markdown syntax highlighting', () => {
     expect(html).toContain('hljs-built_in');
   });
 
+  it('preserves highlighting for languages from the full common set', () => {
+    const html = renderMarkdown('```ruby\nclass Greeter\nend\n```');
+
+    expect(html).toContain('data-lang="ruby"');
+    expect(html).toContain('hljs-keyword');
+    expect(html).toContain('hljs-title');
+  });
+
   it('renders an unsupported language safely through auto-detection', () => {
     const html = renderMarkdown('```brainfuck\n++>---<\n```');
 

@@ -158,9 +158,9 @@
       "gate": { "kind": "ratchet", "baseline": 104, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.total_js_kb": {
-      "profile": "global-deterministic", "target": 5300, "warning": 5600,
-      "confidence": "high", "basis": "Renderer Terser + chat/editor 共享 16 种主流 grammar 后实测 5281KB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 5281, "tolerancePct": 3, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 5350, "warning": 5600,
+      "confidence": "high", "basis": "Renderer Terser + chat/editor 共享完整 36 种 common grammar 后实测 5350KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 5350, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 600,
@@ -188,17 +188,17 @@
     },
     "package.dmg_mb": {
       "profile": "darwin-arm64-package", "target": 105, "warning": 115,
-      "confidence": "high", "basis": "Terser + 16 种共享 grammar 后 arm64 DMG 实测 96.4MB", "asOf": "2026-07-11",
+      "confidence": "high", "basis": "Terser + 完整 36 种共享 grammar 后 arm64 DMG 实测 96.4MB", "asOf": "2026-07-11",
       "gate": { "kind": "ratchet", "baseline": 96.4, "tolerancePct": 3, "scope": "bundle" }
     },
     "package.app_unpacked_mib": {
       "profile": "darwin-arm64-package", "target": 250, "warning": 275,
-      "confidence": "high", "basis": "Terser + 16 种共享 grammar 后 arm64 .app 实测 234.6MiB", "asOf": "2026-07-11",
+      "confidence": "high", "basis": "Terser + 完整 36 种共享 grammar 后 arm64 .app 实测 234.6MiB", "asOf": "2026-07-11",
       "gate": { "kind": "ratchet", "baseline": 234.6, "tolerancePct": 3, "scope": "bundle" }
     },
     "package.asar_mib": {
       "profile": "darwin-arm64-package", "target": 50, "warning": 60,
-      "confidence": "high", "basis": "Terser + 16 种共享 grammar 后 app.asar 实测 43.5MiB", "asOf": "2026-07-11",
+      "confidence": "high", "basis": "Terser + 完整 36 种共享 grammar 后 app.asar 实测 43.5MiB", "asOf": "2026-07-11",
       "gate": { "kind": "ratchet", "baseline": 43.5, "tolerancePct": 5, "scope": "bundle" }
     },
     "package.native_unpacked_mib": {

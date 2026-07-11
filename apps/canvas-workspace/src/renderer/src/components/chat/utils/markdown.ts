@@ -1,7 +1,7 @@
 import hljs from 'highlight.js/lib/core';
 import MarkdownIt from 'markdown-it';
 import taskLists from 'markdown-it-task-lists';
-import { syntaxHighlightLanguages } from '../../../editor/syntaxHighlightLanguages';
+import { syntaxHighlightLanguages } from '../../../utils/syntaxHighlightLanguages';
 import { count } from '../../../perf/counters';
 
 for (const [name, language] of Object.entries(syntaxHighlightLanguages)) {

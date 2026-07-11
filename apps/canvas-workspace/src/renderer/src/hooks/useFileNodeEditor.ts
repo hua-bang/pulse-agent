@@ -24,7 +24,7 @@ import { isImeComposing } from '../utils/ime';
 import { useNoteKeyboard } from './useNoteKeyboard';
 import { useNoteInteractionController } from './useNoteInteractionController';
 import { MarkdownSafeImage } from './fileNodeMarkdownImage';
-import { syntaxHighlightLanguages } from '../editor/syntaxHighlightLanguages';
+import { syntaxHighlightLanguages } from '../utils/syntaxHighlightLanguages';
 import {
   insertImageAtPos,
   insertImageAtSelection,
