@@ -797,6 +797,112 @@ This is the first confirmed bite of the known "no automatic trigger" gap
 (root AGENTS.md §4): nothing runs these suites for work that doesn't know
 about them.
 
+## Absorb the recorded node-chrome skips — ui/Button xs tier — DONE 2026-07-11
+
+统一收编 ("unify and absorb") — owner-decided direction: compact node-chrome
+buttons the pilot slice recorded as SIZE misfits move onto the blessed set,
+accepting palette normalization where recorded, rather than staying frozen
+stock indefinitely. Two parts: (1) `ui/Button` gains a `size="xs"` tier;
+(2) the pilot slice's IframeNodeBody skips are re-verified against the new
+tier and absorbed where the fit is genuine.
+
+### `ui/Button` `size="xs"`
+
+Metrics are lifted byte-for-byte from the two clusters this batch exists to
+absorb, not invented:
+
+- **Text** (24px height, `0 8px` padding, 11px font): `.iframe-review-mini-btn`
+  (`IframeReviewLayer.tsx`'s popover/pending-bar buttons) — the strongest
+  target cluster (6 instances, one component). Border-radius and color
+  normalize onto the blessed `var(--radius)` (8px) and variant palette
+  rather than the bespoke `5px`/slate values.
+- **Icon** (22×22px): `.iframe-bar-btn` (`IframeRenderedView.tsx`'s toolbar,
+  `iframeBar.css`) — the other named target cluster (5 instances). Same
+  radius/color normalization as the text tier (4px→8px, `--text-muted`→
+  `--text-secondary`); hover background/color are byte-identical
+  (`var(--surface-alt)`/`var(--text)` already resolved to the bespoke
+  cluster's literal hover values).
+
+No governance counter moved from adding the tier itself — `ui/Button`
+already contributed its one `<button>`/`var(--radius)` to the baseline;
+a new size class adds no new raw tag or literal. `pnpm run visual` (run
+BEFORE regenerating anything) showed exactly two diffs — `button.png` (new
+xs row) and `full-page.png` (page grew) — all 11 other baselines
+byte-identical, including Modal/Drawer/Popover's pinned full-viewport
+shots (confirmed `position: fixed`, immune to an earlier section's height
+growth). `visual:update` regenerated only those two.
+
+### Per-instance table (re-verified in code first, per the C1 meta-lesson)
+
+| Instance(s) | Location | Verdict |
+|---|---|---|
+| Close | `IframeReviewLayer.tsx` popover | **Migrated** → `ui/Button` `variant="secondary" size="xs"`. Dismisses the popover, non-destructive. |
+| Delete | `IframeReviewLayer.tsx` popover | **Migrated** → `variant="danger" size="xs"`. Removes one comment. |
+| Cancel | `IframeReviewLayer.tsx` draft popover | **Migrated** → `variant="secondary" size="xs"`. Dismisses the draft, non-destructive. |
+| Add | `IframeReviewLayer.tsx` draft popover | **Migrated** → `variant="primary" size="xs"`. Was already the popover's own `--primary` CTA. |
+| Clear | `IframeReviewLayer.tsx` pending bar | **Migrated** → `variant="danger" size="xs"`. Re-read `onClear` in `IframeNodeBody/index.tsx` — it calls `setReviewComments([])` (removes ALL pending comments, not just a UI reset), the same destructive class as Delete, so `danger` fits semantically rather than the bespoke CSS's plain (non-primary) look. |
+| Send to Chat | `IframeReviewLayer.tsx` pending bar | **Migrated** → `variant="primary" size="xs"`. Was already the bar's own `--primary` CTA. |
+| Reload, Regenerate, Inspect (DOM picker toggle), Review-picker toggle, Open externally (`.iframe-bar-btn` ×5) | `IframeRenderedView.tsx` toolbar | **Migrated** → `ui/Button` `variant="icon" size="xs"`. Pilot slice's skip verdict ("icon floor 24px overflows the fixed 22px bar") no longer holds — re-measured (not assumed): `.iframe-bar`'s content-box height is `31 - 2×4 padding - 1 border-bottom = 22px`, an EXACT match for the new tier. The two toggle buttons keep their `--active` tint via a small compound-selector override in `iframeBar.css` (`.ui-btn--icon.iframe-bar-btn--active`) since Button's variant system has no toggle-state concept; `flex-shrink: 0` is likewise kept there (Button doesn't set it, and these fixed-size bar buttons must never compress). Added explicit `aria-label` to all 5 (previously relied on `title` alone — Button's icon variant requires one; a minor, incidental accessibility improvement). |
+| Address-bar trigger (artifact/AI/HTML modes, `.iframe-bar-url.iframe-bar-url--html`) | `IframeRenderedView.tsx` `IframeAddressButton` | **Still SKIPPED, verdict unchanged.** Re-read: still a compound trigger (badge + truncated text + sometimes a spinner), not a CTA/icon shape any Button tier expresses — xs doesn't change this, it's a shape mismatch, not a size one. |
+| URL address input (`.iframe-bar-url-input`) | `IframeRenderedView.tsx` `IframeAddressButton`, url mode | **Still SKIPPED, verdict unchanged.** Re-read: still a chromeless `<input>` deferring its chrome to a parent wrapper; not in this batch's scope (`ui/TextField`, not `ui/Button`) and the pilot's double-chrome objection is untouched by anything this batch added. |
+| Numbered review pins (`.iframe-review-pin`) | `IframeReviewLayer.tsx` | **Still SKIPPED, verdict unchanged.** Re-read: still a `position: absolute`, coordinate-anchored circular marker, not button chrome — a different component shape xs doesn't address. |
+| Draft + active-comment textareas (`.iframe-review-textarea` ×2) | `IframeReviewLayer.tsx` | **Still SKIPPED, out of scope.** `ui/Button` doesn't touch textareas; the pilot's `ui/TextField` misfit reasoning (140px vs 62px min-height, `:focus-visible`-only ring vs `autoFocus`-on-open) is unchanged. |
+
+11 of the pilot slice's 13 skips are now migrated; the remaining 2 (address
+input pair) plus the numbered pins and the 2 textareas were never
+candidates for a Button size tier and stay exactly as recorded.
+
+### Counter movements (baselines lowered same-commit, provenance in `ui-reuse-governance.test.ts`)
+
+| Counter | Before this batch | After `ui/Button` xs | After IframeReviewLayer | After iframe-bar-btn |
+|---|---|---|---|---|
+| `rawButtonTags` | 353 | 353 (no change) | 347 | 342 |
+| `borderRadiusLiterals` | 121 | 121 (no change) | 120 | 120 (no change) |
+| `hardcodedColorLiterals` | 1893 | 1893 (no change) | 1883 | 1882 |
+
+### Visual changes in this batch (expected — owner-approved, recorded not hidden)
+
+- **Palette normalization, review popover mini-buttons**: bespoke slate
+  (`#111827`/`rgba(17,24,39,…)`/`#374151`) → `ui/Button`'s warm-gray
+  secondary/danger/primary chrome. Deliberate, per the PALETTE NOTE.
+- **Palette normalization, toolbar icon buttons**: default icon color
+  `var(--text-muted)` → `var(--text-secondary)` (both grays, `--text-muted`
+  lighter); hover is byte-identical.
+- **Radius normalization, both clusters**: bespoke `5px` (mini-buttons) /
+  `var(--radius-xs)` 4px (toolbar icons) → the blessed `var(--radius)` 8px.
+  Same class of change as the earlier LinkDrawer icon-button migration.
+- **Size, mini-buttons only**: none — 24px was already this batch's derived
+  metric, so no height change landed (unlike the pilot's load-error buttons,
+  which took a 26px→30px floor jump). Toolbar icons: none either — 22px in,
+  22px out, confirmed by measurement, not by looks.
+
+### Gates
+
+- `npx vitest run src/renderer/src/components/ui src/renderer/src/components/IframeNodeBody`: 18/18 files green (141 tests) after each commit.
+- Governance: 18/18 green with updated baselines after each commit.
+- `pnpm --filter canvas-workspace typecheck`: clean throughout.
+- `pnpm run visual`: 13/13 after the `ui/Button` commit (2 deliberate regenerations, see above), and re-confirmed 13/13 byte-identical at the end of the batch — neither IframeNodeBody commit touches `components/ui/` itself, so no further showcase diffs; IframeReviewLayer/IframeRenderedView are full-app panels, outside the showcase's coverage per its own README.
+- Full `npx vitest run`: 994 passed, 2 failed — the failure set is exactly the 5 pre-existing Electron-dependent files (`main/__tests__/{codex-sessions,welcome-workspace,workspace-export-external-files}.test.ts`, `main/agent/__tests__/knowledge-tools.test.ts`, `plugins/main/__tests__/external.test.ts`), same as every prior batch.
+- `node harness/tools/describe-canvas.mjs`: exits 0, no drift.
+
+**Landmine caught and written back** (`ui-reuse-governance.test.ts`'s header
+comment + `extend-blessed-ui/SKILL.md`'s 7th landmine): CSS literal counters
+(`borderRadiusLiterals`/`hardcodedColorLiterals`/`shadowLiterals`/
+`zIndexHighRaw`/`sectionFieldCssClusters`) are NOT comment-stripped, unlike
+the tag counters — a doc comment spelling out a literal color value near a
+deletion silently offsets the count. Caught on the first pass of the
+`iframe-bar-btn` commit (a comment explaining the byte-identical hover color
+via its literal `rgba(...)` value exactly cancelled the real -1 from the
+deleted rule); fixed by describing values via token name instead.
+
+**What the brief/skip table got wrong, stated plainly**: nothing in the
+skip table itself was wrong — both toolbar-icon and mini-button verdicts
+were correct AT THE TIME (no `xs` tier existed yet, and the mini-buttons'
+committed-to slate palette was a real, deliberate divergence, not an
+oversight). The pilot's own skip note for the toolbar buttons ("that alone
+overflows the bar") was a size-floor statement that this batch's new tier
+falsifies by construction, not a mistake in the original analysis.
+
 ## Standing rules
 
 - A batch that discovers a false positive in a counter fixes the COUNTER
