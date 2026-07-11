@@ -106,7 +106,7 @@ describe('Popover', () => {
     expect(document.querySelector('.test-popover')?.getAttribute('role')).toBe('menu');
   });
 
-  it('closes on Escape', () => {
+  it('closes on Escape, with reason "escape"', () => {
     const onClose = vi.fn();
     render(
       <Popover x={0} y={0} onClose={onClose} className="test-popover">
@@ -117,9 +117,10 @@ describe('Popover', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     });
     expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledWith('escape');
   });
 
-  it('closes on an outside press but not a press inside the popover', () => {
+  it('closes on an outside press but not a press inside the popover, with reason "outside"', () => {
     const onClose = vi.fn();
     render(
       <Popover x={0} y={0} onClose={onClose} className="test-popover">
@@ -136,6 +137,7 @@ describe('Popover', () => {
       document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
     });
     expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledWith('outside');
   });
 
   it('suppresses the native context menu on the popover itself', () => {

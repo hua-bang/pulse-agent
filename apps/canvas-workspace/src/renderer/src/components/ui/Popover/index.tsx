@@ -13,8 +13,17 @@ import { useClickOutside } from '../../../hooks/useClickOutside';
 // hook's effect dependencies for no reason.
 const NO_ANCHOR: RefObject<HTMLElement> = { current: null };
 
+/** Why the popover closed itself. Mirrors `ui/DropdownShell`'s
+ *  `DropdownCloseReason` — same precedent, same reason a caller might want
+ *  to react differently: `'escape'` is a deliberate dismiss (safe to move
+ *  focus back to the trigger), `'outside'` means the user's attention
+ *  already moved elsewhere (don't yank focus back and fight that). Existing
+ *  zero-arg `onClose` callbacks keep compiling and running unchanged —
+ *  JS/TS callbacks are free to ignore extra arguments. */
+type PopoverCloseReason = 'escape' | 'outside';
+
 interface SharedProps {
-  onClose: () => void;
+  onClose: (reason?: PopoverCloseReason) => void;
   /** ARIA role on the root element. Defaults to `menu`. */
   role?: string;
   /** Class applied to the root positioned div (the element `style`
@@ -89,7 +98,14 @@ type Props = PointAnchorProps | RectAnchorProps;
  *    rect and keeps reanchoring on scroll/resize via
  *    `useAnchorRectPosition` — for a trigger button whose position can
  *    change while the panel is open (e.g. `chat/ModelSwitcher`), which a
- *    one-shot x/y clamp cannot track.
+ *    one-shot x/y clamp cannot track. A press on `anchorRef` itself never
+ *    counts as an outside press (the anchor structurally IS the trigger).
+ *
+ * `onClose` receives an optional `reason` (`'escape' | 'outside'`, omitted
+ * for neither) — the same close-reason shape `ui/DropdownShell` already
+ * exposes, for callers that want to restore focus to their trigger on a
+ * deliberate Escape but not fight the user's attention on an outside press
+ * (see `chat/ModelSwitcher`).
  *
  * Because Popover already wires those, callers MUST NOT also call
  * `useMenuKeyboardNav` / `useClickOutside` / `useEscapeClose` themselves,
@@ -150,7 +166,10 @@ export const Popover = (props: Props) => {
       }
     : { left: pointAnchor.pos.left, top: pointAnchor.pos.top };
 
-  useMenuKeyboardNav(ref, onClose, { autoFocus });
+  const closeFromEscape = () => onClose('escape');
+  const closeFromOutside = () => onClose('outside');
+
+  useMenuKeyboardNav(ref, closeFromEscape, { autoFocus });
   // In rect-anchor mode, the anchor is structurally the caller's TRIGGER
   // (that's the whole point of anchoring to it) and stays mounted outside
   // the portaled panel's own DOM subtree. Without exempting it, a press on
@@ -161,7 +180,7 @@ export const Popover = (props: Props) => {
   // silently swallowing the user's close-by-retrigger click. Point-anchor
   // mode has no persistent trigger element to exempt (its callers open from
   // a transient event like a right-click), so this only applies here.
-  useClickOutside(rectAnchored ? [ref, anchorRef] : ref, onClose);
+  useClickOutside(rectAnchored ? [ref, anchorRef] : ref, closeFromOutside);
 
   return createPortal(
     <div
