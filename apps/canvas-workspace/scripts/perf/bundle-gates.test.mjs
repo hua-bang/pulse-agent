@@ -59,4 +59,25 @@ describe('buildBundleGates', () => {
       pass: false,
     }]);
   });
+
+  it('enforces the complete startup static closure instead of only the entry chunk', () => {
+    const baselines = {
+      policies: {
+        'bundle.startup_js_raw_kb': {
+          gate: { kind: 'ratchet', baseline: 614, tolerancePct: 3, scope: 'bundle' },
+        },
+      },
+    };
+
+    expect(buildBundleGates(baselines, { startupJsRawKB: 633 })).toEqual([{
+      metric: 'startupJsRawKB',
+      metricId: 'bundle.startup_js_raw_kb',
+      baseline: 614,
+      tolerancePct: 3,
+      limit: 632,
+      current: 633,
+      deltaPct: 3.1,
+      pass: false,
+    }]);
+  });
 });

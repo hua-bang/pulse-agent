@@ -152,6 +152,11 @@
       "confidence": "high", "basis": "Renderer Terser + grammar 收敛后实测 179KB", "asOf": "2026-07-11",
       "gate": { "kind": "ratchet", "baseline": 179, "tolerancePct": 3, "scope": "bundle" }
     },
+    "bundle.startup_js_raw_kb": {
+      "profile": "global-deterministic", "target": 650, "warning": 680,
+      "confidence": "high", "basis": "入口及递归静态 imports 的确定性构建闭包实测 614KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 614, "tolerancePct": 3, "scope": "bundle" }
+    },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,
       "confidence": "high", "basis": "Phase 2 将 Settings、Nodes、Reference、DevTools、Artifact 样式移出静态闭包后实测 104KB", "asOf": "2026-07-11",
