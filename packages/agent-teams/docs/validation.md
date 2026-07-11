@@ -24,10 +24,16 @@ pnpm --filter @pulse-coder/teams-cli build
 pnpm --filter canvas-workspace typecheck
 ```
 
-If engine integration behavior changes, also consider:
+If a consumer's integration behavior changes, also run that consumer's
+checks. The real consumers are `apps/teams-cli` + `packages/cli` (classic
+surface) and `apps/canvas-workspace` (runtime surface) — NOT
+`packages/engine` (its "agent-teams plugin" is orchestrator-based, not a
+consumer of this package; see `docs/contracts.md`):
 
 ```bash
-pnpm --filter pulse-coder-engine test
+pnpm --filter @pulse-coder/teams-cli test
+pnpm --filter pulse-coder-cli build
+pnpm --filter canvas-workspace test
 ```
 
 ## Manual Evidence
