@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { evaluatePackageGates } from './package-gates.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const releaseDir = join(appRoot, 'release');
@@ -16,6 +17,7 @@ const electronResourcesPath = join(
   'Contents/Frameworks/Electron Framework.framework/Versions/A/Resources',
 );
 const outPath = join(appRoot, 'perf/out/package-report.json');
+const baselinesPath = join(appRoot, 'perf/baselines.json');
 
 const recursiveBytes = (path) => {
   if (!existsSync(path)) return 0;
@@ -60,8 +62,19 @@ const report = {
   },
   localeNames,
 };
+report.gates = evaluatePackageGates(
+  report.metrics,
+  JSON.parse(readFileSync(baselinesPath, 'utf-8')),
+);
 
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, JSON.stringify(report, null, 2));
 console.log(`[perf:package] DMG ${report.metrics.dmgMB} MB · app ${report.metrics.appUnpackedMiB} MiB · ASAR ${report.metrics.asarMiB} MiB · unpacked ${report.metrics.nativeUnpackedMiB} MiB · locales ${localeNames.length}`);
+for (const gate of report.gates) {
+  console.log(
+    `[perf:package] ${gate.pass ? 'PASS' : 'FAIL'} ${gate.metric}: ${gate.value}`
+    + ` (${gate.operator ?? 'missing'} ${gate.limit ?? 'missing'})`,
+  );
+}
 console.log('[perf:package] report: perf/out/package-report.json');
+if (report.gates.some((gate) => !gate.pass)) process.exitCode = 1;
