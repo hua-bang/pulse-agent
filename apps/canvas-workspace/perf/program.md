@@ -72,7 +72,7 @@
 | `bundle.entry_raw_kb` | Vite manifest `isEntry` 对应 JS 原始字节(产品目标见 baselines policy) | KB | 全局 | **gate** | ✅ |
 | `bundle.entry_gzip_kb` | 同上 gzip -9 | KB | 全局 | **gate** | ✅ 224(minify 后) |
 | `bundle.startup_js_raw_kb` / `startup_js_gzip_kb` | manifest 入口递归静态 `imports` 的去重 JS 闭包 | KB | 全局 | record | ✅ 已建，稳定两轮后升 Gate |
-| `bundle.startup_css_raw_kb` / `startup_css_gzip_kb` | 上述静态闭包关联 CSS 的去重总量 | KB | 全局 | record | ✅ 已建，稳定两轮后升 Gate |
+| `bundle.startup_css_raw_kb` / `startup_css_gzip_kb` | 上述静态闭包关联 CSS 的去重总量 | KB | 全局 | **raw gate** / gzip record | ✅ raw 已于 Phase 2 升 Gate |
 | `bundle.startup_request_count` | 启动静态 JS + CSS 闭包文件数 | 个 | 全局 | record | ✅ 已建 |
 | `bundle.total_js_kb` | `dist/renderer` 内全部 JS 原始字节先求和、最后换算 KB | KB | 全局 | **gate** | ✅ |
 | `bundle.total_css_raw_kb` | `dist/renderer` 内全部 CSS 原始字节先求和、最后换算 KB | KB | 全局 | record | ✅ 已建 |

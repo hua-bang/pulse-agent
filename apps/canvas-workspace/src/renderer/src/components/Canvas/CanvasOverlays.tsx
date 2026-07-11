@@ -1,18 +1,26 @@
-import type React from 'react';
+import React, { lazy, Suspense } from 'react';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../types';
 import { NodeContextMenu } from '../NodeContextMenu';
 import { FloatingToolbar } from '../FloatingToolbar';
 import { ZoomIndicator } from '../ZoomIndicator';
-import { CommandPalette, type PaletteCommand } from '../CommandPalette';
-import { SearchBar } from '../SearchBar';
+import type { PaletteCommand } from '../CommandPalette';
 import type { UseCanvasSearchReturn } from '../../hooks/useCanvasSearch';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
-import { EdgeStylePanel } from '../EdgeStylePanel';
 import { EdgeLabel } from '../EdgeLabel';
 import { ChatFloatingButton } from '../ChatFloatingButton';
 import { useI18n } from '../../i18n';
 import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
 import type { AddNodeOptions } from '../../hooks/useNodes';
+
+const CommandPalette = lazy(() =>
+  import('../CommandPalette').then((module) => ({ default: module.CommandPalette })),
+);
+const SearchBar = lazy(() =>
+  import('../SearchBar').then((module) => ({ default: module.SearchBar })),
+);
+const EdgeStylePanel = lazy(() =>
+  import('../EdgeStylePanel').then((module) => ({ default: module.EdgeStylePanel })),
+);
 
 interface AddNodeUiOptions extends AddNodeOptions {
   label?: string;
@@ -228,13 +236,15 @@ export const CanvasOverlays = ({
       )}
 
       {renderEdgeStylePanel && selectedEdge && onUpdateEdge && onRemoveEdge && (
-        <EdgeStylePanel
-          edge={selectedEdge}
-          nodes={nodes}
-          transform={transform}
-          onUpdate={onUpdateEdge}
-          onRemove={onRemoveEdge}
-        />
+        <Suspense fallback={null}>
+          <EdgeStylePanel
+            edge={selectedEdge}
+            nodes={nodes}
+            transform={transform}
+            onUpdate={onUpdateEdge}
+            onRemove={onRemoveEdge}
+          />
+        </Suspense>
       )}
 
       {/* Edge labels. Rendered for every edge that either carries a
@@ -286,20 +296,24 @@ export const CanvasOverlays = ({
       </div>
 
       {searchOpen && (
-        <CommandPalette
-          nodes={nodes}
-          commands={paletteCommands}
-          onSelectNode={onSearchSelect}
-          onClose={onCloseSearch}
-        />
+        <Suspense fallback={null}>
+          <CommandPalette
+            nodes={nodes}
+            commands={paletteCommands}
+            onSelectNode={onSearchSelect}
+            onClose={onCloseSearch}
+          />
+        </Suspense>
       )}
 
       {findSearch.open && (
-        <SearchBar
-          search={findSearch}
-          nodesById={findNodesById}
-          onActivateMatch={onFindMatchActivate}
-        />
+        <Suspense fallback={null}>
+          <SearchBar
+            search={findSearch}
+            nodesById={findNodesById}
+            onActivateMatch={onFindMatchActivate}
+          />
+        </Suspense>
       )}
     </>
   );

@@ -2,6 +2,7 @@ import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from './useWorkspaceNodes';
 import { useI18n } from '../../i18n';
+import './index.css';
 
 interface NodeDetailPageProps {
   workspaceId: string;

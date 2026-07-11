@@ -228,6 +228,13 @@ Mermaid、Tiptap、Graph、MF remote。源码 build 通过不能证明 packaged 
 
 ### Phase 2：高确定性功能 lazy
 
+> 实施状态：2026-07-11 已完成 Settings/Workspace Settings 条件挂载、Nodes
+> 路由、DevTools 页面与 Chat card、Reference Drawer keep-alive、Command Palette、
+> Search、Edge Style、Artifact/Link tab 的真实 lazy 边界，并让相关 CSS 跟随功能
+> chunk。静态图 Gate 现直接约束这些应用模块不回流入口。实测 Entry 780→617 KB、
+> gzip 224→184 KB、启动 CSS 189→104 KB，达到本阶段推荐完成态；100 节点完整
+> perf report 为 70/70 核心指标、13/13 诊断覆盖、19/19 Gate 且无告警。
+
 按下列顺序拆，避免共享模块导致“拆了但没变小”：
 
 1. Global Settings 与 Workspace Settings 一起拆。

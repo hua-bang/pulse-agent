@@ -1,15 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import { ChatPanelLazy as ChatPanel } from '../chat/lazy';
 import { CHAT_TAB_ID, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
-import {
-  createReferenceNodeDataSnapshot,
-  ReferenceDrawer,
-  type NodeReferenceEntryForCanvas,
-  type ReferenceEntry,
-} from '../ReferenceDrawer';
+import { createReferenceNodeDataSnapshot } from '../ReferenceDrawer/utils';
+import type { NodeReferenceEntry as NodeReferenceEntryForCanvas, ReferenceEntry } from '../ReferenceDrawer/types';
 import type { SettingsSection } from '../Settings';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkbenchController } from './useWorkbenchState';
@@ -21,11 +17,10 @@ import { isReferenceableNode, isReferenceableNodeType } from '../../utils/refere
 import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 import { useChatInsertionBridge } from './useChatInsertionBridge';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
-
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
-
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
+const ReferenceDrawer = lazy(() => import('../ReferenceDrawer').then((module) => ({ default: module.ReferenceDrawer })));
 interface WorkbenchProps {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
@@ -37,7 +32,6 @@ interface WorkbenchProps {
   onOpenWorkspaceSettings: (workspaceId: string) => void;
   onSetActiveRootFolder: () => void;
 }
-
 export const Workbench: React.FC<WorkbenchProps> = ({
   activeWorkspaceId,
   workspaces,
@@ -76,6 +70,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     && dockState.terminalTabs.some((tab) => tab.id === dockState.activeTabId);
 
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
+  const [referenceDrawerLoaded, setReferenceDrawerLoaded] = useState(false);
   const [referencesByWorkspace, setReferencesByWorkspace] = useState<Record<string, ReferenceEntry[]>>({});
   const [activeReferenceIdByWorkspace, setActiveReferenceIdByWorkspace] = useState<Record<string, string | undefined>>({});
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
@@ -86,6 +81,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     workspaces,
     dockState.terminalTabsByWorkspace,
   );
+  useEffect(() => { if (referenceDrawerOpen) setReferenceDrawerLoaded(true); }, [referenceDrawerOpen]);
   useEffect(() => {
     for (const node of activeNodes) {
       const ref = node.ref;
@@ -396,26 +392,30 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   return (
     <>
       <FileNodeEditorRegistryProvider>
-        <ReferenceDrawer
-          open={referenceDrawerOpen}
-          activeWorkspaceId={activeWorkspaceId}
-          workspaces={workspaces}
-          references={references}
-          activeReference={activeReference}
-          activeReferenceNode={activeReferenceNode}
-          nodes={activeNodes}
-          allNodes={allNodes}
-          selectedNode={activeSelectedNode}
-          onOpenChange={setReferenceDrawerOpen}
-          onSelectReference={setActiveReference}
-          onRemoveReference={removeReference}
-          onClearAll={clearAllReferences}
-          onAddReference={pinReferenceNode}
-          onAddUrlReference={pinReferenceUrl}
-          onFocusNode={handleFocusReferenceNode}
-          onAddReferenceToCanvas={addReferenceToCanvas}
-          onWorkspaceNodesRequest={ensureWorkspaceNodesLoaded}
-        />
+        {referenceDrawerLoaded && (
+          <Suspense fallback={null}>
+            <ReferenceDrawer
+              open={referenceDrawerOpen}
+              activeWorkspaceId={activeWorkspaceId}
+              workspaces={workspaces}
+              references={references}
+              activeReference={activeReference}
+              activeReferenceNode={activeReferenceNode}
+              nodes={activeNodes}
+              allNodes={allNodes}
+              selectedNode={activeSelectedNode}
+              onOpenChange={setReferenceDrawerOpen}
+              onSelectReference={setActiveReference}
+              onRemoveReference={removeReference}
+              onClearAll={clearAllReferences}
+              onAddReference={pinReferenceNode}
+              onAddUrlReference={pinReferenceUrl}
+              onFocusNode={handleFocusReferenceNode}
+              onAddReferenceToCanvas={addReferenceToCanvas}
+              onWorkspaceNodesRequest={ensureWorkspaceNodesLoaded}
+            />
+          </Suspense>
+        )}
         <div className="canvas-viewport">
           {workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id)).map((ws) => {
             const isActive = ws.id === activeWorkspaceId;

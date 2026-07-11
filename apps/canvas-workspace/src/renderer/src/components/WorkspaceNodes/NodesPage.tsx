@@ -19,6 +19,7 @@ import {
   truncateText,
 } from './utils';
 import { useI18n } from '../../i18n';
+import './index.css';
 
 interface NodesPageProps {
   workspaces: WorkspaceEntry[];

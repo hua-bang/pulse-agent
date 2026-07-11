@@ -144,13 +144,18 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "Renderer esbuild minify 后实测 780KB；目标要求继续拆首屏功能边界", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 780, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "Phase 2 条件挂载与功能 lazy 后实测 617KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 617, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "Renderer esbuild minify 后实测 224KB；目标要求继续拆首屏功能边界", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 224, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "Phase 2 条件挂载与功能 lazy 后实测 184KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 184, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "bundle.startup_css_raw_kb": {
+      "profile": "global-deterministic", "target": 115, "warning": 130,
+      "confidence": "high", "basis": "Phase 2 将 Settings、Nodes、Reference、DevTools、Artifact 样式移出静态闭包后实测 104KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 104, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.total_js_kb": {
       "profile": "global-deterministic", "target": 5300, "warning": 5600,

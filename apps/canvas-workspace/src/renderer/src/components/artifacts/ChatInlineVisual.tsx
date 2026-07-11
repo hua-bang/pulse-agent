@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ArtifactType } from '../../types';
+import './artifacts.css';
 import { useRightDock } from '../RightDock';
 import { extractPartialStringField } from './partialJson';
 import { STREAMING_SHELL, withAutoHeight } from './streamingShell';
