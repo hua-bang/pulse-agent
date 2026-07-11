@@ -871,6 +871,10 @@ candidates for a Button size tier and stay exactly as recorded.
 - **Radius normalization, both clusters**: bespoke `5px` (mini-buttons) /
   `var(--radius-xs)` 4px (toolbar icons) → the blessed `var(--radius)` 8px.
   Same class of change as the earlier LinkDrawer icon-button migration.
+- **Disabled state, toolbar icons** (review-caught addition): the deleted
+  `.iframe-bar-btn:disabled` used `cursor:default; opacity:0.48`; the
+  inherited `.ui-btn:disabled` uses `cursor:not-allowed; opacity:0.5` — a
+  tiny, arguably-improved shift the original list missed.
 - **Size, mini-buttons only**: none — 24px was already this batch's derived
   metric, so no height change landed (unlike the pilot's load-error buttons,
   which took a 26px→30px floor jump). Toolbar icons: none either — 22px in,
@@ -878,7 +882,7 @@ candidates for a Button size tier and stay exactly as recorded.
 
 ### Gates
 
-- `npx vitest run src/renderer/src/components/ui src/renderer/src/components/IframeNodeBody`: 18/18 files green (141 tests) after each commit.
+- `npx vitest run src/renderer/src/components/ui src/renderer/src/components/IframeNodeBody`: 17 files / 123 tests green after each commit (an earlier draft of this line accidentally summed in the governance suite's 18 — corrected by review).
 - Governance: 18/18 green with updated baselines after each commit.
 - `pnpm --filter canvas-workspace typecheck`: clean throughout.
 - `pnpm run visual`: 13/13 after the `ui/Button` commit (2 deliberate regenerations, see above), and re-confirmed 13/13 byte-identical at the end of the batch — neither IframeNodeBody commit touches `components/ui/` itself, so no further showcase diffs; IframeReviewLayer/IframeRenderedView are full-app panels, outside the showcase's coverage per its own README.

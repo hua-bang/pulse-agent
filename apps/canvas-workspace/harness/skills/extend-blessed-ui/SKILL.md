@@ -5,7 +5,7 @@ description: Use when adding a component/hook to the blessed components/ui/ set 
 
 # Extend the Blessed UI Set
 
-Thin by design: the procedure and five landmines only. The current counters, baselines, and their histories live in `src/main/__tests__/ui-reuse-governance.test.ts`'s comments (that file is the SSOT — it churns often, so numbers written here would rot); the blessed-set inventory lives in `harness/knowledge/conventions/frontend.md`.
+Thin by design: the procedure and seven landmines only. The current counters, baselines, and their histories live in `src/main/__tests__/ui-reuse-governance.test.ts`'s comments (that file is the SSOT — it churns often, so numbers written here would rot); the blessed-set inventory lives in `harness/knowledge/conventions/frontend.md`.
 
 ## Procedure
 
@@ -15,7 +15,7 @@ Thin by design: the procedure and five landmines only. The current counters, bas
 4. Run `pnpm --filter canvas-workspace test`, read the governance failures, and update baselines per the landmines below — in the SAME commit.
 5. Update `conventions/frontend.md`'s blessed list + do-NOT-hand-roll list.
 
-## The five landmines
+## The seven landmines
 
 1. **The ratchet fails in BOTH directions.** Improving a counter without lowering its baseline fails CI just like growth does — wins must be locked in the same PR. Read the failure message; it tells you which way to move.
 2. **Your new ui/ piece counts against the counter it drains.** A ui/Button contains a `<button>`; a ui/TextField contains an `<input>`; a portal-using shell adds a `createPortal` file. Expect +1 from the blessed piece itself and plan an exemplar migration to offset it — or record the reason if net-positive is genuinely right.
