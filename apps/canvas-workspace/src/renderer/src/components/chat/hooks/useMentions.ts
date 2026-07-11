@@ -29,7 +29,7 @@ interface UseMentionsOptions {
   /**
    * When true, structured context (with workspaceId) is collected from the
    * inline mention chips at send time and merged into the request context.
-   * Enabled by the global Nodes/Graph assistant; off for the canvas panel.
+   * Enabled by the global Nodes/detail assistant; off for the canvas panel.
    */
   collectStructuredContext?: boolean;
   onSubmit: (text: string, requestContext?: AgentRequestContext, attachments?: ChatImageAttachment[]) => Promise<boolean>;
@@ -188,12 +188,17 @@ export function useMentions({
       }
     }
 
-    // Cross-workspace knowledge candidates (global Nodes/Graph assistant). Each
+    // Cross-workspace knowledge candidates (global Nodes/detail assistant). Each
     // node carries its workspaceId; each tag the workspaces it occurs in, so the
     // structured context collected at send time resolves precisely.
     if (knowledgeNodes) {
       for (const node of knowledgeNodes) {
-        items.push({ type: 'node', nodeId: node.id, label: node.title, nodeType: node.type, workspaceId: node.workspaceId });
+        const workspaceName = allWorkspaces?.find((workspace) => workspace.id === node.workspaceId)?.name;
+        items.push({
+          type: 'node', nodeId: node.id, label: node.title, nodeType: node.type,
+          workspaceId: node.workspaceId,
+          description: workspaceName,
+        });
       }
     }
     if (knowledgeTags) {

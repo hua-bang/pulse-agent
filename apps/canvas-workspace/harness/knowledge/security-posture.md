@@ -9,13 +9,15 @@ host actually does and does not gate. Facts verified against source
 
 ## Execution reach of the Canvas Agent
 
-- **Engine built-in tools ship at full privilege.** `buildEngine()` sets
-  `disableBuiltInPlugins: true` (`src/main/agent/canvas-agent.ts:678`) — but
-  that disables built-in *plugins*, NOT built-in *tools*: `read`, `write`,
-  `edit`, `grep`, `ls`, `bash` all remain in the merged tool set (the agent's
-  own system prompt enumerates them, `canvas-agent.ts:392-398`). They run in
-  the Electron **main process** with the desktop user's full privileges — no
-  sandbox, no allowlist, no path confinement.
+- **Workspace chat keeps full-privilege engine built-ins; global chat does
+  not.** Workspace scope still receives `read`, `write`, `edit`, `grep`, `ls`,
+  and `bash` in the Electron **main process**, with no sandbox or path
+  confinement. Global scope now passes an explicit `builtInTools` allowlist
+  (`read`, `grep`, `ls`, Tavily read tools, and `clarify`) and exposes local
+  node changes only through `canvas_propose_node_change`; `write`, `edit`,
+  `bash`, and disk-writing image generation are absent from that Engine's
+  built-in set. This boundary does not classify user-configured MCP/plugin
+  tools, which remain separate trust surfaces described below.
 - **A second command-execution path exists besides `bash`:**
   `canvas_create_terminal_node` (`src/main/agent/tools/terminals.ts:16`)
   accepts a `command` input that auto-executes once the PTY shell is ready.

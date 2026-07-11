@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { KnowledgeTagDefinition } from '../../types';
+import { useI18n } from '../../i18n';
+import { useDragResize } from '../ui';
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode } from './useWorkspaceNodes';
-import { useI18n } from '../../i18n';
 
 interface NodeDetailDrawerProps {
   workspaceId: string;
@@ -15,13 +16,15 @@ interface NodeDetailDrawerProps {
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 960;
+const DEFAULT_WIDTH = 520;
+const KEYBOARD_RESIZE_STEP = 24;
 const STORAGE_KEY = 'workspace-nodes:detail-drawer-width';
 
 function readStoredWidth(): number {
-  if (typeof window === 'undefined') return 420;
+  if (typeof window === 'undefined') return DEFAULT_WIDTH;
   const raw = window.localStorage?.getItem(STORAGE_KEY);
   const parsed = raw ? Number.parseInt(raw, 10) : NaN;
-  if (!Number.isFinite(parsed)) return 420;
+  if (!Number.isFinite(parsed)) return DEFAULT_WIDTH;
   return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, parsed));
 }
 
@@ -37,55 +40,58 @@ export const NodeDetailDrawer = ({
   const { node, loading, error, setNode } = useWorkspaceNode(workspaceId, nodeId);
   const { tags, reload: reloadTags } = useKnowledgeTags();
   const [width, setWidth] = useState<number>(() => readStoredWidth());
-  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const resizeHandlers = useDragResize({
+    axis: 'x',
+    value: width,
+    min: MIN_WIDTH,
+    max: MAX_WIDTH,
+    invert: true,
+    onChange: setWidth,
+  });
 
   useEffect(() => {
     try {
       window.localStorage?.setItem(STORAGE_KEY, String(width));
     } catch {
-      // ignore quota errors
+      // Ignore quota and privacy-mode storage failures.
     }
   }, [width]);
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    const state = dragStateRef.current;
-    if (!state) return;
-    const next = state.startWidth - (e.clientX - state.startX);
+  useEffect(() => {
+    if (!nodeId) return undefined;
+    const frame = requestAnimationFrame(() => {
+      drawerRef.current?.querySelector<HTMLButtonElement>('.node-detail-panel__close')?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [nodeId]);
+
+  const handleResizeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    let next: number | null = null;
+    if (event.key === 'ArrowLeft') next = width + KEYBOARD_RESIZE_STEP;
+    if (event.key === 'ArrowRight') next = width - KEYBOARD_RESIZE_STEP;
+    if (event.key === 'Home') next = MIN_WIDTH;
+    if (event.key === 'End') next = MAX_WIDTH;
+    if (next === null) return;
+    event.preventDefault();
     setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, next)));
-  }, []);
-
-  const handleMouseUp = useCallback(() => {
-    dragStateRef.current = null;
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('mouseup', handleMouseUp);
-  }, [handleMouseMove]);
-
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    dragStateRef.current = { startX: e.clientX, startWidth: width };
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  }, [handleMouseMove, handleMouseUp, width]);
-
-  useEffect(() => () => {
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('mouseup', handleMouseUp);
-  }, [handleMouseMove, handleMouseUp]);
+  };
 
   if (!nodeId) return null;
 
   return (
-    <div className="node-detail-drawer" role="dialog" aria-label={t('workspaceNodes.nodeDetail')} style={{ width }}>
+    <div ref={drawerRef} className="node-detail-drawer" role="dialog" aria-label={t('workspaceNodes.nodeDetail')} style={{ width }}>
       <div
         className="node-detail-drawer__resize"
         role="separator"
+        tabIndex={0}
         aria-orientation="vertical"
         aria-label={t('workspaceNodes.resizeNodeDetail')}
-        onMouseDown={handleResizeMouseDown}
+        aria-valuemin={MIN_WIDTH}
+        aria-valuemax={MAX_WIDTH}
+        aria-valuenow={width}
+        onMouseDown={resizeHandlers.onMouseDown}
+        onKeyDown={handleResizeKeyDown}
       />
       <NodeDetailPanel
         node={node}
@@ -94,7 +100,7 @@ export const NodeDetailDrawer = ({
         error={error}
         mode="drawer"
         onClose={onClose}
-        onOpenPage={(nodeId) => onOpenPage(workspaceId, nodeId)}
+        onOpenPage={(nextNodeId) => onOpenPage(workspaceId, nextNodeId)}
         tagDefinitions={[...tagDefinitions, ...tags]}
         onNodePatched={(next) => {
           setNode(next);

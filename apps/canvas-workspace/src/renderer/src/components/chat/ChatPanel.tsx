@@ -44,6 +44,7 @@ function buildDomReviewPrompt(comments: AgentContextDomReviewComment[]): string 
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
+  knowledgeMode = false,
   allWorkspaces,
   nodes,
   knowledgeNodes,
@@ -457,7 +458,7 @@ export const ChatPanel = ({
       onAddImageToCanvas={addImageToCanvas}
       nodes={nodes}
       selectedContext={selectedContext}
-      showContextChips={false}
+      showContextChips={agentScope.kind === 'global'}
       onRemoveContext={onRemoveContext}
       onNodeFocus={onNodeFocus}
       onQuickAction={handleQuickAction}
@@ -483,6 +484,7 @@ export const ChatPanel = ({
       onSelectModel={canvasModels.selectModel}
       onOpenModelSettings={openModelSettingsFromSwitcher}
       contextComposer
+      knowledgeMode={knowledgeMode}
       executionMode={scopeWorkspaceId ? executionMode : undefined}
       onToggleExecutionMode={scopeWorkspaceId ? handleToggleExecutionMode : undefined}
       onEditUserMessage={handleEditUserMessage}

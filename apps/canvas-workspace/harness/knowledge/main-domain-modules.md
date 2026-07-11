@@ -27,7 +27,8 @@ src/main/
   app/                # bootstrap, window(-manager), protocol, link-policy, logging,
                       # menu, identity, startup-metrics, update-ipc, shell-ipc
   canvas/             # store, storage (v1/v2 migration), broadcast, workspaces,
-                      # welcome-workspace, workspace-export-*, nodes/ (ipc, store, tags)
+                      # welcome-workspace, workspace-export-*, nodes/ (ipc, store,
+                      # tags, reviewed knowledge-change apply)
   agent/              # canvas-agent, service, ipc, session-send, session-store,
                       # context-builder, debug-trace, config-scope, default-skills,
                       # codex-sessions, prompt-profile(-ipc), workspace-doc-generator,

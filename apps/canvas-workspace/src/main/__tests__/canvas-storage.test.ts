@@ -35,6 +35,7 @@ import {
   type MigrationProgress,
   type PerNodeFile,
 } from '../canvas/storage';
+import { mutateWorkspaceNode } from '../canvas/nodes/store';
 
 let root: string;
 const wsId = 'ws-test';
@@ -778,6 +779,50 @@ describe('migrateToV2', () => {
 
     const n1 = await readNodeFile(wsId, 'n1', root);
     expect(n1?.data.content).toBe('CLI WINS');
+  });
+
+  it('serializes a stale full save behind an in-flight node mutation', async () => {
+    await seedV1();
+    await migrateToV2(wsId, { root });
+
+    let releaseMutation!: () => void;
+    const holdMutation = new Promise<void>((resolve) => { releaseMutation = resolve; });
+    let markMutationEntered!: () => void;
+    const mutationEntered = new Promise<void>((resolve) => { markMutationEntered = resolve; });
+    const proposalApply = mutateWorkspaceNode(wsId, 'n1', async (current) => {
+      markMutationEntered();
+      await holdMutation;
+      return {
+        record: {
+          ...current!,
+          data: { content: 'APPLIED PROPOSAL' },
+          updatedAt: 1729000000002,
+        },
+        result: undefined,
+      };
+    }, root);
+    await mutationEntered;
+
+    const staleCanvasSave = writeCanvasFull(wsId, {
+      nodes: [{
+        id: 'n1',
+        type: 'text',
+        title: 'Hello',
+        data: { content: 'STALE RENDERER SNAPSHOT' },
+        updatedAt: 1729000000001,
+      }],
+      transform: { x: 0, y: 0, scale: 1 },
+    }, root);
+
+    // Let the full-save path read its stale per-node snapshot and queue its
+    // write behind the mutation lock before the proposal is allowed to land.
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    releaseMutation();
+    await Promise.all([proposalApply, staleCanvasSave]);
+
+    const n1 = await readNodeFile(wsId, 'n1', root);
+    expect(n1?.data.content).toBe('APPLIED PROPOSAL');
+    expect(n1?.updatedAt).toBe(1729000000002);
   });
 
 });

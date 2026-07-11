@@ -66,7 +66,7 @@ export const ChatMentionPopup = ({
                 </span>
               )}
               <span className="chat-mention-item-label">{item.label}</span>
-              {(item.type === 'skill' || item.type === 'session') && item.description && (
+              {item.description && (
                 <span className="chat-mention-item-description">{item.description}</span>
               )}
             </button>

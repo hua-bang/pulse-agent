@@ -21,6 +21,7 @@ import { createSessionTools } from './sessions';
 import { createPluginNodeTools } from './plugin-nodes';
 import { createHtmlPatchTools } from './html-patch';
 import { createLayoutTools } from './layout-tools';
+import { createKnowledgeChangeTools } from './knowledge-change';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -50,9 +51,9 @@ const requireWorkspaceId = (tool: CanvasTool): CanvasTool => {
 /**
  * Tool set for global chat (no current workspace). Read/search canvas tools
  * are wrapped to require an explicit workspaceId; the cross-workspace knowledge
- * index is eager. The one sanctioned write is `canvas_tag_node` — it edits
- * knowledge-layer tags only (never canvas layout), so a tagging skill can apply
- * tags across workspaces without leaving global chat.
+ * index is eager. `canvas_propose_node_change` only creates a review payload;
+ * global chat has no direct node-write tool, so every knowledge mutation must
+ * cross the renderer's explicit review/apply boundary.
  */
 export function createGlobalCanvasTools(): Record<string, CanvasTool> {
   const nodeTools = createNodeTools('');
@@ -75,8 +76,7 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     // and stay eager — global chat must see them up front to read local
     // workspaces / tags / nodes instead of reaching for an external MCP server.
     ...createKnowledgeTools(),
-    // The only allowed write in global chat: knowledge-layer tagging.
-    ...createTaggingTools(),
+    ...createKnowledgeChangeTools(),
     // Chat-session history (检索/总结). Inherently cross-workspace (workspaceId
     // is optional), so not wrapped with requireWorkspaceId.
     ...createSessionTools(),
@@ -93,6 +93,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createGroupTools(workspaceId),
     ...createWorkspaceNodeTools(workspaceId),
     ...createKnowledgeTools(),
+    ...createKnowledgeChangeTools(),
     ...createTaggingTools(),
     ...createAgentTools(workspaceId),
     ...createTerminalTools(workspaceId),

@@ -1,0 +1,288 @@
+/* Shared document treatment for Side Peek and Full Page. The surrounding
+ * chrome changes by mode; the title, tags, real canvas-node editor, and
+ * supplementary disclosures remain one NodeDetailPanel composition. */
+
+.node-detail-drawer.node-detail-drawer {
+  overflow: hidden;
+  background: var(--nodes-surface);
+  box-shadow: var(--shadow-float);
+}
+
+.node-detail-drawer .node-detail-drawer__resize:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: -2px;
+}
+
+.node-detail-panel.node-detail-panel--page {
+  max-width: none;
+  margin: 0;
+  border: 0;
+  min-height: 100%;
+  box-shadow: none;
+}
+
+.node-detail-panel .node-detail-panel__header {
+  min-height: 54px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 10px 14px 10px 20px;
+  border-bottom: 1px solid var(--nodes-border);
+}
+
+.node-detail-panel__context {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--nodes-faint);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.node-detail-panel .node-detail-panel__header-actions {
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-detail-panel .node-detail-panel__content {
+  gap: 0;
+  padding: 0;
+  background: var(--nodes-surface);
+}
+
+.node-detail-panel .node-detail-panel__empty {
+  margin: auto;
+  padding: 32px;
+  text-align: center;
+}
+
+.node-detail-panel__document {
+  width: min(100%, 820px);
+  min-height: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 52px 56px 88px;
+  display: flex;
+  flex-direction: column;
+}
+
+.node-detail-panel--drawer .node-detail-panel__document {
+  width: 100%;
+  padding: 30px clamp(22px, 6vw, 42px) 52px;
+}
+
+.node-detail-panel__document-header {
+  flex-shrink: 0;
+}
+
+.node-detail-panel__document-header .workspace-node-type-pill {
+  height: 24px;
+  padding: 0 8px;
+  color: var(--nodes-muted);
+  font-size: 10px;
+}
+
+.node-detail-panel__document-title {
+  display: block;
+  width: 100%;
+  min-height: 1.16em;
+  box-sizing: border-box;
+  margin: 14px 0 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-xs);
+  outline: 0;
+  color: var(--nodes-text);
+  background: transparent;
+  font-family: inherit;
+  font-size: clamp(30px, 4vw, 38px);
+  font-weight: 720;
+  line-height: 1.16;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+.node-detail-panel__document-title[lang='zh'] {
+  letter-spacing: 0;
+}
+
+.node-detail-panel__document-title[contenteditable='true']:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+.node-detail-panel__document-title[contenteditable='true'][aria-invalid='true'] {
+  outline-color: var(--error);
+}
+
+.node-detail-panel__title-error {
+  display: block;
+  margin-top: 6px;
+  color: var(--error);
+  font-size: 11px;
+}
+
+.node-detail-panel--drawer .node-detail-panel__document-title {
+  font-size: clamp(26px, 6vw, 32px);
+}
+
+.node-detail-panel__document-tags {
+  min-height: 32px;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.node-detail-panel__document-tags .workspace-node-tag {
+  height: 24px;
+  padding-inline: 8px;
+  font-size: 10px;
+}
+
+.node-detail-panel .node-detail-panel__preview {
+  min-height: 320px;
+  margin-top: 24px;
+  flex: 1;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+}
+
+.node-detail-panel--page .node-detail-panel__preview {
+  min-height: 480px;
+}
+
+/* CanvasNodeView remains the implementation surface, including Tiptap and
+ * its slash/bubble interactions. Only its canvas-card chrome dissolves here
+ * so the editor reads as part of the surrounding document. */
+.node-detail-panel .node-canvas-preview > .canvas-node,
+.node-detail-panel .node-canvas-preview > .canvas-node:hover,
+.node-detail-panel .node-canvas-preview > .canvas-node:focus-within {
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  box-shadow: none;
+}
+
+.node-detail-panel .node-canvas-preview .note-card {
+  background: transparent;
+}
+
+.node-detail-panel .node-canvas-preview .note-tiptap-editor .ProseMirror {
+  padding: 18px 0 52px;
+}
+
+.node-detail-panel__supplementary {
+  margin-top: 34px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--nodes-border);
+}
+
+.node-detail-panel__disclosure {
+  border-bottom: 1px solid var(--nodes-border);
+}
+
+.node-detail-panel__disclosure > summary {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  color: var(--nodes-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.node-detail-panel__disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.node-detail-panel__disclosure > summary:hover {
+  color: var(--nodes-text);
+}
+
+.node-detail-panel__disclosure > summary:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+.node-detail-panel__disclosure-chevron {
+  flex-shrink: 0;
+  transition: transform 160ms ease;
+}
+
+.node-detail-panel__disclosure[open] .node-detail-panel__disclosure-chevron {
+  transform: rotate(90deg);
+}
+
+.node-detail-panel__disclosure-count {
+  margin-left: auto;
+  color: var(--nodes-faint);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.node-detail-panel__disclosure-body {
+  padding: 0 2px 14px 18px;
+}
+
+.node-detail-panel__disclosure-body .node-detail-panel__property-row,
+.node-detail-panel__disclosure-body .node-detail-panel__link-row {
+  min-height: 32px;
+  grid-template-columns: minmax(72px, 100px) 1fr;
+  gap: 14px;
+  border: 0;
+  font-size: 11px;
+}
+
+.node-detail-panel__disclosure-body .node-detail-panel__property-row > span,
+.node-detail-panel__disclosure-body .node-detail-panel__link-row > span,
+.node-detail-panel__disclosure-empty {
+  color: var(--nodes-faint);
+}
+
+.node-detail-panel__disclosure-body .node-detail-panel__property-row strong,
+.node-detail-panel__disclosure-body .node-detail-panel__link-row strong {
+  color: var(--nodes-muted);
+  font-weight: 550;
+}
+
+.node-detail-panel__disclosure-empty {
+  padding: 4px 0 8px;
+  font-size: 11px;
+}
+
+.workspace-node-detail-page .workspace-node-detail-page__top {
+  min-height: 54px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 24px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  border-bottom: 1px solid var(--nodes-border);
+}
+
+.workspace-node-detail-page .workspace-node-detail-page__top > .ui-btn {
+  justify-self: start;
+}
+
+.workspace-node-detail-page .workspace-node-detail-page__body {
+  padding: 0;
+  overflow: hidden;
+  background: var(--nodes-surface);
+}
+
+@media (max-width: 720px) {
+  .node-detail-panel__document,
+  .node-detail-panel--drawer .node-detail-panel__document {
+    padding-inline: 22px;
+  }
+
+  .workspace-node-detail-page .workspace-node-detail-page__top {
+    padding-inline: 14px;
+  }
+}

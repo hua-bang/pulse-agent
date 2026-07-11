@@ -16,7 +16,10 @@ Engine code should stay host-agnostic. Prefer an extension point before changing
 ## Runtime Contracts
 
 - `Engine.initialize()` creates the plugin manager, loads built-in plugins unless disabled, registers plugin tools, then merges `EngineOptions.tools` as the highest-priority override layer.
-- Tool merge order is: built-in tools, plugin tools, then custom tools from `EngineOptions.tools`.
+- Tool merge order is: host-selected built-in tools, plugin tools, then custom
+  tools from `EngineOptions.tools`. `EngineOptions.builtInTools` replaces the
+  default `BuiltinToolsMap` when supplied; omit it for the full default set or
+  pass an empty object to opt out of engine built-ins.
 - Built-in plugin order is defined by `src/built-in/index.ts`; changing it can change runtime behavior.
 - `src/core/loop.ts` owns streaming events, tool-call/result events, LLM hooks, tool hooks, run hooks, retry/backoff, abort handling, timeout handling, and context compaction.
 - Hook behavior should remain composable across hosts. Do not assume a single CLI, server, or canvas caller.

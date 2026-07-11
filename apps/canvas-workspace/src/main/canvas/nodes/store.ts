@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import { join, dirname, basename } from 'path';
 import { homedir } from 'os';
+import { withStoreMutationLock } from './mutation-lock';
 
 export const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 export const NODES_DIR_NAME = 'nodes';
@@ -130,12 +131,11 @@ export async function readWorkspaceNode(
   }
 }
 
-export async function writeWorkspaceNode(
+async function writeWorkspaceNodeUnlocked(
   workspaceId: string,
   record: WorkspaceNodeRecord,
-  root: string = STORE_DIR,
+  root: string,
 ): Promise<void> {
-  assertSafeNodeId(record.id);
   const path = getNodeFilePath(workspaceId, record.id, root);
   const serialized = JSON.stringify(record, null, 2);
   // Whole-canvas saves funnel every node through here even when only one
@@ -144,6 +144,39 @@ export async function writeWorkspaceNode(
   const current = await fs.readFile(path, 'utf-8').catch(() => undefined);
   if (current === serialized) return;
   await atomicWriteJson(path, serialized);
+}
+
+export async function writeWorkspaceNode(
+  workspaceId: string,
+  record: WorkspaceNodeRecord,
+  root: string = STORE_DIR,
+): Promise<void> {
+  assertSafeNodeId(record.id);
+  const path = getNodeFilePath(workspaceId, record.id, root);
+  await withStoreMutationLock(path, () => writeWorkspaceNodeUnlocked(workspaceId, record, root));
+}
+
+export async function mutateWorkspaceNode<T>(
+  workspaceId: string,
+  nodeId: string,
+  mutation: (
+    current: WorkspaceNodeRecord | null,
+  ) => Promise<{ record?: WorkspaceNodeRecord; result: T }> | { record?: WorkspaceNodeRecord; result: T },
+  root: string = STORE_DIR,
+): Promise<T> {
+  assertSafeNodeId(nodeId);
+  const path = getNodeFilePath(workspaceId, nodeId, root);
+  return withStoreMutationLock(path, async () => {
+    const current = await readWorkspaceNode(workspaceId, nodeId, root);
+    const { record, result } = await mutation(current);
+    if (record) {
+      if (record.id !== nodeId) {
+        throw new Error('[workspace-node-store] mutation cannot change the node id.');
+      }
+      await writeWorkspaceNodeUnlocked(workspaceId, record, root);
+    }
+    return result;
+  });
 }
 
 export async function deleteWorkspaceNode(

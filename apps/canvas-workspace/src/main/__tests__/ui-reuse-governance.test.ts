@@ -87,7 +87,11 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 24px, overflows the 22px bar") no longer holds now that xs exists;
   // measured the bar's content-box height (31 - 2×4 padding - 1 border =
   // 22px) confirms an EXACT fit, not a squeeze. See ui-reuse-burndown.md.
-  rawButtonTags: 342,
+  // 342→332 (Nodes interaction rebuild): NodesPage's refresh, filter chips,
+  // card link, and drawer/page detail actions moved onto ui/Button. Ten raw
+  // declarations were removed; the new NodeFilters/CardShell and AI review
+  // actions all reuse the blessed control, so the decrease is exact.
+  rawButtonTags: 332,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -98,7 +102,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // Hidden file-picker inputs, checkboxes (deferTools, experimental toggle),
   // and ChannelConfigPanel's 3 fields stayed hand-rolled — see
   // ui-reuse-burndown.md.
-  rawInputTags: 40,
+  // 40→39 (Nodes interaction rebuild): the bespoke Nodes search input moved
+  // onto ui/TextField inside the consolidated filter toolbar.
+  rawInputTags: 39,
   // raw <textarea> tags in .tsx — falls as ui/TextField(multiline) absorbs
   // them. Held at the pre-extension 13: ui/TextField's own <textarea> (+1)
   // is offset by PromptSettings' custom-prompt field adopting TextField (-1).

@@ -1,29 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import type { WorkspaceNodeListItem } from '../../types';
+import type { KnowledgeNodeSelection, WorkspaceNodeListItem } from '../../types';
+import { RefreshIcon } from '../icons';
+import { Button } from '../ui/Button';
+import { KnowledgeNodeCard } from './KnowledgeNodeCard';
+import { NodeFilters } from './NodeFilters';
 import { NodeDetailDrawer } from './NodeDetailDrawer';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import {
-  NODE_TYPE_FILTERS,
   type NodeTypeFilter,
   formatTime,
-  getNodeSummary,
   getNodeTags,
   getNodeTitle,
   getNodeTypeLabel,
   getNodeWorkspaceId,
   matchesSearch,
   tagName,
-  truncateText,
 } from './utils';
 import { useI18n } from '../../i18n';
 import './index.css';
+import './NodeCards.css';
 
 interface NodesPageProps {
   workspaces: WorkspaceEntry[];
-  selectedNode?: { workspaceId: string; nodeId: string } | null;
+  selectedNode?: KnowledgeNodeSelection | null;
   onOpenNode: (workspaceId: string, nodeId: string) => void;
-  onSelectNode?: (selection: { workspaceId: string; nodeId: string } | null) => void;
+  onSelectNode?: (selection: KnowledgeNodeSelection | null) => void;
 }
 
 const NODES_PAGE_SIZE = 30;
@@ -47,6 +49,15 @@ export const NodesPage = ({
   const [typeFilter, setTypeFilter] = useState<NodeTypeFilter>('all');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<Set<string> | null>(null);
+  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const hadSelectedNodeRef = useRef(false);
+
+  useEffect(() => {
+    if (hadSelectedNodeRef.current && !selectedNode) {
+      requestAnimationFrame(() => detailTriggerRef.current?.focus());
+    }
+    hadSelectedNodeRef.current = !!selectedNode;
+  }, [selectedNode]);
 
   const activeWorkspaceIds = useMemo(() => {
     if (selectedWorkspaceIds === null) return new Set(workspaces.map((ws) => ws.id));
@@ -58,6 +69,9 @@ export const NodesPage = ({
       const current = new Set(prev ?? workspaces.map((ws) => ws.id));
       if (current.has(workspaceId)) current.delete(workspaceId);
       else current.add(workspaceId);
+      if (current.size === workspaces.length && workspaces.every((workspace) => current.has(workspace.id))) {
+        return null;
+      }
       return current;
     });
   };
@@ -139,79 +153,36 @@ export const NodesPage = ({
               <p>{t('workspaceNodes.nodes.subtitle', { count: nodes.length })}</p>
             </div>
             <div className="workspace-nodes-page__header-actions">
-              <button className="workspace-node-button" onClick={() => void reload()}>{t('workspaceNodes.refresh')}</button>
+              <Button size="sm" onClick={() => void reload()}>
+                <RefreshIcon size={14} />
+                {t('workspaceNodes.refresh')}
+              </Button>
             </div>
           </header>
 
-          <div className="workspace-nodes-toolbar">
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t('workspaceNodes.searchPlaceholder')}
-              className="workspace-nodes-search"
-            />
-            {workspaces.length > 1 && (
-              <div className="workspace-nodes-filter-row">
-                <button
-                  className={`workspace-node-chip${selectedWorkspaceIds === null ? ' is-active' : ''}`}
-                  onClick={() => setSelectedWorkspaceIds(null)}
-                >
-                  {t('workspaceNodes.allWorkspaces')}
-                </button>
-                {workspaces.map((ws) => {
-                  const active = activeWorkspaceIds.has(ws.id);
-                  const count = workspaceCounts.get(ws.id) ?? 0;
-                  return (
-                    <button
-                      key={ws.id}
-                      className={`workspace-node-chip${active ? ' is-active' : ''}`}
-                      onClick={() => toggleWorkspace(ws.id)}
-                    >
-                      {ws.name}
-                      <span className="workspace-node-chip-count">{count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <div className="workspace-nodes-filter-row">
-              {NODE_TYPE_FILTERS.map((type) => (
-                <button
-                  key={type}
-                  className={`workspace-node-chip${typeFilter === type ? ' is-active' : ''}`}
-                  onClick={() => setTypeFilter(type)}
-                >
-                  {type === 'all'
-                    ? t('workspaceNodes.filter.all')
-                    : type === 'untagged'
-                      ? t('workspaceNodes.filter.untagged')
-                      : getNodeTypeLabel(type, t, t('workspaceNodes.genericNode'))}
-                </button>
-              ))}
-            </div>
-            {tags.length > 0 && (
-              <div className="workspace-nodes-filter-row">
-                <button
-                  className={`workspace-node-chip${tagFilter === null ? ' is-active' : ''}`}
-                  onClick={() => setTagFilter(null)}
-                >
-                  {t('workspaceNodes.allTags')}
-                </button>
-                {tags.map(([tag, count]) => (
-                  <button
-                    key={tag}
-                    className={`workspace-node-chip${tagFilter === tag ? ' is-active' : ''}`}
-                    onClick={() => setTagFilter(tag)}
-                    title={tagDefinitions.find((item) => item.id === tag)?.description}
-                  >
-                    <span className="workspace-node-chip-dot" />
-                    {tagLabel(tag)}
-                    <span className="workspace-node-chip-count">{count}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <NodeFilters
+            query={query}
+            onQueryChange={setQuery}
+            workspaces={workspaces.map((workspace) => ({
+              id: workspace.id,
+              label: workspace.name,
+              count: workspaceCounts.get(workspace.id) ?? 0,
+            }))}
+            activeWorkspaceIds={activeWorkspaceIds}
+            selectedWorkspaceIds={selectedWorkspaceIds}
+            onToggleWorkspace={toggleWorkspace}
+            onResetWorkspaces={() => setSelectedWorkspaceIds(null)}
+            typeFilter={typeFilter}
+            onTypeFilterChange={setTypeFilter}
+            tags={tags.map(([tag, count]) => ({
+              id: tag,
+              label: tagLabel(tag),
+              count,
+              description: tagDefinitions.find((item) => item.id === tag)?.description,
+            }))}
+            tagFilter={tagFilter}
+            onTagFilterChange={setTagFilter}
+          />
         </div>
 
         <div className="workspace-nodes-page__scroll" ref={scrollRef}>
@@ -226,31 +197,31 @@ export const NodesPage = ({
           <div className="workspace-node-grid">
             {visibleNodes.map((node) => {
               const tagsForNode = getNodeTags(node);
-              const summary = getNodeSummary(node);
               const workspaceIdForNode = getNodeWorkspaceId(node);
               const selected = selectedNode?.workspaceId === workspaceIdForNode && selectedNode.nodeId === node.id;
+              const title = getNodeTitle(node, t('workspaceNodes.untitled'));
+              const contextLabel = [
+                node.workspaceName ?? workspaceIdForNode,
+                node.linkCount > 0 ? t('workspaceNodes.linkCount', { count: node.linkCount }) : '',
+              ].filter(Boolean).join(' · ');
               return (
-                <article
+                <KnowledgeNodeCard
                   key={`${workspaceIdForNode}:${node.id}`}
-                  className={`workspace-node-card${selected ? ' is-selected' : ''}`}
-                  onClick={() => onSelectNode?.({ workspaceId: workspaceIdForNode, nodeId: node.id })}
-                >
-                  <div className="workspace-node-card__meta">
-                    <span className="workspace-node-type-pill">{getNodeTypeLabel(node.type, t, t('workspaceNodes.genericNode'))}</span>
-                    <span>{formatTime(node.updatedAt, t('workspaceNodes.noTimestamp'), dateLocale)}</span>
-                  </div>
-                  <h2 onClick={(event) => { event.stopPropagation(); onOpenNode(workspaceIdForNode, node.id); }}>{getNodeTitle(node, t('workspaceNodes.untitled'))}</h2>
-                  <p>{summary ? truncateText(summary, 180) : t('workspaceNodes.noPreview')}</p>
-                  <div className="workspace-node-tags">
-                    {tagsForNode.length > 0
-                      ? tagsForNode.slice(0, 4).map((tag) => <span key={tag} className="workspace-node-tag">{tagLabel(tag)}</span>)
-                      : <span className="workspace-node-muted">{t('workspaceNodes.noTags')}</span>}
-                  </div>
-                  <div className="workspace-node-card__footer">
-                    <span>{node.workspaceName ?? workspaceIdForNode}</span>
-                    {node.linkCount > 0 && <span>{t('workspaceNodes.linkCount', { count: node.linkCount })}</span>}
-                  </div>
-                </article>
+                  node={node}
+                  title={title}
+                  typeLabel={getNodeTypeLabel(node.type, t, t('workspaceNodes.genericNode'))}
+                  updatedLabel={formatTime(node.updatedAt, t('workspaceNodes.noTimestamp'), dateLocale)}
+                  tagLabels={tagsForNode.map(tagLabel)}
+                  noTagsLabel={t('workspaceNodes.noTags')}
+                  contextLabel={contextLabel}
+                  emptyPreviewLabel={t('workspaceNodes.noPreview')}
+                  openLabel={t('workspaceNodes.openSidePeek', { title })}
+                  selected={selected}
+                  onOpen={(trigger) => {
+                    detailTriggerRef.current = trigger;
+                    onSelectNode?.({ workspaceId: workspaceIdForNode, nodeId: node.id });
+                  }}
+                />
               );
             })}
           </div>

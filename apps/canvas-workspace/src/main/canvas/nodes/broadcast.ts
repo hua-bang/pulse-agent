@@ -26,3 +26,22 @@ export function broadcastWorkspaceNodesChanged(
     win.webContents.send(WORKSPACE_NODES_CHANGE_CHANNEL, payload);
   }
 }
+
+const pendingRendererWorkspaceIds = new Set<string>();
+let pendingRendererTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Coalesce editor keystrokes so knowledge views refresh after a short pause. */
+export function scheduleWorkspaceNodesChanged(workspaceIds: string[], delayMs = 180): void {
+  for (const workspaceId of workspaceIds) {
+    if (workspaceId) pendingRendererWorkspaceIds.add(workspaceId);
+  }
+  if (pendingRendererWorkspaceIds.size === 0) return;
+  if (pendingRendererTimer) clearTimeout(pendingRendererTimer);
+  pendingRendererTimer = setTimeout(() => {
+    pendingRendererTimer = undefined;
+    const pending = Array.from(pendingRendererWorkspaceIds);
+    pendingRendererWorkspaceIds.clear();
+    broadcastWorkspaceNodesChanged(pending, 'renderer');
+  }, delayMs);
+  pendingRendererTimer.unref?.();
+}

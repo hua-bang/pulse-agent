@@ -14,7 +14,7 @@ import ForceGraph2D, {
   type NodeObject,
 } from 'react-force-graph-2d';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import type { WorkspaceNodeListItem } from '../../types';
+import type { KnowledgeNodeSelection, WorkspaceNodeListItem } from '../../types';
 import { NodeDetailDrawer } from './NodeDetailDrawer';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
@@ -24,8 +24,8 @@ import { DropdownShell } from '../ui';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
-  selectedNode?: { workspaceId: string; nodeId: string } | null;
-  onSelectNode?: (selection: { workspaceId: string; nodeId: string } | null) => void;
+  selectedNode?: KnowledgeNodeSelection | null;
+  onSelectNode?: (selection: KnowledgeNodeSelection | null) => void;
   onOpenNode: (workspaceId: string, nodeId: string) => void;
 }
 
@@ -85,7 +85,7 @@ function nodeGraphId(workspaceId: string, nodeId: string): string {
   return `${workspaceId}:${nodeId}`;
 }
 
-function selectedGraphId(selectedNode?: { workspaceId: string; nodeId: string } | null): string | null {
+function selectedGraphId(selectedNode?: KnowledgeNodeSelection | null): string | null {
   if (!selectedNode) return null;
   return nodeGraphId(selectedNode.workspaceId, selectedNode.nodeId);
 }
