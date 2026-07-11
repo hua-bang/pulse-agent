@@ -10,3 +10,13 @@ pathRules:
     required:
       - pnpm --filter pulse-coder-agent-teams test
       - pnpm --filter pulse-coder-agent-teams typecheck
+  - name: protocol-parity
+    # Runtime event union + the consumer contract. describe-agent-teams
+    # hard-errors on a new un-emitted runtime event or a contracts.md
+    # consumer that does not import the package. Cheap, no build.
+    paths:
+      - src/runtime/types.ts
+      - src/runtime/team-runtime.ts
+      - docs/contracts.md
+    required:
+      - node harness/tools/describe-agent-teams.mjs

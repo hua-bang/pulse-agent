@@ -10,3 +10,16 @@ pathRules:
     required:
       - pnpm --filter @pulse-coder/remote-server test
       - pnpm --filter @pulse-coder/remote-server build
+  - name: registry-parity
+    # Drift-sensitive registries: env references, the chat-command router,
+    # and route mounts. describe-remote-server exits non-zero on a new
+    # server-side command missing from Discord passthrough; env/route drift
+    # prints informationally. Cheap, no build.
+    paths:
+      - src/server.ts
+      - src/core/chat-commands.ts
+      - src/core/chat-commands/**
+      - src/adapters/discord/adapter.ts
+      - .env.example
+    required:
+      - node harness/tools/describe-remote-server.mjs

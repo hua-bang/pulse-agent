@@ -93,7 +93,7 @@ describe('renderHarnessGraph', () => {
 });
 
 describe('createScopeGraph', () => {
-  it.each(['root', 'engine', 'canvas-workspace'])('builds a complete English graph for %s', (scope) => {
+  it.each(['root', 'engine', 'canvas-workspace', 'remote-server'])('builds a complete English graph for %s', (scope) => {
     const graph = createScopeGraph(scope);
 
     expect(validateHarnessData(graph)).toBe(graph);
@@ -107,7 +107,7 @@ describe('createScopeGraph', () => {
 
     expect(graph.title).toContain('阅读图');
     expect(graph.branches[0].label).toContain('修改');
-    expect(() => createScopeGraph('remote-server')).toThrow('Unknown scope');
+    expect(() => createScopeGraph('orchestrator')).toThrow('Unknown scope');
   });
 
   it('combines all built-in scopes in one tabbed document', () => {

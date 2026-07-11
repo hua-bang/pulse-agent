@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const scopes = new Set(['root', 'engine', 'canvas-workspace']);
+const scopes = new Set(['root', 'engine', 'canvas-workspace', 'remote-server']);
 
 function countFiles(relativePath, predicate = () => true) {
   const directory = path.join(repoRoot, relativePath);
@@ -113,10 +113,41 @@ function canvasGraph(locale) {
   };
 }
 
+function remoteServerGraph(locale) {
+  return {
+    title: scopeData(locale, 'Remote Server Harness Reading Graph', 'Remote Server Harness 阅读图'),
+    subtitle: scopeData(locale, 'Routes for the optional HTTP runtime around Engine and its trust boundaries.', 'Engine 之上可选 HTTP 运行时及其信任边界的阅读路径。'),
+    scope: 'apps/remote-server',
+    metrics: [
+      { value: String(countFiles('apps/remote-server/harness/knowledge', (name) => name.endsWith('.md'))), label: scopeData(locale, 'knowledge documents', '知识文档') },
+      { value: String(countFiles('apps/remote-server/harness/skills', (name) => name === 'SKILL.md')), label: scopeData(locale, 'local action skills', '本地操作技能') },
+      { value: String(countDirectories('apps/remote-server/src/adapters')), label: scopeData(locale, 'platform adapters', '平台适配器') },
+      { value: '2', label: scopeData(locale, 'unauthenticated default surfaces', '默认无认证表面') },
+    ],
+    entryNodes: scopeData(locale,
+      [{ title: 'AGENTS.md', detail: 'Root routing plus the local security note.' }, { title: 'apps/remote-server/AGENTS.md', detail: 'Mounted surface, harness layout, and the Feishu-verification warning.' }],
+      [{ title: 'AGENTS.md', detail: '根级路由与本地安全注解。' }, { title: 'apps/remote-server/AGENTS.md', detail: '挂载表面、Harness 布局与 Feishu 验证警告。' }]),
+    branches: [
+      branch('platform-adapter', locale,
+        { label: 'Add a platform adapter', intent: ['Make verifyRequest a real ingress gate', 'Avoid the eager-instantiation import trap'], sources: ['harness/skills/add-platform-adapter/SKILL.md', 'harness/knowledge/security-posture.md', 'src/adapters/discord/adapter.ts', 'src/server.ts'], reads: ['verifyRequest is the ONLY webhook auth (Feishu ships a no-op)', 'Mounting in server.ts is a separate step from writing the adapter'], evidence: ['Run node harness/tools/describe-remote-server.mjs', 'Build and test'], level: 4 },
+        { label: '新增平台适配器', intent: ['让 verifyRequest 成为真正的入口关卡', '避免模块加载即实例化的陷阱'], sources: ['harness/skills/add-platform-adapter/SKILL.md', 'harness/knowledge/security-posture.md', 'src/adapters/discord/adapter.ts', 'src/server.ts'], reads: ['verifyRequest 是唯一的 webhook 认证（Feishu 是空实现）', '在 server.ts 挂载是与编写适配器分开的一步'], evidence: ['运行 node harness/tools/describe-remote-server.mjs', '构建与测试'], level: 4 }),
+      branch('agent-run-reach', locale,
+        { label: 'Change agent-run reach or webhook auth', intent: ['Weigh unauthenticated-ingress to host-shell exposure', 'Do not patch security behavior without owner sign-off'], sources: ['harness/knowledge/security-posture.md', 'harness/knowledge/known-defects.md', 'src/core/worktree/runner.ts', 'src/routes/internal.ts'], reads: ['worktree_run defaults to host /bin/bash with the full secret env', 'Feishu ingress is unauthenticated by default; the docs claim otherwise'], evidence: ['Read the security posture first', 'Record findings; leave the RCE chain fix to the owner'], level: 4 },
+        { label: '修改 Agent 运行范围或 webhook 认证', intent: ['权衡无认证入口直达宿主 shell 的暴露', '未经属主拍板不改安全行为'], sources: ['harness/knowledge/security-posture.md', 'harness/knowledge/known-defects.md', 'src/core/worktree/runner.ts', 'src/routes/internal.ts'], reads: ['worktree_run 默认以 host /bin/bash 携全部密钥环境执行', 'Feishu 入口默认无认证——文档却声称有'], evidence: ['先读安全态势', '只记录发现；RCE 链修复交给属主'], level: 4 }),
+      branch('command-or-internal-route', locale,
+        { label: 'Add a chat command or internal route', intent: ['Keep the parallel command registries in sync', 'Carry the per-handler bearer check, not just loopback'], sources: ['harness/skills/add-chat-command/SKILL.md', 'harness/skills/add-internal-route/SKILL.md', 'src/core/chat-commands.ts', 'src/routes/internal.ts'], reads: ['A command spans ~6 registries incl. Discord passthrough', 'Internal routes copy their bearer check per handler; the middleware only does loopback'], evidence: ['Run describe-remote-server for passthrough parity', 'Smoke internal auth from loopback with and without the token'], level: 4 },
+        { label: '新增聊天命令或内部路由', intent: ['保持并行的命令注册表同步', '每个处理器都要带 bearer 校验，而非仅 loopback'], sources: ['harness/skills/add-chat-command/SKILL.md', 'harness/skills/add-internal-route/SKILL.md', 'src/core/chat-commands.ts', 'src/routes/internal.ts'], reads: ['一个命令横跨约 6 个注册表（含 Discord passthrough）', '内部路由的 bearer 校验按处理器逐个复制；中间件只做 loopback'], evidence: ['运行 describe-remote-server 做 passthrough 一致性检查', '从 loopback 带/不带 token 冒烟内部认证'], level: 4 }),
+    ],
+  };
+}
+
 export function createScopeGraph(scope, locale = 'en') {
-  if (!scopes.has(scope)) throw new Error(`Unknown scope: ${scope}. Use root, engine, or canvas-workspace.`);
+  if (!scopes.has(scope)) throw new Error(`Unknown scope: ${scope}. Use root, engine, canvas-workspace, or remote-server.`);
   if (!['en', 'zh'].includes(locale)) throw new Error(`Unknown locale: ${locale}. Use en or zh.`);
-  const graph = scope === 'root' ? rootGraph(locale) : scope === 'engine' ? engineGraph(locale) : canvasGraph(locale);
+  const graph = scope === 'root' ? rootGraph(locale)
+    : scope === 'engine' ? engineGraph(locale)
+    : scope === 'remote-server' ? remoteServerGraph(locale)
+    : canvasGraph(locale);
   return {
     ...graph,
     locale,
@@ -128,5 +159,5 @@ export function createScopeGraph(scope, locale = 'en') {
 }
 
 export function createAllScopeGraphs(locale = 'en') {
-  return ['root', 'engine', 'canvas-workspace'].map((scope) => createScopeGraph(scope, locale));
+  return ['root', 'engine', 'canvas-workspace', 'remote-server'].map((scope) => createScopeGraph(scope, locale));
 }

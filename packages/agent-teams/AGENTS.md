@@ -18,6 +18,10 @@ It should keep team protocol behavior explicit and avoid hiding quality gates in
 
 | Task | Read |
 |---|---|
+| Coordination lifecycle + the two-surface split (classic vs runtime) | `harness/knowledge/core-lifecycle.md` |
+| Confirmed-but-unfixed defects (incl. the conditional review gate) | `harness/knowledge/known-defects.md` |
+| Add a task-metadata key / a status value (safe-change procedures) | `harness/skills/{add-task-metadata-key,add-task-status}/SKILL.md` |
+| Current runtime-event ↔ emit + consumer parity | run `node harness/tools/describe-agent-teams.mjs` (from this dir; `--json` for machines) |
 | Package overview and classic API | `README.md` |
 | Understand contracts | `docs/contracts.md` |
 | Pick validation | `harness/validate/validation.yaml`, `docs/validation.md` |

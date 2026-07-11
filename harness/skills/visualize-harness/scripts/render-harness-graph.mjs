@@ -432,10 +432,16 @@ export function renderHarnessGraph(rawData) {
 function renderGraphTabSet(graphs, locale, hidden = false) {
   if (!Array.isArray(graphs) || graphs.length === 0) throw new Error('graphs must contain at least one item');
   const labels = locale === 'zh'
-    ? { title: 'Harness 阅读图', root: '仓库根目录', engine: 'Engine', canvas: 'Canvas Workspace' }
-    : { title: 'Harness Reading Graphs', root: 'Repository root', engine: 'Engine', canvas: 'Canvas Workspace' };
+    ? { title: 'Harness 阅读图', root: '仓库根目录', engine: 'Engine', canvas: 'Canvas Workspace', remote: 'Remote Server' }
+    : { title: 'Harness Reading Graphs', root: 'Repository root', engine: 'Engine', canvas: 'Canvas Workspace', remote: 'Remote Server' };
+  const labelByScope = {
+    root: labels.root,
+    'packages/engine': labels.engine,
+    'apps/canvas-workspace': labels.canvas,
+    'apps/remote-server': labels.remote,
+  };
   const tabs = graphs.map((graph, index) => {
-    const label = graph.scope === 'root' ? labels.root : graph.scope === 'packages/engine' ? labels.engine : labels.canvas;
+    const label = labelByScope[graph.scope] ?? graph.scope;
     return `<button class="tab" data-scope="${graph.scope}" type="button" role="tab" aria-selected="${index === 0}" aria-controls="${locale}-panel-${index}" id="${locale}-tab-${index}">${label}</button>`;
   }).join('');
   const panels = graphs.map((graph, index) => `

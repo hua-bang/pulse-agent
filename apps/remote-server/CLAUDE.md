@@ -28,9 +28,17 @@ Helper test suites run via `pnpm --filter @pulse-coder/remote-server test` (Vite
 
 ### Request lifecycle
 
+> ⚠ SECURITY: `verifyRequest()` is a real ED25519 check for **Discord** but
+> a no-op `return true` for **Feishu** (`src/adapters/feishu/adapter.ts:53-55`)
+> — the documented `FEISHU_ENCRYPT_KEY`/`FEISHU_VERIFICATION_TOKEN` are read
+> nowhere. On the default `HOST=0.0.0.0` + webhook mode this is an
+> unauthenticated ingress to a host-shell tool. This is a recorded, unfixed
+> vulnerability — see `harness/knowledge/security-posture.md §1`. The diagram
+> below shows the intended shape, NOT a guarantee that every adapter verifies.
+
 ```
 Platform webhook or /internal/agent/run
-  → PlatformAdapter.verifyRequest()     # Signature verification
+  → PlatformAdapter.verifyRequest()     # Discord: ED25519 · Feishu: NO-OP (see security note above)
   → PlatformAdapter.parseIncoming()     # → unified IncomingMessage
   → dispatcher.ackRequest()             # Immediate 200/202 (required by Feishu/Telegram)
   → dispatchIncoming() [fire-and-forget]
@@ -57,7 +65,7 @@ Platform webhook or /internal/agent/run
 
 Each adapter implements four methods: `verifyRequest`, `parseIncoming`, `ackRequest`, `createStreamHandle`. Adapters live in `src/adapters/{feishu,discord,telegram,web}/`.
 
-- **Feishu**: Larksuite SDK, message dedup via LRU cache on `message_id`, card messages with progress state.
+- **Feishu**: Larksuite SDK, message dedup via LRU cache on `message_id`, card messages with progress state. **No request verification** — `verifyRequest` returns `true` (see the security note above and `harness/knowledge/security-posture.md §1`).
 - **Discord**: ED25519 signature verification, webhook interactions + Gateway WebSocket for DMs and guild @mentions.
 - **Telegram / Web**: implemented but not mounted in `server.ts` by default.
 
