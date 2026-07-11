@@ -12,8 +12,9 @@ import {
 } from './NodeButtons';
 import { NodeTypeBadge } from './NodeTypeBadge';
 import { isReferenceableNode } from '../../utils/referenceNodes';
+import { useI18n } from '../../i18n';
 
-interface CanvasNodeHeaderProps {
+interface Props {
   fullscreenButton: ReactNode;
   containerDescendantCount: number;
   handleClose: (e: MouseEvent) => void;
@@ -39,6 +40,7 @@ interface CanvasNodeHeaderProps {
   relativeTime: string | null;
   titleRef: RefObject<HTMLSpanElement>;
 }
+
 
 /**
  * Leading glyph in a node header. Web (iframe) nodes show their page favicon —
@@ -90,7 +92,8 @@ export const CanvasNodeHeader = ({
   readOnly,
   relativeTime,
   titleRef,
-}: CanvasNodeHeaderProps) => {
+}: Props) => {
+  const { t } = useI18n();
   const agentTeamRole = node.type === 'agent'
     ? (node.data as AgentNodeData).agentTeamRole
     : undefined;
@@ -126,7 +129,7 @@ export const CanvasNodeHeader = ({
       )}
       {agentTeamRole && (
         <span className={`node-agent-team-role node-agent-team-role--${agentTeamRole}`}>
-          {agentTeamRole === 'lead' ? 'Lead' : 'Teammate'}
+          {agentTeamRole === 'lead' ? t('node.agentTeamRole.lead') : t('node.agentTeamRole.teammate')}
         </span>
       )}
       {node.type === 'group' && isSelected && !readOnly && onUngroupSelectedGroups && (
@@ -134,10 +137,10 @@ export const CanvasNodeHeader = ({
           className="group-ungroup-button"
           type="button"
           onClick={handleUngroup}
-          title="Ungroup selected group (⌘⇧G)"
-          aria-label="Ungroup selected group"
+          title={t('node.button.ungroupTooltip')}
+          aria-label={t('node.button.ungroupAria')}
         >
-          Ungroup
+          {t('node.button.ungroup')}
         </button>
       )}
       {node.type === 'frame' && !readOnly && (

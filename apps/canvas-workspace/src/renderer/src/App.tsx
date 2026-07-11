@@ -595,7 +595,7 @@ const AppContent = () => {
   );
 };
 
-const App = () => (
+export const App = () => (
   <I18nProvider>
     <AppShellProvider>
       <RightDockProvider>
@@ -604,5 +604,3 @@ const App = () => (
     </AppShellProvider>
   </I18nProvider>
 );
-
-export default App;

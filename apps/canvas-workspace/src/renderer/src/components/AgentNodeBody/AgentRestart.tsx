@@ -88,7 +88,7 @@ export const AgentRestart = ({
 }: AgentRestartProps) => {
   const { t } = useI18n();
   const agentDef = AGENT_REGISTRY.find((a) => a.id === agentType);
-  const cwdDisplay = cwd ? truncatePath(cwd, 36) : 'Working Directory';
+  const cwdDisplay = cwd ? truncatePath(cwd, 36) : t('agent.workingDirectory');
   const hasPrompt = !!(prompt && prompt.trim().length > 0);
   const promptPreview = hasPrompt ? t('agent.promptSaved') : t('agent.promptNotProvided');
   // Only offer "resume" when the node has a stable CLI conversation id.
@@ -100,8 +100,8 @@ export const AgentRestart = ({
       : false;
   const restartLabel = canResume ? t('agent.resumeSession') : t('agent.restartSession');
   const restartTitle = canResume
-    ? `Resume the previous ${agentDef?.label ?? 'agent'} conversation`
-    : 'Restart with saved configuration';
+    ? t('agent.resumeTitle', { agent: agentDef?.label ?? t('agent.genericAgentFallback') })
+    : t('agent.restartTitle');
   const warningText = canResume
     ? t('agent.resumeWarning')
     : t('agent.restartWarning');
@@ -117,7 +117,7 @@ export const AgentRestart = ({
               <span className="agent-saved-row-left">
                 <AgentIcon id={agentType} size={16} />
                 <span className="agent-saved-row-label">
-                  {agentDef?.label ?? 'Coding Agent'}
+                  {agentDef?.label ?? t('agent.codingAgentFallback')}
                 </span>
               </span>
               <span className="agent-saved-row-check"><CheckGlyph /></span>
@@ -136,7 +136,7 @@ export const AgentRestart = ({
             <div className="agent-saved-row" title={prompt ?? ''}>
               <span className="agent-saved-row-left">
                 <ChatGlyph />
-                <span className="agent-saved-row-label">Initial Prompt</span>
+                <span className="agent-saved-row-label">{t('agent.initialPrompt')}</span>
               </span>
               <span className="agent-saved-row-meta">{promptPreview}</span>
             </div>
@@ -163,7 +163,7 @@ export const AgentRestart = ({
               type="button"
               className="agent-secondary-btn"
               onClick={onEdit}
-              title="Edit initial parameters"
+              title={t('agent.editParams')}
             >
               <PencilGlyph />
               {t('agent.editParams')}

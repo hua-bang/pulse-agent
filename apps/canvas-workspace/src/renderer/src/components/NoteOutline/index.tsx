@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import './index.css';
 import type { Editor } from '@tiptap/react';
+import { useI18n } from '../../i18n';
 
 interface HeadingItem {
   pos: number;
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export const NoteOutline = ({ editor, onClose }: Props) => {
+  const { t } = useI18n();
   const [headings, setHeadings] = useState<HeadingItem[]>(() => computeHeadings(editor));
   const [activePos, setActivePos] = useState<number | null>(null);
 
@@ -73,18 +75,18 @@ export const NoteOutline = ({ editor, onClose }: Props) => {
   return (
     <div className="note-outline" onMouseDown={(e) => e.stopPropagation()}>
       <div className="note-outline-head">
-        <span className="note-outline-title">Outline</span>
+        <span className="note-outline-title">{t('noteOutline.title')}</span>
         <button
           className="note-outline-close"
           onClick={onClose}
-          title="Close outline"
-          aria-label="Close outline"
+          title={t('noteOutline.close')}
+          aria-label={t('noteOutline.close')}
         >
           ×
         </button>
       </div>
       {headings.length === 0 ? (
-        <div className="note-outline-empty">No headings yet</div>
+        <div className="note-outline-empty">{t('noteOutline.empty')}</div>
       ) : (
         <ul className="note-outline-list">
           {headings.map((h, i) => (
@@ -95,9 +97,9 @@ export const NoteOutline = ({ editor, onClose }: Props) => {
                   h.pos === activePos ? ' note-outline-item--active' : ''
                 }`}
                 onClick={() => goTo(h.pos)}
-                title={h.text || 'Untitled'}
+                title={h.text || t('noteOutline.untitled')}
               >
-                {h.text || 'Untitled'}
+                {h.text || t('noteOutline.untitled')}
               </button>
             </li>
           ))}

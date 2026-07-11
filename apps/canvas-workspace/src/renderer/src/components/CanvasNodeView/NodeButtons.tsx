@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import { AppLogoIcon } from '../icons';
+import { useI18n } from '../../i18n';
 
 interface FullscreenButtonProps {
   floating?: boolean;
@@ -7,14 +8,16 @@ interface FullscreenButtonProps {
   onClick: (e: MouseEvent) => void;
 }
 
-export const FullscreenButton = ({ floating, isFullscreen, onClick }: FullscreenButtonProps) => (
+export const FullscreenButton = ({ floating, isFullscreen, onClick }: FullscreenButtonProps) => {
+  const { t } = useI18n();
+  return (
   <button
     className={`node-fullscreen${floating ? ' node-fullscreen--floating' : ''}`}
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-    aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+    title={isFullscreen ? t('node.button.fullscreenExit') : t('node.button.fullscreenEnter')}
+    aria-label={isFullscreen ? t('node.button.fullscreenExitAria') : t('node.button.fullscreenEnterAria')}
   >
     {isFullscreen ? (
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
@@ -26,16 +29,19 @@ export const FullscreenButton = ({ floating, isFullscreen, onClick }: Fullscreen
       </svg>
     )}
   </button>
-);
+  );
+};
 
-export const CopyImageButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+export const CopyImageButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => {
+  const { t } = useI18n();
+  return (
   <button
     className="node-copy-image node-copy-image--floating"
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title="Copy image"
-    aria-label="Copy image"
+    title={t('node.button.copyImage')}
+    aria-label={t('node.button.copyImage')}
   >
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
       <rect x="2" y="2" width="8" height="8" rx="1.4" stroke="currentColor" strokeWidth="1.2" />
@@ -43,41 +49,48 @@ export const CopyImageButton = ({ onClick }: { onClick: (e: MouseEvent) => void 
       <circle cx="8" cy="4" r=".75" fill="currentColor" />
     </svg>
   </button>
-);
+  );
+};
 
 interface CloseButtonProps {
   floating?: boolean;
   onClick: (e: MouseEvent) => void;
 }
 
-export const CloseButton = ({ floating, onClick }: CloseButtonProps) => (
+export const CloseButton = ({ floating, onClick }: CloseButtonProps) => {
+  const { t } = useI18n();
+  return (
   <button
     className={`node-close${floating ? ' node-close--floating' : ''}`}
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title="Remove"
+    title={t('node.button.remove')}
   >
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   </button>
-);
+  );
+};
 
-export const FocusButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+export const FocusButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => {
+  const { t } = useI18n();
+  return (
   <button
     className="node-focus"
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title="Focus"
+    title={t('node.button.focus')}
   >
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <circle cx="6" cy="6" r="2" stroke="currentColor" strokeWidth="1.3" />
       <path d="M6 1v2M6 9v2M1 6h2M9 6h2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   </button>
-);
+  );
+};
 
 export const PluginSelectElementButton = ({
   active,
@@ -85,14 +98,16 @@ export const PluginSelectElementButton = ({
 }: {
   active?: boolean;
   onClick: (e: MouseEvent) => void;
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <button
     className={`node-plugin-select${active ? ' node-plugin-select--active' : ''}`}
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title={active ? 'Cancel element selection' : 'Select element for AI Chat'}
-    aria-label={active ? 'Cancel plugin element selection' : 'Select plugin element for AI Chat'}
+    title={active ? t('node.button.pluginSelectCancel') : t('node.button.pluginSelectStart')}
+    aria-label={active ? t('node.button.pluginSelectCancelAria') : t('node.button.pluginSelectStartAria')}
   >
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
       <path
@@ -104,7 +119,8 @@ export const PluginSelectElementButton = ({
       />
     </svg>
   </button>
-);
+  );
+};
 
 export const ReferenceButton = ({
   nodeTitle,
@@ -112,14 +128,16 @@ export const ReferenceButton = ({
 }: {
   nodeTitle: string;
   onClick: (e: MouseEvent) => void;
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <button
     className="node-reference"
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title="Reference"
-    aria-label={`Pin ${nodeTitle} as reference`}
+    title={t('node.button.reference')}
+    aria-label={t('node.button.referenceAria', { title: nodeTitle })}
   >
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
       <path
@@ -136,20 +154,24 @@ export const ReferenceButton = ({
       />
     </svg>
   </button>
-);
+  );
+};
 
-export const AddToChatButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+export const AddToChatButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => {
+  const { t } = useI18n();
+  return (
   <button
     className="node-add-to-chat"
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title="Add to chat"
-    aria-label="Add node to AI chat"
+    title={t('node.button.addToChat')}
+    aria-label={t('node.button.addToChatAria')}
   >
     <AppLogoIcon />
   </button>
-);
+  );
+};
 
 export const OpenSourceButton = ({
   disabled,
@@ -157,13 +179,15 @@ export const OpenSourceButton = ({
 }: {
   disabled?: boolean;
   onClick: (e: MouseEvent) => void;
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <button
     className="node-focus"
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title="Open source"
+    title={t('node.button.openSource')}
     disabled={disabled}
   >
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -171,4 +195,5 @@ export const OpenSourceButton = ({
       <path d="M7 1.8h3.2V5M5.6 6.4l4.3-4.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   </button>
-);
+  );
+};

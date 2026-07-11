@@ -21,7 +21,7 @@ export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
   </svg>
 );
 
-interface SidebarHeaderProps {
+interface Props {
   onToggle: () => void;
   activeView: string;
   onEnterChat: () => void;
@@ -57,7 +57,7 @@ export const SidebarHeader = ({
   onNewWorkspace,
   onNewFolder,
   onImportWorkspace,
-}: SidebarHeaderProps) => {
+}: Props) => {
   const { t } = useI18n();
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);

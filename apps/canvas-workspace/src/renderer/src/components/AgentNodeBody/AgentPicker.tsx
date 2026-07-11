@@ -203,7 +203,7 @@ export const AgentPicker = ({
               type="button"
               className="agent-text-link"
               onClick={onBack}
-              title="Back to saved configuration"
+              title={t('agent.backTooltip')}
             >
               ← {t('agent.back')}
             </button>
@@ -211,7 +211,7 @@ export const AgentPicker = ({
         )}
 
         <div className="agent-card-body">
-          <div className="agent-tabs" role="tablist" aria-label="Coding agent">
+          <div className="agent-tabs" role="tablist" aria-label={t('agent.codingAgentAria')}>
             {AGENT_REGISTRY.map((a: AgentDef) => {
               const commandStatus = commandStatusByAgent[a.id] ?? 'checking';
               const isMissing = commandStatus === 'missing';
@@ -308,16 +308,16 @@ export const AgentPicker = ({
             <>
               <div className="agent-team-lead-setup-summary">
                 <div>
-                  <span>Workspace</span>
+                  <span>{t('agent.workspaceLabel')}</span>
                   <strong title={effectiveCwd || '~'}>{effectiveCwd ? truncatePath(effectiveCwd, 46) : '~'}</strong>
                 </div>
                 <div>
-                  <span>Approvals</span>
-                  <strong>Bypassed</strong>
+                  <span>{t('agent.approvalsLabel')}</span>
+                  <strong>{t('agent.approvalsBypassed')}</strong>
                 </div>
                 <div>
-                  <span>Prompt</span>
-                  <strong>Brief Team Lead</strong>
+                  <span>{t('agent.promptLabel')}</span>
+                  <strong>{t('agent.briefTeamLead')}</strong>
                 </div>
               </div>
 
@@ -328,7 +328,7 @@ export const AgentPicker = ({
               <div className="agent-field">
                 <div className="agent-field-label">
                   <FolderGlyph />
-                  <span>Working Directory</span>
+                  <span>{t('agent.workingDirectory')}</span>
                 </div>
                 <div className="agent-dir-field">
                   <input
@@ -354,15 +354,15 @@ export const AgentPicker = ({
                     type="button"
                     className="agent-dir-icon"
                     onClick={onPickFolder}
-                    title="Browse…"
-                    aria-label="Browse for folder"
+                    title={t('agent.browseFolder')}
+                    aria-label={t('agent.browseFolderAria')}
                   >
                     <FolderGlyph />
                   </button>
                 </div>
                 {visibleRecents.length > 0 && (
                   <div className="agent-recent">
-                    <span className="agent-recent-label">Recent</span>
+                    <span className="agent-recent-label">{t('agent.recent')}</span>
                     {visibleRecents.map((p) => (
                       <button
                         key={p}
@@ -381,7 +381,7 @@ export const AgentPicker = ({
               <div className="agent-field">
                 <div className="agent-field-label">
                   <ChatGlyph />
-                  <span>Initial Prompt</span>
+                  <span>{t('agent.initialPrompt')}</span>
                 </div>
                 <textarea
                   ref={promptRef}
@@ -429,7 +429,7 @@ export const AgentPicker = ({
             title={startTitle}
           >
             <PlayGlyph />
-            {isTeamLead ? 'Start lead' : t('agent.initialize')}
+            {isTeamLead ? t('agent.startLead') : t('agent.initialize')}
           </button>
           </div>
         )}
