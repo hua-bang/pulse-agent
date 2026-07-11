@@ -22,6 +22,31 @@ pathRules:
     required:
       - pnpm --filter canvas-workspace test
 
+  # Static source-of-truth checks for the app's agent-tool registry, IPC
+  # handle/invoke pairs, canvas node union/factory, and storage schema parity.
+  # The canvas-cli mirror paths are bound by the root validation overlay.
+  - name: canvas-contract-snapshot
+    paths:
+      - src/main/**
+      - src/plugins/main/**
+      - src/preload/**
+      - src/shared/canvas.ts
+      - src/renderer/src/utils/nodeFactory.ts
+      - harness/tools/describe-canvas.mjs
+    required:
+      - node apps/canvas-workspace/harness/tools/describe-canvas.mjs
+
+  # This plain-React visual fixture has an isolated tsconfig and Linux-only
+  # screenshot baselines, so keep typechecking automatic and the pixel check
+  # explicit until a suitable Linux runner owns it.
+  - name: ui-showcase
+    paths:
+      - harness/tools/ui-showcase/**
+    required:
+      - pnpm --filter canvas-workspace exec tsc --noEmit -p harness/tools/ui-showcase/tsconfig.json
+    manual:
+      - pnpm --filter canvas-workspace visual
+
   # Bundle + runtime perf gates (perf/program.md). Run by CI
   # (.github/workflows/perf.yml) on every canvas-workspace PR; runnable
   # locally with the same command.

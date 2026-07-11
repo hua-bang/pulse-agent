@@ -31,7 +31,7 @@ before that the directory held only the Electron driver):
   product-operation CLI; `pnpm --filter canvas-workspace harness <cmd>`
   still points at it.
 - `harness/tools/describe-canvas.mjs` — static structure snapshot: agent-tool
-  registry (45), IPC handle↔invoke contract diff, node-type union↔factory
+  registry, IPC handle↔invoke contract diff, node-type union↔factory
   sync, and app↔canvas-cli parity (NodeType union subset + storage
   schema-version constants). Run before touching any of those registries;
   exits non-zero on a broken invoke, union/factory drift, a CLI-only node
