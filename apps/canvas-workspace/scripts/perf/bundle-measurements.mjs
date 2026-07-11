@@ -52,9 +52,31 @@ const collectStaticClosure = (manifest, entryKey) => {
   };
 };
 
+export const measureManifestClosure = ({
+  rendererDir,
+  manifest,
+  entryKey,
+  excludeFiles = [],
+}) => {
+  const excluded = new Set(excludeFiles);
+  const closure = collectStaticClosure(manifest, entryKey);
+  const jsFiles = closure.jsFiles.filter((file) => !excluded.has(file));
+  const cssFiles = closure.cssFiles.filter((file) => !excluded.has(file));
+  const jsRawBytes = sumFileBytes(rendererDir, jsFiles);
+  const cssRawBytes = sumFileBytes(rendererDir, cssFiles);
+  return {
+    jsFiles,
+    cssFiles,
+    jsRawBytes,
+    cssRawBytes,
+    rawBytes: jsRawBytes + cssRawBytes,
+    requestCount: jsFiles.length + cssFiles.length,
+  };
+};
+
 export const measureRendererBundle = ({ rendererDir, manifest }) => {
   const [entryKey, entryChunk] = findEntry(manifest);
-  const closure = collectStaticClosure(manifest, entryKey);
+  const closure = measureManifestClosure({ rendererDir, manifest, entryKey });
   const allFiles = listFiles(rendererDir);
   const allJsFiles = allFiles.filter((file) => file.endsWith('.js'));
   const allCssFiles = allFiles.filter((file) => file.endsWith('.css'));
@@ -71,11 +93,11 @@ export const measureRendererBundle = ({ rendererDir, manifest }) => {
     },
     startup: {
       ...closure,
-      jsRawBytes: sumFileBytes(rendererDir, closure.jsFiles),
+      jsRawBytes: closure.jsRawBytes,
       jsGzipBytes: sumGzipBytes(rendererDir, closure.jsFiles),
-      cssRawBytes: sumFileBytes(rendererDir, closure.cssFiles),
+      cssRawBytes: closure.cssRawBytes,
       cssGzipBytes: sumGzipBytes(rendererDir, closure.cssFiles),
-      requestCount: closure.jsFiles.length + closure.cssFiles.length,
+      requestCount: closure.requestCount,
     },
     total: {
       jsFiles: allJsFiles,

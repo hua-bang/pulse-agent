@@ -14,7 +14,11 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildBundleGates } from './bundle-gates.mjs';
-import { matchesEntryDepStats, measureRendererBundle } from './bundle-measurements.mjs';
+import {
+  matchesEntryDepStats,
+  measureManifestClosure,
+  measureRendererBundle,
+} from './bundle-measurements.mjs';
 import { renderBundleReportHtml } from './bundle-report-html.mjs';
 import { validatePerformancePolicies } from './metric-policy.mjs';
 
@@ -29,20 +33,25 @@ const depStatsPath = join(outDir, 'entry-dep-stats.json');
 const mainBundlePath = join(appRoot, 'dist/main/index.js');
 const preloadBundlePath = join(appRoot, 'dist/preload/index.js');
 
-// Built-output probes: distinctive strings that indicate a heavy library is
-// folded into the eagerly-parsed entry chunk. Together they drive the
-// bundle.lazy_boundary_watchlist boolean Gate; the source-level import graph
-// test remains a second, independent guard.
-const ENTRY_PROBES = [
-  { lib: 'xterm', probe: 'xterm-helper-textarea' },
-  // 'prosemirror-view' survives minification (package-name string inside the
-  // lib); a bare 'ProseMirror' probe false-positives on the DOM-selector
-  // string '.ProseMirror' that entry-resident canvas handlers use.
-  { lib: 'tiptap/prosemirror', probe: 'prosemirror-view' },
-  { lib: 'highlight.js', probe: 'did you forget to load/include a language module' },
-  { lib: 'force-graph (d3-force)', probe: 'velocityDecay' },
-  { lib: 'module-federation runtime', probe: '__FEDERATION__' },
-  { lib: 'mermaid (must stay lazy)', probe: 'flowchart-elk' },
+// Rollup module IDs are the source of truth for heavy libraries in the entry.
+// This remains stable under minification and cannot false-positive on strings
+// that merely resemble a library implementation detail.
+const ENTRY_MODULE_WATCHLIST = [
+  { lib: 'xterm', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@xterm\// },
+  { lib: 'tiptap/prosemirror', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?(?:@tiptap\/|prosemirror-)/ },
+  { lib: 'highlight.js', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?(?:highlight\.js|lowlight)\// },
+  { lib: 'force-graph (d3-force)', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?(?:react-force-graph|force-graph|d3-force)(?:@|\/)/ },
+  { lib: 'module-federation runtime', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@module-federation\// },
+  { lib: 'mermaid (must stay lazy)', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?mermaid\// },
+];
+
+const FEATURE_ENTRIES = [
+  { id: 'file', matches: (key) => key.endsWith('src/components/FileNodeBody/index.tsx') },
+  { id: 'chat', matches: (key) => key.endsWith('src/components/chat/ChatPanel.tsx') },
+  { id: 'terminal', matches: (key) => key.endsWith('src/components/TerminalNodeBody/index.tsx') },
+  { id: 'graph', matches: (key) => key.endsWith('src/components/WorkspaceNodes/GraphPage.tsx') },
+  { id: 'mermaid', matches: (_key, chunk) => /^assets\/mermaid\.core-/.test(chunk.file ?? '') },
+  { id: 'mf', matches: (key) => key.includes('/@module-federation+runtime@') && key.endsWith('/dist/index.js') },
 ];
 
 const kb = (bytes) => Math.round(bytes / 1024);
@@ -73,13 +82,42 @@ const main = () => {
     console.error('[perf:bundle] no index-*.js entry chunk found');
     process.exit(2);
   }
-  const entrySource = readFileSync(join(assetsDir, entry.name), 'utf-8');
   const entryGzipKB = kb(measured.entry.gzipBytes);
   const totalJsKB = kb(measured.total.jsRawBytes);
+  const startupFiles = [...measured.startup.jsFiles, ...measured.startup.cssFiles];
+  const featureFirstLoad = Object.fromEntries(FEATURE_ENTRIES.map((feature) => {
+    const matches = Object.entries(manifest)
+      .filter(([key, chunk]) => feature.matches(key, chunk))
+      .map(([key]) => key);
+    if (matches.length !== 1) {
+      throw new Error(`expected exactly one manifest entry for feature ${feature.id}, found ${matches.length}`);
+    }
+    const closure = measureManifestClosure({
+      rendererDir,
+      manifest,
+      entryKey: matches[0],
+      excludeFiles: startupFiles,
+    });
+    return [feature.id, {
+      rawKB: kb(closure.rawBytes),
+      requestCount: closure.requestCount,
+      jsFiles: closure.jsFiles,
+      cssFiles: closure.cssFiles,
+    }];
+  }));
 
-  const probes = ENTRY_PROBES.map(({ lib, probe }) => ({
+  if (!existsSync(depStatsPath)) {
+    console.error(`[perf:bundle] missing ${depStatsPath}\nRebuild with PULSE_CANVAS_PERF_ANALYZE=1`);
+    process.exit(2);
+  }
+  const stats = JSON.parse(readFileSync(depStatsPath, 'utf-8'));
+  if (!matchesEntryDepStats(stats, measured.entry) || !Array.isArray(stats.moduleIds)) {
+    console.error('[perf:bundle] entry dependency graph is stale or incomplete; rebuild with PULSE_CANVAS_PERF_ANALYZE=1');
+    process.exit(2);
+  }
+  const probes = ENTRY_MODULE_WATCHLIST.map(({ lib, matches }) => ({
     lib,
-    inEntry: entrySource.includes(probe),
+    inEntry: stats.moduleIds.some((moduleId) => matches.test(moduleId)),
   }));
 
   let commit = 'unknown';
@@ -107,6 +145,7 @@ const main = () => {
     startupCssGzipKB: kb(measured.startup.cssGzipBytes),
     startupRequestCount: measured.startup.requestCount,
     totalCssRawKB: kb(measured.total.cssRawBytes),
+    featureFirstLoad,
     ...(existsSync(mainBundlePath) ? { mainRawKB: kb(statSync(mainBundlePath).size) } : {}),
     ...(existsSync(preloadBundlePath) ? { preloadRawKB: kb(statSync(preloadBundlePath).size) } : {}),
   };
@@ -118,21 +157,14 @@ const main = () => {
   // `perf:bundle` still works without this section (D2's treemap tab
   // renders it as 未建 when missing, same convention as every other
   // not-yet-instrumented metric).
-  let entryDepAttribution = null;
-  if (existsSync(depStatsPath)) {
-    const stats = JSON.parse(readFileSync(depStatsPath, 'utf-8'));
-    const deps = matchesEntryDepStats(stats, measured.entry) ? Object.entries(stats.byPackage ?? {})
+  const entryDepAttribution = {
+    chunkFileName: stats.chunkFileName,
+    appOwnKB: kb(stats.appOwnBytes ?? 0),
+    deps: Object.entries(stats.byPackage ?? {})
       .map(([pkg, bytes]) => ({ pkg, rawKB: kb(bytes) }))
-      .filter((d) => d.rawKB > 0)
-      .sort((a, b) => b.rawKB - a.rawKB) : null;
-    if (deps) {
-      entryDepAttribution = {
-        chunkFileName: stats.chunkFileName,
-        appOwnKB: kb(stats.appOwnBytes ?? 0),
-        deps,
-      };
-    }
-  }
+      .filter((dep) => dep.rawKB > 0)
+      .sort((a, b) => b.rawKB - a.rawKB),
+  };
 
   const report = {
     generatedAt: new Date().toISOString(),

@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { matchesEntryDepStats, measureRendererBundle } from './bundle-measurements.mjs';
+import { matchesEntryDepStats, measureManifestClosure, measureRendererBundle } from './bundle-measurements.mjs';
 
 const tempRoots = [];
 afterEach(() => {
@@ -80,5 +80,31 @@ describe('measureRendererBundle', () => {
       chunkFileName: entry.file,
       entrySourceSha256: 'stale-build-hash',
     }, entry)).toBe(false);
+  });
+
+  it('measures incremental feature first-load after excluding the startup closure', () => {
+    const root = makeTempRoot();
+    writeSizedFile(root, 'assets/shared.js', 1024);
+    writeSizedFile(root, 'assets/feature.js', 2048);
+    writeSizedFile(root, 'assets/feature.css', 512, 'c');
+    const manifest = {
+      '_shared.js': { file: 'assets/shared.js' },
+      'src/feature.tsx': {
+        file: 'assets/feature.js',
+        imports: ['_shared.js'],
+        css: ['assets/feature.css'],
+      },
+    };
+
+    expect(measureManifestClosure({
+      rendererDir: root,
+      manifest,
+      entryKey: 'src/feature.tsx',
+      excludeFiles: ['assets/shared.js'],
+    })).toMatchObject({
+      jsFiles: ['assets/feature.js'],
+      cssFiles: ['assets/feature.css'],
+      rawBytes: 2560,
+    });
   });
 });

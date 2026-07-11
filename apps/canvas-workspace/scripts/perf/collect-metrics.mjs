@@ -231,6 +231,18 @@ export const collectRendererTraceMetrics = (scenarios) => {
       runs: 1,
       detail: longTaskDetail,
     },
+    {
+      id: 'startup.loaded_to_canvas_kb',
+      value: trace.resources?.loadedToCanvasKB,
+      runs: 1,
+      detail: `${trace.resources?.loadedToCanvasCount ?? 'unknown'} local resources completed by first Canvas · ${detail}`,
+    },
+    {
+      id: 'startup.loaded_to_lcp_kb',
+      value: trace.resources?.loadedToLcpKB,
+      runs: 1,
+      detail: `${trace.resources?.loadedToLcpCount ?? 'unknown'} local resources completed by LCP · ${detail}`,
+    },
     { id: 'startup.renderer_reload.task_ms', value: trace.cpu?.taskMs, runs: 1, detail },
     { id: 'startup.renderer_reload.script_ms', value: trace.cpu?.scriptMs, runs: 1, detail },
     { id: 'startup.renderer_reload.recalc_style_ms', value: trace.cpu?.recalcStyleMs, runs: 1, detail },
@@ -346,6 +358,15 @@ export const collectMetrics = () => {
       push(id, bundle.metrics[reportKey], gate ? { pass: gate.pass, limit: gate.limit } : {});
     }
     push('bundle.chunk_count', bundle.metrics.chunkCount);
+    for (const feature of ['file', 'chat', 'terminal', 'graph', 'mermaid', 'mf']) {
+      push(
+        `bundle.feature_first_load.${feature}_raw_kb`,
+        bundle.metrics.featureFirstLoad?.[feature]?.rawKB,
+        bundle.metrics.featureFirstLoad?.[feature]
+          ? { detail: `${bundle.metrics.featureFirstLoad[feature].requestCount} incremental requests` }
+          : {},
+      );
+    }
     const heavyInEntry = bundle.probes.filter((p) => p.inEntry);
     push('bundle.heavy_in_entry_count', heavyInEntry.length, {
       detail: heavyInEntry.length > 0

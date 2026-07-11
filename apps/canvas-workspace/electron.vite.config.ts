@@ -89,6 +89,7 @@ function entryDepStatsPlugin() {
     chunkFileName: string;
     byPackage: Record<string, number>;
     appOwnBytes: number;
+    moduleIds: string[];
   } | null = null;
   return {
     name: "pulse-canvas-entry-dep-stats",
@@ -104,7 +105,12 @@ function entryDepStatsPlugin() {
           if (pkg) byPackage[pkg] = (byPackage[pkg] ?? 0) + bytes;
           else appOwnBytes += bytes;
         }
-        entryStats = { chunkFileName: chunk.fileName, byPackage, appOwnBytes };
+        entryStats = {
+          chunkFileName: chunk.fileName,
+          byPackage,
+          appOwnBytes,
+          moduleIds: Object.keys(chunk.modules ?? {}),
+        };
       }
     },
     writeBundle(options: { dir?: string }) {

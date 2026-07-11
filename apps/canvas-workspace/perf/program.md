@@ -46,6 +46,7 @@
 | `startup.renderer_reload.blocking_time_to_canvas_ms` | warm reload 的 FCP→Canvas 壳层 mark 阻塞交集;不是完整加载 TBT | ms | 同机同 profile | record·diagnostic | ✅ CDP |
 | `startup.renderer_reload.blocking_canvas_to_lcp_ms` | Canvas 壳层 mark→LCP 的 Long Task 阻塞交集,补足后段可见成本 | ms | 同机同 profile | record·diagnostic | ✅ CDP |
 | `startup.renderer_reload.long_task_count` / `.long_task_max_ms` | 整个 trace 窗口 Long Task 数与最大持续时间 | 次/ms | 同机同 profile | record·diagnostic | ✅ CDP |
+| `startup.loaded_to_canvas_kb` / `startup.loaded_to_lcp_kb` | warm reload 中同源/`file:` Resource Timing 按 responseEnd 截止到 Canvas/LCP 的 decoded bytes | KB | 同机同 profile | record·diagnostic | ✅ CDP |
 | `startup.renderer_reload.{task,script,recalc_style,layout}_ms` | warm reload 前后 CDP Performance counters 差值 | ms | 同机同 profile | record·diagnostic | ✅ CDP |
 
 ### ② 交互(采集:`perf:scenarios` 经 CDP 驱动 + `__pulsePerf`;场景:`typing`✅ `resize`✅ `drag`✅ `panzoom`✅ `mindmap_drag`○)
@@ -76,9 +77,10 @@
 | `bundle.total_js_kb` | `dist/renderer` 内全部 JS 原始字节先求和、最后换算 KB | KB | 全局 | **gate** | ✅ |
 | `bundle.total_css_raw_kb` | `dist/renderer` 内全部 CSS 原始字节先求和、最后换算 KB | KB | 全局 | record | ✅ 已建 |
 | `bundle.main_raw_kb` / `bundle.preload_raw_kb` | Main / Preload 入口构建输出原始字节 | KB | 全局 | record | ✅ 已建 |
+| `bundle.feature_first_load.<feature>_raw_kb` | File/Chat/Terminal/Graph/Mermaid/MF 的 manifest 静态闭包扣除启动已加载文件后的 JS+CSS 增量 | KB | 全局 | record | ✅ 已建 |
 | `bundle.chunk_count` | JS chunk 数 | 个 | 全局 | record | ✅ 77 |
-| `bundle.lazy_boundary_watchlist` | WATCHLIST 包保持动态加载(静态 import-graph) | bool | 全局 | **gate** | ✅ 6/6 保持 lazy |
-| `bundle.heavy_in_entry_count` | 重依赖探针命中数(xterm/tiptap/hljs/d3/MF/mermaid) | 个 | 全局 | record | ✅ 0/6 在 entry |
+| `bundle.lazy_boundary_watchlist` | Rollup entry module IDs 中 WATCHLIST 包保持缺席 | bool | 全局 | **gate** | ✅ 6/6 保持 lazy |
+| `bundle.heavy_in_entry_count` | 入口模块图的重依赖命中数(xterm/tiptap/hljs/d3/MF/mermaid) | 个 | 全局 | record | ✅ 0/6 在 entry |
 | entry 内依赖归因 | Rollup 每依赖渲染字节(A5,`entryDepStatsPlugin` opt-in via `PULSE_CANVAS_PERF_ANALYZE=1`);非固定 ID 的标量指标,不进 metrics.json/history 棘轮体系——结构化数据在 `bundle-report.json` 的 `entryDepAttribution` 字段,体积 Tab(D2)直接读取渲染 | KB | 全局 | record(展示,不进 rule engine) | ✅ 已建 |
 
 ### ④ 内存驻留(采集:`__pulsePerf` JS 堆 + `app.getAppMetrics()`;核心是斜率不是单点)
