@@ -21,7 +21,14 @@ export const renderBundleReportHtml = (report) => {
   const tiles = [
     { label: 'Entry chunk (raw)', value: `${fmt(metrics.entryRawKB)} KB`, note: 'eagerly parsed at startup' },
     { label: 'Entry chunk (gzip)', value: `${fmt(metrics.entryGzipKB)} KB`, note: 'compressed size' },
+    ...(metrics.startupJsRawKB === undefined ? [] : [
+      { label: 'Startup JS closure', value: `${fmt(metrics.startupJsRawKB)} KB`, note: `${metrics.startupRequestCount} static JS/CSS requests` },
+      { label: 'Startup CSS closure', value: `${fmt(metrics.startupCssRawKB)} KB`, note: `${fmt(metrics.startupCssGzipKB)} KB gzip` },
+    ]),
     { label: 'Total JS', value: `${fmt(metrics.totalJsKB)} KB`, note: `${metrics.chunkCount} chunks` },
+    ...(metrics.totalCssRawKB === undefined ? [] : [
+      { label: 'Total CSS', value: `${fmt(metrics.totalCssRawKB)} KB`, note: 'all renderer CSS' },
+    ]),
     {
       label: 'Gate status',
       value: allPass ? 'PASS' : 'FAIL',

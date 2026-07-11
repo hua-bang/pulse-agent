@@ -38,7 +38,9 @@
       "northStar": "bundle.entry_raw_kb",
       "dimensions": [
         { "id": "entry-payload", "name": "启动入口", "description": "启动路径直接加载的代码" },
+        { "id": "startup-closure", "name": "启动静态闭包", "description": "入口及其静态 imports 实际加载的 JS、CSS 与请求数" },
         { "id": "total-footprint", "name": "总体积", "description": "JS 总量与 chunk 数量" },
+        { "id": "main-payload", "name": "主进程产物", "description": "Main 与 Preload 的构建输出体积" },
         { "id": "lazy-boundaries", "name": "懒加载边界", "description": "重依赖是否保持按需加载" }
       ],
       "next": "M1:treemap 归因定拆分顺序 → 每拆一个依赖升 WATCHLIST + 在 baselines policy 收紧目标/Gate"
@@ -126,6 +128,14 @@
     { "id": "bundle.entry_raw_kb", "aspect": "bundle", "dimension": "entry-payload", "displayPriority": "primary", "label": "入口 chunk raw", "unit": "KB", "comparability": "全局", "level": "gate", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
     { "id": "bundle.entry_gzip_kb", "aspect": "bundle", "dimension": "entry-payload", "displayPriority": "supporting", "label": "入口 chunk gzip", "unit": "KB", "comparability": "全局", "level": "gate", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
     { "id": "bundle.total_js_kb", "aspect": "bundle", "dimension": "total-footprint", "displayPriority": "primary", "label": "JS 总量", "unit": "KB", "comparability": "全局", "level": "gate", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
+    { "id": "bundle.startup_js_raw_kb", "aspect": "bundle", "dimension": "startup-closure", "displayPriority": "primary", "label": "启动静态闭包 JS raw", "unit": "KB", "comparability": "全局", "level": "record", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
+    { "id": "bundle.startup_js_gzip_kb", "aspect": "bundle", "dimension": "startup-closure", "displayPriority": "supporting", "label": "启动静态闭包 JS gzip", "unit": "KB", "comparability": "全局", "level": "record", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
+    { "id": "bundle.startup_css_raw_kb", "aspect": "bundle", "dimension": "startup-closure", "displayPriority": "supporting", "label": "启动静态闭包 CSS raw", "unit": "KB", "comparability": "全局", "level": "record", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
+    { "id": "bundle.startup_css_gzip_kb", "aspect": "bundle", "dimension": "startup-closure", "displayPriority": "supporting", "label": "启动静态闭包 CSS gzip", "unit": "KB", "comparability": "全局", "level": "record", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
+    { "id": "bundle.startup_request_count", "aspect": "bundle", "dimension": "startup-closure", "displayPriority": "supporting", "label": "启动静态闭包请求数", "unit": "个", "comparability": "全局", "level": "record", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
+    { "id": "bundle.total_css_raw_kb", "aspect": "bundle", "dimension": "total-footprint", "displayPriority": "supporting", "label": "CSS 总量", "unit": "KB", "comparability": "全局", "level": "record", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
+    { "id": "bundle.main_raw_kb", "aspect": "bundle", "dimension": "main-payload", "displayPriority": "supporting", "label": "Main bundle raw", "unit": "KB", "comparability": "全局", "level": "record", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
+    { "id": "bundle.preload_raw_kb", "aspect": "bundle", "dimension": "main-payload", "displayPriority": "diagnostic", "label": "Preload bundle raw", "unit": "KB", "comparability": "全局", "level": "record", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
     { "id": "bundle.chunk_count", "aspect": "bundle", "dimension": "total-footprint", "displayPriority": "supporting", "label": "chunk 数", "unit": "个", "comparability": "全局", "level": "record", "instrumented": true },
     { "id": "bundle.heavy_in_entry_count", "aspect": "bundle", "dimension": "lazy-boundaries", "displayPriority": "diagnostic", "label": "入口重依赖探针命中数", "unit": "个", "comparability": "全局", "level": "record", "instrumented": true, "direction": "exact", "measurementProfile": "global-deterministic" },
     { "id": "bundle.lazy_boundary_watchlist", "aspect": "bundle", "dimension": "lazy-boundaries", "displayPriority": "primary", "label": "WATCHLIST 保持懒加载(mermaid)", "unit": "bool", "comparability": "全局", "level": "gate", "instrumented": true, "direction": "true", "measurementProfile": "global-deterministic" },

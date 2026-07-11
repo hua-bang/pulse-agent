@@ -3,6 +3,8 @@
 > 本文是性能专项的规划与指标口径的单一事实源。
 > 分工:`README.md` 管操作(怎么跑),`baselines.json` 管阈值(数字),本文管**体系**(专项划分、指标定义、采集规范、路线图)。
 > 发现清单见 `../docs/performance-analysis-consolidated.md`(67 条)+ `../docs/performance-analysis-round3.md`(20 条)。
+> 体积专项的当前审计、分阶段任务卡和交接协议见 `bundle-optimization-plan.md`；
+> 其中数字是规划证据，落地后的正式阈值仍只写入 `baselines.json`。
 
 ## 1. 六专项
 
@@ -66,9 +68,14 @@
 
 | 指标 ID | 定义(口径) | 单位 | 可比性 | 等级 | 状态 |
 |---|---|---|---|---|---|
-| `bundle.entry_raw_kb` | index-*.js 原始字节(北极星;产品目标见 baselines policy) | KB | 全局 | **gate** | ✅ 1380(2026-07-10) |
+| `bundle.entry_raw_kb` | Vite manifest `isEntry` 对应 JS 原始字节(产品目标见 baselines policy) | KB | 全局 | **gate** | ✅ |
 | `bundle.entry_gzip_kb` | 同上 gzip -9 | KB | 全局 | **gate** | ✅ 285(已到当前 limit) |
-| `bundle.total_js_kb` | assets/*.js 合计 | KB | 全局 | **gate** | ✅ 10601 |
+| `bundle.startup_js_raw_kb` / `startup_js_gzip_kb` | manifest 入口递归静态 `imports` 的去重 JS 闭包 | KB | 全局 | record | ✅ 已建，稳定两轮后升 Gate |
+| `bundle.startup_css_raw_kb` / `startup_css_gzip_kb` | 上述静态闭包关联 CSS 的去重总量 | KB | 全局 | record | ✅ 已建，稳定两轮后升 Gate |
+| `bundle.startup_request_count` | 启动静态 JS + CSS 闭包文件数 | 个 | 全局 | record | ✅ 已建 |
+| `bundle.total_js_kb` | `dist/renderer` 内全部 JS 原始字节先求和、最后换算 KB | KB | 全局 | **gate** | ✅ |
+| `bundle.total_css_raw_kb` | `dist/renderer` 内全部 CSS 原始字节先求和、最后换算 KB | KB | 全局 | record | ✅ 已建 |
+| `bundle.main_raw_kb` / `bundle.preload_raw_kb` | Main / Preload 入口构建输出原始字节 | KB | 全局 | record | ✅ 已建 |
 | `bundle.chunk_count` | JS chunk 数 | 个 | 全局 | record | ✅ 77 |
 | `bundle.lazy_boundary_watchlist` | WATCHLIST 包保持动态加载(静态 import-graph) | bool | 全局 | **gate** | ✅ 6/6 保持 lazy |
 | `bundle.heavy_in_entry_count` | 重依赖探针命中数(xterm/tiptap/hljs/d3/MF/mermaid) | 个 | 全局 | record | ✅ 0/6 在 entry |

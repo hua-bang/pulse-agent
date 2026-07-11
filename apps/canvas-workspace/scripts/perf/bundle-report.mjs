@@ -13,17 +13,21 @@ import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gzipSync } from 'node:zlib';
 import { buildBundleGates } from './bundle-gates.mjs';
+import { matchesEntryDepStats, measureRendererBundle } from './bundle-measurements.mjs';
 import { renderBundleReportHtml } from './bundle-report-html.mjs';
 import { validatePerformancePolicies } from './metric-policy.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const rendererDir = join(appRoot, 'dist/renderer');
 const assetsDir = join(appRoot, 'dist/renderer/assets');
+const manifestPath = join(rendererDir, 'manifest.json');
 const baselinesPath = join(appRoot, 'perf/baselines.json');
 const metricsPath = join(appRoot, 'perf/metrics.json');
 const outDir = join(appRoot, 'perf/out');
 const depStatsPath = join(outDir, 'entry-dep-stats.json');
+const mainBundlePath = join(appRoot, 'dist/main/index.js');
+const preloadBundlePath = join(appRoot, 'dist/preload/index.js');
 
 // Built-output probes: distinctive strings that indicate a heavy library is
 // folded into the eagerly-parsed entry chunk. Together they drive the
@@ -57,14 +61,21 @@ const main = () => {
     })
     .sort((a, b) => b.rawKB - a.rawKB);
 
-  const entry = chunks.find((chunk) => chunk.name.startsWith('index-'));
+  if (!existsSync(manifestPath)) {
+    console.error(`[perf:bundle] missing ${manifestPath}\nRun the build with PULSE_CANVAS_PERF_ANALYZE=1`);
+    process.exit(2);
+  }
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+  const measured = measureRendererBundle({ rendererDir, manifest });
+  const measuredEntryName = measured.entry.file.split('/').pop();
+  const entry = chunks.find((chunk) => chunk.name === measuredEntryName);
   if (!entry) {
     console.error('[perf:bundle] no index-*.js entry chunk found');
     process.exit(2);
   }
   const entrySource = readFileSync(join(assetsDir, entry.name), 'utf-8');
-  const entryGzipKB = kb(gzipSync(Buffer.from(entrySource)).length);
-  const totalJsKB = chunks.reduce((sum, chunk) => sum + chunk.rawKB, 0);
+  const entryGzipKB = kb(measured.entry.gzipBytes);
+  const totalJsKB = kb(measured.total.jsRawBytes);
 
   const probes = ENTRY_PROBES.map(({ lib, probe }) => ({
     lib,
@@ -86,10 +97,18 @@ const main = () => {
     process.exit(2);
   }
   const current = {
-    entryRawKB: entry.rawKB,
+    entryRawKB: kb(measured.entry.rawBytes),
     entryGzipKB,
     totalJsKB,
     lazyBoundaryWatchlist: probes.every((probe) => !probe.inEntry),
+    startupJsRawKB: kb(measured.startup.jsRawBytes),
+    startupJsGzipKB: kb(measured.startup.jsGzipBytes),
+    startupCssRawKB: kb(measured.startup.cssRawBytes),
+    startupCssGzipKB: kb(measured.startup.cssGzipBytes),
+    startupRequestCount: measured.startup.requestCount,
+    totalCssRawKB: kb(measured.total.cssRawBytes),
+    ...(existsSync(mainBundlePath) ? { mainRawKB: kb(statSync(mainBundlePath).size) } : {}),
+    ...(existsSync(preloadBundlePath) ? { preloadRawKB: kb(statSync(preloadBundlePath).size) } : {}),
   };
   const gates = buildBundleGates(baselines, current);
 
@@ -102,21 +121,23 @@ const main = () => {
   let entryDepAttribution = null;
   if (existsSync(depStatsPath)) {
     const stats = JSON.parse(readFileSync(depStatsPath, 'utf-8'));
-    const deps = Object.entries(stats.byPackage ?? {})
+    const deps = matchesEntryDepStats(stats, measured.entry) ? Object.entries(stats.byPackage ?? {})
       .map(([pkg, bytes]) => ({ pkg, rawKB: kb(bytes) }))
       .filter((d) => d.rawKB > 0)
-      .sort((a, b) => b.rawKB - a.rawKB);
-    entryDepAttribution = {
-      chunkFileName: stats.chunkFileName,
-      appOwnKB: kb(stats.appOwnBytes ?? 0),
-      deps,
-    };
+      .sort((a, b) => b.rawKB - a.rawKB) : null;
+    if (deps) {
+      entryDepAttribution = {
+        chunkFileName: stats.chunkFileName,
+        appOwnKB: kb(stats.appOwnBytes ?? 0),
+        deps,
+      };
+    }
   }
 
   const report = {
     generatedAt: new Date().toISOString(),
     commit,
-    metrics: { ...current, chunkCount: chunks.length },
+    metrics: { ...current, chunkCount: measured.total.jsFiles.length },
     gates,
     probes,
     topChunks: chunks.slice(0, 12),

@@ -333,6 +333,14 @@ export const collectMetrics = () => {
       ['entryRawKB', 'bundle.entry_raw_kb'],
       ['entryGzipKB', 'bundle.entry_gzip_kb'],
       ['totalJsKB', 'bundle.total_js_kb'],
+      ['startupJsRawKB', 'bundle.startup_js_raw_kb'],
+      ['startupJsGzipKB', 'bundle.startup_js_gzip_kb'],
+      ['startupCssRawKB', 'bundle.startup_css_raw_kb'],
+      ['startupCssGzipKB', 'bundle.startup_css_gzip_kb'],
+      ['startupRequestCount', 'bundle.startup_request_count'],
+      ['totalCssRawKB', 'bundle.total_css_raw_kb'],
+      ['mainRawKB', 'bundle.main_raw_kb'],
+      ['preloadRawKB', 'bundle.preload_raw_kb'],
     ]) {
       const gate = gateFor(reportKey);
       push(id, bundle.metrics[reportKey], gate ? { pass: gate.pass, limit: gate.limit } : {});
