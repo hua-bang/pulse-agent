@@ -312,7 +312,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1 even though the rendered hover color is unchanged.
   // 1882→1881: LinkDrawer's new editable address focus state uses palette tokens.
   // 1881→1879: the duplicate ChatHeader brand mark and its two color literals were removed.
-  hardcodedColorLiterals: 1879,
+  // 1879→1878: the duplicate Nodes/Graph chat dock and its literal surface color were removed.
+  hardcodedColorLiterals: 1878,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -370,7 +371,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (inset base ring + a 2px literal focus ring, a near-variant of
   // --shadow-focus's 3px) and `.built-in-tool-primary-btn` carried 1 more —
   // all 3 deleted with the now-unused CSS.
-  shadowLiterals: 154,
+  shadowLiterals: 153,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

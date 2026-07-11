@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkspaceNodeListItem } from '../../types';
-import type { SettingsSection } from '../Settings';
 import { NodeDetailDrawer } from './NodeDetailDrawer';
-import { NodesChatDock, useNodesChatDock } from './NodesChatDock';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import {
   NODE_TYPE_FILTERS,
@@ -26,8 +24,6 @@ interface NodesPageProps {
   selectedNode?: { workspaceId: string; nodeId: string } | null;
   onOpenNode: (workspaceId: string, nodeId: string) => void;
   onSelectNode?: (selection: { workspaceId: string; nodeId: string } | null) => void;
-  /** When provided, docks the knowledge assistant into the page. */
-  onOpenAppSettings?: (section: SettingsSection) => void;
 }
 
 const NODES_PAGE_SIZE = 30;
@@ -43,13 +39,10 @@ export const NodesPage = ({
   selectedNode,
   onOpenNode,
   onSelectNode,
-  onOpenAppSettings,
 }: NodesPageProps) => {
   const { language, t } = useI18n();
   const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
   const { nodes, tags: tagDefinitions, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
-  const dock = useNodesChatDock();
-  const showDock = Boolean(onOpenAppSettings);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<NodeTypeFilter>('all');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
@@ -137,10 +130,7 @@ export const NodesPage = ({
   const tagLabel = (tagId: string) => tagName(tagId, tagDefinitions);
 
   return (
-    <main
-      className={`workspace-nodes-page${showDock && dock.rendered ? ' has-chat-dock' : ''}`}
-      style={showDock ? dock.rootStyle : undefined}
-    >
+    <main className="workspace-nodes-page">
       <section className="workspace-nodes-page__main">
         <div className="workspace-nodes-page__top">
           <header className="workspace-nodes-page__header">
@@ -279,20 +269,6 @@ export const NodesPage = ({
         onNodeChanged={() => { void reload(); }}
       />
 
-      {showDock && onOpenAppSettings && (
-        <NodesChatDock
-          open={dock.open}
-          rendered={dock.rendered}
-          width={dock.width}
-          onOpen={dock.openDock}
-          onClose={dock.closeDock}
-          onBeginResize={dock.beginResize}
-          workspaces={workspaces.map((ws) => ({ id: ws.id, name: ws.name }))}
-          nodes={nodes}
-          tags={tagDefinitions}
-          onOpenAppSettings={onOpenAppSettings}
-        />
-      )}
     </main>
   );
 };

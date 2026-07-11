@@ -7,11 +7,10 @@
  * DockStore owns state and deduping. Workbench portals persistent chat panels
  * into the chat pane, while previews stay mounted across tab switches.
  * Layout: the dock is a fixed right-side element on `--layer-dock`. On
- * the canvas route (`chatTabEnabled`) it reserves its width through the
+ * routes where chat is enabled it reserves its width through the
  * `--right-dock-inset` custom property consumed by `.app-body`, so it
- * behaves like an in-flow column (the canvas reflows and the floating
- * toolbar stays fully visible). On other routes (/chat, nodes, …) the
- * chat tab is hidden and the dock overlays previews only.
+ * behaves like an in-flow column. The dedicated full-page chat route
+ * disables the dock chat tab to avoid rendering two chat surfaces.
  *
  * Tab contents stay mounted and hide via `visibility` instead of
  * `display: none` — collapsing a <webview>'s layout detaches its guest
@@ -163,8 +162,8 @@ function clampWidth(value: number): number {
 interface RightDockProps {
   /** Target canvas for link tabs' "add to current canvas" action. */
   activeWorkspaceId: string;
-  /** True on the canvas route: shows the pinned chat tab and reserves
-   * layout space (in-flow behaviour). Other routes overlay previews only. */
+  /** Shows the pinned chat tab and reserves layout space. Disabled only
+   * when a route owns a dedicated full-page chat surface. */
   chatTabEnabled: boolean;
 }
 
@@ -283,7 +282,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Reserve layout space on the canvas route (in-flow behaviour). The
+  // Reserve layout space whenever the application-level chat is available. The
   // inset lives on <html> so .app-body can consume it from anywhere.
   useEffect(() => {
     const inset = visible && chatTabEnabled ? `${width}px` : '0px';
