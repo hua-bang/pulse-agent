@@ -151,7 +151,17 @@ export const Popover = (props: Props) => {
     : { left: pointAnchor.pos.left, top: pointAnchor.pos.top };
 
   useMenuKeyboardNav(ref, onClose, { autoFocus });
-  useClickOutside(ref, onClose);
+  // In rect-anchor mode, the anchor is structurally the caller's TRIGGER
+  // (that's the whole point of anchoring to it) and stays mounted outside
+  // the portaled panel's own DOM subtree. Without exempting it, a press on
+  // the trigger while open would register as "outside" (closing) AND still
+  // run the trigger's own click handler (commonly a toggle) in the same
+  // click gesture — React 18 batches both updates, and a plain `onClose`
+  // update followed by a functional toggle update resolves to STILL OPEN,
+  // silently swallowing the user's close-by-retrigger click. Point-anchor
+  // mode has no persistent trigger element to exempt (its callers open from
+  // a transient event like a right-click), so this only applies here.
+  useClickOutside(rectAnchored ? [ref, anchorRef] : ref, onClose);
 
   return createPortal(
     <div

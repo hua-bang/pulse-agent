@@ -398,6 +398,23 @@ describe('Popover — rect anchor mode (anchorRef)', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('does NOT treat a press on the anchor itself as an outside press (the anchor is the trigger)', () => {
+    setViewport(1000, 800);
+    mockPanelSize(80, 40);
+    const anchor = createAnchor({ top: 100, left: 50, right: 150, bottom: 130, width: 100, height: 30 });
+    const onClose = vi.fn();
+
+    render(
+      <Popover anchorRef={anchor} onClose={onClose} className="test-popover">
+        <button role="menuitem">Item</button>
+      </Popover>,
+    );
+    act(() => {
+      anchor.current.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('stays off-screen and hidden until the anchor has no rect to measure (e.g. anchorRef.current is null)', () => {
     setViewport(1000, 800);
     mockPanelSize(80, 40);
