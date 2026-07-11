@@ -144,13 +144,13 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "Phase 4 完成态实测 619KB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 619, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "Renderer Terser + grammar 收敛后实测 614KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 614, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "Phase 4 完成态实测 185KB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 185, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "Renderer Terser + grammar 收敛后实测 179KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 179, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,
@@ -159,8 +159,8 @@
     },
     "bundle.total_js_kb": {
       "profile": "global-deterministic", "target": 5300, "warning": 5600,
-      "confidence": "high", "basis": "Renderer esbuild minify 后实测 5546KB；后续通过 grammar 去重收敛到推荐态", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 5546, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "Renderer Terser + chat/editor 共享 16 种主流 grammar 后实测 5281KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 5281, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 600,
@@ -188,18 +188,18 @@
     },
     "package.dmg_mb": {
       "profile": "darwin-arm64-package", "target": 105, "warning": 115,
-      "confidence": "high", "basis": "electron-builder 26.15.6 production dependency collector + 3 locales;arm64 实测 96.6MB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 96.6, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "Terser + 16 种共享 grammar 后 arm64 DMG 实测 96.4MB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 96.4, "tolerancePct": 3, "scope": "bundle" }
     },
     "package.app_unpacked_mib": {
       "profile": "darwin-arm64-package", "target": 250, "warning": 275,
-      "confidence": "high", "basis": "arm64 .app 逻辑文件体积实测 235.1MiB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 235.1, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "Terser + 16 种共享 grammar 后 arm64 .app 实测 234.6MiB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 234.6, "tolerancePct": 3, "scope": "bundle" }
     },
     "package.asar_mib": {
       "profile": "darwin-arm64-package", "target": 50, "warning": 60,
-      "confidence": "high", "basis": "Renderer-only dependencies 去重后 app.asar 实测 44MiB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 44, "tolerancePct": 5, "scope": "bundle" }
+      "confidence": "high", "basis": "Terser + 16 种共享 grammar 后 app.asar 实测 43.5MiB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 43.5, "tolerancePct": 5, "scope": "bundle" }
     },
     "package.native_unpacked_mib": {
       "profile": "darwin-arm64-package", "target": 5, "warning": 8,
