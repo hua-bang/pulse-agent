@@ -1,21 +1,10 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { CanvasModelStatus } from '../../types';
 import { CheckIcon } from '../icons';
 import type { ModelSelection } from './modelSettingsTypes';
 import { providerLabel } from './modelSettingsTypes';
 import { useI18n } from '../../i18n';
-import { useClickOutside } from '../../hooks/useClickOutside';
-import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { Popover } from '../ui/Popover';
 
 interface ModelSwitcherProps {
   status?: CanvasModelStatus;
@@ -26,7 +15,6 @@ interface ModelSwitcherProps {
   onOpenSettings: () => void;
 }
 
-const MODEL_MENU_WIDTH = 292;
 const MODEL_MENU_GAP = 8;
 const MODEL_MENU_VIEWPORT_MARGIN = 12;
 
@@ -42,61 +30,17 @@ export const ModelSwitcher = ({
   const menuId = useId();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
 
-  const updateMenuPosition = useCallback(() => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
-    const menuEl = menuRef.current;
-    const menuHeight = menuEl?.offsetHeight ?? 360;
-    const menuWidth = menuEl?.offsetWidth ?? MODEL_MENU_WIDTH;
-
-    let top = rect.top - menuHeight - MODEL_MENU_GAP;
-    if (top < MODEL_MENU_VIEWPORT_MARGIN) {
-      const below = rect.bottom + MODEL_MENU_GAP;
-      top = Math.min(below, viewportHeight - menuHeight - MODEL_MENU_VIEWPORT_MARGIN);
-      top = Math.max(top, MODEL_MENU_VIEWPORT_MARGIN);
-    }
-
-    let left = rect.right - menuWidth;
-    left = Math.min(left, viewportWidth - menuWidth - MODEL_MENU_VIEWPORT_MARGIN);
-    left = Math.max(left, MODEL_MENU_VIEWPORT_MARGIN);
-
-    setMenuPosition({ top, left });
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setMenuPosition(null);
-      return;
-    }
-    updateMenuPosition();
-  }, [open, updateMenuPosition]);
-
-  const closeMenuAndRestoreFocus = useCallback(() => {
+  // 'escape' restores focus to the trigger (a deliberate dismiss); 'outside'
+  // (and the plain setOpen(false) each menu item's own onClick already
+  // does) leaves focus alone — the user's attention already moved
+  // elsewhere. Matches the pre-migration closeMenuAndRestoreFocus /
+  // bare-setOpen(false) split exactly (see ui/Popover's own onClose reason
+  // doc).
+  const handlePopoverClose = useCallback((reason?: 'escape' | 'outside') => {
     setOpen(false);
-    triggerRef.current?.focus();
+    if (reason === 'escape') triggerRef.current?.focus();
   }, []);
-
-  useMenuKeyboardNav(menuRef, closeMenuAndRestoreFocus, open);
-  // Trigger + menu both count as "inside" so clicking the trigger toggles
-  // rather than double-firing a close.
-  useClickOutside([triggerRef, menuRef], () => setOpen(false), open);
-
-  useEffect(() => {
-    if (!open) return;
-    const reposition = () => updateMenuPosition();
-    window.addEventListener('resize', reposition);
-    window.addEventListener('scroll', reposition, true);
-    return () => {
-      window.removeEventListener('resize', reposition);
-      window.removeEventListener('scroll', reposition, true);
-    };
-  }, [open, updateMenuPosition]);
 
   const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
   const hasConfiguredModels = providers.some((provider) => provider.models.length > 0);
@@ -104,18 +48,15 @@ export const ModelSwitcher = ({
 
   const openMenuFromKeyboard = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    if (notConfigured) return;
+    // Once the menu is mounted, ui/Popover's own arrow-nav (global-scope,
+    // capture-phase) intercepts and stops Arrow{Up,Down} before this
+    // bubble-phase trigger handler would ever see them — same dead-code
+    // drop the API-extension batch made for chat/ChatAnchors migrating onto
+    // DropdownShell. This handler now only needs to OPEN a closed menu.
+    if (notConfigured || open) return;
     event.preventDefault();
     event.stopPropagation();
-    if (!open) {
-      setOpen(true);
-      return;
-    }
-    const items = Array.from(
-      menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
-    );
-    const target = event.key === 'ArrowUp' ? items[items.length - 1] : items[0];
-    target?.focus();
+    setOpen(true);
   }, [notConfigured, open]);
 
   return (
@@ -148,18 +89,17 @@ export const ModelSwitcher = ({
           </span>
         )}
       </button>
-      {open && createPortal(
-        <div
-          ref={menuRef}
-          id={menuId}
+      {open && (
+        <Popover
+          anchorRef={triggerRef}
+          onClose={handlePopoverClose}
+          placement="top"
+          align="end"
+          gap={MODEL_MENU_GAP}
+          viewportMargin={MODEL_MENU_VIEWPORT_MARGIN}
+          panelId={menuId}
+          ariaLabel={t('chat.model.useModel')}
           className="chat-model-menu"
-          role="menu"
-          aria-label={t('chat.model.useModel')}
-          style={{
-            top: menuPosition?.top ?? -9999,
-            left: menuPosition?.left ?? -9999,
-            visibility: menuPosition ? 'visible' : 'hidden',
-          }}
         >
           <div className="chat-model-menu-label">{t('chat.model.useModel')}</div>
           <button
@@ -230,8 +170,7 @@ export const ModelSwitcher = ({
           >
             {t('chat.model.manageProviders')}
           </button>
-        </div>,
-        document.body,
+        </Popover>
       )}
     </div>
   );

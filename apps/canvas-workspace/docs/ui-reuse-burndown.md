@@ -286,9 +286,9 @@ unconditional and fires regardless of `autoFocus`.
 | `NoteMentionMenu` | **SKIP, deeper reason found.** Not a Popover-shaped menu at all: `role="listbox"`/`aria-selected` items with an externally-owned "active" index (`useNoteMentions.ts`'s own `window.addEventListener('keydown', ..., true)`, mounted on the editor, driving `moveMentionSelection`) — the menu itself only calls `useClickOutside`, never `useMenuKeyboardNav`, and DOM focus never enters it. That editor-level handler intercepts ArrowDown/ArrowUp/Enter/Escape with `stopImmediatePropagation()`, so adopting Popover wouldn't double-fire on THOSE keys (the editor's handler, registered first, wins). But it does **not** handle Home/End — so Popover's own unconditional Home/End branch would be the only listener left standing for those keys, and would yank DOM focus from the note's contentEditable into a menu button mid-typing. That's a real regression (Home/End inside an active `@mention` query currently does the caret's native line-start/end move), not present today, and `autoFocus={false}` does nothing to prevent it. Combined with the role/selection-model mismatch, this is a controlled-listbox shape Popover's contract doesn't serve — same conclusion `bespokePopoverPositioning`'s existing baseline comment already drew, now with the concrete mechanism. |
 | `SlashCommandMenu` | **SKIP, same reason.** Structurally identical to NoteMentionMenu — `useFileNodeEditor.ts`'s own capture-phase handler owns ArrowDown/Up/Enter/Escape via `moveSlashSelection`/`closeSlashMenu`; the menu itself never calls `useMenuKeyboardNav`. Same Home/End focus-steal gap, same `role="listbox"` mismatch. |
 | `FileNodeBubbleMenu` | **SKIP, original blocker re-confirmed, plus a second one found.** Re-read `useViewportClampedPosition` (the hook both DropdownShell... no, both Popover and the mention/slash menus share): it only clamps a top-left point back from the viewport edges — it does not flip above/below an anchor, nor center horizontally around one. FileNodeBubbleMenu needs both (`translate(-50%, ...)` horizontal centering around the selection midpoint, plus a measured flip-below when there's no room above) — Popover still lacks this, so the original verdict holds. Newly found: the bubble menu opens on EVERY non-empty text selection (`onSelectionUpdate` in `useFileNodeEditor.ts`) and today hand-rolls no keyboard nav at all (no `useClickOutside`, no `useMenuKeyboardNav`, no Escape). Popover's unconditional Home/End handling would hijack the browser's native "collapse selection to line start/end" — an extremely common edit action — every time ANY text is selected in the note editor, a severe regression, not a corner case. |
-| `chat/ModelSwitcher.tsx` → Popover | **SKIP, re-confirmed unchanged.** Still hand-rolls its own `updateMenuPosition` (measures the trigger rect, flips above/below based on available space, re-runs on `resize` and capture-phase `scroll`) — exactly the live-reanchoring Popover's one-shot `useViewportClampedPosition` clamp cannot do. Also doesn't match `bespokePopoverPositioning`'s file signature (no `useViewportClampedPosition` import), so this was never actually counted by the ratchet either way — no counter movement possible regardless of verdict. |
+| `chat/ModelSwitcher.tsx` → Popover | **SKIP at this point, re-confirmed unchanged.** Still hand-rolls its own `updateMenuPosition` (measures the trigger rect, flips above/below based on available space, re-runs on `resize` and capture-phase `scroll`) — exactly the live-reanchoring Popover's one-shot `useViewportClampedPosition` clamp cannot do. Also doesn't match `bespokePopoverPositioning`'s file signature (no `useViewportClampedPosition` import), so this was never actually counted by the ratchet either way — no counter movement possible regardless of verdict. **Unlocked and MIGRATED 2026-07-11 — see "Popover rect-anchoring batch" below.** |
 
-No counter movement from this sub-batch (all four skips); `bespokePopoverPositioning` stays at 2 (NoteMentionMenu + SlashCommandMenu — unchanged, its existing baseline comment's reasoning is now independently re-confirmed with the specific mechanism above).
+No counter movement from this sub-batch (all four skips); `bespokePopoverPositioning` stays at 2 (NoteMentionMenu + SlashCommandMenu — unchanged, its existing baseline comment's reasoning is now independently re-confirmed with the specific mechanism above). `FileNodeBubbleMenu` remains SKIPPED even after ModelSwitcher's later reanchoring unlock — its blocker is the Home/End keyboard-ownership issue above, a different, deeper problem the reanchoring extension does not touch.
 
 **Skill write-back**: `extend-blessed-ui/SKILL.md` gained a 6th landmine —
 a narrow opt-out prop only disables the ONE effect it's wired to; a shared
@@ -591,6 +591,150 @@ than over-claimed away; (2) `Settings/*.css`'s near-twin section buttons
 USER-visible regression the review caught — the ≤520px full-width button
 stacking rule died with the deleted `.cfg-*-btn` selectors — was FIXED
 (`.cfg-pane .ui-btn { width:100% }` restored at that breakpoint).
+
+## Popover rect-anchoring batch — DONE 2026-07-11
+
+Implements the "Unlock = ... rect-anchored live positioning" bullet the
+API-extension batch named for `chat/ModelSwitcher`, then migrates it.
+`FileNodeBubbleMenu` stays SKIPPED on purpose — its blocker is the Home/End
+keyboard-ownership issue documented above (a different, deeper problem);
+this batch does not touch `useMenuKeyboardNav`'s key-ownership model at all.
+
+**API — `ui/Popover` gains a second anchoring mode.** `anchorRef` positions
+the panel from a LIVE element's rect instead of a one-shot `x`/`y` point,
+via a new hook (`hooks/useAnchorRectPosition.ts`) that re-measures on
+window `resize` and capture-phase `scroll`. `placement` (`'top' | 'bottom'`,
+default `'bottom'`) tries the preferred side and flips to the other when it
+doesn't fit; `align` (`'start' | 'end'`, default `'start'`) picks which
+edge of the anchor the panel's matching edge lines up with; `gap`/
+`viewportMargin` are configurable (defaults 8/8) so a caller can reproduce
+its exact pre-migration numbers. The formula was verified to reproduce
+ModelSwitcher's hand-rolled `updateMenuPosition` byte-for-byte for
+`placement="top" align="end" gap={8} viewportMargin={12}` before the
+migration, not just "looks similar." Both hooks (`useViewportClampedPosition`
+and `useAnchorRectPosition`) are called unconditionally inside `Popover`
+(rules-of-hooks) with a stable no-op path for whichever mode isn't active,
+so the default `x`/`y` callers (NodeContextMenu, EdgeContextMenu,
+LayerContextMenu) are byte-identical — confirmed by `pnpm run visual`
+staying 13/13 with zero diff both before and after.
+
+**Two more gaps found by checking ModelSwitcher's FULL behavior surface
+against Popover's (the extend-blessed-ui skill's landmine #6), not just the
+reanchoring symptom the API-extension batch named:**
+
+1. **Click-outside didn't exempt the trigger.** ModelSwitcher's
+   pre-migration `useClickOutside([triggerRef, menuRef], ...)` deliberately
+   treats the trigger as "inside" so clicking it while open toggles rather
+   than double-firing a close. Popover's internal `useClickOutside` only
+   ever guarded its own panel ref — traced the resulting race precisely: a
+   press on the trigger while open would fire Popover's own outside-close
+   (a direct `setOpen(false)`) from the `mousedown`, then the trigger's own
+   toggle (`setOpen(v => !v)`) from the `click` that follows in the same
+   gesture; React 18 batches both updates in order, and applying a
+   functional toggle AFTER a direct `false` resolves to `true` — the menu
+   would silently stay open on a close-by-retrigger click. Fixed in
+   `ui/Popover`: in rect-anchor mode only, `useClickOutside` treats
+   `[panel, anchorRef]` as inside (the anchor structurally IS the trigger
+   for this mode). One regression test in `Popover.test.tsx` plus an
+   end-to-end one in the new `ModelSwitcher.test.tsx` lock this in.
+2. **No way to express Escape-vs-outside for focus restore.**
+   ModelSwitcher's pre-migration code also splits `closeMenuAndRestoreFocus`
+   (Escape — refocuses the trigger) from a bare `setOpen(false)`
+   (outside-press — leaves focus alone). Popover's single `onClose()`
+   couldn't express that split. Fixed by giving `onClose` the same
+   `'escape' | 'outside'` reason `ui/DropdownShell` already carries (same
+   precedent, same backward-compatible extra-argument trick — existing
+   zero-arg `onClose` callbacks compile and run unchanged).
+
+Both fixes landed as their own commits (not folded into the anchoring
+feature or the migration) so each is independently reviewable and
+revertable.
+
+### `chat/ModelSwitcher.tsx` → Popover: MIGRATED
+
+Preserved exactly: trigger-rect anchoring (`anchorRef={triggerRef}
+placement="top" align="end" gap={8} viewportMargin={12}` — the literal
+pre-migration constants), scroll/resize reanchoring (now Popover's, not
+ModelSwitcher's own effect), flip-above-with-fallback-below, click-outside
+(including the trigger exemption above), Escape-close-with-focus-restore
+vs. outside-close-without (the new close-reason above), `autoFocus` (kept
+at Popover's default `true` — ModelSwitcher already auto-focused the
+active/first item pre-migration via `useMenuKeyboardNav`'s own default; it
+has no filter input to protect, so unlike `NoteMentionMenu`/
+`SlashCommandMenu` there was never an autofocus conflict here), the
+`data-menu-autofocus` active-item marker, `stopPropagation` guards
+(Popover's own panel `onClick`/`onContextMenu` guards absorb what
+ModelSwitcher didn't previously have — a strict superset, not a behavior
+loss), and exact panel chrome (`.chat-model-menu`'s CSS is untouched —
+Popover carries no base panel class of its own to collide with it, so no
+compound-selector override was needed here, unlike `DropdownShell`'s
+`.ui-dropdown__panel`).
+
+aria: `aria-haspopup`/`aria-expanded`/`aria-controls` on the trigger are
+unchanged; the linkage now works via Popover's new `panelId` prop (passed
+`menuId`) instead of a hand-set `id` on the hand-rolled div — same value,
+same wiring, moved one level down. `ariaLabel` passes `t('chat.model.useModel')`
+through to Popover's `aria-label`.
+
+**A bonus simplification fell out**, the same one the API-extension batch
+found for `chat/ChatAnchors`: Popover's arrow-nav is global-scope and
+capture-phase, so it intercepts and stops Arrow{Up,Down} before the
+trigger's own bubble-phase `onKeyDown` handler would ever see them once the
+menu is mounted. The pre-migration "if already open, manually refocus the
+first/last item" branch in `openMenuFromKeyboard` was therefore dead code
+after migration and was deleted; the handler now only needs to open a
+closed menu. Verified by test (ArrowDown/ArrowUp on the closed trigger
+opens the menu; the shell's own arrow-nav is already covered by
+`Popover.test.tsx`), not asserted on faith.
+
+10 new behavior tests in
+`src/renderer/src/components/chat/__tests__/ModelSwitcher.test.tsx`
+(ModelSwitcher is fully prop-driven — no direct `window.canvasWorkspace`
+calls — so unlike the Settings-family slice this one mounts cleanly):
+opens on trigger click and lists Auto + provider models, portals to
+`document.body` (not inside the switcher), selecting a model calls
+`onSelectModel` and closes, Escape closes and restores focus, an
+outside-press closes without restoring focus, clicking the OPEN trigger
+closes it (the click-outside-exemption regression pin, run against the
+real component rather than only Popover's synthetic harness), ArrowDown on
+the closed trigger opens it, the active selection's menu item autofocuses,
+aria-controls points at the panel's real id, and the not-configured state
+still opens settings instead of the menu.
+
+Counter movement (baseline lowered in the same commit, with a provenance
+comment in `src/main/__tests__/ui-reuse-governance.test.ts`):
+
+| Counter | Before | After |
+|---|---|---|
+| `portalFiles` | 8 | 7 |
+
+ModelSwitcher's own `createPortal(..., document.body)` call is gone —
+Popover's already-counted exit now covers it, a pure -1, not a swap (unlike
+the original NodeContextMenu/EdgeContextMenu migration, ui/Popover itself
+was already in the baseline before this batch). `bespokePopoverPositioning`
+does not move — ModelSwitcher never matched that counter's signature (no
+`useViewportClampedPosition` import) either before or after.
+
+18/18 governance green. `pnpm --filter canvas-workspace typecheck` clean.
+`npx vitest run src/renderer/src/components/ui` (21 Popover tests) and the
+chat suites (`ChatAnchors`, `ChatImageLightbox`, `ModelSwitcher` — 22
+tests) green. `pnpm run visual` 13/13, every baseline PNG byte-identical
+both after the API extension alone and again after the migration — no new
+showcase section was added (see the API commit: rect anchoring introduces
+no new visual chrome to screenshot, only a computed position already
+exhaustively covered by `Popover.test.tsx`'s deterministic unit tests
+covering placement/flip/align/clamp/resize-reanchor/scroll-reanchor/
+escape/outside-press/anchor-press-exemption/unmeasured-hidden-state — a
+screenshot would only reprove that Chromium's real layout agrees with the
+same `getBoundingClientRect`/`offsetWidth` arithmetic the unit tests
+already pin against mocks, not leave anything genuinely in doubt). Full
+`npx vitest run`: the same 5 pre-existing Electron-dependent files fail
+(`Electron failed to install correctly` — a container/environment
+limitation, not a regression: `main/__tests__/{codex-sessions,
+welcome-workspace,workspace-export-external-files}.test.ts`,
+`main/agent/__tests__/knowledge-tools.test.ts`,
+`plugins/main/__tests__/external.test.ts`). `node
+harness/tools/describe-canvas.mjs` exits 0, no drift.
 
 ## Batch C3 — normalization + the big two (visual gate first)
 
