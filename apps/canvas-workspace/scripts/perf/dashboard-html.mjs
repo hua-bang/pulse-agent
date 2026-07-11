@@ -364,21 +364,25 @@ export const renderDashboardHtml = (
 </html>`;
 };
 
-const renderChunkBars = (bundleReport) => {
+export const renderChunkBars = (bundleReport) => {
   const top = bundleReport.topChunks.slice(0, 6);
   const rest = bundleReport.metrics.totalJsKB - top.reduce((s, c) => s + c.rawKB, 0);
-  const max = top[0]?.rawKB ?? 1;
+  const entryChunkFileName = (bundleReport.entryChunkFileName
+    ?? bundleReport.entryDepAttribution?.chunkFileName)
+    ?.split('/').pop();
   const rows = [
     ...top.map((c) => ({
-      name: c.name.replace(/-[\w-]{8,}\.js$/, ''), kb: c.rawKB, entry: c.name.startsWith('index-'),
+      name: c.name.replace(/-[\w-]{8,}\.js$/, ''), kb: c.rawKB, entry: c.name === entryChunkFileName,
     })),
     { name: `其余 ${bundleReport.metrics.chunkCount - top.length} 个(懒加载)`, kb: rest, entry: false },
-  ].map((row) => `<div class="mb-row">
+  ];
+  const max = Math.max(...rows.map((row) => row.kb), 1);
+  const bars = rows.map((row) => `<div class="mb-row">
       <span class="mb-name">${esc(row.name)}${row.entry ? '<span class="tag">entry</span>' : ''}</span>
       <div class="mb-track"><div class="mb-fill${row.entry ? ' strong' : ''}" style="width:${Math.max(1, Math.round((row.kb / max) * 100))}%"></div></div>
       <span class="mb-val">${fmt(row.kb)}</span>
     </div>`).join('');
-  return `<div class="card"><h2>Chunk 分布(KB raw)— entry 启动时全量 parse,其余按需</h2><div class="mini-bars">${rows}</div></div>`;
+  return `<div class="card"><h2>Chunk 分布(KB raw)— entry 启动时全量 parse,其余按需</h2><div class="mini-bars">${bars}</div></div>`;
 };
 
 // D2: per-dependency breakdown of the entry chunk (A5's entryDepAttribution).
