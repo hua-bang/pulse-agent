@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { app } from 'electron';
-import { STORE_DIR, atomicWriteJson, getWorkspaceDir } from './storage';
+import { STORE_DIR, atomicWriteJson, getWorkspaceDir, readCanvasFull } from './storage';
 import { saveCanvas } from './service';
 import {
   WORKSPACES_MANIFEST_FILENAME,
@@ -13,6 +13,7 @@ export const WELCOME_WORKSPACE_ID = 'default';
 export const WELCOME_WORKSPACE_NAME = 'Pulse Canvas';
 
 const DOWNLOAD_URL = 'https://pulse-canvas-download.pages.dev/';
+const DOWNLOAD_MANIFEST_URL = `${DOWNLOAD_URL}latest.json`;
 const WELCOME_NOTE_NODE_ID = 'node-welcome-note';
 const WELCOME_DOWNLOAD_NODE_ID = 'node-welcome-download';
 const WELCOME_DETAIL_NODE_ID = 'node-welcome-detail';
@@ -157,6 +158,11 @@ Suggested workflow: write goals and to-dos in a Note first, drag key web pages i
   },
 };
 
+const makeLocalDownloadUrl = (language: WelcomeLanguage): string => {
+  const params = new URLSearchParams({ lang: language, manifest: DOWNLOAD_MANIFEST_URL });
+  return `pulse-canvas://app/download-site/index.html?${params}`;
+};
+
 /**
  * Resolve the welcome content language. An explicit override wins; otherwise
  * we follow the OS locale via Electron's `app.getLocale()` — which matches the
@@ -185,6 +191,7 @@ const makeWelcomeNodes = (
   welcomeNotePath: string,
   detailNotePath: string,
   strings: WelcomeStrings,
+  language: WelcomeLanguage,
 ): CanvasNode[] => [
     {
       id: WELCOME_NOTE_NODE_ID,
@@ -211,9 +218,10 @@ const makeWelcomeNodes = (
       width: 1191,
       height: 1369,
       data: {
-        url: DOWNLOAD_URL,
+        url: '',
         html: '',
-        mode: 'url',
+        localUrl: makeLocalDownloadUrl(language),
+        mode: 'html',
         prompt: '',
       },
       updatedAt: now,
@@ -256,10 +264,39 @@ export async function ensureWelcomeWorkspaceSeeded(
   root: string = STORE_DIR,
   language?: WelcomeLanguage,
 ): Promise<WelcomeWorkspaceSeedResult> {
+  const resolvedLanguage = resolveWelcomeLanguage(language);
+  const strings = WELCOME_STRINGS[resolvedLanguage];
   const existing = await listWorkspaces(root);
-  if (existing.workspaces.length > 0) return { seeded: false };
+  if (existing.workspaces.length > 0) {
+    if (existing.workspaces.some((workspace) => workspace.id === WELCOME_WORKSPACE_ID)) {
+      const current = await readCanvasFull(WELCOME_WORKSPACE_ID, root);
+      const nodes = current.data?.nodes ?? [];
+      const index = nodes.findIndex((node) => node.id === WELCOME_DOWNLOAD_NODE_ID);
+      const node = index >= 0 ? nodes[index] : null;
+      const data = node?.data as { mode?: string; url?: string; localUrl?: string; html?: string } | undefined;
+      const isLegacyRemote = data?.mode === 'url' && data.url === DOWNLOAD_URL;
+      const isGeneratedLocalCard = data?.mode === 'html'
+        && !data.localUrl
+        && data.html?.includes('pulse-canvas-download.pages.dev');
+      if (node && (isLegacyRemote || isGeneratedLocalCard) && current.data) {
+        const nextNodes = [...nodes];
+        nextNodes[index] = {
+          ...node,
+          data: {
+            ...node.data,
+            mode: 'html',
+            url: '',
+            html: '',
+            localUrl: makeLocalDownloadUrl(resolvedLanguage),
+          },
+          updatedAt: Date.now(),
+        };
+        await saveCanvas(WELCOME_WORKSPACE_ID, { ...current.data, nodes: nextNodes }, { root });
+      }
+    }
+    return { seeded: false };
+  }
 
-  const strings = WELCOME_STRINGS[resolveWelcomeLanguage(language)];
   const now = Date.now();
   const seededAt = new Date(now).toISOString();
   const workspaceDir = getWorkspaceDir(WELCOME_WORKSPACE_ID, root);
@@ -274,7 +311,7 @@ export async function ensureWelcomeWorkspaceSeeded(
   await saveCanvas(
     WELCOME_WORKSPACE_ID,
     {
-      nodes: makeWelcomeNodes(now, welcomeNotePath, detailNotePath, strings),
+      nodes: makeWelcomeNodes(now, welcomeNotePath, detailNotePath, strings, resolvedLanguage),
       edges: [],
       transform: {
         x: 86.65451428822593,

@@ -3,6 +3,8 @@ import { evaluatePolicyGate } from './metric-policy.mjs';
 const BUNDLE_METRICS = [
   ['entryRawKB', 'bundle.entry_raw_kb', 'ratchet'],
   ['entryGzipKB', 'bundle.entry_gzip_kb', 'ratchet'],
+  ['startupJsRawKB', 'bundle.startup_js_raw_kb', 'ratchet'],
+  ['startupCssRawKB', 'bundle.startup_css_raw_kb', 'ratchet'],
   ['totalJsKB', 'bundle.total_js_kb', 'ratchet'],
   ['lazyBoundaryWatchlist', 'bundle.lazy_boundary_watchlist', 'true'],
 ];

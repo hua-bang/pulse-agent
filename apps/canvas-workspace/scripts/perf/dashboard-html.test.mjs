@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderDashboardHtml } from './dashboard-html.mjs';
+import { renderChunkBars, renderDashboardHtml } from './dashboard-html.mjs';
 
 const dictionary = {
   aspects: [{
@@ -67,6 +67,17 @@ const render = (supportingPass = true, primaryStatus = 'met') => renderDashboard
   [],
 );
 
+const bundleReport = {
+  metrics: { totalJsKB: 2_000, chunkCount: 4 },
+  topChunks: [
+    { name: 'index-entry.js', rawKB: 600 },
+    { name: 'index-lazy.js', rawKB: 280 },
+    { name: 'feature.js', rawKB: 120 },
+  ],
+  entryChunkFileName: 'index-entry.js',
+  entryDepAttribution: { chunkFileName: 'index-entry.js', appOwnKB: 100, deps: [] },
+};
+
 describe('performance dashboard metric hierarchy', () => {
   it('renders primary summaries and collapsed dimension groups without hiding coverage gaps', () => {
     const html = render();
@@ -107,6 +118,15 @@ describe('performance dashboard metric hierarchy', () => {
     expect(html).toContain('1 项 Gate 失败');
     expect(html).toContain('✗ FAIL ≤ 3');
     expect(html).toContain('dot dot-good');
+  });
+
+  it('marks only the measured entry chunk and scales the aggregated lazy row', () => {
+    const html = renderChunkBars(bundleReport);
+
+    expect(html.match(/<span class="tag">entry<\/span>/g)).toHaveLength(1);
+    expect(html).toContain('其余 1 个(懒加载)');
+    expect(html).toContain('style="width:100%"');
+    expect(html).not.toContain('width:417%');
   });
 
   it.each([

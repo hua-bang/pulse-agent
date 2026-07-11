@@ -186,7 +186,11 @@ export default defineConfig({
     root: "src/renderer",
     build: {
       outDir: "dist/renderer",
-      minify: "esbuild",
+      minify: "terser",
+      terserOptions: {
+        compress: { passes: 2 },
+        format: { comments: false },
+      },
       cssMinify: "esbuild",
       // Emit Vite's official manifest (entry → static/dynamic imports) for
       // either interactive treemap analysis or the automated perf report.

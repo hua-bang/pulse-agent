@@ -7,7 +7,7 @@ import {
   collectPtyStreamMetric,
   collectPackageMetrics,
   collectRendererTraceMetrics,
-  collectWelcomeWebviewMetric,
+  collectWelcomeContentMetric,
   collectWorkspaceCycleMetrics,
 } from './collect-metrics.mjs';
 
@@ -198,10 +198,10 @@ describe('collectMetrics chat stream', () => {
 });
 
 describe('collectMetrics remaining scenario coverage', () => {
-  it('maps welcome webview completion and dual-PTY IPC throughput', () => {
+  it('maps local welcome content completion and dual-PTY IPC throughput', () => {
     const scenarios = {
       scenarios: {
-        startup: { welcomeWebviewMs: 438 },
+        startup: { welcomeLocalContentMs: 138 },
         'pty-stream': {
           terminals: 2,
           events: 96,
@@ -210,8 +210,8 @@ describe('collectMetrics remaining scenario coverage', () => {
         },
       },
     };
-    expect(collectWelcomeWebviewMetric(scenarios)).toEqual({
-      id: 'startup.welcome_webview_ms', value: 438, runs: 1,
+    expect(collectWelcomeContentMetric(scenarios)).toEqual({
+      id: 'startup.welcome_local_content_ms', value: 138, runs: 1,
     });
     expect(collectPtyStreamMetric(scenarios)).toEqual({
       id: 'main.pty.ipc_per_sec',

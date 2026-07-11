@@ -1,5 +1,5 @@
-import { net, protocol } from "electron";
-import { isAbsolute, normalize } from "path";
+import { app, net, protocol } from "electron";
+import { isAbsolute, join, normalize, sep } from "path";
 import { pathToFileURL } from "url";
 import type { WriteLog } from "./logging";
 
@@ -30,6 +30,18 @@ export function registerPulseCanvasProtocol(writeLog: WriteLog): void {
   protocol.handle("pulse-canvas", async (request) => {
     try {
       const url = new URL(request.url);
+      if (url.hostname === "app") {
+        const appAssetsRoot = normalize(app.getAppPath());
+        const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, "");
+        if (relativePath !== "download-site" && !relativePath.startsWith("download-site/")) {
+          return new Response("Forbidden", { status: 403 });
+        }
+        const assetPath = normalize(join(appAssetsRoot, relativePath));
+        if (assetPath !== appAssetsRoot && !assetPath.startsWith(`${appAssetsRoot}${sep}`)) {
+          return new Response("Forbidden", { status: 403 });
+        }
+        return net.fetch(pathToFileURL(assetPath).toString());
+      }
       if (url.hostname !== "local") {
         return new Response("Unsupported host", { status: 400 });
       }

@@ -173,6 +173,7 @@ const main = () => {
     gates,
     probes,
     topChunks: chunks.slice(0, 12),
+    entryChunkFileName: measuredEntryName,
     entryDepAttribution,
   };
 

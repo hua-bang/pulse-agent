@@ -14,7 +14,11 @@ const fmt = (n) => n.toLocaleString('en-US');
 const fmtGate = (value) => (value === null || value === undefined ? '—' : typeof value === 'boolean' ? String(value) : fmt(value));
 
 export const renderBundleReportHtml = (report) => {
-  const { metrics, gates, probes, topChunks, commit, generatedAt } = report;
+  const {
+    metrics, gates, probes, topChunks, commit, generatedAt, entryChunkFileName,
+  } = report;
+  const measuredEntryChunkFileName = (entryChunkFileName ?? report.entryDepAttribution?.chunkFileName)
+    ?.split('/').pop();
   const maxKB = topChunks[0]?.rawKB ?? 1;
   const allPass = gates.every((gate) => gate.pass);
 
@@ -47,7 +51,7 @@ export const renderBundleReportHtml = (report) => {
     </div>`).join('');
 
   const barsHtml = topChunks.map((chunk) => {
-    const isEntry = chunk.name.startsWith('index-');
+    const isEntry = chunk.name === measuredEntryChunkFileName;
     const pct = Math.max(1, Math.round((chunk.rawKB / maxKB) * 100));
     const shortName = chunk.name.replace(/-[\w-]{8,}\.js$/, '');
     return `

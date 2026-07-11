@@ -13,7 +13,7 @@ import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import { common, createLowlight } from 'lowlight';
+import { createLowlight } from 'lowlight';
 import { Markdown } from 'tiptap-markdown';
 import type { CanvasNode, FileNodeData } from '../types';
 import type { SlashCommandDef } from '../components/SlashCommandMenu';
@@ -24,6 +24,7 @@ import { isImeComposing } from '../utils/ime';
 import { useNoteKeyboard } from './useNoteKeyboard';
 import { useNoteInteractionController } from './useNoteInteractionController';
 import { MarkdownSafeImage } from './fileNodeMarkdownImage';
+import { syntaxHighlightLanguages } from '../utils/syntaxHighlightLanguages';
 import {
   insertImageAtPos,
   insertImageAtSelection,
@@ -32,7 +33,7 @@ import {
   saveImageBlob,
 } from '../utils/noteImageInsert';
 
-const lowlight = createLowlight(common);
+const lowlight = createLowlight(syntaxHighlightLanguages);
 
 // Markdown collapses consecutive blank lines into a single paragraph
 // separator, so empty paragraphs typed by the user (Enter → Enter) are
