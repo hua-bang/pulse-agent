@@ -189,3 +189,26 @@ describe('packaged dependency boundary', () => {
     expect(packageJson.devDependencies?.[pkg]).toBeTypeOf('string');
   });
 });
+
+describe('main-process lazy boundaries', () => {
+  it('minifies the production main bundle', () => {
+    const config = readFileSync(resolve(srcRoot, '../electron.vite.config.ts'), 'utf-8');
+    expect(config).toMatch(/main:\s*\{[\s\S]*?minify:\s*["']esbuild["']/);
+  });
+
+  it('loads Agent Teams only through dynamic imports', () => {
+    const bootstrap = readFileSync(join(srcRoot, 'main/app/bootstrap.ts'), 'utf-8');
+    const controlServer = readFileSync(join(srcRoot, 'main/runtime/control-server.ts'), 'utf-8');
+    expect(bootstrap).not.toMatch(/from\s+["'][^"']*agent-teams\/(?:service|ipc|pty-bridge)["']/);
+    expect(bootstrap).toMatch(/import\(['"]\.\.\/agent-teams\/runtime['"]\)/);
+    expect(controlServer).toMatch(/import\(['"]\.\.\/agent-teams\/service['"]\)/);
+  });
+
+  it('loads Feishu and happy-dom implementations on demand', () => {
+    const channel = readFileSync(join(srcRoot, 'plugins/main/channel/index.ts'), 'utf-8');
+    const htmlPatch = readFileSync(join(srcRoot, 'main/agent/tools/html-patch.ts'), 'utf-8');
+    expect(channel).toMatch(/import\(['"]\.\/channels\/feishu\/feishu-channel['"]\)/);
+    expect(channel).not.toMatch(/from\s+['"]\.\/channels\/feishu\/feishu-channel['"]/);
+    expect(htmlPatch).toMatch(/import\(['"]\.\/_shared\/html-patch['"]\)/);
+  });
+});

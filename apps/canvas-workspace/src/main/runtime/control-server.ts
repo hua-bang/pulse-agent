@@ -15,7 +15,6 @@
  * NOT execute arbitrary commands — only typed agent input — and rejects
  * anything that isn't a valid running agent node.
  */
-
 import { app } from 'electron';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'http';
 import { promises as fs } from 'fs';
@@ -23,7 +22,8 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
 import { sendInputToAgentNode } from '../agent/session-send';
-import { getCanvasAgentTeamsService } from '../agent-teams/service';
+const getCanvasAgentTeamsService = async () =>
+  (await import('../agent-teams/service')).getCanvasAgentTeamsService();
 
 const RUNTIME_DIR = join(homedir(), '.pulse-coder', 'canvas-runtime');
 const RUNTIME_FILE = join(RUNTIME_DIR, 'canvas-workspace.json');
@@ -391,7 +391,7 @@ async function handleAgentTeamProposePlan(
   }
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().proposePlan(workspaceId, teamId, {
+    const snapshot = await (await getCanvasAgentTeamsService()).proposePlan(workspaceId, teamId, {
       sourceAgentId,
       plan,
     });
@@ -426,7 +426,7 @@ async function handleAgentTeamCreateTask(
   }
 
   try {
-    const service = getCanvasAgentTeamsService();
+    const service = await getCanvasAgentTeamsService();
     await service.createTask({
       workspaceId,
       teamId,
@@ -460,7 +460,7 @@ async function handleAgentTeamCompleteTask(
   if (!summary) return reply(res, 400, { ok: false, error: 'summary is required' });
 
   try {
-    const { snapshot, task } = await getCanvasAgentTeamsService().completeAgentTask({ ...base, summary });
+    const { snapshot, task } = await (await getCanvasAgentTeamsService()).completeAgentTask({ ...base, summary });
     return reply(res, 200, { ok: true, snapshot, task });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -479,7 +479,7 @@ async function handleAgentTeamBlockTask(
   if (!reason) return reply(res, 400, { ok: false, error: 'reason is required' });
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().blockAgentTask({ ...base, reason });
+    const snapshot = await (await getCanvasAgentTeamsService()).blockAgentTask({ ...base, reason });
     return reply(res, 200, { ok: true, snapshot });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -502,7 +502,7 @@ async function handleAgentTeamStatus(
   }
 
   try {
-    const service = getCanvasAgentTeamsService();
+    const service = await getCanvasAgentTeamsService();
     if (teamId) {
       const snapshot = await service.teamStatus(workspaceId, teamId);
       return reply(res, 200, { ok: true, snapshot });
@@ -526,7 +526,7 @@ async function handleAgentTeamCancelTask(
   if (!reason) return reply(res, 400, { ok: false, error: 'reason is required' });
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().cancelAgentTask({ ...base, reason });
+    const snapshot = await (await getCanvasAgentTeamsService()).cancelAgentTask({ ...base, reason });
     return reply(res, 200, { ok: true, snapshot });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -546,7 +546,7 @@ async function handleAgentTeamRequestHumanInput(
   if (!prompt) return reply(res, 400, { ok: false, error: 'prompt is required' });
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().requestHumanInput({ ...base, reason, prompt });
+    const snapshot = await (await getCanvasAgentTeamsService()).requestHumanInput({ ...base, reason, prompt });
     return reply(res, 200, { ok: true, snapshot });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -568,7 +568,7 @@ async function handleAgentTeamPublishArtifact(
   if (!title) return reply(res, 400, { ok: false, error: 'title is required' });
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().publishArtifact({ ...base, kind, title, uri, summary });
+    const snapshot = await (await getCanvasAgentTeamsService()).publishArtifact({ ...base, kind, title, uri, summary });
     return reply(res, 200, { ok: true, snapshot });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -589,7 +589,7 @@ async function handleAgentTeamCompleteTeam(
   if (!summary) return reply(res, 400, { ok: false, error: 'summary is required' });
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().completeTeam(workspaceId, teamId, { sourceAgentId, summary });
+    const snapshot = await (await getCanvasAgentTeamsService()).completeTeam(workspaceId, teamId, { sourceAgentId, summary });
     return reply(res, 200, { ok: true, snapshot });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -607,7 +607,7 @@ async function handleAgentTeamDispatch(
   }
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().dispatch(workspaceId, teamId);
+    const snapshot = await (await getCanvasAgentTeamsService()).dispatch(workspaceId, teamId);
     return reply(res, 200, { ok: true, snapshot });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -631,7 +631,7 @@ async function handleAgentTeamSend(
   }
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().sendInput(workspaceId, teamId, to, content, taskId);
+    const snapshot = await (await getCanvasAgentTeamsService()).sendInput(workspaceId, teamId, to, content, taskId);
     return reply(res, 200, { ok: true, snapshot });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });

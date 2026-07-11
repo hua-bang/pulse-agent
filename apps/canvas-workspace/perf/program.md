@@ -46,7 +46,7 @@
 | `startup.renderer_reload.blocking_time_to_canvas_ms` | warm reload 的 FCP→Canvas 壳层 mark 阻塞交集;不是完整加载 TBT | ms | 同机同 profile | record·diagnostic | ✅ CDP |
 | `startup.renderer_reload.blocking_canvas_to_lcp_ms` | Canvas 壳层 mark→LCP 的 Long Task 阻塞交集,补足后段可见成本 | ms | 同机同 profile | record·diagnostic | ✅ CDP |
 | `startup.renderer_reload.long_task_count` / `.long_task_max_ms` | 整个 trace 窗口 Long Task 数与最大持续时间 | 次/ms | 同机同 profile | record·diagnostic | ✅ CDP |
-| `startup.loaded_to_canvas_kb` / `startup.loaded_to_lcp_kb` | warm reload 中同源/`file:` Resource Timing 按 responseEnd 截止到 Canvas/LCP 的 decoded bytes | KB | 同机同 profile | record·diagnostic | ✅ CDP |
+| `startup.loaded_to_canvas_kb` / `startup.loaded_to_lcp_kb` | warm reload 中 CDP Network 按 responseEnd 截止到 Canvas/LCP 的本地资源字节 | KB | 同机同 profile | **gate**·diagnostic | ✅ Phase 4 升 Gate |
 | `startup.renderer_reload.{task,script,recalc_style,layout}_ms` | warm reload 前后 CDP Performance counters 差值 | ms | 同机同 profile | record·diagnostic | ✅ CDP |
 
 ### ② 交互(采集:`perf:scenarios` 经 CDP 驱动 + `__pulsePerf`;场景:`typing`✅ `resize`✅ `drag`✅ `panzoom`✅ `mindmap_drag`○)
@@ -76,7 +76,7 @@
 | `bundle.startup_request_count` | 启动静态 JS + CSS 闭包文件数 | 个 | 全局 | record | ✅ 已建 |
 | `bundle.total_js_kb` | `dist/renderer` 内全部 JS 原始字节先求和、最后换算 KB | KB | 全局 | **gate** | ✅ |
 | `bundle.total_css_raw_kb` | `dist/renderer` 内全部 CSS 原始字节先求和、最后换算 KB | KB | 全局 | record | ✅ 已建 |
-| `bundle.main_raw_kb` / `bundle.preload_raw_kb` | Main / Preload 入口构建输出原始字节 | KB | 全局 | record | ✅ 已建 |
+| `bundle.main_raw_kb` / `bundle.preload_raw_kb` | Main / Preload 入口构建输出原始字节 | KB | 全局 | **Main gate** / Preload record | ✅ Main 于 Phase 4 升 Gate |
 | `bundle.feature_first_load.<feature>_raw_kb` | File/Chat/Terminal/Graph/Mermaid/MF 的 manifest 静态闭包扣除启动已加载文件后的 JS+CSS 增量 | KB | 全局 | record | ✅ 已建 |
 | `package.dmg_mb` / `package.app_unpacked_mib` | `perf:package` 采集的 macOS arm64 DMG 与解压 `.app` | MB/MiB | 同平台架构 | **gate** | ✅ 96.6 / 235.1 |
 | `package.asar_mib` / `package.native_unpacked_mib` | app.asar 与 native unpacked 载荷 | MiB | 同平台架构 | **gate** | ✅ 44.0 / 2.3 |

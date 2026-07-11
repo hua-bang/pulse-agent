@@ -283,6 +283,15 @@ Mermaid、Tiptap、Graph、MF remote。源码 build 通过不能证明 packaged 
 
 ### Phase 4：Main/插件按需加载
 
+> 实施状态：2026-07-11 已完成 Main esbuild minify；Feishu、Agent Teams、
+> happy-dom HTML patch 与关闭的实验插件均拆为条件动态 chunk。Agent Teams 的
+> IPC/heartbeat 只在开关启用时启动，control server 的 team API 首次调用再加载
+> service。内置 mock renderer 改为本地静态插件，只有真实 remote 配置才加载
+> MF runtime。Main 入口实测 931→495 KB，独立产出 Feishu 26.9 KB、Agent Teams
+> service 89.1 KB、HTML patch 2.0 KB 等首用 chunk；同机 whenReady 321→198 ms、
+> openWindow 367→244 ms。欢迎画布资源闭包最终 888.1 KB，LCP 闭包 892.9 KB，
+> 达到激进完成态。
+
 单独立项，不与 Renderer lazy 混做：
 
 - Channel 插件保留轻量 `enabledWhen` shell，仅在 flag + config 命中后

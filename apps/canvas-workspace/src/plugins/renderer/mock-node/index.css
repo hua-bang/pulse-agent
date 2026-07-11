@@ -1,0 +1,8 @@
+.mock-node-card { box-sizing: border-box; height: 100%; display: flex; flex-direction: column; justify-content: space-between; gap: 14px; padding: 18px; background: linear-gradient(180deg, #fff, #f7fbff); }
+.mock-node-card small, .mock-node-card strong { display: block; }
+.mock-node-card small { color: var(--accent); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.mock-node-card strong { margin-top: 8px; font-size: 18px; }
+.mock-node-card__actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mock-node-card button { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: #fff; color: var(--text-primary); }
+.mock-node-card__list { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.mock-node-card__list button { text-align: left; }

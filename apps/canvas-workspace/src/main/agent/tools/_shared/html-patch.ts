@@ -1,69 +1,7 @@
 import { Window } from 'happy-dom';
-import { z } from 'zod';
-
-const selectorSchema = {
-  selector: z.string().min(1).describe('CSS selector that identifies the HTML element(s) to patch.'),
-  all: z.boolean().optional().describe('Patch all matches. Defaults to the first match only.'),
-};
-
-export const htmlPatchOperationSchema = z.discriminatedUnion('op', [
-  z.object({
-    op: z.literal('setText'),
-    ...selectorSchema,
-    text: z.string().describe('Plain text content. It is assigned via textContent, so HTML is escaped.'),
-  }),
-  z.object({
-    op: z.literal('replaceInnerHTML'),
-    ...selectorSchema,
-    html: z.string().describe('Raw HTML that replaces the selected element innerHTML.'),
-  }),
-  z.object({
-    op: z.literal('replaceOuterHTML'),
-    ...selectorSchema,
-    html: z.string().describe('Raw HTML that replaces the selected element itself.'),
-  }),
-  z.object({
-    op: z.literal('insertHTML'),
-    ...selectorSchema,
-    position: z.enum(['beforebegin', 'afterbegin', 'beforeend', 'afterend']).describe('DOM insertAdjacentHTML position.'),
-    html: z.string().describe('Raw HTML inserted at the requested position.'),
-  }),
-  z.object({
-    op: z.literal('remove'),
-    ...selectorSchema,
-  }),
-  z.object({
-    op: z.literal('setAttribute'),
-    ...selectorSchema,
-    name: z.string().min(1).describe('Attribute name to set.'),
-    value: z.string().describe('Attribute value to set.'),
-  }),
-  z.object({
-    op: z.literal('removeAttribute'),
-    ...selectorSchema,
-    name: z.string().min(1).describe('Attribute name to remove.'),
-  }),
-  z.object({
-    op: z.literal('setCssProperty'),
-    ...selectorSchema,
-    property: z.string().min(1).describe('CSS property name to set on the selected element inline style.'),
-    value: z.string().describe('CSS property value.'),
-    priority: z.enum(['important']).optional().describe('Set to important to write the declaration as !important.'),
-  }),
-]);
-
-export type HtmlPatchOperation = z.infer<typeof htmlPatchOperationSchema>;
-
-export interface HtmlPatchAppliedOperation {
-  op: HtmlPatchOperation['op'];
-  selector: string;
-  count: number;
-}
-
-export interface HtmlPatchResult {
-  html: string;
-  applied: HtmlPatchAppliedOperation[];
-}
+import type { HtmlPatchAppliedOperation, HtmlPatchOperation, HtmlPatchResult } from './html-patch-schema';
+export { htmlPatchOperationSchema } from './html-patch-schema';
+export type { HtmlPatchAppliedOperation, HtmlPatchOperation, HtmlPatchResult } from './html-patch-schema';
 
 type HappyDocument = InstanceType<typeof Window>['document'];
 type HappyElement = ReturnType<HappyDocument['querySelectorAll']>[number];

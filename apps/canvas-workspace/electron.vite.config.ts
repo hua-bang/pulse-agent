@@ -163,7 +163,8 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      outDir: "dist/main"
+      outDir: "dist/main",
+      minify: "esbuild"
     }
   },
   preload: {
