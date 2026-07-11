@@ -141,7 +141,7 @@ export const renderDashboardHtml = (
   const metricsOf = (aspectId) => dictionary.metrics.filter((m) => m.aspect === aspectId);
   const aspectName = (id) => dictionary.aspects.find((a) => a.id === id)?.name ?? id;
 
-  const coverage = summarizeCoverage(dictionary, snapshot);
+  const coverage = summarizeCoverage(dictionary, snapshot, policyContext.policiesById);
 
   const tabs = dictionary.aspects.map((a) => {
     const health = aspectHealth(
