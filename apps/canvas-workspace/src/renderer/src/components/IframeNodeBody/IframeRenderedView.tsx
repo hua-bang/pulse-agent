@@ -86,14 +86,18 @@ export const IframeRenderedView = ({
   return (
     <div className="iframe-body">
       <div className="iframe-bar">
-        <button
+        <Button
+          type="button"
+          variant="icon"
+          size="xs"
           className="iframe-bar-btn"
           onClick={handleReload}
           title="Reload"
+          aria-label="Reload"
           disabled={generating}
         >
           <ReloadIcon />
-        </button>
+        </Button>
 
         <IframeAddressButton
           artifact={artifact}
@@ -117,43 +121,59 @@ export const IframeRenderedView = ({
 
         <div className="iframe-bar-actions">
           {mode === 'ai' && !generating && !readOnly && (
-            <button
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
               className="iframe-bar-btn"
               onClick={() => void handleRegenerate()}
               title="Regenerate"
+              aria-label="Regenerate"
             >
               <SparkIcon />
-            </button>
+            </Button>
           )}
 
-          <button
+          <Button
+            type="button"
+            variant="icon"
+            size="xs"
             className={`iframe-bar-btn${domPickerActive ? ' iframe-bar-btn--active' : ''}`}
             onClick={() => void handlePickDomElement()}
             title={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
+            aria-label={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
             disabled={generating || domPickerActive || reviewPickerActive || !workspaceId}
           >
             <InspectIcon />
-          </button>
+          </Button>
 
           {mode === 'url' && (
-            <button
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
               className={`iframe-bar-btn${reviewPickerActive ? ' iframe-bar-btn--active' : ''}`}
               onClick={() => void handlePickReviewElement()}
               title={reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
+              aria-label={reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
               disabled={generating || domPickerActive || reviewPickerActive || !workspaceId || readOnly}
             >
               <ReviewIcon />
-            </button>
+            </Button>
           )}
 
           {mode === 'url' && (
-            <button
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
               className="iframe-bar-btn"
               onClick={handleOpenExternal}
               title="Open externally"
+              aria-label="Open externally"
             >
               <OpenIcon />
-            </button>
+            </Button>
           )}
         </div>
       </div>

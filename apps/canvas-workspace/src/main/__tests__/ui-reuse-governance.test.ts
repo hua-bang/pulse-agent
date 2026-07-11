@@ -27,6 +27,17 @@ const RENDERER_ROOT = join('src', 'renderer', 'src');
 const RATCHET_BASELINE: Record<string, number> = {
   // Tag counters below are measured on COMMENT-STRIPPED sources, so doc
   // mentions of an element never count and never force baseline churn.
+  // CSS LITERAL counters (borderRadiusLiterals/hardcodedColorLiterals/
+  // shadowLiterals/zIndexHighRaw/sectionFieldCssClusters below) are the
+  // OPPOSITE — they scan raw, UNSTRIPPED CSS file content (see each
+  // counter's implementation further down: none of them call
+  // `stripComments`). A CSS doc comment that spells out a literal color/
+  // radius/shadow value (e.g. explaining "this normalizes onto
+  // rgba(0, 0, 0, 0.05)") silently counts toward that value, which can
+  // offset a real deletion in the same file to a net-zero baseline move
+  // (caught 2026-07-11 landing the iframe-bar-btn migration — see
+  // ui-reuse-burndown.md). Describe such values by TOKEN NAME in comments,
+  // not by literal, near any CSS literal-counter-relevant change.
   // raw <button> tags in .tsx — falls as components/ui/Button absorbs them.
   // 402→399: WorkspaceSettings adopted ui/Button (-4); ui/Button itself (+1).
   // 399→397: AgentTypeSelect migrated to ui/Select, dropping its bespoke
@@ -69,7 +80,14 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 353→347 (absorb node-chrome skips, ui/Button xs tier): IframeReviewLayer's
   // 6 popover/pending-bar mini-buttons (Close/Delete/Cancel/Add/Clear/Send)
   // migrated onto ui/Button's new `xs` size — see ui-reuse-burndown.md.
-  rawButtonTags: 347,
+  // 347→342 (absorb node-chrome skips, cont'd): IframeRenderedView's 5
+  // `.iframe-bar` toolbar icon buttons (Reload/Regenerate/Inspect/Review-
+  // picker/Open-externally) migrated onto ui/Button's icon `xs` (22px) —
+  // the pilot slice's original skip verdict ("ui/Button's icon floor is
+  // 24px, overflows the 22px bar") no longer holds now that xs exists;
+  // measured the bar's content-box height (31 - 2×4 padding - 1 border =
+  // 22px) confirms an EXACT fit, not a squeeze. See ui-reuse-burndown.md.
+  rawButtonTags: 342,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -286,7 +304,13 @@ const RATCHET_BASELINE: Record<string, number> = {
   // migrated buttons' bespoke SLATE palette (rgba(17,24,39,...)/#374151)
   // normalizes onto ui/Button's warm-gray secondary/danger/primary chrome
   // (owner-approved palette normalization — see ui-reuse-burndown.md).
-  hardcodedColorLiterals: 1883,
+  // 1883→1882 (absorb node-chrome skips, cont'd): iframeBar.css's deleted
+  // `.iframe-bar-btn:hover` rule carried 1 rgba() literal — its replacement
+  // (ui/Button's `.ui-btn--icon:hover` rule, `var(--surface-alt)`) resolves
+  // to the byte-identical value but is a token reference, so this counter
+  // (which is not color-value-aware, only literal-vs-token-aware) drops by
+  // 1 even though the rendered hover color is unchanged.
+  hardcodedColorLiterals: 1882,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
