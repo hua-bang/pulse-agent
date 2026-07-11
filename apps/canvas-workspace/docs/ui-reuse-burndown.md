@@ -578,6 +578,20 @@ infrastructure, out of scope for a per-instance chrome migration. This
 matches the brief's own escape hatch and the established precedent — these
 panels are too IPC-coupled to mount meaningfully without it.
 
+**Independent-review corrections (Opus, 2026-07-11 — verdict SOUND).**
+"Pixel-identical" holds exactly for the settings-config `cfg-*` cluster
+(radius/heights/colors byte-equal to ui/Button/TextField) but NOT for two
+recorded normalizations: (1) the deleted per-row compact overrides
+(`.cfg-list-actions` 26px, `.cfg-plugin-config-actions` 28px) mean list-row
+action buttons now render at ui/Button's 30px `sm` — a deliberate +2–4px
+convergence, consistent with the 统一收编 direction, recorded here rather
+than over-claimed away; (2) `Settings/*.css`'s near-twin section buttons
+(6px radius / 12.5px / weight 500-600) normalized to the blessed 8px/12px/
+650 — same accepted class of change as Batch C1's Button heights. The one
+USER-visible regression the review caught — the ≤520px full-width button
+stacking rule died with the deleted `.cfg-*-btn` selectors — was FIXED
+(`.cfg-pane .ui-btn { width:100% }` restored at that breakpoint).
+
 ## Batch C3 — normalization + the big two (visual gate first)
 
 **Prerequisite — DONE 2026-07-10**: `ui/` showcase page + Playwright

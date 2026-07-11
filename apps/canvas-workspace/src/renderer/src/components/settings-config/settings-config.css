@@ -482,6 +482,13 @@
   .cfg-pane {
     padding: 12px;
   }
+
+  /* Pre-migration .cfg-*-btn stretched full-width at this breakpoint; the
+   * migrated ui/Button is inline-flex and doesn't. Restore the stacking
+   * behavior for narrow panes (review finding on the settings slice). */
+  .cfg-pane .ui-btn {
+    width: 100%;
+  }
 }
 
 /* ─── Inherited (global) skills surfaced inside a workspace panel ─ */
