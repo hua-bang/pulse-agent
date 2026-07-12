@@ -552,7 +552,7 @@ const AppContent = () => {
               onOpenWorkspaceSettings={openWorkspaceSettings}
             />
           </PulseRouterView>
-          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} selectedNode={selectedNode} detailNode={detailNode} onSelectNode={setSelectedNode} onOpenNode={openNodePage} onBack={enterNodesView} onAskAi={handleAskKnowledgeAi} />
+          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} selectedNode={selectedNode} detailNode={detailNode} onSelectNode={setSelectedNode} onBack={enterNodesView} onAskAi={handleAskKnowledgeAi} />
           {GRAPH_ENABLED && (
             <PulseRouterView name="graph">
               <GraphPage

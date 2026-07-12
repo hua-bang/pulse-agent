@@ -69,7 +69,8 @@
   gap: 42px;
 }
 
-.node-detail-panel--drawer .node-detail-panel__layout {
+.node-detail-panel--drawer .node-detail-panel__layout,
+.node-detail-panel--dock .node-detail-panel__layout {
   width: 100%;
   padding: 0;
   display: block;
@@ -85,7 +86,8 @@
   flex-direction: column;
 }
 
-.node-detail-panel--drawer .node-detail-panel__document {
+.node-detail-panel--drawer .node-detail-panel__document,
+.node-detail-panel--dock .node-detail-panel__document {
   width: 100%;
   padding: 30px clamp(22px, 6vw, 42px) 52px;
 }
@@ -135,7 +137,8 @@
   font-size: 11px;
 }
 
-.node-detail-panel--drawer .node-detail-panel__document-title {
+.node-detail-panel--drawer .node-detail-panel__document-title,
+.node-detail-panel--dock .node-detail-panel__document-title {
   font-size: clamp(26px, 6vw, 32px);
 }
 

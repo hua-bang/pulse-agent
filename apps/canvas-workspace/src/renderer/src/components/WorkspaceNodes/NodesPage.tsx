@@ -25,6 +25,7 @@ import {
   tagName,
 } from './utils';
 import { useI18n } from '../../i18n';
+import { useRightDock } from '../RightDock';
 import type { NodesAiContext } from './knowledgeAiContext';
 import './index.css';
 import './NodeCards.css';
@@ -32,7 +33,6 @@ import './NodeCards.css';
 interface NodesPageProps {
   workspaces: WorkspaceEntry[];
   selectedNode?: KnowledgeNodeSelection | null;
-  onOpenNode: (workspaceId: string, nodeId: string) => void;
   onSelectNode?: (selection: KnowledgeNodeSelection | null) => void;
   onAskAi?: (context: NodesAiContext, action: 'chat' | 'summarize') => void;
 }
@@ -48,11 +48,11 @@ function filterByType(node: WorkspaceNodeListItem, type: NodeTypeFilter): boolea
 export const NodesPage = ({
   workspaces,
   selectedNode,
-  onOpenNode,
   onSelectNode,
   onAskAi,
 }: NodesPageProps) => {
   const { language, t } = useI18n();
+  const dock = useRightDock();
   const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
   const { nodes, tags: tagDefinitions, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
   const [query, setQuery] = useState('');
@@ -338,7 +338,17 @@ export const NodesPage = ({
         nodeId={selectedNode?.nodeId ?? null}
         tagDefinitions={tagDefinitions}
         onClose={() => onSelectNode?.(null)}
-        onOpenPage={onOpenNode}
+        onOpenPage={(workspaceId, nodeId) => {
+          const selected = nodes.find((node) => (
+            getNodeWorkspaceId(node) === workspaceId && node.id === nodeId
+          ));
+          dock.openNodeDetail(
+            workspaceId,
+            nodeId,
+            getNodeTitle(selected, t('workspaceNodes.untitled')),
+          );
+          onSelectNode?.(null);
+        }}
         onNodeChanged={() => { void reload(); }}
       />
 

@@ -60,6 +60,24 @@ function render(node: ReactNode): HTMLDivElement {
 }
 
 describe('NodeDetailPanel', () => {
+  it('labels the drawer promotion action as Go to detail', () => {
+    const onOpenPage = vi.fn();
+    const view = render(
+      <NodeDetailPanel
+        node={NODE}
+        workspaceId="workspace-1"
+        mode="drawer"
+        onOpenPage={onOpenPage}
+      />,
+    );
+    const action = Array.from(view.querySelectorAll('button')).find((button) => button.textContent === 'Go to detail');
+    if (!action) throw new Error('Expected Go to detail action');
+
+    act(() => { action.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    expect(onOpenPage).toHaveBeenCalledWith('node-1');
+  });
+
   it.each(['drawer', 'page'] as const)(
     'keeps title, tags, and the real node preview in document order in %s mode',
     (mode) => {

@@ -14,7 +14,7 @@ interface NodeDetailPanelProps {
   workspaceId: string;
   loading?: boolean;
   error?: string | null;
-  mode?: 'drawer' | 'page';
+  mode?: 'drawer' | 'page' | 'dock';
   onClose?: () => void;
   onOpenPage?: (nodeId: string) => void;
   tagDefinitions?: KnowledgeTagDefinition[];
@@ -79,7 +79,7 @@ export const NodeDetailPanel = ({
           <div className="node-detail-panel__header-actions">
             {node && onOpenPage && (
               <Button size="sm" onClick={() => onOpenPage(node.id)}>
-                {t('workspaceNodes.full')}
+                {t('workspaceNodes.goToDetail')}
               </Button>
             )}
             {onClose && (

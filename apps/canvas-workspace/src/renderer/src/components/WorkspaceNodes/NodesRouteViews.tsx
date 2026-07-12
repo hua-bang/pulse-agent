@@ -11,7 +11,6 @@ interface Props {
   selectedNode: KnowledgeNodeSelection | null;
   detailNode: KnowledgeNodeSelection | null;
   onSelectNode: (selection: KnowledgeNodeSelection | null) => void;
-  onOpenNode: (workspaceId: string, nodeId: string) => void;
   onBack: () => void;
   onAskAi: (context: NodesAiContext, action: 'chat' | 'summarize') => void;
 }
@@ -23,7 +22,6 @@ export const NodesRouteViews = ({
   selectedNode,
   detailNode,
   onSelectNode,
-  onOpenNode,
   onBack,
   onAskAi,
 }: Props) => {
@@ -32,7 +30,7 @@ export const NodesRouteViews = ({
     <>
       <PulseRouterView name="nodes" keepAlive>
         <Suspense fallback={null}>
-          <NodesPageLazy workspaces={workspaces} selectedNode={selectedNode} onSelectNode={onSelectNode} onOpenNode={onOpenNode} onAskAi={onAskAi} />
+          <NodesPageLazy workspaces={workspaces} selectedNode={selectedNode} onSelectNode={onSelectNode} onAskAi={onAskAi} />
         </Suspense>
       </PulseRouterView>
       <PulseRouterView name="node-detail">

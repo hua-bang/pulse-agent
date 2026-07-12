@@ -1,21 +1,12 @@
 /**
  * RightDock — the right-side panel of the workbench. Its first tab is the
  * pinned chat; preview surfaces (artifacts, intercepted links) open as
- * additional tabs. The strip stays visible on canvas routes so users can
- * create a web tab directly from chat.
+ * additional tabs. DockStore owns state and deduping, while Workbench portals
+ * persistent chat panels into the chat pane. The dock reserves its width via
+ * `--right-dock-inset`; the dedicated chat route disables the pinned chat tab.
  *
- * DockStore owns state and deduping. Workbench portals persistent chat panels
- * into the chat pane, while previews stay mounted across tab switches.
- * Layout: the dock is a fixed right-side element on `--layer-dock`. On
- * routes where chat is enabled it reserves its width through the
- * `--right-dock-inset` custom property consumed by `.app-body`, so it
- * behaves like an in-flow column. The dedicated full-page chat route
- * disables the dock chat tab to avoid rendering two chat surfaces.
- *
- * Tab contents stay mounted and hide via `visibility` instead of
- * `display: none` — collapsing a <webview>'s layout detaches its guest
- * contents in Electron, and keeping artifacts mounted preserves scroll
- * position and rendered mermaid SVG.
+ * Tab contents stay mounted and hide via `visibility` to preserve webviews,
+ * scroll position, and rendered artifacts across tab switches.
  */
 import {
   createContext,
@@ -55,6 +46,9 @@ const ArtifactTabView = lazy(() =>
 const LinkTabView = lazy(() =>
   import('../LinkDrawer').then((module) => ({ default: module.LinkTabView })),
 );
+const NodeDetailDockTab = lazy(() =>
+  import('./NodeDetailDockTab').then((module) => ({ default: module.NodeDetailDockTab })),
+);
 
 interface RightDockContextValue {
   store: DockStore;
@@ -92,6 +86,7 @@ const useDockContext = (): RightDockContextValue => {
 /** Dock actions — safe to call from anywhere under the provider. */
 export function useRightDock(): {
   openArtifact: (workspaceId: string, artifactId: string) => void;
+  openNodeDetail: (workspaceId: string, nodeId: string, title: string) => void;
   openLink: (url: string) => void;
   newLink: () => void;
   openChat: () => void;
@@ -108,6 +103,7 @@ export function useRightDock(): {
   return useMemo(
     () => ({
       openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
+      openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
       openLink: (url: string) => store.openLink(url),
       newLink: () => store.newLink(),
       openChat: () => store.openChat(),
@@ -472,6 +468,14 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
                 <ArtifactTabView
                   workspaceId={tab.workspaceId}
                   artifactId={tab.artifactId}
+                  onTitleChange={(title) => store.setTitle(tab.id, title)}
+                />
+              </Suspense>
+            ) : tab.kind === 'node-detail' ? (
+              <Suspense fallback={null}>
+                <NodeDetailDockTab
+                  workspaceId={tab.workspaceId}
+                  nodeId={tab.nodeId}
                   onTitleChange={(title) => store.setTitle(tab.id, title)}
                 />
               </Suspense>
