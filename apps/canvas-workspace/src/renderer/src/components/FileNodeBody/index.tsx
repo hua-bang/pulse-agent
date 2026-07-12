@@ -35,6 +35,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   const { openLink } = useRightDock();
   const [modified, setModified] = useState(false);
   const [statusText, setStatusText] = useState('');
+  const [statusTone, setStatusTone] = useState<'saving' | 'saved' | 'error'>('saved');
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const dataRef = useRef(data);
@@ -45,8 +46,9 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   const workspaceIdRef = useRef(workspaceId);
   workspaceIdRef.current = workspaceId;
 
-  const showStatus = useCallback((msg: string, duration = 2000) => {
+  const showStatus = useCallback((msg: string, tone: 'saving' | 'saved' | 'error' = 'saved', duration = 2000) => {
     if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    setStatusTone(tone);
     setStatusText(msg);
     statusTimerRef.current = setTimeout(() => setStatusText(''), duration);
   }, []);
@@ -58,16 +60,19 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   const persistToFile = useCallback(
     async (markdown: string, filePath: string) => {
       const api = window.canvasWorkspace?.file;
-      if (!api || !filePath) return;
+      if (!api || !filePath) {
+        showStatus(t('noteToolbar.saveFailed'), 'error');
+        return;
+      }
       const res = await api.write(filePath, markdown).catch(() => ({ ok: false }));
       if (res.ok) {
         setModified(false);
         onUpdate(nodeIdRef.current, {
           data: { ...dataRef.current, content: markdown, saved: true, modified: false },
         });
-        showStatus(t('noteToolbar.saved'));
+        showStatus(t('noteToolbar.saved'), 'saved');
       } else {
-        showStatus(t('noteToolbar.saveFailed'));
+        showStatus(t('noteToolbar.saveFailed'), 'error');
       }
     },
     [onUpdate, showStatus, t]
@@ -105,9 +110,13 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     onCommitState: (state) => {
       if (state === 'saving') {
         if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+        setStatusTone('saving');
         setStatusText(t('noteToolbar.saving'));
       } else {
-        showStatus(t(state === 'saved' ? 'noteToolbar.saved' : 'noteToolbar.saveFailed'));
+        showStatus(
+          t(state === 'saved' ? 'noteToolbar.saved' : 'noteToolbar.saveFailed'),
+          state === 'saved' ? 'saved' : 'error',
+        );
       }
     },
   });
@@ -247,7 +256,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       const anchor = (e.target as HTMLElement).closest?.('a');
       const href = anchor?.getAttribute('href')?.trim();
       if (!href) return;
-      // A node mention focuses its target node instead of opening a URL.
+      // A node mention opens its target in a right-dock node tab.
       const nodeLink = parseNodeLinkHref(href);
       if (nodeLink) {
         e.preventDefault();
@@ -255,7 +264,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
         const targetWorkspaceId = nodeLink.workspaceId ?? workspaceId ?? '';
         const targetNodeKnown = !getAllNodes || getAllNodes().some((item) => item.id === nodeLink.nodeId);
         if (!targetNodeKnown && targetWorkspaceId === (workspaceId ?? '')) {
-          showStatus('Missing node');
+          showStatus('Missing node', 'error');
           return;
         }
         dispatchOpenNode({ workspaceId: targetWorkspaceId, nodeId: nodeLink.nodeId });
@@ -296,6 +305,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
           }}
           outlineOpen={outlineOpen}
           statusText={statusText}
+          statusTone={statusTone}
           modified={modified}
           fileName={fileName}
           filePath={filePath ?? undefined}

@@ -14,11 +14,12 @@ export function useWorkspaceNodeList(workspaceId: string) {
   // reload may apply its results.
   const requestSeqRef = useRef(0);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (options?: { background?: boolean }) => {
     const seq = ++requestSeqRef.current;
     const api = window.canvasWorkspace?.workspaceNodes;
     if (!api || !workspaceId) return;
-    setLoading(true);
+    const background = options?.background === true;
+    if (!background) setLoading(true);
     setError(null);
     try {
       const result = await api.list(workspaceId);
@@ -37,7 +38,7 @@ export function useWorkspaceNodeList(workspaceId: string) {
       setNodes([]);
       setTags([]);
     } finally {
-      if (seq === requestSeqRef.current) setLoading(false);
+      if (!background && seq === requestSeqRef.current) setLoading(false);
     }
   }, [workspaceId, t]);
 
@@ -52,7 +53,7 @@ export function useWorkspaceNodeList(workspaceId: string) {
     if (!api?.onChange) return undefined;
     return api.onChange((event) => {
       if (!event.workspaceIds?.length || event.workspaceIds.includes(workspaceId)) {
-        void reload();
+        void reload({ background: true });
       }
     });
   }, [reload, workspaceId]);
@@ -140,14 +141,15 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
   // overlapping reads; if A's resolves last it must not clobber B's record.
   const requestSeqRef = useRef(0);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (options?: { background?: boolean }) => {
     const seq = ++requestSeqRef.current;
     const api = window.canvasWorkspace?.workspaceNodes;
     if (!api || !workspaceId || !nodeId) {
       setNode(null);
       return;
     }
-    setLoading(true);
+    const background = options?.background === true;
+    if (!background) setLoading(true);
     setError(null);
     try {
       const result = await api.read(workspaceId, nodeId);
@@ -163,7 +165,7 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
       setError(err instanceof Error ? err.message : String(err));
       setNode(null);
     } finally {
-      if (seq === requestSeqRef.current) setLoading(false);
+      if (!background && seq === requestSeqRef.current) setLoading(false);
     }
   }, [workspaceId, nodeId, t]);
 
@@ -176,7 +178,7 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
     if (!api?.onChange) return undefined;
     return api.onChange((event) => {
       if (!event.workspaceIds?.length || event.workspaceIds.includes(workspaceId)) {
-        void reload();
+        void reload({ background: true });
       }
     });
   }, [reload, workspaceId]);

@@ -76,9 +76,19 @@
 
 .note-status { display: inline-flex; align-items: center; gap: 5px; }
 .note-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-term); }
+.note-status--saving::before { animation: note-status-pulse 900ms ease-in-out infinite alternate; }
+.note-status--error { color: var(--danger); }
+.note-status--error::before { background: var(--danger); }
 .note-status--modified { color: var(--accent-file); }
 .note-status--modified::before { background: var(--accent-file); }
 
+@keyframes note-status-pulse {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+
 @media (max-width: 520px) {
-  .note-toolbar-status { display: none; }
+  .note-toolbar-status[data-active='false'] { display: none; }
+  .note-toolbar-status { max-width: 112px; padding-inline: 5px; }
+  .note-status { max-width: 100px; }
 }

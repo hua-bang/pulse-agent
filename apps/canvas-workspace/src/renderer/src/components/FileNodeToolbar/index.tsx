@@ -16,6 +16,7 @@ interface Props {
   onDeleteBlock: () => void;
   outlineOpen: boolean;
   statusText: string;
+  statusTone?: 'saving' | 'saved' | 'error';
   modified: boolean;
   fileName?: string | null;
   filePath?: string;
@@ -34,6 +35,7 @@ export const FileNodeToolbar = ({
   onDeleteBlock,
   outlineOpen,
   statusText,
+  statusTone = 'saved',
   modified,
   fileName,
   filePath,
@@ -49,9 +51,15 @@ export const FileNodeToolbar = ({
 
   return (
     <div className="note-toolbar" data-open={open}>
-      <div className="note-toolbar-status">
+      <div
+        className="note-toolbar-status"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-active={Boolean(statusText || modified)}
+      >
         {statusText ? (
-          <span className="note-status">{statusText}</span>
+          <span className={`note-status note-status--${statusTone}`}>{statusText}</span>
         ) : modified ? (
           <span className="note-status note-status--modified">{t('noteToolbar.edited')}</span>
         ) : fileName ? (
