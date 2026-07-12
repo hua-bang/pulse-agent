@@ -29,6 +29,7 @@ interface WorkbenchProps {
   workspaces: WorkspaceEntry[];
   controller: WorkbenchController;
   knowledgeChatContext: KnowledgeChatRouteContext;
+  onRemoveKnowledgeChatContext?: (key: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
@@ -41,6 +42,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   workspaces,
   controller,
   knowledgeChatContext,
+  onRemoveKnowledgeChatContext,
   onSelectWorkspace,
   onOpenAppSettings,
   onOpenWorkspaceSettings,
@@ -492,11 +494,9 @@ export const Workbench: React.FC<WorkbenchProps> = ({
             ))}
             {knowledgeChatContext.active && (
               <Suspense fallback={null}>
-                <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces}
-                  onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTurnComplete={dock.notifyChatActivity} />
+                <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces} contextNodes={knowledgeChatContext.explicitContext?.nodes} contextTags={knowledgeChatContext.explicitContext?.tags} contextCanvases={knowledgeChatContext.explicitContext?.canvases} composerRequest={knowledgeChatContext.explicitContext?.composerRequest} onRemoveContext={onRemoveKnowledgeChatContext} onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTurnComplete={dock.notifyChatActivity} />
               </Suspense>
-            )}
-          </>,
+            )}</>,
           chatHost,
         )}
       <WorkspaceTerminalPortal

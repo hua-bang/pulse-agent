@@ -1,0 +1,283 @@
+<!doctype html>
+<!--
+  PROTOTYPE ONLY. Three Node Detail directions, switchable with ?variant=A|B|C.
+  Run: python3 -m http.server 4173 -d apps/canvas-workspace/design
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pulse Canvas · Node Detail prototype</title>
+  <style>
+    :root {
+      --ink: oklch(29% 0.012 75);
+      --muted: oklch(55% 0.012 75);
+      --faint: oklch(72% 0.008 75);
+      --line: oklch(89% 0.008 75);
+      --soft: oklch(97% 0.008 75);
+      --paper: oklch(99% 0.004 75);
+      --side: oklch(96% 0.009 75);
+      --blue: oklch(61% 0.16 250);
+      --blue-soft: oklch(95% 0.035 250);
+      --yellow: oklch(93% 0.07 92);
+      --green: oklch(58% 0.12 150);
+      --r1: 4px;
+      --r2: 8px;
+      --r3: 12px;
+      --shadow: 0 14px 42px color-mix(in oklch, var(--ink) 12%, transparent);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; overflow-x: hidden; background: var(--paper); color: var(--ink); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit; color: inherit; }
+    button { touch-action: manipulation; }
+    button:active { transform: scale(.96); }
+    button:focus-visible, [contenteditable]:focus-visible, input:focus-visible {
+      outline: 2px solid color-mix(in oklch, var(--blue) 55%, transparent);
+      outline-offset: 2px;
+    }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 224px minmax(0,1fr); }
+    .sidebar { min-height: 100vh; padding: 18px 10px; background: var(--side); border-right: 1px solid var(--line); }
+    .brand { height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px 13px; font-weight: 720; }
+    .brand-mark { width: 21px; height: 21px; display: grid; place-items: center; border-radius: 7px; background: var(--blue-soft); color: var(--blue); }
+    .nav { display: grid; gap: 2px; margin-top: 8px; }
+    .nav button { height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border: 0; border-radius: var(--r2); background: transparent; text-align: left; cursor: pointer; }
+    .nav button.active { background: color-mix(in oklch, var(--blue-soft) 82%, white); color: var(--blue); }
+    .section-label { margin: 24px 10px 8px; color: var(--faint); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+    .workspace { margin: 0 4px; padding: 9px 8px; font-size: 12px; }
+    .workspace strong { display: block; margin-bottom: 10px; }
+    .workspace span { display: block; padding: 6px 8px 6px 20px; color: var(--muted); }
+    .main { min-width: 0; min-height: 100vh; }
+    .variant { display: none; min-height: 100vh; }
+    .variant.active { display: block; }
+    .topbar { height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid var(--line); background: color-mix(in oklch, var(--paper) 96%, transparent); }
+    .crumb { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+    .top-actions { display: flex; align-items: center; gap: 6px; }
+    .icon-btn, .quiet-btn, .primary-btn {
+      min-height: 32px; border: 0; border-radius: var(--r2); background: transparent; cursor: pointer;
+      transition-property: background-color, color, transform; transition-duration: 140ms;
+    }
+    .icon-btn { min-width: 32px; padding: 0 8px; }
+    .quiet-btn { padding: 0 11px; color: var(--muted); }
+    .primary-btn { padding: 0 12px; background: var(--ink); color: white; }
+    @media (hover:hover) {
+      .icon-btn:hover, .quiet-btn:hover { background: var(--soft); color: var(--ink); }
+      .relation-row:hover, .source-row:hover { background: var(--soft); }
+    }
+    .type-pill, .tag {
+      display: inline-flex; align-items: center; min-height: 23px; padding: 3px 7px; border-radius: var(--r1);
+      background: var(--soft); color: var(--muted); font-size: 11px;
+    }
+    .title { margin: 13px 0 0; font-size: clamp(32px, 4vw, 46px); line-height: 1.14; font-weight: 760; text-wrap: balance; }
+    .title[contenteditable] { border-radius: var(--r1); }
+    .tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 15px; }
+    .add-tag { border: 0; background: transparent; color: var(--faint); cursor: pointer; }
+    .body-copy { font-size: 15px; line-height: 1.82; text-wrap: pretty; }
+    .body-copy h2 { margin: 34px 0 10px; font-size: 20px; line-height: 1.35; }
+    .body-copy p, .body-copy ul { margin: 12px 0; }
+    .body-copy blockquote { margin: 22px 0; padding: 10px 14px; background: var(--yellow); border-radius: var(--r1); }
+    .body-copy code { padding: 2px 5px; border-radius: var(--r1); background: var(--soft); font-size: .9em; }
+    .subtle-label { color: var(--faint); font-size: 10px; font-weight: 720; letter-spacing: .07em; text-transform: uppercase; }
+    .relation-row, .source-row { display: grid; grid-template-columns: 104px minmax(0,1fr) auto; align-items: center; gap: 10px; min-height: 38px; padding: 4px 7px; border-radius: var(--r1); font-size: 12px; }
+    .relation-row .predicate { color: var(--muted); }
+    .relation-row strong, .source-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tiny { color: var(--faint); font-size: 10px; }
+    .inline-form { display: none; grid-template-columns: 120px minmax(0,1fr) auto; gap: 7px; margin-top: 8px; }
+    .inline-form.open { display: grid; }
+    .inline-form input { min-width: 0; height: 32px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--r1); background: white; }
+
+    /* A: document with a contextual margin rail */
+    .a-layout { display: grid; grid-template-columns: minmax(0, 760px) 274px; justify-content: center; gap: 54px; padding: 52px 46px 110px; }
+    .a-doc { min-width: 0; }
+    .a-rail { align-self: start; position: sticky; top: 82px; display: grid; gap: 26px; padding-top: 7px; }
+    .rail-section { display: grid; gap: 8px; }
+    .rail-heading { display: flex; align-items: center; justify-content: space-between; }
+    .rail-heading button { border: 0; background: transparent; color: var(--faint); cursor: pointer; }
+    .ai-note { padding: 12px; border-radius: var(--r2); background: var(--blue-soft); color: color-mix(in oklch, var(--blue) 72%, black); font-size: 12px; line-height: 1.6; }
+    .ai-note strong { display: block; margin-bottom: 5px; }
+    .a-footer { margin-top: 54px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; }
+
+    /* B: Heptabase-like spatial context, content card on a quiet board */
+    .variant-b { background: oklch(96% .015 82); }
+    .b-board { position: relative; min-height: calc(100vh - 58px); padding: 36px 36px 120px; overflow: hidden; }
+    .b-document { width: min(690px, calc(100% - 310px)); min-height: 760px; margin-left: 44px; padding: 36px 44px 70px; border-radius: var(--r3); background: var(--paper); box-shadow: var(--shadow); }
+    .b-context { position: absolute; top: 40px; right: 34px; width: 250px; display: grid; gap: 12px; }
+    .context-card { padding: 14px; border-radius: var(--r2); background: var(--paper); box-shadow: 0 7px 24px color-mix(in oklch, var(--ink) 9%, transparent); }
+    .context-card h3 { margin: 0 0 10px; font-size: 12px; }
+    .mini-graph { position: relative; height: 142px; }
+    .mini-graph svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .mini-graph path { fill: none; stroke: var(--line); stroke-width: 2; }
+    .graph-node { position: absolute; padding: 5px 7px; border-radius: var(--r1); background: var(--soft); font-size: 10px; }
+    .graph-node.center { left: 63px; top: 54px; background: var(--blue-soft); color: var(--blue); font-weight: 700; }
+    .graph-node.n1 { right: 4px; top: 5px; }
+    .graph-node.n2 { right: 3px; top: 56px; }
+    .graph-node.n3 { right: 6px; bottom: 4px; }
+    .b-ai { position: fixed; left: 50%; bottom: 76px; width: min(560px, calc(100vw - 300px)); transform: translateX(-25%); display: flex; gap: 8px; padding: 8px; border-radius: var(--r3); background: var(--paper); box-shadow: var(--shadow); }
+    .b-ai input { flex: 1; min-width: 0; border: 0; padding: 0 8px; outline: 0; }
+
+    /* C: Notion-tight document, metadata as editable rows */
+    .c-shell { display: grid; grid-template-columns: minmax(0, 860px); justify-content: center; padding: 42px 38px 110px; }
+    .c-props { margin: 28px 0 12px; display: grid; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .prop-row { min-height: 38px; display: grid; grid-template-columns: 150px minmax(0,1fr); align-items: center; gap: 16px; padding: 4px 0; font-size: 12px; }
+    .prop-row + .prop-row { border-top: 1px solid color-mix(in oklch, var(--line) 60%, transparent); }
+    .prop-name { color: var(--faint); }
+    .c-section { margin-top: 48px; }
+    .c-section-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+    .c-section-header h3 { margin: 0; font-size: 13px; }
+    .backlink { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; align-items: center; gap: 9px; min-height: 44px; border-bottom: 1px solid var(--line); font-size: 12px; }
+    .backlink-icon { color: var(--blue); }
+    .selection-toolbar { display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-20%); padding: 6px; border-radius: var(--r2); background: var(--ink); color: white; box-shadow: var(--shadow); }
+    .selection-toolbar.show { display: flex; }
+    .selection-toolbar button { height: 28px; border: 0; border-radius: var(--r1); background: transparent; color: inherit; cursor: pointer; }
+    .selection-toolbar button:hover { background: color-mix(in oklch, white 12%, transparent); }
+
+    .switcher { position: fixed; z-index: 50; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 5px; padding: 5px; border-radius: var(--r3); background: var(--ink); color: white; box-shadow: var(--shadow); }
+    .switcher button { width: 34px; height: 32px; border: 0; border-radius: var(--r2); background: transparent; color: inherit; cursor: pointer; }
+    .switcher button:hover { background: color-mix(in oklch, white 12%, transparent); }
+    .switch-label { min-width: 210px; text-align: center; font-size: 12px; }
+    .prototype-note { position: fixed; right: 14px; bottom: 14px; color: var(--faint); font-size: 9px; }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 70px minmax(0,1fr); }
+      .brand span:last-child, .nav button span:last-child, .section-label, .workspace { display: none; }
+      .brand, .nav button { justify-content: center; }
+      .a-layout { grid-template-columns: minmax(0, 700px); }
+      .a-rail { position: static; grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .b-document { width: calc(100% - 230px); margin-left: 0; }
+      .b-context { width: 200px; }
+      .b-ai { width: min(520px, calc(100vw - 110px)); transform: translateX(-43%); }
+    }
+    @media (max-width: 700px) {
+      .app { display: block; }
+      .sidebar { display: none; }
+      .topbar { padding: 0 14px; }
+      .crumb { min-width: 0; overflow: hidden; white-space: nowrap; }
+      .crumb span:last-child { overflow: hidden; text-overflow: ellipsis; }
+      .top-actions .icon-btn { display: none; }
+      .a-layout, .c-shell { padding: 28px 20px 100px; }
+      .a-rail { grid-template-columns: 1fr; }
+      .b-board { padding: 14px 14px 100px; }
+      .b-document { width: 100%; min-height: auto; padding: 28px 22px 60px; }
+      .b-context { position: static; width: 100%; grid-template-columns: 1fr 1fr; margin-top: 14px; }
+      .b-ai { left: 14px; right: 14px; width: auto; transform: none; }
+      .title { font-size: 32px; }
+      .switch-label { min-width: 156px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Main navigation">
+      <div class="brand"><span class="brand-mark">◉</span><span>Pulse Canvas</span></div>
+      <nav class="nav">
+        <button><span>♙</span><span>AI Chat</span></button>
+        <button class="active"><span>▣</span><span>Nodes</span></button>
+        <button><span>⌘</span><span>Graph</span></button>
+      </nav>
+      <div class="section-label">WORKSPACES</div>
+      <div class="workspace"><strong>▣ 张一鸣的信息观</strong><span>媒介即讯息</span><span>Search & RSS</span><span>信息主动性</span></div>
+    </aside>
+
+    <main class="main" id="main-content">
+      <section class="variant variant-a" data-variant="A">
+        <header class="topbar"><div class="crumb">Nodes <span>›</span> Search & RSS</div><div class="top-actions"><button class="quiet-btn" data-ai>✦ Ask AI</button><button class="icon-btn" aria-label="More actions">•••</button><button class="icon-btn" aria-label="Close">×</button></div></header>
+        <div class="a-layout">
+          <article class="a-doc">
+            <span class="type-pill">File</span>
+            <h1 class="title" contenteditable="true" spellcheck="false">Search & RSS：信息主动性的边界</h1>
+            <div class="tags"><span class="tag">search</span><span class="tag">information diet</span><button class="add-tag">+ Tag</button></div>
+            <div class="body-copy" contenteditable="true" spellcheck="false">
+              <h2>对 RSS／订阅的判断</h2>
+              <p>Google Reader 实质上要求用户自己建立信息入口。随着订阅源增加，信息堆积与整理成本也随之上升。</p>
+              <blockquote>稀缺的不是信息，而是主动组织信息的能力。</blockquote>
+              <h2>两个用户门槛</h2>
+              <ul><li>明确知道自己想持续追踪什么。</li><li>有规律地整理、筛选并舍弃订阅源。</li></ul>
+              <h2>与搜索的关系</h2>
+              <p>搜索适合明确需求，推荐适合探索未知兴趣。RSS 位于两者之间，要求用户对自己的问题拥有持续且稳定的判断。</p>
+            </div>
+            <div class="a-footer">Last edited Jul 11 · Workspace 张一鸣的信息观</div>
+          </article>
+          <aside class="a-rail" aria-label="Knowledge context">
+            <section class="rail-section"><div class="rail-heading"><span class="subtle-label">Source</span><button>编辑</button></div><div class="source-row"><span>Article</span><strong>《媒介即讯息》</strong><span class="tiny">↗</span></div><div class="source-row"><span>Section</span><strong>S4 · 信息组织</strong><span></span></div></section>
+            <section class="rail-section"><div class="rail-heading"><span class="subtle-label">Relations · 3</span><button data-add-relation>+ 添加</button></div><div class="relation-row"><span class="predicate">supports</span><strong>信息组织是一种能力</strong><span class="tiny">↗</span></div><div class="relation-row"><span class="predicate">contrasts</span><strong>搜索与推荐的差异</strong><span class="tiny">↗</span></div><div class="relation-row"><span class="predicate">derived from</span><strong>Google Reader 的用户门槛</strong><span class="tiny">↗</span></div><div class="inline-form"><input value="related to" aria-label="Relation" /><input placeholder="Search nodes" aria-label="Target node" /><button class="primary-btn">Add</button></div></section>
+            <section class="rail-section"><span class="subtle-label">AI insight · confirmed</span><div class="ai-note"><strong>核心判断</strong>RSS 的失败不是信息源不足，而是它把持续组织信息的责任完整交还给用户。</div></section>
+          </aside>
+        </div>
+      </section>
+
+      <section class="variant variant-b" data-variant="B">
+        <header class="topbar"><div class="crumb">← Back to Nodes</div><div class="top-actions"><button class="quiet-btn">Open in canvas</button><button class="icon-btn" aria-label="More actions">•••</button></div></header>
+        <div class="b-board">
+          <article class="b-document">
+            <span class="type-pill">File · 张一鸣的信息观</span><h1 class="title" contenteditable="true">Search & RSS：信息主动性的边界</h1><div class="tags"><span class="tag">search</span><span class="tag">information diet</span><button class="add-tag">+ Tag</button></div>
+            <div class="body-copy" contenteditable="true"><h2>对 RSS／订阅的判断</h2><p>Google Reader 实质上要求用户自己建立信息入口。随着订阅源增加，信息堆积与整理成本也随之上升。</p><blockquote>稀缺的不是信息，而是主动组织信息的能力。</blockquote><h2>两个用户门槛</h2><ul><li>明确知道自己想持续追踪什么。</li><li>有规律地整理、筛选并舍弃订阅源。</li></ul><h2>与搜索的关系</h2><p>搜索适合明确需求，推荐适合探索未知兴趣。RSS 位于两者之间。</p></div>
+          </article>
+          <aside class="b-context">
+            <div class="context-card"><h3>Local graph</h3><div class="mini-graph"><svg viewBox="0 0 230 142" aria-hidden="true"><path d="M110 72 C145 72 151 20 186 20"/><path d="M110 72 C146 72 151 72 186 72"/><path d="M110 72 C145 72 151 122 186 122"/></svg><span class="graph-node center">Search & RSS</span><span class="graph-node n1">信息组织</span><span class="graph-node n2">搜索</span><span class="graph-node n3">推荐系统</span></div></div>
+            <div class="context-card"><h3>Source trail</h3><div class="source-row"><span>S4</span><strong>媒介即讯息</strong><span>↗</span></div><div class="source-row"><span>Jul 11</span><strong>Imported note</strong><span></span></div></div>
+            <div class="context-card"><h3>Connections</h3><div class="relation-row"><span class="predicate">supports</span><strong>信息组织能力</strong><span></span></div><div class="relation-row"><span class="predicate">contrasts</span><strong>搜索与推荐</strong><span></span></div></div>
+          </aside>
+          <div class="b-ai"><input placeholder="Ask AI about this node or @ another node" /><button class="primary-btn">Ask</button></div>
+        </div>
+      </section>
+
+      <section class="variant variant-c" data-variant="C">
+        <header class="topbar"><div class="crumb">Nodes <span>›</span> 张一鸣的信息观</div><div class="top-actions"><button class="quiet-btn">Share</button><button class="icon-btn" aria-label="More actions">•••</button></div></header>
+        <div class="c-shell">
+          <article>
+            <span class="type-pill">File</span><h1 class="title" contenteditable="true">Search & RSS：信息主动性的边界</h1>
+            <div class="c-props"><div class="prop-row"><span class="prop-name">Tags</span><div class="tags" style="margin:0"><span class="tag">search</span><span class="tag">information diet</span><button class="add-tag">+ Tag</button></div></div><div class="prop-row"><span class="prop-name">Workspace</span><strong>张一鸣的信息观</strong></div><div class="prop-row"><span class="prop-name">Source</span><strong>《媒介即讯息》 · S4 ↗</strong></div><div class="prop-row"><span class="prop-name">AI insight</span><span>RSS 把持续组织信息的责任完整交还给用户。</span></div></div>
+            <div class="body-copy" contenteditable="true" id="editable-c"><h2>对 RSS／订阅的判断</h2><p>Google Reader 实质上要求用户自己建立信息入口。随着订阅源增加，信息堆积与整理成本也随之上升。</p><blockquote>稀缺的不是信息，而是主动组织信息的能力。</blockquote><h2>两个用户门槛</h2><ul><li>明确知道自己想持续追踪什么。</li><li>有规律地整理、筛选并舍弃订阅源。</li></ul><h2>与搜索的关系</h2><p>搜索适合明确需求，推荐适合探索未知兴趣。RSS 位于两者之间。</p></div>
+            <section class="c-section"><div class="c-section-header"><h3>Relations</h3><button class="quiet-btn" data-add-relation>+ Add relation</button></div><div class="backlink"><span class="backlink-icon">↗</span><strong>信息组织是一种能力</strong><span class="tiny">supports</span></div><div class="backlink"><span class="backlink-icon">↔</span><strong>搜索与推荐的差异</strong><span class="tiny">contrasts</span></div><div class="backlink"><span class="backlink-icon">⌁</span><strong>Google Reader 的用户门槛</strong><span class="tiny">derived from</span></div><div class="inline-form"><input value="related to" aria-label="Relation" /><input placeholder="Search nodes" aria-label="Target node" /><button class="primary-btn">Add</button></div></section>
+          </article>
+        </div>
+        <div class="selection-toolbar" id="selection-toolbar"><button>✦ Ask AI</button><button>提炼为节点</button><button>添加关系</button></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="switcher" aria-label="Prototype variants"><button id="prev" aria-label="Previous variant">←</button><div class="switch-label" id="switch-label"></div><button id="next" aria-label="Next variant">→</button></div>
+  <div class="prototype-note">PROTOTYPE · no persistence</div>
+  <script>
+    const variants = [
+      { key: 'A', name: 'Document + context rail' },
+      { key: 'B', name: 'Spatial knowledge desk' },
+      { key: 'C', name: 'Notion-tight document' },
+    ];
+    const params = new URLSearchParams(location.search);
+    let current = Math.max(0, variants.findIndex(v => v.key === (params.get('variant') || 'A')));
+    if (current < 0) current = 0;
+    function render() {
+      document.querySelectorAll('.variant').forEach(el => el.classList.toggle('active', el.dataset.variant === variants[current].key));
+      document.getElementById('switch-label').textContent = `${variants[current].key} · ${variants[current].name}`;
+      params.set('variant', variants[current].key);
+      history.replaceState(null, '', `${location.pathname}?${params}`);
+    }
+    function move(delta) { current = (current + delta + variants.length) % variants.length; render(); }
+    document.getElementById('prev').addEventListener('click', () => move(-1));
+    document.getElementById('next').addEventListener('click', () => move(1));
+    document.addEventListener('keydown', event => {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+      if (event.key === 'ArrowLeft') move(-1);
+      if (event.key === 'ArrowRight') move(1);
+    });
+    document.querySelectorAll('[data-add-relation]').forEach(button => button.addEventListener('click', () => {
+      button.closest('section')?.querySelector('.inline-form')?.classList.toggle('open');
+    }));
+    document.querySelectorAll('[data-ai]').forEach(button => button.addEventListener('click', () => {
+      document.querySelector('.ai-note')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.querySelector('.ai-note')?.animate([{ transform: 'scale(.98)', opacity: .6 }, { transform: 'scale(1)', opacity: 1 }], { duration: 180 });
+    }));
+    document.getElementById('editable-c').addEventListener('mouseup', () => {
+      document.getElementById('selection-toolbar').classList.toggle('show', Boolean(getSelection()?.toString().trim()));
+    });
+    render();
+  </script>
+</body>
+</html>

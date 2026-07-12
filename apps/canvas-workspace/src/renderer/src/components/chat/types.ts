@@ -24,6 +24,14 @@ export interface SelectedContextChip {
   label: string;
 }
 
+/** One-shot request from another product surface to focus or submit the composer. */
+export interface ChatComposerRequest {
+  id: string;
+  text?: string;
+  submit?: boolean;
+  quickAction?: string;
+}
+
 export interface ChatPanelProps {
   /**
    * Workspace the panel is bound to. Optional because a global-scope host
@@ -56,6 +64,8 @@ export interface ChatPanelProps {
   contextTags?: AgentContextTagRef[];
   /** Whole canvases the global host scoped the turn to. */
   contextCanvases?: AgentContextCanvasRef[];
+  /** Imperatively focuses or submits the existing composer without changing its shell. */
+  composerRequest?: ChatComposerRequest;
   /** Remove a context chip by key. When omitted, chips aren't removable. */
   onRemoveContext?: (key: string) => void;
   rootFolder?: string;

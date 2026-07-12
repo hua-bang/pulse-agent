@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import type { KnowledgeNodeSelection, WorkspaceNodeListItem } from '../../types';
-import { RefreshIcon } from '../icons';
+import type {
+  AgentContextCanvasRef,
+  AgentContextNodeRef,
+  AgentContextTagRef,
+  KnowledgeNodeSelection,
+  WorkspaceNodeListItem,
+} from '../../types';
+import { RefreshIcon, SparklesIcon } from '../icons';
 import { Button } from '../ui/Button';
 import { KnowledgeNodeCard } from './KnowledgeNodeCard';
 import { NodeFilters } from './NodeFilters';
@@ -14,10 +20,12 @@ import {
   getNodeTitle,
   getNodeTypeLabel,
   getNodeWorkspaceId,
+  isKnowledgeNodeType,
   matchesSearch,
   tagName,
 } from './utils';
 import { useI18n } from '../../i18n';
+import type { NodesAiContext } from './knowledgeAiContext';
 import './index.css';
 import './NodeCards.css';
 
@@ -26,6 +34,7 @@ interface NodesPageProps {
   selectedNode?: KnowledgeNodeSelection | null;
   onOpenNode: (workspaceId: string, nodeId: string) => void;
   onSelectNode?: (selection: KnowledgeNodeSelection | null) => void;
+  onAskAi?: (context: NodesAiContext, action: 'chat' | 'summarize') => void;
 }
 
 const NODES_PAGE_SIZE = 30;
@@ -41,6 +50,7 @@ export const NodesPage = ({
   selectedNode,
   onOpenNode,
   onSelectNode,
+  onAskAi,
 }: NodesPageProps) => {
   const { language, t } = useI18n();
   const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
@@ -49,6 +59,7 @@ export const NodesPage = ({
   const [typeFilter, setTypeFilter] = useState<NodeTypeFilter>('all');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<Set<string> | null>(null);
+  const [aiSelection, setAiSelection] = useState<Set<string>>(() => new Set());
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
   const hadSelectedNodeRef = useRef(false);
 
@@ -104,6 +115,70 @@ export const NodesPage = ({
       return true;
     });
   }, [nodes, query, typeFilter, tagFilter, activeWorkspaceIds]);
+
+  const nodeKey = (node: WorkspaceNodeListItem) => `${getNodeWorkspaceId(node)}:${node.id}`;
+  const contextRef = (node: WorkspaceNodeListItem): AgentContextNodeRef | null => {
+    if (!isKnowledgeNodeType(node.type)) return null;
+    const workspaceId = getNodeWorkspaceId(node);
+    if (!workspaceId) return null;
+    return {
+      id: node.id,
+      title: getNodeTitle(node, t('workspaceNodes.untitled')),
+      type: node.type,
+      workspaceId,
+    };
+  };
+  const selectedAiNodes = useMemo(() => nodes
+    .filter((node) => aiSelection.has(nodeKey(node)))
+    .map(contextRef)
+    .filter((node): node is AgentContextNodeRef => node !== null), [aiSelection, nodes, t]);
+
+  const aiScope = useMemo<NodesAiContext | null>(() => {
+    const hasFilterIntent = query.trim().length > 0
+      || selectedWorkspaceIds !== null
+      || typeFilter !== 'all'
+      || tagFilter !== null;
+    if (!onAskAi || !hasFilterIntent || filteredNodes.length === 0) return null;
+
+    const nodeRefs = filteredNodes
+      .map(contextRef)
+      .filter((node): node is AgentContextNodeRef => node !== null);
+    // A bounded result set is exact, so it can travel to the existing @
+    // context untouched. Larger result sets retain only explicit, durable
+    // scopes, never an invisible or lossy bulk selection.
+    if (nodeRefs.length > 0 && nodeRefs.length <= 12) return { nodes: nodeRefs };
+    if (query.trim().length > 0 || typeFilter !== 'all') return null;
+
+    const canvases = selectedWorkspaceIds === null
+      ? []
+      : workspaces
+        .filter((workspace) => activeWorkspaceIds.has(workspace.id))
+        .map((workspace): AgentContextCanvasRef => ({ id: workspace.id, name: workspace.name }));
+    const tagsForScope = tagFilter
+      ? [{ name: tagLabel(tagFilter), workspaceIds: Array.from(activeWorkspaceIds) } satisfies AgentContextTagRef]
+      : [];
+    return canvases.length > 0 || tagsForScope.length > 0
+      ? { nodes: [], ...(tagsForScope.length > 0 ? { tags: tagsForScope } : {}), ...(canvases.length > 0 ? { canvases } : {}) }
+      : null;
+  }, [activeWorkspaceIds, filteredNodes, onAskAi, query, selectedWorkspaceIds, t, tagFilter, typeFilter, workspaces]);
+
+  useEffect(() => {
+    const available = new Set(nodes.map(nodeKey));
+    setAiSelection((current) => {
+      const next = new Set(Array.from(current).filter((key) => available.has(key)));
+      return next.size === current.size ? current : next;
+    });
+  }, [nodes]);
+
+  const toggleAiSelection = (node: WorkspaceNodeListItem) => {
+    const key = nodeKey(node);
+    setAiSelection((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const [visibleCount, setVisibleCount] = useState(NODES_PAGE_SIZE);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -182,6 +257,12 @@ export const NodesPage = ({
             }))}
             tagFilter={tagFilter}
             onTagFilterChange={setTagFilter}
+            aiScopeLabel={aiScope
+              ? aiScope.nodes.length > 0
+                ? t('workspaceNodes.scope.askAi', { count: aiScope.nodes.length })
+                : t('workspaceNodes.scope.askAiScope')
+              : undefined}
+            onAskAiAboutScope={aiScope ? () => onAskAi?.(aiScope, 'chat') : undefined}
           />
         </div>
 
@@ -200,10 +281,9 @@ export const NodesPage = ({
               const workspaceIdForNode = getNodeWorkspaceId(node);
               const selected = selectedNode?.workspaceId === workspaceIdForNode && selectedNode.nodeId === node.id;
               const title = getNodeTitle(node, t('workspaceNodes.untitled'));
-              const contextLabel = [
-                node.workspaceName ?? workspaceIdForNode,
-                node.linkCount > 0 ? t('workspaceNodes.linkCount', { count: node.linkCount }) : '',
-              ].filter(Boolean).join(' · ');
+              const contextLabel = node.workspaceName ?? workspaceIdForNode;
+              const eligibleForAi = isKnowledgeNodeType(node.type);
+              const nodeContext = contextRef(node);
               return (
                 <KnowledgeNodeCard
                   key={`${workspaceIdForNode}:${node.id}`}
@@ -212,15 +292,24 @@ export const NodesPage = ({
                   typeLabel={getNodeTypeLabel(node.type, t, t('workspaceNodes.genericNode'))}
                   updatedLabel={formatTime(node.updatedAt, t('workspaceNodes.noTimestamp'), dateLocale)}
                   tagLabels={tagsForNode.map(tagLabel)}
-                  noTagsLabel={t('workspaceNodes.noTags')}
                   contextLabel={contextLabel}
                   emptyPreviewLabel={t('workspaceNodes.noPreview')}
+                  aiSummaryLabel={t('workspaceNodes.aiSummary')}
+                  aiSummaryConfirmedLabel={t('workspaceNodes.aiSummaryConfirmed')}
+                  aiSummarizeLabel={t('workspaceNodes.aiSummarize')}
+                  aiChatLabel={t('workspaceNodes.aiChat')}
+                  selectForAiLabel={t('workspaceNodes.selectForAi')}
+                  deselectForAiLabel={t('workspaceNodes.deselectForAi')}
                   openLabel={t('workspaceNodes.openSidePeek', { title })}
                   selected={selected}
+                  contextSelected={aiSelection.has(nodeKey(node))}
                   onOpen={(trigger) => {
                     detailTriggerRef.current = trigger;
                     onSelectNode?.({ workspaceId: workspaceIdForNode, nodeId: node.id });
                   }}
+                  onToggleContextSelection={eligibleForAi && onAskAi ? () => toggleAiSelection(node) : undefined}
+                  onAskAi={nodeContext && onAskAi ? () => onAskAi({ nodes: [nodeContext] }, 'chat') : undefined}
+                  onSummarize={nodeContext && onAskAi ? () => onAskAi({ nodes: [nodeContext] }, 'summarize') : undefined}
                 />
               );
             })}
@@ -229,6 +318,19 @@ export const NodesPage = ({
             <div ref={sentinelRef} className="workspace-nodes-sentinel" aria-hidden="true" />
           )}
         </div>
+
+        {onAskAi && selectedAiNodes.length > 0 && (
+          <div className="workspace-nodes-selection-bar" role="toolbar" aria-label={t('workspaceNodes.selection.count', { count: selectedAiNodes.length })}>
+            <span className="workspace-nodes-selection-bar__count">{t('workspaceNodes.selection.count', { count: selectedAiNodes.length })}</span>
+            <Button size="sm" variant="primary" onClick={() => onAskAi?.({ nodes: selectedAiNodes }, 'chat')}>
+              <SparklesIcon size={13} />
+              {t('workspaceNodes.selection.askAi')}
+            </Button>
+            <Button size="sm" onClick={() => setAiSelection(new Set())}>
+              {t('workspaceNodes.selection.clear')}
+            </Button>
+          </div>
+        )}
       </section>
 
       <NodeDetailDrawer

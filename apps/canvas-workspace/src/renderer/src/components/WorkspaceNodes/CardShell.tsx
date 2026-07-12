@@ -6,13 +6,15 @@ export type KnowledgeCardKind = 'file' | 'text' | 'iframe' | 'image' | 'mindmap'
 interface Props {
   kind: KnowledgeCardKind;
   selected: boolean;
+  contextSelected?: boolean;
   openLabel: string;
   onOpen: (trigger: HTMLButtonElement) => void;
+  actions?: ReactNode;
   children: ReactNode;
 }
 
-export const CardShell = ({ kind, selected, openLabel, onOpen, children }: Props) => (
-  <article className={`knowledge-node-card knowledge-node-card--${kind}${selected ? ' is-selected' : ''}`}>
+export const CardShell = ({ kind, selected, contextSelected = false, openLabel, onOpen, actions, children }: Props) => (
+  <article className={`knowledge-node-card knowledge-node-card--${kind}${selected ? ' is-selected' : ''}${contextSelected ? ' is-context-selected' : ''}`}>
     <Button
       className="knowledge-node-card__button"
       aria-label={openLabel}
@@ -21,5 +23,6 @@ export const CardShell = ({ kind, selected, openLabel, onOpen, children }: Props
     >
       {children}
     </Button>
+    {actions && <div className="knowledge-node-card__actions">{actions}</div>}
   </article>
 );

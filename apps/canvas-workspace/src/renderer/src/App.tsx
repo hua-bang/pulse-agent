@@ -1,18 +1,22 @@
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import './App.css';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
-import { DeferredSettings, NodeDetailPageLazy as NodeDetailPage, NodesPageLazy as NodesPage } from './components/AppLazyBoundaries';
+import { DeferredSettings } from './components/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
 import { MigrationSpinner } from './components/MigrationSpinner';
-import { RightDock, RightDockProvider } from './components/RightDock';
+import { RightDock, RightDockProvider, useRightDock } from './components/RightDock';
 import { GlobalChatLauncher } from './components/RightDock/GlobalChatLauncher';
 import type { SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
-import { resolveKnowledgeChatRouteContext } from './components/Workbench/knowledgeChatContext';
+import {
+  resolveKnowledgeChatRouteContext,
+} from './components/Workbench/knowledgeChatContext';
 import { GraphPageLazy as GraphPage } from './components/WorkspaceNodes/GraphPageLazy';
+import { useKnowledgeAiContext } from './components/WorkspaceNodes/knowledgeAiContext';
+import { NodesRouteViews } from './components/WorkspaceNodes/NodesRouteViews';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
@@ -58,6 +62,7 @@ type ActiveView = 'canvas' | 'chat' | string;
 
 const AppContent = () => {
   const { t } = useI18n();
+  const dock = useRightDock();
   const [location, setLocation] = useLocation();
   const { path: routePath, params: routeParams } = useMemo(
     () => parseCanvasLocation(location),
@@ -97,7 +102,17 @@ const AppContent = () => {
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
-  const knowledgeChatContext = resolveKnowledgeChatRouteContext({ activeView, selectedNode, detailNode });
+  const {
+    explicitContext: knowledgeChatExplicitContext,
+    askAi: handleAskKnowledgeAi,
+    removeContext: handleRemoveKnowledgeChatContext,
+  } = useKnowledgeAiContext({ openChat: dock.openChat, summarizePrompt: t('workspaceNodes.aiSummarizePrompt') });
+  const knowledgeChatContext = resolveKnowledgeChatRouteContext({
+    activeView,
+    selectedNode,
+    detailNode,
+    explicitContext: knowledgeChatExplicitContext ?? undefined,
+  });
   // null = global Settings drawer closed; a section name opens that section.
   const [appSettingsSection, setAppSettingsSection] = useState<SettingsSection | null>(null);
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
@@ -518,6 +533,7 @@ const AppContent = () => {
               workspaces={workspaces}
               controller={workbench}
               knowledgeChatContext={knowledgeChatContext}
+              onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
               onSelectWorkspace={handleSelectWorkspace}
               onOpenAppSettings={openAppSettings}
               onOpenWorkspaceSettings={openWorkspaceSettings}
@@ -536,30 +552,7 @@ const AppContent = () => {
               onOpenWorkspaceSettings={openWorkspaceSettings}
             />
           </PulseRouterView>
-          {NODES_ENABLED && (
-            <PulseRouterView name="nodes" keepAlive>
-              <Suspense fallback={null}>
-                <NodesPage
-                  workspaces={workspaces}
-                  selectedNode={selectedNode}
-                  onSelectNode={setSelectedNode}
-                  onOpenNode={openNodePage}
-                />
-              </Suspense>
-            </PulseRouterView>
-          )}
-          {NODES_ENABLED && (
-            <PulseRouterView name="node-detail">
-              <Suspense fallback={null}>
-                <NodeDetailPage
-                  workspaceId={detailNode?.workspaceId ?? ''}
-                  nodeId={detailNode?.nodeId ?? null}
-                  workspaces={workspaces}
-                  onBack={enterNodesView}
-                />
-              </Suspense>
-            </PulseRouterView>
-          )}
+          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} selectedNode={selectedNode} detailNode={detailNode} onSelectNode={setSelectedNode} onOpenNode={openNodePage} onBack={enterNodesView} onAskAi={handleAskKnowledgeAi} />
           {GRAPH_ENABLED && (
             <PulseRouterView name="graph">
               <GraphPage

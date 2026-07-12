@@ -3,7 +3,7 @@ import type { KnowledgeTagDefinition } from '../../types';
 import { useI18n } from '../../i18n';
 import { useDragResize } from '../ui';
 import { NodeDetailPanel } from './NodeDetailPanel';
-import { useKnowledgeTags, useWorkspaceNode } from './useWorkspaceNodes';
+import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from './useWorkspaceNodes';
 
 interface NodeDetailDrawerProps {
   workspaceId: string;
@@ -39,6 +39,7 @@ export const NodeDetailDrawer = ({
   const { t } = useI18n();
   const { node, loading, error, setNode } = useWorkspaceNode(workspaceId, nodeId);
   const { tags, reload: reloadTags } = useKnowledgeTags();
+  const { nodes: relationCandidates } = useWorkspaceNodeList(workspaceId);
   const [width, setWidth] = useState<number>(() => readStoredWidth());
   const drawerRef = useRef<HTMLDivElement>(null);
   const resizeHandlers = useDragResize({
@@ -102,6 +103,7 @@ export const NodeDetailDrawer = ({
         onClose={onClose}
         onOpenPage={(nextNodeId) => onOpenPage(workspaceId, nextNodeId)}
         tagDefinitions={[...tagDefinitions, ...tags]}
+        relationCandidates={relationCandidates}
         onNodePatched={(next) => {
           setNode(next);
           onNodeChanged?.();

@@ -23,11 +23,14 @@ export interface KnowledgeChangeProposal {
     title?: string;
     content?: string;
     tags?: string[];
+    aiSummary?: string;
   };
   patch: {
     title?: string;
     content?: string;
     tags?: string[];
+    /** A confirmed AI-generated reading aid, kept separate from source content. */
+    aiSummary?: string;
   };
 }
 
@@ -39,6 +42,7 @@ export const KNOWLEDGE_CHANGE_LIMITS = {
   nodeType: 80,
   nodeTitle: 1_000,
   summary: 500,
+  aiSummary: 800,
   title: 500,
   content: 200_000,
   patchTags: 30,
@@ -102,13 +106,15 @@ export function isKnowledgeChangeProposal(value: unknown): value is KnowledgeCha
     return false;
   }
 
-  const fields = [patch.title, patch.content, patch.tags];
+  const fields = [patch.title, patch.content, patch.tags, patch.aiSummary];
   if (fields.every((field) => field === undefined)) return false;
   if (patch.title !== undefined && !isBoundedString(patch.title, KNOWLEDGE_CHANGE_LIMITS.title, false)) return false;
   if (patch.content !== undefined && !isBoundedString(patch.content, KNOWLEDGE_CHANGE_LIMITS.content)) return false;
   if (patch.tags !== undefined && !isBoundedStringArray(patch.tags, KNOWLEDGE_CHANGE_LIMITS.patchTags, KNOWLEDGE_CHANGE_LIMITS.tag)) return false;
+  if (patch.aiSummary !== undefined && !isBoundedString(patch.aiSummary, KNOWLEDGE_CHANGE_LIMITS.aiSummary, false)) return false;
   if (proposal.before.title !== undefined && !isBoundedString(proposal.before.title, KNOWLEDGE_CHANGE_LIMITS.nodeTitle)) return false;
   if (proposal.before.content !== undefined && !isBoundedString(proposal.before.content, KNOWLEDGE_CHANGE_LIMITS.content)) return false;
   if (proposal.before.tags !== undefined && !isBoundedStringArray(proposal.before.tags, KNOWLEDGE_CHANGE_LIMITS.beforeTags, KNOWLEDGE_CHANGE_LIMITS.tag)) return false;
+  if (proposal.before.aiSummary !== undefined && !isBoundedString(proposal.before.aiSummary, KNOWLEDGE_CHANGE_LIMITS.aiSummary, false)) return false;
   return true;
 }

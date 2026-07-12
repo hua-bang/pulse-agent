@@ -13,6 +13,14 @@ The pipeline is fully deterministic (no LLM at report time). Stable definitions
 live in `apps/canvas-workspace/perf/program.md` + `perf/metrics.json`; all target,
 warning, and Gate numbers live only in `perf/baselines.json → policies`.
 
+## Invocation Boundary
+
+Use this skill only when the user explicitly asks for performance evaluation or
+dashboard publication, when a change affects performance-sensitive paths, or
+when release evidence requires the full report. Do not run it as routine local
+acceptance for ordinary Canvas changes: use the repository harness at `quick`
+during iteration and `standard` when the change is functionally complete.
+
 ## One Command
 
 From the repository root, prefer the bundled script:

@@ -80,6 +80,14 @@ export function getNodeSummary(node: WorkspaceNodeListItem | WorkspaceNodeRecord
   return '';
 }
 
+export function getNodeAiSummary(node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined): string {
+  if (!node) return '';
+  if ('aiSummary' in node && typeof node.aiSummary === 'string' && node.aiSummary.trim()) return node.aiSummary;
+  if (!('properties' in node)) return '';
+  const summary = node.properties?.aiSummary;
+  return typeof summary === 'string' ? summary.trim() : '';
+}
+
 export function getNodeWorkspaceId(node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined): string {
   if (!node) return '';
   if ('workspaceId' in node && typeof node.workspaceId === 'string') return node.workspaceId;

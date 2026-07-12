@@ -14,6 +14,7 @@ const proposalSchema = z.object({
   workspaceId: z.string().min(1).describe('Owning workspace id from the selected node context or a knowledge search result.'),
   nodeId: z.string().min(1).describe('Exact target node id. Never infer an id from the title.'),
   summary: z.string().min(1).max(KNOWLEDGE_CHANGE_LIMITS.summary).describe('One short sentence explaining why this edit helps.'),
+  aiSummary: z.string().min(1).max(KNOWLEDGE_CHANGE_LIMITS.aiSummary).optional().describe('A concise, source-grounded AI reading aid. Omit to leave an existing AI summary unchanged.'),
   title: z.string().min(1).max(KNOWLEDGE_CHANGE_LIMITS.title).optional().describe('Complete replacement title. Omit to keep the title unchanged.'),
   content: z.string().max(KNOWLEDGE_CHANGE_LIMITS.content).optional().describe('Complete replacement body/content for text or file nodes. Omit to keep the body unchanged.'),
   tags: z.array(z.string().min(1).max(KNOWLEDGE_CHANGE_LIMITS.tag)).max(KNOWLEDGE_CHANGE_LIMITS.patchTags).optional().describe('Complete replacement tag set, using human-readable tag names or existing ids. Omit to keep tags unchanged.'),
@@ -26,13 +27,18 @@ function recordTags(properties: Record<string, unknown> | undefined): string[] {
   return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === 'string') : [];
 }
 
+function recordAiSummary(properties: Record<string, unknown> | undefined): string | undefined {
+  const summary = properties?.aiSummary;
+  return typeof summary === 'string' && summary.trim() ? summary : undefined;
+}
+
 export function createKnowledgeChangeTools(): Record<string, CanvasTool> {
   return {
     canvas_propose_node_change: {
       name: 'canvas_propose_node_change',
       description:
         'Prepare a review card for changing ONE existing knowledge node. This tool NEVER writes the node. ' +
-        'First read the exact node, then pass only the complete replacement fields the user asked you to improve: title, content, and/or tags. Content replacement is supported for text and file nodes; other node types can still change title or tags. ' +
+        'First read the exact node, then pass only the complete replacement fields the user asked you to improve: aiSummary, title, content, and/or tags. aiSummary is a concise AI reading aid kept separately from source content. Content replacement is supported for text and file nodes; other node types can still change aiSummary, title, or tags. ' +
         'The UI shows a before/after preview and only applies it after the user clicks Apply. ' +
         'Do not claim the node changed when this tool returns; say that a proposal is ready for review.',
       inputSchema: proposalSchema,
@@ -41,7 +47,7 @@ export function createKnowledgeChangeTools(): Record<string, CanvasTool> {
         if (!record) {
           return JSON.stringify({ ok: false, error: 'Node not found.' });
         }
-        if (input.title === undefined && input.content === undefined && input.tags === undefined) {
+        if (input.aiSummary === undefined && input.title === undefined && input.content === undefined && input.tags === undefined) {
           return JSON.stringify({ ok: false, error: 'No changes supplied.' });
         }
         if (!input.summary.trim() || (input.title !== undefined && !input.title.trim())) {
@@ -63,10 +69,12 @@ export function createKnowledgeChangeTools(): Record<string, CanvasTool> {
         const currentTags = recordTags(record.properties as Record<string, unknown> | undefined)
           .map((tag) => (tagNames.get(tag.toLowerCase()) ?? tag).slice(0, KNOWLEDGE_CHANGE_LIMITS.tag));
         const content = typeof record.data?.content === 'string' ? record.data.content : undefined;
+        const aiSummary = recordAiSummary(record.properties as Record<string, unknown> | undefined);
         if (input.content !== undefined && (content?.length ?? 0) > KNOWLEDGE_CHANGE_LIMITS.content) {
           return JSON.stringify({ ok: false, error: 'This node is too large for a reviewable content proposal.' });
         }
         const patch: KnowledgeChangeProposal['patch'] = {};
+        if (input.aiSummary !== undefined) patch.aiSummary = input.aiSummary.trim();
         if (input.title !== undefined) patch.title = input.title.trim();
         if (input.content !== undefined) patch.content = input.content;
         if (input.tags !== undefined) {
@@ -90,6 +98,7 @@ export function createKnowledgeChangeTools(): Record<string, CanvasTool> {
           },
           summary: input.summary.trim(),
           before: {
+            ...(input.aiSummary !== undefined && aiSummary !== undefined ? { aiSummary } : {}),
             ...(input.title !== undefined && record.title !== undefined ? { title: record.title } : {}),
             ...(input.content !== undefined && content !== undefined ? { content } : {}),
             ...(input.tags !== undefined ? { tags: currentTags.slice(0, KNOWLEDGE_CHANGE_LIMITS.beforeTags) } : {}),

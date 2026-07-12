@@ -21,7 +21,7 @@ export const NodeDetailPage = ({
   const { t } = useI18n();
   const { node, loading, error, setNode } = useWorkspaceNode(workspaceId, nodeId);
   const { tags, reload: reloadTags } = useKnowledgeTags();
-  const { tags: workspaceTags, reload: reloadWorkspaceNodes } = useWorkspaceNodeList(workspaceId);
+  const { nodes: relationCandidates, tags: workspaceTags, reload: reloadWorkspaceNodes } = useWorkspaceNodeList(workspaceId);
   const workspace = workspaces.find((item) => item.id === workspaceId);
 
   return (
@@ -38,6 +38,7 @@ export const NodeDetailPage = ({
           error={error}
           mode="page"
           tagDefinitions={[...workspaceTags, ...tags]}
+          relationCandidates={relationCandidates}
           onNodePatched={(next) => setNode(next)}
           onTagsChanged={() => {
             void reloadTags();

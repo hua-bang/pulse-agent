@@ -1,7 +1,14 @@
+import type { CSSProperties } from 'react';
 import type { WorkspaceNodeListItem } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
-import { ImageIcon, NodeTypeIcon } from '../icons';
-import { getNodeSummary, truncateText } from './utils';
+import { ImageIcon, NodeTypeIcon, SparklesIcon } from '../icons';
+import { getNodeAiSummary, getNodeSummary, truncateText } from './utils';
+
+interface AiSummaryPreviewModel {
+  kind: 'ai-summary';
+  excerpt: string;
+  source?: string;
+}
 
 interface FilePreviewModel {
   kind: 'file';
@@ -36,13 +43,19 @@ interface GenericPreviewModel {
   excerpt: string;
 }
 
+interface EmptyPreviewModel {
+  kind: 'empty';
+}
+
 export type NodeCardPreviewModel =
+  | AiSummaryPreviewModel
   | FilePreviewModel
   | TextPreviewModel
   | WebPreviewModel
   | ImagePreviewModel
   | MindmapPreviewModel
-  | GenericPreviewModel;
+  | GenericPreviewModel
+  | EmptyPreviewModel;
 
 const compactText = (value: string): string => value.replace(/\s+/g, ' ').trim();
 const URL_PATTERN = /[a-z][a-z0-9+.-]*:\/\/[^\s)\]}]+/gi;
@@ -89,14 +102,25 @@ export const getNodeCardPreviewModel = (
   emptyLabel: string,
 ): NodeCardPreviewModel => {
   const summary = getNodeSummary(node);
+  const aiSummary = getNodeAiSummary(node);
+
+  if (aiSummary) {
+    return {
+      kind: 'ai-summary',
+      excerpt: truncateText(aiSummary, 260),
+      ...(node.type === 'iframe' ? { source: findWebSource(node, summary) } : {}),
+    };
+  }
 
   switch (node.type) {
     case 'file': {
       const sections = previewSegments(summary, 3);
-      return { kind: 'file', sections: sections.length > 0 ? sections : [emptyLabel] };
+      return sections.length > 0 ? { kind: 'file', sections } : { kind: 'empty' };
     }
     case 'text':
-      return { kind: 'text', excerpt: summary ? truncateText(compactText(summary), 260) : emptyLabel };
+      return summary
+        ? { kind: 'text', excerpt: truncateText(compactText(summary), 260) }
+        : { kind: 'empty' };
     case 'iframe':
       return {
         kind: 'iframe',
@@ -110,11 +134,14 @@ export const getNodeCardPreviewModel = (
         src: node.previewPath ? toFileUrl(node.previewPath) : undefined,
       };
     case 'mindmap': {
-      const branches = Array.from(new Set([...previewSegments(summary, 4), ...node.tags])).slice(0, 4);
-      return { kind: 'mindmap', root: truncateText(title, 72), branches: branches.length > 0 ? branches : [emptyLabel] };
+      const root = compactText(node.mindmapPreview?.root ?? title);
+      const branches = node.mindmapPreview?.branches ?? [];
+      return root ? { kind: 'mindmap', root: truncateText(root, 72), branches } : { kind: 'empty' };
     }
     default:
-      return { kind: 'generic', excerpt: summary ? truncateText(compactText(summary), 210) : emptyLabel };
+      return summary
+        ? { kind: 'generic', excerpt: truncateText(compactText(summary), 210) }
+        : { kind: 'empty' };
   }
 };
 
@@ -122,18 +149,40 @@ interface Props {
   node: WorkspaceNodeListItem;
   title: string;
   emptyLabel: string;
+  aiSummaryLabel?: string;
+  confirmedLabel?: string;
 }
 
-export const NodeCardPreview = ({ node, title, emptyLabel }: Props) => {
+export const NodeCardPreview = ({
+  node,
+  title,
+  emptyLabel,
+  aiSummaryLabel = 'AI insight',
+  confirmedLabel = 'Confirmed',
+}: Props) => {
   const model = getNodeCardPreviewModel(node, title, emptyLabel);
+
+  if (model.kind === 'empty') return null;
+
+  if (model.kind === 'ai-summary') {
+    return (
+      <span className="knowledge-card-preview knowledge-card-preview--ai-summary" data-preview-kind="ai-summary">
+        <span className="knowledge-card-preview__ai-summary-label">
+          <span><SparklesIcon size={13} />{aiSummaryLabel}</span>
+          <span>{confirmedLabel}</span>
+        </span>
+        <span className="knowledge-card-preview__ai-summary-copy">{model.excerpt}</span>
+        {model.source && <span className="knowledge-card-preview__ai-summary-source">{model.source}</span>}
+      </span>
+    );
+  }
 
   if (model.kind === 'file') {
     return (
       <span className="knowledge-card-preview knowledge-card-preview--file" data-preview-kind="file">
-        {model.sections.map((section, index) => (
-          <span className="knowledge-card-preview__file-row" key={`${index}:${section}`}>
-            <span className="knowledge-card-preview__file-index" aria-hidden="true">{index + 1}</span>
-            <span>{section}</span>
+        {model.sections.map((section) => (
+          <span className="knowledge-card-preview__file-row" key={section}>
+            {section}
           </span>
         ))}
       </span>
@@ -184,14 +233,24 @@ export const NodeCardPreview = ({ node, title, emptyLabel }: Props) => {
   }
 
   if (model.kind === 'mindmap') {
+    const count = model.branches.length;
     return (
       <span className="knowledge-card-preview knowledge-card-preview--mindmap" data-preview-kind="mindmap">
+        <svg className="knowledge-card-preview__mindmap-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          {model.branches.map((branch, index) => {
+            const y = count <= 1 ? 50 : 16 + (index * 68) / (count - 1);
+            return <path key={branch} d={`M 38 50 C 52 50 57 ${y} 66 ${y}`} />;
+          })}
+        </svg>
         <span className="knowledge-card-preview__mindmap-root">
-          <NodeTypeIcon type="mindmap" size={15} />
+          <NodeTypeIcon type="mindmap" size={14} />
           <span>{model.root}</span>
         </span>
         <span className="knowledge-card-preview__mindmap-branches">
-          {model.branches.map((branch) => <span key={branch}>{truncateText(branch, 44)}</span>)}
+          {model.branches.map((branch, index) => {
+            const y = count <= 1 ? 50 : 16 + (index * 68) / (count - 1);
+            return <span key={branch} style={{ '--mindmap-y': `${y}%` } as CSSProperties}>{truncateText(branch, 44)}</span>;
+          })}
         </span>
       </span>
     );

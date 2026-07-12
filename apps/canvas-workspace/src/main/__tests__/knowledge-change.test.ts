@@ -87,6 +87,41 @@ describe('applyKnowledgeChangeProposal', () => {
     expect(writeNode).not.toHaveBeenCalled();
   });
 
+  it('writes a confirmed AI insight without replacing source content', async () => {
+    const writeNode = vi.fn();
+    const result = await applyKnowledgeChangeProposal({
+      kind: 'knowledge-change-proposal',
+      version: 1,
+      proposalId: 'proposal-ai-summary',
+      target: {
+        workspaceId: 'workspace-1',
+        nodeId: 'node-1',
+        nodeType: 'text',
+        nodeTitle: 'Old title',
+        expectedUpdatedAt: 100,
+        expectedFingerprint: knowledgeNodeFingerprint(record()),
+      },
+      summary: 'Add a reading aid.',
+      before: {},
+      patch: { aiSummary: 'A concise, source-grounded takeaway.' },
+    }, {
+      readNode: async () => record(),
+      writeNode,
+      resolveTags: async (tags) => tags,
+      now: () => 200,
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(writeNode).toHaveBeenCalledWith('workspace-1', expect.objectContaining({
+      data: { content: 'Old content', untouched: true },
+      properties: {
+        tags: ['old-tag'],
+        owner: 'Jasper',
+        aiSummary: 'A concise, source-grounded takeaway.',
+      },
+    }));
+  });
+
   it('marks file content dirty and rejects content replacement for non-textual nodes', async () => {
     const file: WorkspaceNodeRecord = {
       ...record(),

@@ -46,6 +46,7 @@ before that the directory held only the Electron driver):
   prerequisite for `docs/ui-reuse-burndown.md`'s Batch C3.
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
   app: `canvas-harness`, `canvas-onboard-harness` (drive the real app),
+  `validate-canvas-change` (choose quick/standard/release evidence),
   `add-canvas-node`, `add-agent-tool`, `add-builtin-main-plugin`,
   `extend-blessed-ui`, `add-ipc-surface` (safe-change procedures for the
   five recurring extension shapes).
@@ -93,6 +94,7 @@ installs the latter. Do not mix them.
 | Boundary, file-size, and UI-reuse gates | `src/main/__tests__/import-boundaries.test.ts`, `src/main/__tests__/file-size-governance.test.ts`, `src/main/__tests__/ui-reuse-governance.test.ts` |
 | Storage/plugin/runtime tests | `src/main/__tests__/canvas-storage.test.ts`, `src/plugins/main/__tests__/registry.test.ts`, `src/main/runtime/__tests__/control-server.test.ts` |
 | Local validation | `harness/validate/validation.yaml` |
+| Choose proportionate local validation | `harness/skills/validate-canvas-change/SKILL.md` |
 
 ## Local Constraints
 

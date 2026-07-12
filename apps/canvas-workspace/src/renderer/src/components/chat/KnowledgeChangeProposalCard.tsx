@@ -173,6 +173,11 @@ export const KnowledgeChangeProposalCard = ({ proposal }: Props) => {
 
       {state !== 'discarded' && (
         <div className="knowledge-change-card__diffs">
+          {patch.aiSummary !== undefined && (
+            <DiffRow label={t('knowledgeChange.aiSummary')} before={before.aiSummary} after={patch.aiSummary}
+              beforeLabel={t('knowledgeChange.before')} afterLabel={t('knowledgeChange.after')}
+              fullReviewLabel={t('knowledgeChange.reviewFull')} />
+          )}
           {patch.title !== undefined && (
             <DiffRow label={t('knowledgeChange.title')} before={before.title} after={patch.title}
               beforeLabel={t('knowledgeChange.before')} afterLabel={t('knowledgeChange.after')}

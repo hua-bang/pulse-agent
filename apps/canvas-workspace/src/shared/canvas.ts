@@ -114,8 +114,15 @@ export interface WorkspaceNodeListItem {
   /** Friendlier label derived from the canvas node (text preview, mindmap root, ...). */
   displayTitle?: string;
   summary?: string;
+  /** Confirmed AI reading aid, stored separately from raw source content. */
+  aiSummary?: string;
   /** Optional local media path for a lightweight list thumbnail. */
   previewPath?: string;
+  /** Shallow mindmap structure for the list surface, never the full editor tree. */
+  mindmapPreview?: {
+    root: string;
+    branches: string[];
+  };
   tags: string[];
   links?: WorkspaceNodeLink[];
   updatedAt?: number;

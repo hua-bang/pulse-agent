@@ -99,6 +99,7 @@ async function prepareKnowledgeChange(
   const tags = proposal.patch.tags !== undefined
     ? await dependencies.resolveTags(proposal.patch.tags)
     : undefined;
+  const aiSummary = proposal.patch.aiSummary;
   const updatedAt = dependencies.now();
   const nextData = proposal.patch.content === undefined
     ? current.data
@@ -109,8 +110,12 @@ async function prepareKnowledgeChange(
     ...current,
     ...(proposal.patch.title !== undefined ? { title: proposal.patch.title.trim() } : {}),
     data: nextData,
-    properties: tags !== undefined
-      ? { ...current.properties, tags }
+    properties: tags !== undefined || aiSummary !== undefined
+      ? {
+          ...current.properties,
+          ...(tags !== undefined ? { tags } : {}),
+          ...(aiSummary !== undefined ? { aiSummary } : {}),
+        }
       : current.properties,
     updatedAt,
   };
@@ -127,7 +132,8 @@ export async function applyKnowledgeChangeProposal(
   const { workspaceId, nodeId } = proposal.target;
   const hasPatch = proposal.patch.title !== undefined
     || proposal.patch.content !== undefined
-    || proposal.patch.tags !== undefined;
+    || proposal.patch.tags !== undefined
+    || proposal.patch.aiSummary !== undefined;
   if (!workspaceId || !nodeId || !hasPatch) {
     return { ok: false, code: 'invalid', error: 'This change proposal is incomplete.' };
   }
