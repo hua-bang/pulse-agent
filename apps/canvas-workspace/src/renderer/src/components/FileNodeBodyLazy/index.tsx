@@ -10,6 +10,7 @@ interface Props {
   workspaceId?: string;
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
+  eager?: boolean;
 }
 
 const FileNodeEditor = lazy(() =>
@@ -64,14 +65,14 @@ export const MarkdownPreview = ({ content }: { content: string }) => {
       rows.push(<div key={rows.length} className="file-preview__list">• {renderInline(bullet[1])}</div>);
       continue;
     }
-    rows.push(line.trim() ? <p key={rows.length}>{renderInline(line)}</p> : <br key={rows.length} />);
+    if (line.trim()) rows.push(<p key={rows.length}>{renderInline(line)}</p>);
   }
   if (inCode) flushCode();
   return <>{rows}</>;
 };
 
 export const FileNodeBodyLazy = (props: Props) => {
-  const [editorLoaded, setEditorLoaded] = useState(false);
+  const [editorLoaded, setEditorLoaded] = useState(props.eager ?? false);
   const { openLink } = useRightDock();
   const content = (props.node.data as FileNodeData).content ?? '';
   const activateEditor = useCallback(() => {
@@ -97,7 +98,7 @@ export const FileNodeBodyLazy = (props: Props) => {
   if (editorLoaded) {
     return (
       <Suspense fallback={<div className="file-preview file-preview--loading"><MarkdownPreview content={content} /></div>}>
-        <FileNodeEditor {...props} />
+        <FileNodeEditor {...props} autoFocus={!props.eager} />
       </Suspense>
     );
   }

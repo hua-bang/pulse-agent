@@ -23,4 +23,13 @@ describe('MarkdownPreview', () => {
     expect(html).toContain('href="https://example.com?a=1&amp;b=2"');
     expect(html).toContain('>site</a>');
   });
+
+  it('uses block spacing instead of extra break elements for Markdown blank lines', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownPreview content={'## First\n\nParagraph\n\n## Second'} />,
+    );
+
+    expect(html).not.toContain('<br');
+    expect(html).toContain('<h2>First</h2><p>Paragraph</p><h2>Second</h2>');
+  });
 });

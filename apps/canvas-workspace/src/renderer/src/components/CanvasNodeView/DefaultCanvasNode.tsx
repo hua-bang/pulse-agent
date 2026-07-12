@@ -50,6 +50,7 @@ interface DefaultCanvasNodeProps {
   isFullscreen: boolean;
   isResizing: boolean;
   isSelected: boolean;
+  eagerFileEditor?: boolean;
   makeResizeHandler: ResizeHandlerFactory;
   node: CanvasNode;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
@@ -91,6 +92,7 @@ export const DefaultCanvasNode = ({
   isFullscreen,
   isResizing,
   isSelected,
+  eagerFileEditor,
   makeResizeHandler,
   node,
   onDragStart,
@@ -231,7 +233,7 @@ export const DefaultCanvasNode = ({
       <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
         <Suspense fallback={null}>
         {node.type === 'file' ? (
-          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} />
+          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} eager={eagerFileEditor} />
         ) : node.type === 'terminal' ? (
           <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         ) : node.type === 'frame' || node.type === 'group' ? (

@@ -91,7 +91,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // card link, and drawer/page detail actions moved onto ui/Button. Ten raw
   // declarations were removed; the new NodeFilters/CardShell and AI review
   // actions all reuse the blessed control, so the decrease is exact.
-  rawButtonTags: 332,
+  rawButtonTags: 326,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -167,7 +167,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // `.iframe-review-mini-btn { border-radius: 5px; }` literal is gone; the
   // migrated buttons use ui/Button's existing `var(--radius)`, already
   // untokenized-exempt.
-  borderRadiusLiterals: 120,
+  borderRadiusLiterals: 118,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -319,7 +319,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1882→1881: LinkDrawer's new editable address focus state uses palette tokens.
   // 1881→1879: the duplicate ChatHeader brand mark and its two color literals were removed.
   // 1879→1878: the duplicate Nodes/Graph chat dock and its literal surface color were removed.
-  hardcodedColorLiterals: 1878,
+  hardcodedColorLiterals: 1876,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

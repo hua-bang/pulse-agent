@@ -23,9 +23,10 @@ interface Props {
   /** Snapshot accessor for the workspace's nodes, used to populate @-mentions. */
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
+  autoFocus?: boolean;
 }
 
-export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false }: Props) => {
+export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false, autoFocus = false }: Props) => {
   const data = node.data as FileNodeData;
   const { openLink } = useRightDock();
   const [modified, setModified] = useState(false);
@@ -90,6 +91,10 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     onUpdate,
     readOnly,
   });
+
+  useEffect(() => {
+    if (autoFocus && editor) editor.commands.focus('end');
+  }, [autoFocus, editor]);
 
   const mentionCandidates = getAllNodes ? getAllNodes().filter((n) => n.id !== node.id) : [];
   const { mentionMenu, filteredMentions, insertMention, closeMention } = useNoteMentions({

@@ -1,111 +1,80 @@
-/* Heptabase/Notion-style: at rest the toolbar collapses to 0 so the
- * note reads as paper. Selection slides it open as a slim, almost
- * borderless strip that blends into the page above the content. */
 .note-toolbar {
+  position: absolute;
+  z-index: var(--note-layer-panel);
+  top: 7px;
+  right: 9px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 14px;
-  gap: 2px;
-  height: 0;
-  overflow: hidden;
-  flex-shrink: 0;
-  border-bottom: none;
-  background: transparent;
-  transition: height 0.18s ease, padding 0.18s ease, opacity 0.18s ease;
-  opacity: 0;
-}
-
-.canvas-node--selected .note-toolbar {
-  height: 28px;
-  padding: 0 14px;
-  opacity: 1;
-}
-
-.note-toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 0;
-}
-
-.note-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.note-toolbar-divider {
-  width: 1px;
-  height: 12px;
-  background: var(--border-light);
-  margin: 0 6px;
-  flex-shrink: 0;
-  opacity: 0.7;
-}
-
-.note-tool-btn {
-  width: 24px;
-  height: 22px;
-  border: none;
-  background: transparent;
-  border-radius: 5px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  transition: background 0.12s ease, color 0.12s ease;
-  flex-shrink: 0;
-  padding: 0;
-}
-
-.note-tool-btn:hover {
-  background: rgba(55, 53, 47, 0.06);
-  color: var(--text);
-}
-
-.note-tool-btn:active {
-  background: rgba(55, 53, 47, 0.1);
-}
-
-.note-tool-btn--active {
-  background: rgba(35, 131, 226, 0.1);
-  color: var(--accent);
-}
-
-.note-tool-btn--active:hover {
-  background: rgba(35, 131, 226, 0.14);
-  color: var(--accent);
-}
-
-/* Slim status pill that feels like Notion's "Synced/Edited" hint —
- * mono-weight, low contrast, no border. The colored dot does the
- * work of communicating state without taking horizontal space. */
-.note-status {
-  display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.note-card:focus-within .note-toolbar,
+.note-toolbar[data-open='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.note-toolbar-status {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--note-paper, #fdfcf9) 92%, transparent);
+}
+
+.note-toolbar-menu-anchor { display: inline-flex; }
+
+.note-toolbar-more.ui-btn {
   color: var(--text-muted);
+  background: color-mix(in srgb, var(--note-paper, #fdfcf9) 92%, transparent);
+}
+
+.note-toolbar-more.ui-btn:hover { color: var(--text); background: var(--surface-hover); }
+.note-toolbar-more span { display: block; transform: translateY(-2px); font-size: 11px; letter-spacing: 1px; }
+
+.note-toolbar-menu {
+  position: fixed;
+  z-index: var(--layer-note-popover);
+  width: 176px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.note-toolbar-menu-item.ui-btn {
+  width: 100%;
+  justify-content: flex-start;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
   font-weight: 500;
+}
+
+.note-toolbar-menu-item.ui-btn:hover { border-color: transparent; background: var(--surface-alt); }
+.note-toolbar-menu-separator { height: 1px; margin: 4px 6px; background: var(--border-light); }
+
+.note-file-hint-inline,
+.note-status {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  letter-spacing: 0.01em;
-  animation: fadeIn 0.2s ease;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 
-.note-status::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-term);
-  flex-shrink: 0;
-}
+.note-status { display: inline-flex; align-items: center; gap: 5px; }
+.note-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-term); }
+.note-status--modified { color: var(--accent-file); }
+.note-status--modified::before { background: var(--accent-file); }
 
-.note-status--modified {
-  color: var(--accent-file);
-}
-
-.note-status--modified::before {
-  background: var(--accent-file);
+@media (max-width: 520px) {
+  .note-toolbar-status { display: none; }
 }

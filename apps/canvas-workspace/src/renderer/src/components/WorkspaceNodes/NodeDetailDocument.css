@@ -286,7 +286,8 @@
   background: transparent;
 }
 
-.node-detail-panel .node-canvas-preview .note-tiptap-editor .ProseMirror {
+.node-detail-panel .node-canvas-preview .note-tiptap-editor .ProseMirror,
+.node-detail-panel .node-canvas-preview .file-preview {
   padding: 18px 0 52px;
 }
 
