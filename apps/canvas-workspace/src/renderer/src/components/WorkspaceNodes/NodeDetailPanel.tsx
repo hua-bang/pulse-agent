@@ -21,6 +21,7 @@ interface NodeDetailPanelProps {
   onNodePatched?: (next: WorkspaceNodeRecord) => void;
   onTagsChanged?: () => void;
   onOpenPage?: () => void;
+  onBack?: () => void;
 }
 
 const propertyEntries = (node: WorkspaceNodeRecord | null) => {
@@ -54,6 +55,7 @@ export const NodeDetailPanel = ({
   onNodePatched,
   onTagsChanged,
   onOpenPage,
+  onBack,
 }: NodeDetailPanelProps) => {
   const { language, t } = useI18n();
   const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
@@ -78,6 +80,12 @@ export const NodeDetailPanel = ({
         ) : (
           <div className="node-detail-panel__layout">
             <article className="node-detail-panel__document">
+              {mode === 'page' && onBack && (
+                <Button size="xs" className="node-detail-panel__back" onClick={onBack}>
+                  <span aria-hidden="true">←</span>
+                  {t('workspaceNodes.backToNodes')}
+                </Button>
+              )}
               <header className="node-detail-panel__document-header">
                 <div className="node-detail-panel__title-row">
                   <div className="node-detail-panel__title-field">

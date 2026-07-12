@@ -27,7 +27,7 @@
   min-height: 100%;
   box-sizing: border-box;
   margin: 0 auto;
-  padding: 52px 42px 88px;
+  padding: 32px 42px 88px;
   display: grid;
   grid-template-columns: minmax(0, 720px) minmax(220px, 260px);
   align-items: start;
@@ -58,6 +58,12 @@
 
 .node-detail-panel__document-header {
   flex-shrink: 0;
+}
+
+.node-detail-panel__back {
+  align-self: flex-start;
+  margin-bottom: 20px;
+  color: var(--nodes-muted);
 }
 
 .node-detail-panel__title-row {
@@ -468,17 +474,6 @@
   font-size: 11px;
 }
 
-.workspace-node-detail-page .workspace-node-detail-page__top {
-  min-height: 54px;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 10px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  border-bottom: 1px solid var(--nodes-border);
-}
-
 .workspace-node-detail-page .workspace-node-detail-page__body {
   padding: 0;
   overflow: hidden;
@@ -520,9 +515,6 @@
     padding-inline: 22px;
   }
 
-  .workspace-node-detail-page .workspace-node-detail-page__top {
-    padding-inline: 14px;
-  }
 }
 
 /* The AI dock changes the detail page's available column width without

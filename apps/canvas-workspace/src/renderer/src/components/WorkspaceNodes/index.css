@@ -84,8 +84,7 @@
   }
 }
 
-.workspace-nodes-page__header,
-.workspace-node-detail-page__top {
+.workspace-nodes-page__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -102,12 +101,6 @@
 
 .workspace-nodes-page__header p {
   margin: 6px 0 0;
-  color: var(--nodes-muted);
-  font-size: 12px;
-}
-
-.workspace-node-detail-page__top span {
-  margin: 0;
   color: var(--nodes-muted);
   font-size: 12px;
 }
@@ -696,14 +689,6 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.workspace-node-detail-page__top {
-  flex-shrink: 0;
-  padding: 14px 24px;
-  margin: 0;
-  border-bottom: 1px solid var(--nodes-border);
-  background: var(--nodes-surface);
 }
 
 .workspace-node-detail-page__body {

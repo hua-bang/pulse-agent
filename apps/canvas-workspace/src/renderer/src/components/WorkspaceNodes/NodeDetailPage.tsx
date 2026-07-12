@@ -1,7 +1,5 @@
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from './useWorkspaceNodes';
-import { useI18n } from '../../i18n';
-import { Button } from '../ui';
 import './index.css';
 
 interface NodeDetailPageProps {
@@ -15,15 +13,11 @@ export const NodeDetailPage = ({
   nodeId,
   onBack,
 }: NodeDetailPageProps) => {
-  const { t } = useI18n();
   const { node, loading, error, setNode } = useWorkspaceNode(workspaceId, nodeId);
   const { tags, reload: reloadTags } = useKnowledgeTags();
   const { nodes: relationCandidates, tags: workspaceTags, reload: reloadWorkspaceNodes } = useWorkspaceNodeList(workspaceId);
   return (
     <main className="workspace-node-detail-page">
-      <header className="workspace-node-detail-page__top">
-        <Button size="sm" onClick={onBack}>{t('workspaceNodes.backToNodes')}</Button>
-      </header>
       <div className="workspace-node-detail-page__body">
         <NodeDetailPanel
           node={node}
@@ -31,6 +25,7 @@ export const NodeDetailPage = ({
           loading={loading}
           error={error}
           mode="page"
+          onBack={onBack}
           tagDefinitions={[...workspaceTags, ...tags]}
           relationCandidates={relationCandidates}
           onNodePatched={(next) => setNode(next)}
