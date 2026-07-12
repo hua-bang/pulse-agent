@@ -3,7 +3,6 @@
  * - workspace-node:list / read
  * - workspace-node:tags / upsert-tag
  * - workspace-node:update / update-tags
- * - workspace-node:apply-proposal
  */
 import { ipcMain } from 'electron';
 import {
@@ -14,8 +13,6 @@ import {
 } from './store';
 import { readKnowledgeTags, upsertKnowledgeTag, type KnowledgeTagDefinition } from './tags';
 import { broadcastWorkspaceNodesChanged, scheduleWorkspaceNodesChanged } from './broadcast';
-import { applyKnowledgeChangeProposal } from './knowledge-change';
-import { isKnowledgeChangeProposal } from '../../../shared/knowledge-change';
 import type { WorkspaceNodeListItem } from '../../../shared/canvas';
 import { readCanvasFull } from '../storage';
 
@@ -322,16 +319,5 @@ export function setupWorkspaceNodeIpc(): void {
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
-
-  ipcMain.handle('workspace-node:apply-proposal', async (_event, payload: { proposal: unknown }) => {
-    if (!isKnowledgeChangeProposal(payload?.proposal)) {
-      return { ok: false, code: 'invalid', error: 'Invalid node change proposal.' };
-    }
-    const result = await applyKnowledgeChangeProposal(payload.proposal);
-    if (result.ok) {
-      broadcastWorkspaceNodesChanged([result.workspaceId], 'renderer');
-    }
-    return result;
   });
 }

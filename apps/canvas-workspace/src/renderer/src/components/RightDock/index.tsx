@@ -18,7 +18,6 @@ import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
-import { DockCreationControls } from './DockCreationControls';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import './index.css';
 import './terminal-tab.css';
@@ -39,6 +38,9 @@ const LinkTabView = lazy(() =>
 );
 const NodeDetailDockTab = lazy(() =>
   import('./NodeDetailDockTab').then((module) => ({ default: module.NodeDetailDockTab })),
+);
+const DockCreationControls = lazy(() =>
+  import('./DockCreationControls').then((module) => ({ default: module.DockCreationControls })),
 );
 
 interface RightDockContextValue {
@@ -414,13 +416,17 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
             );
           })}
         </div>
-        <DockCreationControls
-          store={store}
-          workspaces={workspaces}
-          activeWorkspaceId={activeWorkspaceId}
-          showTerminal={chatTabEnabled}
-          newTabTitle={t('rightDock.newTabTitle')}
-        />
+        {visible && (
+          <Suspense fallback={null}>
+            <DockCreationControls
+              store={store}
+              workspaces={workspaces}
+              activeWorkspaceId={activeWorkspaceId}
+              showTerminal={chatTabEnabled}
+              newTabTitle={t('rightDock.newTabTitle')}
+            />
+          </Suspense>
+        )}
         <button
           type="button"
           className="right-dock__collapse"

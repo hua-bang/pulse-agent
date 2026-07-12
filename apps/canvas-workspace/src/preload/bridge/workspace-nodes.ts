@@ -23,9 +23,6 @@ export const createWorkspaceNodesApi = (
   update: (workspaceId, nodeId, patch) =>
     ipcRenderer.invoke("workspace-node:update", { workspaceId, nodeId, patch }),
 
-  applyProposal: (proposal) =>
-    ipcRenderer.invoke("workspace-node:apply-proposal", { proposal }),
-
   onChange: (callback) =>
     subscribe(ipcRenderer, "workspace-node:change", callback)
 });

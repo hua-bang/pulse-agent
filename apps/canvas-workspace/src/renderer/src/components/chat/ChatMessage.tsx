@@ -16,8 +16,6 @@ import {
   parseVisualToolResult,
 } from '../artifacts';
 import { CopyGeneratedImageButton, parseGeneratedImage } from './GeneratedImageActions';
-import { KnowledgeChangeProposalTools } from './KnowledgeChangeProposalTools';
-import { partitionKnowledgeChangeProposalTools } from './knowledgeChangeProposal';
 
 const CopyMessageButton = memo(({ content }: { content: string }) => {
   const [copied, setCopied] = useState(false);
@@ -188,11 +186,6 @@ export const ChatMessage = ({
     return out;
   }, [message.role, tools]);
 
-  const knowledgeChangeTools = useMemo(
-    () => partitionKnowledgeChangeProposalTools(message.role === 'assistant' ? tools ?? [] : []),
-    [message.role, tools],
-  );
-
   const attachmentCount = message.attachments?.length ?? 0;
 
   const lightboxImages = useMemo<LightboxImage[]>(() => [
@@ -260,17 +253,15 @@ export const ChatMessage = ({
       )}
       {message.role === 'assistant' && tools && tools.length > 0 && (
         <>
-          {knowledgeChangeTools.ordinaryTools.length > 0 && (
-            <ChatToolCalls
-              tools={knowledgeChangeTools.ordinaryTools}
-              collapsed={collapsed}
-              expandedTools={expandedTools}
-              showSectionHeader={!loading}
-              onToggleSection={onToggleSection}
-              onToggleToolExpand={onToggleToolExpand}
-              onSessionJump={onSessionJump}
-            />
-          )}
+          <ChatToolCalls
+            tools={tools}
+            collapsed={collapsed}
+            expandedTools={expandedTools}
+            showSectionHeader={!loading}
+            onToggleSection={onToggleSection}
+            onToggleToolExpand={onToggleToolExpand}
+            onSessionJump={onSessionJump}
+          />
           {generatedImages.length > 0 && (
             <div className="chat-generated-images">
               {generatedImages.map((image, generatedIndex) => {
@@ -364,7 +355,6 @@ export const ChatMessage = ({
               />
             );
           })}
-          <KnowledgeChangeProposalTools proposals={knowledgeChangeTools.proposals} />
         </>
       )}
       {message.role === 'assistant' ? (

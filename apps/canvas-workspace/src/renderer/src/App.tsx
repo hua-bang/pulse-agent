@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import './App.css';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { DeferredSettings } from './components/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
-import { MigrationSpinner } from './components/MigrationSpinner';
 import { RightDock, RightDockProvider, useRightDock } from './components/RightDock';
 import { GlobalChatLauncher } from './components/RightDock/GlobalChatLauncher';
 import type { SettingsSection } from './components/Settings';
@@ -22,6 +21,7 @@ import { PulseRouter, PulseRouterView } from './components/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
+const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
 const ROUTE_NODES = '/nodes';
@@ -581,7 +581,7 @@ const AppContent = () => {
       </div>
       <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat'} />
       <RightDock workspaces={workspaces} activeWorkspaceId={activeId} chatTabEnabled={activeView !== 'chat'} onOpenNodePage={openNodePage} />
-      <MigrationSpinner />
+      <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         appLoaded={appSettingsLoaded}
         appSection={appSettingsSection}

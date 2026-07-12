@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useState, type ReactNode } from 'react';
 import type { CanvasNode, FileNodeData } from '../../types';
 import { dispatchOpenNode, parseNodeLinkHref } from '../../utils/openNodeBridge';
 import { useRightDock } from '../RightDock';
@@ -71,12 +71,19 @@ export const MarkdownPreview = ({ content }: { content: string }) => {
 };
 
 export const FileNodeBodyLazy = (props: Props) => {
+  const [editorLoaded, setEditorLoaded] = useState(false);
   const { openLink } = useRightDock();
   const content = (props.node.data as FileNodeData).content ?? '';
+  const activateEditor = useCallback(() => {
+    if (!props.readOnly) setEditorLoaded(true);
+  }, [props.readOnly]);
   const handlePreviewClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const anchor = (event.target as HTMLElement).closest?.('a');
     const href = anchor?.getAttribute('href')?.trim();
-    if (!href) return;
+    if (!href) {
+      activateEditor();
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     const nodeLink = parseNodeLinkHref(href);
@@ -85,9 +92,9 @@ export const FileNodeBodyLazy = (props: Props) => {
     } else if (/^https?:\/\//i.test(href)) {
       openLink(href);
     }
-  }, [openLink, props.workspaceId]);
+  }, [activateEditor, openLink, props.workspaceId]);
 
-  if (!props.readOnly) {
+  if (editorLoaded) {
     return (
       <Suspense fallback={<div className="file-preview file-preview--loading"><MarkdownPreview content={content} /></div>}>
         <FileNodeEditor {...props} />
@@ -97,8 +104,11 @@ export const FileNodeBodyLazy = (props: Props) => {
 
   return (
     <div
-      className="file-preview"
+      className={`file-preview${props.readOnly ? '' : ' file-preview--editable'}`}
       onClick={handlePreviewClick}
+      onKeyDown={(event) => { if (event.key === 'Enter') activateEditor(); }}
+      tabIndex={props.readOnly ? undefined : 0}
+      aria-label={props.readOnly ? undefined : 'Edit note'}
     >
       <MarkdownPreview content={content} />
     </div>
