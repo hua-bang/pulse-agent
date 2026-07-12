@@ -9,14 +9,20 @@ vi.mock('../../WorkspaceNodes/useWorkspaceNodes', () => ({
 }));
 
 vi.mock('../../chat/lazy', () => ({
-  ChatPanelLazy: ({ agentScope, knowledgeMode }: {
+  ChatPanelLazy: ({ agentScope, knowledgeMode, contextNodes, contextTags, contextCanvases }: {
     agentScope: { kind: string };
     knowledgeMode?: boolean;
+    contextNodes?: Array<unknown>;
+    contextTags?: Array<unknown>;
+    contextCanvases?: Array<unknown>;
   }) => (
     <div
       data-testid="knowledge-chat"
       data-scope={agentScope.kind}
       data-knowledge-mode={String(knowledgeMode)}
+      data-node-context-count={contextNodes?.length ?? 0}
+      data-tag-context-count={contextTags?.length ?? 0}
+      data-canvas-context-count={contextCanvases?.length ?? 0}
     />
   ),
 }));
@@ -54,5 +60,31 @@ describe('KnowledgeChatPortal', () => {
     const chat = host.querySelector('[data-testid="knowledge-chat"]');
     expect(chat?.getAttribute('data-scope')).toBe('global');
     expect(chat?.getAttribute('data-knowledge-mode')).toBe('true');
+  });
+
+  it('retains an explicit Workspace and Tag scope without falling back to a detail node', () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    act(() => {
+      root?.render(
+        <KnowledgeChatPortal
+          selectedNode={{ workspaceId: 'workspace-a', nodeId: 'node-1' }}
+          contextNodes={[]}
+          contextTags={[{ name: 'Research', workspaceIds: ['workspace-a'] }]}
+          contextCanvases={[{ id: 'workspace-a', name: 'Research canvas' }]}
+          workspaces={[]}
+          onClose={() => undefined}
+          onOpenAppSettings={() => undefined}
+          onTurnComplete={() => undefined}
+        />,
+      );
+    });
+
+    const chat = host.querySelector('[data-testid="knowledge-chat"]');
+    expect(chat?.getAttribute('data-node-context-count')).toBe('0');
+    expect(chat?.getAttribute('data-tag-context-count')).toBe('1');
+    expect(chat?.getAttribute('data-canvas-context-count')).toBe('1');
   });
 });

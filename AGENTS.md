@@ -64,7 +64,7 @@ Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/teams-cli` 
 
 ## 4. Prerequisite gates (honest: none are mechanical)
 
-The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size ratchets + runtime counter gates on PRs touching that app. Beyond it there is NO CI for tests/typecheck, NO git hooks, and NO husky/lint-staged/commitlint. Workspace-local `harness/validate/validation.yaml` files and root `harness/validate/validation.yaml` are executed by the manual runner `node scripts/harness/run-harness-check.mjs` — nothing triggers it for you; run it yourself. Wired harness executables live in `scripts/harness/` (`run-harness-check.mjs`, `check-harness.mjs`). Other tool ideas are not on-disk tools until implemented.
+The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size ratchets on PRs touching that app, with full runtime counters only for performance-sensitive paths, a `performance` PR label, manual dispatch, or default-branch pushes; macOS package gates use the same selective policy. Beyond it there is NO CI for tests/typecheck, NO git hooks, and NO husky/lint-staged/commitlint. Workspace-local `harness/validate/validation.yaml` files and root `harness/validate/validation.yaml` are executed by the manual runner `node scripts/harness/run-harness-check.mjs` — nothing triggers it for you; run it yourself. Wired harness executables live in `scripts/harness/` (`run-harness-check.mjs`, `check-harness.mjs`). Other tool ideas are not on-disk tools until implemented.
 
 **Runtime skills are product config, not repo harness protocols:**
 

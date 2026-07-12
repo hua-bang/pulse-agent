@@ -35,10 +35,11 @@ const NODE: WorkspaceNodeRecord = {
   id: 'node-1',
   type: 'file',
   title: 'Search & RSS',
-  data: { content: '# Search & RSS' },
+  data: { content: 'Introduction' },
   properties: {
     tags: ['search'],
     source: 'research.md',
+    aiSummary: 'RSS shifts the burden of organizing information back to the reader.',
   },
   links: [{
     relation: 'supports',
@@ -59,7 +60,7 @@ function render(node: ReactNode): HTMLDivElement {
 }
 
 describe('NodeDetailPanel', () => {
-  it.each(['drawer', 'page'] as const)(
+  it.each(['dock', 'page'] as const)(
     'keeps title, tags, and the real node preview in document order in %s mode',
     (mode) => {
       const view = render(
@@ -77,9 +78,48 @@ describe('NodeDetailPanel', () => {
     },
   );
 
-  it('renders Backlinks & related and Info as collapsed disclosures by default', () => {
+  it('places the type icon and tags together beneath the title', () => {
     const view = render(
-      <NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="drawer" />,
+      <NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="page" />,
+    );
+
+    const metadata = view.querySelector('.node-detail-panel__document-meta');
+    const type = metadata?.querySelector('.node-detail-panel__type');
+    const tags = metadata?.querySelector('[data-testid="node-tag-editor"]');
+
+    expect(metadata).not.toBeNull();
+    expect(type?.querySelector('svg')).not.toBeNull();
+    expect(type?.textContent).toContain('File');
+    expect(tags).not.toBeNull();
+  });
+
+  it('keeps the node title independent from a leading H1 in the document body', () => {
+    const view = render(
+      <NodeDetailPanel
+        node={{ ...NODE, title: 'Node title', data: { content: '# Body heading\n\nBody' } }}
+        workspaceId="workspace-1"
+        mode="dock"
+      />,
+    );
+
+    expect(view.querySelector('.node-detail-panel__document-title')?.textContent).toBe('Node title');
+    expect(view.querySelector('[data-testid="node-canvas-preview"]')).not.toBeNull();
+  });
+
+  it('shows source, relations, and confirmed AI insight in the page context rail', () => {
+    const view = render(
+      <NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="page" />,
+    );
+
+    const rail = view.querySelector('.node-detail-panel__context-rail');
+    expect(rail?.textContent).toContain('research.md');
+    expect(rail?.textContent).toContain('Recommendation System');
+    expect(rail?.textContent).toContain('RSS shifts the burden');
+  });
+
+  it('renders Relations and Info as collapsed disclosures by default', () => {
+    const view = render(
+      <NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="dock" />,
     );
 
     const disclosures = Array.from(
@@ -88,7 +128,7 @@ describe('NodeDetailPanel', () => {
 
     expect(disclosures).toHaveLength(2);
     expect(disclosures.every((item) => !item.open)).toBe(true);
-    expect(disclosures[0]?.querySelector('summary')?.textContent).toContain('Backlinks & related');
+    expect(disclosures[0]?.querySelector('summary')?.textContent).toContain('Relations');
     expect(disclosures[1]?.querySelector('summary')?.textContent).toContain('Info');
   });
 
@@ -146,6 +186,63 @@ describe('NodeDetailPanel', () => {
 
     expect(document.activeElement).toBe(title);
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('adds an open-ended relation without restricting the stored relation vocabulary', async () => {
+    const update = vi.fn(async (_workspaceId: string, _nodeId: string, patch: Partial<WorkspaceNodeRecord>) => ({
+      ok: true,
+      node: { ...NODE, ...patch, updatedAt: NODE.updatedAt! + 1 },
+    }));
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { workspaceNodes: { update } },
+    });
+    const view = render(
+      <NodeDetailPanel
+        node={{ ...NODE, links: [] }}
+        workspaceId="workspace-1"
+        relationCandidates={[{
+          workspaceId: 'workspace-1',
+          id: 'node-2',
+          type: 'text',
+          title: 'Recommendation System',
+          tags: [],
+          hasData: true,
+          linkCount: 0,
+        }]}
+      />,
+    );
+    const addRelation = Array.from(view.querySelectorAll('button')).find((button) => button.textContent?.includes('Add relation'));
+    if (!addRelation) throw new Error('Expected add relation button');
+
+    act(() => { addRelation.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const input = view.querySelector<HTMLInputElement>('.node-relation-editor__form input');
+    const targetTrigger = view.querySelector<HTMLButtonElement>('.node-relation-editor__target .ui-select__trigger');
+    if (!input || !targetTrigger) throw new Error('Expected relation form');
+    act(() => {
+      // React tracks direct `input.value` assignments. Use the native setter
+      // so this test follows the same event path as a real keystroke.
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'challenges');
+      input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      targetTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const target = Array.from(view.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((option) => option.textContent?.includes('Recommendation System'));
+    if (!target) throw new Error('Expected relation target option');
+    act(() => { target.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const save = Array.from(view.querySelectorAll('button')).find((button) => button.textContent === 'Add');
+    if (!save) throw new Error('Expected relation save button');
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(update).toHaveBeenCalledWith('workspace-1', 'node-1', {
+      links: [{
+        relation: 'challenges',
+        target: { nodeId: 'node-2' },
+        title: 'Recommendation System',
+      }],
+    });
   });
 
   it('preserves a newer focused draft when an earlier title save resolves', async () => {

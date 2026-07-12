@@ -42,7 +42,7 @@ describe('useCanvasNodeViewModel text resize', () => {
       onRemove: vi.fn(),
       onResizeStart,
       onSelect: vi.fn(),
-      onUpdate,
+      onUpdate: onUpdate as (id: string, patch: Partial<CanvasNode>) => void,
     });
     return null;
   };

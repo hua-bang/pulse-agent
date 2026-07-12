@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, linkTabId, terminalTabId } from '../dock-store';
+import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, linkTabId, nodeDetailTabId, terminalTabId } from '../dock-store';
 
 describe('DockStore', () => {
   it('starts collapsed on the pinned chat tab with no previews', () => {
@@ -36,6 +36,25 @@ describe('DockStore', () => {
     const { tabs, activeTabId } = dock.getSnapshot();
     expect(tabs).toHaveLength(2);
     expect(activeTabId).toBe(artifactTabId('ws1', 'a1'));
+  });
+
+  it('promotes a node detail into one deduplicated dock tab', () => {
+    const dock = new DockStore();
+    dock.openNodeDetail('ws1', 'node1', 'Search & RSS');
+    dock.openArtifact('ws1', 'a1');
+    dock.openNodeDetail('ws1', 'node1', 'Updated title');
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: nodeDetailTabId('ws1', 'node1'),
+      expanded: true,
+    });
+    expect(dock.getSnapshot().tabs.filter((tab) => tab.kind === 'node-detail')).toEqual([
+      expect.objectContaining({
+        workspaceId: 'ws1',
+        nodeId: 'node1',
+        title: 'Updated title',
+      }),
+    ]);
   });
 
   it('opens different URLs as separate link tabs', () => {

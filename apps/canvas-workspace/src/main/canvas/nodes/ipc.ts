@@ -3,7 +3,6 @@
  * - workspace-node:list / read
  * - workspace-node:tags / upsert-tag
  * - workspace-node:update / update-tags
- * - workspace-node:apply-proposal
  */
 import { ipcMain } from 'electron';
 import {
@@ -14,8 +13,6 @@ import {
 } from './store';
 import { readKnowledgeTags, upsertKnowledgeTag, type KnowledgeTagDefinition } from './tags';
 import { broadcastWorkspaceNodesChanged, scheduleWorkspaceNodesChanged } from './broadcast';
-import { applyKnowledgeChangeProposal } from './knowledge-change';
-import { isKnowledgeChangeProposal } from '../../../shared/knowledge-change';
 import type { WorkspaceNodeListItem } from '../../../shared/canvas';
 import { readCanvasFull } from '../storage';
 
@@ -144,6 +141,26 @@ function summaryFromRecord(record: WorkspaceNodeRecord): string {
   return '';
 }
 
+function aiSummaryFromRecord(record: WorkspaceNodeRecord): string {
+  return stringFromUnknown(record.properties?.aiSummary);
+}
+
+function mindmapPreviewFromData(data: unknown): { root: string; branches: string[] } | null {
+  if (!data || typeof data !== 'object') return null;
+  const root = (data as { root?: unknown }).root;
+  if (!root || typeof root !== 'object') return null;
+  const rootRecord = root as { text?: unknown; children?: unknown; collapsed?: unknown };
+  const rootText = stringFromUnknown(rootRecord.text).trim();
+  if (!rootText) return null;
+  const branches = rootRecord.collapsed || !Array.isArray(rootRecord.children)
+    ? []
+    : rootRecord.children
+      .map((child) => child && typeof child === 'object' ? stringFromUnknown((child as { text?: unknown }).text).trim() : '')
+      .filter(Boolean)
+      .slice(0, 5);
+  return { root: rootText.slice(0, 72), branches: branches.map((branch) => branch.slice(0, 52)) };
+}
+
 function toListItem(record: WorkspaceNodeRecord, canvasNodes: Map<string, CanvasNodeLite> | null): WorkspaceNodeListItem {
   const canvasNode = canvasNodes?.get(record.id);
   // The record's own data is often empty (e.g. tag-only records), so fall back
@@ -152,16 +169,22 @@ function toListItem(record: WorkspaceNodeRecord, canvasNodes: Map<string, Canvas
   const rawSummary =
     summaryFromRecord(record) || canvasContent || stringFromUnknown(canvasNode?.data?.url);
   const summary = stripHtml(rawSummary).slice(0, 160);
+  const aiSummary = stripHtml(aiSummaryFromRecord(record)).slice(0, 800);
   const previewPath = record.type === 'image'
     ? stringFromUnknown(record.data.filePath) || stringFromUnknown(canvasNode?.data?.filePath)
     : '';
+  const mindmapPreview = record.type === 'mindmap'
+    ? mindmapPreviewFromData(record.data) ?? mindmapPreviewFromData(canvasNode?.data)
+    : null;
   return {
     id: record.id,
     type: record.type,
     title: record.title,
     displayTitle: deriveDisplayTitle(record, canvasNode),
     summary,
+    ...(aiSummary ? { aiSummary } : {}),
     ...(previewPath ? { previewPath } : {}),
+    ...(mindmapPreview ? { mindmapPreview } : {}),
     tags: tagsFromRecord(record),
     links: record.links ?? [],
     updatedAt: record.updatedAt,
@@ -296,16 +319,5 @@ export function setupWorkspaceNodeIpc(): void {
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
-
-  ipcMain.handle('workspace-node:apply-proposal', async (_event, payload: { proposal: unknown }) => {
-    if (!isKnowledgeChangeProposal(payload?.proposal)) {
-      return { ok: false, code: 'invalid', error: 'Invalid node change proposal.' };
-    }
-    const result = await applyKnowledgeChangeProposal(payload.proposal);
-    if (result.ok) {
-      broadcastWorkspaceNodesChanged([result.workspaceId], 'renderer');
-    }
-    return result;
   });
 }

@@ -20,7 +20,8 @@
 
 export type DockPreviewTab =
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
-  | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string };
+  | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string }
+  | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string };
 
 export interface DockTerminalTab {
   id: string;
@@ -65,6 +66,9 @@ export const isTerminalTabId = (id: string): boolean =>
 
 export const artifactTabId = (workspaceId: string, artifactId: string): string =>
   `artifact:${workspaceId}:${artifactId}`;
+
+export const nodeDetailTabId = (workspaceId: string, nodeId: string): string =>
+  `node-detail:${encodeURIComponent(workspaceId)}:${encodeURIComponent(nodeId)}`;
 
 export const linkTabId = (url: string): string => {
   let hash = 2166136261;
@@ -156,6 +160,21 @@ export class DockStore {
       return;
     }
     const tab: DockPreviewTab = { id, kind: 'artifact', title: 'Artifact', workspaceId, artifactId };
+    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+  }
+
+  openNodeDetail(workspaceId: string, nodeId: string, title: string): void {
+    const id = nodeDetailTabId(workspaceId, nodeId);
+    const existing = this.state.tabs.find((tab) => tab.id === id);
+    if (existing) {
+      this.commit({
+        tabs: this.state.tabs.map((tab) => (tab.id === id ? { ...tab, title } : tab)),
+        activeTabId: id,
+        expanded: true,
+      });
+      return;
+    }
+    const tab: DockPreviewTab = { id, kind: 'node-detail', title, workspaceId, nodeId };
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
   }
 

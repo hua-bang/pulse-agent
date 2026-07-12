@@ -18,6 +18,7 @@ import { useAppShell } from '../AppShellProvider';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
+import { dispatchOpenNodePage } from '../../utils/openNodeBridge';
 
 // Heavy node bodies are React.lazy so xterm (terminal/agent bodies) and
 // tiptap/prosemirror + lowlight (text/file bodies) stay out of the eagerly-
@@ -60,7 +61,7 @@ interface DefaultCanvasNodeProps {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onRemoveNodes?: (ids: string[]) => void;
   onUngroupSelectedGroups?: () => void;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   readOnly: boolean;
   renderMode?: CanvasNodeRenderMode;
   relativeTime: string | null;
@@ -181,6 +182,11 @@ export const DefaultCanvasNode = ({
     })();
   }, [node.id, node.title, notify, onAddDomSelectionToChat, pluginElementPickerActive, workspaceId]);
 
+  const handleOpenDetail = useCallback((event: MouseEvent) => {
+    event.stopPropagation();
+    dispatchOpenNodePage({ workspaceId: workspaceId ?? '', nodeId: node.id });
+  }, [node.id, workspaceId]);
+
   const frameTitleOnly = node.type === 'frame' && renderMode === 'frame-title';
   const frameBodyOnly = node.type === 'frame' && renderMode === 'frame-body';
   const nodeClasses = [
@@ -195,6 +201,7 @@ export const DefaultCanvasNode = ({
       handleClose={handleClose}
       handleFocus={handleFocus}
       handleHeaderMouseDown={handleHeaderMouseDown}
+      handleOpenDetail={handleOpenDetail}
       handlePluginSelectElement={handlePluginSelectElement}
       handleReference={handleReference}
       handleAddToChat={handleAddToChat}

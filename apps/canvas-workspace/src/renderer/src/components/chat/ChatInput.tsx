@@ -154,7 +154,11 @@ export const ChatInput = ({
           contentEditable={true}
           role="textbox"
           data-placeholder={knowledgeMode
-            ? (contextChips.length > 0 ? t('chat.askCurrentNode') : t('chat.askKnowledge'))
+            ? (contextChips.length === 1 && contextChips[0]?.kind === 'node'
+              ? t('chat.askCurrentNode')
+              : contextChips.length > 0
+                ? t('chat.askKnowledgeScope')
+                : t('chat.askKnowledge'))
             : contextComposer
               ? (contextChips.length > 0 ? t('chat.askSelectedNodes') : t('chat.askCanvas'))
             : (loading ? t('chat.generatingPlaceholder') : t('chat.askAnything'))}

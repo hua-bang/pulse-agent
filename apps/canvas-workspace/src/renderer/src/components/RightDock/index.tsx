@@ -1,22 +1,3 @@
-/**
- * RightDock — the right-side panel of the workbench. Its first tab is the
- * pinned chat; preview surfaces (artifacts, intercepted links) open as
- * additional tabs. The strip stays visible on canvas routes so users can
- * create a web tab directly from chat.
- *
- * DockStore owns state and deduping. Workbench portals persistent chat panels
- * into the chat pane, while previews stay mounted across tab switches.
- * Layout: the dock is a fixed right-side element on `--layer-dock`. On
- * routes where chat is enabled it reserves its width through the
- * `--right-dock-inset` custom property consumed by `.app-body`, so it
- * behaves like an in-flow column. The dedicated full-page chat route
- * disables the dock chat tab to avoid rendering two chat surfaces.
- *
- * Tab contents stay mounted and hide via `visibility` instead of
- * `display: none` — collapsing a <webview>'s layout detaches its guest
- * contents in Electron, and keeping artifacts mounted preserves scroll
- * position and rendered mermaid SVG.
- */
 import {
   createContext,
   lazy,
@@ -37,7 +18,7 @@ import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
-import { NewDockTabMenu } from './NewDockTabMenu';
+import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import './index.css';
 import './terminal-tab.css';
 
@@ -54,6 +35,12 @@ const ArtifactTabView = lazy(() =>
 );
 const LinkTabView = lazy(() =>
   import('../LinkDrawer').then((module) => ({ default: module.LinkTabView })),
+);
+const NodeDetailDockTab = lazy(() =>
+  import('./NodeDetailDockTab').then((module) => ({ default: module.NodeDetailDockTab })),
+);
+const DockCreationControls = lazy(() =>
+  import('./DockCreationControls').then((module) => ({ default: module.DockCreationControls })),
 );
 
 interface RightDockContextValue {
@@ -92,6 +79,7 @@ const useDockContext = (): RightDockContextValue => {
 /** Dock actions — safe to call from anywhere under the provider. */
 export function useRightDock(): {
   openArtifact: (workspaceId: string, artifactId: string) => void;
+  openNodeDetail: (workspaceId: string, nodeId: string, title: string) => void;
   openLink: (url: string) => void;
   newLink: () => void;
   openChat: () => void;
@@ -108,6 +96,7 @@ export function useRightDock(): {
   return useMemo(
     () => ({
       openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
+      openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
       openLink: (url: string) => store.openLink(url),
       newLink: () => store.newLink(),
       openChat: () => store.openChat(),
@@ -160,11 +149,10 @@ function clampWidth(value: number): number {
 }
 
 interface RightDockProps {
-  /** Target canvas for link tabs' "add to current canvas" action. */
   activeWorkspaceId: string;
-  /** Shows the pinned chat tab and reserves layout space. Disabled only
-   * when a route owns a dedicated full-page chat surface. */
   chatTabEnabled: boolean;
+  workspaces: WorkspaceEntry[];
+  onOpenNodePage: (workspaceId: string, nodeId: string) => void;
 }
 
 interface TabIndicatorState {
@@ -173,7 +161,7 @@ interface TabIndicatorState {
   visible: boolean;
 }
 
-export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps) => {
+export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
   const { store, setChatHost, setTerminalHost } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
@@ -274,16 +262,12 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
     return () => observer.disconnect();
   }, [updateTabIndicator, state.tabs, state.terminalTabs, chatTabEnabled]);
 
-  // Re-clamp on viewport resize so a stored width wider than the new
-  // viewport doesn't push the dock off-screen.
   useEffect(() => {
     const onResize = () => setWidth((prev) => clampWidth(prev));
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Reserve layout space whenever the application-level chat is available. The
-  // inset lives on <html> so .app-body can consume it from anywhere.
   useEffect(() => {
     const inset = visible && chatTabEnabled ? `${width}px` : '0px';
     document.documentElement.style.setProperty('--right-dock-inset', inset);
@@ -292,9 +276,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
     };
   }, [visible, chatTabEnabled, width]);
 
-  // ESC closes the active preview tab. Chat is persistent workspace UI and
-  // never ESC-closes — same as the old standalone chat panel, and it keeps
-  // ESC free for canvas interactions (deselect, exit fullscreen, …).
   useEffect(() => {
     if (!visible) return;
     const onKey = (e: KeyboardEvent) => {
@@ -435,11 +416,17 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
             );
           })}
         </div>
-        <NewDockTabMenu
-          showTerminal={chatTabEnabled}
-          onNewWebTab={() => store.newLink(t('rightDock.newTabTitle'))}
-          onNewTerminalTab={() => store.newTerminal()}
-        />
+        {visible && (
+          <Suspense fallback={null}>
+            <DockCreationControls
+              store={store}
+              workspaces={workspaces}
+              activeWorkspaceId={activeWorkspaceId}
+              showTerminal={chatTabEnabled}
+              newTabTitle={t('rightDock.newTabTitle')}
+            />
+          </Suspense>
+        )}
         <button
           type="button"
           className="right-dock__collapse"
@@ -473,6 +460,18 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
                   workspaceId={tab.workspaceId}
                   artifactId={tab.artifactId}
                   onTitleChange={(title) => store.setTitle(tab.id, title)}
+                />
+              </Suspense>
+            ) : tab.kind === 'node-detail' ? (
+              <Suspense fallback={null}>
+                <NodeDetailDockTab
+                  workspaceId={tab.workspaceId}
+                  nodeId={tab.nodeId}
+                  onTitleChange={(title) => store.setTitle(tab.id, title)}
+                  onOpenPage={() => {
+                    onOpenNodePage(tab.workspaceId, tab.nodeId);
+                    store.close(tab.id);
+                  }}
                 />
               </Suspense>
             ) : (

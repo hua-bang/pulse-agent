@@ -43,6 +43,7 @@ import type {
   WorkspaceSummary,
 } from './types';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
+import { formatSelectionFocusBlock } from './selection-focus-context';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const CANVAS_AGENT_MAX_STEPS = 200;
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
@@ -53,10 +54,12 @@ This is a global chat, not bound to any specific canvas workspace.
 You can answer questions, reason with the user, help draft text, explain code, and use read-only research tools when useful.
 ## Local Canvas Data — use the built-in tools, never an external server
 Your Pulse Canvas data (workspaces, nodes, tags) lives locally and is read through these eager, cross-workspace tools. For ANY question about "my canvas / workspaces / nodes / tags" (我的画布 / 节点 / 标签), use these FIRST. Do NOT call a third-party MCP server (e.g. a separate mind/notes/knowledge server) to read local canvas data — those describe a different system and will give the wrong answer:
+- \`knowledge_search_nodes\` — search the Nodes knowledge library by query, type, or tag without asking the user to choose a workspace. Use only when no exact node is already selected or mentioned.
+- \`knowledge_read_node\` — read one exact selected, mentioned, or searched node without a workspace argument. This also reads knowledge records that are no longer placed on a canvas.
+- \`knowledge_analyze_image\` — inspect pixels or OCR one exact image node, including images no longer placed on a canvas. Use this instead of taking a canvas screenshot.
 - \`canvas_list_workspaces\` — discover which workspaces exist (id, name, node + tag-coverage counts). Use this to obtain a workspaceId instead of asking the user blindly.
 - \`canvas_list_tags\` — every tag defined in the system (shared across all workspaces) with per-tag usage. This is the answer to "what tags do I have".
 - \`canvas_list_nodes\` — nodes across all workspaces (or one) with their tags; filter by \`tag\`, \`untaggedOnly\`, or \`query\`. Use it to audit tag coverage or find tagging candidates.
-- \`canvas_propose_node_change\` — prepare a title/content/tag change for one existing node as a review card. It does not write; the user applies or discards the card in the UI. Read the exact node first, include only requested fields, and never claim it was applied merely because the proposal was created.
 
 ## Chat Session History (会话检索/总结)
 Past chat sessions (every workspace + this global chat) are stored locally and searchable:
@@ -69,7 +72,7 @@ When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>
 ## Scope Rules
 - Do not assume there is a current canvas or selected workspace. When you need one, call \`canvas_list_workspaces\` to enumerate them and pick the right \`workspaceId\`; only ask the user when the choice is genuinely ambiguous.
 - The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_layout\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_*\`) need a concrete workspaceId on every call — get it from \`canvas_list_workspaces\` or a workspace mention.
-- For title/content/tag edits to one existing node, use \`canvas_propose_node_change\`; it is non-mutating and leaves the final Apply action to the user. Direct node mutation, including batch tagging, is unavailable in global chat.
+- Global chat cannot modify node titles, content, or tags. Explain the requested change in chat instead. Direct node mutation, including batch tagging, is unavailable in global chat.
 - Global chat can inspect local files with \`read\`, \`grep\`, and \`ls\`, but it cannot write files or execute shell commands. For changes, explain or draft the edit in chat.
 
 ## Guidelines
@@ -481,45 +484,6 @@ function formatMentionedCanvasesSection(
   }
   lines.push('');
   return lines.join('\n');
-}
-
-/**
- * Render the "Current Focus" block for the user's selected nodes.
- *
- * Shared by the workspace-scoped prompt (`buildSystemPrompt`) and the global
- * chat prompt. The two differ only in how the agent must address a node:
- *   - workspace scope: the agent is bound to one canvas, so `canvas_read_node`
- *     resolves nodeIds implicitly — no workspaceId needed.
- *   - global scope: there is no current canvas, so each node carries its
- *     `workspaceId` and the agent MUST pass it on every read.
- */
-function formatSelectionFocusBlock(
-  selectedNodes: Array<{ id: string; title: string; type: string; workspaceId?: string }>,
-  options: { requireWorkspaceId: boolean },
-): string {
-  if (selectedNodes.length === 0) return '';
-  const count = selectedNodes.length;
-  const noun = count === 1 ? 'node' : 'nodes';
-  const lines: string[] = [
-    '',
-    `## Current Focus — ${count} Selected ${noun}`,
-    `The user has selected ${count} canvas ${noun} and these are the PRIMARY context for the current message. Treat any of the following references as pointing to this selection unless the user names a different node explicitly:`,
-    '- English: "this", "it", "that", "these", "those", "the selected", "the selection", "the highlighted node(s)", "the current node"',
-    '- 中文：「这个」「它」「这些」「那些」「这条」「选中的」「选中节点」「当前节点」「上面的」「上面这个」「目前这个」',
-    '',
-    'Selected nodes:',
-  ];
-  for (const node of selectedNodes) {
-    const workspacePart = node.workspaceId ? `, workspaceId: \`${node.workspaceId}\`` : '';
-    lines.push(`- **${node.title}** — nodeId: \`${node.id}\`, type: \`${node.type}\`${workspacePart}`);
-  }
-  lines.push('');
-  lines.push(
-    options.requireWorkspaceId
-      ? `When the user\'s message is about content you need to inspect, call \`canvas_read_node\` with the matching \`workspaceId\` + \`nodeId\` shown above FIRST — do not guess from the title alone. This is a global chat, so you MUST pass the listed workspaceId on every read of these nodes.`
-      : `When the user\'s message is about content you need to inspect, call \`canvas_read_node\` on the nodeId(s) above FIRST — do not guess from the title alone, and do not read unrelated nodes from the full canvas summary below unless the user asks you to.`,
-  );
-  return lines.join('\n') + '\n';
 }
 
 /**

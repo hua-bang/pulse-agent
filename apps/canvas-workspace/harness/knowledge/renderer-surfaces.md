@@ -59,11 +59,9 @@ The workbench has exactly two side regions plus a modal tier:
   Workspace ChatPanels remain mounted but hidden while that global instance
   is visible, and the Nodes route itself is kept alive so filters and scroll
   survive a detail-page round trip.
-  Knowledge content edits use a review boundary rather than a raw global
-  write tool: `canvas_propose_node_change` emits a transient proposal card,
-  then `workspaceNodes.applyProposal` validates its size and node fingerprint
-  before the confirmed v1 node update. The proposal is chat state, not a new
-  persisted node schema.
+  Global knowledge-node context is read-only. AI Summary writes the generated
+  summary through the dedicated metadata update path; global chat has no
+  general-purpose node-content mutation tool or review-card flow.
   The dedicated `/chat` route hides the dock chat tab to avoid duplicating
   the full-page chat surface. Chat internals stay owned by `Workbench`,
   which portals its per-workspace `ChatPanel` instances into the dock's

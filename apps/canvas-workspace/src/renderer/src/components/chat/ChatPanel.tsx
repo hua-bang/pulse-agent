@@ -7,6 +7,7 @@ import './DomMention.css';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
+import { useComposerRequest } from './hooks/useComposerRequest';
 import { useAppShell } from '../AppShellProvider';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { AgentContextDomReviewComment, AgentContextNodeRef, AgentRequestContext } from '../../types';
@@ -53,6 +54,7 @@ export const ChatPanel = ({
   contextNodes,
   contextTags,
   contextCanvases,
+  composerRequest, onComposerRequestHandled,
   onRemoveContext,
   rootFolder,
   onClose,
@@ -129,6 +131,7 @@ export const ChatPanel = ({
     otherSessions,
     pendingClarify,
     removeAttachment,
+    replaceInput,
     selectMention,
     sendMessage,
     sessionMenuOpen,
@@ -297,6 +300,8 @@ export const ChatPanel = ({
       clearInput();
     }
   }, [clearInput, focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage]);
+
+  useComposerRequest({ request: composerRequest, focusInput, replaceInput, submitQuickAction: (prompt, quickAction) => { void handleQuickAction(prompt, quickAction); }, onHandled: onComposerRequestHandled });
 
   const handleSubmit = useCallback(async () => {
     if (notConfigured) {

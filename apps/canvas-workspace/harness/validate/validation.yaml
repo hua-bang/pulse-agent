@@ -63,9 +63,10 @@ pathRules:
     quick:
       - pnpm --filter canvas-workspace exec vitest run scripts/perf
 
-  # Bundle + runtime perf gates (perf/program.md). Run by CI
-  # (.github/workflows/perf.yml) on every canvas-workspace PR; runnable
-  # locally with the same command.
+  # Bundle + runtime perf gates (perf/program.md). CI runs the bundle gate on
+  # every canvas-workspace PR and reserves this full report for sensitive
+  # paths, explicit performance labeling, manual runs, and default-branch
+  # pushes. Locally it remains release-level evidence.
   - name: performance-sensitive
     paths:
       - src/**

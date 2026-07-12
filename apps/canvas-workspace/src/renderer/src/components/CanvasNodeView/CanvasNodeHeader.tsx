@@ -7,6 +7,7 @@ import {
   AddToChatButton,
   CloseButton,
   FocusButton,
+  OpenDetailButton,
   PluginSelectElementButton,
   ReferenceButton,
 } from './NodeButtons';
@@ -20,6 +21,7 @@ interface CanvasNodeHeaderProps {
   handleFocus: (e: MouseEvent) => void;
   handleHeaderMouseDown: (e: MouseEvent) => void;
   handlePluginSelectElement: (e: MouseEvent) => void;
+  handleOpenDetail: (e: MouseEvent) => void;
   handleReference: (e: MouseEvent) => void;
   handleAddToChat: (e: MouseEvent) => void;
   handleTitleBlur: (e: FocusEvent<HTMLSpanElement>) => void;
@@ -72,6 +74,7 @@ export const CanvasNodeHeader = ({
   handleFocus,
   handleHeaderMouseDown,
   handlePluginSelectElement,
+  handleOpenDetail,
   handleReference,
   handleAddToChat,
   handleTitleBlur,
@@ -159,6 +162,9 @@ export const CanvasNodeHeader = ({
         <TextColorPicker node={node} onUpdate={onUpdate} />
       )}
       <div className="node-header__actions">
+        {node.type === 'file' ? (
+          <OpenDetailButton onClick={handleOpenDetail} />
+        ) : null}
         {!readOnly && onReference && isReferenceableNode(node) ? (
           <ReferenceButton nodeTitle={node.title} onClick={handleReference} />
         ) : null}

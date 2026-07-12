@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { Editor } from '@tiptap/react';
 import type { FileNodeData } from '../types';
+import { duplicateCurrentNoteBlock, moveCurrentNoteBlock } from '../editor/noteBlockCommands';
 
 interface Options {
   editor: Editor | null;
@@ -29,8 +30,20 @@ export const useNoteKeyboard = ({
   useEffect(() => {
     if (!editor || readOnly) return;
     const handler = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
       const key = e.key.toLowerCase();
+      if (e.altKey && e.shiftKey && (key === 'arrowup' || key === 'arrowdown')) {
+        if (!editor.isFocused) return;
+        e.preventDefault();
+        moveCurrentNoteBlock(editor, key === 'arrowup' ? -1 : 1);
+        return;
+      }
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.shiftKey && key === 'd') {
+        if (!editor.isFocused) return;
+        e.preventDefault();
+        duplicateCurrentNoteBlock(editor);
+        return;
+      }
       if (key !== 's' && key !== 'f') return;
       // Only the focused note responds, so shortcuts don't fan out across
       // every mounted editor.

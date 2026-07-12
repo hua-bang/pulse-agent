@@ -13,10 +13,9 @@ host actually does and does not gate. Facts verified against source
   not.** Workspace scope still receives `read`, `write`, `edit`, `grep`, `ls`,
   and `bash` in the Electron **main process**, with no sandbox or path
   confinement. Global scope now passes an explicit `builtInTools` allowlist
-  (`read`, `grep`, `ls`, Tavily read tools, and `clarify`) and exposes local
-  node changes only through `canvas_propose_node_change`; `write`, `edit`,
-  `bash`, and disk-writing image generation are absent from that Engine's
-  built-in set. This boundary does not classify user-configured MCP/plugin
+  (`read`, `grep`, `ls`, Tavily read tools, and `clarify`); `write`, `edit`,
+  `bash`, node-content mutation, and disk-writing image generation are absent
+  from that Engine's built-in set. This boundary does not classify user-configured MCP/plugin
   tools, which remain separate trust surfaces described below.
 - **A second command-execution path exists besides `bash`:**
   `canvas_create_terminal_node` (`src/main/agent/tools/terminals.ts:16`)

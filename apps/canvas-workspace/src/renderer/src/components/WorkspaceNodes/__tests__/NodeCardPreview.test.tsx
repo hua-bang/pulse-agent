@@ -51,9 +51,12 @@ describe('NodeCardPreview', () => {
     expect(getNodeCardPreviewModel(listItem('image'), 'Image title', 'Empty')).toMatchObject({
       kind: 'image',
     });
-    expect(getNodeCardPreviewModel(listItem('mindmap'), 'Mindmap title', 'Empty')).toMatchObject({
+    expect(getNodeCardPreviewModel(listItem('mindmap', {
+      mindmapPreview: { root: 'Research methods', branches: ['Interviews', 'Field notes'] },
+    }), 'Mindmap title', 'Empty')).toMatchObject({
       kind: 'mindmap',
-      root: 'Mindmap title',
+      root: 'Research methods',
+      branches: ['Interviews', 'Field notes'],
     });
   });
 
@@ -77,6 +80,52 @@ describe('NodeCardPreview', () => {
     expect(image).toContain('data-preview-kind="image"');
     expect(web).not.toMatch(/<(?:iframe|img|webview)\b/i);
     expect(image).toContain('<img src="pulse-canvas://local/tmp/reference.png" alt="" loading="lazy" decoding="async"/>');
+  });
+
+  it('uses a confirmed AI insight before the raw source preview', () => {
+    expect(getNodeCardPreviewModel(
+      listItem('iframe', {
+        summary: 'https://example.com Long source description.',
+        aiSummary: 'A concise, confirmed reading aid.',
+      }),
+      'Web title',
+      'Empty',
+    )).toMatchObject({
+      kind: 'ai-summary',
+      excerpt: 'A concise, confirmed reading aid.',
+      source: 'example.com',
+    });
+
+    const html = renderToStaticMarkup(
+      <NodeCardPreview
+        node={listItem('text', { aiSummary: 'Confirmed synthesis.' })}
+        title="Text title"
+        emptyLabel="Empty"
+        aiSummaryLabel="AI insight"
+        confirmedLabel="Confirmed"
+      />,
+    );
+
+    expect(html).toContain('data-preview-kind="ai-summary"');
+    expect(html).toContain('Confirmed synthesis.');
+  });
+
+  it('keeps empty source nodes compact instead of rendering no-preview copy', () => {
+    expect(getNodeCardPreviewModel(
+      listItem('text', { summary: '' }),
+      'Text title',
+      'No preview available.',
+    )).toEqual({ kind: 'empty' });
+
+    const html = renderToStaticMarkup(
+      <NodeCardPreview
+        node={listItem('file', { summary: '' })}
+        title="File title"
+        emptyLabel="No preview available."
+      />,
+    );
+
+    expect(html).toBe('');
   });
 
   it('uses one native button shell for the whole card interaction', () => {

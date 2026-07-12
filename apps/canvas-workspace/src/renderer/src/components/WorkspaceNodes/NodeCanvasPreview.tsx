@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CanvasNode, WorkspaceNodeRecord } from '../../types';
+import type { CanvasNode, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { isKnowledgeNodeType } from './utils';
 import { useI18n } from '../../i18n';
@@ -9,6 +9,7 @@ interface NodeCanvasPreviewProps {
   record: WorkspaceNodeRecord;
   /** Fallback height when ResizeObserver hasn't measured yet. */
   minHeight?: number;
+  mentionCandidates?: WorkspaceNodeListItem[];
   readOnly?: boolean;
   onPatched?: (next: WorkspaceNodeRecord) => void;
 }
@@ -26,6 +27,7 @@ export const NodeCanvasPreview = ({
   workspaceId,
   record,
   minHeight = 240,
+  mentionCandidates = [],
   readOnly = false,
   onPatched,
 }: NodeCanvasPreviewProps) => {
@@ -84,7 +86,30 @@ export const NodeCanvasPreview = ({
     } satisfies CanvasNode;
   }, [displayRecord, size.width, size.height]);
 
-  const getAllNodes = useCallback(() => (previewNode ? [previewNode] : []), [previewNode]);
+  const getAllNodes = useCallback(() => {
+    const nodes: CanvasNode[] = [];
+    const seen = new Set<string>();
+    if (previewNode) {
+      nodes.push(previewNode);
+      seen.add(previewNode.id);
+    }
+    for (const candidate of mentionCandidates) {
+      if (seen.has(candidate.id) || !isKnowledgeNodeType(candidate.type)) continue;
+      seen.add(candidate.id);
+      nodes.push({
+        id: candidate.id,
+        type: candidate.type,
+        title: candidate.title ?? candidate.displayTitle ?? '',
+        x: 0,
+        y: 0,
+        width: 320,
+        height: 240,
+        data: {} as CanvasNode['data'],
+        updatedAt: candidate.updatedAt,
+      } satisfies CanvasNode);
+    }
+    return nodes;
+  }, [mentionCandidates, previewNode]);
 
   const handleUpdate = useCallback(
     async (_id: string, patch: Partial<CanvasNode>) => {
@@ -124,22 +149,20 @@ export const NodeCanvasPreview = ({
           onPatched?.(result.node);
           return;
         }
-        const latest = await api.read(workspaceId, displayRecord.id);
-        if (requestId !== updateSeqRef.current || !latest.ok || !latest.node) return;
-        latestRecordRef.current = latest.node;
-        setDisplayRecord(latest.node);
-        onPatched?.(latest.node);
-      } catch {
+        throw new Error(result.error ?? t('workspaceNodes.updateNodeFailed'));
+      } catch (error) {
         if (requestId !== updateSeqRef.current) return;
         updatePendingRef.current = false;
         const latest = await api.read(workspaceId, displayRecord.id).catch(() => null);
-        if (!latest?.ok || !latest.node || requestId !== updateSeqRef.current) return;
-        latestRecordRef.current = latest.node;
-        setDisplayRecord(latest.node);
-        onPatched?.(latest.node);
+        if (latest?.ok && latest.node && requestId === updateSeqRef.current) {
+          latestRecordRef.current = latest.node;
+          setDisplayRecord(latest.node);
+          onPatched?.(latest.node);
+        }
+        throw error;
       }
     },
-    [displayRecord.id, onPatched, readOnly, workspaceId],
+    [displayRecord.id, onPatched, readOnly, t, workspaceId],
   );
 
   return (

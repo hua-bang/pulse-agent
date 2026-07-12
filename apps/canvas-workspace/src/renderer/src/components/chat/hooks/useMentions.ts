@@ -16,6 +16,7 @@ import {
 import { appendMentionChipToEditable } from '../utils/editableMentions';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { buildAttachmentFileName } from './attachmentFileName';
+import { useEditableInputControl } from './useEditableInputControl';
 
 interface UseMentionsOptions {
   allWorkspaces?: WorkspaceOption[];
@@ -125,21 +126,15 @@ export function useMentions({
     element.focus();
   }, [nodes]);
 
-  const clearInput = useCallback(() => {
-    setInput('');
-    mentionBuildSeqRef.current++;
-    setMentionOpen(false);
-    setMentionItems([]);
-    setMentionIndex(0);
-    setAttachments([]);
-    if (editableRef.current) {
-      editableRef.current.innerHTML = '';
-    }
-  }, []);
-
-  const focusInput = useCallback(() => {
-    editableRef.current?.focus();
-  }, []);
+  const { clearInput, focusInput, replaceInput } = useEditableInputControl({
+    editableRef,
+    mentionBuildSeqRef,
+    setInput,
+    setMentionOpen,
+    setMentionItems,
+    setMentionIndex,
+    setAttachments,
+  });
 
   const loadSkillItems = useCallback(async (): Promise<MentionItem[]> => {
     if (skillsCacheRef.current) return skillsCacheRef.current;
@@ -493,6 +488,7 @@ export function useMentions({
     mentionItems,
     mentionOpen,
     removeAttachment,
+    replaceInput,
     selectMention,
     setMentionIndex,
     submitCurrentInput,

@@ -3,7 +3,7 @@ import { useI18n } from '../../i18n';
 import { Button } from '../ui/Button';
 import { Popover } from '../ui/Popover';
 import { TextField } from '../ui/TextField';
-import { CheckIcon, CloseIcon } from '../icons';
+import { CheckIcon, CloseIcon, SparklesIcon } from '../icons';
 import { NODE_TYPE_FILTERS, getNodeTypeLabel, type NodeTypeFilter } from './utils';
 
 export interface CountedFilterOption {
@@ -26,6 +26,9 @@ interface Props {
   tags: CountedFilterOption[];
   tagFilter: string | null;
   onTagFilterChange: (tag: string | null) => void;
+  /** A bounded search result or durable Workspace/Tag scope for the existing AI chat. */
+  aiScopeLabel?: string;
+  onAskAiAboutScope?: () => void;
 }
 
 interface FilterOptionRowProps {
@@ -97,6 +100,8 @@ export const NodeFilters = ({
   tags,
   tagFilter,
   onTagFilterChange,
+  aiScopeLabel,
+  onAskAiAboutScope,
 }: Props) => {
   const { t } = useI18n();
   const panelId = useId();
@@ -193,6 +198,13 @@ export const NodeFilters = ({
             />
           )}
         </div>
+      )}
+
+      {aiScopeLabel && onAskAiAboutScope && (
+        <Button size="xs" className="knowledge-node-filter-ai-scope" onClick={onAskAiAboutScope}>
+          <SparklesIcon size={12} />
+          {aiScopeLabel}
+        </Button>
       )}
 
       {open && (

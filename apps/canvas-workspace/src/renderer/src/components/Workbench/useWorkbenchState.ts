@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode } from '../../types';
 import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import { OPEN_NODE_EVENT, type OpenNodeDetail } from '../../utils/openNodeBridge';
+import { getNodeDisplayLabel } from '../../utils/nodeLabel';
+import { useRightDock } from '../RightDock';
 
 interface WorkbenchNodeRequest {
   workspaceId: string;
@@ -47,6 +49,7 @@ export function useWorkbenchState({
   activeWorkspaceId,
   workspaces,
 }: UseWorkbenchStateOptions): WorkbenchController {
+  const dock = useRightDock();
   const [allNodes, setAllNodes] = useState<Record<string, CanvasNode[]>>({});
   const [selectedNodeIdsByWorkspace, setSelectedNodeIdsByWorkspace] = useState<Record<string, string[]>>({});
   const [focusRequest, setFocusRequest] = useState<WorkbenchNodeRequest | undefined>();
@@ -137,17 +140,38 @@ export function useWorkbenchState({
     setFocusRequest({ workspaceId, nodeId });
   }, [ensureWorkspaceNodesLoaded]);
 
-  // Note mentions (and other deep node links) dispatch OPEN_NODE_EVENT on the
-  // window; focus the referenced node through the same request pipeline.
+  // Note mentions (and other deep node links) open the referenced node in the
+  // right dock. Resolve from the in-memory snapshot first; cross-workspace
+  // links may need one store read before their tab can receive a useful title.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<OpenNodeDetail>).detail;
       if (!detail?.nodeId) return;
-      requestNodeFocus(detail.workspaceId || activeWorkspaceId, detail.nodeId);
+      const workspaceId = detail.workspaceId || activeWorkspaceId;
+      const cachedNode = allNodesRef.current[workspaceId]?.find((node) => node.id === detail.nodeId);
+      if (cachedNode) {
+        dock.openNodeDetail(workspaceId, detail.nodeId, getNodeDisplayLabel(cachedNode));
+        return;
+      }
+
+      const api = window.canvasWorkspace?.store;
+      if (!api) {
+        dock.openNodeDetail(workspaceId, detail.nodeId, detail.nodeId);
+        return;
+      }
+      void api.load(workspaceId).then((result) => {
+        const nodes = result.ok && Array.isArray(result.data?.nodes) ? result.data.nodes : [];
+        const node = nodes.find((item) => item.id === detail.nodeId);
+        dock.openNodeDetail(
+          workspaceId,
+          detail.nodeId,
+          node ? getNodeDisplayLabel(node) : detail.nodeId,
+        );
+      });
     };
     window.addEventListener(OPEN_NODE_EVENT, handler);
     return () => window.removeEventListener(OPEN_NODE_EVENT, handler);
-  }, [activeWorkspaceId, requestNodeFocus]);
+  }, [activeWorkspaceId, dock]);
 
   const requestActiveNodeFocus = useCallback((nodeId: string) => {
     requestNodeFocus(activeWorkspaceId, nodeId);

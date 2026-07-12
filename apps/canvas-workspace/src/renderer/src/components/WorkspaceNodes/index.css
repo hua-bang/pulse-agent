@@ -29,7 +29,12 @@
   container-type: inline-size;
 }
 
+.workspace-node-detail-page {
+  container-type: inline-size;
+}
+
 .workspace-nodes-page__main {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -49,8 +54,37 @@
   padding: 18px 42px 48px;
 }
 
-.workspace-nodes-page__header,
-.workspace-node-detail-page__top {
+.workspace-nodes-selection-bar {
+  position: absolute;
+  z-index: 5;
+  bottom: 18px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px;
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-md);
+  background: var(--nodes-surface);
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+}
+
+.workspace-nodes-selection-bar__count {
+  padding: 0 6px 0 7px;
+  color: var(--nodes-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .workspace-nodes-selection-bar {
+    bottom: 12px;
+    max-width: calc(100% - 24px);
+  }
+}
+
+.workspace-nodes-page__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -67,12 +101,6 @@
 
 .workspace-nodes-page__header p {
   margin: 6px 0 0;
-  color: var(--nodes-muted);
-  font-size: 12px;
-}
-
-.workspace-node-detail-page__top span {
-  margin: 0;
   color: var(--nodes-muted);
   font-size: 12px;
 }
@@ -442,54 +470,6 @@
   color: var(--error);
 }
 
-.node-detail-drawer {
-  position: relative;
-  width: 420px;
-  min-width: 320px;
-  max-width: 960px;
-  flex-shrink: 0;
-  border-left: 1px solid var(--nodes-border);
-  background: var(--nodes-surface);
-  box-shadow: -8px 0 24px rgba(15, 15, 15, 0.04);
-  z-index: 3;
-}
-
-.node-detail-drawer__resize {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -3px;
-  width: 6px;
-  cursor: col-resize;
-  z-index: 4;
-}
-
-.node-detail-drawer__resize:hover,
-.node-detail-drawer__resize:active {
-  background: linear-gradient(to right, transparent, rgba(60, 120, 240, 0.2), transparent);
-}
-
-.workspace-graph-page .node-detail-drawer {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-}
-
-/* At the default 1200px window, a 480px AI dock leaves too little room for
- * an in-flow 520px Side Peek. Switch only the detail drawer to an overlay so
- * the selected document and AI remain usable without crushing list cards. */
-@container (max-width: 900px) {
-  .workspace-nodes-page .node-detail-drawer {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    min-width: min(320px, 100%);
-    max-width: min(520px, 100%);
-  }
-}
-
 .node-detail-panel {
   height: 100%;
   display: flex;
@@ -709,14 +689,6 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.workspace-node-detail-page__top {
-  flex-shrink: 0;
-  padding: 14px 24px;
-  margin: 0;
-  border-bottom: 1px solid var(--nodes-border);
-  background: var(--nodes-surface);
 }
 
 .workspace-node-detail-page__body {

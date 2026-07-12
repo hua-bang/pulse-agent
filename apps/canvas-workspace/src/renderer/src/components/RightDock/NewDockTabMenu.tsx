@@ -1,37 +1,23 @@
-import { useId, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 import { useI18n } from '../../i18n';
-import { NodeTypeIcon, PlusIcon } from '../icons';
+import { NodeTypeIcon } from '../icons';
 import { Button, Popover } from '../ui';
 import './new-tab-menu.css';
 
 interface Props {
+  anchorRef: RefObject<HTMLSpanElement>;
+  panelId: string;
   showTerminal: boolean;
+  onClose: () => void;
+  onOpenNode: () => void;
   onNewWebTab: () => void;
   onNewTerminalTab: () => void;
 }
 
-export const NewDockTabMenu = ({ showTerminal, onNewWebTab, onNewTerminalTab }: Props) => {
+export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOpenNode, onNewWebTab, onNewTerminalTab }: Props) => {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const anchorRef = useRef<HTMLSpanElement>(null);
-  const panelId = useId();
 
   return (
-    <span ref={anchorRef} className="right-dock__new-tab-menu">
-      <Button
-        variant="icon"
-        size="sm"
-        className="right-dock__new-link"
-        aria-label={t('rightDock.newTab')}
-        title={t('rightDock.newTab')}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? panelId : undefined}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <PlusIcon size={16} />
-      </Button>
-      {open && (
         <Popover
           anchorRef={anchorRef}
           placement="bottom"
@@ -39,7 +25,7 @@ export const NewDockTabMenu = ({ showTerminal, onNewWebTab, onNewTerminalTab }: 
           gap={6}
           viewportMargin={8}
           onClose={(reason) => {
-            setOpen(false);
+            onClose();
             if (reason === 'escape') anchorRef.current?.querySelector('button')?.focus();
           }}
           className="right-dock__new-tab-panel"
@@ -51,7 +37,19 @@ export const NewDockTabMenu = ({ showTerminal, onNewWebTab, onNewTerminalTab }: 
             className="right-dock__new-tab-item"
             role="menuitem"
             onClick={() => {
-              setOpen(false);
+              onClose();
+              onOpenNode();
+            }}
+          >
+            <NodeTypeIcon type="file" size={15} />
+            {t('rightDock.openNode')}
+          </Button>
+          <Button
+            size="sm"
+            className="right-dock__new-tab-item"
+            role="menuitem"
+            onClick={() => {
+              onClose();
               onNewWebTab();
             }}
           >
@@ -64,7 +62,7 @@ export const NewDockTabMenu = ({ showTerminal, onNewWebTab, onNewTerminalTab }: 
               className="right-dock__new-tab-item"
               role="menuitem"
               onClick={() => {
-                setOpen(false);
+                onClose();
                 onNewTerminalTab();
               }}
             >
@@ -73,7 +71,5 @@ export const NewDockTabMenu = ({ showTerminal, onNewWebTab, onNewTerminalTab }: 
             </Button>
           )}
         </Popover>
-      )}
-    </span>
   );
 };

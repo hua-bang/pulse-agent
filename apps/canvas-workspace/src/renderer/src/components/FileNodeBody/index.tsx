@@ -15,21 +15,28 @@ import { NoteFindBar } from '../NoteFindBar';
 import { NoteOutline } from '../NoteOutline';
 import { NoteLinkPrompt } from '../NoteLinkPrompt';
 import { useRightDock } from '../RightDock';
+import { useI18n } from '../../i18n';
+import { deleteNoteBlock, duplicateCurrentNoteBlock, moveCurrentNoteBlock } from '../../editor/noteBlockCommands';
+import { NoteBlockHandle } from '../NoteBlockHandle';
 
 interface Props {
   node: CanvasNode;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   workspaceId?: string;
   /** Snapshot accessor for the workspace's nodes, used to populate @-mentions. */
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
+  autoFocus?: boolean;
 }
 
-export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false }: Props) => {
+export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false, autoFocus = false }: Props) => {
   const data = node.data as FileNodeData;
+  const { t } = useI18n();
   const { openLink } = useRightDock();
   const [modified, setModified] = useState(false);
   const [statusText, setStatusText] = useState('');
+  const [statusTone, setStatusTone] = useState<'saving' | 'saved' | 'error'>('saved');
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -39,25 +46,36 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   const workspaceIdRef = useRef(workspaceId);
   workspaceIdRef.current = workspaceId;
 
-  const showStatus = useCallback((msg: string, duration = 2000) => {
+  const showStatus = useCallback((msg: string, tone: 'saving' | 'saved' | 'error' = 'saved', duration = 2000) => {
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    setStatusTone(tone);
     setStatusText(msg);
-    setTimeout(() => setStatusText(''), duration);
+    statusTimerRef.current = setTimeout(() => setStatusText(''), duration);
+  }, []);
+
+  useEffect(() => () => {
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
   }, []);
 
   const persistToFile = useCallback(
     async (markdown: string, filePath: string) => {
       const api = window.canvasWorkspace?.file;
-      if (!api || !filePath) return;
-      const res = await api.write(filePath, markdown);
+      if (!api || !filePath) {
+        showStatus(t('noteToolbar.saveFailed'), 'error');
+        return;
+      }
+      const res = await api.write(filePath, markdown).catch(() => ({ ok: false }));
       if (res.ok) {
         setModified(false);
         onUpdate(nodeIdRef.current, {
           data: { ...dataRef.current, content: markdown, saved: true, modified: false },
         });
-        showStatus('Saved');
+        showStatus(t('noteToolbar.saved'), 'saved');
+      } else {
+        showStatus(t('noteToolbar.saveFailed'), 'error');
       }
     },
-    [onUpdate, showStatus]
+    [onUpdate, showStatus, t]
   );
 
   const {
@@ -89,7 +107,23 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     persistToFile,
     onUpdate,
     readOnly,
+    onCommitState: (state) => {
+      if (state === 'saving') {
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+        setStatusTone('saving');
+        setStatusText(t('noteToolbar.saving'));
+      } else {
+        showStatus(
+          t(state === 'saved' ? 'noteToolbar.saved' : 'noteToolbar.saveFailed'),
+          state === 'saved' ? 'saved' : 'error',
+        );
+      }
+    },
   });
+
+  useEffect(() => {
+    if (autoFocus && editor) editor.commands.focus('end');
+  }, [autoFocus, editor]);
 
   const mentionCandidates = getAllNodes ? getAllNodes().filter((n) => n.id !== node.id) : [];
   const { mentionMenu, filteredMentions, insertMention, closeMention } = useNoteMentions({
@@ -222,7 +256,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       const anchor = (e.target as HTMLElement).closest?.('a');
       const href = anchor?.getAttribute('href')?.trim();
       if (!href) return;
-      // A node mention focuses its target node instead of opening a URL.
+      // A node mention opens its target in a right-dock node tab.
       const nodeLink = parseNodeLinkHref(href);
       if (nodeLink) {
         e.preventDefault();
@@ -230,7 +264,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
         const targetWorkspaceId = nodeLink.workspaceId ?? workspaceId ?? '';
         const targetNodeKnown = !getAllNodes || getAllNodes().some((item) => item.id === nodeLink.nodeId);
         if (!targetNodeKnown && targetWorkspaceId === (workspaceId ?? '')) {
-          showStatus('Missing node');
+          showStatus('Missing node', 'error');
           return;
         }
         dispatchOpenNode({ workspaceId: targetWorkspaceId, nodeId: nodeLink.nodeId });
@@ -257,8 +291,21 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
           onInsertImage={openImagePicker}
           onOpenFind={openFindBar}
           onToggleOutline={toggleOutline}
+          onMoveBlockUp={() => {
+            if (editor) moveCurrentNoteBlock(editor, -1);
+          }}
+          onMoveBlockDown={() => {
+            if (editor) moveCurrentNoteBlock(editor, 1);
+          }}
+          onDuplicateBlock={() => {
+            if (editor) duplicateCurrentNoteBlock(editor);
+          }}
+          onDeleteBlock={() => {
+            if (editor) deleteNoteBlock(editor);
+          }}
           outlineOpen={outlineOpen}
           statusText={statusText}
+          statusTone={statusTone}
           modified={modified}
           fileName={fileName}
           filePath={filePath ?? undefined}
@@ -291,6 +338,10 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       >
         <EditorContent editor={editor} className="note-tiptap-editor" />
       </div>
+
+      {!readOnly && editor && (
+        <NoteBlockHandle editor={editor} cardRef={cardRef} />
+      )}
 
       <input
         ref={imageInputRef}

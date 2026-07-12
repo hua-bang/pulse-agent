@@ -1,9 +1,12 @@
 import type {
+  AgentContextCanvasRef,
   AgentContextNodeRef,
+  AgentContextTagRef,
   KnowledgeNodeSelection,
   KnowledgeTagDefinition,
   WorkspaceNodeListItem,
 } from '../../types';
+import type { ChatComposerRequest } from '../chat/types';
 import {
   getNodeTags,
   getNodeTitle,
@@ -14,12 +17,21 @@ import {
 export interface KnowledgeChatRouteContext {
   active: boolean;
   selectedNode: KnowledgeNodeSelection | null;
+  explicitContext?: KnowledgeChatExplicitContext;
+}
+
+export interface KnowledgeChatExplicitContext {
+  nodes: AgentContextNodeRef[];
+  tags?: AgentContextTagRef[];
+  canvases?: AgentContextCanvasRef[];
+  composerRequest?: ChatComposerRequest;
 }
 
 interface ResolveKnowledgeChatRouteContextOptions {
   activeView: string;
   selectedNode: KnowledgeNodeSelection | null;
   detailNode: KnowledgeNodeSelection | null;
+  explicitContext?: KnowledgeChatRouteContext['explicitContext'];
 }
 
 type KnowledgeNodeMentionCandidate = AgentContextNodeRef;
@@ -48,9 +60,10 @@ export function resolveKnowledgeChatRouteContext({
   activeView,
   selectedNode,
   detailNode,
+  explicitContext,
 }: ResolveKnowledgeChatRouteContextOptions): KnowledgeChatRouteContext {
   if (activeView === 'nodes') {
-    return { active: true, selectedNode };
+    return { active: true, selectedNode, ...(explicitContext ? { explicitContext } : {}) };
   }
   if (activeView === 'node-detail') {
     return { active: true, selectedNode: detailNode };

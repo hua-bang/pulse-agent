@@ -32,6 +32,24 @@ describe('resolveKnowledgeChatRouteContext', () => {
     expect(fullPage).toEqual(drawer);
   });
 
+  it('keeps an explicitly invoked list context on the Nodes route', () => {
+    const explicitContext = {
+      nodes: [{ id: 'node-2', title: 'Gemini', type: 'iframe' as const, workspaceId: 'workspace-b' }],
+      composerRequest: { id: 'request-1', text: 'Explain this node.' },
+    };
+
+    expect(resolveKnowledgeChatRouteContext({
+      activeView: 'nodes',
+      selectedNode: null,
+      detailNode: null,
+      explicitContext,
+    })).toEqual({
+      active: true,
+      selectedNode: null,
+      explicitContext,
+    });
+  });
+
   it('leaves Graph and Canvas on workspace-scoped chat', () => {
     const selectedNode = { workspaceId: 'workspace-a', nodeId: 'node-3' };
 

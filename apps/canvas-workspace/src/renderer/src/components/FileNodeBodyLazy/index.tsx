@@ -6,7 +6,7 @@ import './index.css';
 
 interface Props {
   node: CanvasNode;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   workspaceId?: string;
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
@@ -64,7 +64,7 @@ export const MarkdownPreview = ({ content }: { content: string }) => {
       rows.push(<div key={rows.length} className="file-preview__list">• {renderInline(bullet[1])}</div>);
       continue;
     }
-    rows.push(line.trim() ? <p key={rows.length}>{renderInline(line)}</p> : <br key={rows.length} />);
+    if (line.trim()) rows.push(<p key={rows.length}>{renderInline(line)}</p>);
   }
   if (inCode) flushCode();
   return <>{rows}</>;

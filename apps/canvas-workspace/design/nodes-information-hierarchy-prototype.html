@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PROTOTYPE - Nodes information hierarchy</title>
+  <!-- Three throwaway Nodes variants, switchable via ?variant=A|B|C. -->
+  <style>
+    :root {
+      --ink: #37352f;
+      --muted: #787774;
+      --faint: #a5a39e;
+      --line: rgba(55, 53, 47, .13);
+      --line-strong: rgba(55, 53, 47, .22);
+      --canvas: #fbfbfa;
+      --paper: #fff;
+      --soft: #f7f7f5;
+      --blue: #2383e2;
+      --blue-soft: #edf5fd;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--canvas); font-family: var(--sans); }
+    button, input { font: inherit; }
+    button { color: inherit; }
+
+    .app { min-height: 100vh; display: grid; grid-template-columns: 238px minmax(0, 1fr); }
+    .sidebar { position: sticky; top: 0; height: 100vh; padding: 22px 10px; background: var(--paper); border-right: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 12px 22px; font: 700 15px/1 var(--mono); }
+    .brand-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; color: var(--blue); background: var(--blue-soft); }
+    .nav { display: grid; gap: 3px; }
+    .nav button { height: 38px; display: flex; align-items: center; gap: 11px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
+    .nav button.active { color: var(--blue); background: var(--blue-soft); }
+    .sidebar-label { margin: 26px 12px 10px; color: var(--faint); font: 700 10px/1 var(--mono); letter-spacing: .07em; }
+    .workspace { padding: 8px 12px; color: var(--muted); font-size: 12px; }
+
+    .main { min-width: 0; padding: 38px 44px 110px; }
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+    h1 { margin: 0; font: 750 30px/1.15 var(--mono); letter-spacing: -.04em; }
+    .subtitle { margin-top: 7px; color: var(--muted); font: 12px/1.4 var(--mono); }
+    .toolbar { display: flex; align-items: center; gap: 10px; }
+    .btn { height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); font: 650 12px/1 var(--mono); cursor: pointer; }
+    .btn:hover { background: var(--soft); border-color: var(--line-strong); }
+    .search-row { display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: 10px; margin-bottom: 26px; }
+    .search { height: 42px; display: flex; align-items: center; gap: 10px; padding: 0 13px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+    .search:focus-within { border-color: rgba(35, 131, 226, .5); box-shadow: 0 0 0 2px rgba(35, 131, 226, .12); }
+    .search input { width: 100%; border: 0; outline: 0; color: var(--ink); background: transparent; font: 13px/1 var(--mono); }
+    .search input::placeholder { color: var(--faint); }
+
+    .variant-intro { display: flex; align-items: baseline; gap: 10px; margin: -8px 0 17px; }
+    .variant-intro strong { font-size: 13px; }
+    .variant-intro span { color: var(--muted); font-size: 12px; }
+
+    .tag { display: inline-flex; align-items: center; min-height: 20px; padding: 2px 6px; border-radius: 4px; color: #5f5e5b; background: #f0efed; font-size: 10px; }
+    .type-icon { width: 20px; height: 20px; display: inline-grid; place-items: center; color: var(--muted); background: var(--soft); border-radius: 4px; font: 600 10px/1 var(--mono); }
+    .meta { color: var(--faint); font: 10px/1.3 var(--mono); }
+    .title { color: var(--ink); font-size: 14px; font-weight: 680; line-height: 1.4; }
+    .excerpt { color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .domain { color: var(--muted); font: 10px/1.3 var(--mono); }
+    .row-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+
+    /* A: content-first masonry. Stable scan order: identity, meaning, context. */
+    .variant-a .grid { columns: 3 248px; column-gap: 12px; }
+    .content-card { position: relative; width: 100%; display: inline-flex; flex-direction: column; gap: 9px; margin: 0 0 12px; padding: 13px; break-inside: avoid; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); cursor: pointer; text-align: left; }
+    .content-card:hover { border-color: var(--line-strong); background: #fdfdfc; }
+    .content-card.selected { border-color: rgba(35, 131, 226, .55); box-shadow: 0 0 0 2px rgba(35, 131, 226, .11); }
+    .identity { display: flex; align-items: center; gap: 8px; }
+    .identity .title { flex: 1; min-width: 0; }
+    .card-actions { position: absolute; z-index: 2; right: 9px; bottom: 9px; display: flex; gap: 4px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 120ms ease; }
+    .content-card:hover .card-actions, .content-card:focus-within .card-actions { opacity: 1; visibility: visible; pointer-events: auto; }
+    .content-card:hover .context .meta, .content-card:focus-within .context .meta { opacity: 0; }
+    .card-action { height: 24px; padding: 0 7px; border: 1px solid var(--line); border-radius: 4px; color: #4a6686; background: var(--paper); box-shadow: 0 1px 2px rgba(55, 53, 47, .08); font: 600 10px/1 var(--mono); white-space: nowrap; cursor: pointer; }
+    .card-action:hover { border-color: rgba(35, 131, 226, .42); background: var(--blue-soft); }
+    .card-action.chat { color: var(--muted); }
+    .content-card .excerpt { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+    .context { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 2px; }
+    .context .row-tags { min-width: 0; }
+    .context .meta { flex: 0 0 auto; }
+    .source-preview { display: grid; gap: 6px; padding: 9px 10px; background: var(--soft); border-radius: 4px; }
+    .preview-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font: 10px/1.3 var(--mono); }
+    .preview-label .origin { color: var(--faint); }
+    .ai-insight { display: grid; gap: 6px; padding: 10px; border: 1px solid rgba(35, 131, 226, .19); border-radius: 4px; background: #f5f9fd; }
+    .ai-insight .preview-label { color: #52749a; }
+    .ai-insight .excerpt { color: #4a5e72; }
+    .image-preview { height: 142px; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; border-radius: 4px; border: 1px solid rgba(55, 53, 47, .08); background: #eef0f2; }
+    .image-preview .code { padding: 11px; background: #fff; }
+    .image-preview .screen { padding: 12px; background: #f4f5f6; }
+    .fake-line { height: 4px; margin-bottom: 6px; border-radius: 2px; background: #d9dde2; }
+    .fake-line.blue { width: 70%; background: #8bb8ef; }
+    .fake-line.short { width: 48%; }
+    .mindmap-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; background: var(--soft); border-radius: 4px; }
+    .mindmap-preview span { padding: 3px 6px; color: var(--muted); background: var(--paper); border: 1px solid var(--line); border-radius: 4px; font-size: 10px; }
+
+    /* B: knowledge ledger. It sacrifices visual variety for maximum scanning speed. */
+    .variant-b .ledger { border-top: 1px solid var(--line); }
+    .ledger-head, .ledger-row { display: grid; grid-template-columns: 34px minmax(180px, 1.3fr) minmax(220px, 2fr) minmax(120px, .9fr) 78px; gap: 12px; align-items: center; }
+    .ledger-head { min-height: 32px; color: var(--faint); border-bottom: 1px solid var(--line); font: 10px/1 var(--mono); }
+    .ledger-row { min-height: 64px; padding: 9px 0; border-bottom: 1px solid rgba(55, 53, 47, .09); cursor: pointer; }
+    .ledger-row:hover { background: rgba(55, 53, 47, .035); }
+    .ledger-row.selected { background: var(--blue-soft); }
+    .ledger-row .excerpt { white-space: nowrap; overflow: hidden; text-overflow: clip; }
+    .ledger-row .row-tags { max-height: 44px; overflow: hidden; }
+    .ledger-date { color: var(--faint); text-align: right; font: 10px/1 var(--mono); }
+
+    /* C: semantic gallery. The preview leads, metadata follows. */
+    .variant-c .gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+    .gallery-card { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); cursor: pointer; }
+    .gallery-card:hover { border-color: var(--line-strong); }
+    .gallery-card.selected { box-shadow: 0 0 0 2px rgba(35, 131, 226, .16); border-color: rgba(35, 131, 226, .55); }
+    .gallery-visual { min-height: 118px; display: grid; align-content: center; gap: 8px; padding: 16px; border-bottom: 1px solid rgba(55, 53, 47, .09); background: var(--soft); }
+    .gallery-visual.image { height: 176px; padding: 0; grid-template-columns: 1fr 1fr; }
+    .gallery-visual.image .code, .gallery-visual.image .screen { padding: 15px; }
+    .gallery-visual.quote { font: 14px/1.7 ui-serif, Georgia, "Songti SC", serif; }
+    .gallery-visual.web strong { font: 600 11px/1.4 var(--mono); }
+    .gallery-body { display: grid; gap: 8px; padding: 12px 13px 13px; }
+    .gallery-body .context { padding-top: 0; }
+
+    .empty { padding: 60px; color: var(--muted); text-align: center; }
+    .hidden { display: none !important; }
+
+    .switcher { position: fixed; z-index: 20; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 5px; color: #fff; background: #292824; border-radius: 9px; box-shadow: 0 8px 30px rgba(0, 0, 0, .22); }
+    .switcher button { width: 34px; height: 30px; border: 0; border-radius: 6px; color: #fff; background: transparent; cursor: pointer; }
+    .switcher button:hover { background: rgba(255, 255, 255, .12); }
+    .switcher-label { min-width: 220px; padding: 0 12px; text-align: center; font: 650 11px/1 var(--mono); }
+    .prototype-note { position: fixed; right: 14px; bottom: 14px; color: var(--faint); font: 9px/1 var(--mono); }
+
+    .ai-panel { position: fixed; z-index: 15; top: 0; right: 0; width: 372px; height: 100vh; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: var(--paper); box-shadow: -10px 0 30px rgba(55, 53, 47, .06); }
+    .ai-panel-head { height: 62px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--line); font: 700 13px/1 var(--mono); }
+    .panel-close { width: 28px; height: 28px; border: 0; border-radius: 4px; color: var(--muted); background: transparent; cursor: pointer; }
+    .panel-close:hover { background: var(--soft); }
+    .ai-panel-body { flex: 1; display: grid; align-content: start; gap: 16px; padding: 22px 18px; }
+    .ai-context { display: flex; align-items: center; gap: 7px; color: var(--muted); font: 11px/1.3 var(--mono); }
+    .mention { display: inline-flex; align-items: center; min-height: 24px; padding: 0 7px; border-radius: 4px; color: #376a9e; background: var(--blue-soft); font: 600 11px/1 var(--mono); }
+    .ai-empty { margin-top: 96px; color: var(--muted); font-size: 13px; line-height: 1.7; text-align: center; }
+    .ai-draft { display: grid; gap: 9px; padding: 13px; border: 1px solid rgba(35, 131, 226, .22); border-radius: 6px; background: #f5f9fd; }
+    .ai-draft-label { display: flex; justify-content: space-between; color: #52749a; font: 600 10px/1.3 var(--mono); }
+    .ai-draft p { margin: 0; color: #4a5e72; font-size: 13px; line-height: 1.65; }
+    .draft-actions { display: flex; gap: 6px; }
+    .draft-actions .btn { height: 28px; font-size: 10px; }
+    .draft-actions .confirm { color: #fff; border-color: #2383e2; background: #2383e2; }
+    .ai-composer { margin: 0 16px 18px; display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 8px; border: 1px solid var(--line-strong); border-radius: 8px; }
+    .ai-composer input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 12px; }
+    .ai-send { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 5px; color: #fff; background: var(--blue); cursor: pointer; }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 76px minmax(0, 1fr); }
+      .brand { justify-content: center; padding-inline: 0; }
+      .brand span:last-child, .nav button span:last-child, .sidebar-label, .workspace { display: none; }
+      .nav button { justify-content: center; }
+      .main { padding: 30px 24px 100px; }
+      .variant-a .grid { columns: 2 230px; }
+      .variant-c .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .ledger-head, .ledger-row { grid-template-columns: 30px minmax(150px, 1fr) minmax(180px, 1.5fr) 70px; }
+      .ledger-tags { display: none; }
+      .ai-panel { width: 340px; }
+    }
+
+    @media (max-width: 640px) {
+      .app { display: block; }
+      .sidebar { display: none; }
+      .main { padding: 22px 15px 96px; }
+      .topbar { align-items: center; }
+      .toolbar .btn:first-child { display: none; }
+      .variant-a .grid { columns: 1; }
+      .variant-c .gallery { grid-template-columns: 1fr; }
+      .ledger-head { display: none; }
+      .ledger-row { grid-template-columns: 26px minmax(0, 1fr) 56px; }
+      .ledger-summary, .ledger-tags { display: none; }
+      .switcher-label { min-width: 180px; }
+      .ai-panel { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">◉</span><span>Pulse Canvas</span></div>
+      <nav class="nav">
+        <button><span>♙</span><span>AI Chat</span></button>
+        <button class="active"><span>▱</span><span>Nodes</span></button>
+      </nav>
+      <div class="sidebar-label">WORKSPACES</div>
+      <div class="workspace">《媒介即讯息》</div>
+      <div class="workspace">Pulse Canvas</div>
+      <div class="workspace">AgentTeams</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><h1>Nodes</h1><div class="subtitle">Knowledge library · <span id="itemCount">8</span> items</div></div>
+        <div class="toolbar"><button class="btn">↻ Refresh</button></div>
+      </header>
+      <div class="search-row">
+        <label class="search"><span>⌕</span><input id="search" placeholder="Search title, content, tags..." /></label>
+        <button class="btn">☷ Filter</button>
+      </div>
+      <div id="root"></div>
+    </main>
+  </div>
+
+  <aside id="aiPanel" class="ai-panel hidden" aria-label="AI chat prototype"></aside>
+
+  <div class="switcher" aria-label="Prototype variants">
+    <button id="prev" aria-label="Previous variant">←</button>
+    <div class="switcher-label" id="variantLabel"></div>
+    <button id="next" aria-label="Next variant">→</button>
+  </div>
+  <div class="prototype-note">PROTOTYPE · no production data</div>
+
+  <script>
+    const nodes = [
+      { type:'Web', icon:'◎', title:'Google Gemini', sourceSnippet:'Google 的 AI 助手与模型入口，可从网页直接开始对话与探索能力。', domain:'gemini.google.com', tags:['AIGC','App'], workspace:'媒介即讯息', date:'Jul 12', preview:'web', ai:null },
+      { type:'File', icon:'□', title:'媒介即讯息', excerpt:'媒介不是信息的容器，媒介本身会重塑人的感知、关系与社会结构。', tags:['哲学','传播学','思考'], workspace:'媒介即讯息', date:'Jul 11', preview:'text' },
+      { type:'File', icon:'□', title:'《AI 新媒介》思维导图大纲', excerpt:'从技术基础、界面范式到人与智能体的协作关系，整理文章的核心论证。', tags:['写作'], workspace:'媒介即讯息', date:'Jul 11', preview:'mindmap' },
+      { type:'Image', icon:'▧', title:'Webpack HMR 调试记录', excerpt:'开发环境中热更新链路与错误现场截图。', tags:['工程'], workspace:'Pulse Canvas', date:'Jun 21', preview:'image' },
+      { type:'Text', icon:'T', title:'测试一下', excerpt:'一条临时记录，用于验证文本节点在知识列表中的呈现。', tags:[], workspace:'媒介即讯息', date:'Jun 19', preview:'text' },
+      { type:'Web', icon:'◎', title:'pulse-agent · DeepWiki', sourceSnippet:'自动生成的代码库说明与导航页面，覆盖模块、调用关系和文档索引。', domain:'deepwiki.com', tags:['Pulse','AIGC'], workspace:'媒介即讯息', date:'Jun 17', preview:'web', ai:{ state:'confirmed', text:'用于快速理解 pulse-agent 的模块分工、依赖关系和调用入口。' } },
+      { type:'File', icon:'□', title:'Search & Social Contrast', excerpt:'搜索依赖明确意图，社交分发依赖关系网络，两者塑造不同的信息消费行为。', tags:['研究'], workspace:'信息观', date:'May 27', preview:'text' },
+      { type:'Mindmap', icon:'⌘', title:'第二大脑的组织方式', excerpt:'采集、澄清、连接、表达。', tags:['知识管理'], workspace:'信息观', date:'May 20', preview:'mindmap' },
+    ];
+
+    const variants = {
+      A: { name:'内容优先卡片', note:'默认展示来源片段，确认后的 AI 提炼才成为内容预览。' },
+      B: { name:'高密度知识清单', note:'用稳定列对齐换取最高扫描效率，不强调卡片。' },
+      C: { name:'语义画廊', note:'让图片、网页和正文预览承担第一视觉线索。' },
+    };
+    let selected = '';
+    let aiSession = null;
+
+    const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const description = node => node.excerpt ?? node.sourceSnippet ?? '';
+    const tags = node => node.tags.map(tag => `<span class="tag">${esc(tag)}</span>`).join('');
+    const fakeImage = () => `<div class="image-preview"><div class="code">${Array.from({length:8},(_,i)=>`<div class="fake-line ${i===2?'blue':''} ${i%3===0?'short':''}"></div>`).join('')}</div><div class="screen">${Array.from({length:9},(_,i)=>`<div class="fake-line ${i===1?'blue':''} ${i%4===0?'short':''}"></div>`).join('')}</div></div>`;
+    const sourcePreview = node => `<div class="source-preview"><div class="preview-label"><span>◎ ${esc(node.domain)}</span><span class="origin">来源片段</span></div><div class="excerpt">${esc(node.sourceSnippet)}</div></div>`;
+    const insightPreview = node => {
+      return `<div class="ai-insight"><div class="preview-label"><span>✦ AI 提炼</span><span>已确认</span></div><div class="excerpt">${esc(node.ai.text)}</div></div>`;
+    };
+    const visual = node => {
+      if (node.preview === 'image') return fakeImage();
+      if (node.preview === 'web') return node.ai ? insightPreview(node) : sourcePreview(node);
+      if (node.preview === 'mindmap') return `<div class="mindmap-preview"><span>主题</span><span>论点</span><span>证据</span><span>表达</span></div>`;
+      return `<div class="excerpt">${esc(description(node))}</div>`;
+    };
+
+    const cardActions = node => `<div class="card-actions"><button class="card-action" type="button" data-ai-action="summarize">✦ AI 提炼</button><button class="card-action chat" type="button" data-ai-action="chat">AI 对话</button></div>`;
+    const renderA = data => `<section class="variant-a"><div class="variant-intro"><strong>A · 内容优先卡片</strong><span>${variants.A.note}</span></div><div class="grid">${data.map(node => `<article class="content-card ${selected===node.title?'selected':''}" data-title="${esc(node.title)}" tabindex="0">${cardActions(node)}<div class="identity"><span class="type-icon">${node.icon}</span><span class="title">${esc(node.title)}</span></div>${visual(node)}<div class="context"><span class="row-tags">${tags(node)}</span><span class="meta">${esc(node.workspace)} · ${node.date}</span></div></article>`).join('')}</div></section>`;
+
+    const renderB = data => `<section class="variant-b"><div class="variant-intro"><strong>B · 高密度知识清单</strong><span>${variants.B.note}</span></div><div class="ledger"><div class="ledger-head"><span></span><span>节点</span><span>内容</span><span class="ledger-tags">标签</span><span>更新</span></div>${data.map(node => `<div class="ledger-row ${selected===node.title?'selected':''}" data-title="${esc(node.title)}" tabindex="0"><span class="type-icon">${node.icon}</span><span><span class="title">${esc(node.title)}</span><br><span class="domain">${esc(node.workspace)}${node.domain?' · '+esc(node.domain):''}</span></span><span class="excerpt ledger-summary">${esc(description(node))}</span><span class="row-tags ledger-tags">${tags(node)}</span><span class="ledger-date">${node.date}</span></div>`).join('')}</div></section>`;
+
+    const galleryVisual = node => {
+      if (node.preview === 'image') return `<div class="gallery-visual image">${fakeImage().replace('image-preview','').replace('<div class="','<div class="').replace('</div></div>','</div></div>')}</div>`;
+      if (node.preview === 'web') return `<div class="gallery-visual web">${visual(node)}</div>`;
+      if (node.preview === 'mindmap') return `<div class="gallery-visual">${visual(node)}</div>`;
+      return `<div class="gallery-visual quote">${esc(node.excerpt)}</div>`;
+    };
+    const renderC = data => `<section class="variant-c"><div class="variant-intro"><strong>C · 语义画廊</strong><span>${variants.C.note}</span></div><div class="gallery">${data.map(node => `<article class="gallery-card ${selected===node.title?'selected':''}" data-title="${esc(node.title)}" tabindex="0">${galleryVisual(node)}<div class="gallery-body"><div class="title">${esc(node.title)}</div><div class="context"><span class="row-tags">${tags(node)}</span><span class="meta">${esc(node.workspace)} · ${node.date}</span></div></div></article>`).join('')}</div></section>`;
+
+    const getVariant = () => {
+      const key = new URLSearchParams(location.search).get('variant')?.toUpperCase();
+      return variants[key] ? key : 'A';
+    };
+    const setVariant = key => {
+      const url = new URL(location.href);
+      url.searchParams.set('variant', key);
+      history.replaceState({}, '', url);
+      render();
+    };
+    const filtered = () => {
+      const q = document.getElementById('search').value.trim().toLowerCase();
+      if (!q) return nodes;
+      return nodes.filter(node => [node.title,description(node),node.domain,node.workspace,...node.tags].filter(Boolean).join(' ').toLowerCase().includes(q));
+    };
+    const draftFor = node => node.title === 'Google Gemini'
+      ? 'Google 的多模态 AI 助手入口，适合快速体验模型能力与对话式任务。'
+      : '帮助快速定位该页面在当前知识库中的用途与可复用信息。';
+    function updateAiState(title, action) {
+      const node = nodes.find(candidate => candidate.title === title);
+      if (!node) return;
+      if (action === 'summarize') aiSession = { title, mode:'summarize' };
+      if (action === 'chat') aiSession = { title, mode:'chat' };
+      if (action === 'confirm' && aiSession?.mode === 'summarize') {
+        node.ai = { state:'confirmed', text:draftFor(node) };
+        aiSession = null;
+      }
+      if (action === 'dismiss' || action === 'close') aiSession = null;
+    }
+    function renderAiPanel() {
+      const panel = document.getElementById('aiPanel');
+      if (!aiSession) { panel.classList.add('hidden'); return; }
+      const node = nodes.find(candidate => candidate.title === aiSession.title);
+      if (!node) return;
+      const isSummary = aiSession.mode === 'summarize';
+      panel.classList.remove('hidden');
+      panel.innerHTML = `<div class="ai-panel-head"><span>Pulse AI</span><button class="panel-close" type="button" data-ai-session="close" aria-label="Close AI chat">×</button></div><div class="ai-panel-body"><div class="ai-context"><span>当前上下文</span><span class="mention">@${esc(node.title)}</span></div>${isSummary ? `<div class="ai-draft"><div class="ai-draft-label"><span>✦ AI 提炼</span><span>草案，未写入</span></div><p>${esc(draftFor(node))}</p><div class="draft-actions"><button class="btn confirm" type="button" data-ai-session="confirm">确认写入节点</button><button class="btn" type="button" data-ai-session="dismiss">忽略</button></div></div>` : '<div class="ai-empty">节点已带入本轮对话。<br>现在可以继续问任何具体问题。</div>'}</div><label class="ai-composer"><span class="mention">@${esc(node.title)}</span><input autofocus placeholder="${isSummary ? '提炼这个节点的核心观点' : 'Ask about this node...'}" ${isSummary ? 'value="提炼这个节点的核心观点"' : ''} /><button class="ai-send" type="button" aria-label="Send">↑</button></label>`;
+      panel.querySelectorAll('[data-ai-session]').forEach(element => element.addEventListener('click', () => { updateAiState(node.title, element.dataset.aiSession); render(); }));
+      if (!isSummary) panel.querySelector('input')?.focus();
+    }
+    function render() {
+      const key = getVariant();
+      const data = filtered();
+      document.getElementById('root').innerHTML = data.length ? ({A:renderA,B:renderB,C:renderC}[key](data)) : '<div class="empty">没有匹配的节点</div>';
+      document.getElementById('itemCount').textContent = data.length;
+      document.getElementById('variantLabel').textContent = `${key} · ${variants[key].name}`;
+      document.querySelectorAll('[data-title]').forEach(el => {
+        el.addEventListener('click', event => {
+          const action = event.target.closest('[data-ai-action]')?.dataset.aiAction;
+          if (action) { updateAiState(el.dataset.title, action); render(); return; }
+          selected = el.dataset.title;
+          render();
+        });
+        el.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selected = el.dataset.title; render(); }
+        });
+      });
+      renderAiPanel();
+    }
+    function cycle(delta) {
+      const keys = Object.keys(variants);
+      const index = keys.indexOf(getVariant());
+      setVariant(keys[(index + delta + keys.length) % keys.length]);
+    }
+    document.getElementById('prev').addEventListener('click', () => cycle(-1));
+    document.getElementById('next').addEventListener('click', () => cycle(1));
+    document.getElementById('search').addEventListener('input', render);
+    document.addEventListener('keydown', event => {
+      if (['INPUT','TEXTAREA'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable) return;
+      if (event.key === 'ArrowLeft') cycle(-1);
+      if (event.key === 'ArrowRight') cycle(1);
+    });
+    render();
+  </script>
+</body>
+</html>
