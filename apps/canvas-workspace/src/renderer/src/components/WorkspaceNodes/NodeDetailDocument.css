@@ -457,13 +457,10 @@
   box-sizing: border-box;
   margin: 0;
   padding: 10px 24px;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
   border-bottom: 1px solid var(--nodes-border);
-}
-
-.workspace-node-detail-page .workspace-node-detail-page__top > .ui-btn {
-  justify-self: start;
 }
 
 .workspace-node-detail-page .workspace-node-detail-page__body {

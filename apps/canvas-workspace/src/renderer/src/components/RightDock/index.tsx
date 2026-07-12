@@ -1,11 +1,3 @@
-/**
- * RightDock — the right-side panel of the workbench. Its first tab is the
- * pinned chat; preview surfaces (artifacts, intercepted links) open as
- * additional tabs. DockStore owns state and deduping, while Workbench portals
- * persistent chat panels into the chat pane. The dock reserves its width via
- * `--right-dock-inset`; the dedicated chat route disables the pinned chat tab.
- *
- */
 import {
   createContext,
   lazy,
@@ -20,7 +12,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { useDragResize } from '../ui';
+import { Button, useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
@@ -207,6 +199,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     ? null
     : state.activeTabId;
   const terminalPaneActive = state.terminalTabs.some((tab) => tab.id === activePaneId);
+  const activePreviewTab = state.tabs.find((tab) => tab.id === activePaneId);
 
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
 
@@ -268,16 +261,12 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     return () => observer.disconnect();
   }, [updateTabIndicator, state.tabs, state.terminalTabs, chatTabEnabled]);
 
-  // Re-clamp on viewport resize so a stored width wider than the new
-  // viewport doesn't push the dock off-screen.
   useEffect(() => {
     const onResize = () => setWidth((prev) => clampWidth(prev));
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Reserve layout space whenever the application-level chat is available. The
-  // inset lives on <html> so .app-body can consume it from anywhere.
   useEffect(() => {
     const inset = visible && chatTabEnabled ? `${width}px` : '0px';
     document.documentElement.style.setProperty('--right-dock-inset', inset);
@@ -286,9 +275,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     };
   }, [visible, chatTabEnabled, width]);
 
-  // ESC closes the active preview tab. Chat is persistent workspace UI and
-  // never ESC-closes — same as the old standalone chat panel, and it keeps
-  // ESC free for canvas interactions (deselect, exit fullscreen, …).
   useEffect(() => {
     if (!visible) return;
     const onKey = (e: KeyboardEvent) => {
@@ -429,6 +415,18 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
             );
           })}
         </div>
+        {activePreviewTab?.kind === 'node-detail' && (
+          <Button
+            size="sm"
+            className="right-dock__node-detail-action"
+            onClick={() => {
+              onOpenNodePage(activePreviewTab.workspaceId, activePreviewTab.nodeId);
+              store.close(activePreviewTab.id);
+            }}
+          >
+            {t('workspaceNodes.goToDetail')}
+          </Button>
+        )}
         <DockCreationControls
           store={store}
           workspaces={workspaces}
@@ -477,7 +475,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
                   workspaceId={tab.workspaceId}
                   nodeId={tab.nodeId}
                   onTitleChange={(title) => store.setTitle(tab.id, title)}
-                  onOpenPage={() => onOpenNodePage(tab.workspaceId, tab.nodeId)}
                 />
               </Suspense>
             ) : (

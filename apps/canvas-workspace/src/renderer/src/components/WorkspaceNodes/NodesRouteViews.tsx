@@ -31,7 +31,7 @@ export const NodesRouteViews = ({
       </PulseRouterView>
       <PulseRouterView name="node-detail">
         <Suspense fallback={null}>
-          <NodeDetailPageLazy workspaceId={detailNode?.workspaceId ?? ''} nodeId={detailNode?.nodeId ?? null} workspaces={workspaces} onBack={onBack} />
+          <NodeDetailPageLazy workspaceId={detailNode?.workspaceId ?? ''} nodeId={detailNode?.nodeId ?? null} onBack={onBack} />
         </Suspense>
       </PulseRouterView>
     </>
