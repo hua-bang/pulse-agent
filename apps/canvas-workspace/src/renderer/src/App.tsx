@@ -11,9 +11,7 @@ import type { SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
-import {
-  resolveKnowledgeChatRouteContext,
-} from './components/Workbench/knowledgeChatContext';
+import { resolveKnowledgeChatRouteContext } from './components/Workbench/knowledgeChatContext';
 import { GraphPageLazy as GraphPage } from './components/WorkspaceNodes/GraphPageLazy';
 import { useKnowledgeAiContext } from './components/WorkspaceNodes/knowledgeAiContext';
 import { NodesRouteViews } from './components/WorkspaceNodes/NodesRouteViews';
@@ -64,10 +62,7 @@ const AppContent = () => {
   const { t } = useI18n();
   const dock = useRightDock();
   const [location, setLocation] = useLocation();
-  const { path: routePath, params: routeParams } = useMemo(
-    () => parseCanvasLocation(location),
-    [location],
-  );
+  const { path: routePath, params: routeParams } = useMemo(() => parseCanvasLocation(location), [location]);
   // Routes and nav items contributed by built-in plugins. Snapshot at
   // mount: built-in plugins register synchronously at renderer bootstrap,
   // so a one-shot read is sufficient.
@@ -102,6 +97,7 @@ const AppContent = () => {
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
+  const [nodeDetailBackPath, setNodeDetailBackPath] = useState<string | null>(null);
   const {
     explicitContext: knowledgeChatExplicitContext,
     askAi: handleAskKnowledgeAi,
@@ -203,8 +199,18 @@ const AppContent = () => {
   const enterNodesView = useCallback(() => {
     if (!NODES_ENABLED) return;
     setSelectedNode(null);
+    setNodeDetailBackPath(null);
     setLocation(ROUTE_NODES);
   }, [setLocation]);
+
+  const exitNodeDetailView = useCallback(() => {
+    if (nodeDetailBackPath) {
+      setNodeDetailBackPath(null);
+      setLocation(nodeDetailBackPath);
+      return;
+    }
+    enterNodesView();
+  }, [enterNodesView, nodeDetailBackPath, setLocation]);
 
   const enterGraphView = useCallback(() => {
     if (!GRAPH_ENABLED) return;
@@ -469,7 +475,6 @@ const AppContent = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [activeView, isOverlayOpen, openShortcuts, setLocation]);
 
-
   const getWorkspaceRootFolder = useCallback((workspaceId: string) => {
     return workspaces.find((ws) => ws.id === workspaceId)?.rootFolder;
   }, [workspaces]);
@@ -484,8 +489,9 @@ const AppContent = () => {
 
   const openNodePage = useCallback((workspaceId: string, nodeId: string) => {
     setSelectedNode({ workspaceId, nodeId });
+    setNodeDetailBackPath(location);
     setLocation(`${ROUTE_NODES}/${encodeURIComponent(workspaceId)}/${encodeURIComponent(nodeId)}`);
-  }, [setLocation]);
+  }, [location, setLocation]);
 
   return (
     <div className="app">
@@ -552,7 +558,7 @@ const AppContent = () => {
               onOpenWorkspaceSettings={openWorkspaceSettings}
             />
           </PulseRouterView>
-          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={enterNodesView} onAskAi={handleAskKnowledgeAi} />
+          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} />
           {GRAPH_ENABLED && (
             <PulseRouterView name="graph">
               <GraphPage

@@ -83,7 +83,7 @@ export const NodeDetailPanel = ({
               {mode === 'page' && onBack && (
                 <Button size="xs" className="node-detail-panel__back" onClick={onBack}>
                   <span aria-hidden="true">←</span>
-                  {t('workspaceNodes.backToNodes')}
+                  {t('workspaceNodes.back')}
                 </Button>
               )}
               <header className="node-detail-panel__document-header">
