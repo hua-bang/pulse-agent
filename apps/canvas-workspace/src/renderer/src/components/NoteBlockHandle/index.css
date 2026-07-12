@@ -1,0 +1,57 @@
+.note-block-handle-anchor {
+  position: absolute;
+  z-index: var(--note-layer-panel);
+  left: 3px;
+  transform: translateY(-2px);
+  display: inline-flex;
+}
+
+.note-block-handle.ui-btn {
+  color: var(--text-muted);
+  opacity: 0.58;
+  cursor: grab;
+}
+
+.note-block-handle.ui-btn:hover,
+.note-block-handle.ui-btn[aria-expanded='true'] {
+  color: var(--text);
+  opacity: 1;
+  background: var(--surface-hover);
+}
+
+.note-block-handle.ui-btn:active { cursor: grabbing; }
+.note-block-handle span { font-size: 17px; line-height: 1; transform: translateY(-1px); }
+
+.note-block-drop-line {
+  position: absolute;
+  z-index: var(--note-layer-panel);
+  left: 30px;
+  right: 10px;
+  height: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.note-block-menu {
+  position: fixed;
+  z-index: var(--layer-note-popover);
+  width: 170px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.note-block-menu__item.ui-btn {
+  width: 100%;
+  justify-content: flex-start;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.note-block-menu__item.ui-btn:hover { border-color: transparent; background: var(--surface-alt); }
+.note-block-menu__item--danger.ui-btn { color: var(--danger); }
+.note-block-menu__separator { height: 1px; margin: 4px 6px; background: var(--border-light); }

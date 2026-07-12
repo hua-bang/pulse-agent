@@ -11,7 +11,6 @@ interface NodeCanvasPreviewProps {
   minHeight?: number;
   readOnly?: boolean;
   onPatched?: (next: WorkspaceNodeRecord) => void;
-  syncLeadingHeadingTitle?: boolean;
 }
 
 /**
@@ -29,7 +28,6 @@ export const NodeCanvasPreview = ({
   minHeight = 240,
   readOnly = false,
   onPatched,
-  syncLeadingHeadingTitle = false,
 }: NodeCanvasPreviewProps) => {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -163,7 +161,6 @@ export const NodeCanvasPreview = ({
           onFocus={() => undefined}
           readOnly={readOnly}
           embedded
-          syncLeadingHeadingTitle={syncLeadingHeadingTitle}
         />
       ) : (
         <div className="node-detail-panel__empty">{t('workspaceNodes.noTypePreview')}</div>

@@ -48,7 +48,6 @@ export interface CanvasNodeViewProps {
   onToggleFullscreen?: (nodeId: string) => void;
   readOnly?: boolean;
   embedded?: boolean;
-  syncLeadingHeadingTitle?: boolean;
   renderMode?: CanvasNodeRenderMode;
 }
 

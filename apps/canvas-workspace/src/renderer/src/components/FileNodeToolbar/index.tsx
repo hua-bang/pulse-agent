@@ -13,6 +13,7 @@ interface Props {
   onMoveBlockUp: () => void;
   onMoveBlockDown: () => void;
   onDuplicateBlock: () => void;
+  onDeleteBlock: () => void;
   outlineOpen: boolean;
   statusText: string;
   modified: boolean;
@@ -30,6 +31,7 @@ export const FileNodeToolbar = ({
   onMoveBlockUp,
   onMoveBlockDown,
   onDuplicateBlock,
+  onDeleteBlock,
   outlineOpen,
   statusText,
   modified,
@@ -87,6 +89,7 @@ export const FileNodeToolbar = ({
             <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onMoveBlockUp)}><span>{t('noteToolbar.moveBlockUp')}</span><kbd>⌥⇧↑</kbd></Button>
             <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onMoveBlockDown)}><span>{t('noteToolbar.moveBlockDown')}</span><kbd>⌥⇧↓</kbd></Button>
             <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onDuplicateBlock)}><span>{t('noteToolbar.duplicateBlock')}</span><kbd>Mod⇧D</kbd></Button>
+            <Button size="sm" variant="danger" className="note-toolbar-menu-item note-toolbar-menu-item--danger" role="menuitem" onClick={() => run(onDeleteBlock)}><span>{t('noteBlock.delete')}</span></Button>
             <div className="note-toolbar-menu-separator" />
             <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onOpenFile)}>{t('noteToolbar.openFile')}</Button>
             <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onSave)}>{t('noteToolbar.save')}</Button>

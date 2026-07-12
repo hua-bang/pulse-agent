@@ -6,8 +6,8 @@ import type { WorkspaceNodeRecord } from '../../../types';
 import { I18nProvider } from '../../../i18n';
 
 vi.mock('../NodeCanvasPreview', () => ({
-  NodeCanvasPreview: ({ minHeight, syncLeadingHeadingTitle }: { minHeight?: number; syncLeadingHeadingTitle?: boolean }) => (
-    <div data-testid="node-canvas-preview" data-min-height={minHeight} data-sync-title={syncLeadingHeadingTitle} />
+  NodeCanvasPreview: ({ minHeight }: { minHeight?: number }) => (
+    <div data-testid="node-canvas-preview" data-min-height={minHeight} />
   ),
 }));
 
@@ -111,17 +111,17 @@ describe('NodeDetailPanel', () => {
     expect(tags).not.toBeNull();
   });
 
-  it('uses a matching leading H1 as the document title without rendering a duplicate title field', () => {
+  it('keeps the node title independent from a leading H1 in the document body', () => {
     const view = render(
       <NodeDetailPanel
-        node={{ ...NODE, data: { content: '# Search & RSS\n\nBody' } }}
+        node={{ ...NODE, title: 'Node title', data: { content: '# Body heading\n\nBody' } }}
         workspaceId="workspace-1"
         mode="dock"
       />,
     );
 
-    expect(view.querySelector('.node-detail-panel__document-title')).toBeNull();
-    expect(view.querySelector('[data-testid="node-canvas-preview"]')?.getAttribute('data-sync-title')).toBe('true');
+    expect(view.querySelector('.node-detail-panel__document-title')?.textContent).toBe('Node title');
+    expect(view.querySelector('[data-testid="node-canvas-preview"]')).not.toBeNull();
   });
 
   it('shows source, relations, and confirmed AI insight in the page context rail', () => {

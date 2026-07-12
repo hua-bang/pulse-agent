@@ -6,7 +6,7 @@ import { NodeCanvasPreview } from './NodeCanvasPreview';
 import { NodeRelationEditor } from './NodeRelationEditor';
 import { NodeTagEditor } from './NodeTagEditor';
 import { NodeTitleEditor } from './NodeTitleEditor';
-import { fileContentOwnsTitle, formatTime, getNodeAiSummary, getNodeTags, getNodeTitle, getNodeTypeLabel, isKnowledgeNodeType } from './utils';
+import { formatTime, getNodeAiSummary, getNodeTags, getNodeTitle, getNodeTypeLabel, isKnowledgeNodeType } from './utils';
 import './NodeDetailDocument.css';
 
 interface NodeDetailPanelProps {
@@ -65,7 +65,6 @@ export const NodeDetailPanel = ({
   const links = node?.links ?? [];
   const source = node ? renderPropertyValue(node.properties?.source) : '';
   const aiSummary = getNodeAiSummary(node);
-  const contentOwnsTitle = fileContentOwnsTitle(node);
   const infoProperties = mode === 'page'
     ? properties.filter(([key]) => key !== 'source' && key !== 'aiSummary')
     : properties.filter(([key]) => key !== 'aiSummary');
@@ -109,15 +108,13 @@ export const NodeDetailPanel = ({
           <div className="node-detail-panel__layout">
             <article className="node-detail-panel__document">
               <header className="node-detail-panel__document-header">
-                {!contentOwnsTitle && (
-                  <NodeTitleEditor
-                    node={node}
-                    workspaceId={workspaceId}
-                    fallbackTitle={t('workspaceNodes.untitled')}
-                    readOnly={readOnly}
-                    onNodePatched={onNodePatched}
-                  />
-                )}
+                <NodeTitleEditor
+                  node={node}
+                  workspaceId={workspaceId}
+                  fallbackTitle={t('workspaceNodes.untitled')}
+                  readOnly={readOnly}
+                  onNodePatched={onNodePatched}
+                />
                 <div className="node-detail-panel__document-meta">
                   <span className="node-detail-panel__type">
                     {isKnowledgeNodeType(node.type) && <NodeTypeIcon type={node.type} size={14} />}
@@ -144,7 +141,6 @@ export const NodeDetailPanel = ({
                   record={node}
                   minHeight={mode === 'page' ? 480 : 320}
                   readOnly={readOnly}
-                  syncLeadingHeadingTitle={contentOwnsTitle}
                   onPatched={onNodePatched}
                 />
               </div>

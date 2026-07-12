@@ -16,7 +16,8 @@ import { NoteOutline } from '../NoteOutline';
 import { NoteLinkPrompt } from '../NoteLinkPrompt';
 import { useRightDock } from '../RightDock';
 import { useI18n } from '../../i18n';
-import { duplicateCurrentNoteBlock, moveCurrentNoteBlock } from '../../editor/noteBlockCommands';
+import { deleteNoteBlock, duplicateCurrentNoteBlock, moveCurrentNoteBlock } from '../../editor/noteBlockCommands';
+import { NoteBlockHandle } from '../NoteBlockHandle';
 
 interface Props {
   node: CanvasNode;
@@ -26,10 +27,9 @@ interface Props {
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
   autoFocus?: boolean;
-  syncLeadingHeadingTitle?: boolean;
 }
 
-export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false, autoFocus = false, syncLeadingHeadingTitle = false }: Props) => {
+export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false, autoFocus = false }: Props) => {
   const data = node.data as FileNodeData;
   const { t } = useI18n();
   const { openLink } = useRightDock();
@@ -101,7 +101,6 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     setModified,
     persistToFile,
     onUpdate,
-    syncLeadingHeadingTitle,
     readOnly,
     onCommitState: (state) => {
       if (state === 'saving') {
@@ -283,9 +282,18 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
           onInsertImage={openImagePicker}
           onOpenFind={openFindBar}
           onToggleOutline={toggleOutline}
-          onMoveBlockUp={() => { if (editor) moveCurrentNoteBlock(editor, -1); }}
-          onMoveBlockDown={() => { if (editor) moveCurrentNoteBlock(editor, 1); }}
-          onDuplicateBlock={() => { if (editor) duplicateCurrentNoteBlock(editor); }}
+          onMoveBlockUp={() => {
+            if (editor) moveCurrentNoteBlock(editor, -1);
+          }}
+          onMoveBlockDown={() => {
+            if (editor) moveCurrentNoteBlock(editor, 1);
+          }}
+          onDuplicateBlock={() => {
+            if (editor) duplicateCurrentNoteBlock(editor);
+          }}
+          onDeleteBlock={() => {
+            if (editor) deleteNoteBlock(editor);
+          }}
           outlineOpen={outlineOpen}
           statusText={statusText}
           modified={modified}
@@ -320,6 +328,10 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       >
         <EditorContent editor={editor} className="note-tiptap-editor" />
       </div>
+
+      {!readOnly && editor && (
+        <NoteBlockHandle editor={editor} cardRef={cardRef} />
+      )}
 
       <input
         ref={imageInputRef}

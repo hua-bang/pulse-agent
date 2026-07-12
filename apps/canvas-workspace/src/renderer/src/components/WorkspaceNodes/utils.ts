@@ -80,12 +80,6 @@ export function getNodeSummary(node: WorkspaceNodeListItem | WorkspaceNodeRecord
   return '';
 }
 
-export function fileContentOwnsTitle(node: WorkspaceNodeRecord | null | undefined): boolean {
-  if (!node || node.type !== 'file' || typeof node.data?.content !== 'string') return false;
-  const firstLine = node.data.content.split(/\r?\n/, 1)[0]?.match(/^#\s+(.+?)\s*$/)?.[1];
-  return !!firstLine?.trim();
-}
-
 export function getNodeAiSummary(node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined): string {
   if (!node) return '';
   if ('aiSummary' in node && typeof node.aiSummary === 'string' && node.aiSummary.trim()) return node.aiSummary;

@@ -60,6 +60,7 @@
 .note-toolbar-menu-item.ui-btn kbd { color: var(--text-muted); font: 10px var(--font-mono); }
 
 .note-toolbar-menu-item.ui-btn:hover { border-color: transparent; background: var(--surface-alt); }
+.note-toolbar-menu-item--danger.ui-btn { color: var(--danger); }
 .note-toolbar-menu-separator { height: 1px; margin: 4px 6px; background: var(--border-light); }
 
 .note-file-hint-inline,

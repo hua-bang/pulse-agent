@@ -76,7 +76,6 @@ interface Options {
   persistToFile: (markdown: string, filePath: string) => Promise<void>;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   onCommitState?: (state: 'saving' | 'saved' | 'error') => void;
-  syncLeadingHeadingTitle?: boolean;
   readOnly?: boolean;
 }
 
@@ -94,7 +93,6 @@ export const useFileNodeEditor = ({
   persistToFile,
   onUpdate,
   onCommitState,
-  syncLeadingHeadingTitle = false,
   readOnly = false,
 }: Options) => {
   const interactions = useNoteInteractionController();
@@ -152,14 +150,7 @@ export const useFileNodeEditor = ({
     prevContentRef.current = markdown;
     setModified(true);
     onCommitState?.('saving');
-    const firstBlock = editor.state.doc.firstChild;
-    const leadingTitle = syncLeadingHeadingTitle
-      && firstBlock?.type.name === 'heading'
-      && firstBlock.attrs.level === 1
-      ? firstBlock.textContent.trim()
-      : '';
     const updateResult = onUpdate(nodeIdRef.current, {
-      ...(leadingTitle ? { title: leadingTitle } : {}),
       data: { ...dataRef.current, content: markdown, modified: true },
     });
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -178,7 +169,7 @@ export const useFileNodeEditor = ({
     } else {
       saveTimerRef.current = setTimeout(() => void persistToFile(markdown, fp), AUTO_SAVE_MS);
     }
-  }, [dataRef, nodeIdRef, prevContentRef, setModified, onUpdate, onCommitState, persistToFile, syncLeadingHeadingTitle]);
+  }, [dataRef, nodeIdRef, prevContentRef, setModified, onUpdate, onCommitState, persistToFile]);
 
   useEffect(() => {
     latestCommitContentRef.current = commitContent;

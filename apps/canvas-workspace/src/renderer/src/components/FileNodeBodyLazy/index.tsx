@@ -11,7 +11,6 @@ interface Props {
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
   eager?: boolean;
-  syncLeadingHeadingTitle?: boolean;
 }
 
 const FileNodeEditor = lazy(() =>
