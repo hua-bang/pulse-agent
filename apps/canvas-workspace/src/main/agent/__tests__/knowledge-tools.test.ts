@@ -15,10 +15,22 @@ const { sandboxHome } = vi.hoisted(() => {
   };
 });
 
+const vision = vi.hoisted(() => ({
+  analyze: vi.fn(async () => ({ text: 'Architecture OCR result', provider: 'openai', model: 'test-vision' })),
+}));
+
 vi.mock('os', async () => {
   const actual = await vi.importActual<typeof import('os')>('os');
   return { ...actual, homedir: () => sandboxHome };
 });
+
+vi.mock('../tools/_shared/vision-clients', () => ({
+  resolveImageInputs: vi.fn(async (_canvas: unknown, input: { imagePaths?: string[] }) => (
+    (input.imagePaths ?? []).map((path) => ({ path, mimeType: 'image/png', base64: 'stub', source: 'path' }))
+  )),
+  analyzeImagesWithOpenAI: vision.analyze,
+  analyzeImagesWithGemini: vision.analyze,
+}));
 
 import { createKnowledgeTools } from '../tools/knowledge';
 import { writeCanvasFull, type CanvasSaveData } from '../../canvas/storage';
@@ -184,5 +196,66 @@ describe('canvas_list_nodes', () => {
     expect(capped.returned).toBe(2);
     expect(capped.total).toBe(5);
     expect(capped.truncated).toBe(true);
+  });
+});
+
+describe('knowledge_search_nodes / knowledge_read_node', () => {
+  it('finds and reads a knowledge record that is no longer present on a canvas', async () => {
+    await seed();
+    await writeWorkspaceNode('ws-research', {
+      schemaVersion: WORKSPACE_NODE_SCHEMA_VERSION,
+      id: 'img-orphan',
+      type: 'image',
+      title: 'Architecture screenshot',
+      data: { filePath: '/tmp/architecture.png' },
+      properties: { tags: ['RAG'], summary: 'A screenshot of the retrieval architecture.' },
+    });
+    const tools = createKnowledgeTools();
+
+    const searched = JSON.parse(await tools.knowledge_search_nodes.execute({ query: 'architecture' }));
+    expect(searched.nodes).toEqual([
+      expect.objectContaining({
+        id: 'img-orphan',
+        type: 'image',
+        title: 'Architecture screenshot',
+        onCanvas: false,
+      }),
+    ]);
+
+    const read = JSON.parse(await tools.knowledge_read_node.execute({ nodeId: 'img-orphan' }));
+    expect(read).toMatchObject({
+      ok: true,
+      node: {
+        id: 'img-orphan',
+        type: 'image',
+        onCanvas: false,
+        mediaPath: '/tmp/architecture.png',
+        data: { filePath: '/tmp/architecture.png' },
+        properties: { summary: 'A screenshot of the retrieval architecture.' },
+      },
+    });
+  });
+
+  it('analyzes an off-canvas image through its knowledge-record media path', async () => {
+    await seed();
+    await writeWorkspaceNode('ws-research', {
+      schemaVersion: WORKSPACE_NODE_SCHEMA_VERSION,
+      id: 'img-orphan',
+      type: 'image',
+      title: 'Architecture screenshot',
+      data: { filePath: '/tmp/architecture.png' },
+    });
+    const tools = createKnowledgeTools();
+
+    const result = JSON.parse(await tools.knowledge_analyze_image.execute({
+      nodeId: 'img-orphan',
+      prompt: 'Explain this architecture.',
+    }));
+
+    expect(result).toMatchObject({ ok: true, nodeId: 'img-orphan', text: 'Architecture OCR result' });
+    expect(vision.analyze).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: 'Explain this architecture.',
+      images: [expect.objectContaining({ path: '/tmp/architecture.png' })],
+    }));
   });
 });

@@ -21,6 +21,9 @@ describe('Canvas Agent tool policy', () => {
       'tavily_map',
     ]);
     expect(finalNames).toContain('canvas_propose_node_change');
+    expect(finalNames).toContain('knowledge_search_nodes');
+    expect(finalNames).toContain('knowledge_read_node');
+    expect(finalNames).toContain('knowledge_analyze_image');
     expect(finalNames).not.toContain('bash');
     expect(finalNames).not.toContain('edit');
     expect(finalNames).not.toContain('generate_image');

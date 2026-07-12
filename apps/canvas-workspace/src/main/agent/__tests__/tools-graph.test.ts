@@ -244,6 +244,9 @@ describe('createGlobalCanvasTools', () => {
       'canvas_read_node',
       'canvas_screenshot',
       'canvas_search_nodes',
+      'knowledge_analyze_image',
+      'knowledge_read_node',
+      'knowledge_search_nodes',
       'session_search',
       'session_summary',
       'workspace_node_get',
@@ -489,6 +492,9 @@ describe('deferred tool partition', () => {
       'canvas_search_nodes',
       'canvas_tag_node',
       'canvas_update_node',
+      'knowledge_analyze_image',
+      'knowledge_read_node',
+      'knowledge_search_nodes',
       'visual_render',
     ]);
     expect(deferred).toEqual([

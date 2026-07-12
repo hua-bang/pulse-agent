@@ -20,6 +20,12 @@ import { listWorkspaceNodes, type WorkspaceNodeRecord } from '../../canvas/nodes
 import { readKnowledgeTags, type KnowledgeTagDefinition } from '../../canvas/nodes/tags';
 import { loadCanvas } from './_shared/canvas-io';
 import type { CanvasNode, CanvasTool } from './types';
+import { readNodeDetail } from '../context-builder';
+import {
+  analyzeImagesWithGemini,
+  analyzeImagesWithOpenAI,
+  resolveImageInputs,
+} from './_shared/vision-clients';
 
 // ─── Shared helpers ────────────────────────────────────────────────
 
@@ -49,6 +55,10 @@ function snippetFor(node: CanvasNode | undefined, record: WorkspaceNodeRecord | 
   const candidates: Array<string | undefined> = [
     typeof summary === 'string' ? summary : undefined,
   ];
+  for (const key of ['content', 'url', 'filePath']) {
+    const value = record?.data?.[key];
+    if (typeof value === 'string') candidates.push(value);
+  }
   const data = node?.data ?? {};
   for (const key of ['content', 'label', 'url', 'filePath', 'prompt']) {
     const v = data[key];
@@ -70,6 +80,20 @@ function nodeHaystack(node: CanvasNode): string {
   return fields.join('\n').toLowerCase();
 }
 
+function recordHaystack(record: WorkspaceNodeRecord): string {
+  return [
+    record.title ?? '',
+    record.type,
+    JSON.stringify(record.data ?? {}),
+    JSON.stringify(record.properties ?? {}),
+  ].join('\n').toLowerCase();
+}
+
+function mediaPathFor(node: CanvasNode | undefined, record: WorkspaceNodeRecord | undefined): string | undefined {
+  const candidates = [record?.data?.filePath, node?.data?.filePath];
+  return candidates.find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+}
+
 /** Resolve the workspaces to scan: one (if `workspaceId` given) or all. */
 async function resolveTargets(workspaceId?: string): Promise<WorkspaceInfo[]> {
   const { workspaces } = await listWorkspaces();
@@ -83,6 +107,163 @@ async function resolveTargets(workspaceId?: string): Promise<WorkspaceInfo[]> {
 
 export function createKnowledgeTools(): Record<string, CanvasTool> {
   return {
+    knowledge_search_nodes: {
+      name: 'knowledge_search_nodes',
+      description:
+        'Search the user\'s Nodes knowledge library without requiring a workspace. ' +
+        'Use this when the user has not already selected or @-mentioned an exact node. ' +
+        'Searches titles, content, metadata, tags, and records that are no longer placed on a canvas. ' +
+        'Returns compact matches; call knowledge_read_node with the exact id before answering about a node.',
+      inputSchema: z.object({
+        query: z.string().optional().describe('Words to match against title, content, metadata, and tags.'),
+        types: z.array(z.string()).optional().describe('Optional node types to include.'),
+        tags: z.array(z.string()).optional().describe('Optional tags. A node must match every supplied tag.'),
+        limit: z.number().int().positive().max(100).optional().describe('Maximum results. Default 20.'),
+      }),
+      execute: async (input) => {
+        const query = typeof input?.query === 'string' ? input.query.trim().toLowerCase() : '';
+        const types = new Set((input?.types as string[] | undefined)?.map((value) => value.toLowerCase()) ?? []);
+        const wantedTags = (input?.tags as string[] | undefined)?.map((value) => value.toLowerCase()) ?? [];
+        const limit = (input?.limit as number | undefined) ?? 20;
+        const targets = await resolveTargets();
+        const matches: Array<Record<string, unknown>> = [];
+
+        for (const workspace of targets) {
+          const canvas = await loadCanvas(workspace.id);
+          const canvasById = new Map((canvas?.nodes ?? []).map((node) => [node.id, node] as const));
+          const records = await listWorkspaceNodes(workspace.id);
+          const recordsById = new Map(records.map((record) => [record.id, record] as const));
+          const ids = new Set([...canvasById.keys(), ...recordsById.keys()]);
+
+          for (const id of ids) {
+            const node = canvasById.get(id);
+            const record = recordsById.get(id);
+            const type = node?.type ?? record?.type ?? 'unknown';
+            const tags = recordTags(record);
+            if (types.size > 0 && !types.has(type.toLowerCase())) continue;
+            if (wantedTags.length > 0) {
+              const available = new Set(tags.map((tag) => tag.toLowerCase()));
+              if (!wantedTags.every((tag) => available.has(tag))) continue;
+            }
+            const haystack = [node ? nodeHaystack(node) : '', record ? recordHaystack(record) : ''].join('\n');
+            if (query && !haystack.includes(query)) continue;
+            if (matches.length >= limit) continue;
+            const mediaPath = mediaPathFor(node, record);
+            matches.push({
+              id,
+              title: record?.title ?? node?.title ?? id,
+              type,
+              tags,
+              summary: snippetFor(node, record),
+              onCanvas: Boolean(node),
+              ...(mediaPath ? { mediaPath } : {}),
+              // Internal locator for follow-up mutation tools. The user does
+              // not need to choose or understand a workspace.
+              workspaceId: workspace.id,
+            });
+          }
+        }
+
+        return JSON.stringify({ ok: true, returned: matches.length, nodes: matches });
+      },
+    },
+
+    knowledge_read_node: {
+      name: 'knowledge_read_node',
+      description:
+        'Read one exact node from the Nodes knowledge library without requiring a workspace. ' +
+        'Use this directly for a selected or @-mentioned node; do not search again first. ' +
+        'Reads both the knowledge record and its canvas content when available, including off-canvas records and image file paths. ' +
+        'The returned workspaceId is an internal locator to pass to canvas_propose_node_change when preparing a reviewable edit.',
+      inputSchema: z.object({
+        nodeId: z.string().min(1).describe('Exact node id from selected context or knowledge_search_nodes.'),
+      }),
+      execute: async (input) => {
+        const nodeId = input.nodeId as string;
+        const targets = await resolveTargets();
+        const found: Array<{ workspace: WorkspaceInfo; node?: CanvasNode; record?: WorkspaceNodeRecord }> = [];
+        for (const workspace of targets) {
+          const canvas = await loadCanvas(workspace.id);
+          const node = canvas?.nodes.find((candidate) => candidate.id === nodeId);
+          const record = (await listWorkspaceNodes(workspace.id)).find((candidate) => candidate.id === nodeId);
+          if (node || record) found.push({ workspace, node, record });
+        }
+        if (found.length === 0) return JSON.stringify({ ok: false, error: 'Node not found.', nodeId });
+        if (found.length > 1) {
+          return JSON.stringify({
+            ok: false,
+            error: 'Node id is ambiguous. Use knowledge_search_nodes to choose the exact result.',
+            nodeId,
+            matches: found.map(({ workspace, node, record }) => ({
+              workspaceId: workspace.id,
+              title: record?.title ?? node?.title ?? nodeId,
+            })),
+          });
+        }
+        const [{ workspace, node, record }] = found;
+        const mediaPath = mediaPathFor(node, record);
+        const canvasDetail = node ? await readNodeDetail(workspace.id, nodeId) : null;
+        return JSON.stringify({
+          ok: true,
+          node: {
+            id: nodeId,
+            title: record?.title ?? node?.title ?? nodeId,
+            type: node?.type ?? record?.type ?? 'unknown',
+            workspaceId: workspace.id,
+            onCanvas: Boolean(node),
+            tags: recordTags(record),
+            data: { ...(node?.data ?? {}), ...(record?.data ?? {}) },
+            ...(canvasDetail ? { content: canvasDetail } : {}),
+            properties: record?.properties ?? {},
+            links: record?.links ?? [],
+            ...(mediaPath ? { mediaPath } : {}),
+          },
+        });
+      },
+    },
+
+    knowledge_analyze_image: {
+      name: 'knowledge_analyze_image',
+      description:
+        'Analyze the pixels of an image node from the Nodes knowledge library without requiring a workspace. ' +
+        'Use this for OCR, visual explanation, or questions about what an exact selected image contains. ' +
+        'It resolves off-canvas image records through their stored media path; do not take a canvas screenshot instead.',
+      inputSchema: z.object({
+        nodeId: z.string().min(1).describe('Exact image node id from selected context or knowledge_search_nodes.'),
+        prompt: z.string().optional().describe('Question or instruction for the vision model.'),
+        provider: z.enum(['openai', 'gpt', 'gemini']).optional().describe('Vision provider. Defaults to OpenAI/GPT.'),
+        model: z.string().optional().describe('Optional vision model override.'),
+      }),
+      execute: async (input) => {
+        const nodeId = input.nodeId as string;
+        const targets = await resolveTargets();
+        const paths: string[] = [];
+        for (const workspace of targets) {
+          const canvas = await loadCanvas(workspace.id);
+          const node = canvas?.nodes.find((candidate) => candidate.id === nodeId);
+          const record = (await listWorkspaceNodes(workspace.id)).find((candidate) => candidate.id === nodeId);
+          const path = mediaPathFor(node, record);
+          if (path) paths.push(path);
+        }
+        const uniquePaths = Array.from(new Set(paths));
+        if (uniquePaths.length === 0) return JSON.stringify({ ok: false, error: 'Image node or media path not found.', nodeId });
+        if (uniquePaths.length > 1) return JSON.stringify({ ok: false, error: 'Image node id is ambiguous.', nodeId });
+        const images = await resolveImageInputs({
+          nodes: [],
+          edges: [],
+          transform: { x: 0, y: 0, scale: 1 },
+          savedAt: '',
+        }, { imagePaths: uniquePaths });
+        const prompt = (input.prompt as string | undefined)?.trim()
+          || 'Describe the image, OCR visible text, and extract the most useful facts.';
+        const provider = input.provider === 'gemini' ? 'gemini' : 'openai';
+        const result = provider === 'gemini'
+          ? await analyzeImagesWithGemini({ prompt, images, model: input.model as string | undefined })
+          : await analyzeImagesWithOpenAI({ prompt, images, model: input.model as string | undefined });
+        return JSON.stringify({ ok: true, nodeId, ...result, imagePath: uniquePaths[0] });
+      },
+    },
+
     canvas_list_workspaces: {
       name: 'canvas_list_workspaces',
       description:
