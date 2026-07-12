@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEventHa
 import { DOM_MENTION_PREFIX } from './constants';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
+import { SessionTitle } from './SessionTitle';
+import { sessionTitleText } from './utils/sessionTitle';
 import './ChatPanel.css';
 import './DomMention.css';
 import { ChatView } from './ChatView';
@@ -223,19 +225,16 @@ export const ChatPanel = ({
 
   requestContextRef.current = requestContext;
 
+  const firstUserMessage = useMemo(() => messages.find(message => message.role === 'user')?.content.trim(), [messages]);
+
   const sessionTitle = useMemo(() => {
-    const firstUserMessage = messages.find(message => message.role === 'user')?.content.trim();
     if (!firstUserMessage) return t('chat.newAiChat');
-    const cleaned = firstUserMessage
-      .replace(/@\[[^\]]+\]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
     const fallback = requestContext.scope === 'selected_nodes'
       ? t('chat.quick.organizeSelection')
       : t('chat.quick.analyzeRelations');
-    const title = cleaned || fallback;
+    const title = sessionTitleText(firstUserMessage) || fallback;
     return title.length > 24 ? `${title.slice(0, 23)}…` : title;
-  }, [messages, requestContext.scope, t]);
+  }, [firstUserMessage, requestContext.scope, t]);
 
   // status.apiKeyPresent is the main process's resolved verdict — false means
   // no provider with a key is configured. Treat undefined (still loading) as
@@ -432,7 +431,7 @@ export const ChatPanel = ({
           sessions={sessions}
           sessionsLoading={sessionsLoading}
           otherSessions={otherSessions}
-          title={sessionTitle}
+          title={firstUserMessage ? <SessionTitle value={firstUserMessage} /> : sessionTitle}
           onToggleSessionMenu={openSessionMenu}
           onCloseSessionMenu={closeSessionMenu}
           onNewSession={handleNewSessionFromMenu}

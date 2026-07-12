@@ -6,6 +6,7 @@ import './ChatPage.css';
 import './ChatPanel.css';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
+import { sessionTitleText } from './utils/sessionTitle';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
@@ -248,7 +249,7 @@ export const ChatPageBody = ({
   const currentSessionLabel = useMemo(() => {
     const firstUser = messages.find((m) => m.role === 'user')?.content.trim();
     if (!firstUser) return '';
-    const cleaned = firstUser.replace(/@\[[^\]]+\]/g, '').replace(/\s+/g, ' ').trim();
+    const cleaned = sessionTitleText(firstUser);
     return cleaned.length > 24 ? `${cleaned.slice(0, 23)}…` : cleaned;
   }, [messages]);
 

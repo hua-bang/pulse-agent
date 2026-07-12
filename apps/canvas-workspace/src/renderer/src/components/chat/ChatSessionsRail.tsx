@@ -1,5 +1,7 @@
 import { ListLinesIcon, PlusIcon } from '../icons';
 import { useI18n } from '../../i18n';
+import { SessionTitle } from './SessionTitle';
+import { sessionTitleText } from './utils/sessionTitle';
 
 export interface UnifiedSession {
   sessionId: string;
@@ -51,11 +53,11 @@ export const ChatSessionsRail = ({
                 key={`${session.workspaceId}:${session.sessionId}`}
                 className={`chat-page-rail-item${session.isCurrent ? ' chat-page-rail-item--active' : ''}`}
                 onClick={() => onSelectSession(session)}
-                title={`${session.workspaceName} · ${session.preview || session.date}`}
+                title={`${session.workspaceName} · ${session.preview ? sessionTitleText(session.preview) : session.date}`}
               >
                 <ListLinesIcon size={14} />
                 <span className="chat-page-rail-item-text">
-                  {session.preview || session.date}
+                  {session.preview ? <SessionTitle value={session.preview} /> : session.date}
                 </span>
                 <span className="chat-page-rail-item-ws">{session.workspaceName}</span>
               </button>

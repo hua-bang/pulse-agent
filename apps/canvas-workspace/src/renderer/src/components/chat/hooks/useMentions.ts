@@ -224,10 +224,12 @@ export function useMentions({
       ? items.filter(item => item.label.toLowerCase().includes(normalizedQuery))
       : items;
 
-    // Past chat sessions, matched by TITLE (first user message + workspace
-    // name) — deliberately not message content, to keep the per-keystroke
-    // cost low. Only surfaced when the user typed a query — the default
-    // (empty) popup stays nodes/files/canvases only.
+    // Past chat sessions, matched by the first user message plus workspace
+    // name — deliberately not message content, to keep the per-keystroke
+    // cost low. Put that distinctive first message in the result title;
+    // workspace and date are supporting metadata. Only surface sessions when
+    // the user typed a query — the default (empty) popup stays
+    // nodes/files/canvases only.
     if (normalizedQuery) {
       try {
         const result = await window.canvasWorkspace.agent.searchSessions(query, 5);
@@ -235,10 +237,10 @@ export function useMentions({
           for (const hit of result.hits) {
             filtered.push({
               type: 'session',
-              label: `${hit.workspaceName} · ${hit.date}`,
+              label: hit.preview || hit.date,
               sessionId: hit.sessionId,
               workspaceId: hit.workspaceId,
-              description: hit.preview,
+              description: `${hit.workspaceName} · ${hit.date}`,
             });
           }
         }

@@ -12,6 +12,7 @@ import { homedir } from 'os';
 import { CanvasAgent, type CanvasClarificationRequest } from './canvas-agent';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './session-store';
+import { sessionPreview } from './session-preview';
 import type {
   AgentRequestContext,
   AgentScope,
@@ -372,7 +373,7 @@ export class CanvasAgentService {
         date: session.startedAt?.slice(0, 10) ?? '',
         isCurrent: entry.isCurrent,
         messageCount: session.messages.length,
-        preview: title.slice(0, 60),
+        preview: sessionPreview(title, 60),
       });
       if (hits.length >= limit) break;
     }

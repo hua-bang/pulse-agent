@@ -3,9 +3,10 @@ import { CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, Spinner
 import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { SessionTitle } from './SessionTitle';
 
 interface ChatHeaderProps {
-  title: string;
+  title: ReactNode;
   sessionMenuOpen: boolean;
   sessionMenuRef: RefObject<HTMLDivElement>;
   /** True while the session list is being (re)fetched. */
@@ -146,7 +147,9 @@ export const ChatHeader = ({
                     >
                       <ListLinesIcon size={14} />
                       <span className="chat-session-menu-item-text">
-                        {session.preview || (session.isCurrent ? t('chat.currentChat') : session.date)}
+                        {session.preview
+                          ? <SessionTitle value={session.preview} />
+                          : (session.isCurrent ? t('chat.currentChat') : session.date)}
                       </span>
                       <span className="chat-session-menu-item-count">{session.messageCount}</span>
                     </button>
@@ -169,7 +172,7 @@ export const ChatHeader = ({
                     >
                       <ListLinesIcon size={14} />
                       <span className="chat-session-menu-item-text">
-                        {session.preview || session.date}
+                        {session.preview ? <SessionTitle value={session.preview} /> : session.date}
                       </span>
                       <span className="chat-session-menu-item-ws">{session.workspaceName}</span>
                       <span className="chat-session-menu-item-count">{session.messageCount}</span>
