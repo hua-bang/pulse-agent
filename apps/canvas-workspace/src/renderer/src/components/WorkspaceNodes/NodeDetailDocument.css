@@ -549,3 +549,40 @@
     padding-inline: 14px;
   }
 }
+
+/* The AI dock changes the detail page's available column width without
+ * changing the browser viewport. Container queries keep the document usable
+ * in that split layout, where viewport media queries cannot detect the
+ * constrained center pane. */
+@container (max-width: 1050px) {
+  .node-detail-panel--page .node-detail-panel__layout {
+    max-width: 760px;
+    display: block;
+  }
+
+  .node-detail-panel--page .node-detail-panel__context-rail {
+    position: static;
+    margin-top: 40px;
+    padding-top: 28px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid var(--nodes-border);
+  }
+
+  .node-detail-panel--page .node-detail-panel__ai-insight {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (max-width: 720px) {
+  .node-detail-panel--page .node-detail-panel__layout {
+    padding: 34px 22px 72px;
+  }
+
+  .node-detail-panel--page .node-detail-panel__context-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .node-detail-panel--page .node-detail-panel__ai-insight {
+    grid-column: auto;
+  }
+}

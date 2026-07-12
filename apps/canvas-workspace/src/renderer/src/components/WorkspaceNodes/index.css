@@ -29,6 +29,10 @@
   container-type: inline-size;
 }
 
+.workspace-node-detail-page {
+  container-type: inline-size;
+}
+
 .workspace-nodes-page__main {
   position: relative;
   flex: 1;
