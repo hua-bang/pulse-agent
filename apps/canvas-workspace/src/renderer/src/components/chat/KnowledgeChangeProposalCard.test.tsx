@@ -38,14 +38,14 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'canvasWorkspace');
 });
 
-const renderCard = () => {
+const renderCard = (proposal = PROPOSAL) => {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
   act(() => {
     root?.render(
       <I18nProvider>
-        <KnowledgeChangeProposalCard proposal={PROPOSAL} />
+        <KnowledgeChangeProposalCard proposal={proposal} />
       </I18nProvider>,
     );
   });
@@ -122,5 +122,20 @@ describe('KnowledgeChangeProposalCard', () => {
 
     expect(view.textContent).toContain('This node changed after the proposal was created.');
     expect(Array.from(view.querySelectorAll('button')).some((button) => button.textContent === 'Discard')).toBe(true);
+  });
+
+  it('hides unchanged fields and highlights only the changed text', () => {
+    const view = renderCard({
+      ...PROPOSAL,
+      before: { title: 'Same title', content: 'Keep this old ending' },
+      patch: { title: 'Same title', content: 'Keep this new ending' },
+    });
+
+    const fieldLabels = Array.from(view.querySelectorAll('.knowledge-change-card__field-label'))
+      .map((element) => element.textContent);
+    expect(fieldLabels).not.toContain('Title');
+    expect(fieldLabels).toContain('Content');
+    expect(view.querySelector('.knowledge-change-card__change--before')?.textContent).toBe('old');
+    expect(view.querySelector('.knowledge-change-card__change--after')?.textContent).toBe('new');
   });
 });

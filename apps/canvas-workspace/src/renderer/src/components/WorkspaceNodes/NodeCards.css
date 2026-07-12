@@ -260,7 +260,8 @@
 
 .knowledge-node-card.is-context-selected .knowledge-node-card__button {
   border-color: var(--accent-border);
-  border-left-width: 3px;
+  background: var(--nodes-surface-active);
+  box-shadow: none;
 }
 
 .knowledge-node-card__button:focus-visible {
@@ -407,7 +408,7 @@
 }
 
 .knowledge-node-card__action--select[aria-pressed="true"] {
-  border-color: var(--accent-border);
+  border-color: transparent;
   background: var(--accent-soft);
   color: var(--accent);
 }

@@ -29,79 +29,101 @@ export const NoteBlockHandle = ({ editor, cardRef }: Props) => {
   menuOpenRef.current = menuOpen;
 
   useEffect(() => {
-    const root = editor.view.dom;
-    const card = cardRef.current;
-    if (!card) return;
+    let disposed = false;
+    let retryFrame: number | null = null;
+    let detach: (() => void) | null = null;
 
-    const targetBlock = (target: EventTarget | null): { element: HTMLElement; target: BlockTarget } | null => {
-      let element = target instanceof HTMLElement ? target : null;
-      while (element && element.parentElement !== root) element = element.parentElement;
-      if (!element || element.parentElement !== root) return null;
-      const index = Array.from(root.children).indexOf(element);
-      if (index < 0) return null;
-      const rect = element.getBoundingClientRect();
-      const cardRect = card.getBoundingClientRect();
-      return { element, target: { index, top: rect.top - cardRect.top, height: rect.height } };
-    };
-
-    const onMouseMove = (event: MouseEvent) => {
-      if (draggedIndexRef.current !== null || menuOpenRef.current) return;
-      const hit = targetBlock(event.target);
-      if (hit) setActive(hit.target);
-    };
-    const onMouseLeave = (event: MouseEvent) => {
-      if (menuOpenRef.current || handleRef.current?.contains(event.relatedTarget as Node | null)) return;
-      setActive(null);
-    };
-    const onDragOver = (event: DragEvent) => {
-      if (draggedIndexRef.current === null) return;
-      const hit = targetBlock(event.target);
-      if (!hit) return;
-      event.preventDefault();
-      const rect = hit.element.getBoundingClientRect();
-      const after = event.clientY > rect.top + rect.height / 2;
-      const scroller = root.parentElement;
-      if (scroller) {
-        const scrollerRect = scroller.getBoundingClientRect();
-        if (event.clientY < scrollerRect.top + 40) scroller.scrollBy({ top: -14 });
-        if (event.clientY > scrollerRect.bottom - 40) scroller.scrollBy({ top: 14 });
+    const attach = () => {
+      let root: HTMLElement;
+      try {
+        root = editor.view.dom;
+      } catch (error) {
+        const viewPending = error instanceof Error
+          && error.message.includes('The editor view is not available');
+        if (!viewPending) throw error;
+        retryFrame = requestAnimationFrame(attach);
+        return;
       }
-      setActive(hit.target);
-      setDropTop(hit.target.top + (after ? hit.target.height : 0));
-    };
-    const onDrop = (event: DragEvent) => {
-      const fromIndex = draggedIndexRef.current;
-      const hit = targetBlock(event.target);
-      if (fromIndex === null || !hit) return;
-      event.preventDefault();
-      const rect = hit.element.getBoundingClientRect();
-      const after = event.clientY > rect.top + rect.height / 2;
-      let finalIndex = hit.target.index + (after ? 1 : 0);
-      if (fromIndex < finalIndex) finalIndex -= 1;
-      moveNoteBlockToIndex(editor, fromIndex, finalIndex);
-      draggedIndexRef.current = null;
-      setDropTop(null);
+      const card = cardRef.current;
+      if (disposed || !card) return;
+
+      const targetBlock = (target: EventTarget | null): { element: HTMLElement; target: BlockTarget } | null => {
+        let element = target instanceof HTMLElement ? target : null;
+        while (element && element.parentElement !== root) element = element.parentElement;
+        if (!element || element.parentElement !== root) return null;
+        const index = Array.from(root.children).indexOf(element);
+        if (index < 0) return null;
+        const rect = element.getBoundingClientRect();
+        const cardRect = card.getBoundingClientRect();
+        return { element, target: { index, top: rect.top - cardRect.top, height: rect.height } };
+      };
+
+      const onMouseMove = (event: MouseEvent) => {
+        if (draggedIndexRef.current !== null || menuOpenRef.current) return;
+        const hit = targetBlock(event.target);
+        if (hit) setActive(hit.target);
+      };
+      const onMouseLeave = (event: MouseEvent) => {
+        if (menuOpenRef.current || handleRef.current?.contains(event.relatedTarget as Node | null)) return;
+        setActive(null);
+      };
+      const onDragOver = (event: DragEvent) => {
+        if (draggedIndexRef.current === null) return;
+        const hit = targetBlock(event.target);
+        if (!hit) return;
+        event.preventDefault();
+        const rect = hit.element.getBoundingClientRect();
+        const after = event.clientY > rect.top + rect.height / 2;
+        const scroller = root.parentElement;
+        if (scroller) {
+          const scrollerRect = scroller.getBoundingClientRect();
+          if (event.clientY < scrollerRect.top + 40) scroller.scrollBy({ top: -14 });
+          if (event.clientY > scrollerRect.bottom - 40) scroller.scrollBy({ top: 14 });
+        }
+        setActive(hit.target);
+        setDropTop(hit.target.top + (after ? hit.target.height : 0));
+      };
+      const onDrop = (event: DragEvent) => {
+        const fromIndex = draggedIndexRef.current;
+        const hit = targetBlock(event.target);
+        if (fromIndex === null || !hit) return;
+        event.preventDefault();
+        const rect = hit.element.getBoundingClientRect();
+        const after = event.clientY > rect.top + rect.height / 2;
+        let finalIndex = hit.target.index + (after ? 1 : 0);
+        if (fromIndex < finalIndex) finalIndex -= 1;
+        moveNoteBlockToIndex(editor, fromIndex, finalIndex);
+        draggedIndexRef.current = null;
+        setDropTop(null);
+      };
+
+      root.addEventListener('mousemove', onMouseMove);
+      root.addEventListener('mouseleave', onMouseLeave);
+      root.addEventListener('dragover', onDragOver);
+      root.addEventListener('drop', onDrop);
+      const scroller = root.parentElement;
+      const clearStaleTarget = () => {
+        setActive(null);
+        setDropTop(null);
+        setMenuOpen(false);
+      };
+      scroller?.addEventListener('scroll', clearStaleTarget);
+      editor.on('transaction', clearStaleTarget);
+      detach = () => {
+        root.removeEventListener('mousemove', onMouseMove);
+        root.removeEventListener('mouseleave', onMouseLeave);
+        root.removeEventListener('dragover', onDragOver);
+        root.removeEventListener('drop', onDrop);
+        scroller?.removeEventListener('scroll', clearStaleTarget);
+        editor.off('transaction', clearStaleTarget);
+      };
     };
 
-    root.addEventListener('mousemove', onMouseMove);
-    root.addEventListener('mouseleave', onMouseLeave);
-    root.addEventListener('dragover', onDragOver);
-    root.addEventListener('drop', onDrop);
-    const scroller = root.parentElement;
-    const clearStaleTarget = () => {
-      setActive(null);
-      setDropTop(null);
-      setMenuOpen(false);
-    };
-    scroller?.addEventListener('scroll', clearStaleTarget);
-    editor.on('transaction', clearStaleTarget);
+    attach();
     return () => {
-      root.removeEventListener('mousemove', onMouseMove);
-      root.removeEventListener('mouseleave', onMouseLeave);
-      root.removeEventListener('dragover', onDragOver);
-      root.removeEventListener('drop', onDrop);
-      scroller?.removeEventListener('scroll', clearStaleTarget);
-      editor.off('transaction', clearStaleTarget);
+      disposed = true;
+      if (retryFrame !== null) cancelAnimationFrame(retryFrame);
+      detach?.();
     };
   }, [cardRef, editor]);
 

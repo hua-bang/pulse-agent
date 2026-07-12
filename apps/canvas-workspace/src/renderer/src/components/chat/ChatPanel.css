@@ -1704,26 +1704,27 @@
 /* ─── Reviewed AI node changes ─────────────────────────── */
 
 .knowledge-change-card {
-  margin: 10px 0 4px;
+  margin: 12px 0 6px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
 }
 
 .knowledge-change-card__header {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
-  padding: 12px 12px 8px;
+  padding: 14px 16px 10px;
+  background: var(--surface-subtle);
 }
 
 .knowledge-change-card__spark {
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   place-items: center;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -1734,17 +1735,17 @@
 .knowledge-change-card__eyebrow,
 .knowledge-change-card__field-label {
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.045em;
   text-transform: uppercase;
 }
 
 .knowledge-change-card h4 {
-  margin: 2px 0 0;
+  margin: 3px 0 0;
   overflow: hidden;
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -1761,7 +1762,8 @@
 }
 
 .knowledge-change-card__type {
-  padding: 3px 7px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-pill);
   color: var(--text-secondary);
   background: var(--surface-alt);
@@ -1769,19 +1771,23 @@
 }
 
 .knowledge-change-card__summary {
-  margin: 0;
-  padding: 0 12px 10px 48px;
+  margin: 0 16px 14px 58px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--accent-border);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   color: var(--text-secondary);
+  background: var(--surface-alt);
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.55;
 }
 
 .knowledge-change-card__diffs {
   border-top: 1px solid var(--border-light);
+  background: var(--surface-subtle);
 }
 
 .knowledge-change-card__diff-row {
-  padding: 10px 12px;
+  padding: 14px 16px;
 }
 
 .knowledge-change-card__diff-row + .knowledge-change-card__diff-row {
@@ -1789,12 +1795,13 @@
 }
 
 .knowledge-change-card__field-label {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  color: var(--text);
 }
 
 .knowledge-change-card__compare {
   display: grid;
-  gap: 5px;
+  gap: 8px;
 }
 
 .knowledge-change-card__value {
@@ -1802,10 +1809,13 @@
   grid-template-columns: 48px minmax(0, 1fr);
   gap: 6px;
   align-items: start;
-  padding: 7px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  line-height: 1.45;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .knowledge-change-card__value > span {
@@ -1825,13 +1835,40 @@
 }
 
 .knowledge-change-card__value--before {
-  color: var(--error);
-  background: color-mix(in srgb, var(--error) 6%, transparent);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--error) 18%, var(--border-light));
+  background: color-mix(in srgb, var(--error) 3%, var(--surface));
 }
 
 .knowledge-change-card__value--after {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--success) 20%, var(--border-light));
+  background: color-mix(in srgb, var(--success) 4%, var(--surface));
+}
+
+.knowledge-change-card__value--before .knowledge-change-card__comparison-label {
+  color: var(--error);
+}
+
+.knowledge-change-card__value--after .knowledge-change-card__comparison-label {
   color: var(--success);
-  background: color-mix(in srgb, var(--success) 7%, transparent);
+}
+
+.knowledge-change-card__change {
+  padding: 1px 2px;
+  border-radius: var(--radius-xs);
+  color: inherit;
+}
+
+.knowledge-change-card__change--before {
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 16%, transparent);
+  text-decoration: line-through;
+}
+
+.knowledge-change-card__change--after {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 18%, transparent);
 }
 
 .knowledge-change-card__tags {
@@ -1882,10 +1919,16 @@
   align-items: center;
   justify-content: flex-end;
   gap: 7px;
-  padding: 8px 10px;
+  padding: 10px 16px;
   border-top: 1px solid var(--border-light);
   color: var(--text-secondary);
   font-size: 11px;
+}
+
+@media (min-width: 720px) {
+  .knowledge-change-card__compare {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
 .knowledge-change-card__error {

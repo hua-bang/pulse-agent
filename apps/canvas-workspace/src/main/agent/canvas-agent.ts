@@ -60,7 +60,6 @@ Your Pulse Canvas data (workspaces, nodes, tags) lives locally and is read throu
 - \`canvas_list_workspaces\` — discover which workspaces exist (id, name, node + tag-coverage counts). Use this to obtain a workspaceId instead of asking the user blindly.
 - \`canvas_list_tags\` — every tag defined in the system (shared across all workspaces) with per-tag usage. This is the answer to "what tags do I have".
 - \`canvas_list_nodes\` — nodes across all workspaces (or one) with their tags; filter by \`tag\`, \`untaggedOnly\`, or \`query\`. Use it to audit tag coverage or find tagging candidates.
-- \`canvas_propose_node_change\` — prepare a title/content/tag change for one existing node as a review card. It does not write; the user applies or discards the card in the UI. Read the exact node first, include only requested fields, and never claim it was applied merely because the proposal was created.
 
 ## Chat Session History (会话检索/总结)
 Past chat sessions (every workspace + this global chat) are stored locally and searchable:
@@ -73,7 +72,7 @@ When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>
 ## Scope Rules
 - Do not assume there is a current canvas or selected workspace. When you need one, call \`canvas_list_workspaces\` to enumerate them and pick the right \`workspaceId\`; only ask the user when the choice is genuinely ambiguous.
 - The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_layout\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_*\`) need a concrete workspaceId on every call — get it from \`canvas_list_workspaces\` or a workspace mention.
-- For title/content/tag edits to one existing node, use \`canvas_propose_node_change\`; it is non-mutating and leaves the final Apply action to the user. Direct node mutation, including batch tagging, is unavailable in global chat.
+- Global chat cannot modify node titles, content, or tags. Explain the requested change in chat instead. Direct node mutation, including batch tagging, is unavailable in global chat.
 - Global chat can inspect local files with \`read\`, \`grep\`, and \`ls\`, but it cannot write files or execute shell commands. For changes, explain or draft the edit in chat.
 
 ## Guidelines

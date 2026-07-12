@@ -24,7 +24,7 @@ export interface KnowledgeChatExplicitContext {
   nodes: AgentContextNodeRef[];
   tags?: AgentContextTagRef[];
   canvases?: AgentContextCanvasRef[];
-  composerRequest: ChatComposerRequest;
+  composerRequest?: ChatComposerRequest;
 }
 
 interface ResolveKnowledgeChatRouteContextOptions {

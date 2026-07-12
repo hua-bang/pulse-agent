@@ -20,6 +20,7 @@ interface Props {
   contextTags?: AgentContextTagRef[];
   contextCanvases?: AgentContextCanvasRef[];
   composerRequest?: ChatComposerRequest;
+  onComposerRequestHandled?: (requestId: string) => void;
   onRemoveContext?: (key: string) => void;
   workspaces: WorkspaceEntry[];
   onClose: () => void;
@@ -34,6 +35,7 @@ export const KnowledgeChatPortal = ({
   contextTags,
   contextCanvases,
   composerRequest,
+  onComposerRequestHandled,
   onRemoveContext,
   workspaces,
   onClose,
@@ -65,6 +67,7 @@ export const KnowledgeChatPortal = ({
         contextTags={contextTags}
         contextCanvases={contextCanvases}
         composerRequest={composerRequest}
+        onComposerRequestHandled={onComposerRequestHandled}
         onRemoveContext={onRemoveContext}
         onClose={onClose}
         onOpenAppSettings={onOpenAppSettings}

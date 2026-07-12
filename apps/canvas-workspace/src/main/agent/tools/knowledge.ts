@@ -174,7 +174,7 @@ export function createKnowledgeTools(): Record<string, CanvasTool> {
         'Read one exact node from the Nodes knowledge library without requiring a workspace. ' +
         'Use this directly for a selected or @-mentioned node; do not search again first. ' +
         'Reads both the knowledge record and its canvas content when available, including off-canvas records and image file paths. ' +
-        'The returned workspaceId is an internal locator to pass to canvas_propose_node_change when preparing a reviewable edit.',
+        'The returned workspaceId identifies the node\'s owning workspace.',
       inputSchema: z.object({
         nodeId: z.string().min(1).describe('Exact node id from selected context or knowledge_search_nodes.'),
       }),

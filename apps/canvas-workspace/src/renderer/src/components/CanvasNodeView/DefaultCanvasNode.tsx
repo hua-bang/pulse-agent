@@ -18,6 +18,7 @@ import { useAppShell } from '../AppShellProvider';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
+import { dispatchOpenNodePage } from '../../utils/openNodeBridge';
 
 // Heavy node bodies are React.lazy so xterm (terminal/agent bodies) and
 // tiptap/prosemirror + lowlight (text/file bodies) stay out of the eagerly-
@@ -50,7 +51,6 @@ interface DefaultCanvasNodeProps {
   isFullscreen: boolean;
   isResizing: boolean;
   isSelected: boolean;
-  eagerFileEditor?: boolean;
   makeResizeHandler: ResizeHandlerFactory;
   node: CanvasNode;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
@@ -92,7 +92,6 @@ export const DefaultCanvasNode = ({
   isFullscreen,
   isResizing,
   isSelected,
-  eagerFileEditor,
   makeResizeHandler,
   node,
   onDragStart,
@@ -183,6 +182,11 @@ export const DefaultCanvasNode = ({
     })();
   }, [node.id, node.title, notify, onAddDomSelectionToChat, pluginElementPickerActive, workspaceId]);
 
+  const handleOpenDetail = useCallback((event: MouseEvent) => {
+    event.stopPropagation();
+    dispatchOpenNodePage({ workspaceId: workspaceId ?? '', nodeId: node.id });
+  }, [node.id, workspaceId]);
+
   const frameTitleOnly = node.type === 'frame' && renderMode === 'frame-title';
   const frameBodyOnly = node.type === 'frame' && renderMode === 'frame-body';
   const nodeClasses = [
@@ -197,6 +201,7 @@ export const DefaultCanvasNode = ({
       handleClose={handleClose}
       handleFocus={handleFocus}
       handleHeaderMouseDown={handleHeaderMouseDown}
+      handleOpenDetail={handleOpenDetail}
       handlePluginSelectElement={handlePluginSelectElement}
       handleReference={handleReference}
       handleAddToChat={handleAddToChat}
@@ -233,7 +238,7 @@ export const DefaultCanvasNode = ({
       <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
         <Suspense fallback={null}>
         {node.type === 'file' ? (
-          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} eager={eagerFileEditor} />
+          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} />
         ) : node.type === 'terminal' ? (
           <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         ) : node.type === 'frame' || node.type === 'group' ? (

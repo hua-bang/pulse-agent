@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createCanvasAgentToolPolicy } from '../tool-policy';
 
 describe('Canvas Agent tool policy', () => {
-  it('gives global chat only reviewed read-only built-ins plus reviewable canvas changes', () => {
+  it('gives global chat only reviewed read-only built-ins and canvas readers', () => {
     const policy = createCanvasAgentToolPolicy({ kind: 'global' });
     const finalNames = Object.keys({
       ...policy.builtInTools,
@@ -20,7 +20,7 @@ describe('Canvas Agent tool policy', () => {
       'tavily_extract',
       'tavily_map',
     ]);
-    expect(finalNames).toContain('canvas_propose_node_change');
+    expect(finalNames).not.toContain('canvas_propose_node_change');
     expect(finalNames).toContain('knowledge_search_nodes');
     expect(finalNames).toContain('knowledge_read_node');
     expect(finalNames).toContain('knowledge_analyze_image');

@@ -48,6 +48,33 @@ function preview(value: string | undefined): string {
   return compact.length > 420 ? `${compact.slice(0, 419)}…` : compact;
 }
 
+function changedRange(before: string, after: string): { prefix: number; beforeEnd: number; afterEnd: number } {
+  let prefix = 0;
+  while (prefix < before.length && prefix < after.length && before[prefix] === after[prefix]) prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < before.length - prefix
+    && suffix < after.length - prefix
+    && before[before.length - 1 - suffix] === after[after.length - 1 - suffix]
+  ) suffix += 1;
+  return { prefix, beforeEnd: before.length - suffix, afterEnd: after.length - suffix };
+}
+
+const InlineDiff = ({ before, after, side }: { before: string; after: string; side: 'before' | 'after' }) => {
+  const range = changedRange(before, after);
+  const value = side === 'before' ? before : after;
+  const end = side === 'before' ? range.beforeEnd : range.afterEnd;
+  return (
+    <p>
+      {value.slice(0, range.prefix)}
+      <mark className={`knowledge-change-card__change knowledge-change-card__change--${side}`}>
+        {value.slice(range.prefix, end) || '∅'}
+      </mark>
+      {value.slice(end)}
+    </p>
+  );
+};
+
 const DiffRow = ({
   label,
   before,
@@ -62,17 +89,20 @@ const DiffRow = ({
   beforeLabel: string;
   afterLabel: string;
   fullReviewLabel: string;
-}) => (
-  <div className="knowledge-change-card__diff-row">
+}) => {
+  const beforePreview = preview(before);
+  const afterPreview = preview(after);
+  if (beforePreview === afterPreview) return null;
+  return <div className="knowledge-change-card__diff-row">
     <div className="knowledge-change-card__field-label">{label}</div>
     <div className="knowledge-change-card__compare">
       <div className="knowledge-change-card__value knowledge-change-card__value--before" role="group" aria-label={beforeLabel}>
         <span className="knowledge-change-card__comparison-label" aria-hidden="true">{beforeLabel}</span>
-        <p>{preview(before)}</p>
+        <InlineDiff before={beforePreview} after={afterPreview} side="before" />
       </div>
       <div className="knowledge-change-card__value knowledge-change-card__value--after" role="group" aria-label={afterLabel}>
         <span className="knowledge-change-card__comparison-label" aria-hidden="true">{afterLabel}</span>
-        <p>{preview(after)}</p>
+        <InlineDiff before={beforePreview} after={afterPreview} side="after" />
       </div>
     </div>
     {Math.max(before?.length ?? 0, after?.length ?? 0) > 420 && (
@@ -84,8 +114,8 @@ const DiffRow = ({
         </div>
       </details>
     )}
-  </div>
-);
+  </div>;
+};
 
 const TagsDiff = ({
   before,
@@ -188,7 +218,7 @@ export const KnowledgeChangeProposalCard = ({ proposal }: Props) => {
               beforeLabel={t('knowledgeChange.before')} afterLabel={t('knowledgeChange.after')}
               fullReviewLabel={t('knowledgeChange.reviewFull')} />
           )}
-          {patch.tags !== undefined && (
+          {patch.tags !== undefined && JSON.stringify(before.tags ?? []) !== JSON.stringify(patch.tags) && (
             <div className="knowledge-change-card__diff-row">
               <div className="knowledge-change-card__field-label">{t('knowledgeChange.tags')}</div>
               <TagsDiff before={before.tags ?? []} after={patch.tags}

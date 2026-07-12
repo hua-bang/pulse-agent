@@ -2,14 +2,12 @@
  * Seeds the bundled default skills.
  *
  * `save-as-skill` / `promote-skill` are meta-skills for in-chat skill
- * management; `suggest-tags` drives the "find which nodes should carry a tag,
- * then propose review cards" workflow. All three are plain SKILL.md files in
+ * management; `suggest-tags` drives the "find which nodes should carry a tag"
+ * advisory workflow. All three are plain SKILL.md files in
  * the global scope — the agent's behavior is defined by these (user-editable)
  * markdown files, not by hard-coded prompts. Each one leans on a companion
  * tool for the resulting action (`canvas_save_skill` / `canvas_promote_skill`
- * in `tools/skills.ts`, and `canvas_propose_node_change` in
- * `tools/knowledge-change.ts`); the SKILL.md tells the agent *when* and *how*
- * to call it.
+ * in `tools/skills.ts`); the SKILL.md tells the agent *when* and *how* to call it.
  *
  * On every app start we write them only if absent. The one obsolete bundled
  * default is upgraded by exact hash; user-edited variants keep their version.
@@ -85,12 +83,12 @@ const SUGGEST_TAGS: DefaultSkill = {
   slug: 'suggest-tags',
   name: 'suggest-tags',
   description:
-    'When the user wants to find which nodes should carry a tag (e.g. 「帮我看看哪些节点可以打上 [AI]」 / "which notes should be tagged RAG?"), audit nodes that are missing tags, or prepare tag changes across the canvas — use this to scan local workspaces, propose candidates, confirm with the user, then create review cards with canvas_propose_node_change.',
+    'When the user wants to find which nodes should carry a tag (e.g. 「帮我看看哪些节点可以打上 [AI]」 / "which notes should be tagged RAG?"), use this to scan local workspaces and return grounded suggestions without changing nodes.',
   body: `# suggest-tags
 
 Use this when the user wants to **find which nodes should carry a tag**, **audit nodes that have no tags**, or **prepare tag changes across the canvas** — e.g. 「帮我看看哪些节点可以打上 [AI]」, "which notes should be tagged RAG?", 「哪些节点还没打标签?」.
 
-Works in global chat (the whole system) and inside a single workspace. It only proposes knowledge-layer tag changes — never the canvas layout. The proposal tool does not mutate a node; the user applies or discards each review card in the UI.
+Works in global chat (the whole system) and inside a single workspace. It is advisory only: return suggestions in chat and never mutate nodes or create review cards.
 
 **Bias for precision over recall: a wrong tag is worse than a missed one.** Titles are loose (a shared word like "数据"/"平台"/"AI" is NOT a match) — judge from real content, and when unsure, leave it out.
 
@@ -101,25 +99,17 @@ Works in global chat (the whole system) and inside a single workspace. It only p
 
 2. **Shortlist (don't decide yet).** \`canvas_list_nodes({ untaggedOnly: true })\` — add \`query\` with the tag's keywords to keep the shortlist tight on a big canvas. Use \`title\` + \`summary\` ONLY to narrow down to plausible candidates; **do not tag based on the title/summary alone.**
 
-3. **Read the full content before proposing — mandatory.** For EVERY node you intend to propose, call \`canvas_read_node({ workspaceId, nodeId })\` and judge from the **actual content**, not the title or snippet. Do not put a node in the proposal you haven't read.
+3. **Read the full content before suggesting — mandatory.** For EVERY node you intend to suggest, call \`canvas_read_node({ workspaceId, nodeId })\` and judge from the **actual content**, not the title or snippet. Do not put a node in the result you haven't read.
 
 4. **Judge strictly against the rubric.** Include a node only when its content is *substantively about* the tag's meaning (step 1's description) — i.e. the tag is a real subject/topic of the node, not a passing mention or an incidental keyword. When unsure, exclude it (or list it under a separate "maybe / 不确定" group); never auto-include to look thorough.
 
-5. **Show the candidate list and get confirmation.** Group by workspace; each line = node title + a one-line reason **grounded in what you read** (e.g. "讲的是 X,属于…"). List the "maybes" separately. End with 「为这些节点生成 [AI] 标签变更卡片吗?要去掉哪几个?」. **Do not create cards yet.**
-
-6. **Create one review card per confirmed node.** For each confirmed node, call \`canvas_propose_node_change\` with its exact \`workspaceId\`, \`nodeId\`, a concise \`summary\`, and the complete desired \`tags\` array: preserve the node's current tags and add the confirmed tag once.
-   - Use the exact IDs and current tags returned by the read tools. Never guess from titles and never drop an existing tag accidentally.
-   - Include only the \`tags\` field unless the user also requested a title or content change.
-   - The tool creates a review card, not a write. Tell the user to inspect and Apply or Discard the cards; do not claim any node changed yet.
-   - If \`canvas_propose_node_change\` is unavailable, stop after the candidate list and say that no changes were made. Do not fall back to a direct mutation tool.
+5. **Show the candidate list.** Group by workspace; each line = node title + a one-line reason **grounded in what you read** (e.g. "讲的是 X,属于…"). List the "maybes" separately. State clearly that these are suggestions only and no nodes were changed.
 
 ## Rules
 
-- **Never create review cards without explicit confirmation** in the conversation. 「生成吧」/「ok」 counts; silence does not.
-- **Suggest first, create cards on the next turn** — don't scan-and-propose in the same breath the user asked.
+- **Never mutate nodes or create review cards.** This workflow only reports suggestions in chat.
 - **Precision first:** don't pad the list. If only 3 of 20 truly fit, propose 3.
 - Reading full content costs tokens — keep the shortlist tight (use \`query\`) so you're not reading the whole canvas.
-- Keep every proposal atomic: one node per review card. A card's \`tags\` array is the desired full tag set for that node.
 - If nothing clearly fits, say so instead of forcing low-confidence tags.
 `,
 };
@@ -161,7 +151,9 @@ export async function ensureDefaultSkillsSeeded(): Promise<void> {
     try {
       const existing = await fs.readFile(file, 'utf8');
       const legacyHash = skill.slug === 'suggest-tags' ? LEGACY_SUGGEST_TAGS_HASH : undefined;
-      if (legacyHash && sha256(existing) === legacyHash) {
+      const referencesRemovedProposalTool = skill.slug === 'suggest-tags'
+        && existing.includes('canvas_propose_node_change');
+      if ((legacyHash && sha256(existing) === legacyHash) || referencesRemovedProposalTool) {
         await fs.writeFile(file, serialize(skill), 'utf8');
         console.info(`[default-skills] upgraded bundled ${file}`);
       }

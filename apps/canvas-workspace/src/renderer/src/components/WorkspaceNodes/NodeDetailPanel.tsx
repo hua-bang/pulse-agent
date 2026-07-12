@@ -127,6 +127,7 @@ export const NodeDetailPanel = ({
                 <NodeCanvasPreview
                   workspaceId={workspaceId}
                   record={node}
+                  mentionCandidates={relationCandidates}
                   minHeight={mode === 'page' ? 480 : 320}
                   readOnly={readOnly}
                   onPatched={onNodePatched}

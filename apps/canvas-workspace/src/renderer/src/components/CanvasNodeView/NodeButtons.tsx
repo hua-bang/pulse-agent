@@ -152,18 +152,25 @@ export const AddToChatButton = ({ onClick }: { onClick: (e: MouseEvent) => void 
 );
 
 export const OpenSourceButton = ({
+  ariaLabel = 'Open source',
+  className = 'node-focus',
   disabled,
   onClick,
+  title = 'Open source',
 }: {
+  ariaLabel?: string;
+  className?: string;
   disabled?: boolean;
   onClick: (e: MouseEvent) => void;
+  title?: string;
 }) => (
   <button
-    className="node-focus"
+    className={className}
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title="Open source"
+    title={title}
+    aria-label={ariaLabel}
     disabled={disabled}
   >
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -171,4 +178,13 @@ export const OpenSourceButton = ({
       <path d="M7 1.8h3.2V5M5.6 6.4l4.3-4.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   </button>
+);
+
+export const OpenDetailButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+  <OpenSourceButton
+    ariaLabel="Open note detail page"
+    className="node-open-detail"
+    onClick={onClick}
+    title="Open detail page"
+  />
 );

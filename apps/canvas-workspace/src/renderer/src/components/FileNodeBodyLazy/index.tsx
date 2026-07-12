@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, type ReactNode } from 'react';
 import type { CanvasNode, FileNodeData } from '../../types';
 import { dispatchOpenNode, parseNodeLinkHref } from '../../utils/openNodeBridge';
 import { useRightDock } from '../RightDock';
@@ -10,7 +10,6 @@ interface Props {
   workspaceId?: string;
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
-  eager?: boolean;
 }
 
 const FileNodeEditor = lazy(() =>
@@ -72,19 +71,12 @@ export const MarkdownPreview = ({ content }: { content: string }) => {
 };
 
 export const FileNodeBodyLazy = (props: Props) => {
-  const [editorLoaded, setEditorLoaded] = useState(props.eager ?? false);
   const { openLink } = useRightDock();
   const content = (props.node.data as FileNodeData).content ?? '';
-  const activateEditor = useCallback(() => {
-    if (!props.readOnly) setEditorLoaded(true);
-  }, [props.readOnly]);
   const handlePreviewClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const anchor = (event.target as HTMLElement).closest?.('a');
     const href = anchor?.getAttribute('href')?.trim();
-    if (!href) {
-      activateEditor();
-      return;
-    }
+    if (!href) return;
     event.preventDefault();
     event.stopPropagation();
     const nodeLink = parseNodeLinkHref(href);
@@ -93,23 +85,20 @@ export const FileNodeBodyLazy = (props: Props) => {
     } else if (/^https?:\/\//i.test(href)) {
       openLink(href);
     }
-  }, [activateEditor, openLink, props.workspaceId]);
+  }, [openLink, props.workspaceId]);
 
-  if (editorLoaded) {
+  if (!props.readOnly) {
     return (
       <Suspense fallback={<div className="file-preview file-preview--loading"><MarkdownPreview content={content} /></div>}>
-        <FileNodeEditor {...props} autoFocus={!props.eager} />
+        <FileNodeEditor {...props} />
       </Suspense>
     );
   }
 
   return (
     <div
-      className={`file-preview${props.readOnly ? '' : ' file-preview--editable'}`}
+      className="file-preview"
       onClick={handlePreviewClick}
-      onKeyDown={(event) => { if (event.key === 'Enter') activateEditor(); }}
-      tabIndex={props.readOnly ? undefined : 0}
-      aria-label={props.readOnly ? undefined : 'Edit note'}
     >
       <MarkdownPreview content={content} />
     </div>

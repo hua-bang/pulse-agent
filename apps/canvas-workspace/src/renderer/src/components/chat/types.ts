@@ -66,6 +66,8 @@ export interface ChatPanelProps {
   contextCanvases?: AgentContextCanvasRef[];
   /** Imperatively focuses or submits the existing composer without changing its shell. */
   composerRequest?: ChatComposerRequest;
+  /** Acknowledges a one-shot composer request so remounting cannot submit it again. */
+  onComposerRequestHandled?: (requestId: string) => void;
   /** Remove a context chip by key. When omitted, chips aren't removable. */
   onRemoveContext?: (key: string) => void;
   rootFolder?: string;

@@ -55,5 +55,13 @@ export const useKnowledgeAiContext = ({ openChat, summarizePrompt }: Options) =>
     });
   }, []);
 
-  return { explicitContext, askAi, removeContext };
+  const consumeComposerRequest = useCallback((requestId: string) => {
+    setExplicitContext((current) => {
+      if (current?.composerRequest?.id !== requestId) return current;
+      const { composerRequest: _consumed, ...context } = current;
+      return context;
+    });
+  }, []);
+
+  return { explicitContext, askAi, removeContext, consumeComposerRequest };
 };

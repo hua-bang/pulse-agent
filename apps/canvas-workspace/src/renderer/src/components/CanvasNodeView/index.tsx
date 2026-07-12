@@ -199,7 +199,6 @@ const CanvasNodeViewComponent = ({
       isFullscreen={isFullscreen}
       isResizing={isResizing}
       isSelected={isSelected}
-      eagerFileEditor={embedded}
       makeResizeHandler={viewModel.makeResizeHandler}
       node={node}
       onDragStart={onDragStart}

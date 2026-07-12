@@ -23,6 +23,26 @@ afterEach(() => {
 });
 
 describe('NoteBlockHandle', () => {
+  it('waits until Tiptap has mounted an editor view', () => {
+    host = document.createElement('div');
+    document.body.append(host);
+    const cardRef = { current: host };
+    const mountingEditor = {
+      get view() {
+        throw new Error("[tiptap error]: The editor view is not available. Cannot access view['dom']. The editor may not be mounted yet.");
+      },
+      on() {},
+      off() {},
+    } as unknown as Editor;
+
+    root = createRoot(host);
+    expect(() => {
+      act(() => root?.render(
+        <I18nProvider><NoteBlockHandle editor={mountingEditor} cardRef={cardRef} /></I18nProvider>,
+      ));
+    }).not.toThrow();
+  });
+
   it('reveals a handle for the hovered block and opens actions for that block', () => {
     const card = document.createElement('div');
     const editorHost = document.createElement('div');

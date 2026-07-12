@@ -15,13 +15,11 @@ import { resolveKnowledgeChatRouteContext } from './components/Workbench/knowled
 import { GraphPageLazy as GraphPage } from './components/WorkspaceNodes/GraphPageLazy';
 import { useKnowledgeAiContext } from './components/WorkspaceNodes/knowledgeAiContext';
 import { NodesRouteViews } from './components/WorkspaceNodes/NodesRouteViews';
+import { useOpenNodePageBridge } from './components/WorkspaceNodes/useOpenNodePageBridge';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
-import {
-  EXPERIMENTAL_FLAG_WORKSPACE_GRAPH,
-  EXPERIMENTAL_FLAG_WORKSPACE_NODES,
-} from '../../shared/experimental-features';
+import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
 const ROUTE_CANVAS = '/';
@@ -102,6 +100,7 @@ const AppContent = () => {
     explicitContext: knowledgeChatExplicitContext,
     askAi: handleAskKnowledgeAi,
     removeContext: handleRemoveKnowledgeChatContext,
+    consumeComposerRequest: handleKnowledgeComposerRequestHandled,
   } = useKnowledgeAiContext({ openChat: dock.openChat, summarizePrompt: t('workspaceNodes.aiSummarizePrompt') });
   const knowledgeChatContext = resolveKnowledgeChatRouteContext({
     activeView,
@@ -493,6 +492,8 @@ const AppContent = () => {
     setLocation(`${ROUTE_NODES}/${encodeURIComponent(workspaceId)}/${encodeURIComponent(nodeId)}`);
   }, [location, setLocation]);
 
+  useOpenNodePageBridge({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, openNodePage });
+
   return (
     <div className="app">
       <div className="app-body">
@@ -540,6 +541,7 @@ const AppContent = () => {
               controller={workbench}
               knowledgeChatContext={knowledgeChatContext}
               onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
+              onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
               onSelectWorkspace={handleSelectWorkspace}
               onOpenAppSettings={openAppSettings}
               onOpenWorkspaceSettings={openWorkspaceSettings}

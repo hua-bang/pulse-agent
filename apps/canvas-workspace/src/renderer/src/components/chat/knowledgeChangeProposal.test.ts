@@ -69,4 +69,29 @@ describe('knowledge change proposal tools', () => {
     expect(partition.ordinaryTools.map((tool) => tool.id)).toEqual([1, 3]);
     expect(partition.proposals.map((proposal) => proposal.proposalId)).toEqual(['proposal-2']);
   });
+
+  it('keeps only the latest proposal when one turn proposes the same node repeatedly', () => {
+    const proposal = (proposalId: string, aiSummary: string) => JSON.stringify({
+      kind: 'knowledge-change-proposal',
+      version: 1,
+      proposalId,
+      target: {
+        workspaceId: 'workspace-1',
+        nodeId: 'node-1',
+        nodeType: 'text',
+        nodeTitle: 'A node',
+        expectedFingerprint: 'c'.repeat(64),
+      },
+      summary: 'Summarize it.',
+      before: {},
+      patch: { aiSummary },
+    });
+
+    const partition = partitionKnowledgeChangeProposalTools([
+      { id: 1, name: 'canvas_propose_node_change', status: 'done', result: proposal('proposal-old', 'First attempt') },
+      { id: 2, name: 'canvas_propose_node_change', status: 'done', result: proposal('proposal-latest', 'Final attempt') },
+    ]);
+
+    expect(partition.proposals.map((item) => item.proposalId)).toEqual(['proposal-latest']);
+  });
 });

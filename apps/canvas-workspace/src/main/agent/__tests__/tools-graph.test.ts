@@ -230,7 +230,7 @@ describe('canvas_create_node placement', () => {
 });
 
 describe('createGlobalCanvasTools', () => {
-  it('exposes read/search tools and review proposals without any direct node mutation', async () => {
+  it('exposes read/search tools without any node mutation', async () => {
     const tools = createGlobalCanvasTools();
     expect(Object.keys(tools).sort()).toEqual([
       'canvas_ask_user',
@@ -238,7 +238,6 @@ describe('createGlobalCanvasTools', () => {
       'canvas_list_nodes',
       'canvas_list_tags',
       'canvas_list_workspaces',
-      'canvas_propose_node_change',
       'canvas_read_context',
       'canvas_read_layout',
       'canvas_read_node',
@@ -252,46 +251,12 @@ describe('createGlobalCanvasTools', () => {
       'workspace_node_get',
       'workspace_node_list',
     ]);
-    // Every knowledge mutation must cross the review/apply proposal boundary.
+    // Global knowledge access is read-only.
     expect(tools.canvas_tag_node).toBeUndefined();
     expect(tools.canvas_create_node).toBeUndefined();
     expect(tools.canvas_apply_layout).toBeUndefined();
     expect(tools.canvas_update_node).toBeUndefined();
     expect(tools.workspace_node_upsert).toBeUndefined();
-  });
-
-  it('returns a reviewable node-change proposal without mutating the node', async () => {
-    await setupCanvas();
-    const current = await readWorkspaceNode(wsId, 'n-text');
-    expect(current).not.toBeNull();
-    const tools = createGlobalCanvasTools();
-
-    const proposal = JSON.parse(await tools.canvas_propose_node_change.execute({
-      workspaceId: wsId,
-      nodeId: 'n-text',
-      summary: 'Clarify the note.',
-      title: 'Pipeline note',
-      content: 'A clearer note about pipelines.',
-      tags: ['AI'],
-    }));
-
-    expect(proposal).toEqual(expect.objectContaining({
-      kind: 'knowledge-change-proposal',
-      version: 1,
-      target: expect.objectContaining({
-        workspaceId: wsId,
-        nodeId: 'n-text',
-        expectedUpdatedAt: current?.updatedAt,
-        expectedFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
-      }),
-      before: expect.objectContaining({ content: 'a quick note about pipelines' }),
-      patch: {
-        title: 'Pipeline note',
-        content: 'A clearer note about pipelines.',
-        tags: ['AI'],
-      },
-    }));
-    expect(await readWorkspaceNode(wsId, 'n-text')).toEqual(current);
   });
 
   it('requires workspaceId for global read/search tools', async () => {
@@ -484,7 +449,6 @@ describe('deferred tool partition', () => {
       'canvas_plugin_node_read',
       'canvas_plugin_node_write',
       'canvas_promote_skill',
-      'canvas_propose_node_change',
       'canvas_read_context',
       'canvas_read_layout',
       'canvas_read_node',

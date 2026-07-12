@@ -54,7 +54,7 @@ export const ChatPanel = ({
   contextNodes,
   contextTags,
   contextCanvases,
-  composerRequest,
+  composerRequest, onComposerRequestHandled,
   onRemoveContext,
   rootFolder,
   onClose,
@@ -301,7 +301,7 @@ export const ChatPanel = ({
     }
   }, [clearInput, focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage]);
 
-  useComposerRequest({ request: composerRequest, focusInput, replaceInput, submitQuickAction: (prompt, quickAction) => { void handleQuickAction(prompt, quickAction); } });
+  useComposerRequest({ request: composerRequest, focusInput, replaceInput, submitQuickAction: (prompt, quickAction) => { void handleQuickAction(prompt, quickAction); }, onHandled: onComposerRequestHandled });
 
   const handleSubmit = useCallback(async () => {
     if (notConfigured) {

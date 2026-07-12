@@ -34,11 +34,16 @@ export function partitionKnowledgeChangeProposalTools(
   tools: ToolCallStatus[],
 ): KnowledgeChangeProposalToolPartition {
   const ordinaryTools: ToolCallStatus[] = [];
-  const proposals: KnowledgeChangeProposal[] = [];
+  const proposalsByTarget = new Map<string, KnowledgeChangeProposal>();
   for (const tool of tools) {
     const proposal = parseTrustedKnowledgeChangeProposalTool(tool);
-    if (proposal) proposals.push(proposal);
-    else ordinaryTools.push(tool);
+    if (!proposal) {
+      ordinaryTools.push(tool);
+      continue;
+    }
+    const targetKey = `${proposal.target.workspaceId}:${proposal.target.nodeId}`;
+    proposalsByTarget.delete(targetKey);
+    proposalsByTarget.set(targetKey, proposal);
   }
-  return { ordinaryTools, proposals };
+  return { ordinaryTools, proposals: Array.from(proposalsByTarget.values()) };
 }

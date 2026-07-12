@@ -18,12 +18,14 @@ interface Props {
   aiSummaryConfirmedLabel: string;
   aiSummarizeLabel: string;
   aiChatLabel: string;
+  goToDetailLabel: string;
   selectForAiLabel: string;
   deselectForAiLabel: string;
   openLabel: string;
   selected: boolean;
   contextSelected?: boolean;
   onOpen: (trigger: HTMLButtonElement) => void;
+  onOpenDetail?: () => void;
   onToggleContextSelection?: () => void;
   onAskAi?: () => void;
   onSummarize?: () => void;
@@ -49,18 +51,20 @@ export const KnowledgeNodeCard = ({
   aiSummaryConfirmedLabel,
   aiSummarizeLabel,
   aiChatLabel,
+  goToDetailLabel,
   selectForAiLabel,
   deselectForAiLabel,
   openLabel,
   selected,
   contextSelected = false,
   onOpen,
+  onOpenDetail,
   onToggleContextSelection,
   onAskAi,
   onSummarize,
 }: Props) => {
   const kind: KnowledgeCardKind = isPreviewKind(node.type) ? node.type : 'generic';
-  const hasAiActions = Boolean(onToggleContextSelection || onAskAi || onSummarize);
+  const hasActions = Boolean(onOpenDetail || onToggleContextSelection || onAskAi || onSummarize);
 
   return (
     <CardShell
@@ -69,8 +73,20 @@ export const KnowledgeNodeCard = ({
       contextSelected={contextSelected}
       openLabel={openLabel}
       onOpen={onOpen}
-      actions={hasAiActions ? (
+      actions={hasActions ? (
         <>
+          {onOpenDetail && (
+            <Button
+              variant="icon"
+              size="xs"
+              className="knowledge-node-card__action knowledge-node-card__action--detail"
+              aria-label={goToDetailLabel}
+              title={goToDetailLabel}
+              onClick={onOpenDetail}
+            >
+              <ListLinesIcon size={13} />
+            </Button>
+          )}
           {onToggleContextSelection && (
             <Button
               variant="icon"
@@ -94,7 +110,7 @@ export const KnowledgeNodeCard = ({
               <span>{aiSummarizeLabel}</span>
             </Button>
           )}
-          {onAskAi && (
+          {onAskAi && !contextSelected && (
             <Button
               size="xs"
               className="knowledge-node-card__action knowledge-node-card__action--chat"

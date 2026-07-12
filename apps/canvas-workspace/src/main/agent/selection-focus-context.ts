@@ -22,7 +22,7 @@ export function formatSelectionFocusBlock(
   lines.push('');
   lines.push(
     options.requireWorkspaceId
-      ? `When the user's message is about content you need to inspect, call \`knowledge_read_node\` with the exact \`nodeId\` shown above FIRST. For an image question that requires pixels or OCR, call \`knowledge_analyze_image\` with that exact nodeId. Do not search again, list workspaces, read the whole canvas, take a canvas screenshot, or guess from the title. If you prepare a reviewable edit, pass the internal \`workspaceId\` returned by \`knowledge_read_node\` to \`canvas_propose_node_change\`.`
+      ? `When the user's message is about content you need to inspect, call \`knowledge_read_node\` with the exact \`nodeId\` shown above FIRST. For an image question that requires pixels or OCR, call \`knowledge_analyze_image\` with that exact nodeId. Do not search again, list workspaces, read the whole canvas, take a canvas screenshot, or guess from the title.`
       : `When the user's message is about content you need to inspect, call \`canvas_read_node\` on the nodeId(s) above FIRST — do not guess from the title alone, and do not read unrelated nodes from the full canvas summary below unless the user asks you to.`,
   );
   return `${lines.join('\n')}\n`;

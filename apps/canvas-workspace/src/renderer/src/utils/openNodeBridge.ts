@@ -1,12 +1,13 @@
 /**
- * Lightweight window-event bridge for "open / focus a canvas node by id".
+ * Lightweight window-event bridge for opening a canvas node by id.
  *
  * Note mentions (and any other deep node link) dispatch this instead of having
- * a focus callback threaded down through every shared canvas component. The
- * Workbench listens once and routes it to its existing `requestNodeFocus`.
+ * a dock callback threaded down through every shared canvas component. The
+ * Workbench listens once and opens the target in a deduplicated node tab.
  */
 
 export const OPEN_NODE_EVENT = 'pulse-canvas:open-node';
+export const OPEN_NODE_PAGE_EVENT = 'pulse-canvas:open-node-page';
 
 /** Prefix of the href used by node-mention links inside notes. */
 export const NODE_LINK_PREFIX = 'pulse-canvas://node/';
@@ -32,6 +33,10 @@ const safeDecode = (value: string): string | null => {
 
 export const dispatchOpenNode = (detail: OpenNodeDetail): void => {
   window.dispatchEvent(new CustomEvent<OpenNodeDetail>(OPEN_NODE_EVENT, { detail }));
+};
+
+export const dispatchOpenNodePage = (detail: OpenNodeDetail): void => {
+  window.dispatchEvent(new CustomEvent<OpenNodeDetail>(OPEN_NODE_PAGE_EVENT, { detail }));
 };
 
 /** Build the href stored on a mention link for the given node id. */

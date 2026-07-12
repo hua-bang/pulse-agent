@@ -25,6 +25,7 @@ import {
 import { useI18n } from '../../i18n';
 import { useRightDock, useRightDockState } from '../RightDock';
 import type { NodesAiContext } from './knowledgeAiContext';
+import { dispatchOpenNodePage } from '../../utils/openNodeBridge';
 import './index.css';
 import './NodeCards.css';
 
@@ -289,12 +290,14 @@ export const NodesPage = ({
                   aiSummaryConfirmedLabel={t('workspaceNodes.aiSummaryConfirmed')}
                   aiSummarizeLabel={t('workspaceNodes.aiSummarize')}
                   aiChatLabel={t('workspaceNodes.aiChat')}
+                  goToDetailLabel={t('workspaceNodes.goToDetail')}
                   selectForAiLabel={t('workspaceNodes.selectForAi')}
                   deselectForAiLabel={t('workspaceNodes.deselectForAi')}
                   openLabel={t('workspaceNodes.openNodeTab', { title })}
                   selected={selected}
                   contextSelected={aiSelection.has(nodeKey(node))}
                   onOpen={() => dock.openNodeDetail(workspaceIdForNode, node.id, title)}
+                  onOpenDetail={() => dispatchOpenNodePage({ workspaceId: workspaceIdForNode, nodeId: node.id })}
                   onToggleContextSelection={eligibleForAi && onAskAi ? () => toggleAiSelection(node) : undefined}
                   onAskAi={nodeContext && onAskAi ? () => onAskAi({ nodes: [nodeContext] }, 'chat') : undefined}
                   onSummarize={nodeContext && onAskAi ? () => onAskAi({ nodes: [nodeContext] }, 'summarize') : undefined}
