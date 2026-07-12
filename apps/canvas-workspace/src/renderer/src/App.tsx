@@ -573,7 +573,7 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat'} />
-      <RightDock activeWorkspaceId={activeId} chatTabEnabled={activeView !== 'chat'} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} chatTabEnabled={activeView !== 'chat'} />
       <MigrationSpinner />
       <DeferredSettings
         appLoaded={appSettingsLoaded}

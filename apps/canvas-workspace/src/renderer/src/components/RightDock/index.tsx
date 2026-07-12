@@ -28,7 +28,8 @@ import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
-import { NewDockTabMenu } from './NewDockTabMenu';
+import { DockCreationControls } from './DockCreationControls';
+import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import './index.css';
 import './terminal-tab.css';
 
@@ -156,11 +157,9 @@ function clampWidth(value: number): number {
 }
 
 interface RightDockProps {
-  /** Target canvas for link tabs' "add to current canvas" action. */
   activeWorkspaceId: string;
-  /** Shows the pinned chat tab and reserves layout space. Disabled only
-   * when a route owns a dedicated full-page chat surface. */
   chatTabEnabled: boolean;
+  workspaces: WorkspaceEntry[];
 }
 
 interface TabIndicatorState {
@@ -169,7 +168,7 @@ interface TabIndicatorState {
   visible: boolean;
 }
 
-export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps) => {
+export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces }: RightDockProps) => {
   const { store, setChatHost, setTerminalHost } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
@@ -431,10 +430,12 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
             );
           })}
         </div>
-        <NewDockTabMenu
+        <DockCreationControls
+          store={store}
+          workspaces={workspaces}
+          activeWorkspaceId={activeWorkspaceId}
           showTerminal={chatTabEnabled}
-          onNewWebTab={() => store.newLink(t('rightDock.newTabTitle'))}
-          onNewTerminalTab={() => store.newTerminal()}
+          newTabTitle={t('rightDock.newTabTitle')}
         />
         <button
           type="button"

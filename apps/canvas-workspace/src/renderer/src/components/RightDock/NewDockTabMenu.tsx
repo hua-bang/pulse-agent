@@ -6,11 +6,12 @@ import './new-tab-menu.css';
 
 interface Props {
   showTerminal: boolean;
+  onOpenNode: () => void;
   onNewWebTab: () => void;
   onNewTerminalTab: () => void;
 }
 
-export const NewDockTabMenu = ({ showTerminal, onNewWebTab, onNewTerminalTab }: Props) => {
+export const NewDockTabMenu = ({ showTerminal, onOpenNode, onNewWebTab, onNewTerminalTab }: Props) => {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLSpanElement>(null);
@@ -46,6 +47,18 @@ export const NewDockTabMenu = ({ showTerminal, onNewWebTab, onNewTerminalTab }: 
           ariaLabel={t('rightDock.newTabMenu')}
           panelId={panelId}
         >
+          <Button
+            size="sm"
+            className="right-dock__new-tab-item"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onOpenNode();
+            }}
+          >
+            <NodeTypeIcon type="file" size={15} />
+            {t('rightDock.openNode')}
+          </Button>
           <Button
             size="sm"
             className="right-dock__new-tab-item"
