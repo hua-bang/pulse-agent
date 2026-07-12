@@ -7,8 +7,9 @@ import { evaluatePackageGates } from './package-gates.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const releaseDir = join(appRoot, 'release');
+const packageJson = JSON.parse(readFileSync(join(appRoot, 'package.json'), 'utf-8'));
 const appPath = join(releaseDir, 'mac-arm64/Pulse Canvas.app');
-const dmgPath = join(releaseDir, 'Pulse Canvas-0.1.14-arm64.dmg');
+const dmgPath = join(releaseDir, `Pulse Canvas-${packageJson.version}-arm64.dmg`);
 const resourcesPath = join(appPath, 'Contents/Resources');
 const asarPath = join(resourcesPath, 'app.asar');
 const unpackedPath = join(resourcesPath, 'app.asar.unpacked');
