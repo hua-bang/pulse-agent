@@ -12,7 +12,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { Button, useDragResize } from '../ui';
+import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
@@ -199,7 +199,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     ? null
     : state.activeTabId;
   const terminalPaneActive = state.terminalTabs.some((tab) => tab.id === activePaneId);
-  const activePreviewTab = state.tabs.find((tab) => tab.id === activePaneId);
 
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
 
@@ -415,18 +414,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
             );
           })}
         </div>
-        {activePreviewTab?.kind === 'node-detail' && (
-          <Button
-            size="sm"
-            className="right-dock__node-detail-action"
-            onClick={() => {
-              onOpenNodePage(activePreviewTab.workspaceId, activePreviewTab.nodeId);
-              store.close(activePreviewTab.id);
-            }}
-          >
-            {t('workspaceNodes.goToDetail')}
-          </Button>
-        )}
         <DockCreationControls
           store={store}
           workspaces={workspaces}
@@ -475,6 +462,10 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
                   workspaceId={tab.workspaceId}
                   nodeId={tab.nodeId}
                   onTitleChange={(title) => store.setTitle(tab.id, title)}
+                  onOpenPage={() => {
+                    onOpenNodePage(tab.workspaceId, tab.nodeId);
+                    store.close(tab.id);
+                  }}
                 />
               </Suspense>
             ) : (

@@ -5,6 +5,7 @@ import { NodeCanvasPreview } from './NodeCanvasPreview';
 import { NodeRelationEditor } from './NodeRelationEditor';
 import { NodeTagEditor } from './NodeTagEditor';
 import { NodeTitleEditor } from './NodeTitleEditor';
+import { Button } from '../ui';
 import { formatTime, getNodeAiSummary, getNodeTags, getNodeTypeLabel, isKnowledgeNodeType } from './utils';
 import './NodeDetailDocument.css';
 
@@ -19,6 +20,7 @@ interface NodeDetailPanelProps {
   readOnly?: boolean;
   onNodePatched?: (next: WorkspaceNodeRecord) => void;
   onTagsChanged?: () => void;
+  onOpenPage?: () => void;
 }
 
 const propertyEntries = (node: WorkspaceNodeRecord | null) => {
@@ -51,6 +53,7 @@ export const NodeDetailPanel = ({
   readOnly = false,
   onNodePatched,
   onTagsChanged,
+  onOpenPage,
 }: NodeDetailPanelProps) => {
   const { language, t } = useI18n();
   const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
@@ -76,13 +79,22 @@ export const NodeDetailPanel = ({
           <div className="node-detail-panel__layout">
             <article className="node-detail-panel__document">
               <header className="node-detail-panel__document-header">
-                <NodeTitleEditor
-                  node={node}
-                  workspaceId={workspaceId}
-                  fallbackTitle={t('workspaceNodes.untitled')}
-                  readOnly={readOnly}
-                  onNodePatched={onNodePatched}
-                />
+                <div className="node-detail-panel__title-row">
+                  <div className="node-detail-panel__title-field">
+                    <NodeTitleEditor
+                      node={node}
+                      workspaceId={workspaceId}
+                      fallbackTitle={t('workspaceNodes.untitled')}
+                      readOnly={readOnly}
+                      onNodePatched={onNodePatched}
+                    />
+                  </div>
+                  {mode === 'dock' && onOpenPage && (
+                    <Button size="xs" onClick={onOpenPage}>
+                      {t('workspaceNodes.goToDetail')}
+                    </Button>
+                  )}
+                </div>
                 <div className="node-detail-panel__document-meta">
                   <span className="node-detail-panel__type">
                     {isKnowledgeNodeType(node.type) && <NodeTypeIcon type={node.type} size={14} />}

@@ -6,12 +6,14 @@ interface NodeDetailDockTabProps {
   workspaceId: string;
   nodeId: string;
   onTitleChange: (title: string) => void;
+  onOpenPage: () => void;
 }
 
 export const NodeDetailDockTab = ({
   workspaceId,
   nodeId,
   onTitleChange,
+  onOpenPage,
 }: NodeDetailDockTabProps) => {
   const { node, loading, error, setNode } = useWorkspaceNode(workspaceId, nodeId);
   const { tags, reload: reloadTags } = useKnowledgeTags();
@@ -37,6 +39,7 @@ export const NodeDetailDockTab = ({
         tagDefinitions={[...workspaceTags, ...tags]}
         relationCandidates={relationCandidates}
         onNodePatched={setNode}
+        onOpenPage={onOpenPage}
         onTagsChanged={() => {
           void reloadTags();
           void reloadWorkspaceNodes();

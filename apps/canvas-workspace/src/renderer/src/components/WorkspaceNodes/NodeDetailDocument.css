@@ -60,6 +60,22 @@
   flex-shrink: 0;
 }
 
+.node-detail-panel__title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.node-detail-panel__title-field {
+  min-width: 0;
+  flex: 1;
+}
+
+.node-detail-panel__title-row > .ui-btn {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
 .node-detail-panel__document-title {
   display: block;
   width: 100%;

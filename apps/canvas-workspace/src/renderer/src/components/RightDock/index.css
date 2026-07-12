@@ -520,11 +520,6 @@
   overflow: hidden;
 }
 
-.right-dock__node-detail-action {
-  flex-shrink: 0;
-  margin-left: 6px;
-}
-
 /* Workspace/global ChatPanel instances portaled in by Workbench; the active
  * route's instance fills the pane, the rest are display-hidden by an inline
  * style (no webviews inside chat, so display:none is safe). */
