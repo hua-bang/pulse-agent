@@ -51,6 +51,7 @@ interface DefaultCanvasNodeProps {
   isResizing: boolean;
   isSelected: boolean;
   eagerFileEditor?: boolean;
+  syncLeadingHeadingTitle?: boolean;
   makeResizeHandler: ResizeHandlerFactory;
   node: CanvasNode;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
@@ -61,7 +62,7 @@ interface DefaultCanvasNodeProps {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onRemoveNodes?: (ids: string[]) => void;
   onUngroupSelectedGroups?: () => void;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   readOnly: boolean;
   renderMode?: CanvasNodeRenderMode;
   relativeTime: string | null;
@@ -93,6 +94,7 @@ export const DefaultCanvasNode = ({
   isResizing,
   isSelected,
   eagerFileEditor,
+  syncLeadingHeadingTitle,
   makeResizeHandler,
   node,
   onDragStart,
@@ -233,7 +235,7 @@ export const DefaultCanvasNode = ({
       <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
         <Suspense fallback={null}>
         {node.type === 'file' ? (
-          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} eager={eagerFileEditor} />
+          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} eager={eagerFileEditor} syncLeadingHeadingTitle={syncLeadingHeadingTitle} />
         ) : node.type === 'terminal' ? (
           <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         ) : node.type === 'frame' || node.type === 'group' ? (

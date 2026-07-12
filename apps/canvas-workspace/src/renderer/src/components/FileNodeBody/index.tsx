@@ -15,22 +15,27 @@ import { NoteFindBar } from '../NoteFindBar';
 import { NoteOutline } from '../NoteOutline';
 import { NoteLinkPrompt } from '../NoteLinkPrompt';
 import { useRightDock } from '../RightDock';
+import { useI18n } from '../../i18n';
+import { duplicateCurrentNoteBlock, moveCurrentNoteBlock } from '../../editor/noteBlockCommands';
 
 interface Props {
   node: CanvasNode;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   workspaceId?: string;
   /** Snapshot accessor for the workspace's nodes, used to populate @-mentions. */
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
   autoFocus?: boolean;
+  syncLeadingHeadingTitle?: boolean;
 }
 
-export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false, autoFocus = false }: Props) => {
+export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false, autoFocus = false, syncLeadingHeadingTitle = false }: Props) => {
   const data = node.data as FileNodeData;
+  const { t } = useI18n();
   const { openLink } = useRightDock();
   const [modified, setModified] = useState(false);
   const [statusText, setStatusText] = useState('');
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -41,24 +46,31 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   workspaceIdRef.current = workspaceId;
 
   const showStatus = useCallback((msg: string, duration = 2000) => {
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
     setStatusText(msg);
-    setTimeout(() => setStatusText(''), duration);
+    statusTimerRef.current = setTimeout(() => setStatusText(''), duration);
+  }, []);
+
+  useEffect(() => () => {
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
   }, []);
 
   const persistToFile = useCallback(
     async (markdown: string, filePath: string) => {
       const api = window.canvasWorkspace?.file;
       if (!api || !filePath) return;
-      const res = await api.write(filePath, markdown);
+      const res = await api.write(filePath, markdown).catch(() => ({ ok: false }));
       if (res.ok) {
         setModified(false);
         onUpdate(nodeIdRef.current, {
           data: { ...dataRef.current, content: markdown, saved: true, modified: false },
         });
-        showStatus('Saved');
+        showStatus(t('noteToolbar.saved'));
+      } else {
+        showStatus(t('noteToolbar.saveFailed'));
       }
     },
-    [onUpdate, showStatus]
+    [onUpdate, showStatus, t]
   );
 
   const {
@@ -89,7 +101,16 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     setModified,
     persistToFile,
     onUpdate,
+    syncLeadingHeadingTitle,
     readOnly,
+    onCommitState: (state) => {
+      if (state === 'saving') {
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+        setStatusText(t('noteToolbar.saving'));
+      } else {
+        showStatus(t(state === 'saved' ? 'noteToolbar.saved' : 'noteToolbar.saveFailed'));
+      }
+    },
   });
 
   useEffect(() => {
@@ -262,6 +283,9 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
           onInsertImage={openImagePicker}
           onOpenFind={openFindBar}
           onToggleOutline={toggleOutline}
+          onMoveBlockUp={() => { if (editor) moveCurrentNoteBlock(editor, -1); }}
+          onMoveBlockDown={() => { if (editor) moveCurrentNoteBlock(editor, 1); }}
+          onDuplicateBlock={() => { if (editor) duplicateCurrentNoteBlock(editor); }}
           outlineOpen={outlineOpen}
           statusText={statusText}
           modified={modified}

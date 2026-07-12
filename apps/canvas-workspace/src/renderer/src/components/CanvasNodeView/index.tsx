@@ -45,6 +45,7 @@ const CanvasNodeViewComponent = ({
   onToggleFullscreen,
   readOnly = false,
   embedded = false,
+  syncLeadingHeadingTitle = false,
   renderMode = 'full',
 }: CanvasNodeViewProps) => {
   const viewModel = useCanvasNodeViewModel({
@@ -200,6 +201,7 @@ const CanvasNodeViewComponent = ({
       isResizing={isResizing}
       isSelected={isSelected}
       eagerFileEditor={embedded}
+      syncLeadingHeadingTitle={syncLeadingHeadingTitle}
       makeResizeHandler={viewModel.makeResizeHandler}
       node={node}
       onDragStart={onDragStart}

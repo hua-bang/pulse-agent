@@ -230,6 +230,52 @@ describe('Popover', () => {
 });
 
 describe('Popover — rect anchor mode (anchorRef)', () => {
+  it('closes when a persistent ancestor hides the anchor', () => {
+    const onClose = vi.fn();
+    const anchor = createAnchor({ top: 100, left: 50, right: 150, bottom: 130, width: 100, height: 30 });
+    const hiddenPane = document.createElement('div');
+    hiddenPane.style.visibility = 'hidden';
+    hiddenPane.append(anchor.current!);
+    document.body.append(hiddenPane);
+
+    render(
+      <Popover anchorRef={anchor} onClose={onClose} className="test-popover">
+        <button role="menuitem">Item</button>
+      </Popover>,
+    );
+
+    expect(onClose).toHaveBeenCalledWith('outside');
+    hiddenPane.remove();
+  });
+
+  it('closes when the anchor is detached', () => {
+    const onClose = vi.fn();
+    const detached = createAnchor({ top: 0, left: 0, right: 20, bottom: 20, width: 20, height: 20 });
+    detached.current?.remove();
+    render(
+      <Popover anchorRef={detached} onClose={onClose} className="test-popover">
+        <button role="menuitem">Item</button>
+      </Popover>,
+    );
+    expect(onClose).toHaveBeenCalledWith('outside');
+  });
+
+  it('closes when the anchor is inside a display-none ancestor', () => {
+    const onClose = vi.fn();
+    const anchor = createAnchor({ top: 0, left: 0, right: 20, bottom: 20, width: 20, height: 20 });
+    const hiddenPane = document.createElement('div');
+    hiddenPane.style.display = 'none';
+    hiddenPane.append(anchor.current!);
+    document.body.append(hiddenPane);
+    render(
+      <Popover anchorRef={anchor} onClose={onClose} className="test-popover">
+        <button role="menuitem">Item</button>
+      </Popover>,
+    );
+    expect(onClose).toHaveBeenCalledWith('outside');
+    hiddenPane.remove();
+  });
+
   it('positions the panel below the anchor by default (placement="bottom", align="start")', () => {
     setViewport(1000, 800);
     mockPanelSize(80, 40);

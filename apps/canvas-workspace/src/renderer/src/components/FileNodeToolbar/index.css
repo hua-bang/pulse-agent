@@ -39,7 +39,7 @@
 .note-toolbar-menu {
   position: fixed;
   z-index: var(--layer-note-popover);
-  width: 176px;
+  width: 210px;
   padding: 5px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -55,6 +55,9 @@
   color: var(--text);
   font-weight: 500;
 }
+
+.note-toolbar-menu-item.ui-btn > span { flex: 1; text-align: left; }
+.note-toolbar-menu-item.ui-btn kbd { color: var(--text-muted); font: 10px var(--font-mono); }
 
 .note-toolbar-menu-item.ui-btn:hover { border-color: transparent; background: var(--surface-alt); }
 .note-toolbar-menu-separator { height: 1px; margin: 4px 6px; background: var(--border-light); }

@@ -29,7 +29,7 @@ export interface CanvasNodeViewProps {
     minWidth?: number,
     minHeight?: number
   ) => void;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   onAutoResize: (id: string, width: number, height: number) => void;
   onRemove: (id: string) => void;
   onRemoveNodes?: (ids: string[]) => void;
@@ -48,6 +48,7 @@ export interface CanvasNodeViewProps {
   onToggleFullscreen?: (nodeId: string) => void;
   readOnly?: boolean;
   embedded?: boolean;
+  syncLeadingHeadingTitle?: boolean;
   renderMode?: CanvasNodeRenderMode;
 }
 

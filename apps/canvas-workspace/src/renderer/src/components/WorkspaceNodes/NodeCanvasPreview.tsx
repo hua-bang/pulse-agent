@@ -11,6 +11,7 @@ interface NodeCanvasPreviewProps {
   minHeight?: number;
   readOnly?: boolean;
   onPatched?: (next: WorkspaceNodeRecord) => void;
+  syncLeadingHeadingTitle?: boolean;
 }
 
 /**
@@ -28,6 +29,7 @@ export const NodeCanvasPreview = ({
   minHeight = 240,
   readOnly = false,
   onPatched,
+  syncLeadingHeadingTitle = false,
 }: NodeCanvasPreviewProps) => {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -124,22 +126,20 @@ export const NodeCanvasPreview = ({
           onPatched?.(result.node);
           return;
         }
-        const latest = await api.read(workspaceId, displayRecord.id);
-        if (requestId !== updateSeqRef.current || !latest.ok || !latest.node) return;
-        latestRecordRef.current = latest.node;
-        setDisplayRecord(latest.node);
-        onPatched?.(latest.node);
-      } catch {
+        throw new Error(result.error ?? t('workspaceNodes.updateNodeFailed'));
+      } catch (error) {
         if (requestId !== updateSeqRef.current) return;
         updatePendingRef.current = false;
         const latest = await api.read(workspaceId, displayRecord.id).catch(() => null);
-        if (!latest?.ok || !latest.node || requestId !== updateSeqRef.current) return;
-        latestRecordRef.current = latest.node;
-        setDisplayRecord(latest.node);
-        onPatched?.(latest.node);
+        if (latest?.ok && latest.node && requestId === updateSeqRef.current) {
+          latestRecordRef.current = latest.node;
+          setDisplayRecord(latest.node);
+          onPatched?.(latest.node);
+        }
+        throw error;
       }
     },
-    [displayRecord.id, onPatched, readOnly, workspaceId],
+    [displayRecord.id, onPatched, readOnly, t, workspaceId],
   );
 
   return (
@@ -163,6 +163,7 @@ export const NodeCanvasPreview = ({
           onFocus={() => undefined}
           readOnly={readOnly}
           embedded
+          syncLeadingHeadingTitle={syncLeadingHeadingTitle}
         />
       ) : (
         <div className="node-detail-panel__empty">{t('workspaceNodes.noTypePreview')}</div>

@@ -6,11 +6,12 @@ import './index.css';
 
 interface Props {
   node: CanvasNode;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   workspaceId?: string;
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
   eager?: boolean;
+  syncLeadingHeadingTitle?: boolean;
 }
 
 const FileNodeEditor = lazy(() =>

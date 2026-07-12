@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import type { CSSProperties, ReactNode, RefObject } from 'react';
+import { useEffect, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { useViewportClampedPosition } from '../../../hooks/useViewportClampedPosition';
 import { useAnchorRectPosition } from '../../../hooks/useAnchorRectPosition';
 import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
@@ -181,6 +181,49 @@ export const Popover = (props: Props) => {
   // mode has no persistent trigger element to exempt (its callers open from
   // a transient event like a right-click), so this only applies here.
   useClickOutside(rectAnchored ? [ref, anchorRef] : ref, closeFromOutside);
+
+  // Persistent Dock panes stay mounted and switch through `visibility` so
+  // webviews and document scroll positions survive tab changes. A portaled
+  // popover is outside that hidden subtree, so close it as soon as its anchor
+  // becomes hidden instead of leaving a floating orphan over the next pane.
+  useEffect(() => {
+    if (!rectAnchored || !anchorRef.current || typeof MutationObserver === 'undefined') return;
+    const anchor = anchorRef.current;
+    let delayedCheck: ReturnType<typeof setTimeout> | null = null;
+    const closeIfHidden = () => {
+      if (!anchor.isConnected) {
+        onClose('outside');
+        return;
+      }
+      let current: HTMLElement | null = anchor;
+      while (current) {
+        const style = window.getComputedStyle(current);
+        if (style.visibility === 'hidden' || style.display === 'none') {
+          onClose('outside');
+          return;
+        }
+        current = current.parentElement;
+      }
+    };
+    const checkVisibility = () => {
+      closeIfHidden();
+      if (delayedCheck) clearTimeout(delayedCheck);
+      // Some persistent panels delay `visibility:hidden` until their slide-out
+      // transition completes. Recheck after that transition boundary.
+      delayedCheck = setTimeout(closeIfHidden, 320);
+    };
+    const observer = new MutationObserver(checkVisibility);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ['class', 'style', 'data-expanded'],
+    });
+    checkVisibility();
+    return () => {
+      observer.disconnect();
+      if (delayedCheck) clearTimeout(delayedCheck);
+    };
+  }, [anchorRef, onClose, rectAnchored]);
 
   return createPortal(
     <div

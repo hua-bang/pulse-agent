@@ -10,6 +10,9 @@ interface Props {
   onInsertImage: () => void;
   onOpenFind: () => void;
   onToggleOutline: () => void;
+  onMoveBlockUp: () => void;
+  onMoveBlockDown: () => void;
+  onDuplicateBlock: () => void;
   outlineOpen: boolean;
   statusText: string;
   modified: boolean;
@@ -24,6 +27,9 @@ export const FileNodeToolbar = ({
   onInsertImage,
   onOpenFind,
   onToggleOutline,
+  onMoveBlockUp,
+  onMoveBlockDown,
+  onDuplicateBlock,
   outlineOpen,
   statusText,
   modified,
@@ -77,6 +83,10 @@ export const FileNodeToolbar = ({
             <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onOpenFind)}>{t('noteToolbar.find')}</Button>
             <Button size="sm" className="note-toolbar-menu-item" role="menuitem" aria-pressed={outlineOpen} onClick={() => run(onToggleOutline)}>{t(outlineOpen ? 'noteToolbar.hideOutline' : 'noteToolbar.showOutline')}</Button>
             <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onInsertImage)}>{t('noteToolbar.insertImage')}</Button>
+            <div className="note-toolbar-menu-separator" />
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onMoveBlockUp)}><span>{t('noteToolbar.moveBlockUp')}</span><kbd>⌥⇧↑</kbd></Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onMoveBlockDown)}><span>{t('noteToolbar.moveBlockDown')}</span><kbd>⌥⇧↓</kbd></Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onDuplicateBlock)}><span>{t('noteToolbar.duplicateBlock')}</span><kbd>Mod⇧D</kbd></Button>
             <div className="note-toolbar-menu-separator" />
             <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onOpenFile)}>{t('noteToolbar.openFile')}</Button>
             <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onSave)}>{t('noteToolbar.save')}</Button>
