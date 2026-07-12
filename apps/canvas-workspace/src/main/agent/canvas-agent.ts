@@ -20,6 +20,7 @@ import {
 } from './context-builder';
 import { createCanvasAgentToolPolicy } from './tool-policy';
 import { SessionStore } from './session-store';
+import { sessionPreview } from './session-preview';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
 import { createCanvasMcpOAuthProvider } from './mcp/oauth';
@@ -1041,7 +1042,7 @@ export class CanvasAgent {
         date: current.startedAt.slice(0, 10),
         messageCount: current.messages.length,
         isCurrent: true,
-        preview: firstUserMsg ? firstUserMsg.content.slice(0, 50) : '',
+        preview: firstUserMsg ? sessionPreview(firstUserMsg.content) : '',
       });
     }
 

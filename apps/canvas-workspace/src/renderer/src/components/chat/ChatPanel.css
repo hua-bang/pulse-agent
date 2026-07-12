@@ -1867,6 +1867,51 @@
   color: rgba(55, 53, 47, 0.45);
 }
 
+/* Session results lead with the first user message, while workspace and date
+   remain available as compact disambiguating metadata. */
+.chat-mention-item--session .chat-mention-item-label {
+  flex: 2;
+}
+
+.chat-mention-item--session .chat-mention-item-description {
+  flex: 1;
+}
+
+/* Session previews retain structured references, but render them as compact
+   labels instead of leaking their serialized `@[...]` form and internal ids. */
+.chat-session-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.chat-session-title-reference {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: 132px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+  flex-shrink: 1;
+  overflow: hidden;
+}
+
+.chat-session-title-reference svg {
+  flex-shrink: 0;
+}
+
+.chat-session-title-reference span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ─── @ Mention chips (inline in messages) ──────────────── */
 
 .chat-mention-chip {
