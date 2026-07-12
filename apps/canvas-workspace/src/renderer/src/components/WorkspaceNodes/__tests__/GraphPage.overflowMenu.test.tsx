@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import { RightDockProvider } from '../../RightDock';
 
 // react-force-graph-2d renders to a real <canvas> 2D/WebGL context that
 // happy-dom doesn't implement — GraphPage's own logic (this test's target,
@@ -52,7 +53,7 @@ function render(node: React.ReactNode) {
   document.body.appendChild(host);
   root = createRoot(host);
   act(() => {
-    root?.render(node);
+    root?.render(<RightDockProvider>{node}</RightDockProvider>);
   });
 }
 
@@ -70,7 +71,7 @@ describe('GraphPage overflow menu', () => {
   it('opens on trigger click and lists the three menu actions', () => {
     render(
       <I18nProvider>
-        <GraphPage workspaces={WORKSPACES} onOpenNode={vi.fn()} />
+        <GraphPage workspaces={WORKSPACES} />
       </I18nProvider>,
     );
     expect(host?.querySelector('.workspace-graph-toolbar__menu')).toBeNull();
@@ -85,7 +86,7 @@ describe('GraphPage overflow menu', () => {
   it('pause/density clicks keep the menu open; Refresh closes it', () => {
     render(
       <I18nProvider>
-        <GraphPage workspaces={WORKSPACES} onOpenNode={vi.fn()} />
+        <GraphPage workspaces={WORKSPACES} />
       </I18nProvider>,
     );
     const trigger = host!.querySelector('.workspace-graph-toolbar__more button') as HTMLButtonElement;
@@ -115,7 +116,7 @@ describe('GraphPage overflow menu', () => {
   it('restores focus to the trigger on Escape-close', () => {
     render(
       <I18nProvider>
-        <GraphPage workspaces={WORKSPACES} onOpenNode={vi.fn()} />
+        <GraphPage workspaces={WORKSPACES} />
       </I18nProvider>,
     );
     const trigger = host!.querySelector('.workspace-graph-toolbar__more button') as HTMLButtonElement;
@@ -134,7 +135,7 @@ describe('GraphPage overflow menu', () => {
   it('does NOT restore focus to the trigger on an outside-press close', () => {
     render(
       <I18nProvider>
-        <GraphPage workspaces={WORKSPACES} onOpenNode={vi.fn()} />
+        <GraphPage workspaces={WORKSPACES} />
       </I18nProvider>,
     );
     const trigger = host!.querySelector('.workspace-graph-toolbar__more button') as HTMLButtonElement;
@@ -154,7 +155,7 @@ describe('GraphPage overflow menu', () => {
   it('ArrowDown on the closed trigger opens the menu', () => {
     render(
       <I18nProvider>
-        <GraphPage workspaces={WORKSPACES} onOpenNode={vi.fn()} />
+        <GraphPage workspaces={WORKSPACES} />
       </I18nProvider>,
     );
     const trigger = host!.querySelector('.workspace-graph-toolbar__more button') as HTMLButtonElement;

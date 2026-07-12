@@ -512,6 +512,31 @@
   pointer-events: auto;
 }
 
+.node-detail-dock-tab {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.node-detail-dock-tab__toolbar {
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 7px 12px;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface);
+}
+
+.node-detail-dock-tab__content {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
 /* Workspace/global ChatPanel instances portaled in by Workbench; the active
  * route's instance fills the pane, the rest are display-hidden by an inline
  * style (no webviews inside chat, so display:none is safe). */

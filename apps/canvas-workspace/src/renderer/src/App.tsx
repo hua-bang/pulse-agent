@@ -552,14 +552,13 @@ const AppContent = () => {
               onOpenWorkspaceSettings={openWorkspaceSettings}
             />
           </PulseRouterView>
-          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} selectedNode={selectedNode} detailNode={detailNode} onSelectNode={setSelectedNode} onBack={enterNodesView} onAskAi={handleAskKnowledgeAi} />
+          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={enterNodesView} onAskAi={handleAskKnowledgeAi} />
           {GRAPH_ENABLED && (
             <PulseRouterView name="graph">
               <GraphPage
                 workspaces={workspaces}
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
-                onOpenNode={openNodePage}
               />
             </PulseRouterView>
           )}
@@ -573,7 +572,7 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat'} />
-      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} chatTabEnabled={activeView !== 'chat'} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} chatTabEnabled={activeView !== 'chat'} onOpenNodePage={openNodePage} />
       <MigrationSpinner />
       <DeferredSettings
         appLoaded={appSettingsLoaded}

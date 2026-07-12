@@ -1,12 +1,11 @@
 import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
 import { useI18n } from '../../i18n';
-import { ChevronRightIcon, CloseIcon, NodeTypeIcon, SparklesIcon } from '../icons';
-import { Button } from '../ui';
+import { ChevronRightIcon, NodeTypeIcon, SparklesIcon } from '../icons';
 import { NodeCanvasPreview } from './NodeCanvasPreview';
 import { NodeRelationEditor } from './NodeRelationEditor';
 import { NodeTagEditor } from './NodeTagEditor';
 import { NodeTitleEditor } from './NodeTitleEditor';
-import { formatTime, getNodeAiSummary, getNodeTags, getNodeTitle, getNodeTypeLabel, isKnowledgeNodeType } from './utils';
+import { formatTime, getNodeAiSummary, getNodeTags, getNodeTypeLabel, isKnowledgeNodeType } from './utils';
 import './NodeDetailDocument.css';
 
 interface NodeDetailPanelProps {
@@ -14,9 +13,7 @@ interface NodeDetailPanelProps {
   workspaceId: string;
   loading?: boolean;
   error?: string | null;
-  mode?: 'drawer' | 'page' | 'dock';
-  onClose?: () => void;
-  onOpenPage?: (nodeId: string) => void;
+  mode?: 'page' | 'dock';
   tagDefinitions?: KnowledgeTagDefinition[];
   relationCandidates?: WorkspaceNodeListItem[];
   readOnly?: boolean;
@@ -48,9 +45,7 @@ export const NodeDetailPanel = ({
   workspaceId,
   loading,
   error,
-  mode = 'drawer',
-  onClose,
-  onOpenPage,
+  mode = 'dock',
   tagDefinitions = [],
   relationCandidates = [],
   readOnly = false,
@@ -59,7 +54,6 @@ export const NodeDetailPanel = ({
 }: NodeDetailPanelProps) => {
   const { language, t } = useI18n();
   const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
-  const title = getNodeTitle(node, t('workspaceNodes.untitled'));
   const tags = getNodeTags(node);
   const properties = propertyEntries(node);
   const links = node?.links ?? [];
@@ -71,32 +65,6 @@ export const NodeDetailPanel = ({
 
   return (
     <section className={`node-detail-panel node-detail-panel--${mode}`}>
-      {mode === 'drawer' && (
-        <header className="node-detail-panel__header">
-          <span className="node-detail-panel__context" title={title}>
-            {t('workspaceNodes.nodeDetail')}
-          </span>
-          <div className="node-detail-panel__header-actions">
-            {node && onOpenPage && (
-              <Button size="sm" onClick={() => onOpenPage(node.id)}>
-                {t('workspaceNodes.goToDetail')}
-              </Button>
-            )}
-            {onClose && (
-              <Button
-                className="node-detail-panel__close"
-                variant="icon"
-                size="md"
-                onClick={onClose}
-                aria-label={t('workspaceNodes.closeNodeDetail')}
-              >
-                <CloseIcon size={16} />
-              </Button>
-            )}
-          </div>
-        </header>
-      )}
-
       <div className="node-detail-panel__content">
         {loading ? (
           <div className="node-detail-panel__empty">{t('workspaceNodes.loadingNode')}</div>
@@ -146,7 +114,7 @@ export const NodeDetailPanel = ({
               </div>
 
               <div className="node-detail-panel__supplementary">
-                {mode === 'drawer' && (
+                {mode === 'dock' && (
                   <details
                     key={`${node.id}:backlinks`}
                     className="node-detail-panel__disclosure"

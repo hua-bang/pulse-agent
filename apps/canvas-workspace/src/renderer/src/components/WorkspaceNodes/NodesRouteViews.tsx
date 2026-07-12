@@ -8,9 +8,7 @@ import type { NodesAiContext } from './knowledgeAiContext';
 interface Props {
   enabled: boolean;
   workspaces: WorkspaceEntry[];
-  selectedNode: KnowledgeNodeSelection | null;
   detailNode: KnowledgeNodeSelection | null;
-  onSelectNode: (selection: KnowledgeNodeSelection | null) => void;
   onBack: () => void;
   onAskAi: (context: NodesAiContext, action: 'chat' | 'summarize') => void;
 }
@@ -19,9 +17,7 @@ interface Props {
 export const NodesRouteViews = ({
   enabled,
   workspaces,
-  selectedNode,
   detailNode,
-  onSelectNode,
   onBack,
   onAskAi,
 }: Props) => {
@@ -30,7 +26,7 @@ export const NodesRouteViews = ({
     <>
       <PulseRouterView name="nodes" keepAlive>
         <Suspense fallback={null}>
-          <NodesPageLazy workspaces={workspaces} selectedNode={selectedNode} onSelectNode={onSelectNode} onAskAi={onAskAi} />
+          <NodesPageLazy workspaces={workspaces} onAskAi={onAskAi} />
         </Suspense>
       </PulseRouterView>
       <PulseRouterView name="node-detail">

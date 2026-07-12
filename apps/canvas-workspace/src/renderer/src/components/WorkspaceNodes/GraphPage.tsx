@@ -15,18 +15,17 @@ import ForceGraph2D, {
 } from 'react-force-graph-2d';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { KnowledgeNodeSelection, WorkspaceNodeListItem } from '../../types';
-import { NodeDetailDrawer } from './NodeDetailDrawer';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { DropdownShell } from '../ui';
+import { useRightDock } from '../RightDock';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
   selectedNode?: KnowledgeNodeSelection | null;
   onSelectNode?: (selection: KnowledgeNodeSelection | null) => void;
-  onOpenNode: (workspaceId: string, nodeId: string) => void;
 }
 
 type GraphNodeKind = 'node' | 'tag' | 'missing' | 'workspace';
@@ -194,9 +193,9 @@ export const GraphPage = ({
   workspaces,
   selectedNode,
   onSelectNode,
-  onOpenNode,
 }: GraphPageProps) => {
   const { t } = useI18n();
+  const dock = useRightDock();
   const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastClickRef = useRef<{ nodeId: string; ts: number } | null>(null);
@@ -397,9 +396,9 @@ export const GraphPage = ({
   }, [graphData.links.length, graphData.nodes.length, layoutPreset]);
 
   // Note: we deliberately do NOT auto-focus when `selectedNode` changes.
-  // Single-click on a graph node calls onSelectNode, and a focus effect
-  // here would yank the viewport on every click — the opposite of the
-  // "click = open drawer, double-click = zoom" interaction.
+  // Single-click on a graph node opens its dock tab, and a focus effect
+  // here would yank the viewport on every click. Double-click remains the
+  // explicit zoom gesture.
 
   const pickSuggestion = useCallback((result: GraphSearchResult) => {
     setSearchOpen(false);
@@ -417,8 +416,9 @@ export const GraphPage = ({
     const graphId = nodeGraphId(workspaceId, item.id);
     setActiveNodeId(graphId);
     onSelectNode?.({ workspaceId, nodeId: item.id });
+    dock.openNodeDetail(workspaceId, item.id, getNodeTitle(item, t('workspaceNodes.untitled')));
     window.setTimeout(() => focusNode(graphId), 80);
-  }, [focusNode, onSelectNode]);
+  }, [dock, focusNode, onSelectNode, t]);
 
   const handleNodeClick = useCallback((node: NodeObject<GraphNode>, _event: MouseEvent) => {
     const nodeId = getGraphId(node.id);
@@ -432,18 +432,19 @@ export const GraphPage = ({
     setActiveNodeId(nodeId);
 
     if (isDoubleClick) {
-      // Double click: zoom to the node. Drawer state is left alone so it
-      // stays open if the user is exploring.
+      // Double click: zoom to the node. Its dock tab stays open while the
+      // user explores the graph.
       focusNode(nodeId);
       return;
     }
 
-    // Single click: open the detail drawer for real nodes. Don't reframe
+    // Single click: open a detail tab for real nodes. Don't reframe
     // the viewport — the user may be deliberately panning around.
     if (isNodeGraphNode(node)) {
       onSelectNode?.({ workspaceId: node.workspaceId, nodeId: node.nodeId });
+      dock.openNodeDetail(node.workspaceId, node.nodeId, node.label);
     }
-  }, [focusNode, onSelectNode]);
+  }, [dock, focusNode, onSelectNode]);
 
   const renderNode = useCallback((
     node: NodeObject<GraphNode>,
@@ -764,15 +765,6 @@ export const GraphPage = ({
           }}
         />
       </div>
-
-      <NodeDetailDrawer
-        workspaceId={selectedNode?.workspaceId ?? ''}
-        nodeId={selectedNode?.nodeId ?? null}
-        tagDefinitions={tags}
-        onClose={() => onSelectNode?.(null)}
-        onOpenPage={onOpenNode}
-        onNodeChanged={() => { void reload(); }}
-      />
 
     </main>
   );

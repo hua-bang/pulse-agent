@@ -5,8 +5,6 @@
  * persistent chat panels into the chat pane. The dock reserves its width via
  * `--right-dock-inset`; the dedicated chat route disables the pinned chat tab.
  *
- * Tab contents stay mounted and hide via `visibility` to preserve webviews,
- * scroll position, and rendered artifacts across tab switches.
  */
 import {
   createContext,
@@ -160,6 +158,7 @@ interface RightDockProps {
   activeWorkspaceId: string;
   chatTabEnabled: boolean;
   workspaces: WorkspaceEntry[];
+  onOpenNodePage: (workspaceId: string, nodeId: string) => void;
 }
 
 interface TabIndicatorState {
@@ -168,7 +167,7 @@ interface TabIndicatorState {
   visible: boolean;
 }
 
-export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces }: RightDockProps) => {
+export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
   const { store, setChatHost, setTerminalHost } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
@@ -478,6 +477,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces }: Rig
                   workspaceId={tab.workspaceId}
                   nodeId={tab.nodeId}
                   onTitleChange={(title) => store.setTitle(tab.id, title)}
+                  onOpenPage={() => onOpenNodePage(tab.workspaceId, tab.nodeId)}
                 />
               </Suspense>
             ) : (

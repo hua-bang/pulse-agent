@@ -1,17 +1,6 @@
-/* Shared document treatment for Side Peek and Full Page. The surrounding
+/* Shared document treatment for Node Tabs and Full Page. The surrounding
  * chrome changes by mode; the title, tags, real canvas-node editor, and
  * supplementary disclosures remain one NodeDetailPanel composition. */
-
-.node-detail-drawer.node-detail-drawer {
-  overflow: hidden;
-  background: var(--nodes-surface);
-  box-shadow: var(--shadow-float);
-}
-
-.node-detail-drawer .node-detail-drawer__resize:focus-visible {
-  outline: 2px solid var(--accent-border);
-  outline-offset: -2px;
-}
 
 .node-detail-panel.node-detail-panel--page {
   max-width: none;
@@ -19,29 +8,6 @@
   border: 0;
   min-height: 100%;
   box-shadow: none;
-}
-
-.node-detail-panel .node-detail-panel__header {
-  min-height: 54px;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  padding: 10px 14px 10px 20px;
-  border-bottom: 1px solid var(--nodes-border);
-}
-
-.node-detail-panel__context {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--nodes-faint);
-  font-size: 11px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.node-detail-panel .node-detail-panel__header-actions {
-  flex-shrink: 0;
-  align-items: center;
-  gap: 6px;
 }
 
 .node-detail-panel .node-detail-panel__content {
@@ -69,7 +35,6 @@
   gap: 42px;
 }
 
-.node-detail-panel--drawer .node-detail-panel__layout,
 .node-detail-panel--dock .node-detail-panel__layout {
   width: 100%;
   padding: 0;
@@ -86,7 +51,6 @@
   flex-direction: column;
 }
 
-.node-detail-panel--drawer .node-detail-panel__document,
 .node-detail-panel--dock .node-detail-panel__document {
   width: 100%;
   padding: 30px clamp(22px, 6vw, 42px) 52px;
@@ -137,7 +101,6 @@
   font-size: 11px;
 }
 
-.node-detail-panel--drawer .node-detail-panel__document-title,
 .node-detail-panel--dock .node-detail-panel__document-title {
   font-size: clamp(26px, 6vw, 32px);
 }
@@ -540,8 +503,7 @@
 
   .node-detail-panel__ai-insight { grid-column: auto; }
 
-  .node-detail-panel__document,
-  .node-detail-panel--drawer .node-detail-panel__document {
+  .node-detail-panel__document {
     padding-inline: 22px;
   }
 

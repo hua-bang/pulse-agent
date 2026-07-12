@@ -207,7 +207,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // the dialog role consistently. A deliberate increase, not a regression.
   // 12→11 (C1 lightbox re-shell): ChatImageLightbox's own `role="dialog"`
   // div is gone — that role now comes from ui/Modal's card.
-  dialogRoles: 11,
+  dialogRoles: 10,
   // files calling createPortal directly. ui/Portal is the one blessed exit;
   // Modal/Drawer render through it. Falls as legacy callers adopt <Portal> or
   // the new point-anchored ui/Popover shell.
@@ -319,7 +319,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1882→1881: LinkDrawer's new editable address focus state uses palette tokens.
   // 1881→1879: the duplicate ChatHeader brand mark and its two color literals were removed.
   // 1879→1878: the duplicate Nodes/Graph chat dock and its literal surface color were removed.
-  hardcodedColorLiterals: 1876,
+  hardcodedColorLiterals: 1874,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -377,7 +377,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (inset base ring + a 2px literal focus ring, a near-variant of
   // --shadow-focus's 3px) and `.built-in-tool-primary-btn` carried 1 more —
   // all 3 deleted with the now-unused CSS.
-  shadowLiterals: 153,
+  shadowLiterals: 152,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

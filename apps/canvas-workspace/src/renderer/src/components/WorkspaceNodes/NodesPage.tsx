@@ -4,14 +4,12 @@ import type {
   AgentContextCanvasRef,
   AgentContextNodeRef,
   AgentContextTagRef,
-  KnowledgeNodeSelection,
   WorkspaceNodeListItem,
 } from '../../types';
 import { RefreshIcon, SparklesIcon } from '../icons';
 import { Button } from '../ui/Button';
 import { KnowledgeNodeCard } from './KnowledgeNodeCard';
 import { NodeFilters } from './NodeFilters';
-import { NodeDetailDrawer } from './NodeDetailDrawer';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import {
   type NodeTypeFilter,
@@ -25,15 +23,13 @@ import {
   tagName,
 } from './utils';
 import { useI18n } from '../../i18n';
-import { useRightDock } from '../RightDock';
+import { useRightDock, useRightDockState } from '../RightDock';
 import type { NodesAiContext } from './knowledgeAiContext';
 import './index.css';
 import './NodeCards.css';
 
 interface NodesPageProps {
   workspaces: WorkspaceEntry[];
-  selectedNode?: KnowledgeNodeSelection | null;
-  onSelectNode?: (selection: KnowledgeNodeSelection | null) => void;
   onAskAi?: (context: NodesAiContext, action: 'chat' | 'summarize') => void;
 }
 
@@ -47,12 +43,11 @@ function filterByType(node: WorkspaceNodeListItem, type: NodeTypeFilter): boolea
 
 export const NodesPage = ({
   workspaces,
-  selectedNode,
-  onSelectNode,
   onAskAi,
 }: NodesPageProps) => {
   const { language, t } = useI18n();
   const dock = useRightDock();
+  const dockState = useRightDockState();
   const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
   const { nodes, tags: tagDefinitions, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
   const [query, setQuery] = useState('');
@@ -60,15 +55,6 @@ export const NodesPage = ({
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<Set<string> | null>(null);
   const [aiSelection, setAiSelection] = useState<Set<string>>(() => new Set());
-  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const hadSelectedNodeRef = useRef(false);
-
-  useEffect(() => {
-    if (hadSelectedNodeRef.current && !selectedNode) {
-      requestAnimationFrame(() => detailTriggerRef.current?.focus());
-    }
-    hadSelectedNodeRef.current = !!selectedNode;
-  }, [selectedNode]);
 
   const activeWorkspaceIds = useMemo(() => {
     if (selectedWorkspaceIds === null) return new Set(workspaces.map((ws) => ws.id));
@@ -279,7 +265,12 @@ export const NodesPage = ({
             {visibleNodes.map((node) => {
               const tagsForNode = getNodeTags(node);
               const workspaceIdForNode = getNodeWorkspaceId(node);
-              const selected = selectedNode?.workspaceId === workspaceIdForNode && selectedNode.nodeId === node.id;
+              const selected = dockState.tabs.some((tab) => (
+                tab.id === dockState.activeTabId
+                && tab.kind === 'node-detail'
+                && tab.workspaceId === workspaceIdForNode
+                && tab.nodeId === node.id
+              ));
               const title = getNodeTitle(node, t('workspaceNodes.untitled'));
               const contextLabel = node.workspaceName ?? workspaceIdForNode;
               const eligibleForAi = isKnowledgeNodeType(node.type);
@@ -300,13 +291,10 @@ export const NodesPage = ({
                   aiChatLabel={t('workspaceNodes.aiChat')}
                   selectForAiLabel={t('workspaceNodes.selectForAi')}
                   deselectForAiLabel={t('workspaceNodes.deselectForAi')}
-                  openLabel={t('workspaceNodes.openSidePeek', { title })}
+                  openLabel={t('workspaceNodes.openNodeTab', { title })}
                   selected={selected}
                   contextSelected={aiSelection.has(nodeKey(node))}
-                  onOpen={(trigger) => {
-                    detailTriggerRef.current = trigger;
-                    onSelectNode?.({ workspaceId: workspaceIdForNode, nodeId: node.id });
-                  }}
+                  onOpen={() => dock.openNodeDetail(workspaceIdForNode, node.id, title)}
                   onToggleContextSelection={eligibleForAi && onAskAi ? () => toggleAiSelection(node) : undefined}
                   onAskAi={nodeContext && onAskAi ? () => onAskAi({ nodes: [nodeContext] }, 'chat') : undefined}
                   onSummarize={nodeContext && onAskAi ? () => onAskAi({ nodes: [nodeContext] }, 'summarize') : undefined}
@@ -332,25 +320,6 @@ export const NodesPage = ({
           </div>
         )}
       </section>
-
-      <NodeDetailDrawer
-        workspaceId={selectedNode?.workspaceId ?? ''}
-        nodeId={selectedNode?.nodeId ?? null}
-        tagDefinitions={tagDefinitions}
-        onClose={() => onSelectNode?.(null)}
-        onOpenPage={(workspaceId, nodeId) => {
-          const selected = nodes.find((node) => (
-            getNodeWorkspaceId(node) === workspaceId && node.id === nodeId
-          ));
-          dock.openNodeDetail(
-            workspaceId,
-            nodeId,
-            getNodeTitle(selected, t('workspaceNodes.untitled')),
-          );
-          onSelectNode?.(null);
-        }}
-        onNodeChanged={() => { void reload(); }}
-      />
 
     </main>
   );
