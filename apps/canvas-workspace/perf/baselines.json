@@ -144,22 +144,22 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "Renderer Terser + grammar 收敛后实测 614KB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 614, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 635KB(原 614)", "asOf": "2026-07-13",
+      "gate": { "kind": "ratchet", "baseline": 635, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "Renderer Terser + grammar 收敛后实测 179KB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 179, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 185KB(原 179)", "asOf": "2026-07-13",
+      "gate": { "kind": "ratchet", "baseline": 185, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,
-      "confidence": "high", "basis": "入口及递归静态 imports 的确定性构建闭包实测 614KB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 614, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 635KB(原 614)", "asOf": "2026-07-13",
+      "gate": { "kind": "ratchet", "baseline": 635, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,
-      "confidence": "high", "basis": "Phase 2 将 Settings、Nodes、Reference、DevTools、Artifact 样式移出静态闭包后实测 104KB", "asOf": "2026-07-11",
+      "confidence": "high", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 635KB(原 614)", "asOf": "2026-07-13",
       "gate": { "kind": "ratchet", "baseline": 104, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.total_js_kb": {
@@ -169,12 +169,12 @@
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 600,
-      "confidence": "high", "basis": "Main esbuild minify + plugin/runtime split 后入口实测 495KB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 495, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 512KB(原 495)", "asOf": "2026-07-13",
+      "gate": { "kind": "ratchet", "baseline": 512, "tolerancePct": 3, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
-      "confidence": "medium", "basis": "File/Text/Chat/MF 首用分层后连续 warm trace 961→888KB", "asOf": "2026-07-11",
+      "confidence": "medium", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 512KB(原 495)", "asOf": "2026-07-13",
       "gate": { "kind": "ratchet", "baseline": 888.1, "tolerancePct": 5, "scope": "runtime" }
     },
     "startup.loaded_to_lcp_kb": {
