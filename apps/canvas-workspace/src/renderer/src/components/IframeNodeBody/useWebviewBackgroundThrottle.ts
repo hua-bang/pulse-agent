@@ -46,12 +46,23 @@ interface Options {
   throttledFrameRate?: number;
   /** Restored frame rate when back on screen. */
   defaultFrameRate?: number;
+  /**
+   * How long offscreen before escalating from the frame-rate throttle to a
+   * Chrome-style page freeze (L2 — see main/webview/lifecycle.ts). Chrome
+   * freezes background tabs after ~5 minutes; same default here. Resume is
+   * instantaneous and reload-free.
+   */
+  freezeDelayMs?: number;
+  /** Retry interval after a refused freeze (audible/devtools exemption). */
+  freezeRetryMs?: number;
 }
 
 const DEFAULT_ROOT_MARGIN = '300px';
 const DEFAULT_OFFSCREEN_DELAY_MS = 1_500;
 const DEFAULT_THROTTLED_FRAME_RATE = 1;
 const DEFAULT_FRAME_RATE = 60;
+const DEFAULT_FREEZE_DELAY_MS = 5 * 60_000;
+const DEFAULT_FREEZE_RETRY_MS = 60_000;
 
 export const useWebviewBackgroundThrottle = ({
   hostRef,
@@ -62,10 +73,14 @@ export const useWebviewBackgroundThrottle = ({
   offscreenDelayMs = DEFAULT_OFFSCREEN_DELAY_MS,
   throttledFrameRate = DEFAULT_THROTTLED_FRAME_RATE,
   defaultFrameRate = DEFAULT_FRAME_RATE,
+  freezeDelayMs = DEFAULT_FREEZE_DELAY_MS,
+  freezeRetryMs = DEFAULT_FREEZE_RETRY_MS,
 }: Options) => {
   // Track which rate is currently applied so we don't issue redundant IPC
   // (every pan-by would otherwise spam main with 60→60 noops).
   const appliedRateRef = useRef<number | null>(null);
+  // Track the applied lifecycle so resume IPC only fires when frozen.
+  const frozenRef = useRef(false);
 
   useEffect(() => {
     if (disabled || !workspaceId) return;
@@ -74,6 +89,8 @@ export const useWebviewBackgroundThrottle = ({
 
     const api = window.canvasWorkspace.iframe;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let freezeTimer: ReturnType<typeof setTimeout> | null = null;
+    let offscreen = false;
 
     const apply = (rate: number) => {
       if (appliedRateRef.current === rate) return;
@@ -92,19 +109,58 @@ export const useWebviewBackgroundThrottle = ({
         timer = null;
       }
     };
+    const cancelFreezeTimer = () => {
+      if (freezeTimer != null) {
+        clearTimeout(freezeTimer);
+        freezeTimer = null;
+      }
+    };
+
+    // L2: after minutes offscreen, escalate from the 1fps throttle to a
+    // Chrome-style freeze (task queues suspended, memory kept, resume is
+    // reload-free). A refused freeze (audible page / DevTools open — the
+    // same exemptions Chrome uses) re-arms a retry while still offscreen.
+    const tryFreeze = () => {
+      freezeTimer = null;
+      if (!offscreen || frozenRef.current) return;
+      void api
+        .setLifecycle(workspaceId, nodeId, 'frozen')
+        .then((result) => {
+          if (result.ok) {
+            frozenRef.current = true;
+          } else if (offscreen && result.skipped !== 'destroyed') {
+            freezeTimer = setTimeout(tryFreeze, freezeRetryMs);
+          }
+        })
+        .catch(() => {});
+    };
+
+    const resume = () => {
+      if (!frozenRef.current) return;
+      frozenRef.current = false;
+      void api.setLifecycle(workspaceId, nodeId, 'active').catch(() => {});
+    };
 
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[entries.length - 1];
         if (!entry) return;
         if (entry.isIntersecting) {
-          // Back in view — cancel any pending throttle and restore now.
+          // Back in view — cancel pending throttle/freeze, resume first so
+          // the page's task queues are running again, then restore paint.
+          offscreen = false;
           cancelTimer();
+          cancelFreezeTimer();
+          resume();
           apply(defaultFrameRate);
         } else {
           // Out of view — schedule throttle if not already scheduled or
           // already throttled. We don't throttle eagerly because pan
           // gestures briefly take many nodes offscreen.
+          offscreen = true;
+          if (freezeTimer == null && !frozenRef.current) {
+            freezeTimer = setTimeout(tryFreeze, freezeDelayMs);
+          }
           if (timer != null) return;
           if (appliedRateRef.current === throttledFrameRate) return;
           timer = setTimeout(() => {
@@ -121,11 +177,13 @@ export const useWebviewBackgroundThrottle = ({
     return () => {
       observer.disconnect();
       cancelTimer();
+      cancelFreezeTimer();
       // Best-effort restore on teardown so a webview that survives this
       // hook's lifecycle (e.g. via webviewKey reload) doesn't get stuck at
-      // 1fps. unregisterWebview happens in the calling effect's cleanup
-      // and races with this; the registry returns {ok:false} when the
-      // webview is gone, which we silently swallow.
+      // 1fps or frozen. unregisterWebview happens in the calling effect's
+      // cleanup and races with this; the registry returns {ok:false} when
+      // the webview is gone, which we silently swallow.
+      resume();
       if (appliedRateRef.current === throttledFrameRate) {
         void api.setFrameRate(workspaceId, nodeId, defaultFrameRate).catch(() => {});
       }
@@ -140,5 +198,7 @@ export const useWebviewBackgroundThrottle = ({
     offscreenDelayMs,
     throttledFrameRate,
     defaultFrameRate,
+    freezeDelayMs,
+    freezeRetryMs,
   ]);
 };

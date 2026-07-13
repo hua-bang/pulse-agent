@@ -17,6 +17,7 @@ import { ipcMain, webContents as allWebContents } from 'electron';
 import { performance } from 'node:perf_hooks';
 import type { AgentContextDomSelectionRef } from '../../shared/agent-chat';
 import { createDomPickerScript } from './dom-snapshot-script';
+import { setWebviewLifecycle, type WebviewLifecycleState } from './lifecycle';
 
 interface RegistryKey {
   workspaceId: string;
@@ -305,6 +306,38 @@ export function setupWebviewRegistryIpc(): void {
         );
         return { ok: false };
       }
+    },
+  );
+
+  /**
+   * Chrome-style freeze/resume for long-offscreen webviews (see
+   * ./lifecycle.ts for the mechanism and exemptions). Renderer escalates a
+   * node from the 1fps frame-rate throttle to 'frozen' after it has been
+   * offscreen for minutes (useWebviewBackgroundThrottle), and resumes it
+   * the moment it re-enters the viewport. Unknown nodes resolve to
+   * {ok:false, skipped:'destroyed'} — normal during teardown races.
+   */
+  ipcMain.handle(
+    'iframe:set-lifecycle',
+    async (
+      _event,
+      payload: { workspaceId: string; nodeId: string; state: WebviewLifecycleState },
+    ) => {
+      if (
+        !payload?.workspaceId ||
+        !payload?.nodeId ||
+        (payload.state !== 'active' && payload.state !== 'frozen')
+      ) {
+        return { ok: false };
+      }
+      const wc = getWebContentsForNode(payload.workspaceId, payload.nodeId);
+      const result = await setWebviewLifecycle(wc ?? null, payload.state);
+      if (!result.ok && result.error) {
+        console.warn(
+          `[webview-registry] setLifecycle(${payload.state}) failed for ${payload.workspaceId}::${payload.nodeId}: ${result.error}`,
+        );
+      }
+      return result;
     },
   );
 }

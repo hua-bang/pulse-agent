@@ -200,7 +200,7 @@
 
 **试过并按测量结果回滚的**(记录在 `useCanvas.ts` 阈值注释):手势中途翻转 overview 类(把 40 iframe 的显示切换抖动搬进手势窗口,zoom 16%→20.6% 帧超);拖拽节点临时 `will-change` 提层(Layerize 反而恶化)。
 
-**未做**(待产品决策):url webview 休眠。可选两档——CDP `Page.setWebLifecycleState('frozen')`(全停 JS/网络、保内存、**唤醒零重载**)与 LRU 截图占位+销毁(释放进程/内存、唤醒重载);均需真机验证,沙箱无 Electron 二进制。
+**webview 休眠(Chrome 式生命周期,L2 已实现)**:参照 Chrome 后台标签页的 throttled → frozen → discarded 阶梯。L2 冻结已落地——离屏 5 分钟后经 CDP `Page.setWebLifecycleState('frozen')` 挂起页面任务队列(JS/定时器/网络全停、内存保留、**唤醒零重载**,页面收到标准 `freeze`/`resume` 事件),豁免与 Chrome 一致(audible / DevTools 打开不冻,被拒后 60s 重试);回视口先 resume 再恢复帧率,debugger 管道仅冻结期间持有。实现:`main/webview/lifecycle.ts`(控制器,7 个单测)+ `iframe:set-lifecycle` IPC + `useWebviewBackgroundThrottle` 冻结档。**沙箱无 Electron 二进制,冻结行为需真机验证**(重点:内部平台页 WebSocket 断线重连、`Page.setWebLifecycleState` 在 Electron 30/Chromium 124 的实际表现)。L3(内存预算驱动的截图占位+销毁,Memory Saver 式 LRU)待 L2 真机验证后立项。
 
 ### 优化前后对比(中位数 × 3)
 

@@ -23,6 +23,24 @@ export interface IframeApi {
     nodeId: string,
     frameRate: number,
   ) => Promise<{ ok: boolean; frameRate?: number }>;
+  /**
+   * Chrome-style freeze/resume for a registered webview (DevTools protocol
+   * Page.setWebLifecycleState — the mechanism Chrome uses on background
+   * tabs). 'frozen' suspends the page's task queues (JS/timers/network)
+   * while keeping the process and memory intact; 'active' resumes
+   * instantly with no reload. Freezing is refused for audible pages and
+   * pages with DevTools open (`skipped`), mirroring Chrome's exemptions.
+   */
+  setLifecycle: (
+    workspaceId: string,
+    nodeId: string,
+    state: 'active' | 'frozen',
+  ) => Promise<{
+    ok: boolean;
+    state?: 'active' | 'frozen';
+    skipped?: 'destroyed' | 'audible' | 'devtools';
+    error?: string;
+  }>;
   pickDomElement: (
     workspaceId: string,
     nodeId: string,

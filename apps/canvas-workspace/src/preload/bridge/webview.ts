@@ -18,6 +18,9 @@ export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
   setFrameRate: (workspaceId, nodeId, frameRate) =>
     ipcRenderer.invoke("iframe:set-frame-rate", { workspaceId, nodeId, frameRate }),
 
+  setLifecycle: (workspaceId, nodeId, state) =>
+    ipcRenderer.invoke("iframe:set-lifecycle", { workspaceId, nodeId, state }),
+
   pickDomElement: (workspaceId, nodeId) =>
     ipcRenderer.invoke("iframe:pick-dom-element", { workspaceId, nodeId }),
 
