@@ -85,4 +85,34 @@ describe('useNodes text resize commit', () => {
       data: { content: 'hello', autoSize: true },
     });
   });
+
+  // Terminal/agent scrollback+cwd autosave fires every 2s per live terminal
+  // (perf findings B1/A5): routed through the default updateNode path it
+  // filled the undo stack with background saves, so Ctrl+Z reverted a
+  // scrollback snapshot instead of the user's last action. history:false
+  // must keep the data change while leaving the undo stack untouched.
+  it('updateNode with history:false applies the patch without occupying an undo slot', () => {
+    act(() => {
+      hook.updateNode('text-1', {
+        data: { content: 'user edit', autoSize: true } as CanvasNode['data'],
+      });
+    });
+
+    act(() => {
+      hook.updateNode(
+        'text-1',
+        { data: { content: 'user edit', autoSize: true, scrollback: 'tick' } as CanvasNode['data'] },
+        { history: false },
+      );
+    });
+    expect(
+      (hook.nodes[0].data as { scrollback?: string }).scrollback,
+    ).toBe('tick');
+
+    // One undo reverts the USER edit (not the silent autosave tick).
+    act(() => {
+      expect(hook.undo()).toBe(true);
+    });
+    expect((hook.nodes[0].data as { content?: string }).content).toBe('hello');
+  });
 });

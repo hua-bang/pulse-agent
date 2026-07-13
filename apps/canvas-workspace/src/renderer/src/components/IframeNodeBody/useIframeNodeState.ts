@@ -67,6 +67,15 @@ export const useIframeNodeState = ({
   const webviewHostRef = useRef<HTMLDivElement>(null);
   const shouldMountWebview = useDeferredVisibleMount(webviewHostRef);
 
+  // Same deferred-mount gate for inline (html/srcdoc/artifact) iframes: on an
+  // iframe-heavy canvas, creating every off-screen subdocument at mount time
+  // doubled the 86-node mount's long-task blocking (measured 140ms → 290ms;
+  // docs/performance-verification-large-canvas.md). The observed element is
+  // the pending shell (only rendered outside url/streaming modes), so the
+  // rearm key re-arms the observer when those modes flip.
+  const frameHostRef = useRef<HTMLDivElement>(null);
+  const shouldMountInlineFrame = useDeferredVisibleMount(frameHostRef, '200px', `${mode}|${streamingActive}`);
+
   const handleBrowserTitleChange = useCallback((title: string) => {
     if (editing || readOnly) return;
     const rawTitle = sanitizePageTitle(title);
@@ -430,6 +439,8 @@ export const useIframeNodeState = ({
     setDraftPrompt,
     setDraftUrl,
     setEditing,
+    frameHostRef,
+    shouldMountInlineFrame,
     streamIframeRef,
     streamingActive,
     textareaRef,

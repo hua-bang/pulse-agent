@@ -21,7 +21,7 @@ interface Props {
   rootFolder?: string;
   workspaceId?: string;
   workspaceName?: string;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>, options?: { history?: boolean }) => void;
   readOnly?: boolean;
 }
 
@@ -76,7 +76,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
     const scrollback = term ? serializeBuffer(term) : dataRef.current.scrollback;
     onUpdateRef.current(nodeIdRef.current, {
       data: { sessionId: dataRef.current.sessionId, scrollback, cwd: dataRef.current.cwd },
-    });
+    }, { history: false });
   }, []);
 
   const dismissMentionHint = useCallback(() => {
@@ -238,7 +238,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
       const cwd = cwdResult.ok && cwdResult.cwd ? cwdResult.cwd : dataRef.current.cwd;
       onUpdateRef.current(nodeIdRef.current, {
         data: { sessionId: dataRef.current.sessionId, scrollback, cwd },
-      });
+      }, { history: false });
     }, SCROLLBACK_SAVE_INTERVAL);
 
     cleanupRef.current = () => {
@@ -263,7 +263,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
           const cwd = r.ok && r.cwd ? r.cwd : dataRef.current.cwd;
           onUpdateRef.current(nodeIdRef.current, {
             data: { sessionId: dataRef.current.sessionId, scrollback, cwd },
-          });
+          }, { history: false });
         });
       } else if (termRef.current) {
         persistState();

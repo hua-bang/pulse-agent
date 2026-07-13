@@ -576,3 +576,11 @@
   opacity: 0.5;
   pointer-events: none;
 }
+
+/* Deferred-mount pending shell: rendered instead of the inline iframe until
+ * the node first nears the viewport (useDeferredVisibleMount). Same visual
+ * family as the overview placeholder above. */
+.iframe-frame--pending {
+  flex: 1;
+  background: linear-gradient(135deg, var(--accent-light), var(--accent-soft));
+}

@@ -16,6 +16,7 @@ interface IframeRenderedViewProps {
   canGoForward: boolean;
   commit: () => void;
   draftUrl: string;
+  frameHostRef: RefObject<HTMLDivElement>;
   generating: boolean;
   handleOpenExternal: () => void;
   handleKeyDown: KeyboardEventHandler<HTMLInputElement>;
@@ -41,6 +42,7 @@ interface IframeRenderedViewProps {
   setDraftUrl: (value: string) => void;
   setEditing: (editing: boolean) => void;
   renderIframeRef: RefObject<HTMLIFrameElement>;
+  shouldMountInlineFrame: boolean;
   streamIframeRef: RefObject<HTMLIFrameElement>;
   streamingActive: boolean;
   url: string;
@@ -58,6 +60,7 @@ export const IframeRenderedView = ({
   canGoForward,
   commit,
   draftUrl,
+  frameHostRef,
   generating,
   handleOpenExternal,
   handleKeyDown,
@@ -83,6 +86,7 @@ export const IframeRenderedView = ({
   setDraftUrl,
   setEditing,
   renderIframeRef,
+  shouldMountInlineFrame,
   streamIframeRef,
   streamingActive,
   url,
@@ -241,6 +245,19 @@ export const IframeRenderedView = ({
             srcDoc={STREAMING_SHELL}
             sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
             title="Generating..."
+          />
+        ) : !shouldMountInlineFrame ? (
+          // Deferred mount: the subdocument is only created once the node is
+          // near the viewport (useDeferredVisibleMount) — off-screen inline
+          // iframes doubled the large-canvas mount cost. The observer
+          // deliberately watches THIS pending shell, not the wrapper: at
+          // overview zoom the shell is display:none (semantic-zoom CSS), so
+          // an overview visit doesn't mass-mount 40 hidden subdocuments —
+          // measured as a mount burst bleeding into the next gesture.
+          <div
+            ref={frameHostRef}
+            className="iframe-frame iframe-frame--pending"
+            aria-hidden="true"
           />
         ) : (
           <iframe

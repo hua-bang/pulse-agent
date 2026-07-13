@@ -890,7 +890,7 @@ export const useAgentNodeController = ({
         const curCwd = cwdResult.ok && cwdResult.cwd ? cwdResult.cwd : dataRef.current.cwd;
         onUpdateRef.current(nodeIdRef.current, {
           data: { ...dataRef.current, scrollback, cwd: curCwd },
-        });
+        }, { history: false });
       }, SCROLLBACK_SAVE_INTERVAL);
 
       cleanupRef.current = () => {
@@ -1063,7 +1063,7 @@ export const useAgentNodeController = ({
           const cwd = r.ok && r.cwd ? r.cwd : dataRef.current.cwd;
           onUpdateRef.current(nodeIdRef.current, {
             data: { ...dataRef.current, scrollback, cwd },
-          });
+          }, { history: false });
         });
       }
       if (saveTimerRef.current) clearInterval(saveTimerRef.current);

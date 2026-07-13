@@ -11,6 +11,7 @@ import {
   type ResizeEdge,
 } from '../../hooks/useNodeResize';
 import type { NodeDragOffset, NodeDragPreview } from '../../hooks/useNodeDrag';
+import { OVERVIEW_SCALE_THRESHOLD } from '../../hooks/useCanvas';
 import type { EdgeInteractionState, Point } from '../../hooks/useEdgeInteraction';
 import type { ShapeDraft } from '../../hooks/useShapeDraw';
 import type { MarqueeRect } from '../../hooks/useMarqueeSelect';
@@ -53,16 +54,11 @@ export const getCanvasTransformTransition = (animating: boolean, moving: boolean
 };
 
 /**
- * Below this settled scale, `.canvas-transform--overview` lets CSS swap live
- * inline iframes for placeholders (IframeNodeBody/index.css): embeds are
- * unreadable there, yet each still pays raster + a compositor layer, and at
- * overview zoom every animated iframe is in-viewport so rAF/CSS animations
- * all run (measured 40%/55% frames >20ms on a 40-iframe canvas —
- * docs/performance-verification-large-canvas.md). settledScale is frozen
- * during gestures, so the class flips once per gesture, not per wheel tick.
+ * The class list for the current gesture/scale state. The overview class is
+ * settledScale-driven, so it flips once per gesture at settle — see the
+ * OVERVIEW_SCALE_THRESHOLD doc in useCanvas for why mid-gesture flipping
+ * measured worse.
  */
-export const OVERVIEW_SCALE_THRESHOLD = 0.35;
-
 export const getCanvasTransformClassName = (
   moving: boolean,
   animating: boolean,
@@ -146,7 +142,7 @@ interface CanvasSurfaceProps {
     minWidth?: number,
     minHeight?: number
   ) => void;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>, options?: { history?: boolean }) => void;
   /** Dimension-only update that bypasses undo history. Used by nodes
    *  whose size is derived from their content (e.g. mindmap auto-fits
    *  to its topic tree) so every typed character doesn't spam the

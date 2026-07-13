@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   getCanvasTransformClassName,
   getCanvasTransformTransition,
-  OVERVIEW_SCALE_THRESHOLD,
 } from './CanvasSurface';
+import { OVERVIEW_SCALE_THRESHOLD } from '../../hooks/useCanvas';
 
 /**
  * Guards two zoom/pan-gesture polish fixes on `.canvas-transform`'s CSS

@@ -9,8 +9,10 @@ import {
   BUILT_IN_RENDERER_PLUGINS,
 } from "../../plugins/renderer";
 import { installPerfMonitor, markOnce } from "./perf/monitor";
+import { installJankMonitor } from "./perf/jank-monitor";
 
 installPerfMonitor();
+installJankMonitor();
 markOnce("renderer:main-start");
 
 const root = document.getElementById("root");

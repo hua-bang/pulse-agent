@@ -15,6 +15,22 @@ const clampScale = (s: number) =>
 const safeNum = (n: number, fallback = 0) =>
   Number.isFinite(n) ? n : fallback;
 
+/**
+ * Below this scale the canvas is an overview: embeds are unreadable, yet each
+ * live inline iframe still pays raster + a compositor layer, and once the
+ * zoomed-out viewport contains them every animated embed's rAF resumes
+ * (measured 40%/55% frames >20ms on a 40-iframe canvas —
+ * docs/performance-verification-large-canvas.md). `.canvas-transform--overview`
+ * drives the CSS that swaps live iframes for placeholders
+ * (IframeNodeBody/index.css, DynamicAppNodeBody/index.css). Deliberately
+ * driven by settledScale (CanvasSurface's getCanvasTransformClassName), NOT
+ * the live mid-gesture scale: an experiment that flipped the class from
+ * applyTransformStyle on threshold-crossing moved the 40-iframe display
+ * swap's layout/raster spike INTO the gesture window and measured worse
+ * (zoom 16% → 20.6% frames >20ms) than paying it once at settle.
+ */
+export const OVERVIEW_SCALE_THRESHOLD = 0.35;
+
 export const canvasTransformToCss = (transform: CanvasTransform): string =>
   `translate(${safeNum(transform.x)}px, ${safeNum(transform.y)}px) scale(${safeNum(transform.scale, 1)})`;
 
