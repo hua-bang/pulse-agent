@@ -114,6 +114,32 @@
 5. **基线补档**(§10):增加 `seedWebpages>0` profile + D6 规模曲线,把"iframe 重负载"纳入回归护栏,先于大改动落地。
 6. 小项:86 个 30s 定时器合并单 ticker(A7);PTY onData 帧级合并(E3);离屏 CSS 动画 `animation-play-state: paused`(K-3)。
 
+## 实测补充(2026-07-13,Chromium 渲染端台架)
+
+本沙箱的出口策略拒绝 Electron 二进制下载(`www.electronjs.org`、`npmmirror.com` 均 CONNECT 403;GitHub release/API 仅放行本仓库),`perf:report` 完整运行时链路无法执行。作为兜底新增 `scripts/perf/renderer-bench/`:本地 HTTP 托管 `dist/renderer` 构建产物,在预装 Playwright Chromium 里以 init-script 注入 `window.canvasWorkspace` 桩 + 与本画像同构的 86 节点 fixture(19 frame / 40 iframe / 14 text / 8 file / 3 image / 2 mindmap;iframe 全部 `mode:'html'` srcdoc,其中 15 个含 rAF/interval/CSS 动画/ResizeObserver/MutationObserver),真实 React 渲染管线端到端运行,零报错。同日 `perf:report --bundle-only` 实测 **7/7 体积门禁通过**(入口归因:app 自身 838KB + react-dom 131KB)。
+
+实测(Xvfb 有头、软件渲染、1600×900、scale 1;**A/B 相对差是信号**,软件栅格使 zoom 类绝对值偏悲观、无 GPU 合成路径;`<webview>` 由同进程 iframe 代演):
+
+| 场景 | full(15/40 动画) | static-iframes | no-iframes |
+|---|---|---|---|
+| 挂载到 86 节点 | 521ms / 长任务合计 295ms(max 160) | 525ms / 286ms | 332ms / 140ms(max 85) |
+| 挂载即真实 iframe(视口外) | 40 个(36 离屏) | 40(36) | 0 |
+| 初始视口稳态 10s(动画均离屏) | 0.3% 帧超 / 任务 0.22s | 0% / 0.26s | 0.3% / 0.10s |
+| 平移(wheel 空白区) | 4.9% 帧超,0 长任务 | 3.3% | 0% |
+| 缩放(ctrl+wheel) | **42% 帧超,44 长任务共 4.1s,帧 p95 133ms** | 10.6%,1 长任务 | 0.6% |
+| 拖拽 iframe 节点 | **90.8% 帧超,INP p95 328ms** | 51.1% | —(拖文本节点:7%) |
+| 巡览全画布后驻留(30 iframe 在屏) | 8.3% 帧超,帧 p95 33ms | (驻留点无 iframe)0% | 0% |
+
+**确认与修正:**
+
+1. **确认(§1/§2):html 型 iframe 无懒挂载**——挂载完成瞬间 40 个真实 iframe 全部在 DOM,36 个在视口外。40 个 iframe 把 86 节点挂载的长任务阻塞从 140ms 抬到 ~290ms(2.1×)。
+2. **确认(§3/§4):React 交互管线干净**——pan 全程 0 长任务、无 nodes-array 计数;拖文本节点仅 7% 帧超;每次拖拽 `canvas-save-ipc`=1(提交一次)。B7/B9 修复在真实渲染链路成立。
+3. **新信号:缩放与拖拽 live iframe 是最大交互放大器**——42%/91% 帧超几乎全部来自 live iframe 的重栅格/重合成,动画使其显著恶化(static 对照 10.6%/51%)。这直接对应"缩放、拖动卡"的体感。
+4. **修正(§7 部分):离屏*同进程* iframe 的稳态成本低于静态推断**——Chromium 自身暂停离屏 iframe 的 rAF/绘制并钳制定时器,初始视口稳态三变体都接近满帧。真实 app 的稳态痛点据此更集中于:(a) 25 个*跨进程* webview guest(浏览器离屏节流不适用,只有 app 的 1fps 降帧,JS/网络满速——本台架无法复现,待真机 `app.getAppMetrics()` 验证);(b) 在屏动画 iframe(驻留 8.3% 帧超);(c) agent 2s 心跳(本台架无 PTY,未复现)。
+5. 内存:srcdoc 页面极小(JS heap 13-18MB),不代表真实外部 SPA 的 guest 进程内存,guest RSS 待真机。
+
+**优先级修订(对照上文"方向映射"):** 实测支持方向 1(非 url iframe 懒挂载/占位)与 2(webview 休眠)继续居首,但落点更准——懒挂载的主要收益在**挂载阻塞**与**缩放/拖拽时的 live-iframe 栅格**,而非离屏稳态 CPU;方向 6 中"离屏动画启停(K-3)"在同进程 iframe 上已被 Chromium 兜住,可降级;新增一个短平快候选:**缩放/拖拽手势期给 live iframe 盖静态化层**(手势中暂停 iframe 合成或快照占位,手势结束恢复),直接砍掉 42%/91% 帧超的大头。
+
 ## 核查方法
 
-三个并行只读核查(iframe/webview 生命周期、交互渲染管线、终端输出/归档/基准设施),每条结论要求 file:line 证据并区分已修/未修;与 consolidated/round3 编号对齐,已修项(E1、B7、B9/V2、F1/F2、chat 批处理、图片缩略图、LRU 驱逐、bundle lazy 等)复核确认在位后不再列为问题。
+三个并行只读核查(iframe/webview 生命周期、交互渲染管线、终端输出/归档/基准设施),每条结论要求 file:line 证据并区分已修/未修;与 consolidated/round3 编号对齐,已修项(E1、B7、B9/V2、F1/F2、chat 批处理、图片缩略图、LRU 驱逐、bundle lazy 等)复核确认在位后不再列为问题。运行时实测经 `scripts/perf/renderer-bench/`(见上节),bundle 侧经 `perf:report --bundle-only`。

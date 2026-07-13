@@ -48,6 +48,14 @@ runtime works.
 Agents use the same command via the `perf-report` skill
 (`.pulse-coder/skills/perf-report/SKILL.md`).
 
+When the Electron binary cannot be downloaded at all (egress-blocked
+sandboxes), `scripts/perf/renderer-bench/run.mjs` is the fallback: it drives
+the built renderer in plain Playwright Chromium with a stubbed preload API and
+an 86-node iframe-heavy fixture (mount / idle / pan / zoom / drag, three
+variants). Renderer-only — webview guests and PTY are out of scope, and its
+numbers are diagnostic, never gated. Measured findings live in
+`../docs/performance-verification-large-canvas.md`.
+
 The individual steps below are exposed for debugging / partial runs.
 
 ## Bundle (no app launch needed)
