@@ -369,9 +369,9 @@ export function setupWebviewRegistryIpc(): void {
       const key = `${payload.workspaceId}::${payload.nodeId}`;
       if (payload.state === 'frozen' && wc) {
         // Last chance for a live capture: after freezing the renderer hides
-        // the element (required for the guest to report hidden — a visible
-        // page silently ignores SetPageFrozen) and paint stops. L3's
-        // discard placeholder consumes this.
+        // the element (frozen guests stop painting) and script execution is
+        // disabled, so later captures would come back blank. L3's discard
+        // placeholder consumes this.
         try {
           rememberFreezeSnapshot(key, toBoundedSnapshotDataUrl(await wc.capturePage()));
         } catch {

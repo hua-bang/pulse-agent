@@ -34,12 +34,17 @@ const makeWc = (overrides: Partial<{
 };
 
 describe('setWebviewLifecycle', () => {
-  it('freezes via debugger attach + Page.setWebLifecycleState and holds the pipe', async () => {
+  it('freezes via debugger attach + lifecycle freeze + script-disable and holds the pipe', async () => {
     const { wc, debuggerApi } = makeWc();
     const result = await setWebviewLifecycle(wc, 'frozen');
     expect(result).toEqual({ ok: true, state: 'frozen' });
     expect(debuggerApi.attach).toHaveBeenCalledWith('1.3');
-    expect(debuggerApi.sendCommand).toHaveBeenCalledWith('Page.setWebLifecycleState', { state: 'frozen' });
+    // Lifecycle freeze first (fires the page's `freeze` event while scripts
+    // still run), then the visibility-independent script-disable guarantee.
+    expect(debuggerApi.sendCommand.mock.calls).toEqual([
+      ['Page.setWebLifecycleState', { state: 'frozen' }],
+      ['Emulation.setScriptExecutionDisabled', { value: true }],
+    ]);
     // The pipe stays attached while frozen (released on resume).
     expect(debuggerApi.detach).not.toHaveBeenCalled();
   });
@@ -67,11 +72,15 @@ describe('setWebviewLifecycle', () => {
     expect(result.skipped).toBeUndefined();
   });
 
-  it('resume sends active and always releases the debugger pipe', async () => {
+  it('resume re-enables scripts, sends active, and always releases the debugger pipe', async () => {
     const { wc, debuggerApi } = makeWc({ attached: true });
     const result = await setWebviewLifecycle(wc, 'active');
     expect(result).toEqual({ ok: true, state: 'active' });
-    expect(debuggerApi.sendCommand).toHaveBeenCalledWith('Page.setWebLifecycleState', { state: 'active' });
+    // Scripts first so `resume` event handlers can execute on unfreeze.
+    expect(debuggerApi.sendCommand.mock.calls).toEqual([
+      ['Emulation.setScriptExecutionDisabled', { value: false }],
+      ['Page.setWebLifecycleState', { state: 'active' }],
+    ]);
     expect(debuggerApi.detach).toHaveBeenCalled();
   });
 

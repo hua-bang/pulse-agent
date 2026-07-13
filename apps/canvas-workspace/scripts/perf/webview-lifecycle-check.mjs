@@ -4,13 +4,18 @@
  * the Chromium renderer bench cannot perform because they hinge on guest
  * (<webview>) behavior:
  *
- *   1. element `visibility:hidden` propagates to the guest's
- *      document.visibilityState (the precondition for freezing: Chromium's
- *      SetPageFrozen silently ignores VISIBLE pages),
- *   2. `iframe:set-lifecycle 'frozen'` actually stops guest JS + network,
- *   3. resume is instantaneous with ZERO reload (same in-page load stamp),
- *   4. the L3 sweep discards a frozen guest over budget: sleeping
+ *   1. `iframe:set-lifecycle 'frozen'` actually stops guest JS + network,
+ *   2. resume is instantaneous with ZERO reload (same in-page load stamp),
+ *   3. the L3 sweep discards a frozen guest over budget: sleeping
  *      placeholder DOM appears and the <webview> element is gone.
+ *
+ * Two findings are recorded as INFO, not gated, because run #112 settled
+ * them empirically: element `visibility:hidden` does NOT flip the guest's
+ * document.visibilityState (guest visibility tracks the embedder window,
+ * not the element), which is why main's frozen path pairs the lifecycle
+ * freeze with Emulation.setScriptExecutionDisabled. The probe also counts
+ * Page Lifecycle freeze/resume events so the log shows WHICH layer
+ * silenced the guest (lifecycle freeze engaging vs script-disable alone).
  *
  * Two modes, two isolated sessions — a tiny budget would let the 30s sweep
  * discard the guest in the middle of the freeze/resume assertions:
@@ -35,9 +40,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const NODE_ID = 'webview-lifecycle-probe';
 const PROBE_WS_ID = 'lifecycle-probe-ws';
 /**
- * 'freeze' (default): steps 1-4 — visibility propagation, frozen silence,
- * zero-reload resume. Run WITHOUT a tiny memory budget so the L3 sweep
- * can't discard the guest mid-assertion.
+ * 'freeze' (default): frozen silence + zero-reload resume (plus the
+ * visibility/layer INFO findings). Run WITHOUT a tiny memory budget so the
+ * L3 sweep can't discard the guest mid-assertion.
  * 'discard': freeze then wait for the L3 sweep — requires a tiny
  * PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB exported before harness start.
  */
@@ -47,7 +52,12 @@ const pings = [];
 const probeServer = createServer((req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
   if (url.pathname === '/ping') {
-    pings.push({ at: Date.now(), vis: url.searchParams.get('vis'), t0: url.searchParams.get('t0') });
+    pings.push({
+      at: Date.now(),
+      vis: url.searchParams.get('vis'),
+      t0: url.searchParams.get('t0'),
+      froze: Number(url.searchParams.get('froze') ?? 0),
+    });
     res.setHeader('access-control-allow-origin', '*');
     res.end('pong');
     return;
@@ -55,8 +65,12 @@ const probeServer = createServer((req, res) => {
   res.setHeader('content-type', 'text/html');
   res.end(`<!doctype html><html><body><h1>lifecycle probe</h1><script>
     const t0 = String(Date.now());
+    let froze = 0;
+    // Counts Page Lifecycle freeze events: >0 after resume means the
+    // lifecycle freeze layer engaged (not just script-disable).
+    document.addEventListener('freeze', () => { froze++; });
     setInterval(() => {
-      fetch('/ping?vis=' + document.visibilityState + '&t0=' + t0).catch(() => {});
+      fetch('/ping?vis=' + document.visibilityState + '&t0=' + t0 + '&froze=' + froze).catch(() => {});
     }, 300);
   </script></body></html>`);
 });
@@ -83,6 +97,10 @@ const step = (name, pass, detail) => {
     console.log('\nVERDICT: FAIL');
     process.exit(1);
   }
+};
+/** Recorded finding, never a gate — for behavior that varies by platform. */
+const info = (name, detail) => {
+  console.log(`INFO  ${name} — ${detail}`);
 };
 
 const main = async () => {
@@ -175,22 +193,23 @@ const main = async () => {
     step('baseline pings flow', base >= 5, `${base} pings in 3s, visibility=${lastVis()}`);
     const t0 = lastT0();
 
-    // 2) Element hidden → guest visibilityState must flip to hidden.
+    // 2) Hide the element the way the product does before freezing. Run
+    //    #112 finding: guest visibilityState does NOT follow element CSS
+    //    (recorded as INFO); the hard assertion is only that hiding does
+    //    not kill the guest.
     await evaluate(cdp, `(() => {
       const wv = document.querySelector('.canvas-node--iframe webview');
       wv.parentElement.classList.add('iframe-frame-host--frozen');
       return true;
     })()`);
     await sleep(2500);
-    const hiddenVis = lastVis();
+    info('guest visibility after element hide', `visibility=${lastVis()} (Electron guests track the embedder window, not element CSS)`);
     const stillPinging = pingsSince(Date.now() - 2000).length > 0;
-    step(
-      'element hide propagates to guest visibility',
-      hiddenVis === 'hidden' && stillPinging,
-      `visibility=${hiddenVis} (need hidden), pings still flowing=${stillPinging} — the freeze precondition`,
-    );
+    step('guest survives element hide', stillPinging, `pings still flowing=${stillPinging}`);
 
-    // 3) Freeze → guest JS + network stop.
+    // 3) Freeze → guest JS + network stop. This is the ground truth for
+    //    L2 regardless of which layer (lifecycle freeze vs script-disable)
+    //    does the silencing.
     const frozen = await evaluate(cdp, `window.canvasWorkspace.iframe.setLifecycle(${JSON.stringify(wsId)}, ${JSON.stringify(NODE_ID)}, 'frozen')`);
     step('freeze accepted', !!frozen?.ok, JSON.stringify(frozen));
 
@@ -230,6 +249,10 @@ const main = async () => {
     }
     step('resume restarts the guest', resumedInMs >= 0, `first ping ${resumedInMs}ms after resume`);
     step('resume did NOT reload', lastT0() === t0, `load stamp ${lastT0() === t0 ? 'unchanged' : `changed ${t0} → ${lastT0()}`}`);
+    const frozeEvents = pings[pings.length - 1]?.froze ?? 0;
+    info('which freeze layer engaged', frozeEvents >= 1
+      ? `page received ${frozeEvents} lifecycle freeze event(s) — Page.setWebLifecycleState engages on guests`
+      : 'no lifecycle freeze event — silence came from Emulation.setScriptExecutionDisabled (lifecycle freeze no-ops while the guest reports visible)');
   });
 
   probeServer.close();
