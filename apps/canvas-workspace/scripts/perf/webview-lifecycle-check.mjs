@@ -80,17 +80,31 @@ const main = async () => {
   const session = await requireLiveSession();
 
   await withPage(session, async (cdp) => {
-    // Seed the url probe node and reload so the canvas mounts it.
+    // The canvas must be booted before we can seed through the store IPC.
+    for (let i = 0; i < 60; i++) {
+      const ready = await evaluate(cdp, `document.querySelectorAll('.canvas-node').length`).catch(() => 0);
+      if (ready >= 1) break;
+      await sleep(500);
+      if (i === 59) step('canvas boots', false, 'no .canvas-node within 30s of session start');
+    }
+
+    // Seed the url probe node at the CURRENT viewport center — the url
+    // webview's deferred mount (D1) only creates the guest when the node is
+    // near the viewport, and the welcome canvas restores a saved transform,
+    // so a fixed world coordinate can land offscreen and never mount.
     await evaluate(cdp, `(async () => {
       const store = window.canvasWorkspace.store;
       const list = await store.list();
       const wsId = list.ids[0];
       const loaded = await store.load(wsId);
       const data = loaded.data ?? {};
+      const t = data.transform ?? { x: 0, y: 0, scale: 1 };
+      const cx = (window.innerWidth / 2 - t.x) / t.scale;
+      const cy = (window.innerHeight / 2 - t.y) / t.scale;
       const nodes = (Array.isArray(data.nodes) ? data.nodes : []).filter((n) => n.id !== ${JSON.stringify(NODE_ID)});
       nodes.push({
         id: ${JSON.stringify(NODE_ID)}, type: 'iframe', title: 'lifecycle probe',
-        x: 120, y: 120, width: 480, height: 320, updatedAt: Date.now(),
+        x: Math.round(cx - 240), y: Math.round(cy - 160), width: 480, height: 320, updatedAt: Date.now(),
         data: { url: ${JSON.stringify(probeUrl)}, mode: 'url', prompt: '', html: '' },
       });
       await store.save(wsId, { ...data, nodes });
@@ -100,11 +114,35 @@ const main = async () => {
     const wsId = await evaluate(cdp, 'window.__probeWsId');
     await evaluate(cdp, 'location.reload()');
     await cdp.reconnect();
-    for (let i = 0; i < 60; i++) {
+    let lastPollError = null;
+    let mounted = false;
+    for (let i = 0; i < 80 && !mounted; i++) {
       await sleep(500);
-      const ready = await evaluate(cdp, `!!document.querySelector('.canvas-node--iframe webview')`).catch(() => false);
-      if (ready) break;
-      if (i === 59) step('probe webview mounts', false, 'no <webview> appeared in 30s');
+      mounted = await evaluate(cdp, `!!document.querySelector('.canvas-node--iframe webview')`)
+        .catch((err) => { lastPollError = err; return false; });
+    }
+    if (!mounted) {
+      // Surface enough state to diagnose from CI logs alone.
+      const diag = await evaluate(cdp, `(async () => {
+        const store = window.canvasWorkspace.store;
+        // __probeWsId does not survive the reload — fall back to the list.
+        const loaded = await store.load(window.__probeWsId ?? (await store.list()).ids[0]);
+        const nodes = loaded?.data?.nodes ?? [];
+        const probe = nodes.find((n) => n.id === ${JSON.stringify(NODE_ID)});
+        const el = [...document.querySelectorAll('.canvas-node--iframe')].map((n) => n.className).join(' | ');
+        return {
+          canvasNodes: document.querySelectorAll('.canvas-node').length,
+          iframeNodes: document.querySelectorAll('.canvas-node--iframe').length,
+          webviews: document.querySelectorAll('webview').length,
+          storedNodeIds: nodes.map((n) => n.id + ':' + n.type),
+          probeStored: probe ? { mode: probe.data?.mode, url: probe.data?.url } : null,
+          iframeClasses: el.slice(0, 400),
+          transform: document.querySelector('.canvas-transform')?.style.transform ?? null,
+        };
+      })()`).catch((err) => ({ diagError: String(err) }));
+      console.log('DIAG', JSON.stringify(diag));
+      if (lastPollError) console.log('DIAG lastPollError', String(lastPollError));
+      step('probe webview mounts', false, 'no <webview> appeared in 40s — see DIAG line');
     }
     // Registration completes asynchronously (did-attach IPC) — poll until
     // the lifecycle channel can address the guest.

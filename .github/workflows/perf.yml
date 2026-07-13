@@ -255,6 +255,14 @@ jobs:
         working-directory: apps/canvas-workspace
         run: node harness/tools/driver/cli.mjs close --cleanup || true
 
+      - name: Upload harness logs (diagnosis for lifecycle-check failures)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: large-canvas-harness-logs
+          path: apps/canvas-workspace/.harness/runs/
+          if-no-files-found: warn
+
   package-macos-arm64:
     if: needs.changes.outputs.packaging == 'true' || contains(github.event.pull_request.labels.*.name, 'performance')
     needs: changes
