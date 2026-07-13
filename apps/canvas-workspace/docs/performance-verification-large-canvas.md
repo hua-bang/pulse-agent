@@ -157,6 +157,23 @@
 3. scale 1 下同样的拖拽只有 2% 帧超——第一轮 run.mjs 里 91% 的拖拽帧超,经复核是场景顺序副作用(缩放场景结束后停在 0.1 全览 scale,拖拽实际在全览态测的),修正后两种状态分别为 2% / 55%,更能说明问题:**全览态才是重灾区**。
 4. 这与大画布的真实使用方式正面相撞:节点越多,用户越依赖缩小导航——最常用的姿势恰好是最坏的性能状态。修复方向 1/2 与"手势期静态化层"应优先针对**小 scale/全览态**生效(如 scale < 阈值时 iframe 一律切占位/快照,即"语义缩放")。
 
+### 第一刀优化与复测:全览语义缩放(2026-07-13)
+
+按上面的归因落的第一个修复:`CanvasSurface` 新增 `OVERVIEW_SCALE_THRESHOLD = 0.35`,settled scale 低于阈值时根节点挂 `canvas-transform--overview` 类(复用既有 `--small`@0.6 的机制,基于 settledScale——手势期冻结,每手势只翻转一次);`IframeNodeBody/index.css` 在该类下把 `.canvas-node--iframe .iframe-frame` 置 `display:none`(iframe 文档与 JS 状态保留,渲染层丢弃、rAF/CSS 动画暂停)并显示反向缩放的占位。url 型 `<webview>` 不受影响(隐藏 webview 有 guest 副作用,其成本已被 1fps 降帧兜底)。纯函数 `getCanvasTransformClassName` + 阈值常量有单测(`CanvasSurface.test.ts`)。
+
+同台架同场景复测(优化前 → 优化后):
+
+| 场景 | 优化前 | 优化后 |
+|---|---|---|
+| 缩放手势(穿越全览) | 39.9% 帧超;raster 2993ms / script 2793ms / Layerize 2363ms / layout 1489ms(8.2s 窗口) | **16% 帧超;raster 974ms / script 297ms / Layerize 704ms / layout 325ms(3.8s 窗口)** |
+| 全览态拖拽 | 55% 帧超;script 1985ms(FireAnimationFrame 1018ms)+ Layerize 2071ms | **22.9% 帧超;script 109ms(动画项从 top events 消失)+ Layerize 1749ms** |
+| 稳态 idle(scale 1) | 0.2% 帧超 | 0.2%(无回归) |
+| 拖拽(scale 1,live iframe 在屏) | 2% 帧超 | 2%(无回归) |
+
+行为验证(Chromium 截图 + DOM 断言):全览态 40 个 iframe 节点全部切为占位(可见 iframe 数 40→0),缩回正常 scale 后全部恢复(0→40,类名清除),srcdoc 状态经 `display:none` 保留不重载;10% 缩放下画布截图确认占位/Frame 标题/文本节点渲染正常。
+
+**残余瓶颈**:全览态拖拽仍有 22.9% 帧超,现在由 `Layerize`(1749ms)主导——86 个节点全部在视口时合成层树重建仍贵;下一杠杆是压全览态的层数(如对更多节点类型在 overview 下走 `content-visibility` / 扁平化节点 chrome),或全览态拖拽走截图层。缩放手势期(iframe 尚未隐藏、settledScale 未翻转前)的 raster 也仍有 ~1s,如需进一步压,可在手势中即时按目标 scale 预切换。
+
 ### 指标观测现状(能不能持续看到"为什么卡")
 
 已有的观测(全部是**实验室/opt-in**,默认零开销):

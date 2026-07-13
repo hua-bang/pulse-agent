@@ -52,6 +52,26 @@ export const getCanvasTransformTransition = (animating: boolean, moving: boolean
   return SETTLE_TRANSITION;
 };
 
+/**
+ * Below this settled scale, `.canvas-transform--overview` lets CSS swap live
+ * inline iframes for placeholders (IframeNodeBody/index.css): embeds are
+ * unreadable there, yet each still pays raster + a compositor layer, and at
+ * overview zoom every animated iframe is in-viewport so rAF/CSS animations
+ * all run (measured 40%/55% frames >20ms on a 40-iframe canvas —
+ * docs/performance-verification-large-canvas.md). settledScale is frozen
+ * during gestures, so the class flips once per gesture, not per wheel tick.
+ */
+export const OVERVIEW_SCALE_THRESHOLD = 0.35;
+
+export const getCanvasTransformClassName = (
+  moving: boolean,
+  animating: boolean,
+  settledScale: number,
+): string =>
+  `canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}` +
+  `${settledScale < 0.6 ? ' canvas-transform--small' : ''}` +
+  `${settledScale < OVERVIEW_SCALE_THRESHOLD ? ' canvas-transform--overview' : ''}`;
+
 interface NodeRenderGroup {
   containers: CanvasNode[];
   regular: CanvasNode[];
@@ -283,7 +303,7 @@ export const CanvasSurface = ({
   return (
     <div
       ref={transformLayerRef}
-      className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}${settledScale < 0.6 ? ' canvas-transform--small' : ''}`}
+      className={getCanvasTransformClassName(moving, animating, settledScale)}
       style={{
         transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
         '--canvas-scale': settledScale,

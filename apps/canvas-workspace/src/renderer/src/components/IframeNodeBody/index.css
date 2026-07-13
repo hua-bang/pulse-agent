@@ -542,3 +542,37 @@
   font-weight: 700;
   pointer-events: auto;
 }
+
+/* ── Overview semantic zoom ─────────────────────────────────────────────
+ * Below OVERVIEW_SCALE_THRESHOLD (CanvasSurface adds
+ * `.canvas-transform--overview` at settled scale < 0.35) inline embeds are
+ * unreadable but still cost raster + a compositor layer each, and — once the
+ * zoomed-out viewport contains them — their rAF/CSS animations all resume at
+ * once (measured 55% frames >20ms with 40 live iframes at overview scale;
+ * docs/performance-verification-large-canvas.md). `display: none` keeps the
+ * iframe document and its JS state alive but stops rendering: the layer is
+ * dropped and rAF/CSS animations pause. Scoped to `.iframe-frame` so
+ * url-mode `<webview>` guests are untouched (hiding a webview has
+ * guest-side effects; their cost is already bounded by the 1fps background
+ * throttle). Uses settled scale, so the swap happens once per gesture. */
+.canvas-transform--overview .canvas-node--iframe .iframe-frame {
+  display: none;
+}
+
+.canvas-transform--overview .canvas-node--iframe .iframe-frame-wrapper {
+  background: linear-gradient(135deg, var(--accent-light), var(--accent-soft));
+}
+
+/* Reverse-scaled glyph so the placeholder reads at any overview zoom,
+ * same clamp pattern as the floating node-header actions above. */
+.canvas-transform--overview .canvas-node--iframe .iframe-frame-wrapper::after {
+  content: '🌐';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(20px / clamp(0.06, var(--canvas-scale, 1), 0.35));
+  opacity: 0.5;
+  pointer-events: none;
+}
