@@ -140,6 +140,36 @@
 
 **优先级修订(对照上文"方向映射"):** 实测支持方向 1(非 url iframe 懒挂载/占位)与 2(webview 休眠)继续居首,但落点更准——懒挂载的主要收益在**挂载阻塞**与**缩放/拖拽时的 live-iframe 栅格**,而非离屏稳态 CPU;方向 6 中"离屏动画启停(K-3)"在同进程 iframe 上已被 Chromium 兜住,可降级;新增一个短平快候选:**缩放/拖拽手势期给 live iframe 盖静态化层**(手势中暂停 iframe 合成或快照占位,手势结束恢复),直接砍掉 42%/91% 帧超的大头。
 
+### 卡顿归因(Chrome trace 分解,`trace.mjs`)
+
+对 full 变体的三个状态各抓一段 trace(线程×事件桶分解;缩放前校验 transform 真实变化——wheel 落在节点/iframe 上会被吃掉,同 plan A4 的坑):
+
+| 状态 | 帧超 | 主要成本(窗口内累计) |
+|---|---|---|
+| 稳态 idle(scale 1,动画均离屏) | 0.2% | script 168ms/10s——干净 |
+| 拖 iframe 节点(scale 1,1 个 live iframe 在屏) | **2%** | script 260ms + raster 246ms/1.8s——可接受 |
+| 缩放手势(1 → min 0.1,穿越全览) | **39.9%** | **raster 2993ms + script 2793ms + Layerize 2363ms** + layout 1489ms + paint 962ms / 8.2s |
+| 全览 scale(0.1,40 iframe 全部同屏)下拖拽 | **55%** | **script 1985ms(FireAnimationFrame 1018ms)+ Layerize 2071ms** / 4.9s |
+
+**结论:卡顿 ≈ f(视口内 live iframe 数 × scale 变化)。**
+1. 缩放穿越小 scale 时,40 个 live iframe 同时进入视口且随 scale 逐帧重栅格(raster 桶最大),40 个合成层导致 `Layerize`(层树重建)本身就有 2.3s;
+2. 一旦停在全览 scale,Chromium 的离屏节流全部失效——15 个动画 iframe 的 rAF 同时复活(`FireAnimationFrame` 1018ms),此时**任何**交互都是 55% 帧超;
+3. scale 1 下同样的拖拽只有 2% 帧超——第一轮 run.mjs 里 91% 的拖拽帧超,经复核是场景顺序副作用(缩放场景结束后停在 0.1 全览 scale,拖拽实际在全览态测的),修正后两种状态分别为 2% / 55%,更能说明问题:**全览态才是重灾区**。
+4. 这与大画布的真实使用方式正面相撞:节点越多,用户越依赖缩小导航——最常用的姿势恰好是最坏的性能状态。修复方向 1/2 与"手势期静态化层"应优先针对**小 scale/全览态**生效(如 scale < 阈值时 iframe 一律切占位/快照,即"语义缩放")。
+
+### 指标观测现状(能不能持续看到"为什么卡")
+
+已有的观测(全部是**实验室/opt-in**,默认零开销):
+- `window.__pulsePerf`(常驻安装、被动):场景窗口内的 INP、LoAF、longtask、帧分布、JS 堆、领域计数器(`perf/monitor.ts`);
+- 确定性计数器 `nodes-array-replace`/`canvas-save-ipc` 等(`perf/counters.ts`,默认关闭);
+- main 进程 loop-delay 采样器 + 保存 IO 计数(`PULSE_CANVAS_PERF=1` 门控);
+- `perf:report` 全链路:场景采集 + baselines 棘轮门禁 + history 趋势 + CI(perf.yml)+ warm-reload CDP trace。
+
+缺口(本次实测直接暴露的):
+1. **没有任何指标记录"负载状态"维度**——当前 scale、视口内 live iframe/webview 数、动画中的 guest 数。本次证明这是卡顿第一因子,但现有指标体系对它不可见;
+2. **无生产/日常会话的常驻卡顿观测**——LoAF/longtask 只在 harness begin/end 窗口内采集,真实用户卡了没有任何记录;建议加一个常驻低开销 LoAF 采样(仅 blockingDuration>50ms 时记一条,并附 {scale, visibleIframes, mountedWebviews} 标签),本地环形缓冲即可,不必上报;
+3. **门禁场景缺 iframe 重负载 + 全览态**——基线钉在 100 节点/0 webview/scale 1;应补 `--seed-webpages 40` + zoom-out-to-fit 场景,把本次发现锁进棘轮。
+
 ## 核查方法
 
 三个并行只读核查(iframe/webview 生命周期、交互渲染管线、终端输出/归档/基准设施),每条结论要求 file:line 证据并区分已修/未修;与 consolidated/round3 编号对齐,已修项(E1、B7、B9/V2、F1/F2、chat 批处理、图片缩略图、LRU 驱逐、bundle lazy 等)复核确认在位后不再列为问题。运行时实测经 `scripts/perf/renderer-bench/`(见上节),bundle 侧经 `perf:report --bundle-only`。
