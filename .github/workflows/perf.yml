@@ -236,14 +236,22 @@ jobs:
             apps/canvas-workspace/perf/out/report.json
           if-no-files-found: warn
 
-      # Guest-behavior checks: element-hide → guest hidden (the freeze
-      # precondition), frozen guest silent, zero-reload resume, L3 discard
-      # under a 1MB budget. Env must be exported before harness start so
-      # main's discard monitor sees it.
-      - name: Webview lifecycle behavior check (freeze/discard)
+      # Guest-behavior checks in two ISOLATED sessions: freeze/resume runs
+      # without a budget override (a tiny budget would let the 30s sweep
+      # discard the guest mid-assertion); the discard leg gets its own
+      # session with a 1MB budget exported before harness start so main's
+      # sweep sees it.
+      - name: Webview lifecycle behavior check — freeze/resume
+        working-directory: apps/canvas-workspace
+        run: |
+          node harness/tools/driver/cli.mjs start --profile temp --headless
+          node scripts/perf/webview-lifecycle-check.mjs
+          node harness/tools/driver/cli.mjs close --cleanup
+
+      - name: Webview lifecycle behavior check — L3 discard
         env:
           PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB: 1
-          WEBVIEW_CHECK_DISCARD: '1'
+          WEBVIEW_CHECK_MODE: discard
         working-directory: apps/canvas-workspace
         run: |
           node harness/tools/driver/cli.mjs start --profile temp --headless

@@ -9,16 +9,18 @@
  *      SetPageFrozen silently ignores VISIBLE pages),
  *   2. `iframe:set-lifecycle 'frozen'` actually stops guest JS + network,
  *   3. resume is instantaneous with ZERO reload (same in-page load stamp),
- *   4. (opt-in, WEBVIEW_CHECK_DISCARD=1 + a tiny
- *      PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB exported before harness start)
- *      the L3 sweep discards the frozen guest: sleeping placeholder DOM
- *      appears and the <webview> element is gone.
+ *   4. the L3 sweep discards a frozen guest over budget: sleeping
+ *      placeholder DOM appears and the <webview> element is gone.
  *
- * Prereq — a live harness session launched with the same env:
- *   pnpm --filter canvas-workspace build
+ * Two modes, two isolated sessions — a tiny budget would let the 30s sweep
+ * discard the guest in the middle of the freeze/resume assertions:
+ *   # freeze mode (steps 1-3), NO budget override:
+ *   node harness/tools/driver/cli.mjs start --profile temp --headless
+ *   node scripts/perf/webview-lifecycle-check.mjs
+ *   # discard mode (step 4), tiny budget exported before harness start:
  *   PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB=1 \
  *     node harness/tools/driver/cli.mjs start --profile temp --headless
- *   WEBVIEW_CHECK_DISCARD=1 node scripts/perf/webview-lifecycle-check.mjs
+ *   WEBVIEW_CHECK_MODE=discard node scripts/perf/webview-lifecycle-check.mjs
  *
  * The probe: a url iframe node pointing at a local HTTP page that pings this
  * script's server every 300ms with its document.visibilityState and its
@@ -31,6 +33,15 @@ import { withPage } from '../../harness/tools/driver/src/cdp.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const NODE_ID = 'webview-lifecycle-probe';
+const PROBE_WS_ID = 'lifecycle-probe-ws';
+/**
+ * 'freeze' (default): steps 1-4 — visibility propagation, frozen silence,
+ * zero-reload resume. Run WITHOUT a tiny memory budget so the L3 sweep
+ * can't discard the guest mid-assertion.
+ * 'discard': freeze then wait for the L3 sweep — requires a tiny
+ * PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB exported before harness start.
+ */
+const MODE = process.env.WEBVIEW_CHECK_MODE === 'discard' ? 'discard' : 'freeze';
 
 const pings = [];
 const probeServer = createServer((req, res) => {
@@ -88,30 +99,33 @@ const main = async () => {
       if (i === 59) step('canvas boots', false, 'no .canvas-node within 30s of session start');
     }
 
-    // Seed the url probe node at the CURRENT viewport center — the url
-    // webview's deferred mount (D1) only creates the guest when the node is
-    // near the viewport, and the welcome canvas restores a saved transform,
-    // so a fixed world coordinate can land offscreen and never mount.
+    // Seed a DEDICATED probe workspace and switch the manifest's activeId
+    // to it. Writing into the welcome canvas is a lost race: the app's own
+    // debounced save (triggered by its boot-time fit) rewrites the canvas
+    // from an in-memory copy that predates our IPC write and clobbers the
+    // probe (observed on CI: probeStored=null after reload). A workspace
+    // the renderer never loaded has no in-memory copy to clobber with —
+    // the same pattern the perf plan's B3 verification used. We also own
+    // its transform, so the probe sits dead-center at scale 1.
     await evaluate(cdp, `(async () => {
       const store = window.canvasWorkspace.store;
-      const list = await store.list();
-      const wsId = list.ids[0];
-      const loaded = await store.load(wsId);
-      const data = loaded.data ?? {};
-      const t = data.transform ?? { x: 0, y: 0, scale: 1 };
-      const cx = (window.innerWidth / 2 - t.x) / t.scale;
-      const cy = (window.innerHeight / 2 - t.y) / t.scale;
-      const nodes = (Array.isArray(data.nodes) ? data.nodes : []).filter((n) => n.id !== ${JSON.stringify(NODE_ID)});
-      nodes.push({
-        id: ${JSON.stringify(NODE_ID)}, type: 'iframe', title: 'lifecycle probe',
-        x: Math.round(cx - 240), y: Math.round(cy - 160), width: 480, height: 320, updatedAt: Date.now(),
-        data: { url: ${JSON.stringify(probeUrl)}, mode: 'url', prompt: '', html: '' },
+      await store.save(${JSON.stringify(PROBE_WS_ID)}, {
+        nodes: [{
+          id: ${JSON.stringify(NODE_ID)}, type: 'iframe', title: 'lifecycle probe',
+          x: 220, y: 140, width: 480, height: 320, updatedAt: Date.now(),
+          data: { url: ${JSON.stringify(probeUrl)}, mode: 'url', prompt: '', html: '' },
+        }],
+        edges: [],
+        transform: { x: 0, y: 0, scale: 1 },
       });
-      await store.save(wsId, { ...data, nodes });
-      window.__probeWsId = wsId;
-      return wsId;
+      const manifest = await store.load('__workspaces__');
+      const m = manifest.ok && manifest.data ? manifest.data : { workspaces: [], folders: [] };
+      const workspaces = (m.workspaces ?? []).filter((w) => w.id !== ${JSON.stringify(PROBE_WS_ID)});
+      workspaces.push({ id: ${JSON.stringify(PROBE_WS_ID)}, name: 'Lifecycle Probe' });
+      await store.save('__workspaces__', { ...m, workspaces, activeId: ${JSON.stringify(PROBE_WS_ID)} });
+      return true;
     })()`);
-    const wsId = await evaluate(cdp, 'window.__probeWsId');
+    const wsId = PROBE_WS_ID;
     await evaluate(cdp, 'location.reload()');
     await cdp.reconnect();
     let lastPollError = null;
@@ -126,7 +140,7 @@ const main = async () => {
       const diag = await evaluate(cdp, `(async () => {
         const store = window.canvasWorkspace.store;
         // __probeWsId does not survive the reload — fall back to the list.
-        const loaded = await store.load(window.__probeWsId ?? (await store.list()).ids[0]);
+        const loaded = await store.load(${JSON.stringify(PROBE_WS_ID)});
         const nodes = loaded?.data?.nodes ?? [];
         const probe = nodes.find((n) => n.id === ${JSON.stringify(NODE_ID)});
         const el = [...document.querySelectorAll('.canvas-node--iframe')].map((n) => n.className).join(' | ');
@@ -179,6 +193,23 @@ const main = async () => {
     // 3) Freeze → guest JS + network stop.
     const frozen = await evaluate(cdp, `window.canvasWorkspace.iframe.setLifecycle(${JSON.stringify(wsId)}, ${JSON.stringify(NODE_ID)}, 'frozen')`);
     step('freeze accepted', !!frozen?.ok, JSON.stringify(frozen));
+
+    if (MODE === 'discard') {
+      // The sweep (every 30s) discards the now-frozen, over-budget guest.
+      let discarded = false;
+      for (let i = 0; i < 120 && !discarded; i++) {
+        await sleep(500);
+        discarded = await evaluate(cdp, `!!document.querySelector('.iframe-discarded')`);
+      }
+      const webviewGone = await evaluate(cdp, `!document.querySelector('.canvas-node--iframe webview')`);
+      const tAfter = Date.now();
+      await sleep(2000);
+      const silentAfter = pingsSince(tAfter).length === 0;
+      step('L3 discards the over-budget frozen guest', discarded && webviewGone && silentAfter,
+        `placeholder=${discarded}, webview element removed=${webviewGone}, guest silent=${silentAfter} (sweep 30s, waited ≤60s)`);
+      return;
+    }
+
     await sleep(1000); // in-flight grace
     const tFrozen = Date.now();
     await sleep(5000);
@@ -199,30 +230,10 @@ const main = async () => {
     }
     step('resume restarts the guest', resumedInMs >= 0, `first ping ${resumedInMs}ms after resume`);
     step('resume did NOT reload', lastT0() === t0, `load stamp ${lastT0() === t0 ? 'unchanged' : `changed ${t0} → ${lastT0()}`}`);
-
-    // 5) Optional L3 discard leg (needs the tiny budget exported before
-    //    harness start so main's sweep sees it).
-    if (process.env.WEBVIEW_CHECK_DISCARD === '1') {
-      await evaluate(cdp, `(() => {
-        const wv = document.querySelector('.canvas-node--iframe webview');
-        wv.parentElement.classList.add('iframe-frame-host--frozen');
-        return window.canvasWorkspace.iframe.setLifecycle(${JSON.stringify(wsId)}, ${JSON.stringify(NODE_ID)}, 'frozen');
-      })()`);
-      let discarded = false;
-      for (let i = 0; i < 100 && !discarded; i++) {
-        await sleep(500);
-        discarded = await evaluate(cdp, `!!document.querySelector('.iframe-discarded')`);
-      }
-      const webviewGone = await evaluate(cdp, `!document.querySelector('.canvas-node--iframe webview')`);
-      step('L3 discards the over-budget frozen guest', discarded && webviewGone,
-        `placeholder=${discarded}, webview element removed=${webviewGone} (sweep interval 30s, waited ≤50s)`);
-    } else {
-      console.log('SKIP  L3 discard leg (set WEBVIEW_CHECK_DISCARD=1 and export a tiny PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB before harness start)');
-    }
   });
 
   probeServer.close();
-  console.log(`\nVERDICT: PASS — ${steps.length} steps green`);
+  console.log(`\nVERDICT: PASS (${MODE} mode) — ${steps.length} steps green`);
 };
 
 main().catch((err) => {
