@@ -41,6 +41,20 @@ export interface IframeApi {
     skipped?: 'destroyed' | 'audible' | 'devtools';
     error?: string;
   }>;
+  /**
+   * Fired by main's L3 discard monitor (Memory Saver style) when total
+   * guest memory exceeds budget and this node's long-frozen webview was
+   * chosen for discard. The renderer unmounts the `<webview>` (killing the
+   * guest process) and shows the snapshot as a sleeping placeholder;
+   * dwelling in the viewport or clicking wakes and reloads the page.
+   */
+  onDiscarded: (
+    callback: (payload: {
+      workspaceId: string;
+      nodeId: string;
+      snapshotDataUrl?: string;
+    }) => void,
+  ) => () => void;
   pickDomElement: (
     workspaceId: string,
     nodeId: string,

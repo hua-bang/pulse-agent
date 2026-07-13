@@ -66,6 +66,36 @@ export function getWebContentsForNode(
   return wc;
 }
 
+/**
+ * Enumerate every registered, still-live webview with its node identity —
+ * the L3 discard monitor walks this to price guest processes against the
+ * memory budget. Entries whose webContents died without unregistering are
+ * skipped.
+ */
+export function listRegisteredWebviews(): Array<{
+  workspaceId: string;
+  nodeId: string;
+  wc: NonNullable<ReturnType<typeof allWebContents.fromId>>;
+}> {
+  const out: Array<{
+    workspaceId: string;
+    nodeId: string;
+    wc: NonNullable<ReturnType<typeof allWebContents.fromId>>;
+  }> = [];
+  for (const [key, webContentsId] of registry) {
+    const separator = key.indexOf('::');
+    if (separator < 0) continue;
+    const wc = allWebContents.fromId(webContentsId);
+    if (!wc || wc.isDestroyed()) continue;
+    out.push({
+      workspaceId: key.slice(0, separator),
+      nodeId: key.slice(separator + 2),
+      wc,
+    });
+  }
+  return out;
+}
+
 const EXTRACT_TIMEOUT_MS = 8_000;
 const EXTRACT_MAX_CHARS = 200_000;
 export async function pickDomElementForNode(

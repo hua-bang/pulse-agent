@@ -15,6 +15,7 @@ interface IframeRenderedViewProps {
   canGoBack: boolean;
   canGoForward: boolean;
   commit: () => void;
+  discardSnapshot: string | null;
   draftUrl: string;
   frameHostRef: RefObject<HTMLDivElement>;
   generating: boolean;
@@ -41,10 +42,12 @@ interface IframeRenderedViewProps {
   savedPrompt: string;
   setDraftUrl: (value: string) => void;
   setEditing: (editing: boolean) => void;
+  onWakeWebview: () => void;
   renderIframeRef: RefObject<HTMLIFrameElement>;
   shouldMountInlineFrame: boolean;
   streamIframeRef: RefObject<HTMLIFrameElement>;
   streamingActive: boolean;
+  webviewDiscarded: boolean;
   url: string;
   webviewHostRef: RefObject<HTMLDivElement>;
   webviewKey: number;
@@ -59,6 +62,7 @@ export const IframeRenderedView = ({
   canGoBack,
   canGoForward,
   commit,
+  discardSnapshot,
   draftUrl,
   frameHostRef,
   generating,
@@ -85,10 +89,12 @@ export const IframeRenderedView = ({
   savedPrompt,
   setDraftUrl,
   setEditing,
+  onWakeWebview,
   renderIframeRef,
   shouldMountInlineFrame,
   streamIframeRef,
   streamingActive,
+  webviewDiscarded,
   url,
   webviewHostRef,
   webviewKey,
@@ -215,6 +221,25 @@ export const IframeRenderedView = ({
               key={webviewKey}
               className="iframe-frame-host"
             />
+            {webviewDiscarded && (
+              // L3 discard placeholder (Memory Saver style): the guest
+              // process was reclaimed for memory; the last-frame snapshot
+              // (or a plain card when capture failed) stands in. Click or
+              // linger in the viewport to wake — the page reloads.
+              <div
+                className="iframe-discarded"
+                role="button"
+                tabIndex={0}
+                title="Sleeping to save memory — click to wake"
+                onClick={onWakeWebview}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onWakeWebview(); }}
+              >
+                {discardSnapshot ? (
+                  <img className="iframe-discarded-snapshot" src={discardSnapshot} alt="" />
+                ) : null}
+                <div className="iframe-discarded-chip">Sleeping — click to wake</div>
+              </div>
+            )}
             {loadState === 'failed' && (
               <div className="iframe-load-error">
                 <div className="iframe-load-error-card">

@@ -32,6 +32,7 @@ import { setupCanvasPluginsConfigIpc } from "../settings/canvas-plugins-ipc";
 import { getExperimentalFlagSync, setupExperimentalIpc } from "../settings/experimental-ipc";
 import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from "../../shared/experimental-features";
 import { setupWebviewRegistryIpc } from "../webview/registry";
+import { startWebviewDiscardMonitor } from "../webview/discard-monitor";
 import { setupHtmlGeneratorIpc } from "../generation/ipc";
 import { setupArtifactIpc } from "../artifacts/ipc";
 import { setupShellIpc } from "./shell-ipc";
@@ -141,6 +142,10 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupCanvasPromptIpc();
     setupExperimentalIpc();
     setupWebviewRegistryIpc();
+    // L3 of the webview lifecycle: budget-driven discard of long-frozen
+    // guests (Memory Saver style — see main/webview/discard-monitor.ts).
+    // App-lifetime service; the interval dies with the process.
+    startWebviewDiscardMonitor();
     setupHtmlGeneratorIpc();
     setupArtifactIpc();
     setupShellIpc();

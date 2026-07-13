@@ -53,6 +53,7 @@ export const setWebviewLifecycle = async (
     try {
       if (!wc.debugger.isAttached()) wc.debugger.attach('1.3');
       await wc.debugger.sendCommand('Page.setWebLifecycleState', { state: 'frozen' });
+      frozenSince.set(wc, Date.now());
       return { ok: true, state: 'frozen' };
     } catch (err) {
       // attach() throws when another debugger (DevTools) already owns the
@@ -62,6 +63,7 @@ export const setWebviewLifecycle = async (
   }
 
   // state === 'active'
+  frozenSince.delete(wc);
   if (!wc.debugger.isAttached()) {
     // Never frozen, or the debugger was detached externally (which itself
     // unfreezes the page) — nothing to do.
@@ -81,3 +83,14 @@ export const setWebviewLifecycle = async (
     }
   }
 };
+
+/**
+ * When each webContents entered the frozen state — the L3 discard monitor
+ * uses this both as the candidate filter (only frozen pages are ever
+ * discarded) and as the LRU ordering (oldest frozen goes first). WeakMap so
+ * destroyed guests never linger.
+ */
+const frozenSince = new WeakMap<FreezableWebContents, number>();
+
+export const getFrozenSince = (wc: FreezableWebContents): number | undefined =>
+  frozenSince.get(wc);

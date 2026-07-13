@@ -8,6 +8,7 @@ import {
 import type { IframeNodeData } from '../../types';
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { useDeferredVisibleMount } from './useDeferredVisibleMount';
+import { useWebviewDiscard } from './useWebviewDiscard';
 import type { EditMode, IframeNodeBodyProps } from './types';
 import {
   BLANK_PAGE_URL,
@@ -67,6 +68,20 @@ export const useIframeNodeState = ({
   const webviewHostRef = useRef<HTMLDivElement>(null);
   const shouldMountWebview = useDeferredVisibleMount(webviewHostRef);
 
+  // L3 discard (Memory Saver style): main tells us when this node's frozen
+  // guest was reclaimed for memory; `!discarded` gates the webview mount
+  // below, and dwell/click wakes it (useWebviewDiscard).
+  const {
+    discarded: webviewDiscarded,
+    snapshot: discardSnapshot,
+    wake: wakeWebview,
+  } = useWebviewDiscard({
+    workspaceId,
+    nodeId: node.id,
+    enabled: mode === 'url',
+    hostRef: webviewHostRef,
+  });
+
   // Same deferred-mount gate for inline (html/srcdoc/artifact) iframes: on an
   // iframe-heavy canvas, creating every off-screen subdocument at mount time
   // doubled the 86-node mount's long-task blocking (measured 140ms → 290ms;
@@ -102,7 +117,7 @@ export const useIframeNodeState = ({
 
   const browser = useEmbeddedBrowser({
     className: 'iframe-frame',
-    enabled: mode === 'url' && shouldMountWebview,
+    enabled: mode === 'url' && shouldMountWebview && !webviewDiscarded,
     hostRef: webviewHostRef,
     mountKey: webviewKey,
     onFaviconChange: handleBrowserFaviconChange,
@@ -206,7 +221,7 @@ export const useIframeNodeState = ({
     hostRef: browser.hostRef,
     workspaceId,
     nodeId: node.id,
-    disabled: editing || mode !== 'url',
+    disabled: editing || mode !== 'url' || webviewDiscarded,
   });
 
   const flushToIframe = useCallback(() => {
@@ -439,8 +454,11 @@ export const useIframeNodeState = ({
     setDraftPrompt,
     setDraftUrl,
     setEditing,
+    discardSnapshot,
     frameHostRef,
     shouldMountInlineFrame,
+    wakeWebview,
+    webviewDiscarded,
     streamIframeRef,
     streamingActive,
     textareaRef,

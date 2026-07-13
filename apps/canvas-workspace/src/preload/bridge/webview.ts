@@ -21,6 +21,9 @@ export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
   setLifecycle: (workspaceId, nodeId, state) =>
     ipcRenderer.invoke("iframe:set-lifecycle", { workspaceId, nodeId, state }),
 
+  onDiscarded: (callback) =>
+    subscribe(ipcRenderer, "iframe:discarded", callback),
+
   pickDomElement: (workspaceId, nodeId) =>
     ipcRenderer.invoke("iframe:pick-dom-element", { workspaceId, nodeId }),
 
