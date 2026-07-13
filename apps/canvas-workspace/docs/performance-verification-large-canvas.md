@@ -204,10 +204,16 @@
 - **L2 冻结**:离屏 5 分钟后经 CDP `Page.setWebLifecycleState('frozen')` 挂起页面任务队列(JS/定时器/网络全停、内存保留、**唤醒零重载**,页面收到标准 `freeze`/`resume` 事件),豁免与 Chrome 一致(audible / DevTools 打开不冻,被拒后 60s 重试);回视口先 resume 再恢复帧率,debugger 管道仅冻结期间持有。实现:`main/webview/lifecycle.ts`(控制器,7 个单测)+ `iframe:set-lifecycle` IPC + `useWebviewBackgroundThrottle` 冻结档。
 - **L3 丢弃(Memory Saver 式)**:主进程每 30s 用 `app.getAppMetrics()` 汇总 guest RSS,超预算(默认 1.5GB,`PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB` 可调)时**只从已冻结页面里**按最久冻结优先选取(纯策略 `discard-policy.ts`,4 个单测:活跃页永不丢、达预算即停),`capturePage` 抓末帧截图(限宽 800px,失败回退卡片)→ 广播 `iframe:discarded` → 渲染端卸载 `<webview>`(guest 进程释放)显示"休眠中"占位;**驻留视口 2s 或点击唤醒**(重建重载,同 Memory Saver 的 activate-to-restore 契约;dwell 门槛防平移扫过触发重载风暴)。实现:`main/webview/discard-monitor.ts` + `useWebviewDiscard.ts` + 占位 UI。
 - **沙箱内已验证**(Chromium CDP 探针 + 台架真实组件,2026-07-13):
-  1. **关键发现:`Page.setWebLifecycleState('frozen')` 对可见页面静默空转**(命令成功返回但 JS/网络照跑)——Chromium 的 `SetPageFrozen` 要求 WebContents 处于 hidden。据此硬化实现:冻结成功后渲染端给 webview 元素加 `visibility:hidden`(`iframe-frame-host--frozen`,离屏节点视觉无变化,guest 转 hidden 使冻结真正生效);恢复时先取消隐藏(可见即自动解冻)再发 active 兜底;**截图前移到冻结瞬间**(冻结+隐藏后 paint 停止,丢弃时抓图会空白),存 `freezeSnapshots`,L3 优先消费。
+  1. Chromium **顶层页面**探针:`Page.setWebLifecycleState('frozen')` 对可见页面静默空转(命令成功返回但 JS/网络照跑)——`SetPageFrozen` 要求 WebContents 处于 hidden。**截图前移到冻结瞬间**(冻结+隐藏后 paint 停止,丢弃时抓图会空白),存 `freezeSnapshots`,L3 优先消费。
   2. 恢复路径零重载(`loadedAt` 不变)、命令幂等无副作用——CDP 探针确认。
   3. **L3 渲染端全流程真实组件验证 PASS**:`iframe:discarded` → 截图占位出现 + webview 卸载;视口驻留 2s → 自动唤醒、webview 重建,零报错。
-- **仍需真机验证**(Electron 专属行为):webview 元素 `visibility:hidden` 是否使 guest WebContents 转 hidden(冻结生效的前提,若不生效需改用其它隐藏手段);冻结后 guest CPU 归零;WebSocket 断线重连;DevTools 豁免;真实内存预算下的丢弃观感。
+- **真机(CI 真实 Electron)已验证**(perf.yml `large-canvas` job 里的 `scripts/perf/webview-lifecycle-check.mjs`,双隔离会话,run #114 全绿,2026-07-13):
+  - **冻结/恢复腿(7 步)**:guest 注册可寻址 → 基线 ping 流动(300ms 心跳)→ 冻结后 **5s 内 0 ping(JS+网络全停)** → resume 后 **251ms 首个 ping 恢复** → **页面载入戳不变(零重载)**。
+  - **L3 丢弃腿(1MB 预算)**:冻结后 30s sweep 内丢弃成立——休眠占位出现、`<webview>` 元素移除、guest 静默。
+  - **Electron 专属发现 ①(run #112,修正沙箱结论的外推)**:webview 元素 `visibility:hidden` **不会**使 guest `document.visibilityState` 转 hidden——guest 的文档可见性跟随宿主窗口而非元素 CSS。"隐藏元素使冻结生效"的前提在 Electron guest 上不存在,据此把冻结改为**双层机制**(`main/webview/lifecycle.ts`):`Page.setWebLifecycleState('frozen')` + `Emulation.setScriptExecutionDisabled(true)`(同一根 debugger 管道;脚本禁用与可见性无关,禁用期定时器/handler 跳过执行、恢复后继续,DOM/JS 状态零丢失)。元素隐藏保留,角色降级为"冻结页同时停止合成/绘制"。
+  - **Electron 专属发现 ②(run #114 探针 freeze 事件计数)**:尽管 guest 自报 visible,`Page.setWebLifecycleState('frozen')` 在 guest 上**实际生效**——探针页收到 1 次标准 `freeze` 生命周期事件(guest WebContents 的浏览器侧可见性与文档自报状态不一致)。含义:页面能收到标准 freeze/resume 事件(WebSocket 按 Chrome 后台标签语义断开/重连),脚本禁用层是保险而非唯一机制。
+  - **Electron 专属发现 ③(run #113,检查暴露的新 bug,已修)**:对已隐藏 guest 的 `capturePage` **永不 resolve**(无帧可拷贝)——曾把整个冻结 IPC 挂死 15s+;丢弃 sweep 的实时抓图回退有同样隐患(触发即把 `sweeping` 重入闩永久锁死)。修复:`main/webview/snapshot.ts` 统一 2s 超时有界抓图,超时/失败回退卡片占位,带"永不 settle 的 capture"回归单测。
+- **仍需真机人工验证**(CI 无法覆盖的观感/环境项):真实外部 SPA 的 WebSocket 重连表现;冻结后 guest CPU 归零的 `app.getAppMetrics()` 数值;真实 1.5GB 预算下的丢弃节奏与唤醒观感;DevTools 豁免的交互路径。
 
 ### 优化前后对比(中位数 × 3)
 
@@ -221,9 +227,9 @@
 | **缩小到全览手势** | **94.7% 帧超,手势拖长到 10.4s,长任务 7.1s** | **34.1%,3.8s** | **帧超 -64%,手势快 2.7 倍** |
 | **全览态拖拽** | **95.1% 帧超,长任务 2.6s,帧 p95 117-150ms** | **44.6%,长任务 ~0.2s,帧 p95 50ms** | **帧超 -53%,长任务 -93%,无大卡段** |
 | 全览态可见 live iframe | 40 | 0(全部占位) | 语义缩放生效 |
-| url webview 后台行为 | 1fps 降帧,JS/网络永远全速,进程只增不减 | 5min 冻结(CPU/网络归零,零重载唤醒)+ 超预算 LRU 丢弃(进程/内存回收) | 台架不可测,**待真机验证** |
+| url webview 后台行为 | 1fps 降帧,JS/网络永远全速,进程只增不减 | 5min 冻结(JS/网络归零,251ms 零重载唤醒)+ 超预算 LRU 丢弃(进程/内存回收,占位+唤醒) | **CI 真实 Electron 双腿验证通过**(run #114) |
 
-**残余与后续**:全览拖拽仍有 ~45% 帧超,但已无长任务(p95 50ms 的连续小慢帧,Layerize/paint 常数项)——真机 GPU 合成下预期显著更低,进一步压缩需全览态降层数/截图层,留待真机 profiling 定优先级;`--seed-webpages>0` 门禁档位与规模曲线(D6)待真机建基线;webview 休眠待决策。
+**残余与后续**:全览拖拽仍有 ~45% 帧超,但已无长任务(p95 50ms 的连续小慢帧,Layerize/paint 常数项)——真机 GPU 合成下预期显著更低,进一步压缩需全览态降层数/截图层,留待真机 profiling 定优先级;`--seed-webpages>0` 档位已以 CI `large-canvas` job 落地(90 节点/40 网页 perf:report + webview 生命周期行为检查,`performance` label 或手动 dispatch 触发,run #114 全绿),规模曲线(D6)与计时基线仍待真机;webview 休眠(L2 冻结 + L3 丢弃)已实现并经 CI 真实 Electron 行为验证,余下为观感/环境项(见上节清单)。
 
 ## 核查方法
 
