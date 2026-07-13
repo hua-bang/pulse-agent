@@ -193,10 +193,13 @@ const main = async () => {
     step('baseline pings flow', base >= 5, `${base} pings in 3s, visibility=${lastVis()}`);
     const t0 = lastT0();
 
-    // 2) Hide the element the way the product does before freezing. Run
-    //    #112 finding: guest visibilityState does NOT follow element CSS
-    //    (recorded as INFO); the hard assertion is only that hiding does
-    //    not kill the guest.
+    // 2) Element-hide experiment. Run #112 finding: guest visibilityState
+    //    does NOT follow element CSS (recorded as INFO); the hard assertion
+    //    is only that hiding does not kill the guest. Restored before the
+    //    freeze because the PRODUCT order is freeze-then-hide — main
+    //    snapshots the still-visible guest inside the frozen call (run #113
+    //    proved the inverse order stalls: capturePage never settles on a
+    //    hidden guest, now also time-bounded in main).
     await evaluate(cdp, `(() => {
       const wv = document.querySelector('.canvas-node--iframe webview');
       wv.parentElement.classList.add('iframe-frame-host--frozen');
@@ -206,12 +209,23 @@ const main = async () => {
     info('guest visibility after element hide', `visibility=${lastVis()} (Electron guests track the embedder window, not element CSS)`);
     const stillPinging = pingsSince(Date.now() - 2000).length > 0;
     step('guest survives element hide', stillPinging, `pings still flowing=${stillPinging}`);
+    await evaluate(cdp, `(() => {
+      const wv = document.querySelector('.canvas-node--iframe webview');
+      wv.parentElement.classList.remove('iframe-frame-host--frozen');
+      return true;
+    })()`);
 
     // 3) Freeze → guest JS + network stop. This is the ground truth for
     //    L2 regardless of which layer (lifecycle freeze vs script-disable)
-    //    does the silencing.
+    //    does the silencing. Then hide, exactly as the renderer hook does
+    //    after a successful freeze.
     const frozen = await evaluate(cdp, `window.canvasWorkspace.iframe.setLifecycle(${JSON.stringify(wsId)}, ${JSON.stringify(NODE_ID)}, 'frozen')`);
     step('freeze accepted', !!frozen?.ok, JSON.stringify(frozen));
+    await evaluate(cdp, `(() => {
+      const wv = document.querySelector('.canvas-node--iframe webview');
+      wv.parentElement.classList.add('iframe-frame-host--frozen');
+      return true;
+    })()`);
 
     if (MODE === 'discard') {
       // The sweep (every 30s) discards the now-frozen, over-budget guest.

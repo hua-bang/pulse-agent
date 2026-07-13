@@ -18,28 +18,19 @@
  *   'iframe:discarded'  { workspaceId, nodeId, snapshotDataUrl? }
  *
  * Budget defaults to 1.5GB and can be overridden with
- * PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB. capturePage on a frozen surface
- * returns the last painted frame; if it fails or comes back empty the
- * renderer falls back to a title/favicon card placeholder.
+ * PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB. Snapshots come from the freeze-time
+ * capture; the live-capture fallback is time-bounded (see ./snapshot.ts —
+ * capturePage never settles on a hidden guest) and the renderer falls back
+ * to a title/favicon card placeholder when there is no image.
  */
 import { app, BrowserWindow } from 'electron';
 import { getFrozenSince } from './lifecycle';
 import { listRegisteredWebviews } from './registry';
 import { selectWebviewsToDiscard, type DiscardCandidate } from './discard-policy';
+import { captureBoundedSnapshot } from './snapshot';
 
 const DEFAULT_BUDGET_MB = 1_500;
 const SWEEP_INTERVAL_MS = 30_000;
-const SNAPSHOT_MAX_WIDTH = 800;
-
-/** Encode a capturePage image bounded to the placeholder's display width. */
-export const toBoundedSnapshotDataUrl = (
-  image: Electron.NativeImage,
-): string | undefined => {
-  if (image.isEmpty()) return undefined;
-  const { width } = image.getSize();
-  const bounded = width > SNAPSHOT_MAX_WIDTH ? image.resize({ width: SNAPSHOT_MAX_WIDTH }) : image;
-  return bounded.toDataURL();
-};
 
 /**
  * Snapshots taken at FREEZE time (iframe:set-lifecycle handler), keyed by
@@ -102,14 +93,13 @@ export function startWebviewDiscardMonitor(): () => void {
       for (const { workspaceId, nodeId, wc, candidate } of priced) {
         if (!selected.has(candidate.key) || wc.isDestroyed()) continue;
         // Prefer the freeze-time snapshot (a frozen page's element is hidden
-        // and no longer paints); live capture is a best-effort fallback.
+        // and no longer paints); the live-capture fallback is time-bounded —
+        // an unbounded capturePage on a hidden guest would never settle and
+        // leave `sweeping` latched forever. Renderer falls back to a card
+        // placeholder when both come up empty.
         let snapshotDataUrl = freezeSnapshots.get(candidate.key);
         if (!snapshotDataUrl) {
-          try {
-            snapshotDataUrl = toBoundedSnapshotDataUrl(await wc.capturePage());
-          } catch {
-            // Renderer falls back to a card placeholder.
-          }
+          snapshotDataUrl = await captureBoundedSnapshot(wc);
         }
         freezeSnapshots.delete(candidate.key);
         console.log(

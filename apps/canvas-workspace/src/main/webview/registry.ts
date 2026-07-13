@@ -18,11 +18,8 @@ import { performance } from 'node:perf_hooks';
 import type { AgentContextDomSelectionRef } from '../../shared/agent-chat';
 import { createDomPickerScript } from './dom-snapshot-script';
 import { setWebviewLifecycle, type WebviewLifecycleState } from './lifecycle';
-import {
-  forgetFreezeSnapshot,
-  rememberFreezeSnapshot,
-  toBoundedSnapshotDataUrl,
-} from './discard-monitor';
+import { forgetFreezeSnapshot, rememberFreezeSnapshot } from './discard-monitor';
+import { captureBoundedSnapshot } from './snapshot';
 
 interface RegistryKey {
   workspaceId: string;
@@ -371,12 +368,10 @@ export function setupWebviewRegistryIpc(): void {
         // Last chance for a live capture: after freezing the renderer hides
         // the element (frozen guests stop painting) and script execution is
         // disabled, so later captures would come back blank. L3's discard
-        // placeholder consumes this.
-        try {
-          rememberFreezeSnapshot(key, toBoundedSnapshotDataUrl(await wc.capturePage()));
-        } catch {
-          // best-effort
-        }
+        // placeholder consumes this. Time-bounded: capturePage never
+        // settles on an already-hidden guest, and hanging here stalls the
+        // renderer's whole freeze path (observed in CI).
+        rememberFreezeSnapshot(key, await captureBoundedSnapshot(wc));
       }
       const result = await setWebviewLifecycle(wc ?? null, payload.state);
       if (payload.state === 'active' || (payload.state === 'frozen' && !result.ok)) {
