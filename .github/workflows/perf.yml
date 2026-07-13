@@ -186,6 +186,75 @@ jobs:
               });
             }
 
+  # Opt-in (performance label / dispatch): the iframe-heavy load shape real
+  # user canvases actually have — the pinned n100/0-webview profile doesn't
+  # exercise live-embed cost at all — plus the webview freeze/discard
+  # behavior checks that only real Electron guests can answer
+  # (docs/performance-verification-large-canvas.md).
+  large-canvas:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'performance')
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Xvfb (headless display for the Electron app)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure Electron binary
+        run: pnpm --filter canvas-workspace setup:electron
+
+      - name: Build workspace dependencies
+        run: pnpm run build:core
+
+      # Same pipeline as the perf job but at the 90-node/40-webpage shape.
+      # Timing profiles don't match the pinned baseline (rendered 不适用),
+      # deterministic counter + bundle gates still apply.
+      - name: Run performance report (90 nodes / 40 webpages)
+        run: pnpm --filter canvas-workspace perf:report -- --seed-nodes 90 --seed-webpages 40 --repeat 1
+
+      - name: Upload large-canvas report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-large-canvas
+          path: |
+            apps/canvas-workspace/perf/out/dashboard.html
+            apps/canvas-workspace/perf/out/report.json
+          if-no-files-found: warn
+
+      # Guest-behavior checks: element-hide → guest hidden (the freeze
+      # precondition), frozen guest silent, zero-reload resume, L3 discard
+      # under a 1MB budget. Env must be exported before harness start so
+      # main's discard monitor sees it.
+      - name: Webview lifecycle behavior check (freeze/discard)
+        env:
+          PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB: 1
+          WEBVIEW_CHECK_DISCARD: '1'
+        working-directory: apps/canvas-workspace
+        run: |
+          node harness/tools/driver/cli.mjs start --profile temp --headless
+          node scripts/perf/webview-lifecycle-check.mjs
+          node harness/tools/driver/cli.mjs close --cleanup
+
+      - name: Close harness session
+        if: always()
+        working-directory: apps/canvas-workspace
+        run: node harness/tools/driver/cli.mjs close --cleanup || true
+
   package-macos-arm64:
     if: needs.changes.outputs.packaging == 'true' || contains(github.event.pull_request.labels.*.name, 'performance')
     needs: changes
