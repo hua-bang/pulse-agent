@@ -187,6 +187,36 @@
 2. **无生产/日常会话的常驻卡顿观测**——LoAF/longtask 只在 harness begin/end 窗口内采集,真实用户卡了没有任何记录;建议加一个常驻低开销 LoAF 采样(仅 blockingDuration>50ms 时记一条,并附 {scale, visibleIframes, mountedWebviews} 标签),本地环形缓冲即可,不必上报;
 3. **门禁场景缺 iframe 重负载 + 全览态**——基线钉在 100 节点/0 webview/scale 1;应补 `--seed-webpages 40` + zoom-out-to-fit 场景,把本次发现锁进棘轮。
 
+## 优化版本报告(2026-07-13 最终,优化前 `1272556` → 优化后 `158e58a`)
+
+**测量方法**:`scripts/perf/renderer-bench/gestures.mjs`,无 trace 开销、每版 3 次独立运行取中位数(Xvfb 有头、同一 86 节点/40 iframe fixture)。基线 = 所有产品修复之前的 `1272556` src 构建;优化版 = 当前 HEAD。绝对值受软件渲染影响,**中位数相对差是结论依据**。
+
+### 本版包含的修复
+
+1. **全览语义缩放**(`54cfc25`):settled scale < 0.35 时 live iframe 切静态占位(`display:none` 保状态),覆盖 iframe 与 dynamic-app 两类节点。
+2. **内联 iframe 懒挂载**(`158e58a`):html/srcdoc/artifact iframe 复用 url-webview 的可见性延迟挂载;观察目标是 pending 占位元素,全览态不会批量挂载隐藏子文档;rearm key 处理 url/流式条件渲染。
+3. **scrollback 自动保存去 undo 化**(`158e58a`):终端/agent 每 2s 的 scrollback+cwd 持久化改走 `updateNode(..., {history:false})`,不再占用撤销槽(带回归测试);全画布数组替换与防抖落盘保留(结构性改造另行立项)。
+4. **常驻卡顿观测**(`158e58a`):`perf/jank-monitor.ts` 全程记录 blocking≥50ms 的 LoAF 到 `window.__pulseJank` 环形缓冲,每条带 `{scale, visibleEmbeds, canvasNodes}` 负载标签——本轮实测已验证可用(样本正确标注 scale 0.1 / 86 节点)。
+
+**试过并按测量结果回滚的**(记录在 `useCanvas.ts` 阈值注释):手势中途翻转 overview 类(把 40 iframe 的显示切换抖动搬进手势窗口,zoom 16%→20.6% 帧超);拖拽节点临时 `will-change` 提层(Layerize 反而恶化)。
+
+**未做**(待产品决策):url webview 休眠。可选两档——CDP `Page.setWebLifecycleState('frozen')`(全停 JS/网络、保内存、**唤醒零重载**)与 LRU 截图占位+销毁(释放进程/内存、唤醒重载);均需真机验证,沙箱无 Electron 二进制。
+
+### 优化前后对比(中位数 × 3)
+
+| 指标 | 优化前 | 优化后 | 变化 |
+|---|---|---|---|
+| 挂载到 86 节点可交互 | 648ms | 463ms | **-29%** |
+| 挂载即创建的 iframe 子文档 | 40 个 | 0 个(视口内随后按需创建;整轮交互后累计仅 24/40) | **-100% 首挂载** |
+| 挂载期长任务合计 | 402ms(max 219) | 252ms(max 113) | **-37%,最大阻塞减半** |
+| 稳态 idle 10s 帧超 | 0.2% | 0.2% | 持平(无回归) |
+| scale-1 拖拽帧超 | 4.0% | 3.9% | 持平(无回归) |
+| **缩小到全览手势** | **94.7% 帧超,手势拖长到 10.4s,长任务 7.1s** | **32.9%,3.5s,2.1s** | **帧超 -65%,手势快 3 倍,长任务 -71%** |
+| **全览态拖拽** | **95.1% 帧超,长任务 2.6s,帧 p95 117-150ms** | **45.5%,长任务 ~0.2s,帧 p95 50ms** | **帧超 -52%,长任务 -93%,无大卡段** |
+| 全览态可见 live iframe | 40 | 0(全部占位) | 语义缩放生效 |
+
+**残余与后续**:全览拖拽仍有 ~45% 帧超,但已无长任务(p95 50ms 的连续小慢帧,Layerize/paint 常数项)——真机 GPU 合成下预期显著更低,进一步压缩需全览态降层数/截图层,留待真机 profiling 定优先级;`--seed-webpages>0` 门禁档位与规模曲线(D6)待真机建基线;webview 休眠待决策。
+
 ## 核查方法
 
 三个并行只读核查(iframe/webview 生命周期、交互渲染管线、终端输出/归档/基准设施),每条结论要求 file:line 证据并区分已修/未修;与 consolidated/round3 编号对齐,已修项(E1、B7、B9/V2、F1/F2、chat 批处理、图片缩略图、LRU 驱逐、bundle lazy 等)复核确认在位后不再列为问题。运行时实测经 `scripts/perf/renderer-bench/`(见上节),bundle 侧经 `perf:report --bundle-only`。
