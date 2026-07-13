@@ -46,6 +46,30 @@
   contain-intrinsic-size: 520px 420px;
 }
 
+/* Overview semantic zoom for content-heavy bodies: below the 0.35
+ * threshold a body renders as an unreadable smudge yet still pays full
+ * paint + raster on every overview repaint (zoom-out settle, node drag).
+ * Hiding the content (card + header stay for navigation) cut the 86-node
+ * bench's zoom-out gesture ~40% and overview drag ~25%. visibility, not
+ * display/content-visibility: layout is preserved, so xterm /
+ * ResizeObserver consumers never see a 0×0 box (the same hazard that
+ * keeps them out of the content-visibility whitelist above).
+ * iframe/dynamic-app keep their own overview placeholders (their CSS
+ * files); image/shape/text stay live — they are the recognizable
+ * thumbnails at overview. */
+.canvas-transform--overview
+  .canvas-node:is(
+    .canvas-node--file,
+    .canvas-node--terminal,
+    .canvas-node--agent,
+    .canvas-node--mindmap,
+    .canvas-node--reference,
+    .canvas-node--plugin
+  ):not(.canvas-node--fullscreen)
+  .node-body {
+  visibility: hidden;
+}
+
 /* File / note nodes — Heptabase + Notion lean. The chrome is intentionally
  * quieter than the generic node: warmer paper background, softer
  * shadow, slightly larger corner radius, and a header that fades into
@@ -737,6 +761,20 @@
   pointer-events: none;
   transition: opacity 0.18s ease;
   z-index: 5;
+}
+
+/* Until hovered/selected the popover must not exist for the compositor,
+ * not merely be transparent: at opacity 0 each popover still contributes
+ * its opacity + backdrop-filter effect nodes and reverse-scale transform
+ * node to the property trees, and with ~86 nodes in-viewport at overview
+ * that made every paint invalidation (e.g. dragging one node) re-run
+ * PaintArtifactCompositor over the whole set — Layerize was 75% of
+ * main-thread time in the overview-drag trace (1826ms → 207ms once these
+ * stopped painting). display:none instead of opacity keeps hover/selected
+ * behavior identical (the trigger is on .canvas-node), trading only the
+ * 0.18s fade-in. */
+.canvas-transform--small .canvas-node:not(:hover):not(.canvas-node--selected) .node-header__actions {
+  display: none;
 }
 
 .canvas-transform--small .canvas-node:hover .node-header__actions,

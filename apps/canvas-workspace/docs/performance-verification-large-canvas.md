@@ -172,7 +172,7 @@
 
 行为验证(Chromium 截图 + DOM 断言):全览态 40 个 iframe 节点全部切为占位(可见 iframe 数 40→0),缩回正常 scale 后全部恢复(0→40,类名清除),srcdoc 状态经 `display:none` 保留不重载;10% 缩放下画布截图确认占位/Frame 标题/文本节点渲染正常。
 
-**残余瓶颈**:全览态拖拽仍有 22.9% 帧超,现在由 `Layerize`(1749ms)主导——86 个节点全部在视口时合成层树重建仍贵;下一杠杆是压全览态的层数(如对更多节点类型在 overview 下走 `content-visibility` / 扁平化节点 chrome),或全览态拖拽走截图层。缩放手势期(iframe 尚未隐藏、settledScale 未翻转前)的 raster 也仍有 ~1s,如需进一步压,可在手势中即时按目标 scale 预切换。
+**残余瓶颈(已解决,见文末"残余优化"段)**:全览态拖拽仍有 22.9% 帧超,现在由 `Layerize`(1749ms)主导——86 个节点全部在视口时合成层树重建仍贵;下一杠杆是压全览态的层数(如对更多节点类型在 overview 下走 `content-visibility` / 扁平化节点 chrome),或全览态拖拽走截图层。→ 后续二分定位:层数元凶是 `--small` 档 86 个 `opacity:0` 的 backdrop-filter 动作浮层,`display:none` 后 Layerize 1826→207ms、帧超→1%。缩放手势期(iframe 尚未隐藏、settledScale 未翻转前)的 raster 也仍有 ~1s,如需进一步压,可在手势中即时按目标 scale 预切换。
 
 ### 指标观测现状(能不能持续看到"为什么卡")
 
@@ -229,7 +229,9 @@
 | 全览态可见 live iframe | 40 | 0(全部占位) | 语义缩放生效 |
 | url webview 后台行为 | 1fps 降帧,JS/网络永远全速,进程只增不减 | 5min 冻结(JS/网络归零,251ms 零重载唤醒)+ 超预算 LRU 丢弃(进程/内存回收,占位+唤醒) | **CI 真实 Electron 双腿验证通过**(run #114) |
 
-**残余与后续**:全览拖拽仍有 ~45% 帧超,但已无长任务(p95 50ms 的连续小慢帧,Layerize/paint 常数项)——真机 GPU 合成下预期显著更低,进一步压缩需全览态降层数/截图层,留待真机 profiling 定优先级;`--seed-webpages>0` 档位已以 CI `large-canvas` job 落地(90 节点/40 网页 perf:report + webview 生命周期行为检查,`performance` label 或手动 dispatch 触发,run #114 全绿),规模曲线(D6)与计时基线仍待真机;webview 休眠(L2 冻结 + L3 丢弃)已实现并经 CI 真实 Electron 行为验证,余下为观感/环境项(见上节清单)。
+**残余优化(2026-07-13 追加,已落地)**:全览拖拽的连续小慢帧被 trace 归因到 **compositor Layerize 占主线程忙时 75%**(1826ms/2427ms,146 次、峰值 44ms——逐帧 PaintArtifactCompositor 全量 update,成本随全文档 paint chunk 规模走)。对照实验二分(V0 整节点不绘制 → V2 只留卡片外壳 → V3 隐藏整个 header → V4 只隐藏动作浮层)把元凶钉到一处:`--small` 档(scale<0.6)下每个节点 `opacity:0` 待命的浮动动作组(`.node-header__actions`),自带 **backdrop-filter + 反缩放 transform + opacity 三重属性树节点 ×86**——视觉透明,但对合成器全量存在。修复两条 CSS(`CanvasNodeView/index.css`):① 非 hover/选中时动作浮层 `display:none`(hover/选中行为不变,仅损失 0.18s 淡入;卡片外壳、标题、favicon 全保留);② 全览下重 body(file/terminal/agent/mindmap/reference/plugin)`visibility:hidden`(保布局防 xterm 0×0;image/shape/text 缩略保留)。实测(同环境中位数×3):全览拖拽帧超 34.7%→**1%**(p95 33.4→16.8ms 恢复单 vsync,手势窗口快 49%),缩小到全览 36.5%→**21.3%**(手势快 46%),Layerize 1826→207ms,idle/scale-1 拖拽/挂载零回归。
+
+**后续**:zoom 手势中段(scale 0.35-1,settledScale 未翻转前)的 live-iframe 栅格仍是 zoomOut 残余帧超主项——"手势期给 live iframe 盖静态化层"候选保留,留待真机 profiling 定优先级;`--seed-webpages>0` 档位已以 CI `large-canvas` job 落地(90 节点/40 网页 perf:report + webview 生命周期行为检查,`performance` label 或手动 dispatch 触发,run #114 全绿),规模曲线(D6)与计时基线仍待真机;webview 休眠(L2 冻结 + L3 丢弃)已实现并经 CI 真实 Electron 行为验证,余下为观感/环境项(见上节清单)。
 
 ## 核查方法
 
