@@ -18,6 +18,11 @@ import { performance } from 'node:perf_hooks';
 import type { AgentContextDomSelectionRef } from '../../shared/agent-chat';
 import { createDomPickerScript } from './dom-snapshot-script';
 import { setWebviewLifecycle, type WebviewLifecycleState } from './lifecycle';
+import {
+  forgetFreezeSnapshot,
+  rememberFreezeSnapshot,
+  toBoundedSnapshotDataUrl,
+} from './discard-monitor';
 
 interface RegistryKey {
   workspaceId: string;
@@ -361,7 +366,22 @@ export function setupWebviewRegistryIpc(): void {
         return { ok: false };
       }
       const wc = getWebContentsForNode(payload.workspaceId, payload.nodeId);
+      const key = `${payload.workspaceId}::${payload.nodeId}`;
+      if (payload.state === 'frozen' && wc) {
+        // Last chance for a live capture: after freezing the renderer hides
+        // the element (required for the guest to report hidden — a visible
+        // page silently ignores SetPageFrozen) and paint stops. L3's
+        // discard placeholder consumes this.
+        try {
+          rememberFreezeSnapshot(key, toBoundedSnapshotDataUrl(await wc.capturePage()));
+        } catch {
+          // best-effort
+        }
+      }
       const result = await setWebviewLifecycle(wc ?? null, payload.state);
+      if (payload.state === 'active' || (payload.state === 'frozen' && !result.ok)) {
+        forgetFreezeSnapshot(key);
+      }
       if (!result.ok && result.error) {
         console.warn(
           `[webview-registry] setLifecycle(${payload.state}) failed for ${payload.workspaceId}::${payload.nodeId}: ${result.error}`,

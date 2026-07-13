@@ -45,10 +45,32 @@ export const buildInitScript = (fixture) => `(() => {
     onMigrationProgress: () => () => {},
   };
 
+  // Concrete iframe API: lifecycle calls succeed silently, and discard
+  // callbacks are captured so a bench script can fire them
+  // (window.__fireDiscard) to drive the L3 renderer flow end-to-end.
+  const iframe = {
+    registerWebview: async () => ({ ok: true }),
+    unregisterWebview: async () => ({ ok: true }),
+    setFrameRate: async () => ({ ok: true }),
+    setLifecycle: async () => ({ ok: true }),
+    pickDomElement: async () => ({ ok: false }),
+    cancelDomElementPick: async () => ({ ok: false }),
+    onDiscarded: (cb) => {
+      (window.__discardCallbacks ??= []).push(cb);
+      return () => {
+        window.__discardCallbacks = (window.__discardCallbacks ?? []).filter((c) => c !== cb);
+      };
+    },
+  };
+  window.__fireDiscard = (payload) => {
+    for (const cb of [...(window.__discardCallbacks ?? [])]) cb(payload);
+  };
+
   const base = {
     version: '0.0.0-bench',
     pluginFlags: {},
     store,
+    iframe,
   };
 
   window.canvasWorkspace = new Proxy(base, {

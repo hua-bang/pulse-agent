@@ -621,3 +621,11 @@
   font-weight: 600;
   box-shadow: var(--shadow-card);
 }
+
+/* While frozen (L2) the guest must report hidden or Chromium silently
+ * ignores the freeze — see FROZEN_HIDDEN_CLASS in
+ * useWebviewBackgroundThrottle.ts. visibility (not display): webview
+ * misbehaves under display:none and layout must not shift. */
+.iframe-frame-host--frozen > .iframe-frame {
+  visibility: hidden;
+}

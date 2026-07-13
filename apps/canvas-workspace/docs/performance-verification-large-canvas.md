@@ -203,7 +203,11 @@
 **webview 休眠(Chrome 式生命周期,L2+L3 已实现)**:参照 Chrome 后台标签页的 throttled → frozen → discarded 阶梯,全链落地。
 - **L2 冻结**:离屏 5 分钟后经 CDP `Page.setWebLifecycleState('frozen')` 挂起页面任务队列(JS/定时器/网络全停、内存保留、**唤醒零重载**,页面收到标准 `freeze`/`resume` 事件),豁免与 Chrome 一致(audible / DevTools 打开不冻,被拒后 60s 重试);回视口先 resume 再恢复帧率,debugger 管道仅冻结期间持有。实现:`main/webview/lifecycle.ts`(控制器,7 个单测)+ `iframe:set-lifecycle` IPC + `useWebviewBackgroundThrottle` 冻结档。
 - **L3 丢弃(Memory Saver 式)**:主进程每 30s 用 `app.getAppMetrics()` 汇总 guest RSS,超预算(默认 1.5GB,`PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB` 可调)时**只从已冻结页面里**按最久冻结优先选取(纯策略 `discard-policy.ts`,4 个单测:活跃页永不丢、达预算即停),`capturePage` 抓末帧截图(限宽 800px,失败回退卡片)→ 广播 `iframe:discarded` → 渲染端卸载 `<webview>`(guest 进程释放)显示"休眠中"占位;**驻留视口 2s 或点击唤醒**(重建重载,同 Memory Saver 的 activate-to-restore 契约;dwell 门槛防平移扫过触发重载风暴)。实现:`main/webview/discard-monitor.ts` + `useWebviewDiscard.ts` + 占位 UI。
-- **真机验证清单**(沙箱无 Electron 二进制):冻结后 guest CPU 归零、回视口零重载恢复;内部平台页 WebSocket 断线重连;`capturePage` 对 frozen 页的截图内容;超预算时的丢弃顺序与占位/唤醒体验;DevTools 豁免。
+- **沙箱内已验证**(Chromium CDP 探针 + 台架真实组件,2026-07-13):
+  1. **关键发现:`Page.setWebLifecycleState('frozen')` 对可见页面静默空转**(命令成功返回但 JS/网络照跑)——Chromium 的 `SetPageFrozen` 要求 WebContents 处于 hidden。据此硬化实现:冻结成功后渲染端给 webview 元素加 `visibility:hidden`(`iframe-frame-host--frozen`,离屏节点视觉无变化,guest 转 hidden 使冻结真正生效);恢复时先取消隐藏(可见即自动解冻)再发 active 兜底;**截图前移到冻结瞬间**(冻结+隐藏后 paint 停止,丢弃时抓图会空白),存 `freezeSnapshots`,L3 优先消费。
+  2. 恢复路径零重载(`loadedAt` 不变)、命令幂等无副作用——CDP 探针确认。
+  3. **L3 渲染端全流程真实组件验证 PASS**:`iframe:discarded` → 截图占位出现 + webview 卸载;视口驻留 2s → 自动唤醒、webview 重建,零报错。
+- **仍需真机验证**(Electron 专属行为):webview 元素 `visibility:hidden` 是否使 guest WebContents 转 hidden(冻结生效的前提,若不生效需改用其它隐藏手段);冻结后 guest CPU 归零;WebSocket 断线重连;DevTools 豁免;真实内存预算下的丢弃观感。
 
 ### 优化前后对比(中位数 × 3)
 

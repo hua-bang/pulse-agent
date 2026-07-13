@@ -63,6 +63,19 @@ const DEFAULT_THROTTLED_FRAME_RATE = 1;
 const DEFAULT_FRAME_RATE = 60;
 const DEFAULT_FREEZE_DELAY_MS = 5 * 60_000;
 const DEFAULT_FREEZE_RETRY_MS = 60_000;
+/**
+ * Applied to the webview host while frozen. Chromium silently ignores
+ * SetPageFrozen on a VISIBLE page (verified empirically via CDP: a visible
+ * page keeps polling straight through the command), and guest visibility
+ * follows the element — so the element must be hidden for the freeze to
+ * actually engage. visibility:hidden (not display:none, which webview
+ * handles badly) is a visual no-op here: the node is offscreen by
+ * definition, and main snapshots the last frame BEFORE this class lands.
+ * Removing the class on re-entry makes the guest visible again, which
+ * auto-resumes a frozen page in Chromium; the explicit 'active' IPC is the
+ * belt-and-braces companion.
+ */
+const FROZEN_HIDDEN_CLASS = 'iframe-frame-host--frozen';
 
 export const useWebviewBackgroundThrottle = ({
   hostRef,
@@ -128,6 +141,10 @@ export const useWebviewBackgroundThrottle = ({
         .then((result) => {
           if (result.ok) {
             frozenRef.current = true;
+            // Hide AFTER main captured the last-frame snapshot inside the
+            // frozen call — see FROZEN_HIDDEN_CLASS for why hiding is what
+            // makes the freeze actually engage.
+            if (offscreen) el.classList.add(FROZEN_HIDDEN_CLASS);
           } else if (offscreen && result.skipped !== 'destroyed') {
             freezeTimer = setTimeout(tryFreeze, freezeRetryMs);
           }
@@ -136,6 +153,9 @@ export const useWebviewBackgroundThrottle = ({
     };
 
     const resume = () => {
+      // Unhide first: a frozen page auto-resumes when it becomes visible;
+      // the explicit 'active' call below covers the not-yet-hidden races.
+      el.classList.remove(FROZEN_HIDDEN_CLASS);
       if (!frozenRef.current) return;
       frozenRef.current = false;
       void api.setLifecycle(workspaceId, nodeId, 'active').catch(() => {});

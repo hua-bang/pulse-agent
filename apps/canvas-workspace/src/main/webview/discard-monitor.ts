@@ -31,6 +31,33 @@ const DEFAULT_BUDGET_MB = 1_500;
 const SWEEP_INTERVAL_MS = 30_000;
 const SNAPSHOT_MAX_WIDTH = 800;
 
+/** Encode a capturePage image bounded to the placeholder's display width. */
+export const toBoundedSnapshotDataUrl = (
+  image: Electron.NativeImage,
+): string | undefined => {
+  if (image.isEmpty()) return undefined;
+  const { width } = image.getSize();
+  const bounded = width > SNAPSHOT_MAX_WIDTH ? image.resize({ width: SNAPSHOT_MAX_WIDTH }) : image;
+  return bounded.toDataURL();
+};
+
+/**
+ * Snapshots taken at FREEZE time (iframe:set-lifecycle handler), keyed by
+ * `${workspaceId}::${nodeId}`. Once a page is frozen its element is hidden
+ * and paint stops, so a discard-time capturePage would return blank — the
+ * last live frame is remembered here instead. Cleared on resume and
+ * consumed on discard.
+ */
+const freezeSnapshots = new Map<string, string>();
+
+export const rememberFreezeSnapshot = (key: string, dataUrl: string | undefined): void => {
+  if (dataUrl) freezeSnapshots.set(key, dataUrl);
+};
+
+export const forgetFreezeSnapshot = (key: string): void => {
+  freezeSnapshots.delete(key);
+};
+
 const readBudgetMB = (): number => {
   const raw = Number(process.env.PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB);
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_BUDGET_MB;
@@ -74,19 +101,17 @@ export function startWebviewDiscardMonitor(): () => void {
 
       for (const { workspaceId, nodeId, wc, candidate } of priced) {
         if (!selected.has(candidate.key) || wc.isDestroyed()) continue;
-        let snapshotDataUrl: string | undefined;
-        try {
-          const image = await wc.capturePage();
-          if (!image.isEmpty()) {
-            const { width } = image.getSize();
-            const bounded = width > SNAPSHOT_MAX_WIDTH
-              ? image.resize({ width: SNAPSHOT_MAX_WIDTH })
-              : image;
-            snapshotDataUrl = bounded.toDataURL();
+        // Prefer the freeze-time snapshot (a frozen page's element is hidden
+        // and no longer paints); live capture is a best-effort fallback.
+        let snapshotDataUrl = freezeSnapshots.get(candidate.key);
+        if (!snapshotDataUrl) {
+          try {
+            snapshotDataUrl = toBoundedSnapshotDataUrl(await wc.capturePage());
+          } catch {
+            // Renderer falls back to a card placeholder.
           }
-        } catch {
-          // Snapshot is best-effort — renderer falls back to a card.
         }
+        freezeSnapshots.delete(candidate.key);
         console.log(
           `[webview-discard] discarding ${candidate.key} (${Math.round(candidate.rssMB)}MB, ` +
           `frozen ${Math.round((Date.now() - (candidate.frozenSinceMs ?? Date.now())) / 1000)}s)`,
