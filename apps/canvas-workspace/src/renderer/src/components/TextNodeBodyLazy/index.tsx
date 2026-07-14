@@ -1,5 +1,6 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { CanvasNode, TextNodeData } from '../../types';
+import '../TextNodeBody/index.css';
 import './index.css';
 
 interface Props {
@@ -25,8 +26,14 @@ export const htmlToPreviewText = (html: string): string => {
 
 export const TextNodeBodyLazy = (props: Props) => {
   const data = props.node.data as TextNodeData;
-  const [editorLoaded, setEditorLoaded] = useState(!props.readOnly && data.content === '');
+  const [editorLoaded, setEditorLoaded] = useState(!props.readOnly && props.isSelected && data.content === '');
   const text = useMemo(() => htmlToPreviewText(data.content ?? ''), [data.content]);
+
+  useEffect(() => {
+    if (!props.readOnly && props.isSelected && data.content === '') {
+      setEditorLoaded(true);
+    }
+  }, [data.content, props.isSelected, props.readOnly]);
 
   if (editorLoaded) {
     return (
