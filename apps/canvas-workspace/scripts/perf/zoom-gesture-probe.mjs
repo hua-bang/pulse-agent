@@ -215,6 +215,9 @@ const main = async () => {
   });
 
   probeServer.close();
+  // Same explicit exit as webview-lifecycle-check.mjs: lingering guest
+  // sockets can keep the event loop alive after the verdict.
+  process.exit(0);
 };
 
 main().catch((err) => {

@@ -271,6 +271,11 @@ const main = async () => {
 
   probeServer.close();
   console.log(`\nVERDICT: PASS (${MODE} mode) — ${steps.length} steps green`);
+  // Exit explicitly: a guest killed mid-request (the discard leg does
+  // exactly that) can leave a half-open keep-alive socket that
+  // server.close() waits on forever — observed once as a 13-minute
+  // wedge AFTER the PASS verdict printed.
+  process.exit(0);
 };
 
 main().catch((err) => {
