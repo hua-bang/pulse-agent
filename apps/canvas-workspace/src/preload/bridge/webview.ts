@@ -12,8 +12,8 @@ export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
   registerWebview: (workspaceId, nodeId, webContentsId, ready) =>
     ipcRenderer.invoke("iframe:register-webview", { workspaceId, nodeId, webContentsId, ready }),
 
-  unregisterWebview: (workspaceId, nodeId) =>
-    ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId }),
+  unregisterWebview: (workspaceId, nodeId, webContentsId) =>
+    ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId, webContentsId }),
 
   setFrameRate: (workspaceId, nodeId, frameRate) =>
     ipcRenderer.invoke("iframe:set-frame-rate", { workspaceId, nodeId, frameRate }),

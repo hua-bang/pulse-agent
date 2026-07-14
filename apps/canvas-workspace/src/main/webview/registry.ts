@@ -20,6 +20,7 @@ import { createDomPickerScript } from './dom-snapshot-script';
 import { getFrozenSince, setWebviewLifecycle, type WebviewLifecycleState } from './lifecycle';
 import { forgetFreezeSnapshot, rememberFreezeSnapshot } from './discard-monitor';
 import { captureBoundedSnapshot } from './snapshot';
+import { buildFreezeRecord, probeFreezeState } from './freeze-probe';
 
 interface RegistryKey {
   workspaceId: string;
@@ -41,12 +42,33 @@ const recordWelcomeReadyForPerf = (k: RegistryKey): void => {
 };
 
 function register(k: RegistryKey, webContentsId: number, ready = false): void {
-  registry.set(keyOf(k), webContentsId);
+  const registryKey = keyOf(k);
+  const previousId = registry.get(registryKey);
+  registry.set(registryKey, webContentsId);
+  if (previousId !== webContentsId) {
+    // Self-cleaning entry: a guest that dies without a renderer unregister
+    // (crash, discard, silent teardown) must not linger in the registry.
+    // The compare-and-delete below keeps THIS generation's hook from
+    // evicting a newer webContents that reused the node key.
+    const wc = allWebContents.fromId(webContentsId);
+    wc?.once('destroyed', () => unregister(k, webContentsId));
+  }
   if (ready) recordWelcomeReadyForPerf(k);
 }
 
-function unregister(k: RegistryKey): void {
-  registry.delete(keyOf(k));
+/**
+ * Compare-and-delete: when `expectedWebContentsId` is given, the entry is
+ * only removed if it still points at that id — a stale renderer teardown
+ * (or a destroyed-hook from an old guest) can never evict a newer
+ * generation's registration.
+ */
+function unregister(k: RegistryKey, expectedWebContentsId?: number): boolean {
+  const registryKey = keyOf(k);
+  if (
+    expectedWebContentsId !== undefined
+    && registry.get(registryKey) !== expectedWebContentsId
+  ) return false;
+  return registry.delete(registryKey);
 }
 
 function lookup(k: RegistryKey): number | undefined {
@@ -64,7 +86,11 @@ export function getWebContentsForNode(
   const id = lookup({ workspaceId, nodeId });
   if (id === undefined) return null;
   const wc = allWebContents.fromId(id);
-  if (!wc || wc.isDestroyed()) return null;
+  if (!wc || wc.isDestroyed()) {
+    // Self-heal: drop the dead entry so the key is clean for re-registration.
+    unregister({ workspaceId, nodeId }, id);
+    return null;
+  }
   return wc;
 }
 
@@ -197,7 +223,7 @@ export async function getNodeRenderedText(
     console.log(
       `[webview-registry] getNodeRenderedText: webContents#${id} gone for ${workspaceId}::${nodeId}`,
     );
-    unregister({ workspaceId, nodeId });
+    unregister({ workspaceId, nodeId }, id);
     return null;
   }
 
@@ -280,11 +306,19 @@ export function setupWebviewRegistryIpc(): void {
 
   ipcMain.handle(
     'iframe:unregister-webview',
-    (_event, payload: { workspaceId: string; nodeId: string }) => {
-      if (!payload?.workspaceId || !payload?.nodeId) return { ok: false };
-      unregister({ workspaceId: payload.workspaceId, nodeId: payload.nodeId });
+    (_event, payload: { workspaceId: string; nodeId: string; webContentsId: number }) => {
+      if (
+        !payload?.workspaceId
+        || !payload?.nodeId
+        || typeof payload.webContentsId !== 'number'
+      ) return { ok: false };
+      const removed = unregister(
+        { workspaceId: payload.workspaceId, nodeId: payload.nodeId },
+        payload.webContentsId,
+      );
       console.log(
-        `[webview-registry] unregistered ${payload.workspaceId}::${payload.nodeId} (${registry.size} remaining)`,
+        `[webview-registry] ${removed ? 'unregistered' : 'ignored stale unregister for'} ` +
+        `${payload.workspaceId}::${payload.nodeId} wc#${payload.webContentsId} (${registry.size} remaining)`,
       );
       return { ok: true };
     },
@@ -376,14 +410,32 @@ export function setupWebviewRegistryIpc(): void {
       }
       const wc = getWebContentsForNode(payload.workspaceId, payload.nodeId);
       const key = `${payload.workspaceId}::${payload.nodeId}`;
-      if (payload.state === 'frozen' && wc) {
-        // Last chance for a live capture: after freezing the renderer hides
-        // the element (frozen guests stop painting) and script execution is
-        // disabled, so later captures would come back blank. L3's discard
-        // placeholder consumes this. Time-bounded: capturePage never
-        // settles on an already-hidden guest, and hanging here stalls the
-        // renderer's whole freeze path (observed in CI).
-        rememberFreezeSnapshot(key, await captureBoundedSnapshot(wc));
+      if (payload.state === 'frozen' && wc && getFrozenSince(wc) === undefined) {
+        // (Guarded against duplicate 'frozen' requests: an already-frozen
+        // guest has scripts disabled, so the probe below would time out and
+        // replace a good record with a fail-closed dirty one.)
+        // Last chance to see the live guest: after freezing the renderer
+        // hides the element (frozen guests stop painting) and script
+        // execution is disabled, so neither a capture nor a probe would
+        // work later. Everything a safe L3 discard + restore needs is
+        // captured NOW — snapshot image, dirty-state, real URL, scroll —
+        // and stays valid for as long as the page is frozen (scripts are
+        // off; no new dirty state can appear). Both calls are time-bounded:
+        // capturePage never settles on an already-hidden guest, and a
+        // wedged executeJavaScript must not stall the renderer's freeze
+        // path (observed in CI); a failed probe yields a dirty record,
+        // which simply blocks discard (fail closed).
+        const [imageDataUrl, probe] = await Promise.all([
+          captureBoundedSnapshot(wc),
+          probeFreezeState(wc),
+        ]);
+        let url = '';
+        try {
+          url = wc.getURL();
+        } catch {
+          // destroyed mid-freeze — setWebviewLifecycle below reports it
+        }
+        rememberFreezeSnapshot(key, buildFreezeRecord(url, imageDataUrl, probe));
       }
       const result = await setWebviewLifecycle(wc ?? null, payload.state);
       if (payload.state === 'active' || (payload.state === 'frozen' && !result.ok)) {

@@ -40,6 +40,15 @@ const iframeNode: CanvasNode = {
   },
 };
 
+type DiscardPayload = {
+  workspaceId: string;
+  nodeId: string;
+  snapshotDataUrl?: string;
+  restoreUrl?: string;
+  scrollX?: number;
+  scrollY?: number;
+};
+
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 let registerWebview: ReturnType<typeof vi.fn>;
@@ -47,7 +56,9 @@ let unregisterWebview: ReturnType<typeof vi.fn>;
 let setFrameRate: ReturnType<typeof vi.fn>;
 let createElementSpy: { mockRestore: () => void };
 let originalIntersectionObserver: typeof IntersectionObserver | undefined;
-let mockWebview: HTMLElement | null;
+let mockWebview: (HTMLElement & { executeJavaScript: ReturnType<typeof vi.fn> }) | null;
+let discardCallback: ((payload: DiscardPayload) => void) | null;
+let hookState: ReturnType<typeof useIframeNodeState> | null = null;
 
 beforeEach(() => {
   MockIntersectionObserver.instances = [];
@@ -58,6 +69,8 @@ beforeEach(() => {
   unregisterWebview = vi.fn().mockResolvedValue({ ok: true });
   setFrameRate = vi.fn().mockResolvedValue({ ok: true });
   mockWebview = null;
+  discardCallback = null;
+  hookState = null;
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,
     value: {
@@ -65,6 +78,12 @@ beforeEach(() => {
         registerWebview,
         unregisterWebview,
         setFrameRate,
+        onDiscarded: (cb: (payload: DiscardPayload) => void) => {
+          discardCallback = cb;
+          return () => {
+            discardCallback = null;
+          };
+        },
       },
     },
   });
@@ -78,9 +97,11 @@ beforeEach(() => {
     const el = originalCreateElement('div') as unknown as HTMLElement & {
       getWebContentsId: () => number;
       reload: () => void;
+      executeJavaScript: ReturnType<typeof vi.fn>;
     };
     el.getWebContentsId = () => 123;
     el.reload = vi.fn();
+    el.executeJavaScript = vi.fn().mockResolvedValue(undefined);
     mockWebview = el;
     return el;
   }) as typeof document.createElement);
@@ -118,6 +139,58 @@ describe('useIframeNodeState', () => {
     mockWebview?.dispatchEvent(new Event('dom-ready'));
     expect(registerWebview).toHaveBeenLastCalledWith('workspace-1', 'node-1', 123, true);
   });
+
+  it('discard unregisters with the webContentsId; wake remounts on the restore url and scrolls back', async () => {
+    await renderHookHarness();
+    flushSync(() => {
+      for (const observer of MockIntersectionObserver.instances) observer.trigger(true);
+    });
+    await flushEffects();
+    expect(discardCallback).not.toBeNull();
+
+    // Main's L3 sweep picked this node: the webview must unmount and the
+    // generation-safe unregister must carry the id that was registered.
+    flushSync(() => {
+      discardCallback?.({
+        workspaceId: 'workspace-1',
+        nodeId: 'node-1',
+        snapshotDataUrl: 'data:image/png;snap',
+        restoreUrl: 'https://example.com/deep/page',
+        scrollX: 0,
+        scrollY: 640,
+      });
+    });
+    await flushEffects();
+    expect(hookState?.webviewDiscarded).toBe(true);
+    expect(unregisterWebview).toHaveBeenCalledWith('workspace-1', 'node-1', 123);
+    const discardedWebview = mockWebview;
+
+    // Wake: the remounted webview loads the freeze-time guest url (NOT the
+    // node's saved url) …
+    flushSync(() => hookState?.wakeWebview());
+    await flushEffects();
+    expect(mockWebview).not.toBe(discardedWebview);
+    expect(mockWebview?.getAttribute('src')).toBe('https://example.com/deep/page');
+
+    // … and scrolls back once the guest is ready.
+    mockWebview?.dispatchEvent(new Event('dom-ready'));
+    expect(mockWebview?.executeJavaScript).toHaveBeenCalledWith('window.scrollTo(0, 640)');
+  });
+
+  it('ignores discard notifications for other nodes', async () => {
+    await renderHookHarness();
+    flushSync(() => {
+      for (const observer of MockIntersectionObserver.instances) observer.trigger(true);
+    });
+    await flushEffects();
+
+    flushSync(() => {
+      discardCallback?.({ workspaceId: 'workspace-1', nodeId: 'other-node', snapshotDataUrl: 'x' });
+    });
+    await flushEffects();
+    expect(hookState?.webviewDiscarded).toBe(false);
+    expect(unregisterWebview).not.toHaveBeenCalled();
+  });
 });
 
 async function renderHookHarness(): Promise<void> {
@@ -138,6 +211,7 @@ function IframeHookHarness() {
     onUpdate: vi.fn(),
     readOnly: false,
   });
+  hookState = state;
 
   return <div ref={state.webviewHostRef} />;
 }

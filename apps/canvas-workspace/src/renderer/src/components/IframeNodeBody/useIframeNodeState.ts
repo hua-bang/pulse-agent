@@ -8,7 +8,8 @@ import {
 import type { IframeNodeData } from '../../types';
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { useDeferredVisibleMount } from './useDeferredVisibleMount';
-import { useWebviewDiscard } from './useWebviewDiscard';
+import { useWebviewDiscard, useWebviewRestore } from './useWebviewDiscard';
+import { useWebviewRegistration } from './useWebviewRegistration';
 import type { EditMode, IframeNodeBodyProps } from './types';
 import {
   BLANK_PAGE_URL,
@@ -70,16 +71,19 @@ export const useIframeNodeState = ({
 
   // L3 discard (Memory Saver style): main tells us when this node's frozen
   // guest was reclaimed for memory; `!discarded` gates the webview mount
-  // below, and dwell/click wakes it (useWebviewDiscard).
+  // below, and dwell/click wakes it (useWebviewDiscard). The freeze-time
+  // restore record feeds the remount's url and scroll position.
   const {
     discarded: webviewDiscarded,
     snapshot: discardSnapshot,
+    restore: discardRestore,
     wake: wakeWebview,
   } = useWebviewDiscard({
     workspaceId,
     nodeId: node.id,
     enabled: mode === 'url',
     hostRef: webviewHostRef,
+    nodeUrl: url,
   });
 
   // Same deferred-mount gate for inline (html/srcdoc/artifact) iframes: on an
@@ -122,8 +126,14 @@ export const useIframeNodeState = ({
     mountKey: webviewKey,
     onFaviconChange: handleBrowserFaviconChange,
     onTitleChange: handleBrowserTitleChange,
-    url,
+    // After a discard, wake remounts with the freeze-time guest url (which
+    // may differ from the saved url after in-page navigation); the record
+    // is invalidated when the user commits a new url (useWebviewDiscard).
+    url: discardRestore?.url ?? url,
   });
+
+  // Scroll back to the freeze-time position once the woken guest is ready.
+  useWebviewRestore(browser.webview, discardRestore);
 
   const loadState = editing || mode !== 'url' ? 'idle' : browser.loadState;
   const loadError = browser.loadError
@@ -176,41 +186,14 @@ export const useIframeNodeState = ({
     };
   }, [streamingActive]);
 
-  useEffect(() => {
-    if (editing || mode !== 'url') return;
-    if (!workspaceId) return;
-    const el = browser.webview;
-    if (!el) return;
-
-    const api = window.canvasWorkspace.iframe;
-    let registered = false;
-
-    const tryRegister = (ready = false) => {
-      if (registered && !ready) return;
-      try {
-        const id = el.getWebContentsId();
-        if (typeof id === 'number') {
-          registered = true;
-          if (ready) void api.registerWebview(workspaceId, node.id, id, true);
-          else void api.registerWebview(workspaceId, node.id, id);
-        }
-      } catch {
-        // WebContents id is not available until Electron attaches the guest.
-      }
-    };
-
-    tryRegister();
-    const handleAttach = () => tryRegister(false);
-    const handleReady = () => tryRegister(true);
-    el.addEventListener('did-attach', handleAttach);
-    el.addEventListener('dom-ready', handleReady);
-
-    return () => {
-      el.removeEventListener('did-attach', handleAttach);
-      el.removeEventListener('dom-ready', handleReady);
-      if (registered) void api.unregisterWebview(workspaceId, node.id);
-    };
-  }, [browser.webview, workspaceId, node.id, editing, url, mode]);
+  // Announce the guest's webContentsId to main (Canvas Agent DOM reads +
+  // lifecycle ladder); unregister is generation-safe (see the hook).
+  useWebviewRegistration({
+    webview: browser.webview,
+    workspaceId,
+    nodeId: node.id,
+    enabled: !editing && mode === 'url',
+  });
 
   // Drop the webview's paint frame rate when the node is parked outside the
   // canvas viewport long enough. Disabled during editing (no live webview to

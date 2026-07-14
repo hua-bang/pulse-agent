@@ -7,9 +7,16 @@ export interface IframeApi {
     webContentsId: number,
     ready?: boolean,
   ) => Promise<{ ok: boolean }>;
+  /**
+   * Unregister carries the webContentsId that was registered: main only
+   * removes the entry if it still points at that id (compare-and-delete),
+   * so a stale teardown racing a remount can never evict the newer
+   * generation's registration.
+   */
   unregisterWebview: (
     workspaceId: string,
     nodeId: string,
+    webContentsId: number,
   ) => Promise<{ ok: boolean }>;
   /**
    * Drop or restore a registered webview's max paint frame rate. Used to
@@ -46,13 +53,19 @@ export interface IframeApi {
    * guest memory exceeds budget and this node's long-frozen webview was
    * chosen for discard. The renderer unmounts the `<webview>` (killing the
    * guest process) and shows the snapshot as a sleeping placeholder;
-   * dwelling in the viewport or clicking wakes and reloads the page.
+   * dwelling in the viewport or clicking wakes the node, which loads
+   * `restoreUrl` (the guest's real URL at freeze time — may differ from the
+   * node's saved url after in-page navigation) and scrolls back to
+   * (scrollX, scrollY). All restore fields come from the freeze-time record.
    */
   onDiscarded: (
     callback: (payload: {
       workspaceId: string;
       nodeId: string;
       snapshotDataUrl?: string;
+      restoreUrl?: string;
+      scrollX?: number;
+      scrollY?: number;
     }) => void,
   ) => () => void;
   pickDomElement: (
