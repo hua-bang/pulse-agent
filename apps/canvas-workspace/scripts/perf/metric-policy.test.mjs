@@ -106,7 +106,8 @@ describe('isCompatibleHistorySnapshot', () => {
     machineId: 'machine-a',
     env: {
       os: 'darwin', arch: 'arm64', seedNodes: 100, seedWebpages: 0,
-      repeat: 3, fixtureVersion: 'perf-v1', headless: false,
+      seedUrlWebviews: 0, repeat: 3, fixtureVersion: 'perf-v2',
+      sessionProfile: 'temp', headless: false,
     },
   };
 
@@ -118,6 +119,18 @@ describe('isCompatibleHistorySnapshot', () => {
     expect(isCompatibleHistorySnapshot(current, {
       ...structuredClone(current), machineId: 'machine-b',
     })).toBe(false);
+    expect(isCompatibleHistorySnapshot(current, {
+      ...structuredClone(current), env: { ...current.env, seedUrlWebviews: 1 },
+    })).toBe(false);
+    expect(isCompatibleHistorySnapshot(current, {
+      ...structuredClone(current), env: { ...current.env, fixtureVersion: 'perf-v1' },
+    })).toBe(false);
+    expect(isCompatibleHistorySnapshot(current, {
+      ...structuredClone(current), env: { ...current.env, sessionProfile: 'clone' },
+    })).toBe(false);
+    const legacyHtmlOnly = structuredClone(current);
+    delete legacyHtmlOnly.env.seedUrlWebviews;
+    expect(isCompatibleHistorySnapshot(current, legacyHtmlOnly)).toBe(true);
     expect(isCompatibleHistorySnapshot(current, {
       machineId: 'machine-a', env: { os: 'darwin', arch: 'arm64' },
     })).toBe(false);

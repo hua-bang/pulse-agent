@@ -44,6 +44,30 @@ export const aggregateReports = (reports) => {
       max: Math.max(...reports.map((report) => report.wheelToNextFrame.max)),
     };
   }
+  let wheelToPresentedFrame;
+  if (reports.every((report) => (
+    report.wheelToPresentedFrame?.count === 1
+    && report.wheelToPresentedFrame.transformChanged === true
+    && report.wheelToPresentedFrame.framesUntilTransform >= 1
+    && report.wheelToPresentedFrame.framesAfterTransform >= 1
+    && Number.isFinite(report.wheelToPresentedFrame.p95)
+    && Number.isFinite(report.wheelToPresentedFrame.max)
+    && Number.isFinite(report.wheelToPresentedFrame.transformObservedP95)
+    && report.wheelToPresentedFrame.p95 >= report.wheelToPresentedFrame.transformObservedP95
+  ))) {
+    const presentedP95Raw = reports.map((report) => report.wheelToPresentedFrame.p95);
+    const transformObservedP95Raw = reports.map(
+      (report) => report.wheelToPresentedFrame.transformObservedP95,
+    );
+    raw.wheelToPresentedFrameP95 = presentedP95Raw;
+    raw.wheelToTransformObservedP95 = transformObservedP95Raw;
+    wheelToPresentedFrame = {
+      ...last.wheelToPresentedFrame,
+      p95: median(presentedP95Raw),
+      max: Math.max(...reports.map((report) => report.wheelToPresentedFrame.max)),
+      transformObservedP95: median(transformObservedP95Raw),
+    };
+  }
 
   return {
     ...last,
@@ -56,6 +80,7 @@ export const aggregateReports = (reports) => {
       over20msCountMax: Math.max(...over20CountRaw),
     },
     ...(wheelToNextFrame ? { wheelToNextFrame } : {}),
+    ...(wheelToPresentedFrame ? { wheelToPresentedFrame } : {}),
     runs: reports.length,
     raw,
   };

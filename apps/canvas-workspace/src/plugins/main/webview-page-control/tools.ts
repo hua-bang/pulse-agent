@@ -55,7 +55,7 @@ async function resolveTarget(
   // window inactively, without stealing focus) before resolving the node.
   const wc = await ensureOperable({
     lookup: () => getWebContentsForNode(workspaceId, nodeId),
-    activate: () => activateWorkspaceWindow(workspaceId),
+    activate: () => activateWorkspaceWindow(workspaceId, nodeId),
     mode: 'operate',
   });
   if (!wc) {

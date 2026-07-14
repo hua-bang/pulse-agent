@@ -36,7 +36,7 @@ import { setupHtmlGeneratorIpc } from "../generation/ipc";
 import { setupArtifactIpc } from "../artifacts/ipc";
 import { setupShellIpc } from "./shell-ipc";
 import { setupUpdateIpc } from "./update-ipc";
-import { setupWebpageReaderIpc } from "../webview/reader";
+import { setupWebpageReaderIpc } from "../webview/reader-ipc";
 import { setupWorkspaceNodeIpc } from "../canvas/nodes/ipc";
 import {
   ensureRuntimeControlServer,

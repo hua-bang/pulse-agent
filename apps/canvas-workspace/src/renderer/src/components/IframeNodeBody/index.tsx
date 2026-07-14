@@ -14,6 +14,8 @@ export const IframeNodeBody = ({
   node,
   workspaceId,
   onUpdate,
+  isFullscreen,
+  isSelected,
   isResizing,
   onAddDomSelectionToChat,
   onSubmitDomReviewComments,
@@ -31,6 +33,8 @@ export const IframeNodeBody = ({
     node,
     workspaceId,
     onUpdate,
+    isFullscreen,
+    isSelected,
     isResizing,
     readOnly,
   });
@@ -132,9 +136,9 @@ export const IframeNodeBody = ({
     }
   };
 
-  // Keep the rendered view (and therefore the <webview>) mounted at all times;
-  // toggle the editor as an overlay so the guest WebContents survives URL
-  // edits and never reloads just because the user opened the address bar.
+  // Keep the rendered shell mounted while the residency manager may replace
+  // its expensive guest. Opening the editor protects a live guest, so address
+  // edits alone still do not trigger a reload.
   return (
     <div className="iframe-body-host">
       <IframeRenderedView
@@ -174,8 +178,10 @@ export const IframeNodeBody = ({
         streamIframeRef={state.streamIframeRef}
         streamingActive={state.streamingActive}
         url={state.url}
+        webviewLifecycleState={state.webviewLifecycleState}
         webviewHostRef={state.webviewHostRef}
         webviewKey={state.webviewKey}
+        wakeWebview={state.wakeWebview}
         workspaceId={workspaceId}
       />
       {(draftSelection || reviewComments.length > 0) && (

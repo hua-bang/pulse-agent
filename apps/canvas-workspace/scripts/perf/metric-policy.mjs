@@ -8,12 +8,19 @@ const matchesProfile = (appliesTo, env) => Object.entries(appliesTo ?? {})
   .every(([key, value]) => env?.[key] === value);
 
 const HISTORY_PROFILE_KEYS = [
-  'os', 'arch', 'seedNodes', 'seedWebpages', 'repeat', 'fixtureVersion', 'headless',
+  'os', 'arch', 'seedNodes', 'seedWebpages', 'seedUrlWebviews',
+  'repeat', 'fixtureVersion', 'sessionProfile', 'headless',
 ];
+
+const historyProfileValue = (env, key) => (
+  key === 'seedUrlWebviews' ? env?.[key] ?? 0 : env?.[key]
+);
 
 export const isCompatibleHistorySnapshot = (current, candidate) => (
   current?.machineId === candidate?.machineId
-  && HISTORY_PROFILE_KEYS.every((key) => current?.env?.[key] === candidate?.env?.[key])
+  && HISTORY_PROFILE_KEYS.every((key) => (
+    historyProfileValue(current?.env, key) === historyProfileValue(candidate?.env, key)
+  ))
 );
 
 const classifyTarget = (direction, value, target, warning) => {

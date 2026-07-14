@@ -7,7 +7,7 @@ import {
 } from 'react';
 import type { IframeNodeData } from '../../types';
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
-import { useDeferredVisibleMount } from './useDeferredVisibleMount';
+import { useManagedWebviewMount } from './useManagedWebviewMount';
 import type { EditMode, IframeNodeBodyProps } from './types';
 import {
   BLANK_PAGE_URL,
@@ -19,7 +19,6 @@ import {
   shouldSyncIframeTitle,
 } from './utils';
 import { isImeComposing } from '../../utils/ime';
-import { useWebviewBackgroundThrottle } from './useWebviewBackgroundThrottle';
 import { useIframeArtifact } from './useIframeArtifact';
 import { pickDomElementFromHtmlIframe, type DomPickerResult } from './domPickerBridge';
 
@@ -27,6 +26,9 @@ export const useIframeNodeState = ({
   node,
   workspaceId,
   onUpdate,
+  isFullscreen = false,
+  isSelected = false,
+  isResizing = false,
   readOnly = false,
 }: IframeNodeBodyProps) => {
   const data = node.data as IframeNodeData;
@@ -65,7 +67,13 @@ export const useIframeNodeState = ({
   }, [data]);
 
   const webviewHostRef = useRef<HTMLDivElement>(null);
-  const shouldMountWebview = useDeferredVisibleMount(webviewHostRef);
+  const webviewLifecycle = useManagedWebviewMount({
+    enabled: mode === 'url',
+    nodeId: node.id,
+    protectedState: isFullscreen || isSelected || isResizing || editing,
+    url,
+    webviewHostRef,
+  });
 
   const handleBrowserTitleChange = useCallback((title: string) => {
     if (editing || readOnly) return;
@@ -93,13 +101,18 @@ export const useIframeNodeState = ({
 
   const browser = useEmbeddedBrowser({
     className: 'iframe-frame',
-    enabled: mode === 'url' && shouldMountWebview,
+    enabled: mode === 'url' && webviewLifecycle.shouldMount,
     hostRef: webviewHostRef,
     mountKey: webviewKey,
     onFaviconChange: handleBrowserFaviconChange,
     onTitleChange: handleBrowserTitleChange,
-    url,
+    url: webviewLifecycle.mountUrl,
   });
+
+  useEffect(() => {
+    webviewLifecycle.setCurrentWebview(browser.webview);
+    return () => webviewLifecycle.setCurrentWebview(null);
+  }, [browser.webview, webviewLifecycle.setCurrentWebview]);
 
   const loadState = editing || mode !== 'url' ? 'idle' : browser.loadState;
   const loadError = browser.loadError
@@ -160,6 +173,7 @@ export const useIframeNodeState = ({
 
     const api = window.canvasWorkspace.iframe;
     let registered = false;
+    let registeredWebContentsId: number | null = null;
 
     const tryRegister = (ready = false) => {
       if (registered && !ready) return;
@@ -167,6 +181,7 @@ export const useIframeNodeState = ({
         const id = el.getWebContentsId();
         if (typeof id === 'number') {
           registered = true;
+          registeredWebContentsId = id;
           if (ready) void api.registerWebview(workspaceId, node.id, id, true);
           else void api.registerWebview(workspaceId, node.id, id);
         }
@@ -184,21 +199,11 @@ export const useIframeNodeState = ({
     return () => {
       el.removeEventListener('did-attach', handleAttach);
       el.removeEventListener('dom-ready', handleReady);
-      if (registered) void api.unregisterWebview(workspaceId, node.id);
+      if (registered && registeredWebContentsId !== null) {
+        void api.unregisterWebview(workspaceId, node.id, registeredWebContentsId);
+      }
     };
   }, [browser.webview, workspaceId, node.id, editing, url, mode]);
-
-  // Drop the webview's paint frame rate when the node is parked outside the
-  // canvas viewport long enough. Disabled during editing (no live webview to
-  // throttle) and when the node is in non-url modes (html/ai/artifact don't
-  // use a <webview>). readOnly iframes still register a webview and should
-  // still benefit. See useWebviewBackgroundThrottle for the rationale.
-  useWebviewBackgroundThrottle({
-    hostRef: browser.hostRef,
-    workspaceId,
-    nodeId: node.id,
-    disabled: editing || mode !== 'url',
-  });
 
   const flushToIframe = useCallback(() => {
     const currentHtml = streamBuf.current;
@@ -384,8 +389,12 @@ export const useIframeNodeState = ({
       setWebviewKey((key) => key + 1);
       return;
     }
+    if (!browser.webview) {
+      webviewLifecycle.wake();
+      return;
+    }
     browser.reload();
-  }, [browser, mode]);
+  }, [browser, mode, webviewLifecycle]);
 
   return {
     artifact,
@@ -436,5 +445,7 @@ export const useIframeNodeState = ({
     url,
     webviewHostRef,
     webviewKey,
+    webviewLifecycleState: webviewLifecycle.state,
+    wakeWebview: webviewLifecycle.wake,
   };
 };

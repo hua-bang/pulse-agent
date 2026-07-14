@@ -8,6 +8,7 @@
  *   pnpm --filter canvas-workspace perf:report --no-build     # reuse dist/
  *   pnpm --filter canvas-workspace perf:report --seed-nodes 300
  *   pnpm --filter canvas-workspace perf:report --seed-webpages 30  # mix in iframe nodes
+ *   pnpm --filter canvas-workspace perf:report --seed-webpages 40 --seed-url-webviews 25
  *   pnpm --filter canvas-workspace perf:report --repeat 1     # single boot (faster, noisier)
  *
  * Steps: build → bundle gate → (headless harness → runtime scenarios →
@@ -35,21 +36,18 @@ import { readSession } from '../../harness/tools/driver/src/session.mjs';
 import { waitFor } from '../../harness/tools/driver/src/utils.mjs';
 import { prepareReportArtifacts, runtimeScenariosExist } from './report-artifacts.mjs';
 import { metricCoverageFailure, runFinalReportStep } from './report-policy.mjs';
+import { buildScenarioRunnerArgs, parseReportCliArgs } from './scenario-options.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const outDir = join(appRoot, 'perf/out');
-const args = process.argv.slice(2);
-const has = (flag) => args.includes(flag);
-const flagValue = (name, fallback) => {
-  const i = args.indexOf(name);
-  return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
-};
-
-const bundleOnly = has('--bundle-only');
-const noBuild = has('--no-build');
-const seedNodes = flagValue('--seed-nodes', '100');
-const seedWebpages = flagValue('--seed-webpages', '0');
-const repeat = Math.max(1, Number(flagValue('--repeat', '3')));
+const {
+  bundleOnly,
+  noBuild,
+  seedNodes,
+  seedWebpages,
+  seedUrlWebviews,
+  repeat,
+} = parseReportCliArgs(process.argv.slice(2));
 const distExists = existsSync(join(appRoot, 'dist/renderer'));
 const startupScreenshotPath = process.env.PULSE_CANVAS_PERF_STARTUP_SCREENSHOT || '';
 
@@ -178,14 +176,15 @@ if (!bundleOnly) {
 
       step(
         `运行时场景(打字 / 缩放节点 / 拖拽 / 启动 / renderer trace,@${seedNodes} 节点`
-        + (Number(seedWebpages) > 0 ? `(含 ${seedWebpages} 网页)` : '')
+        + (seedWebpages > 0 ? `(含 ${seedWebpages} 网页` : '')
+        + (seedUrlWebviews > 0 ? ` / ${seedUrlWebviews} URL WebView` : '')
+        + (seedWebpages > 0 ? ')' : '')
         + `,--repeat ${repeat})`,
       );
-      const scenarioRun = node('scripts/perf/run-scenarios.mjs', [
-        '--seed-nodes', seedNodes,
-        '--seed-webpages', seedWebpages,
-        '--repeat', String(repeat),
-      ]);
+      const scenarioRun = node(
+        'scripts/perf/run-scenarios.mjs',
+        buildScenarioRunnerArgs({ seedNodes, seedWebpages, seedUrlWebviews, repeat }),
+      );
       if (scenarioRun.status !== 0) {
         gatesFailed = true;
       }

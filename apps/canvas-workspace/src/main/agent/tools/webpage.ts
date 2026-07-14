@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
 import { activateWorkspaceWindow } from '../../app/window-manager';
-import { readDOM, readDOMElement, readA11y, captureScreenshot } from '../../webview/reader';
 import type { CanvasTool } from './types';
 
 /**
@@ -46,7 +45,7 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
         const maxChars = (input.maxChars as number) ?? 12_000;
         const wc = await ensureOperable({
           lookup: () => getWebContentsForNode(targetWorkspaceId, nodeId),
-          activate: () => activateWorkspaceWindow(targetWorkspaceId),
+          activate: () => activateWorkspaceWindow(targetWorkspaceId, nodeId),
           mode: 'read',
         });
         if (!wc) {
@@ -57,6 +56,7 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
               `(auto-activation attempted). Make sure the iframe node exists and is in URL mode.`,
           });
         }
+        const { readDOMElement } = await import('../../webview/reader');
         const r = await readDOMElement(wc, selector, maxChars);
         return JSON.stringify(r.ok
           ? {
@@ -125,12 +125,12 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
         const maxChars = (input.maxChars as number) ?? 12_000;
         const sparseThreshold = (input.sparseThreshold as number) ?? 200;
 
-        // A 'screenshot' read needs a painted surface, so treat it as an
-        // operate (force-activate) request; dom/a11y reads work even on a
-        // display:none node, so only activate them when nothing is registered.
+        // Every read activates/selects the node to hold the renderer's WebView
+        // residency lease. Screenshot additionally uses operate mode so the
+        // compositor receives its longer paint-settle allowance.
         const wc = await ensureOperable({
           lookup: () => getWebContentsForNode(targetWorkspaceId, nodeId),
-          activate: () => activateWorkspaceWindow(targetWorkspaceId),
+          activate: () => activateWorkspaceWindow(targetWorkspaceId, nodeId),
           mode: strategy === 'screenshot' ? 'operate' : 'read',
         });
         if (!wc) {
@@ -141,6 +141,8 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
               `(auto-activation attempted). Make sure the iframe node exists and is in URL mode.`,
           });
         }
+
+        const { readDOM, readA11y, captureScreenshot } = await import('../../webview/reader');
 
         // ── DOM ──────────────────────────────────────────────────────────
         if (strategy === 'dom' || strategy === 'auto') {

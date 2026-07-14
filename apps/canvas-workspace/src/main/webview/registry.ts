@@ -16,7 +16,9 @@
 import { ipcMain, webContents as allWebContents } from 'electron';
 import { performance } from 'node:perf_hooks';
 import type { AgentContextDomSelectionRef } from '../../shared/agent-chat';
+import { activateWorkspaceWindow } from '../app/window-manager';
 import { createDomPickerScript } from './dom-snapshot-script';
+import { ensureOperable } from './ensure-operable';
 
 interface RegistryKey {
   workspaceId: string;
@@ -38,12 +40,23 @@ const recordWelcomeReadyForPerf = (k: RegistryKey): void => {
 };
 
 function register(k: RegistryKey, webContentsId: number, ready = false): void {
-  registry.set(keyOf(k), webContentsId);
+  const registryKey = keyOf(k);
+  const previousId = registry.get(registryKey);
+  registry.set(registryKey, webContentsId);
+  if (previousId !== webContentsId) {
+    const wc = allWebContents.fromId(webContentsId);
+    wc?.once('destroyed', () => unregister(k, webContentsId));
+  }
   if (ready) recordWelcomeReadyForPerf(k);
 }
 
-function unregister(k: RegistryKey): void {
-  registry.delete(keyOf(k));
+function unregister(k: RegistryKey, expectedWebContentsId?: number): boolean {
+  const registryKey = keyOf(k);
+  if (
+    expectedWebContentsId !== undefined
+    && registry.get(registryKey) !== expectedWebContentsId
+  ) return false;
+  return registry.delete(registryKey);
 }
 
 function lookup(k: RegistryKey): number | undefined {
@@ -61,7 +74,10 @@ export function getWebContentsForNode(
   const id = lookup({ workspaceId, nodeId });
   if (id === undefined) return null;
   const wc = allWebContents.fromId(id);
-  if (!wc || wc.isDestroyed()) return null;
+  if (!wc || wc.isDestroyed()) {
+    unregister({ workspaceId, nodeId }, id);
+    return null;
+  }
   return wc;
 }
 
@@ -76,7 +92,11 @@ export async function pickDomElementForNode(
   error?: string;
   cancelled?: boolean;
 }> {
-  const wc = getWebContentsForNode(workspaceId, nodeId);
+  const wc = await ensureOperable({
+    lookup: () => getWebContentsForNode(workspaceId, nodeId),
+    activate: () => activateWorkspaceWindow(workspaceId, nodeId),
+    mode: 'operate',
+  });
   if (!wc) {
     return {
       ok: false,
@@ -164,7 +184,7 @@ export async function getNodeRenderedText(
     console.log(
       `[webview-registry] getNodeRenderedText: webContents#${id} gone for ${workspaceId}::${nodeId}`,
     );
-    unregister({ workspaceId, nodeId });
+    unregister({ workspaceId, nodeId }, id);
     return null;
   }
 
@@ -235,11 +255,18 @@ export function setupWebviewRegistryIpc(): void {
 
   ipcMain.handle(
     'iframe:unregister-webview',
-    (_event, payload: { workspaceId: string; nodeId: string }) => {
-      if (!payload?.workspaceId || !payload?.nodeId) return { ok: false };
-      unregister({ workspaceId: payload.workspaceId, nodeId: payload.nodeId });
+    (_event, payload: { workspaceId: string; nodeId: string; webContentsId: number }) => {
+      if (
+        !payload?.workspaceId
+        || !payload?.nodeId
+        || typeof payload.webContentsId !== 'number'
+      ) return { ok: false };
+      const removed = unregister(
+        { workspaceId: payload.workspaceId, nodeId: payload.nodeId },
+        payload.webContentsId,
+      );
       console.log(
-        `[webview-registry] unregistered ${payload.workspaceId}::${payload.nodeId} (${registry.size} remaining)`,
+        `[webview-registry] ${removed ? 'unregistered' : 'ignored stale unregister for'} ${payload.workspaceId}::${payload.nodeId} wc#${payload.webContentsId} (${registry.size} remaining)`,
       );
       return { ok: true };
     },
@@ -265,46 +292,4 @@ export function setupWebviewRegistryIpc(): void {
     },
   );
 
-  /**
-   * Background throttle for off-canvas-viewport webviews.
-   *
-   * Renderer detects when a webview-bearing node has been outside the visible
-   * canvas viewport for long enough (see useWebviewBackgroundThrottle) and
-   * asks main to drop its `setFrameRate`. The webview's guest process stays
-   * alive — only the paint cadence drops, so JS execution, timers, and
-   * network continue at normal speed and no in-page state is lost. When the
-   * node returns to the viewport renderer asks main to restore 60fps.
-   *
-   * Frame rate is clamped to Electron's [1, 240] range. Calls for unknown
-   * (workspaceId, nodeId) pairs (or already-destroyed webContents) silently
-   * resolve to {ok:false} — this happens normally during teardown when the
-   * IO observer fires after webview unregistration.
-   */
-  ipcMain.handle(
-    'iframe:set-frame-rate',
-    (
-      _event,
-      payload: { workspaceId: string; nodeId: string; frameRate: number },
-    ) => {
-      if (
-        !payload?.workspaceId ||
-        !payload?.nodeId ||
-        typeof payload.frameRate !== 'number'
-      ) {
-        return { ok: false };
-      }
-      const wc = getWebContentsForNode(payload.workspaceId, payload.nodeId);
-      if (!wc) return { ok: false };
-      const clamped = Math.max(1, Math.min(240, Math.round(payload.frameRate)));
-      try {
-        wc.setFrameRate(clamped);
-        return { ok: true, frameRate: clamped };
-      } catch (err) {
-        console.warn(
-          `[webview-registry] setFrameRate(${clamped}) failed for ${payload.workspaceId}::${payload.nodeId}: ${(err as Error).message}`,
-        );
-        return { ok: false };
-      }
-    },
-  );
 }

@@ -16,12 +16,15 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useI18n } from "../../i18n";
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
+import { useManagedWebviewMount } from '../IframeNodeBody/useManagedWebviewMount';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
 import { normalizeUrl } from "../IframeNodeBody/utils";
 import { Button, TextField } from "../ui";
 import "./index.css";
 
 interface LinkTabViewProps {
+  isActive: boolean;
+  residencyId: string;
   url: string;
   /** Active workspace id, used as the target for "add to current canvas". */
   activeWorkspaceId: string;
@@ -35,20 +38,44 @@ interface LinkTabViewProps {
   onRequestClose: () => void;
 }
 
-export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconChange, onNavigate, onRequestClose }: LinkTabViewProps) => {
+export const LinkTabView = ({
+  isActive,
+  residencyId,
+  url,
+  activeWorkspaceId,
+  onTitleChange,
+  onFaviconChange,
+  onNavigate,
+  onRequestClose,
+}: LinkTabViewProps) => {
   const { t } = useI18n();
   const addressFormRef = useRef<HTMLFormElement>(null);
+  const webviewHostRef = useRef<HTMLDivElement>(null);
   const [address, setAddress] = useState(url);
+  const lifecycle = useManagedWebviewMount({
+    enabled: true,
+    nodeId: `right-dock:${residencyId}`,
+    protectedState: isActive,
+    url,
+    webviewHostRef,
+  });
   const browser = useEmbeddedBrowser({
     className: 'link-drawer__webview',
+    enabled: lifecycle.shouldMount,
+    hostRef: webviewHostRef,
     onFaviconChange: (favicons) => {
       const favicon = pickFaviconUrl(favicons);
       if (favicon) onFaviconChange?.(favicon);
     },
     onNavigate: setAddress,
     onTitleChange,
-    url,
+    url: lifecycle.mountUrl,
   });
+
+  useEffect(() => {
+    lifecycle.setCurrentWebview(browser.webview);
+    return () => lifecycle.setCurrentWebview(null);
+  }, [browser.webview, lifecycle.setCurrentWebview]);
 
   // Keep the editable address synchronized with external tab navigation;
   // EmbeddedBrowser owns the Electron guest lifecycle and in-page updates.
@@ -107,7 +134,12 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconCh
           />
         </form>
       </header>
-      <div ref={browser.hostRef} className="link-drawer__webview-host" />
+      <div
+        ref={webviewHostRef}
+        className="link-drawer__webview-host"
+        data-webview-node-id={`right-dock:${residencyId}`}
+        data-webview-lifecycle={lifecycle.state}
+      />
       <footer className="link-drawer__footer">
         <button
           type="button"

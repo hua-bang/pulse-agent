@@ -6,8 +6,10 @@ import { execFile, execFileSync } from "child_process";
 import { chmodSync, existsSync } from "fs";
 import { readlink } from "fs/promises";
 import { delimiter, dirname, join, resolve } from "path";
+import { PtySessionLeaseRegistry } from "./session-lease";
 
 const sessions = new Map<string, pty.IPty>();
+const sessionLeases = new PtySessionLeaseRegistry();
 const nodeRequire = createRequire(import.meta.url);
 
 /**
@@ -247,9 +249,10 @@ export const setupPtyIpc = () => {
       }
     ) => {
       const { id, cols = 80, rows = 24, cwd, workspaceId } = payload;
+      const leaseId = sessionLeases.claim(id);
 
       if (sessions.has(id)) {
-        return { ok: true, reused: true };
+        return { ok: true, reused: true, leaseId };
       }
       // A fresh spawn means the app is live again after any teardown.
       intentionalShutdown = false;
@@ -284,6 +287,8 @@ export const setupPtyIpc = () => {
         notifyObservers((observer) => observer.onSpawn?.(info));
 
         proc.onData((data: string) => {
+          // Never route a killed process's trailing output into a same-id replacement.
+          if (sessions.get(id) !== proc) return;
           const win = _event.sender;
           if (!win.isDestroyed()) {
             win.send(`pty:data:${id}`, data);
@@ -292,8 +297,11 @@ export const setupPtyIpc = () => {
         });
 
         proc.onExit(({ exitCode }) => {
+          // Suppress an old exit after explicit cleanup or same-id replacement.
+          if (sessions.get(id) !== proc) return;
           sessions.delete(id);
           sessionInfos.delete(id);
+          sessionLeases.release(id);
           const win = _event.sender;
           if (!win.isDestroyed()) {
             win.send(`pty:exit:${id}`, exitCode);
@@ -301,8 +309,9 @@ export const setupPtyIpc = () => {
           notifyObservers((observer) => observer.onExit?.(info, exitCode));
         });
 
-        return { ok: true, pid: proc.pid };
+        return { ok: true, pid: proc.pid, leaseId };
       } catch (err) {
+        sessionLeases.release(id, leaseId);
         return { ok: false, error: String(err) };
       }
     }
@@ -338,12 +347,12 @@ export const setupPtyIpc = () => {
     }
   );
 
-  ipcMain.on("pty:kill", (_event, payload: { id: string }) => {
+  ipcMain.on("pty:kill", (_event, payload: { id: string; leaseId?: string }) => {
+    if (!sessionLeases.release(payload.id, payload.leaseId)) return;
     const proc = sessions.get(payload.id);
-    if (proc) {
-      proc.kill();
-      sessions.delete(payload.id);
-    }
+    try { proc?.kill(); } catch { /* process already exited */ }
+    sessions.delete(payload.id);
+    sessionInfos.delete(payload.id);
   });
 };
 
@@ -364,6 +373,7 @@ export const killAllPty = () => {
       // ignore
     }
     sessions.delete(id);
+    sessionLeases.release(id);
   }
 };
 
@@ -477,6 +487,7 @@ export function killSession(sessionId: string): boolean {
     proc.kill();
   } finally {
     sessions.delete(sessionId);
+    sessionLeases.release(sessionId);
   }
   return true;
 }

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, type KeyboardEventHandler, type RefObject } from 'react';
 import type { Artifact } from '../../types';
 import { Button } from '../ui/Button';
+import { EmptyState } from '../ui';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
 import { appendDomPickerBridge } from './domPickerBridge';
 import type { LoadState } from './types';
 import { markOnce } from '../../perf/monitor';
+import { useI18n } from '../../i18n';
+import type { WebviewLifecycleState } from './webviewLifecycleCoordinator';
 
 interface IframeRenderedViewProps {
   artifact: Artifact | null;
@@ -46,6 +49,8 @@ interface IframeRenderedViewProps {
   url: string;
   webviewHostRef: RefObject<HTMLDivElement>;
   webviewKey: number;
+  webviewLifecycleState: WebviewLifecycleState;
+  wakeWebview: () => void;
   workspaceId?: string;
 }
 
@@ -88,8 +93,11 @@ export const IframeRenderedView = ({
   url,
   webviewHostRef,
   webviewKey,
+  webviewLifecycleState,
+  wakeWebview,
   workspaceId,
 }: IframeRenderedViewProps) => {
+  const { t } = useI18n();
   const renderMode = mode === 'url' ? 'url' : 'html';
   const renderedHtml = isArtifactMode ? artifactHtml : html;
   const inspectableHtml = useMemo(
@@ -201,7 +209,11 @@ export const IframeRenderedView = ({
         </div>
       </div>
 
-      <div className={`iframe-frame-wrapper${streamingActive ? ' iframe-frame-wrapper--streaming' : ''}`}>
+      <div
+        className={`iframe-frame-wrapper${streamingActive ? ' iframe-frame-wrapper--streaming' : ''}`}
+        data-webview-lifecycle={renderMode === 'url' ? webviewLifecycleState : undefined}
+        data-webview-placeholder={renderMode === 'url' && webviewLifecycleState === 'discarded' ? 'fallback' : undefined}
+      >
         {streamingActive && <div className="iframe-shimmer-bar" />}
         {isResizing && <div className="iframe-pointer-shield" aria-hidden="true" />}
         {renderMode === 'url' ? (
@@ -210,7 +222,27 @@ export const IframeRenderedView = ({
               ref={webviewHostRef}
               key={webviewKey}
               className="iframe-frame-host"
+              data-webview-node-id={nodeId}
             />
+            {(webviewLifecycleState === 'discarded' || webviewLifecycleState === 'restoring') && (
+              <div className="iframe-memory-saver" data-testid="iframe-memory-saver">
+                <div className="iframe-memory-saver-card">
+                  <SleepIcon />
+                  <EmptyState
+                    className="iframe-memory-saver-copy"
+                    title={webviewLifecycleState === 'restoring'
+                      ? t('iframe.memorySaver.restoring')
+                      : t('iframe.memorySaver.title')}
+                    description={t('iframe.memorySaver.description')}
+                  />
+                  {webviewLifecycleState === 'discarded' && (
+                    <Button type="button" variant="secondary" size="sm" onClick={wakeWebview}>
+                      {t('iframe.memorySaver.restore')}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
             {loadState === 'failed' && (
               <div className="iframe-load-error">
                 <div className="iframe-load-error-card">
@@ -398,6 +430,12 @@ const IframeAddressButton = ({
 const SparkIcon = () => (
   <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
     <path d="M8 1.5l1.85 4.15L14 7.5l-4.15 1.85L8 13.5l-1.85-4.15L2 7.5l4.15-1.85L8 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+  </svg>
+);
+
+const SleepIcon = () => (
+  <svg className="iframe-memory-saver-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M7 7h7l-7 7h7M14.5 3.5H20l-5.5 5.5H20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 

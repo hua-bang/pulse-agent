@@ -13,20 +13,23 @@ function virtualClock() {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   delete process.env.CANVAS_WEBVIEW_AUTO_ACTIVATE;
 });
 
 describe('ensureOperable', () => {
-  it('read mode: uses an already-registered node without activating', async () => {
+  it('read mode: activates an already-registered node to hold a renderer protection lease', async () => {
     const activate = vi.fn(async () => ({ ok: true }));
+    const clock = virtualClock();
     const wc = await ensureOperable({
       lookup: () => 'WC' as string,
       activate,
       mode: 'read',
-      ...virtualClock(),
+      ...clock,
     });
     expect(wc).toBe('WC');
-    expect(activate).not.toHaveBeenCalled();
+    expect(activate).toHaveBeenCalledTimes(1);
+    expect(clock.now()).toBeGreaterThan(0);
   });
 
   it('read mode: activates when nothing is registered, then resolves once it appears', async () => {
@@ -81,6 +84,23 @@ describe('ensureOperable', () => {
     expect(polls).toBeGreaterThanOrEqual(3);
   });
 
+  it('returns the latest guest generation after activation settle', async () => {
+    let registered = 'old';
+    const clock = virtualClock();
+    const wc = await ensureOperable({
+      lookup: () => registered,
+      activate: async () => ({ ok: true }),
+      mode: 'operate',
+      now: clock.now,
+      delay: async (ms) => {
+        await clock.delay(ms);
+        registered = 'new';
+      },
+    });
+
+    expect(wc).toBe('new');
+  });
+
   it('returns null when the node never registers within the budget', async () => {
     const activate = vi.fn(async () => ({ ok: true }));
     const wc = await ensureOperable({
@@ -105,6 +125,20 @@ describe('ensureOperable', () => {
       ...virtualClock(),
     });
     expect(wc).toBe('WC');
+  });
+
+  it('bounds an activation promise that never settles', async () => {
+    vi.useFakeTimers();
+    const result = ensureOperable({
+      lookup: () => null,
+      activate: () => new Promise<never>(() => undefined),
+      mode: 'read',
+      waitMs: 25,
+      pollIntervalMs: 5,
+    });
+
+    await vi.advanceTimersByTimeAsync(25);
+    await expect(result).resolves.toBeNull();
   });
 
   it('opt-out env disables auto-activation entirely', async () => {

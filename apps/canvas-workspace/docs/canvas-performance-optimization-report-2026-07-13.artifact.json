@@ -1,0 +1,428 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Pulse Canvas 大画布性能优化报告",
+    "description": "86 节点 / 40 网页类节点缩放根因、生产修复、50/86/100/200 容量矩阵、WebView 生命周期与剩余风险的可审计技术报告。",
+    "generatedAt": "2026-07-13T15:34:25.018Z",
+    "cards": [
+      {
+        "id": "cold_zoom",
+        "description": "86/40/25 确定性夹具中，静止画布的第一记 Ctrl+Wheel 到 presented-frame boundary 代理的 5 轮中位数。",
+        "dataset": "summary",
+        "sourceId": "metrics_snapshot",
+        "metrics": [
+          { "label": "86 节点 cold zoom（ms）", "field": "final86ColdPresentedMedianMs", "format": "number" },
+          { "label": "改善下界（×）", "field": "improvementLowerBoundX", "format": "number" },
+          { "label": "原逻辑超时下界（ms）", "field": "baselineLowerBoundMs", "format": "number" }
+        ]
+      },
+      {
+        "id": "smoothness",
+        "description": "86/40/25 中持续 pan/zoom active window 与包含 idle/transition 的完整 settle window 慢帧占比中位数。",
+        "dataset": "summary",
+        "sourceId": "metrics_snapshot",
+        "metrics": [
+          { "label": "Active >20ms 帧（%）", "field": "activeSlowFramePct", "format": "number" },
+          { "label": "Settle >20ms 帧（%）", "field": "settleSlowFramePct", "format": "number" }
+        ]
+      },
+      {
+        "id": "webview_state",
+        "description": "交互前后 URL、readiness marker、WebContents id 和 document instance token 都保持的 live WebView 数量。",
+        "dataset": "summary",
+        "sourceId": "metrics_snapshot",
+        "metrics": [
+          { "label": "状态保持 WebView（/25）", "field": "statePreservedCount", "format": "number" },
+          { "label": "失效/替换", "field": "stateFailures", "format": "number" }
+        ]
+      },
+      {
+        "id": "release_gates",
+        "description": "最终 release 工作负载的核心/诊断覆盖与 policy Gate 结果。",
+        "dataset": "summary",
+        "sourceId": "metrics_snapshot",
+        "metrics": [
+          { "label": "Release Gate 通过（/22）", "field": "gatesPassed", "format": "number" },
+          { "label": "High 回归", "field": "highRegressions", "format": "number" },
+          { "label": "Alerts", "field": "alerts", "format": "number" }
+        ]
+      },
+      {
+        "id": "live_webview_memory",
+        "description": "100 节点 / 47 网页对照中，29 个 live WebView 组的全进程 RSS；对照组保留同数量 HTML 网页但无 live guest。",
+        "dataset": "summary",
+        "sourceId": "metrics_snapshot",
+        "metrics": [
+          { "label": "29 live RSS（MB）", "field": "live100RssMb", "format": "number" },
+          { "label": "0 live RSS（MB）", "field": "html100RssMb", "format": "number" },
+          { "label": "差值（MB）", "field": "rssDeltaMb", "format": "number" }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "capacity_cold_zoom",
+        "title": "Cold zoom 在 50–200 节点下稳定在 17–21ms",
+        "subtitle": "Presented-frame boundary 代理中位数；200 节点行不含 live WebView。",
+        "type": "bar",
+        "dataset": "capacity",
+        "sourceId": "metrics_snapshot",
+        "encodings": {
+          "x": { "field": "profile", "type": "ordinal", "label": "N / M / live" },
+          "y": { "field": "coldPresentedMedianMs", "type": "quantitative", "label": "Cold zoom 中位数（ms）", "format": "number" }
+        },
+        "yAxisTitle": "ms",
+        "valueFormat": "number",
+        "layout": "full"
+      },
+      {
+        "id": "capacity_rss",
+        "title": "Live WebView 而非节点数主导 RSS 容量",
+        "subtitle": "100/47 夹具中，29 live guest 组比 0 live 组高约 2.53GB；这是独立运行的进程 RSS 差值。",
+        "type": "bar",
+        "dataset": "capacity",
+        "sourceId": "metrics_snapshot",
+        "encodings": {
+          "x": { "field": "profile", "type": "ordinal", "label": "N / M / live" },
+          "y": { "field": "rssMb", "type": "quantitative", "label": "全进程 RSS（MB）", "format": "number" }
+        },
+        "yAxisTitle": "MB",
+        "valueFormat": "number",
+        "layout": "full"
+      },
+      {
+        "id": "webview_activity",
+        "title": "Chromium 已对几何离屏 guest 大幅降频",
+        "subtitle": "同一 guest 各采 1s；这是 native offscreen 与临时可见的 phase contrast，不是自定义 CSS 隐藏的增量收益。",
+        "type": "bar",
+        "dataset": "lifecycle",
+        "sourceId": "metrics_snapshot",
+        "encodings": {
+          "x": { "field": "phase", "type": "ordinal", "label": "Guest 位置" },
+          "y": { "field": "callbacks", "type": "quantitative", "label": "1s 内 callback 数", "format": "number" },
+          "color": { "field": "callbackType", "type": "nominal", "label": "Callback" }
+        },
+        "yAxisTitle": "callbacks / 1s",
+        "valueFormat": "number",
+        "layout": "full"
+      }
+    ],
+    "tables": [
+      {
+        "id": "capacity_detail",
+        "title": "50 / 86 / 100 / 200 节点容量矩阵",
+        "subtitle": "每行使用 fresh temp profile；cold/active/settle 为中位数，同时保留单轮最差值。",
+        "dataset": "capacity",
+        "sourceId": "metrics_snapshot",
+        "density": "dense",
+        "layout": "full",
+        "columns": [
+          { "field": "profile", "label": "N / M / live", "type": "text" },
+          { "field": "repeat", "label": "轮数", "format": "number" },
+          { "field": "coldPresentedMedianMs", "label": "Cold ms", "format": "number" },
+          { "field": "coldPresentedMaxMs", "label": "Cold max ms", "format": "number" },
+          { "field": "activeSlowFrameMedianPct", "label": "Active 慢帧 %", "format": "number" },
+          { "field": "activeSlowFrameMaxPct", "label": "Active max %", "format": "number" },
+          { "field": "settleDurationMedianMs", "label": "Settle ms", "format": "number" },
+          { "field": "settleSlowFrameMedianPct", "label": "Settle 慢帧 %", "format": "number" },
+          { "field": "rssMb", "label": "RSS MB", "format": "number" },
+          { "field": "state", "label": "Guest 状态", "type": "text" }
+        ]
+      },
+      {
+        "id": "implementation_detail",
+        "title": "已落地的生产优化",
+        "dataset": "implementations",
+        "sourceId": "metrics_snapshot",
+        "density": "comfortable",
+        "layout": "full",
+        "columns": [
+          { "field": "area", "label": "领域", "type": "text" },
+          { "field": "change", "label": "改动", "type": "text" },
+          { "field": "evidence", "label": "验证证据", "type": "text" }
+        ]
+      },
+      {
+        "id": "validation_detail",
+        "title": "最终验证门禁",
+        "dataset": "validation",
+        "sourceId": "metrics_snapshot",
+        "density": "dense",
+        "layout": "full",
+        "columns": [
+          { "field": "check", "label": "检查", "type": "text" },
+          { "field": "status", "label": "状态", "type": "text" },
+          { "field": "detail", "label": "结果", "type": "text" }
+        ]
+      },
+      {
+        "id": "risk_detail",
+        "title": "剩余风险与解读边界",
+        "dataset": "risks",
+        "sourceId": "metrics_snapshot",
+        "density": "comfortable",
+        "layout": "full",
+        "columns": [
+          { "field": "severity", "label": "级别", "type": "text" },
+          { "field": "risk", "label": "风险", "type": "text" },
+          { "field": "evidence", "label": "证据", "type": "text" },
+          { "field": "implication", "label": "影响", "type": "text" }
+        ]
+      },
+      {
+        "id": "next_steps",
+        "title": "建议的后续工作",
+        "dataset": "nextSteps",
+        "sourceId": "metrics_snapshot",
+        "defaultSort": { "field": "priority", "direction": "asc" },
+        "density": "comfortable",
+        "layout": "full",
+        "columns": [
+          { "field": "priority", "label": "优先级", "format": "number" },
+          { "field": "action", "label": "工作项", "type": "text" },
+          { "field": "acceptance", "label": "建议验收", "type": "text" }
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "metrics_snapshot",
+        "label": "Canvas performance canonical metrics",
+        "path": "apps/canvas-workspace/docs/canvas-performance-metrics-2026-07-13.json",
+        "query": {
+          "engine": "SQLite JSON1",
+          "language": "sql",
+          "sql": "SELECT json(readfile('apps/canvas-workspace/docs/canvas-performance-metrics-2026-07-13.json')) AS canonical_metrics;",
+          "description": "Load the reviewed canonical metrics snapshot used to assemble the bounded report datasets.",
+          "executed_at": "2026-07-13T15:34:25.018Z",
+          "tables_used": [
+            "apps/canvas-workspace/docs/canvas-performance-metrics-2026-07-13.json"
+          ]
+        }
+      },
+      {
+        "id": "release_contract",
+        "label": "Canvas release performance contract",
+        "path": "apps/canvas-workspace/perf/out/report.json",
+        "query": {
+          "engine": "SQLite JSON1",
+          "language": "sql",
+          "sql": "SELECT json(readfile('apps/canvas-workspace/perf/out/report.json')) AS release_contract;",
+          "description": "Load the latest normalized release verdict and policy contract.",
+          "executed_at": "2026-07-13T15:34:25.018Z",
+          "tables_used": [
+            "apps/canvas-workspace/perf/out/report.json"
+          ]
+        }
+      }
+    ],
+    "blocks": [
+      { "id": "title", "type": "markdown", "body": "# Pulse Canvas 大画布性能优化报告" },
+      {
+        "id": "technical_summary",
+        "type": "markdown",
+        "sourceId": "metrics_snapshot",
+        "body": "## 技术摘要\n\n**缩放主问题已解决。** 86 节点 / 40 网页类节点下，原逻辑的第一记 Ctrl+Wheel 超过 15s 仍未完成；生产修复后，86/40/25 live WebView 夹具的 cold presented-frame 代理中位数为 **17.3ms**，保守改善下界为 **867× / 99.88%**。持续 Pan/Zoom 慢帧中位数为 **0%**，包含 180ms idle debounce 与 transition 的完整 settle window 慢帧中位数为 **0.9%**。25/25 live WebView 的 WebContents 和 document 身份均保持。\n\n**结论不是“所有容量问题已解决”。** 100/47 夹具中，29 live guest 组的 RSS 比 0 live 对照组高约 2.53GB；200/93/58 live 夹具在计时前就触发同时挂载/视口容量边界。因此当前状态是：**缩放交互已从阻塞降到帧级响应，live WebView 内存仍是下一个 P0 容量主题。**"
+      },
+      { "id": "metrics", "type": "metric-strip", "cardIds": ["cold_zoom", "smoothness", "webview_state", "release_gates", "live_webview_memory"] },
+      {
+        "id": "zoom_finding",
+        "type": "markdown",
+        "sourceId": "metrics_snapshot",
+        "body": "## 首缩放卡顿的根因是动态提升整个大画布图层\n\n原路径在第一记 wheel 把 `will-change: transform` 加到包含全部 Frame、iframe 和 WebView 的根变换层。同一会话的单变量对照显示：只将它覆盖为 `auto` 即不再超时，因而不需要把 React 86 节点普通重渲染当作主解释。生产修复移除了这条动态 promotion，保留一个 rAF 合并的根 transform 写入，并把 O(网页节点数) 的遮罩切换收敛为一个画布级交互盾。"
+      },
+      { "id": "cold_chart", "type": "chart", "chartId": "capacity_cold_zoom", "layout": "full" },
+      { "id": "capacity_table", "type": "table", "tableId": "capacity_detail", "layout": "full" },
+      {
+        "id": "memory_finding",
+        "type": "markdown",
+        "sourceId": "metrics_snapshot",
+        "body": "## 节点渲染可到 200，但同时 live WebView 容量还不够\n\n在不含 live guest 的 200/93 夹具中，cold zoom 为 **21.2ms**，active 慢帧为 **0%**，说明根 transform 路径本身没有随 200 节点失控。但同为 100 节点 / 47 网页，29 live guest 组 RSS 约 **3385MB**，0 live 组约 **854MB**。这个对照不能把每个 guest 精确归因为 87MB，但足以把同时 live guest 数量确认为容量主驱动。50 节点组出现过单轮 **4.4%** active 慢帧，也因此报告同时展示中位数与单轮最差值，不用一个平均值隐藏抖动。"
+      },
+      { "id": "rss_chart", "type": "chart", "chartId": "capacity_rss", "layout": "full" },
+      {
+        "id": "lifecycle_finding",
+        "type": "markdown",
+        "sourceId": "metrics_snapshot",
+        "body": "## Chromium 原生离屏降频有效，额外 CSS 隐藏没有增量证据\n\n86/40/25 夹具初始有 25 个 guest，其中 23 个几何离屏。同一 guest 在 1s 离屏窗口内的 rAF/10ms interval callback 为 **0 / 1**，临时迁入 viewport 后为 **120 / 101**。WebContents id、document token、DOM canary 和几何恢复均通过。受控同几何 A/B 没有给 `visibility:hidden` 带来稳定增量收益，所以生产版撤回了这个 Observer/CSS class 实验，避免无效机制反而增加每 guest 成本。"
+      },
+      { "id": "lifecycle_chart", "type": "chart", "chartId": "webview_activity", "layout": "full" },
+      {
+        "id": "scope_definitions",
+        "type": "markdown",
+        "sourceId": "metrics_snapshot",
+        "body": "## 范围与指标定义\n\n`zoom-cold` 表示画布完全静止后的第一记 Ctrl+Wheel，不是 Electron 冷启动。`cold presented-frame` 先确认 computed transform 改变，再跨一个 rAF 边界；它是浏览器呈现机会代理，不是 GPU `SwapBuffers` 时间。`active slow frame` 是 wheel 动作窗口内 rAF 间隔 >20ms 的占比。`zoom-settle` 从手势开始一直记录到最后 wheel 后的 180ms moving-idle、160ms transition allowance 和两个 rAF 边界结束；因此约 340ms 是设计中的固定尾段，不是 355–371ms 的纯 JS 运算。\n\n容量夹具的 N/M/U 依次是总节点、网页类节点、live URL WebView。夹具是 `perf-v2` 的一次性 temp profile，使用自包含 loopback 页面；剩余节点用 text 填充，不复制用户画布的 19 Frame、文件、图片、思维导图和运行中 Agent。"
+      },
+      {
+        "id": "methodology",
+        "type": "markdown",
+        "sourceId": "metrics_snapshot",
+        "body": "## 方法与稳健性检查\n\n所有容量行使用 macOS arm64、GPU 开启的真实 Electron renderer 和 fresh disposable HOME。86/40/25 运行 5 轮，其余容量行运行 3 轮；时间与慢帧主值取中位数，同时保留 raw 和单轮最差值。86/40/25 另录制了包含 moving-idle 与 scale transition 的 Chrome trace：2205ms 窗口内慢帧 0%，trace 无丢数，GPU/Raster 总计 291.5/43.8ms，单次 lifecycle update 最大 13.5ms。\n\n夹具在交互前后强校验 N/M/U 构成、URL、loading、readiness marker、WebContents id 和 document token。临时 fit-to-view 后的 canvas transform 必须精确恢复，否则失败。默认 release 现强制运行 `zoom-settle`，并修复了上一轮缩放遮罩存在时误把遮罩下坐标当作空白画布的测量竞态。"
+      },
+      {
+        "id": "implementation_heading",
+        "type": "markdown",
+        "body": "## 生产修复同时压缩了缩放、连线拖拽、终端与截图放大路径\n\n下表只列已落地且有回归证据的改动。"
+      },
+      { "id": "implementation_table", "type": "table", "tableId": "implementation_detail", "layout": "full" },
+      {
+        "id": "validation_heading",
+        "type": "markdown",
+        "sourceId": "metrics_snapshot",
+        "body": "## 发布门禁全绿，但不等于每个二级目标都已达成\n\n最终 release 运行覆盖 70/70 核心指标、18/18 诊断指标和 22/22 Gate，alerts/high 均为 0。Main 入口 503KB，低于 510KB gate；renderer entry 632KB，等于当前 ratchet 上限。P0 目标 3/4 达标，1 项接近 warning。AI 流式 Markdown render 和 UI commit 各 73 次，超出目标 65 和 warning 72，但仍低于 Gate 80；所以“可发布”不应被解读为“无任何后续优化空间”。"
+      },
+      { "id": "validation_table", "type": "table", "tableId": "validation_detail", "layout": "full" },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "sourceId": "metrics_snapshot",
+        "body": "## 限制、不确定性与剩余风险\n\n缩放结论的因果证据较强：代码路径、同会话单变量反事实、生产修复与规模矩阵一致。容量与 RSS 结论是描述性的：各行是独立运行，未将每个 guest 的共享进程、Chromium 缓存与系统噪声做因果分解。此外，200/93/58 live 没有 timing 结果，因为夹具在计时前即无法在最小 scale 内同时挂载所有 guest。\n\n截图路径虽已有 16 tiles / 8MP / 4096 CSS px 宽 / 8000 CSS px 高 / 30s 和强恢复上限，但 scroll-and-stitch 仍可在每个 tile 重复 fixed/sticky/cookie overlay，且尚无真实 Electron 像素级 fixed/sticky 回归；这是已知正确性边界，不影响本轮缩放指标。"
+      },
+      { "id": "risk_table", "type": "table", "tableId": "risk_detail", "layout": "full" },
+      {
+        "id": "recommendations",
+        "type": "markdown",
+        "sourceId": "metrics_snapshot",
+        "body": "## 下一轮应先解决 live WebView 容量，再扩大节点上限\n\n最高优先级不是继续微调 wheel handler，而是定义一个不破坏页面状态的显式 WebView 休眠/缩略图协议，并把“同时 live guest 容量”与“节点渲染 timing”拆成两套基准。同时需要一份不含 URL、SQL、账号和业务名的混合类型重放快照，才能把 loopback WebView 隔离结论提升为真实业务画布 policy。"
+      },
+      { "id": "next_steps_table", "type": "table", "tableId": "next_steps", "layout": "full" },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## 进一步问题\n\n1. 业务上允许 WebView 在多长的离屏宽限期后进入“可能丢失页内运行态”的深度休眠？\n2. 对登录态 SPA，恢复契约要求 URL/滚动位置、还是包含表单、路由、socket 和媒体位置？\n3. 200 节点目标是支持 200 个普通节点，还是支持 200 节点中 50+ 个同时 live guest？这两者的内存预算不在同一数量级。\n4. 混合类型脱敏重放是否可作为未来 release 的固定 performance profile？"
+      },
+      {
+        "id": "sources_note",
+        "type": "markdown",
+        "body": "## 证据与可复现性\n\n本报告的卡片、图表与表格均指向同一份已审核的 canonical metrics snapshot。底层可重复输入包括 `perf/out/report.json`、`scenarios-report.json`、`panzoom-trace-summary.json`、`perf/metrics.json`、`perf/baselines.json` 与 `scripts/perf/run-scenarios.mjs`。容量运行的 raw 样本、测量口径、失败边界与实验撤回结果均保留在 canonical metrics 文件中。"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-13T15:34:25.018Z",
+    "status": "ready",
+    "datasets": {
+      "summary": [
+        {
+          "final86ColdPresentedMedianMs": 17.3,
+          "improvementLowerBoundX": 867,
+          "baselineLowerBoundMs": 15000,
+          "activeSlowFramePct": 0,
+          "settleSlowFramePct": 0.9,
+          "statePreservedCount": 25,
+          "stateFailures": 0,
+          "gatesPassed": 22,
+          "highRegressions": 0,
+          "alerts": 1,
+          "live100RssMb": 3385.16,
+          "html100RssMb": 853.91,
+          "rssDeltaMb": 2531.25
+        }
+      ],
+      "capacity": [
+        { "order": 1, "profile": "50 / 23 / 15", "nodes": 50, "webpages": 23, "liveWebviews": 15, "repeat": 3, "coldPresentedMedianMs": 17.7, "coldPresentedMaxMs": 20.4, "activeSlowFrameMedianPct": 0, "activeSlowFrameMaxPct": 4.4, "settleDurationMedianMs": 358.3, "settleSlowFrameMedianPct": 1.7, "settleSlowFrameMaxPct": 4.5, "rssMb": 2019.45, "rendererHeapMb": 22, "mainLoopP99Ms": 17.9, "mainLoopMaxMs": 54.2, "state": "15/15 保持" },
+        { "order": 2, "profile": "86 / 40 / 25", "nodes": 86, "webpages": 40, "liveWebviews": 25, "repeat": 5, "coldPresentedMedianMs": 17.3, "coldPresentedMaxMs": 24.5, "activeSlowFrameMedianPct": 0, "activeSlowFrameMaxPct": 0.5, "settleDurationMedianMs": 365.9, "settleSlowFrameMedianPct": 0.9, "settleSlowFrameMaxPct": 2.7, "rssMb": 3184.33, "rendererHeapMb": 33, "mainLoopP99Ms": 26.3, "mainLoopMaxMs": 50.5, "state": "25/25 保持" },
+        { "order": 3, "profile": "100 / 47 / 29", "nodes": 100, "webpages": 47, "liveWebviews": 29, "repeat": 3, "coldPresentedMedianMs": 17.9, "coldPresentedMaxMs": 19.3, "activeSlowFrameMedianPct": 0, "activeSlowFrameMaxPct": 0.5, "settleDurationMedianMs": 358, "settleSlowFrameMedianPct": 0, "settleSlowFrameMaxPct": 0, "rssMb": 3385.16, "rendererHeapMb": 36, "mainLoopP99Ms": 31.9, "mainLoopMaxMs": 49.3, "state": "29/29 保持" },
+        { "order": 4, "profile": "100 / 47 / 0", "nodes": 100, "webpages": 47, "liveWebviews": 0, "repeat": 3, "coldPresentedMedianMs": 19, "coldPresentedMaxMs": 22.3, "activeSlowFrameMedianPct": 0, "activeSlowFrameMaxPct": 0, "settleDurationMedianMs": 358.3, "settleSlowFrameMedianPct": 0, "settleSlowFrameMaxPct": 0, "rssMb": 853.91, "rendererHeapMb": 26, "mainLoopP99Ms": 23.5, "mainLoopMaxMs": 52.9, "state": "无 live guest" },
+        { "order": 5, "profile": "200 / 93 / 0", "nodes": 200, "webpages": 93, "liveWebviews": 0, "repeat": 3, "coldPresentedMedianMs": 21.2, "coldPresentedMaxMs": 26.7, "activeSlowFrameMedianPct": 0, "activeSlowFrameMaxPct": 0, "settleDurationMedianMs": 370.9, "settleSlowFrameMedianPct": 0.9, "settleSlowFrameMaxPct": 0.9, "rssMb": 1187.63, "rendererHeapMb": 65, "mainLoopP99Ms": 23.3, "mainLoopMaxMs": 48.7, "state": "无 live guest" }
+      ],
+      "lifecycle": [
+        { "phase": "几何离屏", "callbackType": "rAF", "callbacks": 0, "windowMs": 1000, "guestsTotal": 25, "offscreenGuests": 23, "visibleGuests": 2, "webContentsPreserved": true, "documentPreserved": true, "geometryRestored": true },
+        { "phase": "几何离屏", "callbackType": "10ms interval", "callbacks": 1, "windowMs": 1000, "guestsTotal": 25, "offscreenGuests": 23, "visibleGuests": 2, "webContentsPreserved": true, "documentPreserved": true, "geometryRestored": true },
+        { "phase": "临时可见", "callbackType": "rAF", "callbacks": 120, "windowMs": 1000, "guestsTotal": 25, "offscreenGuests": 23, "visibleGuests": 2, "webContentsPreserved": true, "documentPreserved": true, "geometryRestored": true },
+        { "phase": "临时可见", "callbackType": "10ms interval", "callbacks": 101, "windowMs": 1000, "guestsTotal": 25, "offscreenGuests": 23, "visibleGuests": 2, "webContentsPreserved": true, "documentPreserved": true, "geometryRestored": true }
+      ],
+      "implementations": [
+        { "order": 1, "area": "Zoom compositor path", "change": "移除根变换层的动态 will-change，保留 rAF 合并 transform 和手势期 settled scale 冻结。", "evidence": "86/40 首 wheel 从 >15s 超时下界降到 17.3ms presented-frame 代理中位数。" },
+        { "order": 2, "area": "Embedded-page shield", "change": "wheel 平移/缩放从每 iframe/WebView 遮罩收敛为一个画布级交互盾。", "evidence": "手势期不再创建 O(网页节点数) 伪元素，guest 不卸载。" },
+        { "order": 3, "area": "Edge manipulation", "change": "pointer move 只更新 rAF 预览，mouseup 只写一次 canonical geometry，Escape/零位移不写入。", "evidence": "消除高频持久化/历史写放大，所有连线视图共用投影几何。" },
+        { "order": 4, "area": "Terminal / Agent persistence", "change": "只在 parser 确认内容变化后持久化；空闲 tick 不序列化、查 cwd 或写节点。", "evidence": "空闲理论路径从每节点约 30 次/分钟降为 0，结束时强制 drain。" },
+        { "order": 5, "area": "PTY lifecycle", "change": "新增 lease generation；Terminal、Agent、Dock 在 await spawn 前安装取消，延迟成功按 lease 回收。", "evidence": "late success/failure、mirror getCwd 卸载与过期 proc data/exit 都有回归测试。" },
+        { "order": 6, "area": "WebView screenshot", "change": "离屏 guest 临时迁入 viewport，长页受限 scroll-and-stitch，全局串行，恢复失败 fail closed。", "evidence": "真实 1036×2004 截图覆盖卡片 01→18；16 tiles / 8MP / 30s 等上限已落地。" },
+        { "order": 7, "area": "Benchmark reliability", "change": "增加 exact N/M/U、live WebView 状态证明、cold presented、active/settle、trace、lifecycle 和容量矩阵。", "evidence": "默认 release 强制 zoom-settle，恢复 transform 强校验，遮罩空白坐标竞态已修复。" }
+      ],
+      "validation": [
+        { "order": 1, "check": "TypeScript", "status": "PASS", "detail": "renderer + node tsconfig 全部通过" },
+        { "order": 2, "check": "完整应用测试", "status": "PASS", "detail": "172 files / 1270 tests" },
+        { "order": 3, "check": "Perf 工具测试", "status": "PASS", "detail": "21 files / 171 tests" },
+        { "order": 4, "check": "生产 build", "status": "PASS", "detail": "Main 503KB < 510KB gate；Renderer entry 632KB = ratchet limit" },
+        { "order": 5, "check": "Release runtime", "status": "PASS", "detail": "Core 70/70；Diagnostic 18/18；Gate 22/22；1 info alert / 0 high" },
+        { "order": 6, "check": "100 节点默认缩放", "status": "PASS", "detail": "Cold 22.5ms；active 慢帧 0%；settle 361.5ms / 慢帧 0%" },
+        { "order": 7, "check": "86/40/25 guest 状态", "status": "PASS", "detail": "25/25 WebContents + document token 保持" }
+      ],
+      "risks": [
+        { "priority": 1, "severity": "High", "risk": "Live WebView 进程驻留仍是容量主瓶颈。", "evidence": "100/47 中 29 live 组 RSS 约 3385MB，0 live 组约 854MB，差值 2531MB。", "implication": "缩放流畅不等于 50+ live guest 的内存容量可接受。" },
+        { "priority": 2, "severity": "High", "risk": "200/93/58 live 尚无 timing 结果。", "evidence": "夹具在最小 scale 内无法同时挂载所有 guest，计时前 fail closed；200/93/0 可完成。", "implication": "当前不能宣称 200 节点 + 58 live guest 受支持。" },
+        { "priority": 3, "severity": "Medium", "risk": "确定性 loopback 夹具不代表完整业务 SPA 任务。", "evidence": "夹具缺少真实轮询、WebSocket、媒体、长列表与用户画布的混合节点类型。", "implication": "需要混合类型脱敏重放才能建立业务 policy。" },
+        { "priority": 4, "severity": "Medium", "risk": "长页截图会重复 fixed/sticky/cookie overlay。", "evidence": "scroll-and-stitch 已受限且 fail closed，但尚无 fixed/sticky 检测与 Electron 像素级回归。", "implication": "需增加抑制/拒绝策略；不影响本轮缩放指标。" },
+        { "priority": 5, "severity": "Medium", "risk": "AI 流式 render/commit 次级目标仍未达标。", "evidence": "Markdown render 与 UI commit 均 73，target 65，warning 72，Gate 80。", "implication": "Release 无 high 回归，但下轮仍应降低流式放大。" }
+      ],
+      "nextSteps": [
+        { "priority": 1, "action": "定义显式、有宽限期、可选的 WebView 休眠/缩略图协议。", "acceptance": "25/29/58 live guest 分档；记录 RSS 回落、恢复时间与页面状态保真度。" },
+        { "priority": 2, "action": "把同时 live guest 容量与普通节点 timing 拆成两套 200 节点基准。", "acceptance": "夹具不因 viewport-fit 假失败；明确最大同时 live 数和进程内存预算。" },
+        { "priority": 3, "action": "建立 19 Frame + 40 webpage + 文件/图片/思维导图/Agent 的脱敏混合重放。", "acceptance": "无 URL/SQL/账号/业务名；可在 release 中固定重放并验证状态。" },
+        { "priority": 4, "action": "为 scroll-and-stitch 增加 fixed/sticky overlay 检测与真实 Electron 像素回归。", "acceptance": "固定头/底部不重复遮挡；timeout 后无 late mutation；几何/滚动必须恢复。" },
+        { "priority": 5, "action": "将 AI 流式 Markdown render/UI commit 从 73 压回目标。", "acceptance": "确定性 521-delta 夹具两项均 ≤65，并保持 cache-hit 与 tail burst Gate。" },
+        { "priority": 6, "action": "累积同机 cold presented 和 zoom-settle 历史后再设 policy。", "acceptance": "至少多日、多轮可比样本；分离 target/warning/Gate，不以单次数字定棘轮。" }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "metrics_snapshot",
+      "label": "Canvas performance canonical metrics",
+      "path": "apps/canvas-workspace/docs/canvas-performance-metrics-2026-07-13.json",
+      "query": {
+        "engine": "SQLite JSON1",
+        "language": "sql",
+        "sql": "SELECT json(readfile('apps/canvas-workspace/docs/canvas-performance-metrics-2026-07-13.json')) AS canonical_metrics;",
+        "description": "Reviewed aggregate of baseline counterfactual, exact N/M/U Electron runs, Chrome interaction trace, WebView lifecycle experiment, release dashboard, tests, build gates, rejected experiments, and remaining risks.",
+        "executed_at": "2026-07-13T15:34:25.018Z",
+        "tables_used": [
+          "apps/canvas-workspace/perf/out/report.json",
+          "apps/canvas-workspace/perf/out/scenarios-report.json",
+          "apps/canvas-workspace/perf/out/panzoom-trace-summary.json",
+          "apps/canvas-workspace/perf/metrics.json",
+          "apps/canvas-workspace/perf/baselines.json"
+        ],
+        "filters": [
+          "macOS arm64 with GPU-enabled Electron renderer",
+          "fresh disposable temp profile per capacity row",
+          "perf-v2 exact N/M/U deterministic fixture",
+          "50/100/200 rows repeat=3; exact 86/40/25 row repeat=5",
+          "timing rows exclude the rejected 200/93/58 live fixture that failed before measurement"
+        ],
+        "metric_definitions": {
+          "coldPresentedMedianMs": "Median from the first idle Ctrl+Wheel until computed transform changes and one additional requestAnimationFrame boundary passes; not a GPU SwapBuffers timestamp.",
+          "activeSlowFramePct": "Median percentage of requestAnimationFrame intervals above 20ms inside the active pan/zoom action window.",
+          "settleDurationMedianMs": "Median last-wheel-to-rest duration including the 180ms moving-idle debounce, 160ms transition allowance, and two final requestAnimationFrame boundaries.",
+          "rssMb": "Peak aggregate process RSS observed in main-process sampling windows, converted from KiB to MiB; descriptive across separate runs.",
+          "improvementLowerBoundX": "15000ms timeout lower bound divided by the 17.3ms exact-86 cold presented-frame proxy median, rounded down for conservative reporting."
+        }
+      }
+    },
+    {
+      "id": "release_contract",
+      "label": "Canvas release performance contract",
+      "path": "apps/canvas-workspace/perf/out/report.json",
+      "query": {
+        "engine": "SQLite JSON1",
+        "language": "sql",
+        "sql": "SELECT json(readfile('apps/canvas-workspace/perf/out/report.json')) AS release_contract;",
+        "description": "Latest normalized release verdict, policy evaluations, Gate summary, coverage, alerts, and bounded metric rows.",
+        "executed_at": "2026-07-13T15:34:25.018Z",
+        "tables_used": [
+          "apps/canvas-workspace/perf/out/report.json"
+        ]
+      }
+    }
+  ],
+  "package_info": {
+    "root": "apps/canvas-workspace/docs",
+    "manifestPath": "apps/canvas-workspace/docs/canvas-performance-optimization-report-2026-07-13.artifact.json",
+    "snapshotPath": "apps/canvas-workspace/docs/canvas-performance-optimization-report-2026-07-13.artifact.json"
+  }
+}

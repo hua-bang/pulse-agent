@@ -12,7 +12,7 @@ export const createPtyApi = (ipcRenderer: IpcRenderer): CanvasWorkspaceApi["pty"
   resize: (id, cols, rows) =>
     ipcRenderer.send("pty:resize", { id, cols, rows }),
 
-  kill: (id) => ipcRenderer.send("pty:kill", { id }),
+  kill: (id, leaseId) => ipcRenderer.send("pty:kill", { id, leaseId }),
 
   getCwd: (id) => ipcRenderer.invoke("pty:getCwd", { id }),
 

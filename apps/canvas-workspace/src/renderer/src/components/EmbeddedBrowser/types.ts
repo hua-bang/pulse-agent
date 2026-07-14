@@ -7,6 +7,10 @@ export interface BrowserLoadError {
 
 export interface EmbeddedWebviewTag extends HTMLElement {
   getWebContentsId(): number;
+  executeJavaScript<T = unknown>(code: string, userGesture?: boolean): Promise<T>;
+  isCurrentlyAudible(): boolean;
+  isDevToolsOpened(): boolean;
+  isLoading(): boolean;
   reload(): void;
   canGoBack(): boolean;
   canGoForward(): boolean;

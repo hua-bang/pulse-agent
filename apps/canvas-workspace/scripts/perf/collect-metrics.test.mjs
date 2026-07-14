@@ -1,15 +1,85 @@
 import { describe, expect, it } from 'vitest';
 import {
   collectChatStreamMetrics,
+  collectColdZoomMetrics,
   collectImageMemoryMetric,
   collectInteractionScenarioMetrics,
   collectPanzoomMetrics,
   collectPtyStreamMetric,
   collectPackageMetrics,
   collectRendererTraceMetrics,
+  collectWebviewResidencyMetrics,
   collectWelcomeContentMetric,
   collectWorkspaceCycleMetrics,
+  collectZoomSettleMetrics,
 } from './collect-metrics.mjs';
+
+describe('collectMetrics WebView residency', () => {
+  it('maps a verified discard/restore diagnostic into guest, RSS, and restore metrics', () => {
+    expect(collectWebviewResidencyMetrics({
+      scenarios: {
+        'webview-discard-restore': {
+          status: 'measured',
+          liveCap: 16,
+          before: { domGuests: 29, targetGuests: 29, rssMb: 3304.1 },
+          afterDiscard: {
+            discarded: 13,
+            domGuests: 16,
+            live: 16,
+            targetGuests: 16,
+            rssMb: 2135.4,
+            rssReleasedMb: 1168.7,
+          },
+          restore: {
+            readyMs: 268,
+            before: { webContentsId: 101, instanceToken: 'old' },
+            after: { webContentsId: 202, instanceToken: 'new' },
+          },
+        },
+      },
+    })).toEqual([
+      {
+        id: 'memory.webview_guest_count',
+        value: 16,
+        runs: 1,
+        detail: '29→16 CDP WebView targets · cap 16 · 13 discarded',
+      },
+      {
+        id: 'memory.webview.total_rss_released_mb',
+        value: 1168.7,
+        runs: 1,
+        detail: '3304.1→2135.4 MB after discard',
+      },
+      {
+        id: 'memory.webview.after_discard_rss_mb',
+        value: 2135.4,
+        runs: 1,
+        detail: '29→16 CDP WebView targets · before 3304.1 MB',
+      },
+      {
+        id: 'memory.webview.restore_ready_ms',
+        value: 268,
+        runs: 1,
+        detail: 'new WebContents 101→202 · new document generation verified',
+      },
+    ]);
+  });
+
+  it('rejects incomplete or unverified diagnostic output', () => {
+    expect(collectWebviewResidencyMetrics(null)).toEqual([]);
+    expect(collectWebviewResidencyMetrics({
+      scenarios: {
+        'webview-discard-restore': {
+          status: 'measured',
+          liveCap: 16,
+          before: { targetGuests: 29 },
+          afterDiscard: { targetGuests: 17, discarded: 12 },
+          restore: { readyMs: 200 },
+        },
+      },
+    })).toEqual([]);
+  });
+});
 
 describe('collectPackageMetrics', () => {
   it('maps the packaged artifact report without inventing missing values', () => {
@@ -222,6 +292,43 @@ describe('collectMetrics remaining scenario coverage', () => {
   });
 });
 
+describe('collectMetrics zoom settle coverage', () => {
+  it('publishes rest latency plus median and worst settle-window frame evidence', () => {
+    expect(collectZoomSettleMetrics({
+      scenarios: {
+        'zoom-settle': {
+          lastWheelToRestMs: 365.9,
+          rawLastWheelToRestMs: [358.5, 366.7, 365.9],
+          includesSettleTransitionMs: 160,
+          report: {
+            runs: 3,
+            frames: { over20msPct: 0.9, over20msPctMax: 2.7, over20msCountMax: 3 },
+            raw: { framesOver20Pct: [0, 0.9, 2.7], framesOver20Count: [0, 1, 3] },
+          },
+        },
+      },
+    })).toEqual([
+      {
+        id: 'interact.zoom_settle.last_wheel_to_rest_ms', value: 365.9, runs: 3,
+        raw: [358.5, 366.7, 365.9],
+        detail: 'last wheel → moving flags clear + 160ms transition budget',
+      },
+      {
+        id: 'interact.zoom_settle.frames_over20_pct', value: 0.9, runs: 3,
+        raw: [0, 0.9, 2.7], detail: 'median 0.9% · max 2.7% · max 3 frames >20ms',
+      },
+      {
+        id: 'interact.zoom_settle.frames_over20_pct_max', value: 2.7, runs: 3,
+        raw: [0, 0.9, 2.7], detail: 'max across 3 settle-window runs · 3 frames >20ms',
+      },
+    ]);
+  });
+
+  it('does not manufacture settle metrics from an incomplete scenario', () => {
+    expect(collectZoomSettleMetrics({ scenarios: { 'zoom-settle': {} } })).toEqual([]);
+  });
+});
+
 describe('collectMetrics renderer trace diagnostics', () => {
   it('maps a measured warm-reload trace into diagnostic metric ids', () => {
     const metrics = collectRendererTraceMetrics({
@@ -308,6 +415,132 @@ describe('collectMetrics pan/zoom evidence', () => {
   it('does not emit a latency metric when the transform probe did not verify work', () => {
     expect(collectPanzoomMetrics({
       scenarios: { panzoom: { report: { transformChanged: false } } },
+    })).toEqual([]);
+  });
+});
+
+describe('collectMetrics cold zoom evidence', () => {
+  it('publishes the median first wheel only when every run carries cold-start proof', () => {
+    expect(collectColdZoomMetrics({
+      scenarios: {
+        'zoom-cold': {
+          report: {
+            runs: 3,
+            raw: {
+              wheelToNextFrameP95: [14.2, 11.8, 12.6],
+              wheelToPresentedFrameP95: [30.9, 28.4, 29.2],
+              wheelToTransformObservedP95: [14.6, 12.1, 12.9],
+            },
+            wheelToNextFrame: { count: 1, p95: 12.6, max: 14.2 },
+            wheelToPresentedFrame: {
+              count: 1,
+              p95: 29.2,
+              max: 30.9,
+              transformObservedP95: 12.9,
+              transformChanged: true,
+              framesUntilTransform: 1,
+              framesAfterTransform: 1,
+            },
+            coldStartVerified: true,
+            transformChanged: true,
+          },
+        },
+      },
+    })).toEqual([
+      {
+        id: 'interact.zoom_cold.first_wheel_to_next_frame_ms',
+        value: 12.6,
+        runs: 3,
+        raw: [14.2, 11.8, 12.6],
+        detail: '1 Ctrl+Wheel/run × 3 · idle state verified · transform verified',
+      },
+      {
+        id: 'interact.zoom_cold.first_wheel_to_presented_frame_ms',
+        value: 29.2,
+        runs: 3,
+        raw: [30.9, 28.4, 29.2],
+        detail: '1 Ctrl+Wheel/run × 3 · transform observed at 12.9ms · +1 post-transform rAF (presented-frame proxy)',
+      },
+    ]);
+  });
+
+  it('keeps legacy-only reports readable after adding the presented-frame metric', () => {
+    expect(collectColdZoomMetrics({
+      scenarios: {
+        'zoom-cold': {
+          report: {
+            wheelToNextFrame: { count: 1, p95: 12.6, max: 12.6 },
+            coldStartVerified: true,
+            transformChanged: true,
+          },
+        },
+      },
+    })).toEqual([{
+      id: 'interact.zoom_cold.first_wheel_to_next_frame_ms',
+      value: 12.6,
+      runs: 1,
+      detail: '1 Ctrl+Wheel/run × 1 · idle state verified · transform verified',
+    }]);
+  });
+
+  it('retains the legacy metric when presented-frame evidence is impossible', () => {
+    const metrics = collectColdZoomMetrics({
+      scenarios: {
+        'zoom-cold': {
+          report: {
+            wheelToNextFrame: { count: 1, p95: 12.6, max: 12.6 },
+            wheelToPresentedFrame: {
+              count: 1,
+              p95: 12.7,
+              max: 12.7,
+              transformObservedP95: 12.8,
+              transformChanged: true,
+              framesUntilTransform: 1,
+              framesAfterTransform: 1,
+            },
+            coldStartVerified: true,
+            transformChanged: true,
+          },
+        },
+      },
+    });
+
+    expect(metrics.map((entry) => entry.id)).toEqual([
+      'interact.zoom_cold.first_wheel_to_next_frame_ms',
+    ]);
+  });
+
+  it.each([
+    { coldStartVerified: false, transformChanged: true, count: 1 },
+    { coldStartVerified: true, transformChanged: false, count: 1 },
+    { coldStartVerified: true, transformChanged: true, count: 2 },
+  ])('rejects incomplete or warmed evidence: %o', ({ coldStartVerified, transformChanged, count }) => {
+    expect(collectColdZoomMetrics({
+      scenarios: {
+        'zoom-cold': {
+          report: {
+            wheelToNextFrame: { count, p95: 12, max: 12 },
+            coldStartVerified,
+            transformChanged,
+          },
+        },
+      },
+    })).toEqual([]);
+  });
+
+  it('rejects a repeated result whose raw first-wheel samples are incomplete', () => {
+    expect(collectColdZoomMetrics({
+      scenarios: {
+        'zoom-cold': {
+          report: {
+            runs: 3,
+            raw: { wheelToNextFrameP95: [12, 13] },
+            wheelToNextFrame: { count: 1, p95: 12, max: 13 },
+            coldStartVerified: true,
+            transformChanged: true,
+          },
+        },
+      },
     })).toEqual([]);
   });
 });
