@@ -2,14 +2,11 @@
  * Right-dock tab content for external links intercepted from embedded
  * webviews and sandboxed iframes. Each open link preview owns its own
  * <webview>; the dock dedupes exact URLs while allowing different links
- * to stay open side by side. The view exposes:
- *  - open in system browser (escape hatch for X-Frame-Options-blocked
- *    sites, or when the user wants a real browser tab)
- *  - add to current canvas (creates a new iframe node bound to the URL,
- *    then closes the tab)
+ * to stay open side by side.
  *
- * Tab chrome (label, close, switching) lives in components/RightDock;
- * the resolved page title is reported up via `onTitleChange`.
+ * Tab chrome, link actions (open in browser / add to canvas), and switching
+ * live in components/RightDock; the resolved page title is reported up via
+ * `onTitleChange`.
  */
 
 import { useCallback, useLayoutEffect, useRef } from "react";
@@ -25,17 +22,13 @@ interface WebviewTag extends HTMLElement {
 
 interface LinkTabViewProps {
   url: string;
-  /** Active workspace id, used as the target for "add to current canvas". */
-  activeWorkspaceId: string;
   onTitleChange?: (title: string) => void;
   /** Page favicon, reported once the webview resolves it, so the tab icon
    *  follows the site instead of a hardcoded globe. */
   onFaviconChange?: (faviconUrl: string) => void;
-  /** Asks the dock to close this tab (after "add to current canvas"). */
-  onRequestClose: () => void;
 }
 
-export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconChange, onRequestClose }: LinkTabViewProps) => {
+export const LinkTabView = ({ url, onTitleChange, onFaviconChange }: LinkTabViewProps) => {
   const { t } = useI18n();
   const hostRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<WebviewTag | null>(null);
@@ -81,24 +74,6 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconCh
     };
   }, [url]);
 
-  const handleOpenInBrowser = useCallback(() => {
-    if (!url) return;
-    void window.canvasWorkspace.shell.openExternal(url);
-  }, [url]);
-
-  const handleAddToCanvas = useCallback(() => {
-    if (!url || !activeWorkspaceId) return;
-    // Cross-component event handed off to the active Canvas. Going through
-    // a window event keeps the dock decoupled from the canvas internals;
-    // the matching listener lives in components/Canvas/index.tsx.
-    window.dispatchEvent(
-      new CustomEvent("canvas:add-iframe-from-url", {
-        detail: { workspaceId: activeWorkspaceId, url },
-      }),
-    );
-    onRequestClose();
-  }, [url, activeWorkspaceId, onRequestClose]);
-
   const handleReload = useCallback(() => {
     webviewRef.current?.reload();
   }, []);
@@ -125,24 +100,6 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconCh
         <div className="link-drawer__url" title={url}>{url}</div>
       </header>
       <div ref={hostRef} className="link-drawer__webview-host" />
-      <footer className="link-drawer__footer">
-        <button
-          type="button"
-          className="link-drawer__btn"
-          onClick={handleOpenInBrowser}
-        >
-          {t('linkDrawer.openInBrowser')}
-        </button>
-        <button
-          type="button"
-          className="link-drawer__btn link-drawer__btn--primary"
-          onClick={handleAddToCanvas}
-          disabled={!activeWorkspaceId}
-          title={activeWorkspaceId ? undefined : t('linkDrawer.noActiveCanvas')}
-        >
-          {t('linkDrawer.addToCanvas')}
-        </button>
-      </footer>
     </>
   );
 };

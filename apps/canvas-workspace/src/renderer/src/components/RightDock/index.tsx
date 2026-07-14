@@ -48,8 +48,8 @@ import { ArtifactTabView } from '../artifacts/ArtifactTabView';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { LinkTabView } from '../LinkDrawer';
-import { AppLogoIcon } from '../icons';
-import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
+import { AppLogoIcon, ExternalLinkIcon, PlusIcon } from '../icons';
+import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockPreviewTab, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
 import './index.css';
@@ -219,6 +219,29 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
     ? null
     : state.activeTabId;
   const terminalPaneActive = state.terminalTabs.some((tab) => tab.id === activePaneId);
+  const activeLinkTab = state.tabs.find(
+    (tab): tab is Extract<DockPreviewTab, { kind: 'link' }> => tab.id === activePaneId && tab.kind === 'link',
+  );
+  const activeLinkUrl = activeLinkTab?.url;
+  const activeLinkTabId = activeLinkTab?.id;
+
+  const handleOpenActiveLinkInBrowser = useCallback(() => {
+    if (!activeLinkUrl) return;
+    void window.canvasWorkspace.shell.openExternal(activeLinkUrl);
+  }, [activeLinkUrl]);
+
+  const handleAddActiveLinkToCanvas = useCallback(() => {
+    if (!activeLinkUrl || !activeWorkspaceId || !activeLinkTabId) return;
+    // Cross-component event handed off to the active Canvas. Going through
+    // a window event keeps the dock decoupled from the canvas internals;
+    // the matching listener lives in components/Canvas/index.tsx.
+    window.dispatchEvent(
+      new CustomEvent('canvas:add-iframe-from-url', {
+        detail: { workspaceId: activeWorkspaceId, url: activeLinkUrl },
+      }),
+    );
+    store.close(activeLinkTabId);
+  }, [activeLinkUrl, activeWorkspaceId, activeLinkTabId, store]);
 
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
 
@@ -441,6 +464,29 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
             );
           })}
         </div>
+        {activeLinkTab && (
+          <div className="right-dock__link-actions" role="group" aria-label={t('linkDrawer.actions')}>
+            <button
+              type="button"
+              className="right-dock__link-action right-dock__link-action--ghost"
+              aria-label={t('linkDrawer.openInBrowser')}
+              title={t('linkDrawer.openInBrowser')}
+              onClick={handleOpenActiveLinkInBrowser}
+            >
+              <ExternalLinkIcon size={14} />
+            </button>
+            <button
+              type="button"
+              className="right-dock__link-action right-dock__link-action--primary"
+              onClick={handleAddActiveLinkToCanvas}
+              disabled={!activeWorkspaceId}
+              title={activeWorkspaceId ? t('linkDrawer.addToCanvas') : t('linkDrawer.noActiveCanvas')}
+            >
+              <PlusIcon size={13} />
+              {t('linkDrawer.addToCanvasShort')}
+            </button>
+          </div>
+        )}
         <button
           type="button"
           className="right-dock__collapse"
@@ -477,10 +523,8 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
             ) : (
               <LinkTabView
                 url={tab.url}
-                activeWorkspaceId={activeWorkspaceId}
                 onTitleChange={(title) => store.setTitle(tab.id, title)}
                 onFaviconChange={(faviconUrl) => store.setFavicon(tab.id, faviconUrl)}
-                onRequestClose={() => store.close(tab.id)}
               />
             )}
           </div>
