@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
 import { appendDomPickerBridge } from './domPickerBridge';
+import { IframeOverviewBadge } from './IframeOverviewBadge';
 import type { LoadState } from './types';
 import { markOnce } from '../../perf/monitor';
 
@@ -17,6 +18,7 @@ interface IframeRenderedViewProps {
   commit: () => void;
   discardSnapshot: string | null;
   draftUrl: string;
+  faviconUrl?: string;
   frameHostRef: RefObject<HTMLDivElement>;
   generating: boolean;
   handleOpenExternal: () => void;
@@ -64,6 +66,7 @@ export const IframeRenderedView = ({
   commit,
   discardSnapshot,
   draftUrl,
+  faviconUrl,
   frameHostRef,
   generating,
   handleOpenExternal,
@@ -214,6 +217,7 @@ export const IframeRenderedView = ({
       <div className={`iframe-frame-wrapper${streamingActive ? ' iframe-frame-wrapper--streaming' : ''}`}>
         {streamingActive && <div className="iframe-shimmer-bar" />}
         {isResizing && <div className="iframe-pointer-shield" aria-hidden="true" />}
+        <IframeOverviewBadge mode={renderMode} url={url} faviconUrl={faviconUrl} />
         {renderMode === 'url' ? (
           <>
             <div
