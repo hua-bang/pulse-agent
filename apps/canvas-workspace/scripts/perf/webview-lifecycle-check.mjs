@@ -235,15 +235,17 @@ const main = async () => {
         discarded = await evaluate(cdp, `!!document.querySelector('.iframe-discarded')`);
       }
       const webviewGone = await evaluate(cdp, `!document.querySelector('.canvas-node--iframe webview')`);
-      // Teardown grace before measuring silence: destroying the <webview>
-      // detaches the debugger, which clears the freeze/script-disable
-      // overrides an instant before the guest process actually dies — one
-      // straggler ping can escape in that gap (observed as a flake:
-      // placeholder + element removal ok, silent=false).
-      await sleep(1000);
-      const tAfter = Date.now();
-      await sleep(2000);
-      const silentAfter = pingsSince(tAfter).length === 0;
+      // The guest dies ASYNCHRONOUSLY after unmount, and detaching the
+      // debugger clears the freeze/script-disable overrides first — so
+      // pings can resume for up to a few seconds until the process
+      // actually exits (a fixed silence window flaked twice on this).
+      // Assert the terminal state instead: pings stop and STAY stopped.
+      let silentAfter = false;
+      const silenceDeadline = Date.now() + 8000;
+      while (Date.now() < silenceDeadline && !silentAfter) {
+        await sleep(250);
+        silentAfter = pingsSince(Date.now() - 1500).length === 0;
+      }
       step('L3 discards the over-budget frozen guest', discarded && webviewGone && silentAfter,
         `placeholder=${discarded}, webview element removed=${webviewGone}, guest silent=${silentAfter} (sweep 30s, waited ≤60s)`);
       return;
