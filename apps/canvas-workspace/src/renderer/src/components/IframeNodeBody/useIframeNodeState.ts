@@ -403,13 +403,37 @@ export const useIframeNodeState = ({
     return pickDomElementFromHtmlIframe(renderIframeRef.current, workspaceId, node.id);
   }, [mode, node.id, workspaceId]);
 
+  // While discarded (L3 sleeping) there is no <webview> behind the toolbar —
+  // reload/back/forward would silently no-op on browser.webview === null.
+  // Waking IS the recovery action: the remount recreates the guest and
+  // loads the page (session history does not survive a discard anyway).
   const handleReload = useCallback(() => {
     if (mode !== 'url') {
       setWebviewKey((key) => key + 1);
       return;
     }
+    if (webviewDiscarded) {
+      wakeWebview();
+      return;
+    }
     browser.reload();
-  }, [browser, mode]);
+  }, [browser, mode, webviewDiscarded, wakeWebview]);
+
+  const handleGoBack = useCallback(() => {
+    if (webviewDiscarded) {
+      wakeWebview();
+      return;
+    }
+    browser.goBack();
+  }, [browser, webviewDiscarded, wakeWebview]);
+
+  const handleGoForward = useCallback(() => {
+    if (webviewDiscarded) {
+      wakeWebview();
+      return;
+    }
+    browser.goForward();
+  }, [browser, webviewDiscarded, wakeWebview]);
 
   return {
     artifact,
@@ -428,8 +452,8 @@ export const useIframeNodeState = ({
     genError,
     generating,
     handleGenerate,
-    handleGoBack: browser.goBack,
-    handleGoForward: browser.goForward,
+    handleGoBack,
+    handleGoForward,
     handleKeyDown,
     handleOpenExternal,
     handlePromptKeyDown,

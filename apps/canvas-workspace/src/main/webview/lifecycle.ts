@@ -76,6 +76,14 @@ export const setWebviewLifecycle = async (
     } catch (err) {
       // attach() throws when another debugger (DevTools) already owns the
       // pipe; sendCommand can fail on navigation races. Both are retryable.
+      // Roll back any half-applied freeze: detaching reverts the lifecycle
+      // state AND clears the emulation override, and releases the pipe so
+      // the retry (or DevTools) can attach cleanly.
+      try {
+        if (wc.debugger.isAttached()) wc.debugger.detach();
+      } catch {
+        // already detached — fine
+      }
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }

@@ -45,7 +45,7 @@ jobs:
           else
             while IFS= read -r file; do
               case "$file" in
-                .github/workflows/perf.yml|apps/canvas-workspace/perf/*|apps/canvas-workspace/scripts/perf/*|apps/canvas-workspace/electron.vite.config.ts|apps/canvas-workspace/src/main/index.ts|apps/canvas-workspace/src/main/app/*|apps/canvas-workspace/src/renderer/src/App.tsx|apps/canvas-workspace/src/renderer/src/components/Canvas/*|apps/canvas-workspace/src/renderer/src/components/Workbench/*)
+                .github/workflows/perf.yml|apps/canvas-workspace/perf/*|apps/canvas-workspace/scripts/perf/*|apps/canvas-workspace/electron.vite.config.ts|apps/canvas-workspace/src/main/index.ts|apps/canvas-workspace/src/main/app/*|apps/canvas-workspace/src/main/webview/*|apps/canvas-workspace/src/renderer/src/App.tsx|apps/canvas-workspace/src/renderer/src/components/Canvas/*|apps/canvas-workspace/src/renderer/src/components/Workbench/*|apps/canvas-workspace/src/renderer/src/components/IframeNodeBody/*|apps/canvas-workspace/src/renderer/src/components/CanvasNodeView/*|apps/canvas-workspace/src/renderer/src/hooks/*|apps/canvas-workspace/src/renderer/src/perf/*)
                   runtime=true
                   ;;
               esac

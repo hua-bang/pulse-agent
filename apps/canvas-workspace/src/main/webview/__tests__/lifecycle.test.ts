@@ -72,6 +72,15 @@ describe('setWebviewLifecycle', () => {
     expect(result.skipped).toBeUndefined();
   });
 
+  it('rolls back a half-applied freeze: command failure detaches the pipe', async () => {
+    const { wc, debuggerApi } = makeWc({ commandError: new Error('target navigated') });
+    const result = await setWebviewLifecycle(wc, 'frozen');
+    expect(result.ok).toBe(false);
+    // Detach reverts the lifecycle state, clears the emulation override,
+    // and frees the pipe for the retry (or DevTools).
+    expect(debuggerApi.detach).toHaveBeenCalled();
+  });
+
   it('resume re-enables scripts, sends active, and always releases the debugger pipe', async () => {
     const { wc, debuggerApi } = makeWc({ attached: true });
     const result = await setWebviewLifecycle(wc, 'active');

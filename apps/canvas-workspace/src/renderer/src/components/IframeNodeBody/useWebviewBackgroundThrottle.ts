@@ -139,10 +139,19 @@ export const useWebviewBackgroundThrottle = ({
         .setLifecycle(workspaceId, nodeId, 'frozen')
         .then((result) => {
           if (result.ok) {
+            // The freeze IPC can take a couple of seconds (bounded snapshot
+            // in main). If the node re-entered the viewport meanwhile,
+            // resume() already ran with frozenRef still false and sent no
+            // 'active' — undo immediately instead of leaving a VISIBLE
+            // guest with scripts disabled.
+            if (!offscreen) {
+              void api.setLifecycle(workspaceId, nodeId, 'active').catch(() => {});
+              return;
+            }
             frozenRef.current = true;
             // Hide AFTER main captured the last-frame snapshot inside the
             // frozen call — see FROZEN_HIDDEN_CLASS.
-            if (offscreen) el.classList.add(FROZEN_HIDDEN_CLASS);
+            el.classList.add(FROZEN_HIDDEN_CLASS);
           } else if (offscreen && result.skipped !== 'destroyed') {
             freezeTimer = setTimeout(tryFreeze, freezeRetryMs);
           }

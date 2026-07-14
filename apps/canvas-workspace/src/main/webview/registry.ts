@@ -17,7 +17,7 @@ import { ipcMain, webContents as allWebContents } from 'electron';
 import { performance } from 'node:perf_hooks';
 import type { AgentContextDomSelectionRef } from '../../shared/agent-chat';
 import { createDomPickerScript } from './dom-snapshot-script';
-import { setWebviewLifecycle, type WebviewLifecycleState } from './lifecycle';
+import { getFrozenSince, setWebviewLifecycle, type WebviewLifecycleState } from './lifecycle';
 import { forgetFreezeSnapshot, rememberFreezeSnapshot } from './discard-monitor';
 import { captureBoundedSnapshot } from './snapshot';
 
@@ -218,6 +218,15 @@ export async function getNodeRenderedText(
 
   let result: { ok: boolean; title?: string; text?: string; url?: string; error?: string } | null = null;
 
+  // A frozen guest (L2) has script execution disabled — executeJavaScript
+  // would only hit the timeout and the agent would see a diagnostic instead
+  // of the rendered page. Thaw for the read, then re-freeze; the freeze-time
+  // snapshot survives because only the iframe:set-lifecycle handler clears
+  // it, and if re-freezing fails the renderer's resume path still sends
+  // 'active' when the node re-enters the viewport.
+  const wasFrozen = getFrozenSince(wc) !== undefined;
+  if (wasFrozen) await setWebviewLifecycle(wc, 'active');
+  let threw = false;
   try {
     result = await Promise.race([
       wc.executeJavaScript(script, /* userGesture */ false),
@@ -226,8 +235,11 @@ export async function getNodeRenderedText(
       ),
     ]);
   } catch {
-    return null;
+    threw = true;
+  } finally {
+    if (wasFrozen && !wc.isDestroyed()) void setWebviewLifecycle(wc, 'frozen');
   }
+  if (threw) return null;
 
   if (!result) return `[webview text extraction timed out after ${EXTRACT_TIMEOUT_MS / 1000}s]`;
   if (!result.ok) return null;
