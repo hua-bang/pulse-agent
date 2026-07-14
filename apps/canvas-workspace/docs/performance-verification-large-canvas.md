@@ -231,7 +231,9 @@
 
 **残余优化(2026-07-13 追加,已落地)**:全览拖拽的连续小慢帧被 trace 归因到 **compositor Layerize 占主线程忙时 75%**(1826ms/2427ms,146 次、峰值 44ms——逐帧 PaintArtifactCompositor 全量 update,成本随全文档 paint chunk 规模走)。对照实验二分(V0 整节点不绘制 → V2 只留卡片外壳 → V3 隐藏整个 header → V4 只隐藏动作浮层)把元凶钉到一处:`--small` 档(scale<0.6)下每个节点 `opacity:0` 待命的浮动动作组(`.node-header__actions`),自带 **backdrop-filter + 反缩放 transform + opacity 三重属性树节点 ×86**——视觉透明,但对合成器全量存在。修复两条 CSS(`CanvasNodeView/index.css`):① 非 hover/选中时动作浮层 `display:none`(hover/选中行为不变,仅损失 0.18s 淡入;卡片外壳、标题、favicon 全保留);② 全览下重 body(file/terminal/agent/mindmap/reference/plugin)`visibility:hidden`(保布局防 xterm 0×0;image/shape/text 缩略保留)。实测(同环境中位数×3):全览拖拽帧超 34.7%→**1%**(p95 33.4→16.8ms 恢复单 vsync,手势窗口快 49%),缩小到全览 36.5%→**21.3%**(手势快 46%),Layerize 1826→207ms,idle/scale-1 拖拽/挂载零回归。
 
-**后续**:zoom 手势中段(scale 0.35-1,settledScale 未翻转前)的 live-iframe 栅格仍是 zoomOut 残余帧超主项——"手势期给 live iframe 盖静态化层"候选保留,留待真机 profiling 定优先级;`--seed-webpages>0` 档位已以 CI `large-canvas` job 落地(90 节点/40 网页 perf:report + webview 生命周期行为检查,`performance` label 或手动 dispatch 触发,run #114 全绿),规模曲线(D6)与计时基线仍待真机;webview 休眠(L2 冻结 + L3 丢弃)已实现并经 CI 真实 Electron 行为验证,余下为观感/环境项(见上节清单)。
+**zoom 手势中段(scale 0.35-1)——以真机数据关闭(2026-07-14)**:台架的 21.3% zoomOut 残余帧超是用**同进程 iframe 代演 webview**的失真。新增诊断探针 `scripts/perf/zoom-gesture-probe.mjs`(large-canvas job 第三腿,不设门禁):专用工作区 5×5 网格(12 真 url webview + 12 内联动画 iframe,中心留空给滚轮),校准到 scale≈1、预热穿越阈值一次后测四个窗口。真机(真实 Electron,24 embed 全活跃)结果:深缩出 0.904→0.1 帧超 **5.1%**(零长任务)、overview settle 交换 **0%**、深缩回 2.2%、交换回 settle **0%**——真 webview 是跨进程 OOPIF 表面,手势中在合成器上缩放、不在宿主重栅格,成本只有台架代演的约 1/4。**"手势期给 live iframe 盖静态化层"候选据此不做**(CI 亦为软件渲染,绝对值仍偏悲观;结构性问题已回答)。探针迭代中还钉下三个 harness 事实:CDP `Input.dispatchMouseEvent` 合成的 ctrl+wheel 在 Electron 上到不了页面 zoom handler(探针改用 JS `WheelEvent{ctrlKey}`,渲染管线路径相同);后台 workspace 保持挂载、`.canvas-transform` 有多个,选可见者(`offsetParent !== null`);探针 HTTP server 在 guest 被杀时可能被半开连接吊住,verdict 后须显式 `process.exit(0)`。
+
+**后续**:`--seed-webpages>0` 档位已以 CI `large-canvas` job 落地(90 节点/40 网页 perf:report + webview 生命周期行为检查 + 深 zoom 探针,`performance` label 或手动 dispatch 触发),规模曲线(D6)与计时基线仍待真机;webview 休眠(L2 冻结 + L3 丢弃)已实现并经 CI 真实 Electron 行为验证,余下为观感/环境项(见上节清单)。
 
 ## 核查方法
 
