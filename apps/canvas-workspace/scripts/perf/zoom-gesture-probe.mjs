@@ -81,11 +81,35 @@ const fail = (msg) => {
   process.exit(1);
 };
 
+/**
+ * Read the VISIBLE canvas's scale: background workspaces stay mounted
+ * (LRU capacity 4), each with its own .canvas-transform — a bare
+ * querySelector can land on the hidden welcome canvas whose scale never
+ * moves (run #122: the probe watched that one while the active canvas
+ * zoomed fine).
+ */
 const readScale = (cdp) => evaluate(cdp, `(() => {
-  const el = document.querySelector('.canvas-transform');
+  const els = [...document.querySelectorAll('.canvas-transform')];
+  const el = els.find((e) => e.offsetParent !== null) ?? els[0];
   const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
   return Math.round(m.a * 1000) / 1000;
 })()`);
+
+const dumpDiag = async (cdp, point) => {
+  const diag = await evaluate(cdp, `(() => {
+    const els = [...document.querySelectorAll('.canvas-transform')];
+    const at = document.elementFromPoint(${point.x}, ${point.y});
+    return {
+      transforms: els.map((e) => ({
+        scale: Math.round(new DOMMatrixReadOnly(getComputedStyle(e).transform).a * 1000) / 1000,
+        visible: e.offsetParent !== null,
+      })),
+      wheelTarget: at ? { tag: at.tagName, cls: String(at.className).slice(0, 140) } : null,
+      inner: [innerWidth, innerHeight],
+    };
+  })()`).catch((err) => ({ diagError: String(err) }));
+  console.log('DIAG', JSON.stringify(diag));
+};
 
 /** Wheel at a blank canvas point near the viewport center (embeds eat
  * wheel events — the grid leaves its center cell empty for this). */
@@ -201,9 +225,28 @@ const main = async () => {
     if (!point) fail('no blank wheel point at viewport center');
     const scale0 = await readScale(cdp);
 
-    // Warm-up: a short symmetric cycle (grid already mounts fully at
-    // scale 1 — the 200px observer margin covers it; this warms raster
-    // caches without drifting into the zoom clamps).
+    // Calibrate to scale ≈1: boot-fit may land the active canvas at any
+    // scale, and this loop doubles as the wheel-efficacy check (if the
+    // dispatched WheelEvents don't move the visible transform, nothing
+    // later is worth measuring).
+    let scaleNow = scale0;
+    for (let i = 0; i < 14 && scaleNow < 0.95; i++) {
+      await wheelBurst(cdp, point, -20, 4);
+      await sleep(150);
+      scaleNow = await readScale(cdp);
+    }
+    for (let i = 0; i < 14 && scaleNow > 1.3; i++) {
+      await wheelBurst(cdp, point, 20, 2);
+      await sleep(150);
+      scaleNow = await readScale(cdp);
+    }
+    if (scaleNow < 0.95 || scaleNow > 1.6) {
+      await dumpDiag(cdp, point);
+      fail(`calibration could not reach scale≈1 (start=${scale0}, now=${scaleNow}) — wheel likely not reaching the canvas`);
+    }
+
+    // Warm-up: a short symmetric cycle crossing the overview threshold
+    // once so first-swap costs don't pollute the measured windows.
     await wheelBurst(cdp, point, 20, 10);
     await sleep(1500);
     await wheelBurst(cdp, point, -20, 10);
@@ -222,7 +265,10 @@ const main = async () => {
     const zoomIn = await perfWindow(cdp, 'deepZoomIn', () => wheelBurst(cdp, point, -20));
     const settleIn = await perfWindow(cdp, 'zoomInSettle', () => sleep(1200));
     const scaleEnd = await readScale(cdp);
-    if (scaleOut === scaleWarm) fail('zoom-out gesture did not change the transform');
+    if (scaleOut === scaleWarm) {
+      await dumpDiag(cdp, point);
+      fail('zoom-out gesture did not change the transform');
+    }
 
     info('deep zoom-out (live embeds, the 0.35-1 band)', `${fmt(zoomOut)} — scale ${scaleWarm} → ${scaleOut}`);
     info('overview settle (semantic swap)', fmt(settle));
