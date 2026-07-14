@@ -241,7 +241,11 @@ jobs:
       # discard the guest mid-assertion); the discard leg gets its own
       # session with a 1MB budget exported before harness start so main's
       # sweep sees it.
+      # Each harness leg gets its own step timeout: the scripts' polls are
+      # bounded, but a wedged app boot / CDP pipe would otherwise eat the
+      # whole 30-minute job budget (observed once on the discard leg).
       - name: Webview lifecycle behavior check — freeze/resume
+        timeout-minutes: 6
         working-directory: apps/canvas-workspace
         run: |
           node harness/tools/driver/cli.mjs start --profile temp --headless
@@ -249,6 +253,7 @@ jobs:
           node harness/tools/driver/cli.mjs close --cleanup
 
       - name: Webview lifecycle behavior check — L3 discard
+        timeout-minutes: 6
         env:
           PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB: 1
           WEBVIEW_CHECK_MODE: discard
@@ -262,6 +267,7 @@ jobs:
       # mixed inline-iframe + real <webview> embeds — the mid-gesture band
       # the renderer bench can only emulate with same-process iframes.
       - name: Deep zoom gesture probe (diagnostic)
+        timeout-minutes: 8
         working-directory: apps/canvas-workspace
         run: |
           node harness/tools/driver/cli.mjs start --profile temp --headless
@@ -273,8 +279,10 @@ jobs:
         working-directory: apps/canvas-workspace
         run: node harness/tools/driver/cli.mjs close --cleanup || true
 
+      # failure() misses step-timeout cancellation — include cancelled() so
+      # a wedged leg still ships its diagnosis.
       - name: Upload harness logs (diagnosis for lifecycle-check failures)
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: large-canvas-harness-logs
