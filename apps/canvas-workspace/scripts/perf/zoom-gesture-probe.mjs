@@ -41,7 +41,7 @@ const NODE_W = 520;
 const NODE_H = 400;
 const STRIDE_X = 560;
 const STRIDE_Y = 440;
-const WHEEL_TICKS = 22;
+const WHEEL_TICKS = 30;
 
 // Animated so mid-gesture raster is non-trivial (a static page would
 // undersell the cost the rig measured on animated fixtures).
@@ -103,14 +103,29 @@ const blankPoint = (cdp) => evaluate(cdp, `(() => {
   return null;
 })()`);
 
-const wheelBurst = async (cdp, point, deltaY) => {
-  for (let i = 0; i < WHEEL_TICKS; i++) {
-    await cdp.send('Input.dispatchMouseEvent', {
-      type: 'mouseWheel', x: point.x, y: point.y, deltaX: 0, deltaY, modifiers: 2,
-    });
-    await sleep(16);
+/**
+ * JS-dispatched ctrl+wheel, NOT CDP Input.dispatchMouseEvent: on real
+ * Electron the synthesized modifiers:2 wheel never reaches the page's
+ * zoom handler (run #121 — transform unchanged after 22 ticks; browser-
+ * level ctrl-zoom interception is the likely eater), while in plain
+ * Chromium both paths zoom identically (verified on the rig). The
+ * WheelEvent drives the exact same app handler and render pipeline —
+ * what this probe measures — at the cost of input-pipeline fidelity,
+ * which is not what it's for. deltaY 20/tick keeps the 1 → 0.35 band
+ * spread over enough frames to be measurable (60/tick hits the 0.1
+ * clamp in ~8 ticks).
+ */
+const wheelBurst = (cdp, point, deltaY, ticks = WHEEL_TICKS) => evaluate(cdp, `(async () => {
+  const el = document.elementFromPoint(${point.x}, ${point.y});
+  for (let i = 0; i < ${ticks}; i++) {
+    el.dispatchEvent(new WheelEvent('wheel', {
+      ctrlKey: true, deltaX: 0, deltaY: ${deltaY},
+      clientX: ${point.x}, clientY: ${point.y}, bubbles: true, cancelable: true,
+    }));
+    await new Promise((r) => setTimeout(r, 24));
   }
-};
+  return true;
+})()`);
 
 const perfWindow = async (cdp, name, fn) => {
   await evaluate(cdp, `window.__pulsePerf.begin(${JSON.stringify(name)})`);
@@ -186,10 +201,12 @@ const main = async () => {
     if (!point) fail('no blank wheel point at viewport center');
     const scale0 = await readScale(cdp);
 
-    // Warm-up: mount everything (one-way deferred mount), then return.
-    await wheelBurst(cdp, point, 60);
+    // Warm-up: a short symmetric cycle (grid already mounts fully at
+    // scale 1 — the 200px observer margin covers it; this warms raster
+    // caches without drifting into the zoom clamps).
+    await wheelBurst(cdp, point, 20, 10);
     await sleep(1500);
-    await wheelBurst(cdp, point, -60);
+    await wheelBurst(cdp, point, -20, 10);
     await sleep(1800);
     const warm = await evaluate(cdp, `({
       inline: document.querySelectorAll('.canvas-node--iframe iframe:not(.iframe-frame--pending)').length,
@@ -199,10 +216,10 @@ const main = async () => {
     info('probe state', `scale start=${scale0} after-warmup=${scaleWarm}, live inline=${warm.inline}, webviews=${warm.webviews}`);
     if (warm.inline + warm.webviews < 6) fail(`too few live embeds after warm-up (${warm.inline}+${warm.webviews})`);
 
-    const zoomOut = await perfWindow(cdp, 'deepZoomOut', () => wheelBurst(cdp, point, 60));
+    const zoomOut = await perfWindow(cdp, 'deepZoomOut', () => wheelBurst(cdp, point, 20));
     const scaleOut = await readScale(cdp);
     const settle = await perfWindow(cdp, 'overviewSettle', () => sleep(1200));
-    const zoomIn = await perfWindow(cdp, 'deepZoomIn', () => wheelBurst(cdp, point, -60));
+    const zoomIn = await perfWindow(cdp, 'deepZoomIn', () => wheelBurst(cdp, point, -20));
     const settleIn = await perfWindow(cdp, 'zoomInSettle', () => sleep(1200));
     const scaleEnd = await readScale(cdp);
     if (scaleOut === scaleWarm) fail('zoom-out gesture did not change the transform');
