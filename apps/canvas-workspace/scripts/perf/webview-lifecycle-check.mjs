@@ -235,6 +235,12 @@ const main = async () => {
         discarded = await evaluate(cdp, `!!document.querySelector('.iframe-discarded')`);
       }
       const webviewGone = await evaluate(cdp, `!document.querySelector('.canvas-node--iframe webview')`);
+      // Teardown grace before measuring silence: destroying the <webview>
+      // detaches the debugger, which clears the freeze/script-disable
+      // overrides an instant before the guest process actually dies — one
+      // straggler ping can escape in that gap (observed as a flake:
+      // placeholder + element removal ok, silent=false).
+      await sleep(1000);
       const tAfter = Date.now();
       await sleep(2000);
       const silentAfter = pingsSince(tAfter).length === 0;
