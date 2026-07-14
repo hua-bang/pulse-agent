@@ -49,6 +49,14 @@
   cursor: inherit;
 }
 
+/* Wheel pan/zoom only needs to keep subsequent input out of embedded guests.
+ * Bound that shield to the canvas and keep Canvas chrome above it; the global
+ * fixed shield remains reserved for direct drag/resize gestures. */
+.canvas-interaction-shield--canvas-motion {
+  position: absolute;
+  z-index: calc(var(--layer-canvas-chrome) - 1);
+}
+
 .canvas-workspace-interaction-active iframe,
 .canvas-workspace-interaction-active webview,
 .canvas-workspace-interaction-active .iframe-frame {
@@ -120,14 +128,21 @@
   z-index: 1;
 }
 
-/* Only promote the canvas subtree to its own compositor layer while the
- * user is actively panning or zooming. Leaving `will-change: transform`
- * on permanently keeps a huge, always-allocated tile backing store for the
- * entire canvas content — which easily blows Chromium's tile memory budget
- * once nested frames multiply the painted surface area (emits
- * "tile memory limits exceeded, some content may not draw" warnings). */
-.canvas-transform--moving {
-  will-change: transform;
+/* Electron webviews must remain fully painted during gestures: changing an
+ * ancestor's layout or visibility can make Chromium drop the guest layer and
+ * reload it on restore. Pause only host-owned loading chrome here; embedded
+ * documents keep their stable layout boxes and compositor surfaces.
+ *
+ * The old `.canvas-transform--moving { will-change: transform }` layer
+ * promotion is intentionally gone: promoting the whole canvas subtree on the
+ * first wheel event synchronously allocates/rasterizes the entire painted
+ * canvas (stalling large workspaces before the gesture even starts) AND can
+ * make Chromium drop and reload embedded webview guests. That real-webview
+ * drop/reload effect is validated by the CI deep-zoom probe
+ * (apps/canvas-workspace/scripts/perf/zoom-gesture-probe.mjs). */
+.canvas-transform--moving .iframe-frame-wrapper--streaming,
+.canvas-transform--moving .iframe-shimmer-bar {
+  animation-play-state: paused;
 }
 
 .canvas-container[data-moving="on"] .edge-style-panel,
