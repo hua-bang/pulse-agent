@@ -235,6 +235,18 @@
 
 **后续**:`--seed-webpages>0` 档位已以 CI `large-canvas` job 落地(90 节点/40 网页 perf:report + webview 生命周期行为检查 + 深 zoom 探针,`performance` label 或手动 dispatch 触发),规模曲线(D6)与计时基线仍待真机;webview 休眠(L2 冻结 + L3 丢弃)已实现并经 CI 真实 Electron 行为验证,余下为观感/环境项(见上节清单)。
 
+## 合并另一实现的高价值项(2026-07-14,codex 移植批次)
+
+另有一版平行实现(`codex/canvas-webview-performance`)针对同一批主题做了系统优化。经代码级评估后,把其中**与本分支正交、或能补齐本分支留白**的四个子系统以 dynamic 多 agent 编排移植进来(每组"移植→对抗式评审→修复"流水线,四组评审全部 APPROVE、零必修),并适配到本分支已有的生命周期阶梯。CI 完整批次(`0e2537ee`)全绿:perf 17/17、large-canvas 三腿(报告 + 冻结/丢弃 + 深 zoom 探针)、macOS 打包。
+
+- **丢弃安全捕获 + URL/滚动恢复**(`a209bed1`,`main/webview/freeze-probe.ts` 新增):不照抄源分支的"丢弃时解冻探测",而是利用本分支**冻结优先**性质(页面冻结=脚本禁用后不可能再产生脏状态)——在冻结瞬间一次性有界(≤1500ms,fail-closed)捕获 `{scrollX, scrollY, dirty, reloadable, url}`。L3 sweep 跳过 dirty/不可重载/无记录候选(fail-closed,但其 RSS 仍计入预算投影,让别的干净页被丢),丢弃广播携带 `restoreUrl/scrollX/scrollY`,渲染端在重挂 webview 的 `dom-ready` 后恢复滚动。补齐了原文档"真实预算下丢弃观感"里"恢复不带滚动/URL"的缺口。
+- **registry 世代守卫**(同上):`register` 挂 `wc.once('destroyed')` 自动注销、`unregister` 改为按 `webContentsId` compare-and-delete(旧 renderer 的延迟注销不能误删新世代)、`iframe:unregister-webview` IPC 要求 `webContentsId`、`getWebContentsForNode` 自愈已销毁项。IPC 契约保持 135=135。
+- **终端脏标记持久化 + PTY lease**(`5fd8a4a9`):2s 心跳的**全量 buffer 扫描本身**被消灭——`markDirty` 在 xterm write 回调里打标,版本计数器 flush 在 clean 时早返回(idle 零扫描零落盘);会话交接防前任延迟清理覆盖后继;PTY session lease 防旧组件卸载误杀新终端。**保住本分支的 `updateNode(..., {history:false})` 撤销槽修复**(回归测试仍绿)。补齐原文档"方向映射 #3 scrollback 专用 patch 路径"的坑。
+- **边拖拽预览态**(`d6d04220`):mousemove 只更新渲染态 `previewPatch`,mouseup 单次 `updateEdge`(一步撤销),Escape 零补偿写;rAF 合并 + mouseup 同步 flush。与本分支工作完全正交的纯增益。
+- **移除手势层提升 + shield 三态**(`0e2537ee`):删掉 `.canvas-transform--moving { will-change: transform }`——首个滚轮事件的整树提层同步栅格整个画布,且**会让 Chromium 丢弃并重载 webview guest**(这很可能是平行实现 ">15s 首帧" 的真根因);shield 拆成 direct/iframe/motion 三态,平移滚轮走更便宜的画布态 shield、不再给每个 iframe 建伪 shield。
+
+**will-change 移除的诚实权衡**(深 zoom 探针,真 webview,移除前 `e5312c4` → 移除后 `0e2537e`):深缩出 **p95 最差帧 66.7ms → 33.4ms(大停顿消失)**,但 20-33ms 小帧占比 5.1% → 11.9%,长任务两者皆 0,三个 settle 窗口皆 0%。即"最差情况更平滑、小帧略多"——与理论一致(去掉提层消除了首事件同步栅格大停顿,代价是持续 transform 期小重绘变多)。同进程台架(中位数×3,更稳)则显示 zoomOut 帧超 21.3% → 17.5% 净改善。主要收益(避免 guest 重载)探针未单独隔离测量。**决定保留**:门禁全过、settle 全 0%、p95 减半;但"更少大卡顿 vs 更多小帧"的取舍**待重 webview 真机 A/B 终审**,列为观感待确认项。
+
 ## 核查方法
 
 三个并行只读核查(iframe/webview 生命周期、交互渲染管线、终端输出/归档/基准设施),每条结论要求 file:line 证据并区分已修/未修;与 consolidated/round3 编号对齐,已修项(E1、B7、B9/V2、F1/F2、chat 批处理、图片缩略图、LRU 驱逐、bundle lazy 等)复核确认在位后不再列为问题。运行时实测经 `scripts/perf/renderer-bench/`(见上节),bundle 侧经 `perf:report --bundle-only`。
