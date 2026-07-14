@@ -258,6 +258,16 @@ jobs:
           node scripts/perf/webview-lifecycle-check.mjs
           node harness/tools/driver/cli.mjs close --cleanup
 
+      # Diagnostic only (no gate): deep zoom-out cost on real Electron with
+      # mixed inline-iframe + real <webview> embeds — the mid-gesture band
+      # the renderer bench can only emulate with same-process iframes.
+      - name: Deep zoom gesture probe (diagnostic)
+        working-directory: apps/canvas-workspace
+        run: |
+          node harness/tools/driver/cli.mjs start --profile temp --headless
+          node scripts/perf/zoom-gesture-probe.mjs
+          node harness/tools/driver/cli.mjs close --cleanup
+
       - name: Close harness session
         if: always()
         working-directory: apps/canvas-workspace
