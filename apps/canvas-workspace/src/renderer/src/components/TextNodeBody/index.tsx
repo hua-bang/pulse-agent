@@ -117,18 +117,20 @@ export const TextNodeBody = ({
     editor.commands.setContent(data.content || "", { emitUpdate: false });
   }, [editor, data.content]);
 
-  // First-mount: empty-content nodes drop straight into editing so typing
-  // works immediately without an extra double-click.
+  // Empty selected nodes drop straight into editing so typing works immediately
+  // after creation. Keep unselected empty nodes idle; otherwise every blank text
+  // node on the canvas mounts an editable ProseMirror instance and paints a
+  // stray caret/placeholder artifact.
   useEffect(() => {
     if (!editor) return;
-    if (!readOnly && data.content === "") {
+    if (!readOnly && isSelected && data.content === "") {
       setEditing(true);
       // Defer focus until editable=true has applied to the DOM.
       const t = setTimeout(() => editor.commands.focus(), 0);
       return () => clearTimeout(t);
     }
     return undefined;
-  }, [editor, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor, isSelected, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Deselection commits the edit — matches tldraw's click-away-to-finalize feel.
   useEffect(() => {
