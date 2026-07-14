@@ -1,5 +1,6 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useMemo } from 'react';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../types';
+import type { EdgeInteractionState } from '../../hooks/useEdgeInteraction';
 import { NodeContextMenu } from '../NodeContextMenu';
 import { FloatingToolbar } from '../FloatingToolbar';
 import { ZoomIndicator } from '../ZoomIndicator';
@@ -11,6 +12,7 @@ import { ChatFloatingButton } from '../ChatFloatingButton';
 import { useI18n } from '../../i18n';
 import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
 import type { AddNodeOptions } from '../../hooks/useNodes';
+import { applyEdgeInteractionPreview } from '../CanvasEdgesLayer';
 
 const CommandPalette = lazy(() =>
   import('../CommandPalette').then((module) => ({ default: module.CommandPalette })),
@@ -25,6 +27,25 @@ const EdgeStylePanel = lazy(() =>
 interface AddNodeUiOptions extends AddNodeOptions {
   label?: string;
 }
+
+export const projectEdgeOverlayGeometry = (
+  edges: CanvasEdge[] | undefined,
+  selectedEdge: CanvasEdge | null | undefined,
+  interactionState: EdgeInteractionState | null | undefined,
+): { edges: CanvasEdge[] | undefined; selectedEdge: CanvasEdge | null | undefined } => {
+  let changed = false;
+  const projected = edges?.map((edge) => {
+    const next = applyEdgeInteractionPreview(edge, interactionState);
+    if (next !== edge) changed = true;
+    return next;
+  });
+  const renderedEdges = changed ? projected : edges;
+  const renderedSelectedEdge = selectedEdge
+    ? renderedEdges?.find((edge) => edge.id === selectedEdge.id)
+      ?? applyEdgeInteractionPreview(selectedEdge, interactionState)
+    : selectedEdge;
+  return { edges: renderedEdges, selectedEdge: renderedSelectedEdge };
+};
 
 interface CanvasOverlaysProps {
   nodes: CanvasNode[];
@@ -91,6 +112,8 @@ interface CanvasOverlaysProps {
    *  selection refers to a node. The overlays layer uses it to render
    *  the floating EdgeStylePanel. */
   selectedEdge?: CanvasEdge | null;
+  /** Render-only drag geometry shared by the solid edge, label, and panel. */
+  edgeInteractionState?: EdgeInteractionState | null;
   /** Canvas transform, needed by EdgeStylePanel to project the edge
    *  midpoint from canvas space to screen space. */
   transform: CanvasTransform;
@@ -161,6 +184,7 @@ export const CanvasOverlays = ({
   shapeToolActive,
   onShapeMouseDown,
   selectedEdge,
+  edgeInteractionState,
   transform,
   onUpdateEdge,
   onRemoveEdge,
@@ -173,6 +197,10 @@ export const CanvasOverlays = ({
   const { t } = useI18n();
   const renderEdgeLabels = shouldRenderEdgeLabels({ moving, editingEdgeLabelId });
   const renderEdgeStylePanel = shouldRenderEdgeStylePanel(moving);
+  const overlayEdges = useMemo(
+    () => projectEdgeOverlayGeometry(edges, selectedEdge, edgeInteractionState),
+    [edgeInteractionState, edges, selectedEdge],
+  );
 
   return (
     <>
@@ -235,10 +263,10 @@ export const CanvasOverlays = ({
         />
       )}
 
-      {renderEdgeStylePanel && selectedEdge && onUpdateEdge && onRemoveEdge && (
+      {renderEdgeStylePanel && overlayEdges.selectedEdge && onUpdateEdge && onRemoveEdge && (
         <Suspense fallback={null}>
           <EdgeStylePanel
-            edge={selectedEdge}
+            edge={overlayEdges.selectedEdge}
             nodes={nodes}
             transform={transform}
             onUpdate={onUpdateEdge}
@@ -251,8 +279,8 @@ export const CanvasOverlays = ({
         non-empty label or is currently in edit mode. The edit-mode check
         lets us open the input on a freshly-dbl-clicked unlabeled edge
         without first persisting an empty string. */}
-      {renderEdgeLabels && edges && onStartEditEdgeLabel && onCommitEditEdgeLabel && onCancelEditEdgeLabel &&
-        edges
+      {renderEdgeLabels && overlayEdges.edges && onStartEditEdgeLabel && onCommitEditEdgeLabel && onCancelEditEdgeLabel &&
+        overlayEdges.edges
           .filter((edge) => (edge.label && edge.label.length > 0) || editingEdgeLabelId === edge.id)
           .map((edge) => (
             <EdgeLabel
