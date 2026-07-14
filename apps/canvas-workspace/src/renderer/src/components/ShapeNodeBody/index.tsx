@@ -3,8 +3,7 @@ import './index.css';
 import type { CanvasNode, ShapeNodeData } from '../../types';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 import { isImeComposing } from '../../utils/ime';
-import { useClickOutside } from '../../hooks/useClickOutside';
-import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { DropdownShell, SwatchRow } from '../ui';
 import { useI18n } from '../../i18n';
 
 interface Props {
@@ -235,13 +234,6 @@ interface StylePickerProps {
 export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
   const { t } = useI18n();
   const data = node.data as ShapeNodeData;
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  const closePopover = useCallback(() => setOpen(false), []);
-  useClickOutside(rootRef, closePopover, open);
-  useMenuKeyboardNav(popoverRef, closePopover, open);
 
   const patch = useCallback(
     (next: Partial<ShapeNodeData>) => {
@@ -251,111 +243,99 @@ export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
   );
 
   return (
+    // Plain wrapper stops mousedown/click from bubbling to the canvas node's
+    // select-on-click handler — ShapeStylePicker is a floating sibling of the
+    // node body, not nested under its own stopPropagation guard, so the
+    // whole subtree (trigger + panel) needs this. Positioning/z-index stay
+    // on this outer element (unchanged from the pre-migration markup);
+    // ui/DropdownShell owns click-outside/ESC/arrow-nav for its own root.
     <div
-      ref={rootRef}
-      className={`shape-style-trigger${open ? ' shape-style-trigger--open' : ''}`}
+      className="shape-style-trigger"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <button
-        type="button"
-        className="shape-style-preview"
-        title={t('canvas.shapeStyle.title')}
-        aria-label={t('canvas.shapeStyle.title')}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+      <DropdownShell
+        panelClassName="shape-style-popover"
+        placement="bottom"
+        align="start"
+        role="menu"
+        ariaLabel={t('canvas.shapeStyle.title')}
+        trigger={({ open, toggle }) => (
+          <button
+            type="button"
+            className="shape-style-preview"
+            title={t('canvas.shapeStyle.title')}
+            aria-label={t('canvas.shapeStyle.title')}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={toggle}
+          >
+            <svg className="shape-style-preview-svg" viewBox="0 0 18 18" width="14" height="14">
+              <ShapePrimitive
+                kind={data.kind}
+                width={18}
+                height={18}
+                fill={data.fill === 'transparent' ? 'none' : data.fill}
+                stroke={data.stroke === 'transparent' ? 'rgba(0,0,0,0.25)' : data.stroke}
+                strokeWidth={1.8}
+              />
+            </svg>
+          </button>
+        )}
       >
-        <svg className="shape-style-preview-svg" viewBox="0 0 18 18" width="14" height="14">
-          <ShapePrimitive
-            kind={data.kind}
-            width={18}
-            height={18}
-            fill={data.fill === 'transparent' ? 'none' : data.fill}
-            stroke={data.stroke === 'transparent' ? 'rgba(0,0,0,0.25)' : data.stroke}
-            strokeWidth={1.8}
+        <div className="shape-style-row">
+          <span className="shape-style-label">{t('canvas.shapeStyle.fill')}</span>
+          <SwatchRow
+            ariaLabel={t('canvas.shapeStyle.fill')}
+            options={FILL_PRESETS.map((p) => ({
+              value: p.value,
+              label: t('canvas.shapeStyle.fillOption', { name: p.name }),
+              isNone: p.value === 'transparent',
+            }))}
+            value={data.fill}
+            onChange={(next) => patch({ fill: next })}
           />
-        </svg>
-      </button>
-      {open && (
-        <div
-          ref={popoverRef}
-          className="shape-style-popover"
-          role="menu"
-          aria-label={t('canvas.shapeStyle.title')}
-        >
-          <div className="shape-style-row" role="group" aria-label={t('canvas.shapeStyle.fill')}>
-            <span className="shape-style-label">{t('canvas.shapeStyle.fill')}</span>
-            <div className="shape-style-swatches">
-              {FILL_PRESETS.map((p) => (
-                <button
-                  type="button"
-                  key={p.name}
-                  className={`shape-style-swatch-btn${data.fill === p.value ? ' shape-style-swatch-btn--active' : ''}`}
-                  role="menuitemradio"
-                  aria-checked={data.fill === p.value}
-                  title={t('canvas.shapeStyle.fillOption', { name: p.name })}
-                  aria-label={t('canvas.shapeStyle.fillOption', { name: p.name })}
-                  style={{
-                    background: p.value === 'transparent' ? 'none' : p.value,
-                  }}
-                  onClick={() => patch({ fill: p.value })}
-                >
-                  {p.value === 'transparent' && <span className="shape-style-none-slash" />}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="shape-style-row" role="group" aria-label={t('canvas.shapeStyle.stroke')}>
-            <span className="shape-style-label">{t('canvas.shapeStyle.stroke')}</span>
-            <div className="shape-style-swatches">
-              {STROKE_PRESETS.map((p) => (
-                <button
-                  type="button"
-                  key={p.name}
-                  className={`shape-style-swatch-btn${data.stroke === p.value ? ' shape-style-swatch-btn--active' : ''}`}
-                  role="menuitemradio"
-                  aria-checked={data.stroke === p.value}
-                  title={t('canvas.shapeStyle.strokeOption', { name: p.name })}
-                  aria-label={t('canvas.shapeStyle.strokeOption', { name: p.name })}
-                  style={{
-                    background: p.value === 'transparent' ? 'none' : p.value,
-                  }}
-                  onClick={() => patch({ stroke: p.value })}
-                >
-                  {p.value === 'transparent' && <span className="shape-style-none-slash" />}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="shape-style-row" role="group" aria-label={t('canvas.shapeStyle.width')}>
-            <span className="shape-style-label">{t('canvas.shapeStyle.width')}</span>
-            <div className="shape-style-widths">
-              {STROKE_WIDTHS.map((w) => (
-                <button
-                  type="button"
-                  key={w}
-                  className={`shape-style-width-btn${data.strokeWidth === w ? ' shape-style-width-btn--active' : ''}`}
-                  role="menuitemradio"
-                  aria-checked={data.strokeWidth === w}
-                  title={t('canvas.shapeStyle.widthOption', { width: w })}
-                  aria-label={t('canvas.shapeStyle.widthOption', { width: w })}
-                  onClick={() => patch({ strokeWidth: w })}
-                >
-                  {w === 0 ? (
-                    <span className="shape-style-none-slash shape-style-none-slash--inline" />
-                  ) : (
-                    <span
-                      className="shape-style-width-bar"
-                      style={{ height: Math.max(1, w) }}
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
+        </div>
+        <div className="shape-style-row">
+          <span className="shape-style-label">{t('canvas.shapeStyle.stroke')}</span>
+          <SwatchRow
+            ariaLabel={t('canvas.shapeStyle.stroke')}
+            options={STROKE_PRESETS.map((p) => ({
+              value: p.value,
+              label: t('canvas.shapeStyle.strokeOption', { name: p.name }),
+              isNone: p.value === 'transparent',
+            }))}
+            value={data.stroke}
+            onChange={(next) => patch({ stroke: next })}
+          />
+        </div>
+        <div className="shape-style-row" role="group" aria-label={t('canvas.shapeStyle.width')}>
+          <span className="shape-style-label">{t('canvas.shapeStyle.width')}</span>
+          <div className="shape-style-widths">
+            {STROKE_WIDTHS.map((w) => (
+              <button
+                type="button"
+                key={w}
+                className={`shape-style-width-btn${data.strokeWidth === w ? ' shape-style-width-btn--active' : ''}`}
+                role="menuitemradio"
+                aria-checked={data.strokeWidth === w}
+                title={t('canvas.shapeStyle.widthOption', { width: w })}
+                aria-label={t('canvas.shapeStyle.widthOption', { width: w })}
+                onClick={() => patch({ strokeWidth: w })}
+              >
+                {w === 0 ? (
+                  <span className="shape-style-none-slash shape-style-none-slash--inline" />
+                ) : (
+                  <span
+                    className="shape-style-width-bar"
+                    style={{ height: Math.max(1, w) }}
+                  />
+                )}
+              </button>
+            ))}
           </div>
         </div>
-      )}
+      </DropdownShell>
     </div>
   );
 };

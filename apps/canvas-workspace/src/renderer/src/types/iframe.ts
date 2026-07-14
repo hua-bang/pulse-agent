@@ -5,6 +5,7 @@ export interface IframeApi {
     workspaceId: string,
     nodeId: string,
     webContentsId: number,
+    ready?: boolean,
   ) => Promise<{ ok: boolean }>;
   unregisterWebview: (
     workspaceId: string,

@@ -16,6 +16,7 @@ interface ChatInputProps {
   onRemoveContext?: (key: string) => void;
   attachments?: ChatImageAttachment[];
   contextComposer?: boolean;
+  knowledgeMode?: boolean;
   executionMode?: 'auto' | 'ask';
   modelStatus?: CanvasModelStatus;
   modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
@@ -45,6 +46,7 @@ export const ChatInput = ({
   onRemoveContext,
   attachments = [],
   contextComposer = false,
+  knowledgeMode = false,
   executionMode = 'auto',
   modelStatus,
   modelSelection = { mode: 'auto' },
@@ -151,8 +153,14 @@ export const ChatInput = ({
           className="chat-input"
           contentEditable={true}
           role="textbox"
-          data-placeholder={contextComposer
-            ? (contextChips.length > 0 ? t('chat.askSelectedNodes') : t('chat.askCanvas'))
+          data-placeholder={knowledgeMode
+            ? (contextChips.length === 1 && contextChips[0]?.kind === 'node'
+              ? t('chat.askCurrentNode')
+              : contextChips.length > 0
+                ? t('chat.askKnowledgeScope')
+                : t('chat.askKnowledge'))
+            : contextComposer
+              ? (contextChips.length > 0 ? t('chat.askSelectedNodes') : t('chat.askCanvas'))
             : (loading ? t('chat.generatingPlaceholder') : t('chat.askAnything'))}
           onInput={onInput}
           onKeyDown={onKeyDown}

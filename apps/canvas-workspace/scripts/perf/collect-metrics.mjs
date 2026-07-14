@@ -9,7 +9,7 @@
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { hostname, platform, cpus } from 'node:os';
+import { arch, hostname, platform, cpus } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,9 +18,339 @@ const outDir = join(appRoot, 'perf/out');
 
 const readJson = (path) => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf-8')) : null);
 
+const frameEvidence = (report) => {
+  const runs = report?.runs ?? 1;
+  const raw = runs > 1 ? report.raw?.framesOver20Pct : undefined;
+  const rawCounts = runs > 1 ? report.raw?.framesOver20Count : undefined;
+  const median = report?.frames?.over20msPct;
+  const maxPct = report?.frames?.over20msPctMax
+    ?? (raw?.length ? Math.max(...raw) : median);
+  const maxCount = report?.frames?.over20msCountMax
+    ?? (rawCounts?.length ? Math.max(...rawCounts) : report?.frames?.over20msCount ?? 0);
+  return {
+    runs,
+    raw,
+    median,
+    maxPct,
+    maxCount,
+    detail: `median ${median}% · max ${maxPct}% · max ${maxCount} frames >20ms`,
+  };
+};
+
+export const collectInteractionScenarioMetrics = (scenarios, name) => {
+  const report = scenarios?.scenarios?.[name]?.report;
+  const entries = [];
+  const add = (id, value, extra = {}) => {
+    if (value === undefined || value === null || Number.isNaN(value)) return;
+    entries.push({ id, value, runs: 1, ...extra });
+  };
+  if (report) {
+    const repeatExtra = report.runs > 1
+      ? { runs: report.runs, raw: report.raw?.interactionsP95 }
+      : {};
+    const frames = frameEvidence(report);
+    add(`interact.${name}.inp_p95_ms`, report.interactions.p95, repeatExtra);
+    add(`interact.${name}.frames_over20_pct`, frames.median, {
+      ...(frames.runs > 1 ? { runs: frames.runs, raw: frames.raw } : {}),
+      detail: frames.detail,
+    });
+    add(`interact.${name}.frames_over20_pct_max`, frames.maxPct, {
+      ...(frames.runs > 1 ? { runs: frames.runs, raw: frames.raw } : {}),
+      detail: `max across ${frames.runs} active-window runs · ${frames.maxCount} frames >20ms`,
+    });
+  }
+  for (const counter of ['nodes-array-replace', 'canvas-save-ipc']) {
+    const gate = scenarios?.gates?.find((entry) => entry.scenario === name && entry.counter === counter);
+    const value = report?.counters?.[counter];
+    const id = `interact.${name}.counter.${counter.replaceAll('-', '_')}`;
+    const counterExtra = report?.runs > 1
+      ? {
+          runs: report.runs,
+          raw: report.raw?.counters?.map((run) => run[counter] ?? 0),
+        }
+      : {};
+    if (typeof value === 'number') {
+      add(id, value, {
+        ...counterExtra,
+        ...(gate ? {
+          pass: gate.pass,
+          limit: gate.max,
+          ...(gate.missingConfig ? { missingConfig: true } : {}),
+        } : {}),
+      });
+    } else if (gate) {
+      entries.push({
+        id,
+        value: typeof gate.value === 'number' ? gate.value : null,
+        runs: 1,
+        ...counterExtra,
+        pass: gate.pass,
+        limit: gate.max,
+        ...(gate.missing ? { missing: true } : {}),
+        ...(gate.missingConfig ? { missingConfig: true } : {}),
+      });
+    }
+  }
+  return entries;
+};
+
+export const collectImageMemoryMetric = (scenarios) => {
+  const imageMemory = scenarios?.scenarios?.['image-memory'];
+  if (!imageMemory || typeof imageMemory.decodedMB !== 'number') return null;
+  return {
+    id: 'memory.image.decoded_mb',
+    value: imageMemory.decodedMB,
+    runs: 1,
+    detail: `${imageMemory.images}×4K · original ${imageMemory.originalDecodedMB} MB · ${imageMemory.reductionRatio}× reduction`,
+  };
+};
+
+export const collectChatStreamMetrics = (scenarios) => {
+  const chatStream = scenarios?.scenarios?.['chat-stream'];
+  if (!chatStream?.report) return [];
+  const entries = [
+    { id: 'chat.stream.frames_over20_pct', value: chatStream.report.frames.over20msPct, runs: 1 },
+    { id: 'chat.stream.md_render_count', value: chatStream.markdownRenders, runs: 1 },
+  ];
+  const commitCount = chatStream.report.counters?.['chat-stream-commit'];
+  if (Number.isFinite(commitCount)) {
+    entries.push({ id: 'chat.stream.commit_count', value: commitCount, runs: 1 });
+  }
+  entries.push({ id: 'chat.stream.tail_burst_ms', value: chatStream.tailBurstMs, runs: 1 });
+  const renderGate = scenarios.gates?.find(
+    entry => entry.scenario === 'chat-stream' && entry.counter === 'chat-md-stream-render',
+  );
+  if (renderGate) {
+    entries[1] = {
+      ...entries[1],
+      pass: renderGate.pass,
+      limit: renderGate.max,
+    };
+  }
+  const commitGate = scenarios.gates?.find(
+    entry => entry.scenario === 'chat-stream' && entry.counter === 'chat-stream-commit',
+  );
+  const commitEntryIndex = entries.findIndex((entry) => entry.id === 'chat.stream.commit_count');
+  if (commitGate && commitEntryIndex >= 0) {
+    entries[commitEntryIndex] = {
+      ...entries[commitEntryIndex],
+      pass: commitGate.pass,
+      limit: commitGate.max,
+    };
+  }
+  const cacheProbe = chatStream.cacheProbe;
+  const hits = cacheProbe?.hits;
+  const renders = cacheProbe?.renders;
+  const opportunities = cacheProbe?.opportunities;
+  if (
+    Number.isFinite(hits)
+    && hits >= 0
+    && Number.isFinite(renders)
+    && renders >= 0
+    && Number.isFinite(opportunities)
+    && opportunities > 0
+    && opportunities === hits + renders
+    && hits <= opportunities
+  ) {
+    const ratio = Math.round((hits / opportunities) * 1000) / 10;
+    entries.push({
+      id: 'chat.stream.md_cache_hit_ratio',
+      value: ratio,
+      runs: 1,
+      detail: `${hits} hits / ${opportunities} settled render opportunities`,
+    });
+    entries.push({ id: 'chat.stream.md_cache_hit_count', value: hits, runs: 1 });
+    entries.push({ id: 'chat.stream.md_cache_opportunity_count', value: opportunities, runs: 1 });
+  }
+  return entries;
+};
+
+export const collectWelcomeContentMetric = (scenarios) => {
+  const value = scenarios?.scenarios?.startup?.welcomeLocalContentMs;
+  return typeof value === 'number'
+    ? { id: 'startup.welcome_local_content_ms', value, runs: 1 }
+    : null;
+};
+
+export const collectPtyStreamMetric = (scenarios) => {
+  const ptyStream = scenarios?.scenarios?.['pty-stream'];
+  if (!ptyStream || typeof ptyStream.ipcPerSec !== 'number') return null;
+  return {
+    id: 'main.pty.ipc_per_sec',
+    value: ptyStream.ipcPerSec,
+    runs: 1,
+    detail: `${ptyStream.terminals} terminals · ${ptyStream.events} IPC events · ${ptyStream.durationMs} ms`,
+  };
+};
+
+export const collectPackageMetrics = (packageReport) => [
+  ['dmgMB', 'package.dmg_mb'],
+  ['appUnpackedMiB', 'package.app_unpacked_mib'],
+  ['asarMiB', 'package.asar_mib'],
+  ['nativeUnpackedMiB', 'package.native_unpacked_mib'],
+  ['electronLocaleCount', 'package.electron_locale_count'],
+].flatMap(([reportKey, id]) => {
+  const value = packageReport?.metrics?.[reportKey];
+  if (!Number.isFinite(value)) return [];
+  return [{
+    id,
+    value,
+    runs: 1,
+    detail: `${packageReport.platform}/${packageReport.arch} · commit ${packageReport.commit}`,
+  }];
+});
+
+export const collectRendererTraceMetrics = (scenarios) => {
+  const trace = scenarios?.scenarios?.['renderer-trace'];
+  if (trace?.status !== 'measured') return [];
+  const detail = `warm renderer reload · ${trace.capture?.urlScheme ?? 'unknown'}:// · ${trace.artifact?.path ?? 'trace unavailable'}`;
+  const topShifts = trace.vitals?.topLayoutShifts ?? [];
+  const shiftDetail = topShifts.length > 0
+    ? topShifts.map((shift) => `${shift.value}@${shift.startTime}ms`).join(' · ')
+    : 'no unexpected layout shifts observed';
+  const longTaskDetail = `${trace.blocking?.longTaskCount ?? 0} tasks · total ${trace.blocking?.longTaskTotalMs ?? 0}ms · ${detail}`;
+  return [
+    {
+      id: 'startup.renderer_reload.lcp_ms', value: trace.vitals?.lcpMs, runs: 1,
+      detail: `${detail} · web.dev reference ${trace.vitals?.lcpRating ?? 'unavailable'}`,
+    },
+    {
+      id: 'startup.renderer_reload.cls', value: trace.vitals?.cls, runs: 1,
+      detail: `${detail} · web.dev reference ${trace.vitals?.clsRating ?? 'unavailable'}`,
+    },
+    {
+      id: 'startup.renderer_reload.layout_shift_count',
+      value: trace.vitals?.layoutShiftCount,
+      runs: 1,
+      detail: `${shiftDetail} · ${detail}`,
+    },
+    {
+      id: 'startup.renderer_reload.blocking_time_to_canvas_ms',
+      value: trace.blocking?.timeToCanvasMs,
+      runs: 1,
+      detail: `FCP ${trace.window?.fcpMs ?? 0}ms → canvas ${trace.window?.firstCanvasMs ?? 0}ms`,
+    },
+    {
+      id: 'startup.renderer_reload.blocking_canvas_to_lcp_ms',
+      value: trace.blocking?.timeCanvasToLcpMs,
+      runs: 1,
+      detail: `canvas ${trace.window?.firstCanvasMs ?? 0}ms → LCP ${trace.vitals?.lcpMs ?? 0}ms`,
+    },
+    {
+      id: 'startup.renderer_reload.long_task_count',
+      value: trace.blocking?.longTaskCount,
+      runs: 1,
+      detail: longTaskDetail,
+    },
+    {
+      id: 'startup.renderer_reload.long_task_max_ms',
+      value: trace.blocking?.longTaskMaxMs,
+      runs: 1,
+      detail: longTaskDetail,
+    },
+    {
+      id: 'startup.loaded_to_canvas_kb',
+      value: trace.resources?.loadedToCanvasKB,
+      runs: 1,
+      detail: `${trace.resources?.loadedToCanvasCount ?? 'unknown'} local resources completed by first Canvas · ${detail}`,
+    },
+    {
+      id: 'startup.loaded_to_lcp_kb',
+      value: trace.resources?.loadedToLcpKB,
+      runs: 1,
+      detail: `${trace.resources?.loadedToLcpCount ?? 'unknown'} local resources completed by LCP · ${detail}`,
+    },
+    { id: 'startup.renderer_reload.task_ms', value: trace.cpu?.taskMs, runs: 1, detail },
+    { id: 'startup.renderer_reload.script_ms', value: trace.cpu?.scriptMs, runs: 1, detail },
+    { id: 'startup.renderer_reload.recalc_style_ms', value: trace.cpu?.recalcStyleMs, runs: 1, detail },
+    { id: 'startup.renderer_reload.layout_ms', value: trace.cpu?.layoutMs, runs: 1, detail },
+  ].filter((entry) => typeof entry.value === 'number' && Number.isFinite(entry.value));
+};
+
+export const collectPanzoomMetrics = (scenarios) => {
+  const report = scenarios?.scenarios?.panzoom?.report;
+  if (!report?.transformChanged || !report.wheelToNextFrame) return [];
+  const frames = frameEvidence(report);
+  const runs = report.runs ?? 1;
+  const wheelRaw = runs > 1 ? report.raw?.wheelToNextFrameP95 : undefined;
+  const common = runs > 1 ? { runs, raw: wheelRaw } : { runs: 1 };
+  const frameCommon = runs > 1 ? { runs, raw: frames.raw } : { runs: 1 };
+  return [
+    {
+      id: 'interact.panzoom.wheel_to_next_frame_p95_ms',
+      value: report.wheelToNextFrame.p95,
+      ...common,
+      detail: `${report.wheelToNextFrame.count} wheel samples${runs > 1 ? `/run × ${runs}` : ''} · transform verified`,
+    },
+    {
+      id: 'interact.panzoom.frames_over20_pct',
+      value: frames.median,
+      ...frameCommon,
+      detail: frames.detail,
+    },
+    {
+      id: 'interact.panzoom.frames_over20_pct_max',
+      value: frames.maxPct,
+      ...frameCommon,
+      detail: `max across ${frames.runs} active-window runs · ${frames.maxCount} frames >20ms`,
+    },
+  ].filter((entry) => typeof entry.value === 'number' && Number.isFinite(entry.value));
+};
+
+export const collectWorkspaceCycleMetrics = (scenarios) => {
+  const cycle = scenarios?.scenarios?.['ws-cycle'];
+  const mountedCapacity = 4;
+  const finitePositiveArray = (values) => Array.isArray(values)
+    && values.every((value) => Number.isFinite(value) && value > 0);
+  const expectedTailLength = Number.isInteger(cycle?.workspaces)
+    ? cycle.workspaces - mountedCapacity + 1
+    : 0;
+  if (
+    !cycle
+    || !Number.isInteger(cycle.workspaces)
+    || cycle.workspaces < 8
+    || !Number.isFinite(cycle.nodesPerWorkspace)
+    || cycle.nodesPerWorkspace <= 0
+    || !finitePositiveArray(cycle.heapsMB)
+    || cycle.heapsMB.length !== cycle.workspaces
+    || !finitePositiveArray(cycle.postCapacityHeapsMB)
+    || cycle.postCapacityHeapsMB.length !== expectedTailLength
+    || cycle.postCapacityHeapsMB.some(
+      (value, index) => value !== cycle.heapsMB[mountedCapacity - 1 + index],
+    )
+    || !finitePositiveArray(cycle.mountedWorkspaceCounts)
+    || cycle.mountedWorkspaceCounts.length !== cycle.workspaces
+  ) return [];
+  const entries = [];
+  const add = (id, value, detail) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return;
+    entries.push({ id, value, runs: 1, ...(detail ? { detail } : {}) });
+  };
+  add(
+    'memory.ws_cycle.post_capacity_heap_slope',
+    cycle.heapSlopeMB,
+    `${cycle.workspaces} equal-load workspaces × ${cycle.nodesPerWorkspace} nodes · post-capacity heap ${cycle.postCapacityHeapsMB?.join(' → ')} MB`,
+  );
+  add('memory.ws_cycle.peak_heap_mb', cycle.peakHeapMB);
+  add('memory.ws_cycle.nodes_per_workspace', cycle.nodesPerWorkspace);
+  add('memory.ws_cycle.post_capacity_sample_count', cycle.postCapacityHeapsMB?.length);
+  if (Array.isArray(cycle.mountedWorkspaceCounts) && cycle.mountedWorkspaceCounts.length > 0) {
+    add('memory.ws_cycle.peak_mounted_workspace_count', Math.max(...cycle.mountedWorkspaceCounts));
+  }
+  return entries;
+};
+
 export const collectMetrics = () => {
   const bundle = readJson(join(outDir, 'bundle-report.json'));
+  const packageReport = readJson(join(outDir, 'package-report.json'));
   const scenarios = readJson(join(outDir, 'scenarios-report.json'));
+  const inferredRepeat = scenarios
+    ? Math.max(
+        scenarios.repeat ?? 1,
+        scenarios.scenarios?.startup?.mainPhasesRuns ?? 1,
+        ...Object.values(scenarios.scenarios ?? {}).map((scenario) => scenario?.report?.runs ?? 1),
+      )
+    : undefined;
   const metrics = [];
   const push = (id, value, extra = {}) => {
     if (value === undefined || value === null || Number.isNaN(value)) return;
@@ -33,13 +363,33 @@ export const collectMetrics = () => {
       ['entryRawKB', 'bundle.entry_raw_kb'],
       ['entryGzipKB', 'bundle.entry_gzip_kb'],
       ['totalJsKB', 'bundle.total_js_kb'],
+      ['startupJsRawKB', 'bundle.startup_js_raw_kb'],
+      ['startupJsGzipKB', 'bundle.startup_js_gzip_kb'],
+      ['startupCssRawKB', 'bundle.startup_css_raw_kb'],
+      ['startupCssGzipKB', 'bundle.startup_css_gzip_kb'],
+      ['startupRequestCount', 'bundle.startup_request_count'],
+      ['totalCssRawKB', 'bundle.total_css_raw_kb'],
+      ['mainRawKB', 'bundle.main_raw_kb'],
+      ['preloadRawKB', 'bundle.preload_raw_kb'],
     ]) {
       const gate = gateFor(reportKey);
       push(id, bundle.metrics[reportKey], gate ? { pass: gate.pass, limit: gate.limit } : {});
     }
     push('bundle.chunk_count', bundle.metrics.chunkCount);
-    push('bundle.heavy_in_entry_count', bundle.probes.filter((p) => p.inEntry).length, {
-      detail: bundle.probes.filter((p) => p.inEntry).map((p) => p.lib).join(' · '),
+    for (const feature of ['file', 'chat', 'terminal', 'graph', 'mermaid', 'mf']) {
+      push(
+        `bundle.feature_first_load.${feature}_raw_kb`,
+        bundle.metrics.featureFirstLoad?.[feature]?.rawKB,
+        bundle.metrics.featureFirstLoad?.[feature]
+          ? { detail: `${bundle.metrics.featureFirstLoad[feature].requestCount} incremental requests` }
+          : {},
+      );
+    }
+    const heavyInEntry = bundle.probes.filter((p) => p.inEntry);
+    push('bundle.heavy_in_entry_count', heavyInEntry.length, {
+      detail: heavyInEntry.length > 0
+        ? `${heavyInEntry.length}/${bundle.probes.length} probes · ${heavyInEntry.map((p) => p.lib).join(' · ')}`
+        : `0/${bundle.probes.length} probes · all watched heavy libraries stay lazy`,
     });
     // bundle.lazy_boundary_watchlist: passes iff EVERY watched lib is out of
     // the entry chunk. All six probe libs are lazied as of C2/C3/C7/chain-B
@@ -61,6 +411,10 @@ export const collectMetrics = () => {
       pass: watchlistPass,
       ...(regressed.length ? { detail: regressed.join(' · ') } : {}),
     });
+  }
+
+  if (packageReport) {
+    metrics.push(...collectPackageMetrics(packageReport));
   }
 
   const phases = scenarios?.scenarios?.startup?.mainPhases;
@@ -89,10 +443,17 @@ export const collectMetrics = () => {
   }
   const rendererMarks = scenarios?.scenarios?.startup?.rendererMarks;
   if (rendererMarks?.['renderer:main-start'] != null) {
-    // performance.now() at main.tsx's first statement ≈ entry chunk V8
-    // compile + eval up to that point (the mark is set at module load).
+    // performance.now() at main.tsx's first statement is a renderer-start
+    // milestone. It is not a true V8 compile/eval duration; the metric label
+    // and program.md keep that distinction explicit.
     push('startup.renderer.entry_eval_ms', Math.round(rendererMarks['renderer:main-start']));
   }
+  if (rendererMarks?.['canvas:first-render'] != null) {
+    push('startup.renderer.first_canvas_ms', Math.round(rendererMarks['canvas:first-render']));
+  }
+  const welcomeContentMetric = collectWelcomeContentMetric(scenarios);
+  if (welcomeContentMetric) metrics.push(welcomeContentMetric);
+  metrics.push(...collectRendererTraceMetrics(scenarios));
 
   const mainProc = scenarios?.scenarios?.main;
   if (mainProc) {
@@ -111,57 +472,24 @@ export const collectMetrics = () => {
     }
   }
 
-  const wsc = scenarios?.scenarios?.['ws-cycle'];
-  if (wsc) {
-    push('memory.ws_cycle.heap_slope', wsc.heapSlopeMB, {
-      detail: `${wsc.workspaces} workspaces · heap ${wsc.heapsMB?.join(' → ')} MB`,
-    });
-    push('memory.ws_cycle.peak_heap_mb', wsc.peakHeapMB);
-  }
+  metrics.push(...collectWorkspaceCycleMetrics(scenarios));
 
-  for (const name of ['typing', 'drag']) {
-    const report = scenarios?.scenarios?.[name]?.report;
-    if (!report) continue;
+  const ptyStreamMetric = collectPtyStreamMetric(scenarios);
+  if (ptyStreamMetric) metrics.push(ptyStreamMetric);
+
+  const imageMemoryMetric = collectImageMemoryMetric(scenarios);
+  if (imageMemoryMetric) metrics.push(imageMemoryMetric);
+
+  metrics.push(...collectChatStreamMetrics(scenarios));
+
+  for (const name of ['typing', 'drag', 'resize']) {
     // A3: --repeat N folds multiple in-session runs into a median (see
     // run-scenarios.mjs aggregateReports); runs/raw follow the schema in
     // program.md §3 so history entries carry sample counts, not just values.
-    const repeatExtra = report.runs > 1
-      ? { runs: report.runs, raw: report.raw?.interactionsP95 }
-      : {};
-    const frameExtra = report.runs > 1
-      ? { runs: report.runs, raw: report.raw?.framesOver20Pct }
-      : {};
-    push(`interact.${name}.inp_p95_ms`, report.interactions.p95, repeatExtra);
-    push(`interact.${name}.frames_over20_pct`, report.frames.over20msPct, frameExtra);
-    for (const [counter, id] of [
-      ['nodes-array-replace', `interact.${name}.counter.nodes_array_replace`],
-      ['canvas-save-ipc', `interact.${name}.counter.canvas_save_ipc`],
-    ]) {
-      const gate = scenarios.gates?.find((g) => g.scenario === name && g.counter === counter);
-      push(id, report.counters[counter] ?? 0, gate ? { pass: gate.pass, limit: gate.max } : {});
-    }
+    metrics.push(...collectInteractionScenarioMetrics(scenarios, name));
   }
 
-  // A4: panzoom has no nodes-array-replace counter (pan/zoom never touch
-  // the nodes array), so it gets its own small push instead of joining the
-  // typing/drag counter loop above. Honest limitation: wheel/scroll events
-  // are not part of the Event Timing API's discrete-interaction set (per
-  // spec — only pointerdown/up, click, keydown/up, etc. get an
-  // interactionId), so inp_p95_ms structurally reads 0 for a wheel-driven
-  // gesture regardless of real cost — it's recorded (not gated) for that
-  // reason. frames_over20_pct is the metric that actually carries signal
-  // here (rAF frame-delta tracking, independent of interactionId).
-  const panzoomReport = scenarios?.scenarios?.panzoom?.report;
-  if (panzoomReport) {
-    const panzoomExtra = panzoomReport.runs > 1
-      ? { runs: panzoomReport.runs, raw: panzoomReport.raw?.interactionsP95 }
-      : {};
-    const panzoomFrameExtra = panzoomReport.runs > 1
-      ? { runs: panzoomReport.runs, raw: panzoomReport.raw?.framesOver20Pct }
-      : {};
-    push('interact.panzoom.inp_p95_ms', panzoomReport.interactions.p95, panzoomExtra);
-    push('interact.panzoom.frames_over20_pct', panzoomReport.frames.over20msPct, panzoomFrameExtra);
-  }
+  metrics.push(...collectPanzoomMetrics(scenarios));
 
   let commit = 'unknown';
   try {
@@ -172,7 +500,16 @@ export const collectMetrics = () => {
     commit,
     timestamp: new Date().toISOString(),
     machineId: createHash('sha256').update(hostname()).digest('hex').slice(0, 8),
-    env: { os: platform(), cores: cpus().length, seedNodes: scenarios?.seedNodes },
+    env: {
+      os: platform(),
+      arch: arch(),
+      cores: cpus().length,
+      seedNodes: scenarios?.seedNodes,
+      seedWebpages: scenarios?.seedWebpages,
+      repeat: inferredRepeat,
+      fixtureVersion: scenarios?.fixtureVersion,
+      headless: scenarios?.session?.headless,
+    },
     metrics,
   };
 };

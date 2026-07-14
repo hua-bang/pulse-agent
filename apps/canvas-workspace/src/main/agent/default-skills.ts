@@ -2,19 +2,19 @@
  * Seeds the bundled default skills.
  *
  * `save-as-skill` / `promote-skill` are meta-skills for in-chat skill
- * management; `suggest-tags` drives the "find which nodes should carry a tag,
- * then batch-apply it" workflow. All three are plain SKILL.md files in the
- * global scope — the agent's behavior is defined by these (user-editable)
+ * management; `suggest-tags` drives the "find which nodes should carry a tag"
+ * advisory workflow. All three are plain SKILL.md files in
+ * the global scope — the agent's behavior is defined by these (user-editable)
  * markdown files, not by hard-coded prompts. Each one leans on a companion
- * tool for the actual write (`canvas_save_skill` / `canvas_promote_skill` in
- * `tools/skills.ts`, `canvas_tag_node` in `tools/tagging.ts`); the SKILL.md
- * tells the agent *when* and *how* to call it.
+ * tool for the resulting action (`canvas_save_skill` / `canvas_promote_skill`
+ * in `tools/skills.ts`); the SKILL.md tells the agent *when* and *how* to call it.
  *
- * On every app start we write them only if absent, so a user who edited one
- * to taste keeps their version.
+ * On every app start we write them only if absent. The one obsolete bundled
+ * default is upgraded by exact hash; user-edited variants keep their version.
  */
 
 import { promises as fs } from 'fs';
+import { createHash } from 'crypto';
 import { join } from 'path';
 import { scopeSkillsDir } from './config-scope';
 
@@ -83,51 +83,44 @@ const SUGGEST_TAGS: DefaultSkill = {
   slug: 'suggest-tags',
   name: 'suggest-tags',
   description:
-    'When the user wants to find which nodes should carry a tag (e.g. 「帮我看看哪些节点可以打上 [AI]」 / "which notes should be tagged RAG?"), audit nodes that are missing tags, or batch-apply a tag across the canvas — use this to scan the local workspaces, propose candidates, confirm with the user, then apply with canvas_tag_node.',
+    'When the user wants to find which nodes should carry a tag (e.g. 「帮我看看哪些节点可以打上 [AI]」 / "which notes should be tagged RAG?"), use this to scan local workspaces and return grounded suggestions without changing nodes.',
   body: `# suggest-tags
 
-Use this when the user wants to **find which nodes should carry a tag**, **audit nodes that have no tags**, or **apply a tag across the canvas** — e.g. 「帮我看看哪些节点可以打上 [AI]」, "which notes should be tagged RAG?", 「哪些节点还没打标签?」.
+Use this when the user wants to **find which nodes should carry a tag**, **audit nodes that have no tags**, or **prepare tag changes across the canvas** — e.g. 「帮我看看哪些节点可以打上 [AI]」, "which notes should be tagged RAG?", 「哪些节点还没打标签?」.
 
-Works in global chat (the whole system) and inside a single workspace. It only touches knowledge-layer tags — never the canvas layout.
+Works in global chat (the whole system) and inside a single workspace. It is advisory only: return suggestions in chat and never mutate nodes or create review cards.
 
 **Bias for precision over recall: a wrong tag is worse than a missed one.** Titles are loose (a shared word like "数据"/"平台"/"AI" is NOT a match) — judge from real content, and when unsure, leave it out.
 
 ## Steps
 
-1. **Pin down the tag and its meaning.** Call \`canvas_list_tags\` for the exact name/id and the tag's **description** — that description is your rubric. If the tag is new, or its meaning is vague, ask the user one line about what it should cover BEFORE judging. (Tag is created on first apply if new.)
+1. **Pin down the tag and its meaning.** Call \`canvas_list_tags\` for the exact name/id and the tag's **description** — that description is your rubric. If the tag is new, or its meaning is vague, ask the user one line about what it should cover BEFORE judging. (A new tag is created only if the user later applies a proposal.)
    - *Scope:* default all workspaces; pass a \`workspaceId\` (resolve via \`canvas_list_workspaces\`) only if the user scoped it.
 
 2. **Shortlist (don't decide yet).** \`canvas_list_nodes({ untaggedOnly: true })\` — add \`query\` with the tag's keywords to keep the shortlist tight on a big canvas. Use \`title\` + \`summary\` ONLY to narrow down to plausible candidates; **do not tag based on the title/summary alone.**
 
-3. **Read the full content before proposing — mandatory.** For EVERY node you intend to propose, call \`canvas_read_node({ workspaceId, nodeId })\` and judge from the **actual content**, not the title or snippet. Do not put a node in the proposal you haven't read.
+3. **Read the full content before suggesting — mandatory.** For EVERY node you intend to suggest, call \`canvas_read_node({ workspaceId, nodeId })\` and judge from the **actual content**, not the title or snippet. Do not put a node in the result you haven't read.
 
 4. **Judge strictly against the rubric.** Include a node only when its content is *substantively about* the tag's meaning (step 1's description) — i.e. the tag is a real subject/topic of the node, not a passing mention or an incidental keyword. When unsure, exclude it (or list it under a separate "maybe / 不确定" group); never auto-include to look thorough.
 
-5. **Show the proposal and get confirmation.** Group by workspace; each line = node title + a one-line reason **grounded in what you read** (e.g. "讲的是 X,属于…"). List the "maybes" separately. End with 「这些打上 [AI] 吗?要去掉哪几个?」. **Do not tag yet.**
-
-6. **Apply in ONE batch.** After the user confirms (and any edits), call \`canvas_tag_node\` once. Put the tag **once at the top level** in \`addTags\`; leave each node object as just \`{ nodeId, workspaceId }\`:
-   \`\`\`json
-   {
-     "nodes": [{ "nodeId": "<id>", "workspaceId": "<wsId>" }],
-     "addTags": ["AI"]
-   }
-   \`\`\`
-   - Use the EXACT \`nodeId\` / \`workspaceId\` from \`canvas_list_nodes\` — never guess from titles.
-   - Do NOT put \`addTags\` / \`setTags\` on each node, and never pass empty arrays (\`[]\`) — empty arrays are ignored and just add noise. Only set a per-node tag field when that node genuinely needs a different tag.
-   - After the call, read the result's \`changed\` count and each node's \`changed\` flag — \`ok:true\` alone does NOT mean a tag was applied (a node can be unchanged). Report the real \`changed\` number and surface any per-node errors / notes.
+5. **Show the candidate list.** Group by workspace; each line = node title + a one-line reason **grounded in what you read** (e.g. "讲的是 X,属于…"). List the "maybes" separately. State clearly that these are suggestions only and no nodes were changed.
 
 ## Rules
 
-- **Never call \`canvas_tag_node\` without explicit confirmation** in the conversation. 「打吧」/「ok」 counts; silence does not.
-- **Propose first, apply on the next turn** — don't scan-and-tag in the same breath the user asked.
+- **Never mutate nodes or create review cards.** This workflow only reports suggestions in chat.
 - **Precision first:** don't pad the list. If only 3 of 20 truly fit, propose 3.
 - Reading full content costs tokens — keep the shortlist tight (use \`query\`) so you're not reading the whole canvas.
-- Prefer **one** \`canvas_tag_node\` call with the whole batch. \`addTags\` merges; only reach for \`setTags\` / \`removeTags\` / \`clearTags\` when the user explicitly wants to replace, strip, or clear.
 - If nothing clearly fits, say so instead of forcing low-confidence tags.
 `,
 };
 
 const DEFAULT_SKILLS: DefaultSkill[] = [SAVE_AS_SKILL, PROMOTE_SKILL, SUGGEST_TAGS];
+
+// Exact SHA-256 of the previously bundled suggest-tags SKILL.md. Updating only
+// this byte-for-byte default migrates the obsolete direct-write workflow while
+// preserving every user-edited variant.
+const LEGACY_SUGGEST_TAGS_HASH =
+  'aa96972edae3f969eaf408dfb1fa88d47bff03a96775146bed2ff5aa72430a3f';
 
 function serialize(skill: DefaultSkill): string {
   return [
@@ -141,10 +134,14 @@ function serialize(skill: DefaultSkill): string {
   ].join('\n');
 }
 
+function sha256(text: string): string {
+  return createHash('sha256').update(text).digest('hex');
+}
+
 /**
  * Write the bundled meta-skills to `~/.pulse-coder/canvas/skills/<slug>/SKILL.md`
  * for any slug that doesn't already have a file. Safe to call repeatedly:
- * existing files (including user edits) are left untouched.
+ * user edits are left untouched, while exact obsolete defaults may migrate.
  */
 export async function ensureDefaultSkillsSeeded(): Promise<void> {
   const globalSkillsDir = scopeSkillsDir({ level: 'global' });
@@ -152,7 +149,14 @@ export async function ensureDefaultSkillsSeeded(): Promise<void> {
     const dir = join(globalSkillsDir, skill.slug);
     const file = join(dir, 'SKILL.md');
     try {
-      await fs.access(file);
+      const existing = await fs.readFile(file, 'utf8');
+      const legacyHash = skill.slug === 'suggest-tags' ? LEGACY_SUGGEST_TAGS_HASH : undefined;
+      const referencesRemovedProposalTool = skill.slug === 'suggest-tags'
+        && existing.includes('canvas_propose_node_change');
+      if ((legacyHash && sha256(existing) === legacyHash) || referencesRemovedProposalTool) {
+        await fs.writeFile(file, serialize(skill), 'utf8');
+        console.info(`[default-skills] upgraded bundled ${file}`);
+      }
       // Already present (possibly user-edited) — leave it alone.
       continue;
     } catch {

@@ -310,7 +310,6 @@ export async function activateFederatedRendererPlugins(
 export async function activateConfiguredFederatedRendererPlugins(): Promise<RendererCanvasPlugin[]> {
   const userSpecs = await readFederatedRendererPluginSpecsFromUserConfig();
   return activateFederatedRendererPlugins([
-    ...getBuiltInFederatedRendererPluginSpecs(),
     ...readFederatedRendererPluginSpecsFromEnv(),
     ...userSpecs,
   ]);

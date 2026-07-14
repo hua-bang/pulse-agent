@@ -50,9 +50,7 @@ const requireWorkspaceId = (tool: CanvasTool): CanvasTool => {
 /**
  * Tool set for global chat (no current workspace). Read/search canvas tools
  * are wrapped to require an explicit workspaceId; the cross-workspace knowledge
- * index is eager. The one sanctioned write is `canvas_tag_node` — it edits
- * knowledge-layer tags only (never canvas layout), so a tagging skill can apply
- * tags across workspaces without leaving global chat.
+ * index is eager. Global chat remains read-only for node data.
  */
 export function createGlobalCanvasTools(): Record<string, CanvasTool> {
   const nodeTools = createNodeTools('');
@@ -75,8 +73,6 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     // and stay eager — global chat must see them up front to read local
     // workspaces / tags / nodes instead of reaching for an external MCP server.
     ...createKnowledgeTools(),
-    // The only allowed write in global chat: knowledge-layer tagging.
-    ...createTaggingTools(),
     // Chat-session history (检索/总结). Inherently cross-workspace (workspaceId
     // is optional), so not wrapped with requireWorkspaceId.
     ...createSessionTools(),

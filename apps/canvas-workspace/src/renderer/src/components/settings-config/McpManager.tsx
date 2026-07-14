@@ -12,7 +12,7 @@ import type {
 } from '../../types';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
-import { Select } from '../ui';
+import { Button, Select, TextField } from '../ui';
 import { HealthBadge, ToolsList } from './McpManagerParts';
 import './settings-config.css';
 
@@ -371,81 +371,70 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
         {servers.length > 0 && (
           <span className="cfg-toolbar-hint">{t('mcpConfig.reloadHint')}</span>
         )}
-        <button
-          type="button"
-          className="cfg-secondary-btn"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => void reloadTools()}
           disabled={draft !== null || jsonText !== null || busyReload !== null || servers.length === 0}
         >
           {busyReload === 'all' ? t('mcpConfig.reloadingTools') : t('mcpConfig.reloadTools')}
-        </button>
-        <button
-          type="button"
-          className="cfg-secondary-btn"
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => setJsonText(jsonText === null ? '' : null)}
           disabled={draft !== null}
         >
           {t('mcpConfig.importJson')}
-        </button>
-        <button
-          type="button"
-          className="cfg-secondary-btn"
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => setDraft({ ...EMPTY_DRAFT })}
           disabled={draft !== null || jsonText !== null}
         >
           + {t('mcpConfig.add')}
-        </button>
+        </Button>
       </div>
 
       {jsonText !== null && (
         <div className="cfg-form">
-          <label className="cfg-field">
-            <span>{t('mcpConfig.importJson')}</span>
-            <textarea
-              className="cfg-textarea"
-              rows={10}
-              value={jsonText}
-              placeholder={t('mcpConfig.importJsonPlaceholder')}
-              spellCheck={false}
-              autoFocus
-              onChange={(e) => setJsonText(e.target.value)}
-            />
-            <div className="cfg-toolbar-hint" style={{ flex: 'none', marginTop: 4 }}>
-              {t('mcpConfig.importJsonHint')}
-            </div>
-          </label>
+          <TextField
+            label={t('mcpConfig.importJson')}
+            multiline
+            rows={10}
+            className="cfg-textarea-mono"
+            value={jsonText}
+            placeholder={t('mcpConfig.importJsonPlaceholder')}
+            spellCheck={false}
+            autoFocus
+            onChange={(e) => setJsonText(e.target.value)}
+            hint={t('mcpConfig.importJsonHint')}
+          />
           <div className="cfg-form-actions">
-            <button
-              type="button"
-              className="cfg-secondary-btn"
-              onClick={() => setJsonText(null)}
-              disabled={importing}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setJsonText(null)} disabled={importing}>
               {t('mcpConfig.cancel')}
-            </button>
-            <button
-              type="button"
-              className="cfg-primary-btn"
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => void importJson()}
               disabled={importing || !jsonText.trim()}
             >
               {importing ? t('mcpConfig.importing') : t('mcpConfig.parseAndImport')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {draft && (
         <div className="cfg-form">
-          <label className="cfg-field">
-            <span>{t('mcpConfig.name')}</span>
-            <input
-              className="cfg-input"
-              value={draft.name}
-              placeholder={t('mcpConfig.namePlaceholder')}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            />
-          </label>
+          <TextField
+            label={t('mcpConfig.name')}
+            value={draft.name}
+            placeholder={t('mcpConfig.namePlaceholder')}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          />
           <div className="cfg-field">
             <span>{t('mcpConfig.transport')}</span>
             <Select
@@ -465,65 +454,50 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
 
           {isStdio ? (
             <>
-              <label className="cfg-field">
-                <span>{t('mcpConfig.command')}</span>
-                <input
-                  className="cfg-input"
-                  value={draft.command}
-                  placeholder={t('mcpConfig.commandPlaceholder')}
-                  onChange={(e) => setDraft({ ...draft, command: e.target.value })}
-                />
-              </label>
-              <label className="cfg-field">
-                <span>{t('mcpConfig.args')}</span>
-                <textarea
-                  className="cfg-textarea"
-                  rows={3}
-                  value={draft.argsText}
-                  spellCheck={false}
-                  onChange={(e) => setDraft({ ...draft, argsText: e.target.value })}
-                />
-              </label>
-              <label className="cfg-field">
-                <span>{t('mcpConfig.env')}</span>
-                <textarea
-                  className="cfg-textarea"
-                  rows={3}
-                  value={draft.envText}
-                  spellCheck={false}
-                  onChange={(e) => setDraft({ ...draft, envText: e.target.value })}
-                />
-              </label>
-              <label className="cfg-field">
-                <span>{t('mcpConfig.cwd')}</span>
-                <input
-                  className="cfg-input"
-                  value={draft.cwd}
-                  onChange={(e) => setDraft({ ...draft, cwd: e.target.value })}
-                />
-              </label>
+              <TextField
+                label={t('mcpConfig.command')}
+                value={draft.command}
+                placeholder={t('mcpConfig.commandPlaceholder')}
+                onChange={(e) => setDraft({ ...draft, command: e.target.value })}
+              />
+              <TextField
+                label={t('mcpConfig.args')}
+                multiline
+                className="cfg-textarea-mono"
+                value={draft.argsText}
+                spellCheck={false}
+                onChange={(e) => setDraft({ ...draft, argsText: e.target.value })}
+              />
+              <TextField
+                label={t('mcpConfig.env')}
+                multiline
+                className="cfg-textarea-mono"
+                value={draft.envText}
+                spellCheck={false}
+                onChange={(e) => setDraft({ ...draft, envText: e.target.value })}
+              />
+              <TextField
+                label={t('mcpConfig.cwd')}
+                value={draft.cwd}
+                onChange={(e) => setDraft({ ...draft, cwd: e.target.value })}
+              />
             </>
           ) : (
             <>
-              <label className="cfg-field">
-                <span>{t('mcpConfig.url')}</span>
-                <input
-                  className="cfg-input"
-                  value={draft.url}
-                  placeholder={t('mcpConfig.urlPlaceholder')}
-                  onChange={(e) => setDraft({ ...draft, url: e.target.value })}
-                />
-              </label>
-              <label className="cfg-field">
-                <span>{t('mcpConfig.headers')}</span>
-                <textarea
-                  className="cfg-textarea"
-                  rows={3}
-                  value={draft.headersText}
-                  spellCheck={false}
-                  onChange={(e) => setDraft({ ...draft, headersText: e.target.value })}
-                />
-              </label>
+              <TextField
+                label={t('mcpConfig.url')}
+                value={draft.url}
+                placeholder={t('mcpConfig.urlPlaceholder')}
+                onChange={(e) => setDraft({ ...draft, url: e.target.value })}
+              />
+              <TextField
+                label={t('mcpConfig.headers')}
+                multiline
+                className="cfg-textarea-mono"
+                value={draft.headersText}
+                spellCheck={false}
+                onChange={(e) => setDraft({ ...draft, headersText: e.target.value })}
+              />
               <div className="cfg-field">
                 <span>{t('mcpConfig.auth')}</span>
                 <Select
@@ -538,34 +512,25 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
               </div>
               {draft.auth === 'oauth' && (
                 <>
-                  <label className="cfg-field">
-                    <span>{t('mcpConfig.oauthClientId')}</span>
-                    <input
-                      className="cfg-input"
-                      value={draft.oauthClientId}
-                      placeholder={t('mcpConfig.oauthClientIdPlaceholder')}
-                      onChange={(e) => setDraft({ ...draft, oauthClientId: e.target.value })}
-                    />
-                  </label>
-                  <label className="cfg-field">
-                    <span>{t('mcpConfig.oauthClientSecret')}</span>
-                    <input
-                      className="cfg-input"
-                      type="password"
-                      value={draft.oauthClientSecret}
-                      placeholder={t('mcpConfig.oauthClientSecretPlaceholder')}
-                      onChange={(e) => setDraft({ ...draft, oauthClientSecret: e.target.value })}
-                    />
-                  </label>
-                  <label className="cfg-field">
-                    <span>{t('mcpConfig.oauthScope')}</span>
-                    <input
-                      className="cfg-input"
-                      value={draft.oauthScope}
-                      placeholder={t('mcpConfig.oauthScopePlaceholder')}
-                      onChange={(e) => setDraft({ ...draft, oauthScope: e.target.value })}
-                    />
-                  </label>
+                  <TextField
+                    label={t('mcpConfig.oauthClientId')}
+                    value={draft.oauthClientId}
+                    placeholder={t('mcpConfig.oauthClientIdPlaceholder')}
+                    onChange={(e) => setDraft({ ...draft, oauthClientId: e.target.value })}
+                  />
+                  <TextField
+                    label={t('mcpConfig.oauthClientSecret')}
+                    type="password"
+                    value={draft.oauthClientSecret}
+                    placeholder={t('mcpConfig.oauthClientSecretPlaceholder')}
+                    onChange={(e) => setDraft({ ...draft, oauthClientSecret: e.target.value })}
+                  />
+                  <TextField
+                    label={t('mcpConfig.oauthScope')}
+                    value={draft.oauthScope}
+                    placeholder={t('mcpConfig.oauthScopePlaceholder')}
+                    onChange={(e) => setDraft({ ...draft, oauthScope: e.target.value })}
+                  />
                   <div className="cfg-toolbar-hint" style={{ flex: 'none', marginTop: -2 }}>
                     {t('mcpConfig.oauthHint')}
                   </div>
@@ -574,6 +539,7 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
             </>
           )}
 
+          {/* Checkbox toggle, not a text field — no TextField/Button equivalent. */}
           <label className="cfg-checkbox">
             <input
               type="checkbox"
@@ -584,12 +550,12 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
           </label>
 
           <div className="cfg-form-actions">
-            <button type="button" className="cfg-secondary-btn" onClick={() => setDraft(null)} disabled={saving}>
+            <Button variant="secondary" size="sm" onClick={() => setDraft(null)} disabled={saving}>
               {t('mcpConfig.cancel')}
-            </button>
-            <button type="button" className="cfg-primary-btn" onClick={() => void save()} disabled={saving}>
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving}>
               {saving ? t('mcpConfig.saving') : t('mcpConfig.save')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -611,6 +577,8 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
             return (
               <li key={server.name} className="cfg-list-entry">
                 <div className="cfg-list-item">
+                  {/* 18x18px disclosure-triangle — compact icon-row chrome,
+                   * same skip class as IframeNodeBody's toolbar icon buttons. */}
                   <button
                     type="button"
                     className="cfg-expander"
@@ -641,20 +609,20 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
                   </div>
                   <div className={`cfg-list-actions${server.auth === 'oauth' || busyReload === server.name ? ' cfg-list-actions--pinned' : ''}`}>
                     {server.auth !== 'oauth' && (
-                      <button
-                        type="button"
-                        className="cfg-secondary-btn"
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => void reloadTools(server.name)}
                         disabled={busyReload !== null || busyOAuth !== null}
                       >
                         {connectLabel}
-                      </button>
+                      </Button>
                     )}
                     {server.auth === 'oauth' && (
                       <>
-                        <button
-                          type="button"
-                          className="cfg-secondary-btn"
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => {
                             const connected = oauthStatuses[server.name]?.connected;
                             void (connected ? reloadTools(server.name) : connectOAuth(server.name));
@@ -666,25 +634,25 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
                             : oauthStatuses[server.name]?.connected
                               ? connectLabel
                               : t('mcpConfig.oauthConnect')}
-                        </button>
+                        </Button>
                         {oauthStatuses[server.name]?.connected && (
-                          <button
-                            type="button"
-                            className="cfg-secondary-btn"
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             onClick={() => void disconnectOAuth(server.name)}
                             disabled={busyReload !== null || busyOAuth !== null}
                           >
                             {busyOAuth === server.name ? t('mcpConfig.oauthConnecting') : t('mcpConfig.oauthDisconnect')}
-                          </button>
+                          </Button>
                         )}
                       </>
                     )}
-                    <button type="button" className="cfg-secondary-btn" onClick={() => setDraft(serverToDraft(server))}>
+                    <Button variant="secondary" size="sm" onClick={() => setDraft(serverToDraft(server))}>
                       {t('mcpConfig.edit')}
-                    </button>
-                    <button type="button" className="cfg-danger-btn" onClick={() => void remove(server.name)}>
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => void remove(server.name)}>
                       {t('mcpConfig.delete')}
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 {isOpen && (

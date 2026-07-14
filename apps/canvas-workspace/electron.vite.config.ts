@@ -1,5 +1,6 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import { visualizer } from "rollup-plugin-visualizer";
 
@@ -11,6 +12,7 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 // `build` never instantiate it — chunk hashes and output stay byte-identical
 // to the ungated build. Enable via `pnpm perf:analyze`.
 const analyze = process.env.PULSE_CANVAS_ANALYZE === "1";
+const perfAnalyze = process.env.PULSE_CANVAS_PERF_ANALYZE === "1";
 
 type LocalPluginRendererAsset = {
   publicPath: string;
@@ -83,9 +85,15 @@ function packageNameFromModuleId(id: string): string | null {
  * through the plugin API.
  */
 function entryDepStatsPlugin() {
+  let entryStats: {
+    chunkFileName: string;
+    byPackage: Record<string, number>;
+    appOwnBytes: number;
+    moduleIds: string[];
+  } | null = null;
   return {
     name: "pulse-canvas-entry-dep-stats",
-    generateBundle(_options: unknown, bundle: Record<string, { type: string; isEntry?: boolean; fileName: string; modules?: Record<string, { renderedLength: number }> }>) {
+    generateBundle(_options: unknown, bundle: Record<string, { type: string; isEntry?: boolean; fileName: string; code?: string; modules?: Record<string, { renderedLength: number }> }>) {
       if (process.env.PULSE_CANVAS_PERF_ANALYZE !== "1") return;
       for (const chunk of Object.values(bundle)) {
         if (chunk.type !== "chunk" || !chunk.isEntry) continue;
@@ -97,13 +105,26 @@ function entryDepStatsPlugin() {
           if (pkg) byPackage[pkg] = (byPackage[pkg] ?? 0) + bytes;
           else appOwnBytes += bytes;
         }
-        const outDir = new URL("./perf/out/", import.meta.url);
-        mkdirSync(outDir, { recursive: true });
-        writeFileSync(
-          new URL("entry-dep-stats.json", outDir),
-          JSON.stringify({ chunkFileName: chunk.fileName, byPackage, appOwnBytes }, null, 2),
-        );
+        entryStats = {
+          chunkFileName: chunk.fileName,
+          byPackage,
+          appOwnBytes,
+          moduleIds: Object.keys(chunk.modules ?? {}),
+        };
       }
+    },
+    writeBundle(options: { dir?: string }) {
+      if (!entryStats || !options.dir) return;
+      const entrySource = readFileSync(new URL(entryStats.chunkFileName, `file://${options.dir}/`));
+      const outDir = new URL("./perf/out/", import.meta.url);
+      mkdirSync(outDir, { recursive: true });
+      writeFileSync(
+        new URL("entry-dep-stats.json", outDir),
+        JSON.stringify({
+          ...entryStats,
+          entrySourceSha256: createHash("sha256").update(entrySource).digest("hex"),
+        }, null, 2),
+      );
     },
   };
 }
@@ -142,7 +163,8 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      outDir: "dist/main"
+      outDir: "dist/main",
+      minify: "esbuild"
     }
   },
   preload: {
@@ -164,11 +186,17 @@ export default defineConfig({
     root: "src/renderer",
     build: {
       outDir: "dist/renderer",
-      // Emit Vite's official manifest (entry → static/dynamic imports) only
-      // under PULSE_CANVAS_ANALYZE — standardized data source for perf:treemap.
+      minify: "terser",
+      terserOptions: {
+        compress: { passes: 2 },
+        format: { comments: false },
+      },
+      cssMinify: "esbuild",
+      // Emit Vite's official manifest (entry → static/dynamic imports) for
+      // either interactive treemap analysis or the automated perf report.
       // Chunk output is byte-identical with/without it; only manifest.json differs.
       // String form forces outDir-root path (electron-vite otherwise nests in .vite/).
-      manifest: analyze ? "manifest.json" : false
+      manifest: analyze || perfAnalyze ? "manifest.json" : false
     },
     plugins: [
       react(),

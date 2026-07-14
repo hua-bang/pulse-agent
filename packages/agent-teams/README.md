@@ -237,7 +237,11 @@ Contracts and record types (`src/runtime/types.ts`):
 - Task metadata helpers (shared with hosts): `TASK_METADATA_KEYS` (`round`, `scope`, `verify`, `lastVerify`, `blockedByFailedDep`), `readCurrentRound`, `readTaskRound`, `readTaskScope`, `readTaskVerification`, `readTaskVerifyCommand`.
 - DAG helpers: `assertTaskGraphAcyclic`, `findTaskGraphCycle` (`src/runtime/task-graph.ts`).
 
-Contract intent, invariants, and consumers (`apps/teams-cli`, `apps/canvas-workspace`, the engine built-in agent-teams integration) live in `docs/contracts.md`. Public runtime exports are contracts — route changes through `harness/skills/contract-coding.md`.
+Contract intent, invariants, and the verified consumer list live in
+`docs/contracts.md`. Public runtime exports are contracts — when you change
+one, follow `harness/knowledge/core-lifecycle.md` (the surface split + who
+consumes what) and run `harness/tools/describe-agent-teams.mjs` to catch
+event/consumer drift.
 
 ## Build & Test
 

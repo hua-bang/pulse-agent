@@ -14,7 +14,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 1. Is the problem real, with evidence from this repo or a reproducible case?
 2. Can an existing entry / module / skill / script carry this — if not, why?
 3. What is the minimal change that avoids parallel entries and duplicate rules?
-4. Where is the SSOT for any rule I'm touching, and how do引用方 stay in sync?
+4. Where is the SSOT for any rule I'm touching, and how do referencing parties stay in sync?
 5. Can this be a mechanism (type / lint / test / hook / script) rather than a doc line? If only doc, is the reason stated?
 
 ## 1. Routing
@@ -45,6 +45,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 | Review changes (repo-aware) | affected workspace `AGENTS.md` + `node scripts/harness/run-harness-check.mjs` |
 | Inspect harness coverage | `node scripts/harness/check-harness.mjs` |
 | Run bound checks for a change | `node scripts/harness/run-harness-check.mjs` |
+| Visualize root/package/app harness | `harness/skills/visualize-harness/SKILL.md` |
 
 ## 2. Hard boundaries (real values)
 
@@ -63,14 +64,14 @@ Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/teams-cli` 
 
 ## 4. Prerequisite gates (honest: none are mechanical)
 
-The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size ratchets + runtime counter gates on PRs touching that app. Beyond it there is NO CI for tests/typecheck, NO git hooks, and NO husky/lint-staged/commitlint. Workspace-local `harness/validate/validation.yaml` files and root `harness/validate/validation.yaml` are executed by the manual runner `node scripts/harness/run-harness-check.mjs` — nothing triggers it for you; run it yourself. Wired harness executables live in `scripts/harness/` (`run-harness-check.mjs`, `check-harness.mjs`). Other tool ideas are not on-disk tools until implemented.
+The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size ratchets on PRs touching that app, with full runtime counters only for performance-sensitive paths, a `performance` PR label, manual dispatch, or default-branch pushes; macOS package gates use the same selective policy. Beyond it there is NO CI for tests/typecheck, NO git hooks, and NO husky/lint-staged/commitlint. Workspace-local `harness/validate/validation.yaml` files and root `harness/validate/validation.yaml` are executed by the manual runner `node scripts/harness/run-harness-check.mjs` — nothing triggers it for you; run it yourself. Wired harness executables live in `scripts/harness/` (`run-harness-check.mjs`, `check-harness.mjs`). Other tool ideas are not on-disk tools until implemented.
 
 **Runtime skills are product config, not repo harness protocols:**
 
 | Tier | Location | Role | Loaded how |
 |---|---|---|---|
 | Runtime task skills | `.pulse-coder/skills/*/SKILL.md` | On-demand task knowledge/procedures for the product runtime | engine skills plugin → `skill` tool |
-| Repo action protocols | Not currently materialized | Future stable workflow docs only when the workflow justifies a file | Manual, if added later |
+| Repo action protocols | `harness/skills/*/SKILL.md` when present | Stable workflows for agents maintaining this repository | Manual from the owning `AGENTS.md` route |
 
 **Action → required pre-read** (manual, no runtime enforcement):
 
@@ -83,9 +84,9 @@ The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size rat
 | Review a diff (repo-aware) | affected workspace `AGENTS.md`, local validation, and root impact overlay when relevant |
 | Quality self-check / acceptance gate | local validation first, then root overlay for root/cross-workspace impact |
 
-Do not route required work to nonexistent `harness/skills/*` files. Add a repo action protocol only when the workflow is stable enough and the file removes real ambiguity.
+Route only to repo action protocols that exist on disk. Add one only when the workflow is stable enough and the file removes real ambiguity.
 
-**Gap to close (aspirational, not present):** the manual runner exists; still missing are candidate mechanical checks (add only when their rules are stable enough to mechanize) and any automatic trigger (opt-in pre-push, CI) — defer those until the runner's false-positive rate is proven near zero. Do not claim these exist today.
+**Gap to close:** the manual runner and structural drift checks exist; still missing are semantic checks for contradictions/test effectiveness and any automatic trigger (opt-in pre-push, CI). Defer automatic enforcement until the runner's false-positive rate is proven near zero.
 
 ## 5. Acceptance (reproducible + verifiable)
 

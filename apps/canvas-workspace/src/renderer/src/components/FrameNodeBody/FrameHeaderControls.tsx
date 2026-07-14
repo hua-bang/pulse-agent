@@ -1,6 +1,6 @@
 import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
 import type { CanvasNode, FrameNodeData } from "../../types";
-import { DropdownShell } from "../ui";
+import { DropdownShell, SwatchRow } from "../ui";
 import { useI18n } from "../../i18n";
 
 /**
@@ -162,26 +162,20 @@ export const FrameColorPicker = ({ node, onUpdate }: ColorPickerProps) => {
         />
       )}
     >
-      {({ close }) =>
-        COLOR_PRESETS.map((preset) => (
-          <button
-            type="button"
-            key={preset.name}
-            className={`frame-color-swatch${data.color === preset.value ? ' frame-color-swatch--active' : ''}`}
-            style={{ backgroundColor: preset.value }}
-            role="menuitemradio"
-            aria-checked={data.color === preset.value}
-            title={t('canvas.frameStyle.colorOption', { name: preset.name })}
-            aria-label={t('canvas.frameStyle.colorOption', { name: preset.name })}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleColorChange(preset.value);
-              close();
-            }}
-          />
-        ))
-      }
+      {({ close }) => (
+        <SwatchRow
+          ariaLabel={t('canvas.frameStyle.color')}
+          options={COLOR_PRESETS.map((preset) => ({
+            value: preset.value,
+            label: t('canvas.frameStyle.colorOption', { name: preset.name }),
+          }))}
+          value={data.color}
+          onChange={(next) => {
+            handleColorChange(next);
+            close();
+          }}
+        />
+      )}
     </DropdownShell>
   );
 };

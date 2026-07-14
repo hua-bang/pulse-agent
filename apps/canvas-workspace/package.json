@@ -1,7 +1,7 @@
 {
   "name": "canvas-workspace",
   "private": true,
-  "version": "0.1.14",
+  "version": "0.1.15",
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
@@ -16,12 +16,15 @@
     "typecheck:main": "tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "harness": "node ./harness/tools/driver/cli.mjs",
+    "visual": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts",
+    "visual:update": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts --update-snapshots",
     "package": "electron-vite build && electron-builder",
     "package:mac": "electron-vite build && electron-builder --mac",
     "package:mac:arm64": "electron-vite build && electron-builder --mac --arm64",
     "package:win": "electron-vite build && electron-builder --win",
     "package:linux": "electron-vite build && electron-builder --linux",
     "perf:bundle": "node scripts/perf/bundle-report.mjs",
+    "perf:package": "node scripts/perf/package-report.mjs",
     "perf:split": "PULSE_CANVAS_ANALYZE=1 electron-vite build && node scripts/perf/bundle-treemap.mjs && open perf/out/bundle-split.html",
     "perf:view": "open perf/out/bundle-split.html",
     "perf:scenarios": "node scripts/perf/run-scenarios.mjs",
@@ -40,6 +43,10 @@
     "files": [
       "dist/**/*",
       "resources/**/*",
+      "download-site/**/*",
+      "!resources/pulse.png",
+      "!resources/icon@2x.png",
+      "!**/*.map",
       "package.json"
     ],
     "extraMetadata": {
@@ -49,43 +56,37 @@
       "node_modules/node-pty/**/*"
     ],
     "mac": {
+      "electronLanguages": [
+        "en",
+        "zh_CN",
+        "zh_TW"
+      ],
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
-        }
+        "dmg"
       ],
       "category": "public.app-category.developer-tools",
       "icon": "build/icon.icns"
     },
     "win": {
+      "electronLanguages": [
+        "en-US",
+        "zh-CN",
+        "zh-TW"
+      ],
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
+        "nsis"
       ],
       "icon": "build/icon.ico"
     },
     "linux": {
+      "electronLanguages": [
+        "en-US",
+        "zh-CN",
+        "zh-TW"
+      ],
       "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64"
-          ]
-        }
+        "AppImage",
+        "deb"
       ],
       "category": "Development",
       "icon": "build/icon.png"
@@ -98,7 +99,18 @@
   "dependencies": {
     "@ai-sdk/openai": "^3.0.21",
     "@larksuiteoapi/node-sdk": "^1.59.0",
+    "ai": "^6.0.57",
+    "fflate": "^0.8.2",
+    "happy-dom": "^20.10.6",
+    "node-pty": "^1.1.0",
+    "pulse-coder-agent-teams": "workspace:*",
+    "pulse-coder-engine": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@module-federation/runtime": "2.5.1",
+    "@playwright/test": "^1.61.1",
     "@tiptap/extension-bubble-menu": "^3.20.4",
     "@tiptap/extension-code-block-lowlight": "^3.20.4",
     "@tiptap/extension-highlight": "^3.20.4",
@@ -116,39 +128,32 @@
     "@tiptap/pm": "^3.20.4",
     "@tiptap/react": "^3.20.4",
     "@tiptap/starter-kit": "^3.20.4",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0",
-    "ai": "^6.0.57",
-    "fflate": "^0.8.2",
-    "happy-dom": "^20.10.6",
-    "highlight.js": "^11.11.1",
-    "lowlight": "^3.3.0",
-    "markdown-it": "^14.1.0",
-    "markdown-it-task-lists": "^2.1.1",
-    "mermaid": "^11.15.0",
-    "node-pty": "^1.1.0",
-    "pulse-coder-agent-teams": "workspace:*",
-    "pulse-coder-engine": "workspace:*",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-force-graph-2d": "^1.29.1",
-    "tiptap-markdown": "^0.9.0",
-    "wouter": "^3.9.0",
-    "zod": "^4.0.0"
-  },
-  "devDependencies": {
-    "@electron/rebuild": "^4.0.3",
     "@types/markdown-it": "^14.1.0",
     "@types/node": "^20.14.9",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "electron": "^30.0.0",
-    "electron-builder": "^26.8.1",
+    "electron-builder": "^26.15.6",
+    "electron-builder-squirrel-windows": "26.15.6",
     "electron-vite": "^2.3.0",
+    "highlight.js": "^11.11.1",
+    "lowlight": "^3.3.0",
+    "markdown-it": "^14.1.0",
+    "markdown-it-task-lists": "^2.1.1",
+    "mermaid": "^11.15.0",
     "picocolors": "^1.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-force-graph-2d": "^1.29.1",
     "rollup-plugin-visualizer": "^7.0.1",
+    "terser": "5.49.0",
+    "tiptap-markdown": "^0.9.0",
     "typescript": "^5.6.3",
-    "vitest": "^1.0.0"
+    "vite": "^5.4.21",
+    "vitest": "^1.0.0",
+    "wouter": "^3.9.0"
   }
 }

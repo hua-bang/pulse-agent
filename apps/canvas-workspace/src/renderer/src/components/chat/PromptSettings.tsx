@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../types';
 import { useI18n, type I18nKey } from '../../i18n';
 import { TextField } from '../ui';
+import './ModelSettings.css';
 
 interface UsePromptProfileResult {
   profile?: PromptProfileStatus;

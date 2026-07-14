@@ -105,6 +105,7 @@ pnpm --filter canvas-workspace harness click --text "Settings"
 pnpm --filter canvas-workspace harness click --selector ".some-css-selector"
 pnpm --filter canvas-workspace harness fill --selector "input[name=q]" "hello"
 pnpm --filter canvas-workspace harness press "Meta+K"
+pnpm --filter canvas-workspace harness verify-webview-input-focus --json
 pnpm --filter canvas-workspace harness eval-renderer "location.href"
 pnpm --filter canvas-workspace harness logs
 pnpm --filter canvas-workspace harness close
@@ -146,8 +147,13 @@ produce an image. It supports:
 - log tailing
 - temp/demo/clone/real profiles
 
-Future layers can add app-specific state IPC, webview-node CDP commands,
-fixture web servers, scenario scripts, and CI-friendly smoke runners.
+Future layers can add app-specific state IPC, more guest-WebView scenarios,
+fixture web servers, and CI-friendly smoke runners.
+
+`verify-webview-input-focus` is the first guest-WebView regression scenario.
+With the demo profile it focuses a host renderer input, inserts text into the
+local WebView fixture through CDP, and fails unless the guest receives the text
+while the host remains empty. It does not access the network or real user data.
 
 ## Code Layout
 

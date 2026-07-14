@@ -36,6 +36,7 @@ import {
   getNodesDir as getWorkspaceNodesDir,
   isSafeNodeId as isSafeWorkspaceNodeId,
   listWorkspaceNodeIds,
+  mutateWorkspaceNode,
   readWorkspaceNode,
   writeWorkspaceNode,
   type WorkspaceNodeLink,
@@ -895,25 +896,24 @@ async function writeCanvasFullV2(
   //    the on-disk per-node file is newer, keep it (defends against a stale
   //    in-memory snapshot clobbering a fresh CLI-side edit).
   for (const node of nodes) {
-    if (!node.id || !isSafeNodeId(node.id)) continue;
+    const nodeId = node.id;
+    if (!nodeId || !isSafeNodeId(nodeId)) continue;
+    if (isLayoutOnlyReferenceNode(node)) continue;
 
-    const existing = await readNodeFile(workspaceId, node.id, root);
-    const incomingUpdatedAt =
-      typeof node.updatedAt === 'number' ? node.updatedAt : now;
-    const existingUpdatedAt =
-      existing && typeof existing.updatedAt === 'number'
-        ? existing.updatedAt
-        : 0;
+    await mutateWorkspaceNode(workspaceId, nodeId, (existing) => {
+      const incomingUpdatedAt = typeof node.updatedAt === 'number' ? node.updatedAt : now;
+      const existingUpdatedAt = existing && typeof existing.updatedAt === 'number' ? existing.updatedAt : 0;
 
-    if (existing && existingUpdatedAt > incomingUpdatedAt) {
-      // Disk is newer — preserve it.
-      continue;
-    }
+      if (existing && existingUpdatedAt > incomingUpdatedAt) {
+        // Disk is newer — preserve it. This arbitration runs under the same
+        // per-node lock as proposal and IPC mutations, so a stale full save
+        // cannot read before a mutation and write after it.
+        return { result: undefined };
+      }
 
-    if (!isLayoutOnlyReferenceNode(node)) {
       const file: PerNodeFile = {
         schemaVersion: PER_NODE_SCHEMA_VERSION,
-        id: node.id,
+        id: nodeId,
         type: node.type,
         title: node.title,
         data: (node.data ?? {}) as Record<string, unknown>,
@@ -922,8 +922,8 @@ async function writeCanvasFullV2(
         updatedAt: incomingUpdatedAt,
         createdAt: existing?.createdAt ?? incomingUpdatedAt,
       };
-      await writeNodeFile(workspaceId, file, root);
-    }
+      return { record: file, result: undefined };
+    }, root);
   }
 
   // 2. Do not delete per-node files omitted from the incoming layout. In v2,

@@ -1,7 +1,12 @@
-import hljs from 'highlight.js/lib/common';
+import hljs from 'highlight.js/lib/core';
 import MarkdownIt from 'markdown-it';
 import taskLists from 'markdown-it-task-lists';
+import { syntaxHighlightLanguages } from '../../../utils/syntaxHighlightLanguages';
 import { count } from '../../../perf/counters';
+
+for (const [name, language] of Object.entries(syntaxHighlightLanguages)) {
+  hljs.registerLanguage(name, language);
+}
 
 // Minimum highlight.js auto-detection relevance before its guessed language is
 // trusted as the code-block header label. Below this, syntax coloring is still
@@ -166,6 +171,7 @@ const SETTLED_RENDER_CACHE_MAX = 100;
 
 export function renderMarkdown(content: string, options?: RenderMarkdownOptions): string {
   if (options?.streaming === true) {
+    count('chat-md-stream-render');
     return markdown.render(content, { streaming: true });
   }
   const cached = settledRenderCache.get(content);

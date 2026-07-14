@@ -1,6 +1,6 @@
 import { BG_COLOR_PRESETS, TEXT_COLOR_PRESETS } from "./colorPresets";
 import type { CanvasNode, TextNodeData } from "../../types";
-import { DropdownShell } from "../ui";
+import { DropdownShell, SwatchRow } from "../ui";
 import { useI18n } from "../../i18n";
 
 /**
@@ -70,38 +70,23 @@ const TextColorTrigger = ({
         </button>
       )}
     >
-      {({ close }) =>
-        presets.map((preset) => {
-          const active = currentValue === preset.value;
-          const isNone = preset.value === "transparent";
-          return (
-            <button
-              type="button"
-              key={preset.name}
-              className={
-                "text-color-swatch" +
-                (active ? " text-color-swatch--active" : "") +
-                (isNone ? " text-color-swatch--none" : "")
-              }
-              style={{
-                backgroundColor: isNone ? undefined : preset.value,
-              }}
-              role="menuitemradio"
-              aria-checked={active}
-              title={t(optionLabelKey, { name: preset.name })}
-              aria-label={t(optionLabelKey, { name: preset.name })}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={(e) => {
-                e.stopPropagation();
-                const patch: Partial<TextNodeData> =
-                  kind === "text" ? { textColor: preset.value } : { backgroundColor: preset.value };
-                onUpdate(node.id, { data: { ...data, ...patch } });
-                close();
-              }}
-            />
-          );
-        })
-      }
+      {({ close }) => (
+        <SwatchRow
+          ariaLabel={title}
+          options={presets.map((preset) => ({
+            value: preset.value,
+            label: t(optionLabelKey, { name: preset.name }),
+            isNone: preset.value === "transparent",
+          }))}
+          value={currentValue}
+          onChange={(next) => {
+            const patch: Partial<TextNodeData> =
+              kind === "text" ? { textColor: next } : { backgroundColor: next };
+            onUpdate(node.id, { data: { ...data, ...patch } });
+            close();
+          }}
+        />
+      )}
     </DropdownShell>
   );
 };

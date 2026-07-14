@@ -3,6 +3,8 @@ import { MENTION_GROUP_LABEL_KEY, getMentionGroupKey } from './constants';
 import type { MentionItem } from './types';
 import { MentionNodeIcon } from './utils/mentions';
 import { useI18n } from '../../i18n';
+import { SessionTitle } from './SessionTitle';
+import { sessionTitleText } from './utils/sessionTitle';
 
 interface ChatMentionPopupProps {
   mentionItems: MentionItem[];
@@ -51,7 +53,8 @@ export const ChatMentionPopup = ({
               <div className="chat-mention-group-header">{t(MENTION_GROUP_LABEL_KEY[groupKey])}</div>
             )}
             <button
-              className={`chat-mention-item${index === mentionIndex ? ' chat-mention-item--active' : ''}`}
+              className={`chat-mention-item${item.type === 'session' ? ' chat-mention-item--session' : ''}${index === mentionIndex ? ' chat-mention-item--active' : ''}`}
+              title={item.type === 'session' && item.description ? `${sessionTitleText(item.label)} · ${item.description}` : undefined}
               onMouseDown={(event) => {
                 event.preventDefault();
                 onSelectMention(item);
@@ -65,8 +68,10 @@ export const ChatMentionPopup = ({
                     : <MentionNodeIcon size={14} nodeType={nodeType} />}
                 </span>
               )}
-              <span className="chat-mention-item-label">{item.label}</span>
-              {(item.type === 'skill' || item.type === 'session') && item.description && (
+              <span className="chat-mention-item-label">
+                {item.type === 'session' ? <SessionTitle value={item.label} /> : item.label}
+              </span>
+              {item.description && (
                 <span className="chat-mention-item-description">{item.description}</span>
               )}
             </button>

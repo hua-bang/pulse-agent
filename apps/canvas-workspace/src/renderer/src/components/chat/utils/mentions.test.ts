@@ -37,4 +37,17 @@ describe('chat mention rendering', () => {
     expect(html).toContain(domLabel);
     expect(html).not.toContain('</span>]');
   });
+
+  it('uses a readable title when a selected session is inserted as a reference', () => {
+    const chip = createMentionChipElement({
+      type: 'session',
+      label: '@[dom:dom-1|td%3A%20Latest%20commit] 这块区域描述了啥',
+      sessionId: 'session-1',
+      workspaceId: 'workspace-1',
+    });
+
+    expect(chip.dataset.mention).toBe('session:workspace-1:session-1:|td: Latest commit 这块区域描述了啥');
+    expect(chip.textContent).toContain('td: Latest commit 这块区域描述了啥');
+    expect(chip.textContent).not.toContain('dom-1');
+  });
 });

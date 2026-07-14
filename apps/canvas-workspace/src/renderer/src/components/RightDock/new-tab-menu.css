@@ -1,0 +1,36 @@
+.right-dock__new-tab-menu {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.right-dock__new-tab-panel {
+  position: fixed;
+  /* The trigger shares the top-right corner with passive toasts. An active
+   * creation menu must remain clickable while a notification is present. */
+  z-index: calc(var(--layer-toast) + 1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 148px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.right-dock__new-tab-item.ui-btn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+  border-color: transparent;
+  background: transparent;
+  padding: 0 10px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.right-dock__new-tab-item.ui-btn:hover {
+  border-color: transparent;
+  background: var(--surface-alt);
+}

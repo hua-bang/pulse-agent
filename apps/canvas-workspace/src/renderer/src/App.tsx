@@ -1,37 +1,33 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import './App.css';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
-import './components/artifacts/artifacts.css';
+import { DeferredSettings } from './components/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
-import { MigrationSpinner } from './components/MigrationSpinner';
-import { RightDock, RightDockProvider } from './components/RightDock';
-import { Settings, type SettingsSection } from './components/Settings';
+import { RightDock, RightDockProvider, useRightDock } from './components/RightDock';
+import { GlobalChatLauncher } from './components/RightDock/GlobalChatLauncher';
+import type { SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
-import { WorkspaceSettingsDrawer } from './components/WorkspaceSettings';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
+import { resolveKnowledgeChatRouteContext } from './components/Workbench/knowledgeChatContext';
 import { GraphPageLazy as GraphPage } from './components/WorkspaceNodes/GraphPageLazy';
-import { NodeDetailPage } from './components/WorkspaceNodes/NodeDetailPage';
-import { NodesPage } from './components/WorkspaceNodes/NodesPage';
-import './components/WorkspaceNodes/index.css';
+import { useKnowledgeAiContext } from './components/WorkspaceNodes/knowledgeAiContext';
+import { NodesRouteViews } from './components/WorkspaceNodes/NodesRouteViews';
+import { useOpenNodePageBridge } from './components/WorkspaceNodes/useOpenNodePageBridge';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
-import {
-  EXPERIMENTAL_FLAG_WORKSPACE_GRAPH,
-  EXPERIMENTAL_FLAG_WORKSPACE_NODES,
-} from '../../shared/experimental-features';
+import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
-type SelectedWorkspaceNode = { workspaceId: string; nodeId: string };
-
+import type { KnowledgeNodeSelection } from './types';
+const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
 const ROUTE_NODES = '/nodes';
 const ROUTE_GRAPH = '/graph';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
-
 const readSidebarCollapsedPreference = (): boolean => {
   if (typeof window === 'undefined') return false;
   try {
@@ -52,31 +48,28 @@ const writeSidebarCollapsedPreference = (collapsed: boolean): void => {
   }
 };
 
-// Plugin flags are snapshotted at preload-time, so reading once at module
-// init is fine — toggling in Settings only takes effect after a reload.
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
 const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true;
 const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true;
 
-// Plugin routes contribute their own URL paths; activeView widens to
-// 'canvas' | 'chat' | <plugin route path>.
 type ActiveView = 'canvas' | 'chat' | string;
 
 const AppContent = () => {
   const { t } = useI18n();
+  const dock = useRightDock();
   const [location, setLocation] = useLocation();
-  const { path: routePath, params: routeParams } = useMemo(
-    () => parseCanvasLocation(location),
-    [location],
-  );
+  const { path: routePath, params: routeParams } = useMemo(() => parseCanvasLocation(location), [location]);
   // Routes and nav items contributed by built-in plugins. Snapshot at
   // mount: built-in plugins register synchronously at renderer bootstrap,
   // so a one-shot read is sufficient.
   const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
   const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
   const detailNodeMatch = routePath.match(/^\/nodes\/([^/]+)\/([^/]+)$/);
+  const detailNode: KnowledgeNodeSelection | null = detailNodeMatch
+    ? { workspaceId: decodeURIComponent(detailNodeMatch[1]), nodeId: decodeURIComponent(detailNodeMatch[2]) }
+    : null;
   // Disabled experimental routes silently fall back to canvas so a stale
   // bookmark / deep link still loads something usable.
   const nodesRouteActive =
@@ -100,14 +93,33 @@ const AppContent = () => {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<SelectedWorkspaceNode | null>(null);
-  // null = global Settings drawer closed. Setting to a section name opens
-  // the drawer focused on that section.
+  const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
+  const [nodeDetailBackPath, setNodeDetailBackPath] = useState<string | null>(null);
+  const {
+    explicitContext: knowledgeChatExplicitContext,
+    askAi: handleAskKnowledgeAi,
+    removeContext: handleRemoveKnowledgeChatContext,
+    consumeComposerRequest: handleKnowledgeComposerRequestHandled,
+  } = useKnowledgeAiContext({ openChat: dock.openChat, summarizePrompt: t('workspaceNodes.aiSummarizePrompt') });
+  const knowledgeChatContext = resolveKnowledgeChatRouteContext({
+    activeView,
+    selectedNode,
+    detailNode,
+    explicitContext: knowledgeChatExplicitContext ?? undefined,
+  });
+  // null = global Settings drawer closed; a section name opens that section.
   const [appSettingsSection, setAppSettingsSection] = useState<SettingsSection | null>(null);
+  const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
   const openAppSettings = useCallback((section: SettingsSection) => {
+    setAppSettingsLoaded(true);
     setAppSettingsSection(section);
   }, []);
   const closeAppSettings = useCallback(() => setAppSettingsSection(null), []);
+  const openWorkspaceSettings = useCallback((workspaceId: string) => {
+    setWorkspaceSettingsLoaded(true);
+    setSettingsWorkspaceId(workspaceId);
+  }, []);
 
   const handleSidebarToggle = useCallback(() => {
     setSidebarCollapsed((collapsed) => {
@@ -186,8 +198,18 @@ const AppContent = () => {
   const enterNodesView = useCallback(() => {
     if (!NODES_ENABLED) return;
     setSelectedNode(null);
+    setNodeDetailBackPath(null);
     setLocation(ROUTE_NODES);
   }, [setLocation]);
+
+  const exitNodeDetailView = useCallback(() => {
+    if (nodeDetailBackPath) {
+      setNodeDetailBackPath(null);
+      setLocation(nodeDetailBackPath);
+      return;
+    }
+    enterNodesView();
+  }, [enterNodesView, nodeDetailBackPath, setLocation]);
 
   const enterGraphView = useCallback(() => {
     if (!GRAPH_ENABLED) return;
@@ -452,7 +474,6 @@ const AppContent = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [activeView, isOverlayOpen, openShortcuts, setLocation]);
 
-
   const getWorkspaceRootFolder = useCallback((workspaceId: string) => {
     return workspaces.find((ws) => ws.id === workspaceId)?.rootFolder;
   }, [workspaces]);
@@ -467,8 +488,11 @@ const AppContent = () => {
 
   const openNodePage = useCallback((workspaceId: string, nodeId: string) => {
     setSelectedNode({ workspaceId, nodeId });
+    setNodeDetailBackPath(location);
     setLocation(`${ROUTE_NODES}/${encodeURIComponent(workspaceId)}/${encodeURIComponent(nodeId)}`);
-  }, [setLocation]);
+  }, [location, setLocation]);
+
+  useOpenNodePageBridge({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, openNodePage });
 
   return (
     <div className="app">
@@ -484,7 +508,7 @@ const AppContent = () => {
           onRename={handleRenameWorkspace}
           onDelete={handleDeleteWorkspace}
           onExport={handleExportWorkspace}
-          onOpenSettings={setSettingsWorkspaceId}
+          onOpenSettings={openWorkspaceSettings}
           onOpenAppSettings={() => openAppSettings('models')}
           onImport={handleImportWorkspace}
           onCreateFolder={handleCreateFolder}
@@ -515,9 +539,12 @@ const AppContent = () => {
               activeWorkspaceId={activeId}
               workspaces={workspaces}
               controller={workbench}
+              knowledgeChatContext={knowledgeChatContext}
+              onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
+              onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
               onSelectWorkspace={handleSelectWorkspace}
               onOpenAppSettings={openAppSettings}
-              onOpenWorkspaceSettings={setSettingsWorkspaceId}
+              onOpenWorkspaceSettings={openWorkspaceSettings}
               onSetActiveRootFolder={handleSetActiveRootFolder}
             />
           </PulseRouterView>
@@ -530,38 +557,16 @@ const AppContent = () => {
               onExit={exitChatView}
               onNodeFocus={handleNodeFocusFromChatPage}
               onOpenAppSettings={openAppSettings}
-              onOpenWorkspaceSettings={setSettingsWorkspaceId}
+              onOpenWorkspaceSettings={openWorkspaceSettings}
             />
           </PulseRouterView>
-          {NODES_ENABLED && (
-            <PulseRouterView name="nodes">
-              <NodesPage
-                workspaces={workspaces}
-                selectedNode={selectedNode}
-                onSelectNode={setSelectedNode}
-                onOpenNode={openNodePage}
-                onOpenAppSettings={openAppSettings}
-              />
-            </PulseRouterView>
-          )}
-          {NODES_ENABLED && (
-            <PulseRouterView name="node-detail">
-              <NodeDetailPage
-                workspaceId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[1]) : ''}
-                nodeId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[2]) : null}
-                workspaces={workspaces}
-                onBack={enterNodesView}
-              />
-            </PulseRouterView>
-          )}
+          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} />
           {GRAPH_ENABLED && (
             <PulseRouterView name="graph">
               <GraphPage
                 workspaces={workspaces}
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
-                onOpenNode={openNodePage}
-                onOpenAppSettings={openAppSettings}
               />
             </PulseRouterView>
           )}
@@ -574,27 +579,23 @@ const AppContent = () => {
           })}
         </PulseRouter>
       </div>
-      <RightDock activeWorkspaceId={activeId} chatTabEnabled={activeView === 'canvas'} />
-      <MigrationSpinner />
-      <WorkspaceSettingsDrawer
-        workspace={
-          settingsWorkspaceId
-            ? workspaces.find((ws) => ws.id === settingsWorkspaceId) ?? null
-            : null
-        }
-        onClose={() => setSettingsWorkspaceId(null)}
-        onRename={renameWorkspace}
+      <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat'} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} chatTabEnabled={activeView !== 'chat'} onOpenNodePage={openNodePage} />
+      <Suspense fallback={null}><MigrationSpinner /></Suspense>
+      <DeferredSettings
+        appLoaded={appSettingsLoaded}
+        appSection={appSettingsSection}
+        workspaceLoaded={workspaceSettingsLoaded}
+        workspaceId={settingsWorkspaceId}
+        workspaces={workspaces}
+        onCloseApp={closeAppSettings}
+        onCloseWorkspace={() => setSettingsWorkspaceId(null)}
+        onRenameWorkspace={renameWorkspace}
         onSetRootFolder={setRootFolder}
-      />
-      <Settings
-        open={appSettingsSection !== null}
-        initialSection={appSettingsSection ?? 'models'}
-        onClose={closeAppSettings}
       />
     </div>
   );
 };
-
 const App = () => (
   <I18nProvider>
     <AppShellProvider>
@@ -604,5 +605,4 @@ const App = () => (
     </AppShellProvider>
   </I18nProvider>
 );
-
 export default App;

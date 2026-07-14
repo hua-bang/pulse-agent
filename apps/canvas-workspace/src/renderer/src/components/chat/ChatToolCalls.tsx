@@ -48,6 +48,9 @@ function formatToolSignature(name: string, args: any): string {
 const TOOL_LABEL_SLUGS: Record<string, string> = {
   canvas_read_context: 'readCanvasContext',
   canvas_read_node: 'readNode',
+  knowledge_search_nodes: 'searchKnowledgeNodes',
+  knowledge_read_node: 'readKnowledgeNode',
+  knowledge_analyze_image: 'analyzeKnowledgeImage',
   canvas_create_node: 'createNode',
   canvas_create_agent_node: 'createAgentNode',
   canvas_create_terminal_node: 'createTerminalNode',

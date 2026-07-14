@@ -126,6 +126,20 @@ describe('Select', () => {
     expect(host?.querySelector('.ui-select__menu')).toBeNull();
   });
 
+  it('auto-focuses the SELECTED option on open, not the first (marker must outrank DOM order)', () => {
+    // value="c" — Gamma is LAST, so this test fails if the autofocus lookup
+    // degrades back to a single comma-selector (which returns the first
+    // enabled <button> in DOM order and made the marker inert; review
+    // finding on the SwatchRow batch).
+    render(<Select value="c" options={OPTIONS} onChange={vi.fn()} ariaLabel="Choose" />);
+    const trigger = host?.querySelector('.ui-select__trigger') as HTMLButtonElement;
+    openMenu(trigger);
+    const gamma = Array.from(host?.querySelectorAll('.ui-select__option') ?? []).find((el) =>
+      el.textContent?.includes('Gamma'),
+    ) as HTMLElement;
+    expect(document.activeElement).toBe(gamma);
+  });
+
   it('closes on Escape', () => {
     render(<Select value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Choose" />);
     const trigger = host?.querySelector('.ui-select__trigger') as HTMLButtonElement;

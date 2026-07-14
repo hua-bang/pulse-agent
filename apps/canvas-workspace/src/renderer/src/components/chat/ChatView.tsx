@@ -62,6 +62,7 @@ interface ChatViewProps {
   onSubmit: () => Promise<boolean>;
   onAbort: () => Promise<void>;
   contextComposer?: boolean;
+  knowledgeMode?: boolean;
   modelStatus?: CanvasModelStatus;
   modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
   modelLabel?: string;
@@ -129,6 +130,7 @@ export const ChatView = ({
   onSubmit,
   onAbort,
   contextComposer = false,
+  knowledgeMode = false,
   modelStatus,
   modelSelection,
   modelLabel,
@@ -180,6 +182,7 @@ export const ChatView = ({
           onQuickAction={onQuickAction}
           modelStatus={modelStatus}
           onConfigureModel={onOpenModelSettings}
+          knowledgeMode={knowledgeMode}
         />
       )}
       <ChatInput
@@ -190,6 +193,7 @@ export const ChatView = ({
         showContextChips={showContextChips}
         onRemoveContext={onRemoveContext}
         contextComposer={contextComposer}
+        knowledgeMode={knowledgeMode}
         executionMode={executionMode}
         modelStatus={modelStatus}
         modelSelection={modelSelection}

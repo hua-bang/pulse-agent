@@ -1,29 +1,22 @@
+/**
+ * Workspace-node IPC surface:
+ * - workspace-node:list / read
+ * - workspace-node:tags / upsert-tag
+ * - workspace-node:update / update-tags
+ */
 import { ipcMain } from 'electron';
 import {
   listWorkspaceNodes,
+  mutateWorkspaceNode,
   readWorkspaceNode,
-  writeWorkspaceNode,
   type WorkspaceNodeRecord,
 } from './store';
 import { readKnowledgeTags, upsertKnowledgeTag, type KnowledgeTagDefinition } from './tags';
+import { broadcastWorkspaceNodesChanged, scheduleWorkspaceNodesChanged } from './broadcast';
+import type { WorkspaceNodeListItem } from '../../../shared/canvas';
 import { readCanvasFull } from '../storage';
 
-export interface WorkspaceNodeListItem {
-  id: string;
-  type: string;
-  title?: string;
-  summary?: string;
-  tags: string[];
-  links: WorkspaceNodeRecord['links'];
-  updatedAt?: number;
-  createdAt?: number;
-  hasData: boolean;
-  linkCount: number;
-  /** Friendlier label derived from the canvas node (text content preview, mindmap root, ...). */
-  displayTitle?: string;
-  /** Whether a canvas node with this id currently exists in the workspace. */
-  onCanvas?: boolean;
-}
+export type { WorkspaceNodeListItem } from '../../../shared/canvas';
 
 interface CanvasNodeLite {
   id?: unknown;
@@ -31,6 +24,10 @@ interface CanvasNodeLite {
   title?: unknown;
   data?: Record<string, unknown>;
 }
+
+type WorkspaceNodeUpdateResult =
+  | { ok: true; node: WorkspaceNodeRecord }
+  | { ok: false; error: string };
 
 /**
  * Canvas nodes (by id) for a workspace. Returns null when canvas.json is
@@ -94,6 +91,13 @@ function firstLinePreview(content: unknown, max = 48): string {
 function deriveDisplayTitle(record: WorkspaceNodeRecord, canvasNode: CanvasNodeLite | undefined): string | undefined {
   const type = (typeof canvasNode?.type === 'string' ? canvasNode.type : undefined) ?? record.type;
   const data = (canvasNode?.data ?? record.data ?? {}) as Record<string, unknown>;
+  const recTitle = record.title?.trim();
+  const canvasTitle = typeof canvasNode?.title === 'string' ? canvasNode.title.trim() : '';
+
+  // Once the user gives the node a real title, it is the stable identity shown
+  // everywhere. Type placeholders such as "Text" still fall back to content.
+  if (recTitle && recTitle.toLowerCase() !== type.toLowerCase()) return recTitle;
+  if (canvasTitle && canvasTitle.toLowerCase() !== type.toLowerCase()) return canvasTitle;
 
   if (type === 'text') {
     const preview = firstLinePreview(data.content);
@@ -105,10 +109,6 @@ function deriveDisplayTitle(record: WorkspaceNodeRecord, canvasNode: CanvasNodeL
     if (rootText) return rootText;
   }
 
-  const recTitle = record.title?.trim();
-  if (recTitle && recTitle.toLowerCase() !== type.toLowerCase()) return recTitle;
-  const canvasTitle = typeof canvasNode?.title === 'string' ? canvasNode.title.trim() : '';
-  if (canvasTitle && canvasTitle.toLowerCase() !== type.toLowerCase()) return canvasTitle;
   return recTitle || canvasTitle || undefined;
 }
 
@@ -141,6 +141,26 @@ function summaryFromRecord(record: WorkspaceNodeRecord): string {
   return '';
 }
 
+function aiSummaryFromRecord(record: WorkspaceNodeRecord): string {
+  return stringFromUnknown(record.properties?.aiSummary);
+}
+
+function mindmapPreviewFromData(data: unknown): { root: string; branches: string[] } | null {
+  if (!data || typeof data !== 'object') return null;
+  const root = (data as { root?: unknown }).root;
+  if (!root || typeof root !== 'object') return null;
+  const rootRecord = root as { text?: unknown; children?: unknown; collapsed?: unknown };
+  const rootText = stringFromUnknown(rootRecord.text).trim();
+  if (!rootText) return null;
+  const branches = rootRecord.collapsed || !Array.isArray(rootRecord.children)
+    ? []
+    : rootRecord.children
+      .map((child) => child && typeof child === 'object' ? stringFromUnknown((child as { text?: unknown }).text).trim() : '')
+      .filter(Boolean)
+      .slice(0, 5);
+  return { root: rootText.slice(0, 72), branches: branches.map((branch) => branch.slice(0, 52)) };
+}
+
 function toListItem(record: WorkspaceNodeRecord, canvasNodes: Map<string, CanvasNodeLite> | null): WorkspaceNodeListItem {
   const canvasNode = canvasNodes?.get(record.id);
   // The record's own data is often empty (e.g. tag-only records), so fall back
@@ -149,12 +169,22 @@ function toListItem(record: WorkspaceNodeRecord, canvasNodes: Map<string, Canvas
   const rawSummary =
     summaryFromRecord(record) || canvasContent || stringFromUnknown(canvasNode?.data?.url);
   const summary = stripHtml(rawSummary).slice(0, 160);
+  const aiSummary = stripHtml(aiSummaryFromRecord(record)).slice(0, 800);
+  const previewPath = record.type === 'image'
+    ? stringFromUnknown(record.data.filePath) || stringFromUnknown(canvasNode?.data?.filePath)
+    : '';
+  const mindmapPreview = record.type === 'mindmap'
+    ? mindmapPreviewFromData(record.data) ?? mindmapPreviewFromData(canvasNode?.data)
+    : null;
   return {
     id: record.id,
     type: record.type,
     title: record.title,
     displayTitle: deriveDisplayTitle(record, canvasNode),
     summary,
+    ...(aiSummary ? { aiSummary } : {}),
+    ...(previewPath ? { previewPath } : {}),
+    ...(mindmapPreview ? { mindmapPreview } : {}),
     tags: tagsFromRecord(record),
     links: record.links ?? [],
     updatedAt: record.updatedAt,
@@ -237,24 +267,26 @@ export function setupWorkspaceNodeIpc(): void {
     try {
       if (!payload.workspaceId) return { ok: false, error: 'Missing workspace id.' };
       if (!payload.nodeId) return { ok: false, error: 'Missing node id.' };
-      const existing = await readWorkspaceNode(payload.workspaceId, payload.nodeId);
-      if (!existing) return { ok: false, error: 'Node not found.' };
       const patch = payload.patch ?? {};
-      const next: WorkspaceNodeRecord = {
-        ...existing,
-        ...(patch.title !== undefined ? { title: patch.title } : {}),
-        ...(patch.type !== undefined ? { type: patch.type } : {}),
-        data: patch.data !== undefined
-          ? { ...(existing.data ?? {}), ...patch.data }
-          : existing.data,
-        properties: patch.properties !== undefined
-          ? { ...(existing.properties ?? {}), ...patch.properties }
-          : existing.properties,
-        links: patch.links !== undefined ? patch.links : existing.links,
-        updatedAt: Date.now(),
-      };
-      await writeWorkspaceNode(payload.workspaceId, next);
-      return { ok: true, node: next };
+      const result = await mutateWorkspaceNode<WorkspaceNodeUpdateResult>(payload.workspaceId, payload.nodeId, (existing) => {
+        if (!existing) return { result: { ok: false, error: 'Node not found.' } };
+        const next: WorkspaceNodeRecord = {
+          ...existing,
+          ...(patch.title !== undefined ? { title: patch.title } : {}),
+          ...(patch.type !== undefined ? { type: patch.type } : {}),
+          data: patch.data !== undefined
+            ? { ...(existing.data ?? {}), ...patch.data }
+            : existing.data,
+          properties: patch.properties !== undefined
+            ? { ...(existing.properties ?? {}), ...patch.properties }
+            : existing.properties,
+          links: patch.links !== undefined ? patch.links : existing.links,
+          updatedAt: Date.now(),
+        };
+        return { record: next, result: { ok: true, node: next } };
+      });
+      if (result.ok) scheduleWorkspaceNodesChanged([payload.workspaceId]);
+      return result;
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
@@ -264,24 +296,26 @@ export function setupWorkspaceNodeIpc(): void {
     try {
       if (!payload.workspaceId) return { ok: false, error: 'Missing workspace id.' };
       if (!payload.nodeId) return { ok: false, error: 'Missing node id.' };
-      const node = await readWorkspaceNode(payload.workspaceId, payload.nodeId);
-      if (!node) return { ok: false, error: 'Node not found.' };
       const tags = Array.from(new Set(
         (Array.isArray(payload.tags) ? payload.tags : [])
           .filter((tag): tag is string => typeof tag === 'string')
           .map((tag) => tag.trim())
           .filter(Boolean),
       ));
-      const next: WorkspaceNodeRecord = {
-        ...node,
-        properties: {
-          ...node.properties,
-          tags,
-        },
-        updatedAt: Date.now(),
-      };
-      await writeWorkspaceNode(payload.workspaceId, next);
-      return { ok: true, node: next };
+      const result = await mutateWorkspaceNode<WorkspaceNodeUpdateResult>(payload.workspaceId, payload.nodeId, (node) => {
+        if (!node) return { result: { ok: false, error: 'Node not found.' } };
+        const next: WorkspaceNodeRecord = {
+          ...node,
+          properties: {
+            ...node.properties,
+            tags,
+          },
+          updatedAt: Date.now(),
+        };
+        return { record: next, result: { ok: true, node: next } };
+      });
+      if (result.ok) broadcastWorkspaceNodesChanged([payload.workspaceId], 'renderer');
+      return result;
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }

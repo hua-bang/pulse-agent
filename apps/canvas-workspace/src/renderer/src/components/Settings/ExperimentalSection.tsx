@@ -6,6 +6,7 @@ import {
 } from '../../../../shared/experimental-features';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
+import { Button } from '../ui';
 import { ChannelConfigPanel } from './ChannelConfigPanel';
 import './ExperimentalSection.css';
 
@@ -182,14 +183,9 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
             <div className="experimental-section-reload-text">
               {t('experimental.reloadPrompt')}
             </div>
-            <button
-              type="button"
-              className="experimental-section-primary-btn"
-              onClick={() => void reload()}
-              disabled={reloading}
-            >
+            <Button variant="primary" size="sm" onClick={() => void reload()} disabled={reloading}>
               {reloading ? t('experimental.reloading') : t('experimental.reloadWindow')}
-            </button>
+            </Button>
           </div>
         )}
 
@@ -249,20 +245,12 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
       </div>
 
       <div className="experimental-section-footer">
-        <button
-          type="button"
-          className="experimental-section-secondary-btn"
-          onClick={() => void resetAll()}
-        >
+        <Button variant="secondary" size="sm" onClick={() => void resetAll()}>
           {t('experimental.resetAll')}
-        </button>
-        <button
-          type="button"
-          className="experimental-section-secondary-btn"
-          onClick={onClose}
-        >
+        </Button>
+        <Button variant="secondary" size="sm" onClick={onClose}>
           {t('experimental.close')}
-        </button>
+        </Button>
       </div>
     </div>
   );

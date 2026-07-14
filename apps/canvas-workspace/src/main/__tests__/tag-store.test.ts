@@ -56,4 +56,18 @@ describe('tag-store', () => {
     expect(updated.description).toBe('Prompt and state design');
     await expect(readKnowledgeTags(root)).resolves.toHaveLength(1);
   });
+
+  it('preserves both definitions when different tags are upserted concurrently', async () => {
+    const [alpha, beta] = await Promise.all([
+      upsertKnowledgeTag({ name: 'Alpha' }, root),
+      upsertKnowledgeTag({ name: 'Beta' }, root),
+    ]);
+
+    expect(alpha.id).toBe('alpha');
+    expect(beta.id).toBe('beta');
+    await expect(readKnowledgeTags(root)).resolves.toEqual([
+      expect.objectContaining({ id: 'alpha', name: 'Alpha' }),
+      expect.objectContaining({ id: 'beta', name: 'Beta' }),
+    ]);
+  });
 });

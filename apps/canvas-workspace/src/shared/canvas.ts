@@ -114,6 +114,15 @@ export interface WorkspaceNodeListItem {
   /** Friendlier label derived from the canvas node (text preview, mindmap root, ...). */
   displayTitle?: string;
   summary?: string;
+  /** Confirmed AI reading aid, stored separately from raw source content. */
+  aiSummary?: string;
+  /** Optional local media path for a lightweight list thumbnail. */
+  previewPath?: string;
+  /** Shallow mindmap structure for the list surface, never the full editor tree. */
+  mindmapPreview?: {
+    root: string;
+    branches: string[];
+  };
   tags: string[];
   links?: WorkspaceNodeLink[];
   updatedAt?: number;
@@ -266,6 +275,8 @@ export interface IframeNodeData {
   url: string;
   /** Raw HTML content to render when `mode` is `'html'` or `'ai'`. */
   html?: string;
+  /** Trusted packaged page loaded in the sandboxed HTML iframe. */
+  localUrl?: string;
   /** `'url'` embeds a remote page; `'html'` renders raw HTML; `'ai'` generates HTML from a prompt; `'artifact'` pulls from the artifact store. */
   mode?: 'url' | 'html' | 'ai' | 'artifact';
   /** The prompt used to generate HTML when `mode` is `'ai'`. */

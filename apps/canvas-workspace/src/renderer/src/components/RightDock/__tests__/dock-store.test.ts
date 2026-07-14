@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, linkTabId, terminalTabId } from '../dock-store';
+import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, linkTabId, nodeDetailTabId, terminalTabId } from '../dock-store';
 
 describe('DockStore', () => {
   it('starts collapsed on the pinned chat tab with no previews', () => {
@@ -38,6 +38,25 @@ describe('DockStore', () => {
     expect(activeTabId).toBe(artifactTabId('ws1', 'a1'));
   });
 
+  it('promotes a node detail into one deduplicated dock tab', () => {
+    const dock = new DockStore();
+    dock.openNodeDetail('ws1', 'node1', 'Search & RSS');
+    dock.openArtifact('ws1', 'a1');
+    dock.openNodeDetail('ws1', 'node1', 'Updated title');
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: nodeDetailTabId('ws1', 'node1'),
+      expanded: true,
+    });
+    expect(dock.getSnapshot().tabs.filter((tab) => tab.kind === 'node-detail')).toEqual([
+      expect.objectContaining({
+        workspaceId: 'ws1',
+        nodeId: 'node1',
+        title: 'Updated title',
+      }),
+    ]);
+  });
+
   it('opens different URLs as separate link tabs', () => {
     const dock = new DockStore();
     dock.openLink('https://a.example');
@@ -69,6 +88,28 @@ describe('DockStore', () => {
     expect(tabs).toHaveLength(2);
     expect(activeTabId).toBe(id);
     expect(tabs.find((t) => t.kind === 'link' && t.url === 'https://a.example')?.title).toBe('Page title');
+  });
+
+  it('creates independent blank web tabs and navigates one in place', () => {
+    const dock = new DockStore();
+    dock.newLink('New tab');
+    const firstId = dock.getSnapshot().activeTabId;
+    dock.newLink('New tab');
+    const secondId = dock.getSnapshot().activeTabId;
+
+    expect(firstId).not.toBe(secondId);
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { id: firstId, kind: 'link', title: 'New tab', url: '' },
+      { id: secondId, kind: 'link', title: 'New tab', url: '' },
+    ]);
+
+    dock.navigateLink(firstId, 'https://example.com');
+    expect(dock.getSnapshot().tabs[0]).toMatchObject({
+      id: firstId,
+      title: 'https://example.com',
+      url: 'https://example.com',
+    });
+    expect(dock.getSnapshot().tabs[1]).toMatchObject({ id: secondId, url: '' });
   });
 
   it('activate switches between chat and previews and ignores unknown ids', () => {

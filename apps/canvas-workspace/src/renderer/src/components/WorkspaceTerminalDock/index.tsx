@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import '@xterm/xterm/css/xterm.css';
 import {
   BASE_TERMINAL_FONT_SIZE,
   TERMINAL_FONT_SIZE_STEP,
@@ -20,6 +21,7 @@ import {
   detectCodingAgentCommand,
   hasLikelyReturnedToShellPrompt,
 } from '../../utils/codingAgentCommand';
+import { scheduleBootOverlayDismiss } from './boot-overlay';
 import './index.css';
 
 interface WorkspaceTerminalDockProps {
@@ -93,6 +95,8 @@ export const WorkspaceTerminalDock = ({
   const fitRef = useRef<FitAddon | null>(null);
   const fontSizeRef = useRef<number>(readStoredTerminalFontSize());
   const cleanupRef = useRef<(() => void) | null>(null);
+  const bootStartedAtRef = useRef(0);
+  const bootDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const spawnedRef = useRef(false);
   const codingAgentActiveRef = useRef(false);
   const commandInputRef = useRef('');
@@ -196,6 +200,24 @@ export const WorkspaceTerminalDock = ({
     }
   }, [onAgentTypeChange, startCodingAgentHint]);
 
+  const dismissBooting = useCallback((immediate = false) => {
+    if (bootDismissTimerRef.current) {
+      clearTimeout(bootDismissTimerRef.current);
+      bootDismissTimerRef.current = null;
+    }
+    if (immediate) {
+      setBooting(false);
+      return;
+    }
+    bootDismissTimerRef.current = scheduleBootOverlayDismiss(
+      bootStartedAtRef.current,
+      () => {
+        bootDismissTimerRef.current = null;
+        setBooting(false);
+      },
+    ) ?? null;
+  }, []);
+
   const initTerminal = useCallback(async () => {
     if (!containerRef.current || termRef.current || spawnedRef.current) return;
     spawnedRef.current = true;
@@ -239,7 +261,7 @@ export const WorkspaceTerminalDock = ({
 
     const api = window.canvasWorkspace?.pty;
     if (!api) {
-      setBooting(false);
+      dismissBooting(true);
       term.writeln('\x1b[31mError: pty API not available\x1b[0m');
       return;
     }
@@ -248,19 +270,20 @@ export const WorkspaceTerminalDock = ({
     if (spawnCwd) setCwd(spawnCwd);
     const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceId);
     if (!result.ok) {
-      setBooting(false);
+      dismissBooting(true);
       term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
       return;
     }
 
     const removeData = api.onData(sessionId, (data) => {
-      // First byte means the shell is alive — drop the boot overlay.
-      setBooting(false);
+      // First output means the shell is alive. Preserve a short minimum
+      // display window so fast shells don't flash the loading state away.
+      if (!bootDismissTimerRef.current) dismissBooting();
       term.write(data);
       captureTerminalOutput(data);
     });
     const removeExit = api.onExit(sessionId, (code) => {
-      setBooting(false);
+      dismissBooting(true);
       term.writeln(`\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m`);
     });
 
@@ -282,13 +305,16 @@ export const WorkspaceTerminalDock = ({
       resizeDisposable.dispose();
       api.kill(sessionId);
     };
-  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, refreshCwd, scheduleFit, sessionId, workspaceId]);
+  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, dismissBooting, refreshCwd, scheduleFit, sessionId, workspaceId]);
 
   useEffect(() => {
     if (!open) return;
     // Show the boot overlay right away on the first open (before the async
     // spawn); once the terminal exists this is a no-op.
-    if (!termRef.current) setBooting(true);
+    if (!termRef.current) {
+      bootStartedAtRef.current = Date.now();
+      setBooting(true);
+    }
     void initTerminal();
     scheduleFit();
   }, [initTerminal, open, scheduleFit]);
@@ -313,6 +339,7 @@ export const WorkspaceTerminalDock = ({
 
   useEffect(() => {
     return () => {
+      if (bootDismissTimerRef.current) clearTimeout(bootDismissTimerRef.current);
       cleanupRef.current?.();
       termRef.current?.dispose();
       termRef.current = null;

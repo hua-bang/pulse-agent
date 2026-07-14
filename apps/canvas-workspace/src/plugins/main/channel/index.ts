@@ -8,19 +8,19 @@ import {
 } from '../../../shared/experimental-features';
 import { ChannelBridge } from './core/bridge';
 import type { Channel } from './core/types';
-import { FeishuChannel } from './channels/feishu/feishu-channel';
 import { activateWorkspaceWindow } from '../../../main/app/window-manager';
 
 // Registry of all channel implementations. To add a new channel (Discord,
 // Telegram, WeCom, …) implement the `Channel` interface and add it here —
 // the orchestration in `core/` is channel-agnostic and needs no changes.
-function allChannels(): Channel[] {
+async function allChannels(): Promise<Channel[]> {
+  const { FeishuChannel } = await import('./channels/feishu/feishu-channel');
   return [new FeishuChannel()];
 }
 
 /** True when at least one channel has the configuration it needs to run. */
 function anyChannelConfigured(): boolean {
-  return allChannels().some((c) => c.isConfigured());
+  return Boolean(process.env.FEISHU_APP_ID?.trim() && process.env.FEISHU_APP_SECRET?.trim());
 }
 
 function experimentalFlagsPath(): string {
@@ -71,7 +71,7 @@ export const ChannelMainPlugin: MainCanvasPlugin = {
       activateCanvas: activateWorkspaceWindow,
     });
 
-    for (const channel of allChannels()) {
+    for (const channel of await allChannels()) {
       if (!channel.isConfigured()) continue;
       try {
         await bridge.addChannel(channel);

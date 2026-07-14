@@ -21,9 +21,6 @@ import {
   teardownCanvasAgent,
 } from "../agent/ipc";
 import { setupCodexSessionsIpc } from "../agent/codex-sessions";
-import { setupCanvasAgentTeamsIpc } from "../agent-teams/ipc";
-import { setupAgentTeamPtyBridge } from "../agent-teams/pty-bridge";
-import { getCanvasAgentTeamsService } from "../agent-teams/service";
 import { setupCanvasModelIpc } from "../agent/model/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
@@ -32,7 +29,8 @@ import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
 import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
 import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
 import { setupCanvasPluginsConfigIpc } from "../settings/canvas-plugins-ipc";
-import { setupExperimentalIpc } from "../settings/experimental-ipc";
+import { getExperimentalFlagSync, setupExperimentalIpc } from "../settings/experimental-ipc";
+import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from "../../shared/experimental-features";
 import { setupWebviewRegistryIpc } from "../webview/registry";
 import { setupHtmlGeneratorIpc } from "../generation/ipc";
 import { setupArtifactIpc } from "../artifacts/ipc";
@@ -122,16 +120,13 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupSkillInstallerIpc();
     setupCanvasAgentIpc();
     setupCodexSessionsIpc();
-    setupCanvasAgentTeamsIpc();
-    // Team agent output/exit parsing and the team heartbeat (watchdog,
-    // repairs, lead nudges, dispatch) run in the main process so teams keep
-    // advancing while no window is observing them.
-    setupAgentTeamPtyBridge((message, detail) => {
-      void writeLog("agent-teams", message, detail);
-    });
-    const teamsService = getCanvasAgentTeamsService();
-    teamsService.hasOpenWindows = () => BrowserWindow.getAllWindows().length > 0;
-    teamsService.startHeartbeat();
+    if (getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_TEAMS)) {
+      const { setupAgentTeamsRuntime } = await import('../agent-teams/runtime');
+      setupAgentTeamsRuntime(
+        () => BrowserWindow.getAllWindows(),
+        (message, detail) => { void writeLog('agent-teams', message, detail); },
+      );
+    }
     setupCanvasModelIpc();
     setupCanvasSkillsIpc();
     setupCanvasMcpIpc();

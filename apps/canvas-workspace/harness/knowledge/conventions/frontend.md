@@ -75,10 +75,15 @@ counter may shrink but never grow):
 
 - **New code uses the blessed basics** from `components/ui/`: `Button`
   (including `variant="icon"` for icon-only square buttons — pass
-  `aria-label`, sizes sm/md/lg = 24/28/32px), `Modal` (the one overlay
+  `aria-label`, sizes xs/sm/md/lg = 22/24/28/32px; xs also applies to the
+  text variants at 24px), `Modal` (the one overlay
   shell), `Drawer`, `Portal` (the one createPortal exit), `Popover` (the one
-  point-anchored popover shell — portals + viewport clamp + ESC/arrow-nav +
-  click-outside for context-menu-style menus opened at an x/y point),
+  popover shell that portals to `document.body`; two anchoring modes —
+  default `x`/`y` one-shot point anchor with a viewport clamp, for
+  context-menu-style menus opened at a click point, or `anchorRef` for a
+  LIVE trigger-rect anchor that keeps reanchoring on scroll/resize via
+  `useAnchorRectPosition`, with `placement`/`align` flip+align — both modes
+  share ESC/arrow-nav + click-outside),
   `DropdownShell` (the one TRIGGER-anchored dropdown shell — in-flow, no
   portal; owns click-outside/ESC/arrow-nav like Popover but stays next to
   its trigger instead of portaling to an x/y point), `Select` (the one
@@ -89,21 +94,33 @@ counter may shrink but never grow):
   TextField remains the blessed piece for TEXT controls), `SegmentedControl`
   (the one "pick one of N" control — `ariaPattern="radio"` or `"tab"`),
   `useDragResize`, `ui/hooks/useIndexNav` (+ its pure `clampIndexMove`
-  helper for externally-driven index state) — plus `AppShellProvider.notify`
+  helper for externally-driven index state), `SwatchRow` (the one row of
+  pick-a-color swatches — `ariaPattern="menuitemradio"` default for rows
+  inside a `role="menu"` panel, `"toggle"` for a toolbar-shaped ancestor;
+  an option's `isNone: true` renders the diagonal "no color" slash instead
+  of a fill), `EmptyState` (the minimal icon+title+description+action
+  empty-state shell — icon/action are optional `ReactNode` slots; business
+  copy, illustrations, and per-surface border/background/alignment stay
+  with the caller via `className`) — plus `AppShellProvider.notify`
   for toasts and the canonical hooks `useEscapeClose` / `useMenuKeyboardNav`
   / `useClickOutside`. Do NOT hand-roll a new overlay ESC listener, backdrop,
   portal call site, point-anchored popover shell, trigger-anchored dropdown
   (local `open` state + click-outside + arrow-nav wired by hand), dropdown
   popover, labelled form field, section title/description CSS cluster
   (`*-section-title`/`*-section-desc`/`*-field`), segmented/tab-strip
-  control, ArrowUp/Down index-clamp logic, spinner keyframe, or raw CTA
-  `<button>` style pair (including icon-only button chrome:
+  control, ArrowUp/Down index-clamp logic, spinner keyframe, row of
+  pick-a-color swatch buttons, or raw CTA `<button>` style pair (including
+  icon-only button chrome:
   `border:none;background:transparent;border-radius;cursor:pointer` at a
   fixed size) — the ratchet will fail your PR. The blessed spinner element
   is `icons/SpinnerIcon` (drive its rotation with a `spin`-named keyframe
   class, e.g. `chat-spin`); render it instead of inlining a fresh spinner
-  `<svg>`.
-- **Radius, colors, and shadows use tokens** in new CSS: `var(--radius-sm|--radius|--radius-md|--radius-lg)`
+  `<svg>`. An icon+title+description block that is NOT a row of solid-fill
+  swatches and NOT dominated by a bespoke action list/form (see
+  `ChatEmptyState`'s and `CanvasEmptyHint`'s SKIP verdicts in
+  `docs/ui-reuse-burndown.md`) should reach for `EmptyState` rather than a
+  hand-rolled `strong`/`span` or `h*`/`p` pair.
+- **Radius, colors, and shadows use tokens** in new CSS: `var(--radius-xs|--radius-sm|--radius|--radius-md|--radius-lg|--radius-xl|--radius-pill)`
   for radii, palette tokens for colors, `var(--shadow-*)` for shadows — all
   three are ratchet-gated (`borderRadiusLiterals`, `hardcodedColorLiterals`,
   `shadowLiterals`). Raw `z-index` literals >= 10 (the cross-surface
@@ -117,9 +134,21 @@ counter may shrink but never grow):
   | Fills | `--bg` · `--surface` · `--surface-1` (dark overlay) · `--surface-2` · `--surface-alt` · `--surface-subtle` · `--note-paper` |
   | Accent | `--accent` family · `--accent-muted` · `--accent-soft` · `--accent-soft-strong` |
   | Borders | `--border` · `--border-subtle` (dark-chrome) |
-  | Radius | `--radius-sm` 6 · `--radius`/`--radius-md` 8 · `--radius-lg` 10 |
-  | Shadow | `--shadow-sm/-card/-card-hover/-drag/-float` |
+  | Radius | `--radius-xs` 4 · `--radius-sm` 6 · `--radius`/`--radius-md` 8 · `--radius-lg` 10 · `--radius-xl` 12 · `--radius-pill` 999 |
+  | Shadow | `--shadow-sm/-card/-card-hover/-drag/-float/-focus` |
   | Stacking | the 13-token `--layer-*` scale (see `../renderer-surfaces.md`) |
+
+  **Exact-value tokenization only (C2, 2026-07-10):** `--radius-xs`/`--radius-xl`/
+  `--radius-pill` and `--shadow-focus` were minted by replacing a literal with
+  a token that resolves to the identical value — pixel-identical by
+  construction, no visual review needed. `--radius-xs`/`--radius-xl` (not
+  `-sm`/`-lg` as an earlier plan draft proposed) because `--radius-sm` (6px)
+  and `--radius-lg` (10px) already existed and are load-bearing for `ui/`;
+  reusing those names for 4px/12px would have silently changed their
+  resolved value. Normalizing near-miss literals (6px/7px/10px/5px/3px/50%
+  radii; 2px-ring or other-opacity shadows) onto an existing token is a
+  **different, pixel-changing operation** gated behind a visual diff — do
+  not fold those into a "just use the token" edit without one.
 
   The oklch frame-tint engine (`FrameNodeBody`) is deliberately isolated from
   this palette; its `--frame-*` dials are per-scope parameters, not tokens.

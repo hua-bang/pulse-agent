@@ -1,17 +1,17 @@
 name: Performance
 
-# Runs the canvas-workspace performance report on every PR touching the app
-# and on pushes to the default branch. Gate = bundle size ratchets + runtime
-# counter gates (both machine-independent); timing metrics (INP/startup) are
-# collected but informational, since CI runners differ from dev machines.
-# Closes the "validation.yaml has no runner" gap noted in the root CLAUDE.md.
+# Every Canvas PR gets the machine-independent bundle gate. The full runtime
+# report is reserved for performance-sensitive paths, an explicit
+# `performance` PR label, manual dispatch, and pushes to the default branch.
+# Timing metrics remain informational because CI runners differ from dev hosts.
 
 on:
+  workflow_dispatch:
   pull_request:
-    paths: ['apps/canvas-workspace/**']
+    paths: ['apps/canvas-workspace/**', '.github/workflows/perf.yml']
   push:
     branches: [master]
-    paths: ['apps/canvas-workspace/**']
+    paths: ['apps/canvas-workspace/**', '.github/workflows/perf.yml']
 
 permissions:
   contents: read
@@ -22,7 +22,83 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      runtime: ${{ steps.classify.outputs.runtime }}
+      packaging: ${{ steps.classify.outputs.packaging }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: classify
+        name: Classify performance impact
+        shell: bash
+        run: |
+          runtime=false
+          packaging=false
+
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            runtime=true
+            packaging=true
+          else
+            while IFS= read -r file; do
+              case "$file" in
+                .github/workflows/perf.yml|apps/canvas-workspace/perf/*|apps/canvas-workspace/scripts/perf/*|apps/canvas-workspace/electron.vite.config.ts|apps/canvas-workspace/src/main/index.ts|apps/canvas-workspace/src/main/app/*|apps/canvas-workspace/src/renderer/src/App.tsx|apps/canvas-workspace/src/renderer/src/components/Canvas/*|apps/canvas-workspace/src/renderer/src/components/Workbench/*)
+                  runtime=true
+                  ;;
+              esac
+              case "$file" in
+                .github/workflows/perf.yml|apps/canvas-workspace/package.json|apps/canvas-workspace/electron-builder.*|apps/canvas-workspace/build/*|apps/canvas-workspace/resources/*|apps/canvas-workspace/scripts/perf/package-*|pnpm-lock.yaml)
+                  packaging=true
+                  ;;
+              esac
+            done < <(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")
+          fi
+
+          echo "runtime=$runtime" >> "$GITHUB_OUTPUT"
+          echo "packaging=$packaging" >> "$GITHUB_OUTPUT"
+
+  bundle:
+    if: github.event_name == 'pull_request' && needs.changes.outputs.runtime != 'true' && !contains(github.event.pull_request.labels.*.name, 'performance')
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace dependencies
+        run: pnpm run build:core
+
+      - name: Run bundle performance gates
+        run: pnpm --filter canvas-workspace perf:report --bundle-only
+
+      - name: Upload bundle report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-bundle-report
+          path: |
+            apps/canvas-workspace/perf/out/bundle-report.html
+            apps/canvas-workspace/perf/out/bundle-report.json
+          if-no-files-found: warn
+
   perf:
+    if: needs.changes.outputs.runtime == 'true' || contains(github.event.pull_request.labels.*.name, 'performance')
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -67,6 +143,8 @@ jobs:
           path: |
             apps/canvas-workspace/perf/out/dashboard.html
             apps/canvas-workspace/perf/out/report.json
+            apps/canvas-workspace/perf/out/renderer-trace-summary.json
+            apps/canvas-workspace/perf/out/renderer-trace.json.gz
           if-no-files-found: warn
 
       - name: Comment verdict on the PR
@@ -89,7 +167,7 @@ jobs:
               '',
               `**${r.verdict}**`,
               '',
-              `覆盖 ${r.coverage.measured}/${r.coverage.total} 指标 · commit \`${r.commit}\``,
+              `核心覆盖 ${r.coverage.measured}/${r.coverage.total} · CDP trace 诊断 ${r.coverage.diagnostic?.measured ?? 0}/${r.coverage.diagnostic?.total ?? 0} · commit \`${r.commit}\``,
               high.length ? '\n#### ⚠ HIGH\n' + high.map(line).join('\n') : '',
               med.length ? '\n#### MEDIUM\n' + med.map(line).join('\n') : '',
               '\n<sub>完整看板见本次运行的 `perf-report` artifact(dashboard.html)。</sub>',
@@ -107,3 +185,43 @@ jobs:
                 owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body,
               });
             }
+
+  package-macos-arm64:
+    if: needs.changes.outputs.packaging == 'true' || contains(github.event.pull_request.labels.*.name, 'performance')
+    needs: changes
+    runs-on: macos-14
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure Electron binary
+        run: pnpm --filter canvas-workspace setup:electron
+
+      - name: Build workspace dependencies
+        run: pnpm run build:core
+
+      - name: Build arm64 package
+        run: pnpm --filter canvas-workspace package:mac:arm64
+
+      - name: Evaluate package Gates
+        run: pnpm --filter canvas-workspace perf:package
+
+      - name: Upload package report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-package-macos-arm64
+          path: apps/canvas-workspace/perf/out/package-report.json
+          if-no-files-found: warn

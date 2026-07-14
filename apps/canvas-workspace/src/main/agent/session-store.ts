@@ -20,7 +20,7 @@ import type {
   CanvasAgentMessage,
   CanvasAgentSession,
 } from './types';
-
+import { sessionPreview } from './session-preview';
 // Read lazily (not a module-level const derived at import time) so tests can
 // point it at an isolated tmpdir via the env var without needing vi.mock.
 const storeDir = (): string =>
@@ -178,7 +178,7 @@ export class SessionStore {
             sessionId: data.sessionId,
             date: data.startedAt?.slice(0, 10) || file.replace('.json', '').slice(0, 10),
             messageCount: data.messages.length,
-            preview: firstUserMsg ? firstUserMsg.content.slice(0, 50) : '',
+            preview: firstUserMsg ? sessionPreview(firstUserMsg.content) : '',
             sortKey,
           };
           const existing = sessionsById.get(data.sessionId);
@@ -321,7 +321,7 @@ export class SessionStore {
             sessionId: data.sessionId,
             date: data.startedAt?.slice(0, 10) || '',
             messageCount: data.messages.length,
-            preview: firstUserMsg ? firstUserMsg.content.slice(0, 50) : '',
+            preview: firstUserMsg ? sessionPreview(firstUserMsg.content) : '',
             isCurrent: true,
           });
         }
@@ -352,7 +352,7 @@ export class SessionStore {
               sessionId: data.sessionId,
               date: data.startedAt?.slice(0, 10) || file.replace('.json', '').slice(0, 10),
               messageCount: data.messages.length,
-              preview: firstUserMsg ? firstUserMsg.content.slice(0, 50) : '',
+              preview: firstUserMsg ? sessionPreview(firstUserMsg.content) : '',
               isCurrent: false,
               sortKey,
             };

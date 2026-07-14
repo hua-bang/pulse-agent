@@ -10,12 +10,32 @@
 
 Default mounted surface is defined in `src/server.ts`: `/health`, Feishu and Discord webhooks, `/internal/*`, `/api/devtools/*`, and static `/devtools/*`. Telegram and the generic Web chat/SSE API have source files but are not mounted by default.
 
+**Local harness layout** — `harness/` is this workspace's repo-harness container (built 2026-07-11; before that it held only `validate/`):
+- `harness/knowledge/` — `security-posture.md` (what an agent run / inbound request can reach, and where the trust boundaries actually are vs. where the docs claim), `core-lifecycle.md` (the webhook→answer trace + the proven invariants that hold it together), `known-defects.md` (confirmed-but-unfixed defects; the ProxyAgent bug is recorded as FIXED).
+- `harness/tools/describe-remote-server.mjs` — static parity snapshot: env-var references ↔ `.env.example`, chat-command switch ↔ Discord passthrough, mounted routes. Run before touching env handling, the command router, or route mounts; exits non-zero on a NEW command missing from Discord passthrough.
+- `harness/skills/` — safe-change procedures for the recurring extension shapes: `add-platform-adapter`, `add-chat-command`, `add-internal-route`.
+- `harness/validate/validation.yaml` — path→check bindings for the repo runner.
+
+> **Security note (2026-07-11):** the "signature-verified webhook flow" this
+> file and `README.md` describe is TRUE for Discord (ED25519) but FALSE for
+> Feishu — `FeishuAdapter.verifyRequest()` is a no-op `return true`, and the
+> documented `FEISHU_ENCRYPT_KEY`/`FEISHU_VERIFICATION_TOKEN` are read
+> nowhere. This is a real, unfixed vulnerability recorded (by owner decision:
+> document, do not patch) in `harness/knowledge/security-posture.md §1`. Do
+> not silently "clean it up" — it is an outward-facing security change with
+> deliberate history.
+
 ## Progressive Reading Path
 
 | Task | Read |
 |---|---|
 | Repository and harness context | `../../AGENTS.md`, `../../harness/README.md`, `../../harness/validate/validation.yaml` |
 | Local runtime overview | `README.md`, `CLAUDE.md`, `docs/runbook.md`, `docs/validation.md`, `harness/validate/validation.yaml` |
+| Security posture / what an agent run can reach / trust boundaries | `harness/knowledge/security-posture.md` |
+| Webhook lifecycle invariants (active-run guard, cancellation, clarification) | `harness/knowledge/core-lifecycle.md` |
+| Confirmed-but-unfixed defects | `harness/knowledge/known-defects.md` |
+| Current env / command / route registries | run `node harness/tools/describe-remote-server.mjs` (from this dir; `--json` for machines) |
+| Add a platform adapter / chat command / internal route | `harness/skills/{add-platform-adapter,add-chat-command,add-internal-route}/SKILL.md` |
 | Package scripts and build shape | `package.json`, `tsup.config.ts`, `tsconfig.json` |
 | Bootstrap and mounted routes | `src/index.ts`, `src/server.ts` |
 | Webhook lifecycle | `src/core/dispatcher.ts`, `src/core/types.ts`, `src/core/active-run-store.ts`, `src/core/clarification-queue.ts` |

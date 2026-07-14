@@ -136,7 +136,7 @@
   padding: 3px 4px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(55, 53, 47, 0.1);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   opacity: 0;
@@ -172,7 +172,7 @@
   color: #4b4a47;
   background: transparent;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 3px 7px;
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
@@ -328,7 +328,7 @@
 .chat-artifact-card {
   margin-top: 10px;
   border: 1px solid rgba(55, 53, 47, 0.14);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #fff;
   transition: border-color 0.12s, box-shadow 0.12s;
 }
@@ -358,7 +358,7 @@
   padding: 0;
   text-align: left;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .chat-artifact-card__main:focus-visible,
@@ -370,7 +370,7 @@
 .chat-artifact-card__icon {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: #f1efe8;
   display: flex;
   align-items: center;
@@ -445,7 +445,7 @@
   color: #6b6b68;
   background: #f1efe8;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 

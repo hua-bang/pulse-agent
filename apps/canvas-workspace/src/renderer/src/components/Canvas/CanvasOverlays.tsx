@@ -1,18 +1,26 @@
-import type React from 'react';
+import React, { lazy, Suspense } from 'react';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../types';
 import { NodeContextMenu } from '../NodeContextMenu';
 import { FloatingToolbar } from '../FloatingToolbar';
 import { ZoomIndicator } from '../ZoomIndicator';
-import { CommandPalette, type PaletteCommand } from '../CommandPalette';
-import { SearchBar } from '../SearchBar';
+import type { PaletteCommand } from '../CommandPalette';
 import type { UseCanvasSearchReturn } from '../../hooks/useCanvasSearch';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
-import { EdgeStylePanel } from '../EdgeStylePanel';
 import { EdgeLabel } from '../EdgeLabel';
 import { ChatFloatingButton } from '../ChatFloatingButton';
 import { useI18n } from '../../i18n';
 import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
 import type { AddNodeOptions } from '../../hooks/useNodes';
+
+const CommandPalette = lazy(() =>
+  import('../CommandPalette').then((module) => ({ default: module.CommandPalette })),
+);
+const SearchBar = lazy(() =>
+  import('../SearchBar').then((module) => ({ default: module.SearchBar })),
+);
+const EdgeStylePanel = lazy(() =>
+  import('../EdgeStylePanel').then((module) => ({ default: module.EdgeStylePanel })),
+);
 
 interface AddNodeUiOptions extends AddNodeOptions {
   label?: string;
@@ -28,6 +36,9 @@ interface CanvasOverlaysProps {
   } | null;
   searchOpen: boolean;
   activeTool: string;
+  /** True while pan/zoom is in flight. Transform-sensitive overlays are
+   *  parked so the gesture path does not recompute screen-space DOM. */
+  moving?: boolean;
   scale: number;
   /** Reframe the viewport around every node. Surfaced next to the zoom chip. */
   onFitAll?: () => void;
@@ -96,11 +107,22 @@ interface CanvasOverlaysProps {
   onCancelEditEdgeLabel?: () => void;
 }
 
+export const shouldRenderEdgeLabels = ({
+  moving,
+  editingEdgeLabelId,
+}: {
+  moving: boolean;
+  editingEdgeLabelId?: string | null;
+}): boolean => !moving || editingEdgeLabelId != null;
+
+export const shouldRenderEdgeStylePanel = (moving: boolean): boolean => !moving;
+
 export const CanvasOverlays = ({
   nodes,
   contextMenu,
   searchOpen,
   activeTool,
+  moving = false,
   scale,
   onFitAll,
   chatPanelOpen,
@@ -149,6 +171,8 @@ export const CanvasOverlays = ({
   onCancelEditEdgeLabel,
 }: CanvasOverlaysProps) => {
   const { t } = useI18n();
+  const renderEdgeLabels = shouldRenderEdgeLabels({ moving, editingEdgeLabelId });
+  const renderEdgeStylePanel = shouldRenderEdgeStylePanel(moving);
 
   return (
     <>
@@ -211,21 +235,23 @@ export const CanvasOverlays = ({
         />
       )}
 
-      {selectedEdge && onUpdateEdge && onRemoveEdge && (
-        <EdgeStylePanel
-          edge={selectedEdge}
-          nodes={nodes}
-          transform={transform}
-          onUpdate={onUpdateEdge}
-          onRemove={onRemoveEdge}
-        />
+      {renderEdgeStylePanel && selectedEdge && onUpdateEdge && onRemoveEdge && (
+        <Suspense fallback={null}>
+          <EdgeStylePanel
+            edge={selectedEdge}
+            nodes={nodes}
+            transform={transform}
+            onUpdate={onUpdateEdge}
+            onRemove={onRemoveEdge}
+          />
+        </Suspense>
       )}
 
       {/* Edge labels. Rendered for every edge that either carries a
         non-empty label or is currently in edit mode. The edit-mode check
         lets us open the input on a freshly-dbl-clicked unlabeled edge
         without first persisting an empty string. */}
-      {edges && onStartEditEdgeLabel && onCommitEditEdgeLabel && onCancelEditEdgeLabel &&
+      {renderEdgeLabels && edges && onStartEditEdgeLabel && onCommitEditEdgeLabel && onCancelEditEdgeLabel &&
         edges
           .filter((edge) => (edge.label && edge.label.length > 0) || editingEdgeLabelId === edge.id)
           .map((edge) => (
@@ -241,7 +267,7 @@ export const CanvasOverlays = ({
             />
           ))}
 
-      <div className="canvas-bottom-chrome">
+      <div className={`canvas-bottom-chrome${moving ? ' canvas-bottom-chrome--moving' : ''}`}>
         <FloatingToolbar
           activeTool={activeTool}
           onToolChange={onToolChange}
@@ -270,20 +296,24 @@ export const CanvasOverlays = ({
       </div>
 
       {searchOpen && (
-        <CommandPalette
-          nodes={nodes}
-          commands={paletteCommands}
-          onSelectNode={onSearchSelect}
-          onClose={onCloseSearch}
-        />
+        <Suspense fallback={null}>
+          <CommandPalette
+            nodes={nodes}
+            commands={paletteCommands}
+            onSelectNode={onSearchSelect}
+            onClose={onCloseSearch}
+          />
+        </Suspense>
       )}
 
       {findSearch.open && (
-        <SearchBar
-          search={findSearch}
-          nodesById={findNodesById}
-          onActivateMatch={onFindMatchActivate}
-        />
+        <Suspense fallback={null}>
+          <SearchBar
+            search={findSearch}
+            nodesById={findNodesById}
+            onActivateMatch={onFindMatchActivate}
+          />
+        </Suspense>
       )}
     </>
   );

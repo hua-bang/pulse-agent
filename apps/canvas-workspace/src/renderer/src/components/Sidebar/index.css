@@ -45,7 +45,7 @@
   gap: 8px;
   padding: 7px 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
   font-size: 12px;
@@ -294,7 +294,7 @@
   height: 22px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   display: none;
   align-items: center;
@@ -611,25 +611,21 @@
   padding: 0 6px 4px;
 }
 
-.sidebar-layers-empty {
+/* Decorative wrapper only (dashed hint box) — layout/gap and title/
+ * description typography now come from ui/EmptyState's `.ui-emptystate`/
+ * `.ui-emptystate__title`/`.ui-emptystate__desc` (compound selector so this
+ * wins regardless of CSS import order, same pattern as e.g.
+ * `.ui-dropdown__panel.text-color-popover`). Pre-migration this was a
+ * `strong`/`span` pair at 12px/`--text-secondary` and 11px/`--text-muted`;
+ * EmptyState's fixed 14px/`--text` title and 12px/`--text-secondary`
+ * description normalize both up by ~1-2px and a shade darker — a minor,
+ * documented typographic unification, the same class of difference Batch
+ * C1 accepted for Button heights. */
+.ui-emptystate.sidebar-layers-empty {
   margin: 4px 8px 10px;
   padding: 12px 10px;
   border: 1px dashed var(--border-light);
   border-radius: var(--radius);
-  color: var(--text-muted);
-  display: grid;
-  gap: 4px;
-}
-
-.sidebar-layers-empty strong {
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.sidebar-layers-empty span {
-  font-size: 11px;
-  line-height: 1.45;
 }
 
 .sidebar-layer-item {

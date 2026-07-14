@@ -26,9 +26,15 @@
 
 .workspace-nodes-page {
   display: flex;
+  container-type: inline-size;
+}
+
+.workspace-node-detail-page {
+  container-type: inline-size;
 }
 
 .workspace-nodes-page__main {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -48,8 +54,37 @@
   padding: 18px 42px 48px;
 }
 
-.workspace-nodes-page__header,
-.workspace-node-detail-page__top {
+.workspace-nodes-selection-bar {
+  position: absolute;
+  z-index: 5;
+  bottom: 18px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px;
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-md);
+  background: var(--nodes-surface);
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+}
+
+.workspace-nodes-selection-bar__count {
+  padding: 0 6px 0 7px;
+  color: var(--nodes-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .workspace-nodes-selection-bar {
+    bottom: 12px;
+    max-width: calc(100% - 24px);
+  }
+}
+
+.workspace-nodes-page__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -70,12 +105,6 @@
   font-size: 12px;
 }
 
-.workspace-node-detail-page__top span {
-  margin: 0;
-  color: var(--nodes-muted);
-  font-size: 12px;
-}
-
 .workspace-nodes-page__header-actions {
   display: flex;
   gap: 8px;
@@ -86,7 +115,7 @@
   border: 1px solid var(--nodes-border);
   background: var(--nodes-surface);
   color: var(--nodes-text);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   height: 32px;
   padding: 0 11px;
   font-size: 12px;
@@ -128,7 +157,7 @@
   width: min(420px, 100%);
   height: 38px;
   border: 1px solid var(--nodes-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--nodes-surface);
   padding: 0 14px;
   color: var(--nodes-text);
@@ -155,7 +184,7 @@
   align-items: center;
   gap: 7px;
   height: 26px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: var(--nodes-surface-soft);
   color: var(--nodes-muted);
@@ -186,7 +215,7 @@
 .workspace-node-chip-dot {
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--nodes-dot);
 }
 
@@ -224,7 +253,7 @@
   width: 16px;
   height: 16px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--nodes-faint);
   cursor: pointer;
@@ -252,7 +281,7 @@
   z-index: 8;
   width: min(260px, calc(100vw - 48px));
   border: 1px solid var(--nodes-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--nodes-surface);
   box-shadow: var(--nodes-shadow);
   padding: 8px;
@@ -334,7 +363,7 @@
 .workspace-node-card {
   width: 100%;
   border: 1px solid var(--nodes-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--nodes-surface);
   padding: 14px;
   display: inline-flex;
@@ -441,40 +470,6 @@
   color: var(--error);
 }
 
-.node-detail-drawer {
-  position: relative;
-  width: 420px;
-  min-width: 320px;
-  max-width: 960px;
-  flex-shrink: 0;
-  border-left: 1px solid var(--nodes-border);
-  background: var(--nodes-surface);
-  box-shadow: -8px 0 24px rgba(15, 15, 15, 0.04);
-  z-index: 3;
-}
-
-.node-detail-drawer__resize {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -3px;
-  width: 6px;
-  cursor: col-resize;
-  z-index: 4;
-}
-
-.node-detail-drawer__resize:hover,
-.node-detail-drawer__resize:active {
-  background: linear-gradient(to right, transparent, rgba(60, 120, 240, 0.2), transparent);
-}
-
-.workspace-graph-page .node-detail-drawer {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-}
-
 .node-detail-panel {
   height: 100%;
   display: flex;
@@ -486,7 +481,7 @@
   max-width: 960px;
   margin: 0 auto;
   border: 1px solid var(--nodes-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   min-height: 100%;
   box-shadow: var(--nodes-shadow);
 }
@@ -696,14 +691,6 @@
   overflow: hidden;
 }
 
-.workspace-node-detail-page__top {
-  flex-shrink: 0;
-  padding: 14px 24px;
-  margin: 0;
-  border-bottom: 1px solid var(--nodes-border);
-  background: var(--nodes-surface);
-}
-
 .workspace-node-detail-page__body {
   flex: 1;
   min-height: 0;
@@ -791,18 +778,27 @@
   position: relative;
 }
 
-.workspace-graph-toolbar__menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+/* Renders through ui/DropdownShell now (API-extension batch — see
+ * ui-reuse-burndown.md); position/top/right come from the shell's own base
+ * + bottom/align-end modifier classes (top: calc(100% + 6px); right: 0 —
+ * the same values this rule used, so no override needed for those). The
+ * panel keeps its own chrome (background/border/radius/shadow/z-index) via
+ * a compound selector so it wins on specificity over the shell's base
+ * chrome regardless of CSS import order — same "extend, don't force-
+ * normalize" precedent as ChatAnchors'/ShapeNodeBody's panelClassName
+ * overrides. */
+.ui-dropdown__panel.workspace-graph-toolbar__menu {
   min-width: 180px;
   background: #fff;
   border: 1px solid var(--nodes-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   box-shadow: var(--nodes-shadow);
   padding: 4px;
   display: flex;
   flex-direction: column;
+  /* Pre-migration menu had no inter-item gap — undo the shell's gap:2px
+   * base so pixels stay byte-identical (review finding). */
+  gap: 0;
   z-index: 6;
 }
 
@@ -812,7 +808,7 @@
   text-align: left;
   font-size: 13px;
   padding: 8px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   color: inherit;
 }
@@ -834,7 +830,7 @@
   gap: 4px;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid var(--nodes-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 6px;
   box-shadow: var(--nodes-shadow);
   min-width: 360px;
@@ -877,7 +873,7 @@
   font: inherit;
   color: inherit;
   padding: 7px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
 }
 
@@ -930,7 +926,7 @@
   align-items: center;
   height: 38px;
   border: 1px solid var(--nodes-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.94);
   padding: 0 13px;
   color: var(--nodes-muted);
@@ -941,7 +937,7 @@
   display: inline-block;
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   margin-right: 6px;
 }
 
@@ -955,89 +951,4 @@
 
 .workspace-graph-legend-link {
   background: var(--nodes-link-dot);
-}
-
-/* ----------------------------------------------------------------------- */
-/* Knowledge assistant dock (Nodes / Graph global chat)                    */
-/* ----------------------------------------------------------------------- */
-
-.nodes-chat-dock {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--nodes-surface);
-  box-shadow: -8px 0 24px rgba(15, 15, 15, 0.05);
-  transform: translateX(102%);
-  visibility: hidden;
-  pointer-events: none;
-  transition:
-    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
-    visibility 0s linear 0.26s;
-  will-change: transform;
-}
-
-.nodes-chat-dock.is-open {
-  transform: none;
-  visibility: visible;
-  pointer-events: auto;
-  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.nodes-chat-dock.is-closing {
-  transform: translateX(102%);
-  visibility: visible;
-  pointer-events: none;
-  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* Nodes page is a flex row, so the dock is a pushing column sitting to the
-   right of the (optional) detail drawer. */
-.workspace-nodes-page .nodes-chat-dock {
-  position: relative;
-  flex-shrink: 0;
-  z-index: 4;
-}
-
-/* Graph page is a positioned canvas stage, so the dock overlays the right
-   edge; the graph keeps its full width underneath. */
-.workspace-graph-page .nodes-chat-dock {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 5;
-}
-
-/* With the dock open in the graph, slide the absolutely-positioned detail
-   drawer left so it sits beside the dock instead of behind it. */
-.workspace-graph-page.has-chat-dock .node-detail-drawer {
-  right: var(--chat-dock-w, 0);
-}
-
-.chat-floating-button.nodes-chat-dock__launcher {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  z-index: 6;
-  transition:
-    right 0.26s cubic-bezier(0.22, 1, 0.36, 1),
-    background 0.1s,
-    border-color 0.1s,
-    color 0.1s,
-    transform 0.1s;
-}
-
-.workspace-nodes-page.has-chat-dock .nodes-chat-dock__launcher,
-.workspace-graph-page.has-chat-dock .nodes-chat-dock__launcher {
-  right: calc(var(--chat-dock-w, 0px) + 16px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .nodes-chat-dock,
-  .nodes-chat-dock.is-open,
-  .nodes-chat-dock.is-closing,
-  .chat-floating-button.nodes-chat-dock__launcher {
-    transition: none;
-  }
 }

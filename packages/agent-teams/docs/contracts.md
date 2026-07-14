@@ -26,11 +26,18 @@
 
 ## Consumers
 
-Known consumers include:
+Known consumers include (verified by cross-package import — kept honest by
+`harness/tools/describe-agent-teams.mjs`):
 
-- `apps/teams-cli`
-- `apps/canvas-workspace`
-- `packages/engine` built-in agent-teams plugin integration
+- `apps/teams-cli` — classic surface (`Team`, `TeamLead`, `InProcessDisplay`)
+- `packages/cli` — classic surface (`TeamLead`, `InProcessDisplay`, `TeamPlan`)
+- `apps/canvas-workspace` — runtime surface (`pulse-coder-agent-teams/runtime`)
+
+NOTE: `packages/engine`'s built-in "agent-teams plugin" is NOT a consumer of
+this package — it is an orchestrator-based DAG/role-routing tool
+(`pulse-coder-orchestrator`) that merely shares the name. The real blast
+radius of a protocol change is the two classic hosts + the one runtime host
+above, not the engine.
 
 ## Validation
 

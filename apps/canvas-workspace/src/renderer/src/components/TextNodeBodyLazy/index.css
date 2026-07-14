@@ -1,0 +1,13 @@
+.text-node-preview {
+  box-sizing: border-box;
+  min-width: 40px;
+  min-height: 28px;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  cursor: default;
+  user-select: none;
+}

@@ -10,6 +10,7 @@ export type * from './types/codex-sessions';
 export type * from './types/experimental';
 export type * from './types/files';
 export type * from './types/iframe';
+export type * from './types/knowledge';
 export type * from './types/link';
 export type * from './types/llm';
 export type * from './types/models';

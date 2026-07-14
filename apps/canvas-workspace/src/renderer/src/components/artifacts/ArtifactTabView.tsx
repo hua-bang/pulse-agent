@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Artifact, ArtifactVersion } from '../../types';
 import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
+import './artifacts.css';
 
 const TYPE_LABEL: Record<string, string> = {
   html: 'HTML',

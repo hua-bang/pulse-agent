@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEventHa
 import { DOM_MENTION_PREFIX } from './constants';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
+import { SessionTitle } from './SessionTitle';
+import { sessionTitleText } from './utils/sessionTitle';
 import './ChatPanel.css';
 import './DomMention.css';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
+import { useComposerRequest } from './hooks/useComposerRequest';
 import { useAppShell } from '../AppShellProvider';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { AgentContextDomReviewComment, AgentContextNodeRef, AgentRequestContext } from '../../types';
@@ -44,6 +47,7 @@ function buildDomReviewPrompt(comments: AgentContextDomReviewComment[]): string 
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
+  knowledgeMode = false,
   allWorkspaces,
   nodes,
   knowledgeNodes,
@@ -52,6 +56,7 @@ export const ChatPanel = ({
   contextNodes,
   contextTags,
   contextCanvases,
+  composerRequest, onComposerRequestHandled,
   onRemoveContext,
   rootFolder,
   onClose,
@@ -128,6 +133,7 @@ export const ChatPanel = ({
     otherSessions,
     pendingClarify,
     removeAttachment,
+    replaceInput,
     selectMention,
     sendMessage,
     sessionMenuOpen,
@@ -219,19 +225,16 @@ export const ChatPanel = ({
 
   requestContextRef.current = requestContext;
 
+  const firstUserMessage = useMemo(() => messages.find(message => message.role === 'user')?.content.trim(), [messages]);
+
   const sessionTitle = useMemo(() => {
-    const firstUserMessage = messages.find(message => message.role === 'user')?.content.trim();
     if (!firstUserMessage) return t('chat.newAiChat');
-    const cleaned = firstUserMessage
-      .replace(/@\[[^\]]+\]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
     const fallback = requestContext.scope === 'selected_nodes'
       ? t('chat.quick.organizeSelection')
       : t('chat.quick.analyzeRelations');
-    const title = cleaned || fallback;
+    const title = sessionTitleText(firstUserMessage) || fallback;
     return title.length > 24 ? `${title.slice(0, 23)}…` : title;
-  }, [messages, requestContext.scope, t]);
+  }, [firstUserMessage, requestContext.scope, t]);
 
   // status.apiKeyPresent is the main process's resolved verdict — false means
   // no provider with a key is configured. Treat undefined (still loading) as
@@ -296,6 +299,8 @@ export const ChatPanel = ({
       clearInput();
     }
   }, [clearInput, focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage]);
+
+  useComposerRequest({ request: composerRequest, focusInput, replaceInput, submitQuickAction: (prompt, quickAction) => { void handleQuickAction(prompt, quickAction); }, onHandled: onComposerRequestHandled });
 
   const handleSubmit = useCallback(async () => {
     if (notConfigured) {
@@ -426,7 +431,7 @@ export const ChatPanel = ({
           sessions={sessions}
           sessionsLoading={sessionsLoading}
           otherSessions={otherSessions}
-          title={sessionTitle}
+          title={firstUserMessage ? <SessionTitle value={firstUserMessage} /> : sessionTitle}
           onToggleSessionMenu={openSessionMenu}
           onCloseSessionMenu={closeSessionMenu}
           onNewSession={handleNewSessionFromMenu}
@@ -457,7 +462,7 @@ export const ChatPanel = ({
       onAddImageToCanvas={addImageToCanvas}
       nodes={nodes}
       selectedContext={selectedContext}
-      showContextChips={false}
+      showContextChips={agentScope.kind === 'global'}
       onRemoveContext={onRemoveContext}
       onNodeFocus={onNodeFocus}
       onQuickAction={handleQuickAction}
@@ -483,6 +488,7 @@ export const ChatPanel = ({
       onSelectModel={canvasModels.selectModel}
       onOpenModelSettings={openModelSettingsFromSwitcher}
       contextComposer
+      knowledgeMode={knowledgeMode}
       executionMode={scopeWorkspaceId ? executionMode : undefined}
       onToggleExecutionMode={scopeWorkspaceId ? handleToggleExecutionMode : undefined}
       onEditUserMessage={handleEditUserMessage}

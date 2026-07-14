@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CanvasNode, WorkspaceNodeRecord } from '../../types';
+import type { CanvasNode, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { isKnowledgeNodeType } from './utils';
 import { useI18n } from '../../i18n';
@@ -9,6 +9,7 @@ interface NodeCanvasPreviewProps {
   record: WorkspaceNodeRecord;
   /** Fallback height when ResizeObserver hasn't measured yet. */
   minHeight?: number;
+  mentionCandidates?: WorkspaceNodeListItem[];
   readOnly?: boolean;
   onPatched?: (next: WorkspaceNodeRecord) => void;
 }
@@ -26,12 +27,33 @@ export const NodeCanvasPreview = ({
   workspaceId,
   record,
   minHeight = 240,
+  mentionCandidates = [],
   readOnly = false,
   onPatched,
 }: NodeCanvasPreviewProps) => {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 320, height: minHeight });
+  const [displayRecord, setDisplayRecord] = useState(record);
+  const latestRecordRef = useRef(record);
+  const updateSeqRef = useRef(0);
+  const updatePendingRef = useRef(false);
+
+  useEffect(() => {
+    if (record.id !== latestRecordRef.current.id) {
+      updateSeqRef.current += 1;
+      updatePendingRef.current = false;
+      latestRecordRef.current = record;
+      setDisplayRecord(record);
+      return;
+    }
+    // Workspace change broadcasts can arrive while a newer local keystroke is
+    // still saving. Keep the optimistic document until the latest request is
+    // acknowledged, then resume following external record changes.
+    if (updatePendingRef.current) return;
+    latestRecordRef.current = record;
+    setDisplayRecord(record);
+  }, [record]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -48,23 +70,46 @@ export const NodeCanvasPreview = ({
   }, [minHeight]);
 
   const previewNode = useMemo<CanvasNode | null>(() => {
-    if (!isKnowledgeNodeType(record.type)) return null;
+    if (!isKnowledgeNodeType(displayRecord.type)) return null;
     return {
-      id: record.id,
-      type: record.type as CanvasNode['type'],
-      title: record.title ?? '',
+      id: displayRecord.id,
+      type: displayRecord.type,
+      title: displayRecord.title ?? '',
       x: 0,
       y: 0,
       width: size.width,
       height: size.height,
-      data: (record.data ?? {}) as CanvasNode['data'],
-      properties: record.properties,
-      links: record.links,
-      updatedAt: record.updatedAt,
+      data: (displayRecord.data ?? {}) as CanvasNode['data'],
+      properties: displayRecord.properties,
+      links: displayRecord.links,
+      updatedAt: displayRecord.updatedAt,
     } satisfies CanvasNode;
-  }, [record, size.width, size.height]);
+  }, [displayRecord, size.width, size.height]);
 
-  const getAllNodes = useCallback(() => (previewNode ? [previewNode] : []), [previewNode]);
+  const getAllNodes = useCallback(() => {
+    const nodes: CanvasNode[] = [];
+    const seen = new Set<string>();
+    if (previewNode) {
+      nodes.push(previewNode);
+      seen.add(previewNode.id);
+    }
+    for (const candidate of mentionCandidates) {
+      if (seen.has(candidate.id) || !isKnowledgeNodeType(candidate.type)) continue;
+      seen.add(candidate.id);
+      nodes.push({
+        id: candidate.id,
+        type: candidate.type,
+        title: candidate.title ?? candidate.displayTitle ?? '',
+        x: 0,
+        y: 0,
+        width: 320,
+        height: 240,
+        data: {} as CanvasNode['data'],
+        updatedAt: candidate.updatedAt,
+      } satisfies CanvasNode);
+    }
+    return nodes;
+  }, [mentionCandidates, previewNode]);
 
   const handleUpdate = useCallback(
     async (_id: string, patch: Partial<CanvasNode>) => {
@@ -77,10 +122,47 @@ export const NodeCanvasPreview = ({
       if (patch.properties !== undefined) writable.properties = patch.properties;
       if (patch.links !== undefined) writable.links = patch.links;
       if (Object.keys(writable).length === 0) return;
-      const result = await api.update(workspaceId, record.id, writable);
-      if (result.ok && result.node) onPatched?.(result.node);
+      const base = latestRecordRef.current;
+      const optimistic: WorkspaceNodeRecord = {
+        ...base,
+        ...(writable.title !== undefined ? { title: writable.title } : {}),
+        data: writable.data !== undefined
+          ? { ...base.data, ...writable.data }
+          : base.data,
+        properties: writable.properties !== undefined
+          ? { ...base.properties, ...writable.properties }
+          : base.properties,
+        links: writable.links !== undefined ? writable.links : base.links,
+      };
+      const requestId = ++updateSeqRef.current;
+      updatePendingRef.current = true;
+      latestRecordRef.current = optimistic;
+      setDisplayRecord(optimistic);
+
+      try {
+        const result = await api.update(workspaceId, displayRecord.id, writable);
+        if (requestId !== updateSeqRef.current) return;
+        updatePendingRef.current = false;
+        if (result.ok && result.node) {
+          latestRecordRef.current = result.node;
+          setDisplayRecord(result.node);
+          onPatched?.(result.node);
+          return;
+        }
+        throw new Error(result.error ?? t('workspaceNodes.updateNodeFailed'));
+      } catch (error) {
+        if (requestId !== updateSeqRef.current) return;
+        updatePendingRef.current = false;
+        const latest = await api.read(workspaceId, displayRecord.id).catch(() => null);
+        if (latest?.ok && latest.node && requestId === updateSeqRef.current) {
+          latestRecordRef.current = latest.node;
+          setDisplayRecord(latest.node);
+          onPatched?.(latest.node);
+        }
+        throw error;
+      }
     },
-    [readOnly, workspaceId, record.id, onPatched],
+    [displayRecord.id, onPatched, readOnly, t, workspaceId],
   );
 
   return (

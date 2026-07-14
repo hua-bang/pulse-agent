@@ -16,6 +16,7 @@ import {
 import { appendMentionChipToEditable } from '../utils/editableMentions';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { buildAttachmentFileName } from './attachmentFileName';
+import { useEditableInputControl } from './useEditableInputControl';
 
 interface UseMentionsOptions {
   allWorkspaces?: WorkspaceOption[];
@@ -29,7 +30,7 @@ interface UseMentionsOptions {
   /**
    * When true, structured context (with workspaceId) is collected from the
    * inline mention chips at send time and merged into the request context.
-   * Enabled by the global Nodes/Graph assistant; off for the canvas panel.
+   * Enabled by the global Nodes/detail assistant; off for the canvas panel.
    */
   collectStructuredContext?: boolean;
   onSubmit: (text: string, requestContext?: AgentRequestContext, attachments?: ChatImageAttachment[]) => Promise<boolean>;
@@ -125,21 +126,15 @@ export function useMentions({
     element.focus();
   }, [nodes]);
 
-  const clearInput = useCallback(() => {
-    setInput('');
-    mentionBuildSeqRef.current++;
-    setMentionOpen(false);
-    setMentionItems([]);
-    setMentionIndex(0);
-    setAttachments([]);
-    if (editableRef.current) {
-      editableRef.current.innerHTML = '';
-    }
-  }, []);
-
-  const focusInput = useCallback(() => {
-    editableRef.current?.focus();
-  }, []);
+  const { clearInput, focusInput, replaceInput } = useEditableInputControl({
+    editableRef,
+    mentionBuildSeqRef,
+    setInput,
+    setMentionOpen,
+    setMentionItems,
+    setMentionIndex,
+    setAttachments,
+  });
 
   const loadSkillItems = useCallback(async (): Promise<MentionItem[]> => {
     if (skillsCacheRef.current) return skillsCacheRef.current;
@@ -188,12 +183,17 @@ export function useMentions({
       }
     }
 
-    // Cross-workspace knowledge candidates (global Nodes/Graph assistant). Each
+    // Cross-workspace knowledge candidates (global Nodes/detail assistant). Each
     // node carries its workspaceId; each tag the workspaces it occurs in, so the
     // structured context collected at send time resolves precisely.
     if (knowledgeNodes) {
       for (const node of knowledgeNodes) {
-        items.push({ type: 'node', nodeId: node.id, label: node.title, nodeType: node.type, workspaceId: node.workspaceId });
+        const workspaceName = allWorkspaces?.find((workspace) => workspace.id === node.workspaceId)?.name;
+        items.push({
+          type: 'node', nodeId: node.id, label: node.title, nodeType: node.type,
+          workspaceId: node.workspaceId,
+          description: workspaceName,
+        });
       }
     }
     if (knowledgeTags) {
@@ -224,10 +224,12 @@ export function useMentions({
       ? items.filter(item => item.label.toLowerCase().includes(normalizedQuery))
       : items;
 
-    // Past chat sessions, matched by TITLE (first user message + workspace
-    // name) — deliberately not message content, to keep the per-keystroke
-    // cost low. Only surfaced when the user typed a query — the default
-    // (empty) popup stays nodes/files/canvases only.
+    // Past chat sessions, matched by the first user message plus workspace
+    // name — deliberately not message content, to keep the per-keystroke
+    // cost low. Put that distinctive first message in the result title;
+    // workspace and date are supporting metadata. Only surface sessions when
+    // the user typed a query — the default (empty) popup stays
+    // nodes/files/canvases only.
     if (normalizedQuery) {
       try {
         const result = await window.canvasWorkspace.agent.searchSessions(query, 5);
@@ -235,10 +237,10 @@ export function useMentions({
           for (const hit of result.hits) {
             filtered.push({
               type: 'session',
-              label: `${hit.workspaceName} · ${hit.date}`,
+              label: hit.preview || hit.date,
               sessionId: hit.sessionId,
               workspaceId: hit.workspaceId,
-              description: hit.preview,
+              description: `${hit.workspaceName} · ${hit.date}`,
             });
           }
         }
@@ -488,6 +490,7 @@ export function useMentions({
     mentionItems,
     mentionOpen,
     removeAttachment,
+    replaceInput,
     selectMention,
     setMentionIndex,
     submitCurrentInput,

@@ -42,9 +42,32 @@ describe('ensureDefaultSkillsSeeded', () => {
     expect(byName['save-as-skill'].description).toMatch(/save.*conversation|reusable skill/i);
     expect(byName['save-as-skill'].body).toMatch(/canvas_save_skill/);
     expect(byName['promote-skill'].body).toMatch(/canvas_promote_skill/);
-    expect(byName['suggest-tags'].body).toMatch(/canvas_tag_node/);
+    expect(byName['suggest-tags'].body).not.toMatch(/canvas_propose_node_change/);
+    expect(byName['suggest-tags'].body).not.toMatch(/canvas_tag_node/);
     expect(byName['suggest-tags'].body).toMatch(/canvas_list_nodes/);
     expect(byName['save-as-skill'].scope).toBe('global');
+  });
+
+  it('upgrades the untouched legacy suggest-tags workflow to advisory output', async () => {
+    const skillDir = join(
+      sandboxHome,
+      '.pulse-coder',
+      'canvas',
+      'skills',
+      'suggest-tags',
+    );
+    await fs.mkdir(skillDir, { recursive: true });
+    const legacy = await fs.readFile(
+      join(process.cwd(), 'src/main/agent/__tests__/fixtures/legacy-suggest-tags.md'),
+      'utf8',
+    );
+    await fs.writeFile(join(skillDir, 'SKILL.md'), legacy, 'utf8');
+
+    await ensureDefaultSkillsSeeded();
+
+    const upgraded = await fs.readFile(join(skillDir, 'SKILL.md'), 'utf8');
+    expect(upgraded).not.toMatch(/canvas_propose_node_change/);
+    expect(upgraded).not.toMatch(/canvas_tag_node/);
   });
 
   it('does not overwrite an existing user-edited SKILL.md', async () => {

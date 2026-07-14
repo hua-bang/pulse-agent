@@ -54,6 +54,15 @@ describe('Button', () => {
     expect(btn.classList.contains('ui-btn--md')).toBe(true);
   });
 
+  it('applies the xs size class for a text variant', () => {
+    const btn = render(
+      <Button variant="primary" size="xs">
+        Save
+      </Button>,
+    );
+    expect(btn.classList.contains('ui-btn--xs')).toBe(true);
+  });
+
   it('merges a caller className alongside the base classes', () => {
     const btn = render(<Button className="my-extra">Save</Button>);
     expect(btn.classList.contains('ui-btn')).toBe(true);
@@ -88,7 +97,10 @@ describe('Button', () => {
       expect(btn.classList.contains('ui-btn--icon')).toBe(true);
     });
 
-    it('sizes sm/md/lg to 24/28/32px via the size classes', () => {
+    it('sizes xs/sm/md/lg to 22/24/28/32px via the size classes', () => {
+      const xs = render(<Button variant="icon" size="xs" aria-label="Reload">↻</Button>);
+      expect(xs.classList.contains('ui-btn--xs')).toBe(true);
+
       const sm = render(<Button variant="icon" size="sm" aria-label="Reload">↻</Button>);
       expect(sm.classList.contains('ui-btn--sm')).toBe(true);
 

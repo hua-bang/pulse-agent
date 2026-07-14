@@ -14,6 +14,19 @@ pathRules:
     required:
       - node scripts/harness/check-harness.mjs
 
+  - name: harness-visualizer
+    paths:
+      - harness/skills/visualize-harness/**
+    required:
+      - pnpm exec vitest run harness/skills/visualize-harness/scripts/render-harness-graph.test.mjs
+
+  - name: harness-runner
+    paths:
+      - scripts/harness/run-harness-check.mjs
+      - scripts/harness/run-harness-check.test.mjs
+    required:
+      - pnpm exec vitest run scripts/harness/run-harness-check.test.mjs
+
   - name: root-workspace-config
     paths:
       - package.json
@@ -22,6 +35,15 @@ pathRules:
     required:
       - pnpm run build
       - pnpm test
+
+  # canvas-workspace owns these mirrored canvas-cli contracts; keep its static
+  # parity check active when the CLI side changes as well as the app side.
+  - name: canvas-cli-contract-parity
+    paths:
+      - packages/canvas-cli/src/core/types.ts
+      - packages/canvas-cli/src/core/storage-v2.ts
+    required:
+      - node apps/canvas-workspace/harness/tools/describe-canvas.mjs
 
 escalationRules:
   # Reminder-only (printed, never auto-run). The rule NAME must contain the

@@ -49,10 +49,27 @@
   --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.06), 0 8px 20px rgba(0, 0, 0, 0.07);
   --shadow-drag: 0 8px 28px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-float: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  /* C2 exact-value tokenization (2026-07-10): the dominant focus-ring
+     cluster, byte-identical across 9 call sites — minted verbatim, no
+     value change. Near-variants (2px ring, other opacities) stay literal;
+     they are C3 normalization judgments, not this batch's scope. */
+  --shadow-focus: 0 0 0 3px rgba(35, 131, 226, 0.1);
   --radius: 8px;
   --radius-md: 8px; /* scale midpoint; was referenced 7x while undefined, with divergent fallbacks */
   --radius-lg: 10px;
   --radius-sm: 6px;
+  /* C2 exact-value tokenization (2026-07-10): --radius-sm/--radius-lg above
+     were already converged (6px/10px) and are load-bearing for ui/ (Modal,
+     DropdownShell, Select, SegmentedControl, Drawer all reference them) —
+     redefining them to 4px/12px per the original batch-plan naming would
+     silently change those sites' pixels, breaking exact-value safety. Using
+     -xs/-xl instead keeps the swap pixel-identical: 63 exact 4px lines and
+     12 exact 12px lines mint straight across, 6px/7px/10px/5px/3px/50% stay
+     literal (normalization is C3). --radius-pill is a clean addition (no
+     prior token of that name). */
+  --radius-xs: 4px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
   --font: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
   --font-mono: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
   --sidebar-width: 240px;
@@ -115,5 +132,15 @@ textarea {
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
+  }
+}
+
+/* Blessed global 360°-rotate spinner keyframe (C1 dedupe — was 6 private
+ * `*-spin`/`*Spin` copies, all byte-identical `to { transform:
+ * rotate(360deg); }`). Each call site keeps its own animation-duration and
+ * timing-function; only the @keyframes definition is shared. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }

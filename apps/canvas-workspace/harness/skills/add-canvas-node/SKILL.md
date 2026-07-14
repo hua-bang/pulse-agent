@@ -36,7 +36,7 @@ Four touch points, all required, in this order:
    - A new host type needs a branch in ONE of these two places (pick whichever pattern your new type's siblings use) — missing this renders nothing for the new type, silently.
 4. **Persistence compatibility** — node data round-trips through workspace JSON (`src/main/canvas/storage.ts`). New fields must be JSON-safe; this is NOT the same as `CANVAS_SCHEMA_VERSION_V2` (that version gates the overall v1→v2 canvas file format, not individual node types — you do not need to bump it for a new node type).
 
-Also touches the agent-tool contract surface if the Canvas Agent should be able to create/read/write the new type — see `harness/knowledge/tools-reference` equivalent for canvas: `src/main/agent/tools/nodes.ts` (`canvas_create_node`) and `node-read-tools.ts` (`canvas_read_node`) generally handle host types generically via the shared `data` shape, but check whether your new type needs a dedicated read/write branch.
+Also touches the agent-tool contract surface if the Canvas Agent should be able to create/read/write the new type: `src/main/agent/tools/nodes.ts` (`canvas_create_node`) and `node-read-tools.ts` (`canvas_read_node`) generally handle host types generically via the shared `data` shape, but check whether your new type needs a dedicated read/write branch.
 
 ## Step 3 (both paths) — verify against ground truth, not memory
 

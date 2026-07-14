@@ -244,5 +244,5 @@ Keep workspace entries local and differential. Do not copy root principles or ro
 4. Use workspace-local `harness/` as the preferred container when local Knowledge, Tool, Validate, or Skills assets need a home.
 5. Keep root Validate minimal while migrating detailed validation into workspace-local `harness/validate/`.
 6. Keep `scripts/harness/` tools consuming workspace-local validation files as the primary source (done for the runner and drift check).
-7. Make Validate executable by adding a runner for `harness/validate/validation.yaml` plus workspace-local validation files.
+7. Keep Validate executable through the runner for `harness/validate/validation.yaml` plus workspace-local validation files (implemented in `scripts/harness/run-harness-check.mjs`).
 8. Add Spec only when a concrete feature, protocol, or migration needs normative design and history.

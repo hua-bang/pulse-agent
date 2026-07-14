@@ -11,20 +11,32 @@ const esc = (value) =>
   ));
 
 const fmt = (n) => n.toLocaleString('en-US');
+const fmtGate = (value) => (value === null || value === undefined ? '—' : typeof value === 'boolean' ? String(value) : fmt(value));
 
 export const renderBundleReportHtml = (report) => {
-  const { metrics, gates, probes, topChunks, commit, generatedAt } = report;
+  const {
+    metrics, gates, probes, topChunks, commit, generatedAt, entryChunkFileName,
+  } = report;
+  const measuredEntryChunkFileName = (entryChunkFileName ?? report.entryDepAttribution?.chunkFileName)
+    ?.split('/').pop();
   const maxKB = topChunks[0]?.rawKB ?? 1;
   const allPass = gates.every((gate) => gate.pass);
 
   const tiles = [
     { label: 'Entry chunk (raw)', value: `${fmt(metrics.entryRawKB)} KB`, note: 'eagerly parsed at startup' },
     { label: 'Entry chunk (gzip)', value: `${fmt(metrics.entryGzipKB)} KB`, note: 'compressed size' },
+    ...(metrics.startupJsRawKB === undefined ? [] : [
+      { label: 'Startup JS closure', value: `${fmt(metrics.startupJsRawKB)} KB`, note: `${metrics.startupRequestCount} static JS/CSS requests` },
+      { label: 'Startup CSS closure', value: `${fmt(metrics.startupCssRawKB)} KB`, note: `${fmt(metrics.startupCssGzipKB)} KB gzip` },
+    ]),
     { label: 'Total JS', value: `${fmt(metrics.totalJsKB)} KB`, note: `${metrics.chunkCount} chunks` },
+    ...(metrics.totalCssRawKB === undefined ? [] : [
+      { label: 'Total CSS', value: `${fmt(metrics.totalCssRawKB)} KB`, note: 'all renderer CSS' },
+    ]),
     {
       label: 'Gate status',
       value: allPass ? 'PASS' : 'FAIL',
-      note: allPass ? 'all ratchets within tolerance' : 'baseline exceeded',
+      note: allPass ? 'all bundle policies pass' : 'bundle policy failed',
       status: allPass ? 'good' : 'critical',
     },
   ];
@@ -39,7 +51,7 @@ export const renderBundleReportHtml = (report) => {
     </div>`).join('');
 
   const barsHtml = topChunks.map((chunk) => {
-    const isEntry = chunk.name.startsWith('index-');
+    const isEntry = chunk.name === measuredEntryChunkFileName;
     const pct = Math.max(1, Math.round((chunk.rawKB / maxKB) * 100));
     const shortName = chunk.name.replace(/-[\w-]{8,}\.js$/, '');
     return `
@@ -53,10 +65,10 @@ export const renderBundleReportHtml = (report) => {
   const gateRows = gates.map((gate) => `
     <tr>
       <td>${esc(gate.metric)}</td>
-      <td class="num">${fmt(gate.baseline)}</td>
-      <td class="num">${fmt(gate.limit)}</td>
-      <td class="num">${fmt(gate.current)}</td>
-      <td class="num">${gate.deltaPct > 0 ? '+' : ''}${gate.deltaPct}%</td>
+      <td class="num">${fmtGate(gate.baseline)}</td>
+      <td class="num">${fmtGate(gate.limit)}</td>
+      <td class="num">${fmtGate(gate.current)}</td>
+      <td class="num">${gate.deltaPct === null ? '—' : `${gate.deltaPct > 0 ? '+' : ''}${gate.deltaPct}%`}</td>
       <td class="${gate.pass ? 'status-good' : 'status-critical'}"><span class="status-icon">${gate.pass ? '✓' : '✗'}</span>${gate.pass ? 'PASS' : 'FAIL'}</td>
     </tr>`).join('');
 
@@ -136,9 +148,9 @@ export const renderBundleReportHtml = (report) => {
     ${barsHtml}
   </div>
   <div class="card">
-    <h2>Ratchet gates (perf/baselines.json)</h2>
+    <h2>Bundle gates (perf/baselines.json policies)</h2>
     <table>
-      <thead><tr><th>Metric (KB)</th><th class="num">Baseline</th><th class="num">Limit</th><th class="num">Current</th><th class="num">Δ</th><th>Status</th></tr></thead>
+      <thead><tr><th>Metric</th><th class="num">Baseline</th><th class="num">Limit</th><th class="num">Current</th><th class="num">Δ</th><th>Status</th></tr></thead>
       <tbody>${gateRows}</tbody>
     </table>
   </div>

@@ -230,7 +230,7 @@ describe('canvas_create_node placement', () => {
 });
 
 describe('createGlobalCanvasTools', () => {
-  it('exposes read/search tools, the knowledge index, and the tag-write tool — no layout mutations', async () => {
+  it('exposes read/search tools without any node mutation', async () => {
     const tools = createGlobalCanvasTools();
     expect(Object.keys(tools).sort()).toEqual([
       'canvas_ask_user',
@@ -243,13 +243,16 @@ describe('createGlobalCanvasTools', () => {
       'canvas_read_node',
       'canvas_screenshot',
       'canvas_search_nodes',
-      'canvas_tag_node',
+      'knowledge_analyze_image',
+      'knowledge_read_node',
+      'knowledge_search_nodes',
       'session_search',
       'session_summary',
       'workspace_node_get',
       'workspace_node_list',
     ]);
-    // canvas_tag_node is the ONLY write; layout/content mutations stay absent.
+    // Global knowledge access is read-only.
+    expect(tools.canvas_tag_node).toBeUndefined();
     expect(tools.canvas_create_node).toBeUndefined();
     expect(tools.canvas_apply_layout).toBeUndefined();
     expect(tools.canvas_update_node).toBeUndefined();
@@ -453,6 +456,9 @@ describe('deferred tool partition', () => {
       'canvas_search_nodes',
       'canvas_tag_node',
       'canvas_update_node',
+      'knowledge_analyze_image',
+      'knowledge_read_node',
+      'knowledge_search_nodes',
       'visual_render',
     ]);
     expect(deferred).toEqual([

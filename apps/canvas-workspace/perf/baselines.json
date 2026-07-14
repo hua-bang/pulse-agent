@@ -1,23 +1,271 @@
 {
-  "note": "Performance ratchet baselines. Gates fail when current > baseline * (1 + tolerancePct/100). When a fix lands that meaningfully lowers a metric, lower its baseline in the same PR to lock the win in. Bundle baselines ratcheted 2026-07-05 (three waves): B6 lazy-loaded the experimental graph view (react-force-graph-2d + d3 out of entry): entry 4618 → 4223 KB. C1/C6 React.lazy'd the 5 heavy node bodies, evicting @tiptap/starter-kit + extension pack + lowlight + tiptap-markdown: 4223 → 3219 KB raw / 928 → 706 KB gzip. C2/C3/C7/chain-B lazied WorkspaceTerminalDock (@xterm/xterm), ChatPage+ChatPanel (highlight.js + markdown-it + chat tree), @module-federation/runtime, and noteSearchExtension (@tiptap/react + @tiptap/pm): 3219 → 1329 KB raw / 706 → 270 KB gzip — under the ≤1500 KB C-dimension target. Remaining entry is react/react-dom + app code + i18n messages (C8 candidate).",
-  "bundle": {
-    "entryRawKB": { "baseline": 1329, "tolerancePct": 5 },
-    "entryGzipKB": { "baseline": 270, "tolerancePct": 5 },
-    "totalJsKB": { "baseline": 10556, "tolerancePct": 10 }
-  },
-  "runtimeNote": "Counter gates for perf:scenarios (deterministic, node-count independent). typing.nodes-array-replace ratcheted 132 → 10 after B1 fixed I-1 (200ms editor writeback debounce): measured 3 replacements for 120 keys (was 121), frames>20ms 43% → 1.2%, INP p95 48 → 32ms. drag.nodes-array-replace ratcheted 100 → 10 after B7 (2026-07-05): useNodeDrag no longer calls moveNode/moveNodes on every pointer-move — the gesture renders from an ephemeral `dragOffset` applied in getNodeWrapperStyle (CanvasNodeView's memo comparator gates re-render to only the dragged node(s)), and commits the real nodes array exactly once on drag end. Measured 2 replacements for 3×90 pointer-moves (was 91 for 90 moves, ~1:1). Verified visually via a real CDP-driven drag (mid-drag transform matches the committed post-drop transform exactly — no snap-back). Timing metrics (INP/frames/LoAF) stay informational — per-machine.",
-  "runtime": {
-    "typing": {
-      "counters": {
-        "nodes-array-replace": { "max": 10 },
-        "canvas-save-ipc": { "max": 3 }
+  "policyVersion": 1,
+  "note": "Performance target, warning, and regression-gate SSOT. target answers whether the product is good enough; warning marks a material miss; gate prevents a regression and is evaluated independently. Same-machine timing targets apply only to the declared profile. Lower ratchet baselines in the same PR after a durable win.",
+  "profiles": {
+    "global-deterministic": {
+      "label": "机器无关的确定性产物/计数器",
+      "appliesTo": {}
+    },
+    "darwin-arm64-package": {
+      "label": "macOS arm64 正式发布包",
+      "appliesTo": { "os": "darwin", "arch": "arm64" }
+    },
+    "local-darwin-arm64-n100-r3": {
+      "label": "machine 109429d5 · darwin arm64 · 100 节点/0 seeded webviews · repeat 3 · perf-v1",
+      "appliesTo": {
+        "machineId": "109429d5",
+        "os": "darwin",
+        "arch": "arm64",
+        "seedNodes": 100,
+        "seedWebpages": 0,
+        "repeat": 3,
+        "fixtureVersion": "perf-v1",
+        "headless": false
       }
     },
-    "drag": {
-      "counters": {
-        "nodes-array-replace": { "max": 10 },
-        "canvas-save-ipc": { "max": 3 }
+    "local-darwin-arm64-n100-r3-warm-trace": {
+      "label": "machine 109429d5 · darwin arm64 · 100 节点/0 seeded webviews · repeat 3 · warm renderer reload trace",
+      "appliesTo": {
+        "machineId": "109429d5",
+        "os": "darwin",
+        "arch": "arm64",
+        "seedNodes": 100,
+        "seedWebpages": 0,
+        "repeat": 3,
+        "fixtureVersion": "perf-v1",
+        "headless": false
       }
+    }
+  },
+  "policies": {
+    "startup.when_ready_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 350, "warning": 400,
+      "confidence": "medium", "basis": "同机历史与当前 343ms 基线", "asOf": "2026-07-10"
+    },
+    "startup.serial_chain_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 60, "warning": 80,
+      "confidence": "medium", "basis": "同机历史与当前 50ms 串行链", "asOf": "2026-07-10"
+    },
+    "startup.open_window_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 400, "warning": 450,
+      "confidence": "medium", "basis": "同机历史与当前 393ms 基线", "asOf": "2026-07-10"
+    },
+    "startup.dom_ready_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 500, "warning": 550,
+      "confidence": "medium", "basis": "首窗可用预算与同机历史", "asOf": "2026-07-10"
+    },
+    "startup.renderer.first_canvas_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 50, "warning": 65,
+      "confidence": "medium", "basis": "当前 41ms Canvas 首帧历史", "asOf": "2026-07-10"
+    },
+    "startup.welcome_local_content_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 500, "warning": 800,
+      "confidence": "high", "basis": "直接加载本地 download-site 的隔离启动实测 195.9ms；基础内容不等待远程版本清单", "asOf": "2026-07-11"
+    },
+    "startup.renderer_reload.lcp_ms": {
+      "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 800, "warning": 1000,
+      "confidence": "low", "basis": "内部 warm reload 实验室预算；不是 field CWV", "asOf": "2026-07-10"
+    },
+    "startup.renderer_reload.cls": {
+      "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 0, "warning": 0.1,
+      "confidence": "low", "basis": "warm reload 实验室布局稳定性预算", "asOf": "2026-07-10"
+    },
+    "startup.renderer_reload.blocking_canvas_to_lcp_ms": {
+      "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 50, "warning": 100,
+      "confidence": "low", "basis": "Canvas 后主线程阻塞诊断预算", "asOf": "2026-07-10"
+    },
+    "startup.renderer_reload.long_task_count": {
+      "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 0, "warning": 1,
+      "confidence": "low", "basis": "50ms Long Task 诊断预算", "asOf": "2026-07-10"
+    },
+    "startup.renderer_reload.long_task_max_ms": {
+      "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 50, "warning": 100,
+      "confidence": "low", "basis": "Long Task API 的 50ms 边界", "asOf": "2026-07-10"
+    },
+
+    "interact.typing.inp_p95_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 50, "warning": 80,
+      "confidence": "medium", "basis": "交互响应预算与同机 repeat-3 历史", "asOf": "2026-07-10"
+    },
+    "interact.typing.frames_over20_pct": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 1, "warning": 3,
+      "confidence": "medium", "basis": "20ms 帧预算下的活跃窗口历史", "asOf": "2026-07-10"
+    },
+    "interact.typing.counter.nodes_array_replace": {
+      "profile": "global-deterministic", "target": 5, "warning": 8,
+      "confidence": "high", "basis": "120 次按键固定夹具；修复后实测 3", "asOf": "2026-07-10",
+      "gate": { "kind": "max", "value": 10, "scope": "runtime" }
+    },
+    "interact.typing.counter.canvas_save_ipc": {
+      "profile": "global-deterministic", "target": 1, "warning": 2,
+      "confidence": "high", "basis": "120 次按键固定夹具", "asOf": "2026-07-10",
+      "gate": { "kind": "max", "value": 3, "scope": "runtime" }
+    },
+    "interact.drag.inp_p95_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 50, "warning": 80,
+      "confidence": "medium", "basis": "90 步拖拽 repeat-3 同机历史", "asOf": "2026-07-10"
+    },
+    "interact.drag.frames_over20_pct": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 1, "warning": 3,
+      "confidence": "medium", "basis": "20ms 帧预算下的活跃窗口历史", "asOf": "2026-07-10"
+    },
+    "interact.drag.counter.nodes_array_replace": {
+      "profile": "global-deterministic", "target": 2, "warning": 5,
+      "confidence": "high", "basis": "3×90 pointer-move 固定夹具；修复后实测 2", "asOf": "2026-07-10",
+      "gate": { "kind": "max", "value": 10, "scope": "runtime" }
+    },
+    "interact.drag.counter.canvas_save_ipc": {
+      "profile": "global-deterministic", "target": 1, "warning": 2,
+      "confidence": "high", "basis": "3×90 pointer-move 固定夹具", "asOf": "2026-07-10",
+      "gate": { "kind": "max", "value": 3, "scope": "runtime" }
+    },
+    "interact.resize.frames_over20_pct": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 1, "warning": 3,
+      "confidence": "medium", "basis": "90 步 resize repeat-3 同机历史", "asOf": "2026-07-10"
+    },
+    "interact.resize.counter.nodes_array_replace": {
+      "profile": "global-deterministic", "target": 2, "warning": 5,
+      "confidence": "high", "basis": "3×90 pointer-move 固定夹具；修复后实测 1", "asOf": "2026-07-10",
+      "gate": { "kind": "max", "value": 10, "scope": "runtime" }
+    },
+    "interact.resize.counter.canvas_save_ipc": {
+      "profile": "global-deterministic", "target": 1, "warning": 2,
+      "confidence": "high", "basis": "3×90 pointer-move 固定夹具", "asOf": "2026-07-10",
+      "gate": { "kind": "max", "value": 3, "scope": "runtime" }
+    },
+    "interact.panzoom.wheel_to_next_frame_p95_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 8, "warning": 16,
+      "confidence": "low", "basis": "仅两次兼容样本；先记录目标不设 Gate", "asOf": "2026-07-10"
+    },
+    "interact.panzoom.frames_over20_pct": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 1, "warning": 3,
+      "confidence": "low", "basis": "仅两次兼容样本；先记录目标不设 Gate", "asOf": "2026-07-10"
+    },
+
+    "bundle.entry_raw_kb": {
+      "profile": "global-deterministic", "target": 680, "warning": 780,
+      "confidence": "high", "basis": "Renderer Terser + grammar 收敛后实测 614KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 614, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "bundle.entry_gzip_kb": {
+      "profile": "global-deterministic", "target": 185, "warning": 210,
+      "confidence": "high", "basis": "Renderer Terser + grammar 收敛后实测 179KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 179, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "bundle.startup_js_raw_kb": {
+      "profile": "global-deterministic", "target": 650, "warning": 680,
+      "confidence": "high", "basis": "入口及递归静态 imports 的确定性构建闭包实测 614KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 614, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "bundle.startup_css_raw_kb": {
+      "profile": "global-deterministic", "target": 115, "warning": 130,
+      "confidence": "high", "basis": "Phase 2 将 Settings、Nodes、Reference、DevTools、Artifact 样式移出静态闭包后实测 104KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 104, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "bundle.total_js_kb": {
+      "profile": "global-deterministic", "target": 5350, "warning": 5600,
+      "confidence": "high", "basis": "Renderer Terser + chat/editor 共享完整 36 种 common grammar 后实测 5350KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 5350, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "bundle.main_raw_kb": {
+      "profile": "global-deterministic", "target": 550, "warning": 600,
+      "confidence": "high", "basis": "Main esbuild minify + plugin/runtime split 后入口实测 495KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 495, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "startup.loaded_to_canvas_kb": {
+      "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
+      "confidence": "medium", "basis": "File/Text/Chat/MF 首用分层后连续 warm trace 961→888KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 888.1, "tolerancePct": 5, "scope": "runtime" }
+    },
+    "startup.loaded_to_lcp_kb": {
+      "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
+      "confidence": "medium", "basis": "File/Text/Chat/MF 首用分层后连续 warm trace 966→893KB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 892.9, "tolerancePct": 5, "scope": "runtime" }
+    },
+    "bundle.heavy_in_entry_count": {
+      "profile": "global-deterministic", "target": 0,
+      "confidence": "high", "basis": "六个重依赖的构建产物探针命中数", "asOf": "2026-07-10"
+    },
+    "bundle.lazy_boundary_watchlist": {
+      "profile": "global-deterministic", "target": true,
+      "confidence": "high", "basis": "六个重依赖的构建产物探针", "asOf": "2026-07-10",
+      "gate": { "kind": "true", "scope": "bundle" }
+    },
+    "package.dmg_mb": {
+      "profile": "darwin-arm64-package", "target": 105, "warning": 115,
+      "confidence": "high", "basis": "Terser + 完整 36 种共享 grammar 后 arm64 DMG 实测 96.4MB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 96.4, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "package.app_unpacked_mib": {
+      "profile": "darwin-arm64-package", "target": 250, "warning": 275,
+      "confidence": "high", "basis": "Terser + 完整 36 种共享 grammar 后 arm64 .app 实测 234.6MiB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 234.6, "tolerancePct": 3, "scope": "bundle" }
+    },
+    "package.asar_mib": {
+      "profile": "darwin-arm64-package", "target": 50, "warning": 60,
+      "confidence": "high", "basis": "Terser + 完整 36 种共享 grammar 后 app.asar 实测 43.5MiB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 43.5, "tolerancePct": 5, "scope": "bundle" }
+    },
+    "package.native_unpacked_mib": {
+      "profile": "darwin-arm64-package", "target": 5, "warning": 8,
+      "confidence": "high", "basis": "仅保留 node-pty native unpacked;实测 2.3MiB", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 2.3, "tolerancePct": 10, "scope": "bundle" }
+    },
+    "package.electron_locale_count": {
+      "profile": "darwin-arm64-package", "target": 3, "warning": 4,
+      "confidence": "high", "basis": "产品语言范围 en/zh_CN/zh_TW", "asOf": "2026-07-11",
+      "gate": { "kind": "max", "value": 3, "scope": "bundle" }
+    },
+
+    "memory.ws_cycle.post_capacity_heap_slope": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 0.5, "warning": 1,
+      "confidence": "low", "basis": "仅两次兼容 heap 样本；先记录目标不设 Gate", "asOf": "2026-07-10"
+    },
+    "memory.image.decoded_mb": {
+      "profile": "global-deterministic", "target": 30, "warning": 35,
+      "confidence": "high", "basis": "10×4K 固定像素夹具；当前 26.4MB", "asOf": "2026-07-10"
+    },
+
+    "main.loop_delay_p99_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 25, "warning": 40,
+      "confidence": "medium", "basis": "主线程 RAIL 响应预算与同机历史", "asOf": "2026-07-10"
+    },
+    "main.loop_delay_max_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 100, "warning": 200,
+      "confidence": "medium", "basis": "单次冻结上限与同机历史", "asOf": "2026-07-10"
+    },
+    "main.canvas_save.files_written": {
+      "profile": "global-deterministic", "target": 2, "warning": 3,
+      "confidence": "medium", "basis": "当前固定场景单次保存最多写 3 文件", "asOf": "2026-07-10"
+    },
+    "main.session_persist.bytes_per_turn": {
+      "profile": "global-deterministic", "target": 32, "warning": 48,
+      "confidence": "high", "basis": "固定会话夹具与当前约 26KB 基线", "asOf": "2026-07-10",
+      "gate": { "kind": "max", "value": 64, "scope": "runtime" }
+    },
+
+    "chat.stream.frames_over20_pct": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 1, "warning": 3,
+      "confidence": "medium", "basis": "521 delta 固定回放的同机帧历史", "asOf": "2026-07-10"
+    },
+    "chat.stream.md_render_count": {
+      "profile": "global-deterministic", "target": 65, "warning": 72,
+      "confidence": "high", "basis": "521 delta 固定回放；批处理后实测 64", "asOf": "2026-07-10",
+      "gate": { "kind": "max", "value": 80, "scope": "runtime" }
+    },
+    "chat.stream.commit_count": {
+      "profile": "global-deterministic", "target": 65, "warning": 72,
+      "confidence": "high", "basis": "521 delta 固定回放的流式提交次数", "asOf": "2026-07-10",
+      "gate": { "kind": "max", "value": 80, "scope": "runtime" }
+    },
+    "chat.stream.md_cache_hit_ratio": {
+      "profile": "global-deterministic", "target": 50, "warning": 40,
+      "confidence": "high", "basis": "固定 settled-render 缓存探针", "asOf": "2026-07-10",
+      "gate": { "kind": "min", "value": 50, "scope": "runtime" }
+    },
+    "chat.stream.tail_burst_ms": {
+      "profile": "local-darwin-arm64-n100-r3", "target": 50, "warning": 100,
+      "confidence": "low", "basis": "同机 Mermaid 流末尾部预算", "asOf": "2026-07-10"
     }
   }
 }

@@ -12,7 +12,6 @@ interface Options {
   canvasId: string;
   activeTool: string;
   containerRef: RefObject<HTMLDivElement>;
-  nodesRef: MutableRefObject<CanvasNode[]>;
   /** Marquee handler may stash the "we just finished a real drag" flag
    *  on this ref so that the trailing click event doesn't fall through
    *  and clear what we just selected. */
@@ -44,8 +43,8 @@ interface Options {
     minWidth?: number,
     minHeight?: number,
   ) => void;
-  onResizeMove: (e: React.MouseEvent) => void;
-  onResizeEnd: () => void;
+  onResizeMove: (e: React.MouseEvent) => boolean;
+  onResizeEnd: () => boolean;
   edgeInteractionState: EdgeInteractionState | null;
   marquee: MarqueeApi;
   shapeToolActive: boolean;
@@ -76,7 +75,6 @@ export const useCanvasMouseHandlers = ({
   canvasId,
   activeTool,
   containerRef,
-  nodesRef,
   suppressBlankClickRef,
   setSelectedNodeIds,
   setSelectedEdgeId,
@@ -215,27 +213,31 @@ export const useCanvasMouseHandlers = ({
   const handleWindowDragMove = useCallback(
     (e: MouseEvent) => {
       const nodeMoved = onDragMove(e as unknown as React.MouseEvent);
-      onResizeMove(e as unknown as React.MouseEvent);
-      return nodeMoved || resizingId !== null;
+      const nodeResized = onResizeMove(e as unknown as React.MouseEvent);
+      return nodeMoved || nodeResized;
     },
     [onDragMove, onResizeMove, resizingId],
   );
 
   const handleMouseUp = useCallback(() => {
     const wasNodeGesture = isDraggingRef.current;
+    const resizeWasActive = resizingId !== null;
     canvasMouseUp();
     onDragEnd();
-    onResizeEnd();
+    const resizeCommitted = onResizeEnd();
     isDraggingRef.current = false;
     setNodeGestureActive(false);
     if (wasNodeGesture && nodeGestureMovedRef.current) {
       suppressBlankClickRef.current = true;
-      commitHistory();
-      onNodesChange?.(canvasId, pendingParentNodesRef.current ?? nodesRef.current);
+      if (!resizeWasActive || resizeCommitted) {
+        commitHistory();
+        const pendingParentNodes = pendingParentNodesRef.current;
+        if (pendingParentNodes) onNodesChange?.(canvasId, pendingParentNodes);
+      }
     }
     pendingParentNodesRef.current = null;
     nodeGestureMovedRef.current = false;
-  }, [canvasId, canvasMouseUp, onDragEnd, onResizeEnd, commitHistory, onNodesChange, nodesRef, suppressBlankClickRef]);
+  }, [canvasId, canvasMouseUp, onDragEnd, onResizeEnd, commitHistory, onNodesChange, resizingId, suppressBlankClickRef]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {

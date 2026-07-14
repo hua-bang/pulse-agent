@@ -1,19 +1,26 @@
-import { useMemo, type KeyboardEventHandler, type RefObject } from 'react';
+import { useEffect, useMemo, type KeyboardEventHandler, type RefObject } from 'react';
 import type { Artifact } from '../../types';
+import { Button } from '../ui/Button';
+import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
 import { appendDomPickerBridge } from './domPickerBridge';
 import type { LoadState } from './types';
+import { markOnce } from '../../perf/monitor';
 
 interface IframeRenderedViewProps {
   artifact: Artifact | null;
   artifactHtml: string;
   artifactId: string | null;
   cancel: () => void;
+  canGoBack: boolean;
+  canGoForward: boolean;
   commit: () => void;
   draftUrl: string;
   generating: boolean;
   handleOpenExternal: () => void;
   handleKeyDown: KeyboardEventHandler<HTMLInputElement>;
+  handleGoBack: () => void;
+  handleGoForward: () => void;
   handlePickDomElement: () => Promise<void> | void;
   handlePickReviewElement: () => Promise<void> | void;
   handleRegenerate: () => Promise<void> | void;
@@ -23,7 +30,9 @@ interface IframeRenderedViewProps {
   isResizing?: boolean;
   loadError: string | null;
   loadState: LoadState;
+  localUrl: string;
   mode: string;
+  nodeId: string;
   openArtifact: (workspaceId: string, artifactId: string) => void;
   domPickerActive: boolean;
   reviewPickerActive: boolean;
@@ -45,11 +54,15 @@ export const IframeRenderedView = ({
   artifactHtml,
   artifactId,
   cancel,
+  canGoBack,
+  canGoForward,
   commit,
   draftUrl,
   generating,
   handleOpenExternal,
   handleKeyDown,
+  handleGoBack,
+  handleGoForward,
   handlePickDomElement,
   handlePickReviewElement,
   handleRegenerate,
@@ -59,7 +72,9 @@ export const IframeRenderedView = ({
   isResizing,
   loadError,
   loadState,
+  localUrl,
   mode,
+  nodeId,
   openArtifact,
   domPickerActive,
   reviewPickerActive,
@@ -82,17 +97,30 @@ export const IframeRenderedView = ({
     [renderMode, renderedHtml],
   );
 
+  useEffect(() => {
+    if (nodeId !== 'node-welcome-download' || !localUrl) return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== renderIframeRef.current?.contentWindow) return;
+      if (event.data?.type === 'pulse-canvas-welcome-content-ready') {
+        markOnce('welcome:local-content-ready');
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [localUrl, nodeId, renderIframeRef]);
+
   return (
     <div className="iframe-body">
       <div className="iframe-bar">
-        <button
-          className="iframe-bar-btn"
-          onClick={handleReload}
-          title="Reload"
+        <BrowserNavigationButtons
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
           disabled={generating}
-        >
-          <ReloadIcon />
-        </button>
+          onBack={handleGoBack}
+          onForward={handleGoForward}
+          onReload={handleReload}
+          showHistory={mode === 'url'}
+        />
 
         <IframeAddressButton
           artifact={artifact}
@@ -116,43 +144,59 @@ export const IframeRenderedView = ({
 
         <div className="iframe-bar-actions">
           {mode === 'ai' && !generating && !readOnly && (
-            <button
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
               className="iframe-bar-btn"
               onClick={() => void handleRegenerate()}
               title="Regenerate"
+              aria-label="Regenerate"
             >
               <SparkIcon />
-            </button>
+            </Button>
           )}
 
-          <button
+          <Button
+            type="button"
+            variant="icon"
+            size="xs"
             className={`iframe-bar-btn${domPickerActive ? ' iframe-bar-btn--active' : ''}`}
             onClick={() => void handlePickDomElement()}
             title={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
+            aria-label={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
             disabled={generating || domPickerActive || reviewPickerActive || !workspaceId}
           >
             <InspectIcon />
-          </button>
+          </Button>
 
           {mode === 'url' && (
-            <button
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
               className={`iframe-bar-btn${reviewPickerActive ? ' iframe-bar-btn--active' : ''}`}
               onClick={() => void handlePickReviewElement()}
               title={reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
+              aria-label={reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
               disabled={generating || domPickerActive || reviewPickerActive || !workspaceId || readOnly}
             >
               <ReviewIcon />
-            </button>
+            </Button>
           )}
 
           {mode === 'url' && (
-            <button
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
               className="iframe-bar-btn"
               onClick={handleOpenExternal}
               title="Open externally"
+              aria-label="Open externally"
             >
               <OpenIcon />
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -178,12 +222,12 @@ export const IframeRenderedView = ({
                     It stays on the canvas as a reference.
                   </div>
                   <div className="iframe-load-error-actions">
-                    <button type="button" className="iframe-empty-btn iframe-empty-btn--primary" onClick={handleReload}>
+                    <Button type="button" variant="primary" size="sm" onClick={handleReload}>
                       Reload
-                    </button>
-                    <button type="button" className="iframe-empty-btn" onClick={handleOpenExternal}>
+                    </Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={handleOpenExternal}>
                       Open externally
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -203,7 +247,11 @@ export const IframeRenderedView = ({
             ref={renderIframeRef}
             key={isArtifactMode ? `artifact-${artifact?.currentVersionId ?? 'loading'}` : webviewKey}
             className="iframe-frame"
-            srcDoc={inspectableHtml}
+            src={localUrl || undefined}
+            srcDoc={localUrl ? undefined : inspectableHtml}
+            onLoad={nodeId === 'node-welcome-download' && !localUrl
+              ? () => markOnce('welcome:local-content-ready')
+              : undefined}
             sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
             title={
               isArtifactMode
@@ -346,18 +394,6 @@ const IframeAddressButton = ({
     </button>
   );
 };
-
-const ReloadIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-    <path
-      d="M2 6a4 4 0 016.9-2.8L10 4M10 2v2.5H7.5M10 6a4 4 0 01-6.9 2.8L2 8M2 10V7.5h2.5"
-      stroke="currentColor"
-      strokeWidth="1.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
 
 const SparkIcon = () => (
   <svg width="12" height="12" viewBox="0 0 16 16" fill="none">

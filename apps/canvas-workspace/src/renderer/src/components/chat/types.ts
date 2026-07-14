@@ -13,7 +13,7 @@ export type { AgentScope };
 /**
  * Pre-resolved descriptor for a "current context" chip in the composer.
  * Decouples the chip strip from `CanvasNode` so a cross-workspace host (the
- * Nodes / Graph knowledge assistant) can supply already-resolved labels —
+ * Nodes knowledge assistant) can supply already-resolved labels —
  * for nodes, whole canvases, or tags — without owning full canvas node objects.
  */
 export interface SelectedContextChip {
@@ -24,10 +24,18 @@ export interface SelectedContextChip {
   label: string;
 }
 
+/** One-shot request from another product surface to focus or submit the composer. */
+export interface ChatComposerRequest {
+  id: string;
+  text?: string;
+  submit?: boolean;
+  quickAction?: string;
+}
+
 export interface ChatPanelProps {
   /**
    * Workspace the panel is bound to. Optional because a global-scope host
-   * (Nodes / Graph) renders the same panel without a current canvas — pass
+   * (Nodes / node detail) renders the same panel without a current canvas — pass
    * `agentScope: { kind: 'global' }` instead.
    */
   workspaceId?: string;
@@ -36,6 +44,8 @@ export interface ChatPanelProps {
    * canvas callers keep their behavior without passing anything.
    */
   agentScope?: AgentScope;
+  /** Enables Nodes-specific empty actions and composer copy. */
+  knowledgeMode?: boolean;
   allWorkspaces?: WorkspaceOption[];
   nodes?: CanvasNode[];
   /** Cross-workspace knowledge nodes offered in the `@` popup (global host). */
@@ -54,6 +64,10 @@ export interface ChatPanelProps {
   contextTags?: AgentContextTagRef[];
   /** Whole canvases the global host scoped the turn to. */
   contextCanvases?: AgentContextCanvasRef[];
+  /** Imperatively focuses or submits the existing composer without changing its shell. */
+  composerRequest?: ChatComposerRequest;
+  /** Acknowledges a one-shot composer request so remounting cannot submit it again. */
+  onComposerRequestHandled?: (requestId: string) => void;
   /** Remove a context chip by key. When omitted, chips aren't removable. */
   onRemoveContext?: (key: string) => void;
   rootFolder?: string;
@@ -93,7 +107,7 @@ export interface MentionItem {
   workspaceId?: string;
   /** For type === 'tag': workspaces the tag occurs in (global assistant). */
   workspaceIds?: string[];
-  /** For type === 'skill' | 'session': extra context shown in the popup row. */
+  /** Extra context shown in the popup row (e.g. skill detail or node workspace). */
   description?: string;
   /** For type === 'session': the referenced chat session id. */
   sessionId?: string;

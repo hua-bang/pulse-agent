@@ -24,7 +24,7 @@
   text-align: left;
   width: 100%;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: transparent;
   padding: 8px 10px;
   cursor: pointer;

@@ -1,33 +1,23 @@
-import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from './useWorkspaceNodes';
-import { useI18n } from '../../i18n';
+import './index.css';
 
 interface NodeDetailPageProps {
   workspaceId: string;
   nodeId: string | null;
-  workspaces: WorkspaceEntry[];
   onBack: () => void;
 }
 
 export const NodeDetailPage = ({
   workspaceId,
   nodeId,
-  workspaces,
   onBack,
 }: NodeDetailPageProps) => {
-  const { t } = useI18n();
   const { node, loading, error, setNode } = useWorkspaceNode(workspaceId, nodeId);
   const { tags, reload: reloadTags } = useKnowledgeTags();
-  const { tags: workspaceTags, reload: reloadWorkspaceNodes } = useWorkspaceNodeList(workspaceId);
-  const workspace = workspaces.find((item) => item.id === workspaceId);
-
+  const { nodes: relationCandidates, tags: workspaceTags, reload: reloadWorkspaceNodes } = useWorkspaceNodeList(workspaceId);
   return (
     <main className="workspace-node-detail-page">
-      <header className="workspace-node-detail-page__top">
-        <button className="workspace-node-button" onClick={onBack}>{t('workspaceNodes.backToNodes')}</button>
-        <span>{workspace?.name ?? workspaceId}</span>
-      </header>
       <div className="workspace-node-detail-page__body">
         <NodeDetailPanel
           node={node}
@@ -35,7 +25,9 @@ export const NodeDetailPage = ({
           loading={loading}
           error={error}
           mode="page"
+          onBack={onBack}
           tagDefinitions={[...workspaceTags, ...tags]}
+          relationCandidates={relationCandidates}
           onNodePatched={(next) => setNode(next)}
           onTagsChanged={() => {
             void reloadTags();

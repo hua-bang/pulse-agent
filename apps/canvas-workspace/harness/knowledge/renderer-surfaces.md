@@ -49,11 +49,21 @@ The workbench has exactly two side regions plus a modal tier:
     layout collapses; artifacts keep scroll/render state).
 
   Layout: the dock is a fixed element on `--layer-dock` that stays
-  mounted while collapsed. On the canvas route it reserves its width via
+  mounted while collapsed. On workbench routes it reserves its width via
   the `--right-dock-inset` custom property consumed by `.app-body`, so it
-  behaves like an in-flow column (canvas reflows; the floating toolbar
-  stays fully visible). On other routes (/chat, nodes, …) the chat tab is
-  hidden and previews overlay. Chat internals stay owned by `Workbench`,
+  behaves like an in-flow column and page content remains fully visible.
+  Nodes and node-detail routes reuse this same chat pane with the global
+  agent scope. Their current knowledge node is passed as explicit
+  cross-workspace context; the Nodes list starts with no automatic context,
+  while Graph remains on the active workspace's chat.
+  Workspace ChatPanels remain mounted but hidden while that global instance
+  is visible, and the Nodes route itself is kept alive so filters and scroll
+  survive a detail-page round trip.
+  Global knowledge-node context is read-only. AI Summary writes the generated
+  summary through the dedicated metadata update path; global chat has no
+  general-purpose node-content mutation tool or review-card flow.
+  The dedicated `/chat` route hides the dock chat tab to avoid duplicating
+  the full-page chat surface. Chat internals stay owned by `Workbench`,
   which portals its per-workspace `ChatPanel` instances into the dock's
   chat pane (`useRightDockChatHost`) — the portal escapes the keep-alive
   router's `display:none` wrapper, so chat state survives route switches.

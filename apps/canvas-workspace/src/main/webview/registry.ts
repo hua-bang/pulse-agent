@@ -14,6 +14,7 @@
  * server-side fetch.
  */
 import { ipcMain, webContents as allWebContents } from 'electron';
+import { performance } from 'node:perf_hooks';
 import type { AgentContextDomSelectionRef } from '../../shared/agent-chat';
 import { createDomPickerScript } from './dom-snapshot-script';
 
@@ -27,9 +28,18 @@ function keyOf(k: RegistryKey): string {
 }
 
 const registry = new Map<string, number>();
+let welcomePerfRecorded = false;
 
-function register(k: RegistryKey, webContentsId: number): void {
+const recordWelcomeReadyForPerf = (k: RegistryKey): void => {
+  if (!process.env.PULSE_CANVAS_PERF || welcomePerfRecorded) return;
+  if (k.nodeId !== 'node-welcome-download') return;
+  welcomePerfRecorded = true;
+  console.log(`[perf] welcome-webview ${JSON.stringify({ at: Math.round(performance.now()) })}`);
+};
+
+function register(k: RegistryKey, webContentsId: number, ready = false): void {
   registry.set(keyOf(k), webContentsId);
+  if (ready) recordWelcomeReadyForPerf(k);
 }
 
 function unregister(k: RegistryKey): void {
@@ -206,7 +216,7 @@ export async function getNodeRenderedText(
 export function setupWebviewRegistryIpc(): void {
   ipcMain.handle(
     'iframe:register-webview',
-    (_event, payload: { workspaceId: string; nodeId: string; webContentsId: number }) => {
+    (_event, payload: { workspaceId: string; nodeId: string; webContentsId: number; ready?: boolean }) => {
       if (!payload?.workspaceId || !payload?.nodeId || typeof payload.webContentsId !== 'number') {
         console.warn('[webview-registry] rejected register:', payload);
         return { ok: false };
@@ -214,6 +224,7 @@ export function setupWebviewRegistryIpc(): void {
       register(
         { workspaceId: payload.workspaceId, nodeId: payload.nodeId },
         payload.webContentsId,
+        payload.ready === true,
       );
       console.log(
         `[webview-registry] registered ${payload.workspaceId}::${payload.nodeId} → wc#${payload.webContentsId} (${registry.size} total)`,

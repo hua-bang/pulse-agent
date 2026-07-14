@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
+import { Button, TextField } from '../ui';
 import './settings-config.css';
 
 interface Props {
@@ -286,6 +287,8 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
     >
       {dragOver && <div className="cfg-drop-overlay">{t('skillsConfig.dropHere')}</div>}
       <div className="cfg-toolbar">
+        {/* Hidden, programmatically-triggered file picker — no visible label/
+         * chrome for ui/TextField to replace. */}
         <input
           ref={fileInputRef}
           type="file"
@@ -297,116 +300,101 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
             if (file) void handleFile(file);
           }}
         />
-        <button
-          type="button"
-          className="cfg-secondary-btn"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => setMdText(mdText === null ? '' : null)}
           disabled={importing || draft !== null}
         >
           {t('skillsConfig.importMd')}
-        </button>
-        <button
-          type="button"
-          className="cfg-secondary-btn"
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => fileInputRef.current?.click()}
           disabled={importing || draft !== null || mdText !== null}
         >
           {importing ? t('skillsConfig.importing') : t('skillsConfig.importZip')}
-        </button>
-        <button
-          type="button"
-          className="cfg-secondary-btn"
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => setDraft({ ...EMPTY_DRAFT })}
           disabled={draft !== null || importing || mdText !== null}
         >
           + {t('skillsConfig.add')}
-        </button>
+        </Button>
       </div>
 
       {mdText !== null && (
         <div className="cfg-form">
-          <label className="cfg-field">
-            <span>{t('skillsConfig.importMdLabel')}</span>
-            <textarea
-              className="cfg-textarea"
-              rows={10}
-              value={mdText}
-              placeholder={t('skillsConfig.importMdPlaceholder')}
-              spellCheck={false}
-              autoFocus
-              onChange={(e) => setMdText(e.target.value)}
-            />
-            <div className="cfg-toolbar-hint" style={{ flex: 'none', marginTop: 4 }}>
-              {t('skillsConfig.importMdHint')}
-            </div>
-          </label>
+          <TextField
+            label={t('skillsConfig.importMdLabel')}
+            multiline
+            rows={10}
+            className="cfg-textarea-mono"
+            value={mdText}
+            placeholder={t('skillsConfig.importMdPlaceholder')}
+            spellCheck={false}
+            autoFocus
+            onChange={(e) => setMdText(e.target.value)}
+            hint={t('skillsConfig.importMdHint')}
+          />
           <div className="cfg-form-actions">
-            <button
-              type="button"
-              className="cfg-secondary-btn"
-              onClick={() => setMdText(null)}
-              disabled={importing}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setMdText(null)} disabled={importing}>
               {t('skillsConfig.cancel')}
-            </button>
-            <button
-              type="button"
-              className="cfg-primary-btn"
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => void runPasteImport(mdText)}
               disabled={importing || !mdText.trim()}
             >
               {importing ? t('skillsConfig.importing') : t('skillsConfig.save')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {draft && (
         <div className="cfg-form">
-          <label className="cfg-field">
-            <span>{t('skillsConfig.name')}</span>
-            <input
-              className="cfg-input"
-              value={draft.name}
-              placeholder={t('skillsConfig.namePlaceholder')}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            />
-          </label>
-          <label className="cfg-field">
-            <span>{t('skillsConfig.description')}</span>
-            <input
-              className="cfg-input"
-              value={draft.description}
-              placeholder={t('skillsConfig.descriptionPlaceholder')}
-              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-            />
-          </label>
-          <label className="cfg-field">
-            <span>{t('skillsConfig.body')}</span>
-            <textarea
-              className="cfg-textarea"
-              rows={10}
-              value={draft.body}
-              placeholder={t('skillsConfig.bodyPlaceholder')}
-              spellCheck={false}
-              onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-            />
-          </label>
+          <TextField
+            label={t('skillsConfig.name')}
+            value={draft.name}
+            placeholder={t('skillsConfig.namePlaceholder')}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          />
+          <TextField
+            label={t('skillsConfig.description')}
+            value={draft.description}
+            placeholder={t('skillsConfig.descriptionPlaceholder')}
+            onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+          />
+          <TextField
+            label={t('skillsConfig.body')}
+            multiline
+            rows={10}
+            className="cfg-textarea-mono"
+            value={draft.body}
+            placeholder={t('skillsConfig.bodyPlaceholder')}
+            spellCheck={false}
+            onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+          />
           <div className="cfg-form-actions">
-            <button type="button" className="cfg-secondary-btn" onClick={() => setDraft(null)} disabled={saving}>
+            <Button variant="secondary" size="sm" onClick={() => setDraft(null)} disabled={saving}>
               {t('skillsConfig.cancel')}
-            </button>
-            <button type="button" className="cfg-primary-btn" onClick={() => void save()} disabled={saving}>
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving}>
               {saving ? t('skillsConfig.saving') : t('skillsConfig.save')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {showSearch && (
-        <input
+        <TextField
           type="search"
-          className="cfg-input cfg-search"
+          className="cfg-search"
           placeholder={t('skillsConfig.search')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -434,9 +422,9 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
               </div>
               {skill.writable && (
                 <div className="cfg-list-actions">
-                  <button
-                    type="button"
-                    className="cfg-secondary-btn"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() =>
                       setDraft({
                         originalName: skill.name,
@@ -447,10 +435,10 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
                     }
                   >
                     {t('skillsConfig.edit')}
-                  </button>
-                  <button type="button" className="cfg-danger-btn" onClick={() => void remove(skill.name)}>
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={() => void remove(skill.name)}>
                     {t('skillsConfig.delete')}
-                  </button>
+                  </Button>
                 </div>
               )}
             </li>

@@ -2,6 +2,9 @@
 
 > 交接文档:任务卡自包含,执行者(人或 Coding Agent)无需全局上下文即可开工。
 > 体系与指标口径见 `program.md`(SSOT);发现明细见 `../docs/performance-analysis-consolidated.md`(+round3,含 file:line 与修法);操作流见 `.pulse-coder/skills/perf-report/SKILL.md`。
+> 2026-07-11 新增体积专项交接:`bundle-optimization-plan.md`。涉及 minify、
+> lazy boundary、Renderer/Main 依赖分类或安装包瘦身时，以该文档的当前审计与
+> 任务拆分为入口；正式指标/阈值仍分别回写 `program.md`/`baselines.json`。
 > 计划制定于 2026-07-04,基线 commit `4c937bb`。
 
 ## 目标与完成判据
@@ -22,7 +25,7 @@
 
 | 判据 | 状态 | 证据 |
 |---|---|---|
-| 1. 六专项全有实测 | **5/6** | 仅「AI 流式」全灰(chat.stream.* ×3 未建,需 mock 回放评审);覆盖 26/34 指标 |
+| 1. 六专项全有实测 | **6/6** | AI 流式确定性回放已接入;六专项均有真实链路实测 |
 | 2. CI 每 PR 跑门禁 | **已建,待绿灯确认** | perf.yml 在跑;经 4 轮修复(--no-sandbox → stderr 透出 → build:core → lazy 等待)后最新一轮结果未确认 |
 | 3. 七个头部修复 | **3/5 项达标** | 入口 4618→**1329KB**(超额达成 ≤1500)✅;打字 121→**3** ✅;B5 welcome 占位 ✅;拖拽 91 ❌(B7);隐藏轮询 ❌(B3);会话持久化 ❌(B4,测量已就位) |
 | 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
@@ -37,7 +40,15 @@
 
 **A4 完成记录(2026-07-05)**:`run-scenarios.mjs` 新增 `panzoomScenario`——平移用无修饰键的 wheel(app 的 `useCanvas.ts handleWheel` 把无 ctrl/meta 的 wheel delta 直接当 transform 平移量),缩放用 ctrl+wheel(CDP Input 域 modifiers 位 2 = Ctrl)。**踩了一个坑**:100 节点场景下 seed 完会自动 fit-to-view,缩放到能塞下所有节点的比例——此时随手挑的 5 个角落候选点全部踩在某个节点/webview 上,wheel 事件被节点自己的滚动/webview 内部处理"吃掉"、根本到不了画布级 handler(用真实 CDP 会话确认:同样坐标下,直接对 `.canvas-container` 原生 dispatchEvent 能让 transform 变化,但走节点覆盖的坐标就不行)。改用真正的网格扫描(`findBlankCanvasPoint`,一次 evaluate 里扫 viewport 网格找 `elementFromPoint` 不落在任何 `.canvas-node`/webview/sidebar 上的点)才稳定找到空白区。**另一个诚实的发现**:wheel/scroll 事件不在 Event Timing API 的"离散交互"集合里(规范只认 pointerdown/up、click、keydown/up 等),所以 `interactions.p95`(INP)对纯 wheel 手势**结构性恒为 0**——不是 bug,是这个指标定义本身对这类交互不适用。已经把 `interact.panzoom.inp_p95_ms` 降级为 record 级(不再是 warn)并如实写了原因,新增 `interact.panzoom.frames_over20_pct`(warn 级)作为这个场景真正有信号的指标——实测帧超率在首次手势后能稳定捕捉到非零值(受 JIT/首次布局的冷启动影响,首个 repeat 明显更高,和 typing/drag 已有的模式一致)。覆盖率 26→28/35。674 测试全过。
 
-**B2 完成记录(2026-07-05,仅 S 步,M 步有意延后)**:`ImageNodeBody` 的 `<img>` 补了 `decoding="async"`(避免大图解码阻塞主线程)+ `loading="lazy"`(画布节点靠 CSS transform 定位而非虚拟滚动,`getBoundingClientRect` 会正确反映 pan 后的真实屏幕位置,浏览器原生的视口判定对此有效——不需要自建视口裁剪就能让离屏图片延后加载)。真实 CDP 会话验证:图片正常渲染(`complete:true`,natural 尺寸正确,无 error 状态),截图确认视觉无异常。**M 步(生成缩略图 sidecar、放大才读原图)有意没做**——原因:临近本轮收尾/合并,M 步要动主进程新写文件管道(`nativeImage.resize` + sidecar 生命周期:创建、图片替换时失效、sidecar 缺失兜底),属于更大的改动面和更高的正确性风险(错了会有陈旧缩略图/竞态问题),不适合在准备合并的节点仓促下手。研究阶段已确认技术可行(`nativeImage` 已被 `file.copyImage` 用过,全屏/lightbox 入口已存在),留给下一轮任务,`memory.image.decoded_mb` 指标待那时一起建。
+**B2 完成记录(2026-07-10,S+M 完成)**:`ImageNodeBody` 保留 `decoding="async"` + `loading="lazy"`,并新增主进程 `nativeImage.resize` sidecar 管线。普通画布等待 960px preview 就绪后才挂 `<img>`(不先瞬时解码原图),全屏切回原图;源路径 + size + mtime 指纹负责失效,metadata 让 cache hit 不再打开原图,旧指纹 sidecar 自动清理,生成失败回退原图。并发生成串行且每张之间让出 event loop,10 图 burst 的 main loop-delay max 从 246.7ms 降到 55.6ms。新增自包含 `image-memory` 场景与 `memory.image.decoded_mb`:10×4000×3000 原图估算 457.8MB,preview 实测 26.4MB,下降 17.4×;真实 CDP 另验证普通画布 natural size 960×720、全屏恢复 4000×3000。
+
+**AI 流式完成记录(2026-07-10)**:新增仅在 `PULSE_CANVAS_PERF=1` 可触发的本地确定性回放,521 个 delta 走真实 IPC、`useChatStream` 和 Markdown/Mermaid 渲染链路。文本 delta 以 32ms 视觉窗口合并,流式 Markdown 全量渲染从 374 次降到 64 次(下降 82.9%),frames>20ms 从 0.7% 降到 0.3%,Mermaid tail 0.8ms;`chat-md-stream-render ≤80` 与 commit 同步设为 gate。
+
+**指标补全记录(2026-07-10)**:dashboard 最后 3 个缺口已接通。Welcome 内容最初由 guest `dom-ready` 计算开窗后耗时，2026-07-11 已改为本地 HTML 的 `welcome:local-content-ready`；AI mock turn 在 temp HOME 中走真实 `SessionStore` 持久化,稳定产生 `main.session_persist.bytes_per_turn`;新增双真实 PTY 定速流场景,统计 renderer 收到的 `pty:data` IPC/s。
+
+**CDP trace 诊断补全(2026-07-10)**:复用现有 Electron harness 的动态 CDP 端口,完整报告在 100 节点业务场景之后额外执行一次明确命名的 warm renderer reload。采集 lab LCP/CLS、FCP→Canvas blocking time、Task/Script/RecalcStyle/Layout duration,并产出 `renderer-trace-summary.json` + 可由 DevTools/Perfetto 下钻的 `renderer-trace.json.gz`。核心 coverage 与 diagnostic coverage 已拆开:trace 不支持/丢数据会如实显示 unavailable/invalid,但不会伪造 0 或打红现有核心报告。MCP 只作为交互式分析层,不进入 CI 的可复现采集链。
+
+**指标可信度补全(2026-07-10)**:对“数值为 0”逐项补齐样本契约。Pan/Zoom 不再输出结构性无样本的 wheel INP,改为每轮 50 个 wheel→next-frame 样本并同时断言 Canvas transform 已变化;交互帧窗口在动作结束的双 rAF 后冻结,同时保留 repeat 中位数、单轮最差值与慢帧计数。AI 流式通过真实节点拖拽制造 settled Markdown 重渲,单独记录 cache hits/opportunities,机会为 0 时 ratio 直接 unavailable。workspace heap 场景改为 ≥8 个等节点 workspace,只对 active+3 LRU 达容量后的尾部样本回归,并记录节点数、尾部样本数与挂载峰值;CDP/heap 失败或非正值一律报错,不再兜底成 0。warm trace 新增 Canvas→LCP blocking、Long Task count/max 与 layout-shift count/top entries,同时修正 blocking 区间为长任务 50ms 以后部分和目标窗口的真实交集。旧任务卡里的 `interact.panzoom.inp_p95_ms` 与全程 `memory.ws_cycle.heap_slope` 仅保留为历史记录,当前 SSOT 已分别由 `interact.panzoom.wheel_to_next_frame_p95_ms` 与 `memory.ws_cycle.post_capacity_heap_slope` 取代。完整 100 节点、repeat 3 实测:wheel→下一帧 0.3ms,缓存 2 hits / 4 opportunities,容量后 5 个堆样本 169.9→170.2MB(斜率 0.1MB/ws,挂载峰值 4),Canvas→LCP 阻塞 73ms,Long Task 1 次/最大 123ms;11/11 门禁、core 50/50、diagnostic 11/11。
 
 **B4 完成记录(2026-07-05)**:`session-store.ts` 的 `persist()` 之前直接 `writeFile(currentPath, ...)`——非原子(无 tmp+rename)、多次调用互相竞态(尤其 `loadCrossWorkspaceSession` 循环对每条历史消息都调一次 `addMessage`→`persist()`,N 条消息 = N 个几乎同时的整文件写并发抢占同一路径)。参照仓库已有的 `agent-teams/store.ts` persistQueue 模式:加 `persistQueue: Promise<void>` 串行链(`writeSessionFile` 用 `${path}.${pid}.${uuid}.tmp` 唯一临时名 + `rename` 原子提交);`archiveCurrentIfExists`(被 `startSession`/`archiveSession` 调用)现在会先 `await` 这个队列再读/删 current.json,避免旧 session 的迟到写入在归档后把文件复活。`loadCrossWorkspaceSession` 循环里的 N 次 `addMessage` 改成新增的 `setMessages()` 批量赋值+单次 persist,N 次整文件写降为 1 次。**顺手做的可测试性改进**:`STORE_DIR` 从模块顶层 const(基于 `homedir()`,导入时就固定,没法 mock)改成读环境变量 `PULSE_CANVAS_SESSION_STORE_DIR` 的惰性函数——之前这个文件零测试覆盖,改完直接可以用临时目录跑真实文件系统测试,不用引入新的 mock 基建。新增 `src/main/agent/__tests__/session-store.test.ts`(3 个用例,覆盖并发 addMessage 不丢消息/无残留 tmp 文件、setMessages 单次持久化、以及归档时序不被迟到写入破坏),全部通过。`main.session_persist.bytes_per_turn` 这个指标本身仍未取得稳定实测值(需要真实 agent turn,当前沙箱没有可用的模型 API key,超出本次修复范围)。674 测试全过(baseline `session-store.ts` 561→605 行)。
 
@@ -49,7 +60,9 @@
 
 **B7 完成记录(2026-07-05)**:根因是 `useNodeDrag.ts` 的 `flushDragMove` 每个 pointer-move 都调用 `moveNode`/`moveNodes`,后者 `.map()` 克隆全量 nodes 数组 + 跑 `resizeGroupsToChildren`,触发 `Canvas/index.tsx` 的 `useCanvasRenderOrder` 等 O(n) 派生重算——`CanvasNodeView` 虽已 `React.memo`(按 `node` 引用比较)避免逐节点重渲染,但父级级联仍是每帧 O(n)。修法:手势期只更新一个 ephemeral `dragOffset:{dx,dy}` state(不碰 nodes 数组),`getNodeWrapperStyle(node, dragOffset)` 把偏移叠加到被拖拽节点的 transform 上;`CanvasNodeView` 的 memo 比较器新增 `dragOffset` 字段,使非拖拽节点(dragOffset 恒为 null)继续跳过重渲染,只有当前被拖节点每帧重渲染。`onDragEnd` 时才用最终位置调用一次 `moveNode`/`moveNodes` 提交真实数组;`onDragCancel`(Esc 中断)简化为纯状态清空——数组从未被动过,不需要"复原"。实测:`drag.nodes-array-replace` 91(90 步)→ **2**(3×90 步),连续两轮稳定;真实 CDP 拖拽验证(mid-drag transform 与 drop 后 transform 完全一致,无跳变);671 测试全过;baseline `drag.nodes-array-replace.max` 100→10 锁定收益(该 perf 门禁本身就是这类回归的护栏,未额外造 hook 单测基建)。
 
-**A3 完成记录(2026-07-05)**:两条独立的 repeat 机制——① `report.mjs --repeat N`(默认 3)多次整机启动,仅 startup 阶段做跨启动同机中位数(`mergeStartupMedians`),清掉了 whenReady/openWindow/domReady 的波动告警;② `run-scenarios.mjs --repeat N` 在同一 session 内重跑 typing/drag(计数器取 max,INP p95/frames>20% 取中位数)。`main.loop_delay_max_ms` **未**做重复稳定化——它本质是单次最坏值统计,重复整机启动的收益有限,该告警若复现,遵循规则本身的建议"重跑确认"即可。`main.canvas_save.files_written` / `main.session_persist.bytes_per_turn` 覆盖率仍不稳定(依赖 debounce 计时器是否在 session 关闭前落地),这是 c296930 引入时就有的既存偶发缺口,与本次改动无关,未在本次修复范围内。
+**B9/V2 完成记录(2026-07-10)**:节点调整尺寸复用 B7 的 ephemeral 思路——8 个方向的几何统一由 `computeNodeResizeGeometry` 计算,pointer-move 只更新含 `x/y/width/height` 的 `resizePreview`;节点、连接边和手势 HUD 都读取预览,mouseup 才调用一次 `resizeNode`,回到原点或 Esc 取消不写 history/save。文本节点的 `autoSize:false` 也合并进同一次 geometry commit,不会在 mousedown 提前写 history/save。新增 CDP `resize` 场景(每轮 90 moves)及 INP、帧超率、nodes-array-replace、canvas-save-ipc 四项指标;3 轮 raw 实测为 **整数组替换 [1,1,1]、保存 IPC [2,1,1]、帧超 20ms 中位数 0%**,两项 counter gate 均通过。保存计数窗口会在 begin 前排空旧 debounce、end 前等待当前保存,并拒绝任一空跑 repeat。同时修复报告可信度:每轮先清掉旧 `scenarios-report.json`,完整报告启动失败、空/损坏场景、缺 gate 配置/值或 gate 失败都 exit 1,只有显式 `--bundle-only` 可无 runtime;失败 gate 会进入 report.json 的 HIGH 告警,不再出现命令失败但看板假绿。最终 `perf:report --no-build` 为 **10/10 门禁通过、32/39 指标覆盖、仅 1 条 AI 流式未采 info**。
+
+**A3 完成记录(2026-07-05)**:两条独立的 repeat 机制——① `report.mjs --repeat N`(默认 3)多次整机启动,仅 startup 阶段做跨启动同机中位数(`mergeStartupMedians`),清掉了 whenReady/openWindow/domReady 的波动告警;② `run-scenarios.mjs --repeat N` 在同一 session 内重跑 typing/resize/drag(计数器取 max,INP p95/frames>20% 取中位数)。`main.loop_delay_max_ms` **未**做重复稳定化——它本质是单次最坏值统计,重复整机启动的收益有限,该告警若复现,遵循规则本身的建议"重跑确认"即可。`main.canvas_save.files_written` / `main.session_persist.bytes_per_turn` 覆盖率仍不稳定(依赖 debounce 计时器是否在 session 关闭前落地),这是 c296930 引入时就有的既存偶发缺口,与本次改动无关,未在本次修复范围内。
 
 ## 第二期任务队列(交接就绪,按优先级)
 
@@ -64,11 +77,11 @@
 4. ~~**B8 · H1 LRU 驱逐**~~:见上方「B8 完成记录」。14.5→3.3-3.4 MB/ws,有活跃终端的 workspace 豁免驱逐(用户已确认)。
 5. ~~**B3 · 隐藏工作区轮询门控**~~:见上方「B3 完成记录」。隐藏时轮询计数器归零,已用真实 CDP 会话验证。
 6. ~~**B4 · 会话持久化队列+原子写**~~:见上方「B4 完成记录」。tmp+rename 原子写 + persistQueue 串行 + `loadCrossWorkspaceSession` 批量化,3 个新单测覆盖并发/归档时序。
-7. **B2 · 图片解码/缩略图** — S 步已完成(见上方「B2 完成记录」),**M 步(缩略图 sidecar)待认领**:生成节点尺寸缩略图 + 全屏才读原图 + `memory.image.decoded_mb` 指标,预估收益一个数量级(round3 估算),需要新写主进程文件管道,建议单独一个 PR 做,不要和临近合并的改动混在一起。
+7. **B2 · 图片解码/缩略图** — S+M 已完成(见上方「B2 完成记录」),后续只在积累同机历史后评估是否将 `memory.image.decoded_mb` 从 record 升级为 gate。
 
-**P2 · 测量补全(填剩余 6 个未建指标中的 4 个)**
+**P2 · 测量补全(当前字典 50 项 core + 11 项 diagnostic)**
 8. ~~**A4 · pan/zoom 场景**~~ → 见下方「A4 完成记录」。
-9. **M1(新)· welcome webview 指标**:B5 修复已上线但 `startup.welcome_webview_ms` 未建;在 useDeferredVisibleMount 挂载点补一个 mark,证明其保持在关键路径外。
+9. ~~**M1(新)· Welcome 内容指标**~~:本地 HTML iframe `load` 记录 `welcome:local-content-ready`，隔离启动实测 120.1ms；远程下载页仅在用户点击时打开。
 10. **M2(新)· RSS 隔离**:`memory.n100.total_rss_mb` 目前是跨窗口 run-peak(含 ws-cycle 5 workspace,c296930 已注明);把采样窗口限定到 100 节点单 workspace 段,或拆独立场景。
 11. ~~**A5 · treemap 归因**~~:见下方「A5 完成记录」。**C8 评估**(i18n zh 文案是否值得 lazy):A5 数据显示入口内 app own code 高达 1090KB(远超所有 node_modules 依赖总和 ~160KB),i18n 文案只是这 1090KB 里的一小部分——C8 单独做收益有限,真正的下一刀应该是分析 app own code 内部构成(路由级代码分割),而不是挑 i18n 一个文件下手。
 
@@ -80,8 +93,8 @@
 16. **D5 · AI 总结层**(可选,默认关,永不进门禁)。
 
 **深水区(先要决策,勿直接开工)**
-- **AI 流式专项**(chat.stream.* ×3):唯一全灰专项;需先评审 mock 流回放的侵入面并取得用户同意。
-- `main.pty.ipc_per_sec`:被 node-pty Electron ABI 阻塞,与终端流式场景一起评估。
+- **AI 流式专项**:确定性 mock 仅在 `PULSE_CANVAS_PERF=1` 激活,真实 IPC/UI 链路、帧超率、Markdown 渲染次数与 Mermaid tail 均已覆盖。
+- `main.pty.ipc_per_sec`:ABI 已在真实 Electron 场景验证可用;双 PTY 定速输出场景已接入默认报告。
 - 视口裁剪完全体:决策 #1 已出专项,不在本期。
 
 ## Sprint 划分
@@ -150,7 +163,7 @@
 ### B5 · 修 D1:welcome webview 占首屏 〔S-M〕★首发
 - **背景**:D1(high)。`main/canvas/welcome-workspace.ts:205` 首启画布挂外部 URL live webview(沙箱截图可见其错误卡)。
 - **做法**:默认渲染占位卡片,IntersectionObserver 进视口或 idle 后再挂真 webview。
-- **验收**:`startup.welcome_webview_ms` 移出关键路径;冷启 dom-ready 不回归(A3 中位数对比)。
+- **验收**:`startup.welcome_local_content_ms` 使用本地 HTML，移除 Guest WebContents 与远程导航启动依赖。
 
 ### B6 · C 维第一批:重依赖出 entry 〔M-L,依赖 A5〕
 - **背景**:C1-C6(入口 4,618KB,目标 ≤1,500)。全仓唯一懒边界是 mermaid,模式可复制(`chat/utils/mermaid.ts`)。

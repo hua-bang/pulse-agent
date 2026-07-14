@@ -1,7 +1,8 @@
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../types';
+import type { BrowserLoadState } from '../EmbeddedBrowser/types';
 
 export type EditMode = 'url' | 'html' | 'ai';
-export type LoadState = 'idle' | 'loading' | 'ready' | 'failed';
+export type LoadState = BrowserLoadState;
 
 export interface IframeNodeBodyProps {
   node: CanvasNode;
@@ -11,9 +12,4 @@ export interface IframeNodeBodyProps {
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   readOnly?: boolean;
-}
-
-export interface WebviewTag extends HTMLElement {
-  getWebContentsId(): number;
-  reload(): void;
 }

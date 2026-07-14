@@ -20,7 +20,8 @@
 
 export type DockPreviewTab =
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
-  | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string };
+  | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string }
+  | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string };
 
 export interface DockTerminalTab {
   id: string;
@@ -66,6 +67,9 @@ export const isTerminalTabId = (id: string): boolean =>
 export const artifactTabId = (workspaceId: string, artifactId: string): string =>
   `artifact:${workspaceId}:${artifactId}`;
 
+export const nodeDetailTabId = (workspaceId: string, nodeId: string): string =>
+  `node-detail:${encodeURIComponent(workspaceId)}:${encodeURIComponent(nodeId)}`;
+
 export const linkTabId = (url: string): string => {
   let hash = 2166136261;
   for (let i = 0; i < url.length; i += 1) {
@@ -91,6 +95,7 @@ const INITIAL: DockState = {
 export class DockStore {
   private state: DockState = INITIAL;
   private listeners = new Set<() => void>();
+  private nextLinkOrdinal = 1;
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -158,6 +163,21 @@ export class DockStore {
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
   }
 
+  openNodeDetail(workspaceId: string, nodeId: string, title: string): void {
+    const id = nodeDetailTabId(workspaceId, nodeId);
+    const existing = this.state.tabs.find((tab) => tab.id === id);
+    if (existing) {
+      this.commit({
+        tabs: this.state.tabs.map((tab) => (tab.id === id ? { ...tab, title } : tab)),
+        activeTabId: id,
+        expanded: true,
+      });
+      return;
+    }
+    const tab: DockPreviewTab = { id, kind: 'node-detail', title, workspaceId, nodeId };
+    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+  }
+
   openLink(url: string): void {
     const trimmedUrl = url.trim();
     if (!trimmedUrl) return;
@@ -180,6 +200,29 @@ export class DockStore {
     }
     const tab: DockPreviewTab = { id, kind: 'link', title: trimmedUrl, url: trimmedUrl };
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: tab.id, expanded: true });
+  }
+
+  /** Create an empty browser tab. Unlike openLink, blank tabs are never deduped. */
+  newLink(title = 'New tab'): void {
+    let id = `${LINK_TAB_ID}:new:${this.nextLinkOrdinal}`;
+    this.nextLinkOrdinal += 1;
+    while (this.state.tabs.some((tab) => tab.id === id)) {
+      id = `${LINK_TAB_ID}:new:${this.nextLinkOrdinal}`;
+      this.nextLinkOrdinal += 1;
+    }
+    const tab: DockPreviewTab = { id, kind: 'link', title, url: '' };
+    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+  }
+
+  navigateLink(id: string, url: string): void {
+    const trimmed = url.trim();
+    const tab = this.state.tabs.find((item) => item.id === id);
+    if (!trimmed || tab?.kind !== 'link') return;
+    this.commit({
+      tabs: this.state.tabs.map((item) => (
+        item.id === id ? { ...item, url: trimmed, title: trimmed, faviconUrl: undefined } : item
+      )),
+    });
   }
 
   /** Switch to an existing tab (chat, workspace terminal, or preview). Viewing chat clears unread. */

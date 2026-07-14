@@ -18,6 +18,7 @@ import { useAppShell } from '../AppShellProvider';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
+import { dispatchOpenNodePage } from '../../utils/openNodeBridge';
 
 // Heavy node bodies are React.lazy so xterm (terminal/agent bodies) and
 // tiptap/prosemirror + lowlight (text/file bodies) stay out of the eagerly-
@@ -25,10 +26,10 @@ import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
 // type; the canvas is keepAlive, so subsequent same-type nodes render
 // synchronously. Light bodies (iframe/dynamic-app/plugin) stay static.
 const AgentNodeBody = lazy(() => import('../AgentNodeBody').then((m) => ({ default: m.AgentNodeBody })));
-const FileNodeBody = lazy(() => import('../FileNodeBody').then((m) => ({ default: m.FileNodeBody })));
+const FileNodeBody = lazy(() => import('../FileNodeBodyLazy').then((m) => ({ default: m.FileNodeBodyLazy })));
 const FrameNodeBody = lazy(() => import('../FrameNodeBody').then((m) => ({ default: m.FrameNodeBody })));
 const TerminalNodeBody = lazy(() => import('../TerminalNodeBody').then((m) => ({ default: m.TerminalNodeBody })));
-const TextNodeBody = lazy(() => import('../TextNodeBody').then((m) => ({ default: m.TextNodeBody })));
+const TextNodeBody = lazy(() => import('../TextNodeBodyLazy').then((m) => ({ default: m.TextNodeBodyLazy })));
 
 interface DefaultCanvasNodeProps {
   classes: string;
@@ -60,7 +61,7 @@ interface DefaultCanvasNodeProps {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onRemoveNodes?: (ids: string[]) => void;
   onUngroupSelectedGroups?: () => void;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   readOnly: boolean;
   renderMode?: CanvasNodeRenderMode;
   relativeTime: string | null;
@@ -181,6 +182,11 @@ export const DefaultCanvasNode = ({
     })();
   }, [node.id, node.title, notify, onAddDomSelectionToChat, pluginElementPickerActive, workspaceId]);
 
+  const handleOpenDetail = useCallback((event: MouseEvent) => {
+    event.stopPropagation();
+    dispatchOpenNodePage({ workspaceId: workspaceId ?? '', nodeId: node.id });
+  }, [node.id, workspaceId]);
+
   const frameTitleOnly = node.type === 'frame' && renderMode === 'frame-title';
   const frameBodyOnly = node.type === 'frame' && renderMode === 'frame-body';
   const nodeClasses = [
@@ -195,6 +201,7 @@ export const DefaultCanvasNode = ({
       handleClose={handleClose}
       handleFocus={handleFocus}
       handleHeaderMouseDown={handleHeaderMouseDown}
+      handleOpenDetail={handleOpenDetail}
       handlePluginSelectElement={handlePluginSelectElement}
       handleReference={handleReference}
       handleAddToChat={handleAddToChat}
@@ -250,6 +257,7 @@ export const DefaultCanvasNode = ({
             node={node}
             onUpdate={onUpdate}
             isSelected={isSelected}
+            isResizing={isResizing}
             onSelect={onSelect}
             onDragStart={onDragStart}
             readOnly={readOnly}

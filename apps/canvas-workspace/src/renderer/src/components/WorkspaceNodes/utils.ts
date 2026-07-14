@@ -1,4 +1,4 @@
-import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
+import type { CanvasNode, KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
 import type { I18nKey } from '../../i18n';
 
 export const NODE_TYPE_LABEL_KEYS: Record<string, I18nKey> = {
@@ -46,7 +46,9 @@ export function getNodeTypeLabel(
   return type;
 }
 
-export function isKnowledgeNodeType(type: string | undefined): boolean {
+export type KnowledgeNodeType = Extract<CanvasNode['type'], 'text' | 'file' | 'iframe' | 'image' | 'mindmap'>;
+
+export function isKnowledgeNodeType(type: string | undefined): type is KnowledgeNodeType {
   return type === 'text'
     || type === 'file'
     || type === 'iframe'
@@ -76,6 +78,14 @@ export function getNodeSummary(node: WorkspaceNodeListItem | WorkspaceNodeRecord
     if (typeof value === 'string' && value.trim()) return value;
   }
   return '';
+}
+
+export function getNodeAiSummary(node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined): string {
+  if (!node) return '';
+  if ('aiSummary' in node && typeof node.aiSummary === 'string' && node.aiSummary.trim()) return node.aiSummary;
+  if (!('properties' in node)) return '';
+  const summary = node.properties?.aiSummary;
+  return typeof summary === 'string' ? summary.trim() : '';
 }
 
 export function getNodeWorkspaceId(node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined): string {

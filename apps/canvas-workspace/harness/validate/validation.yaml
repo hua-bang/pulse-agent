@@ -8,6 +8,9 @@ pathRules:
       - tsconfig.json
       - tsconfig.node.json
       - electron.vite.config.ts
+    quick:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/main/__tests__/ui-reuse-governance.test.ts src/main/__tests__/file-size-governance.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
@@ -19,17 +22,56 @@ pathRules:
   - name: product-harness
     paths:
       - harness/tools/driver/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run harness/tools/driver/src/__tests__
     required:
       - pnpm --filter canvas-workspace test
+    manual:
+      - pnpm --filter canvas-workspace harness start --profile demo --reset --force --enable-webview-page-control --json
+      - pnpm --filter canvas-workspace harness verify-webview-input-focus --json
+      - pnpm --filter canvas-workspace harness close --cleanup --json
 
-  # Bundle + runtime perf gates (perf/program.md). Run by CI
-  # (.github/workflows/perf.yml) on every canvas-workspace PR; runnable
-  # locally with the same command.
+  # Static source-of-truth checks for the app's agent-tool registry, IPC
+  # handle/invoke pairs, canvas node union/factory, and storage schema parity.
+  # The canvas-cli mirror paths are bound by the root validation overlay.
+  - name: canvas-contract-snapshot
+    paths:
+      - src/main/**
+      - src/plugins/main/**
+      - src/preload/**
+      - src/shared/canvas.ts
+      - src/renderer/src/utils/nodeFactory.ts
+      - harness/tools/describe-canvas.mjs
+    required:
+      - node apps/canvas-workspace/harness/tools/describe-canvas.mjs
+
+  # This plain-React visual fixture has an isolated tsconfig and Linux-only
+  # screenshot baselines, so keep typechecking automatic and the pixel check
+  # explicit until a suitable Linux runner owns it.
+  - name: ui-showcase
+    paths:
+      - harness/tools/ui-showcase/**
+    required:
+      - pnpm --filter canvas-workspace exec tsc --noEmit -p harness/tools/ui-showcase/tsconfig.json
+    manual:
+      - pnpm --filter canvas-workspace visual
+
+  - name: performance-unit
+    paths:
+      - perf/**
+      - scripts/perf/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run scripts/perf
+
+  # Bundle + runtime perf gates (perf/program.md). CI runs the bundle gate on
+  # every canvas-workspace PR and reserves this full report for sensitive
+  # paths, explicit performance labeling, manual runs, and default-branch
+  # pushes. Locally it remains release-level evidence.
   - name: performance-sensitive
     paths:
       - src/**
       - electron.vite.config.ts
       - perf/**
       - scripts/perf/**
-    required:
+    release:
       - pnpm --filter canvas-workspace perf:report

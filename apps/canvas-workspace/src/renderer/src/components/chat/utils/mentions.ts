@@ -5,6 +5,7 @@ import type { MentionItem, WorkspaceOption } from '../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MENTION_RE, encodeMentionPart, pipedMentionLabel } from './mentionMarkers';
 import { readDomSelectionDataset, writeDomSelectionDataset } from './domMentionData';
+import { sessionTitleText } from './sessionTitle';
 
 function escapeHtml(value: string): string {
   return value
@@ -146,9 +147,10 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   // and the sent message renders them as clickable jump chips.
   if (isSession && item.sessionId && item.workspaceId) {
     const idx = typeof item.messageIndex === 'number' && item.messageIndex >= 0 ? String(item.messageIndex) : '';
+    const sessionLabel = sessionTitleText(item.label);
     chip.className = 'chat-mention-chip chat-mention-chip--input chat-mention-chip--session';
     chip.contentEditable = 'false';
-    chip.dataset.mention = `${SESSION_MENTION_PREFIX}${item.workspaceId}:${item.sessionId}:${idx}|${item.label}`;
+    chip.dataset.mention = `${SESSION_MENTION_PREFIX}${item.workspaceId}:${item.sessionId}:${idx}|${sessionLabel}`;
     chip.dataset.nodeType = 'session';
 
     const iconSpan = document.createElement('span');
@@ -158,7 +160,7 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
 
     const labelSpan = document.createElement('span');
     labelSpan.className = 'chat-mention-chip-label';
-    labelSpan.textContent = item.label;
+    labelSpan.textContent = sessionLabel;
     chip.appendChild(labelSpan);
     return chip;
   }
@@ -228,7 +230,7 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
 
 /**
  * Collect structured, workspace-aware context refs from the inline mention
- * chips a user inserted into the composer. Used by the global (Nodes/Graph)
+ * chips a user inserted into the composer. Used by the global Nodes/detail
  * assistant so cross-workspace `@`-mentions resolve precisely — node refs carry
  * their workspaceId, tags the workspaces they occur in, canvases their id.
  */

@@ -109,7 +109,7 @@
   z-index: 4;
   height: 26px;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.92);
   color: var(--agent-muted);
   font: 700 11px var(--agent-sans);
@@ -176,7 +176,7 @@
 .agent-team-lead-console__status {
   flex-shrink: 0;
   border: 1px solid #b8d4f3;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #e9f2ff;
   color: #285b95;
   padding: 3px 8px;
@@ -207,7 +207,7 @@
 
 .agent-team-lead-console__terminal .agent-card {
   border: 1px solid rgba(35, 131, 226, 0.14);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.82);
   box-shadow: 0 8px 22px rgba(31, 54, 88, 0.04);
 }
@@ -271,7 +271,7 @@
   gap: 5px;
   flex: 0 0 auto;
   padding: 3px 9px 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(15, 23, 42, 0.05);
   color: var(--agent-muted);
   font-size: 10px;
@@ -386,7 +386,7 @@
   height: 30px;
   margin-top: 2px;
   border: 1px solid rgba(35, 131, 226, 0.22);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(35, 131, 226, 0.06);
   color: var(--agent-accent);
   font: 800 12px var(--agent-sans);
@@ -415,7 +415,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 600;
   font-family: var(--agent-sans);
@@ -500,7 +500,7 @@
   gap: 8px;
   padding: 10px;
   border: 1px solid rgba(35, 131, 226, 0.12);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: rgba(247, 250, 255, 0.86);
 }
 
@@ -554,7 +554,7 @@
   height: 52px;
   padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--agent-text);
   font-size: 13px;
@@ -612,7 +612,7 @@
   gap: 6px;
   padding: 10px 11px;
   border: 1px solid var(--agent-warning-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--agent-warning-soft);
   color: #7c4a03;
   font-size: 12px;
@@ -635,7 +635,7 @@
   gap: 9px;
   padding: 11px;
   border: 1px solid rgba(35, 131, 226, 0.14);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: rgba(247, 250, 255, 0.86);
 }
 
@@ -721,7 +721,7 @@
   height: 36px;
   padding: 0 4px 0 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   transition: border-color 0.12s, box-shadow 0.12s;
 }
@@ -791,7 +791,7 @@
 .agent-recent-chip {
   padding: 2px 8px;
   border: 1px dashed var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: transparent;
   color: var(--agent-muted);
   font-size: 10px;
@@ -818,7 +818,7 @@
   min-height: 76px;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--agent-text);
   font-size: 13px;
@@ -870,7 +870,7 @@
   height: 40px;
   padding: 0 22px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--agent-accent);
   color: #ffffff;
   font-size: 14px;
@@ -903,7 +903,7 @@
   height: 40px;
   padding: 0 18px;
   border: 1px solid var(--agent-accent-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--agent-accent);
   font-size: 13px;
@@ -937,7 +937,7 @@
   gap: 10px;
   padding: 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   min-height: 36px;
   flex-shrink: 0;
@@ -1051,7 +1051,7 @@
   height: calc(100% * var(--canvas-scale, 1));
   transform: scale(calc(1 / var(--canvas-scale, 1)));
   transform-origin: top left;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #fafaf9;
   padding: 6px 4px 4px;
   overflow: hidden;
@@ -1091,7 +1091,7 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background:
     radial-gradient(
       circle at center,
@@ -1186,7 +1186,7 @@
   justify-content: space-between;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   font-family: var(--agent-sans);
 }
@@ -1241,7 +1241,7 @@
   padding: 10px 12px;
   background: var(--agent-warning-soft);
   border: 1px solid var(--agent-warning-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
 }
 
 .agent-warning-icon {
@@ -1267,7 +1267,7 @@
   font-family: var(--agent-sans);
   color: var(--agent-accent);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   transition: background 0.12s;
 }
 
@@ -1288,7 +1288,7 @@
   gap: 8px;
   padding: 10px 12px;
   border: 1px dashed var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface-hover);
   max-height: 200px;
   overflow-y: auto;
@@ -1370,7 +1370,7 @@
   font-size: 11px;
   line-height: 1;
   background: rgba(55, 53, 47, 0.06);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: rgba(55, 53, 47, 0.7);
 }

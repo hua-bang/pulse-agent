@@ -11,6 +11,7 @@ interface Props {
   node: CanvasNode;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   isSelected: boolean;
+  isResizing: boolean;
   onSelect: (id: string) => void;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   readOnly?: boolean;
@@ -41,7 +42,15 @@ interface Props {
  *    .node-body clips overflow.
  * ------------------------------------------------------------------------- */
 
-export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart, readOnly = false }: Props) => {
+export const TextNodeBody = ({
+  node,
+  onUpdate,
+  isSelected,
+  isResizing,
+  onSelect,
+  onDragStart,
+  readOnly = false,
+}: Props) => {
   const { t } = useI18n();
   const data = node.data as TextNodeData;
   const autoSize = data.autoSize !== false;
@@ -108,18 +117,20 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
     editor.commands.setContent(data.content || "", { emitUpdate: false });
   }, [editor, data.content]);
 
-  // First-mount: empty-content nodes drop straight into editing so typing
-  // works immediately without an extra double-click.
+  // Empty selected nodes drop straight into editing so typing works immediately
+  // after creation. Keep unselected empty nodes idle; otherwise every blank text
+  // node on the canvas mounts an editable ProseMirror instance and paints a
+  // stray caret/placeholder artifact.
   useEffect(() => {
     if (!editor) return;
-    if (!readOnly && data.content === "") {
+    if (!readOnly && isSelected && data.content === "") {
       setEditing(true);
       // Defer focus until editable=true has applied to the DOM.
       const t = setTimeout(() => editor.commands.focus(), 0);
       return () => clearTimeout(t);
     }
     return undefined;
-  }, [editor, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor, isSelected, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Deselection commits the edit — matches tldraw's click-away-to-finalize feel.
   useEffect(() => {
@@ -161,6 +172,7 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
   // content-driven only while `autoSize` is true; once the user drags the
   // right handle it becomes the authoritative wrap width.
   useLayoutEffect(() => {
+    if (isResizing) return;
     const el = wrapperRef.current;
     if (!el) return;
     if (!autoSize && node.height === el.offsetHeight) return;

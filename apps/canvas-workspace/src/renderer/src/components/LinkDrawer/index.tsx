@@ -9,16 +9,14 @@
  * `onTitleChange`.
  */
 
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useI18n } from "../../i18n";
+import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
+import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
-import { Button } from "../ui";
+import { normalizeUrl } from "../IframeNodeBody/utils";
+import { Button, TextField } from "../ui";
 import "./index.css";
-
-interface WebviewTag extends HTMLElement {
-  getWebContentsId(): number;
-  reload(): void;
-}
 
 interface LinkTabViewProps {
   url: string;
@@ -26,80 +24,65 @@ interface LinkTabViewProps {
   /** Page favicon, reported once the webview resolves it, so the tab icon
    *  follows the site instead of a hardcoded globe. */
   onFaviconChange?: (faviconUrl: string) => void;
+  /** Navigate this tab while preserving its stable tab identity. */
+  onNavigate: (url: string) => void;
 }
 
-export const LinkTabView = ({ url, onTitleChange, onFaviconChange }: LinkTabViewProps) => {
+export const LinkTabView = ({ url, onTitleChange, onFaviconChange, onNavigate }: LinkTabViewProps) => {
   const { t } = useI18n();
-  const hostRef = useRef<HTMLDivElement>(null);
-  const webviewRef = useRef<WebviewTag | null>(null);
-  const onTitleChangeRef = useRef(onTitleChange);
-  onTitleChangeRef.current = onTitleChange;
-  const onFaviconChangeRef = useRef(onFaviconChange);
-  onFaviconChangeRef.current = onFaviconChange;
+  const addressFormRef = useRef<HTMLFormElement>(null);
+  const [address, setAddress] = useState(url);
+  const browser = useEmbeddedBrowser({
+    className: 'link-drawer__webview',
+    onFaviconChange: (favicons) => {
+      const favicon = pickFaviconUrl(favicons);
+      if (favicon) onFaviconChange?.(favicon);
+    },
+    onNavigate: setAddress,
+    onTitleChange,
+    url,
+  });
 
-  // Imperatively mount a fresh `<webview>` whenever the URL changes. The
-  // element has to be created off-DOM with `allowpopups` already set,
-  // otherwise Electron's `connectedCallback` configures the guest with
-  // popups disabled (see IframeNodeBody for the full explanation of the
-  // React-18 + Electron timing issue).
-  useLayoutEffect(() => {
-    if (!url) return;
-    const host = hostRef.current;
-    if (!host) return;
-
-    const webview = document.createElement("webview") as WebviewTag;
-    webview.setAttribute("allowpopups", "");
-    webview.setAttribute("src", url);
-    webview.className = "link-drawer__webview";
-    const onPageTitleUpdated = (event: Event) => {
-      const title = (event as Event & { title?: string }).title;
-      if (title) onTitleChangeRef.current?.(title);
-    };
-    const onPageFaviconUpdated = (event: Event) => {
-      const favicon = pickFaviconUrl((event as Event & { favicons?: string[] }).favicons);
-      if (favicon) onFaviconChangeRef.current?.(favicon);
-    };
-    webview.addEventListener("page-title-updated", onPageTitleUpdated);
-    webview.addEventListener("page-favicon-updated", onPageFaviconUpdated);
-    host.appendChild(webview);
-    webviewRef.current = webview;
-
-    return () => {
-      webview.removeEventListener("page-title-updated", onPageTitleUpdated);
-      webview.removeEventListener("page-favicon-updated", onPageFaviconUpdated);
-      webview.remove();
-      if (webviewRef.current === webview) {
-        webviewRef.current = null;
-      }
-    };
+  // Keep the editable address synchronized with external tab navigation;
+  // EmbeddedBrowser owns the Electron guest lifecycle and in-page updates.
+  useEffect(() => {
+    setAddress(url);
+    if (!url) requestAnimationFrame(() => addressFormRef.current?.querySelector('input')?.focus());
   }, [url]);
 
-  const handleReload = useCallback(() => {
-    webviewRef.current?.reload();
-  }, []);
+  const handleNavigate = useCallback((event: FormEvent) => {
+    event.preventDefault();
+    const value = address.trim();
+    if (!value) return;
+    const nextUrl = /\s/.test(value)
+      ? `https://www.google.com/search?q=${encodeURIComponent(value)}`
+      : normalizeUrl(value);
+    onNavigate(nextUrl);
+  }, [address, onNavigate]);
 
   return (
     <>
       <header className="link-drawer__header">
-        <Button
-          variant="icon"
-          onClick={handleReload}
-          title={t('linkDrawer.reload')}
-          aria-label={t('linkDrawer.reload')}
-        >
-          <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
-            <path
-              d="M2 6a4 4 0 016.9-2.8L10 4M10 2v2.5H7.5M10 6a4 4 0 01-6.9 2.8L2 8M2 10V7.5h2.5"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </Button>
-        <div className="link-drawer__url" title={url}>{url}</div>
+        <BrowserNavigationButtons
+          canGoBack={browser.canGoBack}
+          canGoForward={browser.canGoForward}
+          onBack={browser.goBack}
+          onForward={browser.goForward}
+          onReload={browser.reload}
+        />
+        <form ref={addressFormRef} className="link-drawer__address-form" onSubmit={handleNavigate}>
+          <TextField
+            className="link-drawer__url"
+            value={address}
+            onChange={(event) => setAddress(event.target.value)}
+            onFocus={(event) => event.currentTarget.select()}
+            placeholder={t('linkDrawer.addressPlaceholder')}
+            aria-label={t('linkDrawer.addressLabel')}
+            spellCheck={false}
+          />
+        </form>
       </header>
-      <div ref={hostRef} className="link-drawer__webview-host" />
+      <div ref={browser.hostRef} className="link-drawer__webview-host" />
     </>
   );
 };

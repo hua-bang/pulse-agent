@@ -26,12 +26,13 @@ AGENTS.md / CLAUDE.md
 | Area | Path | Purpose |
 |---|---|---|
 | Harness design | `DESIGN.md` | Target shape for AGENTS.md + Knowledge / Tool / Validate / Skills across global and module scopes. |
-| Pilot status | `ROADMAP.md` | Current pilot status, honest gaps (no CI / no git hooks / no executable checks), and the keystone rollout plan. |
+| Pilot status | `ROADMAP.md` | Current pilot status, honest gaps (no automatic trigger or semantic checks), and the keystone rollout plan. |
 | Workspace membership | `../pnpm-workspace.yaml` | Machine-readable active workspace set. |
 | Root validation rules | `validate/validation.yaml` | Machine-readable root validation routing and escalation rules. |
 | Knowledge index | `knowledge/` | Index for the Knowledge surface — routes to existing knowledge SSOTs (root AGENTS, workspace AGENTS, workspace docs/contracts). |
 | Validate index | `validate/` | Index for the Validate surface — routes to root validation rules, workspace validation, checks, and run evidence. |
 | Tools | `tools/` | Harness tool index; wired executables live in `scripts/harness/` (runner + drift check). |
+| Skills | `skills/` | Stable repo action protocols; currently includes interactive harness visualization for root/package/app scopes. |
 
 ## Knowledge Routing
 
@@ -53,11 +54,26 @@ Keep source-of-truth routing lightweight and human-readable. Do not maintain a s
 
 ## Principles
 
+> "Everything should be made as simple as possible, but not simpler." — attributed to Einstein
+
+Both halves are load-bearing here: "as simple as possible" is the Occam/reuse-first rule (no parallel entries, no speculative assets, delete what stops earning its place); "but not simpler" is the honesty rule (do not pretend a doc line is a mechanism, do not delete complexity a real contract still needs).
+
 - Root entry files route; they do not duplicate workspace knowledge.
 - `pnpm-workspace.yaml` maps workspaces; workspace-local `harness/validate/validation.yaml` maps local checks; root `validate/validation.yaml` maps root config and cross-workspace impact. Keep other routing in Markdown until it proves stable enough to mechanize.
 - Workspace facts live near the workspace.
 - Add mechanical checks only after a rule proves stable enough to enforce.
 - Package-local harness directories are optional extension points, not required boilerplate.
+
+## Validation Levels
+
+The manual runner defaults to `--level quick` during iteration. Use
+`--level standard` when a workspace change is functionally complete and
+`--level release` for final performance or release evidence. `--all` defaults
+to `release`, so an explicit full sweep remains genuinely full.
+
+Workspace rules may provide `quick`, `required` (standard), and `release`
+command tiers. Untiered legacy rules keep their previous behavior at every
+level until that workspace deliberately adopts tiering.
 
 ## Pilot Coverage
 

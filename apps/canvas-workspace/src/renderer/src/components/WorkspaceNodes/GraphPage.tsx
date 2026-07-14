@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent as ReactKeyboardEvent,
   type MutableRefObject,
 } from 'react';
 import ForceGraph2D, {
@@ -15,24 +14,18 @@ import ForceGraph2D, {
   type NodeObject,
 } from 'react-force-graph-2d';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import type { WorkspaceNodeListItem } from '../../types';
-import type { SettingsSection } from '../Settings';
-import { NodeDetailDrawer } from './NodeDetailDrawer';
-import { NodesChatDock, useNodesChatDock } from './NodesChatDock';
+import type { KnowledgeNodeSelection, WorkspaceNodeListItem } from '../../types';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
-import { useClickOutside } from '../../hooks/useClickOutside';
-import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { DropdownShell } from '../ui';
+import { useRightDock } from '../RightDock';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
-  selectedNode?: { workspaceId: string; nodeId: string } | null;
-  onSelectNode?: (selection: { workspaceId: string; nodeId: string } | null) => void;
-  onOpenNode: (workspaceId: string, nodeId: string) => void;
-  /** When provided, docks the knowledge assistant into the page. */
-  onOpenAppSettings?: (section: SettingsSection) => void;
+  selectedNode?: KnowledgeNodeSelection | null;
+  onSelectNode?: (selection: KnowledgeNodeSelection | null) => void;
 }
 
 type GraphNodeKind = 'node' | 'tag' | 'missing' | 'workspace';
@@ -91,7 +84,7 @@ function nodeGraphId(workspaceId: string, nodeId: string): string {
   return `${workspaceId}:${nodeId}`;
 }
 
-function selectedGraphId(selectedNode?: { workspaceId: string; nodeId: string } | null): string | null {
+function selectedGraphId(selectedNode?: KnowledgeNodeSelection | null): string | null {
   if (!selectedNode) return null;
   return nodeGraphId(selectedNode.workspaceId, selectedNode.nodeId);
 }
@@ -200,16 +193,13 @@ export const GraphPage = ({
   workspaces,
   selectedNode,
   onSelectNode,
-  onOpenNode,
-  onOpenAppSettings,
 }: GraphPageProps) => {
   const { t } = useI18n();
+  const dock = useRightDock();
   const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastClickRef = useRef<{ nodeId: string; ts: number } | null>(null);
   const { nodes, tags, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
-  const dock = useNodesChatDock();
-  const showDock = Boolean(onOpenAppSettings);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [showTags, setShowTags] = useState(true);
   const [showLinks, setShowLinks] = useState(true);
@@ -220,18 +210,18 @@ export const GraphPage = ({
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(selectedGraphId(selectedNode));
   const [searchOpen, setSearchOpen] = useState(false);
-  const [overflowOpen, setOverflowOpen] = useState(false);
   const [showWorkspaceHubs, setShowWorkspaceHubs] = useState(true);
   // Off-canvas nodes (knowledge records with no matching canvas node — e.g.
   // stale/orphan records) are hidden by default; toggle to reveal them.
   const [showOffCanvas, setShowOffCanvas] = useState(false);
-  const overflowMenuId = useId();
   const searchListboxId = useId();
+  const overflowMenuId = useId();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchListboxRef = useRef<HTMLDivElement>(null);
-  const overflowRef = useRef<HTMLDivElement>(null);
+  // ui/DropdownShell owns the overflow menu's open state, click-outside,
+  // and Escape/arrow-nav now — this ref is only for restoring focus on an
+  // Escape-close (the shell's onOpenChange close-reason).
   const overflowButtonRef = useRef<HTMLButtonElement>(null);
-  const overflowMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -247,28 +237,6 @@ export const GraphPage = ({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [searchOpen]);
-
-  useClickOutside(overflowRef, () => setOverflowOpen(false), overflowOpen);
-  const closeOverflowAndRestoreFocus = useCallback(() => {
-    setOverflowOpen(false);
-    overflowButtonRef.current?.focus();
-  }, []);
-  useMenuKeyboardNav(overflowMenuRef, closeOverflowAndRestoreFocus, overflowOpen);
-
-  const handleOverflowKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    event.preventDefault();
-    event.stopPropagation();
-    if (!overflowOpen) {
-      setOverflowOpen(true);
-      return;
-    }
-    const items = Array.from(
-      overflowMenuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
-    );
-    const target = event.key === 'ArrowUp' ? items[items.length - 1] : items[0];
-    target?.focus();
-  }, [overflowOpen]);
 
   useEffect(() => {
     setActiveNodeId(selectedGraphId(selectedNode));
@@ -428,9 +396,9 @@ export const GraphPage = ({
   }, [graphData.links.length, graphData.nodes.length, layoutPreset]);
 
   // Note: we deliberately do NOT auto-focus when `selectedNode` changes.
-  // Single-click on a graph node calls onSelectNode, and a focus effect
-  // here would yank the viewport on every click — the opposite of the
-  // "click = open drawer, double-click = zoom" interaction.
+  // Single-click on a graph node opens its dock tab, and a focus effect
+  // here would yank the viewport on every click. Double-click remains the
+  // explicit zoom gesture.
 
   const pickSuggestion = useCallback((result: GraphSearchResult) => {
     setSearchOpen(false);
@@ -448,8 +416,9 @@ export const GraphPage = ({
     const graphId = nodeGraphId(workspaceId, item.id);
     setActiveNodeId(graphId);
     onSelectNode?.({ workspaceId, nodeId: item.id });
+    dock.openNodeDetail(workspaceId, item.id, getNodeTitle(item, t('workspaceNodes.untitled')));
     window.setTimeout(() => focusNode(graphId), 80);
-  }, [focusNode, onSelectNode]);
+  }, [dock, focusNode, onSelectNode, t]);
 
   const handleNodeClick = useCallback((node: NodeObject<GraphNode>, _event: MouseEvent) => {
     const nodeId = getGraphId(node.id);
@@ -463,18 +432,19 @@ export const GraphPage = ({
     setActiveNodeId(nodeId);
 
     if (isDoubleClick) {
-      // Double click: zoom to the node. Drawer state is left alone so it
-      // stays open if the user is exploring.
+      // Double click: zoom to the node. Its dock tab stays open while the
+      // user explores the graph.
       focusNode(nodeId);
       return;
     }
 
-    // Single click: open the detail drawer for real nodes. Don't reframe
+    // Single click: open a detail tab for real nodes. Don't reframe
     // the viewport — the user may be deliberately panning around.
     if (isNodeGraphNode(node)) {
       onSelectNode?.({ workspaceId: node.workspaceId, nodeId: node.nodeId });
+      dock.openNodeDetail(node.workspaceId, node.nodeId, node.label);
     }
-  }, [focusNode, onSelectNode]);
+  }, [dock, focusNode, onSelectNode]);
 
   const renderNode = useCallback((
     node: NodeObject<GraphNode>,
@@ -559,11 +529,7 @@ export const GraphPage = ({
   }, [activeNodeId, highlighted.nodeIds, hoverNodeId, showLabels]);
 
   return (
-    <main
-      className={`workspace-graph-page${showDock && dock.rendered ? ' has-chat-dock' : ''}`}
-      ref={containerRef}
-      style={showDock ? dock.rootStyle : undefined}
-    >
+    <main className="workspace-graph-page" ref={containerRef}>
       <div className="workspace-graph-toolbar">
         <div className="workspace-graph-toolbar__group">
           <button className={`workspace-node-chip${showLabels ? ' is-active' : ''}`} onClick={() => setShowLabels((value) => !value)}>
@@ -578,29 +544,46 @@ export const GraphPage = ({
             {showOffCanvas ? t('workspaceGraph.hideOffCanvas') : t('workspaceGraph.showOffCanvas')}
           </button>
           <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 140)}>{t('workspaceGraph.fit')}</button>
-          <div className="workspace-graph-toolbar__more" ref={overflowRef}>
-            <button
-              ref={overflowButtonRef}
-              type="button"
-              className="workspace-node-chip workspace-node-chip--toolbar-action"
-              onClick={() => setOverflowOpen((value) => !value)}
-              onKeyDown={handleOverflowKeyDown}
-              title={t('workspaceGraph.moreOptions')}
-              aria-label={t('workspaceGraph.moreOptions')}
-              aria-haspopup="menu"
-              aria-expanded={overflowOpen}
-              aria-controls={overflowOpen ? overflowMenuId : undefined}
-            >
-              {t('workspaceGraph.more')}
-            </button>
-            {overflowOpen && (
-              <div
-                ref={overflowMenuRef}
-                id={overflowMenuId}
-                className="workspace-graph-toolbar__menu"
-                role="menu"
-                aria-label={t('workspaceGraph.moreMenuLabel')}
+          <DropdownShell
+            className="workspace-graph-toolbar__more"
+            panelClassName="workspace-graph-toolbar__menu"
+            align="end"
+            role="menu"
+            ariaLabel={t('workspaceGraph.moreMenuLabel')}
+            panelId={overflowMenuId}
+            onOpenChange={(open, reason) => {
+              // Escape restores focus to the trigger; an outside-press does
+              // not — same distinction ChatAnchors uses this shell for.
+              if (!open && reason === 'escape') overflowButtonRef.current?.focus();
+            }}
+            trigger={({ open, toggle }) => (
+              <button
+                ref={overflowButtonRef}
+                type="button"
+                className="workspace-node-chip workspace-node-chip--toolbar-action"
+                onClick={toggle}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+                  // Once open, the shell's own useMenuKeyboardNav (global
+                  // scope) already owns ArrowDown/Up and stops propagation
+                  // before this handler sees the event.
+                  if (open) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  toggle();
+                }}
+                title={t('workspaceGraph.moreOptions')}
+                aria-label={t('workspaceGraph.moreOptions')}
+                aria-haspopup="menu"
+                aria-expanded={open}
+                aria-controls={open ? overflowMenuId : undefined}
               >
+                {t('workspaceGraph.more')}
+              </button>
+            )}
+          >
+            {({ close }) => (
+              <>
                 <button
                   type="button"
                   className="workspace-graph-toolbar__menu-item"
@@ -633,13 +616,13 @@ export const GraphPage = ({
                   type="button"
                   className="workspace-graph-toolbar__menu-item"
                   role="menuitem"
-                  onClick={() => { setOverflowOpen(false); void reload(); }}
+                  onClick={() => { close(); void reload(); }}
                 >
                   {t('workspaceNodes.refresh')}
                 </button>
-              </div>
+              </>
             )}
-          </div>
+          </DropdownShell>
         </div>
       </div>
 
@@ -783,29 +766,6 @@ export const GraphPage = ({
         />
       </div>
 
-      <NodeDetailDrawer
-        workspaceId={selectedNode?.workspaceId ?? ''}
-        nodeId={selectedNode?.nodeId ?? null}
-        tagDefinitions={tags}
-        onClose={() => onSelectNode?.(null)}
-        onOpenPage={onOpenNode}
-        onNodeChanged={() => { void reload(); }}
-      />
-
-      {showDock && onOpenAppSettings && (
-        <NodesChatDock
-          open={dock.open}
-          rendered={dock.rendered}
-          width={dock.width}
-          onOpen={dock.openDock}
-          onClose={dock.closeDock}
-          onBeginResize={dock.beginResize}
-          workspaces={workspaces.map((ws) => ({ id: ws.id, name: ws.name }))}
-          nodes={nodes}
-          tags={tags}
-          onOpenAppSettings={onOpenAppSettings}
-        />
-      )}
     </main>
   );
 };

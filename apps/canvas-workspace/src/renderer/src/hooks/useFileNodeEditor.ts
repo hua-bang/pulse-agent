@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
 import Paragraph from '@tiptap/extension-paragraph';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
@@ -14,17 +13,18 @@ import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import { common, createLowlight } from 'lowlight';
+import { createLowlight } from 'lowlight';
 import { Markdown } from 'tiptap-markdown';
 import type { CanvasNode, FileNodeData } from '../types';
 import type { SlashCommandDef } from '../components/SlashCommandMenu';
 import { ALL_SLASH_COMMANDS, filterCmds, type SlashCmdContext } from '../editor/slashCommands';
 import { NoteSearchExtension } from '../editor/noteSearchExtension';
 import { Callout } from '../editor/calloutNode';
-import { toFileUrl } from '../utils/fileUrl';
 import { isImeComposing } from '../utils/ime';
 import { useNoteKeyboard } from './useNoteKeyboard';
 import { useNoteInteractionController } from './useNoteInteractionController';
+import { MarkdownSafeImage } from './fileNodeMarkdownImage';
+import { syntaxHighlightLanguages } from '../utils/syntaxHighlightLanguages';
 import {
   insertImageAtPos,
   insertImageAtSelection,
@@ -33,7 +33,7 @@ import {
   saveImageBlob,
 } from '../utils/noteImageInsert';
 
-const lowlight = createLowlight(common);
+const lowlight = createLowlight(syntaxHighlightLanguages);
 
 // Markdown collapses consecutive blank lines into a single paragraph
 // separator, so empty paragraphs typed by the user (Enter → Enter) are
@@ -62,86 +62,6 @@ const EmptyLinePreservingParagraph = Paragraph.extend({
   },
 });
 
-const FILE_IMAGE_MARKDOWN_RE = /!\[([^\]]*)\]\(((?:file:\/\/|pulse-canvas:\/\/)[^\s)]+)(?:\s+"([^"]*)")?\)/g;
-const LOCAL_IMAGE_HINT_RE = /\]\((?:file:\/\/|pulse-canvas:\/\/)/;
-
-const restoreLocalImageMarkdown = (element: HTMLElement) => {
-  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-  const textNodes: Text[] = [];
-  while (walker.nextNode()) {
-    const node = walker.currentNode;
-    if (node.textContent?.includes('![') && LOCAL_IMAGE_HINT_RE.test(node.textContent)) {
-      textNodes.push(node as Text);
-    }
-  }
-
-  for (const node of textNodes) {
-    const text = node.textContent ?? '';
-    FILE_IMAGE_MARKDOWN_RE.lastIndex = 0;
-    if (!FILE_IMAGE_MARKDOWN_RE.test(text)) continue;
-
-    FILE_IMAGE_MARKDOWN_RE.lastIndex = 0;
-    const fragment = document.createDocumentFragment();
-    let lastIndex = 0;
-    for (const match of text.matchAll(FILE_IMAGE_MARKDOWN_RE)) {
-      const index = match.index ?? 0;
-      if (index > lastIndex) {
-        fragment.append(document.createTextNode(text.slice(lastIndex, index)));
-      }
-
-      const img = document.createElement('img');
-      // Legacy notes may contain `file://…` URLs that Chromium refuses to
-      // load; route everything through the custom scheme.
-      img.setAttribute('src', toFileUrl(match[2] ?? ''));
-      img.setAttribute('alt', match[1] ?? '');
-      if (match[3]) img.setAttribute('title', match[3]);
-      fragment.append(img);
-      lastIndex = index + match[0].length;
-    }
-    if (lastIndex < text.length) {
-      fragment.append(document.createTextNode(text.slice(lastIndex)));
-    }
-    node.replaceWith(fragment);
-  }
-};
-
-const MarkdownSafeImage = Image.extend({
-  addStorage() {
-    return {
-      ...this.parent?.(),
-      markdown: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        serialize(state: any, node: any) {
-          const src = String(node.attrs.src ?? '').replace(/[()]/g, '\\$&');
-          const alt = state.esc(String(node.attrs.alt ?? ''));
-          const title = node.attrs.title
-            ? ` "${String(node.attrs.title).replace(/"/g, '\\"')}"`
-            : '';
-          state.write(`![${alt}](${src}${title})`);
-        },
-        parse: {
-          // markdown-it rejects file:// and custom-scheme links by default,
-          // so reloading a note with a locally saved pasted image leaves
-          // literal ![](...) text. File nodes intentionally store local
-          // canvas images as file URLs (`pulse-canvas://` for new content,
-          // legacy `file://` for notes created before the protocol switch).
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          setup(markdownit: any) {
-            const originalValidateLink = markdownit.validateLink.bind(markdownit);
-            markdownit.validateLink = (url: string) => {
-              if (/^(file|pulse-canvas):\/\//i.test(url)) return true;
-              return originalValidateLink(url);
-            };
-          },
-          updateDOM(element: HTMLElement) {
-            restoreLocalImageMarkdown(element);
-          },
-        },
-      },
-    };
-  },
-});
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getMarkdown = (editor: any): string =>
   (editor?.storage?.markdown?.getMarkdown() as string | undefined) ?? '';
@@ -154,7 +74,8 @@ interface Options {
   prevContentRef: React.MutableRefObject<string>;
   setModified: (val: boolean) => void;
   persistToFile: (markdown: string, filePath: string) => Promise<void>;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
+  onCommitState?: (state: 'saving' | 'saved' | 'error') => void;
   readOnly?: boolean;
 }
 
@@ -171,6 +92,7 @@ export const useFileNodeEditor = ({
   setModified,
   persistToFile,
   onUpdate,
+  onCommitState,
   readOnly = false,
 }: Options) => {
   const interactions = useNoteInteractionController();
@@ -198,6 +120,7 @@ export const useFileNodeEditor = ({
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const contentCommitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingEditorRef = useRef<any>(null);
+  const latestCommitContentRef = useRef<(flushPersist?: boolean) => void>(() => undefined);
 
   // Serialize the doc and push it into the central nodes array. Debounced from
   // onUpdate; `flushPersist` writes the file now (blur/unmount) vs auto-save.
@@ -214,20 +137,43 @@ export const useFileNodeEditor = ({
       console.warn(`[file-node-editor] skipped empty initialization update for ${nodeIdRef.current}`);
       return;
     }
+    const fp = dataRef.current.filePath;
+    const changed = markdown !== previous;
+    if (!changed) {
+      if (flushPersist && fp && (dataRef.current.modified || saveTimerRef.current)) {
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        void persistToFile(markdown, fp);
+      }
+      return;
+    }
     prevContentRef.current = markdown;
     setModified(true);
-    onUpdate(nodeIdRef.current, {
+    onCommitState?.('saving');
+    const updateResult = onUpdate(nodeIdRef.current, {
       data: { ...dataRef.current, content: markdown, modified: true },
     });
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    const fp = dataRef.current.filePath;
-    if (!fp) return;
+    if (!fp) {
+      void Promise.resolve(updateResult).then(
+        () => {
+          setModified(false);
+          onCommitState?.('saved');
+        },
+        () => onCommitState?.('error'),
+      );
+      return;
+    }
     if (flushPersist) {
       void persistToFile(markdown, fp);
     } else {
       saveTimerRef.current = setTimeout(() => void persistToFile(markdown, fp), AUTO_SAVE_MS);
     }
-  }, [dataRef, nodeIdRef, prevContentRef, setModified, onUpdate, persistToFile]);
+  }, [dataRef, nodeIdRef, prevContentRef, setModified, onUpdate, onCommitState, persistToFile]);
+
+  useEffect(() => {
+    latestCommitContentRef.current = commitContent;
+  }, [commitContent]);
 
   const editor = useEditor({
     extensions: [
@@ -309,6 +255,11 @@ export const useFileNodeEditor = ({
     },
     onUpdate: ({ editor }) => {
       if (readOnly) return;
+      // Tiptap may emit update transactions while a note initializes or
+      // normalizes its stored markdown. Those are not user edits; writing
+      // them back replaces the whole canvas nodes array for every mounted
+      // file node and can collide with unrelated interactions.
+      if (!editor.isFocused) return;
       // Coalesce the expensive serialize + nodes-array writeback (I-1).
       pendingEditorRef.current = editor;
       if (contentCommitRef.current) clearTimeout(contentCommitRef.current);
@@ -360,7 +311,10 @@ export const useFileNodeEditor = ({
   });
 
   // Flush on unmount (node deleted / workspace switched while focused).
-  useEffect(() => () => commitContent(true), [commitContent]);
+  // Keep this effect mounted once: depending on commitContent would run the
+  // cleanup after ordinary parent re-renders, prematurely flushing the
+  // debounce and replacing the full nodes array mid-typing.
+  useEffect(() => () => latestCommitContentRef.current(true), []);
 
   // Sync content when file opens externally
   useEffect(() => {
