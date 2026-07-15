@@ -266,8 +266,25 @@ jobs:
       # Diagnostic only (no gate): deep zoom-out cost on real Electron with
       # mixed inline-iframe + real <webview> embeds — the mid-gesture band
       # the renderer bench can only emulate with same-process iframes.
-      - name: Deep zoom gesture probe (diagnostic)
+      - name: Deep zoom gesture probe (diagnostic, grid)
         timeout-minutes: 8
+        working-directory: apps/canvas-workspace
+        run: |
+          node harness/tools/driver/cli.mjs start --profile temp --headless
+          node scripts/perf/zoom-gesture-probe.mjs
+          node harness/tools/driver/cli.mjs close --cleanup
+
+      # P0 regression baseline for the follow-up zoom-out work: the real
+      # 86-node / 40-embed shape (20 url webviews + 20 inline iframes),
+      # median over 3 cycles, five split windows + tile-memory counter.
+      # continue-on-error while the 20-real-guest load proves stable in CI;
+      # it's diagnostic (never gates) and prints an acceptance-line compare.
+      - name: Deep zoom gesture probe (diagnostic, large 86/40 baseline)
+        timeout-minutes: 12
+        continue-on-error: true
+        env:
+          ZOOM_PROBE_PROFILE: large
+          ZOOM_PROBE_REPEAT: '3'
         working-directory: apps/canvas-workspace
         run: |
           node harness/tools/driver/cli.mjs start --profile temp --headless
