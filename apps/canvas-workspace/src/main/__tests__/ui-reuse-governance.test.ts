@@ -319,7 +319,24 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1882→1881: LinkDrawer's new editable address focus state uses palette tokens.
   // 1881→1879: the duplicate ChatHeader brand mark and its two color literals were removed.
   // 1879→1878: the duplicate Nodes/Graph chat dock and its literal surface color were removed.
-  hardcodedColorLiterals: 1874,
+  // 1874→1876 (2026-07-15, drift RECORDED not approved): PR #786
+  // (88958283, "refine web-node overview thumbnail and unify note
+  // read/write chrome") merged without running this suite (same
+  // unenforced-ratchet gap as the 390→398/1934→1968 entries above).
+  // IframeNodeBody/index.css's overview badge tile swapped its tokenized
+  // `box-shadow: var(--shadow-card)` for a literal
+  // `0 2px 8px rgba(55, 53, 47, 0.1)` (+1) — not byte-identical to
+  // `--shadow-card` (`0 1px 3px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.05)`),
+  // so reverting it is a pixel-changing normalization judgment (like the
+  // frontend.md C3 near-miss cases) and needs a visual diff this sandbox
+  // can't run (Electron's native rebuild is blocked by egress policy — see
+  // this batch's PR description). The new `.iframe-overview-badge-label`
+  // chip's `box-shadow` carries one more rgba() literal (+1); its geometry
+  // is `canvas-scale`-compensated via `calc()`, so it can't be swapped for
+  // a static `var(--shadow-*)` token without changing the effect. Raised
+  // to the honest measured value; both lines are stock for a future
+  // burn-down batch with `pnpm run visual` available, not an allowance.
+  hardcodedColorLiterals: 1876,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -377,7 +394,14 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (inset base ring + a 2px literal focus ring, a near-variant of
   // --shadow-focus's 3px) and `.built-in-tool-primary-btn` carried 1 more —
   // all 3 deleted with the now-unused CSS.
-  shadowLiterals: 152,
+  // 152→154 (2026-07-15, drift RECORDED not approved): the same PR #786
+  // (88958283) hardcodedColorLiterals entry above — the badge tile's
+  // `box-shadow: var(--shadow-card)` → literal swap (+1 line) and the new
+  // badge-label chip's multi-line, canvas-scale-compensated `box-shadow`
+  // (+1 line; its first line carries the `box-shadow:` keyword with no
+  // `var(--shadow` token, so it counts even though the color half is on
+  // the next line). Same "stock for a future batch" status.
+  shadowLiterals: 154,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

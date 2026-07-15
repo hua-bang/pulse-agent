@@ -907,6 +907,42 @@ oversight). The pilot's own skip note for the toolbar buttons ("that alone
 overflows the bar") was a size-floor statement that this batch's new tier
 falsifies by construction, not a mistake in the original analysis.
 
+## Drift recording (2026-07-15)
+
+A scheduled scan for UI style inconsistencies ran the governance suite
+(`ui-reuse-governance.test.ts`) as its first check — per the "mechanism over
+doc" rule (root AGENTS.md §0.3), it is the mechanized definition of "style
+inconsistency" for this workspace, so it was checked before any manual
+review. It failed on 2 of 18 counters: `hardcodedColorLiterals` 1874→1876
+and `shadowLiterals` 152→154, both traced (via `git blame`, exact regex
+replay) to a single commit, `88958283` (PR #786, "refine web-node overview
+thumbnail and unify note read/write chrome"), merged same-day without
+running this suite — the same unenforced-ratchet gap as the 2026-07-10 drift
+above, and not yet closed (root AGENTS.md §4 still lists no automatic
+trigger).
+
+Two lines in `IframeNodeBody/index.css`, both in the overview identity
+badge:
+
+- The tile's `box-shadow: var(--shadow-card)` was replaced with a literal
+  `0 2px 8px rgba(55, 53, 47, 0.1)`. **Not reverted**: not byte-identical to
+  `--shadow-card` (`0 1px 3px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.05)`),
+  so restoring the token would be a visible shadow change, not a pure
+  revert — normalizing it needs `pnpm run visual`, which needs a built
+  Electron binary; this sandbox's `pnpm install` hit a 403 on
+  `electronjs.org` (org egress policy denies it, confirmed via
+  `/root/.ccr/README.md`'s "do not retry policy denials" guidance), so no
+  visual gate was available to safely make the call here.
+- The new `.iframe-overview-badge-label` chip's `box-shadow` is genuinely
+  new (the old caption had none) and geometry-`calc()`s against
+  `var(--canvas-scale, 1)`, so its blur/spread can't be a static
+  `var(--shadow-*)` token without changing the effect at non-1 zoom.
+
+Baselines were raised to the measured values with provenance comments in
+`ui-reuse-governance.test.ts` — RECORDED as new stock, not approved as
+allowance, matching the 2026-07-10 precedent exactly. Both lines are ready
+stock for whoever next runs a visual-gated batch on `IframeNodeBody`.
+
 ## Standing rules
 
 - A batch that discovers a false positive in a counter fixes the COUNTER
