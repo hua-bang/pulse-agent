@@ -1,18 +1,9 @@
 import { Command } from 'commander';
 import { loadCanvas } from '../core/store';
 import { createEdge, deleteEdge, listEdges } from '../core/edges';
-import { output, errorOutput, type OutputFormat } from '../output';
+import { output, errorOutput } from '../output';
+import { getWorkspaceCommandOptions } from './options';
 import type { EdgeAnchor, EdgeArrowCap, EdgeStroke } from '../core/types';
-
-function getOpts(cmd: Command): { format: OutputFormat; storeDir?: string; workspace: string } {
-  const root = cmd.parent?.parent ?? cmd.parent;
-  const opts = root?.opts() ?? {};
-  const workspace = opts.workspace as string | undefined;
-  if (!workspace) {
-    errorOutput('Workspace ID required. Use --workspace <id> or set $PULSE_CANVAS_WORKSPACE_ID');
-  }
-  return { format: opts.format ?? 'text', storeDir: opts.storeDir, workspace: workspace! };
-}
 
 export function registerEdgeCommands(program: Command): void {
   const edge = program
@@ -22,7 +13,7 @@ export function registerEdgeCommands(program: Command): void {
   edge.command('list')
     .description('List all edges in the workspace')
     .action(async function (this: Command) {
-      const { format, storeDir, workspace } = getOpts(this);
+      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
 
       const edges = await listEdges(workspace, storeDir);
 
@@ -68,7 +59,7 @@ export function registerEdgeCommands(program: Command): void {
       style?: string;
       bend?: number;
     }) {
-      const { format, storeDir, workspace } = getOpts(this);
+      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
 
       const validAnchors: EdgeAnchor[] = ['top', 'right', 'bottom', 'left', 'auto'];
       if (cmdOpts.fromAnchor && !validAnchors.includes(cmdOpts.fromAnchor as EdgeAnchor)) {
@@ -125,7 +116,7 @@ export function registerEdgeCommands(program: Command): void {
     .argument('<edgeId>', 'Edge ID')
     .description('Delete a canvas edge')
     .action(async function (this: Command, edgeId: string) {
-      const { format, storeDir, workspace } = getOpts(this);
+      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
 
       const result = await deleteEdge(workspace, edgeId, storeDir);
       if (!result.ok) errorOutput(result.error);

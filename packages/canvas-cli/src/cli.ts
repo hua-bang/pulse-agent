@@ -7,8 +7,9 @@ import { registerEdgeCommands } from './commands/edge';
 import { registerAgentCommands } from './commands/agent';
 import { registerRestoreCommand } from './commands/restore';
 import { registerTeamCommands } from './commands/team';
+import { ENV_WORKSPACE_ID } from './core/workspace-resolution';
 
-export const ENV_WORKSPACE_ID = 'PULSE_CANVAS_WORKSPACE_ID';
+export { ENV_WORKSPACE_ID };
 
 export function createCli(): Command {
   const program = new Command();
@@ -19,7 +20,10 @@ export function createCli(): Command {
     .version('0.0.1-alpha.1')
     .option('--format <format>', 'Output format: json or text', 'text')
     .option('--store-dir <path>', 'Canvas store directory (default: ~/.pulse-coder/canvas/)')
-    .option('-w, --workspace <id>', `Workspace ID (default: $${ENV_WORKSPACE_ID})`, process.env[ENV_WORKSPACE_ID]);
+    .option(
+      '-w, --workspace <id>',
+      `Workspace ID (default: active workspace, or $${ENV_WORKSPACE_ID})`,
+    );
 
   registerWorkspaceCommands(program);
   registerNodeCommands(program);

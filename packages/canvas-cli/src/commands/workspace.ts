@@ -12,14 +12,15 @@ import {
   ensureWorkspaceDir,
 } from '../core/store';
 import { getNodeCapabilities } from '../core/nodes';
+import { resolveWorkspaceId } from '../core/workspace-resolution';
 import { DEFAULT_NODE_DIMENSIONS } from '../core/constants';
 import type { CanvasNode, CanvasSaveData } from '../core/types';
 import { output, errorOutput, type OutputFormat } from '../output';
+import { getRootOptions } from './options';
 
 function getOpts(cmd: Command): { format: OutputFormat; storeDir?: string } {
-  const root = cmd.parent?.parent ?? cmd.parent;
-  const opts = root?.opts() ?? {};
-  return { format: opts.format ?? 'text', storeDir: opts.storeDir };
+  const { format, storeDir } = getRootOptions(cmd);
+  return { format, storeDir };
 }
 
 export function registerWorkspaceCommands(program: Command): void {
@@ -38,13 +39,41 @@ export function registerWorkspaceCommands(program: Command): void {
       const rows = ids.map(id => ({
         id,
         name: nameMap.get(id) ?? id,
+        active: id === manifest.activeId,
       }));
 
       output(rows, format, (data) => {
         const items = data as typeof rows;
         if (items.length === 0) return 'No workspaces found.';
-        const lines = items.map(r => `  ${r.id}  ${r.name}`);
-        return `Workspaces:\n${lines.join('\n')}`;
+        const lines = items.map(r => `  ${r.active ? '*' : ' '} ${r.id}  ${r.name}`);
+        return `Workspaces (* = active):\n${lines.join('\n')}`;
+      });
+    });
+
+  ws.command('current')
+    .description('Show the workspace the CLI resolves to (--workspace → env → active)')
+    .action(async function (this: Command) {
+      const { format, storeDir, workspace: explicitId } = getRootOptions(this);
+      let resolution;
+      try {
+        resolution = await resolveWorkspaceId({ explicitId, storeDir });
+      } catch (err) {
+        errorOutput((err as Error).message);
+      }
+
+      const manifest = await loadWorkspaceManifest(storeDir);
+      const entry = (manifest.workspaces ?? []).find(e => e.id === resolution.workspaceId);
+
+      const info = {
+        id: resolution.workspaceId,
+        name: entry?.name ?? resolution.workspaceId,
+        active: resolution.workspaceId === manifest.activeId,
+        source: resolution.source,
+      };
+
+      output(info, format, (data) => {
+        const d = data as typeof info;
+        return `${d.id}  ${d.name}${d.active ? '  (active)' : ''}  [source: ${d.source}]`;
       });
     });
 

@@ -8,7 +8,8 @@ import {
   createNode,
   deleteNode,
 } from '../core/nodes';
-import { output, errorOutput, type OutputFormat } from '../output';
+import { output, errorOutput } from '../output';
+import { getWorkspaceCommandOptions } from './options';
 import type { NodeType } from '../core/types';
 
 /**
@@ -35,16 +36,6 @@ export function unescapeContentArg(s: string): string {
   });
 }
 
-function getOpts(cmd: Command): { format: OutputFormat; storeDir?: string; workspace: string } {
-  const root = cmd.parent?.parent ?? cmd.parent;
-  const opts = root?.opts() ?? {};
-  const workspace = opts.workspace as string | undefined;
-  if (!workspace) {
-    errorOutput('Workspace ID required. Use --workspace <id> or set $PULSE_CANVAS_WORKSPACE_ID');
-  }
-  return { format: opts.format ?? 'text', storeDir: opts.storeDir, workspace };
-}
-
 export function registerNodeCommands(program: Command): void {
   const node = program
     .command('node')
@@ -53,7 +44,7 @@ export function registerNodeCommands(program: Command): void {
   node.command('list')
     .description('List all nodes in the workspace')
     .action(async function (this: Command) {
-      const { format, storeDir, workspace } = getOpts(this);
+      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
       const canvas = await loadCanvas(workspace, storeDir);
       if (!canvas) errorOutput(`Workspace not found: ${workspace}`);
 
@@ -78,7 +69,7 @@ export function registerNodeCommands(program: Command): void {
     .argument('<nodeId>', 'Node ID')
     .description('Read a canvas node')
     .action(async function (this: Command, nodeId: string) {
-      const { format, storeDir, workspace } = getOpts(this);
+      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
       const canvas = await loadCanvas(workspace, storeDir);
       if (!canvas) errorOutput(`Workspace not found: ${workspace}`);
 
@@ -113,7 +104,7 @@ export function registerNodeCommands(program: Command): void {
     .option('--raw', 'Treat --content verbatim without interpreting escape sequences', false)
     .description('Write content to a canvas node')
     .action(async function (this: Command, nodeId: string, cmdOpts: { content?: string; file?: string; raw?: boolean }) {
-      const { format, storeDir, workspace } = getOpts(this);
+      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
 
       let content: string;
       if (cmdOpts.content !== undefined) {
@@ -151,7 +142,7 @@ export function registerNodeCommands(program: Command): void {
     .option('--data <json>', 'Initial data as JSON')
     .description('Create a new canvas node')
     .action(async function (this: Command, cmdOpts: { type: string; title?: string; x?: number; y?: number; width?: number; height?: number; data?: string }) {
-      const { format, storeDir, workspace } = getOpts(this);
+      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
 
       const validTypes: NodeType[] = ['file', 'terminal', 'frame', 'group', 'agent', 'mindmap'];
       if (!validTypes.includes(cmdOpts.type as NodeType)) {
@@ -196,7 +187,7 @@ export function registerNodeCommands(program: Command): void {
     .argument('<nodeId>', 'Node ID')
     .description('Delete a canvas node')
     .action(async function (this: Command, nodeId: string) {
-      const { format, storeDir, workspace } = getOpts(this);
+      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
 
       const result = await deleteNode(workspace, nodeId, storeDir);
       if (!result.ok) errorOutput(result.error);

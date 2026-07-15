@@ -30,6 +30,7 @@ in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
 | Current CLI command index | `src/cli.ts` |
 | Executable entrypoint | `src/index.ts` |
 | Workspace/node/edge/context commands | `src/commands/workspace.ts`, `src/commands/node.ts`, `src/commands/edge.ts`, `src/commands/context.ts` |
+| Workspace auto-discovery (which canvas a command targets) | `src/core/workspace-resolution.ts`, `src/commands/options.ts` |
 | Live runtime commands | `src/commands/agent.ts`, `src/commands/team.ts`, `src/core/runtime-control.ts` |
 | v2 recovery command | `src/commands/restore.ts` |
 | Public core exports | `src/core/index.ts` |
@@ -62,6 +63,14 @@ the root harness files above, then the package source/tests.
 - Live `agent` and `team` commands must keep using the runtime file plus bearer
   auth. Do not bypass runtime authentication or reach into Electron memory from
   this package.
+- New commands resolve their workspace through `getWorkspaceCommandOptions`
+  (`src/commands/options.ts`), not by reading `opts.workspace` directly. The
+  fixed discovery order is `--workspace` → `$PULSE_CANVAS_WORKSPACE_ID` →
+  `__workspaces__.json.activeId` → hard error; it never guesses (no
+  "most recent" / "first in list"). Disk commands require a readable
+  `canvas.json`; runtime-mediated (`agent`/`team`) and `restore` pass
+  `{ requireReadableCanvas: false }` since the workspace lives in the app or is
+  the thing being recovered.
 - Changes to command payloads, core exports, node/edge schemas, runtime routes,
   or storage shape are contract changes; use local validation plus the root
   impact overlay when hosts are affected.

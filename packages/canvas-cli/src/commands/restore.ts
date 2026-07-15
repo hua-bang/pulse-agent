@@ -35,28 +35,34 @@ import {
   getWorkspaceDir,
   ensureWorkspaceDir,
 } from '../core/store';
+import { resolveWorkspaceId } from '../core/workspace-resolution';
+import { getRootOptions } from './options';
 import { detectSchemaVersion } from '../core/storage-v2';
 import type { CanvasSaveData } from '../core/types';
 import { output, errorOutput, type OutputFormat } from '../output';
 
-function getOpts(cmd: Command): { format: OutputFormat; storeDir?: string; workspace?: string } {
-  const root = cmd.parent?.parent ?? cmd.parent;
-  const opts = root?.opts() ?? {};
-  return {
-    format: opts.format ?? 'text',
-    storeDir: opts.storeDir,
-    workspace: opts.workspace,
-  };
-}
-
-function resolveWorkspaceId(arg: string | undefined, fallback: string | undefined): string {
-  const id = (arg ?? fallback ?? '').trim();
-  if (!id) {
-    errorOutput(
-      'No workspace id. Pass it positionally, via -w/--workspace, or set PULSE_CANVAS_WORKSPACE_ID.',
-    );
+/**
+ * Resolve the workspace `restore` should act on. A positional `[workspaceId]`
+ * wins; otherwise fall back to the shared discovery order (`--workspace` → env
+ * → active workspace). Crucially, `restore` does NOT require a readable
+ * canvas.json — recovering a broken/missing canvas is exactly why it exists.
+ */
+async function resolveRestoreOptions(
+  cmd: Command,
+  positionalArg: string | undefined,
+): Promise<{ format: OutputFormat; storeDir?: string; workspaceId: string }> {
+  const root = getRootOptions(cmd);
+  const positional = positionalArg?.trim();
+  try {
+    const resolution = await resolveWorkspaceId({
+      explicitId: positional || root.workspace,
+      storeDir: root.storeDir,
+      requireReadableCanvas: false,
+    });
+    return { format: root.format, storeDir: root.storeDir, workspaceId: resolution.workspaceId };
+  } catch (err) {
+    errorOutput((err as Error).message);
   }
-  return id;
 }
 
 interface SnapshotEntry {
@@ -311,8 +317,7 @@ export function registerRestoreCommand(program: Command): void {
     .command('list [workspaceId]')
     .description('List available v1 snapshots for a workspace')
     .action(async function (this: Command, workspaceArg?: string) {
-      const { format, storeDir, workspace } = getOpts(this);
-      const workspaceId = resolveWorkspaceId(workspaceArg, workspace);
+      const { format, storeDir, workspaceId } = await resolveRestoreOptions(this, workspaceArg);
       const workspaceDir = getWorkspaceDir(workspaceId, storeDir);
       const snapshots = await listSnapshots(workspaceDir);
 
@@ -347,8 +352,7 @@ export function registerRestoreCommand(program: Command): void {
       workspaceArg: string | undefined,
       cmdOpts: { from: string; dryRun: boolean; yes: boolean },
     ) {
-      const { format, storeDir, workspace } = getOpts(this);
-      const workspaceId = resolveWorkspaceId(workspaceArg, workspace);
+      const { format, storeDir, workspaceId } = await resolveRestoreOptions(this, workspaceArg);
       const workspaceDir = getWorkspaceDir(workspaceId, storeDir);
       await ensureWorkspaceDir(workspaceId, storeDir);
 
