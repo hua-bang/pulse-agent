@@ -543,6 +543,24 @@
   pointer-events: auto;
 }
 
+/* ── Gesture-time static-ization (P2) ────────────────────────────────────
+ * During a heavy zoom-out gesture, useCanvas writes data-motion="zoom-out"
+ * + data-heavy-embeds onto .canvas-transform on the FIRST wheel event —
+ * before that tick's rAF applies the transform — so inline iframes stop
+ * painting IMMEDIATELY, not at the 0.35 settle. This kills the live-embed
+ * raster that dominates the deep zoom-out band (measured 60.9% frames>20ms
+ * over 0.35→0.1 on the 86-node/40-embed real-webview profile before this).
+ * visibility, NOT display: layout-preserving, so toggling it on every
+ * gesture triggers no reflow, and it has no guest-side effect on <webview>
+ * (whose gesture cost the P3 frame-rate lease handles) — scoped to
+ * iframe.iframe-frame. At settle the attr clears: either overview takes
+ * over (< 0.35, display:none below) or the iframe simply repaints. Zoom-IN
+ * is deliberately excluded — the user is zooming toward content and wants
+ * to see it resolve. */
+[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--iframe iframe.iframe-frame {
+  visibility: hidden;
+}
+
 /* ── Overview semantic zoom ─────────────────────────────────────────────
  * Below OVERVIEW_SCALE_THRESHOLD (CanvasSurface adds
  * `.canvas-transform--overview` at settled scale < 0.35) inline embeds are
