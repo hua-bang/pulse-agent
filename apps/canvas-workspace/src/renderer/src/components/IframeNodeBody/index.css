@@ -597,12 +597,18 @@
   background: linear-gradient(180deg, var(--accent-light), var(--surface) 55%);
 }
 
-/* Identity badge (IframeOverviewBadge): favicon tile + hostname pill for
- * url embeds, a code glyph for html/srcdoc ones. Hidden outside overview —
+/* Identity badge (IframeOverviewBadge): favicon tile + title/hostname label
+ * for url embeds, a code glyph for html/srcdoc ones. Hidden outside overview —
  * display:none keeps it out of the paint chunks the compositor walks
- * (the Layerize lesson from the idle actions popover). Reverse-scaled as
- * one transform so borders/shadows keep their visual weight at any
- * overview zoom. */
+ * (the Layerize lesson from the idle actions popover).
+ *
+ * Two coordinate systems on purpose: the tile is reverse-scaled to a constant
+ * on-screen size so its border/shadow keep their weight at any overview zoom,
+ * while the text label is laid out in card-relative units (font/padding ÷ the
+ * clamped scale) so it always ellipsises to the card width and never overflows
+ * a narrow node. The favicon tile sits just above centre and the label chip
+ * just below it, so the two read as one page-identity unit instead of a lone
+ * icon floating over a detached bottom bar. */
 .iframe-overview-badge {
   display: none;
 }
@@ -614,50 +620,78 @@
   pointer-events: none;
 }
 
-/* Constant on-screen size via reverse-scale; nudged above center so the
- * hostname caption below reads balanced. */
+/* Constant on-screen size via reverse-scale; nudged above centre so the
+ * title/hostname chip below sits under it and the pair reads centred. */
 .canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-tile {
   position: absolute;
   left: 50%;
-  top: 45%;
+  top: 42%;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-md);
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 2px 8px rgba(55, 53, 47, 0.1);
   color: var(--text-secondary);
   transform: translate(-50%, -50%) scale(calc(1 / clamp(0.06, var(--canvas-scale, 1), 0.35)));
 }
 
 .iframe-overview-badge-favicon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-sm);
   object-fit: contain;
 }
 
-/* Hostname as a full-width bottom caption, laid out in canvas units so
- * ellipsis follows the card's real width; the size compensation clamps at
- * 0.14 so the label holds ~10px on screen through mid-overview and only
- * then shrinks with the card. */
-.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-host {
+/* Title + hostname chip: a centred, auto-width rounded label sitting just
+ * below the tile. Laid out in canvas units so ellipsis follows the card's
+ * real width; the size compensation clamps at 0.14 so the label holds its
+ * on-screen size through mid-overview and only then shrinks with the card. */
+.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-label {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, calc(24px / clamp(0.14, var(--canvas-scale, 1), 0.35)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  max-width: 88%;
+  padding: calc(3px / clamp(0.14, var(--canvas-scale, 1), 0.35)) calc(9px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  border-radius: calc(7px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  background: var(--surface);
+  /* The chip is laid out in card units (not transform-scaled like the tile),
+   * so its border/shadow must be size-compensated too or they collapse to a
+   * sub-pixel hairline at overview zoom. */
+  border: solid var(--border);
+  border-width: calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  box-shadow: 0 calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35))
+    calc(4px / clamp(0.14, var(--canvas-scale, 1), 0.35)) rgba(55, 53, 47, 0.08);
+  text-align: center;
+}
+
+.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-title {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: center;
-  padding: calc(4px / clamp(0.14, var(--canvas-scale, 1), 0.35)) calc(8px / clamp(0.14, var(--canvas-scale, 1), 0.35));
-  background: var(--surface);
+  color: var(--text);
+  font-size: calc(10.5px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-host {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-secondary);
-  font-size: calc(10px / clamp(0.14, var(--canvas-scale, 1), 0.35));
-  font-weight: 600;
+  font-size: calc(8.5px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  font-weight: 500;
   letter-spacing: 0.01em;
 }
 

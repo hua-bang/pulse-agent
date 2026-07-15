@@ -50,6 +50,7 @@ interface IframeRenderedViewProps {
   streamIframeRef: RefObject<HTMLIFrameElement>;
   streamingActive: boolean;
   webviewDiscarded: boolean;
+  title?: string;
   url: string;
   webviewHostRef: RefObject<HTMLDivElement>;
   webviewKey: number;
@@ -98,6 +99,7 @@ export const IframeRenderedView = ({
   streamIframeRef,
   streamingActive,
   webviewDiscarded,
+  title,
   url,
   webviewHostRef,
   webviewKey,
@@ -217,7 +219,7 @@ export const IframeRenderedView = ({
       <div className={`iframe-frame-wrapper${streamingActive ? ' iframe-frame-wrapper--streaming' : ''}`}>
         {streamingActive && <div className="iframe-shimmer-bar" />}
         {isResizing && <div className="iframe-pointer-shield" aria-hidden="true" />}
-        <IframeOverviewBadge mode={renderMode} url={url} faviconUrl={faviconUrl} />
+        <IframeOverviewBadge mode={renderMode} url={url} title={title} faviconUrl={faviconUrl} />
         {renderMode === 'url' ? (
           <>
             <div
