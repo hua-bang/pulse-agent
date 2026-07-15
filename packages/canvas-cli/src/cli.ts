@@ -7,8 +7,12 @@ import { registerEdgeCommands } from './commands/edge';
 import { registerAgentCommands } from './commands/agent';
 import { registerRestoreCommand } from './commands/restore';
 import { registerTeamCommands } from './commands/team';
+import { registerStatusCommand } from './commands/status';
+import { registerDescribeCommand } from './commands/describe';
+import { ENV_WORKSPACE_ID } from './core/workspace-resolution';
+import { setActiveFormat } from './output';
 
-export const ENV_WORKSPACE_ID = 'PULSE_CANVAS_WORKSPACE_ID';
+export { ENV_WORKSPACE_ID };
 
 export function createCli(): Command {
   const program = new Command();
@@ -19,9 +23,26 @@ export function createCli(): Command {
     .version('0.0.1-alpha.1')
     .option('--format <format>', 'Output format: json or text', 'text')
     .option('--store-dir <path>', 'Canvas store directory (default: ~/.pulse-coder/canvas/)')
-    .option('-w, --workspace <id>', `Workspace ID (default: $${ENV_WORKSPACE_ID})`, process.env[ENV_WORKSPACE_ID]);
+    .option(
+      '-w, --workspace <id>',
+      `Workspace ID (default: active workspace, or $${ENV_WORKSPACE_ID})`,
+    )
+    .option(
+      '--confine-to-workspace',
+      'Refuse to read/write file-node paths outside the workspace directory (safer for untrusted canvases)',
+      false,
+    );
+
+  // Resolve the global output format once, before any action runs, so
+  // `errorOutput` can emit structured JSON errors from anywhere without each
+  // call site threading the format through.
+  program.hook('preAction', () => {
+    setActiveFormat(program.opts().format === 'json' ? 'json' : 'text');
+  });
 
   registerWorkspaceCommands(program);
+  registerStatusCommand(program);
+  registerDescribeCommand(program);
   registerNodeCommands(program);
   registerEdgeCommands(program);
   registerAgentCommands(program);

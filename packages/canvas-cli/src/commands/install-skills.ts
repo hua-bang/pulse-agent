@@ -80,7 +80,7 @@ version: 1.0.0
 
 Interact with canvas workspaces via the \`pulse-canvas\` CLI. The canvas is a shared workspace between humans and agents.
 
-The current workspace ID is available via \`$PULSE_CANVAS_WORKSPACE_ID\` environment variable (auto-set by canvas). All \`node\` and \`context\` commands use it automatically — no need to pass workspace ID explicitly.
+Commands resolve the target workspace automatically, so you rarely pass \`--workspace\`. Resolution order: \`--workspace <id>\` → \`$PULSE_CANVAS_WORKSPACE_ID\` (auto-set by canvas) → the app's active workspace. Run \`pulse-canvas workspace current\` to see which one commands will act on, and \`pulse-canvas workspace list\` to see all workspaces (the active one is flagged).
 
 Whenever \`$PULSE_CANVAS_WORKSPACE_ID\` is set, treat the canvas as required user-provided context. Before planning, coding, reviewing, or answering a workspace task, run \`pulse-canvas context --format json\` and use that result alongside repository files.
 

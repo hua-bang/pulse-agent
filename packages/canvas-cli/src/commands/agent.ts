@@ -1,16 +1,7 @@
 import { Command } from 'commander';
-import { output, errorOutput, type OutputFormat } from '../output';
+import { output, errorOutput } from '../output';
+import { getWorkspaceCommandOptions } from './options';
 import { postRuntime, readRuntime, runtimeAuthHint, type RuntimeInfo } from '../core/runtime-control';
-
-function getOpts(cmd: Command): { format: OutputFormat; workspace: string } {
-  const root = cmd.parent?.parent ?? cmd.parent;
-  const opts = root?.opts() ?? {};
-  const workspace = opts.workspace as string | undefined;
-  if (!workspace) {
-    errorOutput('Workspace ID required. Use --workspace <id> or set $PULSE_CANVAS_WORKSPACE_ID');
-  }
-  return { format: opts.format ?? 'text', workspace };
-}
 
 interface SendResponse {
   ok: boolean;
@@ -39,16 +30,16 @@ export function registerAgentCommands(program: Command): void {
     .requiredOption('--input <text>', 'Text to send to the agent (Enter is appended automatically)')
     .description('Send follow-up input to a running agent node')
     .action(async function (this: Command, nodeId: string, cmdOpts: { input: string }) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const runtime = await readRuntime();
       const { status, body } = await postAgentSend(runtime, workspace, nodeId, cmdOpts.input);
 
       if (status === 401) {
-        errorOutput(runtimeAuthHint());
+        errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
       }
       if (!body.ok) {
         const hint = hintForCode(body.code);
-        errorOutput(`${body.error ?? `HTTP ${status}`}${hint ? `\n${hint}` : ''}`);
+        errorOutput(`${body.error ?? `HTTP ${status}`}${hint ? `\n${hint}` : ''}`, { code: body.code ?? 'runtime_error' });
       }
 
       output(body, format, (d) => {

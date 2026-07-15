@@ -28,14 +28,14 @@ export async function createEdge(
   storeDir?: string,
 ): Promise<Result<{ edgeId: string }>> {
   const canvas = await loadCanvas(workspaceId, storeDir);
-  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}` };
+  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}`, code: 'workspace_not_found' };
 
   // Validate that both source and target nodes exist
   const sourceExists = canvas.nodes.some(n => n.id === opts.sourceNodeId);
-  if (!sourceExists) return { ok: false, error: `Source node not found: ${opts.sourceNodeId}` };
+  if (!sourceExists) return { ok: false, error: `Source node not found: ${opts.sourceNodeId}`, code: 'node_not_found' };
 
   const targetExists = canvas.nodes.some(n => n.id === opts.targetNodeId);
-  if (!targetExists) return { ok: false, error: `Target node not found: ${opts.targetNodeId}` };
+  if (!targetExists) return { ok: false, error: `Target node not found: ${opts.targetNodeId}`, code: 'node_not_found' };
 
   const edgeId = `edge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -65,14 +65,14 @@ export async function deleteEdge(
   storeDir?: string,
 ): Promise<Result> {
   const canvas = await loadCanvas(workspaceId, storeDir);
-  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}` };
+  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}`, code: 'workspace_not_found' };
 
   const edges = canvas.edges ?? [];
   const exists = edges.some(e => e.id === edgeId);
-  if (!exists) return { ok: false, error: `Edge not found: ${edgeId}` };
+  if (!exists) return { ok: false, error: `Edge not found: ${edgeId}`, code: 'edge_not_found' };
 
   const result = await commitEdgeMutation(workspaceId, { removeId: edgeId }, storeDir);
-  if (!result) return { ok: false, error: `Edge not found: ${edgeId}` };
+  if (!result) return { ok: false, error: `Edge not found: ${edgeId}`, code: 'edge_not_found' };
   await notifyCanvasUpdated({ workspaceId, nodeIds: [], kind: 'delete' });
 
   return { ok: true, data: undefined };

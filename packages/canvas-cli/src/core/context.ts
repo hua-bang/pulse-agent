@@ -19,7 +19,15 @@ interface ContextEdge {
   kind?: string;
 }
 
+/**
+ * Version of the `context` output shape. Bump on any breaking change to the
+ * fields below so machine consumers can detect an incompatible CLI.
+ */
+export const CONTEXT_SCHEMA_VERSION = 1;
+
 interface CanvasContext {
+  /** Output-contract version (see CONTEXT_SCHEMA_VERSION). */
+  contextVersion: number;
   workspaceId: string;
   workspaceName: string;
   canvasDir: string;
@@ -38,9 +46,31 @@ function extractDescription(content: string): string {
   return '';
 }
 
+/** Max characters of a text node's body included inline in context. */
+const TEXT_EXCERPT_LEN = 200;
+
+/**
+ * Collapse a (possibly long, possibly multi-line) string to a single-line
+ * excerpt for context. Keeps prompts turning into `pulse-canvas context`
+ * output from ballooning an agent's prompt — the full body stays reachable
+ * via `pulse-canvas node read <id> --format json`.
+ */
+function excerpt(text: string, max = TEXT_EXCERPT_LEN): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim();
+  return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine;
+}
+
+export interface GenerateContextOptions {
+  /** Restrict file-node disk reads to the workspace dir (see readNode confineToDir). */
+  confineToWorkspace?: boolean;
+  /** If set, include only nodes whose `type` is in this list (edges follow). */
+  types?: string[];
+}
+
 export async function generateContext(
   workspaceId: string,
   storeDir?: string,
+  opts: GenerateContextOptions = {},
 ): Promise<CanvasContext | null> {
   const canvas = await loadCanvas(workspaceId, storeDir);
   if (!canvas) return null;
@@ -49,11 +79,15 @@ export async function generateContext(
   const entry = (manifest.workspaces ?? []).find(e => e.id === workspaceId);
   const workspaceName = entry?.name ?? workspaceId;
   const canvasDir = getWorkspaceDir(workspaceId, storeDir);
+  const confineToDir = opts.confineToWorkspace ? canvasDir : undefined;
+
+  const typeFilter = opts.types && opts.types.length > 0 ? new Set(opts.types) : null;
+  const sourceNodes = typeFilter ? canvas.nodes.filter(n => typeFilter.has(n.type)) : canvas.nodes;
 
   const nodes: ContextNode[] = [];
 
-  for (const node of canvas.nodes) {
-    const readResult = await readNode(node);
+  for (const node of sourceNodes) {
+    const readResult = await readNode(node, { confineToDir });
     const base: ContextNode = {
       id: node.id,
       type: node.type,
@@ -85,6 +119,47 @@ export async function generateContext(
         base.status = (readResult as NodeReadResult & { status?: string }).status ?? 'idle';
         base.cwd = (readResult as NodeReadResult & { cwd?: string }).cwd ?? '';
         break;
+      case 'text': {
+        // Excerpt only — the full markdown stays behind `node read`.
+        const content = (readResult as NodeReadResult & { content?: string }).content ?? '';
+        base.excerpt = excerpt(content);
+        break;
+      }
+      case 'iframe': {
+        // Persisted metadata only — never the inlined `html`/`prompt`, which
+        // can be huge and would blow up an agent's prompt.
+        const r = readResult as NodeReadResult & { mode?: string; url?: string; pageTitle?: string };
+        if (r.mode !== undefined) base.mode = r.mode;
+        if (r.url !== undefined) base.url = r.url;
+        if (r.pageTitle !== undefined) base.pageTitle = r.pageTitle;
+        break;
+      }
+      case 'image': {
+        const r = readResult as NodeReadResult & { filePath?: string; src?: string };
+        base.path = r.filePath ?? r.src ?? '';
+        break;
+      }
+      case 'shape': {
+        const r = readResult as NodeReadResult & { shape?: string; shapeType?: string; text?: string };
+        base.shape = r.shape ?? r.shapeType ?? '';
+        if (r.text) base.text = excerpt(String(r.text), 80);
+        break;
+      }
+      case 'dynamic-app': {
+        const r = readResult as NodeReadResult & { url?: string; dynamicAppId?: string };
+        if (r.url !== undefined) base.url = r.url;
+        if (r.dynamicAppId !== undefined) base.dynamicAppId = r.dynamicAppId;
+        break;
+      }
+      case 'plugin': {
+        // pluginId/nodeType/version identify it; the free-form `payload` is
+        // omitted from context (fetch it with `node read` if needed).
+        const r = readResult as NodeReadResult & { pluginId?: string; nodeType?: string; version?: string };
+        if (r.pluginId !== undefined) base.pluginId = r.pluginId;
+        if (r.nodeType !== undefined) base.pluginNodeType = r.nodeType;
+        if (r.version !== undefined) base.version = r.version;
+        break;
+      }
     }
 
     nodes.push(base);
@@ -94,7 +169,17 @@ export async function generateContext(
   const nodeTitleById = new Map<string, string>();
   for (const n of canvas.nodes) nodeTitleById.set(n.id, n.title);
 
-  const edges: ContextEdge[] = (canvas.edges ?? []).map(e => {
+  // Under a type filter, drop edges whose node endpoint was filtered out so
+  // the connection list stays consistent with the shown nodes.
+  const includedIds = typeFilter ? new Set(sourceNodes.map(n => n.id)) : null;
+  const edgeVisible = (e: CanvasEdge): boolean => {
+    if (!includedIds) return true;
+    const srcOk = e.source.kind !== 'node' || includedIds.has(e.source.nodeId);
+    const tgtOk = e.target.kind !== 'node' || includedIds.has(e.target.nodeId);
+    return srcOk && tgtOk;
+  };
+
+  const edges: ContextEdge[] = (canvas.edges ?? []).filter(edgeVisible).map(e => {
     const src = e.source.kind === 'node'
       ? (nodeTitleById.get(e.source.nodeId) ?? e.source.nodeId)
       : `(${e.source.x},${e.source.y})`;
@@ -110,7 +195,7 @@ export async function generateContext(
     };
   });
 
-  return { workspaceId, workspaceName, canvasDir, nodes, edges };
+  return { contextVersion: CONTEXT_SCHEMA_VERSION, workspaceId, workspaceName, canvasDir, nodes, edges };
 }
 
 export function formatContextAsText(ctx: CanvasContext): string {
@@ -167,6 +252,39 @@ export function formatContextAsText(ctx: CanvasContext): string {
       const info = `${node.agentType ?? 'unknown'}, ${node.status ?? 'idle'}`;
       const cwd = node.cwd ? `, cwd: \`${node.cwd}\`` : '';
       lines.push(`- **${node.title}** (${info}${cwd})`);
+    }
+  }
+
+  const textNodes = ctx.nodes.filter(n => n.type === 'text');
+  if (textNodes.length > 0) {
+    lines.push('', '## Text', '');
+    for (const node of textNodes) {
+      const ex = node.excerpt ? ` — ${node.excerpt}` : '';
+      lines.push(`- **${node.title}**${ex}`);
+    }
+  }
+
+  const iframeNodes = ctx.nodes.filter(n => n.type === 'iframe');
+  if (iframeNodes.length > 0) {
+    lines.push('', '## Embeds (iframe)', '');
+    for (const node of iframeNodes) {
+      const where = node.url ? ` \`${node.url}\`` : node.mode ? ` (${node.mode})` : '';
+      const page = node.pageTitle ? ` — ${node.pageTitle}` : '';
+      lines.push(`- **${node.title}**${where}${page}`);
+    }
+  }
+
+  // Any node type not rendered above (image, shape, dynamic-app, plugin,
+  // reference, or a future type this CLI has never seen) still gets listed so
+  // an agent knows it exists.
+  const shownTypes = new Set(['file', 'frame', 'group', 'terminal', 'agent', 'text', 'iframe']);
+  const otherNodes = ctx.nodes.filter(n => !shownTypes.has(n.type));
+  if (otherNodes.length > 0) {
+    lines.push('', '## Other nodes', '');
+    for (const node of otherNodes) {
+      const hint = String(node.url ?? node.path ?? node.pluginId ?? node.shape ?? '');
+      const hintStr = hint ? ` — ${hint}` : '';
+      lines.push(`- **${node.title}** [${node.type}]${hintStr}`);
     }
   }
 

@@ -1,15 +1,11 @@
 import { promises as fs } from 'fs';
 import { Command } from 'commander';
-import { errorOutput, output, type OutputFormat } from '../output';
+import { errorOutput, output } from '../output';
+import { getWorkspaceCommandOptions } from './options';
 import { postRuntime, readRuntime, runtimeAuthHint, type RuntimeInfo } from '../core/runtime-control';
 
 const ENV_TEAM_ID = 'PULSE_CANVAS_TEAM_ID';
 const ENV_TEAM_AGENT_ID = 'PULSE_CANVAS_TEAM_AGENT_ID';
-
-interface TeamCommandOpts {
-  format: OutputFormat;
-  workspace: string;
-}
 
 interface ProposePlanResponse {
   ok: boolean;
@@ -153,16 +149,6 @@ const renderTeamStatus = (response: TeamStatusResponse): string => {
 
 const collectOption = (value: string, previous: string[] = []): string[] => [...previous, value];
 
-function getOpts(cmd: Command): TeamCommandOpts {
-  const root = cmd.parent?.parent ?? cmd.parent;
-  const opts = root?.opts() ?? {};
-  const workspace = opts.workspace as string | undefined;
-  if (!workspace) {
-    errorOutput('Workspace ID required. Use --workspace <id> or set $PULSE_CANVAS_WORKSPACE_ID');
-  }
-  return { format: opts.format ?? 'text', workspace };
-}
-
 async function readPlan(cmdOpts: { planFile?: string; planJson?: string }): Promise<unknown> {
   let raw = cmdOpts.planJson;
   if (!raw && cmdOpts.planFile) {
@@ -247,7 +233,7 @@ export function registerTeamCommands(program: Command): void {
         planJson?: string;
       },
     ) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
       if (!teamId) {
         errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
@@ -262,8 +248,8 @@ export function registerTeamCommands(program: Command): void {
         plan,
       });
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => {
         const response = data as ProposePlanResponse;
@@ -300,7 +286,7 @@ export function registerTeamCommands(program: Command): void {
         dispatch?: boolean;
       },
     ) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
 
@@ -317,8 +303,8 @@ export function registerTeamCommands(program: Command): void {
         dispatch: cmdOpts.dispatch === true,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => {
         const response = data as TeamSnapshotResponse;
@@ -331,7 +317,7 @@ export function registerTeamCommands(program: Command): void {
     .option('--team <teamId>', `Team ID (default: $${ENV_TEAM_ID})`, process.env[ENV_TEAM_ID])
     .description('Dispatch ready team tasks')
     .action(async function (this: Command, cmdOpts: { team?: string }) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
 
@@ -341,8 +327,8 @@ export function registerTeamCommands(program: Command): void {
         teamId,
       });
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => {
         const response = data as TeamSnapshotResponse;
@@ -364,7 +350,7 @@ export function registerTeamCommands(program: Command): void {
       summaryParts: string[] | undefined,
       cmdOpts: { team?: string; sourceAgent?: string; task?: string; summary?: string },
     ) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
       const summary = textFromOptionOrParts(cmdOpts.summary, summaryParts, 'Summary');
@@ -376,8 +362,8 @@ export function registerTeamCommands(program: Command): void {
         summary,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => {
         const response = data as { task?: { status?: string; title?: string } };
@@ -401,7 +387,7 @@ export function registerTeamCommands(program: Command): void {
       reasonParts: string[] | undefined,
       cmdOpts: { team?: string; sourceAgent?: string; task?: string; reason?: string },
     ) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
       const reason = textFromOptionOrParts(cmdOpts.reason, reasonParts, 'Reason');
@@ -413,8 +399,8 @@ export function registerTeamCommands(program: Command): void {
         reason,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, () => `Task blocked for ${teamId}.`);
     });
@@ -423,7 +409,7 @@ export function registerTeamCommands(program: Command): void {
     .option('--team <teamId>', `Team ID (default: $${ENV_TEAM_ID}; omit to list all teams)`, process.env[ENV_TEAM_ID])
     .description('Show read-only team status: agents, session health, tasks, open questions, pending reviews')
     .action(async function (this: Command, cmdOpts: { team?: string }) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID] || undefined;
 
       const runtime = await readRuntime();
@@ -432,8 +418,8 @@ export function registerTeamCommands(program: Command): void {
         ...(teamId ? { teamId } : {}),
       }) as { status: number; body: TeamStatusResponse };
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => renderTeamStatus(data as TeamStatusResponse));
     });
@@ -450,7 +436,7 @@ export function registerTeamCommands(program: Command): void {
       reasonParts: string[] | undefined,
       cmdOpts: { team?: string; sourceAgent?: string; task?: string; reason?: string },
     ) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
       const reason = textFromOptionOrParts(cmdOpts.reason, reasonParts, 'Reason');
@@ -462,8 +448,8 @@ export function registerTeamCommands(program: Command): void {
         reason,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, () => `Task cancelled for ${teamId}; its file scope is released.`);
     });
@@ -481,7 +467,7 @@ export function registerTeamCommands(program: Command): void {
       promptParts: string[] | undefined,
       cmdOpts: { team?: string; sourceAgent?: string; task?: string; reason?: string; prompt?: string },
     ) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
       const prompt = textFromOptionOrParts(cmdOpts.prompt, promptParts, 'Prompt');
@@ -494,8 +480,8 @@ export function registerTeamCommands(program: Command): void {
         prompt,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, () => `Input requested for ${teamId}.`);
     });
@@ -523,7 +509,7 @@ export function registerTeamCommands(program: Command): void {
         summary?: string;
       },
     ) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
       const summary = (cmdOpts.summary || (summaryParts ?? []).join(' ')).trim() || undefined;
@@ -538,8 +524,8 @@ export function registerTeamCommands(program: Command): void {
         summary,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, () => `Artifact published for ${teamId}: ${cmdOpts.title}.`);
     });
@@ -555,7 +541,7 @@ export function registerTeamCommands(program: Command): void {
       summaryParts: string[] | undefined,
       cmdOpts: { team?: string; sourceAgent?: string; summary?: string },
     ) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
       const summary = textFromOptionOrParts(cmdOpts.summary, summaryParts, 'Summary');
@@ -566,8 +552,8 @@ export function registerTeamCommands(program: Command): void {
         summary,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, () => `Team completed: ${teamId}.`);
     });
@@ -584,7 +570,7 @@ export function registerTeamCommands(program: Command): void {
       messageParts: string[] | undefined,
       cmdOpts: { team?: string; to: string; task?: string; message?: string },
     ) {
-      const { format, workspace } = getOpts(this);
+      const { format, workspace } = await getWorkspaceCommandOptions(this, { requireReadableCanvas: false });
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
       const content = (cmdOpts.message || (messageParts ?? []).join(' ')).trim();
@@ -599,8 +585,8 @@ export function registerTeamCommands(program: Command): void {
         content,
       });
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => {
         const response = data as TeamSnapshotResponse;
