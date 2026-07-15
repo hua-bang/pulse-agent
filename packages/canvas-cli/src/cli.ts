@@ -8,6 +8,7 @@ import { registerAgentCommands } from './commands/agent';
 import { registerRestoreCommand } from './commands/restore';
 import { registerTeamCommands } from './commands/team';
 import { ENV_WORKSPACE_ID } from './core/workspace-resolution';
+import { setActiveFormat } from './output';
 
 export { ENV_WORKSPACE_ID };
 
@@ -23,7 +24,19 @@ export function createCli(): Command {
     .option(
       '-w, --workspace <id>',
       `Workspace ID (default: active workspace, or $${ENV_WORKSPACE_ID})`,
+    )
+    .option(
+      '--confine-to-workspace',
+      'Refuse to read/write file-node paths outside the workspace directory (safer for untrusted canvases)',
+      false,
     );
+
+  // Resolve the global output format once, before any action runs, so
+  // `errorOutput` can emit structured JSON errors from anywhere without each
+  // call site threading the format through.
+  program.hook('preAction', () => {
+    setActiveFormat(program.opts().format === 'json' ? 'json' : 'text');
+  });
 
   registerWorkspaceCommands(program);
   registerNodeCommands(program);

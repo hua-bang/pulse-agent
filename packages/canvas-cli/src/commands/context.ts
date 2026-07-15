@@ -8,10 +8,10 @@ export function registerContextCommand(program: Command): void {
     .command('context')
     .description('Generate canvas context for agent consumption')
     .action(async function (this: Command) {
-      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
+      const { format, storeDir, workspace, confineToWorkspace } = await getWorkspaceCommandOptions(this);
 
-      const ctx = await generateContext(workspace, storeDir);
-      if (!ctx) errorOutput(`Workspace not found: ${workspace}`);
+      const ctx = await generateContext(workspace, storeDir, { confineToWorkspace });
+      if (!ctx) errorOutput(`Workspace not found: ${workspace}`, { code: 'workspace_not_found' });
 
       output(ctx, format, (data) => formatContextAsText(data as NonNullable<typeof ctx>));
     });

@@ -63,23 +63,23 @@ export function registerEdgeCommands(program: Command): void {
 
       const validAnchors: EdgeAnchor[] = ['top', 'right', 'bottom', 'left', 'auto'];
       if (cmdOpts.fromAnchor && !validAnchors.includes(cmdOpts.fromAnchor as EdgeAnchor)) {
-        errorOutput(`Invalid --from-anchor "${cmdOpts.fromAnchor}". Must be: ${validAnchors.join(', ')}`);
+        errorOutput(`Invalid --from-anchor "${cmdOpts.fromAnchor}". Must be: ${validAnchors.join(', ')}`, { code: 'invalid_argument' });
       }
       if (cmdOpts.toAnchor && !validAnchors.includes(cmdOpts.toAnchor as EdgeAnchor)) {
-        errorOutput(`Invalid --to-anchor "${cmdOpts.toAnchor}". Must be: ${validAnchors.join(', ')}`);
+        errorOutput(`Invalid --to-anchor "${cmdOpts.toAnchor}". Must be: ${validAnchors.join(', ')}`, { code: 'invalid_argument' });
       }
 
       const validCaps: EdgeArrowCap[] = ['none', 'triangle', 'arrow', 'dot', 'bar'];
       if (cmdOpts.arrowHead && !validCaps.includes(cmdOpts.arrowHead as EdgeArrowCap)) {
-        errorOutput(`Invalid --arrow-head "${cmdOpts.arrowHead}". Must be: ${validCaps.join(', ')}`);
+        errorOutput(`Invalid --arrow-head "${cmdOpts.arrowHead}". Must be: ${validCaps.join(', ')}`, { code: 'invalid_argument' });
       }
       if (cmdOpts.arrowTail && !validCaps.includes(cmdOpts.arrowTail as EdgeArrowCap)) {
-        errorOutput(`Invalid --arrow-tail "${cmdOpts.arrowTail}". Must be: ${validCaps.join(', ')}`);
+        errorOutput(`Invalid --arrow-tail "${cmdOpts.arrowTail}". Must be: ${validCaps.join(', ')}`, { code: 'invalid_argument' });
       }
 
       const validStyles = ['solid', 'dashed', 'dotted'] as const;
       if (cmdOpts.style && !validStyles.includes(cmdOpts.style as typeof validStyles[number])) {
-        errorOutput(`Invalid --style "${cmdOpts.style}". Must be: ${validStyles.join(', ')}`);
+        errorOutput(`Invalid --style "${cmdOpts.style}". Must be: ${validStyles.join(', ')}`, { code: 'invalid_argument' });
       }
 
       const stroke: EdgeStroke | undefined =
@@ -104,7 +104,7 @@ export function registerEdgeCommands(program: Command): void {
         bend: cmdOpts.bend,
       }, storeDir);
 
-      if (!result.ok) errorOutput(result.error);
+      if (!result.ok) errorOutput(result.error, { code: result.code ?? 'error' });
 
       output(result.data, format, (d) => {
         const r = d as { edgeId: string };
@@ -119,7 +119,7 @@ export function registerEdgeCommands(program: Command): void {
       const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
 
       const result = await deleteEdge(workspace, edgeId, storeDir);
-      if (!result.ok) errorOutput(result.error);
+      if (!result.ok) errorOutput(result.error, { code: result.code ?? 'error' });
 
       output({ deleted: edgeId }, format, () => `Deleted edge: ${edgeId}`);
     });

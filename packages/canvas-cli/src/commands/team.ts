@@ -248,8 +248,8 @@ export function registerTeamCommands(program: Command): void {
         plan,
       });
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => {
         const response = data as ProposePlanResponse;
@@ -303,8 +303,8 @@ export function registerTeamCommands(program: Command): void {
         dispatch: cmdOpts.dispatch === true,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => {
         const response = data as TeamSnapshotResponse;
@@ -327,8 +327,8 @@ export function registerTeamCommands(program: Command): void {
         teamId,
       });
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => {
         const response = data as TeamSnapshotResponse;
@@ -362,8 +362,8 @@ export function registerTeamCommands(program: Command): void {
         summary,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => {
         const response = data as { task?: { status?: string; title?: string } };
@@ -399,8 +399,8 @@ export function registerTeamCommands(program: Command): void {
         reason,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, () => `Task blocked for ${teamId}.`);
     });
@@ -418,8 +418,8 @@ export function registerTeamCommands(program: Command): void {
         ...(teamId ? { teamId } : {}),
       }) as { status: number; body: TeamStatusResponse };
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => renderTeamStatus(data as TeamStatusResponse));
     });
@@ -448,8 +448,8 @@ export function registerTeamCommands(program: Command): void {
         reason,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, () => `Task cancelled for ${teamId}; its file scope is released.`);
     });
@@ -480,8 +480,8 @@ export function registerTeamCommands(program: Command): void {
         prompt,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, () => `Input requested for ${teamId}.`);
     });
@@ -524,8 +524,8 @@ export function registerTeamCommands(program: Command): void {
         summary,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, () => `Artifact published for ${teamId}: ${cmdOpts.title}.`);
     });
@@ -552,8 +552,8 @@ export function registerTeamCommands(program: Command): void {
         summary,
       }, cmdOpts.sourceAgent));
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, () => `Team completed: ${teamId}.`);
     });
@@ -585,8 +585,8 @@ export function registerTeamCommands(program: Command): void {
         content,
       });
 
-      if (status === 401) errorOutput(runtimeAuthHint());
-      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+      if (status === 401) errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`, { code: body.code ?? 'runtime_error' });
 
       output(body, format, (data) => {
         const response = data as TeamSnapshotResponse;

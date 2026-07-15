@@ -52,9 +52,15 @@ function excerpt(text: string, max = TEXT_EXCERPT_LEN): string {
   return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine;
 }
 
+export interface GenerateContextOptions {
+  /** Restrict file-node disk reads to the workspace dir (see readNode confineToDir). */
+  confineToWorkspace?: boolean;
+}
+
 export async function generateContext(
   workspaceId: string,
   storeDir?: string,
+  opts: GenerateContextOptions = {},
 ): Promise<CanvasContext | null> {
   const canvas = await loadCanvas(workspaceId, storeDir);
   if (!canvas) return null;
@@ -63,11 +69,12 @@ export async function generateContext(
   const entry = (manifest.workspaces ?? []).find(e => e.id === workspaceId);
   const workspaceName = entry?.name ?? workspaceId;
   const canvasDir = getWorkspaceDir(workspaceId, storeDir);
+  const confineToDir = opts.confineToWorkspace ? canvasDir : undefined;
 
   const nodes: ContextNode[] = [];
 
   for (const node of canvas.nodes) {
-    const readResult = await readNode(node);
+    const readResult = await readNode(node, { confineToDir });
     const base: ContextNode = {
       id: node.id,
       type: node.type,

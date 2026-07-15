@@ -23,10 +23,14 @@ function makeNode(type: string, data: Record<string, unknown>, title = 'Node'): 
 }
 
 describe('getNodeCapabilities for modern types', () => {
-  it('returns read-only for the app-produced types', () => {
-    for (const t of ['text', 'iframe', 'image', 'shape', 'reference', 'dynamic-app', 'plugin']) {
+  it('returns read-only for the app-produced read-only types', () => {
+    for (const t of ['iframe', 'image', 'shape', 'reference', 'dynamic-app', 'plugin']) {
       expect(getNodeCapabilities(t)).toEqual(['read']);
     }
+  });
+
+  it('reports text as read+write (its markdown is editable from the CLI)', () => {
+    expect(getNodeCapabilities('text')).toEqual(['read', 'write']);
   });
 
   it('falls back to read-only for an unknown future type', () => {

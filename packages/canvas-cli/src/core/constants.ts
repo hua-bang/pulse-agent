@@ -11,9 +11,10 @@ export const NODE_CAPABILITIES: Record<KnownNodeType, NodeCapability[]> = {
   group: ['read', 'write'],
   agent: ['read', 'exec'],
   mindmap: ['read', 'write'],
-  // Read-only types the app produces. The CLI surfaces their persisted
-  // metadata but does not create or mutate them (yet).
-  text: ['read'],
+  // App-produced types. `text` is read+write (its markdown lives inline in
+  // canvas.json, so the CLI can edit it); the rest are read-only — the CLI
+  // surfaces their persisted metadata but does not create or mutate them.
+  text: ['read', 'write'],
   iframe: ['read'],
   image: ['read'],
   shape: ['read'],

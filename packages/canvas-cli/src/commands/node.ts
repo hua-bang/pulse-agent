@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { Command } from 'commander';
-import { loadCanvas } from '../core/store';
+import { loadCanvas, getWorkspaceDir } from '../core/store';
 import {
   getNodeCapabilities,
   readNode,
@@ -46,7 +46,7 @@ export function registerNodeCommands(program: Command): void {
     .action(async function (this: Command) {
       const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
       const canvas = await loadCanvas(workspace, storeDir);
-      if (!canvas) errorOutput(`Workspace not found: ${workspace}`);
+      if (!canvas) errorOutput(`Workspace not found: ${workspace}`, { code: 'workspace_not_found' });
 
       const rows = canvas!.nodes.map(n => ({
         id: n.id,
@@ -69,14 +69,16 @@ export function registerNodeCommands(program: Command): void {
     .argument('<nodeId>', 'Node ID')
     .description('Read a canvas node')
     .action(async function (this: Command, nodeId: string) {
-      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
+      const { format, storeDir, workspace, confineToWorkspace } = await getWorkspaceCommandOptions(this);
       const canvas = await loadCanvas(workspace, storeDir);
-      if (!canvas) errorOutput(`Workspace not found: ${workspace}`);
+      if (!canvas) errorOutput(`Workspace not found: ${workspace}`, { code: 'workspace_not_found' });
 
       const canvasNode = canvas!.nodes.find(n => n.id === nodeId);
-      if (!canvasNode) errorOutput(`Node not found: ${nodeId}`);
+      if (!canvasNode) errorOutput(`Node not found: ${nodeId}`, { code: 'node_not_found' });
 
-      const result = await readNode(canvasNode!);
+      const result = await readNode(canvasNode!, {
+        confineToDir: confineToWorkspace ? getWorkspaceDir(workspace, storeDir) : undefined,
+      });
 
       output(result, format, (data) => {
         const d = data as Record<string, unknown>;
@@ -107,7 +109,7 @@ export function registerNodeCommands(program: Command): void {
     .option('--raw', 'Treat --content verbatim without interpreting escape sequences', false)
     .description('Write content to a canvas node')
     .action(async function (this: Command, nodeId: string, cmdOpts: { content?: string; file?: string; raw?: boolean }) {
-      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
+      const { format, storeDir, workspace, confineToWorkspace } = await getWorkspaceCommandOptions(this);
 
       let content: string;
       if (cmdOpts.content !== undefined) {
@@ -116,7 +118,7 @@ export function registerNodeCommands(program: Command): void {
         try {
           content = await fs.readFile(cmdOpts.file, 'utf-8');
         } catch (err) {
-          errorOutput(`Cannot read file: ${cmdOpts.file} — ${String(err)}`);
+          errorOutput(`Cannot read file: ${cmdOpts.file} — ${String(err)}`, { code: 'io_error' });
         }
       } else if (!process.stdin.isTTY) {
         // Read from stdin
@@ -126,11 +128,11 @@ export function registerNodeCommands(program: Command): void {
         }
         content = Buffer.concat(chunks).toString('utf-8');
       } else {
-        errorOutput('Provide content via --content, --file, or stdin');
+        errorOutput('Provide content via --content, --file, or stdin', { code: 'invalid_argument' });
       }
 
-      const result = await writeNode(workspace, nodeId, content!, storeDir);
-      if (!result.ok) errorOutput(result.error);
+      const result = await writeNode(workspace, nodeId, content!, storeDir, { confineToWorkspace });
+      if (!result.ok) errorOutput(result.error, { code: result.code ?? 'error' });
 
       output({ ok: true }, format, () => 'OK');
     });
@@ -149,7 +151,7 @@ export function registerNodeCommands(program: Command): void {
 
       const validTypes: CreatableNodeType[] = ['file', 'terminal', 'frame', 'group', 'agent', 'mindmap'];
       if (!validTypes.includes(cmdOpts.type as CreatableNodeType)) {
-        errorOutput(`Invalid type "${cmdOpts.type}". Must be: ${validTypes.join(', ')}`);
+        errorOutput(`Invalid type "${cmdOpts.type}". Must be: ${validTypes.join(', ')}`, { code: 'invalid_argument' });
       }
 
       let data: Record<string, unknown> | undefined;
@@ -157,7 +159,7 @@ export function registerNodeCommands(program: Command): void {
         try {
           data = JSON.parse(cmdOpts.data) as Record<string, unknown>;
         } catch {
-          errorOutput('--data must be valid JSON');
+          errorOutput('--data must be valid JSON', { code: 'invalid_argument' });
         }
       }
 
@@ -171,7 +173,7 @@ export function registerNodeCommands(program: Command): void {
         data,
       }, storeDir);
 
-      if (!result.ok) errorOutput(result.error);
+      if (!result.ok) errorOutput(result.error, { code: result.code ?? 'error' });
 
       if (cmdOpts.type === 'terminal') {
         console.error('Note: Terminal nodes created via CLI have no active PTY session.');
@@ -193,7 +195,7 @@ export function registerNodeCommands(program: Command): void {
       const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
 
       const result = await deleteNode(workspace, nodeId, storeDir);
-      if (!result.ok) errorOutput(result.error);
+      if (!result.ok) errorOutput(result.error, { code: result.code ?? 'error' });
 
       output({ deleted: nodeId }, format, () => `Deleted node: ${nodeId}`);
     });

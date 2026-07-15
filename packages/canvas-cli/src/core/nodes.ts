@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { join, resolve, relative, isAbsolute } from 'path';
 import { NODE_CAPABILITIES, DEFAULT_NODE_DIMENSIONS } from './constants';
 import { loadCanvas, saveCanvas, ensureWorkspaceDir, getWorkspaceDir, commitNodeMutation } from './store';
 import { notifyCanvasUpdated } from './notifier';
@@ -66,6 +66,22 @@ export function getNodeCapabilities(type: NodeType): NodeCapability[] {
   return (NODE_CAPABILITIES as Record<string, NodeCapability[]>)[type] ?? ['read'];
 }
 
+/** True if `child` resolves to a path at or under `parent`. */
+function isPathInside(child: string, parent: string): boolean {
+  const rel = relative(resolve(parent), resolve(child));
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+export interface ReadNodeOptions {
+  /**
+   * When set, a `file` node whose `filePath` escapes this directory is NOT
+   * read from disk — the in-memory content is returned instead and the result
+   * is flagged `pathConfined: true`. Guards against a crafted/untrusted
+   * canvas.json turning `node read` into arbitrary file read.
+   */
+  confineToDir?: string;
+}
+
 /**
  * Pull a small set of keys off a node's `data`, keeping only the ones that
  * are actually present. Used by the read cases below so the result carries a
@@ -79,21 +95,31 @@ function pick(data: Record<string, unknown>, keys: string[]): Record<string, unk
   return out;
 }
 
-export async function readNode(node: CanvasNode): Promise<NodeReadResult> {
+export async function readNode(node: CanvasNode, opts: ReadNodeOptions = {}): Promise<NodeReadResult> {
   const capabilities = getNodeCapabilities(node.type);
 
   switch (node.type) {
     case 'file': {
       let content = node.data.content ?? '';
-      if (node.data.filePath) {
-        try {
-          content = await fs.readFile(node.data.filePath, 'utf-8');
-        } catch {
-          // fall through to in-memory content
+      const filePath = node.data.filePath;
+      let pathConfined = false;
+      if (filePath) {
+        if (opts.confineToDir && !isPathInside(filePath, opts.confineToDir)) {
+          // Escaping path under confinement: never touch disk, use whatever
+          // content the canvas already holds.
+          pathConfined = true;
+        } else {
+          try {
+            content = await fs.readFile(filePath, 'utf-8');
+          } catch {
+            // fall through to in-memory content
+          }
         }
       }
-      const ext = node.data.filePath?.split('.').pop() ?? '';
-      return { type: 'file', capabilities, path: node.data.filePath ?? '', content, language: ext };
+      const ext = filePath?.split('.').pop() ?? '';
+      const result: NodeReadResult = { type: 'file', capabilities, path: filePath ?? '', content, language: ext };
+      if (pathConfined) result.pathConfined = true;
+      return result;
     }
     case 'terminal':
       return {
@@ -183,21 +209,41 @@ export async function readNode(node: CanvasNode): Promise<NodeReadResult> {
   }
 }
 
+export interface WriteNodeOptions {
+  /**
+   * Refuse to write a `file` node whose `filePath` escapes the workspace
+   * directory. Guards against a crafted/untrusted canvas.json turning
+   * `node write` into an arbitrary-file overwrite.
+   */
+  confineToWorkspace?: boolean;
+}
+
 export async function writeNode(
   workspaceId: string,
   nodeId: string,
   content: string,
   storeDir?: string,
+  opts: WriteNodeOptions = {},
 ): Promise<Result> {
   const canvas = await loadCanvas(workspaceId, storeDir);
-  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}` };
+  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}`, code: 'workspace_not_found' };
 
   const node = canvas.nodes.find(n => n.id === nodeId);
-  if (!node) return { ok: false, error: `Node not found: ${nodeId}` };
+  if (!node) return { ok: false, error: `Node not found: ${nodeId}`, code: 'node_not_found' };
 
   switch (node.type) {
     case 'file': {
       if (node.data.filePath) {
+        if (opts.confineToWorkspace) {
+          const wsDir = getWorkspaceDir(workspaceId, storeDir);
+          if (!isPathInside(node.data.filePath, wsDir)) {
+            return {
+              ok: false,
+              error: `Refusing to write file node: its filePath "${node.data.filePath}" is outside the workspace directory (--confine-to-workspace).`,
+              code: 'path_confined',
+            };
+          }
+        }
         await fs.writeFile(node.data.filePath, content, 'utf-8');
       }
       node.data.content = content;
@@ -205,6 +251,16 @@ export async function writeNode(
       // Re-read canvas.json just before writing so concurrent changes
       // from the Electron renderer (or other canvas-cli invocations) to
       // other nodes are preserved. Only our target node is replaced.
+      await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
+      await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
+      return { ok: true, data: undefined };
+    }
+    case 'text': {
+      // Text cards hold their markdown inline in `data.content`; writing is
+      // symmetric with reading them (unlike file nodes there is no backing
+      // file on disk to update).
+      node.data.content = content;
+      node.updatedAt = Date.now();
       await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
       await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
       return { ok: true, data: undefined };
@@ -223,15 +279,15 @@ export async function writeNode(
         await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
         return { ok: true, data: undefined };
       } catch {
-        return { ok: false, error: 'Container write expects JSON: { label?: string, color?: string, childIds?: string[] }' };
+        return { ok: false, error: 'Container write expects JSON: { label?: string, color?: string, childIds?: string[] }', code: 'invalid_argument' };
       }
     }
     case 'terminal':
-      return { ok: false, error: 'Terminal nodes do not support write. Use canvas_exec to send commands.' };
+      return { ok: false, error: 'Terminal nodes do not support write. Use canvas_exec to send commands.', code: 'unsupported' };
     case 'agent':
-      return { ok: false, error: 'Agent nodes do not support write. Use canvas_exec to send commands.' };
+      return { ok: false, error: 'Agent nodes do not support write. Use canvas_exec to send commands.', code: 'unsupported' };
     default:
-      return { ok: false, error: 'Unknown node type' };
+      return { ok: false, error: `Node type "${node.type}" does not support write from the CLI.`, code: 'unsupported' };
   }
 }
 
@@ -281,7 +337,7 @@ export async function createNode(
 
   const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const def = (DEFAULT_NODE_DIMENSIONS as Record<string, { title: string; width: number; height: number }>)[opts.type];
-  if (!def) return { ok: false, error: `Unsupported node type: ${opts.type}` };
+  if (!def) return { ok: false, error: `Unsupported node type: ${opts.type}`, code: 'unsupported' };
 
   const auto = autoPlace(canvas.nodes);
   const x = opts.x ?? auto.x;
@@ -375,15 +431,15 @@ export async function deleteNode(
   storeDir?: string,
 ): Promise<Result> {
   const canvas = await loadCanvas(workspaceId, storeDir);
-  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}` };
+  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}`, code: 'workspace_not_found' };
 
   const exists = canvas.nodes.some(n => n.id === nodeId);
-  if (!exists) return { ok: false, error: `Node not found: ${nodeId}` };
+  if (!exists) return { ok: false, error: `Node not found: ${nodeId}`, code: 'node_not_found' };
 
   // Re-read canvas.json just before writing to preserve concurrent changes
   // to other nodes from the renderer or other canvas-cli invocations.
   const result = await commitNodeMutation(workspaceId, { removeId: nodeId }, storeDir);
-  if (!result) return { ok: false, error: `Node not found: ${nodeId}` };
+  if (!result) return { ok: false, error: `Node not found: ${nodeId}`, code: 'node_not_found' };
   await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'delete' });
 
   return { ok: true, data: undefined };

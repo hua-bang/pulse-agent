@@ -71,6 +71,18 @@ the root harness files above, then the package source/tests.
 - `reference` and plugin nodes are read-compatible shapes, not CLI creation
   types. Plugin nodes are authored through the Canvas host/plugin tools, not
   this package's generic `node create`.
+- `text` nodes are read+write (their markdown lives inline in `data.content`);
+  `node write` edits them. Other app-produced types stay read-only.
+- Error contract (machine callers): `errorOutput` emits `{ ok, error, code }`
+  JSON on stderr under `--format json` (human `Error:` line otherwise); the
+  format is set once by the cli.ts `preAction` hook via `setActiveFormat`. Core
+  `Result` failures carry an optional `code`; command layer forwards it. Keep
+  `code` values stable — external callers branch on them. New error sites should
+  pass a `code`.
+- `--confine-to-workspace` restricts `file`-node disk paths (from a possibly
+  untrusted canvas.json) to the workspace dir: reads fall back to in-memory
+  content (`pathConfined: true`), writes fail with `path_confined`. The guard is
+  opt-in so existing app-created nodes (paths under `notes/`) are unaffected.
 - Live `agent` and `team` commands must keep using the runtime file plus bearer
   auth. Do not bypass runtime authentication or reach into Electron memory from
   this package.

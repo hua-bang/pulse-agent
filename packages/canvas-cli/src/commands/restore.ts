@@ -35,7 +35,7 @@ import {
   getWorkspaceDir,
   ensureWorkspaceDir,
 } from '../core/store';
-import { resolveWorkspaceId } from '../core/workspace-resolution';
+import { resolveWorkspaceId, WorkspaceResolutionError } from '../core/workspace-resolution';
 import { getRootOptions } from './options';
 import { detectSchemaVersion } from '../core/storage-v2';
 import type { CanvasSaveData } from '../core/types';
@@ -61,7 +61,8 @@ async function resolveRestoreOptions(
     });
     return { format: root.format, storeDir: root.storeDir, workspaceId: resolution.workspaceId };
   } catch (err) {
-    errorOutput((err as Error).message);
+    const code = err instanceof WorkspaceResolutionError ? err.code : 'error';
+    errorOutput((err as Error).message, { code });
   }
 }
 

@@ -23,6 +23,7 @@ Binary name: `pulse-canvas`.
 | `--format <json\|text>` | Output format: `json` or `text` (default: `text`) |
 | `--store-dir <path>` | Canvas store directory (default: `~/.pulse-coder/canvas/`) |
 | `-w, --workspace <id>` | Workspace ID (default: active workspace, or `$PULSE_CANVAS_WORKSPACE_ID`) |
+| `--confine-to-workspace` | Refuse to read/write file-node paths outside the workspace directory (safer for untrusted canvases) |
 
 **Workspace auto-discovery.** Commands resolve the target workspace in a fixed
 order: `--workspace <id>` → `$PULSE_CANVAS_WORKSPACE_ID` (the Electron app sets
@@ -30,6 +31,15 @@ this for agent nodes automatically) → the app's active workspace
 (`__workspaces__.json.activeId`). If none of these selects a workspace, the
 command errors instead of guessing. Run `pulse-canvas workspace current` to see
 which workspace commands will act on.
+
+**Output & error contract (for machine callers).** Successful `--format json`
+output is a JSON value on **stdout**. On failure the process exits non-zero and,
+in `--format json`, prints a JSON object `{ "ok": false, "error": "…", "code":
+"…" }` on **stderr** (in text mode it's a human `Error: …` line). Branch on the
+stable `code` rather than the message. Common codes: `no_workspace_selected`,
+`workspace_not_found`, `node_not_found`, `edge_not_found`, `invalid_argument`,
+`unsupported`, `path_confined`, `confirmation_required`, and the runtime family
+(`runtime_not_found`, `runtime_unreachable`, `runtime_auth`, …) for `agent`/`team`.
 
 ## Commands
 
@@ -71,7 +81,7 @@ Node types and capabilities (the capability map reported by `node list`):
 | `group` | read, write | Container of child nodes; `node write` expects JSON `{label?,color?,childIds?}` |
 | `agent` | read, exec | Agent PTY node (read-only from CLI; use `agent send` for live input) |
 | `mindmap` | read, write | Topic tree; initialize via `--data '{"root":{"text":"...","children":[...]}}'` |
-| `text` | read | Markdown text card (content, font, color) |
+| `text` | read, write | Markdown text card (content, font, color); `node write` replaces its `content` |
 | `iframe` | read | Embedded page (`mode`, `url`, `html`, `prompt`, `artifactId`, `pageTitle`) |
 | `image` | read | Local image (`filePath`) |
 | `shape` | read | Shape with text/style |
@@ -79,7 +89,7 @@ Node types and capabilities (the capability map reported by `node list`):
 | `plugin` | read | Plugin node (`pluginId`, `nodeType`, `version`, `payload`) |
 | `reference` | read | Snapshot reference to another node |
 
-`node create` accepts only the creatable types: `file`, `terminal`, `frame`, `group`, `agent`, and `mindmap`. The remaining types above are produced by the canvas app and are **read-only** from the CLI — `node read <id> --format json` returns their full persisted metadata. Unrecognized (future) node types still load and read as opaque nodes rather than breaking the CLI. `node write` currently supports `file`, `frame`, and `group`; `terminal`/`agent` require a live PTY.
+`node create` accepts only the creatable types: `file`, `terminal`, `frame`, `group`, `agent`, and `mindmap`. The remaining types above are produced by the canvas app and are **read-only** from the CLI — `node read <id> --format json` returns their full persisted metadata. Unrecognized (future) node types still load and read as opaque nodes rather than breaking the CLI. `node write` supports `file`, `text`, `frame`, and `group`; `terminal`/`agent` require a live PTY. Pass `--confine-to-workspace` so a `file` node whose `filePath` points outside the workspace directory is refused (read falls back to in-memory content, write errors with code `path_confined`) — recommended when the canvas may be untrusted.
 
 > **iframe/dynamic-app content.** `node read` returns only what the store persists — for a URL-mode iframe that is the metadata (url, pageTitle, …), not the live web page body, which lives in the running Electron webview rather than the canvas store. Reading the rendered page would need a separate, runtime-authenticated `webview read` command (not yet implemented); plain `node read` never connects to Electron or fetches the network.
 

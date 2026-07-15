@@ -35,11 +35,11 @@ export function registerAgentCommands(program: Command): void {
       const { status, body } = await postAgentSend(runtime, workspace, nodeId, cmdOpts.input);
 
       if (status === 401) {
-        errorOutput(runtimeAuthHint());
+        errorOutput(runtimeAuthHint(), { code: 'runtime_auth' });
       }
       if (!body.ok) {
         const hint = hintForCode(body.code);
-        errorOutput(`${body.error ?? `HTTP ${status}`}${hint ? `\n${hint}` : ''}`);
+        errorOutput(`${body.error ?? `HTTP ${status}`}${hint ? `\n${hint}` : ''}`, { code: body.code ?? 'runtime_error' });
       }
 
       output(body, format, (d) => {

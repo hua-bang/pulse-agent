@@ -22,18 +22,19 @@ export async function readRuntime(): Promise<RuntimeInfo> {
       errorOutput(
         'No active canvas-workspace runtime found.\n' +
         'Open this workspace in Pulse Canvas before using live agent/team commands.',
+        { code: 'runtime_not_found' },
       );
     }
-    errorOutput(`Cannot read runtime file (${RUNTIME_FILE}): ${String(err)}`);
+    errorOutput(`Cannot read runtime file (${RUNTIME_FILE}): ${String(err)}`, { code: 'runtime_unreadable' });
   }
   try {
     const info = JSON.parse(raw!) as RuntimeInfo;
     if (!info.baseUrl || !info.secret) {
-      errorOutput('Runtime file is missing baseUrl or secret. Restart Pulse Canvas.');
+      errorOutput('Runtime file is missing baseUrl or secret. Restart Pulse Canvas.', { code: 'runtime_invalid' });
     }
     return info;
   } catch {
-    errorOutput('Runtime file is corrupt. Restart Pulse Canvas.');
+    errorOutput('Runtime file is corrupt. Restart Pulse Canvas.', { code: 'runtime_corrupt' });
   }
 }
 
@@ -56,6 +57,7 @@ export async function postRuntime<TBody extends object, TResponse>(
     errorOutput(
       `Cannot reach canvas-workspace runtime at ${runtime.baseUrl}: ${(err as Error).message}\n` +
       'The Electron app may not be running, or the runtime file is stale.',
+      { code: 'runtime_unreachable' },
     );
   }
 

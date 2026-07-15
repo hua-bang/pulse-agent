@@ -23,6 +23,25 @@ export interface WorkspaceResolution {
   source: WorkspaceResolutionSource;
 }
 
+export type WorkspaceResolutionCode =
+  | 'no_workspace_selected'
+  | 'workspace_unsafe'
+  | 'workspace_not_found'
+  | 'workspace_unreadable';
+
+/**
+ * Thrown by {@link resolveWorkspaceId} with a stable `code` so command-layer
+ * error handling can forward a machine-readable identifier to callers.
+ */
+export class WorkspaceResolutionError extends Error {
+  readonly code: WorkspaceResolutionCode;
+  constructor(message: string, code: WorkspaceResolutionCode) {
+    super(message);
+    this.name = 'WorkspaceResolutionError';
+    this.code = code;
+  }
+}
+
 function isEnoent(err: unknown): boolean {
   return !!err && typeof err === 'object' && (err as { code?: string }).code === 'ENOENT';
 }
@@ -47,8 +66,9 @@ async function validateWorkspace(
   requireReadableCanvas = true,
 ): Promise<WorkspaceResolution> {
   if (!isSafeWorkspaceId(workspaceId)) {
-    throw new Error(
+    throw new WorkspaceResolutionError(
       `Unsafe workspace id "${workspaceId}" (from ${describeSource(source)}).`,
+      'workspace_unsafe',
     );
   }
 
@@ -77,14 +97,16 @@ async function validateWorkspace(
     return { workspaceId, source };
   } catch {
     if (primaryErr) {
-      throw new Error(
+      throw new WorkspaceResolutionError(
         `Workspace "${workspaceId}" (from ${describeSource(source)}) has an ` +
         `unreadable canvas.json: ${String(primaryErr)}`,
+        'workspace_unreadable',
       );
     }
-    throw new Error(
+    throw new WorkspaceResolutionError(
       `Workspace "${workspaceId}" (from ${describeSource(source)}) not found ` +
       `at ${dir}.`,
+      'workspace_not_found',
     );
   }
 }
@@ -142,8 +164,9 @@ export async function resolveWorkspaceId(options: {
     return validateWorkspace(manifest.activeId, 'manifest-active', options.storeDir, requireReadableCanvas);
   }
 
-  throw new Error(
+  throw new WorkspaceResolutionError(
     'No workspace selected. Open a workspace in Pulse Canvas, ' +
     `pass --workspace <id>, or set $${ENV_WORKSPACE_ID}.`,
+    'no_workspace_selected',
   );
 }

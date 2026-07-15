@@ -12,7 +12,7 @@ import {
   ensureWorkspaceDir,
 } from '../core/store';
 import { getNodeCapabilities } from '../core/nodes';
-import { resolveWorkspaceId } from '../core/workspace-resolution';
+import { resolveWorkspaceId, WorkspaceResolutionError } from '../core/workspace-resolution';
 import { DEFAULT_NODE_DIMENSIONS } from '../core/constants';
 import type { CanvasNode, CanvasSaveData } from '../core/types';
 import { output, errorOutput, type OutputFormat } from '../output';
@@ -58,7 +58,8 @@ export function registerWorkspaceCommands(program: Command): void {
       try {
         resolution = await resolveWorkspaceId({ explicitId, storeDir });
       } catch (err) {
-        errorOutput((err as Error).message);
+        const code = err instanceof WorkspaceResolutionError ? err.code : 'error';
+        errorOutput((err as Error).message, { code });
       }
 
       const manifest = await loadWorkspaceManifest(storeDir);
@@ -83,7 +84,7 @@ export function registerWorkspaceCommands(program: Command): void {
     .action(async function (this: Command, workspaceId: string) {
       const { format, storeDir } = getOpts(this);
       const canvas = await loadCanvas(workspaceId, storeDir);
-      if (!canvas) errorOutput(`Workspace not found: ${workspaceId}`);
+      if (!canvas) errorOutput(`Workspace not found: ${workspaceId}`, { code: 'workspace_not_found' });
 
       const manifest = await loadWorkspaceManifest(storeDir);
       const entry = (manifest.workspaces ?? []).find(e => e.id === workspaceId);
@@ -135,7 +136,7 @@ export function registerWorkspaceCommands(program: Command): void {
     .action(async function (this: Command, workspaceId: string, cmdOpts: { confirm?: boolean }) {
       const { format, storeDir } = getOpts(this);
       if (!cmdOpts.confirm) {
-        errorOutput('Use --confirm to delete a workspace. This action is irreversible.');
+        errorOutput('Use --confirm to delete a workspace. This action is irreversible.', { code: 'confirmation_required' });
       }
 
       const result = await deleteWorkspace(workspaceId, storeDir);
@@ -170,7 +171,7 @@ export function registerWorkspaceCommands(program: Command): void {
           .filter((e) => e.isFile() && e.name.endsWith('.md'))
           .map((e) => e.name);
       } catch {
-        errorOutput(`Notes directory not found: ${notesDir}`);
+        errorOutput(`Notes directory not found: ${notesDir}`, { code: 'not_found' });
       }
 
       // Note files are written as `{safeTitle}-{nodeId}.md` where nodeId

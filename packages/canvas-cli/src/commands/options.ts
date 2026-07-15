@@ -1,5 +1,9 @@
 import type { Command } from 'commander';
-import { resolveWorkspaceId, type WorkspaceResolutionSource } from '../core/workspace-resolution';
+import {
+  resolveWorkspaceId,
+  WorkspaceResolutionError,
+  type WorkspaceResolutionSource,
+} from '../core/workspace-resolution';
 import { errorOutput, type OutputFormat } from '../output';
 
 export interface RootOptions {
@@ -7,6 +11,8 @@ export interface RootOptions {
   storeDir?: string;
   /** The `--workspace` flag value, if explicitly passed (undefined otherwise). */
   workspace?: string;
+  /** `--confine-to-workspace`: block file-node paths outside the workspace dir. */
+  confineToWorkspace: boolean;
 }
 
 /**
@@ -22,6 +28,7 @@ export function getRootOptions(cmd: Command): RootOptions {
     format: opts.format ?? 'text',
     storeDir: opts.storeDir,
     workspace: opts.workspace,
+    confineToWorkspace: opts.confineToWorkspace === true,
   };
 }
 
@@ -65,6 +72,7 @@ export async function getWorkspaceCommandOptions(
       workspaceSource: resolution.source,
     };
   } catch (err) {
-    errorOutput((err as Error).message);
+    const code = err instanceof WorkspaceResolutionError ? err.code : 'error';
+    errorOutput((err as Error).message, { code });
   }
 }
