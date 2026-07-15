@@ -179,6 +179,7 @@ export const IframeNodeBody = ({
         webviewDiscarded={state.webviewDiscarded}
         streamIframeRef={state.streamIframeRef}
         streamingActive={state.streamingActive}
+        title={node.title}
         url={state.url}
         webviewHostRef={state.webviewHostRef}
         webviewKey={state.webviewKey}

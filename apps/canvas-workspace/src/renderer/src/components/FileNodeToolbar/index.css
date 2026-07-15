@@ -11,6 +11,12 @@
   transition: opacity 120ms ease;
 }
 
+/* Reveal on hover as well as focus so a note reads as "editable now" the
+ * moment you point at it — the same trigger the block handle already uses.
+ * This removes the read→write mode-switch feel (Notion-style: viewing and
+ * editing present the same chrome); the toolbar is absolutely positioned so
+ * showing it never shifts the note's content layout. */
+.note-card:hover .note-toolbar,
 .note-card:focus-within .note-toolbar,
 .note-toolbar[data-open='true'] {
   opacity: 1;
