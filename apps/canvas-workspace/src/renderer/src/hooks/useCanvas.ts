@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { CanvasTransform } from "../types";
+import {
+  HEAVY_EMBED_THRESHOLD,
+  setCanvasMotion,
+  type CanvasMotionMode,
+} from "./canvasMotion";
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 4;
@@ -95,6 +100,51 @@ export const useCanvas = (
     [transformElementRef],
   );
 
+  // Gesture-motion signal (P1). Written straight to the DOM (data-motion /
+  // data-heavy-embeds on the transform element) so CSS can static-ize inline
+  // iframes and flatten decoration during a zoom-out without a React commit
+  // per wheel tick, and mirrored into the canvasMotion singleton so the
+  // <webview> frame-rate lease (an IPC call, not CSS) sees the same signal.
+  // `heavy` is computed once per gesture (a cheap DOM count) and gates the
+  // expensive path to canvases with enough live embeds to matter.
+  const heavyRef = useRef(false);
+  const heavyComputedRef = useRef(false);
+  const motionModeRef = useRef<CanvasMotionMode>('idle');
+
+  const applyMotion = useCallback((mode: CanvasMotionMode) => {
+    const el = transformElementRef?.current;
+    if (mode === 'idle') {
+      heavyComputedRef.current = false;
+      heavyRef.current = false;
+      motionModeRef.current = 'idle';
+      if (el) {
+        el.removeAttribute('data-motion');
+        el.removeAttribute('data-heavy-embeds');
+      }
+      setCanvasMotion('idle', false);
+      return;
+    }
+    if (!heavyComputedRef.current) {
+      let live = 0;
+      if (el) {
+        live = el.querySelectorAll(
+          '.canvas-node--iframe iframe.iframe-frame:not(.iframe-frame--pending)',
+        ).length + el.querySelectorAll('.canvas-node--iframe webview').length;
+      }
+      heavyRef.current = live >= HEAVY_EMBED_THRESHOLD;
+      heavyComputedRef.current = true;
+    }
+    if (mode === motionModeRef.current) return;
+    motionModeRef.current = mode;
+    const heavy = heavyRef.current;
+    if (el) {
+      el.setAttribute('data-motion', mode);
+      if (heavy) el.setAttribute('data-heavy-embeds', 'true');
+      else el.removeAttribute('data-heavy-embeds');
+    }
+    setCanvasMotion(mode, heavy);
+  }, [transformElementRef]);
+
   // Coalesces same-animation-frame transform updates into one compositor
   // write. During a wheel/pan gesture the hot path intentionally bypasses
   // React state: `transformRef` is the live source of truth, rAF writes the
@@ -129,6 +179,7 @@ export const useCanvas = (
       }
       movingRef.current = false;
       setMoving(false);
+      applyMotion('idle');
       setTransform((prev) => {
         const next = typeof value === 'function'
           ? (value as (p: CanvasTransform) => CanvasTransform)(prev)
@@ -137,7 +188,7 @@ export const useCanvas = (
         return next;
       });
     },
-    []
+    [applyMotion]
   );
 
   useEffect(() => {
@@ -159,8 +210,9 @@ export const useCanvas = (
       movingRef.current = false;
       setMoving(false);
       movingTimer.current = null;
+      applyMotion('idle');
     }, MOVING_IDLE_MS);
-  }, [applyTransformStyle]);
+  }, [applyTransformStyle, applyMotion]);
 
   useEffect(() => {
     return () => {
@@ -181,6 +233,11 @@ export const useCanvas = (
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       const clampedDelta = Math.max(-50, Math.min(50, e.deltaY));
+      // deltaY > 0 shrinks the scale (zoom out) — the band where every live
+      // embed still rasters. Set the signal BEFORE commitTransform's rAF so
+      // the static-ization CSS lands the frame before the transform scales
+      // (the two-phase ordering the follow-up plan calls for).
+      applyMotion(clampedDelta > 0 ? 'zoom-out' : 'zoom-in');
       const prev = transformRef.current;
       const factor = 1 - clampedDelta * ZOOM_SENSITIVITY;
       const newScale = clampScale(prev.scale * factor);
@@ -191,6 +248,7 @@ export const useCanvas = (
         scale: newScale
       });
     } else {
+      applyMotion('pan');
       const prev = transformRef.current;
       const dx = e.deltaX;
       const dy = e.deltaY;
@@ -200,7 +258,7 @@ export const useCanvas = (
         y: safeNum(prev.y - dy)
       });
     }
-  }, [markMoving, commitTransform]);
+  }, [markMoving, commitTransform, applyMotion]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -213,10 +271,11 @@ export const useCanvas = (
         setPanning(true);
         lastMouse.current = { x: e.clientX, y: e.clientY };
         markMoving();
+        applyMotion('pan');
         e.preventDefault();
       }
     },
-    [isHandTool, markMoving]
+    [isHandTool, markMoving, applyMotion]
   );
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -225,13 +284,14 @@ export const useCanvas = (
     const dy = e.clientY - lastMouse.current.y;
     lastMouse.current = { x: e.clientX, y: e.clientY };
     markMoving();
+    applyMotion('pan');
     const prev = transformRef.current;
     commitTransform({
       ...prev,
       x: safeNum(prev.x + dx),
       y: safeNum(prev.y + dy)
     });
-  }, [markMoving, commitTransform]);
+  }, [markMoving, commitTransform, applyMotion]);
 
   const handleMouseUp = useCallback(() => {
     isPanning.current = false;

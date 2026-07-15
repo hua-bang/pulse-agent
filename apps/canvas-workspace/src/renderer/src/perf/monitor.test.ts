@@ -69,6 +69,7 @@ describe('window.__pulsePerf frame evidence', () => {
       over20msCount: 1,
       over20msPct: 100,
       p95DeltaMs: 25,
+      maxDeltaMs: 25,
       windowDurationMs: 40,
     });
     expect(report?.counters).toEqual({ 'canvas-save-ipc': 1 });
@@ -87,6 +88,7 @@ describe('window.__pulsePerf frame evidence', () => {
       over20msCount: 2,
       over20msPct: 100,
       p95DeltaMs: 35,
+      maxDeltaMs: 35,
       windowDurationMs: 90,
     });
   });

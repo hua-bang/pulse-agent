@@ -45,6 +45,7 @@ export interface PerfScenarioReport {
     over20msCount: number;
     over20msPct: number;
     p95DeltaMs: number;
+    maxDeltaMs: number;
     windowDurationMs: number;
   };
   jsHeapMB: { begin: number; end: number };
@@ -176,6 +177,7 @@ class ScenarioSession {
           ? round1((over20 / this.frameDeltas.length) * 100)
           : 0,
         p95DeltaMs: percentile(deltas, 95),
+        maxDeltaMs: round1(deltas[deltas.length - 1] ?? 0),
         windowDurationMs: round1(
           (this.frameWindowEndedAt ?? finishedAt) - this.startedAt,
         ),

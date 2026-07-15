@@ -162,6 +162,31 @@
   pointer-events: none;
 }
 
+/* ── P4: flatten decoration during a heavy zoom-out ──────────────────────
+ * box-shadow and backdrop-filter force per-frame recompositing as the
+ * transform scales; across dozens of nodes in the zoomed-out viewport that
+ * is pure overhead (the shadows are sub-pixel and invisible at overview
+ * scale anyway). Kill them for the gesture only, keyed off the same
+ * data-motion signal as P2 (useCanvas writes it on .canvas-transform on the
+ * first wheel). The `.canvas-transform` prefix lifts specificity over the
+ * per-type `.canvas-node--file`/`--group` shadow rules so no !important is
+ * needed. NOT will-change — promoting the subtree to a layer is exactly
+ * what caused the tile-memory blank flashes (see useCanvas). Restored the
+ * instant the attr clears at settle; transition:none keeps the toggle from
+ * animating. Heavy-gated so small canvases never pay it. */
+.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node {
+  box-shadow: none;
+  transition: none;
+}
+
+.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node .node-header,
+.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--frame > .node-header,
+.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--group > .node-header {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
 .canvas-gesture-hud {
   position: absolute;
   z-index: var(--layer-canvas-chrome);

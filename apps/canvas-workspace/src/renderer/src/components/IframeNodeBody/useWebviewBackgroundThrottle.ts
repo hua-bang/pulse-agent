@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { subscribeCanvasMotion } from '../../hooks/canvasMotion';
 
 /**
  * Background paint-rate throttling for canvas webview nodes.
@@ -61,6 +62,12 @@ const DEFAULT_ROOT_MARGIN = '300px';
 const DEFAULT_OFFSCREEN_DELAY_MS = 1_500;
 const DEFAULT_THROTTLED_FRAME_RATE = 1;
 const DEFAULT_FRAME_RATE = 60;
+/**
+ * How long after a zoom-out gesture ends before a still-visible guest is
+ * restored to full frame rate (P3 gesture lease). Matches useCanvas's
+ * MOVING_IDLE_MS so a rapid re-zoom doesn't thrash 60→1→60.
+ */
+const GESTURE_RESTORE_MS = 180;
 const DEFAULT_FREEZE_DELAY_MS = 5 * 60_000;
 const DEFAULT_FREEZE_RETRY_MS = 60_000;
 /**
@@ -168,18 +175,40 @@ export const useWebviewBackgroundThrottle = ({
       void api.setLifecycle(workspaceId, nodeId, 'active').catch(() => {});
     };
 
+    // Frame-rate is the LOWEST of three independent throttles (P3): the
+    // offscreen background throttle (delayed, hysteresis for pan), the
+    // gesture lease (immediate 1fps while a heavy zoom-out is in flight — the
+    // deep-band raster of every in-viewport guest is the 60.9% cost the probe
+    // measured), and overview (a settled guest below 0.35 scale is a tiny
+    // occluded thumbnail, not worth 60fps). One decision so they never fight.
+    let offscreenThrottleActive = false;
+    let gestureLeased = false;
+    let gestureRestoreTimer: ReturnType<typeof setTimeout> | null = null;
+    const transformAncestor = el.closest('.canvas-transform');
+    const overviewActive = () =>
+      transformAncestor?.classList.contains('canvas-transform--overview') ?? false;
+    const syncRate = () => {
+      apply(
+        offscreenThrottleActive || gestureLeased || overviewActive()
+          ? throttledFrameRate
+          : defaultFrameRate,
+      );
+    };
+
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[entries.length - 1];
         if (!entry) return;
         if (entry.isIntersecting) {
           // Back in view — cancel pending throttle/freeze, resume first so
-          // the page's task queues are running again, then restore paint.
+          // the page's task queues are running again, then restore paint
+          // (unless the gesture lease or overview still wants it low).
           offscreen = false;
+          offscreenThrottleActive = false;
           cancelTimer();
           cancelFreezeTimer();
           resume();
-          apply(defaultFrameRate);
+          syncRate();
         } else {
           // Out of view — schedule throttle if not already scheduled or
           // already throttled. We don't throttle eagerly because pan
@@ -188,11 +217,11 @@ export const useWebviewBackgroundThrottle = ({
           if (freezeTimer == null && !frozenRef.current) {
             freezeTimer = setTimeout(tryFreeze, freezeDelayMs);
           }
-          if (timer != null) return;
-          if (appliedRateRef.current === throttledFrameRate) return;
+          if (timer != null || offscreenThrottleActive) return;
           timer = setTimeout(() => {
             timer = null;
-            apply(throttledFrameRate);
+            offscreenThrottleActive = true;
+            syncRate();
           }, offscreenDelayMs);
         }
       },
@@ -201,8 +230,34 @@ export const useWebviewBackgroundThrottle = ({
 
     observer.observe(el);
 
+    // P3 gesture lease: drop every mounted guest to 1fps the instant a heavy
+    // zoom-out starts, restore GESTURE_RESTORE_MS after it ends (only if the
+    // guest isn't independently offscreen/overview-throttled — syncRate
+    // decides). Reuses the same registry/IPC as the offscreen throttle.
+    const unsubscribeMotion = subscribeCanvasMotion((state) => {
+      const wantLease = state.mode === 'zoom-out' && state.heavy;
+      if (wantLease) {
+        if (gestureRestoreTimer != null) {
+          clearTimeout(gestureRestoreTimer);
+          gestureRestoreTimer = null;
+        }
+        if (!gestureLeased) {
+          gestureLeased = true;
+          syncRate();
+        }
+      } else if (gestureLeased && gestureRestoreTimer == null) {
+        gestureRestoreTimer = setTimeout(() => {
+          gestureRestoreTimer = null;
+          gestureLeased = false;
+          syncRate();
+        }, GESTURE_RESTORE_MS);
+      }
+    });
+
     return () => {
       observer.disconnect();
+      unsubscribeMotion();
+      if (gestureRestoreTimer != null) clearTimeout(gestureRestoreTimer);
       cancelTimer();
       cancelFreezeTimer();
       // Best-effort restore on teardown so a webview that survives this
