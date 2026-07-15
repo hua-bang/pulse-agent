@@ -95,6 +95,44 @@ function pick(data: Record<string, unknown>, keys: string[]): Record<string, unk
   return out;
 }
 
+export interface NodeSearchHit {
+  id: string;
+  type: NodeType;
+  title: string;
+  /** Short excerpt around the match (title or in-memory content). */
+  snippet: string;
+}
+
+export interface NodeSearchOptions {
+  type?: string;
+  limit?: number;
+}
+
+/**
+ * Case-insensitive substring search over node titles and their in-memory
+ * `data.content` (file/text nodes). Pure and offline: it does NOT read backing
+ * files from disk, so a file node's on-disk-only body won't match its content
+ * — its title still will. Lets an agent locate nodes without N `node read`
+ * round-trips.
+ */
+export function searchNodes(nodes: CanvasNode[], query: string, opts: NodeSearchOptions = {}): NodeSearchHit[] {
+  const q = query.toLowerCase();
+  const hits: NodeSearchHit[] = [];
+  for (const n of nodes) {
+    if (opts.type && n.type !== opts.type) continue;
+    const title = n.title ?? '';
+    const content = typeof n.data.content === 'string' ? n.data.content : '';
+    const hay = `${title}\n${content}`;
+    const idx = hay.toLowerCase().indexOf(q);
+    if (idx < 0) continue;
+    const start = Math.max(0, idx - 30);
+    const snippet = hay.slice(start, idx + q.length + 60).replace(/\s+/g, ' ').trim();
+    hits.push({ id: n.id, type: n.type, title, snippet });
+    if (opts.limit && hits.length >= opts.limit) break;
+  }
+  return hits;
+}
+
 export async function readNode(node: CanvasNode, opts: ReadNodeOptions = {}): Promise<NodeReadResult> {
   const capabilities = getNodeCapabilities(node.type);
 
@@ -423,6 +461,43 @@ export async function createNode(
       capabilities: getNodeCapabilities(opts.type),
     },
   };
+}
+
+export interface UpdateNodePatch {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  title?: string;
+}
+
+/**
+ * Update a node's layout (position/size) and/or title without touching its
+ * `data`. Lets an agent reposition or rename nodes — the one mutation `node
+ * write` (which owns `data`) doesn't cover.
+ */
+export async function updateNode(
+  workspaceId: string,
+  nodeId: string,
+  patch: UpdateNodePatch,
+  storeDir?: string,
+): Promise<Result> {
+  const canvas = await loadCanvas(workspaceId, storeDir);
+  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}`, code: 'workspace_not_found' };
+
+  const node = canvas.nodes.find(n => n.id === nodeId);
+  if (!node) return { ok: false, error: `Node not found: ${nodeId}`, code: 'node_not_found' };
+
+  if (patch.x !== undefined) node.x = patch.x;
+  if (patch.y !== undefined) node.y = patch.y;
+  if (patch.width !== undefined) node.width = patch.width;
+  if (patch.height !== undefined) node.height = patch.height;
+  if (patch.title !== undefined) node.title = patch.title;
+  node.updatedAt = Date.now();
+
+  await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
+  await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
+  return { ok: true, data: undefined };
 }
 
 export async function deleteNode(

@@ -19,7 +19,15 @@ interface ContextEdge {
   kind?: string;
 }
 
+/**
+ * Version of the `context` output shape. Bump on any breaking change to the
+ * fields below so machine consumers can detect an incompatible CLI.
+ */
+export const CONTEXT_SCHEMA_VERSION = 1;
+
 interface CanvasContext {
+  /** Output-contract version (see CONTEXT_SCHEMA_VERSION). */
+  contextVersion: number;
   workspaceId: string;
   workspaceName: string;
   canvasDir: string;
@@ -55,6 +63,8 @@ function excerpt(text: string, max = TEXT_EXCERPT_LEN): string {
 export interface GenerateContextOptions {
   /** Restrict file-node disk reads to the workspace dir (see readNode confineToDir). */
   confineToWorkspace?: boolean;
+  /** If set, include only nodes whose `type` is in this list (edges follow). */
+  types?: string[];
 }
 
 export async function generateContext(
@@ -71,9 +81,12 @@ export async function generateContext(
   const canvasDir = getWorkspaceDir(workspaceId, storeDir);
   const confineToDir = opts.confineToWorkspace ? canvasDir : undefined;
 
+  const typeFilter = opts.types && opts.types.length > 0 ? new Set(opts.types) : null;
+  const sourceNodes = typeFilter ? canvas.nodes.filter(n => typeFilter.has(n.type)) : canvas.nodes;
+
   const nodes: ContextNode[] = [];
 
-  for (const node of canvas.nodes) {
+  for (const node of sourceNodes) {
     const readResult = await readNode(node, { confineToDir });
     const base: ContextNode = {
       id: node.id,
@@ -156,7 +169,17 @@ export async function generateContext(
   const nodeTitleById = new Map<string, string>();
   for (const n of canvas.nodes) nodeTitleById.set(n.id, n.title);
 
-  const edges: ContextEdge[] = (canvas.edges ?? []).map(e => {
+  // Under a type filter, drop edges whose node endpoint was filtered out so
+  // the connection list stays consistent with the shown nodes.
+  const includedIds = typeFilter ? new Set(sourceNodes.map(n => n.id)) : null;
+  const edgeVisible = (e: CanvasEdge): boolean => {
+    if (!includedIds) return true;
+    const srcOk = e.source.kind !== 'node' || includedIds.has(e.source.nodeId);
+    const tgtOk = e.target.kind !== 'node' || includedIds.has(e.target.nodeId);
+    return srcOk && tgtOk;
+  };
+
+  const edges: ContextEdge[] = (canvas.edges ?? []).filter(edgeVisible).map(e => {
     const src = e.source.kind === 'node'
       ? (nodeTitleById.get(e.source.nodeId) ?? e.source.nodeId)
       : `(${e.source.x},${e.source.y})`;
@@ -172,7 +195,7 @@ export async function generateContext(
     };
   });
 
-  return { workspaceId, workspaceName, canvasDir, nodes, edges };
+  return { contextVersion: CONTEXT_SCHEMA_VERSION, workspaceId, workspaceName, canvasDir, nodes, edges };
 }
 
 export function formatContextAsText(ctx: CanvasContext): string {

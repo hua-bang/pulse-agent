@@ -7,6 +7,8 @@ import {
   writeNode,
   createNode,
   deleteNode,
+  updateNode,
+  searchNodes,
 } from '../core/nodes';
 import { output, errorOutput } from '../output';
 import { getWorkspaceCommandOptions } from './options';
@@ -36,19 +38,39 @@ export function unescapeContentArg(s: string): string {
   });
 }
 
+/** Human-readable rendering of a single `readNode` result (text format). */
+function renderNodeText(d: Record<string, unknown>): string {
+  if (d.type === 'file') return String(d.content ?? '');
+  if (d.type === 'text') return String(d.content ?? '');
+  if (d.type === 'terminal') return `Terminal (cwd: ${d.cwd ?? 'unknown'})\n${d.scrollback ?? ''}`;
+  if (d.type === 'frame' || d.type === 'group') {
+    const label = d.type === 'frame' ? 'Frame' : 'Group';
+    return `${label}: ${d.label || '(no label)'}  color: ${d.color ?? ''}`;
+  }
+  if (d.type === 'agent') {
+    return `Agent [${d.agentType ?? 'unknown'}] (${d.status ?? 'idle'})\ncwd: ${d.cwd ?? 'unknown'}\n${d.scrollback ?? ''}`;
+  }
+  return JSON.stringify(d, null, 2);
+}
+
 export function registerNodeCommands(program: Command): void {
   const node = program
     .command('node')
     .description('Manage canvas nodes');
 
   node.command('list')
+    .option('--type <type>', 'Only list nodes of this type')
     .description('List all nodes in the workspace')
-    .action(async function (this: Command) {
+    .action(async function (this: Command, cmdOpts: { type?: string }) {
       const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
       const canvas = await loadCanvas(workspace, storeDir);
       if (!canvas) errorOutput(`Workspace not found: ${workspace}`, { code: 'workspace_not_found' });
 
-      const rows = canvas!.nodes.map(n => ({
+      const selected = cmdOpts.type
+        ? canvas!.nodes.filter(n => n.type === cmdOpts.type)
+        : canvas!.nodes;
+
+      const rows = selected.map(n => ({
         id: n.id,
         type: n.type,
         title: n.title,
@@ -65,40 +87,58 @@ export function registerNodeCommands(program: Command): void {
       });
     });
 
+  node.command('search')
+    .argument('<query>', 'Case-insensitive text to find in node titles and content')
+    .option('--type <type>', 'Restrict to a node type')
+    .option('--limit <n>', 'Max results', (v) => parseInt(v, 10))
+    .description('Find nodes by title/content without reading each one')
+    .action(async function (this: Command, query: string, cmdOpts: { type?: string; limit?: number }) {
+      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
+      const canvas = await loadCanvas(workspace, storeDir);
+      if (!canvas) errorOutput(`Workspace not found: ${workspace}`, { code: 'workspace_not_found' });
+
+      const hits = searchNodes(canvas!.nodes, query, { type: cmdOpts.type, limit: cmdOpts.limit });
+
+      output(hits, format, (data) => {
+        const items = data as typeof hits;
+        if (items.length === 0) return `No nodes match "${query}".`;
+        const lines = items.map(h => `  ${h.id}  [${h.type}]  ${h.title}\n    …${h.snippet}…`);
+        return `Matches for "${query}":\n${lines.join('\n')}`;
+      });
+    });
+
   node.command('read')
-    .argument('<nodeId>', 'Node ID')
-    .description('Read a canvas node')
-    .action(async function (this: Command, nodeId: string) {
+    .argument('<nodeId...>', 'Node ID(s) — pass several to batch-read')
+    .description('Read one or more canvas nodes (single id → object, multiple → array)')
+    .action(async function (this: Command, nodeIds: string[]) {
       const { format, storeDir, workspace, confineToWorkspace } = await getWorkspaceCommandOptions(this);
       const canvas = await loadCanvas(workspace, storeDir);
       if (!canvas) errorOutput(`Workspace not found: ${workspace}`, { code: 'workspace_not_found' });
 
-      const canvasNode = canvas!.nodes.find(n => n.id === nodeId);
-      if (!canvasNode) errorOutput(`Node not found: ${nodeId}`, { code: 'node_not_found' });
+      const confineToDir = confineToWorkspace ? getWorkspaceDir(workspace, storeDir) : undefined;
 
-      const result = await readNode(canvasNode!, {
-        confineToDir: confineToWorkspace ? getWorkspaceDir(workspace, storeDir) : undefined,
-      });
+      // Single id keeps the historical single-object shape (and hard-errors on
+      // a miss). Multiple ids return an array; a missing id becomes a per-entry
+      // error so a batch caller still gets every node it can.
+      if (nodeIds.length === 1) {
+        const canvasNode = canvas!.nodes.find(n => n.id === nodeIds[0]);
+        if (!canvasNode) errorOutput(`Node not found: ${nodeIds[0]}`, { code: 'node_not_found' });
+        const result = await readNode(canvasNode!, { confineToDir });
+        output(result, format, (data) => renderNodeText(data as Record<string, unknown>));
+        return;
+      }
 
-      output(result, format, (data) => {
-        const d = data as Record<string, unknown>;
-        if (d.type === 'file') {
-          return String(d.content ?? '');
-        }
-        if (d.type === 'terminal') {
-          return `Terminal (cwd: ${d.cwd ?? 'unknown'})\n${d.scrollback ?? ''}`;
-        }
-        if (d.type === 'frame' || d.type === 'group') {
-          const label = d.type === 'frame' ? 'Frame' : 'Group';
-          return `${label}: ${d.label || '(no label)'}  color: ${d.color ?? ''}`;
-        }
-        if (d.type === 'agent') {
-          return `Agent [${d.agentType ?? 'unknown'}] (${d.status ?? 'idle'})\ncwd: ${d.cwd ?? 'unknown'}\n${d.scrollback ?? ''}`;
-        }
-        if (d.type === 'text') {
-          return String(d.content ?? '');
-        }
-        return JSON.stringify(d, null, 2);
+      const results = await Promise.all(nodeIds.map(async (id) => {
+        const n = canvas!.nodes.find(x => x.id === id);
+        if (!n) return { id, error: `Node not found: ${id}`, code: 'node_not_found' as const };
+        return { id, ...(await readNode(n, { confineToDir })) };
+      }));
+
+      output(results, format, (data) => {
+        const items = data as Array<Record<string, unknown>>;
+        return items
+          .map(d => `## ${d.id}\n${d.error ? `(error: ${d.error})` : renderNodeText(d)}`)
+          .join('\n\n');
       });
     });
 
@@ -186,6 +226,34 @@ export function registerNodeCommands(program: Command): void {
         const r = d as { nodeId: string; type: string; title: string };
         return `Created ${r.type} node: ${r.nodeId} (${r.title})`;
       });
+    });
+
+  node.command('update')
+    .argument('<nodeId>', 'Node ID')
+    .option('--x <n>', 'New X position', parseFloat)
+    .option('--y <n>', 'New Y position', parseFloat)
+    .option('--width <n>', 'New width', parseFloat)
+    .option('--height <n>', 'New height', parseFloat)
+    .option('--title <title>', 'New title')
+    .description('Move, resize, or rename a node (layout/title only; use `node write` for content)')
+    .action(async function (this: Command, nodeId: string, cmdOpts: { x?: number; y?: number; width?: number; height?: number; title?: string }) {
+      const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
+
+      const patch = {
+        x: cmdOpts.x,
+        y: cmdOpts.y,
+        width: cmdOpts.width,
+        height: cmdOpts.height,
+        title: cmdOpts.title,
+      };
+      if (Object.values(patch).every(v => v === undefined)) {
+        errorOutput('Provide at least one of --x, --y, --width, --height, --title', { code: 'invalid_argument' });
+      }
+
+      const result = await updateNode(workspace, nodeId, patch, storeDir);
+      if (!result.ok) errorOutput(result.error, { code: result.code ?? 'error' });
+
+      output({ ok: true, nodeId }, format, () => `Updated node: ${nodeId}`);
     });
 
   node.command('delete')

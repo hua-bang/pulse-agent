@@ -31,6 +31,7 @@ in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
 | Executable entrypoint | `src/index.ts` |
 | Workspace/node/edge/context commands | `src/commands/workspace.ts`, `src/commands/node.ts`, `src/commands/edge.ts`, `src/commands/context.ts` |
 | Workspace auto-discovery (which canvas a command targets) | `src/core/workspace-resolution.ts`, `src/commands/options.ts` |
+| External-caller surface (status/describe, error contract) | `src/commands/status.ts`, `src/commands/describe.ts`, `src/output.ts` |
 | Live runtime commands | `src/commands/agent.ts`, `src/commands/team.ts`, `src/core/runtime-control.ts` |
 | v2 recovery command | `src/commands/restore.ts` |
 | Public core exports | `src/core/index.ts` |
@@ -83,6 +84,14 @@ the root harness files above, then the package source/tests.
   untrusted canvas.json) to the workspace dir: reads fall back to in-memory
   content (`pathConfined: true`), writes fail with `path_confined`. The guard is
   opt-in so existing app-created nodes (paths under `notes/`) are unaffected.
+- External-caller surface: `status` (non-fatal store/workspace/runtime probe —
+  never exits non-zero for "no workspace") and `describe` (self-describing
+  manifest with `describeVersion`) exist so agents can pre-flight and plan.
+  `context` output carries `contextVersion`; bump it (and `describeVersion`) on
+  any breaking shape change. `node read` takes multiple ids (single → object,
+  many → array with per-id error entries); `node search`/`node list --type`/
+  `context --types` cut round-trips; `node update` owns layout/title (not data).
+  Keep these output shapes and their version fields stable.
 - Live `agent` and `team` commands must keep using the runtime file plus bearer
   auth. Do not bypass runtime authentication or reach into Electron memory from
   this package.

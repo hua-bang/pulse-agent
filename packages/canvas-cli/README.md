@@ -55,19 +55,37 @@ pulse-canvas workspace recover <id>             # Rebuild file nodes from notes/
 pulse-canvas workspace recover <id> --dry-run   # Preview without writing
 ```
 
+### Status & Describe
+
+```bash
+pulse-canvas status --format json    # Store dir, resolved/active workspace, runtime reachability
+pulse-canvas describe --format json  # Machine-readable manifest: commands, node types, error codes
+```
+
+`status` is the recommended pre-flight for an external caller: it never exits
+non-zero for "no workspace selected" (it reports that as data) and tells you
+whether the Electron runtime is up, i.e. whether the live `agent`/`team`
+commands are usable. `describe` emits a self-describing capability manifest
+(with `describeVersion` and `contextVersion`) so an agent can plan against the
+CLI without hard-coding its surface.
+
 ### Node
 
 `node` commands use the resolved workspace (see **Workspace auto-discovery** above); pass `-w` only to override it.
 
 ```bash
 pulse-canvas node list                          # List nodes with types and capabilities
-pulse-canvas node read <nodeId>                 # Read node content
+pulse-canvas node list --type text              # …filtered to one type
+pulse-canvas node search "checkout"             # Find nodes by title/content (no per-node read)
+pulse-canvas node read <nodeId>                 # Read a node (single id → object)
+pulse-canvas node read <id1> <id2> <id3>        # Batch read (multiple ids → array; misses become per-entry errors)
 pulse-canvas node create --type file --title "Report" --data '{"content":"..."}'
-pulse-canvas node write <nodeId> --content "..."        # interprets \n, \t escapes
+pulse-canvas node write <nodeId> --content "..."        # interprets \n, \t escapes (file/text/frame/group)
 pulse-canvas node write <nodeId> --content "..." --raw  # verbatim, no unescaping
 pulse-canvas node write <nodeId> --file ./result.md     # read content from file
 echo "hello" | pulse-canvas node write <nodeId>         # read from stdin
 pulse-canvas node write <frameId> --content '{"label":"New title","color":"#9575d4"}'  # frame/group: JSON patch
+pulse-canvas node update <nodeId> --x 400 --y 200 --title "Moved"  # reposition/resize/rename (layout only)
 pulse-canvas node delete <nodeId>
 ```
 
@@ -114,9 +132,12 @@ pulse-canvas edge delete <edgeId>
 ### Context
 
 ```bash
-pulse-canvas context                # Structured summary of all nodes in the workspace
-pulse-canvas context --format json  # Machine-readable for agent consumption
+pulse-canvas context                       # Structured summary of all nodes in the workspace
+pulse-canvas context --format json         # Machine-readable for agent consumption
+pulse-canvas context --types file,text     # Only include the listed node types (edges follow)
 ```
+
+The JSON output carries a `contextVersion` field (the output-contract version) so callers can detect an incompatible CLI.
 
 Returns workspace metadata plus a per-node summary: file paths, frame labels, terminal cwds, agent statuses, text excerpts, and iframe/embed metadata. This is the recommended entry point for agents — run it first to understand the canvas layout. To stay prompt-friendly, `context` deliberately excerpts long `text` bodies and omits heavy fields (an iframe's inlined `html`/`prompt`, a plugin's `payload`); fetch the full content of a specific node with `node read <id> --format json`.
 
