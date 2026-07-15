@@ -46,29 +46,14 @@
   contain-intrinsic-size: 520px 420px;
 }
 
-/* Overview semantic zoom for content-heavy bodies: below the 0.35
- * threshold a body renders as an unreadable smudge yet still pays full
- * paint + raster on every overview repaint (zoom-out settle, node drag).
- * Hiding the content (card + header stay for navigation) cut the 86-node
- * bench's zoom-out gesture ~40% and overview drag ~25%. visibility, not
- * display/content-visibility: layout is preserved, so xterm /
- * ResizeObserver consumers never see a 0×0 box (the same hazard that
- * keeps them out of the content-visibility whitelist above).
- * iframe/dynamic-app keep their own overview placeholders (their CSS
- * files); image/shape/text stay live — they are the recognizable
- * thumbnails at overview. */
-.canvas-transform--overview
-  .canvas-node:is(
-    .canvas-node--file,
-    .canvas-node--terminal,
-    .canvas-node--agent,
-    .canvas-node--mindmap,
-    .canvas-node--reference,
-    .canvas-node--plugin
-  ):not(.canvas-node--fullscreen)
-  .node-body {
-  visibility: hidden;
-}
+/* Overview semantic zoom is scoped to url/webview nodes only (their
+ * placeholder + identity badge live in IframeNodeBody/index.css). Non-web
+ * bodies (file / terminal / agent / mindmap / reference / plugin) stay
+ * rendered at overview so their content reads as a shrunk-down thumbnail
+ * rather than a blank card — a deliberate product choice over the marginal
+ * paint saving that hiding them bought (the dominant overview-drag win is
+ * the `.node-header__actions` popover `display:none` below, not body
+ * hiding). image/shape/text were always live thumbnails. */
 
 /* File / note nodes — Heptabase + Notion lean. The chrome is intentionally
  * quieter than the generic node: warmer paper background, softer
