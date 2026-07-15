@@ -55,11 +55,22 @@ the root harness files above, then the package source/tests.
 - Keep `restore` narrow: it recovers from v1 snapshots and archives live
   `nodes/` data so the app can migrate cleanly later; it is not a general
   migration tool.
-- `node create` supports `file`, `terminal`, `frame`, `group`, `agent`, and
-  `mindmap`. Terminal/agent nodes created by the CLI have no active PTY session.
-- `reference` is a read-compatible node shape in core types, but not a CLI
-  creation type. Plugin nodes are handled through the Canvas host/plugin tools,
-  not by this package's generic `node create`.
+- Node types split into `CreatableNodeType` (what `node create` accepts:
+  `file`, `terminal`, `frame`, `group`, `agent`, `mindmap`) and the wider
+  `KnownNodeType` read set (`text`, `iframe`, `image`, `shape`, `reference`,
+  `dynamic-app`, `plugin`). `NodeType = KnownNodeType | (string & {})` so a
+  future node type from a newer app still loads and reads as an opaque node
+  rather than breaking `loadCanvas`. Terminal/agent nodes created by the CLI
+  have no active PTY session.
+- The read-only types are surfaced by `readNode`/`context` from persisted
+  `data` only — never by fetching the network or reaching into Electron. `node
+  read` returns full metadata; `context` excerpts `text` and omits heavy fields
+  (iframe `html`/`prompt`, plugin `payload`) to stay prompt-sized. Reading a
+  live URL-iframe page body is explicitly out of scope for `node read` — it
+  would be a separate runtime-authenticated `webview read`.
+- `reference` and plugin nodes are read-compatible shapes, not CLI creation
+  types. Plugin nodes are authored through the Canvas host/plugin tools, not
+  this package's generic `node create`.
 - Live `agent` and `team` commands must keep using the runtime file plus bearer
   auth. Do not bypass runtime authentication or reach into Electron memory from
   this package.

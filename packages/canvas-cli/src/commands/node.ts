@@ -10,7 +10,7 @@ import {
 } from '../core/nodes';
 import { output, errorOutput } from '../output';
 import { getWorkspaceCommandOptions } from './options';
-import type { NodeType } from '../core/types';
+import type { CreatableNodeType } from '../core/types';
 
 /**
  * Interpret common escape sequences in a CLI --content argument.
@@ -93,6 +93,9 @@ export function registerNodeCommands(program: Command): void {
         if (d.type === 'agent') {
           return `Agent [${d.agentType ?? 'unknown'}] (${d.status ?? 'idle'})\ncwd: ${d.cwd ?? 'unknown'}\n${d.scrollback ?? ''}`;
         }
+        if (d.type === 'text') {
+          return String(d.content ?? '');
+        }
         return JSON.stringify(d, null, 2);
       });
     });
@@ -144,8 +147,8 @@ export function registerNodeCommands(program: Command): void {
     .action(async function (this: Command, cmdOpts: { type: string; title?: string; x?: number; y?: number; width?: number; height?: number; data?: string }) {
       const { format, storeDir, workspace } = await getWorkspaceCommandOptions(this);
 
-      const validTypes: NodeType[] = ['file', 'terminal', 'frame', 'group', 'agent', 'mindmap'];
-      if (!validTypes.includes(cmdOpts.type as NodeType)) {
+      const validTypes: CreatableNodeType[] = ['file', 'terminal', 'frame', 'group', 'agent', 'mindmap'];
+      if (!validTypes.includes(cmdOpts.type as CreatableNodeType)) {
         errorOutput(`Invalid type "${cmdOpts.type}". Must be: ${validTypes.join(', ')}`);
       }
 
@@ -159,7 +162,7 @@ export function registerNodeCommands(program: Command): void {
       }
 
       const result = await createNode(workspace, {
-        type: cmdOpts.type as NodeType,
+        type: cmdOpts.type as CreatableNodeType,
         title: cmdOpts.title,
         x: cmdOpts.x,
         y: cmdOpts.y,

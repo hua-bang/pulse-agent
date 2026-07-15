@@ -22,16 +22,22 @@ Binary name: `pulse-canvas`.
 |------|-------------|
 | `--format <json\|text>` | Output format: `json` or `text` (default: `text`) |
 | `--store-dir <path>` | Canvas store directory (default: `~/.pulse-coder/canvas/`) |
-| `-w, --workspace <id>` | Workspace ID (default: `$PULSE_CANVAS_WORKSPACE_ID`) |
+| `-w, --workspace <id>` | Workspace ID (default: active workspace, or `$PULSE_CANVAS_WORKSPACE_ID`) |
 
-The Electron app sets `PULSE_CANVAS_WORKSPACE_ID` for agent nodes automatically, so most commands need no explicit workspace flag.
+**Workspace auto-discovery.** Commands resolve the target workspace in a fixed
+order: `--workspace <id>` → `$PULSE_CANVAS_WORKSPACE_ID` (the Electron app sets
+this for agent nodes automatically) → the app's active workspace
+(`__workspaces__.json.activeId`). If none of these selects a workspace, the
+command errors instead of guessing. Run `pulse-canvas workspace current` to see
+which workspace commands will act on.
 
 ## Commands
 
 ### Workspace
 
 ```bash
-pulse-canvas workspace list                     # List all workspaces
+pulse-canvas workspace list                     # List all workspaces (active one flagged with *)
+pulse-canvas workspace current                  # Show the workspace commands resolve to, and why
 pulse-canvas workspace info <id>                # Node counts, types, last saved
 pulse-canvas workspace create <name>            # Create a new workspace
 pulse-canvas workspace delete <id> --confirm    # Delete (irreversible)
@@ -41,7 +47,7 @@ pulse-canvas workspace recover <id> --dry-run   # Preview without writing
 
 ### Node
 
-All `node` commands require a workspace (via `-w` or `$PULSE_CANVAS_WORKSPACE_ID`).
+`node` commands use the resolved workspace (see **Workspace auto-discovery** above); pass `-w` only to override it.
 
 ```bash
 pulse-canvas node list                          # List nodes with types and capabilities
@@ -65,8 +71,17 @@ Node types and capabilities (the capability map reported by `node list`):
 | `group` | read, write | Container of child nodes; `node write` expects JSON `{label?,color?,childIds?}` |
 | `agent` | read, exec | Agent PTY node (read-only from CLI; use `agent send` for live input) |
 | `mindmap` | read, write | Topic tree; initialize via `--data '{"root":{"text":"...","children":[...]}}'` |
+| `text` | read | Markdown text card (content, font, color) |
+| `iframe` | read | Embedded page (`mode`, `url`, `html`, `prompt`, `artifactId`, `pageTitle`) |
+| `image` | read | Local image (`filePath`) |
+| `shape` | read | Shape with text/style |
+| `dynamic-app` | read | Dynamic app embed (`url`, `dynamicAppId`) |
+| `plugin` | read | Plugin node (`pluginId`, `nodeType`, `version`, `payload`) |
+| `reference` | read | Snapshot reference to another node |
 
-`node create` accepts `file`, `terminal`, `frame`, `group`, `agent`, and `mindmap`. `reference` is a read-only node shape in core types but is not a CLI creation type. `node write` currently supports `file`, `frame`, and `group`; `terminal`/`agent` require a live PTY.
+`node create` accepts only the creatable types: `file`, `terminal`, `frame`, `group`, `agent`, and `mindmap`. The remaining types above are produced by the canvas app and are **read-only** from the CLI — `node read <id> --format json` returns their full persisted metadata. Unrecognized (future) node types still load and read as opaque nodes rather than breaking the CLI. `node write` currently supports `file`, `frame`, and `group`; `terminal`/`agent` require a live PTY.
+
+> **iframe/dynamic-app content.** `node read` returns only what the store persists — for a URL-mode iframe that is the metadata (url, pageTitle, …), not the live web page body, which lives in the running Electron webview rather than the canvas store. Reading the rendered page would need a separate, runtime-authenticated `webview read` command (not yet implemented); plain `node read` never connects to Electron or fetches the network.
 
 ### Edge
 
@@ -93,7 +108,7 @@ pulse-canvas context                # Structured summary of all nodes in the wor
 pulse-canvas context --format json  # Machine-readable for agent consumption
 ```
 
-Returns workspace metadata plus a per-node summary: file paths, frame labels, terminal cwds, agent statuses. This is the recommended entry point for agents — run it first to understand the canvas layout.
+Returns workspace metadata plus a per-node summary: file paths, frame labels, terminal cwds, agent statuses, text excerpts, and iframe/embed metadata. This is the recommended entry point for agents — run it first to understand the canvas layout. To stay prompt-friendly, `context` deliberately excerpts long `text` bodies and omits heavy fields (an iframe's inlined `html`/`prompt`, a plugin's `payload`); fetch the full content of a specific node with `node read <id> --format json`.
 
 > **Runtime requirement — `agent` and `team`.** These two families do not read the JSON store. They require a running `apps/canvas-workspace` instance and authenticate to its loopback runtime-control server using the bearer secret in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`. Without it they fail with `No active canvas-workspace runtime found.` — open the workspace in Pulse Canvas first. All other command families (`workspace`, `node`, `edge`, `context`, `restore`, `install-skills`) operate directly on the store and need no runtime.
 

@@ -61,7 +61,22 @@ function flattenMindmapTopics(topic: MindmapTopic | undefined, depth = 0): strin
 }
 
 export function getNodeCapabilities(type: NodeType): NodeCapability[] {
-  return NODE_CAPABILITIES[type] ?? ['read'];
+  // Cast to a string index so an unrecognized (future) node type falls back to
+  // read-only instead of tripping the closed key set.
+  return (NODE_CAPABILITIES as Record<string, NodeCapability[]>)[type] ?? ['read'];
+}
+
+/**
+ * Pull a small set of keys off a node's `data`, keeping only the ones that
+ * are actually present. Used by the read cases below so the result carries a
+ * node type's persisted metadata without inventing empty fields.
+ */
+function pick(data: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (data[key] !== undefined) out[key] = data[key];
+  }
+  return out;
 }
 
 export async function readNode(node: CanvasNode): Promise<NodeReadResult> {
@@ -116,8 +131,55 @@ export async function readNode(node: CanvasNode): Promise<NodeReadResult> {
         text: flattenMindmapTopics(root),
       };
     }
+    case 'text':
+      // Persisted markdown plus its display styling. `content` is the full
+      // body — `node read` returns it in full; `context` only excerpts it.
+      return {
+        type: 'text',
+        capabilities,
+        content: (node.data.content as string) ?? (node.data.text as string) ?? '',
+        ...pick(node.data, ['fontSize', 'fontFamily', 'color', 'textAlign', 'markdown']),
+      };
+    case 'iframe':
+      // Everything the store holds about an embedded page: how it's sourced
+      // (`mode`), where (`url`), any inlined `html`/`prompt`, and the linked
+      // artifact. The live page body is NOT here — see the note in the
+      // package README about a future `webview read`.
+      return {
+        type: 'iframe',
+        capabilities,
+        ...pick(node.data, ['mode', 'url', 'html', 'prompt', 'artifactId', 'pageTitle']),
+      };
+    case 'image':
+      // Only the local file path is persisted; the CLI does not read image
+      // bytes.
+      return {
+        type: 'image',
+        capabilities,
+        ...pick(node.data, ['filePath', 'src', 'alt', 'width', 'height']),
+      };
+    case 'shape':
+      return {
+        type: 'shape',
+        capabilities,
+        ...pick(node.data, ['shape', 'shapeType', 'text', 'style', 'fill', 'stroke', 'color']),
+      };
+    case 'dynamic-app':
+      return {
+        type: 'dynamic-app',
+        capabilities,
+        ...pick(node.data, ['url', 'dynamicAppId']),
+      };
+    case 'plugin':
+      return {
+        type: 'plugin',
+        capabilities,
+        ...pick(node.data, ['pluginId', 'nodeType', 'version', 'payload']),
+      };
     default:
-      return { type: node.type, capabilities };
+      // Unknown/future node type: surface its raw data so an agent can still
+      // reason about it, rather than dropping everything.
+      return { type: node.type, capabilities, data: node.data };
   }
 }
 
@@ -218,7 +280,7 @@ export async function createNode(
   }
 
   const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const def = DEFAULT_NODE_DIMENSIONS[opts.type];
+  const def = (DEFAULT_NODE_DIMENSIONS as Record<string, { title: string; width: number; height: number }>)[opts.type];
   if (!def) return { ok: false, error: `Unsupported node type: ${opts.type}` };
 
   const auto = autoPlace(canvas.nodes);
@@ -226,7 +288,9 @@ export async function createNode(
   const y = opts.y ?? auto.y;
 
   const inputData = opts.data ?? {};
-  let nodeData: Record<string, unknown>;
+  // Defaults to `{}` for defensive completeness — `def` above already rejects
+  // any non-creatable type before we reach this switch.
+  let nodeData: Record<string, unknown> = {};
   switch (opts.type) {
     case 'file':
       nodeData = { filePath: '', content: (inputData as Record<string, string>).content ?? '', saved: false, modified: false };
@@ -261,13 +325,6 @@ export async function createNode(
       nodeData = { root, layout: 'right', rev: 0 };
       break;
     }
-    case 'reference':
-      nodeData = {
-        titleSnapshot: (inputData as Record<string, string>).titleSnapshot,
-        typeSnapshot: (inputData as Record<string, string>).typeSnapshot,
-        workspaceNameSnapshot: (inputData as Record<string, string>).workspaceNameSnapshot,
-      };
-      break;
   }
 
   // For file nodes, always create a notes file so the node has a valid filePath

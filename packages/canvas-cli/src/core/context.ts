@@ -38,6 +38,20 @@ function extractDescription(content: string): string {
   return '';
 }
 
+/** Max characters of a text node's body included inline in context. */
+const TEXT_EXCERPT_LEN = 200;
+
+/**
+ * Collapse a (possibly long, possibly multi-line) string to a single-line
+ * excerpt for context. Keeps prompts turning into `pulse-canvas context`
+ * output from ballooning an agent's prompt — the full body stays reachable
+ * via `pulse-canvas node read <id> --format json`.
+ */
+function excerpt(text: string, max = TEXT_EXCERPT_LEN): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim();
+  return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine;
+}
+
 export async function generateContext(
   workspaceId: string,
   storeDir?: string,
@@ -85,6 +99,47 @@ export async function generateContext(
         base.status = (readResult as NodeReadResult & { status?: string }).status ?? 'idle';
         base.cwd = (readResult as NodeReadResult & { cwd?: string }).cwd ?? '';
         break;
+      case 'text': {
+        // Excerpt only — the full markdown stays behind `node read`.
+        const content = (readResult as NodeReadResult & { content?: string }).content ?? '';
+        base.excerpt = excerpt(content);
+        break;
+      }
+      case 'iframe': {
+        // Persisted metadata only — never the inlined `html`/`prompt`, which
+        // can be huge and would blow up an agent's prompt.
+        const r = readResult as NodeReadResult & { mode?: string; url?: string; pageTitle?: string };
+        if (r.mode !== undefined) base.mode = r.mode;
+        if (r.url !== undefined) base.url = r.url;
+        if (r.pageTitle !== undefined) base.pageTitle = r.pageTitle;
+        break;
+      }
+      case 'image': {
+        const r = readResult as NodeReadResult & { filePath?: string; src?: string };
+        base.path = r.filePath ?? r.src ?? '';
+        break;
+      }
+      case 'shape': {
+        const r = readResult as NodeReadResult & { shape?: string; shapeType?: string; text?: string };
+        base.shape = r.shape ?? r.shapeType ?? '';
+        if (r.text) base.text = excerpt(String(r.text), 80);
+        break;
+      }
+      case 'dynamic-app': {
+        const r = readResult as NodeReadResult & { url?: string; dynamicAppId?: string };
+        if (r.url !== undefined) base.url = r.url;
+        if (r.dynamicAppId !== undefined) base.dynamicAppId = r.dynamicAppId;
+        break;
+      }
+      case 'plugin': {
+        // pluginId/nodeType/version identify it; the free-form `payload` is
+        // omitted from context (fetch it with `node read` if needed).
+        const r = readResult as NodeReadResult & { pluginId?: string; nodeType?: string; version?: string };
+        if (r.pluginId !== undefined) base.pluginId = r.pluginId;
+        if (r.nodeType !== undefined) base.pluginNodeType = r.nodeType;
+        if (r.version !== undefined) base.version = r.version;
+        break;
+      }
     }
 
     nodes.push(base);
@@ -167,6 +222,39 @@ export function formatContextAsText(ctx: CanvasContext): string {
       const info = `${node.agentType ?? 'unknown'}, ${node.status ?? 'idle'}`;
       const cwd = node.cwd ? `, cwd: \`${node.cwd}\`` : '';
       lines.push(`- **${node.title}** (${info}${cwd})`);
+    }
+  }
+
+  const textNodes = ctx.nodes.filter(n => n.type === 'text');
+  if (textNodes.length > 0) {
+    lines.push('', '## Text', '');
+    for (const node of textNodes) {
+      const ex = node.excerpt ? ` — ${node.excerpt}` : '';
+      lines.push(`- **${node.title}**${ex}`);
+    }
+  }
+
+  const iframeNodes = ctx.nodes.filter(n => n.type === 'iframe');
+  if (iframeNodes.length > 0) {
+    lines.push('', '## Embeds (iframe)', '');
+    for (const node of iframeNodes) {
+      const where = node.url ? ` \`${node.url}\`` : node.mode ? ` (${node.mode})` : '';
+      const page = node.pageTitle ? ` — ${node.pageTitle}` : '';
+      lines.push(`- **${node.title}**${where}${page}`);
+    }
+  }
+
+  // Any node type not rendered above (image, shape, dynamic-app, plugin,
+  // reference, or a future type this CLI has never seen) still gets listed so
+  // an agent knows it exists.
+  const shownTypes = new Set(['file', 'frame', 'group', 'terminal', 'agent', 'text', 'iframe']);
+  const otherNodes = ctx.nodes.filter(n => !shownTypes.has(n.type));
+  if (otherNodes.length > 0) {
+    lines.push('', '## Other nodes', '');
+    for (const node of otherNodes) {
+      const hint = String(node.url ?? node.path ?? node.pluginId ?? node.shape ?? '');
+      const hintStr = hint ? ` — ${hint}` : '';
+      lines.push(`- **${node.title}** [${node.type}]${hintStr}`);
     }
   }
 

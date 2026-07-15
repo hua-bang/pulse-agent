@@ -137,10 +137,22 @@ const cliStorageV2Ts = fs.existsSync(cliStorageV2Path) ? read(cliStorageV2Path) 
 const nodesStoreTs = fs.existsSync(nodesStorePath) ? read(nodesStorePath) : '';
 const storageTs = fs.existsSync(storageTsPath) ? read(storageTsPath) : '';
 
-// Same union-extraction style as section 3, adapted to a `type X = 'a' | 'b'`
-// alias (canvas-cli's NodeType) rather than an inline interface field.
-const cliUnionBlock = cliTypesTs.match(/export type NodeType\s*=\s*([^;]+);/);
-const cliNodeTypes = cliUnionBlock ? [...cliUnionBlock[1].matchAll(/'([a-z-]+)'/g)].map((m) => m[1]) : [];
+// Same union-extraction style as section 3, adapted to canvas-cli's node-type
+// aliases. The CLI splits its literals across `CreatableNodeType` (types it can
+// create) and `KnownNodeType` (all types it reads/models), with the public
+// `NodeType = KnownNodeType | (string & {})` adding the opaque passthrough arm
+// for unmodeled future types. The modeled literal set is the union of the two
+// alias bodies; the `(string & {})` arm intentionally contributes no literal
+// (it IS the "treat unknown types as opaque" behavior this section allows for).
+const litsOf = (block) => (block ? [...block[1].matchAll(/'([a-z-]+)'/g)].map((m) => m[1]) : []);
+const cliCreatableBlock = cliTypesTs.match(/export type CreatableNodeType\s*=\s*([^;]+);/);
+const cliKnownBlock = cliTypesTs.match(/export type KnownNodeType\s*=\s*([^;]+);/);
+// Fallback to a legacy flat `NodeType` alias so this tool still works if the
+// CLI ever collapses the split back into one union.
+const cliLegacyBlock = cliTypesTs.match(/export type NodeType\s*=\s*([^;]+);/);
+const cliNodeTypes = [
+  ...new Set([...litsOf(cliCreatableBlock), ...litsOf(cliKnownBlock), ...litsOf(cliLegacyBlock)]),
+];
 const appOnlyNodeTypes = unionTypes.filter((t) => !cliNodeTypes.includes(t));
 const cliOnlyNodeTypes = cliNodeTypes.filter((t) => !unionTypes.includes(t));
 
@@ -186,14 +198,11 @@ if (appCanvasSchemaVersionV2 === undefined || cliCanvasSchemaVersionV2 === undef
 // type present in the CLI but ABSENT from the app union is NOT allowlisted
 // here — that would mean the app can't even read what the CLI wrote, which
 // is a real bug, not drift to accept.
-const KNOWN_MISMATCH_APP_ONLY_NODE_TYPES = new Set([
-  'text',
-  'iframe',
-  'image',
-  'shape',
-  'dynamic-app',
-  'plugin',
-]);
+// Empty: the CLI now models every app node type it can read (text, iframe,
+// image, shape, dynamic-app, plugin, reference) in its KnownNodeType union, so
+// there is currently no accepted app-only drift. New app-only types added
+// before the CLI mirrors them go here (recorded, not silently skipped).
+const KNOWN_MISMATCH_APP_ONLY_NODE_TYPES = new Set([]);
 
 const unexpectedAppOnlyNodeTypes = appOnlyNodeTypes.filter((t) => !KNOWN_MISMATCH_APP_ONLY_NODE_TYPES.has(t));
 const staleAppOnlyAllowlist = [...KNOWN_MISMATCH_APP_ONLY_NODE_TYPES].filter((t) => !appOnlyNodeTypes.includes(t));

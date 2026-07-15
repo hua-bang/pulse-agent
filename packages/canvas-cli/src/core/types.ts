@@ -1,4 +1,38 @@
-export type NodeType = 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'mindmap' | 'reference';
+/**
+ * Node types the CLI can create via `node create`. These are the only types
+ * with default dimensions and an initializer in `createNode`.
+ */
+export type CreatableNodeType =
+  | 'file'
+  | 'terminal'
+  | 'frame'
+  | 'group'
+  | 'agent'
+  | 'mindmap';
+
+/**
+ * Every node type the CLI understands well enough to read meaningfully —
+ * the creatable set plus read-only types produced by the canvas app
+ * (text, iframe, image, shape, reference, dynamic-app, plugin).
+ */
+export type KnownNodeType =
+  | CreatableNodeType
+  | 'text'
+  | 'iframe'
+  | 'image'
+  | 'shape'
+  | 'reference'
+  | 'dynamic-app'
+  | 'plugin';
+
+/**
+ * The on-disk node type. `KnownNodeType` gives autocomplete and exhaustiveness
+ * for the types we handle explicitly; the `(string & {})` arm keeps the CLI
+ * forward-compatible — a canvas.json written by a newer app with a node type
+ * this CLI has never heard of still parses and reads (as an opaque node)
+ * instead of failing to load.
+ */
+export type NodeType = KnownNodeType | (string & {});
 export type NodeCapability = 'read' | 'write' | 'exec';
 
 /**
