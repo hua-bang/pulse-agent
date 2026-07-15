@@ -5,6 +5,8 @@ const scenariosReportPath = (outDir) => join(outDir, 'scenarios-report.json');
 const traceArtifactPaths = (outDir) => [
   join(outDir, 'renderer-trace-summary.json'),
   join(outDir, 'renderer-trace.json.gz'),
+  join(outDir, 'panzoom-trace-summary.json'),
+  join(outDir, 'panzoom-trace.json.gz'),
 ];
 const generatedReportPaths = (outDir) => [
   join(outDir, 'bundle-report.json'),
@@ -16,8 +18,12 @@ const generatedReportPaths = (outDir) => [
   join(outDir, 'electron-startup.png'),
 ];
 
-export const prepareReportArtifacts = (outDir) => {
+export const removeScenarioReportArtifact = (outDir) => {
   rmSync(scenariosReportPath(outDir), { force: true });
+};
+
+export const prepareReportArtifacts = (outDir) => {
+  removeScenarioReportArtifact(outDir);
   for (const path of traceArtifactPaths(outDir)) rmSync(path, { force: true });
   for (const path of generatedReportPaths(outDir)) rmSync(path, { force: true });
 };

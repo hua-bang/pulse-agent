@@ -30,8 +30,9 @@
  * types whose internal engines read DOM dimensions on init (xterm) or run
  * a separate rendering pipeline (<webview>, mindmap's force-graph) remain
  * excluded — those need to be visible when they boot or they may compute
- * a 0×0 layout and never recover. They still benefit indirectly via
- * .canvas-transform--moving and webview background throttling. */
+ * a 0×0 layout and never recover. During canvas motion they instead keep
+ * their mounted state while the root transform, one canvas-wide interaction
+ * shield, and frozen scale-dependent chrome bound the hot path. */
 .canvas-node--frame,
 .canvas-node--group,
 .canvas-node--text,

@@ -11,12 +11,11 @@
  *      hidden/minimized), the node has no registered WebContents at all.
  *
  * So:
- *   - `read`  tools only need a live WebContents → use whatever is registered;
- *     only activate when nothing is registered yet.
- *   - `operate` tools (clicks, fills, screenshots) need a *painted* surface →
- *     always activate the workspace (removes `display: none` + shows the window
- *     inactively, without stealing focus) and give the compositor a beat to
- *     produce a frame.
+ *   - all tools activate and select the target node without stealing OS focus.
+ *     Selection is the renderer's operation lease: a Chrome-style residency
+ *     manager must not discard the guest while a tool is using it.
+ *   - `operate` tools (clicks, fills, screenshots) additionally wait for a
+ *     painted surface before dispatching input.
  *
  * The pure logic here takes its registry lookup and activation as injected
  * functions so it can be unit-tested without Electron.
@@ -25,6 +24,25 @@
 const DEFAULT_WAIT_MS = 8_000;
 const DEFAULT_POLL_INTERVAL_MS = 100;
 const DEFAULT_PAINT_SETTLE_MS = 350;
+const DEFAULT_PROTECTION_SETTLE_MS = 100;
+
+const settleWithin = <T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> => (
+  new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: T | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish(null), Math.max(0, timeoutMs));
+    timer.unref?.();
+    promise.then(
+      value => finish(value),
+      () => finish(null),
+    );
+  })
+);
 
 export type OperableMode = 'read' | 'operate';
 
@@ -48,9 +66,8 @@ export interface EnsureOperableOptions<T> {
 }
 
 /**
- * Resolve the node's live WebContents, activating its workspace first when the
- * tool needs a painted surface (or when nothing is registered yet). Returns the
- * WebContents, or null if it never became available within `waitMs`.
+ * Resolve the node's live WebContents after activating/selecting it. Returns
+ * the WebContents, or null if it never became available within `waitMs`.
  */
 export async function ensureOperable<T>(opts: EnsureOperableOptions<T>): Promise<T | null> {
   const delay = opts.delay ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -63,30 +80,37 @@ export async function ensureOperable<T>(opts: EnsureOperableOptions<T>): Promise
   // don't want the agent reclaiming the active-workspace slot from a channel.
   if (autoActivateDisabled()) return opts.lookup();
 
-  const existing = opts.lookup();
-  // A read on an already-registered node works even when it's display:none, so
-  // don't steal the active-workspace slot just to read text.
-  if (existing && opts.mode === 'read') return existing;
-
-  // operate mode always activates (to get a paint surface); read mode only
-  // reaches here when the node isn't registered yet.
-  if (opts.mode === 'operate' || !existing) {
-    try {
-      await opts.activate();
-    } catch {
-      /* fall through — it may already be usable, or the wait below will fail cleanly */
-    }
-  }
+  // Activation is part of the same bounded wait budget. Window creation/load
+  // can fail without emitting a successful load event; a never-settling
+  // activation must not hang Agent reads, page control, or the DOM picker.
+  const deadline = now() + waitMs;
+  const activation = await settleWithin(
+    Promise.resolve().then(opts.activate),
+    Math.max(0, deadline - now()),
+  );
+  const activated = activation?.ok === true;
 
   let wc = opts.lookup();
-  const deadline = now() + waitMs;
   while (!wc && now() < deadline) {
     await delay(pollMs);
     wc = opts.lookup();
   }
   if (!wc) return null;
 
-  if (opts.mode === 'operate') await delay(settleMs);
+  if (activated) {
+    const requestedSettleMs = opts.mode === 'operate' ? settleMs : DEFAULT_PROTECTION_SETTLE_MS;
+    const remainingMs = Math.max(0, deadline - now());
+    if (remainingMs > 0) await delay(Math.min(requestedSettleMs, remainingMs));
+
+    // Selection/wake may replace a sleeping guest with a new WebContents
+    // generation during compositor settle. Never hand a caller the stale
+    // object captured before that transition.
+    wc = opts.lookup();
+    while (!wc && now() < deadline) {
+      await delay(Math.min(pollMs, Math.max(0, deadline - now())));
+      wc = opts.lookup();
+    }
+  }
   return wc;
 }
 

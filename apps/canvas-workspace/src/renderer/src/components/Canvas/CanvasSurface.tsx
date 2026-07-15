@@ -62,20 +62,17 @@ interface CanvasSurfaceProps {
   transformLayerRef: RefObject<HTMLDivElement>;
   /** Scale as of the last moment the canvas was at rest (useCanvas).
    *  Drives `--canvas-scale` and the `--small` class INSTEAD of the live
-   *  `transform.scale`: both restyle/repaint content inside the promoted
-   *  compositor layer, and doing that per wheel tick invalidates the
-   *  layer's tiles mid-gesture — the re-raster storm behind "tile memory
+   *  `transform.scale`: both restyle/repaint content across the canvas,
+   *  and doing that per wheel tick invalidates its tiles mid-gesture —
+   *  the re-raster storm behind "tile memory
    *  limits exceeded" blank flashes. While a gesture is in flight the
    *  scale-compensated UI (terminal glyphs, frame headers) stretches with
    *  the canvas and snaps crisp once the gesture settles. */
   settledScale: number;
   animating: boolean;
-  /** True while the user is actively panning/zooming. Drives conditional
-   *  `will-change: transform` so the canvas subtree is only promoted to
-   *  its own compositor layer while it's actually moving — avoiding the
-   *  permanent tile-memory cost that otherwise trips Chromium's
-   *  "tile memory limits exceeded" warning on canvases with many
-   *  (especially nested) frames. */
+  /** True while the user is actively panning/zooming. Drives gesture-only
+   *  rendering and transition behavior. It deliberately does not promote
+   *  the entire canvas subtree to a compositor layer. */
   moving: boolean;
   renderGroups: NodeRenderGroup;
   nodes: CanvasNode[];

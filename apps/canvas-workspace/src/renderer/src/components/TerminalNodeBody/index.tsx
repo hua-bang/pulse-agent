@@ -7,7 +7,19 @@ import type { CanvasNode, TerminalNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
 import { NodeMentionPicker } from '../NodeMentionPicker';
-import { createDebouncedTerminalRefit, fitTerminalWithCanvasScale, syncTerminalFontSizeToCanvas } from '../AgentNodeBody/utils/terminal';
+import {
+  SCROLLBACK_SAVE_INTERVAL,
+  claimTerminalSessionOwner,
+  createPtySpawnLifecycle,
+  createDebouncedTerminalRefit,
+  createTerminalSnapshotPersister,
+  finalizeTerminalSnapshotBeforeDispose,
+  fitTerminalWithCanvasScale,
+  readTerminalSnapshot,
+  serializeBuffer,
+  syncTerminalFontSizeToCanvas,
+  writeTerminalOutput,
+} from '../AgentNodeBody/utils/terminal';
 import { useI18n } from '../../i18n';
 import {
   appendTerminalOutputTail,
@@ -25,23 +37,6 @@ interface Props {
   readOnly?: boolean;
 }
 
-const SCROLLBACK_SAVE_INTERVAL = 2000;
-const MAX_SCROLLBACK_CHARS = 50000;
-
-const serializeBuffer = (term: Terminal): string => {
-  const buf = term.buffer.active;
-  const lines: string[] = [];
-  const count = buf.length;
-  for (let i = 0; i < count; i++) {
-    const line = buf.getLine(i);
-    if (line) lines.push(line.translateToString(true));
-  }
-  let text = lines.join('\n');
-  text = text.replace(/\n+$/, '');
-  if (text.length > MAX_SCROLLBACK_CHARS) text = text.slice(-MAX_SCROLLBACK_CHARS);
-  return text;
-};
-
 export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
   const { t } = useI18n();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -50,8 +45,10 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const killSessionRef = useRef<(() => void) | null>(null);
   const spawnedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const snapshotPersisterRef = useRef<ReturnType<typeof createTerminalSnapshotPersister> | null>(null);
   const codingAgentActiveRef = useRef(false);
   const commandInputRef = useRef('');
   const terminalOutputTailRef = useRef('');
@@ -70,14 +67,6 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
   const initialScrollback = useRef(data.scrollback ?? '');
   const initialCwd = useRef(data.cwd ?? '');
   const initialCommand = useRef(data.initialCommand ?? '');
-
-  const persistState = useCallback(() => {
-    const term = termRef.current;
-    const scrollback = term ? serializeBuffer(term) : dataRef.current.scrollback;
-    onUpdateRef.current(nodeIdRef.current, {
-      data: { sessionId: dataRef.current.sessionId, scrollback, cwd: dataRef.current.cwd },
-    });
-  }, []);
 
   const dismissMentionHint = useCallback(() => {
     setMentionHintVisible(false);
@@ -175,20 +164,56 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
     });
 
     const api = window.canvasWorkspace?.pty;
+    const sessionOwner = claimTerminalSessionOwner(sessionId);
+    const spawnLifecycle = createPtySpawnLifecycle(sessionOwner);
+    cleanupRef.current = spawnLifecycle.cancel;
+    killSessionRef.current = sessionOwner.finishFinalization;
+    const snapshotPersister = createTerminalSnapshotPersister({
+      initialSnapshot: {
+        scrollback: dataRef.current.scrollback ?? '',
+        cwd: dataRef.current.cwd ?? '',
+      },
+      readSnapshot: () => api
+        ? readTerminalSnapshot(term, () => api.getCwd(sessionId), dataRef.current.cwd ?? '')
+        : Promise.resolve({ scrollback: serializeBuffer(term), cwd: dataRef.current.cwd ?? '' }),
+      persist: (snapshot) => sessionOwner.persistIfCurrent(snapshot, ({ scrollback, cwd }) => {
+        onUpdateRef.current(nodeIdRef.current, {
+          data: { sessionId: dataRef.current.sessionId, scrollback, cwd },
+        });
+      }),
+    });
+    snapshotPersisterRef.current = snapshotPersister;
+
     if (!api) {
-      term.writeln('\x1b[31mError: pty API not available (preload missing)\x1b[0m');
+      writeTerminalOutput(
+        term,
+        '\x1b[31mError: pty API not available (preload missing)\x1b[0m',
+        snapshotPersister,
+        true,
+      );
       return;
     }
 
     const spawnCwd = initialCwd.current || rootFolder || undefined;
     const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceIdRef.current);
+    if (spawnLifecycle.reclaimIfCancelled(result, (leaseId) => api.kill(sessionId, leaseId))) return;
     if (!result.ok) {
-      term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
+      writeTerminalOutput(
+        term,
+        `\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`,
+        snapshotPersister,
+        true,
+      );
       return;
     }
 
     const removeExit = api.onExit(sessionId, (code: number) => {
-      term.writeln(`\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m`);
+      writeTerminalOutput(
+        term,
+        `\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m`,
+        snapshotPersister,
+        true,
+      );
     });
 
     // If an initial command is set, wait for the shell prompt before writing it.
@@ -200,13 +225,13 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
     if (cmdToRun) {
       let prompted = false;
       const promptRemove = api.onData(sessionId, (d: string) => {
-        term.write(d);
+        writeTerminalOutput(term, d, snapshotPersister);
         if (!prompted) {
           prompted = true;
           promptRemove();
           removePrompt = null;
           removeData = api.onData(sessionId, (d2: string) => {
-            term.write(d2);
+            writeTerminalOutput(term, d2, snapshotPersister);
             captureTerminalOutput(d2);
           });
           setTimeout(() => {
@@ -220,7 +245,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
       removePrompt = promptRemove;
     } else {
       removeData = api.onData(sessionId, (d: string) => {
-        term.write(d);
+        writeTerminalOutput(term, d, snapshotPersister);
         captureTerminalOutput(d);
       });
     }
@@ -232,49 +257,47 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
 
     term.onResize(({ cols, rows }) => { api.resize(sessionId, cols, rows); });
 
-    saveTimerRef.current = setInterval(async () => {
-      const scrollback = serializeBuffer(term);
-      const cwdResult = await api.getCwd(sessionId);
-      const cwd = cwdResult.ok && cwdResult.cwd ? cwdResult.cwd : dataRef.current.cwd;
-      onUpdateRef.current(nodeIdRef.current, {
-        data: { sessionId: dataRef.current.sessionId, scrollback, cwd },
-      });
+    saveTimerRef.current = setInterval(() => {
+      void snapshotPersister.flush().catch(() => undefined);
     }, SCROLLBACK_SAVE_INTERVAL);
 
     cleanupRef.current = () => {
-      // If the node unmounts before the shell prompt ever arrived, the
-      // prompt listener is still registered — drop it too.
-      removePrompt?.();
-      removeData?.();
-      removeExit();
-      api.kill(sessionId);
+      spawnLifecycle.cancel(() => {
+        // If the node unmounts before the shell prompt ever arrived, the
+        // prompt listener is still registered — drop it too.
+        removePrompt?.();
+        removeData?.();
+        removeExit();
+      });
     };
-  }, [sessionId, rootFolder, persistState, readOnly, captureTerminalInput, captureTerminalOutput, startCodingAgentHint]);
+    killSessionRef.current = () => {
+      try { api.kill(sessionId, result.leaseId); } finally { sessionOwner.finishFinalization(); }
+    };
+  }, [sessionId, rootFolder, readOnly, captureTerminalInput, captureTerminalOutput, startCodingAgentHint]);
 
   useEffect(() => {
     void initTerminal();
     return () => {
-      const api = window.canvasWorkspace?.pty;
-      if (readOnly) {
-        // Reference previews render saved scrollback only; never persist or kill a live PTY.
-      } else if (termRef.current && api) {
-        const scrollback = serializeBuffer(termRef.current);
-        void api.getCwd(sessionId).then((r) => {
-          const cwd = r.ok && r.cwd ? r.cwd : dataRef.current.cwd;
-          onUpdateRef.current(nodeIdRef.current, {
-            data: { sessionId: dataRef.current.sessionId, scrollback, cwd },
-          });
-        });
-      } else if (termRef.current) {
-        persistState();
-      }
       if (saveTimerRef.current) clearInterval(saveTimerRef.current);
+      const persister = snapshotPersisterRef.current;
+      const term = termRef.current;
+      const killSession = killSessionRef.current;
       cleanupRef.current?.();
-      termRef.current?.dispose();
+      if (!readOnly && persister && term) {
+        finalizeTerminalSnapshotBeforeDispose(term, persister, () => {
+          killSession?.();
+          term.dispose();
+        });
+      } else {
+        killSession?.();
+        term?.dispose();
+      }
       termRef.current = null;
       fitRef.current = null;
       spawnedRef.current = false;
       cleanupRef.current = null;
+      killSessionRef.current = null;
+      snapshotPersisterRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

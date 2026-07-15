@@ -51,15 +51,16 @@
     {
       "id": "memory",
       "name": "内存驻留",
-      "question": "切过 N 个 workspace、开一天后,内存是回落还是只涨不落?大图画布占多少?",
-      "findings": "H/L 维 + K-1 · 11 条 · 已修 0",
+      "question": "切过 N 个 workspace、开一天后,内存是回落还是只涨不落?大图和大量 WebView 占多少?",
+      "findings": "H/L 维 + K-1 · 15 条 · 已修 1(WebView 驻留)",
       "northStar": "memory.ws_cycle.post_capacity_heap_slope",
       "dimensions": [
         { "id": "workspace-retention", "name": "Workspace 驻留", "description": "切换与驻留后的堆增长" },
         { "id": "process-footprint", "name": "进程占用", "description": "典型节点规模下的进程常驻内存" },
-        { "id": "media-decoding", "name": "媒体解码", "description": "大图等媒体资源的解码占用" }
+        { "id": "media-decoding", "name": "媒体解码", "description": "大图等媒体资源的解码占用" },
+        { "id": "webview-residency", "name": "WebView 驻留", "description": "大量 guest 的 live 上限、深度休眠收益与恢复成本" }
       ],
-      "next": "M1(最高优先):切换循环场景 + 堆斜率 → M3:修 H1 后斜率门禁锁定"
+      "next": "累积同机 WebView RSS/恢复样本并建立分档 policy；补 30min soak 与 workspace RSS 斜率"
     },
     {
       "id": "main",
@@ -122,13 +123,18 @@
     { "id": "interact.drag.counter.nodes_array_replace", "aspect": "interact", "dimension": "state-amplification", "displayPriority": "supporting", "label": "拖拽 整数组替换次数(A2 守卫)", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic", "runtimeCounter": { "scenario": "drag", "counter": "nodes-array-replace" } },
     { "id": "interact.drag.counter.canvas_save_ipc", "aspect": "interact", "dimension": "persistence-amplification", "displayPriority": "supporting", "label": "拖拽 保存 IPC 次数", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic", "runtimeCounter": { "scenario": "drag", "counter": "canvas-save-ipc" } },
     { "id": "interact.resize.inp_p95_ms", "aspect": "interact", "dimension": "input-latency", "displayPriority": "supporting", "label": "调整尺寸 INP p95(仅离散事件,不覆盖连续 move)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
-    { "id": "interact.resize.frames_over20_pct", "aspect": "interact", "dimension": "frame-smoothness", "displayPriority": "primary", "label": "调整尺寸 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
+    { "id": "interact.resize.frames_over20_pct", "aspect": "interact", "dimension": "frame-smoothness", "displayPriority": "supporting", "label": "调整尺寸 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
     { "id": "interact.resize.frames_over20_pct_max", "aspect": "interact", "dimension": "frame-smoothness", "displayPriority": "supporting", "label": "调整尺寸 单轮最差帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "record", "instrumented": true },
     { "id": "interact.resize.counter.nodes_array_replace", "aspect": "interact", "dimension": "state-amplification", "displayPriority": "supporting", "label": "调整尺寸 整数组替换次数(A2 resize 守卫)", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic", "runtimeCounter": { "scenario": "resize", "counter": "nodes-array-replace" } },
     { "id": "interact.resize.counter.canvas_save_ipc", "aspect": "interact", "dimension": "persistence-amplification", "displayPriority": "supporting", "label": "调整尺寸 保存 IPC 次数", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic", "runtimeCounter": { "scenario": "resize", "counter": "canvas-save-ipc" } },
-    { "id": "interact.panzoom.wheel_to_next_frame_p95_ms", "aspect": "interact", "dimension": "input-latency", "displayPriority": "primary", "label": "平移/缩放 wheel→下一帧 p95", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
-    { "id": "interact.panzoom.frames_over20_pct", "aspect": "interact", "dimension": "frame-smoothness", "displayPriority": "supporting", "label": "平移/缩放 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
+    { "id": "interact.zoom_cold.first_wheel_to_next_frame_ms", "aspect": "interact", "dimension": "input-latency", "displayPriority": "diagnostic", "label": "静止态首个 Ctrl+Wheel capture→rAF 调度(历史兼容)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
+    { "id": "interact.zoom_cold.first_wheel_to_presented_frame_ms", "aspect": "interact", "dimension": "input-latency", "displayPriority": "primary", "label": "静止态首个 Ctrl+Wheel → 呈现帧边界(代理)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
+    { "id": "interact.panzoom.wheel_to_next_frame_p95_ms", "aspect": "interact", "dimension": "input-latency", "displayPriority": "diagnostic", "label": "平移/缩放 capture→rAF 调度 p95(不代表 transform 呈现)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
+    { "id": "interact.panzoom.frames_over20_pct", "aspect": "interact", "dimension": "frame-smoothness", "displayPriority": "primary", "label": "平移/缩放 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
     { "id": "interact.panzoom.frames_over20_pct_max", "aspect": "interact", "dimension": "frame-smoothness", "displayPriority": "supporting", "label": "平移/缩放 单轮最差帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "record", "instrumented": true },
+    { "id": "interact.zoom_settle.last_wheel_to_rest_ms", "aspect": "interact", "dimension": "input-latency", "displayPriority": "diagnostic", "label": "最后一次缩放 wheel → 动画完全稳定", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
+    { "id": "interact.zoom_settle.frames_over20_pct", "aspect": "interact", "dimension": "frame-smoothness", "displayPriority": "diagnostic", "label": "缩放尾段稳定窗口 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
+    { "id": "interact.zoom_settle.frames_over20_pct_max", "aspect": "interact", "dimension": "frame-smoothness", "displayPriority": "diagnostic", "label": "缩放尾段稳定窗口 单轮最差帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
 
     { "id": "bundle.entry_raw_kb", "aspect": "bundle", "dimension": "entry-payload", "displayPriority": "primary", "label": "入口 chunk raw", "unit": "KB", "comparability": "全局", "level": "gate", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
     { "id": "bundle.entry_gzip_kb", "aspect": "bundle", "dimension": "entry-payload", "displayPriority": "supporting", "label": "入口 chunk gzip", "unit": "KB", "comparability": "全局", "level": "gate", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
@@ -164,6 +170,10 @@
     { "id": "memory.ws_cycle.peak_mounted_workspace_count", "aspect": "memory", "dimension": "workspace-retention", "displayPriority": "supporting", "label": "切换场景峰值挂载 workspace 数", "unit": "个", "comparability": "全局", "level": "record", "instrumented": true },
     { "id": "memory.n100.total_rss_mb", "aspect": "memory", "dimension": "process-footprint", "displayPriority": "diagnostic", "label": "100 节点画布稳态 RSS(单点)", "unit": "MB", "comparability": "同机", "level": "record", "instrumented": true },
     { "id": "memory.image.decoded_mb", "aspect": "memory", "dimension": "media-decoding", "displayPriority": "supporting", "label": "10×4K 图解码内存(K-1 守卫)", "unit": "MB", "comparability": "全局", "level": "record", "instrumented": true, "direction": "lower", "measurementProfile": "global-deterministic" },
+    { "id": "memory.webview_guest_count", "aspect": "memory", "dimension": "webview-residency", "displayPriority": "primary", "label": "回收后真实 WebView guest 数", "unit": "个", "comparability": "全局", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-webview-discard" },
+    { "id": "memory.webview.total_rss_released_mb", "aspect": "memory", "dimension": "webview-residency", "displayPriority": "supporting", "label": "WebView 深度休眠释放总 RSS", "unit": "MB", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "higher", "measurementProfile": "local-darwin-arm64-n100-webview-discard" },
+    { "id": "memory.webview.after_discard_rss_mb", "aspect": "memory", "dimension": "webview-residency", "displayPriority": "primary", "label": "WebView 深度休眠后总 RSS", "unit": "MB", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-webview-discard" },
+    { "id": "memory.webview.restore_ready_ms", "aspect": "memory", "dimension": "webview-residency", "displayPriority": "supporting", "label": "WebView 重新加载至可用", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-webview-discard" },
 
     { "id": "main.loop_delay_p99_ms", "aspect": "main", "dimension": "event-loop", "displayPriority": "primary", "label": "事件循环延迟 p99(E/J 维总汇)", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
     { "id": "main.loop_delay_max_ms", "aspect": "main", "dimension": "event-loop", "displayPriority": "supporting", "label": "事件循环延迟 max(单次冻结上限)", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },

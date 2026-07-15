@@ -125,6 +125,41 @@
   min-height: 0;
 }
 
+.iframe-memory-saver {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: var(--surface);
+}
+
+.iframe-memory-saver-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  max-width: 360px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+}
+
+.iframe-memory-saver-card .iframe-memory-saver-icon {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.iframe-memory-saver-copy {
+  min-width: 0;
+  gap: 3px;
+}
+
 .iframe-frame-wrapper--streaming .iframe-frame {
   border-radius: 2px;
 }

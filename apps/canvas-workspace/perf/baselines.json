@@ -133,10 +133,6 @@
       "confidence": "high", "basis": "3×90 pointer-move 固定夹具", "asOf": "2026-07-10",
       "gate": { "kind": "max", "value": 3, "scope": "runtime" }
     },
-    "interact.panzoom.wheel_to_next_frame_p95_ms": {
-      "profile": "local-darwin-arm64-n100-r3", "target": 8, "warning": 16,
-      "confidence": "low", "basis": "仅两次兼容样本；先记录目标不设 Gate", "asOf": "2026-07-10"
-    },
     "interact.panzoom.frames_over20_pct": {
       "profile": "local-darwin-arm64-n100-r3", "target": 1, "warning": 3,
       "confidence": "low", "basis": "仅两次兼容样本；先记录目标不设 Gate", "asOf": "2026-07-10"

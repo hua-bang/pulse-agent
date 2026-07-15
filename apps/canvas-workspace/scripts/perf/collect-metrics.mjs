@@ -105,6 +105,59 @@ export const collectImageMemoryMetric = (scenarios) => {
   };
 };
 
+export const collectWebviewResidencyMetrics = (scenarios) => {
+  const measurement = scenarios?.scenarios?.['webview-discard-restore'];
+  const { before, afterDiscard, restore, liveCap } = measurement ?? {};
+  const generationChanged = Number.isInteger(restore?.before?.webContentsId)
+    && Number.isInteger(restore?.after?.webContentsId)
+    && restore.before.webContentsId !== restore.after.webContentsId
+    && typeof restore?.before?.instanceToken === 'string'
+    && typeof restore?.after?.instanceToken === 'string'
+    && restore.before.instanceToken !== restore.after.instanceToken;
+  const capVerified = measurement?.status === 'measured'
+    && Number.isInteger(liveCap)
+    && liveCap > 0
+    && Number.isInteger(before?.targetGuests)
+    && before.targetGuests > liveCap
+    && Number.isInteger(afterDiscard?.targetGuests)
+    && afterDiscard.targetGuests <= liveCap
+    && Number.isInteger(afterDiscard?.domGuests)
+    && afterDiscard.domGuests <= liveCap
+    && Number.isInteger(afterDiscard?.discarded)
+    && afterDiscard.discarded > 0;
+  if (!capVerified || !generationChanged || !Number.isFinite(restore?.readyMs)) return [];
+
+  const entries = [{
+    id: 'memory.webview_guest_count',
+    value: afterDiscard.targetGuests,
+    runs: 1,
+    detail: `${before.targetGuests}→${afterDiscard.targetGuests} CDP WebView targets · cap ${liveCap} · ${afterDiscard.discarded} discarded`,
+  }];
+  if (Number.isFinite(afterDiscard.rssReleasedMb)) {
+    entries.push({
+      id: 'memory.webview.total_rss_released_mb',
+      value: afterDiscard.rssReleasedMb,
+      runs: 1,
+      detail: `${before.rssMb}→${afterDiscard.rssMb} MB after discard`,
+    });
+  }
+  if (Number.isFinite(afterDiscard.rssMb)) {
+    entries.push({
+      id: 'memory.webview.after_discard_rss_mb',
+      value: afterDiscard.rssMb,
+      runs: 1,
+      detail: `${before.targetGuests}→${afterDiscard.targetGuests} CDP WebView targets · before ${before.rssMb} MB`,
+    });
+  }
+  entries.push({
+    id: 'memory.webview.restore_ready_ms',
+    value: restore.readyMs,
+    runs: 1,
+    detail: `new WebContents ${restore.before.webContentsId}→${restore.after.webContentsId} · new document generation verified`,
+  });
+  return entries;
+};
+
 export const collectChatStreamMetrics = (scenarios) => {
   const chatStream = scenarios?.scenarios?.['chat-stream'];
   if (!chatStream?.report) return [];
@@ -297,6 +350,98 @@ export const collectPanzoomMetrics = (scenarios) => {
   ].filter((entry) => typeof entry.value === 'number' && Number.isFinite(entry.value));
 };
 
+export const collectColdZoomMetrics = (scenarios) => {
+  const report = scenarios?.scenarios?.['zoom-cold']?.report;
+  if (!report?.coldStartVerified || !report.transformChanged) return [];
+
+  const runs = report.runs ?? 1;
+  const completeRaw = (raw) => runs <= 1 || (
+    Array.isArray(raw)
+    && raw.length === runs
+    && raw.every((value) => Number.isFinite(value))
+  );
+  const entries = [];
+
+  // Preserve the original capture-phase next-rAF metric so existing reports
+  // and same-machine history remain readable after the stricter probe lands.
+  const wheel = report.wheelToNextFrame;
+  const wheelRaw = runs > 1 ? report.raw?.wheelToNextFrameP95 : undefined;
+  if (wheel?.count === 1 && Number.isFinite(wheel.p95) && completeRaw(wheelRaw)) {
+    entries.push({
+      id: 'interact.zoom_cold.first_wheel_to_next_frame_ms',
+      value: wheel.p95,
+      runs,
+      ...(runs > 1 ? { raw: wheelRaw } : {}),
+      detail: `1 Ctrl+Wheel/run × ${runs} · idle state verified · transform verified`,
+    });
+  }
+
+  const presented = report.wheelToPresentedFrame;
+  const presentedRaw = runs > 1 ? report.raw?.wheelToPresentedFrameP95 : undefined;
+  const observedRaw = runs > 1 ? report.raw?.wheelToTransformObservedP95 : undefined;
+  const rawOrderValid = runs <= 1 || (
+    completeRaw(presentedRaw)
+    && completeRaw(observedRaw)
+    && presentedRaw.every((value, index) => value >= observedRaw[index])
+  );
+  if (
+    presented?.count === 1
+    && presented.transformChanged === true
+    && presented.framesUntilTransform >= 1
+    && presented.framesAfterTransform >= 1
+    && Number.isFinite(presented.transformObservedP95)
+    && Number.isFinite(presented.p95)
+    && presented.p95 >= presented.transformObservedP95
+    && (!Number.isFinite(wheel?.p95) || presented.p95 >= wheel.p95)
+    && completeRaw(presentedRaw)
+    && completeRaw(observedRaw)
+    && rawOrderValid
+  ) {
+    entries.push({
+      id: 'interact.zoom_cold.first_wheel_to_presented_frame_ms',
+      value: presented.p95,
+      runs,
+      ...(runs > 1 ? { raw: presentedRaw } : {}),
+      detail: `1 Ctrl+Wheel/run × ${runs} · transform observed at ${presented.transformObservedP95}ms · +${presented.framesAfterTransform} post-transform rAF (presented-frame proxy)`,
+    });
+  }
+
+  return entries;
+};
+
+export const collectZoomSettleMetrics = (scenarios) => {
+  const settle = scenarios?.scenarios?.['zoom-settle'];
+  const report = settle?.report;
+  if (!report || !Number.isFinite(settle.lastWheelToRestMs)) return [];
+  const frames = frameEvidence(report);
+  const repeatExtra = report.runs > 1
+    ? { runs: report.runs, raw: settle.rawLastWheelToRestMs }
+    : {};
+  return [
+    {
+      id: 'interact.zoom_settle.last_wheel_to_rest_ms',
+      value: settle.lastWheelToRestMs,
+      runs: 1,
+      ...repeatExtra,
+      detail: `last wheel → moving flags clear + ${settle.includesSettleTransitionMs ?? 0}ms transition budget`,
+    },
+    {
+      id: 'interact.zoom_settle.frames_over20_pct',
+      value: frames.median,
+      runs: frames.runs,
+      ...(frames.runs > 1 ? { raw: frames.raw } : {}),
+      detail: frames.detail,
+    },
+    {
+      id: 'interact.zoom_settle.frames_over20_pct_max',
+      value: frames.maxPct,
+      runs: frames.runs,
+      ...(frames.runs > 1 ? { raw: frames.raw } : {}),
+      detail: `max across ${frames.runs} settle-window runs · ${frames.maxCount} frames >20ms`,
+    },
+  ];
+};
+
 export const collectWorkspaceCycleMetrics = (scenarios) => {
   const cycle = scenarios?.scenarios?.['ws-cycle'];
   const mountedCapacity = 4;
@@ -480,6 +625,8 @@ export const collectMetrics = () => {
   const imageMemoryMetric = collectImageMemoryMetric(scenarios);
   if (imageMemoryMetric) metrics.push(imageMemoryMetric);
 
+  metrics.push(...collectWebviewResidencyMetrics(scenarios));
+
   metrics.push(...collectChatStreamMetrics(scenarios));
 
   for (const name of ['typing', 'drag', 'resize']) {
@@ -489,7 +636,9 @@ export const collectMetrics = () => {
     metrics.push(...collectInteractionScenarioMetrics(scenarios, name));
   }
 
+  metrics.push(...collectColdZoomMetrics(scenarios));
   metrics.push(...collectPanzoomMetrics(scenarios));
+  metrics.push(...collectZoomSettleMetrics(scenarios));
 
   let commit = 'unknown';
   try {
@@ -506,8 +655,10 @@ export const collectMetrics = () => {
       cores: cpus().length,
       seedNodes: scenarios?.seedNodes,
       seedWebpages: scenarios?.seedWebpages,
+      seedUrlWebviews: scenarios?.seedUrlWebviews ?? 0,
       repeat: inferredRepeat,
       fixtureVersion: scenarios?.fixtureVersion,
+      sessionProfile: scenarios?.session?.profile,
       headless: scenarios?.session?.headless,
     },
     metrics,

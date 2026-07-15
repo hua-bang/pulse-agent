@@ -21,6 +21,14 @@ const valueOf = (flag, fallback) => {
 
 const repeat = valueOf('--repeat', process.env.PULSE_CANVAS_PERF_REPEAT || '1');
 const seedNodes = valueOf('--seed-nodes', process.env.PULSE_CANVAS_PERF_SEED_NODES || '100');
+const seedWebpages = valueOf(
+  '--seed-webpages',
+  process.env.PULSE_CANVAS_PERF_SEED_WEBPAGES || '0',
+);
+const seedUrlWebviews = valueOf(
+  '--seed-url-webviews',
+  process.env.PULSE_CANVAS_PERF_SEED_URL_WEBVIEWS || '0',
+);
 const startupScreenshot = process.env.PULSE_CANVAS_PERF_STARTUP_SCREENSHOT
   || join(repoRoot, 'apps/canvas-workspace/perf/out/electron-startup.png');
 const skipBuild = has('--no-build');
@@ -46,7 +54,13 @@ if (!skipBuild) {
   if (buildStatus !== 0) process.exit(buildStatus);
 }
 
-const perfArgs = ['--filter', 'canvas-workspace', 'perf:report', '--no-build', '--repeat', repeat, '--seed-nodes', seedNodes];
+const perfArgs = [
+  '--filter', 'canvas-workspace', 'perf:report', '--no-build',
+  '--repeat', repeat,
+  '--seed-nodes', seedNodes,
+  '--seed-webpages', seedWebpages,
+  '--seed-url-webviews', seedUrlWebviews,
+];
 const perfStatus = run('run performance report', 'pnpm', perfArgs, {
   timeout: 900_000,
   env: { PULSE_CANVAS_PERF_STARTUP_SCREENSHOT: startupScreenshot },

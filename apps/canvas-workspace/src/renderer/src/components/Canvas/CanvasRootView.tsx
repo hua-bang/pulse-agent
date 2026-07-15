@@ -306,7 +306,12 @@ export const CanvasRootView = ({
         />
       )}
 
-      {mouse.interactionShieldActive && <div className="canvas-interaction-shield" aria-hidden="true" />}
+      {mouse.interactionShieldActive && (
+        <div
+          className={`canvas-interaction-shield${mouse.motionShieldOnly ? ' canvas-interaction-shield--canvas-motion' : ''}`}
+          aria-hidden="true"
+        />
+      )}
 
       <CanvasOverlays
         nodes={nodes}
@@ -362,6 +367,7 @@ export const CanvasRootView = ({
         shapeToolActive={shapeToolActive}
         onShapeMouseDown={handleShapeOverlayMouseDown}
         selectedEdge={edges.find((edge) => edge.id === selectedEdgeId) ?? null}
+        edgeInteractionState={edgeInteractionState}
         transform={transform}
         onUpdateEdge={(id, patch) => updateEdge(id, patch)}
         onRemoveEdge={(id) => { void actions.requestRemoveEdge(id); }}

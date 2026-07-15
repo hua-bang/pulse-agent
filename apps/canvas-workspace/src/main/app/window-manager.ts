@@ -11,12 +11,13 @@ import { BrowserWindow } from 'electron';
  * window to the front: it only ensures the window is on-screen (so Chromium
  * doesn't suspend/throttle rendering and the webviews can load) and navigates
  * it to the workspace via the existing hash-route contract
- * (`#/?workspaceId=<id>`), which the renderer already reacts to.
+ * (`#/?workspaceId=<id>&nodeId=<id>`), which the renderer already reacts to.
  */
 
 type WindowFactory = () => BrowserWindow;
 
 let windowFactory: WindowFactory | null = null;
+const WINDOW_READY_TIMEOUT_MS = 8_000;
 
 /** Registered by bootstrap so we can recreate the window if it was closed. */
 export function setWindowFactory(factory: WindowFactory): void {
@@ -44,8 +45,39 @@ function getOrCreateWindow(): BrowserWindow | null {
 
 function whenReady(win: BrowserWindow): Promise<void> {
   if (!win.webContents.isLoading()) return Promise.resolve();
-  return new Promise((resolve) => {
-    win.webContents.once('did-finish-load', () => resolve());
+  return new Promise((resolve, reject) => {
+    const contents = win.webContents;
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      contents.removeListener('did-finish-load', handleFinish);
+      contents.removeListener('did-fail-load', handleFailure);
+      contents.removeListener('destroyed', handleDestroyed);
+      if (error) reject(error);
+      else resolve();
+    };
+    const handleFinish = () => finish();
+    const handleFailure = (
+      _event: Electron.Event,
+      errorCode: number,
+      errorDescription: string,
+      _validatedURL: string,
+      isMainFrame: boolean,
+    ) => {
+      if (isMainFrame === false) return;
+      finish(new Error(`Canvas window failed to load (${errorCode}): ${errorDescription}`));
+    };
+    const handleDestroyed = () => finish(new Error('Canvas window was destroyed while loading.'));
+    const timer = setTimeout(() => {
+      finish(new Error(`Canvas window did not finish loading within ${WINDOW_READY_TIMEOUT_MS}ms.`));
+    }, WINDOW_READY_TIMEOUT_MS);
+    timer.unref?.();
+
+    contents.once('did-finish-load', handleFinish);
+    contents.on('did-fail-load', handleFailure);
+    contents.once('destroyed', handleDestroyed);
   });
 }
 
@@ -62,7 +94,10 @@ export interface ActivateResult {
  * once navigation is dispatched (not when nodes/webviews have finished
  * mounting).
  */
-export async function activateWorkspaceWindow(workspaceId: string): Promise<ActivateResult> {
+export async function activateWorkspaceWindow(
+  workspaceId: string,
+  nodeId?: string,
+): Promise<ActivateResult> {
   const win = getOrCreateWindow();
   if (!win) {
     return { ok: false, error: 'Canvas window is unavailable and could not be created.' };
@@ -78,8 +113,12 @@ export async function activateWorkspaceWindow(workspaceId: string): Promise<Acti
 
     await whenReady(win);
     // Drive the renderer via its existing hash-route contract. App.tsx reacts
-    // to `?workspaceId=` and selects the workspace.
-    const hash = `#/?workspaceId=${encodeURIComponent(workspaceId)}`;
+    // to `?workspaceId=` / `?nodeId=`, selects the workspace and focuses the
+    // target node. Selecting a sleeping URL node is also its renderer-side
+    // wake/protection signal.
+    const params = new URLSearchParams({ workspaceId });
+    if (nodeId) params.set('nodeId', nodeId);
+    const hash = `#/?${params.toString()}`;
     await win.webContents.executeJavaScript(
       `window.location.hash = ${JSON.stringify(hash)}; void 0;`,
     );

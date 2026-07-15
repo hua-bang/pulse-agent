@@ -6,6 +6,237 @@ import { count } from '../../../perf/counters';
 export const SCROLLBACK_SAVE_INTERVAL = 2000;
 export const MAX_SCROLLBACK_CHARS = 50000;
 
+export interface TerminalSnapshot {
+  scrollback: string;
+  cwd: string;
+}
+
+interface TerminalSessionOwnerEntry {
+  token: symbol;
+  finalizing: boolean;
+  lastSnapshot?: TerminalSnapshot;
+  finalSnapshot: Promise<TerminalSnapshot | undefined>;
+  resolveFinalSnapshot: (snapshot?: TerminalSnapshot) => void;
+}
+
+export interface TerminalSessionOwner {
+  beginFinalization: () => void;
+  finishFinalization: () => void;
+  persistIfCurrent: (
+    snapshot: TerminalSnapshot,
+    persist: (snapshot: TerminalSnapshot) => void | Promise<void>,
+  ) => Promise<void>;
+}
+
+export interface PtySpawnLifecycle {
+  cancel: (cleanup?: () => void) => void;
+  isCancelled: () => boolean;
+  reclaimIfCancelled: (
+    result: { ok: boolean; leaseId?: string },
+    kill: (leaseId?: string) => void,
+  ) => boolean;
+}
+
+export const createPtySpawnLifecycle = (owner?: TerminalSessionOwner): PtySpawnLifecycle => {
+  let cancelled = false;
+  return {
+    cancel: (cleanup) => {
+      if (cancelled) return;
+      cancelled = true;
+      cleanup?.();
+      owner?.beginFinalization();
+    },
+    isCancelled: () => cancelled,
+    reclaimIfCancelled: (result, kill) => {
+      if (!cancelled) return false;
+      try {
+        if (result.ok) kill(result.leaseId);
+      } finally {
+        owner?.finishFinalization();
+      }
+      return true;
+    },
+  };
+};
+
+const terminalSessionOwners = new Map<string, TerminalSessionOwnerEntry>();
+
+const mergeTerminalSnapshots = (
+  previous: TerminalSnapshot | undefined,
+  current: TerminalSnapshot,
+): TerminalSnapshot => {
+  if (!previous) return current;
+  if (!current.scrollback) {
+    return { scrollback: previous.scrollback, cwd: current.cwd || previous.cwd };
+  }
+  if (current.scrollback.includes(previous.scrollback)) return current;
+  const scrollback = `${previous.scrollback}\n${current.scrollback}`.slice(-MAX_SCROLLBACK_CHARS);
+  return { scrollback, cwd: current.cwd || previous.cwd };
+};
+
+/**
+ * Coordinates renderer mounts that reuse one main-process PTY. A successor
+ * suppresses its predecessor's late store write, but awaits and folds that
+ * final snapshot into its own next write so output/CWD survive the handoff.
+ */
+export const claimTerminalSessionOwner = (
+  sessionId: string,
+): TerminalSessionOwner => {
+  const predecessor = terminalSessionOwners.get(sessionId);
+  const predecessorFinalSnapshot = predecessor?.finalizing
+    ? predecessor.finalSnapshot
+    : Promise.resolve(undefined);
+  let resolveFinalSnapshot!: (snapshot?: TerminalSnapshot) => void;
+  const entry: TerminalSessionOwnerEntry = {
+    token: Symbol(sessionId),
+    finalizing: false,
+    finalSnapshot: new Promise((resolve) => { resolveFinalSnapshot = resolve; }),
+    resolveFinalSnapshot,
+  };
+  terminalSessionOwners.set(sessionId, entry);
+  let finished = false;
+
+  return {
+    beginFinalization: () => { entry.finalizing = true; },
+    finishFinalization: () => {
+      if (finished) return;
+      finished = true;
+      entry.resolveFinalSnapshot(entry.lastSnapshot);
+      if (terminalSessionOwners.get(sessionId)?.token === entry.token) {
+        terminalSessionOwners.delete(sessionId);
+      }
+    },
+    persistIfCurrent: async (snapshot, persist) => {
+      const rebased = mergeTerminalSnapshots(await predecessorFinalSnapshot, snapshot);
+      if (terminalSessionOwners.get(sessionId)?.token !== entry.token) {
+        entry.lastSnapshot = rebased;
+        return;
+      }
+      try {
+        await persist(rebased);
+        entry.lastSnapshot = undefined;
+      } catch (error) {
+        entry.lastSnapshot = rebased;
+        throw error;
+      }
+    },
+  };
+};
+
+interface TerminalSnapshotPersisterOptions {
+  initialSnapshot: TerminalSnapshot;
+  readSnapshot: () => TerminalSnapshot | Promise<TerminalSnapshot>;
+  persist: (snapshot: TerminalSnapshot) => void | Promise<void>;
+}
+
+export interface TerminalSnapshotPersister {
+  markDirty: () => void;
+  flush: () => Promise<boolean>;
+  flushFinal: () => Promise<boolean>;
+}
+
+const terminalSnapshotsEqual = (left: TerminalSnapshot, right: TerminalSnapshot): boolean =>
+  left.scrollback === right.scrollback && left.cwd === right.cwd;
+
+/**
+ * Coalesces PTY output between save ticks and avoids scanning xterm's full
+ * scrollback buffer while the session is idle. Snapshot reads happen eagerly
+ * when a flush is scheduled so an unmount can dispose xterm without racing a
+ * queued persistence operation.
+ */
+export const createTerminalSnapshotPersister = ({
+  initialSnapshot,
+  readSnapshot,
+  persist,
+}: TerminalSnapshotPersisterOptions): TerminalSnapshotPersister => {
+  let dirtyVersion = 0;
+  let capturedVersion = 0;
+  let lastPersisted = initialSnapshot;
+  let queue: Promise<void> = Promise.resolve();
+
+  const flush = (): Promise<boolean> => {
+    if (dirtyVersion === capturedVersion) return Promise.resolve(false);
+
+    const version = dirtyVersion;
+    let captured: Promise<TerminalSnapshot>;
+    try {
+      captured = Promise.resolve(readSnapshot());
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    capturedVersion = version;
+
+    const result = queue.then(async () => {
+      const snapshot = await captured;
+      if (terminalSnapshotsEqual(snapshot, lastPersisted)) return false;
+      await persist(snapshot);
+      lastPersisted = snapshot;
+      return true;
+    });
+    queue = result.then(
+      () => undefined,
+      () => {
+        // Keep the failed generation dirty so a later tick can retry it.
+        if (capturedVersion === version) capturedVersion = version - 1;
+      },
+    );
+    return result;
+  };
+
+  return {
+    markDirty: () => {
+      dirtyVersion += 1;
+    },
+    flush,
+    flushFinal: flush,
+  };
+};
+
+/**
+ * xterm parses writes asynchronously. Marking a snapshot dirty before the
+ * write callback can let a save tick scan the previous buffer and then treat
+ * that stale scan as current. Always acknowledge output after the parser has
+ * incorporated it.
+ */
+export const writeTerminalOutput = (
+  term: Terminal,
+  data: string,
+  persister: TerminalSnapshotPersister,
+  appendNewline = false,
+): void => {
+  const parsed = () => persister.markDirty();
+  if (appendNewline) term.writeln(data, parsed);
+  else term.write(data, parsed);
+};
+
+/**
+ * Queue an empty write behind all pending xterm parser work, then capture the
+ * final buffer before disposing the terminal. readTerminalSnapshot scans the
+ * buffer synchronously when flushFinal starts, so disposal can happen as soon
+ * as that call has captured its generation; CWD IPC/persistence may finish
+ * afterward without touching xterm.
+ */
+export const finalizeTerminalSnapshotBeforeDispose = (
+  term: Terminal,
+  persister: TerminalSnapshotPersister,
+  dispose: () => void,
+): void => {
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    persister.markDirty();
+    void persister.flushFinal()
+      .catch(() => undefined)
+      .finally(dispose);
+  };
+  try {
+    term.write('', finish);
+  } catch {
+    finish();
+  }
+};
+
 /** localStorage key for recently-used working directories across all agent nodes. */
 export const RECENT_CWDS_KEY = 'canvas-workspace:recent-cwds';
 export const MAX_RECENT_CWDS = 5;
@@ -44,6 +275,21 @@ export const serializeBuffer = (term: Terminal): string => {
   text = text.replace(/\n+$/, '');
   if (text.length > MAX_SCROLLBACK_CHARS) text = text.slice(-MAX_SCROLLBACK_CHARS);
   return text;
+};
+
+export const readTerminalSnapshot = (
+  term: Terminal,
+  readCwd: () => Promise<{ ok: boolean; cwd?: string | null }>,
+  fallbackCwd: string,
+): Promise<TerminalSnapshot> => {
+  const scrollback = serializeBuffer(term);
+  return readCwd().then(
+    (result) => ({
+      scrollback,
+      cwd: result.ok && result.cwd ? result.cwd : fallbackCwd,
+    }),
+    () => ({ scrollback, cwd: fallbackCwd }),
+  );
 };
 
 /** Truncate a path for display, keeping the last N segments. */

@@ -31,13 +31,17 @@ node "${CODEX_HOME:-$HOME/.codex}/skills/perf-report/scripts/run-publish-dashboa
 
 Default behavior is resource-conscious for this host: build once with
 `NODE_OPTIONS=--max-old-space-size=1024`, run `perf:report --no-build --repeat
-1 --seed-nodes 100`, publish to nginx, then capture a screenshot.
+1 --seed-nodes 100 --seed-webpages 0 --seed-url-webviews 0`, publish to nginx,
+then capture a screenshot.
 It also captures the live Electron window right after startup and before the
 interaction scenarios run.
 
 Variants:
 - `--repeat 3` — closer to CI median behavior; heavier
 - `--seed-nodes 300` — larger canvas for interaction scenarios
+- `--seed-webpages 40 --seed-url-webviews 25` — exact final webpage mix with
+  25 deterministic loopback Electron WebViews; URL WebViews require the
+  disposable `temp` profile used by `perf:report`
 - `--no-build` — reuse existing `dist/`
 - `--no-screenshot` — skip the dashboard webpage screenshot; the Electron
   startup screenshot is still captured during `perf:report`
@@ -127,16 +131,19 @@ carries the detail. Never describe a passing Gate as “目标达成”.
   improvement work but does not fail the command; an applicable Gate fail or
   unavailable value fails closed. Never collapse the two into one green/red.
 - Timing targets apply only to their exact measurement profile (machineId, OS,
-  arch, seedNodes, seedWebpages, repeat, fixture, headless). Do not compare across profiles; report a mismatch
-  as `not-applicable`. Counter metrics use the global deterministic profile.
+  arch, seedNodes, seedWebpages, seedUrlWebviews, repeat, fixture, headless,
+  session profile). Do not compare across profiles; report a mismatch as
+  `not-applicable`. Counter metrics use the global deterministic profile.
 - `startup.renderer_reload.*` is record-only Electron `file://` lab evidence,
   not field Core Web Vitals. Report LCP/CLS reference ratings with the warm
   reload/profile qualifier. Keep FCP→Canvas shell blocking separate from
   Canvas→LCP blocking and Long Task evidence; neither is Lighthouse TBT.
-- Never interpret a numeric zero without its sample contract. Pan/zoom uses
-  wheel→next-frame latency (wheel INP is N/A), frame medians must be paired
-  with their single-run max, and cache hit ratio is valid only when the report
-  includes a non-zero settled-render opportunity count.
+- Never interpret a numeric zero without its sample contract. Pan/zoom's
+  capture-phase wheel→next-rAF value is scheduling diagnostics only because it
+  can precede the transform write; use cold-zoom's transform-verified
+  presented-frame proxy for first-response evidence. Pair sustained frame
+  medians with their single-run max. Cache hit ratio is valid only when the
+  report includes a non-zero settled-render opportunity count.
 - If you fix a finding an alert points to (e.g. `I-1`), lower the matching
   baseline/max in `perf/baselines.json` in the same change — the alert
   disappearing on the next run is the proof of the fix.

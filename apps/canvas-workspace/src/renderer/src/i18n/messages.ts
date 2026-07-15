@@ -652,6 +652,11 @@ const en = {
   'canvas.gesture.resizing': 'Resizing',
   'canvas.gesture.freeMove': 'Free move',
 
+  'iframe.memorySaver.title': 'Page sleeping to save memory',
+  'iframe.memorySaver.restoring': 'Reloading page...',
+  'iframe.memorySaver.description': 'Pulse will restore this page when you need it.',
+  'iframe.memorySaver.restore': 'Reload page',
+
   'reference.resize': 'Drag to resize reference drawer',
   'reference.kicker': 'Pinned context',
   'reference.title': 'Reference',
@@ -1929,6 +1934,11 @@ const zh: Record<keyof typeof en, string> = {
   'canvas.gesture.movingMany': '移动 {count} 个',
   'canvas.gesture.resizing': '调整尺寸',
   'canvas.gesture.freeMove': '自由移动',
+
+  'iframe.memorySaver.title': '页面已休眠以节省内存',
+  'iframe.memorySaver.restoring': '正在重新加载页面…',
+  'iframe.memorySaver.description': '需要时，Pulse 会恢复这个页面。',
+  'iframe.memorySaver.restore': '重新加载页面',
 
   'reference.resize': '拖拽调整引用抽屉宽度',
   'reference.kicker': '已固定上下文',

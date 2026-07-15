@@ -39,10 +39,10 @@ export interface CanvasWorkspaceApi {
       cwd?: string,
       workspaceId?: string,
       env?: Record<string, string | undefined>,
-    ) => Promise<{ ok: boolean; pid?: number; error?: string; reused?: boolean }>;
+    ) => Promise<{ ok: boolean; pid?: number; error?: string; reused?: boolean; leaseId?: string }>;
     write: (id: string, data: string) => void;
     resize: (id: string, cols: number, rows: number) => void;
-    kill: (id: string) => void;
+    kill: (id: string, leaseId?: string) => void;
     getCwd: (id: string) => Promise<{ ok: boolean; cwd?: string | null }>;
     checkCommand: (command: string) => Promise<{ ok: boolean; available: boolean; path?: string; error?: string }>;
     onData: (id: string, callback: (data: string) => void) => () => void;

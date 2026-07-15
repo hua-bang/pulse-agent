@@ -12,7 +12,6 @@ import {
 } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../types';
 import { DynamicAppNodeBody } from '../DynamicAppNodeBody';
-import { IframeNodeBody } from '../IframeNodeBody';
 import { PluginNodeBody } from '../PluginNodeBody';
 import { useAppShell } from '../AppShellProvider';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
@@ -20,14 +19,15 @@ import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
 import { dispatchOpenNodePage } from '../../utils/openNodeBridge';
 
-// Heavy node bodies are React.lazy so xterm (terminal/agent bodies) and
-// tiptap/prosemirror + lowlight (text/file bodies) stay out of the eagerly-
-// parsed entry chunk (C1/C6). Each chunk loads on first mount of its node
-// type; the canvas is keepAlive, so subsequent same-type nodes render
-// synchronously. Light bodies (iframe/dynamic-app/plugin) stay static.
+// Stateful/heavy node bodies are React.lazy so xterm (terminal/agent bodies),
+// tiptap/prosemirror + lowlight (text/file bodies), and the URL WebView
+// lifecycle machinery stay out of the eagerly parsed entry chunk (C1/C6/H2).
+// Each chunk loads on first mount of its node type; the canvas is keepAlive,
+// so subsequent same-type nodes render synchronously.
 const AgentNodeBody = lazy(() => import('../AgentNodeBody').then((m) => ({ default: m.AgentNodeBody })));
 const FileNodeBody = lazy(() => import('../FileNodeBodyLazy').then((m) => ({ default: m.FileNodeBodyLazy })));
 const FrameNodeBody = lazy(() => import('../FrameNodeBody').then((m) => ({ default: m.FrameNodeBody })));
+const IframeNodeBody = lazy(() => import('../IframeNodeBody').then((m) => ({ default: m.IframeNodeBody })));
 const TerminalNodeBody = lazy(() => import('../TerminalNodeBody').then((m) => ({ default: m.TerminalNodeBody })));
 const TextNodeBody = lazy(() => import('../TextNodeBodyLazy').then((m) => ({ default: m.TextNodeBodyLazy })));
 
@@ -267,6 +267,8 @@ export const DefaultCanvasNode = ({
             node={node}
             workspaceId={workspaceId}
             onUpdate={onUpdate}
+            isFullscreen={isFullscreen}
+            isSelected={isSelected}
             isResizing={isResizing}
             onAddDomSelectionToChat={onAddDomSelectionToChat}
             onSubmitDomReviewComments={onSubmitDomReviewComments}

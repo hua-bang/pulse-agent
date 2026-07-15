@@ -59,6 +59,27 @@ const isEdgeDragging = (state: EdgeInteractionState | null) =>
   || state?.kind === 'move-bend'
   || state?.kind === 'move-edge';
 
+export const getCanvasInteractionShieldState = ({
+  activeTool,
+  directInteractionActive,
+  moving,
+}: {
+  activeTool: string;
+  directInteractionActive: boolean;
+  moving: boolean;
+}): {
+  iframeShieldActive: boolean;
+  interactionShieldActive: boolean;
+  motionShieldOnly: boolean;
+} => ({
+  // A wheel gesture only needs the single full-canvas shield. Creating the
+  // per-node pseudo shield for every iframe/webview at the first wheel tick
+  // turns a cheap root transform into a large style/compositor transition.
+  iframeShieldActive: activeTool === 'hand' || directInteractionActive,
+  interactionShieldActive: moving || directInteractionActive,
+  motionShieldOnly: moving && !directInteractionActive,
+});
+
 /**
  * Owns the root-level pointer plumbing for the canvas: which gesture
  * wins on mousedown (pan / marquee / fall-through), the window-level
@@ -310,7 +331,7 @@ export const useCanvasMouseHandlers = ({
           : '';
 
   const edgeDragging = isEdgeDragging(edgeInteractionState);
-  const interactionShieldActive =
+  const directInteractionActive =
     panning ||
     marquee.active ||
     shapeDraft !== null ||
@@ -318,9 +339,19 @@ export const useCanvasMouseHandlers = ({
     resizingId !== null ||
     edgeDragging;
 
+  const {
+    iframeShieldActive,
+    interactionShieldActive,
+    motionShieldOnly,
+  } = getCanvasInteractionShieldState({
+    activeTool,
+    directInteractionActive,
+    moving,
+  });
+
   useEffect(() => {
     const root = document.documentElement;
-    const active = interactionShieldActive;
+    const active = directInteractionActive;
     root.classList.toggle('canvas-workspace-interaction-active', active);
 
     return () => {
@@ -328,12 +359,7 @@ export const useCanvasMouseHandlers = ({
         root.classList.remove('canvas-workspace-interaction-active');
       }
     };
-  }, [interactionShieldActive]);
-
-  const iframeShieldActive =
-    activeTool === 'hand' ||
-    moving ||
-    interactionShieldActive;
+  }, [directInteractionActive]);
 
   const iframeShieldClass = iframeShieldActive
     ? ' canvas-container--iframe-shielding'
@@ -351,6 +377,7 @@ export const useCanvasMouseHandlers = ({
     cursorClass,
     iframeShieldClass,
     interactionShieldActive,
+    motionShieldOnly,
     isEdgeDragging: () => isEdgeDragging(edgeInteractionState),
   };
 };

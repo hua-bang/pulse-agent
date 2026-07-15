@@ -22,6 +22,7 @@ import {
   hasLikelyReturnedToShellPrompt,
 } from '../../utils/codingAgentCommand';
 import { scheduleBootOverlayDismiss } from './boot-overlay';
+import { createPtySpawnLifecycle } from '../AgentNodeBody/utils/terminal';
 import './index.css';
 
 interface WorkspaceTerminalDockProps {
@@ -268,7 +269,10 @@ export const WorkspaceTerminalDock = ({
 
     const spawnCwd = rootFolderRef.current || undefined;
     if (spawnCwd) setCwd(spawnCwd);
+    const spawnLifecycle = createPtySpawnLifecycle();
+    cleanupRef.current = spawnLifecycle.cancel;
     const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceId);
+    if (spawnLifecycle.reclaimIfCancelled(result, (leaseId) => api.kill(sessionId, leaseId))) return;
     if (!result.ok) {
       dismissBooting(true);
       term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
@@ -303,7 +307,7 @@ export const WorkspaceTerminalDock = ({
       removeExit();
       inputDisposable.dispose();
       resizeDisposable.dispose();
-      api.kill(sessionId);
+      api.kill(sessionId, result.leaseId);
     };
   }, [applyFontSize, captureTerminalInput, captureTerminalOutput, dismissBooting, refreshCwd, scheduleFit, sessionId, workspaceId]);
 

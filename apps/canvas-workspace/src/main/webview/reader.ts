@@ -1,37 +1,14 @@
 /**
- * Webview reader — reads a webpage that is already open in a canvas iframe node.
- *
- * Only operates on webviews already registered in the webview registry — i.e.
- * iframe/link canvas nodes whose <webview> is currently mounted and loaded.
- * For reading arbitrary URLs use the existing jina_ai_read / tavily tools.
- *
- * Strategy cascade (default: auto = dom → a11y → screenshot):
- *   1. dom        — executeJavaScript innerText.  Safe on any webContents; returns
- *                   the fully-rendered text the user is looking at right now.
- *   2. a11y       — CDP Accessibility.getFullAXTree.  Richer semantic structure
- *                   (roles, names, descriptions).  Falls back if CDP attach fails.
- *   3. screenshot — capturePage() → base64 PNG data URL, ready for vision models.
- *                   Captures the exact viewport the user sees.
- *
- * All strategies operate on the *live* webContents — no extra network request,
- * no re-render, current auth/session state preserved.
+ * Reads a live, registered canvas WebView without another network request.
+ * Auto strategy cascade:
+ *   1. DOM innerText.
+ *   2. CDP accessibility tree.
+ *   3. Bounded viewport scroll-and-stitch PNG for full-page vision input.
+ * Current authentication and page state are preserved.
  */
 
-import { ipcMain } from 'electron';
-import { tmpdir } from 'os';
-import { promises as fs } from 'fs';
-import { randomUUID } from 'crypto';
-import { getWebContentsForNode } from './registry';
-import { createDomElementSnapshotScript, type DomElementSnapshotResult } from './dom-snapshot-script';
-import { withCdp, type CdpSender } from './cdp-session';
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const EXTRACT_TIMEOUT_MS = 8_000;
-const DEFAULT_MAX_CHARS = 12_000;
-const DEFAULT_SPARSE_THRESHOLD = 200;
+import type { getWebContentsForNode } from './registry';
+import type { DomElementSnapshotResult } from './dom-snapshot-script';
 
 // ---------------------------------------------------------------------------
 // Strategy implementations  (all take a live WebContents)
@@ -39,45 +16,19 @@ const DEFAULT_SPARSE_THRESHOLD = 200;
 
 export type AnyWebContents = NonNullable<ReturnType<typeof getWebContentsForNode>>;
 
+export async function wakeWebviewHostForCapture(wc: AnyWebContents): Promise<boolean> {
+  return (await import('./screenshot-capture')).wakeWebviewHostForCapture(wc);
+}
+
+export async function restoreWebviewHostAfterCapture(wc: AnyWebContents): Promise<boolean> {
+  return (await import('./screenshot-capture')).restoreWebviewHostAfterCapture(wc);
+}
+
 export async function readDOM(
   wc: AnyWebContents,
   maxChars: number,
 ): Promise<{ ok: boolean; text: string; title: string; url: string; error?: string }> {
-  const script = `
-    (function () {
-      try {
-        return {
-          ok: true,
-          title: document.title || '',
-          text: document.body ? (document.body.innerText || document.body.textContent || '') : '',
-          url: location.href,
-        };
-      } catch (err) {
-        return { ok: false, title: '', text: '', url: '', error: String(err) };
-      }
-    })();
-  `;
-
-  try {
-    const raw = await Promise.race([
-      wc.executeJavaScript(script, false) as Promise<{
-        ok: boolean; title: string; text: string; url: string; error?: string;
-      }>,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('DOM extraction timed out')), EXTRACT_TIMEOUT_MS),
-      ),
-    ]);
-
-    if (!raw.ok) return { ok: false, text: '', title: '', url: '', error: raw.error };
-
-    const cleaned = (raw.text ?? '').replace(/\s+/g, ' ').trim();
-    const truncated = maxChars > 0 && cleaned.length > maxChars;
-    const text = truncated ? cleaned.slice(0, maxChars) + '\n\n[…content truncated]' : cleaned;
-
-    return { ok: true, text, title: raw.title, url: raw.url };
-  } catch (err) {
-    return { ok: false, text: '', title: '', url: '', error: err instanceof Error ? err.message : String(err) };
-  }
+  return (await import('./reader-strategies')).readDOM(wc, maxChars);
 }
 
 export async function readDOMElement(
@@ -85,165 +36,19 @@ export async function readDOMElement(
   selector: string,
   maxChars: number,
 ): Promise<DomElementSnapshotResult> {
-  const script = createDomElementSnapshotScript(selector, maxChars);
-
-  try {
-    const raw = await Promise.race([
-      wc.executeJavaScript(script, false) as Promise<DomElementSnapshotResult>,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('DOM element extraction timed out')), EXTRACT_TIMEOUT_MS),
-      ),
-    ]);
-
-    return raw.ok ? raw : { ...raw, ok: false };
-  } catch (err) {
-    return {
-      ok: false,
-      title: '',
-      url: '',
-      selector,
-      text: '',
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
-
-/** Flatten an AX node tree into indented readable text. */
-function flattenA11yNodes(
-  nodes: Array<{
-    nodeId: string;
-    role?: { value?: string };
-    name?: { value?: string };
-    description?: { value?: string };
-    value?: { value?: string };
-    childIds?: string[];
-  }>,
-  idMap: Map<string, (typeof nodes)[number]>,
-  nodeId: string,
-  depth = 0,
-  lines: string[] = [],
-): string[] {
-  const node = idMap.get(nodeId);
-  if (!node) return lines;
-
-  const role = node.role?.value ?? '';
-  const name = node.name?.value?.trim() ?? '';
-  const desc = node.description?.value?.trim() ?? '';
-  const val = node.value?.value?.trim() ?? '';
-
-  if (role && role !== 'none' && role !== 'unknown' && role !== 'generic') {
-    const parts: string[] = [role];
-    if (name) parts.push(`"${name}"`);
-    if (desc) parts.push(`(${desc})`);
-    if (val) parts.push(`= ${val}`);
-    lines.push(`${'  '.repeat(depth)}${parts.join(' ')}`);
-  }
-
-  for (const childId of node.childIds ?? []) {
-    flattenA11yNodes(nodes, idMap, childId, depth + 1, lines);
-  }
-
-  return lines;
+  return (await import('./reader-strategies')).readDOMElement(wc, selector, maxChars);
 }
 
 export async function readA11y(
   wc: AnyWebContents,
 ): Promise<{ ok: boolean; text: string; error?: string }> {
-  try {
-    // Go through the per-wc mutex so a concurrent screenshot read or
-    // CDP-based click can't race us on `debugger.attach`.
-    const result = await withCdp(wc, async (send: CdpSender) => {
-      await send('Accessibility.enable');
-      return (await Promise.race([
-        send<{
-          nodes: Array<{
-            nodeId: string;
-            role?: { value?: string };
-            name?: { value?: string };
-            description?: { value?: string };
-            value?: { value?: string };
-            childIds?: string[];
-          }>;
-        }>('Accessibility.getFullAXTree'),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('a11y extraction timed out')), EXTRACT_TIMEOUT_MS),
-        ),
-      ]));
-    });
-
-    const { nodes } = result;
-    const idMap = new Map(nodes.map((n) => [n.nodeId, n]));
-    const root = nodes[0];
-    const lines = root ? flattenA11yNodes(nodes, idMap, root.nodeId) : [];
-    return { ok: true, text: lines.join('\n') || '(empty a11y tree)' };
-  } catch (err) {
-    return { ok: false, text: '', error: err instanceof Error ? err.message : String(err) };
-  }
+  return (await import('./reader-strategies')).readA11y(wc);
 }
 
 export async function captureScreenshot(
   wc: AnyWebContents,
 ): Promise<{ ok: boolean; imagePath: string; error?: string }> {
-  const MAX_HEIGHT_PX = 8_000;
-  const DEFAULT_WIDTH_PX = 1_280;
-
-  try {
-    const result = await withCdp(wc, async (send: CdpSender) => {
-      // Read both the full content size and the current visual viewport
-      // size so we can restore the exact original dimensions after.
-      const metrics = await send<{
-        contentSize: { width: number; height: number };
-        visualViewport: { clientWidth: number; clientHeight: number };
-      }>('Page.getLayoutMetrics');
-
-      const origWidth = metrics.visualViewport.clientWidth || DEFAULT_WIDTH_PX;
-      const origHeight = metrics.visualViewport.clientHeight || 900;
-      const fullWidth = Math.max(Math.ceil(metrics.contentSize.width), DEFAULT_WIDTH_PX);
-      const fullHeight = Math.min(Math.ceil(metrics.contentSize.height), MAX_HEIGHT_PX);
-
-      const needsExpansion = fullHeight > origHeight;
-      let viewportOverrideSet = false;
-
-      try {
-        if (needsExpansion) {
-          await send('Emulation.setDeviceMetricsOverride', {
-            width: fullWidth,
-            height: fullHeight,
-            deviceScaleFactor: 1,
-            mobile: false,
-          });
-          viewportOverrideSet = true;
-        }
-
-        return await send<{ data: string }>('Page.captureScreenshot', {
-          format: 'png',
-          fromSurface: true,
-        });
-      } finally {
-        // Always restore viewport — even on screenshot failure — so the
-        // webview doesn't stay stretched.
-        if (viewportOverrideSet) {
-          try {
-            await send('Emulation.setDeviceMetricsOverride', {
-              width: origWidth,
-              height: origHeight,
-              deviceScaleFactor: 1,
-              mobile: false,
-            });
-            await send('Emulation.clearDeviceMetricsOverride');
-          } catch {
-            /* best-effort cleanup */
-          }
-        }
-      }
-    });
-
-    const imagePath = `${tmpdir()}/pulse-screenshot-${randomUUID()}.png`;
-    await fs.writeFile(imagePath, Buffer.from(result.data, 'base64'));
-    return { ok: true, imagePath };
-  } catch (err) {
-    return { ok: false, imagePath: '', error: err instanceof Error ? err.message : String(err) };
-  }
+  return (await import('./screenshot-capture')).captureScreenshot(wc);
 }
 
 // ---------------------------------------------------------------------------
@@ -270,61 +75,3 @@ export type WebReadResult =
   | { ok: true;  nodeId: string; strategy: 'a11y';       text: string }
   | { ok: true;  nodeId: string; strategy: 'screenshot'; imagePath: string }
   | { ok: false; nodeId: string; strategy: WebReadStrategy; error: string };
-
-// ---------------------------------------------------------------------------
-// IPC setup
-// ---------------------------------------------------------------------------
-
-export function setupWebpageReaderIpc(): void {
-  ipcMain.handle(
-    'web:read',
-    async (_event: unknown, payload: WebReadInput): Promise<WebReadResult> => {
-      const { workspaceId, nodeId } = payload ?? {};
-
-      if (!workspaceId || !nodeId) {
-        return { ok: false, nodeId: nodeId ?? '', strategy: 'dom', error: 'workspaceId and nodeId are required' };
-      }
-
-      const wc = getWebContentsForNode(workspaceId, nodeId);
-      if (!wc) {
-        return { ok: false, nodeId, strategy: 'dom', error: `No active webview found for node ${workspaceId}::${nodeId}` };
-      }
-
-      const strategy: WebReadStrategy = payload.strategy ?? 'auto';
-      const maxChars = payload.maxChars ?? DEFAULT_MAX_CHARS;
-      const sparseThreshold = payload.sparseThreshold ?? DEFAULT_SPARSE_THRESHOLD;
-
-      // ── DOM ──────────────────────────────────────────────────────────────
-      if (strategy === 'dom' || strategy === 'auto') {
-        const result = await readDOM(wc, maxChars);
-        if (strategy === 'dom') {
-          return result.ok
-            ? { ok: true, nodeId, strategy: 'dom', text: result.text, title: result.title, url: result.url }
-            : { ok: false, nodeId, strategy: 'dom', error: result.error! };
-        }
-        if (result.ok && result.text.trim().length >= sparseThreshold) {
-          return { ok: true, nodeId, strategy: 'dom', text: result.text, title: result.title, url: result.url };
-        }
-      }
-
-      // ── a11y ─────────────────────────────────────────────────────────────
-      if (strategy === 'a11y' || strategy === 'auto') {
-        const result = await readA11y(wc);
-        if (strategy === 'a11y') {
-          return result.ok
-            ? { ok: true, nodeId, strategy: 'a11y', text: result.text }
-            : { ok: false, nodeId, strategy: 'a11y', error: result.error! };
-        }
-        if (result.ok && result.text.trim().length >= sparseThreshold) {
-          return { ok: true, nodeId, strategy: 'a11y', text: result.text };
-        }
-      }
-
-      // ── Screenshot ───────────────────────────────────────────────────────
-      const result = await captureScreenshot(wc);
-      return result.ok
-        ? { ok: true, nodeId, strategy: 'screenshot', imagePath: result.imagePath }
-        : { ok: false, nodeId, strategy: 'screenshot', error: result.error! };
-    },
-  );
-}

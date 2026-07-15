@@ -8,7 +8,11 @@ import { useIframeNodeState } from './useIframeNodeState';
 class MockIntersectionObserver {
   static instances: MockIntersectionObserver[] = [];
 
-  readonly observe = vi.fn();
+  private target: Element | null = null;
+
+  readonly observe = vi.fn((target: Element) => {
+    this.target = target;
+  });
   readonly disconnect = vi.fn();
 
   constructor(
@@ -20,7 +24,18 @@ class MockIntersectionObserver {
 
   trigger(isIntersecting: boolean): void {
     this.callback(
-      [{ isIntersecting } as IntersectionObserverEntry],
+      [{
+        boundingClientRect: {
+          bottom: 100,
+          height: 100,
+          left: 0,
+          right: 200,
+          top: 0,
+          width: 200,
+        },
+        isIntersecting,
+        target: this.target,
+      } as unknown as IntersectionObserverEntry],
       this as unknown as IntersectionObserver,
     );
   }
@@ -44,7 +59,6 @@ let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 let registerWebview: ReturnType<typeof vi.fn>;
 let unregisterWebview: ReturnType<typeof vi.fn>;
-let setFrameRate: ReturnType<typeof vi.fn>;
 let createElementSpy: { mockRestore: () => void };
 let originalIntersectionObserver: typeof IntersectionObserver | undefined;
 let mockWebview: HTMLElement | null;
@@ -56,7 +70,6 @@ beforeEach(() => {
 
   registerWebview = vi.fn().mockResolvedValue({ ok: true });
   unregisterWebview = vi.fn().mockResolvedValue({ ok: true });
-  setFrameRate = vi.fn().mockResolvedValue({ ok: true });
   mockWebview = null;
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,
@@ -64,7 +77,6 @@ beforeEach(() => {
       iframe: {
         registerWebview,
         unregisterWebview,
-        setFrameRate,
       },
     },
   });

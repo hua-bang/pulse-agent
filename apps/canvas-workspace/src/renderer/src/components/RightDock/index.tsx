@@ -477,6 +477,8 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
             ) : (
               <Suspense fallback={null}>
                 <LinkTabView
+                  isActive={tab.id === activePaneId}
+                  residencyId={tab.id}
                   url={tab.url}
                   activeWorkspaceId={activeWorkspaceId}
                   onTitleChange={(title) => store.setTitle(tab.id, title)}

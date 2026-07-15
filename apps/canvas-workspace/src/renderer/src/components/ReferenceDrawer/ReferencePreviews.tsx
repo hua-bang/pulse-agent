@@ -1,12 +1,15 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
-import { IframeNodeBody } from '../IframeNodeBody';
 import { useI18n } from '../../i18n';
 import { MIN_REFERENCE_DRAWER_WIDTH } from './constants';
 import type { NodeReferenceEntry, ReferenceEntry, UrlReferenceEntry } from './types';
 import { createUrlPreviewNode, getReferenceId, isUrlReference } from './utils';
+
+const IframeNodeBody = lazy(() => import('../IframeNodeBody').then((module) => ({
+  default: module.IframeNodeBody,
+})));
 
 interface ReferencePreviewPanelProps {
   references: ReferenceEntry[];
@@ -26,9 +29,9 @@ interface ReferencePreviewPanelProps {
 // Electron's <webview> tag is sensitive to layout / visibility changes on any
 // ancestor — display:none, visibility:hidden, AND opacity:0 can all cause the
 // compositor to drop the guest's layer and reload it next time it's shown.
-// The only reliable persistence is to keep every <webview> at a stable layout
-// box AND keep it fully painted; we layer them with z-index so the active one
-// is on top while the others stay alive underneath, fully rendered.
+// We keep stable layout boxes and layer the active preview on top. Inactive
+// slots use pointer-events:none, which the shared WebView residency manager
+// treats as non-visible and may discard under memory pressure.
 const INACTIVE_SLOT_STYLE: CSSProperties = {
   zIndex: 1,
   pointerEvents: 'none',
@@ -66,9 +69,8 @@ export const ReferencePreviewPanel = ({
     [references],
   );
 
-  // Track URL references that have ever been opened. Their iframes stay
-  // mounted until the reference itself disappears from `references` (Unpin /
-  // Clear all / delete from the entry list).
+  // Track URL references that have ever been opened. Their preview shells stay
+  // mounted until removal; the guest itself may sleep under memory pressure.
   const [mountedUrlIds, setMountedUrlIds] = useState<Set<string>>(() => new Set());
   // Node references can also point at iframe nodes. Keep those iframe previews
   // mounted independently so switching the active reference doesn't navigate a
@@ -172,7 +174,11 @@ export const ReferencePreviewPanel = ({
                 className="reference-url-slot"
                 style={ref.id === activeReferenceId ? ACTIVE_SLOT_STYLE : INACTIVE_SLOT_STYLE}
               >
-                <ReferenceUrlWebPreview reference={ref} drawerWidth={drawerWidth} />
+                <ReferenceUrlWebPreview
+                  reference={ref}
+                  drawerWidth={drawerWidth}
+                  isActive={ref.id === activeReferenceId}
+                />
               </div>
             ))}
           </div>
@@ -224,6 +230,7 @@ export const ReferencePreviewPanel = ({
             <ReferenceNativeNodePreview
               node={node}
               drawerWidth={drawerWidth}
+              isActive={isActive}
               workspaceName={workspaceNameById.get(entry.workspaceId) ?? entry.workspaceNameSnapshot}
               onFocusNode={() => onFocusNode(entry.workspaceId, entry.nodeId)}
             />
@@ -245,6 +252,7 @@ export const ReferencePreviewPanel = ({
           <ReferenceNativeNodePreview
             node={activeReferenceNode}
             drawerWidth={drawerWidth}
+            isActive
             workspaceName={workspaceNameById.get(activeReference.workspaceId) ?? activeReference.workspaceNameSnapshot}
             onFocusNode={() => onFocusNode(activeReference.workspaceId, activeReference.nodeId)}
           />
@@ -325,9 +333,10 @@ const NodeReferenceFooter = ({
 interface ReferenceUrlWebPreviewProps {
   reference: UrlReferenceEntry;
   drawerWidth: number;
+  isActive: boolean;
 }
 
-const ReferenceUrlWebPreview = memo(({ reference, drawerWidth }: ReferenceUrlWebPreviewProps) => {
+const ReferenceUrlWebPreview = memo(({ reference, drawerWidth, isActive }: ReferenceUrlWebPreviewProps) => {
   const previewNode = useMemo(
     () => createUrlPreviewNode(reference, drawerWidth),
     [reference, drawerWidth],
@@ -335,12 +344,15 @@ const ReferenceUrlWebPreview = memo(({ reference, drawerWidth }: ReferenceUrlWeb
 
   return (
     <div className="reference-url-preview">
-      <IframeNodeBody
-        node={previewNode}
-        onUpdate={() => undefined}
-        isResizing={false}
-        readOnly
-      />
+      <Suspense fallback={null}>
+        <IframeNodeBody
+          node={previewNode}
+          onUpdate={() => undefined}
+          isSelected={isActive}
+          isResizing={false}
+          readOnly
+        />
+      </Suspense>
     </div>
   );
 });
@@ -350,6 +362,7 @@ ReferenceUrlWebPreview.displayName = 'ReferenceUrlWebPreview';
 interface ReferenceNativeNodePreviewProps {
   node: CanvasNode;
   drawerWidth: number;
+  isActive: boolean;
   workspaceName?: string;
   onFocusNode: () => void;
 }
@@ -357,6 +370,7 @@ interface ReferenceNativeNodePreviewProps {
 const ReferenceNativeNodePreview = memo(({
   node,
   drawerWidth,
+  isActive,
   workspaceName,
   onFocusNode,
 }: ReferenceNativeNodePreviewProps) => {
@@ -381,7 +395,7 @@ const ReferenceNativeNodePreview = memo(({
       workspaceName={workspaceName}
       isDragging={false}
       isResizing={false}
-      isSelected={false}
+      isSelected={isActive}
       isHighlighted={false}
       onDragStart={() => undefined}
       onResizeStart={() => undefined}

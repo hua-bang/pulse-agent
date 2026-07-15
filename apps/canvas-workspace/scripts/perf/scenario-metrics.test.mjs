@@ -7,6 +7,9 @@ const report = ({
   framesCount,
   wheelP95,
   wheelMax,
+  presentedP95,
+  presentedMax,
+  transformObservedP95,
   counter,
 }) => ({
   scenario: 'panzoom',
@@ -19,14 +22,25 @@ const report = ({
     p95DeltaMs: 10,
   },
   wheelToNextFrame: { count: 50, p95: wheelP95, max: wheelMax },
+  ...(Number.isFinite(presentedP95) ? {
+    wheelToPresentedFrame: {
+      count: 1,
+      p95: presentedP95,
+      max: presentedMax,
+      transformObservedP95,
+      transformChanged: true,
+      framesUntilTransform: 1,
+      framesAfterTransform: 1,
+    },
+  } : {}),
 });
 
 describe('aggregateReports', () => {
   it('keeps repeat medians, worst frame values, and every requested raw signal', () => {
     const aggregated = aggregateReports([
-      report({ interactionP95: 8, framesPct: 0, framesCount: 0, wheelP95: 9, wheelMax: 15, counter: 2 }),
-      report({ interactionP95: 12, framesPct: 0.2, framesCount: 1, wheelP95: 13, wheelMax: 19, counter: 3 }),
-      report({ interactionP95: 10, framesPct: 0.4, framesCount: 2, wheelP95: 11, wheelMax: 17, counter: 1 }),
+      report({ interactionP95: 8, framesPct: 0, framesCount: 0, wheelP95: 9, wheelMax: 15, presentedP95: 25, presentedMax: 25, transformObservedP95: 9.5, counter: 2 }),
+      report({ interactionP95: 12, framesPct: 0.2, framesCount: 1, wheelP95: 13, wheelMax: 19, presentedP95: 31, presentedMax: 31, transformObservedP95: 13.4, counter: 3 }),
+      report({ interactionP95: 10, framesPct: 0.4, framesCount: 2, wheelP95: 11, wheelMax: 17, presentedP95: 27, presentedMax: 27, transformObservedP95: 11.2, counter: 1 }),
     ]);
 
     expect(aggregated.interactions.p95).toBe(10);
@@ -36,12 +50,23 @@ describe('aggregateReports', () => {
       over20msCountMax: 2,
     });
     expect(aggregated.wheelToNextFrame).toEqual({ count: 50, p95: 11, max: 19 });
+    expect(aggregated.wheelToPresentedFrame).toEqual({
+      count: 1,
+      p95: 27,
+      max: 31,
+      transformObservedP95: 11.2,
+      transformChanged: true,
+      framesUntilTransform: 1,
+      framesAfterTransform: 1,
+    });
     expect(aggregated.counters.probe).toBe(3);
     expect(aggregated.raw).toEqual({
       interactionsP95: [8, 12, 10],
       framesOver20Pct: [0, 0.2, 0.4],
       framesOver20Count: [0, 1, 2],
       wheelToNextFrameP95: [9, 13, 11],
+      wheelToPresentedFrameP95: [25, 31, 27],
+      wheelToTransformObservedP95: [9.5, 13.4, 11.2],
       counters: [{ probe: 2 }, { probe: 3 }, { probe: 1 }],
     });
   });
@@ -76,5 +101,27 @@ describe('aggregateReports', () => {
 
     expect(aggregated).not.toHaveProperty('wheelToNextFrame');
     expect(aggregated.raw).not.toHaveProperty('wheelToNextFrameP95');
+  });
+
+  it('does not aggregate partial presented-frame evidence', () => {
+    const first = report({
+      interactionP95: 7,
+      framesPct: 0,
+      framesCount: 0,
+      wheelP95: 8,
+      wheelMax: 9,
+      presentedP95: 24,
+      presentedMax: 24,
+      transformObservedP95: 8.2,
+      counter: 1,
+    });
+    const second = structuredClone(first);
+    delete second.wheelToPresentedFrame;
+
+    const aggregated = aggregateReports([first, second]);
+
+    expect(aggregated).not.toHaveProperty('wheelToPresentedFrame');
+    expect(aggregated.raw).not.toHaveProperty('wheelToPresentedFrameP95');
+    expect(aggregated.raw).not.toHaveProperty('wheelToTransformObservedP95');
   });
 });
