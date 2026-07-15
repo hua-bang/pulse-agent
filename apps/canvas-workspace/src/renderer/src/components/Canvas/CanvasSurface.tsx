@@ -11,6 +11,7 @@ import {
   type ResizeEdge,
 } from '../../hooks/useNodeResize';
 import type { NodeDragOffset, NodeDragPreview } from '../../hooks/useNodeDrag';
+import { OVERVIEW_SCALE_THRESHOLD } from '../../hooks/useCanvas';
 import type { EdgeInteractionState, Point } from '../../hooks/useEdgeInteraction';
 import type { ShapeDraft } from '../../hooks/useShapeDraw';
 import type { MarqueeRect } from '../../hooks/useMarqueeSelect';
@@ -51,6 +52,21 @@ export const getCanvasTransformTransition = (animating: boolean, moving: boolean
   if (moving) return undefined;
   return SETTLE_TRANSITION;
 };
+
+/**
+ * The class list for the current gesture/scale state. The overview class is
+ * settledScale-driven, so it flips once per gesture at settle — see the
+ * OVERVIEW_SCALE_THRESHOLD doc in useCanvas for why mid-gesture flipping
+ * measured worse.
+ */
+export const getCanvasTransformClassName = (
+  moving: boolean,
+  animating: boolean,
+  settledScale: number,
+): string =>
+  `canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}` +
+  `${settledScale < 0.6 ? ' canvas-transform--small' : ''}` +
+  `${settledScale < OVERVIEW_SCALE_THRESHOLD ? ' canvas-transform--overview' : ''}`;
 
 interface NodeRenderGroup {
   containers: CanvasNode[];
@@ -126,7 +142,7 @@ interface CanvasSurfaceProps {
     minWidth?: number,
     minHeight?: number
   ) => void;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>, options?: { history?: boolean }) => void;
   /** Dimension-only update that bypasses undo history. Used by nodes
    *  whose size is derived from their content (e.g. mindmap auto-fits
    *  to its topic tree) so every typed character doesn't spam the
@@ -283,7 +299,7 @@ export const CanvasSurface = ({
   return (
     <div
       ref={transformLayerRef}
-      className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}${settledScale < 0.6 ? ' canvas-transform--small' : ''}`}
+      className={getCanvasTransformClassName(moving, animating, settledScale)}
       style={{
         transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
         '--canvas-scale': settledScale,

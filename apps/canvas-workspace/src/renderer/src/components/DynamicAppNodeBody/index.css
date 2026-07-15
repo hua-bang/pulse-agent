@@ -210,3 +210,16 @@
   color: #6e7781;
   font-size: 12px;
 }
+
+/* Overview semantic zoom — same treatment as IframeNodeBody (see the
+ * "Overview semantic zoom" section there for the measured rationale):
+ * below the overview threshold the live app iframe is unreadable but still
+ * pays raster + a compositor layer + running rAF/animations. display:none
+ * keeps the subdocument alive but stops rendering. */
+.canvas-transform--overview .canvas-node--dynamic-app .dynamic-app-iframe {
+  display: none;
+}
+
+.canvas-transform--overview .canvas-node--dynamic-app .dynamic-app-content {
+  background: linear-gradient(135deg, var(--accent-light), var(--accent-soft));
+}

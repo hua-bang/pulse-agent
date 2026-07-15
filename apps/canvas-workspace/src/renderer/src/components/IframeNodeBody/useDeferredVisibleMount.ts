@@ -15,6 +15,13 @@ import { useEffect, useState, type RefObject } from 'react';
 export const useDeferredVisibleMount = (
   ref: RefObject<HTMLElement | null>,
   rootMargin = '200px',
+  /**
+   * Re-arm the observer when this changes. Needed when the observed element
+   * is rendered conditionally (e.g. the inline-iframe pending shell only
+   * exists outside url/streaming modes): the mount-time effect would capture
+   * a null ref and never retry otherwise.
+   */
+  rearmKey?: unknown,
 ): boolean => {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -36,6 +43,6 @@ export const useDeferredVisibleMount = (
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [ref, rootMargin, visible]);
+  }, [ref, rootMargin, visible, rearmKey]);
   return visible;
 };

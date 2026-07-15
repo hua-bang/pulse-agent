@@ -12,11 +12,17 @@ export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
   registerWebview: (workspaceId, nodeId, webContentsId, ready) =>
     ipcRenderer.invoke("iframe:register-webview", { workspaceId, nodeId, webContentsId, ready }),
 
-  unregisterWebview: (workspaceId, nodeId) =>
-    ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId }),
+  unregisterWebview: (workspaceId, nodeId, webContentsId) =>
+    ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId, webContentsId }),
 
   setFrameRate: (workspaceId, nodeId, frameRate) =>
     ipcRenderer.invoke("iframe:set-frame-rate", { workspaceId, nodeId, frameRate }),
+
+  setLifecycle: (workspaceId, nodeId, state) =>
+    ipcRenderer.invoke("iframe:set-lifecycle", { workspaceId, nodeId, state }),
+
+  onDiscarded: (callback) =>
+    subscribe(ipcRenderer, "iframe:discarded", callback),
 
   pickDomElement: (workspaceId, nodeId) =>
     ipcRenderer.invoke("iframe:pick-dom-element", { workspaceId, nodeId }),

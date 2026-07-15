@@ -108,6 +108,25 @@ const buildPathData = (s: Point, t: Point, bend: number): string => {
   return `M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`;
 };
 
+/** Apply render-only drag geometry without mutating the canonical edge. */
+export const applyEdgeInteractionPreview = (
+  edge: CanvasEdge,
+  interactionState: EdgeInteractionState | null | undefined,
+): CanvasEdge => {
+  if (
+    !interactionState ||
+    interactionState.kind === 'connect' ||
+    interactionState.edgeId !== edge.id
+  ) {
+    return edge;
+  }
+  const patch = interactionState.previewPatch;
+  if (patch.source === undefined && patch.target === undefined && patch.bend === undefined) {
+    return edge;
+  }
+  return { ...edge, ...patch };
+};
+
 /**
  * Pull the resolved `end` point back from the node boundary by `gap`
  * canvas units along the straight line from `other` → `end`. Used when
@@ -196,21 +215,22 @@ const CanvasEdgesLayerComponent = ({
   // sits flush against the node border and visually disappears).
   const resolved = useMemo(() => {
     return edges.map((edge) => {
-      const approxS = resolveEndpoint(edge.source, nodesById);
-      const approxT = resolveEndpoint(edge.target, nodesById);
-      let s = resolveEndpointToward(edge.source, nodesById, approxT);
-      let t = resolveEndpointToward(edge.target, nodesById, approxS);
-      const head = edge.arrowHead ?? 'triangle';
-      const tail = edge.arrowTail ?? 'none';
-      if (edge.target.kind === 'node' && head !== 'none') {
+      const renderedEdge = applyEdgeInteractionPreview(edge, interactionState);
+      const approxS = resolveEndpoint(renderedEdge.source, nodesById);
+      const approxT = resolveEndpoint(renderedEdge.target, nodesById);
+      let s = resolveEndpointToward(renderedEdge.source, nodesById, approxT);
+      let t = resolveEndpointToward(renderedEdge.target, nodesById, approxS);
+      const head = renderedEdge.arrowHead ?? 'triangle';
+      const tail = renderedEdge.arrowTail ?? 'none';
+      if (renderedEdge.target.kind === 'node' && head !== 'none') {
         t = insetTowardOther(t, s, ARROW_NODE_GAP);
       }
-      if (edge.source.kind === 'node' && tail !== 'none') {
+      if (renderedEdge.source.kind === 'node' && tail !== 'none') {
         s = insetTowardOther(s, t, ARROW_NODE_GAP);
       }
-      return { edge, s, t };
+      return { edge: renderedEdge, s, t };
     });
-  }, [edges, nodesById]);
+  }, [edges, interactionState, nodesById]);
 
   if (edges.length === 0 && !previewEndpoints) return null;
 
@@ -250,10 +270,8 @@ const CanvasEdgesLayerComponent = ({
         const focusStyle: React.CSSProperties | undefined = focusModeEnabled && !isFocused
           ? { opacity: isContext ? FOCUS_CONTEXT_EDGE_OPACITY : FOCUS_DIMMED_EDGE_OPACITY }
           : undefined;
-        // While this edge's source/target is being dragged live, the
-        // stored endpoint already reflects the in-progress state (we
-        // push updates history-silently from useEdgeInteraction), so
-        // no special case needed here — the path re-renders naturally.
+        // During move-* gestures this geometry may be an ephemeral copy
+        // projected above. The canonical edge stays untouched until mouseup.
 
         return (
           <g key={edge.id} style={focusStyle}>
@@ -261,9 +279,9 @@ const CanvasEdgesLayerComponent = ({
                 A mousedown on the body both selects the edge AND starts
                 a "move the whole edge" drag via onBodyMouseDown. Free
                 endpoints translate with the cursor; node-bound endpoints
-                stay anchored to their node. Clicks without drag resolve
-                to plain "select" because no move-update fires and
-                commitHistory is a no-op when state is unchanged. The
+                stay anchored to their node. Pointer moves only update the
+                render preview; mouseup writes canonical geometry once, and
+                a click without displacement writes nothing. The
                 midpoint bend handle (rendered on top via EdgeHandles)
                 still captures its own mousedowns for curving. */}
             <path

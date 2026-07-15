@@ -306,10 +306,16 @@ export const CanvasRootView = ({
         />
       )}
 
-      {mouse.interactionShieldActive && <div className="canvas-interaction-shield" aria-hidden="true" />}
+      {mouse.interactionShieldActive && (
+        <div
+          className={`canvas-interaction-shield${mouse.motionShieldOnly ? ' canvas-interaction-shield--canvas-motion' : ''}`}
+          aria-hidden="true"
+        />
+      )}
 
       <CanvasOverlays
         nodes={nodes}
+        edgeInteractionState={edgeInteractionState}
         contextMenu={ctxMenu.contextMenu}
         searchOpen={searchOpen}
         activeTool={activeTool}

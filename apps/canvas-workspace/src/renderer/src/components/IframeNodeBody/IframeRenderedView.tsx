@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
 import { appendDomPickerBridge } from './domPickerBridge';
+import { IframeOverviewBadge } from './IframeOverviewBadge';
 import type { LoadState } from './types';
 import { markOnce } from '../../perf/monitor';
 
@@ -15,7 +16,10 @@ interface IframeRenderedViewProps {
   canGoBack: boolean;
   canGoForward: boolean;
   commit: () => void;
+  discardSnapshot: string | null;
   draftUrl: string;
+  faviconUrl?: string;
+  frameHostRef: RefObject<HTMLDivElement>;
   generating: boolean;
   handleOpenExternal: () => void;
   handleKeyDown: KeyboardEventHandler<HTMLInputElement>;
@@ -40,9 +44,12 @@ interface IframeRenderedViewProps {
   savedPrompt: string;
   setDraftUrl: (value: string) => void;
   setEditing: (editing: boolean) => void;
+  onWakeWebview: () => void;
   renderIframeRef: RefObject<HTMLIFrameElement>;
+  shouldMountInlineFrame: boolean;
   streamIframeRef: RefObject<HTMLIFrameElement>;
   streamingActive: boolean;
+  webviewDiscarded: boolean;
   url: string;
   webviewHostRef: RefObject<HTMLDivElement>;
   webviewKey: number;
@@ -57,7 +64,10 @@ export const IframeRenderedView = ({
   canGoBack,
   canGoForward,
   commit,
+  discardSnapshot,
   draftUrl,
+  faviconUrl,
+  frameHostRef,
   generating,
   handleOpenExternal,
   handleKeyDown,
@@ -82,9 +92,12 @@ export const IframeRenderedView = ({
   savedPrompt,
   setDraftUrl,
   setEditing,
+  onWakeWebview,
   renderIframeRef,
+  shouldMountInlineFrame,
   streamIframeRef,
   streamingActive,
+  webviewDiscarded,
   url,
   webviewHostRef,
   webviewKey,
@@ -204,6 +217,7 @@ export const IframeRenderedView = ({
       <div className={`iframe-frame-wrapper${streamingActive ? ' iframe-frame-wrapper--streaming' : ''}`}>
         {streamingActive && <div className="iframe-shimmer-bar" />}
         {isResizing && <div className="iframe-pointer-shield" aria-hidden="true" />}
+        <IframeOverviewBadge mode={renderMode} url={url} faviconUrl={faviconUrl} />
         {renderMode === 'url' ? (
           <>
             <div
@@ -211,6 +225,25 @@ export const IframeRenderedView = ({
               key={webviewKey}
               className="iframe-frame-host"
             />
+            {webviewDiscarded && (
+              // L3 discard placeholder (Memory Saver style): the guest
+              // process was reclaimed for memory; the last-frame snapshot
+              // (or a plain card when capture failed) stands in. Click or
+              // linger in the viewport to wake — the page reloads.
+              <div
+                className="iframe-discarded"
+                role="button"
+                tabIndex={0}
+                title="Sleeping to save memory — click to wake"
+                onClick={onWakeWebview}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onWakeWebview(); }}
+              >
+                {discardSnapshot ? (
+                  <img className="iframe-discarded-snapshot" src={discardSnapshot} alt="" />
+                ) : null}
+                <div className="iframe-discarded-chip">Sleeping — click to wake</div>
+              </div>
+            )}
             {loadState === 'failed' && (
               <div className="iframe-load-error">
                 <div className="iframe-load-error-card">
@@ -241,6 +274,19 @@ export const IframeRenderedView = ({
             srcDoc={STREAMING_SHELL}
             sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
             title="Generating..."
+          />
+        ) : !shouldMountInlineFrame ? (
+          // Deferred mount: the subdocument is only created once the node is
+          // near the viewport (useDeferredVisibleMount) — off-screen inline
+          // iframes doubled the large-canvas mount cost. The observer
+          // deliberately watches THIS pending shell, not the wrapper: at
+          // overview zoom the shell is display:none (semantic-zoom CSS), so
+          // an overview visit doesn't mass-mount 40 hidden subdocuments —
+          // measured as a mount burst bleeding into the next gesture.
+          <div
+            ref={frameHostRef}
+            className="iframe-frame iframe-frame--pending"
+            aria-hidden="true"
           />
         ) : (
           <iframe

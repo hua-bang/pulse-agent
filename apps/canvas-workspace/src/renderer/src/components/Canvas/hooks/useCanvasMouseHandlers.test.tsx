@@ -2,9 +2,50 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useCanvasMouseHandlers } from './useCanvasMouseHandlers';
+import {
+  getCanvasInteractionShieldState,
+  useCanvasMouseHandlers,
+} from './useCanvasMouseHandlers';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+describe('canvas interaction shield selection', () => {
+  it('uses one global shield for canvas movement without creating per-iframe shields', () => {
+    expect(getCanvasInteractionShieldState({
+      activeTool: 'select',
+      directInteractionActive: false,
+      moving: true,
+    })).toEqual({
+      iframeShieldActive: false,
+      interactionShieldActive: true,
+      motionShieldOnly: true,
+    });
+  });
+
+  it('keeps per-iframe shields for direct pointer interactions', () => {
+    expect(getCanvasInteractionShieldState({
+      activeTool: 'select',
+      directInteractionActive: true,
+      moving: false,
+    })).toEqual({
+      iframeShieldActive: true,
+      interactionShieldActive: true,
+      motionShieldOnly: false,
+    });
+  });
+
+  it('keeps per-iframe shields while the hand tool is idle', () => {
+    expect(getCanvasInteractionShieldState({
+      activeTool: 'hand',
+      directInteractionActive: false,
+      moving: false,
+    })).toEqual({
+      iframeShieldActive: true,
+      interactionShieldActive: false,
+      motionShieldOnly: false,
+    });
+  });
+});
 
 describe('useCanvasMouseHandlers resize completion', () => {
   let root: Root;

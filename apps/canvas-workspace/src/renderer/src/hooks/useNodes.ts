@@ -400,11 +400,16 @@ export const useNodes = (
   );
 
   const updateNode = useCallback(
-    (id: string, patch: Partial<CanvasNode>) => {
+    (id: string, patch: Partial<CanvasNode>, options?: { history?: boolean }) => {
       const updatedNodes = nodesRef.current.map((n) =>
         n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n,
       );
-      applyNodes(resizeGroupsToChildren(updatedNodes));
+      // history:false is for machine-generated churn (terminal/agent
+      // scrollback+cwd autosave every 2s), which must not occupy undo
+      // slots — Ctrl+Z would revert a background save instead of the
+      // user's last action (perf findings B1/A5). Persistence still runs
+      // via applyNodes → scheduleSave.
+      applyNodes(resizeGroupsToChildren(updatedNodes), options?.history !== false);
     },
     [applyNodes, nodesRef]
   );

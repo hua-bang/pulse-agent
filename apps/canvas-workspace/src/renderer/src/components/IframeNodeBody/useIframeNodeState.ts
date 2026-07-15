@@ -8,6 +8,8 @@ import {
 import type { IframeNodeData } from '../../types';
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { useDeferredVisibleMount } from './useDeferredVisibleMount';
+import { useWebviewDiscard, useWebviewRestore } from './useWebviewDiscard';
+import { useWebviewRegistration } from './useWebviewRegistration';
 import type { EditMode, IframeNodeBodyProps } from './types';
 import {
   BLANK_PAGE_URL,
@@ -67,6 +69,32 @@ export const useIframeNodeState = ({
   const webviewHostRef = useRef<HTMLDivElement>(null);
   const shouldMountWebview = useDeferredVisibleMount(webviewHostRef);
 
+  // L3 discard (Memory Saver style): main tells us when this node's frozen
+  // guest was reclaimed for memory; `!discarded` gates the webview mount
+  // below, and dwell/click wakes it (useWebviewDiscard). The freeze-time
+  // restore record feeds the remount's url and scroll position.
+  const {
+    discarded: webviewDiscarded,
+    snapshot: discardSnapshot,
+    restore: discardRestore,
+    wake: wakeWebview,
+  } = useWebviewDiscard({
+    workspaceId,
+    nodeId: node.id,
+    enabled: mode === 'url',
+    hostRef: webviewHostRef,
+    nodeUrl: url,
+  });
+
+  // Same deferred-mount gate for inline (html/srcdoc/artifact) iframes: on an
+  // iframe-heavy canvas, creating every off-screen subdocument at mount time
+  // doubled the 86-node mount's long-task blocking (measured 140ms → 290ms;
+  // docs/performance-verification-large-canvas.md). The observed element is
+  // the pending shell (only rendered outside url/streaming modes), so the
+  // rearm key re-arms the observer when those modes flip.
+  const frameHostRef = useRef<HTMLDivElement>(null);
+  const shouldMountInlineFrame = useDeferredVisibleMount(frameHostRef, '200px', `${mode}|${streamingActive}`);
+
   const handleBrowserTitleChange = useCallback((title: string) => {
     if (editing || readOnly) return;
     const rawTitle = sanitizePageTitle(title);
@@ -93,13 +121,19 @@ export const useIframeNodeState = ({
 
   const browser = useEmbeddedBrowser({
     className: 'iframe-frame',
-    enabled: mode === 'url' && shouldMountWebview,
+    enabled: mode === 'url' && shouldMountWebview && !webviewDiscarded,
     hostRef: webviewHostRef,
     mountKey: webviewKey,
     onFaviconChange: handleBrowserFaviconChange,
     onTitleChange: handleBrowserTitleChange,
-    url,
+    // After a discard, wake remounts with the freeze-time guest url (which
+    // may differ from the saved url after in-page navigation); the record
+    // is invalidated when the user commits a new url (useWebviewDiscard).
+    url: discardRestore?.url ?? url,
   });
+
+  // Scroll back to the freeze-time position once the woken guest is ready.
+  useWebviewRestore(browser.webview, discardRestore);
 
   const loadState = editing || mode !== 'url' ? 'idle' : browser.loadState;
   const loadError = browser.loadError
@@ -152,41 +186,14 @@ export const useIframeNodeState = ({
     };
   }, [streamingActive]);
 
-  useEffect(() => {
-    if (editing || mode !== 'url') return;
-    if (!workspaceId) return;
-    const el = browser.webview;
-    if (!el) return;
-
-    const api = window.canvasWorkspace.iframe;
-    let registered = false;
-
-    const tryRegister = (ready = false) => {
-      if (registered && !ready) return;
-      try {
-        const id = el.getWebContentsId();
-        if (typeof id === 'number') {
-          registered = true;
-          if (ready) void api.registerWebview(workspaceId, node.id, id, true);
-          else void api.registerWebview(workspaceId, node.id, id);
-        }
-      } catch {
-        // WebContents id is not available until Electron attaches the guest.
-      }
-    };
-
-    tryRegister();
-    const handleAttach = () => tryRegister(false);
-    const handleReady = () => tryRegister(true);
-    el.addEventListener('did-attach', handleAttach);
-    el.addEventListener('dom-ready', handleReady);
-
-    return () => {
-      el.removeEventListener('did-attach', handleAttach);
-      el.removeEventListener('dom-ready', handleReady);
-      if (registered) void api.unregisterWebview(workspaceId, node.id);
-    };
-  }, [browser.webview, workspaceId, node.id, editing, url, mode]);
+  // Announce the guest's webContentsId to main (Canvas Agent DOM reads +
+  // lifecycle ladder); unregister is generation-safe (see the hook).
+  useWebviewRegistration({
+    webview: browser.webview,
+    workspaceId,
+    nodeId: node.id,
+    enabled: !editing && mode === 'url',
+  });
 
   // Drop the webview's paint frame rate when the node is parked outside the
   // canvas viewport long enough. Disabled during editing (no live webview to
@@ -197,7 +204,7 @@ export const useIframeNodeState = ({
     hostRef: browser.hostRef,
     workspaceId,
     nodeId: node.id,
-    disabled: editing || mode !== 'url',
+    disabled: editing || mode !== 'url' || webviewDiscarded,
   });
 
   const flushToIframe = useCallback(() => {
@@ -379,13 +386,37 @@ export const useIframeNodeState = ({
     return pickDomElementFromHtmlIframe(renderIframeRef.current, workspaceId, node.id);
   }, [mode, node.id, workspaceId]);
 
+  // While discarded (L3 sleeping) there is no <webview> behind the toolbar —
+  // reload/back/forward would silently no-op on browser.webview === null.
+  // Waking IS the recovery action: the remount recreates the guest and
+  // loads the page (session history does not survive a discard anyway).
   const handleReload = useCallback(() => {
     if (mode !== 'url') {
       setWebviewKey((key) => key + 1);
       return;
     }
+    if (webviewDiscarded) {
+      wakeWebview();
+      return;
+    }
     browser.reload();
-  }, [browser, mode]);
+  }, [browser, mode, webviewDiscarded, wakeWebview]);
+
+  const handleGoBack = useCallback(() => {
+    if (webviewDiscarded) {
+      wakeWebview();
+      return;
+    }
+    browser.goBack();
+  }, [browser, webviewDiscarded, wakeWebview]);
+
+  const handleGoForward = useCallback(() => {
+    if (webviewDiscarded) {
+      wakeWebview();
+      return;
+    }
+    browser.goForward();
+  }, [browser, webviewDiscarded, wakeWebview]);
 
   return {
     artifact,
@@ -404,8 +435,8 @@ export const useIframeNodeState = ({
     genError,
     generating,
     handleGenerate,
-    handleGoBack: browser.goBack,
-    handleGoForward: browser.goForward,
+    handleGoBack,
+    handleGoForward,
     handleKeyDown,
     handleOpenExternal,
     handlePromptKeyDown,
@@ -430,6 +461,11 @@ export const useIframeNodeState = ({
     setDraftPrompt,
     setDraftUrl,
     setEditing,
+    discardSnapshot,
+    frameHostRef,
+    shouldMountInlineFrame,
+    wakeWebview,
+    webviewDiscarded,
     streamIframeRef,
     streamingActive,
     textareaRef,

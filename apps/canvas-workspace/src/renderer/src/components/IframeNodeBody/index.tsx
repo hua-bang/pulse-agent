@@ -6,7 +6,7 @@ import { useRightDock } from '../RightDock';
 import { IframeEditor } from './IframeEditor';
 import { IframeRenderedView } from './IframeRenderedView';
 import { IframeReviewLayer } from './IframeReviewLayer';
-import type { AgentContextDomReviewComment, AgentContextDomSelectionRef } from '../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, IframeNodeData } from '../../types';
 import type { IframeNodeBodyProps } from './types';
 import { useIframeNodeState } from './useIframeNodeState';
 
@@ -145,7 +145,10 @@ export const IframeNodeBody = ({
         canGoForward={state.canGoForward}
         cancel={state.cancel}
         commit={state.commit}
+        discardSnapshot={state.discardSnapshot}
         draftUrl={state.draftUrl}
+        faviconUrl={(node.data as IframeNodeData).faviconUrl}
+        frameHostRef={state.frameHostRef}
         generating={state.generating}
         handleOpenExternal={state.handleOpenExternal}
         handleKeyDown={state.handleKeyDown}
@@ -170,7 +173,10 @@ export const IframeNodeBody = ({
         savedPrompt={state.savedPrompt}
         setDraftUrl={state.setDraftUrl}
         setEditing={state.setEditing}
+        onWakeWebview={state.wakeWebview}
         renderIframeRef={state.renderIframeRef}
+        shouldMountInlineFrame={state.shouldMountInlineFrame}
+        webviewDiscarded={state.webviewDiscarded}
         streamIframeRef={state.streamIframeRef}
         streamingActive={state.streamingActive}
         url={state.url}

@@ -45,7 +45,7 @@ jobs:
           else
             while IFS= read -r file; do
               case "$file" in
-                .github/workflows/perf.yml|apps/canvas-workspace/perf/*|apps/canvas-workspace/scripts/perf/*|apps/canvas-workspace/electron.vite.config.ts|apps/canvas-workspace/src/main/index.ts|apps/canvas-workspace/src/main/app/*|apps/canvas-workspace/src/renderer/src/App.tsx|apps/canvas-workspace/src/renderer/src/components/Canvas/*|apps/canvas-workspace/src/renderer/src/components/Workbench/*)
+                .github/workflows/perf.yml|apps/canvas-workspace/perf/*|apps/canvas-workspace/scripts/perf/*|apps/canvas-workspace/electron.vite.config.ts|apps/canvas-workspace/src/main/index.ts|apps/canvas-workspace/src/main/app/*|apps/canvas-workspace/src/main/webview/*|apps/canvas-workspace/src/renderer/src/App.tsx|apps/canvas-workspace/src/renderer/src/components/Canvas/*|apps/canvas-workspace/src/renderer/src/components/Workbench/*|apps/canvas-workspace/src/renderer/src/components/IframeNodeBody/*|apps/canvas-workspace/src/renderer/src/components/CanvasNodeView/*|apps/canvas-workspace/src/renderer/src/hooks/*|apps/canvas-workspace/src/renderer/src/perf/*)
                   runtime=true
                   ;;
               esac
@@ -185,6 +185,109 @@ jobs:
                 owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body,
               });
             }
+
+  # Opt-in (performance label / dispatch): the iframe-heavy load shape real
+  # user canvases actually have — the pinned n100/0-webview profile doesn't
+  # exercise live-embed cost at all — plus the webview freeze/discard
+  # behavior checks that only real Electron guests can answer
+  # (docs/performance-verification-large-canvas.md).
+  large-canvas:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'performance')
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Xvfb (headless display for the Electron app)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure Electron binary
+        run: pnpm --filter canvas-workspace setup:electron
+
+      - name: Build workspace dependencies
+        run: pnpm run build:core
+
+      # Same pipeline as the perf job but at the 90-node/40-webpage shape.
+      # Timing profiles don't match the pinned baseline (rendered 不适用),
+      # deterministic counter + bundle gates still apply.
+      - name: Run performance report (90 nodes / 40 webpages)
+        run: pnpm --filter canvas-workspace perf:report -- --seed-nodes 90 --seed-webpages 40 --repeat 1
+
+      - name: Upload large-canvas report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-large-canvas
+          path: |
+            apps/canvas-workspace/perf/out/dashboard.html
+            apps/canvas-workspace/perf/out/report.json
+          if-no-files-found: warn
+
+      # Guest-behavior checks in two ISOLATED sessions: freeze/resume runs
+      # without a budget override (a tiny budget would let the 30s sweep
+      # discard the guest mid-assertion); the discard leg gets its own
+      # session with a 1MB budget exported before harness start so main's
+      # sweep sees it.
+      # Each harness leg gets its own step timeout: the scripts' polls are
+      # bounded, but a wedged app boot / CDP pipe would otherwise eat the
+      # whole 30-minute job budget (observed once on the discard leg).
+      - name: Webview lifecycle behavior check — freeze/resume
+        timeout-minutes: 6
+        working-directory: apps/canvas-workspace
+        run: |
+          node harness/tools/driver/cli.mjs start --profile temp --headless
+          node scripts/perf/webview-lifecycle-check.mjs
+          node harness/tools/driver/cli.mjs close --cleanup
+
+      - name: Webview lifecycle behavior check — L3 discard
+        timeout-minutes: 6
+        env:
+          PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB: 1
+          WEBVIEW_CHECK_MODE: discard
+        working-directory: apps/canvas-workspace
+        run: |
+          node harness/tools/driver/cli.mjs start --profile temp --headless
+          node scripts/perf/webview-lifecycle-check.mjs
+          node harness/tools/driver/cli.mjs close --cleanup
+
+      # Diagnostic only (no gate): deep zoom-out cost on real Electron with
+      # mixed inline-iframe + real <webview> embeds — the mid-gesture band
+      # the renderer bench can only emulate with same-process iframes.
+      - name: Deep zoom gesture probe (diagnostic)
+        timeout-minutes: 8
+        working-directory: apps/canvas-workspace
+        run: |
+          node harness/tools/driver/cli.mjs start --profile temp --headless
+          node scripts/perf/zoom-gesture-probe.mjs
+          node harness/tools/driver/cli.mjs close --cleanup
+
+      - name: Close harness session
+        if: always()
+        working-directory: apps/canvas-workspace
+        run: node harness/tools/driver/cli.mjs close --cleanup || true
+
+      # failure() misses step-timeout cancellation — include cancelled() so
+      # a wedged leg still ships its diagnosis.
+      - name: Upload harness logs (diagnosis for lifecycle-check failures)
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: large-canvas-harness-logs
+          path: apps/canvas-workspace/.harness/runs/
+          if-no-files-found: warn
 
   package-macos-arm64:
     if: needs.changes.outputs.packaging == 'true' || contains(github.event.pull_request.labels.*.name, 'performance')
