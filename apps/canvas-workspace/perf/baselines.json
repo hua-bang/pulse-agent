@@ -159,8 +159,8 @@
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,
-      "confidence": "high", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 635KB(原 614)", "asOf": "2026-07-13",
-      "gate": { "kind": "ratchet", "baseline": 104, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "全览身份徽章 + P1-P4 手势期 zoom-out 优化(data-motion 信号驱动的内联 iframe 静态化 / 装饰压平 CSS)落地后实测 108KB(原 104);仍远低于 115 target", "asOf": "2026-07-15",
+      "gate": { "kind": "ratchet", "baseline": 108, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.total_js_kb": {
       "profile": "global-deterministic", "target": 5350, "warning": 5600,
