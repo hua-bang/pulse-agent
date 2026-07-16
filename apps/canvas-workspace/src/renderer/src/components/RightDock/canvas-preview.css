@@ -1,13 +1,14 @@
-/* Read-only workspace canvas mounted inside a right-dock tab. The root reuses
- * `.canvas-container` (position:absolute; inset:0) to fill the dock pane, so it
- * needs a positioned pane ancestor — `.right-dock__pane` provides that. The
- * `.canvas-grid` child paints the surface background. */
+/* Read-only workspace canvas mounted inside a right-dock tab. Fills the dock
+ * pane (flex column) and provides the positioned ancestor for the reused
+ * `.canvas-grid` / `.canvas-transform` children. Same surface background as
+ * the main canvas (`.canvas-container`) so both sides read as one canvas. */
 .canvas-preview {
   flex: 1 1 auto;
   min-height: 0;
   position: relative;
   overflow: hidden;
   cursor: grab;
+  background: var(--bg-canvas);
 }
 
 .canvas-preview[data-moving="on"] {
