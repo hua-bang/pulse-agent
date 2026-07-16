@@ -15,7 +15,26 @@ describe('DockStore', () => {
       activeTerminalTabId: undefined,
       nextTerminalOrdinal: 1,
       terminalOpen: false,
+      mountedWorkspaceIds: new Set(),
     });
+  });
+
+  it('refuses to preview a workspace that is already mounted in the main canvas', () => {
+    const dock = new DockStore();
+    dock.setMountedWorkspaces(['ws1']);
+    dock.openCanvasPreview('ws1', 'Research');
+    expect(dock.getSnapshot().tabs).toHaveLength(0);
+    expect(dock.canPreviewCanvas('ws1')).toBe(false);
+    expect(dock.canPreviewCanvas('ws2')).toBe(true);
+  });
+
+  it('closes an open canvas preview when its workspace becomes mounted', () => {
+    const dock = new DockStore();
+    dock.openCanvasPreview('ws1', 'Research');
+    dock.openCanvasPreview('ws2', 'Product');
+    // ws1 gets mounted by the main Workbench (e.g. user switches to it).
+    dock.setMountedWorkspaces(['ws1']);
+    expect(dock.getSnapshot().tabs.map((tab) => tab.id)).toEqual([canvasPreviewTabId('ws2')]);
   });
 
   it('opening an artifact expands the dock and activates its new tab', () => {

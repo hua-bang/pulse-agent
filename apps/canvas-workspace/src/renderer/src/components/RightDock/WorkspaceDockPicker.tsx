@@ -8,6 +8,8 @@ import './node-dock-picker.css';
 interface Props {
   workspaces: WorkspaceEntry[];
   activeWorkspaceId: string;
+  /** Workspaces already live in the main Workbench — can't be previewed. */
+  mountedWorkspaceIds: ReadonlySet<string>;
   onSelect: (workspace: WorkspaceEntry) => void;
   onClose: () => void;
 }
@@ -30,7 +32,7 @@ export function filterWorkspaces(
  * opens its canvas (via the app's workspace switch), so the picker is a quick,
  * keyboard-driven alternative to the sidebar list.
  */
-export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, onSelect, onClose }: Props) => {
+export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, mountedWorkspaceIds, onSelect, onClose }: Props) => {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
@@ -43,9 +45,9 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, onSelect, o
   }, [index]);
 
   const choose = (workspace: WorkspaceEntry) => {
-    // The active workspace is already live (read-write) in the main canvas;
-    // previewing it too would mount the same canvas twice. Block it here.
-    if (workspace.id === activeWorkspaceId) return;
+    // A workspace already live in the main Workbench (active or background)
+    // can't be previewed too — that would mount the same canvas twice.
+    if (mountedWorkspaceIds.has(workspace.id)) return;
     onSelect(workspace);
     onClose();
   };
@@ -74,7 +76,10 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, onSelect, o
         {results.length === 0 ? (
           <div className="node-dock-picker__empty">{t('rightDock.noWorkspacesFound')}</div>
         ) : results.map((workspace, wsIndex) => {
-          const isActive = workspace.id === activeWorkspaceId;
+          const mounted = mountedWorkspaceIds.has(workspace.id);
+          const label = workspace.id === activeWorkspaceId
+            ? t('rightDock.canvasOpenInMain')
+            : mounted ? t('rightDock.canvasInUse') : null;
           return (
             <Button
               key={workspace.id}
@@ -83,10 +88,10 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, onSelect, o
               size="sm"
               role="option"
               aria-selected={wsIndex === index}
-              aria-disabled={isActive}
-              disabled={isActive}
+              aria-disabled={mounted}
+              disabled={mounted}
               data-ws-index={wsIndex}
-              className={`node-dock-picker__item${wsIndex === index ? ' node-dock-picker__item--active' : ''}${isActive ? ' node-dock-picker__item--disabled' : ''}`}
+              className={`node-dock-picker__item${wsIndex === index ? ' node-dock-picker__item--active' : ''}${mounted ? ' node-dock-picker__item--disabled' : ''}`}
               onMouseEnter={() => setIndex(wsIndex)}
               onFocus={() => setIndex(wsIndex)}
               onClick={() => choose(workspace)}
@@ -96,9 +101,7 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, onSelect, o
                 <strong>{workspace.name}</strong>
                 {workspace.rootFolder && <small>{workspace.rootFolder}</small>}
               </span>
-              {isActive && (
-                <span className="node-dock-picker__tags">{t('rightDock.canvasOpenInMain')}</span>
-              )}
+              {label && <span className="node-dock-picker__tags">{label}</span>}
             </Button>
           );
         })}

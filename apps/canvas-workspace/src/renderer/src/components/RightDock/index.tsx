@@ -15,7 +15,7 @@ import {
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { AppLogoIcon } from '../icons';
-import { CHAT_TAB_ID, DockStore, canvasPreviewTabId, isTerminalTabId, type DockState } from './dock-store';
+import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
@@ -84,6 +84,7 @@ export function useRightDock(): {
   toggleTerminal: () => void;
   closeTerminal: (id?: string) => void;
   setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) => void;
+  setMountedWorkspaces: (ids: Iterable<string>) => void;
   collapse: () => void;
   notifyChatActivity: () => void;
 } {
@@ -102,6 +103,7 @@ export function useRightDock(): {
       closeTerminal: (id?: string) => store.closeTerminal(id),
       setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) =>
         store.setTerminalAgentType(id, agentType, workspaceId),
+      setMountedWorkspaces: (ids: Iterable<string>) => store.setMountedWorkspaces(ids),
       collapse: () => store.collapse(),
       notifyChatActivity: () => store.notifyChatActivity(),
     }),
@@ -163,9 +165,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
 
   useLayoutEffect(() => {
     store.setActiveWorkspace(activeWorkspaceId);
-    // Never mount the same canvas twice: if the now-active workspace has a
-    // read-only preview tab open, close it (main canvas is the live one).
-    store.close(canvasPreviewTabId(activeWorkspaceId));
   }, [activeWorkspaceId, store]);
 
   useEffect(() => {
@@ -424,6 +423,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               activeWorkspaceId={activeWorkspaceId}
               showTerminal={chatTabEnabled}
               newTabTitle={t('rightDock.newTabTitle')}
+              mountedWorkspaceIds={state.mountedWorkspaceIds}
             />
           </Suspense>
         )}

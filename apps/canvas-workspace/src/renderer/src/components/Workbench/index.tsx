@@ -80,11 +80,9 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
   const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
   const patchRequestIdRef = useRef(0);
-  const mountedWorkspaceIds = useMountedWorkspaceIds(
-    activeWorkspaceId,
-    workspaces,
-    dockState.terminalTabsByWorkspace,
-  );
+  const mountedWorkspaceIds = useMountedWorkspaceIds(activeWorkspaceId, workspaces, dockState.terminalTabsByWorkspace);
+  // Publish the live-mounted set so the dock never previews an already-live canvas.
+  useEffect(() => { dock.setMountedWorkspaces(mountedWorkspaceIds); }, [dock, mountedWorkspaceIds]);
   useEffect(() => { if (referenceDrawerOpen) setReferenceDrawerLoaded(true); }, [referenceDrawerOpen]);
   useEffect(() => {
     for (const node of activeNodes) {
