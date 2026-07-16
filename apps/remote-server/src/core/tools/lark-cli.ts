@@ -20,7 +20,7 @@ const toolSchema = z.object({
   cwd: z.string().optional().describe('Working directory for the command.'),
   timeoutMs: z.number().int().positive().optional().describe('Timeout in milliseconds. Defaults to 30000.'),
   maxBuffer: z.number().int().positive().optional().describe('Max stdout/stderr buffer in bytes. Defaults to 5MB.'),
-  env: z.record(z.string()).optional().describe('Additional environment variables.'),
+  env: z.record(z.string(), z.string()).optional().describe('Additional environment variables.'),
   binary: z.string().optional().describe('Override lark-cli binary path.'),
 });
 
