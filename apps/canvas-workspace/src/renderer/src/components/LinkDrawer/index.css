@@ -42,6 +42,17 @@
   color: var(--text);
 }
 
+.link-drawer__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.link-drawer__action {
+  flex-shrink: 0;
+}
+
 /* ── Webview host ───────────────────────────────────────────────────── */
 
 .link-drawer__webview-host {
