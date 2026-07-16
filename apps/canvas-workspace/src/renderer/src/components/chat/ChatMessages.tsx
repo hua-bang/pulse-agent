@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { BotAvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
@@ -6,6 +6,7 @@ import type { PendingClarification, ToolCallStatus } from './types';
 import { buildAnchorElementId } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
+import { isVSCodeLink } from './utils/externalLinks';
 
 /** How close (px) to the bottom still counts as "reading the tail" — within
  *  this band the view keeps following the stream; beyond it the user has
@@ -196,7 +197,7 @@ export const ChatMessages = ({
     }
   }, [messages, pendingClarify, streamingTools, scrollToLatest]);
 
-  const handleMessageClick = useCallback(async (event: React.MouseEvent) => {
+  const handleMessageClick = useCallback(async (event: MouseEvent) => {
     const target = event.target as HTMLElement | null;
     if (!target) return;
 
@@ -216,6 +217,18 @@ export const ChatMessages = ({
       } catch {
         /* clipboard unavailable — ignore */
       }
+      return;
+    }
+
+    // VS Code protocol links from markdown should launch the editor through
+    // main-process shell.openExternal; letting target=_blank handle them asks
+    // Electron to create a BrowserWindow for a custom scheme.
+    const link = target.closest<HTMLAnchorElement>('a[href]');
+    const href = link?.getAttribute('href') ?? '';
+    if (href && isVSCodeLink(href)) {
+      event.preventDefault();
+      event.stopPropagation();
+      void window.canvasWorkspace.shell.openExternal(href);
       return;
     }
 

@@ -27,3 +27,19 @@ describe('chat Markdown syntax highlighting', () => {
     expect(html).not.toContain('++>---<');
   });
 });
+
+describe('chat Markdown links', () => {
+  it('preserves VS Code protocol links for editor handoff', () => {
+    const html = renderMarkdown('[open file](vscode://file/root/project/src/App.tsx:12:3)');
+
+    expect(html).toContain('href="vscode://file/root/project/src/App.tsx:12:3"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
+  });
+
+  it('preserves VS Code Insiders protocol links for editor handoff', () => {
+    const html = renderMarkdown('[open file](vscode-insiders://file/root/project/src/App.tsx:12:3)');
+
+    expect(html).toContain('href="vscode-insiders://file/root/project/src/App.tsx:12:3"');
+  });
+});
