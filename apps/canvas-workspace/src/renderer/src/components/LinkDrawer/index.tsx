@@ -19,6 +19,17 @@ import { ExternalLinkIcon, PlusIcon } from "../icons";
 import { Button, TextField } from "../ui";
 import "./index.css";
 
+/** Google blocks account sign-in inside embedded browsers (WebView policy);
+ *  detect its sign-in host so we can steer the user to the system browser. */
+function isGoogleAuthUrl(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  try {
+    return new URL(raw).hostname === 'accounts.google.com';
+  } catch {
+    return false;
+  }
+}
+
 interface LinkTabViewProps {
   url: string;
   onTitleChange?: (title: string) => void;
@@ -131,6 +142,21 @@ export const LinkTabView = ({
           </Button>
         </div>
       </header>
+      {isGoogleAuthUrl(browser.currentUrl) && (
+        <div className="link-drawer__auth-notice" role="status">
+          <span className="link-drawer__auth-notice-text">
+            {t('linkDrawer.googleAuthUnsupported')}
+          </span>
+          <Button
+            variant="secondary"
+            size="xs"
+            onClick={handleOpenInBrowser}
+            disabled={!browser.currentUrl}
+          >
+            {t('linkDrawer.googleAuthOpenExternal')}
+          </Button>
+        </div>
+      )}
       <div ref={browser.hostRef} className="link-drawer__webview-host" />
     </>
   );
