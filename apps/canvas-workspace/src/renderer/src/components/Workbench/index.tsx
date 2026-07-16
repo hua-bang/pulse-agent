@@ -17,7 +17,7 @@ import type { CanvasClipboard, CanvasNodePatchRequest } from '../../types/ui-int
 import { isReferenceableNode, isReferenceableNodeType } from '../../utils/referenceNodes';
 import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 import { useChatInsertionBridge } from './useChatInsertionBridge';
-import { usePeekNode, usePreviewNodeActionBridge } from './usePreviewNodeActionBridge';
+import { useEvictAndPreview, usePeekNode, usePreviewNodeActionBridge } from './usePreviewNodeActionBridge';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
@@ -81,9 +81,10 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
   const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
   const patchRequestIdRef = useRef(0);
-  const mountedWorkspaceIds = useMountedWorkspaceIds(activeWorkspaceId, workspaces, dockState.terminalTabsByWorkspace);
+  const { mountedWorkspaceIds, evictWorkspace } = useMountedWorkspaceIds(activeWorkspaceId, workspaces, dockState.terminalTabsByWorkspace);
   // Publish the live-mounted set so the dock never previews an already-live canvas.
   useEffect(() => { dock.setMountedWorkspaces(mountedWorkspaceIds); }, [dock, mountedWorkspaceIds]);
+  useEvictAndPreview({ mountedWorkspaceIds, evictWorkspace, terminalTabsByWorkspace: dockState.terminalTabsByWorkspace, openCanvasPreview: dock.openCanvasPreview });
   useEffect(() => { if (referenceDrawerOpen) setReferenceDrawerLoaded(true); }, [referenceDrawerOpen]);
   useEffect(() => {
     for (const node of activeNodes) {

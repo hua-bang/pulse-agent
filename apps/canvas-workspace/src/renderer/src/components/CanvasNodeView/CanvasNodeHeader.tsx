@@ -148,11 +148,12 @@ export const CanvasNodeHeader = ({
           Ungroup
         </button>
       )}
-      {node.type === 'frame' && !readOnly && (
+      {node.type === 'frame' && (
         <FrameChildrenToggle
           node={node}
           descendantCount={containerDescendantCount}
           onUpdate={onUpdate}
+          readOnly={readOnly}
         />
       )}
       {relativeTime && (

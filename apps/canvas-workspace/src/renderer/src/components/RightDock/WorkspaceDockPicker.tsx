@@ -8,8 +8,12 @@ import './node-dock-picker.css';
 interface Props {
   workspaces: WorkspaceEntry[];
   activeWorkspaceId: string;
-  /** Workspaces already live in the main Workbench — can't be previewed. */
+  /** Workspaces already live in the main Workbench. Background-mounted ones
+   *  ARE selectable — selecting tears the live instance down and previews. */
   mountedWorkspaceIds: ReadonlySet<string>;
+  /** Workspaces with ≥1 running terminal — not selectable (teardown would
+   *  kill their PTYs). */
+  terminalWorkspaceIds: ReadonlySet<string>;
   onSelect: (workspace: WorkspaceEntry) => void;
   onClose: () => void;
 }
@@ -32,7 +36,7 @@ export function filterWorkspaces(
  * opens its canvas (via the app's workspace switch), so the picker is a quick,
  * keyboard-driven alternative to the sidebar list.
  */
-export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, mountedWorkspaceIds, onSelect, onClose }: Props) => {
+export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, mountedWorkspaceIds, terminalWorkspaceIds, onSelect, onClose }: Props) => {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
@@ -44,10 +48,14 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, mountedWork
     listRef.current?.querySelector(`[data-ws-index="${index}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [index]);
 
+  // Active workspace: it's the canvas you're on. Terminal workspaces: tearing
+  // the live instance down would kill their running PTYs. Everything else is
+  // selectable — background-mounted ones get replaced by the preview.
+  const isBlocked = (workspace: WorkspaceEntry) =>
+    workspace.id === activeWorkspaceId || terminalWorkspaceIds.has(workspace.id);
+
   const choose = (workspace: WorkspaceEntry) => {
-    // A workspace already live in the main Workbench (active or background)
-    // can't be previewed too — that would mount the same canvas twice.
-    if (mountedWorkspaceIds.has(workspace.id)) return;
+    if (isBlocked(workspace)) return;
     onSelect(workspace);
     onClose();
   };
@@ -76,10 +84,11 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, mountedWork
         {results.length === 0 ? (
           <div className="node-dock-picker__empty">{t('rightDock.noWorkspacesFound')}</div>
         ) : results.map((workspace, wsIndex) => {
-          const mounted = mountedWorkspaceIds.has(workspace.id);
+          const blocked = isBlocked(workspace);
           const label = workspace.id === activeWorkspaceId
             ? t('rightDock.canvasOpenInMain')
-            : mounted ? t('rightDock.canvasInUse') : null;
+            : terminalWorkspaceIds.has(workspace.id) ? t('rightDock.canvasHasTerminal')
+              : mountedWorkspaceIds.has(workspace.id) ? t('rightDock.canvasInUse') : null;
           return (
             <Button
               key={workspace.id}
@@ -88,10 +97,10 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, mountedWork
               size="sm"
               role="option"
               aria-selected={wsIndex === index}
-              aria-disabled={mounted}
-              disabled={mounted}
+              aria-disabled={blocked}
+              disabled={blocked}
               data-ws-index={wsIndex}
-              className={`node-dock-picker__item${wsIndex === index ? ' node-dock-picker__item--active' : ''}${mounted ? ' node-dock-picker__item--disabled' : ''}`}
+              className={`node-dock-picker__item${wsIndex === index ? ' node-dock-picker__item--active' : ''}${blocked ? ' node-dock-picker__item--disabled' : ''}`}
               onMouseEnter={() => setIndex(wsIndex)}
               onFocus={() => setIndex(wsIndex)}
               onClick={() => choose(workspace)}

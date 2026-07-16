@@ -3,6 +3,7 @@ import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useI18n } from '../../i18n';
 import { PlusIcon } from '../icons';
 import { Button } from '../ui';
+import { requestPreviewEvictOpen } from '../../utils/openNodeBridge';
 import type { DockStore } from './dock-store';
 
 const NewDockTabMenu = lazy(() => (
@@ -22,9 +23,10 @@ interface Props {
   showTerminal: boolean;
   newTabTitle: string;
   mountedWorkspaceIds: ReadonlySet<string>;
+  terminalWorkspaceIds: ReadonlySet<string>;
 }
 
-export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, showTerminal, newTabTitle, mountedWorkspaceIds }: Props) => {
+export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, showTerminal, newTabTitle, mountedWorkspaceIds, terminalWorkspaceIds }: Props) => {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [nodePickerOpen, setNodePickerOpen] = useState(false);
@@ -81,8 +83,15 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
             workspaces={workspaces}
             activeWorkspaceId={activeWorkspaceId}
             mountedWorkspaceIds={mountedWorkspaceIds}
+            terminalWorkspaceIds={terminalWorkspaceIds}
             onClose={() => setWorkspacePickerOpen(false)}
-            onSelect={(workspace) => store.openCanvasPreview(workspace.id, workspace.name)}
+            onSelect={(workspace) => {
+              // Refused = background-mounted: ask the Workbench to tear the
+              // live instance down and open the preview in its place.
+              if (!store.openCanvasPreview(workspace.id, workspace.name)) {
+                requestPreviewEvictOpen({ workspaceId: workspace.id, title: workspace.name });
+              }
+            }}
           />
         </Suspense>
       )}

@@ -46,12 +46,16 @@ interface FrameChildrenToggleProps {
   node: CanvasNode;
   descendantCount: number;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  /** Display-only mode (read-only canvas preview): keep the collapse state
+   *  and descendant count visible, but never write the toggle back. */
+  readOnly?: boolean;
 }
 
 export const FrameChildrenToggle = ({
   node,
   descendantCount,
   onUpdate,
+  readOnly = false,
 }: FrameChildrenToggleProps) => {
   if (node.type !== 'frame') return null;
   const data = node.data as FrameNodeData;
@@ -61,6 +65,7 @@ export const FrameChildrenToggle = ({
   const handleToggle = useCallback(
     (e: ReactMouseEvent) => {
       e.stopPropagation();
+      if (readOnly) return;
       onUpdate(node.id, {
         data: {
           ...data,
@@ -68,7 +73,7 @@ export const FrameChildrenToggle = ({
         },
       });
     },
-    [collapsed, data, node.id, onUpdate],
+    [collapsed, data, node.id, onUpdate, readOnly],
   );
 
   return (
@@ -80,11 +85,13 @@ export const FrameChildrenToggle = ({
       title={
         !hasDescendants
           ? 'No frame children'
-          : collapsed ? 'Show frame children' : 'Hide frame children'
+          : readOnly
+            ? `${descendantCount} frame children`
+            : collapsed ? 'Show frame children' : 'Hide frame children'
       }
       aria-label={collapsed ? 'Show frame children' : 'Hide frame children'}
       aria-pressed={collapsed}
-      disabled={!hasDescendants}
+      disabled={!hasDescendants || readOnly}
     >
       <FrameToggleIcon collapsed={collapsed} />
       <span className="frame-children-count">{descendantCount}</span>

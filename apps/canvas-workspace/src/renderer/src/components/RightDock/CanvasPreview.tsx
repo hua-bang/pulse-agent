@@ -169,7 +169,9 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
     setSelectedNodeIds: NOOP_DISPATCH,
   });
   const { renderGroups } = useCanvasRenderOrder(visibleNodes);
-  const getAllNodes = useCallback(() => visibleNodes, [visibleNodes]);
+  // Full snapshot, not visibleNodes: descendant counts (collapsed-frame badge)
+  // must see children that the collapse itself hid from rendering.
+  const getAllNodes = useCallback(() => snapshot.nodes, [snapshot.nodes]);
 
   const handleFitAll = useCallback(() => {
     fitAllNodes(visibleNodes);

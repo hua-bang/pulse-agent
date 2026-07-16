@@ -72,6 +72,20 @@ export const consumePendingPreviewFocus = (workspaceId: string): string | undefi
   return nodeId;
 };
 
+/** Ask the Workbench to tear down a background-mounted workspace and open it
+ *  as a read-only preview instead (picker "In use" rows). The Workbench
+ *  refuses for the active workspace and for workspaces with live terminals. */
+export const PREVIEW_EVICT_OPEN_EVENT = 'pulse-canvas:preview-evict-open';
+
+export interface PreviewEvictOpenDetail {
+  workspaceId: string;
+  title: string;
+}
+
+export const requestPreviewEvictOpen = (detail: PreviewEvictOpenDetail): void => {
+  window.dispatchEvent(new CustomEvent<PreviewEvictOpenDetail>(PREVIEW_EVICT_OPEN_EVENT, { detail }));
+};
+
 /** Build the href stored on a mention link for the given node id. */
 export const nodeLinkHref = (nodeId: string, workspaceId?: string): string => {
   const href = `${NODE_LINK_PREFIX}${encodeURIComponent(nodeId)}`;

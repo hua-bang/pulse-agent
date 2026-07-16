@@ -424,6 +424,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               showTerminal={chatTabEnabled}
               newTabTitle={t('rightDock.newTabTitle')}
               mountedWorkspaceIds={state.mountedWorkspaceIds}
+              terminalWorkspaceIds={new Set(Object.keys(state.terminalTabsByWorkspace))}
             />
           </Suspense>
         )}

@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasNode } from '../../../types';
 import { consumePendingPreviewFocus, dispatchPreviewNodeAction } from '../../../utils/openNodeBridge';
-import { usePeekNode, usePreviewNodeActionBridge } from '../usePreviewNodeActionBridge';
+import { useEvictAndPreview, usePeekNode, usePreviewNodeActionBridge } from '../usePreviewNodeActionBridge';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -131,5 +131,53 @@ describe('usePeekNode', () => {
     act(() => peek('other-ws', 'n3'));
     expect(onSelectWorkspace).toHaveBeenCalledWith('other-ws');
     expect(requestNodeFocus).toHaveBeenCalledWith('other-ws', 'n3');
+  });
+});
+
+describe('useEvictAndPreview', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const evictWorkspace = vi.fn();
+  const openCanvasPreview = vi.fn();
+
+  const Harness = ({ mounted, terminals }: { mounted: string[]; terminals?: Record<string, { tabs: unknown[] }> }) => {
+    useEvictAndPreview({
+      mountedWorkspaceIds: new Set(mounted),
+      evictWorkspace,
+      terminalTabsByWorkspace: terminals ?? {},
+      openCanvasPreview,
+    });
+    return null;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('evicts, then opens the preview once the workspace is unmounted', () => {
+    openCanvasPreview.mockReturnValue(true);
+    act(() => root.render(<Harness mounted={['bg-ws']} />));
+    act(() => { window.dispatchEvent(new CustomEvent('pulse-canvas:preview-evict-open', { detail: { workspaceId: 'bg-ws', title: 'BG' } })); });
+    expect(evictWorkspace).toHaveBeenCalledWith('bg-ws');
+    // Still mounted → open not attempted yet.
+    expect(openCanvasPreview).not.toHaveBeenCalled();
+    // Workbench republishes the shrunken mounted set.
+    act(() => root.render(<Harness mounted={[]} />));
+    expect(openCanvasPreview).toHaveBeenCalledWith('bg-ws', 'BG');
+  });
+
+  it('refuses workspaces with live terminals', () => {
+    act(() => root.render(<Harness mounted={['term-ws']} terminals={{ 'term-ws': { tabs: [{}] } }} />));
+    act(() => { window.dispatchEvent(new CustomEvent('pulse-canvas:preview-evict-open', { detail: { workspaceId: 'term-ws', title: 'T' } })); });
+    expect(evictWorkspace).not.toHaveBeenCalled();
+    expect(openCanvasPreview).not.toHaveBeenCalled();
   });
 });

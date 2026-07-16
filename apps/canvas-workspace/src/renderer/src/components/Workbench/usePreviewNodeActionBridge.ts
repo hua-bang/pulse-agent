@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode } from '../../types';
 import type { NodeReferenceEntry } from '../ReferenceDrawer/types';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import {
+  PREVIEW_EVICT_OPEN_EVENT,
   PREVIEW_NODE_ACTION_EVENT,
   requestPreviewNodeFocus,
+  type PreviewEvictOpenDetail,
   type PreviewNodeActionDetail,
 } from '../../utils/openNodeBridge';
 
@@ -92,4 +94,46 @@ export function usePeekNode(options: PeekOptions): (workspaceId: string, nodeId:
     onSelectWorkspace(workspaceId);
     requestNodeFocus(workspaceId, nodeId);
   }, []);
+}
+
+interface EvictPreviewOptions {
+  mountedWorkspaceIds: ReadonlySet<string>;
+  /** Unmount a background workspace (never the active one) — useMountedWorkspaceIds. */
+  evictWorkspace: (workspaceId: string) => void;
+  /** Workspaces with ≥1 live terminal tab — eviction would kill their PTYs. */
+  terminalTabsByWorkspace: Record<string, { tabs: unknown[] }>;
+  openCanvasPreview: (workspaceId: string, title: string) => boolean;
+}
+
+/**
+ * Picker "In use" rows: tear down a background-mounted workspace and open it
+ * as a read-only preview instead. Two-phase because the store refuses to
+ * preview a mounted workspace: evict first, then open once the Workbench has
+ * published the shrunken mounted set to the dock store (the publish effect
+ * runs before this hook's, so ordering holds; a refused open just stays
+ * pending and retries on the next mounted-set change).
+ */
+export function useEvictAndPreview(options: EvictPreviewOptions): void {
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+  const [pending, setPending] = useState<PreviewEvictOpenDetail | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<PreviewEvictOpenDetail>).detail;
+      if (!detail?.workspaceId) return;
+      const { evictWorkspace, terminalTabsByWorkspace } = optionsRef.current;
+      if ((terminalTabsByWorkspace[detail.workspaceId]?.tabs.length ?? 0) > 0) return;
+      evictWorkspace(detail.workspaceId);
+      setPending(detail);
+    };
+    window.addEventListener(PREVIEW_EVICT_OPEN_EVENT, handler);
+    return () => window.removeEventListener(PREVIEW_EVICT_OPEN_EVENT, handler);
+  }, []);
+
+  const { mountedWorkspaceIds, openCanvasPreview } = options;
+  useEffect(() => {
+    if (!pending || mountedWorkspaceIds.has(pending.workspaceId)) return;
+    if (openCanvasPreview(pending.workspaceId, pending.title)) setPending(null);
+  }, [pending, mountedWorkspaceIds, openCanvasPreview]);
 }
