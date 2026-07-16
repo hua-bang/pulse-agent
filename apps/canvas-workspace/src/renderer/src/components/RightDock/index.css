@@ -454,8 +454,8 @@
 }
 
 .right-dock__link-action--primary {
-  min-width: 48px;
-  padding: 0 12px;
+  width: 30px;
+  padding: 0;
   border-color: #2383e2;
   background: #2383e2;
   color: #fff;

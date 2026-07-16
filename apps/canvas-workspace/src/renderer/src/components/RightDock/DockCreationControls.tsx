@@ -1,7 +1,7 @@
-import { lazy, Suspense, useId, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useId, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useI18n } from '../../i18n';
-import { PlusIcon } from '../icons';
+import { ExternalLinkIcon, PlusIcon } from '../icons';
 import { Button } from '../ui';
 import type { DockStore } from './dock-store';
 
@@ -12,7 +12,58 @@ const NodeDockPicker = lazy(() => (
   import('./NodeDockPicker').then((module) => ({ default: module.NodeDockPicker }))
 ));
 
-interface Props {
+interface LinkActionProps {
+  mode: 'link';
+  url: string;
+  activeWorkspaceId: string;
+  onRequestClose: () => void;
+}
+
+const LinkTabActions = ({ url, activeWorkspaceId, onRequestClose }: LinkActionProps) => {
+  const { t } = useI18n();
+
+  const handleOpenInBrowser = useCallback(() => {
+    if (!url) return;
+    void window.canvasWorkspace.shell.openExternal(url);
+  }, [url]);
+
+  const handleAddToCanvas = useCallback(() => {
+    if (!url || !activeWorkspaceId) return;
+    window.dispatchEvent(
+      new CustomEvent('canvas:add-iframe-from-url', {
+        detail: { workspaceId: activeWorkspaceId, url },
+      }),
+    );
+    onRequestClose();
+  }, [url, activeWorkspaceId, onRequestClose]);
+
+  return (
+    <div className="right-dock__link-actions">
+      <button
+        type="button"
+        className="right-dock__link-action right-dock__link-action--ghost"
+        aria-label={t('linkDrawer.openInBrowser')}
+        title={t('linkDrawer.openInBrowser')}
+        onClick={handleOpenInBrowser}
+      >
+        <ExternalLinkIcon size={14} />
+      </button>
+      <button
+        type="button"
+        className="right-dock__link-action right-dock__link-action--primary"
+        aria-label={t('linkDrawer.addToCanvas')}
+        onClick={handleAddToCanvas}
+        disabled={!activeWorkspaceId}
+        title={activeWorkspaceId ? t('linkDrawer.addToCanvas') : t('linkDrawer.noActiveCanvas')}
+      >
+        <PlusIcon size={13} />
+      </button>
+    </div>
+  );
+};
+
+interface CreationProps {
+  mode?: 'create';
   store: DockStore;
   workspaces: WorkspaceEntry[];
   activeWorkspaceId: string;
@@ -20,7 +71,14 @@ interface Props {
   newTabTitle: string;
 }
 
-export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, showTerminal, newTabTitle }: Props) => {
+type Props = LinkActionProps | CreationProps;
+
+export const DockCreationControls = (props: Props) => {
+  if (props.mode === 'link') {
+    return <LinkTabActions {...props} />;
+  }
+
+  const { store, workspaces, activeWorkspaceId, showTerminal, newTabTitle } = props;
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [nodePickerOpen, setNodePickerOpen] = useState(false);
