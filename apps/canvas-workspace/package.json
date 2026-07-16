@@ -56,6 +56,8 @@
       "node_modules/node-pty/**/*"
     ],
     "mac": {
+      "identity": "-",
+      "hardenedRuntime": false,
       "electronLanguages": [
         "en",
         "zh_CN",
