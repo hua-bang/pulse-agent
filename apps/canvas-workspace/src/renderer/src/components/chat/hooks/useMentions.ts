@@ -89,23 +89,23 @@ export function useMentions({
    */
   const mentionBuildSeqRef = useRef(0);
 
-  const insertNodeMention = useCallback((node: CanvasNode) => {
+  const insertNodeMention = useCallback((node: CanvasNode, sourceWorkspaceId?: string) => {
     const element = editableRef.current;
     if (!element) return;
 
     const item: MentionItem = {
-      type: 'node',
-      nodeId: node.id,
-      label: getNodeDisplayLabel(node),
-      nodeType: node.type,
+      type: 'node', nodeId: node.id,
+      label: getNodeDisplayLabel(node), nodeType: node.type,
       path: (node.data as any)?.filePath,
+      // Cross-workspace insert (dock canvas preview): the chip carries the owning workspace.
+      ...(sourceWorkspaceId && sourceWorkspaceId !== workspaceId ? { workspaceId: sourceWorkspaceId } : {}),
     };
     const chip = createMentionChipElement(item, nodes);
 
     appendMentionChipToEditable(element, chip);
     setInput(serializeEditable(element));
     element.focus();
-  }, [nodes]);
+  }, [nodes, workspaceId]);
 
   const insertDomSelectionMention = useCallback((domSelection: AgentContextDomSelectionRef) => {
     const element = editableRef.current;

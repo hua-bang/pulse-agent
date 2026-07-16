@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, linkTabId, nodeDetailTabId, terminalTabId } from '../dock-store';
+import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, canvasPreviewTabId, linkTabId, nodeDetailTabId, terminalTabId } from '../dock-store';
 
 describe('DockStore', () => {
   it('starts collapsed on the pinned chat tab with no previews', () => {
@@ -15,7 +15,26 @@ describe('DockStore', () => {
       activeTerminalTabId: undefined,
       nextTerminalOrdinal: 1,
       terminalOpen: false,
+      mountedWorkspaceIds: new Set(),
     });
+  });
+
+  it('refuses to preview a workspace that is already mounted in the main canvas', () => {
+    const dock = new DockStore();
+    dock.setMountedWorkspaces(['ws1']);
+    dock.openCanvasPreview('ws1', 'Research');
+    expect(dock.getSnapshot().tabs).toHaveLength(0);
+    expect(dock.canPreviewCanvas('ws1')).toBe(false);
+    expect(dock.canPreviewCanvas('ws2')).toBe(true);
+  });
+
+  it('closes an open canvas preview when its workspace becomes mounted', () => {
+    const dock = new DockStore();
+    dock.openCanvasPreview('ws1', 'Research');
+    dock.openCanvasPreview('ws2', 'Product');
+    // ws1 gets mounted by the main Workbench (e.g. user switches to it).
+    dock.setMountedWorkspaces(['ws1']);
+    expect(dock.getSnapshot().tabs.map((tab) => tab.id)).toEqual([canvasPreviewTabId('ws2')]);
   });
 
   it('opening an artifact expands the dock and activates its new tab', () => {
@@ -26,6 +45,41 @@ describe('DockStore', () => {
     expect(tabs[0]).toMatchObject({ kind: 'artifact', workspaceId: 'ws1', artifactId: 'a1' });
     expect(activeTabId).toBe(artifactTabId('ws1', 'a1'));
     expect(expanded).toBe(true);
+  });
+
+  it('opening a canvas preview expands the dock and activates its new tab', () => {
+    const dock = new DockStore();
+    dock.openCanvasPreview('ws1', 'Research');
+    const { tabs, activeTabId, expanded } = dock.getSnapshot();
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]).toMatchObject({ kind: 'canvas', workspaceId: 'ws1', title: 'Research' });
+    expect(activeTabId).toBe(canvasPreviewTabId('ws1'));
+    expect(expanded).toBe(true);
+  });
+
+  it('re-activates and re-titles instead of duplicating an open canvas preview', () => {
+    const dock = new DockStore();
+    dock.openCanvasPreview('ws1', 'Research');
+    dock.openCanvasPreview('ws2', 'Product');
+    dock.openCanvasPreview('ws1', 'Research (renamed)');
+    const { tabs, activeTabId } = dock.getSnapshot();
+    expect(tabs).toHaveLength(2);
+    expect(activeTabId).toBe(canvasPreviewTabId('ws1'));
+    expect(tabs.find((tab) => tab.id === canvasPreviewTabId('ws1'))).toMatchObject({
+      title: 'Research (renamed)',
+    });
+  });
+
+  it('closes a canvas preview by its id (used when its workspace becomes active)', () => {
+    const dock = new DockStore();
+    dock.openCanvasPreview('ws1', 'Research');
+    dock.openCanvasPreview('ws2', 'Product');
+    dock.close(canvasPreviewTabId('ws1'));
+    const { tabs } = dock.getSnapshot();
+    expect(tabs.map((tab) => tab.id)).toEqual([canvasPreviewTabId('ws2')]);
+    // Closing a workspace with no preview tab is a safe no-op.
+    dock.close(canvasPreviewTabId('nope'));
+    expect(dock.getSnapshot().tabs).toHaveLength(1);
   });
 
   it('re-activates instead of duplicating an already-open artifact', () => {

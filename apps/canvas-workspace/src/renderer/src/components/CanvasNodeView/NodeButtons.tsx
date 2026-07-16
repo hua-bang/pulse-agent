@@ -138,6 +138,24 @@ export const ReferenceButton = ({
   </button>
 );
 
+/** Place this node on the main canvas as a live reference node. Offered on
+ *  read-only preview nodes (the dock canvas preview). */
+export const AddToCanvasButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+  <button
+    className="node-add-to-canvas"
+    type="button"
+    onClick={onClick}
+    onMouseDown={(e) => e.stopPropagation()}
+    title="Add to main canvas"
+    aria-label="Add node to the main canvas as a reference"
+  >
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <rect x="2.6" y="2.6" width="9.4" height="9.4" rx="1.6" stroke="currentColor" strokeWidth="1.35" />
+      <path d="M13.4 9.6v3.8m-1.9-1.9h3.8" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+    </svg>
+  </button>
+);
+
 export const AddToChatButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
   <button
     className="node-add-to-chat"

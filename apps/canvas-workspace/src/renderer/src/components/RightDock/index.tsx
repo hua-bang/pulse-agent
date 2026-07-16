@@ -30,15 +30,10 @@ const DEFAULT_WIDTH = 480;
 const MIN_WIDTH = 320;
 const MAX_VIEWPORT_RATIO = 0.95;
 const RESIZING_CLASS = 'right-dock-resizing';
-const ArtifactTabView = lazy(() =>
-  import('../artifacts/ArtifactTabView').then((module) => ({ default: module.ArtifactTabView })),
-);
-const LinkTabView = lazy(() =>
-  import('../LinkDrawer').then((module) => ({ default: module.LinkTabView })),
-);
-const NodeDetailDockTab = lazy(() =>
-  import('./NodeDetailDockTab').then((module) => ({ default: module.NodeDetailDockTab })),
-);
+const ArtifactTabView = lazy(() => import('../artifacts/ArtifactTabView').then((m) => ({ default: m.ArtifactTabView })));
+const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m.LinkTabView })));
+const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
+const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
 const DockCreationControls = lazy(() =>
   import('./DockCreationControls').then((module) => ({ default: module.DockCreationControls })),
 );
@@ -70,9 +65,7 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
 
 const useDockContext = (): RightDockContextValue => {
   const ctx = useContext(RightDockContext);
-  if (!ctx) {
-    throw new Error('useRightDock must be used within <RightDockProvider>');
-  }
+  if (!ctx) throw new Error('useRightDock must be used within <RightDockProvider>');
   return ctx;
 };
 
@@ -80,6 +73,7 @@ const useDockContext = (): RightDockContextValue => {
 export function useRightDock(): {
   openArtifact: (workspaceId: string, artifactId: string) => void;
   openNodeDetail: (workspaceId: string, nodeId: string, title: string) => void;
+  openCanvasPreview: (workspaceId: string, title: string) => boolean;
   openLink: (url: string) => void;
   newLink: () => void;
   openChat: () => void;
@@ -89,6 +83,7 @@ export function useRightDock(): {
   toggleTerminal: () => void;
   closeTerminal: (id?: string) => void;
   setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) => void;
+  setMountedWorkspaces: (ids: Iterable<string>) => void;
   collapse: () => void;
   notifyChatActivity: () => void;
 } {
@@ -97,6 +92,7 @@ export function useRightDock(): {
     () => ({
       openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
       openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
+      openCanvasPreview: (workspaceId: string, title: string) => store.openCanvasPreview(workspaceId, title),
       openLink: (url: string) => store.openLink(url),
       newLink: () => store.newLink(),
       openChat: () => store.openChat(),
@@ -107,6 +103,7 @@ export function useRightDock(): {
       closeTerminal: (id?: string) => store.closeTerminal(id),
       setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) =>
         store.setTerminalAgentType(id, agentType, workspaceId),
+      setMountedWorkspaces: (ids: Iterable<string>) => store.setMountedWorkspaces(ids),
       collapse: () => store.collapse(),
       notifyChatActivity: () => store.notifyChatActivity(),
     }),
@@ -426,6 +423,8 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               activeWorkspaceId={activeWorkspaceId}
               showTerminal={chatTabEnabled}
               newTabTitle={t('rightDock.newTabTitle')}
+              mountedWorkspaceIds={state.mountedWorkspaceIds}
+              terminalWorkspaceIds={new Set(Object.keys(state.terminalTabsByWorkspace))}
             />
           </Suspense>
         )}
@@ -475,6 +474,10 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
                     store.close(tab.id);
                   }}
                 />
+              </Suspense>
+            ) : tab.kind === 'canvas' ? (
+              <Suspense fallback={null}>
+                <CanvasPreview workspaceId={tab.workspaceId} canvasName={tab.title} rootFolder={workspaces.find((ws) => ws.id === tab.workspaceId)?.rootFolder} />
               </Suspense>
             ) : (
               <Suspense fallback={null}>

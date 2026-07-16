@@ -13,6 +13,7 @@ const baseState = (overrides: Partial<DockState>): DockState => ({
   activeTerminalTabId: undefined,
   nextTerminalOrdinal: 1,
   terminalOpen: false,
+  mountedWorkspaceIds: new Set(),
   ...overrides,
 });
 

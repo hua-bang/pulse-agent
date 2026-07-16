@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /** Background (non-active) workspaces kept mounted before LRU eviction
  *  kicks in. Each mounted workspace holds a full Canvas instance (nodes/
@@ -69,5 +69,21 @@ export const useMountedWorkspaceIds = (
     });
   }, [workspaces]);
 
-  return mountedWorkspaceIds;
+  // On-demand unmount of a background workspace (picker "replace with
+  // preview"). The active workspace can never be evicted; callers must also
+  // refuse workspaces with live terminals (eviction would kill their PTYs).
+  const activeIdRef = useRef(activeWorkspaceId);
+  activeIdRef.current = activeWorkspaceId;
+  const evictWorkspace = useCallback((workspaceId: string) => {
+    if (!workspaceId || workspaceId === activeIdRef.current) return;
+    recencyRef.current = recencyRef.current.filter((id) => id !== workspaceId);
+    setMountedWorkspaceIds((prev) => {
+      if (!prev.has(workspaceId)) return prev;
+      const next = new Set(prev);
+      next.delete(workspaceId);
+      return next;
+    });
+  }, []);
+
+  return { mountedWorkspaceIds, evictWorkspace };
 };

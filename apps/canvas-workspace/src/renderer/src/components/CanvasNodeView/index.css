@@ -289,7 +289,12 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 65%, transparent);
 }
 
-.canvas-node--readonly {
+/* In-flow layout for a readonly node INSIDE a reference card's body — the
+ * embedded source preview fills the card instead of using canvas x/y/w/h.
+ * Scoped under .node-body--reference on purpose: a readonly node on a canvas
+ * surface (the right-dock canvas preview renders every node readonly) must
+ * keep its absolute position + translate from the inline wrapper style. */
+.node-body--reference .canvas-node--readonly {
   position: relative;
   transform: none !important;
   width: 100% !important;
@@ -297,7 +302,7 @@
   box-shadow: none;
 }
 
-.canvas-node--readonly:hover {
+.node-body--reference .canvas-node--readonly:hover {
   box-shadow: none;
 }
 
@@ -305,7 +310,7 @@
   cursor: default;
 }
 
-.canvas-node--readonly .node-focus {
+.node-body--reference .canvas-node--readonly .node-focus {
   opacity: 1;
 }
 
@@ -329,6 +334,7 @@
 .canvas-node--embedded .node-close,
 .canvas-node--embedded .node-reference,
 .canvas-node--embedded .node-add-to-chat,
+.canvas-node--embedded .node-add-to-canvas,
 .canvas-node--embedded .node-open-detail,
 .canvas-node--embedded .node-plugin-select,
 .canvas-node--embedded .node-fullscreen,
@@ -413,6 +419,7 @@
 .node-body--reference .node-close,
 .node-body--reference .node-reference,
 .node-body--reference .node-add-to-chat,
+.node-body--reference .node-add-to-canvas,
 .node-body--reference .node-open-detail,
 .node-body--reference .node-plugin-select,
 .node-body--reference .node-copy-image,
@@ -620,6 +627,7 @@
 
 .node-reference,
 .node-add-to-chat,
+.node-add-to-canvas,
 .node-open-detail,
 .node-plugin-select,
 .node-focus,
@@ -646,6 +654,7 @@
 }
 
 .node-add-to-chat,
+.node-add-to-canvas,
 .node-open-detail,
 .node-plugin-select,
 .node-focus,
@@ -657,6 +666,7 @@
 
 .canvas-node:hover .node-reference,
 .canvas-node:hover .node-add-to-chat,
+.canvas-node:hover .node-add-to-canvas,
 .canvas-node:hover .node-open-detail,
 .canvas-node:hover .node-plugin-select,
 .canvas-node:hover .node-focus,
@@ -668,6 +678,7 @@
 
 .node-reference:hover,
 .node-add-to-chat:hover,
+.node-add-to-canvas:hover,
 .node-open-detail:hover,
 .node-plugin-select:hover,
 .node-plugin-select--active {
@@ -772,6 +783,7 @@
    overriding the default `opacity: 0` set on individual buttons. */
 .canvas-transform--small .canvas-node .node-header__actions .node-reference,
 .canvas-transform--small .canvas-node .node-header__actions .node-add-to-chat,
+.canvas-transform--small .canvas-node .node-header__actions .node-add-to-canvas,
 .canvas-transform--small .canvas-node .node-header__actions .node-open-detail,
 .canvas-transform--small .canvas-node .node-header__actions .node-plugin-select,
 .canvas-transform--small .canvas-node .node-header__actions .node-focus,
@@ -1182,6 +1194,7 @@
 
 .canvas-node--group .node-header .node-reference,
 .canvas-node--group .node-header .node-add-to-chat,
+.canvas-node--group .node-header .node-add-to-canvas,
 .canvas-node--group .node-header .node-open-detail,
 .canvas-node--group .node-header .node-plugin-select,
 .canvas-node--group .node-header .node-focus,
@@ -1373,6 +1386,7 @@
  * button, so `.node-fullscreen` itself hides. */
 .canvas-node--fullscreen .node-reference,
 .canvas-node--fullscreen .node-add-to-chat,
+.canvas-node--fullscreen .node-add-to-canvas,
 .canvas-node--fullscreen .node-open-detail,
 .canvas-node--fullscreen .node-plugin-select,
 .canvas-node--fullscreen .node-focus,

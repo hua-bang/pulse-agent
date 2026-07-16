@@ -17,6 +17,7 @@ import type { CanvasClipboard, CanvasNodePatchRequest } from '../../types/ui-int
 import { isReferenceableNode, isReferenceableNodeType } from '../../utils/referenceNodes';
 import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 import { useChatInsertionBridge } from './useChatInsertionBridge';
+import { useEvictAndPreview, usePeekNode, usePreviewNodeActionBridge } from './usePreviewNodeActionBridge';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
@@ -80,11 +81,10 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
   const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
   const patchRequestIdRef = useRef(0);
-  const mountedWorkspaceIds = useMountedWorkspaceIds(
-    activeWorkspaceId,
-    workspaces,
-    dockState.terminalTabsByWorkspace,
-  );
+  const { mountedWorkspaceIds, evictWorkspace } = useMountedWorkspaceIds(activeWorkspaceId, workspaces, dockState.terminalTabsByWorkspace);
+  // Publish the live-mounted set so the dock never previews an already-live canvas.
+  useEffect(() => { dock.setMountedWorkspaces(mountedWorkspaceIds); }, [dock, mountedWorkspaceIds]);
+  useEvictAndPreview({ mountedWorkspaceIds, evictWorkspace, terminalTabsByWorkspace: dockState.terminalTabsByWorkspace, openCanvasPreview: dock.openCanvasPreview });
   useEffect(() => { if (referenceDrawerOpen) setReferenceDrawerLoaded(true); }, [referenceDrawerOpen]);
   useEffect(() => {
     for (const node of activeNodes) {
@@ -129,10 +129,9 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       [activeWorkspaceId]: nodeId,
     }));
   }, [activeWorkspaceId]);
-  const handleFocusReferenceNode = useCallback((workspaceId: string, nodeId: string) => {
-    if (workspaceId !== activeWorkspaceId) onSelectWorkspace(workspaceId);
-    requestNodeFocus(workspaceId, nodeId);
-  }, [activeWorkspaceId, onSelectWorkspace, requestNodeFocus]);
+  // Reference "jump to node" peeks at other workspaces in the dock preview
+  // instead of yanking the main canvas over (falls back when unpreviewable).
+  const peekNode = usePeekNode({ activeWorkspaceId, workspaces, openCanvasPreview: dock.openCanvasPreview, onSelectWorkspace, requestNodeFocus });
   useEffect(() => {
     const current = referencesByWorkspace[activeWorkspaceId];
     if (!current?.length) return;
@@ -155,13 +154,13 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     });
   }, [activeWorkspaceId, allNodes, referencesByWorkspace]);
 
-  const pinReferenceNode = useCallback((workspaceId: string, nodeId: string) => {
+  const pinReferenceNode = useCallback((workspaceId: string, nodeId: string, sourceNode?: CanvasNode) => {
     setReferencesByWorkspace((prev) => {
       const current = prev[activeWorkspaceId] ?? [];
       const exists = current.some((entry) => entry.kind === 'node' && entry.workspaceId === workspaceId && entry.nodeId === nodeId);
       if (exists) return prev;
       const workspace = workspaces.find((item) => item.id === workspaceId);
-      const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId);
+      const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId) ?? sourceNode;
       const entry: ReferenceEntry = {
         kind: 'node',
         workspaceId,
@@ -172,10 +171,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       };
       return { ...prev, [activeWorkspaceId]: [...current, entry] };
     });
-    setActiveReferenceIdByWorkspace((prev) => ({
-      ...prev,
-      [activeWorkspaceId]: `${workspaceId}:${nodeId}`,
-    }));
+    setActiveReferenceIdByWorkspace((prev) => ({ ...prev, [activeWorkspaceId]: `${workspaceId}:${nodeId}` }));
     setReferenceDrawerOpen(true);
   }, [activeWorkspaceId, allNodes, workspaces]);
 
@@ -198,6 +194,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const {
     handleAddDomSelectionToChat,
     handleAddNodeToChat,
+    handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
     registerInsertMention,
@@ -231,9 +228,8 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const handleOpenReferenceSource = useCallback((node: CanvasNode) => {
     const ref = node.ref;
     if (!ref || ref.kind !== 'workspace-node') return;
-    if (ref.workspaceId !== activeWorkspaceId) onSelectWorkspace(ref.workspaceId);
-    requestNodeFocus(ref.workspaceId, ref.nodeId);
-  }, [activeWorkspaceId, onSelectWorkspace, requestNodeFocus]);
+    peekNode(ref.workspaceId, ref.nodeId);
+  }, [peekNode]);
 
   const [referencePlacementRequest, setReferencePlacementRequest] = useState<NodeReferenceEntryForCanvas | null>(null);
 
@@ -246,6 +242,8 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const consumeReferencePlacementRequest = useCallback(() => {
     setReferencePlacementRequest(null);
   }, []);
+
+  usePreviewNodeActionBridge({ activeWorkspaceId, workspaces, addPreviewNodeToChat: handleAddPreviewNodeToChat, pinReferenceNode, addReferenceToCanvas, ensureWorkspaceNodesLoaded });
 
   const createReferenceNodeFromEntry = useCallback((entry: NodeReferenceEntryForCanvas, x: number, y: number): CanvasNode | null => {
     const sourceNode = (allNodes[entry.workspaceId] ?? []).find((node) => node.id === entry.nodeId);
@@ -409,7 +407,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
               onClearAll={clearAllReferences}
               onAddReference={pinReferenceNode}
               onAddUrlReference={pinReferenceUrl}
-              onFocusNode={handleFocusReferenceNode}
+              onFocusNode={peekNode}
               onAddReferenceToCanvas={addReferenceToCanvas}
               onWorkspaceNodesRequest={ensureWorkspaceNodesLoaded}
             />

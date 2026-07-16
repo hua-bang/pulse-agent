@@ -10,11 +10,11 @@ export function useChatInsertionBridge({
   allNodes,
   openChat,
 }: UseChatInsertionBridgeOptions) {
-  const insertMentionByWorkspaceRef = useRef<Map<string, (node: CanvasNode) => void>>(new Map());
+  const insertMentionByWorkspaceRef = useRef<Map<string, (node: CanvasNode, sourceWorkspaceId?: string) => void>>(new Map());
   const insertDomSelectionByWorkspaceRef = useRef<Map<string, (selection: AgentContextDomSelectionRef) => void>>(new Map());
   const submitDomReviewByWorkspaceRef = useRef<Map<string, (comments: AgentContextDomReviewComment[]) => Promise<boolean>>>(new Map());
 
-  const registerInsertMention = useCallback((workspaceId: string, fn: (node: CanvasNode) => void) => {
+  const registerInsertMention = useCallback((workspaceId: string, fn: (node: CanvasNode, sourceWorkspaceId?: string) => void) => {
     insertMentionByWorkspaceRef.current.set(workspaceId, fn);
     return () => {
       insertMentionByWorkspaceRef.current.delete(workspaceId);
@@ -52,6 +52,23 @@ export function useChatInsertionBridge({
     }
   }, [allNodes, openChat]);
 
+  /** Insert a node from ANOTHER workspace (dock canvas preview) into the
+   *  given (active) workspace's composer as a cross-workspace mention. */
+  const handleAddPreviewNodeToChat = useCallback((activeWorkspaceId: string, sourceWorkspaceId: string, node: CanvasNode) => {
+    openChat();
+    const tryInsert = () => {
+      const fn = insertMentionByWorkspaceRef.current.get(activeWorkspaceId);
+      if (fn) {
+        fn(node, sourceWorkspaceId);
+        return true;
+      }
+      return false;
+    };
+    if (!tryInsert()) {
+      requestAnimationFrame(() => { tryInsert(); });
+    }
+  }, [openChat]);
+
   const handleAddDomSelectionToChat = useCallback((workspaceId: string, selection: AgentContextDomSelectionRef) => {
     openChat();
     const tryInsert = () => {
@@ -85,6 +102,7 @@ export function useChatInsertionBridge({
   return {
     handleAddDomSelectionToChat,
     handleAddNodeToChat,
+    handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
     registerInsertMention,

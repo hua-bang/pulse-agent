@@ -3,6 +3,7 @@ import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useI18n } from '../../i18n';
 import { PlusIcon } from '../icons';
 import { Button } from '../ui';
+import { requestPreviewEvictOpen } from '../../utils/openNodeBridge';
 import type { DockStore } from './dock-store';
 
 const NewDockTabMenu = lazy(() => (
@@ -11,6 +12,9 @@ const NewDockTabMenu = lazy(() => (
 const NodeDockPicker = lazy(() => (
   import('./NodeDockPicker').then((module) => ({ default: module.NodeDockPicker }))
 ));
+const WorkspaceDockPicker = lazy(() => (
+  import('./WorkspaceDockPicker').then((module) => ({ default: module.WorkspaceDockPicker }))
+));
 
 interface Props {
   store: DockStore;
@@ -18,12 +22,15 @@ interface Props {
   activeWorkspaceId: string;
   showTerminal: boolean;
   newTabTitle: string;
+  mountedWorkspaceIds: ReadonlySet<string>;
+  terminalWorkspaceIds: ReadonlySet<string>;
 }
 
-export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, showTerminal, newTabTitle }: Props) => {
+export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, showTerminal, newTabTitle, mountedWorkspaceIds, terminalWorkspaceIds }: Props) => {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [nodePickerOpen, setNodePickerOpen] = useState(false);
+  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const panelId = useId();
   return (
@@ -50,6 +57,7 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
               showTerminal={showTerminal}
               onClose={() => setMenuOpen(false)}
               onOpenNode={() => setNodePickerOpen(true)}
+              onOpenCanvas={() => setWorkspacePickerOpen(true)}
               onNewWebTab={() => store.newLink(newTabTitle)}
               onNewTerminalTab={() => store.newTerminal()}
             />
@@ -66,6 +74,24 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
               node.id,
               node.displayTitle ?? node.title ?? node.id,
             )}
+          />
+        </Suspense>
+      )}
+      {workspacePickerOpen && (
+        <Suspense fallback={null}>
+          <WorkspaceDockPicker
+            workspaces={workspaces}
+            activeWorkspaceId={activeWorkspaceId}
+            mountedWorkspaceIds={mountedWorkspaceIds}
+            terminalWorkspaceIds={terminalWorkspaceIds}
+            onClose={() => setWorkspacePickerOpen(false)}
+            onSelect={(workspace) => {
+              // Refused = background-mounted: ask the Workbench to tear the
+              // live instance down and open the preview in its place.
+              if (!store.openCanvasPreview(workspace.id, workspace.name)) {
+                requestPreviewEvictOpen({ workspaceId: workspace.id, title: workspace.name });
+              }
+            }}
           />
         </Suspense>
       )}

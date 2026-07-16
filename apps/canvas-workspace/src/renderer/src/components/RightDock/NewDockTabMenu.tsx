@@ -10,11 +10,12 @@ interface Props {
   showTerminal: boolean;
   onClose: () => void;
   onOpenNode: () => void;
+  onOpenCanvas: () => void;
   onNewWebTab: () => void;
   onNewTerminalTab: () => void;
 }
 
-export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOpenNode, onNewWebTab, onNewTerminalTab }: Props) => {
+export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOpenNode, onOpenCanvas, onNewWebTab, onNewTerminalTab }: Props) => {
   const { t } = useI18n();
 
   return (
@@ -43,6 +44,18 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
           >
             <NodeTypeIcon type="file" size={15} />
             {t('rightDock.openNode')}
+          </Button>
+          <Button
+            size="sm"
+            className="right-dock__new-tab-item"
+            role="menuitem"
+            onClick={() => {
+              onClose();
+              onOpenCanvas();
+            }}
+          >
+            <NodeTypeIcon type="frame" size={15} />
+            {t('rightDock.openCanvas')}
           </Button>
           <Button
             size="sm"

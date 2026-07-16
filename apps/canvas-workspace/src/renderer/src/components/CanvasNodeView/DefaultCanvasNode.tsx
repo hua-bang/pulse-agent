@@ -43,6 +43,7 @@ interface DefaultCanvasNodeProps {
   handleNodeClick: (e: MouseEvent) => void;
   handleReference: (e: MouseEvent) => void;
   handleAddToChat: (e: MouseEvent) => void;
+  handleAddToCanvas: (e: MouseEvent) => void;
   handleTitleBlur: (e: FocusEvent<HTMLSpanElement>) => void;
   handleTitleDoubleClick: (e: MouseEvent) => void;
   handleTitleKeyDown: (e: KeyboardEvent<HTMLSpanElement>) => void;
@@ -56,6 +57,7 @@ interface DefaultCanvasNodeProps {
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
+  onAddToCanvas?: (nodeId: string) => void;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
@@ -84,6 +86,7 @@ export const DefaultCanvasNode = ({
   handleNodeClick,
   handleReference,
   handleAddToChat,
+  handleAddToCanvas,
   handleTitleBlur,
   handleTitleDoubleClick,
   handleTitleKeyDown,
@@ -97,6 +100,7 @@ export const DefaultCanvasNode = ({
   onDragStart,
   onReference,
   onAddToChat,
+  onAddToCanvas,
   onAddDomSelectionToChat,
   onSubmitDomReviewComments,
   onSelect,
@@ -205,6 +209,7 @@ export const DefaultCanvasNode = ({
       handlePluginSelectElement={handlePluginSelectElement}
       handleReference={handleReference}
       handleAddToChat={handleAddToChat}
+      handleAddToCanvas={handleAddToCanvas}
       handleTitleBlur={handleTitleBlur}
       handleTitleDoubleClick={handleTitleDoubleClick}
       handleTitleKeyDown={handleTitleKeyDown}
@@ -216,6 +221,7 @@ export const DefaultCanvasNode = ({
       pluginElementPickerActive={pluginElementPickerActive}
       onReference={onReference}
       onAddToChat={onAddToChat}
+      onAddToCanvas={onAddToCanvas}
       onUngroupSelectedGroups={onUngroupSelectedGroups}
       onUpdate={onUpdate}
       readOnly={readOnly}

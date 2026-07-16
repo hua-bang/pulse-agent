@@ -21,7 +21,8 @@
 export type DockPreviewTab =
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
   | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string }
-  | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string };
+  | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string }
+  | { id: string; kind: 'canvas'; title: string; workspaceId: string };
 
 export interface DockTerminalTab {
   id: string;
@@ -50,6 +51,10 @@ export interface DockState {
   nextTerminalOrdinal: number;
   /** Compatibility flag for callers that only need to know whether any terminal exists. */
   terminalOpen: boolean;
+  /** Workspaces currently mounted (live) by the main Workbench — the active
+   *  one plus recency/terminal-kept background canvases. Published by the
+   *  Workbench so the dock never previews a canvas that's already live. */
+  mountedWorkspaceIds: ReadonlySet<string>;
 }
 
 export const CHAT_TAB_ID = 'chat';
@@ -69,6 +74,9 @@ export const artifactTabId = (workspaceId: string, artifactId: string): string =
 
 export const nodeDetailTabId = (workspaceId: string, nodeId: string): string =>
   `node-detail:${encodeURIComponent(workspaceId)}:${encodeURIComponent(nodeId)}`;
+
+export const canvasPreviewTabId = (workspaceId: string): string =>
+  `canvas:${encodeURIComponent(workspaceId)}`;
 
 export const linkTabId = (url: string): string => {
   let hash = 2166136261;
@@ -90,6 +98,7 @@ const INITIAL: DockState = {
   activeTerminalTabId: undefined,
   nextTerminalOrdinal: 1,
   terminalOpen: false,
+  mountedWorkspaceIds: new Set<string>(),
 };
 
 export class DockStore {
@@ -176,6 +185,45 @@ export class DockStore {
     }
     const tab: DockPreviewTab = { id, kind: 'node-detail', title, workspaceId, nodeId };
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+  }
+
+  /** Open a read-only preview of a workspace's canvas as a dock tab. Deduped
+   *  by workspace so re-opening the same canvas re-activates its tab. Returns
+   *  false when refused (the workspace is live in the main Workbench). */
+  openCanvasPreview(workspaceId: string, title: string): boolean {
+    // Never preview a canvas that's already live in the main Workbench.
+    if (this.state.mountedWorkspaceIds.has(workspaceId)) return false;
+    const id = canvasPreviewTabId(workspaceId);
+    const existing = this.state.tabs.find((tab) => tab.id === id);
+    if (existing) {
+      this.commit({
+        tabs: this.state.tabs.map((tab) => (tab.id === id ? { ...tab, title } : tab)),
+        activeTabId: id,
+        expanded: true,
+      });
+      return true;
+    }
+    const tab: DockPreviewTab = { id, kind: 'canvas', title, workspaceId };
+    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+    return true;
+  }
+
+  /** Publish the set of workspaces the main Workbench has mounted (live). Any
+   *  read-only canvas preview whose workspace just became mounted is closed, so
+   *  the same canvas is never both live and previewed at once. */
+  setMountedWorkspaces(ids: Iterable<string>): void {
+    const next = new Set(ids);
+    const cur = this.state.mountedWorkspaceIds;
+    if (next.size === cur.size && [...next].every((id) => cur.has(id))) return;
+    this.commit({ mountedWorkspaceIds: next });
+    for (const tab of this.state.tabs) {
+      if (tab.kind === 'canvas' && next.has(tab.workspaceId)) this.close(tab.id);
+    }
+  }
+
+  /** Whether a read-only canvas preview may be opened for this workspace. */
+  canPreviewCanvas(workspaceId: string): boolean {
+    return !this.state.mountedWorkspaceIds.has(workspaceId);
   }
 
   openLink(url: string): void {

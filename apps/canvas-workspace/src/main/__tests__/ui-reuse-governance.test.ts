@@ -93,7 +93,12 @@ const RATCHET_BASELINE: Record<string, number> = {
   // actions all reuse the blessed control, so the decrease is exact.
   // 326→324 (link actions): LinkDrawer's Open Externally and Add to Canvas
   // actions moved beside the address bar and onto the blessed ui/Button.
-  rawButtonTags: 324,
+  // 324→325 (deliberate): CanvasNodeView/NodeButtons AddToCanvasButton joins
+  // its sibling node-header buttons (Reference/AddToChat/...), which are all
+  // raw <button>s sharing the node-header CSS family — adopting ui/Button for
+  // one sibling would fork the family's styling; the whole family migrates
+  // together in the ui-reuse burndown.
+  rawButtonTags: 325,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
