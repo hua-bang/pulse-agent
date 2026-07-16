@@ -153,6 +153,7 @@ interface RightDockProps {
   chatTabEnabled: boolean;
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
+  onSelectWorkspace: (workspaceId: string) => void;
 }
 
 interface TabIndicatorState {
@@ -161,7 +162,7 @@ interface TabIndicatorState {
   visible: boolean;
 }
 
-export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
+export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage, onSelectWorkspace }: RightDockProps) => {
   const { store, setChatHost, setTerminalHost } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
@@ -426,6 +427,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               activeWorkspaceId={activeWorkspaceId}
               showTerminal={chatTabEnabled}
               newTabTitle={t('rightDock.newTabTitle')}
+              onSelectWorkspace={onSelectWorkspace}
             />
           </Suspense>
         )}

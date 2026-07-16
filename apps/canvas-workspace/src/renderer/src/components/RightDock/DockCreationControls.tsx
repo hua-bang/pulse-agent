@@ -11,6 +11,9 @@ const NewDockTabMenu = lazy(() => (
 const NodeDockPicker = lazy(() => (
   import('./NodeDockPicker').then((module) => ({ default: module.NodeDockPicker }))
 ));
+const WorkspaceDockPicker = lazy(() => (
+  import('./WorkspaceDockPicker').then((module) => ({ default: module.WorkspaceDockPicker }))
+));
 
 interface Props {
   store: DockStore;
@@ -18,12 +21,14 @@ interface Props {
   activeWorkspaceId: string;
   showTerminal: boolean;
   newTabTitle: string;
+  onSelectWorkspace: (workspaceId: string) => void;
 }
 
-export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, showTerminal, newTabTitle }: Props) => {
+export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, showTerminal, newTabTitle, onSelectWorkspace }: Props) => {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [nodePickerOpen, setNodePickerOpen] = useState(false);
+  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const panelId = useId();
   return (
@@ -50,6 +55,7 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
               showTerminal={showTerminal}
               onClose={() => setMenuOpen(false)}
               onOpenNode={() => setNodePickerOpen(true)}
+              onOpenCanvas={() => setWorkspacePickerOpen(true)}
               onNewWebTab={() => store.newLink(newTabTitle)}
               onNewTerminalTab={() => store.newTerminal()}
             />
@@ -66,6 +72,16 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
               node.id,
               node.displayTitle ?? node.title ?? node.id,
             )}
+          />
+        </Suspense>
+      )}
+      {workspacePickerOpen && (
+        <Suspense fallback={null}>
+          <WorkspaceDockPicker
+            workspaces={workspaces}
+            activeWorkspaceId={activeWorkspaceId}
+            onClose={() => setWorkspacePickerOpen(false)}
+            onSelect={onSelectWorkspace}
           />
         </Suspense>
       )}
