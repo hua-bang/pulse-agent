@@ -17,6 +17,7 @@ import { pickFaviconUrl } from "../IframeNodeBody/utils";
 import { normalizeUrl } from "../IframeNodeBody/utils";
 import { ExternalLinkIcon, PlusIcon } from "../icons";
 import { Button, TextField } from "../ui";
+import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../shared/experimental-features";
 import "./index.css";
 
 /** Google blocks account sign-in inside embedded browsers (WebView policy);
@@ -53,6 +54,11 @@ export const LinkTabView = ({
   const { t } = useI18n();
   const addressFormRef = useRef<HTMLFormElement>(null);
   const [address, setAddress] = useState(url);
+  // When Pulse Canvas is itself the default browser, the "open in system
+  // browser" escape hatch loops back into this app — so steer the user to
+  // disable the flag instead. Snapshotted at preload; a reload picks up changes.
+  const isDefaultBrowser =
+    window.canvasWorkspace.pluginFlags?.[EXPERIMENTAL_FLAG_DEFAULT_BROWSER] === true;
   const browser = useEmbeddedBrowser({
     className: 'link-drawer__webview',
     onFaviconChange: (favicons) => {
@@ -144,17 +150,28 @@ export const LinkTabView = ({
       </header>
       {isGoogleAuthUrl(browser.currentUrl) && (
         <div className="link-drawer__auth-notice" role="status">
-          <span className="link-drawer__auth-notice-text">
-            {t('linkDrawer.googleAuthUnsupported')}
-          </span>
-          <Button
-            variant="secondary"
-            size="xs"
-            onClick={handleOpenInBrowser}
-            disabled={!browser.currentUrl}
-          >
-            {t('linkDrawer.googleAuthOpenExternal')}
-          </Button>
+          {isDefaultBrowser ? (
+            // "Open in system browser" would hand the URL back to the default
+            // handler — which is Pulse Canvas — and loop straight back into
+            // this blocked page. Point the user at the real fix instead.
+            <span className="link-drawer__auth-notice-text">
+              {t('linkDrawer.googleAuthDefaultBrowser')}
+            </span>
+          ) : (
+            <>
+              <span className="link-drawer__auth-notice-text">
+                {t('linkDrawer.googleAuthUnsupported')}
+              </span>
+              <Button
+                variant="secondary"
+                size="xs"
+                onClick={handleOpenInBrowser}
+                disabled={!browser.currentUrl}
+              >
+                {t('linkDrawer.googleAuthOpenExternal')}
+              </Button>
+            </>
+          )}
         </div>
       )}
       <div ref={browser.hostRef} className="link-drawer__webview-host" />
