@@ -30,7 +30,10 @@ import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
 import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
 import { setupCanvasPluginsConfigIpc } from "../settings/canvas-plugins-ipc";
 import { getExperimentalFlagSync, setupExperimentalIpc } from "../settings/experimental-ipc";
-import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from "../../shared/experimental-features";
+import {
+  EXPERIMENTAL_FLAG_AGENT_TEAMS,
+  EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
+} from "../../shared/experimental-features";
 import { setupWebviewRegistryIpc } from "../webview/registry";
 import { startWebviewDiscardMonitor } from "../webview/discard-monitor";
 import { setupHtmlGeneratorIpc } from "../generation/ipc";
@@ -92,10 +95,17 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   registerPulseCanvasSchemesAsPrivileged();
   setupLinkPolicy();
 
-  // Single-instance lock + OS deep-link listeners MUST be wired before
-  // whenReady. A second instance (e.g. an OS link activation on Win/Linux)
-  // hands its URL to the running process and quits; stop bootstrapping here.
-  if (!setupDeepLinkEarly(writeLog)) return;
+  // Default-browser support (single-instance lock + OS deep-link listeners)
+  // is opt-in behind the "Set as default browser" experimental flag, and MUST
+  // be wired before whenReady. Only when the flag is on do we acquire the
+  // single-instance lock (a second instance — e.g. an OS link activation on
+  // Win/Linux — hands its URL to the running process and quits). With the flag
+  // OFF (the default, and every normal/dev launch) we install NOTHING here, so
+  // there is no lock and no behaviour change. Takes effect on the next app
+  // start after the flag is toggled.
+  if (getExperimentalFlagSync(EXPERIMENTAL_FLAG_DEFAULT_BROWSER)) {
+    if (!setupDeepLinkEarly(writeLog)) return;
+  }
 
   app.whenReady().then(async () => {
     startupMark("whenReady");
