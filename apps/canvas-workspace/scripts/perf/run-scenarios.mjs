@@ -421,17 +421,22 @@ const ptyStreamScenario = async (cdp) => {
 const typingScenario = async (cdp, repeatCount = 1) => {
   const editorSel = '.canvas-node--file .ProseMirror';
   const previewSel = '.canvas-node--file .file-preview--editable';
-  await waitFor(
+  // Editable file nodes open in the Tiptap editor by default now (#801), so
+  // the editor mounts straight away and the read-only Markdown preview is not
+  // rendered. Older behavior mounted a preview that had to be clicked to cross
+  // the editor boundary — click it if it's still there, but don't require it,
+  // then wait for the editor either way.
+  const hasPreview = await waitFor(
     () => evaluate(cdp, `!!document.querySelector(${JSON.stringify(previewSel)})`),
-    10_000,
-  ).catch(() => { throw new Error(`file preview did not mount (${previewSel})`); });
-  await evaluate(cdp, `document.querySelector(${JSON.stringify(previewSel)})?.click()`);
-  // File nodes now mount a lightweight Markdown preview. The first click
-  // crosses the editor boundary; wait for Tiptap before measuring typing.
+    2_000,
+  ).then(() => true).catch(() => false);
+  if (hasPreview) {
+    await evaluate(cdp, `document.querySelector(${JSON.stringify(previewSel)})?.click()`);
+  }
   await waitFor(
     () => evaluate(cdp, `!!document.querySelector(${JSON.stringify(editorSel)})`),
     10_000,
-  ).catch(() => { throw new Error(`file editor did not mount after preview activation (${editorSel})`); });
+  ).catch(() => { throw new Error(`file editor did not mount (${editorSel})`); });
   const point = await hittablePointIn(cdp, editorSel);
   if (!point) throw new Error(`no unobstructed editor found (${editorSel}) — file nodes missing or fully covered`);
   await waitForCalmFrames(cdp);
