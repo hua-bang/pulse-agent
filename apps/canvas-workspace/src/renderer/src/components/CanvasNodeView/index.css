@@ -289,7 +289,12 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 65%, transparent);
 }
 
-.canvas-node--readonly {
+/* In-flow layout for a readonly node INSIDE a reference card's body — the
+ * embedded source preview fills the card instead of using canvas x/y/w/h.
+ * Scoped under .node-body--reference on purpose: a readonly node on a canvas
+ * surface (the right-dock canvas preview renders every node readonly) must
+ * keep its absolute position + translate from the inline wrapper style. */
+.node-body--reference .canvas-node--readonly {
   position: relative;
   transform: none !important;
   width: 100% !important;
@@ -297,7 +302,7 @@
   box-shadow: none;
 }
 
-.canvas-node--readonly:hover {
+.node-body--reference .canvas-node--readonly:hover {
   box-shadow: none;
 }
 
@@ -305,7 +310,7 @@
   cursor: default;
 }
 
-.canvas-node--readonly .node-focus {
+.node-body--reference .canvas-node--readonly .node-focus {
   opacity: 1;
 }
 
