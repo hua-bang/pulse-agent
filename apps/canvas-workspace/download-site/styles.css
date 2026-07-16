@@ -1,8 +1,11 @@
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --bg: #f8f8f7;
   --bg-canvas: #eeecea;
   --surface: #ffffff;
+  --surface-translucent: rgba(255, 255, 255, 0.82);
+  --surface-subtle: rgba(255, 255, 255, 0.76);
+  --surface-muted: rgba(255, 255, 255, 0.46);
   --surface-hover: #fafaf9;
   --border: #e8e5e0;
   --border-light: #f0eeea;
@@ -16,6 +19,10 @@
   --accent-file: #d9730d;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);
   --shadow-float: 0 24px 72px rgba(35, 131, 226, 0.15), 0 12px 34px rgba(55, 53, 47, 0.08);
+  --page-background:
+    radial-gradient(circle at 77% 34%, rgba(35, 131, 226, 0.12), transparent 31%),
+    radial-gradient(circle at 88% 86%, rgba(154, 200, 255, 0.2), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 52%, #eef6ff 100%);
   font-family:
     Inter,
     ui-sans-serif,
@@ -40,10 +47,7 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 77% 34%, rgba(35, 131, 226, 0.12), transparent 31%),
-    radial-gradient(circle at 88% 86%, rgba(154, 200, 255, 0.2), transparent 28%),
-    linear-gradient(180deg, #ffffff 0%, #f8fafc 52%, #eef6ff 100%);
+  background: var(--page-background);
   color: var(--text);
 }
 
@@ -200,7 +204,7 @@ h1 span {
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.84);
+  background: var(--surface-translucent);
   color: var(--text-secondary);
   font-size: 13px;
   box-shadow: var(--shadow-card);
@@ -296,7 +300,7 @@ h1 span {
   padding: 12px 14px;
   border: 1px solid rgba(35, 131, 226, 0.14);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--surface-subtle);
   color: var(--text);
   text-decoration: none;
   box-shadow: var(--shadow-card);
@@ -314,7 +318,7 @@ h1 span {
 
 .download-option--disabled {
   color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.46);
+  background: var(--surface-muted);
   box-shadow: none;
 }
 
@@ -387,7 +391,7 @@ h1 span {
   padding: 22px 24px;
   border: 1px solid rgba(35, 131, 226, 0.16);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.76);
+  background: var(--surface-subtle);
   box-shadow: var(--shadow-card);
 }
 
@@ -521,7 +525,7 @@ h1 span {
   padding: 7px 12px;
   border: 1px solid rgba(35, 131, 226, 0.18);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--surface-subtle);
   color: var(--accent);
   cursor: pointer;
   font-size: 13px;
@@ -558,8 +562,53 @@ h1 span {
   padding: 24px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--surface-translucent);
   box-shadow: var(--shadow-card);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111827;
+    --bg-canvas: #182233;
+    --surface: #172033;
+    --surface-translucent: rgba(23, 32, 51, 0.88);
+    --surface-subtle: rgba(23, 32, 51, 0.76);
+    --surface-muted: rgba(23, 32, 51, 0.5);
+    --surface-hover: #202c42;
+    --border: #334155;
+    --border-light: rgba(148, 163, 184, 0.18);
+    --text: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --accent: #60a5fa;
+    --accent-dark: #93c5fd;
+    --accent-light: rgba(96, 165, 250, 0.13);
+    --accent-border: rgba(96, 165, 250, 0.42);
+    --accent-file: #fb923c;
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.28), 0 8px 24px rgba(0, 0, 0, 0.2);
+    --shadow-float: 0 24px 72px rgba(0, 0, 0, 0.36), 0 12px 34px rgba(0, 0, 0, 0.24);
+    --page-background:
+      radial-gradient(circle at 77% 34%, rgba(37, 99, 235, 0.24), transparent 34%),
+      radial-gradient(circle at 88% 86%, rgba(14, 116, 144, 0.16), transparent 30%),
+      linear-gradient(180deg, #0b1120 0%, #111827 52%, #0f172a 100%);
+  }
+
+  .app-icon {
+    border-color: rgba(148, 163, 184, 0.24);
+  }
+
+  .primary-action {
+    border-color: #60a5fa;
+    background: #2563eb;
+  }
+
+  .primary-action:hover {
+    background: #1d4ed8;
+  }
+
+  .product-preview img {
+    opacity: 0.9;
+  }
 }
 
 .section-kicker {
