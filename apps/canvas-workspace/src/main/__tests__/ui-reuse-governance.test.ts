@@ -91,7 +91,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // card link, and drawer/page detail actions moved onto ui/Button. Ten raw
   // declarations were removed; the new NodeFilters/CardShell and AI review
   // actions all reuse the blessed control, so the decrease is exact.
-  rawButtonTags: 326,
+  // 326→324 (link actions): LinkDrawer's Open Externally and Add to Canvas
+  // actions moved beside the address bar and onto the blessed ui/Button.
+  rawButtonTags: 324,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -320,7 +322,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1881→1879: the duplicate ChatHeader brand mark and its two color literals were removed.
   // 1879→1878: the duplicate Nodes/Graph chat dock and its literal surface color were removed.
   // 1874→1871: release gate cleanup reused the existing accent token and exact-value shadow tokens.
-  hardcodedColorLiterals: 1871,
+  // 1871→1863 (link actions): deleting the bespoke LinkDrawer action chrome
+  // removed eight hardcoded color literals in favor of shared ui/Button styles.
+  hardcodedColorLiterals: 1863,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
