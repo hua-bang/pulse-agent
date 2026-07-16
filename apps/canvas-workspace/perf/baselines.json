@@ -169,8 +169,8 @@
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 600,
-      "confidence": "high", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 512KB(原 495)", "asOf": "2026-07-13",
-      "gate": { "kind": "ratchet", "baseline": 512, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "512KB 基础上叠加默认浏览器(deep-link/单实例/协议注册)+ Sec-CH-UA 一致性改写等主进程新代码,CI 实测 530KB;仍远低于 target 550", "asOf": "2026-07-16",
+      "gate": { "kind": "ratchet", "baseline": 530, "tolerancePct": 3, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
