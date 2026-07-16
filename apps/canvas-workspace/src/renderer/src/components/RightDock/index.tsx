@@ -15,7 +15,7 @@ import {
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { AppLogoIcon } from '../icons';
-import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
+import { CHAT_TAB_ID, DockStore, canvasPreviewTabId, isTerminalTabId, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
@@ -30,12 +30,8 @@ const DEFAULT_WIDTH = 480;
 const MIN_WIDTH = 320;
 const MAX_VIEWPORT_RATIO = 0.95;
 const RESIZING_CLASS = 'right-dock-resizing';
-const ArtifactTabView = lazy(() =>
-  import('../artifacts/ArtifactTabView').then((module) => ({ default: module.ArtifactTabView })),
-);
-const LinkTabView = lazy(() =>
-  import('../LinkDrawer').then((module) => ({ default: module.LinkTabView })),
-);
+const ArtifactTabView = lazy(() => import('../artifacts/ArtifactTabView').then((m) => ({ default: m.ArtifactTabView })));
+const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m.LinkTabView })));
 const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
 const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
 const DockCreationControls = lazy(() =>
@@ -167,6 +163,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
 
   useLayoutEffect(() => {
     store.setActiveWorkspace(activeWorkspaceId);
+    // Never mount the same canvas twice: if the now-active workspace has a
+    // read-only preview tab open, close it (main canvas is the live one).
+    store.close(canvasPreviewTabId(activeWorkspaceId));
   }, [activeWorkspaceId, store]);
 
   useEffect(() => {

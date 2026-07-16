@@ -51,6 +51,18 @@ describe('DockStore', () => {
     });
   });
 
+  it('closes a canvas preview by its id (used when its workspace becomes active)', () => {
+    const dock = new DockStore();
+    dock.openCanvasPreview('ws1', 'Research');
+    dock.openCanvasPreview('ws2', 'Product');
+    dock.close(canvasPreviewTabId('ws1'));
+    const { tabs } = dock.getSnapshot();
+    expect(tabs.map((tab) => tab.id)).toEqual([canvasPreviewTabId('ws2')]);
+    // Closing a workspace with no preview tab is a safe no-op.
+    dock.close(canvasPreviewTabId('nope'));
+    expect(dock.getSnapshot().tabs).toHaveLength(1);
+  });
+
   it('re-activates instead of duplicating an already-open artifact', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');

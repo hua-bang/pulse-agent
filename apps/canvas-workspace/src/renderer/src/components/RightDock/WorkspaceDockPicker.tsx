@@ -43,6 +43,9 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, onSelect, o
   }, [index]);
 
   const choose = (workspace: WorkspaceEntry) => {
+    // The active workspace is already live (read-write) in the main canvas;
+    // previewing it too would mount the same canvas twice. Block it here.
+    if (workspace.id === activeWorkspaceId) return;
     onSelect(workspace);
     onClose();
   };
@@ -70,30 +73,35 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, onSelect, o
       <div id="dock-workspace-picker-results" ref={listRef} className="node-dock-picker__results" role="listbox">
         {results.length === 0 ? (
           <div className="node-dock-picker__empty">{t('rightDock.noWorkspacesFound')}</div>
-        ) : results.map((workspace, wsIndex) => (
-          <Button
-            key={workspace.id}
-            id={`dock-workspace-option-${wsIndex}`}
-            variant="secondary"
-            size="sm"
-            role="option"
-            aria-selected={wsIndex === index}
-            data-ws-index={wsIndex}
-            className={`node-dock-picker__item${wsIndex === index ? ' node-dock-picker__item--active' : ''}`}
-            onMouseEnter={() => setIndex(wsIndex)}
-            onFocus={() => setIndex(wsIndex)}
-            onClick={() => choose(workspace)}
-          >
-            <NodeTypeIcon type="frame" size={16} />
-            <span className="node-dock-picker__copy">
-              <strong>{workspace.name}</strong>
-              {workspace.rootFolder && <small>{workspace.rootFolder}</small>}
-            </span>
-            {workspace.id === activeWorkspaceId && (
-              <span className="node-dock-picker__tags">{t('rightDock.currentWorkspace')}</span>
-            )}
-          </Button>
-        ))}
+        ) : results.map((workspace, wsIndex) => {
+          const isActive = workspace.id === activeWorkspaceId;
+          return (
+            <Button
+              key={workspace.id}
+              id={`dock-workspace-option-${wsIndex}`}
+              variant="secondary"
+              size="sm"
+              role="option"
+              aria-selected={wsIndex === index}
+              aria-disabled={isActive}
+              disabled={isActive}
+              data-ws-index={wsIndex}
+              className={`node-dock-picker__item${wsIndex === index ? ' node-dock-picker__item--active' : ''}${isActive ? ' node-dock-picker__item--disabled' : ''}`}
+              onMouseEnter={() => setIndex(wsIndex)}
+              onFocus={() => setIndex(wsIndex)}
+              onClick={() => choose(workspace)}
+            >
+              <NodeTypeIcon type="frame" size={16} />
+              <span className="node-dock-picker__copy">
+                <strong>{workspace.name}</strong>
+                {workspace.rootFolder && <small>{workspace.rootFolder}</small>}
+              </span>
+              {isActive && (
+                <span className="node-dock-picker__tags">{t('rightDock.canvasOpenInMain')}</span>
+              )}
+            </Button>
+          );
+        })}
       </div>
     </Modal>
   );
