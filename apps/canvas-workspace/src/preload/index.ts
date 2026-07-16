@@ -5,6 +5,7 @@ import { createAgentTeamsApi } from "./bridge/agent-teams";
 import { createAppInfoApi } from "./bridge/app-info";
 import { createArtifactsApi } from "./bridge/artifacts";
 import { createCodexSessionsApi } from "./bridge/codex-sessions";
+import { createDefaultBrowserApi } from "./bridge/default-browser";
 import { createFileApi } from "./bridge/file";
 import { readPluginFlags } from "./bridge/flags";
 import { createLogSender, installRendererErrorLogging } from "./bridge/logging";
@@ -56,6 +57,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   iframe: createIframeApi(ipcRenderer),
   shell: createShellApi(ipcRenderer),
   link: createLinkApi(ipcRenderer),
+  defaultBrowser: createDefaultBrowserApi(ipcRenderer),
   llm: createLlmApi(ipcRenderer),
   promptProfile: createPromptProfileApi(ipcRenderer),
   model: createModelApi(ipcRenderer),

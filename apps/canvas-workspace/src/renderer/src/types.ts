@@ -7,6 +7,7 @@ export type * from './types/artifacts';
 export type * from './types/canvas';
 export type * from './types/channel-config';
 export type * from './types/codex-sessions';
+export type * from './types/default-browser';
 export type * from './types/experimental';
 export type * from './types/files';
 export type * from './types/iframe';

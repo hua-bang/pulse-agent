@@ -19,6 +19,7 @@ import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
+import { useConsumePendingLinks } from '../../hooks/useConsumePendingLinks';
 import './index.css';
 import './terminal-tab.css';
 
@@ -173,6 +174,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
   useEffect(() => {
     return window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
   }, [store]);
+
+  // Cold start: drain URLs the OS queued before this dock could subscribe.
+  useConsumePendingLinks((url) => store.openLink(url));
 
   useEffect(() => {
     if (chatTabEnabled) return;

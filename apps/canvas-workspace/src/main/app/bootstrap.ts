@@ -68,6 +68,8 @@ import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
+import { setupDeepLinkEarly } from "../default-browser/deep-link";
+import { setupDefaultBrowserIpc } from "../default-browser/ipc";
 
 export interface BootstrapOptions {
   mainDir: string;
@@ -89,6 +91,11 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
 
   registerPulseCanvasSchemesAsPrivileged();
   setupLinkPolicy();
+
+  // Single-instance lock + OS deep-link listeners MUST be wired before
+  // whenReady. A second instance (e.g. an OS link activation on Win/Linux)
+  // hands its URL to the running process and quits; stop bootstrapping here.
+  if (!setupDeepLinkEarly(writeLog)) return;
 
   app.whenReady().then(async () => {
     startupMark("whenReady");
@@ -149,6 +156,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupHtmlGeneratorIpc();
     setupArtifactIpc();
     setupShellIpc();
+    setupDefaultBrowserIpc(writeLog);
     setupUpdateIpc();
     setupWebpageReaderIpc();
     setupWorkspaceNodeIpc();
