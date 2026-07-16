@@ -169,7 +169,7 @@
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 600,
-      "confidence": "high", "basis": "512KB 基础上叠加默认浏览器(deep-link/单实例/协议注册)+ Sec-CH-UA 一致性改写等主进程新代码,CI 实测 530KB;仍远低于 target 550", "asOf": "2026-07-16",
+      "confidence": "high", "basis": "512KB 基础上叠加默认浏览器(deep-link/单实例/协议注册)等主进程新代码;仍远低于 target 550", "asOf": "2026-07-16",
       "gate": { "kind": "ratchet", "baseline": 530, "tolerancePct": 3, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
