@@ -49,7 +49,8 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
   const [snapshot, setSnapshot] = useState<Snapshot>(EMPTY_SNAPSHOT);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
-  const didAutoFitRef = useRef(false);
+  // Once the user pans/zooms the preview, stop auto-framing it.
+  const userMovedRef = useRef(false);
 
   const {
     transform, setTransform, settledScale, moving,
@@ -85,7 +86,7 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
 
   // Initial load (and reset when the previewed workspace changes).
   useEffect(() => {
-    didAutoFitRef.current = false;
+    userMovedRef.current = false;
     setLoaded(false);
     void load();
   }, [load]);
@@ -128,26 +129,23 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
     fitAllNodes(visibleNodes);
   }, [fitAllNodes, visibleNodes]);
 
-  // Frame the whole canvas into the dock pane once, on first load. The pane is
-  // much narrower/shorter than the main window, so replaying the workspace's
-  // saved viewport would only show a sliver — fit-to-content is the sensible
-  // opening view. Fit on the first ResizeObserver tick that reports a real
-  // container size (the pane may still be mounting/animating on open), then
-  // stop; guarded so live re-loads never yank the user's own pan/zoom.
+  // Frame the whole canvas into the dock pane (fit-to-content). The pane is a
+  // different shape from the main window and — crucially — animates its width
+  // when the dock expands on open, so a single fit would land at a transient
+  // size. Re-fit on every ResizeObserver tick until the user takes control
+  // (pans/zooms), which also reframes on dock/window resizes and live reloads.
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || !loaded || didAutoFitRef.current || visibleNodes.length === 0) return;
-    const tryFit = () => {
-      if (didAutoFitRef.current) return;
+    if (!el || !loaded || visibleNodes.length === 0) return;
+    const refit = () => {
+      if (userMovedRef.current) return;
       const rect = el.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) return;
-      didAutoFitRef.current = true;
       fitAllNodes(visibleNodes);
-      observer.disconnect();
     };
-    const observer = new ResizeObserver(tryFit);
+    const observer = new ResizeObserver(refit);
     observer.observe(el);
-    tryFit();
+    refit();
     return () => observer.disconnect();
   }, [loaded, visibleNodes, fitAllNodes]);
 
@@ -173,8 +171,8 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
         <div
           ref={containerRef}
           className="canvas-preview"
-          onWheel={handleWheel}
-          onMouseDown={handleMouseDown}
+          onWheel={(e) => { userMovedRef.current = true; handleWheel(e); }}
+          onMouseDown={(e) => { userMovedRef.current = true; handleMouseDown(e); }}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
