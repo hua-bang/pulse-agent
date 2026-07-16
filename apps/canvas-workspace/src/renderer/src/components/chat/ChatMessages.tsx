@@ -248,6 +248,16 @@ export const ChatMessages = ({
       return;
     }
 
+    // Tab mention chip → activate the referenced right-dock tab. Broadcast so
+    // the dock (which owns tab state) can switch to it; harmless where no dock
+    // is mounted (full-screen chat).
+    const tabChip = target.closest<HTMLElement>('[data-action="tab-jump"]');
+    if (tabChip) {
+      const tabId = tabChip.dataset.tabId;
+      if (tabId) window.dispatchEvent(new CustomEvent('canvas:activate-dock-tab', { detail: { tabId } }));
+      return;
+    }
+
     // File/folder mention chip → open the referenced project path in VS Code.
     const fileChip = target.closest('[data-file-path]') as HTMLElement | null;
     const filePath = fileChip?.dataset.filePath;

@@ -130,16 +130,19 @@ export function withCollectedTabs(
   return { ...(ctx ?? {}), tabs: [...(ctx?.tabs ?? []), ...tabs] };
 }
 
-/** Render a tab marker as a React chip in the message transcript. */
+/** Render a tab marker as a React chip in the message transcript. Clickable
+ *  (data-action="tab-jump") so it activates the referenced dock tab. */
 export function renderTabMentionNode(rawLabel: string, key: number): ReactNode {
   const tabRef = parseTabMention(rawLabel);
   const nodeType = tabMentionIconType(tabRef?.kind);
+  const clickable = Boolean(tabRef?.id);
   return createElement(
     'span',
     {
       key,
-      className: 'chat-mention-chip chat-mention-chip--tab',
+      className: `chat-mention-chip chat-mention-chip--tab${clickable ? ' chat-mention-chip--clickable' : ''}`,
       'data-node-type': nodeType,
+      ...(clickable ? { 'data-action': 'tab-jump', 'data-tab-id': tabRef!.id } : {}),
     } as Record<string, unknown>,
     createElement(
       'span',
@@ -150,10 +153,14 @@ export function renderTabMentionNode(rawLabel: string, key: number): ReactNode {
   );
 }
 
-/** Render a tab marker as an HTML chip in markdown-rendered content. */
+/** Render a tab marker as an HTML chip in markdown-rendered content. Clickable
+ *  (data-action="tab-jump") so it activates the referenced dock tab. */
 export function renderTabMentionHtml(rawLabel: string): string {
   const tabRef = parseTabMention(rawLabel);
   const nodeType = tabMentionIconType(tabRef?.kind);
   const label = tabRef?.label ?? 'Tab';
-  return `<span class="chat-mention-chip chat-mention-chip--tab" data-node-type="${escapeHtml(nodeType)}"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(label)}</span></span>`;
+  const jumpAttrs = tabRef?.id
+    ? ` chat-mention-chip--clickable" data-action="tab-jump" data-tab-id="${escapeHtml(tabRef.id)}`
+    : '';
+  return `<span class="chat-mention-chip chat-mention-chip--tab${jumpAttrs}" data-node-type="${escapeHtml(nodeType)}"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(label)}</span></span>`;
 }

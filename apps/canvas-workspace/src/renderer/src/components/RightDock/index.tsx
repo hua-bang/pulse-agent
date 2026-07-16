@@ -168,7 +168,14 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
   }, [activeWorkspaceId, store]);
 
   useEffect(() => {
-    return window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
+    const offOpen = window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
+    // Tab mention chips in chat broadcast this to jump to a specific dock tab.
+    const onJump = (e: Event) => {
+      const tabId = (e as CustomEvent<{ tabId?: string }>).detail?.tabId;
+      if (tabId) store.activate(tabId);
+    };
+    window.addEventListener('canvas:activate-dock-tab', onJump);
+    return () => { offOpen?.(); window.removeEventListener('canvas:activate-dock-tab', onJump); };
   }, [store]);
 
   // Cold start: drain URLs the OS queued before this dock could subscribe.
