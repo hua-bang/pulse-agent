@@ -419,10 +419,11 @@
 }
 
 .right-dock__link-action {
+  --right-dock-link-action-shadow: 0 6px 14px rgba(35, 131, 226, 0.18);
   appearance: none;
   border: 1px solid rgba(55, 53, 47, 0.12);
   height: 30px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font: inherit;
   font-size: 12px;
   font-weight: 650;
@@ -456,10 +457,10 @@
 .right-dock__link-action--primary {
   width: 30px;
   padding: 0;
-  border-color: #2383e2;
-  background: #2383e2;
+  border-color: var(--accent);
+  background: var(--accent);
   color: #fff;
-  box-shadow: 0 6px 14px rgba(35, 131, 226, 0.18);
+  box-shadow: var(--right-dock-link-action-shadow);
 }
 
 .right-dock__link-action--primary:hover:not(:disabled) {

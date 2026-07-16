@@ -22,8 +22,7 @@ import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import './index.css';
 import './terminal-tab.css';
 
-export { CHAT_TAB_ID, TERMINAL_TAB_ID, isTerminalTabId } from './dock-store';
-export type { DockTerminalTab, DockTerminalWorkspaceState } from './dock-store';
+export { CHAT_TAB_ID, TERMINAL_TAB_ID, isTerminalTabId, type DockTerminalTab, type DockTerminalWorkspaceState } from './dock-store';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const DEFAULT_WIDTH = 480;
@@ -421,12 +420,8 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
         </div>
         {activeLinkTab && (
           <Suspense fallback={null}>
-            <DockCreationControls
-              mode="link"
-              url={activeLinkTab.url}
-              activeWorkspaceId={activeWorkspaceId}
-              onRequestClose={() => store.close(activeLinkTab.id)}
-            />
+            <DockCreationControls mode="link" url={activeLinkTab.url} activeWorkspaceId={activeWorkspaceId}
+              onRequestClose={() => store.close(activeLinkTab.id)} />
           </Suspense>
         )}
         {visible && (

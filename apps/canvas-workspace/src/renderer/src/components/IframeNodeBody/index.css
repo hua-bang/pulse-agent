@@ -623,6 +623,7 @@
 /* Constant on-screen size via reverse-scale; nudged above centre so the
  * title/hostname chip below sits under it and the pair reads centred. */
 .canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-tile {
+  --iframe-overview-tile-shadow: 0 2px 8px rgba(55, 53, 47, 0.1);
   position: absolute;
   left: 50%;
   top: 42%;
@@ -634,7 +635,7 @@
   border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: 0 2px 8px rgba(55, 53, 47, 0.1);
+  box-shadow: var(--iframe-overview-tile-shadow);
   color: var(--text-secondary);
   transform: translate(-50%, -50%) scale(calc(1 / clamp(0.06, var(--canvas-scale, 1), 0.35)));
 }
@@ -651,6 +652,7 @@
  * real width; the size compensation clamps at 0.14 so the label holds its
  * on-screen size through mid-overview and only then shrinks with the card. */
 .canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-label {
+  --iframe-overview-label-shadow: 0 calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35)) calc(4px / clamp(0.14, var(--canvas-scale, 1), 0.35)) rgba(55, 53, 47, 0.08);
   position: absolute;
   left: 50%;
   top: 42%;
@@ -668,8 +670,7 @@
    * sub-pixel hairline at overview zoom. */
   border: solid var(--border);
   border-width: calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35));
-  box-shadow: 0 calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35))
-    calc(4px / clamp(0.14, var(--canvas-scale, 1), 0.35)) rgba(55, 53, 47, 0.08);
+  box-shadow: var(--iframe-overview-label-shadow);
   text-align: center;
 }
 
