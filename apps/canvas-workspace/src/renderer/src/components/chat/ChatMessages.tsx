@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { BotAvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
-import type { PendingClarification, ToolCallStatus } from './types';
+import type { MentionableChatTab, PendingClarification, ToolCallStatus } from './types';
 import { buildAnchorElementId } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
@@ -29,6 +29,8 @@ interface ChatMessagesProps {
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
   onNodeFocus?: (nodeId: string) => void;
+  mentionTabs?: MentionableChatTab[];
+  onTabFocus?: (tabId: string) => void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
@@ -141,6 +143,8 @@ export const ChatMessages = ({
   onToggleToolExpand,
   onAddImageToCanvas,
   onNodeFocus,
+  mentionTabs,
+  onTabFocus,
   onEditUserMessage,
   onRegenerate,
   onSessionJump,
@@ -233,14 +237,20 @@ export const ChatMessages = ({
       return;
     }
 
-    // Mention chip → focus the canvas node it references.
+    // Mention chip → activate its referenced tab first, falling back to canvas node focus.
     const chip = target.closest('.chat-mention-chip--clickable') as HTMLElement | null;
-    if (!chip || !onNodeFocus) return;
+    if (!chip) return;
+    const tabId = chip.dataset.tabId;
+    if (tabId && onTabFocus) {
+      onTabFocus(tabId);
+      return;
+    }
+    if (!onNodeFocus) return;
     const nodeId = chip.dataset.nodeId;
     if (nodeId) {
       onNodeFocus(nodeId);
     }
-  }, [loading, onNodeFocus, onSessionJump, t]);
+  }, [loading, onNodeFocus, onSessionJump, onTabFocus, t]);
 
   const hasStreamingAssistantMessage = loading
     && messages.length > 0
@@ -269,6 +279,7 @@ export const ChatMessages = ({
               expandedTools={expandedTools}
               nodes={nodes}
               workspaceId={workspaceId}
+              mentionTabs={mentionTabs}
               onToggleSection={() => onToggleSection(index)}
               onToggleToolExpand={onToggleToolExpand}
               onAddImageToCanvas={onAddImageToCanvas}

@@ -21,6 +21,7 @@ import { createSessionTools } from './sessions';
 import { createPluginNodeTools } from './plugin-nodes';
 import { createHtmlPatchTools } from './html-patch';
 import { createLayoutTools } from './layout-tools';
+import { createTabTools } from './tabs';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -76,6 +77,7 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     // Chat-session history (检索/总结). Inherently cross-workspace (workspaceId
     // is optional), so not wrapped with requireWorkspaceId.
     ...createSessionTools(),
+    ...createTabTools(),
     // Screen / window capture is workspace-independent (it grabs the OS screen,
     // another app window, or this canvas window), so it works in global chat too.
     ...createScreenshotTools(''),
@@ -101,6 +103,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createWebpageTools(workspaceId),
     ...createSkillTools(workspaceId),
     ...createSessionTools(workspaceId),
+    ...createTabTools(),
     ...createHtmlPatchTools(workspaceId),
     ...createPluginNodeTools(workspaceId),
     ...createLayoutTools(workspaceId),

@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardE
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
 import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
-import type { ToolCallStatus } from './types';
+import type { MentionableChatTab, ToolCallStatus } from './types';
 import { renderMdWithMentions } from './utils/mentions';
 import { isImeComposing } from '../../utils/ime';
 import { renderMermaidIn } from './utils/mermaid';
@@ -53,6 +53,7 @@ interface ChatMessageProps {
   expandedTools: Set<number>;
   nodes?: CanvasNode[];
   workspaceId: string;
+  mentionTabs?: MentionableChatTab[];
   onToggleSection: () => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
@@ -84,6 +85,7 @@ export const ChatMessage = ({
   expandedTools,
   nodes,
   workspaceId,
+  mentionTabs,
   onToggleSection,
   onToggleToolExpand,
   onAddImageToCanvas,
@@ -94,15 +96,15 @@ export const ChatMessage = ({
 }: ChatMessageProps) => {
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
-      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming })
+      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, mentionTabs })
       : ''),
-    [message.role, message.content, nodes, isStreaming],
+    [message.role, message.content, nodes, isStreaming, mentionTabs],
   );
   const userHtml = useMemo(
     () => (message.role === 'user'
-      ? renderMdWithMentions(message.content, nodes)
+      ? renderMdWithMentions(message.content, nodes, { mentionTabs })
       : ''),
-    [message.role, message.content, nodes],
+    [message.role, message.content, nodes, mentionTabs],
   );
   // Copy is offered for any settled message (user or assistant) with a body.
   const showCopyToolbar = !isStreaming && !!message.content;

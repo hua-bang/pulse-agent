@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
@@ -84,6 +84,17 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     workspaces,
     dockState.terminalTabsByWorkspace,
   );
+  const mentionTabs = useMemo(() => dockState.tabs.map((tab) => ({
+    id: tab.id,
+    title: tab.title,
+    ...(tab.kind === 'link' ? { url: tab.url } : {}),
+    ...(tab.kind === 'node-detail' ? { workspaceId: tab.workspaceId, nodeId: tab.nodeId } : {}),
+  })), [dockState.tabs]);
+
+  const handleMentionTabFocus = useCallback((tabId: string) => {
+    dock.activate(tabId);
+  }, [dock]);
+
   useEffect(() => { if (referenceDrawerOpen) setReferenceDrawerLoaded(true); }, [referenceDrawerOpen]);
   useEffect(() => {
     for (const node of activeNodes) {
@@ -481,8 +492,10 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   nodes={allNodes[ws.id] || []}
                   selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
                   rootFolder={ws.rootFolder}
+                  mentionTabs={mentionTabs}
                   onClose={dock.collapse}
                   onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
+                  onTabFocus={handleMentionTabFocus}
                   onOpenAppSettings={onOpenAppSettings}
                   onOpenWorkspaceSettings={onOpenWorkspaceSettings}
                   onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
@@ -494,7 +507,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
             ))}
             {knowledgeChatContext.active && (
               <Suspense fallback={null}>
-                <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces} contextNodes={knowledgeChatContext.explicitContext?.nodes} contextTags={knowledgeChatContext.explicitContext?.tags} contextCanvases={knowledgeChatContext.explicitContext?.canvases} composerRequest={knowledgeChatContext.explicitContext?.composerRequest} onComposerRequestHandled={onKnowledgeComposerRequestHandled} onRemoveContext={onRemoveKnowledgeChatContext} onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTurnComplete={dock.notifyChatActivity} />
+                <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces} contextNodes={knowledgeChatContext.explicitContext?.nodes} contextTags={knowledgeChatContext.explicitContext?.tags} contextCanvases={knowledgeChatContext.explicitContext?.canvases} composerRequest={knowledgeChatContext.explicitContext?.composerRequest} mentionTabs={mentionTabs} onComposerRequestHandled={onKnowledgeComposerRequestHandled} onRemoveContext={onRemoveKnowledgeChatContext} onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTabFocus={handleMentionTabFocus} onTurnComplete={dock.notifyChatActivity} />
               </Suspense>
             )}</>,
           chatHost,

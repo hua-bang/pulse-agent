@@ -8,7 +8,7 @@ import type {
 } from '../../types';
 import type { SettingsSection } from '../Settings';
 import { ChatPanelLazy as ChatPanel } from '../chat/lazy';
-import type { AgentScope, ChatComposerRequest } from '../chat/types';
+import type { AgentScope, ChatComposerRequest, MentionableChatTab } from '../chat/types';
 import { useAllWorkspaceNodeList } from '../WorkspaceNodes/useWorkspaceNodes';
 import { buildKnowledgeChatContext } from './knowledgeChatContext';
 
@@ -20,11 +20,13 @@ interface Props {
   contextTags?: AgentContextTagRef[];
   contextCanvases?: AgentContextCanvasRef[];
   composerRequest?: ChatComposerRequest;
+  mentionTabs?: MentionableChatTab[];
   onComposerRequestHandled?: (requestId: string) => void;
   onRemoveContext?: (key: string) => void;
   workspaces: WorkspaceEntry[];
   onClose: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
+  onTabFocus?: (tabId: string) => void;
   onTurnComplete: () => void;
 }
 
@@ -35,11 +37,13 @@ export const KnowledgeChatPortal = ({
   contextTags,
   contextCanvases,
   composerRequest,
+  mentionTabs,
   onComposerRequestHandled,
   onRemoveContext,
   workspaces,
   onClose,
   onOpenAppSettings,
+  onTabFocus,
   onTurnComplete,
 }: Props) => {
   const { nodes, tags } = useAllWorkspaceNodeList(workspaces);
@@ -67,10 +71,12 @@ export const KnowledgeChatPortal = ({
         contextTags={contextTags}
         contextCanvases={contextCanvases}
         composerRequest={composerRequest}
+        mentionTabs={mentionTabs}
         onComposerRequestHandled={onComposerRequestHandled}
         onRemoveContext={onRemoveContext}
         onClose={onClose}
         onOpenAppSettings={onOpenAppSettings}
+        onTabFocus={onTabFocus}
         onTurnComplete={onTurnComplete}
       />
     </div>

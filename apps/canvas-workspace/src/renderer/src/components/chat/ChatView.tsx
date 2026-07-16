@@ -10,7 +10,7 @@ import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
 import { ChatMessages } from './ChatMessages';
-import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
+import type { MentionItem, MentionableChatTab, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
 
 interface ChatViewProps {
   className?: string;
@@ -38,9 +38,11 @@ interface ChatViewProps {
   // Canvas context
   nodes?: CanvasNode[];
   selectedContext?: SelectedContextChip[];
+  mentionTabs?: MentionableChatTab[];
   showContextChips?: boolean;
   onRemoveContext?: (key: string) => void;
   onNodeFocus?: (nodeId: string) => void;
+  onTabFocus?: (tabId: string) => void;
 
   // Quick actions (empty state)
   onQuickAction: (prompt: string, quickAction?: string) => Promise<void> | void;
@@ -110,9 +112,11 @@ export const ChatView = ({
   onAddImageToCanvas,
   nodes,
   selectedContext,
+  mentionTabs,
   showContextChips = true,
   onRemoveContext,
   onNodeFocus,
+  onTabFocus,
   onQuickAction,
   input,
   attachments,
@@ -172,6 +176,8 @@ export const ChatView = ({
           onToggleToolExpand={onToggleToolExpand}
           onAddImageToCanvas={onAddImageToCanvas}
           onNodeFocus={onNodeFocus}
+          mentionTabs={mentionTabs}
+          onTabFocus={onTabFocus}
           onEditUserMessage={onEditUserMessage}
           onRegenerate={onRegenerate}
           onSessionJump={onSessionJump}

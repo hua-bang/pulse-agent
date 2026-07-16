@@ -28,6 +28,15 @@ function keyOf(k: RegistryKey): string {
 }
 
 const registry = new Map<string, number>();
+interface DockTabRegistryEntry {
+  tabId: string;
+  webContentsId: number;
+  title?: string;
+  url?: string;
+  updatedAt: number;
+}
+
+const dockTabRegistry = new Map<string, DockTabRegistryEntry>();
 let welcomePerfRecorded = false;
 
 const recordWelcomeReadyForPerf = (k: RegistryKey): void => {
@@ -48,6 +57,46 @@ function unregister(k: RegistryKey): void {
 
 function lookup(k: RegistryKey): number | undefined {
   return registry.get(keyOf(k));
+}
+
+export function registerDockTabWebview(payload: {
+  tabId: string;
+  webContentsId: number;
+  title?: string;
+  url?: string;
+}): void {
+  dockTabRegistry.set(payload.tabId, {
+    tabId: payload.tabId,
+    webContentsId: payload.webContentsId,
+    title: payload.title,
+    url: payload.url,
+    updatedAt: Date.now(),
+  });
+}
+
+export function unregisterDockTabWebview(tabId: string): void {
+  dockTabRegistry.delete(tabId);
+}
+
+export function getWebContentsForDockTab(tabId: string): ReturnType<typeof allWebContents.fromId> | null {
+  const entry = dockTabRegistry.get(tabId);
+  if (!entry) return null;
+  const wc = allWebContents.fromId(entry.webContentsId);
+  if (!wc || wc.isDestroyed()) {
+    dockTabRegistry.delete(tabId);
+    return null;
+  }
+  return wc;
+}
+
+export function listDockTabWebviews(): Array<Pick<DockTabRegistryEntry, 'tabId' | 'title' | 'url' | 'updatedAt'>> {
+  const live: Array<Pick<DockTabRegistryEntry, 'tabId' | 'title' | 'url' | 'updatedAt'>> = [];
+  for (const entry of dockTabRegistry.values()) {
+    if (getWebContentsForDockTab(entry.tabId)) {
+      live.push({ tabId: entry.tabId, title: entry.title, url: entry.url, updatedAt: entry.updatedAt });
+    }
+  }
+  return live.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 /**
@@ -214,6 +263,32 @@ export async function getNodeRenderedText(
 }
 
 export function setupWebviewRegistryIpc(): void {
+  ipcMain.handle(
+    'dock-tab:register-webview',
+    (_event, payload: { tabId: string; webContentsId: number; title?: string; url?: string }) => {
+      if (!payload?.tabId || typeof payload.webContentsId !== 'number') {
+        console.warn('[webview-registry] rejected dock-tab register:', payload);
+        return { ok: false };
+      }
+      registerDockTabWebview({
+        tabId: payload.tabId,
+        webContentsId: payload.webContentsId,
+        title: payload.title,
+        url: payload.url,
+      });
+      return { ok: true };
+    },
+  );
+
+  ipcMain.handle(
+    'dock-tab:unregister-webview',
+    (_event, payload: { tabId: string }) => {
+      if (!payload?.tabId) return { ok: false };
+      unregisterDockTabWebview(payload.tabId);
+      return { ok: true };
+    },
+  );
+
   ipcMain.handle(
     'iframe:register-webview',
     (_event, payload: { workspaceId: string; nodeId: string; webContentsId: number; ready?: boolean }) => {

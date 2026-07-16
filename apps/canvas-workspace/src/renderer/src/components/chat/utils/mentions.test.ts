@@ -38,6 +38,24 @@ describe('chat mention rendering', () => {
     expect(html).not.toContain('</span>]');
   });
 
+  it('marks mention chips that match a right-dock tab as clickable tab jumps', () => {
+    const html = renderMdWithMentions('@[feat: support VS Code links]', [], {
+      mentionTabs: [{ id: 'link:abc', title: 'feat: support VS Code links', url: 'https://github.com/example/pull/1' }],
+    });
+
+    expect(html).toContain('chat-mention-chip--clickable');
+    expect(html).toContain('data-tab-id="link:abc"');
+  });
+
+  it('marks tag chips that match a right-dock tab as clickable tab jumps', () => {
+    const html = renderMdWithMentions('@[tag:feat: support VS Code links]', [], {
+      mentionTabs: [{ id: 'link:abc', title: 'feat: support VS Code links' }],
+    });
+
+    expect(html).toContain('chat-mention-chip--tag chat-mention-chip--clickable');
+    expect(html).toContain('data-tab-id="link:abc"');
+  });
+
   it('uses a readable title when a selected session is inserted as a reference', () => {
     const chip = createMentionChipElement({
       type: 'session',

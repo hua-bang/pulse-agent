@@ -59,9 +59,11 @@ export const ChatPanel = ({
   composerRequest, onComposerRequestHandled,
   onRemoveContext,
   rootFolder,
+  mentionTabs,
   onClose,
   onResizeStart,
   onNodeFocus,
+  onTabFocus,
   onOpenAppSettings,
   onOpenWorkspaceSettings,
   onRegisterInsertMention,
@@ -465,6 +467,8 @@ export const ChatPanel = ({
       showContextChips={agentScope.kind === 'global'}
       onRemoveContext={onRemoveContext}
       onNodeFocus={onNodeFocus}
+      mentionTabs={mentionTabs}
+      onTabFocus={onTabFocus}
       onQuickAction={handleQuickAction}
       input={input}
       attachments={attachments}

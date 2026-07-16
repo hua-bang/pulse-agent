@@ -1,7 +1,7 @@
 import { createElement, type ReactNode } from 'react';
 import type { AgentContextCanvasRef, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, CanvasNode } from '../../../types';
 import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
-import type { MentionItem, WorkspaceOption } from '../types';
+import type { MentionItem, MentionableChatTab, WorkspaceOption } from '../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MENTION_RE, encodeMentionPart, pipedMentionLabel } from './mentionMarkers';
 import { readDomSelectionDataset, writeDomSelectionDataset } from './domMentionData';
@@ -21,6 +21,25 @@ export interface SessionMentionRef {
   sessionId: string;
   messageIndex?: number;
   label: string;
+}
+
+export interface RenderMentionsOptions extends RenderMarkdownOptions {
+  mentionTabs?: MentionableChatTab[];
+}
+
+function findMentionTab(label: string, tabs: MentionableChatTab[] | undefined): MentionableChatTab | undefined {
+  const trimmed = label.trim();
+  if (!trimmed || !tabs?.length) return undefined;
+  return tabs.find((tab) => tab.title.trim() === trimmed || tab.url?.trim() === trimmed);
+}
+
+function tabMentionAttrs(tab: MentionableChatTab | undefined): string {
+  if (!tab) return '';
+  return ` data-tab-id="${escapeHtml(tab.id)}"`;
+}
+
+function mentionClickableClass(tab: MentionableChatTab | undefined, fallbackClickable = false): string {
+  return tab || fallbackClickable ? ' chat-mention-chip--clickable' : '';
 }
 
 /**
@@ -418,9 +437,10 @@ export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactN
 export function renderMdWithMentions(
   content: string,
   nodes?: CanvasNode[],
-  options?: RenderMarkdownOptions,
+  options?: RenderMentionsOptions,
 ): string {
   const html = renderMarkdown(content, options);
+  const mentionTabs = options?.mentionTabs;
 
   return html.replace(MENTION_RE, (_match, rawLabel: string) => {
     if (rawLabel.startsWith(CANVAS_MENTION_PREFIX)) {
@@ -440,7 +460,8 @@ export function renderMdWithMentions(
 
     if (rawLabel.startsWith(TAG_MENTION_PREFIX)) {
       const tagLabel = rawLabel.slice(TAG_MENTION_PREFIX.length);
-      return `<span class="chat-mention-chip chat-mention-chip--tag" data-node-type="tag"><span class="chat-mention-chip-icon"><span class="chat-mention-chip-hash">#</span></span><span class="chat-mention-chip-label">${escapeHtml(tagLabel)}</span></span>`;
+      const tab = findMentionTab(tagLabel, mentionTabs);
+      return `<span class="chat-mention-chip chat-mention-chip--tag${mentionClickableClass(tab)}" data-node-type="tag"${tabMentionAttrs(tab)}><span class="chat-mention-chip-icon"><span class="chat-mention-chip-hash">#</span></span><span class="chat-mention-chip-label">${escapeHtml(tagLabel)}</span></span>`;
     }
 
     if (rawLabel.startsWith(DOM_MENTION_PREFIX)) {
@@ -461,8 +482,9 @@ export function renderMdWithMentions(
     }
 
     const node = nodes?.find(item => item.title === rawLabel);
+    const tab = findMentionTab(rawLabel, mentionTabs);
     const nodeType = node?.type ?? 'file';
     const nodeId = node?.id ?? '';
-    return `<span class="chat-mention-chip chat-mention-chip--clickable" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(rawLabel)}</span></span>`;
+    return `<span class="chat-mention-chip${mentionClickableClass(tab, true)}" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"${tabMentionAttrs(tab)}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(rawLabel)}</span></span>`;
   });
 }

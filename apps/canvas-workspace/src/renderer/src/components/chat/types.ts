@@ -24,6 +24,14 @@ export interface SelectedContextChip {
   label: string;
 }
 
+export interface MentionableChatTab {
+  id: string;
+  title: string;
+  url?: string;
+  workspaceId?: string;
+  nodeId?: string;
+}
+
 /** One-shot request from another product surface to focus or submit the composer. */
 export interface ChatComposerRequest {
   id: string;
@@ -71,9 +79,12 @@ export interface ChatPanelProps {
   /** Remove a context chip by key. When omitted, chips aren't removable. */
   onRemoveContext?: (key: string) => void;
   rootFolder?: string;
+  /** Right-dock tabs that chat mention chips can jump to when labels match. */
+  mentionTabs?: MentionableChatTab[];
   onClose: () => void;
   onResizeStart?: (e: MouseEvent) => void;
   onNodeFocus?: (nodeId: string) => void;
+  onTabFocus?: (tabId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
   /** Opens per-workspace settings when the chat scope is workspace-bound. */

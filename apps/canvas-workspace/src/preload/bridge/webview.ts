@@ -31,7 +31,16 @@ export const createShellApi = (ipcRenderer: IpcRenderer): ShellApi => ({
 });
 
 export const createLinkApi = (ipcRenderer: IpcRenderer): LinkApi => ({
-  onOpen: (callback) => subscribe<{ url: string }>(ipcRenderer, "link:open", callback)
+  onOpen: (callback) => subscribe<{ url: string }>(ipcRenderer, "link:open", callback),
+  registerTabWebview: (tabId, webContentsId, metadata) =>
+    ipcRenderer.invoke("dock-tab:register-webview", {
+      tabId,
+      webContentsId,
+      title: metadata?.title,
+      url: metadata?.url,
+    }),
+  unregisterTabWebview: (tabId) =>
+    ipcRenderer.invoke("dock-tab:unregister-webview", { tabId })
 });
 
 export const createLlmApi = (ipcRenderer: IpcRenderer): LlmApi => ({

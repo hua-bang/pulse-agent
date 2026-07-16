@@ -22,6 +22,8 @@ import { Button, TextField } from "../ui";
 import "./index.css";
 
 interface LinkTabViewProps {
+  tabId: string;
+  title: string;
   url: string;
   /** Active workspace id, used as the target for "add to current canvas". */
   activeWorkspaceId: string;
@@ -35,7 +37,7 @@ interface LinkTabViewProps {
   onRequestClose: () => void;
 }
 
-export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconChange, onNavigate, onRequestClose }: LinkTabViewProps) => {
+export const LinkTabView = ({ tabId, title, url, activeWorkspaceId, onTitleChange, onFaviconChange, onNavigate, onRequestClose }: LinkTabViewProps) => {
   const { t } = useI18n();
   const addressFormRef = useRef<HTMLFormElement>(null);
   const [address, setAddress] = useState(url);
@@ -49,8 +51,44 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconCh
     onTitleChange,
     url,
   });
+  const titleRef = useRef(title);
+  const currentUrlRef = useRef(url);
+  titleRef.current = title;
+  currentUrlRef.current = browser.currentUrl || url;
 
-  // Keep the editable address synchronized with external tab navigation;
+  useEffect(() => {
+    const webview = browser.webview;
+    if (!webview || !tabId) return;
+
+    const register = () => {
+      try {
+        const webContentsId = webview.getWebContentsId();
+        if (!webContentsId) return;
+        void window.canvasWorkspace.link.registerTabWebview(tabId, webContentsId, {
+          title: titleRef.current,
+          url: currentUrlRef.current,
+        });
+      } catch {
+        // Webview may not be attached yet; the next lifecycle event retries.
+      }
+    };
+
+    const handleRegister = () => register();
+    webview.addEventListener('did-attach', handleRegister);
+    webview.addEventListener('did-stop-loading', handleRegister);
+    webview.addEventListener('did-navigate', handleRegister);
+    webview.addEventListener('did-navigate-in-page', handleRegister);
+    register();
+
+    return () => {
+      webview.removeEventListener('did-attach', handleRegister);
+      webview.removeEventListener('did-stop-loading', handleRegister);
+      webview.removeEventListener('did-navigate', handleRegister);
+      webview.removeEventListener('did-navigate-in-page', handleRegister);
+      void window.canvasWorkspace.link.unregisterTabWebview(tabId);
+    };
+  }, [browser.webview, tabId]);
+
   // EmbeddedBrowser owns the Electron guest lifecycle and in-page updates.
   useEffect(() => {
     setAddress(url);

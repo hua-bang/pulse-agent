@@ -82,6 +82,7 @@ export function useRightDock(): {
   openNodeDetail: (workspaceId: string, nodeId: string, title: string) => void;
   openLink: (url: string) => void;
   newLink: () => void;
+  activate: (id: string) => void;
   openChat: () => void;
   toggleChat: () => void;
   openTerminal: () => void;
@@ -99,6 +100,7 @@ export function useRightDock(): {
       openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
       openLink: (url: string) => store.openLink(url),
       newLink: () => store.newLink(),
+      activate: (id: string) => store.activate(id),
       openChat: () => store.openChat(),
       toggleChat: () => store.toggleChat(),
       openTerminal: () => store.openTerminal(),
@@ -477,6 +479,8 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
             ) : (
               <Suspense fallback={null}>
                 <LinkTabView
+                  tabId={tab.id}
+                  title={tab.title}
                   url={tab.url}
                   activeWorkspaceId={activeWorkspaceId}
                   onTitleChange={(title) => store.setTitle(tab.id, title)}
