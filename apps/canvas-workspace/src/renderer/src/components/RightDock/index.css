@@ -221,7 +221,8 @@
 }
 
 .right-dock__tab:focus-visible,
-.right-dock__tab-close:focus-visible {
+.right-dock__tab-close:focus-visible,
+.right-dock__link-action:focus-visible {
   outline: 2px solid rgba(35, 131, 226, 0.38);
   outline-offset: 2px;
 }
@@ -404,6 +405,75 @@
   animation: right-dock-unread-pulse 1.8s ease-out infinite;
 }
 
+/* Link-preview actions live beside the navigation tabs so the link pane no
+ * longer needs a bottom action row. */
+.right-dock__link-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 0;
+  padding-left: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+.right-dock__link-action {
+  appearance: none;
+  border: 1px solid rgba(55, 53, 47, 0.12);
+  height: 30px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.2s var(--tab-ease);
+}
+
+.right-dock__link-action--ghost {
+  width: 30px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.78);
+  color: #73716c;
+}
+
+.right-dock__link-action--ghost:hover:not(:disabled) {
+  background: rgba(55, 53, 47, 0.06);
+  color: #37352f;
+  transform: translateY(-1px);
+}
+
+.right-dock__link-action--primary {
+  width: 30px;
+  padding: 0;
+  border-color: #2383e2;
+  background: #2383e2;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(35, 131, 226, 0.18);
+}
+
+.right-dock__link-action--primary:hover:not(:disabled) {
+  border-color: #1f76cc;
+  background: #1f76cc;
+  transform: translateY(-1px);
+}
+
+.right-dock__link-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .right-dock__new-link,
 .right-dock__collapse {
   appearance: none;
@@ -476,6 +546,7 @@
   .right-dock__tab-dot,
   .right-dock__tab-icon,
   .right-dock__tab-close,
+  .right-dock__link-action,
   .right-dock__collapse {
     transition: none;
   }

@@ -15,7 +15,7 @@ import {
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { AppLogoIcon } from '../icons';
-import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
+import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockPreviewTab, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
@@ -201,6 +201,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     ? null
     : state.activeTabId;
   const terminalPaneActive = state.terminalTabs.some((tab) => tab.id === activePaneId);
+  const activeLinkTab = state.tabs.find(
+    (tab): tab is Extract<DockPreviewTab, { kind: 'link' }> => tab.id === activePaneId && tab.kind === 'link',
+  );
 
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
 
@@ -416,6 +419,16 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
             );
           })}
         </div>
+        {activeLinkTab && (
+          <Suspense fallback={null}>
+            <DockCreationControls
+              mode="link"
+              url={activeLinkTab.url}
+              activeWorkspaceId={activeWorkspaceId}
+              onRequestClose={() => store.close(activeLinkTab.id)}
+            />
+          </Suspense>
+        )}
         {visible && (
           <Suspense fallback={null}>
             <DockCreationControls
@@ -478,11 +491,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               <Suspense fallback={null}>
                 <LinkTabView
                   url={tab.url}
-                  activeWorkspaceId={activeWorkspaceId}
                   onTitleChange={(title) => store.setTitle(tab.id, title)}
                   onFaviconChange={(faviconUrl) => store.setFavicon(tab.id, faviconUrl)}
                   onNavigate={(url) => store.navigateLink(tab.id, url)}
-                  onRequestClose={() => store.close(tab.id)}
                 />
               </Suspense>
             )}
