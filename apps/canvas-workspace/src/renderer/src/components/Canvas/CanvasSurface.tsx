@@ -132,6 +132,8 @@ interface CanvasSurfaceProps {
   focusedNodeIds?: Set<string>;
   focusContextNodeIds?: Set<string>;
   focusModeEnabled?: boolean;
+  /** Non-interactive render for the read-only dock preview (default false). */
+  readOnly?: boolean;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: React.MouseEvent,
@@ -217,6 +219,7 @@ export const CanvasSurface = ({
   focusedNodeIds,
   focusContextNodeIds,
   focusModeEnabled = false,
+  readOnly = false,
   onDragStart,
   onResizeStart,
   onUpdate,
@@ -291,6 +294,7 @@ export const CanvasSurface = ({
       onUngroupSelectedGroups={onUngroupSelectedGroups}
       isFullscreen={fullscreenNodeId === node.id}
       onToggleFullscreen={onToggleFullscreen}
+      readOnly={readOnly}
       renderMode={renderMode}
     />
     );

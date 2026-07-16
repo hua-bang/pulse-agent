@@ -8,7 +8,7 @@ import './node-dock-picker.css';
 interface Props {
   workspaces: WorkspaceEntry[];
   activeWorkspaceId: string;
-  onSelect: (workspaceId: string) => void;
+  onSelect: (workspace: WorkspaceEntry) => void;
   onClose: () => void;
 }
 
@@ -43,7 +43,7 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, onSelect, o
   }, [index]);
 
   const choose = (workspace: WorkspaceEntry) => {
-    onSelect(workspace.id);
+    onSelect(workspace);
     onClose();
   };
 

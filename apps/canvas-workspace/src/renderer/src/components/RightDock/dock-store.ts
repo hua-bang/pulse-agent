@@ -21,7 +21,8 @@
 export type DockPreviewTab =
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
   | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string }
-  | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string };
+  | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string }
+  | { id: string; kind: 'canvas'; title: string; workspaceId: string };
 
 export interface DockTerminalTab {
   id: string;
@@ -69,6 +70,9 @@ export const artifactTabId = (workspaceId: string, artifactId: string): string =
 
 export const nodeDetailTabId = (workspaceId: string, nodeId: string): string =>
   `node-detail:${encodeURIComponent(workspaceId)}:${encodeURIComponent(nodeId)}`;
+
+export const canvasPreviewTabId = (workspaceId: string): string =>
+  `canvas:${encodeURIComponent(workspaceId)}`;
 
 export const linkTabId = (url: string): string => {
   let hash = 2166136261;
@@ -175,6 +179,23 @@ export class DockStore {
       return;
     }
     const tab: DockPreviewTab = { id, kind: 'node-detail', title, workspaceId, nodeId };
+    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+  }
+
+  /** Open a read-only preview of a workspace's canvas as a dock tab. Deduped
+   *  by workspace so re-opening the same canvas re-activates its tab. */
+  openCanvasPreview(workspaceId: string, title: string): void {
+    const id = canvasPreviewTabId(workspaceId);
+    const existing = this.state.tabs.find((tab) => tab.id === id);
+    if (existing) {
+      this.commit({
+        tabs: this.state.tabs.map((tab) => (tab.id === id ? { ...tab, title } : tab)),
+        activeTabId: id,
+        expanded: true,
+      });
+      return;
+    }
+    const tab: DockPreviewTab = { id, kind: 'canvas', title, workspaceId };
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
   }
 

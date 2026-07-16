@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, linkTabId, nodeDetailTabId, terminalTabId } from '../dock-store';
+import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, canvasPreviewTabId, linkTabId, nodeDetailTabId, terminalTabId } from '../dock-store';
 
 describe('DockStore', () => {
   it('starts collapsed on the pinned chat tab with no previews', () => {
@@ -26,6 +26,29 @@ describe('DockStore', () => {
     expect(tabs[0]).toMatchObject({ kind: 'artifact', workspaceId: 'ws1', artifactId: 'a1' });
     expect(activeTabId).toBe(artifactTabId('ws1', 'a1'));
     expect(expanded).toBe(true);
+  });
+
+  it('opening a canvas preview expands the dock and activates its new tab', () => {
+    const dock = new DockStore();
+    dock.openCanvasPreview('ws1', 'Research');
+    const { tabs, activeTabId, expanded } = dock.getSnapshot();
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]).toMatchObject({ kind: 'canvas', workspaceId: 'ws1', title: 'Research' });
+    expect(activeTabId).toBe(canvasPreviewTabId('ws1'));
+    expect(expanded).toBe(true);
+  });
+
+  it('re-activates and re-titles instead of duplicating an open canvas preview', () => {
+    const dock = new DockStore();
+    dock.openCanvasPreview('ws1', 'Research');
+    dock.openCanvasPreview('ws2', 'Product');
+    dock.openCanvasPreview('ws1', 'Research (renamed)');
+    const { tabs, activeTabId } = dock.getSnapshot();
+    expect(tabs).toHaveLength(2);
+    expect(activeTabId).toBe(canvasPreviewTabId('ws1'));
+    expect(tabs.find((tab) => tab.id === canvasPreviewTabId('ws1'))).toMatchObject({
+      title: 'Research (renamed)',
+    });
   });
 
   it('re-activates instead of duplicating an already-open artifact', () => {

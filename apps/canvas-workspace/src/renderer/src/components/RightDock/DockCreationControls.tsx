@@ -21,10 +21,9 @@ interface Props {
   activeWorkspaceId: string;
   showTerminal: boolean;
   newTabTitle: string;
-  onSelectWorkspace: (workspaceId: string) => void;
 }
 
-export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, showTerminal, newTabTitle, onSelectWorkspace }: Props) => {
+export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, showTerminal, newTabTitle }: Props) => {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [nodePickerOpen, setNodePickerOpen] = useState(false);
@@ -81,7 +80,7 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
             workspaces={workspaces}
             activeWorkspaceId={activeWorkspaceId}
             onClose={() => setWorkspacePickerOpen(false)}
-            onSelect={onSelectWorkspace}
+            onSelect={(workspace) => store.openCanvasPreview(workspace.id, workspace.name)}
           />
         </Suspense>
       )}

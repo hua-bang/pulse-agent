@@ -36,9 +36,8 @@ const ArtifactTabView = lazy(() =>
 const LinkTabView = lazy(() =>
   import('../LinkDrawer').then((module) => ({ default: module.LinkTabView })),
 );
-const NodeDetailDockTab = lazy(() =>
-  import('./NodeDetailDockTab').then((module) => ({ default: module.NodeDetailDockTab })),
-);
+const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
+const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
 const DockCreationControls = lazy(() =>
   import('./DockCreationControls').then((module) => ({ default: module.DockCreationControls })),
 );
@@ -153,7 +152,6 @@ interface RightDockProps {
   chatTabEnabled: boolean;
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
-  onSelectWorkspace: (workspaceId: string) => void;
 }
 
 interface TabIndicatorState {
@@ -162,7 +160,7 @@ interface TabIndicatorState {
   visible: boolean;
 }
 
-export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage, onSelectWorkspace }: RightDockProps) => {
+export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
   const { store, setChatHost, setTerminalHost } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
@@ -427,7 +425,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               activeWorkspaceId={activeWorkspaceId}
               showTerminal={chatTabEnabled}
               newTabTitle={t('rightDock.newTabTitle')}
-              onSelectWorkspace={onSelectWorkspace}
             />
           </Suspense>
         )}
@@ -477,6 +474,10 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
                     store.close(tab.id);
                   }}
                 />
+              </Suspense>
+            ) : tab.kind === 'canvas' ? (
+              <Suspense fallback={null}>
+                <CanvasPreview workspaceId={tab.workspaceId} canvasName={tab.title} rootFolder={workspaces.find((ws) => ws.id === tab.workspaceId)?.rootFolder} />
               </Suspense>
             ) : (
               <Suspense fallback={null}>
