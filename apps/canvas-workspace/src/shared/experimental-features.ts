@@ -52,6 +52,7 @@ export const EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL = 'webview-page-control';
 export const EXPERIMENTAL_FLAG_DYNAMIC_APP = 'dynamic-app';
 export const EXPERIMENTAL_FLAG_CHANNELS = 'chat-channels';
 export const EXPERIMENTAL_FLAG_AGENT_TEAMS = 'agent-teams';
+export const EXPERIMENTAL_FLAG_DEFAULT_BROWSER = 'default-browser';
 
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
   {
@@ -101,6 +102,13 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     label: 'Agent Teams',
     description:
       'Shows the Agent Team canvas entry for experimental multi-agent planning and execution. Existing Agent Team frames can still be opened from saved canvases.',
+    defaultEnabled: false,
+  },
+  {
+    id: EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
+    label: 'Set as default browser (not recommended)',
+    description:
+      'Registers Pulse Canvas as your system handler for http/https links, so links opened anywhere on your computer open in an in-app browser tab instead of your real browser. NOT RECOMMENDED: Pulse Canvas is not a full web browser — many sites (logins, banking, anything sending X-Frame-Options / CSP frame-ancestors) will not load in-app, and there are no bookmarks, extensions, profiles, or password autofill. Enabling this also turns on a single-instance lock (a second launch focuses the existing window instead of opening a new one), and your OS may still require you to confirm the switch in System Settings. Only takes effect in a packaged build; leave off unless you specifically want links captured into the canvas. Turning it off unregisters the handler.',
     defaultEnabled: false,
   },
 ];

@@ -106,12 +106,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // ui-reuse-burndown.md.
   // 40→39 (Nodes interaction rebuild): the bespoke Nodes search input moved
   // onto ui/TextField inside the consolidated filter toolbar.
-  // 39→40 (default-browser toggle): DefaultBrowserSection's on/off switch is a
-  // single <input type="checkbox"> styled as a slider — the same hand-rolled
-  // switch pattern ExperimentalSection already uses (there is no blessed
-  // ui/Switch to reuse). Deliberate; the input is the only raw tag in the new
-  // section and all of its CSS is token-based.
-  rawInputTags: 40,
+  rawInputTags: 39,
   // raw <textarea> tags in .tsx — falls as ui/TextField(multiline) absorbs
   // them. Held at the pre-extension 13: ui/TextField's own <textarea> (+1)
   // is offset by PromptSettings' custom-prompt field adopting TextField (-1).

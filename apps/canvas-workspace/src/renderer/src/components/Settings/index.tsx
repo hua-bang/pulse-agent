@@ -20,7 +20,6 @@ import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
 import { AgentSection } from './AgentSection';
 import { BuiltInToolsSection } from './BuiltInToolsSection';
-import { DefaultBrowserSection } from './DefaultBrowserSection';
 import { ExperimentalSection } from './ExperimentalSection';
 import { LanguageSection } from './LanguageSection';
 import { UpdateSection } from './UpdateSection';
@@ -30,7 +29,7 @@ import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'plugins' | 'default-browser' | 'experimental' | 'updates' | 'language';
+export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'plugins' | 'experimental' | 'updates' | 'language';
 
 const GLOBAL_SCOPE = { level: 'global' } as const;
 
@@ -83,12 +82,6 @@ const SECTIONS: SectionDef[] = [
     labelKey: 'settings.plugins.label',
     descriptionKey: 'settings.plugins.description',
     titleKey: 'settings.plugins.title',
-  },
-  {
-    id: 'default-browser',
-    labelKey: 'settings.defaultBrowser.label',
-    descriptionKey: 'settings.defaultBrowser.description',
-    titleKey: 'settings.defaultBrowser.title',
   },
   {
     id: 'experimental',
@@ -195,7 +188,6 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
               <PluginsManager />
             </div>
           )}
-          {activeSection === 'default-browser' && <DefaultBrowserSection />}
           {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}
           {activeSection === 'updates' && <UpdateSection />}
           {activeSection === 'language' && <LanguageSection />}

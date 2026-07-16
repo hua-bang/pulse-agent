@@ -156,7 +156,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupHtmlGeneratorIpc();
     setupArtifactIpc();
     setupShellIpc();
-    setupDefaultBrowserIpc(writeLog);
+    setupDefaultBrowserIpc();
     setupUpdateIpc();
     setupWebpageReaderIpc();
     setupWorkspaceNodeIpc();

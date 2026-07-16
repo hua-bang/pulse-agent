@@ -17,9 +17,11 @@ import { dirname, join } from 'path';
 import {
   EXPERIMENTAL_FEATURES,
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
+  EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
   resolveFeatureValues,
 } from '../../shared/experimental-features';
 import { runInstall } from '../files/skill-installer';
+import { setDefaultBrowser } from '../default-browser/register';
 
 function getPath(): string {
   const envPath = process.env.PULSE_CANVAS_EXPERIMENTAL_FEATURES?.trim();
@@ -114,6 +116,20 @@ export function setupExperimentalIpc(): void {
         const wasEnabled = resolveFeatureValues(overrides)[payload.id] === true;
         overrides[payload.id] = !!payload.enabled;
         await writeOverrides(overrides);
+
+        // Default-browser is a live OS registration, not a load-time gate:
+        // apply it immediately on toggle (the OS may still prompt the user to
+        // confirm the switch in System Settings).
+        if (payload.id === EXPERIMENTAL_FLAG_DEFAULT_BROWSER) {
+          try {
+            const status = setDefaultBrowser(!!payload.enabled);
+            console.log(
+              `[experimental] default-browser ${payload.enabled ? 'register' : 'unregister'} requested (isDefault=${status.isDefault})`,
+            );
+          } catch (err) {
+            console.warn('[experimental] default-browser registration failed', err);
+          }
+        }
 
         // When Agent Teams is turned on (off→on), install the latest canvas
         // skill + CLI in the background. Experimental/dev-only: skill files
