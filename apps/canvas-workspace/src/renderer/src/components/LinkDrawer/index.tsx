@@ -16,7 +16,7 @@ import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationBu
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
 import { normalizeUrl } from "../IframeNodeBody/utils";
 import { ExternalLinkIcon, PlusIcon } from "../icons";
-import { TextField } from "../ui";
+import { Button, TextField } from "../ui";
 import "./index.css";
 
 interface LinkTabViewProps {
@@ -107,25 +107,28 @@ export const LinkTabView = ({
           />
         </form>
         <div className="link-drawer__actions">
-          <button
-            type="button"
-            className="link-drawer__action link-drawer__action--ghost"
+          <Button
+            variant="icon"
+            size="xs"
+            className="link-drawer__action"
             aria-label={t('linkDrawer.openInBrowser')}
             title={t('linkDrawer.openInBrowser')}
             onClick={handleOpenInBrowser}
+            disabled={!browser.currentUrl}
           >
-            <ExternalLinkIcon size={14} />
-          </button>
-          <button
-            type="button"
-            className="link-drawer__action link-drawer__action--primary"
+            <ExternalLinkIcon />
+          </Button>
+          <Button
+            variant="icon"
+            size="xs"
+            className="link-drawer__action"
             aria-label={t('linkDrawer.addToCanvas')}
             onClick={handleAddToCanvas}
             disabled={!activeWorkspaceId || !browser.currentUrl}
             title={activeWorkspaceId ? t('linkDrawer.addToCanvas') : t('linkDrawer.noActiveCanvas')}
           >
-            <PlusIcon size={13} />
-          </button>
+            <PlusIcon size={12} strokeWidth={1.2} />
+          </Button>
         </div>
       </header>
       <div ref={browser.hostRef} className="link-drawer__webview-host" />
