@@ -49,7 +49,7 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
   const [snapshot, setSnapshot] = useState<Snapshot>(EMPTY_SNAPSHOT);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
-  const appliedInitialTransformRef = useRef(false);
+  const didAutoFitRef = useRef(false);
 
   const {
     transform, setTransform, settledScale, moving,
@@ -85,18 +85,10 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
 
   // Initial load (and reset when the previewed workspace changes).
   useEffect(() => {
-    appliedInitialTransformRef.current = false;
+    didAutoFitRef.current = false;
     setLoaded(false);
     void load();
   }, [load]);
-
-  // Adopt the workspace's saved viewport once, on first successful load, so
-  // the preview opens framed the way the workspace was last left.
-  useEffect(() => {
-    if (!loaded || appliedInitialTransformRef.current) return;
-    appliedInitialTransformRef.current = true;
-    setTransform(snapshot.transform);
-  }, [loaded, snapshot.transform, setTransform]);
 
   // Keep the preview live: re-load when the previewed workspace is written to
   // (agent/CLI, or edits in the main canvas). The store diff only carries ids,
@@ -135,6 +127,29 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
   const handleFitAll = useCallback(() => {
     fitAllNodes(visibleNodes);
   }, [fitAllNodes, visibleNodes]);
+
+  // Frame the whole canvas into the dock pane once, on first load. The pane is
+  // much narrower/shorter than the main window, so replaying the workspace's
+  // saved viewport would only show a sliver — fit-to-content is the sensible
+  // opening view. Fit on the first ResizeObserver tick that reports a real
+  // container size (the pane may still be mounting/animating on open), then
+  // stop; guarded so live re-loads never yank the user's own pan/zoom.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !loaded || didAutoFitRef.current || visibleNodes.length === 0) return;
+    const tryFit = () => {
+      if (didAutoFitRef.current) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return;
+      didAutoFitRef.current = true;
+      fitAllNodes(visibleNodes);
+      observer.disconnect();
+    };
+    const observer = new ResizeObserver(tryFit);
+    observer.observe(el);
+    tryFit();
+    return () => observer.disconnect();
+  }, [loaded, visibleNodes, fitAllNodes]);
 
   if (!loaded) {
     return (
