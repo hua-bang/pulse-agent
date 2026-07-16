@@ -20,6 +20,7 @@ import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useConsumePendingLinks } from '../../hooks/useConsumePendingLinks';
+import { useDockAgentBridge } from './useDockAgentBridge';
 import './index.css';
 import './terminal-tab.css';
 
@@ -34,9 +35,7 @@ const ArtifactTabView = lazy(() => import('../artifacts/ArtifactTabView').then((
 const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m.LinkTabView })));
 const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
 const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
-const DockCreationControls = lazy(() =>
-  import('./DockCreationControls').then((module) => ({ default: module.DockCreationControls })),
-);
+const DockCreationControls = lazy(() => import('./DockCreationControls').then((m) => ({ default: m.DockCreationControls })));
 
 interface RightDockContextValue {
   store: DockStore;
@@ -168,15 +167,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
   }, [activeWorkspaceId, store]);
 
   useEffect(() => {
-    const offOpen = window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
-    // Tab mention chips in chat broadcast this to jump to a specific dock tab.
-    const onJump = (e: Event) => {
-      const tabId = (e as CustomEvent<{ tabId?: string }>).detail?.tabId;
-      if (tabId) store.activate(tabId);
-    };
-    window.addEventListener('canvas:activate-dock-tab', onJump);
-    return () => { offOpen?.(); window.removeEventListener('canvas:activate-dock-tab', onJump); };
+    return window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
   }, [store]);
+  useDockAgentBridge(store, state, activeWorkspaceId);
 
   // Cold start: drain URLs the OS queued before this dock could subscribe.
   useConsumePendingLinks((url) => store.openLink(url));

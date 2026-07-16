@@ -65,6 +65,7 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     canvas_ask_user: nodeTools.canvas_ask_user,
     canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
     canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
+    canvas_list_tabs: requireWorkspaceId(tabTools.canvas_list_tabs),
     canvas_read_tab: requireWorkspaceId(tabTools.canvas_read_tab),
     canvas_read_layout: requireWorkspaceId(layoutTools.canvas_read_layout),
     canvas_search_nodes: requireWorkspaceId(searchTools.canvas_search_nodes),

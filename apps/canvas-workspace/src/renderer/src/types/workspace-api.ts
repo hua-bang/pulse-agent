@@ -20,6 +20,7 @@ import type {
 import type { ChannelConfigApi } from './channel-config';
 import type { CodexSessionsApi } from './codex-sessions';
 import type { DefaultBrowserApi } from './default-browser';
+import type { DockApi } from './dock';
 import type { DialogApi, FileApi } from './files';
 import type { ExperimentalApi } from './experimental';
 import type { IframeApi } from './iframe';
@@ -181,5 +182,6 @@ export interface CanvasWorkspaceApi {
   link: LinkApi;
   defaultBrowser: DefaultBrowserApi;
   web: WebApi;
+  dock: DockApi;
   plugin: PluginBridge;
 }
