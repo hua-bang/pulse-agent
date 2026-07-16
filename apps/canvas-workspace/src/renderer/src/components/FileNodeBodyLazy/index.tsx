@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { CanvasNode, FileNodeData } from '../../types';
 import { dispatchOpenNode, parseNodeLinkHref } from '../../utils/openNodeBridge';
 import { useRightDock } from '../RightDock';
@@ -71,9 +71,14 @@ export const MarkdownPreview = ({ content }: { content: string }) => {
 };
 
 export const FileNodeBodyLazy = (props: Props) => {
-  const [editorLoaded, setEditorLoaded] = useState(false);
+  const [editorLoaded, setEditorLoaded] = useState(() => !props.readOnly);
   const { openLink } = useRightDock();
   const content = (props.node.data as FileNodeData).content ?? '';
+
+  useEffect(() => {
+    if (!props.readOnly) setEditorLoaded(true);
+  }, [props.readOnly]);
+
   const activateEditor = useCallback(() => {
     if (!props.readOnly) setEditorLoaded(true);
   }, [props.readOnly]);
