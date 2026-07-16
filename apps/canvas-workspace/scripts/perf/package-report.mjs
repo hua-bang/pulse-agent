@@ -49,6 +49,17 @@ try {
 const localeNames = existsSync(electronResourcesPath)
   ? readdirSync(electronResourcesPath).filter((name) => name.endsWith('.lproj'))
   : [];
+let codeSignatureValid = false;
+let codeSignatureError = null;
+try {
+  execFileSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
+    encoding: 'utf-8',
+    stdio: 'pipe',
+  });
+  codeSignatureValid = true;
+} catch (error) {
+  codeSignatureError = error instanceof Error ? error.message : String(error);
+}
 const report = {
   generatedAt: new Date().toISOString(),
   commit,
@@ -62,6 +73,10 @@ const report = {
     electronLocaleCount: localeNames.length,
   },
   localeNames,
+  codeSignature: {
+    valid: codeSignatureValid,
+    error: codeSignatureError,
+  },
 };
 report.gates = evaluatePackageGates(
   report.metrics,
@@ -71,6 +86,7 @@ report.gates = evaluatePackageGates(
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, JSON.stringify(report, null, 2));
 console.log(`[perf:package] DMG ${report.metrics.dmgMB} MB · app ${report.metrics.appUnpackedMiB} MiB · ASAR ${report.metrics.asarMiB} MiB · unpacked ${report.metrics.nativeUnpackedMiB} MiB · locales ${localeNames.length}`);
+console.log(`[perf:package] ${codeSignatureValid ? 'PASS' : 'FAIL'} code signature: deep strict verification`);
 for (const gate of report.gates) {
   console.log(
     `[perf:package] ${gate.pass ? 'PASS' : 'FAIL'} ${gate.metric}: ${gate.value}`
@@ -78,4 +94,4 @@ for (const gate of report.gates) {
   );
 }
 console.log('[perf:package] report: perf/out/package-report.json');
-if (report.gates.some((gate) => !gate.pass)) process.exitCode = 1;
+if (!codeSignatureValid || report.gates.some((gate) => !gate.pass)) process.exitCode = 1;
