@@ -20,6 +20,7 @@ import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useConsumePendingLinks } from '../../hooks/useConsumePendingLinks';
+import { useDockAgentBridge } from './useDockAgentBridge';
 import './index.css';
 import './terminal-tab.css';
 
@@ -34,9 +35,7 @@ const ArtifactTabView = lazy(() => import('../artifacts/ArtifactTabView').then((
 const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m.LinkTabView })));
 const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
 const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
-const DockCreationControls = lazy(() =>
-  import('./DockCreationControls').then((module) => ({ default: module.DockCreationControls })),
-);
+const DockCreationControls = lazy(() => import('./DockCreationControls').then((m) => ({ default: m.DockCreationControls })));
 
 interface RightDockContextValue {
   store: DockStore;
@@ -170,6 +169,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
   useEffect(() => {
     return window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
   }, [store]);
+  useDockAgentBridge(store, state, activeWorkspaceId);
 
   // Cold start: drain URLs the OS queued before this dock could subscribe.
   useConsumePendingLinks((url) => store.openLink(url));

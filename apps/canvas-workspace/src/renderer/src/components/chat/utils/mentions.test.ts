@@ -132,9 +132,12 @@ describe('chat mention rendering', () => {
     ]);
   });
 
-  it('renders a tab marker back into a styled chip in the transcript', () => {
+  it('renders a tab marker back into a clickable jump chip in the transcript', () => {
     const html = renderMdWithMentions(`@[tab:${encodeURIComponent('link:ab:cd')}|link|${encodeURIComponent('Docs')}] 说说这个`);
     expect(html).toContain('chat-mention-chip--tab');
+    expect(html).toContain('chat-mention-chip--clickable');
+    expect(html).toContain('data-action="tab-jump"');
+    expect(html).toContain('data-tab-id="link:ab:cd"');
     expect(html).toContain('Docs');
     expect(html).toContain('说说这个');
   });

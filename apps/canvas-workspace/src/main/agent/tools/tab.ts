@@ -5,6 +5,7 @@ import { activateWorkspaceWindow } from '../../app/window-manager';
 import { readDOM, readA11y, captureScreenshot } from '../../webview/reader';
 import { getCurrentVersionContent } from '../../artifacts/store';
 import { getSessionScrollback } from '../../terminal/scrollback';
+import { getDockTabs } from '../../dock/tab-store';
 import type { CanvasTool } from './types';
 
 const READINESS_HINT =
@@ -26,6 +27,22 @@ const READINESS_HINT =
  */
 export function createTabTools(workspaceId: string): Record<string, CanvasTool> {
   return {
+    canvas_list_tabs: {
+      name: 'canvas_list_tabs',
+      defer_loading: true,
+      description:
+        'List the right-dock tabs currently open for this workspace (the browser-like tabs at the top of the dock): ' +
+        'open web pages (link), node detail, artifacts, and workspace terminals. ' +
+        'Returns each tab with the fields to pass to `canvas_read_tab` (or `canvas_read_node` for node-detail). ' +
+        'Use this to discover what the user is looking at without waiting for them to `@`-mention a tab.',
+      inputSchema: z.object({}),
+      execute: async (input) => {
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const tabs = getDockTabs(targetWorkspaceId);
+        return JSON.stringify({ ok: true, count: tabs.length, tabs });
+      },
+    },
+
     canvas_read_tab: {
       name: 'canvas_read_tab',
       defer_loading: true,
