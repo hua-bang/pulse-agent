@@ -71,6 +71,10 @@ import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
+import {
+  installClientHintsConsistency,
+  spoofUserAgentFallback,
+} from "./user-agent";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
 
@@ -111,6 +115,10 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     startupMark("whenReady");
     startLoopDelaySampler(writeLog);
     spoofUserAgentFallback();
+    // Keep the Sec-CH-UA client hints in sync with the spoofed UA version so
+    // embedded pages don't see a Chrome-version mismatch (Google's sign-in
+    // detection keys on it). Must run after whenReady (needs a session).
+    installClientHintsConsistency();
     registerPulseCanvasProtocol(writeLog);
     configureAppChrome(paths.iconPath, writeLog);
     // Must run before the window opens: the default menu's Undo/Redo
@@ -274,22 +282,6 @@ function resolveAppPaths(mainDir: string): AppPaths {
     rendererIndexPath: join(mainDir, "../renderer/index.html"),
     iconPath: iconCandidates.find((p) => p && existsSync(p)),
   };
-}
-
-function spoofUserAgentFallback(): void {
-  // Notion (and a handful of other services) reject embedded <webview>s on two
-  // grounds: the UA string contains the Electron token, and the Chrome major
-  // version bundled with Electron 30 is now below their supported floor. Strip
-  // the Electron / product-name tokens and rewrite the Chrome version to a
-  // recent stable release so each webContents looks like current stock Chrome.
-  const SPOOFED_CHROME_MAJOR = "140";
-  app.userAgentFallback = app.userAgentFallback
-    .replace(/\s?Electron\/\S+/g, "")
-    .replace(/\s?PulseCanvas\/\S+/g, "")
-    .replace(
-      /Chrome\/\d+(?:\.\d+){0,3}/g,
-      `Chrome/${SPOOFED_CHROME_MAJOR}.0.0.0`
-    );
 }
 
 function configureAppChrome(
