@@ -135,15 +135,7 @@ interface CanvasSurfaceProps {
   /** Non-interactive render for the read-only dock preview (default false). */
   readOnly?: boolean;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
-  onResizeStart: (
-    e: React.MouseEvent,
-    nodeId: string,
-    width: number,
-    height: number,
-    edge: ResizeEdge,
-    minWidth?: number,
-    minHeight?: number
-  ) => void;
+  onResizeStart: (e: React.MouseEvent, nodeId: string, width: number, height: number, edge: ResizeEdge, minWidth?: number, minHeight?: number) => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>, options?: { history?: boolean }) => void;
   /** Dimension-only update that bypasses undo history. Used by nodes
    *  whose size is derived from their content (e.g. mindmap auto-fits
@@ -159,6 +151,7 @@ interface CanvasSurfaceProps {
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
+  onAddToCanvas?: (nodeId: string) => void;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
@@ -231,6 +224,7 @@ export const CanvasSurface = ({
   onFocus,
   onReference,
   onAddToChat,
+  onAddToCanvas,
   onAddDomSelectionToChat,
   onSubmitDomReviewComments,
   resolveReferenceNode,
@@ -286,6 +280,7 @@ export const CanvasSurface = ({
       onFocus={onFocus}
       onReference={onReference}
       onAddToChat={onAddToChat}
+      onAddToCanvas={onAddToCanvas}
       onAddDomSelectionToChat={onAddDomSelectionToChat}
       onSubmitDomReviewComments={onSubmitDomReviewComments}
       resolveReferenceNode={resolveReferenceNode}

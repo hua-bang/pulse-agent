@@ -6,8 +6,17 @@ import { useCanvasFit } from '../../hooks/useCanvasFit';
 import { useCanvasVisibility } from '../Canvas/hooks/useCanvasVisibility';
 import { useCanvasRenderOrder } from '../Canvas/hooks/useCanvasRenderOrder';
 import { CanvasSurface } from '../Canvas/CanvasSurface';
+// The reused surface pieces (.canvas-transform / .canvas-grid / node chrome
+// positioning) are styled by the Canvas stylesheet. Import it explicitly —
+// relying on the main Canvas having loaded it would be an implicit coupling.
+import '../Canvas/index.css';
 import { Button } from '../ui';
-import { dispatchPreviewNodeAction } from '../../utils/openNodeBridge';
+import {
+  PREVIEW_FOCUS_NODE_EVENT,
+  consumePendingPreviewFocus,
+  dispatchPreviewNodeAction,
+  type OpenNodeDetail,
+} from '../../utils/openNodeBridge';
 import { WorkspaceActiveProvider } from '../../hooks/useWorkspaceActive';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import './canvas-preview.css';
@@ -52,12 +61,18 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
   const [error, setError] = useState(false);
   // Once the user pans/zooms the preview, stop auto-framing it.
   const userMovedRef = useRef(false);
+  // Node the preview was asked to frame (reference "peek at source").
+  const [focusRequest, setFocusRequest] = useState<string | null>(null);
+  // Nodes recently written by an external writer (agent / CLI / main canvas);
+  // rendered with the same purple ring the main canvas uses.
+  const [externallyEditedIds, setExternallyEditedIds] = useState<Set<string>>(EMPTY_STR_SET);
+  const editClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     transform, setTransform, settledScale, moving,
     handleWheel, handleMouseDown, handleMouseMove, handleMouseUp,
   } = useCanvas(true, transformLayerRef);
-  const { fitAllNodes } = useCanvasFit(containerRef, setTransform);
+  const { fitAllNodes, handleFocusNode } = useCanvasFit(containerRef, setTransform);
 
   const load = useCallback(async () => {
     const api = window.canvasWorkspace?.store;
@@ -100,9 +115,39 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
     if (!api?.onExternalUpdate) return;
     void api.watchWorkspace?.(workspaceId);
     return api.onExternalUpdate((event) => {
-      if (event.workspaceId === workspaceId) void load();
+      if (event.workspaceId !== workspaceId) return;
+      void load();
+      // Flash the same "agent edited" ring the main canvas shows, so writes
+      // to the previewed canvas are visible, not just silently reloaded.
+      if (Array.isArray(event.nodeIds) && event.nodeIds.length > 0) {
+        setExternallyEditedIds((prev) => new Set([...prev, ...event.nodeIds]));
+        if (editClearTimerRef.current) clearTimeout(editClearTimerRef.current);
+        editClearTimerRef.current = setTimeout(() => setExternallyEditedIds(EMPTY_STR_SET), 2500);
+      }
     });
   }, [workspaceId, load]);
+
+  useEffect(() => () => {
+    if (editClearTimerRef.current) clearTimeout(editClearTimerRef.current);
+  }, []);
+
+  // Focus requests (reference "peek at source"): consume the pending entry on
+  // first load — the request may predate this mount — and react to live events
+  // while open.
+  useEffect(() => {
+    if (!loaded) return;
+    const pending = consumePendingPreviewFocus(workspaceId);
+    if (pending) setFocusRequest(pending);
+  }, [loaded, workspaceId]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<OpenNodeDetail>).detail;
+      if (detail?.workspaceId === workspaceId && detail.nodeId) setFocusRequest(detail.nodeId);
+    };
+    window.addEventListener(PREVIEW_FOCUS_NODE_EVENT, handler);
+    return () => window.removeEventListener(PREVIEW_FOCUS_NODE_EVENT, handler);
+  }, [workspaceId]);
 
   // React's root wheel listener is passive, so mirror the main canvas and
   // block Chromium's default ctrl/meta+wheel page zoom with a native listener.
@@ -133,32 +178,43 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
   // Reading actions stay available in the read-only preview: route them to
   // the Workbench via the window bridge (chat composer / reference panel of
   // the ACTIVE workspace), carrying the full node so no store read is needed.
-  const dispatchNodeAction = useCallback((action: 'add-to-chat' | 'pin-reference', nodeId: string) => {
+  const dispatchNodeAction = useCallback((action: 'add-to-chat' | 'pin-reference' | 'add-to-canvas', nodeId: string) => {
     const node = visibleNodesById.get(nodeId);
     if (node) dispatchPreviewNodeAction({ action, workspaceId, node });
   }, [visibleNodesById, workspaceId]);
   const handleAddToChat = useCallback((nodeId: string) => dispatchNodeAction('add-to-chat', nodeId), [dispatchNodeAction]);
   const handlePinReference = useCallback((nodeId: string) => dispatchNodeAction('pin-reference', nodeId), [dispatchNodeAction]);
+  const handleAddToCanvas = useCallback((nodeId: string) => dispatchNodeAction('add-to-canvas', nodeId), [dispatchNodeAction]);
 
   // Frame the whole canvas into the dock pane (fit-to-content). The pane is a
   // different shape from the main window and — crucially — animates its width
   // when the dock expands on open, so a single fit would land at a transient
   // size. Re-fit on every ResizeObserver tick until the user takes control
   // (pans/zooms), which also reframes on dock/window resizes and live reloads.
+  // A pending focus request wins over both fit and the user's pan — the user
+  // just asked to see that node — and freezes auto-fit at the focused framing.
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !loaded || visibleNodes.length === 0) return;
     const refit = () => {
-      if (userMovedRef.current) return;
       const rect = el.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) return;
-      fitAllNodes(visibleNodes);
+      if (focusRequest) {
+        const target = visibleNodesById.get(focusRequest);
+        setFocusRequest(null);
+        if (target) {
+          handleFocusNode(target);
+          userMovedRef.current = true;
+          return;
+        }
+      }
+      if (!userMovedRef.current) fitAllNodes(visibleNodes);
     };
     const observer = new ResizeObserver(refit);
     observer.observe(el);
     refit();
     return () => observer.disconnect();
-  }, [loaded, visibleNodes, fitAllNodes]);
+  }, [loaded, visibleNodes, visibleNodesById, focusRequest, fitAllNodes, handleFocusNode]);
 
   if (!loaded) {
     return (
@@ -220,7 +276,7 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
                 selectedNodeIdSet={EMPTY_STR_SET}
                 selectedEdgeId={null}
                 highlightedId={null}
-                externallyEditedIds={EMPTY_STR_SET}
+                externallyEditedIds={externallyEditedIds}
                 edgeInteractionState={null}
                 edgePreviewEndpoints={null}
                 onDragStart={NOOP}
@@ -233,6 +289,7 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
                 onFocus={NOOP}
                 onReference={handlePinReference}
                 onAddToChat={handleAddToChat}
+                onAddToCanvas={handleAddToCanvas}
                 onSelectEdge={NOOP}
                 onEdgeHandleMouseDown={NOOP}
                 onEdgeBodyMouseDown={NOOP}

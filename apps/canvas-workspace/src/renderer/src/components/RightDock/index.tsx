@@ -65,9 +65,7 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
 
 const useDockContext = (): RightDockContextValue => {
   const ctx = useContext(RightDockContext);
-  if (!ctx) {
-    throw new Error('useRightDock must be used within <RightDockProvider>');
-  }
+  if (!ctx) throw new Error('useRightDock must be used within <RightDockProvider>');
   return ctx;
 };
 
@@ -75,6 +73,7 @@ const useDockContext = (): RightDockContextValue => {
 export function useRightDock(): {
   openArtifact: (workspaceId: string, artifactId: string) => void;
   openNodeDetail: (workspaceId: string, nodeId: string, title: string) => void;
+  openCanvasPreview: (workspaceId: string, title: string) => boolean;
   openLink: (url: string) => void;
   newLink: () => void;
   openChat: () => void;
@@ -93,6 +92,7 @@ export function useRightDock(): {
     () => ({
       openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
       openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
+      openCanvasPreview: (workspaceId: string, title: string) => store.openCanvasPreview(workspaceId, title),
       openLink: (url: string) => store.openLink(url),
       newLink: () => store.newLink(),
       openChat: () => store.openChat(),

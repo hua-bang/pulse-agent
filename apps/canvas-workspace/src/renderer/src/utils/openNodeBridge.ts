@@ -44,7 +44,7 @@ export const dispatchOpenNodePage = (detail: OpenNodeDetail): void => {
  *  Workbench listens and routes to the active workspace's chat composer or
  *  reference panel; `node` is the full snapshot so no store read is needed. */
 export interface PreviewNodeActionDetail<TNode = unknown> {
-  action: 'add-to-chat' | 'pin-reference';
+  action: 'add-to-chat' | 'pin-reference' | 'add-to-canvas';
   /** Workspace that owns the node (the previewed one, not the active one). */
   workspaceId: string;
   node: TNode;
@@ -52,6 +52,24 @@ export interface PreviewNodeActionDetail<TNode = unknown> {
 
 export const dispatchPreviewNodeAction = <TNode>(detail: PreviewNodeActionDetail<TNode>): void => {
   window.dispatchEvent(new CustomEvent<PreviewNodeActionDetail<TNode>>(PREVIEW_NODE_ACTION_EVENT, { detail }));
+};
+
+/** Ask the dock canvas preview of `workspaceId` to frame `nodeId`. Works both
+ *  ways round the mount race: an already-open preview reacts to the event; a
+ *  preview that is still mounting consumes the pending entry after its first
+ *  load. Used by reference "peek at source" flows. */
+export const PREVIEW_FOCUS_NODE_EVENT = 'pulse-canvas:preview-focus-node';
+const pendingPreviewFocus = new Map<string, string>();
+
+export const requestPreviewNodeFocus = (workspaceId: string, nodeId: string): void => {
+  pendingPreviewFocus.set(workspaceId, nodeId);
+  window.dispatchEvent(new CustomEvent<OpenNodeDetail>(PREVIEW_FOCUS_NODE_EVENT, { detail: { workspaceId, nodeId } }));
+};
+
+export const consumePendingPreviewFocus = (workspaceId: string): string | undefined => {
+  const nodeId = pendingPreviewFocus.get(workspaceId);
+  pendingPreviewFocus.delete(workspaceId);
+  return nodeId;
 };
 
 /** Build the href stored on a mention link for the given node id. */

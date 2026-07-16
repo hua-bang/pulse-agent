@@ -4,6 +4,7 @@ import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../types';
 import { FrameChildrenToggle, FrameColorPicker } from '../FrameNodeBody/FrameHeaderControls';
 import { TextColorPicker } from '../TextNodeBody/TextColorPicker';
 import {
+  AddToCanvasButton,
   AddToChatButton,
   CloseButton,
   FocusButton,
@@ -24,6 +25,7 @@ interface CanvasNodeHeaderProps {
   handleOpenDetail: (e: MouseEvent) => void;
   handleReference: (e: MouseEvent) => void;
   handleAddToChat: (e: MouseEvent) => void;
+  handleAddToCanvas: (e: MouseEvent) => void;
   handleTitleBlur: (e: FocusEvent<HTMLSpanElement>) => void;
   handleTitleDoubleClick: (e: MouseEvent) => void;
   handleTitleKeyDown: (e: KeyboardEvent<HTMLSpanElement>) => void;
@@ -35,6 +37,7 @@ interface CanvasNodeHeaderProps {
   pluginElementPickerActive: boolean;
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
+  onAddToCanvas?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   readOnly: boolean;
@@ -77,6 +80,7 @@ export const CanvasNodeHeader = ({
   handleOpenDetail,
   handleReference,
   handleAddToChat,
+  handleAddToCanvas,
   handleTitleBlur,
   handleTitleDoubleClick,
   handleTitleKeyDown,
@@ -88,6 +92,7 @@ export const CanvasNodeHeader = ({
   pluginElementPickerActive,
   onReference,
   onAddToChat,
+  onAddToCanvas,
   onUngroupSelectedGroups,
   onUpdate,
   readOnly,
@@ -173,6 +178,9 @@ export const CanvasNodeHeader = ({
         ) : null}
         {onAddToChat ? (
           <AddToChatButton onClick={handleAddToChat} />
+        ) : null}
+        {onAddToCanvas && isReferenceableNode(node) ? (
+          <AddToCanvasButton onClick={handleAddToCanvas} />
         ) : null}
         {node.type === 'plugin' ? (
           <PluginSelectElementButton

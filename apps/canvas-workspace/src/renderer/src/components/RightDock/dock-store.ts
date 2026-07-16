@@ -188,10 +188,11 @@ export class DockStore {
   }
 
   /** Open a read-only preview of a workspace's canvas as a dock tab. Deduped
-   *  by workspace so re-opening the same canvas re-activates its tab. */
-  openCanvasPreview(workspaceId: string, title: string): void {
+   *  by workspace so re-opening the same canvas re-activates its tab. Returns
+   *  false when refused (the workspace is live in the main Workbench). */
+  openCanvasPreview(workspaceId: string, title: string): boolean {
     // Never preview a canvas that's already live in the main Workbench.
-    if (this.state.mountedWorkspaceIds.has(workspaceId)) return;
+    if (this.state.mountedWorkspaceIds.has(workspaceId)) return false;
     const id = canvasPreviewTabId(workspaceId);
     const existing = this.state.tabs.find((tab) => tab.id === id);
     if (existing) {
@@ -200,10 +201,11 @@ export class DockStore {
         activeTabId: id,
         expanded: true,
       });
-      return;
+      return true;
     }
     const tab: DockPreviewTab = { id, kind: 'canvas', title, workspaceId };
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+    return true;
   }
 
   /** Publish the set of workspaces the main Workbench has mounted (live). Any
