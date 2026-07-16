@@ -52,7 +52,7 @@ export const ChatPanel = ({
   nodes,
   knowledgeNodes,
   knowledgeTags,
-  selectedNodeIds,
+  dockTabs, selectedNodeIds,
   contextNodes,
   contextTags,
   contextCanvases,
@@ -153,9 +153,9 @@ export const ChatPanel = ({
     rootFolder,
     knowledgeNodes,
     knowledgeTags,
+    dockTabs,
     collectStructuredContext: true,
-    getRequestContext: () => requestContextRef.current,
-  });
+    getRequestContext: () => requestContextRef.current });
 
   useEffect(() => {
     if (!onRegisterInsertMention) return;

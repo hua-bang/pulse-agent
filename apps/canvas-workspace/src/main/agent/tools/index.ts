@@ -16,6 +16,7 @@ import { createScreenshotTools } from './screenshot';
 import { createVisualTools } from './visual';
 import { createArtifactTools } from './artifacts';
 import { createWebpageTools } from './webpage';
+import { createTabTools } from './tab';
 import { createSkillTools } from './skills';
 import { createSessionTools } from './sessions';
 import { createPluginNodeTools } from './plugin-nodes';
@@ -58,11 +59,13 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
   const edgeTools = createEdgeTools('');
   const workspaceNodeTools = createWorkspaceNodeTools('');
   const layoutTools = createLayoutTools('');
+  const tabTools = createTabTools('');
 
   return {
     canvas_ask_user: nodeTools.canvas_ask_user,
     canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
     canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
+    canvas_read_tab: requireWorkspaceId(tabTools.canvas_read_tab),
     canvas_read_layout: requireWorkspaceId(layoutTools.canvas_read_layout),
     canvas_search_nodes: requireWorkspaceId(searchTools.canvas_search_nodes),
     canvas_list_edges: requireWorkspaceId(edgeTools.canvas_list_edges),
@@ -99,6 +102,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createVisualTools(workspaceId),
     ...createArtifactTools(workspaceId),
     ...createWebpageTools(workspaceId),
+    ...createTabTools(workspaceId),
     ...createSkillTools(workspaceId),
     ...createSessionTools(workspaceId),
     ...createHtmlPatchTools(workspaceId),

@@ -4,6 +4,7 @@ import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import { ChatPanelLazy as ChatPanel } from '../chat/lazy';
 import { CHAT_TAB_ID, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
+import { buildDockTabRefs } from '../RightDock/tabRefs';
 import { createReferenceNodeDataSnapshot } from '../ReferenceDrawer/utils';
 import type { NodeReferenceEntry as NodeReferenceEntryForCanvas, ReferenceEntry } from '../ReferenceDrawer/types';
 import type { SettingsSection } from '../Settings';
@@ -479,12 +480,11 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   workspaceId={ws.id}
                   allWorkspaces={workspaces}
                   nodes={allNodes[ws.id] || []}
+                  dockTabs={buildDockTabRefs(dockState, ws.id)}
                   selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
-                  rootFolder={ws.rootFolder}
-                  onClose={dock.collapse}
+                  rootFolder={ws.rootFolder} onClose={dock.collapse}
                   onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
-                  onOpenAppSettings={onOpenAppSettings}
-                  onOpenWorkspaceSettings={onOpenWorkspaceSettings}
+                  onOpenAppSettings={onOpenAppSettings} onOpenWorkspaceSettings={onOpenWorkspaceSettings}
                   onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
                   onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
                   onRegisterSubmitDomReviewComments={(fn) => registerSubmitDomReviewComments(ws.id, fn)}

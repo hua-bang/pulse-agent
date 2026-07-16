@@ -245,6 +245,32 @@ export interface AgentContextDomSnapshotMeta {
   maxTotalNodes: number;
 }
 
+/**
+ * A right-dock tab the user `@`-mentioned in the composer. Tabs are the
+ * browser-like previews in the dock strip (open web pages, node detail,
+ * artifacts, workspace terminals). Like other mentions this is a lightweight
+ * pointer — the agent reads the tab's live content on demand with
+ * `canvas_read_tab` (link/artifact/terminal) or `canvas_read_node`
+ * (node-detail), rather than the content being dumped into the prompt.
+ */
+export interface AgentContextTabRef {
+  /** Dock tab id (also the webview registry key for link tabs). */
+  id: string;
+  kind: 'link' | 'node-detail' | 'artifact' | 'terminal';
+  title: string;
+  /** For kind === 'link': the current page URL. */
+  url?: string;
+  /** Owning workspace for node-detail / artifact / terminal reads, and the
+   *  registry workspaceId used to read a link tab's live webview. */
+  workspaceId?: string;
+  /** For kind === 'node-detail': the referenced canvas node id. */
+  nodeId?: string;
+  /** For kind === 'artifact': the referenced artifact id. */
+  artifactId?: string;
+  /** For kind === 'terminal': the PTY session id to read scrollback from. */
+  sessionId?: string;
+}
+
 export interface AgentRequestContext {
   executionMode?: 'auto' | 'ask';
   scope?: 'current_canvas' | 'selected_nodes';
@@ -255,6 +281,8 @@ export interface AgentRequestContext {
   canvases?: AgentContextCanvasRef[];
   /** DOM elements the user picked inside iframe/webview nodes. */
   domSelections?: AgentContextDomSelectionRef[];
+  /** Right-dock tabs the user `@`-mentioned in the composer. */
+  tabs?: AgentContextTabRef[];
   quickAction?: string;
 }
 

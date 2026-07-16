@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useI18n } from "../../i18n";
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
+import { useWebviewRegistration } from '../IframeNodeBody/useWebviewRegistration';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
 import { normalizeUrl } from "../IframeNodeBody/utils";
 import { ExternalLinkIcon, PlusIcon } from "../icons";
@@ -21,6 +22,9 @@ import "./index.css";
 
 interface LinkTabViewProps {
   url: string;
+  /** Dock tab id — used as the webview registry key so the Canvas Agent can
+   *  read this tab's live page via `canvas_read_tab`. */
+  tabId?: string;
   onTitleChange?: (title: string) => void;
   /** Page favicon, reported once the webview resolves it, so the tab icon
    *  follows the site instead of a hardcoded globe. */
@@ -33,6 +37,7 @@ interface LinkTabViewProps {
 
 export const LinkTabView = ({
   url,
+  tabId,
   onTitleChange,
   onFaviconChange,
   onNavigate,
@@ -51,6 +56,16 @@ export const LinkTabView = ({
     onNavigate: setAddress,
     onTitleChange,
     url,
+  });
+
+  // Register this tab's <webview> with main so the Canvas Agent can read the
+  // live page (via canvas_read_tab), keyed by the dock tab id. Reuses the same
+  // registry + lifecycle plumbing as iframe canvas nodes.
+  useWebviewRegistration({
+    webview: browser.webview,
+    workspaceId: activeWorkspaceId,
+    nodeId: tabId ?? '',
+    enabled: Boolean(tabId && activeWorkspaceId),
   });
 
   // Keep the editable address synchronized with external tab navigation;
