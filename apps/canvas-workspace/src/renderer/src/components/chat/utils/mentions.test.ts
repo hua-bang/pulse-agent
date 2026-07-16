@@ -24,6 +24,33 @@ describe('chat mention rendering', () => {
     expect(serializeEditable(editable)).toBe(`@[dom:dom-1|${encodeURIComponent(domLabel)}]`);
   });
 
+  it('keeps a file path on file and folder chips for VS Code opening', () => {
+    const fileChip = createMentionChipElement({
+      type: 'file',
+      label: 'src/main.ts',
+      path: '/workspace/project/src/main.ts',
+    });
+    const folderChip = createMentionChipElement({
+      type: 'folder',
+      label: 'src/',
+      path: '/workspace/project/src',
+    });
+
+    expect(fileChip.dataset.filePath).toBe('/workspace/project/src/main.ts');
+    expect(fileChip.classList.contains('chat-mention-chip--clickable')).toBe(true);
+    expect(folderChip.dataset.filePath).toBe('/workspace/project/src');
+    expect(folderChip.classList.contains('chat-mention-chip--clickable')).toBe(true);
+  });
+
+  it('renders folder references with a root path for VS Code opening', () => {
+    const html = renderMdWithMentions('@[folder:src/components] 目录', undefined, {
+      rootFolder: '/workspace/project',
+    });
+
+    expect(html).toContain('data-file-path="/workspace/project/src/components"');
+    expect(html).toContain('chat-mention-chip--clickable');
+  });
+
   it('renders encoded DOM selection labels without leaking a closing bracket', () => {
     const html = renderMdWithMentions(`@[dom:dom-1|${encodeURIComponent(domLabel)}] 这描述了啥`);
 

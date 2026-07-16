@@ -16,6 +16,12 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+function resolveMentionFilePath(rootFolder: string | undefined, relativePath: string): string {
+  const root = rootFolder?.trim().replace(/[\\/]+$/, '') ?? '';
+  const relative = relativePath.trim().replace(/^[\\/]+/, '').replace(/[\\/]+$/, '');
+  return root && relative ? `${root}/${relative}` : '';
+}
+
 export interface SessionMentionRef {
   workspaceId: string;
   sessionId: string;
@@ -135,6 +141,7 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   const isWorkspace = item.type === 'workspace';
   const isSkill = item.type === 'skill';
   const isFolder = item.type === 'folder';
+  const isFile = item.type === 'file';
   const isNode = item.type === 'node';
   const isTag = item.type === 'tag';
   const isSession = item.type === 'session';
@@ -165,10 +172,9 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
     return chip;
   }
 
-  // Canvas-node mentions navigate to the node when clicked; tag them so the
-  // composer's click handler can resolve and focus the target (mirrors how
-  // node chips behave inside sent messages).
-  const isNavigable = isNode && !!item.nodeId;
+  // Canvas-node mentions focus the node; file/folder mentions open their
+  // project path in VS Code when clicked.
+  const isNavigable = (isNode && !!item.nodeId) || ((isFile || isFolder) && !!item.path);
 
   const classes = ['chat-mention-chip', 'chat-mention-chip--input'];
   if (isWorkspace) classes.push('chat-mention-chip--workspace');
@@ -207,6 +213,9 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
     chip.dataset.mentionKind = 'node';
     if (item.nodeId) chip.dataset.nodeId = item.nodeId;
     if (item.workspaceId) chip.dataset.workspaceId = item.workspaceId;
+  } else if ((isFile || isFolder) && item.path) {
+    chip.dataset.filePath = item.path;
+    chip.title = 'Open in VS Code';
   } else if (isDom && item.domSelection) {
     writeDomSelectionDataset(chip, item.domSelection);
   }
@@ -418,7 +427,7 @@ export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactN
 export function renderMdWithMentions(
   content: string,
   nodes?: CanvasNode[],
-  options?: RenderMarkdownOptions,
+  options?: RenderMarkdownOptions & { rootFolder?: string },
 ): string {
   const html = renderMarkdown(content, options);
 
@@ -435,7 +444,12 @@ export function renderMdWithMentions(
 
     if (rawLabel.startsWith(FOLDER_MENTION_PREFIX)) {
       const folderLabel = rawLabel.slice(FOLDER_MENTION_PREFIX.length);
-      return `<span class="chat-mention-chip chat-mention-chip--folder" data-node-type="folder"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('folder')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(folderLabel)}/</span></span>`;
+      const filePath = resolveMentionFilePath(options?.rootFolder, folderLabel);
+      const filePathAttrs = filePath
+        ? ` data-file-path="${escapeHtml(filePath)}" title="Open in VS Code"`
+        : '';
+      const clickableClass = filePath ? ' chat-mention-chip--clickable' : '';
+      return `<span class="chat-mention-chip chat-mention-chip--folder${clickableClass}" data-node-type="folder"${filePathAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('folder')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(folderLabel)}/</span></span>`;
     }
 
     if (rawLabel.startsWith(TAG_MENTION_PREFIX)) {
@@ -463,6 +477,11 @@ export function renderMdWithMentions(
     const node = nodes?.find(item => item.title === rawLabel);
     const nodeType = node?.type ?? 'file';
     const nodeId = node?.id ?? '';
-    return `<span class="chat-mention-chip chat-mention-chip--clickable" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(rawLabel)}</span></span>`;
+    const filePath = node ? '' : resolveMentionFilePath(options?.rootFolder, rawLabel);
+    const filePathAttrs = filePath
+      ? ` data-file-path="${escapeHtml(filePath)}" title="Open in VS Code"`
+      : '';
+    const clickableClass = nodeId || filePath ? ' chat-mention-chip--clickable' : '';
+    return `<span class="chat-mention-chip${clickableClass}" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"${filePathAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(rawLabel)}</span></span>`;
   });
 }

@@ -449,6 +449,7 @@ export const ChatPanel = ({
       messages={messages}
       loading={loading}
       workspaceId={anchorScopeId}
+      rootFolder={rootFolder}
       streamingTools={streamingTools}
       messageTools={messageTools}
       collapsedSections={collapsedSections}
