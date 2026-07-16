@@ -17,6 +17,7 @@ import type { CanvasClipboard, CanvasNodePatchRequest } from '../../types/ui-int
 import { isReferenceableNode, isReferenceableNodeType } from '../../utils/referenceNodes';
 import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 import { useChatInsertionBridge } from './useChatInsertionBridge';
+import { usePreviewNodeActionBridge } from './usePreviewNodeActionBridge';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
@@ -153,13 +154,13 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     });
   }, [activeWorkspaceId, allNodes, referencesByWorkspace]);
 
-  const pinReferenceNode = useCallback((workspaceId: string, nodeId: string) => {
+  const pinReferenceNode = useCallback((workspaceId: string, nodeId: string, sourceNode?: CanvasNode) => {
     setReferencesByWorkspace((prev) => {
       const current = prev[activeWorkspaceId] ?? [];
       const exists = current.some((entry) => entry.kind === 'node' && entry.workspaceId === workspaceId && entry.nodeId === nodeId);
       if (exists) return prev;
       const workspace = workspaces.find((item) => item.id === workspaceId);
-      const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId);
+      const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId) ?? sourceNode;
       const entry: ReferenceEntry = {
         kind: 'node',
         workspaceId,
@@ -170,10 +171,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       };
       return { ...prev, [activeWorkspaceId]: [...current, entry] };
     });
-    setActiveReferenceIdByWorkspace((prev) => ({
-      ...prev,
-      [activeWorkspaceId]: `${workspaceId}:${nodeId}`,
-    }));
+    setActiveReferenceIdByWorkspace((prev) => ({ ...prev, [activeWorkspaceId]: `${workspaceId}:${nodeId}` }));
     setReferenceDrawerOpen(true);
   }, [activeWorkspaceId, allNodes, workspaces]);
 
@@ -196,11 +194,14 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const {
     handleAddDomSelectionToChat,
     handleAddNodeToChat,
+    handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
     registerInsertMention,
     registerSubmitDomReviewComments,
   } = useChatInsertionBridge({ allNodes, openChat: dock.openChat });
+
+  usePreviewNodeActionBridge({ activeWorkspaceId, addPreviewNodeToChat: handleAddPreviewNodeToChat, pinReferenceNode, ensureWorkspaceNodesLoaded });
 
   const workspaceNameById = useCallback(
     (workspaceId: string) => workspaces.find((workspace) => workspace.id === workspaceId)?.name,

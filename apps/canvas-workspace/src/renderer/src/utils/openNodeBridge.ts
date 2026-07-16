@@ -8,6 +8,7 @@
 
 export const OPEN_NODE_EVENT = 'pulse-canvas:open-node';
 export const OPEN_NODE_PAGE_EVENT = 'pulse-canvas:open-node-page';
+export const PREVIEW_NODE_ACTION_EVENT = 'pulse-canvas:preview-node-action';
 
 /** Prefix of the href used by node-mention links inside notes. */
 export const NODE_LINK_PREFIX = 'pulse-canvas://node/';
@@ -37,6 +38,20 @@ export const dispatchOpenNode = (detail: OpenNodeDetail): void => {
 
 export const dispatchOpenNodePage = (detail: OpenNodeDetail): void => {
   window.dispatchEvent(new CustomEvent<OpenNodeDetail>(OPEN_NODE_PAGE_EVENT, { detail }));
+};
+
+/** Action fired from a read-only canvas preview node's header buttons. The
+ *  Workbench listens and routes to the active workspace's chat composer or
+ *  reference panel; `node` is the full snapshot so no store read is needed. */
+export interface PreviewNodeActionDetail<TNode = unknown> {
+  action: 'add-to-chat' | 'pin-reference';
+  /** Workspace that owns the node (the previewed one, not the active one). */
+  workspaceId: string;
+  node: TNode;
+}
+
+export const dispatchPreviewNodeAction = <TNode>(detail: PreviewNodeActionDetail<TNode>): void => {
+  window.dispatchEvent(new CustomEvent<PreviewNodeActionDetail<TNode>>(PREVIEW_NODE_ACTION_EVENT, { detail }));
 };
 
 /** Build the href stored on a mention link for the given node id. */

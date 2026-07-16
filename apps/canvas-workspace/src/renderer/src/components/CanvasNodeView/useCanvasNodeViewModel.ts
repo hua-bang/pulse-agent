@@ -133,10 +133,9 @@ export const useCanvasNodeViewModel = ({
   const handleReference = useCallback(
     (e: MouseEvent) => {
       e.stopPropagation();
-      if (readOnly) return;
       onReference?.(node.id);
     },
-    [onReference, node.id, readOnly],
+    [onReference, node.id],
   );
 
   const handleAddToChat = useCallback(

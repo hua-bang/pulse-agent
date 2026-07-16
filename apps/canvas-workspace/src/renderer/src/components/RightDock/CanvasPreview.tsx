@@ -7,6 +7,7 @@ import { useCanvasVisibility } from '../Canvas/hooks/useCanvasVisibility';
 import { useCanvasRenderOrder } from '../Canvas/hooks/useCanvasRenderOrder';
 import { CanvasSurface } from '../Canvas/CanvasSurface';
 import { Button } from '../ui';
+import { dispatchPreviewNodeAction } from '../../utils/openNodeBridge';
 import { WorkspaceActiveProvider } from '../../hooks/useWorkspaceActive';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import './canvas-preview.css';
@@ -129,6 +130,16 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
     fitAllNodes(visibleNodes);
   }, [fitAllNodes, visibleNodes]);
 
+  // Reading actions stay available in the read-only preview: route them to
+  // the Workbench via the window bridge (chat composer / reference panel of
+  // the ACTIVE workspace), carrying the full node so no store read is needed.
+  const dispatchNodeAction = useCallback((action: 'add-to-chat' | 'pin-reference', nodeId: string) => {
+    const node = visibleNodesById.get(nodeId);
+    if (node) dispatchPreviewNodeAction({ action, workspaceId, node });
+  }, [visibleNodesById, workspaceId]);
+  const handleAddToChat = useCallback((nodeId: string) => dispatchNodeAction('add-to-chat', nodeId), [dispatchNodeAction]);
+  const handlePinReference = useCallback((nodeId: string) => dispatchNodeAction('pin-reference', nodeId), [dispatchNodeAction]);
+
   // Frame the whole canvas into the dock pane (fit-to-content). The pane is a
   // different shape from the main window and — crucially — animates its width
   // when the dock expands on open, so a single fit would land at a transient
@@ -172,7 +183,13 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
           ref={containerRef}
           className="canvas-preview"
           onWheel={(e) => { userMovedRef.current = true; handleWheel(e); }}
-          onMouseDown={(e) => { userMovedRef.current = true; handleMouseDown(e); }}
+          onMouseDown={(e) => {
+            // Header action buttons (reference / add-to-chat / fit) must
+            // receive a clean click — don't let the hand-tool pan grab it.
+            if ((e.target as HTMLElement).closest?.('.node-header__actions, .canvas-preview__fit')) return;
+            userMovedRef.current = true;
+            handleMouseDown(e);
+          }}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
@@ -214,6 +231,8 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
                 onExportMindmapImage={NOOP}
                 onSelect={NOOP}
                 onFocus={NOOP}
+                onReference={handlePinReference}
+                onAddToChat={handleAddToChat}
                 onSelectEdge={NOOP}
                 onEdgeHandleMouseDown={NOOP}
                 onEdgeBodyMouseDown={NOOP}

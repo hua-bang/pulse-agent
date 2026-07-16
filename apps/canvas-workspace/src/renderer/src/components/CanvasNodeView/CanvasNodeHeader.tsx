@@ -165,10 +165,13 @@ export const CanvasNodeHeader = ({
         {node.type === 'file' ? (
           <OpenDetailButton onClick={handleOpenDetail} />
         ) : null}
-        {!readOnly && onReference && isReferenceableNode(node) ? (
+        {/* Reference / add-to-chat stay available on readonly nodes (the dock
+            canvas preview) — they read the node, never mutate it. The embedded
+            reference-source path never passes these callbacks. */}
+        {onReference && isReferenceableNode(node) ? (
           <ReferenceButton nodeTitle={node.title} onClick={handleReference} />
         ) : null}
-        {!readOnly && onAddToChat ? (
+        {onAddToChat ? (
           <AddToChatButton onClick={handleAddToChat} />
         ) : null}
         {node.type === 'plugin' ? (
