@@ -15,16 +15,22 @@ export function setupLinkPolicy(): void {
     contents.setWindowOpenHandler(({ url, disposition }) => {
       if (!isSafeExternalUrl(url)) return { action: "deny" };
 
+      // OAuth-style popups need a real Chromium BrowserWindow (not a <webview>,
+      // which Google's embedded-browser policy blocks). The popup inherits the
+      // opener's session, so the login cookie lands in the SAME session the
+      // webview uses and the round-trip (opener messaging / window.close)
+      // completes in-app. This is why Google "Sign in with Google" popups are
+      // handled here, above the system-browser fallback, rather than being
+      // pushed to the OS browser (whose session can't flow back to the app).
+      if (disposition === "new-window") {
+        return { action: "allow" };
+      }
+
+      // Non-popup auth navigations (a plain link/redirect to a login host) have
+      // no opener to message back, so hand them to the real system browser.
       if (isExternalAuthUrl(url)) {
         openExternal(url);
         return { action: "deny" };
-      }
-
-      // OAuth-style popups need a real BrowserWindow. The page reads back the
-      // returned window reference and relies on opener messaging / window.close
-      // to finish the auth round-trip.
-      if (disposition === "new-window") {
-        return { action: "allow" };
       }
 
       // Everything else is a "preview this link" intent, route to the side

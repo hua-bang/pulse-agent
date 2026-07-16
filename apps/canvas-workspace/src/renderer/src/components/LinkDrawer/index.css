@@ -53,6 +53,26 @@
   flex-shrink: 0;
 }
 
+/* ── Google sign-in notice ──────────────────────────────────────────── */
+
+.link-drawer__auth-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  background: var(--surface-hover);
+  border-bottom: 1px solid var(--border);
+}
+
+.link-drawer__auth-notice-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-warning);
+}
+
 /* ── Webview host ───────────────────────────────────────────────────── */
 
 .link-drawer__webview-host {

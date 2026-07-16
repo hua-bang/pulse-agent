@@ -48,7 +48,12 @@ describe('link policy', () => {
     electronMocks.openExternal.mockResolvedValue(undefined);
   });
 
-  it('opens Google auth popups in the system browser', async () => {
+  it('opens Google auth popups in an in-app window so the session flows back', async () => {
+    // Google's embedded-browser policy blocks <webview> sign-in, and the system
+    // browser can't share its session back to the app. A real BrowserWindow
+    // popup (action: allow) inherits the opener's session, giving the login
+    // round-trip a chance to complete in-app — so a new-window auth popup must
+    // NOT be pushed to the system browser.
     const createdHandler = await installPolicy();
     const { contents } = createContents();
     createdHandler({}, contents);
@@ -57,8 +62,8 @@ describe('link policy', () => {
     const url = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=figma';
     const result = windowOpenHandler({ url, disposition: 'new-window' });
 
-    expect(result).toEqual({ action: 'deny' });
-    expect(electronMocks.openExternal).toHaveBeenCalledWith(url);
+    expect(result).toEqual({ action: 'allow' });
+    expect(electronMocks.openExternal).not.toHaveBeenCalled();
   });
 
   it('opens Google auth navigations in the system browser', async () => {
