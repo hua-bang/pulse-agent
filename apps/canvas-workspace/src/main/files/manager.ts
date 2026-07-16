@@ -1,7 +1,9 @@
-import { ipcMain, dialog, BrowserWindow, clipboard, nativeImage } from "electron";
+import { execFile } from "child_process";
+import { ipcMain, dialog, BrowserWindow, clipboard, nativeImage, shell } from "electron";
 import { promises as fs } from "fs";
-import { join, basename } from "path";
+import { join, basename, resolve } from "path";
 import { homedir } from "os";
+import { promisify } from "util";
 import { ensureImagePreview } from './image-preview';
 
 const IGNORED_DIRS = new Set([
@@ -46,9 +48,17 @@ const listDirRecursive = async (
 
 const STORE_DIR = join(homedir(), ".pulse-coder", "canvas");
 const IMAGE_PREVIEW_DIR = join(STORE_DIR, 'image-previews');
+const execFileAsync = promisify(execFile);
 
 const getNotesDir = (workspaceId: string) =>
   join(STORE_DIR, workspaceId, "notes");
+
+const formatError = (err: unknown): string => err instanceof Error ? err.message : String(err);
+
+const vscodeUrlForPath = (filePath: string): string => {
+  const normalized = filePath.replace(/\\/g, '/');
+  return `vscode://file/${encodeURI(normalized)}`;
+};
 
 const sanitizeImageExtension = (value?: string): string => {
   const normalized = (value ?? "png")
@@ -121,6 +131,42 @@ export const setupFileManagerIpc = () => {
         return { ok: true, entries };
       } catch (err) {
         return { ok: false, error: String(err) };
+      }
+    }
+  );
+
+  // Open a project file/folder in VS Code. Prefer the CLI so folders and files
+  // open in the current app window when supported; fall back to VS Code's URL scheme.
+  ipcMain.handle(
+    "file:openInVSCode",
+    async (_event, payload: { filePath?: string }) => {
+      const rawPath = payload.filePath?.trim();
+      if (!rawPath) {
+        return { ok: false, error: "Missing file path" };
+      }
+
+      const filePath = resolve(rawPath);
+      try {
+        await fs.access(filePath);
+      } catch (err) {
+        return { ok: false, filePath, error: `Path is not accessible: ${formatError(err)}` };
+      }
+
+      let lastError = "";
+      for (const command of ["code", "code-insiders"]) {
+        try {
+          await execFileAsync(command, ["--reuse-window", filePath], { windowsHide: true });
+          return { ok: true, filePath, command };
+        } catch (err) {
+          lastError = formatError(err);
+        }
+      }
+
+      try {
+        await shell.openExternal(vscodeUrlForPath(filePath));
+        return { ok: true, filePath, command: "vscode-url" };
+      } catch (err) {
+        return { ok: false, filePath, error: formatError(err) || lastError || "Unable to open VS Code" };
       }
     }
   );

@@ -23,6 +23,7 @@ interface ChatViewProps {
   messages: AgentChatMessage[];
   loading: boolean;
   workspaceId: string;
+  rootFolder?: string;
   streamingTools: ToolCallStatus[];
   messageTools: Map<number, ToolCallStatus[]>;
   collapsedSections: Set<number>;
@@ -97,6 +98,7 @@ export const ChatView = ({
   messages,
   loading,
   workspaceId,
+  rootFolder,
   streamingTools,
   messageTools,
   collapsedSections,
@@ -160,6 +162,7 @@ export const ChatView = ({
           loading={loading}
           nodes={nodes}
           workspaceId={workspaceId}
+          rootFolder={rootFolder}
           streamingTools={streamingTools}
           messageTools={messageTools}
           collapsedSections={collapsedSections}
@@ -202,6 +205,11 @@ export const ChatView = ({
         onSelectModel={onSelectModel}
         onOpenModelSettings={onOpenModelSettings}
         onMentionNavigate={(chip) => {
+          const filePath = chip.dataset.filePath;
+          if (filePath) {
+            void window.canvasWorkspace.file.openInVSCode(filePath);
+            return;
+          }
           const nodeId = chip.dataset.nodeId;
           if (nodeId) onNodeFocus?.(nodeId);
         }}

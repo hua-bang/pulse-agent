@@ -53,6 +53,7 @@ interface ChatMessageProps {
   expandedTools: Set<number>;
   nodes?: CanvasNode[];
   workspaceId: string;
+  rootFolder?: string;
   onToggleSection: () => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
@@ -84,6 +85,7 @@ export const ChatMessage = ({
   expandedTools,
   nodes,
   workspaceId,
+  rootFolder,
   onToggleSection,
   onToggleToolExpand,
   onAddImageToCanvas,
@@ -94,15 +96,15 @@ export const ChatMessage = ({
 }: ChatMessageProps) => {
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
-      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming })
+      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder })
       : ''),
-    [message.role, message.content, nodes, isStreaming],
+    [message.role, message.content, nodes, isStreaming, rootFolder],
   );
   const userHtml = useMemo(
     () => (message.role === 'user'
-      ? renderMdWithMentions(message.content, nodes)
+      ? renderMdWithMentions(message.content, nodes, { rootFolder })
       : ''),
-    [message.role, message.content, nodes],
+    [message.role, message.content, nodes, rootFolder],
   );
   // Copy is offered for any settled message (user or assistant) with a body.
   const showCopyToolbar = !isStreaming && !!message.content;

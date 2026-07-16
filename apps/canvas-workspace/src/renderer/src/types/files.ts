@@ -18,6 +18,9 @@ export interface FileApi {
     dirPath: string,
     maxDepth?: number,
   ) => Promise<{ ok: boolean; entries?: DirEntry[]; error?: string }>;
+  openInVSCode: (
+    filePath: string,
+  ) => Promise<{ ok: boolean; filePath?: string; command?: string; error?: string }>;
   openDialog: () => Promise<{
     ok: boolean;
     canceled?: boolean;

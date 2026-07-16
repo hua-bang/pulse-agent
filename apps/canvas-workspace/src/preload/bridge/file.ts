@@ -20,6 +20,9 @@ export const createFileApi = (ipcRenderer: IpcRenderer): FileApi => ({
   listDir: (dirPath, maxDepth) =>
     ipcRenderer.invoke("file:listDir", { dirPath, maxDepth }),
 
+  openInVSCode: (filePath) =>
+    ipcRenderer.invoke("file:openInVSCode", { filePath }),
+
   openDialog: () => ipcRenderer.invoke("file:openDialog"),
 
   saveAsDialog: (defaultName, content) =>

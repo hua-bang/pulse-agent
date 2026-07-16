@@ -17,6 +17,7 @@ interface ChatMessagesProps {
   loading: boolean;
   nodes?: CanvasNode[];
   workspaceId: string;
+  rootFolder?: string;
   streamingTools: ToolCallStatus[];
   messageTools: Map<number, ToolCallStatus[]>;
   collapsedSections: Set<number>;
@@ -129,6 +130,7 @@ export const ChatMessages = ({
   loading,
   nodes,
   workspaceId,
+  rootFolder,
   streamingTools,
   messageTools,
   collapsedSections,
@@ -233,6 +235,14 @@ export const ChatMessages = ({
       return;
     }
 
+    // File/folder mention chip → open the referenced project path in VS Code.
+    const fileChip = target.closest('[data-file-path]') as HTMLElement | null;
+    const filePath = fileChip?.dataset.filePath;
+    if (filePath) {
+      void window.canvasWorkspace.file.openInVSCode(filePath);
+      return;
+    }
+
     // Mention chip → focus the canvas node it references.
     const chip = target.closest('.chat-mention-chip--clickable') as HTMLElement | null;
     if (!chip || !onNodeFocus) return;
@@ -269,6 +279,7 @@ export const ChatMessages = ({
               expandedTools={expandedTools}
               nodes={nodes}
               workspaceId={workspaceId}
+              rootFolder={rootFolder}
               onToggleSection={() => onToggleSection(index)}
               onToggleToolExpand={onToggleToolExpand}
               onAddImageToCanvas={onAddImageToCanvas}
