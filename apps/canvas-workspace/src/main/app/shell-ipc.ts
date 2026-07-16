@@ -9,7 +9,14 @@
  */
 import { ipcMain, shell } from 'electron';
 
-const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+const ALLOWED_PROTOCOLS = new Set([
+  'http:',
+  'https:',
+  'mailto:',
+  'tel:',
+  'vscode:',
+  'vscode-insiders:',
+]);
 
 function isSafeExternalUrl(raw: string): boolean {
   try {

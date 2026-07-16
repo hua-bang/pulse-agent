@@ -15,6 +15,11 @@ export function setupLinkPolicy(): void {
     contents.setWindowOpenHandler(({ url, disposition }) => {
       if (!isSafeExternalUrl(url)) return { action: "deny" };
 
+      if (isEditorExternalUrl(url)) {
+        openExternal(url);
+        return { action: "deny" };
+      }
+
       // OAuth-style popups need a real Chromium BrowserWindow (not a <webview>,
       // which Google's embedded-browser policy blocks). The popup inherits the
       // opener's session, so the login cookie lands in the SAME session the
@@ -53,7 +58,7 @@ export function setupLinkPolicy(): void {
         }
         if (crossOrigin && isSafeExternalUrl(url)) {
           event.preventDefault();
-          if (isExternalAuthUrl(url)) {
+          if (isEditorExternalUrl(url) || isExternalAuthUrl(url)) {
             openExternal(url);
           } else {
             forwardLinkToRenderer(contents, url);
@@ -84,6 +89,15 @@ function isLikelySsoHost(hostname: string): boolean {
 
 function isFigmaSamlCallback(url: URL): boolean {
   return isFigmaHost(url.hostname) && /^\/saml\/[^/]+\/consume\/?$/i.test(url.pathname);
+}
+
+function isEditorExternalUrl(raw: string): boolean {
+  try {
+    const protocol = new URL(raw).protocol;
+    return protocol === "vscode:" || protocol === "vscode-insiders:";
+  } catch {
+    return false;
+  }
 }
 
 function isExternalAuthUrl(raw: string): boolean {

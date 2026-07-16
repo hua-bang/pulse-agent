@@ -66,6 +66,19 @@ describe('link policy', () => {
     expect(electronMocks.openExternal).not.toHaveBeenCalled();
   });
 
+  it('opens VS Code protocol links through the OS handler instead of a BrowserWindow', async () => {
+    const createdHandler = await installPolicy();
+    const { contents } = createContents();
+    createdHandler({}, contents);
+
+    const windowOpenHandler = contents.setWindowOpenHandler.mock.calls[0]?.[0] as WindowOpenHandler;
+    const url = 'vscode://file/root/project/src/App.tsx:12:3';
+    const result = windowOpenHandler({ url, disposition: 'new-window' });
+
+    expect(result).toEqual({ action: 'deny' });
+    expect(electronMocks.openExternal).toHaveBeenCalledWith(url);
+  });
+
   it('opens Google auth navigations in the system browser', async () => {
     const createdHandler = await installPolicy();
     const { contents, hostWebContents } = createContents();
