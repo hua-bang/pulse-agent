@@ -1,6 +1,7 @@
 import { useEffect, useMemo, type KeyboardEventHandler, type RefObject } from 'react';
 import type { Artifact } from '../../types';
 import { Button } from '../ui/Button';
+import { ExternalLinkIcon } from '../icons';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
 import { appendDomPickerBridge } from './domPickerBridge';
@@ -195,7 +196,7 @@ export const IframeRenderedView = ({
               title="Open externally"
               aria-label="Open externally"
             >
-              <OpenIcon />
+              <ExternalLinkIcon />
             </Button>
           )}
         </div>
@@ -419,18 +420,6 @@ const ReviewIcon = () => (
       d="M2.5 2h7a1 1 0 011 1v4.2a1 1 0 01-1 1H6.2L3.4 10V8.2h-.9a1 1 0 01-1-1V3a1 1 0 011-1zM3.5 4.2h5M3.5 6h3.2"
       stroke="currentColor"
       strokeWidth="1.15"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const OpenIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-    <path
-      d="M5 2H2.5A.5.5 0 002 2.5v7A.5.5 0 002.5 10h7a.5.5 0 00.5-.5V7M7 2h3v3M5.5 6.5L10 2"
-      stroke="currentColor"
-      strokeWidth="1.2"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
