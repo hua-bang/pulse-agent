@@ -8,7 +8,6 @@
  * their path data has been tuned for that context.
  */
 import type { CanvasNode } from '../../types';
-
 interface IconProps {
   size?: number;
   className?: string;
@@ -180,19 +179,7 @@ export const PlusIcon = ({ size = 16, className, strokeWidth = 1.5 }: IconProps)
   </svg>
 );
 
-/** Arrow leaving a square — open a resource outside the app. */
-export const ExternalLinkIcon = ({ size = 14, className, strokeWidth = 1.35 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 14 14" fill="none" className={className}>
-    <path
-      d="M5.25 3.25H3.2A1.2 1.2 0 0 0 2 4.45v6.35A1.2 1.2 0 0 0 3.2 12h6.35a1.2 1.2 0 0 0 1.2-1.2V8.75M8 2h4v4M7.25 6.75 12 2"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
+export { ExternalLinkIcon } from './ExternalLinkIcon';
 /** Right-pointing chevron (›). Used for expand/collapse. */
 export const ChevronRightIcon = ({ size = 10, className, strokeWidth = 1.8 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>

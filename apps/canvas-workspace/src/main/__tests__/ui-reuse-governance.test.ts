@@ -319,7 +319,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1882→1881: LinkDrawer's new editable address focus state uses palette tokens.
   // 1881→1879: the duplicate ChatHeader brand mark and its two color literals were removed.
   // 1879→1878: the duplicate Nodes/Graph chat dock and its literal surface color were removed.
-  hardcodedColorLiterals: 1874,
+  // 1874→1871: release gate cleanup reused the existing accent token and exact-value shadow tokens.
+  hardcodedColorLiterals: 1871,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
