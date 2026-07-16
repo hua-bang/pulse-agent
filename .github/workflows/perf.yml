@@ -334,6 +334,11 @@ jobs:
 
       - name: Build arm64 package
         run: pnpm --filter canvas-workspace package:mac:arm64
+        # Pulse Canvas intentionally uses ad-hoc identity "-" and no signing
+        # secrets. electron-builder otherwise skips all signing for PR builds,
+        # which would make the strict package signature gate ineffective.
+        env:
+          CSC_FOR_PULL_REQUEST: "true"
 
       - name: Evaluate package Gates
         run: pnpm --filter canvas-workspace perf:package
