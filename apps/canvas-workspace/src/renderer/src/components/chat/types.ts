@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { I18nKey } from '../../i18n';
 
@@ -52,6 +52,8 @@ export interface ChatPanelProps {
   knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
   /** Knowledge tags offered in the `@` popup (global host). */
   knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
+  /** Open right-dock tabs offered in the `@` popup so the agent can read them. */
+  dockTabs?: AgentContextTabRef[];
   selectedNodeIds?: string[];
   /**
    * Explicit selection context (with owning `workspaceId`). When provided it
@@ -98,7 +100,7 @@ export type ToolCallStatus = AgentChatToolCall;
 export type { ChatImageAttachment };
 
 export interface MentionItem {
-  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'tag' | 'session' | 'dom';
+  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'tag' | 'session' | 'dom' | 'tab';
   label: string;
   nodeType?: CanvasNode['type'];
   /** For type === 'node': the canvas node id, used to focus it when clicked. */
@@ -115,6 +117,8 @@ export interface MentionItem {
   messageIndex?: number;
   /** For type === 'dom': selected iframe/webview DOM element context. */
   domSelection?: AgentContextDomSelectionRef;
+  /** For type === 'tab': the referenced right-dock tab. */
+  tab?: AgentContextTabRef;
 }
 
 export interface PendingClarification {

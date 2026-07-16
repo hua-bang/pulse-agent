@@ -241,6 +241,7 @@ describe('createGlobalCanvasTools', () => {
       'canvas_read_context',
       'canvas_read_layout',
       'canvas_read_node',
+      'canvas_read_tab',
       'canvas_screenshot',
       'canvas_search_nodes',
       'knowledge_analyze_image',

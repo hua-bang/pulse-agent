@@ -45,6 +45,7 @@ import type {
 } from './types';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
 import { formatSelectionFocusBlock } from './selection-focus-context';
+import { formatReferencedTabsBlock } from './referenced-tabs-context';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const CANVAS_AGENT_MAX_STEPS = 200;
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
@@ -783,10 +784,12 @@ export class CanvasAgent {
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
     const systemPrompt = workspaceId
       ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
+        + formatReferencedTabsBlock(requestContext?.tabs ?? [], workspaceId)
       : GLOBAL_AGENT_SYSTEM_PROMPT
         + formatSelectionFocusBlock(requestContext?.selectedNodes ?? [], { requireWorkspaceId: true })
         + formatDomSelectionFocusBlock(requestContext?.domSelections ?? [], { requireWorkspaceId: true })
         + formatScopeContextBlock(requestContext?.tags ?? [], requestContext?.canvases ?? [])
+        + formatReferencedTabsBlock(requestContext?.tabs ?? [])
         + formatMentionedCanvasesSection(mentionedCanvases)
         + promptProfileSection;
     const debugTrace = isCanvasAgentDebugTraceEnabled()

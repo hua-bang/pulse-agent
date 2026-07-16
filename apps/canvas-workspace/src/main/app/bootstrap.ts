@@ -3,6 +3,7 @@ import { app, BrowserWindow } from "electron";
 import { existsSync } from "fs";
 import { join } from "path";
 import { setupPtyIpc, killAllPty } from "../terminal/pty-manager";
+import { setupScrollbackCapture } from "../terminal/scrollback";
 import {
   setupCanvasStoreIpc,
   teardownCanvasWatchers,
@@ -104,6 +105,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupFatalErrorLogging(writeLog);
 
     setupPtyIpc();
+    setupScrollbackCapture();
     setupCanvasStoreIpc();
     try {
       await ensureWelcomeWorkspaceSeeded();

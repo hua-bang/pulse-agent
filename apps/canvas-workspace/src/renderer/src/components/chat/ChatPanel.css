@@ -2003,12 +2003,14 @@
 }
 
 .chat-mention-chip[data-node-type="workspace"],
-.chat-mention-chip--workspace {
+.chat-mention-chip--workspace,
+.chat-mention-chip--tab {
   background: rgba(88, 166, 255, 0.08);
   border-color: rgba(88, 166, 255, 0.18);
 }
 .chat-mention-chip[data-node-type="workspace"] .chat-mention-chip-icon,
-.chat-mention-chip--workspace .chat-mention-chip-icon {
+.chat-mention-chip--workspace .chat-mention-chip-icon,
+.chat-mention-chip--tab .chat-mention-chip-icon {
   color: rgba(88, 166, 255, 0.85);
 }
 .chat-mention-chip--clickable[data-node-type="workspace"]:hover,

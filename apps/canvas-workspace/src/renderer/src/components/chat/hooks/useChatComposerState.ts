@@ -1,4 +1,4 @@
-import type { AgentRequestContext, CanvasNode } from '../../../types';
+import type { AgentContextTabRef, AgentRequestContext, CanvasNode } from '../../../types';
 import { useCanvasModels } from '../ModelSettings';
 import type { AgentScope, WorkspaceOption } from '../types';
 import { useChatSessions } from './useChatSessions';
@@ -13,6 +13,8 @@ interface UseChatComposerStateOptions {
   /** Forwarded to useMentions — cross-workspace knowledge candidates for `@`. */
   knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
   knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
+  /** Forwarded to useMentions — open right-dock tabs for the `@` popup. */
+  dockTabs?: AgentContextTabRef[];
   /** Forwarded to useMentions — collect structured context from inline chips at send. */
   collectStructuredContext?: boolean;
   /** Forwarded to useChatSessions — load the session list on mount + workspace change. */
@@ -40,6 +42,7 @@ export function useChatComposerState({
   rootFolder,
   knowledgeNodes,
   knowledgeTags,
+  dockTabs,
   collectStructuredContext,
   eagerLoad,
   skipInitialHistory,
@@ -64,6 +67,7 @@ export function useChatComposerState({
     rootFolder,
     knowledgeNodes,
     knowledgeTags,
+    dockTabs,
     collectStructuredContext,
     onSubmit: chatStream.sendMessage,
     getRequestContext,

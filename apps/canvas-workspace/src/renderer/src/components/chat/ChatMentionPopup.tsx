@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { MENTION_GROUP_LABEL_KEY, getMentionGroupKey } from './constants';
 import type { MentionItem } from './types';
-import { MentionNodeIcon } from './utils/mentions';
+import { MentionNodeIcon, tabMentionIconType } from './utils/mentions';
 import { useI18n } from '../../i18n';
 import { SessionTitle } from './SessionTitle';
 import { sessionTitleText } from './utils/sessionTitle';
@@ -43,9 +43,11 @@ export const ChatMentionPopup = ({
               ? 'folder'
               : item.type === 'session'
                 ? 'session'
-                : item.type === 'node'
-                  ? item.nodeType ?? 'file'
-                  : 'file';
+                : item.type === 'tab'
+                  ? tabMentionIconType(item.tab?.kind)
+                  : item.type === 'node'
+                    ? item.nodeType ?? 'file'
+                    : 'file';
 
         return (
           <div key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}>

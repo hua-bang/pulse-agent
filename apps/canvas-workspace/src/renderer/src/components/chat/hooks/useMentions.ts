@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentContextDomSelectionRef, AgentRequestContext, CanvasNode, ChatImageAttachment, DirEntry } from '../../../types';
+import type { AgentContextDomSelectionRef, AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment, DirEntry } from '../../../types';
 import { isImeComposing } from '../../../utils/ime';
 import {
   MENTION_GROUP_ORDER,
@@ -8,11 +8,7 @@ import {
 } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
 import type { AgentScope } from '../types';
-import {
-  collectContextRefsFromEditable,
-  createMentionChipElement,
-  serializeEditable,
-} from '../utils/mentions';
+import { buildTabMentionItems, collectContextRefsFromEditable, createMentionChipElement, serializeEditable, withCollectedTabs } from '../utils/mentions';
 import { appendMentionChipToEditable } from '../utils/editableMentions';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { buildAttachmentFileName } from './attachmentFileName';
@@ -27,6 +23,7 @@ interface UseMentionsOptions {
   knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
   /** Knowledge tags offered in the `@` popup (global host). */
   knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
+  dockTabs?: AgentContextTabRef[];
   /**
    * When true, structured context (with workspaceId) is collected from the
    * inline mention chips at send time and merged into the request context.
@@ -64,6 +61,7 @@ export function useMentions({
   rootFolder,
   knowledgeNodes,
   knowledgeTags,
+  dockTabs,
   collectStructuredContext,
   onSubmit,
   getRequestContext,
@@ -164,6 +162,8 @@ export function useMentions({
 
     const items: MentionItem[] = [];
 
+    if (dockTabs) items.push(...buildTabMentionItems(dockTabs));
+
     if (allWorkspaces) {
       for (const workspace of allWorkspaces) {
         if (workspace.id === workspaceId) continue;
@@ -256,7 +256,7 @@ export function useMentions({
     });
 
     return filtered.slice(0, MENTION_MAX_ITEMS);
-  }, [allWorkspaces, knowledgeNodes, knowledgeTags, loadSkillItems, nodes, rootFolder, workspaceId]);
+  }, [allWorkspaces, dockTabs, knowledgeNodes, knowledgeTags, loadSkillItems, nodes, rootFolder, workspaceId]);
 
   const handleInput = useCallback(() => {
     const element = editableRef.current;
@@ -368,6 +368,8 @@ export function useMentions({
 
   const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {
     let ctx = requestContext ?? getRequestContext?.();
+    // Tab mentions are collected for both hosts (see withCollectedTabs).
+    if (editableRef.current) ctx = withCollectedTabs(editableRef.current, ctx);
     // Pull workspace-aware refs out of the inline @-mention chips (global host).
     if (collectStructuredContext && editableRef.current) {
       const collected = collectContextRefsFromEditable(editableRef.current);

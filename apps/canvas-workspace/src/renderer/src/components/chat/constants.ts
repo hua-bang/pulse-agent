@@ -20,11 +20,14 @@ export const SKILL_MENTION_PREFIX = 'skill:';
 export const FOLDER_MENTION_PREFIX = 'folder:';
 export const TAG_MENTION_PREFIX = 'tag:';
 export const DOM_MENTION_PREFIX = 'dom:';
+/** Right-dock tab mention: `@[tab:<id>|<kind>|<label>]`. */
+export const TAB_MENTION_PREFIX = 'tab:';
 /** Assistant-emitted session citation: `@[session:<wsId>:<sessionId>:<msgIdx?>|<label>]`. */
 export const SESSION_MENTION_PREFIX = 'session:';
 
 export const MENTION_GROUPS = [
   { key: 'skill', label: 'Skills', labelKey: 'chat.mention.skills' },
+  { key: 'tab', label: 'Tabs', labelKey: 'chat.mention.tab' },
   { key: 'session', label: 'Sessions', labelKey: 'chat.mention.session' },
   { key: 'tag', label: 'Tags', labelKey: 'chat.mention.tag' },
   { key: 'file', label: 'File', labelKey: 'chat.mention.file' },
@@ -107,6 +110,7 @@ export const KNOWLEDGE_QUICK_ACTIONS: KnowledgeQuickAction[] = [
 
 export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
   if (item.type === 'skill') return 'skill';
+  if (item.type === 'tab') return 'tab';
   if (item.type === 'session') return 'session';
   if (item.type === 'tag') return 'tag';
   if (item.type === 'workspace') return 'canvas';
