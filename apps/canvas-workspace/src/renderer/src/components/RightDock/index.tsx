@@ -23,8 +23,7 @@ import { useConsumePendingLinks } from '../../hooks/useConsumePendingLinks';
 import './index.css';
 import './terminal-tab.css';
 
-export { CHAT_TAB_ID, TERMINAL_TAB_ID, isTerminalTabId } from './dock-store';
-export type { DockTerminalTab, DockTerminalWorkspaceState } from './dock-store';
+export { CHAT_TAB_ID, TERMINAL_TAB_ID, isTerminalTabId, type DockTerminalTab, type DockTerminalWorkspaceState } from './dock-store';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const DEFAULT_WIDTH = 480;
@@ -205,7 +204,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     ? null
     : state.activeTabId;
   const terminalPaneActive = state.terminalTabs.some((tab) => tab.id === activePaneId);
-
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
 
   const tabsRef = useRef<HTMLDivElement | null>(null);

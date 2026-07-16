@@ -2,14 +2,11 @@
  * Right-dock tab content for external links intercepted from embedded
  * webviews and sandboxed iframes. Each open link preview owns its own
  * <webview>; the dock dedupes exact URLs while allowing different links
- * to stay open side by side. The view exposes:
- *  - open in system browser (escape hatch for X-Frame-Options-blocked
- *    sites, or when the user wants a real browser tab)
- *  - add to current canvas (creates a new iframe node bound to the URL,
- *    then closes the tab)
+ * to stay open side by side.
  *
- * Tab chrome (label, close, switching) lives in components/RightDock;
- * the resolved page title is reported up via `onTitleChange`.
+ * Tab chrome and switching live in components/RightDock; link actions live
+ * beside the address bar, and the resolved page title is reported up via
+ * `onTitleChange`.
  */
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
@@ -18,24 +15,30 @@ import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
 import { normalizeUrl } from "../IframeNodeBody/utils";
+import { ExternalLinkIcon, PlusIcon } from "../icons";
 import { Button, TextField } from "../ui";
 import "./index.css";
 
 interface LinkTabViewProps {
   url: string;
-  /** Active workspace id, used as the target for "add to current canvas". */
-  activeWorkspaceId: string;
   onTitleChange?: (title: string) => void;
   /** Page favicon, reported once the webview resolves it, so the tab icon
    *  follows the site instead of a hardcoded globe. */
   onFaviconChange?: (faviconUrl: string) => void;
   /** Navigate this tab while preserving its stable tab identity. */
   onNavigate: (url: string) => void;
-  /** Asks the dock to close this tab (after "add to current canvas"). */
+  activeWorkspaceId: string;
   onRequestClose: () => void;
 }
 
-export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconChange, onNavigate, onRequestClose }: LinkTabViewProps) => {
+export const LinkTabView = ({
+  url,
+  onTitleChange,
+  onFaviconChange,
+  onNavigate,
+  activeWorkspaceId,
+  onRequestClose,
+}: LinkTabViewProps) => {
   const { t } = useI18n();
   const addressFormRef = useRef<HTMLFormElement>(null);
   const [address, setAddress] = useState(url);
@@ -74,11 +77,8 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconCh
 
   const handleAddToCanvas = useCallback(() => {
     if (!browser.currentUrl || !activeWorkspaceId) return;
-    // Cross-component event handed off to the active Canvas. Going through
-    // a window event keeps the dock decoupled from the canvas internals;
-    // the matching listener lives in components/Canvas/index.tsx.
     window.dispatchEvent(
-      new CustomEvent("canvas:add-iframe-from-url", {
+      new CustomEvent('canvas:add-iframe-from-url', {
         detail: { workspaceId: activeWorkspaceId, url: browser.currentUrl },
       }),
     );
@@ -106,26 +106,32 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconCh
             spellCheck={false}
           />
         </form>
+        <div className="link-drawer__actions">
+          <Button
+            variant="icon"
+            size="xs"
+            className="link-drawer__action"
+            aria-label={t('linkDrawer.openInBrowser')}
+            title={t('linkDrawer.openInBrowser')}
+            onClick={handleOpenInBrowser}
+            disabled={!browser.currentUrl}
+          >
+            <ExternalLinkIcon />
+          </Button>
+          <Button
+            variant="icon"
+            size="xs"
+            className="link-drawer__action"
+            aria-label={t('linkDrawer.addToCanvas')}
+            onClick={handleAddToCanvas}
+            disabled={!activeWorkspaceId || !browser.currentUrl}
+            title={activeWorkspaceId ? t('linkDrawer.addToCanvas') : t('linkDrawer.noActiveCanvas')}
+          >
+            <PlusIcon size={12} strokeWidth={1.2} />
+          </Button>
+        </div>
       </header>
       <div ref={browser.hostRef} className="link-drawer__webview-host" />
-      <footer className="link-drawer__footer">
-        <button
-          type="button"
-          className="link-drawer__btn"
-          onClick={handleOpenInBrowser}
-        >
-          {t('linkDrawer.openInBrowser')}
-        </button>
-        <button
-          type="button"
-          className="link-drawer__btn link-drawer__btn--primary"
-          onClick={handleAddToCanvas}
-          disabled={!activeWorkspaceId || !browser.currentUrl}
-          title={activeWorkspaceId ? undefined : t('linkDrawer.noActiveCanvas')}
-        >
-          {t('linkDrawer.addToCanvas')}
-        </button>
-      </footer>
     </>
   );
 };

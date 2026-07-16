@@ -1,7 +1,7 @@
 {
   "name": "canvas-workspace",
   "private": true,
-  "version": "0.1.15",
+  "version": "0.1.17",
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
@@ -65,6 +65,8 @@
       "node_modules/node-pty/**/*"
     ],
     "mac": {
+      "identity": "-",
+      "hardenedRuntime": false,
       "electronLanguages": [
         "en",
         "zh_CN",

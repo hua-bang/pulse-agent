@@ -42,6 +42,17 @@
   color: var(--text);
 }
 
+.link-drawer__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.link-drawer__action {
+  flex-shrink: 0;
+}
+
 /* ── Webview host ───────────────────────────────────────────────────── */
 
 .link-drawer__webview-host {
@@ -58,57 +69,4 @@
   background: #fff;
   display: flex;
   min-height: 0;
-}
-
-/* ── Footer actions ─────────────────────────────────────────────────── */
-
-.link-drawer__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 12px;
-  border-top: 1px solid rgba(55, 53, 47, 0.09);
-  background: #fff;
-  flex-shrink: 0;
-}
-
-/* Mirrors `.chat-model-secondary-btn` / `.chat-model-primary-btn` so the
- * drawer footer matches the Models & Providers dialog footer (the
- * canonical action-row style in this app). */
-.link-drawer__btn {
-  height: 34px;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(55, 53, 47, 0.12);
-  background: #fff;
-  color: #37352f;
-  padding: 0 14px;
-  font-size: 12px;
-  font-weight: 650;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  white-space: nowrap;
-  transition: background 0.1s, border-color 0.1s;
-}
-
-.link-drawer__btn:hover:not(:disabled) {
-  background: rgba(55, 53, 47, 0.05);
-}
-
-.link-drawer__btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.link-drawer__btn--primary {
-  border-color: #2383e2;
-  background: #2383e2;
-  color: #fff;
-}
-
-.link-drawer__btn--primary:hover:not(:disabled) {
-  background: #1f76cc;
-  border-color: #1f76cc;
 }
