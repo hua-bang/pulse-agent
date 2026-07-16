@@ -796,10 +796,12 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         console.warn('[loop] LLM stream produced no output', {
           model: options?.model,
           modelType: options?.modelType,
+          name: error?.name,
           status: error?.status ?? error?.statusCode,
           cause: error?.cause,
           responseBody: error?.responseBody,
           data: error?.data,
+          stack: error?.stack,
         });
       }
 
@@ -889,6 +891,22 @@ function formatUpstreamError(error: any): string | null {
   }
 
   if (combined.includes('no output generated')) {
+    if (isLocalCrash(error)) {
+      const errorName = error?.name ?? 'Error';
+      const errorMessage = error?.message ?? '(empty)';
+      return [
+        '⚠️ 本地代码在准备 LLM 请求时崩溃（非上游错误）。',
+        '',
+        'AI SDK 抛出 "No output generated" 是因为流在产出 token 前就被本地异常打断；原始异常已被 AI SDK 吞掉，但通常会在 pm2 error log 中单独打印（搜 "TypeError" / "SyntaxError" 或本条警告前后的栈）。常见原因：',
+        '- 工具的 zod schema 不兼容当前 zod 版本（例如 zod v4 下误用 `z.record(z.string())` 单参数语法，应改为 `z.record(z.string(), z.string())`）',
+        '- 自定义 provider / transformer 在序列化工具参数或消息时抛错',
+        '- context 中含有无法序列化的对象',
+        '',
+        `错误类型：${errorName}`,
+        `错误消息：${errorMessage}`,
+      ].join('\n');
+    }
+
     const detail = pickFirstNonEmpty(messages, 'no output generated');
     return [
       '⚠️ 上游模型没有产出任何输出。',
@@ -1026,10 +1044,25 @@ function isRetryableError(error: any): boolean {
   }
   // "No output generated" means the upstream opened a stream but produced no
   // tokens before failing — this is a transient condition worth retrying.
+  // Local crashes (TypeError, schema conversion failures, etc.) also surface as
+  // "No output generated" but are deterministic — retrying just burns 3 attempts
+  // and spams the logs, so skip them.
   if (typeof error?.message === 'string' && error.message.toLowerCase().includes('no output generated')) {
-    return true;
+    return !isLocalCrash(error);
   }
   return false;
+}
+
+function isLocalCrash(error: any): boolean {
+  if (!error) return false;
+  const name = error?.name;
+  if (name === 'TypeError' || name === 'SyntaxError' || name === 'ReferenceError' || name === 'RangeError') {
+    return true;
+  }
+  const hasHttpStatus = typeof error?.status === 'number' || typeof error?.statusCode === 'number';
+  const hasResponseBody = typeof error?.responseBody === 'string' && error.responseBody.length > 0;
+  const hasData = error?.data !== undefined;
+  return !hasHttpStatus && !hasResponseBody && !hasData;
 }
 
 function sleep(ms: number, abortSignal?: AbortSignal): Promise<void> {

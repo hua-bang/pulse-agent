@@ -417,6 +417,60 @@ describe('loop', () => {
     }
   });
 
+  it('surfaces local crashes (no HTTP status / responseBody) as local errors, not upstream', async () => {
+    const context: Context = {
+      messages: [{ role: 'user', content: 'test' }],
+    };
+    // Simulates the AI SDK's NoOutputGeneratedError: message contains
+    // "No output generated" but there's no status, responseBody, or data.
+    // The original local exception (e.g., a zod schema TypeError) has
+    // already been swallowed by the SDK and logged separately to stderr.
+    const noOutputError = Object.assign(new Error('No output generated. Check the stream for errors.'), {
+      name: 'AI_NoOutputGeneratedError',
+    });
+
+    streamTextAIMock.mockImplementation(() => {
+      throw noOutputError;
+    });
+
+    const result = await loop(context);
+
+    expect(result).toContain('本地代码在准备 LLM 请求时崩溃');
+    expect(result).toContain('AI_NoOutputGeneratedError');
+    expect(result).toContain('No output generated. Check the stream for errors.');
+    expect(result).not.toContain('上游模型没有产出任何输出');
+    expect(streamTextAIMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries no-output-generated errors that carry an upstream responseBody', async () => {
+    vi.useFakeTimers();
+    try {
+      const context: Context = {
+        messages: [{ role: 'user', content: 'test' }],
+      };
+      const upstreamError = Object.assign(new Error('No output generated.'), {
+        responseBody: '{"error":{"message":"Upstream request failed","type":"upstream_error"}}',
+      });
+      streamTextAIMock
+        .mockImplementationOnce(() => { throw upstreamError; })
+        .mockImplementationOnce(() => { throw upstreamError; })
+        .mockReturnValue({
+          text: Promise.resolve('recovered'),
+          steps: Promise.resolve([{ response: { messages: [] } }]),
+          finishReason: Promise.resolve('stop'),
+        });
+
+      const resultPromise = loop(context);
+      await vi.runAllTimersAsync();
+      const result = await resultPromise;
+
+      expect(result).toBe('recovered');
+      expect(streamTextAIMock).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('times out LLM calls that never produce a first chunk', async () => {
     vi.useFakeTimers();
 
