@@ -58,7 +58,11 @@ describe('google auth popup', () => {
     expect(options.webPreferences.session).toBe(opener.session);
     expect(options.webPreferences.sandbox).toBe(true);
     expect(options.webPreferences.nodeIntegration).toBe(false);
-    expect(popup.webContents.loadURL).toHaveBeenCalledWith(AUTH_URL);
+    // The opener page is passed as referrer: rerouting must not make the
+    // sign-in leg look like a URL typed from nowhere.
+    expect(popup.webContents.loadURL).toHaveBeenCalledWith(AUTH_URL, {
+      httpReferrer: 'https://github.com/login',
+    });
   });
 
   it('hands the post-login continuation back to the opener webview and closes', async () => {

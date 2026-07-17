@@ -20,7 +20,8 @@ const POPUP_WIDTH = 520;
 const POPUP_HEIGHT = 720;
 
 export function openGoogleAuthPopup(opener: WebContents, url: string): BrowserWindow {
-  const openerSite = registrableSite(opener.getURL());
+  const openerUrl = opener.getURL();
+  const openerSite = registrableSite(openerUrl);
   debugLog("popup: opening for", url, "opener site:", openerSite);
 
   const popup = new BrowserWindow({
@@ -61,7 +62,15 @@ export function openGoogleAuthPopup(opener: WebContents, url: string): BrowserWi
     popup.webContents.openDevTools({ mode: "detach" });
   }
 
-  void popup.webContents.loadURL(url);
+  // Rerouting severed the navigation's provenance: a bare loadURL arrives at
+  // accounts.google.com with no referrer, like an OAuth URL typed into an
+  // address bar — an anomaly signal for a sign-in flow. Restore the true
+  // origin of the leg (the page whose navigation we intercepted).
+  const canRefer = /^https?:/.test(openerUrl);
+  void popup.webContents.loadURL(
+    url,
+    canRefer ? { httpReferrer: openerUrl } : undefined
+  );
   return popup;
 }
 
