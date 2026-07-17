@@ -7,6 +7,7 @@ export interface BrowserLoadError {
 
 export interface EmbeddedWebviewTag extends HTMLElement {
   getWebContentsId(): number;
+  getTitle(): string;
   reload(): void;
   canGoBack(): boolean;
   canGoForward(): boolean;

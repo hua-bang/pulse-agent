@@ -14,9 +14,10 @@ export function terminalSessionId(workspaceId: string, terminalTabId: string): s
 
 /**
  * Project the open right-dock tabs into `@`-mentionable tab refs for a given
- * workspace's chat. Preview tabs (link/artifact/node-detail) are shared across
- * workspaces; terminal tabs are per-workspace. Link tabs read through the
- * webview registered under the chat's own workspaceId.
+ * workspace's chat. The state contains only the active workspace's restored
+ * link session; artifact/node-detail previews remain shared, and terminal
+ * tabs are per-workspace. Link tabs read through the webview registered under
+ * the active chat's workspaceId.
  */
 export function buildDockTabRefs(state: DockState, workspaceId: string): AgentContextTabRef[] {
   const refs: AgentContextTabRef[] = [];

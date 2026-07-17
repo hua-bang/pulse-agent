@@ -38,9 +38,10 @@ The workbench has exactly two side regions plus a modal tier:
     chat tab, cleared on activation;
   - artifact tabs are deduped by `(workspaceId, artifactId)` — opening
     an already-open artifact re-activates its tab;
-  - at most ONE link tab exists — a new intercepted link replaces its
-    URL (every `<webview>` owns a guest renderer process, so stacking
-    one per URL would leak processes);
+  - link tabs are deduped by exact URL within the active workspace.
+    They persist their URL, title, favicon, and last active tab in renderer
+    local storage, so reopening the app restores that workspace's browser
+    session; terminal and other transient preview tabs do not persist;
   - closing the active preview activates its right neighbour, falling
     back to chat; `ESC` closes the active preview tab and never touches
     chat;

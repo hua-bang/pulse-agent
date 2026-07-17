@@ -24,8 +24,8 @@ import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
-const ReferenceDrawer = lazy(() => import('../ReferenceDrawer').then((module) => ({ default: module.ReferenceDrawer })));
-const KnowledgeChatPortal = lazy(() => import('./KnowledgeChatPortal').then((module) => ({ default: module.KnowledgeChatPortal })));
+const ReferenceDrawer = lazy(() => import('../ReferenceDrawer').then((m) => ({ default: m.ReferenceDrawer })));
+const KnowledgeChatPortal = lazy(() => import('./KnowledgeChatPortal').then((m) => ({ default: m.KnowledgeChatPortal })));
 interface WorkbenchProps {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
@@ -184,12 +184,11 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       const entry: ReferenceEntry = { kind: 'url', id, url, title };
       return { ...prev, [activeWorkspaceId]: [...current, entry] };
     });
-    setActiveReferenceIdByWorkspace((prev) => ({
-      ...prev,
-      [activeWorkspaceId]: id,
-    }));
+    setActiveReferenceIdByWorkspace((prev) => ({ ...prev, [activeWorkspaceId]: id }));
     setReferenceDrawerOpen(true);
   }, [activeWorkspaceId]);
+
+  useEffect(() => dock.registerPinUrlReference(pinReferenceUrl), [dock, pinReferenceUrl]);
 
   const {
     handleAddDomSelectionToChat,

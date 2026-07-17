@@ -9,8 +9,8 @@
  *  - chat is implicit/pinned: `tabs` holds preview tabs only and
  *    `activeTabId` is either `CHAT_TAB_ID` or a preview tab id;
  *  - artifact tabs are deduped by (workspaceId, artifactId);
- *  - link tabs are deduped by exact URL, while different URLs can stay
- *    open side by side as separate previews;
+ *  - link tabs are deduped by exact URL, scoped to the active workspace,
+ *    and persisted so each workspace restores its last browser session;
  *  - closing the active preview activates the tab that slides into its
  *    slot (right neighbour, falling back to the last preview, then chat);
  *  - collapsing the dock keeps all tabs — expanding restores them;
@@ -18,74 +18,25 @@
  *    cleared the moment chat becomes the active visible tab.
  */
 
-export type DockPreviewTab =
-  | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
-  | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string }
-  | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string }
-  | { id: string; kind: 'canvas'; title: string; workspaceId: string };
-
-export interface DockTerminalTab {
-  id: string;
-  title?: string;
-  ordinal: number;
-  agentType?: string;
-}
-
-export interface DockTerminalWorkspaceState {
-  tabs: DockTerminalTab[];
-  activeTabId?: string;
-  nextOrdinal: number;
-}
-
-export interface DockState {
-  /** Preview tabs only — chat is pinned and implicit. */
-  tabs: DockPreviewTab[];
-  /** `CHAT_TAB_ID`, a terminal tab id, or a preview tab id. */
-  activeTabId: string;
-  expanded: boolean;
-  chatUnread: boolean;
-  terminalTabsByWorkspace: Record<string, DockTerminalWorkspaceState>;
-  activeTerminalWorkspaceId: string;
-  terminalTabs: DockTerminalTab[];
-  activeTerminalTabId?: string;
-  nextTerminalOrdinal: number;
-  /** Compatibility flag for callers that only need to know whether any terminal exists. */
-  terminalOpen: boolean;
-  /** Workspaces currently mounted (live) by the main Workbench — the active
-   *  one plus recency/terminal-kept background canvases. Published by the
-   *  Workbench so the dock never previews a canvas that's already live. */
-  mountedWorkspaceIds: ReadonlySet<string>;
-}
-
-export const CHAT_TAB_ID = 'chat';
-export const TERMINAL_TAB_ID = 'terminal';
-export const LINK_TAB_ID = 'link';
+import {
+  CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId,
+  isTerminalTabId, linkTabId, nodeDetailTabId, terminalTabId,
+} from './dock-tab-ids';
+import { DockLinkSessionStore, type DockSessionPersistence } from './dock-link-sessions';
+import type {
+  DockPreviewTab,
+  DockState,
+  DockTerminalTab,
+  DockTerminalWorkspaceState,
+} from './dock-types';
+export {
+  CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId,
+  isTerminalTabId, linkTabId, nodeDetailTabId, terminalTabId,
+} from './dock-tab-ids';
+export type { DockLinkSession, DockLinkSessions, DockLinkTab, DockSessionPersistence } from './dock-link-sessions';
+export type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 const DEFAULT_TERMINAL_WORKSPACE_ID = '__default__';
 const EMPTY_TERMINAL_TABS: DockTerminalTab[] = [];
-
-export const terminalTabId = (ordinal: number): string =>
-  ordinal === 1 ? TERMINAL_TAB_ID : `${TERMINAL_TAB_ID}:${ordinal}`;
-
-export const isTerminalTabId = (id: string): boolean =>
-  id === TERMINAL_TAB_ID || id.startsWith(`${TERMINAL_TAB_ID}:`);
-
-export const artifactTabId = (workspaceId: string, artifactId: string): string =>
-  `artifact:${workspaceId}:${artifactId}`;
-
-export const nodeDetailTabId = (workspaceId: string, nodeId: string): string =>
-  `node-detail:${encodeURIComponent(workspaceId)}:${encodeURIComponent(nodeId)}`;
-
-export const canvasPreviewTabId = (workspaceId: string): string =>
-  `canvas:${encodeURIComponent(workspaceId)}`;
-
-export const linkTabId = (url: string): string => {
-  let hash = 2166136261;
-  for (let i = 0; i < url.length; i += 1) {
-    hash ^= url.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `${LINK_TAB_ID}:${url.length.toString(36)}:${(hash >>> 0).toString(36)}`;
-};
 
 const INITIAL: DockState = {
   tabs: [],
@@ -105,6 +56,11 @@ export class DockStore {
   private state: DockState = INITIAL;
   private listeners = new Set<() => void>();
   private nextLinkOrdinal = 1;
+  private readonly linkSessions: DockLinkSessionStore;
+
+  constructor(sessionPersistence?: DockSessionPersistence) {
+    this.linkSessions = new DockLinkSessionStore(sessionPersistence);
+  }
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -118,6 +74,14 @@ export class DockStore {
   private commit(next: Partial<DockState>): void {
     this.state = { ...this.state, ...next };
     for (const listener of [...this.listeners]) listener();
+  }
+
+  private persistActiveLinkSession(): void {
+    this.linkSessions.capture(
+      this.state.activeTerminalWorkspaceId,
+      this.state.tabs,
+      this.state.activeTabId,
+    );
   }
 
   private getTerminalWorkspace(workspaceId = this.state.activeTerminalWorkspaceId): DockTerminalWorkspaceState {
@@ -236,6 +200,7 @@ export class DockStore {
     if (existing) {
       // Same page: keep the loaded webview (and its resolved title).
       this.commit({ expanded: true, activeTabId: existing.id });
+      this.persistActiveLinkSession();
       return;
     }
 
@@ -248,6 +213,7 @@ export class DockStore {
     }
     const tab: DockPreviewTab = { id, kind: 'link', title: trimmedUrl, url: trimmedUrl };
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: tab.id, expanded: true });
+    this.persistActiveLinkSession();
   }
 
   /** Create an empty browser tab. Unlike openLink, blank tabs are never deduped. */
@@ -260,6 +226,7 @@ export class DockStore {
     }
     const tab: DockPreviewTab = { id, kind: 'link', title, url: '' };
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+    this.persistActiveLinkSession();
   }
 
   navigateLink(id: string, url: string): void {
@@ -271,6 +238,19 @@ export class DockStore {
         item.id === id ? { ...item, url: trimmed, title: trimmed, faviconUrl: undefined } : item
       )),
     });
+    this.persistActiveLinkSession();
+  }
+
+  /** Mirror a guest URL without overwriting its resolved page title. */
+  syncLinkUrl(id: string, url: string): void {
+    const trimmed = url.trim();
+    const tab = this.state.tabs.find((item) => item.id === id);
+    if (!trimmed || tab?.kind !== 'link' || tab.url === trimmed) return;
+    this.commit({
+      tabs: this.state.tabs.map((item) => (item.id === id
+        ? { ...item, url: trimmed, faviconUrl: undefined } : item)),
+    });
+    this.persistActiveLinkSession();
   }
 
   /** Switch to an existing tab (chat, workspace terminal, or preview). Viewing chat clears unread. */
@@ -298,6 +278,9 @@ export class DockStore {
       activeTabId: id,
       ...(id === CHAT_TAB_ID ? { chatUnread: false } : {}),
     });
+    if (this.state.tabs.some((tab) => tab.id === id && tab.kind === 'link')) {
+      this.persistActiveLinkSession();
+    }
   }
 
   openChat(): void {
@@ -316,13 +299,27 @@ export class DockStore {
 
   setActiveWorkspace(workspaceId: string): void {
     if (!workspaceId || workspaceId === this.state.activeTerminalWorkspaceId) return;
+    this.persistActiveLinkSession();
+    const nonLinkTabs = this.state.tabs.filter((tab) => tab.kind !== 'link');
+    const restoredSession = this.linkSessions.get(workspaceId);
+    const restoredLinkTabs = restoredSession?.tabs ?? [];
+    const tabs = [...nonLinkTabs, ...restoredLinkTabs];
     const projection = this.projectTerminalWorkspace(workspaceId);
     const switchingFromTerminal = isTerminalTabId(this.state.activeTabId);
-    const activeTabId = switchingFromTerminal
-      ? (projection.activeTerminalTabId ?? this.state.tabs[0]?.id ?? CHAT_TAB_ID)
-      : this.state.activeTabId;
+    const restoredLinkId = restoredSession?.activeTabId
+      && restoredLinkTabs.some((tab) => tab.id === restoredSession.activeTabId)
+      ? restoredSession.activeTabId
+      : restoredLinkTabs[0]?.id;
+    const currentTabStillExists = tabs.some((tab) => tab.id === this.state.activeTabId);
+    const activeTabId = restoredLinkId
+      ?? (switchingFromTerminal ? projection.activeTerminalTabId : undefined)
+      ?? (currentTabStillExists ? this.state.activeTabId : undefined)
+      ?? projection.activeTerminalTabId
+      ?? tabs[0]?.id
+      ?? CHAT_TAB_ID;
     this.commit({
       activeTerminalWorkspaceId: workspaceId,
+      tabs,
       ...projection,
       activeTabId,
       expanded: this.state.expanded,
@@ -462,6 +459,7 @@ export class DockStore {
     this.commit({
       tabs: this.state.tabs.map((t) => (t.id === id ? { ...t, title: trimmed } : t)),
     });
+    if (tab.kind === 'link') this.persistActiveLinkSession();
   }
 
   /** Live favicon update once a link's webview reports the page icon, so the
@@ -475,11 +473,13 @@ export class DockStore {
       tabs: this.state.tabs.map((t) =>
         (t.id === id && t.kind === 'link' ? { ...t, faviconUrl: trimmed } : t)),
     });
+    this.persistActiveLinkSession();
   }
 
   close(id: string): void {
     const index = this.state.tabs.findIndex((tab) => tab.id === id);
     if (index === -1) return;
+    const closingLink = this.state.tabs[index].kind === 'link';
     const tabs = this.state.tabs.filter((tab) => tab.id !== id);
     let activeTabId = this.state.activeTabId;
     let chatUnread = this.state.chatUnread;
@@ -488,6 +488,7 @@ export class DockStore {
       if (activeTabId === CHAT_TAB_ID) chatUnread = false;
     }
     this.commit({ tabs, activeTabId, chatUnread });
+    if (closingLink) this.persistActiveLinkSession();
   }
 
   /** A chat turn finished while chat wasn't the visible tab → unread dot. */

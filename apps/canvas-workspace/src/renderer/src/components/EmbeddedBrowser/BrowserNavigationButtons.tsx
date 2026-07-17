@@ -1,10 +1,12 @@
 import { useI18n } from '../../i18n';
+import { SpinnerIcon } from '../icons';
 import { Button } from '../ui';
 
 interface Props {
   canGoBack: boolean;
   canGoForward: boolean;
   disabled?: boolean;
+  loading?: boolean;
   onBack: () => void;
   onForward: () => void;
   onReload: () => void;
@@ -15,6 +17,7 @@ export const BrowserNavigationButtons = ({
   canGoBack,
   canGoForward,
   disabled = false,
+  loading = false,
   onBack,
   onForward,
   onReload,
@@ -55,7 +58,7 @@ export const BrowserNavigationButtons = ({
         title={t('linkDrawer.reload')}
         aria-label={t('linkDrawer.reload')}
       >
-        <ReloadIcon />
+        {loading ? <SpinnerIcon size={12} className="browser-navigation__loading-icon" /> : <ReloadIcon />}
       </Button>
     </>
   );

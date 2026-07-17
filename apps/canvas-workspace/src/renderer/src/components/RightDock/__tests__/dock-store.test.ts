@@ -1,5 +1,30 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, canvasPreviewTabId, linkTabId, nodeDetailTabId, terminalTabId } from '../dock-store';
+import {
+  CHAT_TAB_ID,
+  TERMINAL_TAB_ID,
+  DockStore,
+  artifactTabId,
+  canvasPreviewTabId,
+  linkTabId,
+  nodeDetailTabId,
+  terminalTabId,
+  type DockLinkSessions,
+  type DockSessionPersistence,
+} from '../dock-store';
+
+const createSessionPersistence = (initial: DockLinkSessions = {}): {
+  persistence: DockSessionPersistence;
+  read: () => DockLinkSessions;
+} => {
+  let sessions = structuredClone(initial);
+  return {
+    persistence: {
+      load: () => structuredClone(sessions),
+      save: (next) => { sessions = structuredClone(next); },
+    },
+    read: () => structuredClone(sessions),
+  };
+};
 
 describe('DockStore', () => {
   it('starts collapsed on the pinned chat tab with no previews', () => {
@@ -164,6 +189,21 @@ describe('DockStore', () => {
       url: 'https://example.com',
     });
     expect(dock.getSnapshot().tabs[1]).toMatchObject({ id: secondId, url: '' });
+  });
+
+  it('keeps a resolved page title when the guest reports its final URL', () => {
+    const dock = new DockStore();
+    dock.openLink('https://github.com');
+    const id = linkTabId('https://github.com');
+    dock.setTitle(id, 'GitHub · Change is constant. GitHub keeps you ahead.');
+
+    dock.syncLinkUrl(id, 'https://github.com/');
+
+    expect(dock.getSnapshot().tabs[0]).toMatchObject({
+      id,
+      url: 'https://github.com/',
+      title: 'GitHub · Change is constant. GitHub keeps you ahead.',
+    });
   });
 
   it('activate switches between chat and previews and ignores unknown ids', () => {
@@ -344,6 +384,71 @@ describe('DockStore', () => {
       terminalOpen: true,
     });
     expect(dock.getSnapshot().terminalTabs.map((tab) => tab.title)).toEqual(['Claude', 'Codex']);
+  });
+
+  it('restores persisted web tabs and the last active tab per workspace', () => {
+    const saved = createSessionPersistence();
+    const firstRun = new DockStore(saved.persistence);
+    firstRun.setActiveWorkspace('ws-a');
+    firstRun.openLink('https://a.example');
+    firstRun.openLink('https://b.example');
+    firstRun.activate(linkTabId('https://a.example'));
+
+    firstRun.setActiveWorkspace('ws-b');
+    firstRun.openLink('https://other.example');
+
+    const restored = new DockStore(saved.persistence);
+    restored.setActiveWorkspace('ws-a');
+    expect(restored.getSnapshot()).toMatchObject({
+      activeTabId: linkTabId('https://a.example'),
+      expanded: false,
+    });
+    expect(restored.getSnapshot().tabs).toMatchObject([
+      { kind: 'link', url: 'https://a.example' },
+      { kind: 'link', url: 'https://b.example' },
+    ]);
+
+    restored.setActiveWorkspace('ws-b');
+    expect(restored.getSnapshot().tabs).toMatchObject([
+      { kind: 'link', url: 'https://other.example' },
+    ]);
+    expect(restored.getSnapshot().activeTabId).toBe(linkTabId('https://other.example'));
+  });
+
+  it('persists web-tab navigation metadata and removes closed tabs from the saved session', () => {
+    const saved = createSessionPersistence();
+    const dock = new DockStore(saved.persistence);
+    dock.setActiveWorkspace('ws-a');
+    dock.newLink('New tab');
+    const id = dock.getSnapshot().activeTabId;
+    dock.navigateLink(id, 'https://example.com');
+    dock.setTitle(id, 'Example');
+    dock.setFavicon(id, 'https://example.com/favicon.ico');
+
+    expect(saved.read()['ws-a']).toEqual({
+      tabs: [{
+        id,
+        kind: 'link',
+        title: 'Example',
+        url: 'https://example.com',
+        faviconUrl: 'https://example.com/favicon.ico',
+      }],
+      activeTabId: id,
+    });
+
+    dock.close(id);
+    expect(saved.read()['ws-a']).toEqual({ tabs: [], activeTabId: undefined });
+  });
+
+  it('does not persist transient non-web previews', () => {
+    const saved = createSessionPersistence();
+    const dock = new DockStore(saved.persistence);
+    dock.setActiveWorkspace('ws-a');
+    dock.openArtifact('ws-a', 'artifact-1');
+    dock.openNodeDetail('ws-a', 'node-1', 'Node');
+    dock.openCanvasPreview('ws-b', 'Other workspace');
+
+    expect(saved.read()).toEqual({});
   });
 
   it('stores terminal agent type per workspace tab', () => {
