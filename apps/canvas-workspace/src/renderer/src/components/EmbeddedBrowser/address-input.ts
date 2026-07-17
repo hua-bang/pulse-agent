@@ -72,6 +72,46 @@ export function looksLikeUrl(input: string): boolean {
   return /^[^.\s]+(\.[^.\s]+)+$/.test(hostname);
 }
 
+export interface ParsedSearchQuery {
+  engine: SearchEngineId;
+  query: string;
+}
+
+/** Result-page shapes of the supported engines, for showing a history entry
+ *  as the search it was rather than a raw URL (omnibox suggestion rows). */
+const SEARCH_RESULT_SHAPES: ReadonlyArray<{
+  engine: SearchEngineId;
+  hostRe: RegExp;
+  pathRe: RegExp;
+  param: string;
+}> = [
+  // google.com, google.de, google.com.hk, …
+  { engine: 'google', hostRe: /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/, pathRe: /^\/search\/?$/, param: 'q' },
+  { engine: 'bing', hostRe: /(^|\.)bing\.com$/, pathRe: /^\/search\/?$/, param: 'q' },
+  { engine: 'duckduckgo', hostRe: /(^|\.)duckduckgo\.com$/, pathRe: /^\/?$/, param: 'q' },
+];
+
+/**
+ * If `rawUrl` is a search-result page of a supported engine, return the
+ * engine and the search terms; otherwise null.
+ */
+export function parseSearchQuery(rawUrl: string): ParsedSearchQuery | null {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  const host = url.hostname.toLowerCase();
+  for (const shape of SEARCH_RESULT_SHAPES) {
+    if (!shape.hostRe.test(host) || !shape.pathRe.test(url.pathname)) continue;
+    const query = url.searchParams.get(shape.param)?.trim();
+    if (query) return { engine: shape.engine, query };
+  }
+  return null;
+}
+
 /**
  * Resolve raw address-bar input into a navigable URL: URLs are normalized
  * (https:// prepended when schemeless), everything else becomes a search on

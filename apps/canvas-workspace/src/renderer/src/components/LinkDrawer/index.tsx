@@ -9,15 +9,17 @@
  * `onTitleChange`.
  */
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useI18n } from "../../i18n";
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
 import { resolveAddressInput } from '../EmbeddedBrowser/address-input';
+import { AddressSuggestionList, useAddressSuggestions, type AddressSuggestion } from './AddressSuggestions';
 import { useWebviewRegistration } from '../IframeNodeBody/useWebviewRegistration';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
 import { ExternalLinkIcon, PlusIcon } from "../icons";
-import { Button, TextField } from "../ui";
+import { Button, TextField, clampIndexMove } from "../ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../shared/experimental-features";
 import "./index.css";
 
@@ -108,8 +110,53 @@ export const LinkTabView = ({
     if (!url) requestAnimationFrame(() => addressFormRef.current?.querySelector('input')?.focus());
   }, [url]);
 
+  // ── Address-bar history suggestions (omnibox dropdown) ────────────
+  // Open while the input is focused/edited; -1 = no row selected (Enter
+  // resolves the typed text as usual). ArrowDown/Up move through rows and
+  // back up to the raw input; Escape and outside presses dismiss.
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  // Untouched input still holding the current page's URL (the just-focused
+  // state — onFocus selects it all) means "show me recent pages", not
+  // "filter by this URL"; anything the user actually typed filters.
+  const effectiveQuery = address.trim() === (browser.currentUrl || url).trim() ? '' : address;
+  const suggestions = useAddressSuggestions(effectiveQuery, suggestOpen);
+  const suggestionsId = useId();
+  useEffect(() => setActiveSuggestion(-1), [address]);
+  useClickOutside(addressFormRef, () => setSuggestOpen(false), suggestOpen);
+  const suggestionsVisible = suggestOpen && suggestions.length > 0;
+
+  const pickSuggestion = useCallback((suggestion: AddressSuggestion) => {
+    setSuggestOpen(false);
+    onNavigate(suggestion.url);
+  }, [onNavigate]);
+
+  const handleAddressKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
+    if (!suggestionsVisible) return;
+    // Shift the [-1, n-1] selection domain (with -1 = the typed input) onto
+    // clampIndexMove's [0, n] so the shared clamp semantics apply.
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      setActiveSuggestion((current) => clampIndexMove(current + 1, delta, suggestions.length + 1) - 1);
+      return;
+    }
+    if (event.key === 'Escape') {
+      // Swallow it — the RightDock window listener closes the tab on Escape.
+      event.preventDefault();
+      event.stopPropagation();
+      setSuggestOpen(false);
+      return;
+    }
+    if (event.key === 'Enter' && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
+      event.preventDefault();
+      pickSuggestion(suggestions[activeSuggestion]);
+    }
+  }, [suggestionsVisible, suggestions, activeSuggestion, pickSuggestion]);
+
   const handleNavigate = useCallback((event: FormEvent) => {
     event.preventDefault();
+    setSuggestOpen(false);
     // Omnibox behavior: URL-ish input navigates, anything else searches on
     // the configured engine (Google by default) — see address-input.ts.
     const nextUrl = resolveAddressInput(address);
@@ -145,12 +192,37 @@ export const LinkTabView = ({
           <TextField
             className="link-drawer__url"
             value={address}
-            onChange={(event) => setAddress(event.target.value)}
-            onFocus={(event) => event.currentTarget.select()}
+            onChange={(event) => {
+              setAddress(event.target.value);
+              setSuggestOpen(true);
+            }}
+            onFocus={(event) => {
+              event.currentTarget.select();
+              setSuggestOpen(true);
+            }}
+            onKeyDown={handleAddressKeyDown}
             placeholder={t('linkDrawer.addressPlaceholder')}
             aria-label={t('linkDrawer.addressLabel')}
             spellCheck={false}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={suggestionsVisible}
+            aria-controls={suggestionsVisible ? suggestionsId : undefined}
+            aria-activedescendant={
+              suggestionsVisible && activeSuggestion >= 0
+                ? `${suggestionsId}-option-${activeSuggestion}`
+                : undefined
+            }
           />
+          {suggestionsVisible && (
+            <AddressSuggestionList
+              suggestions={suggestions}
+              activeIndex={activeSuggestion}
+              listId={suggestionsId}
+              onPick={pickSuggestion}
+              onHover={setActiveSuggestion}
+            />
+          )}
         </form>
         <div className="link-drawer__actions">
           <Button
