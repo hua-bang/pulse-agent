@@ -74,6 +74,7 @@ import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
+import { setupGoogleAuthCompat } from "./google-auth";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
 
@@ -114,6 +115,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     startupMark("whenReady");
     startLoopDelaySampler(writeLog);
     spoofUserAgentFallback();
+    setupGoogleAuthCompat();
     registerPulseCanvasProtocol(writeLog);
     configureAppChrome(paths.iconPath, writeLog);
     // Must run before the window opens: the default menu's Undo/Redo
@@ -285,13 +287,12 @@ function resolveAppPaths(mainDir: string): AppPaths {
 function spoofUserAgentFallback(): void {
   // Notion, Google, and a handful of other services reject embedded
   // <webview>s whose UA carries the Electron token. Strip the Electron /
-  // product-name tokens but keep the REAL Chrome version: the bundled
-  // Chromium is current, so UA string, UA Client Hints, and
-  // navigator.userAgentData agree naturally. Do NOT rewrite the version —
-  // hints/userAgentData derive from the real build and a rewritten UA string
-  // reintroduces exactly the mismatch accounts.google.com rejects (the
-  // Electron 30 era needed a Firefox identity spoof for this; see
-  // google-auth.ts history note).
+  // product-name tokens but keep the REAL Chrome version: hints and
+  // userAgentData derive from the real build, and a rewritten version
+  // reintroduces exactly the mismatch accounts.google.com rejects. Google's
+  // auth hosts additionally get a Firefox identity (google-auth.ts) — an
+  // honest Chrome claim invites Chrome-specific BotGuard checks an Electron
+  // shell cannot pass (falsified on Electron 42, 2026-07-17).
   app.userAgentFallback = app.userAgentFallback
     .replace(/\s?Electron\/\S+/g, "")
     .replace(/\s?PulseCanvas\/\S+/g, "");

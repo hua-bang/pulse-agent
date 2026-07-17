@@ -77,23 +77,25 @@ These make on-disk files an execution or injection surface:
   before its page can run JS; unsafe URLs are denied, OAuth-style popups get
   a real window, everything else is routed to the renderer's preview drawer
   instead of auto-opening.
-- **Google sign-in rides an honest UA + popup rerouting, not spoofing**
-  (`src/main/app/google-auth.ts`, `google-auth-popup.ts`): with the bundled
-  Chromium current, the app strips only the Electron/product UA tokens and
-  keeps the real Chrome version (bootstrap.ts), so UA string, UA Client
-  Hints, and `navigator.userAgentData` agree naturally — no identity spoof.
-  (The Electron 30 era instead spoofed a Firefox identity on Google hosts
-  because the real Chromium 124 was below Google's floor and a rewritten
-  Chrome version contradicted client hints; if sign-in regresses, check the
-  bundled Chromium's age before reintroducing spoofing.) The auth-host
-  allowlist is exact-match by design — it loosens navigation policy, so
+- **Google sign-in identity is selectable; attribution investigation open**
+  (`src/main/app/google-auth.ts`, `google-auth-popup.ts`): the app-wide UA
+  strips only the Electron/product tokens and keeps the real Chrome version
+  (bootstrap.ts). On the exact-match Google auth hosts,
+  `PULSE_GOOGLE_AUTH_IDENTITY` selects between the default `firefox`
+  identity (per-webContents UA override + client-hint header strip — the
+  config Electron shells in the wild ship) and `chrome` (honest engine
+  identity, no override). Honest identity on Electron 42 was rejected by
+  `/v3/signin` after credential submission on 2026-07-17, but the account/IP
+  had accumulated many failed attempts that day — sticky risk state and
+  BotGuard falsification of the Chrome claim are both live hypotheses; the
+  toggle exists to A/B them (see the evidence log in google-auth.ts). The
+  allowlist stays exact-match by design — it loosens navigation policy, so
   suffix lookalikes (`accounts.google.com.evil`) must never qualify.
-  Google's strict full-page flow (`/v3/signin`) additionally risk-scores
-  embedded surfaces, so in-place entry legs from `<webview>` guests are
-  rerouted into a top-level BrowserWindow popup on the same session,
-  mirroring the `window.open` popup shape that empirically passes; the
-  post-login continuation is handed back to the opener webview so the
-  one-shot URL is consumed there.
+  Google's strict full-page flow additionally risk-scores embedded
+  surfaces, so in-place entry legs from `<webview>` guests are rerouted
+  into a top-level BrowserWindow popup on the same session (with the
+  opener page as referrer); the post-login continuation is handed back to
+  the opener webview so the one-shot URL is consumed there.
 
 ## Containment that DOES exist
 
