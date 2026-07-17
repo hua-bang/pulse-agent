@@ -32,6 +32,21 @@ import { app, session } from "electron";
 //    Electron 42 upgrade was reverted and the battle-tested Electron 30 +
 //    firefox configuration restored. First post-revert GIS pass with the
 //    same account would falsify the sticky-account hypothesis outright.
+//  - Codex/ChatGPT desktop teardown (2026-07-17): OpenAI's desktop
+//    embedded browser passes Google sign-in, but it is NOT an Electron
+//    trick. The browser lives in ChatGPT.app, which IS a full Chromium
+//    fork ("Codex Framework", 150.0.7871.124 — same build train as the
+//    installed official Chrome 150.0.7871.115 — updated via Sparkle
+//    full-app updates). Wire headers showed pure Chrome 150 UA +
+//    "Google Chrome" client hints because the engine IS Chrome; it
+//    passes Chrome-specific BotGuard checks by definition. (The
+//    standalone /Applications/Codex.app is a separate Electron 42
+//    shell and was a red herring.) Conclusion: there is NO
+//    header/UA-level technique that lets an Electron shell pass
+//    Google's strict flow; the only "real Chrome identity" path is
+//    maintaining a Chromium fork (dedicated team, ~4-week upstream
+//    rebase cadence, ~350MB full-app updates), which is ruled out.
+//    The "honest Chrome identity" experiment class is closed.
 //
 // Why a Firefox claim can help at all: Firefox sends no client hints, so
 // there is no second identity source to cross-check. Two cooperating layers:
