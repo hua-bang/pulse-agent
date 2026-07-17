@@ -664,8 +664,13 @@ export class CanvasAgent {
 
     await this.engine.initialize();
 
-    // Start a new session
-    await this.sessionStore.startSession();
+    const restoredSession = await this.sessionStore.restoreLastSession();
+    if (restoredSession) {
+      this.messages = restoredSession.messages.map(sessionMessageToModelMessage);
+    } else {
+      await this.sessionStore.startSession();
+      this.messages = [];
+    }
 
     console.info('[canvas-agent] Initialized');
   }
