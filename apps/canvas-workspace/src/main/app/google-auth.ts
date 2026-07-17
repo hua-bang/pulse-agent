@@ -21,14 +21,17 @@ import { app, session } from "electron";
 //  - Electron 42 + honest chrome identity (real Chrome 148 UA, consistent
 //    client hints/userAgentData, window.chrome present) + popup reroute,
 //    cold session: /v3/signin rejected AFTER credential submission; the
-//    previously-passing GIS flows failed the same day too. Attribution was
-//    left OPEN between "a Chrome claim invites Chrome-specific BotGuard
-//    checks an Electron shell cannot pass" and "account/IP risk state went
-//    sticky after a day of failed attempts" — the planned identity-only A/B
-//    was not run. DECISION: the Electron 42 upgrade was reverted and the
-//    battle-tested Electron 30 + firefox configuration restored. If this is
-//    ever revisited, run the A/B in google-auth history (identity toggle,
-//    cold sessions, GIS flow as instrument, account health baseline first).
+//    previously-passing GIS flows failed the same day too. Attribution
+//    leans strongly toward "a Chrome claim invites Chrome-specific BotGuard
+//    checks an Electron shell cannot pass": every rejection rendered the
+//    embedded-browser error class ("This browser or app may not be
+//    secure"), NOT an account-risk challenge (verify-it's-you / captcha /
+//    unusual-activity), which a flagged account would produce. The
+//    sticky-account alternative was never fully falsified (identity-only
+//    A/B not run) but is disfavored by the error semantics. DECISION: the
+//    Electron 42 upgrade was reverted and the battle-tested Electron 30 +
+//    firefox configuration restored. First post-revert GIS pass with the
+//    same account would falsify the sticky-account hypothesis outright.
 //
 // Why a Firefox claim can help at all: Firefox sends no client hints, so
 // there is no second identity source to cross-check. Two cooperating layers:
