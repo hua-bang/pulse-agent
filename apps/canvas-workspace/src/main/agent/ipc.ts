@@ -236,8 +236,13 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:history',
-    (_event, payload: AgentScopeRef) => {
-      return { ok: true, messages: svc.getHistoryForScope(resolveAgentScope(payload)) };
+    async (_event, payload: AgentScopeRef) => {
+      try {
+        const messages = await svc.getHistoryForScope(resolveAgentScope(payload));
+        return { ok: true, messages };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
     },
   );
 
