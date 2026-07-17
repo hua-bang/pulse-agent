@@ -13,9 +13,13 @@ interface Props {
   onOpenCanvas: () => void;
   onNewWebTab: () => void;
   onNewTerminalTab: () => void;
+  /** Hover-open support: pointer entered/left the portaled panel (the menu is
+   *  opened by hovering the + trigger; these keep it open over the panel). */
+  onHoverEnter?: () => void;
+  onHoverLeave?: () => void;
 }
 
-export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOpenNode, onOpenCanvas, onNewWebTab, onNewTerminalTab }: Props) => {
+export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOpenNode, onOpenCanvas, onNewWebTab, onNewTerminalTab, onHoverEnter, onHoverLeave }: Props) => {
   const { t } = useI18n();
 
   return (
@@ -32,6 +36,8 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
           className="right-dock__new-tab-panel"
           ariaLabel={t('rightDock.newTabMenu')}
           panelId={panelId}
+          onMouseEnter={onHoverEnter}
+          onMouseLeave={onHoverLeave}
         >
           <Button
             size="sm"

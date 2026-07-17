@@ -6,6 +6,8 @@ import { readDOM, readA11y, captureScreenshot } from '../../webview/reader';
 import { getCurrentVersionContent } from '../../artifacts/store';
 import { getSessionScrollback } from '../../terminal/scrollback';
 import { getDockTabs } from '../../dock/tab-store';
+import { findDockLinkTab, openDockTab } from '../../dock/tab-actions';
+import { searchHistory } from '../../dock/history-store';
 import type { CanvasTool } from './types';
 
 const READINESS_HINT =
@@ -34,12 +36,95 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         'List the right-dock tabs currently open for this workspace (the browser-like tabs at the top of the dock): ' +
         'open web pages (link), node detail, artifacts, and workspace terminals. ' +
         'Returns each tab with the fields to pass to `canvas_read_tab` (or `canvas_read_node` for node-detail). ' +
+        'A link tab id can also be used with `canvas_open_tab` (navigate it) and — when the webview-page-control ' +
+        'flag is on — with the page_* tools (click/fill/press/scroll/eval on the live page). ' +
         'Use this to discover what the user is looking at without waiting for them to `@`-mention a tab.',
       inputSchema: z.object({}),
       execute: async (input) => {
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
         const tabs = getDockTabs(targetWorkspaceId);
         return JSON.stringify({ ok: true, count: tabs.length, tabs });
+      },
+    },
+
+    canvas_open_tab: {
+      name: 'canvas_open_tab',
+      defer_loading: true,
+      description:
+        'Open a URL as a web (link) tab in the right dock, or navigate an existing link tab to a new URL.\n' +
+        '- Without `tabId`: opens the URL as a dock tab (an already-open tab with the exact same URL is re-activated instead of duplicated).\n' +
+        '- With `tabId` (a link tab id from `canvas_list_tabs`): navigates that tab in place, keeping its identity.\n' +
+        'Only http(s) URLs are allowed. The new tab id becomes visible via `canvas_list_tabs` once the page starts loading; ' +
+        'read the page with `canvas_read_tab` and (when the webview-page-control flag is on) operate it with the page_* tools using the tab id.',
+      inputSchema: z.object({
+        url: z.string().describe('The http(s) URL to open.'),
+        tabId: z
+          .string()
+          .optional()
+          .describe('Existing link tab to navigate (from canvas_list_tabs). Omit to open a new tab.'),
+      }),
+      execute: async (input) => {
+        const url = (input.url as string | undefined)?.trim() ?? '';
+        const tabId = (input.tabId as string | undefined)?.trim() || undefined;
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        let protocol = '';
+        try {
+          protocol = new URL(url).protocol;
+        } catch {
+          return JSON.stringify({ ok: false, error: `Not a valid URL: ${url}` });
+        }
+        if (protocol !== 'https:' && protocol !== 'http:') {
+          return JSON.stringify({ ok: false, error: `Only http(s) URLs can be opened in a tab (got ${protocol}).` });
+        }
+        // Unknown tab ids are not an error: the renderer falls back to opening
+        // a new tab, but tell the agent so it re-lists instead of assuming.
+        // (The main-side tab mirror is per-workspace, so an id can be real yet
+        // invisible here — only claim certainty when the mirror confirms it.)
+        const knownTab = tabId ? findDockLinkTab(targetWorkspaceId, tabId) : undefined;
+        const sent = openDockTab(url, tabId);
+        console.info(`[canvas-tab] open-tab url-host=${new URL(url).hostname} tab=${tabId ?? '(new)'} sent=${sent}`);
+        if (!sent) {
+          return JSON.stringify({ ok: false, error: 'No canvas window is open to receive the tab.' });
+        }
+        return JSON.stringify({
+          ok: true,
+          url,
+          ...(tabId ? { tabId } : {}),
+          ...(tabId && !knownTab
+            ? { note: 'tabId was not in this workspace\'s tab list; the dock navigates it if it exists, otherwise it opens the URL as a new tab.' }
+            : {}),
+          hint: 'Call canvas_list_tabs to get the tab id and confirm it is open, then canvas_read_tab to read the page.',
+        });
+      },
+    },
+
+    canvas_search_history: {
+      name: 'canvas_search_history',
+      defer_loading: true,
+      description:
+        'Search the browsing history of the right-dock web tabs (pages the user opened or navigated to in this app). ' +
+        'Terms match URL and page title (case-insensitive, all terms must match); results are most-recent first with ' +
+        'visit counts and timestamps. Empty query returns the most recently visited pages. ' +
+        'Combine with canvas_open_tab to re-open a previously visited page.',
+      inputSchema: z.object({
+        query: z
+          .string()
+          .optional()
+          .describe('Space-separated terms matched against URL + title. Omit for the most recent pages.'),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .max(200)
+          .optional()
+          .describe('Maximum entries to return. Defaults to 20.'),
+      }),
+      execute: async (input) => {
+        const entries = await searchHistory(
+          (input.query as string | undefined) ?? '',
+          input.limit as number | undefined,
+        );
+        return JSON.stringify({ ok: true, count: entries.length, entries });
       },
     },
 

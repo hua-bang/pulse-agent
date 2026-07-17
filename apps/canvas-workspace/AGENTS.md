@@ -178,6 +178,11 @@ pnpm --filter canvas-workspace package:linux
   previews.
 - `src/shared/canvas.ts`: canonical canvas node, edge, reference, and workspace
   node contracts.
+- `src/main/dock/`: right-dock tab support in main — `tab-store.ts` (renderer
+  tab mirror for `canvas_list_tabs`), `tab-actions.ts` (main→renderer
+  `dock:activate-tab`/`dock:open-tab` pushes behind `canvas_open_tab` and the
+  page_* tools' tab targeting), `history-store.ts` (web-tab browsing history
+  behind `canvas_search_history`).
 - `src/main/canvas/store.ts`: workspace manifest/store IPC, watchers, export,
   import, and migration hooks.
 - `src/main/canvas/storage.ts`: atomic JSON I/O, v2 split storage, migration,

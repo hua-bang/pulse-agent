@@ -47,6 +47,13 @@ interface SharedProps {
   /** `id` rendered on the panel so a caller's own trigger button can point
    *  `aria-controls`/`aria-owns` at it. */
   panelId?: string;
+  /** Hover passthroughs on the panel root — for hover-triggered menus that
+   *  must keep themselves open while the pointer is over the (portaled)
+   *  panel, e.g. RightDock/DockCreationControls. The panel lives outside the
+   *  trigger's DOM subtree, so the trigger's own mouseleave alone would
+   *  close the menu the moment the pointer crosses into it. */
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
   children: ReactNode;
 }
 
@@ -123,7 +130,7 @@ type Props = PointAnchorProps | RectAnchorProps;
  * Sidebar tree has no such ancestor).
  */
 export const Popover = (props: Props) => {
-  const { onClose, role = 'menu', className, autoFocus = true, ariaLabel, panelId, children } = props;
+  const { onClose, role = 'menu', className, autoFocus = true, ariaLabel, panelId, onMouseEnter, onMouseLeave, children } = props;
 
   // Resolve inputs for BOTH anchoring hooks up front so both can be called
   // unconditionally below (rules-of-hooks) regardless of which mode this
@@ -235,6 +242,8 @@ export const Popover = (props: Props) => {
       style={style}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       {children}
     </div>,

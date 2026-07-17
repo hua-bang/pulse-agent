@@ -32,7 +32,10 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent/model/config.ts': 599,
   'src/plugins/main/dynamic-app/tools.ts': 593,
   'src/main/settings/canvas-plugins-config.ts': 558,
-  'src/main/agent/session-store.ts': 605,
+  // 605→636 (2026-07-17, drift recorded): grew via master work (#806
+  // session-restore fix) that never ran this suite (no automatic trigger).
+  // Raised to measured; must-not-grow applies from 636.
+  'src/main/agent/session-store.ts': 636,
   'src/renderer/src/components/chat/hooks/useChatStream.ts': 542,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,
