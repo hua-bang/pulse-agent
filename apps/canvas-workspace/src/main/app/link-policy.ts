@@ -28,9 +28,9 @@ export function setupLinkPolicy(): void {
       // window.close) completes in-app. Google auth URLs get this treatment
       // for EVERY disposition (window.open popups AND target=_blank links):
       // handing them to the system browser would strand the login cookie in a
-      // session the app can never read. google-auth.ts makes these in-app
-      // surfaces pass Google's embedded-browser checks (Firefox UA identity,
-      // no contradicting client hints).
+      // session the app can never read. The app-wide UA normalization
+      // (bootstrap.ts) keeps these in-app surfaces presenting a consistent,
+      // current Chrome identity.
       if (disposition === "new-window" || isGoogleAuthUrl(url)) {
         return { action: "allow" };
       }

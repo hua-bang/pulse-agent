@@ -3,9 +3,8 @@ import { isGoogleAuthUrl } from "./google-auth";
 
 // Why a popup: Google's strict full-page sign-in flow
 // (accounts.google.com/v3/signin) risk-scores the surface it runs in, and a
-// <webview> guest is the most embedded-looking surface this app has — the UA
-// identity spoof in google-auth.ts is not always enough there ("This browser
-// may not be secure"). The flows that empirically pass in this app
+// <webview> guest is the most embedded-looking surface this app has ("This
+// browser may not be secure"). The flows that empirically pass in this app
 // (Figma/Notion) run in a real top-level BrowserWindow created by
 // window.open, so link-policy.ts reroutes redirect-mode (in-place) auth
 // entries out of the webview into that same shape.
