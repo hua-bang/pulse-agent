@@ -1,5 +1,14 @@
 import { app, session } from "electron";
 
+// Opt-in diagnostics (PULSE_DEBUG_GOOGLE_AUTH=1). Main-process stderr, so it
+// shows up directly in the `pnpm dev` terminal — used to see, at runtime,
+// which nav events fire, whether the debugger attaches, and the ACTUAL headers
+// leaving for accounts.google.com. Zero cost when the env var is unset.
+const DEBUG_GOOGLE_AUTH = Boolean(process.env.PULSE_DEBUG_GOOGLE_AUTH);
+function dbgLog(...parts: unknown[]): void {
+  if (DEBUG_GOOGLE_AUTH) console.error("[google-auth]", ...parts);
+}
+
 // Google sign-in compatibility for embedded browsing surfaces.
 //
 // Google hard-blocks logins from anything it can fingerprint as an embedded
@@ -117,10 +126,12 @@ function hideUserAgentDataOnGoogle(
   const dbg = contents.debugger;
   try {
     if (!dbg.isAttached()) dbg.attach("1.3");
-  } catch {
+  } catch (err) {
+    dbgLog("debugger.attach FAILED:", String(err));
     return;
   }
   attached.add(contents);
+  dbgLog("debugger attached; registering userAgentData-hide script");
   // Applies to the NEXT document created — we call this on will-navigate /
   // will-redirect, before the Google document commits, so its own scripts see
   // the redefined property.
@@ -128,7 +139,9 @@ function hideUserAgentDataOnGoogle(
     .sendCommand("Page.addScriptToEvaluateOnNewDocument", {
       source: HIDE_UA_DATA_SOURCE,
     })
-    .catch(() => {
+    .then(() => dbgLog("addScriptToEvaluateOnNewDocument OK"))
+    .catch((err) => {
+      dbgLog("addScriptToEvaluateOnNewDocument FAILED:", String(err));
       attached.delete(contents);
     });
 }
@@ -165,17 +178,22 @@ export function setupGoogleAuthCompat(): void {
     // client-side check bounces to /v3/signin/rejected even though the wire
     // headers (rewritten below) said Firefox.
     contents.on("will-navigate", (_navEvent, url) => {
+      if (DEBUG_GOOGLE_AUTH && isGoogleAuthUrl(url)) {
+        dbgLog("will-navigate →", url, "type:", contents.getType());
+      }
       applyUserAgentForUrl(url);
     });
     contents.on(
       "did-start-navigation",
       (_navEvent, url, _isInPage, isMainFrame) => {
+        if (isMainFrame && isGoogleAuthUrl(url)) dbgLog("did-start-navigation →", url);
         if (isMainFrame) applyUserAgentForUrl(url);
       }
     );
     contents.on(
       "will-redirect",
       (_navEvent, url, _isInPage, isMainFrame) => {
+        if (isMainFrame && isGoogleAuthUrl(url)) dbgLog("will-redirect →", url);
         if (isMainFrame) applyUserAgentForUrl(url);
       }
     );
@@ -192,9 +210,23 @@ export function setupGoogleAuthCompat(): void {
       ],
     },
     (details, callback) => {
-      callback({
-        requestHeaders: rewriteGoogleAuthHeaders(details.requestHeaders),
-      });
+      const rewritten = rewriteGoogleAuthHeaders(details.requestHeaders);
+      if (DEBUG_GOOGLE_AUTH) {
+        const secChIn = Object.keys(details.requestHeaders).filter((k) =>
+          k.toLowerCase().startsWith("sec-ch-")
+        );
+        dbgLog(
+          "onBeforeSendHeaders",
+          new URL(details.url).pathname,
+          "| in UA:",
+          details.requestHeaders["User-Agent"] ?? details.requestHeaders["user-agent"],
+          "| in Sec-CH-*:",
+          secChIn.length ? secChIn.join(",") : "(none)",
+          "| out UA:",
+          rewritten["User-Agent"]
+        );
+      }
+      callback({ requestHeaders: rewritten });
     }
   );
 }
