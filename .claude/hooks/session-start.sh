@@ -32,15 +32,6 @@ for d in node_modules/.pnpm/electron@*/node_modules/electron; do
     printf 'electron' > "$d/path.txt"
     echo "[session-start]   wrote $d/path.txt"
   fi
-  # Electron >=42 verifies the executable exists at require() time and
-  # auto-downloads when missing (blocked here). A zero-byte stub satisfies
-  # the existsSync check; tests never spawn the real binary.
-  if [ -d "$d" ] && [ ! -e "$d/dist/electron" ]; then
-    mkdir -p "$d/dist"
-    : > "$d/dist/electron"
-    chmod +x "$d/dist/electron"
-    echo "[session-start]   stubbed $d/dist/electron"
-  fi
 done
 
 echo "[session-start] building node-pty native module if missing…"
