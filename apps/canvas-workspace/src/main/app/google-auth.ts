@@ -4,18 +4,15 @@ import { app, session } from "electron";
 //
 // Google hard-blocks logins from anything it can fingerprint as an embedded
 // or outdated browser ("This browser or app may not be secure" /
-// `403: disallowed_useragent`). The app-wide UA spoof in bootstrap.ts rewrites
-// the UA *string* to a current Chrome, but Chromium still derives UA Client
-// Hints (`Sec-CH-UA` headers + `navigator.userAgentData`) from the real
-// bundled Chromium version. accounts.google.com requests the full client-hint
-// version list and cross-checks it against the UA string, so Chrome-flavoured
-// spoofing on an older Chromium can never pass there — the two signals always
-// disagree.
-//
-// The reliable workaround (the same one Ferdium/WebCatalog-style Electron
-// shells ship) is to present a *Firefox* identity on Google's account hosts
-// only: Firefox sends no client hints at all, so there is no second signal to
-// contradict the UA string. Two cooperating layers:
+// `403: disallowed_useragent`). Since the Electron upgrade, bootstrap.ts
+// keeps the UA string's Chrome version equal to the REAL bundled Chromium
+// (so the UA and the Chromium-generated UA Client Hints agree), which
+// removes the primary block. This module stays as defense-in-depth: it
+// presents a *Firefox* identity on Google's account hosts only — Firefox
+// sends no client hints at all, so there is no second signal for Google to
+// cross-check even if it starts rejecting brand-less Chromium or the
+// bundled version ages below the sign-in floor again. (Same approach
+// Ferdium/WebCatalog-style Electron shells ship.) Two cooperating layers:
 //
 //  1. Per-webContents UA override while a contents is on a Google auth host.
 //     This is what `navigator.userAgent` reports to page JS, and an active

@@ -60,13 +60,10 @@ export function createWindow({
     void writeLog("renderer", `process gone: ${details.reason}`);
   });
 
-  win.webContents.on(
-    "console-message",
-    (_event, level, message, line, sourceId) => {
-      const details = `${sourceId}:${line}`;
-      void writeLog("console", `L${level} ${message}`, details);
-    }
-  );
+  win.webContents.on("console-message", (event) => {
+    const details = `${event.sourceId}:${event.lineNumber}`;
+    void writeLog("console", `[${event.level}] ${event.message}`, details);
+  });
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void writeLog("main", "loadURL", process.env.ELECTRON_RENDERER_URL);
