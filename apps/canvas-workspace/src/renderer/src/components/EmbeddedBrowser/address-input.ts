@@ -3,9 +3,9 @@
  * user typed a URL (navigate) or a search query (send to a search engine),
  * mirroring browser omnibox behavior.
  *
- * Search-engine choice: Google by default; override by writing one of the
- * `SEARCH_ENGINES` keys to localStorage under `STORAGE_KEY` (no settings UI
- * yet — see `getStoredSearchEngine`).
+ * Search-engine choice: Google by default; changed in Settings → Browser
+ * (persisted to localStorage under `STORAGE_KEY`). Unknown stored values
+ * (e.g. an engine that was later removed) fall back to the default.
  */
 import { BLANK_PAGE_URL, normalizeUrl } from '../IframeNodeBody/utils';
 
@@ -17,10 +17,6 @@ export const SEARCH_ENGINES = {
   bing: {
     label: 'Bing',
     buildSearchUrl: (query: string) => `https://www.bing.com/search?q=${encodeURIComponent(query)}`,
-  },
-  baidu: {
-    label: '百度',
-    buildSearchUrl: (query: string) => `https://www.baidu.com/s?wd=${encodeURIComponent(query)}`,
   },
   duckduckgo: {
     label: 'DuckDuckGo',
@@ -42,6 +38,16 @@ export function getStoredSearchEngine(): SearchEngineId {
     /* localStorage unavailable → default */
   }
   return DEFAULT_SEARCH_ENGINE;
+}
+
+/** Persist the engine choice (Settings → Browser). Read back lazily at each
+ *  address-bar submit, so open tabs pick it up without any live re-render. */
+export function setStoredSearchEngine(engine: SearchEngineId): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, engine);
+  } catch {
+    /* localStorage unavailable → the choice simply won't persist */
+  }
 }
 
 /**

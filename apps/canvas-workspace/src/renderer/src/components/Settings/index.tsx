@@ -19,6 +19,7 @@ import { Drawer } from '../ui';
 import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
 import { AgentSection } from './AgentSection';
+import { BrowserSection } from './BrowserSection';
 import { BuiltInToolsSection } from './BuiltInToolsSection';
 import { ExperimentalSection } from './ExperimentalSection';
 import { LanguageSection } from './LanguageSection';
@@ -29,7 +30,7 @@ import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'plugins' | 'experimental' | 'updates' | 'language';
+export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'plugins' | 'browser' | 'experimental' | 'updates' | 'language';
 
 const GLOBAL_SCOPE = { level: 'global' } as const;
 
@@ -82,6 +83,12 @@ const SECTIONS: SectionDef[] = [
     labelKey: 'settings.plugins.label',
     descriptionKey: 'settings.plugins.description',
     titleKey: 'settings.plugins.title',
+  },
+  {
+    id: 'browser',
+    labelKey: 'settings.browser.label',
+    descriptionKey: 'settings.browser.description',
+    titleKey: 'settings.browser.title',
   },
   {
     id: 'experimental',
@@ -188,6 +195,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
               <PluginsManager />
             </div>
           )}
+          {activeSection === 'browser' && <BrowserSection />}
           {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}
           {activeSection === 'updates' && <UpdateSection />}
           {activeSection === 'language' && <LanguageSection />}

@@ -40,11 +40,12 @@ describe('resolveAddressInput', () => {
     expect(resolveAddressInput('how to cook rice', 'google')).toBe(
       'https://www.google.com/search?q=how%20to%20cook%20rice',
     );
-    expect(resolveAddressInput('天气', 'baidu')).toBe(
-      `https://www.baidu.com/s?wd=${encodeURIComponent('天气')}`,
-    );
     expect(resolveAddressInput('rust', 'bing')).toBe('https://www.bing.com/search?q=rust');
     expect(resolveAddressInput('privacy', 'duckduckgo')).toBe('https://duckduckgo.com/?q=privacy');
+  });
+
+  it('offers exactly the supported engines (baidu was removed)', () => {
+    expect(Object.keys(SEARCH_ENGINES).sort()).toEqual(['bing', 'duckduckgo', 'google']);
   });
 
   it('returns empty for empty input and defaults to google', () => {
