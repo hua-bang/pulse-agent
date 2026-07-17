@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { CanvasWorkspaceApi } from "../renderer/src/types";
 import { createAgentApi } from "./bridge/agent";
 import { createAgentTeamsApi } from "./bridge/agent-teams";
+import { createAuthApi } from "./bridge/auth";
 import { createAppInfoApi } from "./bridge/app-info";
 import { createArtifactsApi } from "./bridge/artifacts";
 import { createCodexSessionsApi } from "./bridge/codex-sessions";
@@ -58,6 +59,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   shell: createShellApi(ipcRenderer),
   link: createLinkApi(ipcRenderer),
   defaultBrowser: createDefaultBrowserApi(ipcRenderer),
+  auth: createAuthApi(ipcRenderer),
   llm: createLlmApi(ipcRenderer),
   promptProfile: createPromptProfileApi(ipcRenderer),
   model: createModelApi(ipcRenderer),

@@ -73,6 +73,7 @@ import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
+import { setupAuthIpc } from "../auth/login-window";
 
 export interface BootstrapOptions {
   mainDir: string;
@@ -167,6 +168,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupArtifactIpc();
     setupShellIpc();
     setupDefaultBrowserIpc();
+    setupAuthIpc();
     setupUpdateIpc();
     setupWebpageReaderIpc();
     setupWorkspaceNodeIpc();

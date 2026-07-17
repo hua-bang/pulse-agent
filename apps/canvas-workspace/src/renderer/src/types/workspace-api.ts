@@ -9,6 +9,7 @@ import type { AgentApi } from './agent-chat';
 import type { AgentTeamsApi } from './agent-teams';
 import type { AppInfoApi } from './app-info';
 import type { ArtifactsApi } from './artifacts';
+import type { AuthApi } from './auth';
 import type { CanvasModelApi, PromptProfileApi } from './models';
 import type {
   CanvasMcpApi,
@@ -180,6 +181,7 @@ export interface CanvasWorkspaceApi {
   shell: ShellApi;
   link: LinkApi;
   defaultBrowser: DefaultBrowserApi;
+  auth: AuthApi;
   web: WebApi;
   plugin: PluginBridge;
 }

@@ -54,6 +54,7 @@ export const LinkTabView = ({
   const { t } = useI18n();
   const addressFormRef = useRef<HTMLFormElement>(null);
   const [address, setAddress] = useState(url);
+  const [signingIn, setSigningIn] = useState(false);
   // When Pulse Canvas is itself the default browser, the "open in system
   // browser" escape hatch loops back into this app — so steer the user to
   // disable the flag instead. Snapshotted at preload; a reload picks up changes.
@@ -91,6 +92,19 @@ export const LinkTabView = ({
     if (!browser.currentUrl) return;
     void window.canvasWorkspace.shell.openExternal(browser.currentUrl);
   }, [browser.currentUrl]);
+
+  // Google blocks sign-in in embedded <webview>s but allows a top-level
+  // BrowserWindow. Open sign-in there (shared session), then reload this
+  // webview so it picks up the freshly-set cookie and shows the logged-in page.
+  const handleGoogleLogin = useCallback(async () => {
+    setSigningIn(true);
+    try {
+      await window.canvasWorkspace.auth.openGoogleLogin();
+      browser.reload();
+    } finally {
+      setSigningIn(false);
+    }
+  }, [browser]);
 
   const handleAddToCanvas = useCallback(() => {
     if (!browser.currentUrl || !activeWorkspaceId) return;
@@ -150,18 +164,23 @@ export const LinkTabView = ({
       </header>
       {isGoogleAuthUrl(browser.currentUrl) && (
         <div className="link-drawer__auth-notice" role="status">
-          {isDefaultBrowser ? (
-            // "Open in system browser" would hand the URL back to the default
-            // handler — which is Pulse Canvas — and loop straight back into
-            // this blocked page. Point the user at the real fix instead.
-            <span className="link-drawer__auth-notice-text">
-              {t('linkDrawer.googleAuthDefaultBrowser')}
-            </span>
-          ) : (
-            <>
-              <span className="link-drawer__auth-notice-text">
-                {t('linkDrawer.googleAuthUnsupported')}
-              </span>
+          <span className="link-drawer__auth-notice-text">
+            {t('linkDrawer.googleAuthUnsupported')}
+          </span>
+          <div className="link-drawer__auth-notice-actions">
+            <Button
+              variant="primary"
+              size="xs"
+              onClick={handleGoogleLogin}
+              disabled={signingIn}
+            >
+              {signingIn
+                ? t('linkDrawer.googleAuthSigningIn')
+                : t('linkDrawer.googleAuthSignIn')}
+            </Button>
+            {/* "Open in system browser" loops back into this app when Pulse
+                Canvas is itself the default browser, so only offer it when not. */}
+            {!isDefaultBrowser && (
               <Button
                 variant="secondary"
                 size="xs"
@@ -170,8 +189,8 @@ export const LinkTabView = ({
               >
                 {t('linkDrawer.googleAuthOpenExternal')}
               </Button>
-            </>
-          )}
+            )}
+          </div>
         </div>
       )}
       <div ref={browser.hostRef} className="link-drawer__webview-host" />

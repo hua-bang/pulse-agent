@@ -3,6 +3,7 @@ import type { CanvasWorkspaceApi } from './types/workspace-api';
 export type * from './types/agent-chat';
 export type * from './types/agent-teams';
 export type * from './types/app-info';
+export type * from './types/auth';
 export type * from './types/artifacts';
 export type * from './types/canvas';
 export type * from './types/channel-config';
