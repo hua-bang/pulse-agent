@@ -8,4 +8,9 @@ import type { AgentContextTabRef } from '../../../shared/agent-chat';
 export interface DockApi {
   /** Push the current workspace's open dock tabs to main (fire-and-forget). */
   publishTabs: (workspaceId: string, tabs: AgentContextTabRef[]) => void;
+  /** Main asks the dock to bring a tab to the front (Canvas Agent tab ops). Returns unsubscribe fn. */
+  onActivateTab: (callback: (payload: { tabId: string }) => void) => () => void;
+  /** Main asks the dock to open a URL as a web tab (or navigate the existing
+   *  link tab `tabId`). Returns unsubscribe fn. */
+  onOpenTab: (callback: (payload: { url: string; tabId?: string }) => void) => () => void;
 }

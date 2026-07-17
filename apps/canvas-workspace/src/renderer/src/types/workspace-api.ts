@@ -1,4 +1,5 @@
 import type { PluginBridge } from '../../../plugins/types';
+import type { BrowsingHistoryApi } from '../../../shared/browsing-history';
 import type {
   CanvasSaveData,
   KnowledgeTagDefinition,
@@ -183,5 +184,6 @@ export interface CanvasWorkspaceApi {
   defaultBrowser: DefaultBrowserApi;
   web: WebApi;
   dock: DockApi;
+  history: BrowsingHistoryApi;
   plugin: PluginBridge;
 }

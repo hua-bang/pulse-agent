@@ -13,9 +13,9 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useI18n } from "../../i18n";
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
+import { resolveAddressInput } from '../EmbeddedBrowser/address-input';
 import { useWebviewRegistration } from '../IframeNodeBody/useWebviewRegistration';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
-import { normalizeUrl } from "../IframeNodeBody/utils";
 import { ExternalLinkIcon, PlusIcon } from "../icons";
 import { Button, TextField } from "../ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../shared/experimental-features";
@@ -64,14 +64,30 @@ export const LinkTabView = ({
   // disable the flag instead. Snapshotted at preload; a reload picks up changes.
   const isDefaultBrowser =
     window.canvasWorkspace.pluginFlags?.[EXPERIMENTAL_FLAG_DEFAULT_BROWSER] === true;
+  // Last main-frame URL this tab navigated to — the key under which late
+  // title/favicon events are folded into the same browsing-history visit.
+  const lastVisitedUrlRef = useRef('');
   const browser = useEmbeddedBrowser({
     className: 'link-drawer__webview',
     onFaviconChange: (favicons) => {
       const favicon = pickFaviconUrl(favicons);
-      if (favicon) onFaviconChange?.(favicon);
+      if (!favicon) return;
+      onFaviconChange?.(favicon);
+      if (lastVisitedUrlRef.current) {
+        window.canvasWorkspace.history.record({ url: lastVisitedUrlRef.current, faviconUrl: favicon });
+      }
     },
-    onNavigate: setAddress,
-    onTitleChange,
+    onNavigate: (nextUrl) => {
+      setAddress(nextUrl);
+      lastVisitedUrlRef.current = nextUrl;
+      window.canvasWorkspace.history.record({ url: nextUrl });
+    },
+    onTitleChange: (title) => {
+      onTitleChange?.(title);
+      if (lastVisitedUrlRef.current) {
+        window.canvasWorkspace.history.record({ url: lastVisitedUrlRef.current, title });
+      }
+    },
     url,
   });
 
@@ -94,12 +110,10 @@ export const LinkTabView = ({
 
   const handleNavigate = useCallback((event: FormEvent) => {
     event.preventDefault();
-    const value = address.trim();
-    if (!value) return;
-    const nextUrl = /\s/.test(value)
-      ? `https://www.google.com/search?q=${encodeURIComponent(value)}`
-      : normalizeUrl(value);
-    onNavigate(nextUrl);
+    // Omnibox behavior: URL-ish input navigates, anything else searches on
+    // the configured engine (Google by default) — see address-input.ts.
+    const nextUrl = resolveAddressInput(address);
+    if (nextUrl) onNavigate(nextUrl);
   }, [address, onNavigate]);
 
   const handleOpenInBrowser = useCallback(() => {

@@ -9,6 +9,7 @@ import { createDefaultBrowserApi } from "./bridge/default-browser";
 import { createDockApi } from "./bridge/dock";
 import { createFileApi } from "./bridge/file";
 import { readPluginFlags } from "./bridge/flags";
+import { createHistoryApi } from "./bridge/history";
 import { createLogSender, installRendererErrorLogging } from "./bridge/logging";
 import { createPluginBridge } from "./bridge/plugin";
 import { createPtyApi } from "./bridge/pty";
@@ -68,6 +69,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   artifacts: createArtifactsApi(ipcRenderer),
   plugin: createPluginBridge(ipcRenderer),
   dock: createDockApi(ipcRenderer),
+  history: createHistoryApi(ipcRenderer),
   web: createWebApi(ipcRenderer)
 };
 

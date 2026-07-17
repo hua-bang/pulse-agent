@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { getWebContentsForNode } from '../../../main/webview/registry';
 import { ensureOperable } from '../../../main/webview/ensure-operable';
 import { activateWorkspaceWindow } from '../../../main/app/window-manager';
+import { activateDockTab, findDockLinkTab } from '../../../main/dock/tab-actions';
 import {
   evalInPage,
   scrollPage,
@@ -50,20 +51,32 @@ async function resolveTarget(
   workspaceId: string,
   nodeId: string,
 ): Promise<{ ok: true; target: ResolvedTarget } | { ok: false; error: string }> {
+  // Dock link tabs register their <webview> in the same registry, keyed by
+  // the tab id — so these tools accept either an iframe canvas node id or a
+  // link-tab id from canvas_list_tabs.
+  const dockTab = findDockLinkTab(workspaceId, nodeId);
   // These tools click/fill/screenshot, which need a *painted* surface — so
   // make the workspace active (un-hide its display:none container + show the
   // window inactively, without stealing focus) before resolving the node.
+  // For a dock tab, also bring its pane to the front: inactive dock panes are
+  // visibility:hidden, which stops the guest from painting.
   const wc = await ensureOperable({
     lookup: () => getWebContentsForNode(workspaceId, nodeId),
-    activate: () => activateWorkspaceWindow(workspaceId),
+    activate: async () => {
+      const result = await activateWorkspaceWindow(workspaceId);
+      if (dockTab) activateDockTab(nodeId);
+      return result;
+    },
     mode: 'operate',
   });
   if (!wc) {
     return {
       ok: false,
-      error:
-        `No active webview for node ${nodeId} in workspace ${workspaceId} ` +
-        `(auto-activation attempted). Open the iframe node in URL mode and make sure it has finished loading.`,
+      error: dockTab
+        ? `No active webview for link tab ${nodeId} in workspace ${workspaceId} `
+          + `(auto-activation attempted). Make sure the tab is open in the dock and has finished loading.`
+        : `No active webview for node ${nodeId} in workspace ${workspaceId} `
+          + `(auto-activation attempted). Open the iframe node in URL mode and make sure it has finished loading.`,
     };
   }
   const url = wc.getURL();
@@ -114,7 +127,8 @@ function serialise(action: string, nodeId: string, url: string, result: PageActi
 
 const baseDescription =
   'Experimental — requires the `webview-page-control` flag. ' +
-  'Operates on iframe nodes whose <webview> is mounted in URL mode. ' +
+  'Operates on iframe canvas nodes in URL mode AND right-dock web tabs — ' +
+  'pass the iframe node id or the link-tab id (from canvas_list_tabs) as `nodeId`. ' +
   'Blocked on file://, chrome://, devtools://, view-source://, and a ' +
   'built-in sensitive-domain deny list (banks, payments, mainstream auth). ' +
   'Customize the policy via ~/.pulse-coder/canvas/webview-action-policy.json.';
@@ -138,7 +152,7 @@ export function createWebviewPageControlTools(
         'Use sparingly — prefer page_click / page_fill / page_press / page_wait_for for structured actions. ' +
         baseDescription,
       inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node whose page to script.'),
+        nodeId: z.string().describe('ID of the iframe canvas node (or dock link-tab id) whose page to script.'),
         code: z
           .string()
           .describe(
@@ -172,7 +186,7 @@ export function createWebviewPageControlTools(
         'and button (left / middle / right). ' +
         baseDescription,
       inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node.'),
+        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
         selector: z.string().describe('CSS selector for the element to click.'),
         button: z.enum(['left', 'middle', 'right']).optional().describe('Mouse button. Default "left".'),
         clickCount: z.number().int().positive().optional().describe('1 for click, 2 for double-click.'),
@@ -205,7 +219,7 @@ export function createWebviewPageControlTools(
         'pixels relative to the visual viewport top-left. ' +
         baseDescription,
       inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node.'),
+        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
         x: z.number().describe('Viewport x coordinate (CSS pixels).'),
         y: z.number().describe('Viewport y coordinate (CSS pixels).'),
         button: z.enum(['left', 'middle', 'right']).optional(),
@@ -244,7 +258,7 @@ export function createWebviewPageControlTools(
         'or page_click on a submit button. ' +
         baseDescription,
       inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node.'),
+        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
         selector: z.string().describe('CSS selector for the editable element.'),
         value: z.string().describe('Replacement value. Replaces the entire current value by default.'),
         clearFirst: z
@@ -282,7 +296,7 @@ export function createWebviewPageControlTools(
         'For multi-character text input, prefer page_fill. ' +
         baseDescription,
       inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node.'),
+        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
         key: z.string().describe('Key name (e.g. "Enter", "ArrowDown") or a single character.'),
         selector: z
           .string()
@@ -319,7 +333,7 @@ export function createWebviewPageControlTools(
         baseDescription,
       inputSchema: z
         .object({
-          nodeId: z.string().describe('ID of the iframe canvas node.'),
+          nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
           top: z.boolean().optional().describe('Scroll to the top of the page.'),
           bottom: z.boolean().optional().describe('Scroll to the bottom of the page.'),
           selector: z
@@ -379,7 +393,7 @@ export function createWebviewPageControlTools(
         baseDescription,
       inputSchema: z
         .object({
-          nodeId: z.string().describe('ID of the iframe canvas node.'),
+          nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
           selector: z.string().optional().describe('CSS selector to wait for.'),
           predicate: z
             .string()

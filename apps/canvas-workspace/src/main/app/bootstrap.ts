@@ -5,6 +5,7 @@ import { join } from "path";
 import { setupPtyIpc, killAllPty } from "../terminal/pty-manager";
 import { setupScrollbackCapture } from "../terminal/scrollback";
 import { setupDockTabsIpc } from "../dock/tab-store";
+import { setupBrowsingHistoryIpc } from "../dock/history-store";
 import {
   setupCanvasStoreIpc,
   teardownCanvasWatchers,
@@ -127,6 +128,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupPtyIpc();
     setupScrollbackCapture();
     setupDockTabsIpc();
+    setupBrowsingHistoryIpc();
     setupCanvasStoreIpc();
     try {
       await ensureWelcomeWorkspaceSeeded();

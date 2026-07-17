@@ -1,0 +1,8 @@
+/* Layout only — surface styling comes from the blessed ui/ pieces
+   (SectionHeader / FieldRow / SegmentedControl) and the shared .cfg-pane. */
+.browser-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 560px;
+}

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useId, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useI18n } from '../../i18n';
 import { PlusIcon } from '../icons';
@@ -26,6 +26,11 @@ interface Props {
   terminalWorkspaceIds: ReadonlySet<string>;
 }
 
+/** Grace period for the pointer to cross the gap between the + trigger and
+ *  the portaled menu panel (or briefly leave and come back) before the
+ *  hover-opened menu closes. */
+const HOVER_CLOSE_DELAY_MS = 240;
+
 export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, showTerminal, newTabTitle, mountedWorkspaceIds, terminalWorkspaceIds }: Props) => {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -33,9 +38,41 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
   const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const panelId = useId();
+
+  // Hover-triggered menu: entering the trigger (or the panel) opens/keeps it,
+  // leaving either schedules a delayed close so the pointer can travel
+  // between them. Click still opens for keyboard/tap users; dismissal is
+  // Escape, an outside press, or moving the pointer away.
+  const closeTimerRef = useRef<number | null>(null);
+  const cancelScheduledClose = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+  const openMenu = useCallback(() => {
+    cancelScheduledClose();
+    setMenuOpen(true);
+  }, [cancelScheduledClose]);
+  const scheduleClose = useCallback(() => {
+    cancelScheduledClose();
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      setMenuOpen(false);
+    }, HOVER_CLOSE_DELAY_MS);
+  }, [cancelScheduledClose]);
+  useEffect(() => cancelScheduledClose, [cancelScheduledClose]);
+
   return (
     <>
-      <span ref={anchorRef} className="right-dock__new-tab-menu">
+      <span
+        ref={anchorRef}
+        className="right-dock__new-tab-menu"
+        onMouseEnter={() => {
+          if (!nodePickerOpen && !workspacePickerOpen) openMenu();
+        }}
+        onMouseLeave={scheduleClose}
+      >
         <Button
           variant="icon"
           size="sm"
@@ -45,7 +82,7 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-controls={menuOpen ? panelId : undefined}
-          onClick={() => setMenuOpen((value) => !value)}
+          onClick={openMenu}
         >
           <PlusIcon size={16} />
         </Button>
@@ -60,6 +97,8 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
               onOpenCanvas={() => setWorkspacePickerOpen(true)}
               onNewWebTab={() => store.newLink(newTabTitle)}
               onNewTerminalTab={() => store.newTerminal()}
+              onHoverEnter={cancelScheduledClose}
+              onHoverLeave={scheduleClose}
             />
           </Suspense>
         )}
