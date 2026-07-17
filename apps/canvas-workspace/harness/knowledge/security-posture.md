@@ -82,7 +82,12 @@ These make on-disk files an execution or injection surface:
   Chromium emits UA Client Hints from the real bundled version and
   accounts.google.com rejects the mismatch. On the exact-match Google auth
   hosts only, a per-webContents Firefox UA override (suppresses client hints)
-  plus a defaultSession header rewrite makes sign-in pass; link-policy keeps
+  plus a defaultSession header rewrite makes sign-in pass. The override must
+  engage on `will-redirect` too, not just will-navigate/did-start-navigation:
+  the common OAuth entry is a server-side 302 into accounts.google.com, and
+  a header-only Firefox identity still fails Google's client-side JS check
+  (Chrome-spoof `navigator.userAgent` + real-version `userAgentData`).
+  link-policy keeps
   both OAuth legs in-app so the cookie lands in the webview session. The
   host allowlist is exact-match by design — it loosens navigation policy, so
   suffix lookalikes (`accounts.google.com.evil`) must never qualify.

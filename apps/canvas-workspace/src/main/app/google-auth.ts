@@ -92,13 +92,24 @@ export function setupGoogleAuthCompat(): void {
 
     // will-navigate covers renderer-initiated navigations before the request
     // leaves; did-start-navigation additionally covers loadURL/popup initial
-    // loads. Server-side redirect hops keep whatever UA the leg started with,
-    // which is the correct behaviour for an OAuth continuation.
+    // loads; will-redirect covers server-side redirect hops — the common OAuth
+    // entry (site.com/auth/google → 302 → accounts.google.com) fires NEITHER
+    // of the other two with the Google URL. Without it the Google document
+    // commits under the Chrome-spoof identity, so page JS sees a Chrome UA
+    // string plus real-version `navigator.userAgentData`, and Google's
+    // client-side check bounces to /v3/signin/rejected even though the wire
+    // headers (rewritten below) said Firefox.
     contents.on("will-navigate", (_navEvent, url) => {
       applyUserAgentForUrl(url);
     });
     contents.on(
       "did-start-navigation",
+      (_navEvent, url, _isInPage, isMainFrame) => {
+        if (isMainFrame) applyUserAgentForUrl(url);
+      }
+    );
+    contents.on(
+      "will-redirect",
       (_navEvent, url, _isInPage, isMainFrame) => {
         if (isMainFrame) applyUserAgentForUrl(url);
       }
