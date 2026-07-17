@@ -22,36 +22,44 @@ import { app, session } from "electron";
 //  2. Session-level header rewrite for requests to Google auth hosts, which
 //     guarantees the wire-level UA even for requests created before the
 //     per-contents override landed, and strips residual `Sec-CH-*` headers.
-//  3. App-wide UA-Client-Hints disable (disableUaClientHints, called before
-//     app-ready). Layers 1+2 only cover the *string* UA and the *wire*
-//     headers — they do NOT change `navigator.userAgentData`, a pure-JS API
-//     that reads the real Chromium version WITHOUT any network request.
-//     Google's strict full-page flow (`/v3/signin`, the one GitHub's in-place
-//     redirect login hits — as opposed to the lenient GIS *popup* flow
-//     Figma/Notion use) calls `navigator.userAgentData.getHighEntropyValues()`
-//     client-side and rejects the Firefox-UA-string / Chrome-userAgentData
-//     mismatch (→ `/v3/signin/rejected`). `webContents.setUserAgent()` does
-//     not null out `userAgentData`, so we disable the feature globally:
-//     real Firefox exposes no `navigator.userAgentData` at all, so removing it
-//     is what makes the Firefox identity self-consistent at the JS layer too.
-//     Global (a command-line switch can't be host-scoped) but harmless — a
-//     browser that sends no client hints is a normal, supported configuration.
+//  3. `navigator.userAgentData` neutralization on Google auth documents.
+//     Layers 1+2 only cover the *string* UA and the *wire* headers — they do
+//     NOT change `navigator.userAgentData`, a pure-JS API that reads the real
+//     Chromium version WITHOUT any network request (`setUserAgent()` leaves it
+//     intact; disabling the UA-CH Chromium feature via a command-line switch
+//     also does NOT remove it — verified empirically on this Electron). The
+//     strict full-page flow (`/v3/signin`, which GitHub's in-place redirect
+//     login hits — vs. the lenient GIS *popup* flow Figma/Notion use) calls
+//     `navigator.userAgentData.getHighEntropyValues()` client-side and rejects
+//     the Firefox-UA-string / Chrome-userAgentData mismatch (→ `/rejected`).
+//     The only version-robust fix is to run a script in the page's MAIN world
+//     BEFORE its own scripts, redefining `navigator.userAgentData` to
+//     `undefined` (what real Firefox exposes). Electron has no native
+//     document-start main-world hook for a <webview> guest (preload runs in an
+//     isolated world), so we use the DevTools protocol
+//     (`Page.addScriptToEvaluateOnNewDocument`) via `webContents.debugger`,
+//     attached only to contents that actually navigate to a Google auth host.
+//     The injected script self-gates on hostname, so it is inert everywhere
+//     except the Google auth documents.
 //
 // link-policy.ts owns the navigation/popup routing and consults
 // isGoogleAuthUrl so auth legs stay in-app, where this compat layer applies.
 
-// Must run BEFORE app-ready (command-line switches are read at Chromium init).
-// bootstrap calls it synchronously, before whenReady.
-export function disableUaClientHints(): void {
-  // Disabling the master UA-CH feature removes both the Sec-CH-UA request
-  // headers AND the `navigator.userAgentData` JS object, matching Firefox.
-  // FullVersionList is listed explicitly because it is what the strict Google
-  // flow queries via getHighEntropyValues(['fullVersionList']).
-  app.commandLine.appendSwitch(
-    "disable-features",
-    "UserAgentClientHint,UserAgentClientHintFullVersionList"
-  );
-}
+// Runs in the page's MAIN world at document-start (before the page's own
+// scripts). Self-gated to Google auth hosts: attaching the debugger registers
+// this for every subsequent document on that contents, but it must be a no-op
+// once the flow navigates back out to the embedding site.
+const HIDE_UA_DATA_SOURCE = `(function () {
+  try {
+    var h = location.hostname;
+    if (h !== "accounts.google.com" && h !== "accounts.youtube.com") return;
+    Object.defineProperty(Navigator.prototype, "userAgentData", {
+      configurable: true,
+      enumerable: true,
+      get: function () { return undefined; },
+    });
+  } catch (e) {}
+})();`;
 
 // Exact-match allowlist. accounts.youtube.com participates in the Google
 // sign-in cookie handshake. Keep this exact (no suffix matching): the check
@@ -97,10 +105,39 @@ export function rewriteGoogleAuthHeaders(
   return rewritten;
 }
 
+// Attach the DevTools protocol to a contents heading for a Google auth host
+// and register the userAgentData-hiding script for its documents. Idempotent
+// per contents (the WeakSet guards re-entry across the many OAuth hops), and
+// silent if the debugger can't attach (e.g. DevTools is already open on it).
+function hideUserAgentDataOnGoogle(
+  contents: Electron.WebContents,
+  attached: WeakSet<object>
+): void {
+  if (attached.has(contents)) return;
+  const dbg = contents.debugger;
+  try {
+    if (!dbg.isAttached()) dbg.attach("1.3");
+  } catch {
+    return;
+  }
+  attached.add(contents);
+  // Applies to the NEXT document created — we call this on will-navigate /
+  // will-redirect, before the Google document commits, so its own scripts see
+  // the redefined property.
+  dbg
+    .sendCommand("Page.addScriptToEvaluateOnNewDocument", {
+      source: HIDE_UA_DATA_SOURCE,
+    })
+    .catch(() => {
+      attached.delete(contents);
+    });
+}
+
 // Must run after app-ready (needs defaultSession); bootstrap calls it from
 // whenReady, before the first window opens.
 export function setupGoogleAuthCompat(): void {
   const originalUserAgents = new WeakMap<object, string>();
+  const uaDataHidden = new WeakSet<object>();
 
   app.on("web-contents-created", (_event, contents) => {
     const applyUserAgentForUrl = (url: string) => {
@@ -109,6 +146,8 @@ export function setupGoogleAuthCompat(): void {
           originalUserAgents.set(contents, contents.getUserAgent());
           contents.setUserAgent(googleAuthUserAgent());
         }
+        // Match the JS-visible client-hint surface to the Firefox UA string.
+        hideUserAgentDataOnGoogle(contents, uaDataHidden);
       } else if (originalUserAgents.has(contents)) {
         const original = originalUserAgents.get(contents);
         originalUserAgents.delete(contents);

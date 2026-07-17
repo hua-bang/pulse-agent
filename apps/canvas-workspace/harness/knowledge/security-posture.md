@@ -90,11 +90,17 @@ These make on-disk files an execution or injection surface:
   will-navigate/did-start-navigation — the common OAuth entry is a server-side
   302 into accounts.google.com;
   (b) `navigator.userAgentData` is a pure-JS API (no network request) that
-  `setUserAgent()` does NOT change, so Google's client-side
-  getHighEntropyValues() still reads the real Chromium version and rejects the
-  Firefox-UA-string mismatch. Fixed by disabling UA-Client-Hints app-wide
-  (`disableUaClientHints`, before app-ready) so `navigator.userAgentData` is
-  absent — matching real Firefox, which exposes none. link-policy keeps
+  `setUserAgent()` does NOT change — nor does disabling the UA-CH Chromium
+  feature via a command-line switch (verified: the object survives). Google's
+  client-side getHighEntropyValues() still reads the real Chromium version and
+  rejects the Firefox-UA-string mismatch. Fixed by redefining
+  `navigator.userAgentData` to `undefined` (what real Firefox exposes) in the
+  page's MAIN world at document-start, via the DevTools protocol
+  (`Page.addScriptToEvaluateOnNewDocument` on `webContents.debugger`), attached
+  only to contents that navigate to a Google auth host; the injected script
+  self-gates on hostname so it is inert off Google. (A <webview> preload runs
+  in an isolated world and cannot override the page-visible property, which is
+  why CDP is required.) link-policy keeps
   both OAuth legs in-app so the cookie lands in the webview session. The
   host allowlist is exact-match by design — it loosens navigation policy, so
   suffix lookalikes (`accounts.google.com.evil`) must never qualify.

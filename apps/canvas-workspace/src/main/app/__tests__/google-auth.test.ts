@@ -2,14 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMocks = vi.hoisted(() => ({
   appOn: vi.fn(),
-  appendSwitch: vi.fn(),
   onBeforeSendHeaders: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
   app: {
     on: electronMocks.appOn,
-    commandLine: { appendSwitch: electronMocks.appendSwitch },
   },
   session: {
     defaultSession: {
@@ -32,6 +30,11 @@ function createContents(userAgent = 'SpoofedChrome/140') {
   let currentUserAgent = userAgent;
   return {
     on: vi.fn(),
+    debugger: {
+      isAttached: vi.fn(() => false),
+      attach: vi.fn(),
+      sendCommand: vi.fn(() => Promise.resolve()),
+    },
     getUserAgent: vi.fn(() => currentUserAgent),
     setUserAgent: vi.fn((next: string) => {
       currentUserAgent = next;
@@ -48,27 +51,6 @@ async function installCompat() {
   if (typeof createdHandler !== 'function') throw new Error('web-contents-created handler not registered');
   return createdHandler as (_event: unknown, contents: ReturnType<typeof createContents>) => void;
 }
-
-describe('disableUaClientHints', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    electronMocks.appendSwitch.mockReset();
-  });
-
-  it('disables the UA-CH features so navigator.userAgentData is absent (Firefox-like)', async () => {
-    const { disableUaClientHints } = await import('../google-auth');
-    disableUaClientHints();
-
-    expect(electronMocks.appendSwitch).toHaveBeenCalledWith(
-      'disable-features',
-      expect.stringContaining('UserAgentClientHint'),
-    );
-    // FullVersionList is what Google's strict flow queries via
-    // getHighEntropyValues(['fullVersionList']); it must be covered too.
-    const [, features] = electronMocks.appendSwitch.mock.calls[0] as [string, string];
-    expect(features).toContain('UserAgentClientHintFullVersionList');
-  });
-});
 
 describe('isGoogleAuthUrl', () => {
   it('matches only the exact Google auth hosts over https', async () => {
@@ -140,6 +122,34 @@ describe('setupGoogleAuthCompat', () => {
     // Leaving Google restores the original UA, not the Firefox one.
     willNavigate({}, 'https://www.notion.so/googlelogin?code=abc');
     expect(contents.setUserAgent).toHaveBeenLastCalledWith('SpoofedChrome/140');
+  });
+
+  it('injects a userAgentData-hiding script on Google auth hosts (main world, doc-start)', async () => {
+    const createdHandler = await installCompat();
+    const contents = createContents();
+    createdHandler({}, contents);
+
+    const willNavigate = contents.on.mock.calls.find(
+      ([event]) => event === 'will-navigate',
+    )?.[1] as WillNavigateHandler;
+
+    // A non-Google leg must not attach the debugger.
+    willNavigate({}, 'https://github.com/login');
+    expect(contents.debugger.attach).not.toHaveBeenCalled();
+
+    // Entering Google attaches the debugger and registers the doc-start script.
+    willNavigate({}, 'https://accounts.google.com/o/oauth2/v2/auth');
+    expect(contents.debugger.attach).toHaveBeenCalledOnce();
+    expect(contents.debugger.sendCommand).toHaveBeenCalledWith(
+      'Page.addScriptToEvaluateOnNewDocument',
+      expect.objectContaining({
+        source: expect.stringContaining('userAgentData'),
+      }),
+    );
+
+    // Idempotent across the many OAuth hops — no second attach.
+    willNavigate({}, 'https://accounts.google.com/signin/challenge');
+    expect(contents.debugger.attach).toHaveBeenCalledOnce();
   });
 
   it('applies the override for main-frame did-start-navigation only', async () => {
