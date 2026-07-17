@@ -17,6 +17,90 @@
 .link-drawer__address-form {
   flex: 1;
   min-width: 0;
+  /* Anchor for the suggestions dropdown. */
+  position: relative;
+}
+
+/* ── Address suggestions (omnibox history dropdown) ─────────────────── */
+
+.link-drawer__suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  max-height: 320px;
+  overflow-y: auto;
+  /* Order the panel above the sibling <webview> in the dock pane's stacking
+     context — guests composite over unpositioned content (see the
+     interaction-shield precedent in styles.css's layer scale). */
+  z-index: var(--layer-canvas-chrome);
+}
+
+.link-drawer__suggestion.ui-btn {
+  width: 100%;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  border-color: transparent;
+  background: transparent;
+  padding: 5px 8px;
+  text-align: left;
+  color: var(--text);
+}
+
+.link-drawer__suggestion:hover,
+.link-drawer__suggestion--active.ui-btn {
+  background: var(--surface-alt);
+  outline: none;
+}
+
+.link-drawer__suggestion-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+
+.link-drawer__suggestion-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+
+.link-drawer__suggestion-copy strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link-drawer__suggestion-copy small {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link-drawer__suggestion-badge {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 1px 6px;
 }
 
 .link-drawer__url {

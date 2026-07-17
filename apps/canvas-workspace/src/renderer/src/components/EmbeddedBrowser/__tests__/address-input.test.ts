@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { looksLikeUrl, resolveAddressInput, SEARCH_ENGINES } from '../address-input';
+import { looksLikeUrl, parseSearchQuery, resolveAddressInput, SEARCH_ENGINES } from '../address-input';
 
 describe('looksLikeUrl', () => {
   it('accepts explicit scheme://, protocol-relative, and blank', () => {
@@ -52,5 +52,27 @@ describe('resolveAddressInput', () => {
     expect(resolveAddressInput('   ', 'google')).toBe('');
     // No stored preference in this environment → default engine is used.
     expect(resolveAddressInput('cats')).toBe(SEARCH_ENGINES.google.buildSearchUrl('cats'));
+  });
+});
+
+describe('parseSearchQuery', () => {
+  it('recognizes the supported engines’ result pages, round-tripping buildSearchUrl', () => {
+    for (const engine of Object.keys(SEARCH_ENGINES) as Array<keyof typeof SEARCH_ENGINES>) {
+      const url = SEARCH_ENGINES[engine].buildSearchUrl('如何 煮米饭');
+      expect(parseSearchQuery(url)).toEqual({ engine, query: '如何 煮米饭' });
+    }
+  });
+
+  it('recognizes regional google hosts', () => {
+    expect(parseSearchQuery('https://www.google.com.hk/search?q=rust')).toEqual({ engine: 'google', query: 'rust' });
+    expect(parseSearchQuery('https://google.de/search?q=rust')).toEqual({ engine: 'google', query: 'rust' });
+  });
+
+  it('returns null for ordinary pages, empty queries, and non-search hosts', () => {
+    expect(parseSearchQuery('https://www.google.com/maps')).toBeNull();
+    expect(parseSearchQuery('https://www.google.com/search')).toBeNull();
+    expect(parseSearchQuery('https://example.com/search?q=x')).toBeNull();
+    expect(parseSearchQuery('https://notgoogle.com/search?q=x')).toBeNull();
+    expect(parseSearchQuery('not a url')).toBeNull();
   });
 });
