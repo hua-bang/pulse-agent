@@ -214,11 +214,12 @@ export class CanvasAgentService {
   /**
    * Get conversation history for the current session.
    */
-  getHistory(workspaceId: string): CanvasAgentMessage[] {
+  async getHistory(workspaceId: string): Promise<CanvasAgentMessage[]> {
     return this.getHistoryForScope(workspaceScope(workspaceId));
   }
 
-  getHistoryForScope(scope: AgentScope): CanvasAgentMessage[] {
+  async getHistoryForScope(scope: AgentScope): Promise<CanvasAgentMessage[]> {
+    await this.activateScope(scope);
     const agent = this.getAgent(scope);
     return agent?.getHistory() ?? [];
   }
