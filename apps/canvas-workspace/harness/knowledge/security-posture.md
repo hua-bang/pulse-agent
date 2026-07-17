@@ -86,6 +86,14 @@ These make on-disk files an execution or injection surface:
   both OAuth legs in-app so the cookie lands in the webview session. The
   host allowlist is exact-match by design — it loosens navigation policy, so
   suffix lookalikes (`accounts.google.com.evil`) must never qualify.
+  UA identity alone is NOT sufficient for Google's strict full-page flow
+  (`/v3/signin`) inside a `<webview>` — it risk-scores embedded surfaces and
+  probabilistically rejects them even with consistent spoofing. In-place
+  entry legs from webviews are therefore rerouted into a top-level
+  BrowserWindow popup on the same session
+  (`src/main/app/google-auth-popup.ts`), mirroring the `window.open` popup
+  shape that empirically passes; the post-login continuation is handed back
+  to the opener webview so the one-shot URL is consumed there.
 
 ## Containment that DOES exist
 

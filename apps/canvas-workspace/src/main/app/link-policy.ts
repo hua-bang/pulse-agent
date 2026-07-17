@@ -1,6 +1,7 @@
 import { app, shell, type WebContents } from "electron";
 import { isSafeExternalUrl } from "./shell-ipc";
 import { isGoogleAuthUrl } from "./google-auth";
+import { openGoogleAuthPopup } from "./google-auth-popup";
 
 // Centralized popup policy. Fires for every webContents the app ever creates:
 // the main BrowserWindow, sandboxed iframes within it, and every <webview> tag
@@ -41,7 +42,26 @@ export function setupLinkPolicy(): void {
     });
 
     if (contents.getType() === "webview") {
+      // Redirect-mode Google sign-in ENTRY legs (webview page → Google auth
+      // host) leave the webview: Google's strict full-page flow rejects
+      // embedded surfaces, so the leg is rerouted into a top-level popup on
+      // the same session (see google-auth-popup.ts). Legs where the webview
+      // is ALREADY on a Google host (intermediate hops, post-login exits)
+      // stay in place via isEmbeddedAuthNavigation.
+      const rerouteAuthEntry = (
+        event: { preventDefault(): void },
+        url: string
+      ): boolean => {
+        if (!isGoogleAuthUrl(url) || isGoogleAuthUrl(contents.getURL())) {
+          return false;
+        }
+        event.preventDefault();
+        openGoogleAuthPopup(contents, url);
+        return true;
+      };
+
       contents.on("will-navigate", (event, url) => {
+        if (rerouteAuthEntry(event, url)) return;
         const currentUrl = contents.getURL();
         let crossOrigin = false;
         try {
@@ -61,17 +81,25 @@ export function setupLinkPolicy(): void {
           }
         }
       });
+
+      // The common OAuth entry is a SAME-origin navigation
+      // (github.com/login → github.com/sessions/…) that 302s into
+      // accounts.google.com — the cross-origin will-navigate path never sees
+      // it; only will-redirect fires with the Google URL.
+      contents.on("will-redirect", (event, url) => {
+        rerouteAuthEntry(event, url);
+      });
     }
   });
 }
 
 function isEmbeddedAuthNavigation(currentRaw: string, nextRaw: string): boolean {
-  // In-place Google sign-in: a webview may navigate INTO a Google auth host
-  // (redirect-mode OAuth) and back OUT of it (the post-login continuation to
-  // the embedding site). Both legs must stay in the webview so the session
-  // cookie lands where the embedded site can use it — kicking either leg to
-  // the system browser strands the login there. google-auth.ts makes the
-  // Google pages pass the embedded-browser checks.
+  // Google sign-in legs that reach here have the webview ALREADY on a Google
+  // auth host (entry legs are rerouted to a popup before this check):
+  // intermediate hops between Google hosts and the post-login continuation
+  // back to the embedding site. Both must stay in the webview so the session
+  // cookie lands where the embedded site can use it — kicking either to the
+  // system browser strands the login there.
   if (isGoogleAuthUrl(nextRaw) || isGoogleAuthUrl(currentRaw)) return true;
   try {
     const current = new URL(currentRaw);

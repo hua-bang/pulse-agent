@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const electronMocks = vi.hoisted(() => ({
   appOn: vi.fn(),
   openExternal: vi.fn(),
+  openGoogleAuthPopup: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -12,6 +13,10 @@ vi.mock('electron', () => ({
   shell: {
     openExternal: electronMocks.openExternal,
   },
+}));
+
+vi.mock('../google-auth-popup', () => ({
+  openGoogleAuthPopup: electronMocks.openGoogleAuthPopup,
 }));
 
 type WindowOpenHandler = (details: { url: string; disposition: string }) => { action: string };
@@ -46,6 +51,7 @@ describe('link policy', () => {
     electronMocks.appOn.mockReset();
     electronMocks.openExternal.mockReset();
     electronMocks.openExternal.mockResolvedValue(undefined);
+    electronMocks.openGoogleAuthPopup.mockReset();
   });
 
   it('opens Google auth popups in an in-app window so the session flows back', async () => {
@@ -96,13 +102,14 @@ describe('link policy', () => {
     expect(electronMocks.openExternal).not.toHaveBeenCalled();
   });
 
-  it('keeps Google auth navigations inside the webview', async () => {
+  it('reroutes in-place Google auth entry navigations into a popup window', async () => {
     // Redirect-mode "Sign in with Google" navigates the webview itself to
-    // accounts.google.com. It must stay in-place: the google-auth compat
-    // layer makes the page pass Google's embedded-browser checks, and the
-    // session cookie has to land in the webview session.
+    // accounts.google.com, where Google's strict full-page flow rejects
+    // embedded surfaces. The entry leg must leave the webview for a real
+    // top-level popup on the same session — never the system browser (that
+    // would strand the login cookie).
     const createdHandler = await installPolicy();
-    const { contents, hostWebContents } = createContents();
+    const { contents, hostWebContents } = createContents('https://github.com/login');
     createdHandler({}, contents);
 
     const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
@@ -110,8 +117,44 @@ describe('link policy', () => {
     const url = 'https://accounts.google.com/signin/v2/identifier';
     navigateHandler({ preventDefault }, url);
 
-    expect(preventDefault).not.toHaveBeenCalled();
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(electronMocks.openGoogleAuthPopup).toHaveBeenCalledWith(contents, url);
     expect(electronMocks.openExternal).not.toHaveBeenCalled();
+    expect(hostWebContents.send).not.toHaveBeenCalled();
+  });
+
+  it('reroutes server-side redirects into Google auth to the popup window', async () => {
+    // The common OAuth entry is a same-origin navigation
+    // (github.com/login → github.com/sessions/…) that 302s into
+    // accounts.google.com. Cross-origin will-navigate never fires for it;
+    // only will-redirect carries the Google URL.
+    const createdHandler = await installPolicy();
+    const { contents } = createContents('https://github.com/login');
+    createdHandler({}, contents);
+
+    const redirectHandler = contents.on.mock.calls.find(([event]) => event === 'will-redirect')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=github';
+    redirectHandler({ preventDefault }, url);
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(electronMocks.openGoogleAuthPopup).toHaveBeenCalledWith(contents, url);
+  });
+
+  it('keeps hops between Google auth hosts inside the surface already on Google', async () => {
+    // accounts.google.com ↔ accounts.youtube.com is part of the sign-in
+    // cookie handshake; a surface already on a Google host must not spawn
+    // another popup.
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents('https://accounts.google.com/signin/v2/identifier');
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    navigateHandler({ preventDefault }, 'https://accounts.youtube.com/accounts/SetSID');
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(electronMocks.openGoogleAuthPopup).not.toHaveBeenCalled();
     expect(hostWebContents.send).not.toHaveBeenCalled();
   });
 

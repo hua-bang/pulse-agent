@@ -26,6 +26,11 @@ import { app, session } from "electron";
 //
 // link-policy.ts owns the navigation/popup routing and consults
 // isGoogleAuthUrl so auth legs stay in-app, where this compat layer applies.
+// In-place (redirect-mode) entry legs from <webview> guests are additionally
+// rerouted into a top-level BrowserWindow popup (google-auth-popup.ts):
+// Google's strict full-page flow (/v3/signin) risk-scores embedded surfaces,
+// and the popup shape is the one that empirically passes even when the UA
+// identity alone does not.
 
 // Exact-match allowlist. accounts.youtube.com participates in the Google
 // sign-in cookie handshake. Keep this exact (no suffix matching): the check
