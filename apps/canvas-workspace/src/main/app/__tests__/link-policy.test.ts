@@ -17,7 +17,7 @@ vi.mock('electron', () => ({
 type WindowOpenHandler = (details: { url: string; disposition: string }) => { action: string };
 type NavigateHandler = (event: { preventDefault(): void }, url: string) => void;
 
-function createContents() {
+function createContents(currentUrl = 'https://www.figma.com/files/recent') {
   const hostWebContents = {
     isDestroyed: vi.fn(() => false),
     send: vi.fn(),
@@ -26,7 +26,7 @@ function createContents() {
     hostWebContents,
     setWindowOpenHandler: vi.fn(),
     getType: vi.fn(() => 'webview'),
-    getURL: vi.fn(() => 'https://www.figma.com/files/recent'),
+    getURL: vi.fn(() => currentUrl),
     on: vi.fn(),
   };
   return { contents, hostWebContents };
@@ -79,7 +79,28 @@ describe('link policy', () => {
     expect(electronMocks.openExternal).toHaveBeenCalledWith(url);
   });
 
-  it('opens Google auth navigations in the system browser', async () => {
+  it('opens Google auth target=_blank links in an in-app window, not the system browser', async () => {
+    // A login link with target=_blank arrives as disposition foreground-tab.
+    // The system browser can't share its session back to the app, so the
+    // cookie from a login completed there would be stranded — these must open
+    // in-app like popups do.
+    const createdHandler = await installPolicy();
+    const { contents } = createContents();
+    createdHandler({}, contents);
+
+    const windowOpenHandler = contents.setWindowOpenHandler.mock.calls[0]?.[0] as WindowOpenHandler;
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=notion';
+    const result = windowOpenHandler({ url, disposition: 'foreground-tab' });
+
+    expect(result).toEqual({ action: 'allow' });
+    expect(electronMocks.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('keeps Google auth navigations inside the webview', async () => {
+    // Redirect-mode "Sign in with Google" navigates the webview itself to
+    // accounts.google.com. It must stay in-place: the google-auth compat
+    // layer makes the page pass Google's embedded-browser checks, and the
+    // session cookie has to land in the webview session.
     const createdHandler = await installPolicy();
     const { contents, hostWebContents } = createContents();
     createdHandler({}, contents);
@@ -89,9 +110,38 @@ describe('link policy', () => {
     const url = 'https://accounts.google.com/signin/v2/identifier';
     navigateHandler({ preventDefault }, url);
 
-    expect(preventDefault).toHaveBeenCalledOnce();
-    expect(electronMocks.openExternal).toHaveBeenCalledWith(url);
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(electronMocks.openExternal).not.toHaveBeenCalled();
     expect(hostWebContents.send).not.toHaveBeenCalled();
+  });
+
+  it('keeps the post-login continuation leaving accounts.google.com inside the webview', async () => {
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents('https://accounts.google.com/signin/oauth/consent');
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    const url = 'https://www.notion.so/googlelogin?code=abc';
+    navigateHandler({ preventDefault }, url);
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(electronMocks.openExternal).not.toHaveBeenCalled();
+    expect(hostWebContents.send).not.toHaveBeenCalled();
+  });
+
+  it('does not treat lookalike Google auth hosts as auth navigations', async () => {
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents();
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    const url = 'https://accounts.google.com.evil.example/signin';
+    navigateHandler({ preventDefault }, url);
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', { url });
   });
 
   it('keeps Figma SAML callbacks inside the webview', async () => {

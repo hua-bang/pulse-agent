@@ -1,5 +1,6 @@
 import { app, shell, type WebContents } from "electron";
 import { isSafeExternalUrl } from "./shell-ipc";
+import { isGoogleAuthUrl } from "./google-auth";
 
 // Centralized popup policy. Fires for every webContents the app ever creates:
 // the main BrowserWindow, sandboxed iframes within it, and every <webview> tag
@@ -20,22 +21,17 @@ export function setupLinkPolicy(): void {
         return { action: "deny" };
       }
 
-      // OAuth-style popups need a real Chromium BrowserWindow (not a <webview>,
-      // which Google's embedded-browser policy blocks). The popup inherits the
-      // opener's session, so the login cookie lands in the SAME session the
-      // webview uses and the round-trip (opener messaging / window.close)
-      // completes in-app. This is why Google "Sign in with Google" popups are
-      // handled here, above the system-browser fallback, rather than being
-      // pushed to the OS browser (whose session can't flow back to the app).
-      if (disposition === "new-window") {
+      // OAuth-style popups need a real Chromium BrowserWindow. The popup
+      // inherits the opener's session, so the login cookie lands in the SAME
+      // session the webview uses and the round-trip (opener messaging /
+      // window.close) completes in-app. Google auth URLs get this treatment
+      // for EVERY disposition (window.open popups AND target=_blank links):
+      // handing them to the system browser would strand the login cookie in a
+      // session the app can never read. google-auth.ts makes these in-app
+      // surfaces pass Google's embedded-browser checks (Firefox UA identity,
+      // no contradicting client hints).
+      if (disposition === "new-window" || isGoogleAuthUrl(url)) {
         return { action: "allow" };
-      }
-
-      // Non-popup auth navigations (a plain link/redirect to a login host) have
-      // no opener to message back, so hand them to the real system browser.
-      if (isExternalAuthUrl(url)) {
-        openExternal(url);
-        return { action: "deny" };
       }
 
       // Everything else is a "preview this link" intent, route to the side
@@ -58,7 +54,7 @@ export function setupLinkPolicy(): void {
         }
         if (crossOrigin && isSafeExternalUrl(url)) {
           event.preventDefault();
-          if (isEditorExternalUrl(url) || isExternalAuthUrl(url)) {
+          if (isEditorExternalUrl(url)) {
             openExternal(url);
           } else {
             forwardLinkToRenderer(contents, url);
@@ -70,6 +66,13 @@ export function setupLinkPolicy(): void {
 }
 
 function isEmbeddedAuthNavigation(currentRaw: string, nextRaw: string): boolean {
+  // In-place Google sign-in: a webview may navigate INTO a Google auth host
+  // (redirect-mode OAuth) and back OUT of it (the post-login continuation to
+  // the embedding site). Both legs must stay in the webview so the session
+  // cookie lands where the embedded site can use it — kicking either leg to
+  // the system browser strands the login there. google-auth.ts makes the
+  // Google pages pass the embedded-browser checks.
+  if (isGoogleAuthUrl(nextRaw) || isGoogleAuthUrl(currentRaw)) return true;
   try {
     const current = new URL(currentRaw);
     const next = new URL(nextRaw);
@@ -95,15 +98,6 @@ function isEditorExternalUrl(raw: string): boolean {
   try {
     const protocol = new URL(raw).protocol;
     return protocol === "vscode:" || protocol === "vscode-insiders:";
-  } catch {
-    return false;
-  }
-}
-
-function isExternalAuthUrl(raw: string): boolean {
-  try {
-    const { hostname } = new URL(raw);
-    return hostname === "accounts.google.com";
   } catch {
     return false;
   }

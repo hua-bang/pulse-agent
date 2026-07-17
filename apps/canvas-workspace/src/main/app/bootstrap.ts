@@ -73,6 +73,7 @@ import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
+import { setupGoogleAuthCompat } from "./google-auth";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
 
@@ -113,6 +114,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     startupMark("whenReady");
     startLoopDelaySampler(writeLog);
     spoofUserAgentFallback();
+    setupGoogleAuthCompat();
     registerPulseCanvasProtocol(writeLog);
     configureAppChrome(paths.iconPath, writeLog);
     // Must run before the window opens: the default menu's Undo/Redo
@@ -286,6 +288,11 @@ function spoofUserAgentFallback(): void {
   // version bundled with Electron 30 is now below their supported floor. Strip
   // the Electron / product-name tokens and rewrite the Chrome version to a
   // recent stable release so each webContents looks like current stock Chrome.
+  //
+  // This UA-string rewrite is NOT enough for Google sign-in: Chromium still
+  // emits UA Client Hints derived from the real bundled version, and
+  // accounts.google.com rejects the mismatch. google-auth.ts layers a
+  // Firefox identity over Google's auth hosts to close that gap.
   const SPOOFED_CHROME_MAJOR = "140";
   app.userAgentFallback = app.userAgentFallback
     .replace(/\s?Electron\/\S+/g, "")
