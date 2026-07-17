@@ -34,6 +34,7 @@ function isGoogleAuthUrl(raw: string | null | undefined): boolean {
 
 interface LinkTabViewProps {
   url: string;
+  title?: string;
   /** Dock tab id — used as the webview registry key so the Canvas Agent can
    *  read this tab's live page via `canvas_read_tab`. */
   tabId?: string;
@@ -43,16 +44,22 @@ interface LinkTabViewProps {
   onFaviconChange?: (faviconUrl: string) => void;
   /** Navigate this tab while preserving its stable tab identity. */
   onNavigate: (url: string) => void;
+  /** Mirror a guest navigation without resetting a resolved page title. */
+  onGuestNavigate: (url: string) => void;
+  onAddToReference: (url: string, title?: string) => void;
   activeWorkspaceId: string;
   onRequestClose: () => void;
 }
 
 export const LinkTabView = ({
   url,
+  title,
   tabId,
   onTitleChange,
   onFaviconChange,
   onNavigate,
+  onGuestNavigate,
+  onAddToReference,
   activeWorkspaceId,
   onRequestClose,
 }: LinkTabViewProps) => {
@@ -80,6 +87,7 @@ export const LinkTabView = ({
     onNavigate: (nextUrl) => {
       setAddress(nextUrl);
       lastVisitedUrlRef.current = nextUrl;
+      onGuestNavigate(nextUrl);
       window.canvasWorkspace.history.record({ url: nextUrl });
     },
     onTitleChange: (title) => {
@@ -131,6 +139,11 @@ export const LinkTabView = ({
     onRequestClose();
   }, [browser.currentUrl, activeWorkspaceId, onRequestClose]);
 
+  const handleAddToReference = useCallback(() => {
+    if (!browser.currentUrl) return;
+    onAddToReference(browser.currentUrl, title);
+  }, [browser.currentUrl, onAddToReference, title]);
+
   return (
     <>
       <header className="link-drawer__header">
@@ -140,6 +153,7 @@ export const LinkTabView = ({
           onBack={browser.goBack}
           onForward={browser.goForward}
           onReload={browser.reload}
+          loading={browser.loadState === 'loading'}
         />
         <form ref={addressFormRef} className="link-drawer__address-form" onSubmit={handleNavigate}>
           <TextField
@@ -153,6 +167,17 @@ export const LinkTabView = ({
           />
         </form>
         <div className="link-drawer__actions">
+          <Button
+            variant="icon"
+            size="xs"
+            className="link-drawer__action"
+            aria-label={t('linkDrawer.addToReference')}
+            title={t('linkDrawer.addToReference')}
+            onClick={handleAddToReference}
+            disabled={!browser.currentUrl}
+          >
+            <ReferenceIcon />
+          </Button>
           <Button
             variant="icon"
             size="xs"
@@ -177,6 +202,13 @@ export const LinkTabView = ({
           </Button>
         </div>
       </header>
+      {browser.loadState === 'loading' && (
+        <div
+          className="link-drawer__loading-bar"
+          role="progressbar"
+          aria-label={t('linkDrawer.loadingPage')}
+        />
+      )}
       {isGoogleAuthUrl(browser.currentUrl) && (
         <div className="link-drawer__auth-notice" role="status">
           {isDefaultBrowser ? (
@@ -207,3 +239,9 @@ export const LinkTabView = ({
     </>
   );
 };
+
+const ReferenceIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+    <path d="M3 1.75h6v8.5L6 8.3l-3 1.95v-8.5z" stroke="currentColor" strokeWidth="1.15" strokeLinejoin="round" />
+  </svg>
+);

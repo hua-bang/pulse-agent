@@ -53,6 +53,49 @@
   flex-shrink: 0;
 }
 
+.browser-navigation__loading-icon {
+  animation: spin 0.7s linear infinite;
+}
+
+.link-drawer__loading-bar {
+  position: relative;
+  height: 2px;
+  flex: 0 0 2px;
+  overflow: hidden;
+  background: var(--accent-soft);
+}
+
+.link-drawer__loading-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  background: var(--accent);
+  transform: translateX(-110%);
+  animation: link-drawer-load-progress 1.05s ease-in-out infinite;
+}
+
+@keyframes link-drawer-load-progress {
+  55% {
+    transform: translateX(105%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .browser-navigation__loading-icon {
+    animation: none;
+  }
+
+  .link-drawer__loading-bar::after {
+    width: 100%;
+    transform: none;
+    animation: none;
+  }
+}
+
 /* ── Google sign-in notice ──────────────────────────────────────────── */
 
 .link-drawer__auth-notice {

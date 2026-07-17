@@ -1,21 +1,17 @@
 import {
-  createContext,
   lazy,
   Suspense,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
-  type ReactNode,
 } from 'react';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { AppLogoIcon } from '../icons';
-import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
+import { CHAT_TAB_ID, isTerminalTabId } from './dock-store';
+import { useDockContext, useRightDockState } from './context';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
@@ -25,6 +21,13 @@ import './index.css';
 import './terminal-tab.css';
 
 export { CHAT_TAB_ID, TERMINAL_TAB_ID, isTerminalTabId, type DockTerminalTab, type DockTerminalWorkspaceState } from './dock-store';
+export {
+  RightDockProvider,
+  useRightDock,
+  useRightDockChatHost,
+  useRightDockState,
+  useRightDockTerminalHost,
+} from './context';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const DEFAULT_WIDTH = 480;
@@ -36,95 +39,6 @@ const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m
 const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
 const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
 const DockCreationControls = lazy(() => import('./DockCreationControls').then((m) => ({ default: m.DockCreationControls })));
-
-interface RightDockContextValue {
-  store: DockStore;
-  chatHost: HTMLDivElement | null;
-  setChatHost: (el: HTMLDivElement | null) => void;
-  terminalHost: HTMLDivElement | null;
-  setTerminalHost: (el: HTMLDivElement | null) => void;
-}
-
-const RightDockContext = createContext<RightDockContextValue | null>(null);
-
-export const RightDockProvider = ({ children }: { children: ReactNode }) => {
-  const store = useMemo(() => new DockStore(), []);
-  const [chatHost, setChatHost] = useState<HTMLDivElement | null>(null);
-  const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
-  const value = useMemo<RightDockContextValue>(
-    () => ({ store, chatHost, setChatHost, terminalHost, setTerminalHost }),
-    [store, chatHost, terminalHost],
-  );
-  return (
-    <RightDockContext.Provider value={value}>
-      {children}
-    </RightDockContext.Provider>
-  );
-};
-
-const useDockContext = (): RightDockContextValue => {
-  const ctx = useContext(RightDockContext);
-  if (!ctx) throw new Error('useRightDock must be used within <RightDockProvider>');
-  return ctx;
-};
-
-/** Dock actions — safe to call from anywhere under the provider. */
-export function useRightDock(): {
-  openArtifact: (workspaceId: string, artifactId: string) => void;
-  openNodeDetail: (workspaceId: string, nodeId: string, title: string) => void;
-  openCanvasPreview: (workspaceId: string, title: string) => boolean;
-  openLink: (url: string) => void;
-  newLink: () => void;
-  openChat: () => void;
-  toggleChat: () => void;
-  openTerminal: () => void;
-  newTerminal: () => void;
-  toggleTerminal: () => void;
-  closeTerminal: (id?: string) => void;
-  setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) => void;
-  setMountedWorkspaces: (ids: Iterable<string>) => void;
-  collapse: () => void;
-  notifyChatActivity: () => void;
-} {
-  const { store } = useDockContext();
-  return useMemo(
-    () => ({
-      openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
-      openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
-      openCanvasPreview: (workspaceId: string, title: string) => store.openCanvasPreview(workspaceId, title),
-      openLink: (url: string) => store.openLink(url),
-      newLink: () => store.newLink(),
-      openChat: () => store.openChat(),
-      toggleChat: () => store.toggleChat(),
-      openTerminal: () => store.openTerminal(),
-      newTerminal: () => store.newTerminal(),
-      toggleTerminal: () => store.toggleTerminal(),
-      closeTerminal: (id?: string) => store.closeTerminal(id),
-      setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) =>
-        store.setTerminalAgentType(id, agentType, workspaceId),
-      setMountedWorkspaces: (ids: Iterable<string>) => store.setMountedWorkspaces(ids),
-      collapse: () => store.collapse(),
-      notifyChatActivity: () => store.notifyChatActivity(),
-    }),
-    [store],
-  );
-}
-
-/** Reactive dock state (tabs, active tab, expanded, chat unread). */
-export function useRightDockState(): DockState {
-  const { store } = useDockContext();
-  return useSyncExternalStore(store.subscribe, store.getSnapshot);
-}
-
-/** DOM element of the dock's chat pane; Workbench portals ChatPanels into it. */
-export function useRightDockChatHost(): HTMLDivElement | null {
-  return useDockContext().chatHost;
-}
-
-/** DOM element of the dock's terminal pane; Workbench portals workspace terminals into it. */
-export function useRightDockTerminalHost(): HTMLDivElement | null {
-  return useDockContext().terminalHost;
-}
 
 function readStoredWidth(): number | null {
   if (typeof window === 'undefined') return null;
@@ -158,7 +72,7 @@ interface TabIndicatorState {
 }
 
 export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
-  const { store, setChatHost, setTerminalHost } = useDockContext();
+  const { store, setChatHost, setTerminalHost, pinUrlReference } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
 
@@ -483,11 +397,14 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               <Suspense fallback={null}>
                 <LinkTabView
                   url={tab.url}
+                  title={tab.title}
                   tabId={tab.id}
                   activeWorkspaceId={activeWorkspaceId}
                   onTitleChange={(title) => store.setTitle(tab.id, title)}
                   onFaviconChange={(faviconUrl) => store.setFavicon(tab.id, faviconUrl)}
                   onNavigate={(url) => store.navigateLink(tab.id, url)}
+                  onGuestNavigate={(url) => store.syncLinkUrl(tab.id, url)}
+                  onAddToReference={pinUrlReference}
                   onRequestClose={() => store.close(tab.id)}
                 />
               </Suspense>

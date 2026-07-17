@@ -103,6 +103,8 @@ export const useEmbeddedBrowser = ({
     };
     const handleStop = () => {
       setLoadState((state) => state === 'failed' ? state : 'ready');
+      const title = element.getTitle?.().trim();
+      if (title) callbacksRef.current.onTitleChange?.(title);
       syncNavigation();
     };
     const handleFail = (event: Event) => {
@@ -139,11 +141,15 @@ export const useEmbeddedBrowser = ({
 
   useLayoutEffect(() => {
     if (!webview) return;
+    // A did-navigate event already moved this live guest. When the parent
+    // mirrors that URL into persisted tab state, do not assign src again and
+    // accidentally reload the page we just reached.
+    if (url === currentUrl) return;
     if (webview.getAttribute('src') !== url) webview.setAttribute('src', url);
     setCurrentUrl(url);
     setLoadState(url ? 'loading' : 'idle');
     setLoadError(null);
-  }, [url, webview]);
+  }, [currentUrl, url, webview]);
 
   const goBack = useCallback(() => {
     if (webview?.canGoBack()) webview.goBack();
