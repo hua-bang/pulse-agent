@@ -1,5 +1,14 @@
 import { app, session } from "electron";
 
+// Opt-in diagnostics (PULSE_DEBUG_GOOGLE_AUTH=1). Main-process stderr, so it
+// shows up directly in the `pnpm dev` terminal — used to see, at runtime,
+// which nav events fire, whether the debugger attaches, and the ACTUAL headers
+// leaving for accounts.google.com. Zero cost when the env var is unset.
+const DEBUG_GOOGLE_AUTH = Boolean(process.env.PULSE_DEBUG_GOOGLE_AUTH);
+function dbgLog(...parts: unknown[]): void {
+  if (DEBUG_GOOGLE_AUTH) console.error("[google-auth]", ...parts);
+}
+
 // Google sign-in compatibility for embedded browsing surfaces.
 //
 // Google hard-blocks logins from anything it can fingerprint as an embedded
@@ -15,17 +24,51 @@ import { app, session } from "electron";
 // The reliable workaround (the same one Ferdium/WebCatalog-style Electron
 // shells ship) is to present a *Firefox* identity on Google's account hosts
 // only: Firefox sends no client hints at all, so there is no second signal to
-// contradict the UA string. Two cooperating layers:
+// contradict the UA string. Three cooperating layers:
 //
 //  1. Per-webContents UA override while a contents is on a Google auth host.
-//     This is what `navigator.userAgent` reports to page JS, and an active
-//     per-contents override also stops Chromium from emitting client hints.
+//     This is what `navigator.userAgent` reports to page JS.
 //  2. Session-level header rewrite for requests to Google auth hosts, which
 //     guarantees the wire-level UA even for requests created before the
 //     per-contents override landed, and strips residual `Sec-CH-*` headers.
+//  3. `navigator.userAgentData` neutralization on Google auth documents.
+//     Layers 1+2 only cover the *string* UA and the *wire* headers — they do
+//     NOT change `navigator.userAgentData`, a pure-JS API that reads the real
+//     Chromium version WITHOUT any network request (`setUserAgent()` leaves it
+//     intact; disabling the UA-CH Chromium feature via a command-line switch
+//     also does NOT remove it — verified empirically on this Electron). The
+//     strict full-page flow (`/v3/signin`, which GitHub's in-place redirect
+//     login hits — vs. the lenient GIS *popup* flow Figma/Notion use) calls
+//     `navigator.userAgentData.getHighEntropyValues()` client-side and rejects
+//     the Firefox-UA-string / Chrome-userAgentData mismatch (→ `/rejected`).
+//     The only version-robust fix is to run a script in the page's MAIN world
+//     BEFORE its own scripts, redefining `navigator.userAgentData` to
+//     `undefined` (what real Firefox exposes). Electron has no native
+//     document-start main-world hook for a <webview> guest (preload runs in an
+//     isolated world), so we use the DevTools protocol
+//     (`Page.addScriptToEvaluateOnNewDocument`) via `webContents.debugger`,
+//     attached only to contents that actually navigate to a Google auth host.
+//     The injected script self-gates on hostname, so it is inert everywhere
+//     except the Google auth documents.
 //
 // link-policy.ts owns the navigation/popup routing and consults
 // isGoogleAuthUrl so auth legs stay in-app, where this compat layer applies.
+
+// Runs in the page's MAIN world at document-start (before the page's own
+// scripts). Self-gated to Google auth hosts: attaching the debugger registers
+// this for every subsequent document on that contents, but it must be a no-op
+// once the flow navigates back out to the embedding site.
+const HIDE_UA_DATA_SOURCE = `(function () {
+  try {
+    var h = location.hostname;
+    if (h !== "accounts.google.com" && h !== "accounts.youtube.com") return;
+    Object.defineProperty(Navigator.prototype, "userAgentData", {
+      configurable: true,
+      enumerable: true,
+      get: function () { return undefined; },
+    });
+  } catch (e) {}
+})();`;
 
 // Exact-match allowlist. accounts.youtube.com participates in the Google
 // sign-in cookie handshake. Keep this exact (no suffix matching): the check
@@ -71,10 +114,43 @@ export function rewriteGoogleAuthHeaders(
   return rewritten;
 }
 
+// Attach the DevTools protocol to a contents heading for a Google auth host
+// and register the userAgentData-hiding script for its documents. Idempotent
+// per contents (the WeakSet guards re-entry across the many OAuth hops), and
+// silent if the debugger can't attach (e.g. DevTools is already open on it).
+function hideUserAgentDataOnGoogle(
+  contents: Electron.WebContents,
+  attached: WeakSet<object>
+): void {
+  if (attached.has(contents)) return;
+  const dbg = contents.debugger;
+  try {
+    if (!dbg.isAttached()) dbg.attach("1.3");
+  } catch (err) {
+    dbgLog("debugger.attach FAILED:", String(err));
+    return;
+  }
+  attached.add(contents);
+  dbgLog("debugger attached; registering userAgentData-hide script");
+  // Applies to the NEXT document created — we call this on will-navigate /
+  // will-redirect, before the Google document commits, so its own scripts see
+  // the redefined property.
+  dbg
+    .sendCommand("Page.addScriptToEvaluateOnNewDocument", {
+      source: HIDE_UA_DATA_SOURCE,
+    })
+    .then(() => dbgLog("addScriptToEvaluateOnNewDocument OK"))
+    .catch((err) => {
+      dbgLog("addScriptToEvaluateOnNewDocument FAILED:", String(err));
+      attached.delete(contents);
+    });
+}
+
 // Must run after app-ready (needs defaultSession); bootstrap calls it from
 // whenReady, before the first window opens.
 export function setupGoogleAuthCompat(): void {
   const originalUserAgents = new WeakMap<object, string>();
+  const uaDataHidden = new WeakSet<object>();
 
   app.on("web-contents-created", (_event, contents) => {
     const applyUserAgentForUrl = (url: string) => {
@@ -83,6 +159,8 @@ export function setupGoogleAuthCompat(): void {
           originalUserAgents.set(contents, contents.getUserAgent());
           contents.setUserAgent(googleAuthUserAgent());
         }
+        // Match the JS-visible client-hint surface to the Firefox UA string.
+        hideUserAgentDataOnGoogle(contents, uaDataHidden);
       } else if (originalUserAgents.has(contents)) {
         const original = originalUserAgents.get(contents);
         originalUserAgents.delete(contents);
@@ -92,14 +170,30 @@ export function setupGoogleAuthCompat(): void {
 
     // will-navigate covers renderer-initiated navigations before the request
     // leaves; did-start-navigation additionally covers loadURL/popup initial
-    // loads. Server-side redirect hops keep whatever UA the leg started with,
-    // which is the correct behaviour for an OAuth continuation.
+    // loads; will-redirect covers server-side redirect hops — the common OAuth
+    // entry (site.com/auth/google → 302 → accounts.google.com) fires NEITHER
+    // of the other two with the Google URL. Without it the Google document
+    // commits under the Chrome-spoof identity, so page JS sees a Chrome UA
+    // string plus real-version `navigator.userAgentData`, and Google's
+    // client-side check bounces to /v3/signin/rejected even though the wire
+    // headers (rewritten below) said Firefox.
     contents.on("will-navigate", (_navEvent, url) => {
+      if (DEBUG_GOOGLE_AUTH && isGoogleAuthUrl(url)) {
+        dbgLog("will-navigate →", url, "type:", contents.getType());
+      }
       applyUserAgentForUrl(url);
     });
     contents.on(
       "did-start-navigation",
       (_navEvent, url, _isInPage, isMainFrame) => {
+        if (isMainFrame && isGoogleAuthUrl(url)) dbgLog("did-start-navigation →", url);
+        if (isMainFrame) applyUserAgentForUrl(url);
+      }
+    );
+    contents.on(
+      "will-redirect",
+      (_navEvent, url, _isInPage, isMainFrame) => {
+        if (isMainFrame && isGoogleAuthUrl(url)) dbgLog("will-redirect →", url);
         if (isMainFrame) applyUserAgentForUrl(url);
       }
     );
@@ -116,9 +210,23 @@ export function setupGoogleAuthCompat(): void {
       ],
     },
     (details, callback) => {
-      callback({
-        requestHeaders: rewriteGoogleAuthHeaders(details.requestHeaders),
-      });
+      const rewritten = rewriteGoogleAuthHeaders(details.requestHeaders);
+      if (DEBUG_GOOGLE_AUTH) {
+        const secChIn = Object.keys(details.requestHeaders).filter((k) =>
+          k.toLowerCase().startsWith("sec-ch-")
+        );
+        dbgLog(
+          "onBeforeSendHeaders",
+          new URL(details.url).pathname,
+          "| in UA:",
+          details.requestHeaders["User-Agent"] ?? details.requestHeaders["user-agent"],
+          "| in Sec-CH-*:",
+          secChIn.length ? secChIn.join(",") : "(none)",
+          "| out UA:",
+          rewritten["User-Agent"]
+        );
+      }
+      callback({ requestHeaders: rewritten });
     }
   );
 }
