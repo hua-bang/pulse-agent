@@ -56,6 +56,11 @@ export function openGoogleAuthPopup(opener: WebContents, url: string): BrowserWi
   popup.webContents.on("will-navigate", handleExitLeg);
   popup.webContents.on("will-redirect", handleExitLeg);
 
+  if (process.env.PULSE_DEBUG_GOOGLE_AUTH) {
+    debugLog("popup: UA:", popup.webContents.getUserAgent());
+    popup.webContents.openDevTools({ mode: "detach" });
+  }
+
   void popup.webContents.loadURL(url);
   return popup;
 }
