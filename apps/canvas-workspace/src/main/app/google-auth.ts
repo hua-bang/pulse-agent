@@ -15,17 +15,43 @@ import { app, session } from "electron";
 // The reliable workaround (the same one Ferdium/WebCatalog-style Electron
 // shells ship) is to present a *Firefox* identity on Google's account hosts
 // only: Firefox sends no client hints at all, so there is no second signal to
-// contradict the UA string. Two cooperating layers:
+// contradict the UA string. Three cooperating layers:
 //
 //  1. Per-webContents UA override while a contents is on a Google auth host.
-//     This is what `navigator.userAgent` reports to page JS, and an active
-//     per-contents override also stops Chromium from emitting client hints.
+//     This is what `navigator.userAgent` reports to page JS.
 //  2. Session-level header rewrite for requests to Google auth hosts, which
 //     guarantees the wire-level UA even for requests created before the
 //     per-contents override landed, and strips residual `Sec-CH-*` headers.
+//  3. App-wide UA-Client-Hints disable (disableUaClientHints, called before
+//     app-ready). Layers 1+2 only cover the *string* UA and the *wire*
+//     headers — they do NOT change `navigator.userAgentData`, a pure-JS API
+//     that reads the real Chromium version WITHOUT any network request.
+//     Google's strict full-page flow (`/v3/signin`, the one GitHub's in-place
+//     redirect login hits — as opposed to the lenient GIS *popup* flow
+//     Figma/Notion use) calls `navigator.userAgentData.getHighEntropyValues()`
+//     client-side and rejects the Firefox-UA-string / Chrome-userAgentData
+//     mismatch (→ `/v3/signin/rejected`). `webContents.setUserAgent()` does
+//     not null out `userAgentData`, so we disable the feature globally:
+//     real Firefox exposes no `navigator.userAgentData` at all, so removing it
+//     is what makes the Firefox identity self-consistent at the JS layer too.
+//     Global (a command-line switch can't be host-scoped) but harmless — a
+//     browser that sends no client hints is a normal, supported configuration.
 //
 // link-policy.ts owns the navigation/popup routing and consults
 // isGoogleAuthUrl so auth legs stay in-app, where this compat layer applies.
+
+// Must run BEFORE app-ready (command-line switches are read at Chromium init).
+// bootstrap calls it synchronously, before whenReady.
+export function disableUaClientHints(): void {
+  // Disabling the master UA-CH feature removes both the Sec-CH-UA request
+  // headers AND the `navigator.userAgentData` JS object, matching Firefox.
+  // FullVersionList is listed explicitly because it is what the strict Google
+  // flow queries via getHighEntropyValues(['fullVersionList']).
+  app.commandLine.appendSwitch(
+    "disable-features",
+    "UserAgentClientHint,UserAgentClientHintFullVersionList"
+  );
+}
 
 // Exact-match allowlist. accounts.youtube.com participates in the Google
 // sign-in cookie handshake. Keep this exact (no suffix matching): the check

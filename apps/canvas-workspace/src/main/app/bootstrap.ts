@@ -74,7 +74,7 @@ import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
-import { setupGoogleAuthCompat } from "./google-auth";
+import { disableUaClientHints, setupGoogleAuthCompat } from "./google-auth";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
 
@@ -95,6 +95,12 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
 
   const paths = resolveAppPaths(mainDir);
   const { writeLog } = createMainLogger();
+
+  // Command-line switches must be appended before app-ready — do it in the
+  // synchronous bootstrap section. Removes navigator.userAgentData so the
+  // Firefox identity in google-auth.ts is consistent at the JS layer too
+  // (Google's strict full-page sign-in reads it client-side).
+  disableUaClientHints();
 
   registerPulseCanvasSchemesAsPrivileged();
   setupLinkPolicy();

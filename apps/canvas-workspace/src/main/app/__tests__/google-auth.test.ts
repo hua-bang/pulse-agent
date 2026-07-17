@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMocks = vi.hoisted(() => ({
   appOn: vi.fn(),
+  appendSwitch: vi.fn(),
   onBeforeSendHeaders: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
   app: {
     on: electronMocks.appOn,
+    commandLine: { appendSwitch: electronMocks.appendSwitch },
   },
   session: {
     defaultSession: {
@@ -46,6 +48,27 @@ async function installCompat() {
   if (typeof createdHandler !== 'function') throw new Error('web-contents-created handler not registered');
   return createdHandler as (_event: unknown, contents: ReturnType<typeof createContents>) => void;
 }
+
+describe('disableUaClientHints', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    electronMocks.appendSwitch.mockReset();
+  });
+
+  it('disables the UA-CH features so navigator.userAgentData is absent (Firefox-like)', async () => {
+    const { disableUaClientHints } = await import('../google-auth');
+    disableUaClientHints();
+
+    expect(electronMocks.appendSwitch).toHaveBeenCalledWith(
+      'disable-features',
+      expect.stringContaining('UserAgentClientHint'),
+    );
+    // FullVersionList is what Google's strict flow queries via
+    // getHighEntropyValues(['fullVersionList']); it must be covered too.
+    const [, features] = electronMocks.appendSwitch.mock.calls[0] as [string, string];
+    expect(features).toContain('UserAgentClientHintFullVersionList');
+  });
+});
 
 describe('isGoogleAuthUrl', () => {
   it('matches only the exact Google auth hosts over https', async () => {
