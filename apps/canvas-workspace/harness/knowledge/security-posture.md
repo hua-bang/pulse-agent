@@ -77,25 +77,25 @@ These make on-disk files an execution or injection surface:
   before its page can run JS; unsafe URLs are denied, OAuth-style popups get
   a real window, everything else is routed to the renderer's preview drawer
   instead of auto-opening.
-- **Google sign-in identity is selectable; attribution investigation open**
-  (`src/main/app/google-auth.ts`, `google-auth-popup.ts`): the app-wide UA
-  strips only the Electron/product tokens and keeps the real Chrome version
-  (bootstrap.ts). On the exact-match Google auth hosts,
-  `PULSE_GOOGLE_AUTH_IDENTITY` selects between the default `firefox`
-  identity (per-webContents UA override + client-hint header strip — the
-  config Electron shells in the wild ship) and `chrome` (honest engine
-  identity, no override). Honest identity on Electron 42 was rejected by
-  `/v3/signin` after credential submission on 2026-07-17, but the account/IP
-  had accumulated many failed attempts that day — sticky risk state and
-  BotGuard falsification of the Chrome claim are both live hypotheses; the
-  toggle exists to A/B them (see the evidence log in google-auth.ts). The
-  allowlist stays exact-match by design — it loosens navigation policy, so
-  suffix lookalikes (`accounts.google.com.evil`) must never qualify.
-  Google's strict full-page flow additionally risk-scores embedded
-  surfaces, so in-place entry legs from `<webview>` guests are rerouted
-  into a top-level BrowserWindow popup on the same session (with the
-  opener page as referrer); the post-login continuation is handed back to
-  the opener webview so the one-shot URL is consumed there.
+- **Google sign-in compat is host-scoped UA identity swapping + popup
+  rerouting** (`src/main/app/google-auth.ts`, `google-auth-popup.ts`):
+  UA-*string* spoofing alone is detectable — Chromium emits UA Client Hints
+  from the real bundled version and accounts.google.com rejects the
+  mismatch. On the exact-match Google auth hosts only, a per-webContents
+  Firefox UA override (suppresses client hints) plus a defaultSession
+  header rewrite presents a consistent Firefox identity
+  (`PULSE_GOOGLE_AUTH_IDENTITY=chrome` disables it — experiment arm only,
+  known-broken on Electron 30). An honest current-Chrome identity was
+  tried on Electron 42 (2026-07-17) and still rejected by `/v3/signin`
+  post-submit; the upgrade was reverted — see the evidence log in
+  google-auth.ts before re-running that loop. The allowlist is exact-match
+  by design — it loosens navigation policy, so suffix lookalikes
+  (`accounts.google.com.evil`) must never qualify. Google's strict
+  full-page flow additionally risk-scores embedded surfaces, so in-place
+  entry legs from `<webview>` guests are rerouted into a top-level
+  BrowserWindow popup on the same session (with the opener page as
+  referrer); the post-login continuation is handed back to the opener
+  webview so the one-shot URL is consumed there.
 
 ## Containment that DOES exist
 

@@ -285,17 +285,24 @@ function resolveAppPaths(mainDir: string): AppPaths {
 }
 
 function spoofUserAgentFallback(): void {
-  // Notion, Google, and a handful of other services reject embedded
-  // <webview>s whose UA carries the Electron token. Strip the Electron /
-  // product-name tokens but keep the REAL Chrome version: hints and
-  // userAgentData derive from the real build, and a rewritten version
-  // reintroduces exactly the mismatch accounts.google.com rejects. Google's
-  // auth hosts additionally get a Firefox identity (google-auth.ts) — an
-  // honest Chrome claim invites Chrome-specific BotGuard checks an Electron
-  // shell cannot pass (falsified on Electron 42, 2026-07-17).
+  // Notion (and a handful of other services) reject embedded <webview>s on two
+  // grounds: the UA string contains the Electron token, and the Chrome major
+  // version bundled with Electron 30 is now below their supported floor. Strip
+  // the Electron / product-name tokens and rewrite the Chrome version to a
+  // recent stable release so each webContents looks like current stock Chrome.
+  //
+  // This UA-string rewrite is NOT enough for Google sign-in: Chromium still
+  // emits UA Client Hints derived from the real bundled version, and
+  // accounts.google.com rejects the mismatch. google-auth.ts layers a
+  // Firefox identity over Google's auth hosts to close that gap.
+  const SPOOFED_CHROME_MAJOR = "140";
   app.userAgentFallback = app.userAgentFallback
     .replace(/\s?Electron\/\S+/g, "")
-    .replace(/\s?PulseCanvas\/\S+/g, "");
+    .replace(/\s?PulseCanvas\/\S+/g, "")
+    .replace(
+      /Chrome\/\d+(?:\.\d+){0,3}/g,
+      `Chrome/${SPOOFED_CHROME_MAJOR}.0.0.0`
+    );
 }
 
 function configureAppChrome(

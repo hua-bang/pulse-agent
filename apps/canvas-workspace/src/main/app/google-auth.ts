@@ -6,27 +6,29 @@ import { app, session } from "electron";
 // PULSE_GOOGLE_AUTH_IDENTITY:
 //  - "firefox" (default): per-webContents Firefox UA override + client-hint
 //    header stripping — the configuration Electron shells in the wild
-//    (Ferdium/WebCatalog-style) ship on current engines, and the only one
-//    with an observed pass in this app (the GIS popup flows).
-//  - "chrome": no override — the honest engine identity (real Chrome
-//    version; only the Electron/product tokens are stripped app-wide in
-//    bootstrap.ts, so UA, client hints, and userAgentData agree).
+//    (Ferdium/WebCatalog-style) ship, and the only one with an observed
+//    pass in this app (the GIS popup flows).
+//  - "chrome": no override — experiment arm only. On Electron 30 this is
+//    KNOWN-BROKEN for Google: bootstrap.ts rewrites the UA's Chrome version
+//    to a current one (Notion floor) while client hints derive from the
+//    real Chromium 124, and accounts.google.com rejects the mismatch.
 //
-// EVIDENCE LOG (active investigation — keep this updated, attribution of
-// the 2026-07-17 failures is still OPEN):
+// EVIDENCE LOG (2026-07-17 investigation; kept so the loop is not re-run
+// blindly):
 //  - Electron 30 + firefox: GIS popup flows (Figma/Notion) passed; GitHub's
-//    strict /v3/signin, running in-place in a <webview>, was rejected.
-//    (The era also forced the spoof for a second reason: Chromium 124 sat
-//    below Google's supported floor, and a rewritten Chrome UA contradicted
-//    the real-version client hints — #807.)
-//  - Electron 42 + chrome + popup reroute (2026-07-17, cold session):
-//    /v3/signin rejected AFTER credential submission (environment survived
-//    first load; BotGuard telemetry verdict at submit). GIS flows failed
-//    the same day. CONFOUND: the account/IP had accumulated many failed
-//    attempts that day, so "an honest Chrome claim gets falsified by
-//    Chrome-specific BotGuard checks" and "risk state went sticky on the
-//    account/IP" are BOTH live hypotheses. The env toggle exists to A/B
-//    the identity with everything else held constant.
+//    strict /v3/signin, running in-place in a <webview>, was rejected —
+//    the original defect.
+//  - Electron 42 + honest chrome identity (real Chrome 148 UA, consistent
+//    client hints/userAgentData, window.chrome present) + popup reroute,
+//    cold session: /v3/signin rejected AFTER credential submission; the
+//    previously-passing GIS flows failed the same day too. Attribution was
+//    left OPEN between "a Chrome claim invites Chrome-specific BotGuard
+//    checks an Electron shell cannot pass" and "account/IP risk state went
+//    sticky after a day of failed attempts" — the planned identity-only A/B
+//    was not run. DECISION: the Electron 42 upgrade was reverted and the
+//    battle-tested Electron 30 + firefox configuration restored. If this is
+//    ever revisited, run the A/B in google-auth history (identity toggle,
+//    cold sessions, GIS flow as instrument, account health baseline first).
 //
 // Why a Firefox claim can help at all: Firefox sends no client hints, so
 // there is no second identity source to cross-check. Two cooperating layers:
