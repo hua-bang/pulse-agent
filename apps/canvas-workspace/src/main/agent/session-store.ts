@@ -101,6 +101,37 @@ export class SessionStore {
   }
 
   /**
+   * Restore the persisted current session without archiving it. Used when a
+   * workspace agent is activated so reopening chat resumes the last thread.
+   */
+  async restoreCurrentSession(): Promise<CanvasAgentSession | null> {
+    await this.persistQueue.catch(() => undefined);
+    try {
+      const raw = await fs.readFile(this.currentPath, 'utf-8');
+      const session = JSON.parse(raw) as CanvasAgentSession;
+      if (!session.sessionId || !Array.isArray(session.messages)) return null;
+      this.session = session;
+      return session;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Restore the last useful chat thread. If current.json is an empty session
+   * left by a prior auto-start, promote the newest archived session instead.
+   */
+  async restoreLastSession(): Promise<CanvasAgentSession | null> {
+    const current = await this.restoreCurrentSession();
+    if (current && current.messages.length > 0) return current;
+
+    const [latestArchived] = await this.listArchivedSessions();
+    if (!latestArchived) return current;
+
+    return this.loadSession(latestArchived.sessionId);
+  }
+
+  /**
    * Add a message to the current session and persist.
    */
   addMessage(message: CanvasAgentMessage): void {

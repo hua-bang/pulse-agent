@@ -64,6 +64,43 @@ describe('SessionStore', () => {
     expect(session?.messages.map((m) => m.content)).toEqual(messages.map((m) => m.content));
   });
 
+  it('restores the persisted current session without archiving it', async () => {
+    const store = new SessionStore('ws-restore');
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    const messages = [makeMessage(0), makeMessage(1)];
+
+    store.setMessages(messages);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const reloaded = new SessionStore('ws-restore');
+    const restored = await reloaded.restoreCurrentSession();
+
+    expect(restored?.sessionId).toBe(sessionId);
+    expect(restored?.messages.map((m) => m.content)).toEqual(messages.map((m) => m.content));
+    expect(reloaded.getCurrentSession()?.sessionId).toBe(sessionId);
+    expect(await reloaded.listArchivedSessions()).toEqual([]);
+  });
+
+  it('restores the newest archived session when current is empty', async () => {
+    const store = new SessionStore('ws-restore-archive');
+    await store.startSession();
+    const firstSessionId = store.getCurrentSession()!.sessionId;
+    const messages = [makeMessage(0), makeMessage(1)];
+
+    store.setMessages(messages);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await store.startSession();
+    expect(store.getCurrentSession()!.messages).toEqual([]);
+
+    const reloaded = new SessionStore('ws-restore-archive');
+    const restored = await reloaded.restoreLastSession();
+
+    expect(restored?.sessionId).toBe(firstSessionId);
+    expect(restored?.messages.map((m) => m.content)).toEqual(messages.map((m) => m.content));
+    expect(reloaded.getCurrentSession()?.sessionId).toBe(firstSessionId);
+  });
+
   it('archiveCurrentIfExists waits for in-flight writes before archiving', async () => {
     const store = new SessionStore('ws-3');
     await store.startSession();
