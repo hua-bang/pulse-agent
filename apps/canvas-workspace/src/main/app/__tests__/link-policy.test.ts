@@ -52,6 +52,7 @@ describe('link policy', () => {
     electronMocks.openExternal.mockReset();
     electronMocks.openExternal.mockResolvedValue(undefined);
     electronMocks.openGoogleAuthPopup.mockReset();
+    delete process.env.PULSE_GOOGLE_AUTH_IDENTITY;
   });
 
   it('opens Google auth popups in an in-app window so the session flows back', async () => {
@@ -102,12 +103,30 @@ describe('link policy', () => {
     expect(electronMocks.openExternal).not.toHaveBeenCalled();
   });
 
-  it('reroutes in-place Google auth entry navigations into a popup window', async () => {
+  it('keeps in-place Google auth entry navigations in the webview under the default chrome identity', async () => {
+    // Default (honest chrome) identity matches what Codex presents while
+    // passing /v3/signin in-place, so the entry leg stays in the webview —
+    // no popup, no system browser, no drawer.
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents('https://github.com/login');
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    navigateHandler({ preventDefault }, 'https://accounts.google.com/signin/v2/identifier');
+
+    expect(electronMocks.openGoogleAuthPopup).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(electronMocks.openExternal).not.toHaveBeenCalled();
+    expect(hostWebContents.send).not.toHaveBeenCalled();
+  });
+
+  it('reroutes in-place Google auth entry navigations into a popup in firefox fallback mode', async () => {
     // Redirect-mode "Sign in with Google" navigates the webview itself to
-    // accounts.google.com, where Google's strict full-page flow rejects
-    // embedded surfaces. The entry leg must leave the webview for a real
-    // top-level popup on the same session — never the system browser (that
-    // would strand the login cookie).
+    // accounts.google.com. In the firefox fallback strategy the entry leg
+    // leaves the webview for a real top-level popup on the same session —
+    // never the system browser (that would strand the login cookie).
+    process.env.PULSE_GOOGLE_AUTH_IDENTITY = 'firefox';
     const createdHandler = await installPolicy();
     const { contents, hostWebContents } = createContents('https://github.com/login');
     createdHandler({}, contents);
@@ -123,11 +142,12 @@ describe('link policy', () => {
     expect(hostWebContents.send).not.toHaveBeenCalled();
   });
 
-  it('reroutes server-side redirects into Google auth to the popup window', async () => {
+  it('reroutes server-side redirects into Google auth to the popup in firefox fallback mode', async () => {
     // The common OAuth entry is a same-origin navigation
     // (github.com/login → github.com/sessions/…) that 302s into
     // accounts.google.com. Cross-origin will-navigate never fires for it;
     // only will-redirect carries the Google URL.
+    process.env.PULSE_GOOGLE_AUTH_IDENTITY = 'firefox';
     const createdHandler = await installPolicy();
     const { contents } = createContents('https://github.com/login');
     createdHandler({}, contents);

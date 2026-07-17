@@ -38,6 +38,9 @@ function createContents(userAgent = 'SpoofedChrome/140') {
 }
 
 async function installCompat() {
+  // The Firefox compat layer is the env-gated fallback now; the default is
+  // the honest chrome identity (no override).
+  process.env.PULSE_GOOGLE_AUTH_IDENTITY = 'firefox';
   const { setupGoogleAuthCompat } = await import('../google-auth');
   setupGoogleAuthCompat();
   const createdHandler = electronMocks.appOn.mock.calls.find(
@@ -97,16 +100,12 @@ describe('setupGoogleAuthCompat', () => {
     delete process.env.PULSE_GOOGLE_AUTH_IDENTITY;
   });
 
-  it('installs nothing in chrome identity mode (honest-identity A/B arm)', async () => {
-    process.env.PULSE_GOOGLE_AUTH_IDENTITY = 'chrome';
-    try {
-      const { setupGoogleAuthCompat } = await import('../google-auth');
-      setupGoogleAuthCompat();
-      expect(electronMocks.appOn).not.toHaveBeenCalled();
-      expect(electronMocks.onBeforeSendHeaders).not.toHaveBeenCalled();
-    } finally {
-      delete process.env.PULSE_GOOGLE_AUTH_IDENTITY;
-    }
+  it('installs nothing in the default (honest chrome) identity mode', async () => {
+    // No env set → chrome default → no UA override, no header rewrite.
+    const { setupGoogleAuthCompat } = await import('../google-auth');
+    setupGoogleAuthCompat();
+    expect(electronMocks.appOn).not.toHaveBeenCalled();
+    expect(electronMocks.onBeforeSendHeaders).not.toHaveBeenCalled();
   });
 
   it('switches to a Firefox UA on Google auth hosts and restores it after leaving', async () => {

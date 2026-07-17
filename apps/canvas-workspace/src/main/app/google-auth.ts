@@ -4,34 +4,32 @@ import { app, session } from "electron";
 //
 // The identity presented on Google's auth hosts is selectable via
 // PULSE_GOOGLE_AUTH_IDENTITY:
-//  - "firefox" (default): per-webContents Firefox UA override + client-hint
-//    header stripping — the configuration Electron shells in the wild
-//    (Ferdium/WebCatalog-style) ship, and the only one with an observed
-//    pass in this app (the GIS popup flows).
-//  - "chrome": no override — experiment arm only. On Electron 30 this is
-//    KNOWN-BROKEN for Google: bootstrap.ts rewrites the UA's Chrome version
-//    to a current one (Notion floor) while client hints derive from the
-//    real Chromium 124, and accounts.google.com rejects the mismatch.
+//  - "chrome" (default): no override — the honest engine identity. On
+//    Electron 43 the bundled Chromium is 150; bootstrap.ts strips only the
+//    Electron/product UA tokens and keeps the real Chrome 150, so UA,
+//    client hints, and userAgentData all agree. This matches what OpenAI's
+//    Codex desktop app presents (Chrome/150.0.0.0) while passing Google's
+//    strict /v3/signin flow in-place in its embedded browser.
+//  - "firefox": the legacy per-webContents Firefox UA override +
+//    client-hint header strip. Fallback only — kept because it was the
+//    Electron 30-era config that passed the GIS popup flows.
 //
-// EVIDENCE LOG (2026-07-17 investigation; kept so the loop is not re-run
-// blindly):
-//  - Electron 30 + firefox: GIS popup flows (Figma/Notion) passed; GitHub's
-//    strict /v3/signin, running in-place in a <webview>, was rejected —
-//    the original defect.
-//  - Electron 42 + honest chrome identity (real Chrome 148 UA, consistent
-//    client hints/userAgentData, window.chrome present) + popup reroute,
-//    cold session: /v3/signin rejected AFTER credential submission; the
-//    previously-passing GIS flows failed the same day too. Attribution
-//    leans strongly toward "a Chrome claim invites Chrome-specific BotGuard
-//    checks an Electron shell cannot pass": every rejection rendered the
-//    embedded-browser error class ("This browser or app may not be
-//    secure"), NOT an account-risk challenge (verify-it's-you / captcha /
-//    unusual-activity), which a flagged account would produce. The
-//    sticky-account alternative was never fully falsified (identity-only
-//    A/B not run) but is disfavored by the error semantics. DECISION: the
-//    Electron 42 upgrade was reverted and the battle-tested Electron 30 +
-//    firefox configuration restored. First post-revert GIS pass with the
-//    same account would falsify the sticky-account hypothesis outright.
+// EVIDENCE LOG (2026-07-17 investigation):
+//  - Electron 30 + firefox spoof: GIS popup flows (Figma/Notion) passed;
+//    GitHub's strict /v3/signin, in-place in a <webview>, was rejected.
+//  - Electron 42 + honest chrome (real Chrome 148, consistent hints) +
+//    popup, cold session: /v3/signin rejected after credential submit; GIS
+//    flows failed the same day too. Attribution was left ambiguous between
+//    a Chrome claim being falsified by BotGuard and account/IP risk state.
+//  - DECISIVE counter-evidence: OpenAI Codex desktop (Electron, Chromium
+//    150) passes /v3/signin IN-PLACE (no popup) with a fully HONEST Chrome
+//    identity — real Chrome/150 UA, consistent Sec-CH-UA (v=150),
+//    userAgentData present. This proves the honest path works and spoofing
+//    is unnecessary; the E42 failure is best explained by the 2-major-old
+//    engine (148 vs a possibly-raised floor) and/or the account we hammered
+//    that day (huabang1224, distinct from the huabang001124 Codex passed
+//    with). DECISION (2026-07-17, later): match Codex — Electron 43 +
+//    honest chrome default. firefox retained only as an env-gated fallback.
 //
 // Why a Firefox claim can help at all: Firefox sends no client hints, so
 // there is no second identity source to cross-check. Two cooperating layers:
@@ -92,9 +90,9 @@ export function rewriteGoogleAuthHeaders(
 }
 
 export function googleAuthIdentityMode(): "firefox" | "chrome" {
-  return process.env.PULSE_GOOGLE_AUTH_IDENTITY === "chrome"
-    ? "chrome"
-    : "firefox";
+  return process.env.PULSE_GOOGLE_AUTH_IDENTITY === "firefox"
+    ? "firefox"
+    : "chrome";
 }
 
 // Must run after app-ready (needs defaultSession); bootstrap calls it from

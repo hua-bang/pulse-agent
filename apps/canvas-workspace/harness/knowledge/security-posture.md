@@ -77,25 +77,22 @@ These make on-disk files an execution or injection surface:
   before its page can run JS; unsafe URLs are denied, OAuth-style popups get
   a real window, everything else is routed to the renderer's preview drawer
   instead of auto-opening.
-- **Google sign-in compat is host-scoped UA identity swapping + popup
-  rerouting** (`src/main/app/google-auth.ts`, `google-auth-popup.ts`):
-  UA-*string* spoofing alone is detectable — Chromium emits UA Client Hints
-  from the real bundled version and accounts.google.com rejects the
-  mismatch. On the exact-match Google auth hosts only, a per-webContents
-  Firefox UA override (suppresses client hints) plus a defaultSession
-  header rewrite presents a consistent Firefox identity
-  (`PULSE_GOOGLE_AUTH_IDENTITY=chrome` disables it — experiment arm only,
-  known-broken on Electron 30). An honest current-Chrome identity was
-  tried on Electron 42 (2026-07-17) and still rejected by `/v3/signin`
-  post-submit; the upgrade was reverted — see the evidence log in
-  google-auth.ts before re-running that loop. The allowlist is exact-match
+- **Google sign-in presents an honest, current Chrome identity**
+  (`src/main/app/google-auth.ts`, `bootstrap.ts`): on Electron 43 the
+  bundled Chromium is 150; bootstrap.ts strips only the Electron/product UA
+  tokens and keeps the real Chrome 150, so UA, UA Client Hints, and
+  `navigator.userAgentData` all agree — no spoof. This mirrors what OpenAI's
+  Codex desktop app presents (Chrome/150.0.0.0) while passing Google's
+  strict `/v3/signin` flow in-place in its embedded browser, which is the
+  evidence that the honest path works and spoofing is unnecessary (see the
+  evidence log in google-auth.ts). Under the default `chrome` identity the
+  webview navigates Google auth IN-PLACE, exactly like Codex.
+  `PULSE_GOOGLE_AUTH_IDENTITY=firefox` selects the legacy fallback: a
+  per-webContents Firefox UA override + client-hint header strip, plus a
+  webview→top-level-popup reroute for entry legs (the Electron 30-era
+  config that passed the GIS flows). The auth-host allowlist is exact-match
   by design — it loosens navigation policy, so suffix lookalikes
-  (`accounts.google.com.evil`) must never qualify. Google's strict
-  full-page flow additionally risk-scores embedded surfaces, so in-place
-  entry legs from `<webview>` guests are rerouted into a top-level
-  BrowserWindow popup on the same session (with the opener page as
-  referrer); the post-login continuation is handed back to the opener
-  webview so the one-shot URL is consumed there.
+  (`accounts.google.com.evil`) must never qualify.
 
 ## Containment that DOES exist
 

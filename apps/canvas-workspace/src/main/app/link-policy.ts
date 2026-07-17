@@ -1,6 +1,6 @@
 import { app, shell, type WebContents } from "electron";
 import { isSafeExternalUrl } from "./shell-ipc";
-import { isGoogleAuthUrl } from "./google-auth";
+import { isGoogleAuthUrl, googleAuthIdentityMode } from "./google-auth";
 import { openGoogleAuthPopup } from "./google-auth-popup";
 
 // Centralized popup policy. Fires for every webContents the app ever creates:
@@ -43,15 +43,21 @@ export function setupLinkPolicy(): void {
 
     if (contents.getType() === "webview") {
       // Redirect-mode Google sign-in ENTRY legs (webview page → Google auth
-      // host) leave the webview: Google's strict full-page flow rejects
-      // embedded surfaces, so the leg is rerouted into a top-level popup on
-      // the same session (see google-auth-popup.ts). Legs where the webview
-      // is ALREADY on a Google host (intermediate hops, post-login exits)
-      // stay in place via isEmbeddedAuthNavigation.
+      // host): behaviour depends on the identity strategy.
+      //  - chrome (default): stay IN-PLACE in the webview — the honest
+      //    Chrome identity is exactly what Codex presents while passing
+      //    /v3/signin in-place, so no popup is needed and none is used.
+      //  - firefox (legacy fallback): reroute into a top-level popup on the
+      //    same session (google-auth-popup.ts), the window.open shape that
+      //    passed the GIS flows in the Electron 30 era.
+      // Either way, legs where the webview is ALREADY on a Google host
+      // (intermediate hops, post-login exits) stay in place via
+      // isEmbeddedAuthNavigation.
       const rerouteAuthEntry = (
         event: { preventDefault(): void },
         url: string
       ): boolean => {
+        if (googleAuthIdentityMode() !== "firefox") return false;
         if (!isGoogleAuthUrl(url) || isGoogleAuthUrl(contents.getURL())) {
           return false;
         }
