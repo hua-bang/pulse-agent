@@ -94,6 +94,19 @@ describe('setupGoogleAuthCompat', () => {
     vi.resetModules();
     electronMocks.appOn.mockReset();
     electronMocks.onBeforeSendHeaders.mockReset();
+    delete process.env.PULSE_GOOGLE_AUTH_IDENTITY;
+  });
+
+  it('installs nothing in chrome identity mode (honest-identity A/B arm)', async () => {
+    process.env.PULSE_GOOGLE_AUTH_IDENTITY = 'chrome';
+    try {
+      const { setupGoogleAuthCompat } = await import('../google-auth');
+      setupGoogleAuthCompat();
+      expect(electronMocks.appOn).not.toHaveBeenCalled();
+      expect(electronMocks.onBeforeSendHeaders).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.PULSE_GOOGLE_AUTH_IDENTITY;
+    }
   });
 
   it('switches to a Firefox UA on Google auth hosts and restores it after leaving', async () => {
