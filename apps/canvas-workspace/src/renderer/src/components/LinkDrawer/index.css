@@ -137,6 +137,11 @@
   flex-shrink: 0;
 }
 
+.link-drawer__action--active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .browser-navigation__loading-icon {
   animation: spin 0.7s linear infinite;
 }

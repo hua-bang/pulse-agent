@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { DockStore, type DockState } from './dock-store';
 import { createDockSessionPersistence } from './dock-session-persistence';
+import type { AgentContextDomSelectionRef } from '../../types';
 
 interface RightDockContextValue {
   store: DockStore;
@@ -19,6 +20,8 @@ interface RightDockContextValue {
   setTerminalHost: (el: HTMLDivElement | null) => void;
   pinUrlReference: (url: string, title?: string) => void;
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
+  addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
+  registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => () => void;
 }
 
 const RightDockContext = createContext<RightDockContextValue | null>(null);
@@ -30,6 +33,7 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const [chatHost, setChatHost] = useState<HTMLDivElement | null>(null);
   const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
   const pinUrlReferenceRef = useRef<((url: string, title?: string) => void) | null>(null);
+  const addDomSelectionToChatRef = useRef<((workspaceId: string, selection: AgentContextDomSelectionRef) => void) | null>(null);
   const pinUrlReference = useCallback((url: string, title?: string) => {
     pinUrlReferenceRef.current?.(url, title);
   }, []);
@@ -37,6 +41,15 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
     pinUrlReferenceRef.current = handler;
     return () => {
       if (pinUrlReferenceRef.current === handler) pinUrlReferenceRef.current = null;
+    };
+  }, []);
+  const addDomSelectionToChat = useCallback((workspaceId: string, selection: AgentContextDomSelectionRef) => {
+    addDomSelectionToChatRef.current?.(workspaceId, selection);
+  }, []);
+  const registerAddDomSelectionToChat = useCallback((handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => {
+    addDomSelectionToChatRef.current = handler;
+    return () => {
+      if (addDomSelectionToChatRef.current === handler) addDomSelectionToChatRef.current = null;
     };
   }, []);
   const value = useMemo<RightDockContextValue>(() => ({
@@ -47,7 +60,9 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
     setTerminalHost,
     pinUrlReference,
     registerPinUrlReference,
-  }), [store, chatHost, terminalHost, pinUrlReference, registerPinUrlReference]);
+    addDomSelectionToChat,
+    registerAddDomSelectionToChat,
+  }), [store, chatHost, terminalHost, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat]);
   return <RightDockContext.Provider value={value}>{children}</RightDockContext.Provider>;
 };
 
@@ -76,8 +91,16 @@ export function useRightDock(): {
   notifyChatActivity: () => void;
   pinUrlReference: (url: string, title?: string) => void;
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
+  addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
+  registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => () => void;
 } {
-  const { store, pinUrlReference, registerPinUrlReference } = useDockContext();
+  const {
+    store,
+    pinUrlReference,
+    registerPinUrlReference,
+    addDomSelectionToChat,
+    registerAddDomSelectionToChat,
+  } = useDockContext();
   return useMemo(() => ({
     openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
     openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
@@ -97,7 +120,9 @@ export function useRightDock(): {
     notifyChatActivity: () => store.notifyChatActivity(),
     pinUrlReference,
     registerPinUrlReference,
-  }), [store, pinUrlReference, registerPinUrlReference]);
+    addDomSelectionToChat,
+    registerAddDomSelectionToChat,
+  }), [store, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat]);
 }
 
 export const useRightDockState = (): DockState => {

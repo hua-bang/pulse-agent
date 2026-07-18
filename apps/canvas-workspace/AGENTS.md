@@ -175,7 +175,9 @@ pnpm --filter canvas-workspace package:linux
 - `src/renderer/src/components/Workbench/`: mounted workspace state and chat
   portal ownership.
 - `src/renderer/src/components/RightDock/`: tabbed right dock for chat and
-  previews.
+  previews. Link tabs register their live webviews under the stable dock tab id;
+  page-element selection must reuse the shared iframe DOM picker/selection
+  context and route the result through Workbench's active-workspace chat bridge.
 - `src/shared/canvas.ts`: canonical canvas node, edge, reference, and workspace
   node contracts.
 - `src/main/dock/`: right-dock tab support in main — `tab-store.ts` (renderer

@@ -1,6 +1,7 @@
 import { lazy, Suspense, type CSSProperties, type MouseEventHandler } from 'react';
 import { useI18n } from '../../i18n';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
+import type { AgentContextDomSelectionRef } from '../../types';
 import { isTerminalTabId, type DockState, type DockStore } from './dock-store';
 import { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
 
@@ -24,6 +25,7 @@ interface Props {
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
   pinUrlReference: (url: string, title?: string) => void;
+  onAddDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
 }
 
 export const DockPanes = ({
@@ -41,6 +43,7 @@ export const DockPanes = ({
   workspaces,
   onOpenNodePage,
   pinUrlReference,
+  onAddDomSelectionToChat,
 }: Props) => {
   const { t } = useI18n();
   const splitActive = Boolean(splitTabId);
@@ -129,6 +132,7 @@ export const DockPanes = ({
                 onNavigate={(url) => store.navigateLink(tab.id, url)}
                 onGuestNavigate={(url) => store.syncLinkUrl(tab.id, url)}
                 onAddToReference={pinUrlReference}
+                onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(activeWorkspaceId, selection)}
                 onRequestClose={() => store.close(tab.id)}
               />
             </Suspense>

@@ -31,7 +31,7 @@ export function formatDomSelectionFocusBlock(
   const lines: string[] = [
     '',
     `## Current Focus — ${count} Selected Web ${noun}`,
-    'The user picked specific DOM element(s) inside iframe/webview canvas nodes. Treat these DOM selections as primary context for phrases like "this area", "this button", "this table", "选中的区域", and "这个网页区域".',
+    'The user picked specific DOM element(s) inside iframe/webview canvas nodes or right-dock web tabs. Treat these DOM selections as primary context for phrases like "this area", "this button", "this table", "选中的区域", and "这个网页区域".',
     'Selected DOM elements:',
   ];
   for (const item of domSelections) {

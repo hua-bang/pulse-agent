@@ -26,11 +26,11 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
       name: 'canvas_read_dom_selection',
       defer_loading: true,
       description:
-        'Read one DOM element inside a canvas iframe/webview node using a CSS selector. ' +
-        'Use this when the user picked a DOM region in an iframe node and the current request is about that specific region. ' +
+        'Read one DOM element inside a canvas iframe/webview node or right-dock web tab using a CSS selector. ' +
+        'Use this when the user picked a DOM region and the current request is about that specific region. ' +
         'The selector usually comes from the domSelections block in the request context. Returns text, capped HTML, rect, structured descendant tree, controls, title, and URL.',
       inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node.'),
+        nodeId: z.string().describe('ID of the iframe canvas node or right-dock web tab.'),
         selector: z.string().describe('CSS selector for the selected DOM element.'),
         maxChars: z
           .number()
@@ -54,7 +54,7 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
             ok: false,
             error:
               `No active webview for node ${nodeId} in workspace ${targetWorkspaceId} ` +
-              `(auto-activation attempted). Make sure the iframe node exists and is in URL mode.`,
+              `(auto-activation attempted). Make sure the iframe node or web tab still exists and is loaded.`,
           });
         }
         const r = await readDOMElement(wc, selector, maxChars);
