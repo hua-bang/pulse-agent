@@ -82,6 +82,18 @@ describe('useEmbeddedBrowser', () => {
 
     expect(setAttribute).not.toHaveBeenCalledWith('src', 'https://example.com/next');
   });
+
+  it('reports focus entering the webview guest', () => {
+    const onFocus = vi.fn();
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    flushSync(() => root?.render(<FocusHarness onFocus={onFocus} />));
+
+    webview.dispatchEvent(new Event('focus'));
+
+    expect(onFocus).toHaveBeenCalledOnce();
+  });
 });
 
 const Harness = ({ onNavigate }: { onNavigate: (url: string) => void }) => {
@@ -112,6 +124,15 @@ const TitleHarness = ({ onTitleChange }: { onTitleChange: (title: string) => voi
   const browser = useEmbeddedBrowser({
     className: 'test-webview',
     onTitleChange,
+    url: 'https://example.com',
+  });
+  return <div ref={browser.hostRef} />;
+};
+
+const FocusHarness = ({ onFocus }: { onFocus: () => void }) => {
+  const browser = useEmbeddedBrowser({
+    className: 'test-webview',
+    onFocus,
     url: 'https://example.com',
   });
   return <div ref={browser.hostRef} />;

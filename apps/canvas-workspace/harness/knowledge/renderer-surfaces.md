@@ -45,6 +45,10 @@ The workbench has exactly two side regions plus a modal tier:
   - closing the active preview activates its right neighbour, falling
     back to chat; `ESC` closes the active preview tab and never touches
     chat;
+  - web and terminal tabs can enter split view with the pinned chat: content
+    stays on the left, Pulse AI stays on the right, clicking or focusing either
+    pane moves the active-view focus without unmounting the other, and closing
+    the paired content exits split view;
   - tab contents stay mounted and hide via `visibility` (never
     `display: none` — Electron detaches a `<webview>`'s guest when its
     layout collapses; artifacts keep scroll/render state).

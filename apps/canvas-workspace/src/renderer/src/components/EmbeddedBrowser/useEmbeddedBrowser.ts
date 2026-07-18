@@ -11,6 +11,7 @@ interface Options {
   hostRef?: RefObject<HTMLDivElement>;
   mountKey?: string | number;
   onFaviconChange?: (favicons: string[]) => void;
+  onFocus?: () => void;
   onNavigate?: (url: string) => void;
   onTitleChange?: (title: string) => void;
   url: string;
@@ -35,6 +36,7 @@ export const useEmbeddedBrowser = ({
   hostRef: providedHostRef,
   mountKey = 0,
   onFaviconChange,
+  onFocus,
   onNavigate,
   onTitleChange,
   url,
@@ -48,8 +50,8 @@ export const useEmbeddedBrowser = ({
   const [canGoForward, setCanGoForward] = useState(false);
   const [loadState, setLoadState] = useState<BrowserLoadState>(url ? 'loading' : 'idle');
   const [loadError, setLoadError] = useState<BrowserLoadError | null>(null);
-  const callbacksRef = useRef({ onFaviconChange, onNavigate, onTitleChange });
-  callbacksRef.current = { onFaviconChange, onNavigate, onTitleChange };
+  const callbacksRef = useRef({ onFaviconChange, onFocus, onNavigate, onTitleChange });
+  callbacksRef.current = { onFaviconChange, onFocus, onNavigate, onTitleChange };
   const urlRef = useRef(url);
   urlRef.current = url;
 
@@ -97,6 +99,7 @@ export const useEmbeddedBrowser = ({
         (event as Event & { favicons?: string[] }).favicons ?? [],
       );
     };
+    const handleFocus = () => callbacksRef.current.onFocus?.();
     const handleStart = () => {
       setLoadState('loading');
       setLoadError(null);
@@ -122,6 +125,7 @@ export const useEmbeddedBrowser = ({
     element.addEventListener('did-navigate-in-page', handleNavigate);
     element.addEventListener('page-title-updated', handleTitle);
     element.addEventListener('page-favicon-updated', handleFavicon);
+    element.addEventListener('focus', handleFocus);
     element.addEventListener('did-start-loading', handleStart);
     element.addEventListener('did-stop-loading', handleStop);
     element.addEventListener('did-fail-load', handleFail);
@@ -131,6 +135,7 @@ export const useEmbeddedBrowser = ({
       element.removeEventListener('did-navigate-in-page', handleNavigate);
       element.removeEventListener('page-title-updated', handleTitle);
       element.removeEventListener('page-favicon-updated', handleFavicon);
+      element.removeEventListener('focus', handleFocus);
       element.removeEventListener('did-start-loading', handleStart);
       element.removeEventListener('did-stop-loading', handleStop);
       element.removeEventListener('did-fail-load', handleFail);

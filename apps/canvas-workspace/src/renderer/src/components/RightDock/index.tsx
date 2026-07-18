@@ -1,12 +1,9 @@
 import {
   lazy,
   Suspense,
-  useCallback,
   useEffect,
   useLayoutEffect,
-  useRef,
   useState,
-  type DragEvent,
 } from 'react';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
@@ -35,16 +32,13 @@ export {
   useRightDockState,
   useRightDockTerminalHost,
 } from './context';
+export { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const DEFAULT_WIDTH = 480;
 const MIN_WIDTH = 320;
 const MAX_VIEWPORT_RATIO = 0.95;
 const RESIZING_CLASS = 'right-dock-resizing';
-const ArtifactTabView = lazy(() => import('../artifacts/ArtifactTabView').then((m) => ({ default: m.ArtifactTabView })));
-const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m.LinkTabView })));
-const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
-const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
 const DockCreationControls = lazy(() => import('./DockCreationControls').then((m) => ({ default: m.DockCreationControls })));
 const TerminalDockTab = lazy(() => import('./TerminalDockTab').then((m) => ({ default: m.TerminalDockTab })));
 
@@ -73,12 +67,6 @@ interface RightDockProps {
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
 }
 
-interface TabIndicatorState {
-  left: number;
-  width: number;
-  visible: boolean;
-}
-
 export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
   const { store, setChatHost, setTerminalHost, pinUrlReference } = useDockContext();
   const state = useRightDockState();
@@ -98,6 +86,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
 
   useEffect(() => {
     if (chatTabEnabled) return;
+    if (state.splitTabId) store.toggleSplitView();
     if (
       (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId))
       && state.tabs.length > 0
@@ -108,7 +97,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     if (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId)) {
       store.collapse();
     }
-  }, [chatTabEnabled, state.activeTabId, state.tabs, store]);
+  }, [chatTabEnabled, state.activeTabId, state.splitTabId, state.tabs, store]);
 
   const hasPreviews = state.tabs.length > 0;
   const terminalTabsVisible = chatTabEnabled && state.terminalTabs.length > 0;
@@ -126,109 +115,22 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
   const splitViewActive = Boolean(splitTabId);
   const chatVisual = getDockTabVisualState(CHAT_TAB_ID, activePaneId, splitTabId);
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
-
-  const tabsRef = useRef<HTMLDivElement | null>(null);
-  const tabRefs = useRef(new Map<string, HTMLButtonElement>());
-  const [tabIndicator, setTabIndicator] = useState<TabIndicatorState>({
-    left: 0,
-    width: 0,
-    visible: false,
+  const splitView = useDockSplitView({
+    active: splitViewActive,
+    dockWidth: width,
+    setDockWidth: setWidth,
+    clampDockWidth: clampWidth,
   });
-  const draggedTabIdRef = useRef<string | null>(null);
-  const draggedTabShellRef = useRef<HTMLElement | null>(null);
-  const tabDropTargetRef = useRef<HTMLElement | null>(null);
 
-  const clearTabDrag = () => {
-    draggedTabShellRef.current?.removeAttribute('data-dragging');
-    tabDropTargetRef.current?.removeAttribute('data-drop-position');
-    draggedTabIdRef.current = null;
-    draggedTabShellRef.current = null;
-    tabDropTargetRef.current = null;
-  };
-
-  const handleTabDragStart = (event: DragEvent<HTMLElement>, id: string) => {
-    clearTabDrag();
-    draggedTabIdRef.current = id;
-    draggedTabShellRef.current = event.currentTarget.parentElement;
-    draggedTabShellRef.current?.setAttribute('data-dragging', 'true');
-  };
-
-  const handleTabDragOver = (event: DragEvent<HTMLElement>, targetId: string) => {
-    const sourceId = draggedTabIdRef.current;
-    if (!sourceId || sourceId === targetId || isTerminalTabId(sourceId) !== isTerminalTabId(targetId)) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-    const rect = event.currentTarget.getBoundingClientRect();
-    const position = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
-    if (tabDropTargetRef.current !== event.currentTarget) {
-      tabDropTargetRef.current?.removeAttribute('data-drop-position');
-      tabDropTargetRef.current = event.currentTarget;
-    }
-    event.currentTarget.dataset.dropPosition = position;
-  };
-
-  const handleTabDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
-    const sourceId = draggedTabIdRef.current;
-    if (!sourceId || sourceId === targetId || isTerminalTabId(sourceId) !== isTerminalTabId(targetId)) {
-      clearTabDrag();
-      return;
-    }
-    event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const position = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
-    store.reorderTab(sourceId, targetId, position);
-    clearTabDrag();
-  };
-
-  const registerTab = useCallback((id: string, element: HTMLButtonElement | null) => {
-    if (element) {
-      tabRefs.current.set(id, element);
-      return;
-    }
-    tabRefs.current.delete(id);
-  }, []);
-
-  const updateTabIndicator = useCallback(() => {
-    const activeTab = activePaneId ? tabRefs.current.get(activePaneId) : null;
-    const tabScroll = tabsRef.current;
-    if (!tabStripVisible || !activeTab || !tabScroll) {
-      setTabIndicator((prev) => (prev.visible ? { ...prev, visible: false } : prev));
-      return;
-    }
-    const tabRect = activeTab.getBoundingClientRect();
-    const scrollRect = tabScroll.getBoundingClientRect();
-    const next = {
-      left: tabRect.left - scrollRect.left + tabScroll.scrollLeft,
-      width: tabRect.width,
-      visible: true,
-    };
-    setTabIndicator((prev) => (
-      prev.left === next.left && prev.width === next.width && prev.visible === next.visible
-        ? prev
-        : next
-    ));
-  }, [activePaneId, tabStripVisible]);
-
-  useLayoutEffect(() => {
-    updateTabIndicator();
-  }, [updateTabIndicator, state.tabs, state.terminalTabs, chatTabEnabled, width]);
-
-  useEffect(() => {
-    if (!tabStripVisible || !activePaneId) return;
-    const activeTab = tabRefs.current.get(activePaneId);
-    activeTab?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-  }, [activePaneId, tabStripVisible, state.tabs, state.terminalTabs]);
-
-  useEffect(() => {
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(updateTabIndicator);
-    const tabsElement = tabsRef.current;
-    if (tabsElement) observer.observe(tabsElement);
-    for (const tabElement of tabRefs.current.values()) {
-      observer.observe(tabElement);
-    }
-    return () => observer.disconnect();
-  }, [updateTabIndicator, state.tabs, state.terminalTabs, chatTabEnabled]);
+  const tabDrag = useDockTabDrag(store);
+  const tabIndicator = useDockTabIndicator({
+    activeTabId: activePaneId,
+    visible: tabStripVisible,
+    previewTabs: state.tabs,
+    terminalTabs: state.terminalTabs,
+    chatTabEnabled,
+    dockWidth: width,
+  });
 
   useEffect(() => {
     const onResize = () => setWidth((prev) => clampWidth(prev));
@@ -284,7 +186,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
       }
     },
   });
-
   return (
     <aside
       className="right-dock"
@@ -302,26 +203,26 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
       />
       <div className="right-dock__tabs" data-visible={tabStripVisible}>
         <div
-          ref={tabsRef}
+          ref={tabIndicator.tabsRef}
           className="right-dock__tab-scroll"
           data-split={splitViewActive}
           role="tablist"
           aria-multiselectable={splitViewActive || undefined}
           aria-label={t('rightDock.tabs')}
-          onScroll={updateTabIndicator}
+          onScroll={tabIndicator.update}
         >
           <span
             className="right-dock__tab-glider"
             aria-hidden="true"
-            data-visible={tabIndicator.visible}
+            data-visible={tabIndicator.indicator.visible}
             style={{
-              width: tabIndicator.width,
-              transform: `translateX(${tabIndicator.left}px)`,
+              width: tabIndicator.indicator.width,
+              transform: `translateX(${tabIndicator.indicator.left}px)`,
             }}
           />
           {chatTabEnabled && (
             <button
-              ref={(element) => registerTab(CHAT_TAB_ID, element)}
+              ref={(element) => tabIndicator.registerTab(CHAT_TAB_ID, element)}
               type="button"
               role="tab"
               aria-selected={chatVisual.selected}
@@ -375,7 +276,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
                 onDrop={(event) => tabDrag.onDrop(event, tab.id)}
               >
                 <button
-                  ref={(element) => registerTab(tab.id, element)}
+                  ref={(element) => tabIndicator.registerTab(tab.id, element)}
                   type="button"
                   role="tab"
                   aria-selected={visual.selected}
@@ -385,8 +286,8 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
                   data-split-visible={visual.splitVisible}
                   title={tab.title}
                   draggable
-                  onDragStart={(event) => handleTabDragStart(event, tab.id)}
-                  onDragEnd={clearTabDrag}
+                  onDragStart={(event) => tabDrag.onDragStart(event, tab.id)}
+                  onDragEnd={tabDrag.clear}
                   onClick={() => store.activate(tab.id)}
                 >
                   {tab.kind === 'link' ? (
@@ -427,6 +328,13 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
             />
           </Suspense>
         )}
+        {chatTabEnabled && (
+          <SplitViewToggle
+            store={store}
+            active={splitViewActive}
+            canOpen={Boolean(activePaneId && hasDockSplitContentTab(state, activePaneId))}
+          />
+        )}
         <button
           type="button"
           className="right-dock__collapse"
@@ -437,66 +345,22 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
           ⇥
         </button>
       </div>
-      <div className="right-dock__panes">
-        <div
-          ref={setChatHost}
-          className={`right-dock__pane right-dock__pane--chat${activePaneId === CHAT_TAB_ID ? ' right-dock__pane--active' : ''}`}
-        />
-        {terminalHostMounted && (
-          <div
-            className={`right-dock__pane right-dock__pane--terminal${terminalPaneActive ? ' right-dock__pane--active' : ''}`}
-          >
-            <div ref={setTerminalHost} className="right-dock__terminal-host" />
-          </div>
-        )}
-        {state.tabs.map((tab) => (
-          <div
-            key={tab.id}
-            className={`right-dock__pane${tab.id === activePaneId ? ' right-dock__pane--active' : ''}`}
-          >
-            {tab.kind === 'artifact' ? (
-              <Suspense fallback={null}>
-                <ArtifactTabView
-                  workspaceId={tab.workspaceId}
-                  artifactId={tab.artifactId}
-                  onTitleChange={(title) => store.setTitle(tab.id, title)}
-                />
-              </Suspense>
-            ) : tab.kind === 'node-detail' ? (
-              <Suspense fallback={null}>
-                <NodeDetailDockTab
-                  workspaceId={tab.workspaceId}
-                  nodeId={tab.nodeId}
-                  onTitleChange={(title) => store.setTitle(tab.id, title)}
-                  onOpenPage={() => {
-                    onOpenNodePage(tab.workspaceId, tab.nodeId);
-                    store.close(tab.id);
-                  }}
-                />
-              </Suspense>
-            ) : tab.kind === 'canvas' ? (
-              <Suspense fallback={null}>
-                <CanvasPreview workspaceId={tab.workspaceId} canvasName={tab.title} rootFolder={workspaces.find((ws) => ws.id === tab.workspaceId)?.rootFolder} />
-              </Suspense>
-            ) : (
-              <Suspense fallback={null}>
-                <LinkTabView
-                  url={tab.url}
-                  title={tab.title}
-                  tabId={tab.id}
-                  activeWorkspaceId={activeWorkspaceId}
-                  onTitleChange={(title) => store.setTitle(tab.id, title)}
-                  onFaviconChange={(faviconUrl) => store.setFavicon(tab.id, faviconUrl)}
-                  onNavigate={(url) => store.navigateLink(tab.id, url)}
-                  onGuestNavigate={(url) => store.syncLinkUrl(tab.id, url)}
-                  onAddToReference={pinUrlReference}
-                  onRequestClose={() => store.close(tab.id)}
-                />
-              </Suspense>
-            )}
-          </div>
-        ))}
-      </div>
+      <DockPanes
+        store={store}
+        state={state}
+        activePaneId={activePaneId}
+        splitTabId={splitTabId}
+        splitContentWidth={splitView.contentWidth}
+        splitDividerWidth={splitView.dividerWidth}
+        onDividerMouseDown={splitView.onDividerMouseDown}
+        setChatHost={setChatHost}
+        setTerminalHost={setTerminalHost}
+        terminalHostMounted={terminalHostMounted}
+        activeWorkspaceId={activeWorkspaceId}
+        workspaces={workspaces}
+        onOpenNodePage={onOpenNodePage}
+        pinUrlReference={pinUrlReference}
+      />
     </aside>
   );
 };

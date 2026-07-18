@@ -217,6 +217,53 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().activeTabId).toBe(artifactTabId('ws1', 'a1'));
   });
 
+  it('keeps Pulse AI paired with the active content tab in split view', () => {
+    const dock = new DockStore();
+    dock.openLink('https://a.example');
+    const linkId = linkTabId('https://a.example');
+
+    dock.toggleSplitView();
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: linkId,
+      splitTabId: linkId,
+      expanded: true,
+    });
+
+    dock.activate(CHAT_TAB_ID);
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: CHAT_TAB_ID,
+      splitTabId: linkId,
+    });
+
+    dock.openArtifact('ws1', 'a1');
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: artifactTabId('ws1', 'a1'),
+    });
+    expect(dock.getSnapshot().splitTabId).toBeUndefined();
+
+    dock.activate(linkId);
+    dock.toggleSplitView();
+    dock.toggleSplitView();
+    expect(dock.getSnapshot().splitTabId).toBeUndefined();
+  });
+
+  it('only enters split view from a content tab and exits when that tab closes', () => {
+    const dock = new DockStore();
+    dock.toggleSplitView();
+    expect(dock.getSnapshot().splitTabId).toBeUndefined();
+
+    dock.openArtifact('ws1', 'a1');
+    dock.toggleSplitView();
+    expect(dock.getSnapshot().splitTabId).toBeUndefined();
+
+    dock.openTerminal();
+    dock.toggleSplitView();
+    expect(dock.getSnapshot().splitTabId).toBe(TERMINAL_TAB_ID);
+
+    dock.closeTerminal();
+    expect(dock.getSnapshot().splitTabId).toBeUndefined();
+  });
+
   it('closing the active preview activates the right neighbour, falling back to chat', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');
@@ -566,6 +613,14 @@ describe('DockStore', () => {
     dock.notifyChatActivity();
     expect(dock.getSnapshot().chatUnread).toBe(true);
     dock.openChat();
+    expect(dock.getSnapshot().chatUnread).toBe(false);
+  });
+
+  it('does not mark chat unread while it is visible beside a split content tab', () => {
+    const dock = new DockStore();
+    dock.openLink('https://a.example');
+    dock.toggleSplitView();
+    dock.notifyChatActivity();
     expect(dock.getSnapshot().chatUnread).toBe(false);
   });
 
