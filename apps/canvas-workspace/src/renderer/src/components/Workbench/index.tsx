@@ -26,7 +26,7 @@ export type { WorkbenchController } from './useWorkbenchState';
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
 const ReferenceDrawer = lazy(() => import('../ReferenceDrawer').then((m) => ({ default: m.ReferenceDrawer })));
 const KnowledgeChatPortal = lazy(() => import('./KnowledgeChatPortal').then((m) => ({ default: m.KnowledgeChatPortal })));
-interface WorkbenchProps {
+interface Props {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
   controller: WorkbenchController;
@@ -39,7 +39,7 @@ interface WorkbenchProps {
   onOpenWorkspaceSettings: (workspaceId: string) => void;
   onSetActiveRootFolder: () => void;
 }
-export const Workbench: React.FC<WorkbenchProps> = ({
+export const Workbench: React.FC<Props> = ({
   activeWorkspaceId,
   workspaces,
   controller,
