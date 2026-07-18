@@ -162,6 +162,37 @@
   z-index: 1;
 }
 
+.right-dock__tab-shell::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.right-dock__tab-shell[data-drop-position="before"]::after {
+  left: -4px;
+  opacity: 1;
+}
+
+.right-dock__tab-shell[data-drop-position="after"]::after {
+  right: -4px;
+  opacity: 1;
+}
+
+.right-dock__tab-shell[data-dragging="true"] {
+  opacity: 0.48;
+}
+
+.right-dock__tab-shell[data-dragging="true"] .right-dock__tab {
+  cursor: grabbing;
+}
+
 .right-dock__tab {
   appearance: none;
   font: inherit;
@@ -194,6 +225,7 @@
 
 .right-dock__tab--with-close {
   padding-right: 29px;
+  cursor: grab;
 }
 
 .right-dock__tab::before {

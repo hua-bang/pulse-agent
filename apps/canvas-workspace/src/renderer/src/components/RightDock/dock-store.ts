@@ -23,6 +23,7 @@ import {
   isTerminalTabId, linkTabId, nodeDetailTabId, terminalTabId,
 } from './dock-tab-ids';
 import { DockLinkSessionStore, type DockSessionPersistence } from './dock-link-sessions';
+import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
 import type {
   DockPreviewTab,
   DockState,
@@ -37,7 +38,6 @@ export type { DockLinkSession, DockLinkSessions, DockLinkTab, DockSessionPersist
 export type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 const DEFAULT_TERMINAL_WORKSPACE_ID = '__default__';
 const EMPTY_TERMINAL_TABS: DockTerminalTab[] = [];
-
 const INITIAL: DockState = {
   tabs: [],
   activeTabId: CHAT_TAB_ID,
@@ -426,22 +426,22 @@ export class DockStore {
   }
 
   setTerminalAgentType(id: string, agentType?: string, workspaceId = this.state.activeTerminalWorkspaceId): void {
-    const trimmed = agentType?.trim();
+    const next = updateTerminalAgentType(this.getTerminalWorkspace(workspaceId), id, agentType);
+    if (next) this.commitTerminalWorkspace(workspaceId, next);
+  }
+
+  reorderTab(sourceId: string, targetId: string, position: DockTabDropPosition): void {
+    const previewTabs = reorderTabs(this.state.tabs, sourceId, targetId, position);
+    if (previewTabs) {
+      this.commit({ tabs: previewTabs });
+      this.persistActiveLinkSession();
+      return;
+    }
+    const workspaceId = this.state.activeTerminalWorkspaceId;
     const workspace = this.getTerminalWorkspace(workspaceId);
-    const tab = workspace.tabs.find((item) => item.id === id);
-    if (!tab || tab.agentType === trimmed) return;
-    this.commitTerminalWorkspace(workspaceId, {
-      ...workspace,
-      tabs: workspace.tabs.map((item) => {
-        if (item.id !== id) return item;
-        if (!trimmed) {
-          const next = { ...item };
-          delete next.agentType;
-          return next;
-        }
-        return { ...item, agentType: trimmed };
-      }),
-    });
+    const terminalTabs = reorderTabs(workspace.tabs, sourceId, targetId, position);
+    if (!terminalTabs) return;
+    this.commitTerminalWorkspace(workspaceId, { ...workspace, tabs: terminalTabs });
   }
 
   /** Hide the dock; all tabs (and the active pointer) survive. */

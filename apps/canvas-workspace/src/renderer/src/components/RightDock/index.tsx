@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type DragEvent,
 } from 'react';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
@@ -71,6 +72,11 @@ interface TabIndicatorState {
   visible: boolean;
 }
 
+interface TabDropTarget {
+  id: string;
+  position: 'before' | 'after';
+}
+
 export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
   const { store, setChatHost, setTerminalHost, pinUrlReference } = useDockContext();
   const state = useRightDockState();
@@ -124,6 +130,62 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     width: 0,
     visible: false,
   });
+  const draggedTabIdRef = useRef<string | null>(null);
+  const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+  const [tabDropTarget, setTabDropTarget] = useState<TabDropTarget | null>(null);
+
+  const clearTabDrag = useCallback(() => {
+    draggedTabIdRef.current = null;
+    setDraggedTabId(null);
+    setTabDropTarget(null);
+  }, []);
+
+  const handleTabDragStart = useCallback((event: DragEvent<HTMLElement>, id: string) => {
+    draggedTabIdRef.current = id;
+    setDraggedTabId(id);
+    setTabDropTarget(null);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', id);
+  }, []);
+
+  const tabsShareGroup = useCallback((sourceId: string, targetId: string) => {
+    const { tabs, terminalTabs } = store.getSnapshot();
+    return [tabs, terminalTabs].some((group) => (
+      group.some((tab) => tab.id === sourceId) && group.some((tab) => tab.id === targetId)
+    ));
+  }, [store]);
+
+  const handleTabDragOver = useCallback((event: DragEvent<HTMLElement>, targetId: string) => {
+    const sourceId = draggedTabIdRef.current;
+    if (!sourceId || sourceId === targetId || !tabsShareGroup(sourceId, targetId)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const rect = event.currentTarget.getBoundingClientRect();
+    const position = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+    setTabDropTarget((current) => (
+      current?.id === targetId && current.position === position
+        ? current
+        : { id: targetId, position }
+    ));
+  }, [tabsShareGroup]);
+
+  const handleTabDrop = useCallback((event: DragEvent<HTMLElement>, targetId: string) => {
+    const sourceId = draggedTabIdRef.current;
+    if (!sourceId || sourceId === targetId || !tabsShareGroup(sourceId, targetId)) {
+      clearTabDrag();
+      return;
+    }
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const position = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+    store.reorderTab(sourceId, targetId, position);
+    clearTabDrag();
+  }, [clearTabDrag, store, tabsShareGroup]);
+
+  const getTabDragState = useCallback((id: string): 'dragging' | 'before' | 'after' | undefined => {
+    if (draggedTabId === id) return 'dragging';
+    return tabDropTarget?.id === id ? tabDropTarget.position : undefined;
+  }, [draggedTabId, tabDropTarget]);
 
   const registerTab = useCallback((id: string, element: HTMLButtonElement | null) => {
     if (element) {
@@ -289,12 +351,24 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               onActivate={(id) => store.activate(id)}
               onClose={(id) => store.closeTerminal(id)}
               onRename={(id, title) => store.renameTerminal(id, title)}
+              dragState={getTabDragState(tab.id)}
+              onDragStart={handleTabDragStart}
+              onDragOver={handleTabDragOver}
+              onDrop={handleTabDrop}
+              onDragEnd={clearTabDrag}
             />
           ))}
           {state.tabs.map((tab) => {
             const active = tab.id === activePaneId;
             return (
-              <span key={tab.id} className="right-dock__tab-shell">
+              <span
+                key={tab.id}
+                className="right-dock__tab-shell"
+                data-dragging={draggedTabId === tab.id || undefined}
+                data-drop-position={tabDropTarget?.id === tab.id ? tabDropTarget.position : undefined}
+                onDragOver={(event) => handleTabDragOver(event, tab.id)}
+                onDrop={(event) => handleTabDrop(event, tab.id)}
+              >
                 <button
                   ref={(element) => registerTab(tab.id, element)}
                   type="button"
@@ -302,6 +376,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
                   aria-selected={active}
                   className={`right-dock__tab right-dock__tab--with-close${active ? ' right-dock__tab--active' : ''}`}
                   title={tab.title}
+                  draggable
+                  onDragStart={(event) => handleTabDragStart(event, tab.id)}
+                  onDragEnd={clearTabDrag}
                   onClick={() => store.activate(tab.id)}
                 >
                   {tab.kind === 'link' ? (

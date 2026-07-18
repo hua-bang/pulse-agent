@@ -243,6 +243,44 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().activeTabId).toBe(artifactTabId('ws1', 'a2'));
   });
 
+  it('reorders preview tabs before or after a drop target without changing the active tab', () => {
+    const dock = new DockStore();
+    dock.openArtifact('ws1', 'a1');
+    dock.openArtifact('ws1', 'a2');
+    dock.openArtifact('ws1', 'a3');
+    const first = artifactTabId('ws1', 'a1');
+    const second = artifactTabId('ws1', 'a2');
+    const third = artifactTabId('ws1', 'a3');
+
+    dock.reorderTab(first, third, 'after');
+    expect(dock.getSnapshot().tabs.map((tab) => tab.id)).toEqual([second, third, first]);
+    expect(dock.getSnapshot().activeTabId).toBe(third);
+
+    dock.reorderTab(first, second, 'before');
+    expect(dock.getSnapshot().tabs.map((tab) => tab.id)).toEqual([first, second, third]);
+  });
+
+  it('persists the reordered browser-tab session', () => {
+    const saved = createSessionPersistence();
+    const dock = new DockStore(saved.persistence);
+    dock.setActiveWorkspace('ws-a');
+    dock.openLink('https://a.example');
+    dock.openLink('https://b.example');
+    dock.openLink('https://c.example');
+
+    dock.reorderTab(
+      linkTabId('https://c.example'),
+      linkTabId('https://a.example'),
+      'before',
+    );
+
+    expect(saved.read()['ws-a'].tabs.map((tab) => tab.url)).toEqual([
+      'https://c.example',
+      'https://a.example',
+      'https://b.example',
+    ]);
+  });
+
   it('collapse hides the dock but keeps all tabs and the active pointer', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');
@@ -344,6 +382,30 @@ describe('DockStore', () => {
       expanded: false,
       terminalOpen: false,
     });
+  });
+
+  it('reorders terminal tabs within the active workspace', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws-a');
+    dock.openTerminal();
+    dock.newTerminal();
+    dock.newTerminal();
+
+    dock.reorderTab(terminalTabId(3), TERMINAL_TAB_ID, 'before');
+    expect(dock.getSnapshot().terminalTabs.map((tab) => tab.id)).toEqual([
+      terminalTabId(3),
+      TERMINAL_TAB_ID,
+      terminalTabId(2),
+    ]);
+    expect(dock.getSnapshot().activeTerminalTabId).toBe(terminalTabId(3));
+
+    dock.setActiveWorkspace('ws-b');
+    dock.setActiveWorkspace('ws-a');
+    expect(dock.getSnapshot().terminalTabs.map((tab) => tab.id)).toEqual([
+      terminalTabId(3),
+      TERMINAL_TAB_ID,
+      terminalTabId(2),
+    ]);
   });
 
   it('keeps terminal tabs scoped to the active workspace', () => {
