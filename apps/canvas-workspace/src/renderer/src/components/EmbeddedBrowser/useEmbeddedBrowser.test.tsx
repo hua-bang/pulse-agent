@@ -2,7 +2,7 @@
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { useEmbeddedBrowser } from './useEmbeddedBrowser';
 import type { EmbeddedWebviewTag } from './types';
 
@@ -69,18 +69,56 @@ describe('useEmbeddedBrowser', () => {
     expect(onTitleChange).toHaveBeenCalledWith('Example page');
   });
 
-  it('does not reload a guest when the parent persists a URL reported by did-navigate', () => {
+  it('does not reload a guest when an external store synchronously persists did-navigate', () => {
+    const store = createUrlStore('https://example.com');
     mount = document.createElement('div');
     document.body.appendChild(mount);
     root = createRoot(mount);
-    flushSync(() => root?.render(<ControlledHarness />));
+    flushSync(() => root?.render(<ExternalStoreHarness store={store} />));
 
     const setAttribute = vi.spyOn(webview, 'setAttribute');
-    const event = new Event('did-navigate') as Event & { url: string };
+    const event = new Event('did-navigate-in-page') as Event & { url: string };
     event.url = 'https://example.com/next';
-    flushSync(() => webview.dispatchEvent(event));
+    webview.dispatchEvent(event);
 
     expect(setAttribute).not.toHaveBeenCalledWith('src', 'https://example.com/next');
+  });
+
+  it('loads a URL that comes from an external navigation command', () => {
+    const store = createUrlStore('https://example.com');
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    flushSync(() => root?.render(<ExternalStoreHarness store={store} />));
+
+    const setAttribute = vi.spyOn(webview, 'setAttribute');
+    flushSync(() => store.set('https://example.com/external'));
+
+    expect(setAttribute).toHaveBeenCalledWith('src', 'https://example.com/external');
+  });
+
+  it('ignores duplicate same-URL in-page navigation while reporting real URL changes', () => {
+    const onNavigate = vi.fn();
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    flushSync(() => root?.render(<Harness onNavigate={onNavigate} />));
+
+    const mainNavigation = new Event('did-navigate') as Event & { url: string };
+    mainNavigation.url = 'https://example.com';
+    flushSync(() => webview.dispatchEvent(mainNavigation));
+
+    const duplicateInPageNavigation = new Event('did-navigate-in-page') as Event & { url: string };
+    duplicateInPageNavigation.url = 'https://example.com';
+    flushSync(() => webview.dispatchEvent(duplicateInPageNavigation));
+
+    const changedInPageNavigation = new Event('did-navigate-in-page') as Event & { url: string };
+    changedInPageNavigation.url = 'https://example.com/pulls';
+    flushSync(() => webview.dispatchEvent(changedInPageNavigation));
+
+    expect(onNavigate).toHaveBeenNthCalledWith(1, 'https://example.com');
+    expect(onNavigate).toHaveBeenNthCalledWith(2, 'https://example.com/pulls');
+    expect(onNavigate).toHaveBeenCalledTimes(2);
   });
 
   it('reports focus entering the webview guest', () => {
@@ -110,11 +148,33 @@ const Harness = ({ onNavigate }: { onNavigate: (url: string) => void }) => {
   );
 };
 
-const ControlledHarness = () => {
-  const [url, setUrl] = useState('https://example.com');
+interface UrlStore {
+  getSnapshot: () => string;
+  set: (url: string) => void;
+  subscribe: (listener: () => void) => () => void;
+}
+
+const createUrlStore = (initialUrl: string): UrlStore => {
+  let url = initialUrl;
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => url,
+    set: (nextUrl) => {
+      url = nextUrl;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+};
+
+const ExternalStoreHarness = ({ store }: { store: UrlStore }) => {
+  const url = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const browser = useEmbeddedBrowser({
     className: 'test-webview',
-    onNavigate: setUrl,
+    onNavigate: store.set,
     url,
   });
   return <div ref={browser.hostRef} />;

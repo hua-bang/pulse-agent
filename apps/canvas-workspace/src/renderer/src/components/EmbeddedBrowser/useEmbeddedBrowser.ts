@@ -54,6 +54,8 @@ export const useEmbeddedBrowser = ({
   callbacksRef.current = { onFaviconChange, onFocus, onNavigate, onTitleChange };
   const urlRef = useRef(url);
   urlRef.current = url;
+  const guestUrlRef = useRef(url);
+  const lastReportedUrlRef = useRef(url);
 
   useLayoutEffect(() => {
     if (!enabled) {
@@ -71,6 +73,7 @@ export const useEmbeddedBrowser = ({
     element.className = className;
     host.appendChild(element);
     setWebview(element);
+    guestUrlRef.current = urlRef.current;
     setCurrentUrl(urlRef.current);
     setCanGoBack(false);
     setCanGoForward(false);
@@ -85,6 +88,15 @@ export const useEmbeddedBrowser = ({
       const detail = event as Event & { isMainFrame?: boolean; url?: string };
       if (detail.isMainFrame === false) return;
       if (detail.url) {
+        // Record the guest's live URL before mirroring it to the external
+        // store. useSyncExternalStore can commit that prop update before this
+        // handler's React state update, so currentUrl is not a safe guard.
+        guestUrlRef.current = detail.url;
+        if (event.type === 'did-navigate-in-page' && detail.url === lastReportedUrlRef.current) {
+          syncNavigation();
+          return;
+        }
+        lastReportedUrlRef.current = detail.url;
         setCurrentUrl(detail.url);
         callbacksRef.current.onNavigate?.(detail.url);
       }
@@ -146,15 +158,15 @@ export const useEmbeddedBrowser = ({
 
   useLayoutEffect(() => {
     if (!webview) return;
-    // A did-navigate event already moved this live guest. When the parent
-    // mirrors that URL into persisted tab state, do not assign src again and
-    // accidentally reload the page we just reached.
-    if (url === currentUrl) return;
+    // Guest navigation is mirrored into persisted tab state. Only a URL that
+    // differs from the live guest is an external navigation command.
+    if (url === guestUrlRef.current) return;
+    guestUrlRef.current = url;
     if (webview.getAttribute('src') !== url) webview.setAttribute('src', url);
     setCurrentUrl(url);
     setLoadState(url ? 'loading' : 'idle');
     setLoadError(null);
-  }, [currentUrl, url, webview]);
+  }, [url, webview]);
 
   const goBack = useCallback(() => {
     if (webview?.canGoBack()) webview.goBack();
