@@ -14,7 +14,6 @@ import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, isTerminalTabId } from './dock-store';
 import { useDockContext, useRightDockState } from './context';
 import { LinkTabIcon } from './LinkTabIcon';
-import { TerminalDockTab } from './TerminalDockTab';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useConsumePendingLinks } from '../../hooks/useConsumePendingLinks';
 import { useDockAgentBridge } from './useDockAgentBridge';
@@ -40,6 +39,7 @@ const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m
 const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
 const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
 const DockCreationControls = lazy(() => import('./DockCreationControls').then((m) => ({ default: m.DockCreationControls })));
+const TerminalDockTab = lazy(() => import('./TerminalDockTab').then((m) => ({ default: m.TerminalDockTab })));
 
 function readStoredWidth(): number | null {
   if (typeof window === 'undefined') return null;
@@ -70,11 +70,6 @@ interface TabIndicatorState {
   left: number;
   width: number;
   visible: boolean;
-}
-
-interface TabDropTarget {
-  id: string;
-  position: 'before' | 'after';
 }
 
 export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
@@ -131,47 +126,41 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     visible: false,
   });
   const draggedTabIdRef = useRef<string | null>(null);
-  const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
-  const [tabDropTarget, setTabDropTarget] = useState<TabDropTarget | null>(null);
+  const draggedTabShellRef = useRef<HTMLElement | null>(null);
+  const tabDropTargetRef = useRef<HTMLElement | null>(null);
 
-  const clearTabDrag = useCallback(() => {
+  const clearTabDrag = () => {
+    draggedTabShellRef.current?.removeAttribute('data-dragging');
+    tabDropTargetRef.current?.removeAttribute('data-drop-position');
     draggedTabIdRef.current = null;
-    setDraggedTabId(null);
-    setTabDropTarget(null);
-  }, []);
+    draggedTabShellRef.current = null;
+    tabDropTargetRef.current = null;
+  };
 
-  const handleTabDragStart = useCallback((event: DragEvent<HTMLElement>, id: string) => {
+  const handleTabDragStart = (event: DragEvent<HTMLElement>, id: string) => {
+    clearTabDrag();
     draggedTabIdRef.current = id;
-    setDraggedTabId(id);
-    setTabDropTarget(null);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', id);
-  }, []);
+    draggedTabShellRef.current = event.currentTarget.parentElement;
+    draggedTabShellRef.current?.setAttribute('data-dragging', 'true');
+  };
 
-  const tabsShareGroup = useCallback((sourceId: string, targetId: string) => {
-    const { tabs, terminalTabs } = store.getSnapshot();
-    return [tabs, terminalTabs].some((group) => (
-      group.some((tab) => tab.id === sourceId) && group.some((tab) => tab.id === targetId)
-    ));
-  }, [store]);
-
-  const handleTabDragOver = useCallback((event: DragEvent<HTMLElement>, targetId: string) => {
+  const handleTabDragOver = (event: DragEvent<HTMLElement>, targetId: string) => {
     const sourceId = draggedTabIdRef.current;
-    if (!sourceId || sourceId === targetId || !tabsShareGroup(sourceId, targetId)) return;
+    if (!sourceId || sourceId === targetId || isTerminalTabId(sourceId) !== isTerminalTabId(targetId)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
     const rect = event.currentTarget.getBoundingClientRect();
     const position = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
-    setTabDropTarget((current) => (
-      current?.id === targetId && current.position === position
-        ? current
-        : { id: targetId, position }
-    ));
-  }, [tabsShareGroup]);
+    if (tabDropTargetRef.current !== event.currentTarget) {
+      tabDropTargetRef.current?.removeAttribute('data-drop-position');
+      tabDropTargetRef.current = event.currentTarget;
+    }
+    event.currentTarget.dataset.dropPosition = position;
+  };
 
-  const handleTabDrop = useCallback((event: DragEvent<HTMLElement>, targetId: string) => {
+  const handleTabDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
     const sourceId = draggedTabIdRef.current;
-    if (!sourceId || sourceId === targetId || !tabsShareGroup(sourceId, targetId)) {
+    if (!sourceId || sourceId === targetId || isTerminalTabId(sourceId) !== isTerminalTabId(targetId)) {
       clearTabDrag();
       return;
     }
@@ -180,12 +169,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     const position = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
     store.reorderTab(sourceId, targetId, position);
     clearTabDrag();
-  }, [clearTabDrag, store, tabsShareGroup]);
-
-  const getTabDragState = useCallback((id: string): 'dragging' | 'before' | 'after' | undefined => {
-    if (draggedTabId === id) return 'dragging';
-    return tabDropTarget?.id === id ? tabDropTarget.position : undefined;
-  }, [draggedTabId, tabDropTarget]);
+  };
 
   const registerTab = useCallback((id: string, element: HTMLButtonElement | null) => {
     if (element) {
@@ -342,30 +326,31 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               <span className="right-dock__tab-unread" aria-hidden="true" />
             </button>
           )}
-          {terminalTabsVisible && state.terminalTabs.map((tab) => (
-            <TerminalDockTab
-              key={tab.id}
-              tab={tab}
-              active={tab.id === activePaneId}
-              registerTab={registerTab}
-              onActivate={(id) => store.activate(id)}
-              onClose={(id) => store.closeTerminal(id)}
-              onRename={(id, title) => store.renameTerminal(id, title)}
-              dragState={getTabDragState(tab.id)}
-              onDragStart={handleTabDragStart}
-              onDragOver={handleTabDragOver}
-              onDrop={handleTabDrop}
-              onDragEnd={clearTabDrag}
-            />
-          ))}
+          {terminalTabsVisible && (
+            <Suspense fallback={null}>
+              {state.terminalTabs.map((tab) => (
+                <TerminalDockTab
+                  key={tab.id}
+                  tab={tab}
+                  active={tab.id === activePaneId}
+                  registerTab={registerTab}
+                  onActivate={(id) => store.activate(id)}
+                  onClose={(id) => store.closeTerminal(id)}
+                  onRename={(id, title) => store.renameTerminal(id, title)}
+                  onDragStart={handleTabDragStart}
+                  onDragOver={handleTabDragOver}
+                  onDrop={handleTabDrop}
+                  onDragEnd={clearTabDrag}
+                />
+              ))}
+            </Suspense>
+          )}
           {state.tabs.map((tab) => {
             const active = tab.id === activePaneId;
             return (
               <span
                 key={tab.id}
                 className="right-dock__tab-shell"
-                data-dragging={draggedTabId === tab.id || undefined}
-                data-drop-position={tabDropTarget?.id === tab.id ? tabDropTarget.position : undefined}
                 onDragOver={(event) => handleTabDragOver(event, tab.id)}
                 onDrop={(event) => handleTabDrop(event, tab.id)}
               >

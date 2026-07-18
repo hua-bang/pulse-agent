@@ -11,7 +11,6 @@ interface TerminalDockTabProps {
   onActivate: (id: string) => void;
   onClose: (id: string) => void;
   onRename: (id: string, title: string) => void;
-  dragState?: 'dragging' | 'before' | 'after';
   onDragStart: (event: DragEvent<HTMLElement>, id: string) => void;
   onDragOver: (event: DragEvent<HTMLElement>, id: string) => void;
   onDrop: (event: DragEvent<HTMLElement>, id: string) => void;
@@ -25,7 +24,6 @@ export const TerminalDockTab = ({
   onActivate,
   onClose,
   onRename,
-  dragState,
   onDragStart,
   onDragOver,
   onDrop,
@@ -89,8 +87,6 @@ export const TerminalDockTab = ({
   return (
     <span
       className="right-dock__tab-shell"
-      data-dragging={dragState === 'dragging' || undefined}
-      data-drop-position={dragState === 'before' || dragState === 'after' ? dragState : undefined}
       onDragOver={(event) => onDragOver(event, tab.id)}
       onDrop={(event) => onDrop(event, tab.id)}
     >
