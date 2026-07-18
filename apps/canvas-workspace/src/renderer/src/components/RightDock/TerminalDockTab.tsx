@@ -3,10 +3,11 @@ import { useI18n } from '../../i18n';
 import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 import { NodeTypeIcon } from '../icons';
 import type { DockTerminalTab } from './dock-store';
+import type { DockTabVisualState } from './dock-tab-visual-state';
 
 interface TerminalDockTabProps {
   tab: DockTerminalTab;
-  active: boolean;
+  visual: DockTabVisualState;
   registerTab: (id: string, element: HTMLButtonElement | null) => void;
   onActivate: (id: string) => void;
   onClose: (id: string) => void;
@@ -19,7 +20,7 @@ interface TerminalDockTabProps {
 
 export const TerminalDockTab = ({
   tab,
-  active,
+  visual,
   registerTab,
   onActivate,
   onClose,
@@ -87,6 +88,8 @@ export const TerminalDockTab = ({
   return (
     <span
       className="right-dock__tab-shell"
+      data-split-visible={visual.splitVisible}
+      data-split-part={visual.splitPart}
       onDragOver={(event) => onDragOver(event, tab.id)}
       onDrop={(event) => onDrop(event, tab.id)}
     >
@@ -94,8 +97,11 @@ export const TerminalDockTab = ({
         ref={(element) => registerTab(tab.id, element)}
         type="button"
         role="tab"
-        aria-selected={active}
-        className={`right-dock__tab right-dock__tab--with-close${active ? ' right-dock__tab--active' : ''}`}
+        aria-selected={visual.selected}
+        aria-expanded={visual.splitActive ? visual.splitVisible : undefined}
+        className={`right-dock__tab right-dock__tab--with-close${visual.focused ? ' right-dock__tab--active' : ''}`}
+        data-focused={visual.focused}
+        data-split-visible={visual.splitVisible}
         title={`${title} - ${t('rightDock.renameTerminalHint')}`}
         draggable={!editing}
         onDragStart={(event) => onDragStart(event, tab.id)}

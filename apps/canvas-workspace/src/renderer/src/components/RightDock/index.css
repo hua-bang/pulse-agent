@@ -155,6 +155,10 @@
   opacity: 1;
 }
 
+.right-dock__tab-scroll[data-split="true"] .right-dock__tab-glider {
+  opacity: 0;
+}
+
 .right-dock__tab-shell {
   position: relative;
   display: inline-flex;
@@ -269,6 +273,53 @@
 
 .right-dock__tab--active::before {
   opacity: 0.46;
+}
+
+.right-dock__tab[data-split-visible="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--text-primary);
+  transform: none;
+}
+
+.right-dock__tab[data-split-visible="true"].right-dock__tab--active {
+  animation: none;
+}
+
+/* Join the pair only when it is already adjacent in DOM order. This keeps
+ * visual, keyboard, and drag-reorder order aligned when other tabs exist. */
+.right-dock__tab[data-split-part="chat"]:has(+ .right-dock__tab-shell[data-split-part="content"]) {
+  margin-right: -6px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-right-color: transparent;
+}
+
+.right-dock__tab[data-split-part="chat"] + .right-dock__tab-shell[data-split-part="content"] .right-dock__tab {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.right-dock__tab[data-split-visible="true"]::before {
+  opacity: 0.32;
+}
+
+.right-dock__tab[data-split-visible="true"]::after {
+  content: "";
+  position: absolute;
+  right: 9px;
+  bottom: 2px;
+  left: 9px;
+  z-index: 2;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  opacity: 0;
+  transform: scaleX(0.55);
+  transition: opacity 0.16s ease, transform 0.2s var(--tab-ease);
+}
+
+.right-dock__tab[data-split-visible="true"][data-focused="true"]::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 /* The pinned chat tab has no close affordance. */

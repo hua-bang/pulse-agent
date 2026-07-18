@@ -17,6 +17,13 @@ import { LinkTabIcon } from './LinkTabIcon';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useConsumePendingLinks } from '../../hooks/useConsumePendingLinks';
 import { useDockAgentBridge } from './useDockAgentBridge';
+import { SplitViewToggle } from './SplitViewToggle';
+import { useDockSplitView } from './useDockSplitView';
+import { useDockTabDrag } from './useDockTabDrag';
+import { DockPanes } from './DockPanes';
+import { hasDockSplitContentTab } from './dock-split-state';
+import { useDockTabIndicator } from './useDockTabIndicator';
+import { getDockTabVisualState } from './dock-tab-visual-state';
 import './index.css';
 import './terminal-tab.css';
 
@@ -115,7 +122,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     && (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId))
     ? null
     : state.activeTabId;
-  const terminalPaneActive = state.terminalTabs.some((tab) => tab.id === activePaneId);
+  const splitTabId = chatTabEnabled ? state.splitTabId : undefined;
+  const splitViewActive = Boolean(splitTabId);
+  const chatVisual = getDockTabVisualState(CHAT_TAB_ID, activePaneId, splitTabId);
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
 
   const tabsRef = useRef<HTMLDivElement | null>(null);
@@ -295,7 +304,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
         <div
           ref={tabsRef}
           className="right-dock__tab-scroll"
+          data-split={splitViewActive}
           role="tablist"
+          aria-multiselectable={splitViewActive || undefined}
           aria-label={t('rightDock.tabs')}
           onScroll={updateTabIndicator}
         >
@@ -313,8 +324,12 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               ref={(element) => registerTab(CHAT_TAB_ID, element)}
               type="button"
               role="tab"
-              aria-selected={activePaneId === CHAT_TAB_ID}
-              className={`right-dock__tab right-dock__tab--chat${activePaneId === CHAT_TAB_ID ? ' right-dock__tab--active' : ''}`}
+              aria-selected={chatVisual.selected}
+              aria-expanded={chatVisual.splitActive ? chatVisual.splitVisible : undefined}
+              className={`right-dock__tab right-dock__tab--chat${chatVisual.focused ? ' right-dock__tab--active' : ''}`}
+              data-focused={chatVisual.focused}
+              data-split-visible={chatVisual.splitVisible}
+              data-split-part={chatVisual.splitPart}
               data-unread={state.chatUnread}
               title={t('rightDock.chat')}
               onClick={() => store.activate(CHAT_TAB_ID)}
@@ -328,38 +343,46 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
           )}
           {terminalTabsVisible && (
             <Suspense fallback={null}>
-              {state.terminalTabs.map((tab) => (
-                <TerminalDockTab
-                  key={tab.id}
-                  tab={tab}
-                  active={tab.id === activePaneId}
-                  registerTab={registerTab}
-                  onActivate={(id) => store.activate(id)}
-                  onClose={(id) => store.closeTerminal(id)}
-                  onRename={(id, title) => store.renameTerminal(id, title)}
-                  onDragStart={handleTabDragStart}
-                  onDragOver={handleTabDragOver}
-                  onDrop={handleTabDrop}
-                  onDragEnd={clearTabDrag}
-                />
-              ))}
+              {state.terminalTabs.map((tab) => {
+                const visual = getDockTabVisualState(tab.id, activePaneId, splitTabId);
+                return (
+                  <TerminalDockTab
+                    key={tab.id}
+                    tab={tab}
+                    visual={visual}
+                    registerTab={tabIndicator.registerTab}
+                    onActivate={(id) => store.activate(id)}
+                    onClose={(id) => store.closeTerminal(id)}
+                    onRename={(id, title) => store.renameTerminal(id, title)}
+                    onDragStart={tabDrag.onDragStart}
+                    onDragOver={tabDrag.onDragOver}
+                    onDrop={tabDrag.onDrop}
+                    onDragEnd={tabDrag.clear}
+                  />
+                );
+              })}
             </Suspense>
           )}
           {state.tabs.map((tab) => {
-            const active = tab.id === activePaneId;
+            const visual = getDockTabVisualState(tab.id, activePaneId, splitTabId);
             return (
               <span
                 key={tab.id}
                 className="right-dock__tab-shell"
-                onDragOver={(event) => handleTabDragOver(event, tab.id)}
-                onDrop={(event) => handleTabDrop(event, tab.id)}
+                data-split-visible={visual.splitVisible}
+                data-split-part={visual.splitPart}
+                onDragOver={(event) => tabDrag.onDragOver(event, tab.id)}
+                onDrop={(event) => tabDrag.onDrop(event, tab.id)}
               >
                 <button
                   ref={(element) => registerTab(tab.id, element)}
                   type="button"
                   role="tab"
-                  aria-selected={active}
-                  className={`right-dock__tab right-dock__tab--with-close${active ? ' right-dock__tab--active' : ''}`}
+                  aria-selected={visual.selected}
+                  aria-expanded={visual.splitActive ? visual.splitVisible : undefined}
+                  className={`right-dock__tab right-dock__tab--with-close${visual.focused ? ' right-dock__tab--active' : ''}`}
+                  data-focused={visual.focused}
+                  data-split-visible={visual.splitVisible}
                   title={tab.title}
                   draggable
                   onDragStart={(event) => handleTabDragStart(event, tab.id)}
