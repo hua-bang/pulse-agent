@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { buildDockTabRefs } from './tabRefs';
 import type { DockState, DockStore } from './dock-store';
 
@@ -13,6 +13,7 @@ import type { DockState, DockStore } from './dock-store';
  *    `canvas_list_tabs` agent tool can enumerate them.
  */
 export function useDockAgentBridge(store: DockStore, state: DockState, activeWorkspaceId: string): void {
+  const pendingActivation = useRef<{ workspaceId: string; tabId: string } | null>(null);
   useEffect(() => {
     const onJump = (e: Event) => {
       const tabId = (e as CustomEvent<{ tabId?: string }>).detail?.tabId;
@@ -24,7 +25,13 @@ export function useDockAgentBridge(store: DockStore, state: DockState, activeWor
 
   useEffect(() => {
     const offActivate = window.canvasWorkspace.dock.onActivateTab(({ workspaceId, tabId }) => {
-      if (workspaceId === activeWorkspaceId && tabId) store.activate(tabId);
+      if (!tabId) return;
+      if (workspaceId === activeWorkspaceId) {
+        pendingActivation.current = null;
+        store.activate(tabId);
+      } else {
+        pendingActivation.current = { workspaceId, tabId };
+      }
     });
     const offOpen = window.canvasWorkspace.dock.onOpenTab(({ url, tabId }) => {
       if (!url) return;
@@ -40,6 +47,13 @@ export function useDockAgentBridge(store: DockStore, state: DockState, activeWor
       offActivate();
       offOpen();
     };
+  }, [store, activeWorkspaceId]);
+
+  useEffect(() => {
+    const pending = pendingActivation.current;
+    if (!pending || pending.workspaceId !== activeWorkspaceId) return;
+    pendingActivation.current = null;
+    store.activate(pending.tabId);
   }, [store, activeWorkspaceId]);
 
   useEffect(() => {

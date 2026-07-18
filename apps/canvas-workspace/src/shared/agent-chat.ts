@@ -264,6 +264,9 @@ export interface AgentContextTabRef {
   /** Owning workspace for node-detail / artifact / terminal reads, and the
    *  registry workspaceId used to read a link tab's live webview. */
   workspaceId?: string;
+  /** Workspace whose dock session owns this tab. It can differ from the
+   *  content workspace for canvas, artifact, and node-detail previews. */
+  dockWorkspaceId?: string;
   /** For kind === 'node-detail': the referenced canvas node id. */
   nodeId?: string;
   /** For kind === 'artifact': the referenced artifact id. */

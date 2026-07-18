@@ -180,8 +180,9 @@ pnpm --filter canvas-workspace package:linux
   node contracts.
 - `src/main/dock/`: right-dock tab support in main — `tab-store.ts` (renderer
   tab mirror for `canvas_list_tabs`), `tab-actions.ts` (main→renderer
-  workspace-scoped `dock:activate-tab`/`dock:open-tab` pushes behind
-  `canvas_activate_tab`, `canvas_open_tab`, and the page_* tools' tab targeting),
+  workspace-scoped `dock:activate-tab` push behind `canvas_activate_tab` and
+  the page_* tools' tab targeting, plus the app-level `dock:open-tab` push
+  behind `canvas_open_tab`),
   `history-store.ts` (web-tab browsing history behind `canvas_search_history`).
   The renderer projection in `RightDock/tabRefs.ts` is the tab-discovery SSOT:
   it covers link, artifact, node-detail, canvas-preview, and terminal tabs plus

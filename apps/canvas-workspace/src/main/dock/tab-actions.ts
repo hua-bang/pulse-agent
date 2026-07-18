@@ -10,11 +10,13 @@
  *    navigate that existing link tab; renderer falls back to a new tab when
  *    the id is unknown)
  *
- * Events are sent to every live window; a dock that doesn't know the tab id
- * ignores them (DockStore.activate is a no-op for unknown ids).
+ * Events are sent to every live window. Activation carries workspaceId, so a
+ * renderer applies it only after that workspace becomes active; open-tab is
+ * intentionally app-level and may be consumed by the live dock.
  */
 import { BrowserWindow, type WebContents } from 'electron';
 import type { AgentContextTabRef } from '../../shared/agent-chat';
+import { activateWorkspaceWindow } from '../app/window-manager';
 import { getDockTabs } from './tab-store';
 
 function liveWindowContents(): WebContents[] {
@@ -32,8 +34,10 @@ export function findDockLinkTab(
   return getDockTabs(workspaceId).find((tab) => tab.kind === 'link' && tab.id === tabId);
 }
 
-/** Bring a dock tab to the front. Returns false when no window is open. */
-export function activateDockTab(workspaceId: string, tabId: string): boolean {
+/** Activate the tab's workspace, then bring the tab to the front. */
+export async function activateDockTab(workspaceId: string, tabId: string): Promise<boolean> {
+  const activation = await activateWorkspaceWindow(workspaceId);
+  if (!activation.ok) return false;
   const targets = liveWindowContents();
   for (const wc of targets) wc.send('dock:activate-tab', { workspaceId, tabId });
   return targets.length > 0;

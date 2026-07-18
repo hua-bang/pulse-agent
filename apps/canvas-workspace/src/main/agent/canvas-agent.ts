@@ -566,7 +566,7 @@ function buildSystemPrompt(
       );
     } else {
       lines.push(
-        'Ask mode policy: you may read context, but before creating, updating, deleting, or moving canvas nodes, ask the user for confirmation.',
+        'Ask mode policy: you may read context, but before creating, updating, deleting, or moving canvas nodes, or executing commands in a terminal, ask the user for confirmation.',
       );
     }
 
@@ -878,6 +878,9 @@ export class CanvasAgent {
         systemPrompt,
         maxSteps: CANVAS_AGENT_MAX_STEPS,
         abortSignal: abortController.signal,
+        runContext: {
+          executionMode: requestContext?.executionMode ?? 'auto',
+        },
         onClarificationRequest: engineClarificationHandler,
         onText,
         onToolCall: (onToolCall || debugTrace)

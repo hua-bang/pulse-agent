@@ -41,7 +41,7 @@ describe('buildDockTabRefs', () => {
     const refs = buildDockTabRefs(state, 'ws-1');
     // Blank link tab (no url) is skipped — nothing to read yet.
     expect(refs.map((r) => r.id)).toEqual(['link:1', 'art', 'nd', 'canvas']);
-    expect(refs[0]).toMatchObject({ kind: 'link', url: 'https://x.dev', workspaceId: 'ws-1', isActive: false, isVisible: false });
+    expect(refs[0]).toMatchObject({ kind: 'link', url: 'https://x.dev', workspaceId: 'ws-1', dockWorkspaceId: 'ws-1', isActive: false, isVisible: false, isSplit: false });
     expect(refs[1]).toMatchObject({ kind: 'artifact', artifactId: 'a1', workspaceId: 'ws-2' });
     expect(refs[2]).toMatchObject({ kind: 'node-detail', nodeId: 'node-9', workspaceId: 'ws-2' });
     expect(refs[3]).toEqual({
@@ -49,6 +49,7 @@ describe('buildDockTabRefs', () => {
       kind: 'canvas',
       title: 'Research',
       workspaceId: 'ws-2',
+      dockWorkspaceId: 'ws-1',
       isActive: true,
       isVisible: true,
       isSplit: true,
@@ -65,8 +66,8 @@ describe('buildDockTabRefs', () => {
 
     const refs = buildDockTabRefs(state, 'ws-1');
     expect(refs).toEqual([
-      { id: 'terminal', kind: 'terminal', title: 'Terminal 1', workspaceId: 'ws-1', sessionId: 'workspace-terminal:ws-1', isActive: false, isVisible: false },
-      { id: 'terminal:2', kind: 'terminal', title: 'Build', workspaceId: 'ws-1', sessionId: 'workspace-terminal:ws-1:terminal:2', isActive: false, isVisible: false },
+      { id: 'terminal', kind: 'terminal', title: 'Terminal 1', workspaceId: 'ws-1', dockWorkspaceId: 'ws-1', sessionId: 'workspace-terminal:ws-1', isActive: false, isVisible: false, isSplit: false },
+      { id: 'terminal:2', kind: 'terminal', title: 'Build', workspaceId: 'ws-1', dockWorkspaceId: 'ws-1', sessionId: 'workspace-terminal:ws-1:terminal:2', isActive: false, isVisible: false, isSplit: false },
     ]);
   });
 });

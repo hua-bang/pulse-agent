@@ -84,6 +84,8 @@ export interface CanvasToolExecutionContext {
   }) => Promise<string>;
   /** Abort signal for the current engine run. */
   abortSignal?: AbortSignal;
+  /** Per-turn metadata supplied by CanvasAgent (for example ask/auto mode). */
+  runContext?: Record<string, unknown>;
   /**
    * The AI SDK's id for the in-flight tool call (forwarded by the engine
    * tool wrapper from `ToolExecutionOptions.toolCallId`). Tools that

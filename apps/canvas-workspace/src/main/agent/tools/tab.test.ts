@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   tabs: [] as Array<Record<string, unknown>>,
-  activateDockTab: vi.fn(() => true),
+  activateDockTab: vi.fn(async () => true),
   execInSession: vi.fn(async () => ({ ok: true, output: 'tests passed' })),
 }));
 
@@ -82,6 +82,43 @@ describe('dock tab interaction tools', () => {
       kind: 'terminal',
       tabId: 'terminal:2',
       output: 'tests passed',
+    });
+  });
+
+  it('requires an affirmative clarification before terminal execution in ask mode', async () => {
+    const tools = createTabTools('ws-1');
+    const onClarificationRequest = vi.fn(async () => 'no');
+    const denied = JSON.parse(await tools.canvas_execute_terminal_tab.execute(
+      { tabId: 'terminal:2', command: 'pnpm test' },
+      { runContext: { executionMode: 'ask' }, onClarificationRequest },
+    ));
+
+    expect(onClarificationRequest).toHaveBeenCalledWith(expect.objectContaining({
+      question: expect.stringContaining('pnpm test'),
+      timeout: 0,
+    }));
+    expect(denied).toMatchObject({ ok: false, error: expect.stringContaining('not confirmed') });
+    expect(mocks.execInSession).not.toHaveBeenCalled();
+
+    onClarificationRequest.mockResolvedValueOnce('yes');
+    const approved = JSON.parse(await tools.canvas_execute_terminal_tab.execute(
+      { tabId: 'terminal:2', command: 'pnpm test' },
+      { runContext: { executionMode: 'ask' }, onClarificationRequest },
+    ));
+    expect(approved).toMatchObject({ ok: true, output: 'tests passed' });
+  });
+
+  it('keeps the preview workspace id when routing a canvas tab read', async () => {
+    const tools = createTabTools('ws-1');
+    const parsed = tools.canvas_read_tab.inputSchema.parse({
+      kind: 'canvas',
+      workspaceId: 'ws-2',
+    });
+    const result = JSON.parse(await tools.canvas_read_tab.execute(parsed));
+    expect(result).toMatchObject({
+      ok: false,
+      kind: 'canvas',
+      error: expect.stringContaining('workspaceId: "ws-2"'),
     });
   });
 

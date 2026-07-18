@@ -63,9 +63,9 @@ async function resolveTarget(
   const wc = await ensureOperable({
     lookup: () => getWebContentsForNode(workspaceId, nodeId),
     activate: async () => {
-      const result = await activateWorkspaceWindow(workspaceId);
-      if (dockTab) activateDockTab(workspaceId, nodeId);
-      return result;
+      if (!dockTab) return await activateWorkspaceWindow(workspaceId);
+      const ok = await activateDockTab(workspaceId, nodeId);
+      return ok ? { ok: true } : { ok: false, error: 'Could not activate the dock tab workspace.' };
     },
     mode: 'operate',
   });

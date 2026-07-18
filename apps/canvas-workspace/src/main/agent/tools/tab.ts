@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
@@ -10,11 +11,32 @@ import { getDockTabs } from '../../dock/tab-store';
 import { activateDockTab, findDockLinkTab, openDockTab } from '../../dock/tab-actions';
 import { searchHistory } from '../../dock/history-store';
 import type { AgentContextTabRef } from '../../../shared/agent-chat';
-import type { CanvasTool } from './types';
+import type { CanvasTool, CanvasToolExecutionContext } from './types';
 
 const READINESS_HINT =
   'This is a point-in-time read of a live tab. A "success" does not guarantee the ' +
   'content finished loading — if the data you need looks empty or missing, wait and read again.';
+
+async function confirmTerminalExecution(
+  command: string,
+  ctx?: CanvasToolExecutionContext,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (ctx?.runContext?.executionMode !== 'ask') return { ok: true };
+  const ask = ctx.onClarificationRequest;
+  if (!ask) {
+    return { ok: false, error: 'Terminal command requires confirmation in ask mode, but confirmation is unavailable.' };
+  }
+  const answer = await ask({
+    id: randomUUID(),
+    question: `Run this command in the Dock terminal? ${command}`,
+    context: 'Terminal commands can modify files, start processes, or access the network.',
+    timeout: 0,
+  });
+  const affirmative = /^(?:y|yes|ok|okay|confirm|confirmed|go|run|可以|好|好的|确认|同意|执行|运行)[.!。！\s]*$/i.test(answer.trim());
+  return affirmative
+    ? { ok: true }
+    : { ok: false, error: 'Terminal command was not confirmed by the user.' };
+}
 
 /**
  * Read the live content of a right-dock tab the user `@`-mentioned.
@@ -39,6 +61,7 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         'List the right-dock tabs currently open for this workspace (the browser-like tabs at the top of the dock): ' +
         'open web pages (link), node detail, artifacts, canvas previews, and workspace terminals. ' +
         'Returns each tab with the fields to pass to `canvas_read_tab` (or `canvas_read_node` for node-detail). ' +
+        '`workspaceId` identifies the tab content; `dockWorkspaceId` identifies the dock session for UI actions. ' +
         'A link tab id can also be used with `canvas_open_tab` (navigate it) and — when the webview-page-control ' +
         'flag is on — with the page_* tools (click/fill/press/scroll/eval on the live page). ' +
         'Use this to discover what the user is looking at without waiting for them to `@`-mention a tab.',
@@ -70,7 +93,7 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
             error: `Tab ${tabId} is not open in workspace ${targetWorkspaceId}. Call canvas_list_tabs to refresh stale ids.`,
           });
         }
-        if (!activateDockTab(targetWorkspaceId, tabId)) {
+        if (!await activateDockTab(targetWorkspaceId, tabId)) {
           return JSON.stringify({ ok: false, error: 'No canvas window is open to activate the tab.' });
         }
         return JSON.stringify({ ok: true, tabId, kind: tab.kind, title: tab.title });
@@ -171,7 +194,7 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         timeoutMs: z.number().int().positive().max(120_000).optional()
           .describe('Maximum time to collect output. Defaults to 30 seconds; maximum 120 seconds.'),
       }),
-      execute: async (input) => {
+      execute: async (input, ctx) => {
         const tabId = (input.tabId as string).trim();
         const command = input.command as string;
         const timeoutMs = input.timeoutMs as number | undefined;
@@ -188,6 +211,10 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         }
         if (!tab.sessionId) {
           return JSON.stringify({ ok: false, error: `Terminal tab ${tabId} has no active PTY session.` });
+        }
+        const confirmation = await confirmTerminalExecution(command, ctx);
+        if (!confirmation.ok) {
+          return JSON.stringify({ ok: false, kind: 'terminal', tabId, error: confirmation.error });
         }
         const result = await execInSession(tab.sessionId, command, { timeout: timeoutMs ?? 30_000 });
         return JSON.stringify(result.ok
@@ -218,6 +245,7 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         artifactId: z.string().optional().describe('For kind="artifact": the artifact id.'),
         sessionId: z.string().optional().describe('For kind="terminal": the PTY session id.'),
         nodeId: z.string().optional().describe('For kind="node-detail": the canvas node id (use canvas_read_node instead).'),
+        workspaceId: z.string().optional().describe('Content workspace for canvas/node/artifact tabs. Defaults to the current workspace.'),
         strategy: z
           .enum(['auto', 'dom', 'a11y', 'screenshot'])
           .optional()
