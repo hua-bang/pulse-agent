@@ -106,6 +106,9 @@ installs the latter. Do not mix them.
   not add new preload-to-renderer imports.
 - Keep main-process code in domain folders under `src/main/`; preserve
   IPC channel names and preload API shape when refactoring.
+- Agent tool names, schemas, and descriptions under `src/main/agent/tools/`
+  ship in the main bundle. Keep descriptions concise and run the bundle gate
+  for tool-surface growth; repeated usage prose belongs in the system prompt.
 - Follow file-size governance: new production `.ts`/`.tsx` files must stay at
   or below 500 lines, and existing over-500 baseline files must not grow.
 - Runtime data belongs under user locations such as `~/.pulse-coder/canvas/`,
