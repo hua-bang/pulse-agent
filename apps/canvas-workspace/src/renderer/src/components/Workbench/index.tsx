@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import { ChatPanelLazy as ChatPanel } from '../chat/lazy';
-import { CHAT_TAB_ID, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
+import { isDockChatVisible, isDockTerminalVisible, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
 import { buildDockTabRefs } from '../RightDock/tabRefs';
 import { createReferenceNodeDataSnapshot } from '../ReferenceDrawer/utils';
 import type { NodeReferenceEntry as NodeReferenceEntryForCanvas, ReferenceEntry } from '../ReferenceDrawer/types';
@@ -70,10 +70,9 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const dock = useRightDock();
   const dockState = useRightDockState();
   const chatHost = useRightDockChatHost();
-  const chatPanelOpen = dockState.expanded && dockState.activeTabId === CHAT_TAB_ID;
+  const chatPanelOpen = isDockChatVisible(dockState);
   const loadedChatWorkspaceIds = useLoadedChatWorkspaceIds(chatPanelOpen, activeWorkspaceId);
-  const terminalDockOpen = dockState.expanded
-    && dockState.terminalTabs.some((tab) => tab.id === dockState.activeTabId);
+  const terminalDockOpen = isDockTerminalVisible(dockState);
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
   const [referenceDrawerLoaded, setReferenceDrawerLoaded] = useState(false);
   const [referencesByWorkspace, setReferencesByWorkspace] = useState<Record<string, ReferenceEntry[]>>({});

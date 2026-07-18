@@ -1,7 +1,7 @@
 import { useI18n } from '../../i18n';
 import { ChatFloatingButton } from '../ChatFloatingButton';
-import { CHAT_TAB_ID } from './dock-store';
 import { useRightDock, useRightDockState } from '.';
+import { isDockChatVisible } from './dock-visibility';
 
 interface GlobalChatLauncherProps {
   visible: boolean;
@@ -17,7 +17,7 @@ export const GlobalChatLauncher = ({ visible }: GlobalChatLauncherProps) => {
 
   return (
     <ChatFloatingButton
-      active={state.expanded && state.activeTabId === CHAT_TAB_ID}
+      active={isDockChatVisible(state)}
       className="app-global-chat-launcher"
       onClick={dock.toggleChat}
       title={t('canvas.toolbar.toggleChat')}

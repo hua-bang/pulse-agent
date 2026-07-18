@@ -40,6 +40,7 @@ interface LinkTabViewProps {
   /** Dock tab id — used as the webview registry key so the Canvas Agent can
    *  read this tab's live page via `canvas_read_tab`. */
   tabId?: string;
+  onActivate?: () => void;
   onTitleChange?: (title: string) => void;
   /** Page favicon, reported once the webview resolves it, so the tab icon
    *  follows the site instead of a hardcoded globe. */
@@ -57,6 +58,7 @@ export const LinkTabView = ({
   url,
   title,
   tabId,
+  onActivate,
   onTitleChange,
   onFaviconChange,
   onNavigate,
@@ -78,6 +80,7 @@ export const LinkTabView = ({
   const lastVisitedUrlRef = useRef('');
   const browser = useEmbeddedBrowser({
     className: 'link-drawer__webview',
+    onFocus: onActivate,
     onFaviconChange: (favicons) => {
       const favicon = pickFaviconUrl(favicons);
       if (!favicon) return;
@@ -202,7 +205,12 @@ export const LinkTabView = ({
           onReload={browser.reload}
           loading={browser.loadState === 'loading'}
         />
-        <form ref={addressFormRef} className="link-drawer__address-form" onSubmit={handleNavigate}>
+        <form
+          ref={addressFormRef}
+          className="link-drawer__address-form"
+          onFocus={onActivate}
+          onSubmit={handleNavigate}
+        >
           <TextField
             className="link-drawer__url"
             value={address}

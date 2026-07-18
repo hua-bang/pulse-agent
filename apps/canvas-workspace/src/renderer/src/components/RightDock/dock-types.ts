@@ -22,6 +22,8 @@ export interface DockState {
   tabs: DockPreviewTab[];
   /** `CHAT_TAB_ID`, a terminal tab id, or a preview tab id. */
   activeTabId: string;
+  /** Content tab shown beside the pinned chat pane in split view. */
+  splitTabId?: string;
   expanded: boolean;
   chatUnread: boolean;
   terminalTabsByWorkspace: Record<string, DockTerminalWorkspaceState>;

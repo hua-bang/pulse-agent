@@ -1,22 +1,7 @@
-/**
- * State store for the right dock — the tabbed right-side panel whose first
- * tab is the (pinned, non-closable) chat. Preview surfaces open as
- * additional tabs; with no previews the tab strip is hidden and the dock
- * looks like a plain chat panel.
- *
- * Policies owned here (kept framework-free so they're unit-testable;
- * React binds via `useSyncExternalStore` in components/RightDock):
- *  - chat is implicit/pinned: `tabs` holds preview tabs only and
- *    `activeTabId` is either `CHAT_TAB_ID` or a preview tab id;
- *  - artifact tabs are deduped by (workspaceId, artifactId);
- *  - link tabs are deduped by exact URL, scoped to the active workspace,
- *    and persisted so each workspace restores its last browser session;
- *  - closing the active preview activates the tab that slides into its
- *    slot (right neighbour, falling back to the last preview, then chat);
- *  - collapsing the dock keeps all tabs — expanding restores them;
- *  - chat activity while chat is not visible sets an unread flag,
- *    cleared the moment chat becomes the active visible tab.
- */
+/** Framework-free state for the pinned chat plus preview/terminal tabs.
+ * Owns activation, dedupe, workspace sessions, closing order, split pairing,
+ * collapse retention, and chat unread policy. React binds with
+ * `useSyncExternalStore` in components/RightDock. */
 
 import {
   CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId,
@@ -24,12 +9,9 @@ import {
 } from './dock-tab-ids';
 import { DockLinkSessionStore, type DockSessionPersistence } from './dock-link-sessions';
 import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
-import type {
-  DockPreviewTab,
-  DockState,
-  DockTerminalTab,
-  DockTerminalWorkspaceState,
-} from './dock-types';
+import { applyDockSplitState, getSplitViewToggle } from './dock-split-state';
+import { isDockChatVisible } from './dock-visibility';
+import type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 export {
   CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId,
   isTerminalTabId, linkTabId, nodeDetailTabId, terminalTabId,
@@ -72,7 +54,7 @@ export class DockStore {
   getSnapshot = (): DockState => this.state;
 
   private commit(next: Partial<DockState>): void {
-    this.state = { ...this.state, ...next };
+    this.state = applyDockSplitState(this.state, next);
     for (const listener of [...this.listeners]) listener();
   }
 
@@ -283,6 +265,12 @@ export class DockStore {
     }
   }
 
+  /** Pair the active content tab with the pinned Pulse AI pane. */
+  toggleSplitView(): void {
+    const next = getSplitViewToggle(this.state);
+    if (next) this.commit(next);
+  }
+
   openChat(): void {
     if (this.state.expanded && this.state.activeTabId === CHAT_TAB_ID && !this.state.chatUnread) return;
     this.commit({ expanded: true, activeTabId: CHAT_TAB_ID, chatUnread: false });
@@ -404,6 +392,7 @@ export class DockStore {
       nextOrdinal: workspace.nextOrdinal,
     }, {
       activeTabId,
+      ...(this.state.splitTabId === id ? { splitTabId: undefined } : {}),
       expanded: closingActiveTerminal && terminalTabs.length === 0 && this.state.tabs.length === 0
         ? false
         : this.state.expanded,
@@ -487,13 +476,18 @@ export class DockStore {
       activeTabId = tabs.length === 0 ? CHAT_TAB_ID : tabs[Math.min(index, tabs.length - 1)].id;
       if (activeTabId === CHAT_TAB_ID) chatUnread = false;
     }
-    this.commit({ tabs, activeTabId, chatUnread });
+    this.commit({
+      tabs,
+      activeTabId,
+      chatUnread,
+      ...(this.state.splitTabId === id ? { splitTabId: undefined } : {}),
+    });
     if (closingLink) this.persistActiveLinkSession();
   }
 
   /** A chat turn finished while chat wasn't the visible tab → unread dot. */
   notifyChatActivity(): void {
-    if (this.state.expanded && this.state.activeTabId === CHAT_TAB_ID) return;
+    if (isDockChatVisible(this.state)) return;
     if (this.state.chatUnread) return;
     this.commit({ chatUnread: true });
   }
