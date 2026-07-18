@@ -18,6 +18,8 @@ import { AddressSuggestionList, useAddressSuggestions, type AddressSuggestion } 
 import { useWebviewRegistration } from '../IframeNodeBody/useWebviewRegistration';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
+import { useAppShell } from '../AppShellProvider';
+import type { AgentContextDomSelectionRef } from '../../types';
 import { ExternalLinkIcon, PlusIcon } from "../icons";
 import { Button, TextField, clampIndexMove } from "../ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../shared/experimental-features";
@@ -50,6 +52,7 @@ interface LinkTabViewProps {
   /** Mirror a guest navigation without resetting a resolved page title. */
   onGuestNavigate: (url: string) => void;
   onAddToReference: (url: string, title?: string) => void;
+  onAddDomSelectionToChat: (selection: AgentContextDomSelectionRef) => void;
   activeWorkspaceId: string;
   onRequestClose: () => void;
 }
@@ -64,12 +67,15 @@ export const LinkTabView = ({
   onNavigate,
   onGuestNavigate,
   onAddToReference,
+  onAddDomSelectionToChat,
   activeWorkspaceId,
   onRequestClose,
 }: LinkTabViewProps) => {
   const { t } = useI18n();
+  const { notify } = useAppShell();
   const addressFormRef = useRef<HTMLFormElement>(null);
   const [address, setAddress] = useState(url);
+  const [domPickerActive, setDomPickerActive] = useState(false);
   // When Pulse Canvas is itself the default browser, the "open in system
   // browser" escape hatch loops back into this app — so steer the user to
   // disable the flag instead. Snapshotted at preload; a reload picks up changes.
@@ -194,6 +200,45 @@ export const LinkTabView = ({
     onAddToReference(browser.currentUrl, title);
   }, [browser.currentUrl, onAddToReference, title]);
 
+  const handlePickDomElement = useCallback(async () => {
+    if (!activeWorkspaceId || !tabId || !browser.currentUrl) return;
+    setDomPickerActive(true);
+    try {
+      const result = await window.canvasWorkspace.iframe.pickDomElement(activeWorkspaceId, tabId);
+      if (result.ok && result.selection) {
+        onAddDomSelectionToChat({
+          ...result.selection,
+          workspaceId: activeWorkspaceId,
+          nodeId: tabId,
+          nodeTitle: title || browser.currentUrl,
+          url: browser.currentUrl,
+        });
+        notify({
+          tone: 'success',
+          title: t('linkDrawer.domSelectionAdded'),
+          description: result.selection.label,
+          autoCloseMs: 1800,
+        });
+      } else if (!result.cancelled) {
+        notify({
+          tone: 'error',
+          title: t('linkDrawer.domSelectionFailed'),
+          description: result.error ?? t('linkDrawer.domSelectionMissing'),
+          autoCloseMs: 3600,
+        });
+      }
+    } catch (error) {
+      notify({
+        tone: 'error',
+        title: t('linkDrawer.domSelectionFailed'),
+        description: error instanceof Error ? error.message : String(error),
+        autoCloseMs: 3600,
+      });
+    } finally {
+      setDomPickerActive(false);
+    }
+  }, [activeWorkspaceId, browser.currentUrl, notify, onAddDomSelectionToChat, t, tabId, title]);
+
   return (
     <>
       <header className="link-drawer__header">
@@ -247,6 +292,17 @@ export const LinkTabView = ({
           )}
         </form>
         <div className="link-drawer__actions">
+          <Button
+            variant="icon"
+            size="xs"
+            className={`link-drawer__action${domPickerActive ? ' link-drawer__action--active' : ''}`}
+            aria-label={domPickerActive ? t('linkDrawer.selectingDomElement') : t('linkDrawer.selectDomElement')}
+            title={domPickerActive ? t('linkDrawer.selectingDomElement') : t('linkDrawer.selectDomElement')}
+            onClick={() => void handlePickDomElement()}
+            disabled={domPickerActive || !activeWorkspaceId || !tabId || !browser.currentUrl}
+          >
+            <InspectIcon />
+          </Button>
           <Button
             variant="icon"
             size="xs"
@@ -323,5 +379,17 @@ export const LinkTabView = ({
 const ReferenceIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
     <path d="M3 1.75h6v8.5L6 8.3l-3 1.95v-8.5z" stroke="currentColor" strokeWidth="1.15" strokeLinejoin="round" />
+  </svg>
+);
+
+const InspectIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+    <path
+      d="M2 2.5A.5.5 0 012.5 2h7a.5.5 0 01.5.5v7a.5.5 0 01-.5.5h-7a.5.5 0 01-.5-.5v-7zM4.2 5L3.2 6l1 1M7.8 5l1 1-1 1M5.4 8l1.2-4"
+      stroke="currentColor"
+      strokeWidth="1.1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );

@@ -68,7 +68,7 @@ interface RightDockProps {
 }
 
 export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
-  const { store, setChatHost, setTerminalHost, pinUrlReference } = useDockContext();
+  const { store, setChatHost, setTerminalHost, pinUrlReference, addDomSelectionToChat } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
 
@@ -360,6 +360,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
         workspaces={workspaces}
         onOpenNodePage={onOpenNodePage}
         pinUrlReference={pinUrlReference}
+        onAddDomSelectionToChat={addDomSelectionToChat}
       />
     </aside>
   );

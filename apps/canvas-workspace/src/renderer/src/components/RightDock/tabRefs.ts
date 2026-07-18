@@ -21,15 +21,22 @@ export function terminalSessionId(workspaceId: string, terminalTabId: string): s
  */
 export function buildDockTabRefs(state: DockState, workspaceId: string): AgentContextTabRef[] {
   const refs: AgentContextTabRef[] = [];
+  const presentation = (id: string): Pick<AgentContextTabRef, 'isActive' | 'isVisible' | 'isSplit'> => ({
+    isActive: state.activeTabId === id,
+    isVisible: state.expanded && (state.activeTabId === id || state.splitTabId === id),
+    isSplit: state.splitTabId === id,
+  });
 
   for (const tab of state.tabs) {
     if (tab.kind === 'link') {
       if (!tab.url) continue; // blank "New tab" — nothing to read yet
-      refs.push({ id: tab.id, kind: 'link', title: tab.title, url: tab.url, workspaceId });
+      refs.push({ id: tab.id, kind: 'link', title: tab.title, url: tab.url, workspaceId, dockWorkspaceId: workspaceId, ...presentation(tab.id) });
     } else if (tab.kind === 'artifact') {
-      refs.push({ id: tab.id, kind: 'artifact', title: tab.title, workspaceId: tab.workspaceId, artifactId: tab.artifactId });
+      refs.push({ id: tab.id, kind: 'artifact', title: tab.title, workspaceId: tab.workspaceId, dockWorkspaceId: workspaceId, artifactId: tab.artifactId, ...presentation(tab.id) });
     } else if (tab.kind === 'node-detail') {
-      refs.push({ id: tab.id, kind: 'node-detail', title: tab.title, workspaceId: tab.workspaceId, nodeId: tab.nodeId });
+      refs.push({ id: tab.id, kind: 'node-detail', title: tab.title, workspaceId: tab.workspaceId, dockWorkspaceId: workspaceId, nodeId: tab.nodeId, ...presentation(tab.id) });
+    } else if (tab.kind === 'canvas') {
+      refs.push({ id: tab.id, kind: 'canvas', title: tab.title, workspaceId: tab.workspaceId, dockWorkspaceId: workspaceId, ...presentation(tab.id) });
     }
   }
 
@@ -40,7 +47,9 @@ export function buildDockTabRefs(state: DockState, workspaceId: string): AgentCo
       kind: 'terminal',
       title: tab.title || `Terminal ${tab.ordinal}`,
       workspaceId,
+      dockWorkspaceId: workspaceId,
       sessionId: terminalSessionId(workspaceId, tab.id),
+      ...presentation(tab.id),
     });
   }
 

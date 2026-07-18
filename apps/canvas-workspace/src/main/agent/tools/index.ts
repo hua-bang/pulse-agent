@@ -66,6 +66,7 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
     canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
     canvas_list_tabs: requireWorkspaceId(tabTools.canvas_list_tabs),
+    canvas_activate_tab: requireWorkspaceId(tabTools.canvas_activate_tab),
     canvas_read_tab: requireWorkspaceId(tabTools.canvas_read_tab),
     // Dock-tab open + browsing-history search work without an ambient
     // workspace (the dock and history are app-level), so they stay unwrapped.

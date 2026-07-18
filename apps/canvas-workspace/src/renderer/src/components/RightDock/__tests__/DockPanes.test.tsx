@@ -41,6 +41,7 @@ describe('DockPanes split focus', () => {
         workspaces={[]}
         onOpenNodePage={() => undefined}
         pinUrlReference={() => undefined}
+        onAddDomSelectionToChat={() => undefined}
       /></I18nProvider>,
     ));
 

@@ -106,6 +106,9 @@ installs the latter. Do not mix them.
   not add new preload-to-renderer imports.
 - Keep main-process code in domain folders under `src/main/`; preserve
   IPC channel names and preload API shape when refactoring.
+- Agent tool names, schemas, and descriptions under `src/main/agent/tools/`
+  ship in the main bundle. Keep descriptions concise and run the bundle gate
+  for tool-surface growth; repeated usage prose belongs in the system prompt.
 - Follow file-size governance: new production `.ts`/`.tsx` files must stay at
   or below 500 lines, and existing over-500 baseline files must not grow.
 - Runtime data belongs under user locations such as `~/.pulse-coder/canvas/`,
@@ -175,14 +178,22 @@ pnpm --filter canvas-workspace package:linux
 - `src/renderer/src/components/Workbench/`: mounted workspace state and chat
   portal ownership.
 - `src/renderer/src/components/RightDock/`: tabbed right dock for chat and
-  previews.
+  previews. Link tabs register their live webviews under the stable dock tab id;
+  page-element selection must reuse the shared iframe DOM picker/selection
+  context and route the result through Workbench's active-workspace chat bridge.
+  That bridge must queue selections until the target composer registers; opening
+  chat and retrying on the next animation frame is not a reliable mount barrier.
 - `src/shared/canvas.ts`: canonical canvas node, edge, reference, and workspace
   node contracts.
 - `src/main/dock/`: right-dock tab support in main — `tab-store.ts` (renderer
   tab mirror for `canvas_list_tabs`), `tab-actions.ts` (main→renderer
-  `dock:activate-tab`/`dock:open-tab` pushes behind `canvas_open_tab` and the
-  page_* tools' tab targeting), `history-store.ts` (web-tab browsing history
-  behind `canvas_search_history`).
+  workspace-scoped `dock:activate-tab` push behind `canvas_activate_tab` and
+  the page_* tools' tab targeting, plus the app-level `dock:open-tab` push
+  behind `canvas_open_tab`),
+  `history-store.ts` (web-tab browsing history behind `canvas_search_history`).
+  The renderer projection in `RightDock/tabRefs.ts` is the tab-discovery SSOT:
+  it covers link, artifact, node-detail, canvas-preview, and terminal tabs plus
+  active/visible/split state; terminal commands use `canvas_execute_terminal_tab`.
 - `src/main/canvas/store.ts`: workspace manifest/store IPC, watchers, export,
   import, and migration hooks.
 - `src/main/canvas/storage.ts`: atomic JSON I/O, v2 split storage, migration,

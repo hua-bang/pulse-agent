@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
@@ -5,14 +6,37 @@ import { activateWorkspaceWindow } from '../../app/window-manager';
 import { readDOM, readA11y, captureScreenshot } from '../../webview/reader';
 import { getCurrentVersionContent } from '../../artifacts/store';
 import { getSessionScrollback } from '../../terminal/scrollback';
+import { execInSession } from '../../terminal/pty-manager';
 import { getDockTabs } from '../../dock/tab-store';
-import { findDockLinkTab, openDockTab } from '../../dock/tab-actions';
+import { activateDockTab, findDockLinkTab, openDockTab } from '../../dock/tab-actions';
 import { searchHistory } from '../../dock/history-store';
-import type { CanvasTool } from './types';
+import type { AgentContextTabRef } from '../../../shared/agent-chat';
+import type { CanvasTool, CanvasToolExecutionContext } from './types';
 
 const READINESS_HINT =
   'This is a point-in-time read of a live tab. A "success" does not guarantee the ' +
   'content finished loading — if the data you need looks empty or missing, wait and read again.';
+
+async function confirmTerminalExecution(
+  command: string,
+  ctx?: CanvasToolExecutionContext,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (ctx?.runContext?.executionMode !== 'ask') return { ok: true };
+  const ask = ctx.onClarificationRequest;
+  if (!ask) {
+    return { ok: false, error: 'Terminal command requires confirmation in ask mode, but confirmation is unavailable.' };
+  }
+  const answer = await ask({
+    id: randomUUID(),
+    question: `Run this command in the Dock terminal? ${command}`,
+    context: 'Terminal commands can modify files, start processes, or access the network.',
+    timeout: 0,
+  });
+  const affirmative = /^(?:y|yes|ok|okay|confirm|confirmed|go|run|可以|好|好的|确认|同意|执行|运行)[.!。！\s]*$/i.test(answer.trim());
+  return affirmative
+    ? { ok: true }
+    : { ok: false, error: 'Terminal command was not confirmed by the user.' };
+}
 
 /**
  * Read the live content of a right-dock tab the user `@`-mentioned.
@@ -26,6 +50,7 @@ const READINESS_HINT =
  *  - node-detail → routed to canvas_read_node (a node-detail tab is a canvas
  *                node); this tool returns a pointer rather than duplicating the
  *                node-read path.
+ *  - canvas    → routed to canvas_read_context for the previewed workspace.
  */
 export function createTabTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -33,12 +58,9 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       name: 'canvas_list_tabs',
       defer_loading: true,
       description:
-        'List the right-dock tabs currently open for this workspace (the browser-like tabs at the top of the dock): ' +
-        'open web pages (link), node detail, artifacts, and workspace terminals. ' +
-        'Returns each tab with the fields to pass to `canvas_read_tab` (or `canvas_read_node` for node-detail). ' +
-        'A link tab id can also be used with `canvas_open_tab` (navigate it) and — when the webview-page-control ' +
-        'flag is on — with the page_* tools (click/fill/press/scroll/eval on the live page). ' +
-        'Use this to discover what the user is looking at without waiting for them to `@`-mention a tab.',
+        'List open right-dock tabs: link, node-detail, artifact, canvas preview, and terminal. ' +
+        'Returns ids for `canvas_read_tab`, `canvas_activate_tab`, and resource-specific tools. ' +
+        'For link tabs, use the tab id with `canvas_open_tab` or enabled page_* controls.',
       inputSchema: z.object({}),
       execute: async (input) => {
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
@@ -47,15 +69,39 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       },
     },
 
+    canvas_activate_tab: {
+      name: 'canvas_activate_tab',
+      defer_loading: true,
+      description:
+        'Bring an open right-dock tab to the front by tabId from canvas_list_tabs. ' +
+        'This changes focus only; it cannot close, rename, or reorder tabs.',
+      inputSchema: z.object({
+        tabId: z.string().min(1).describe('Open dock tab id from canvas_list_tabs.'),
+      }),
+      execute: async (input) => {
+        const tabId = (input.tabId as string).trim();
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const tab = getDockTabs(targetWorkspaceId).find((candidate) => candidate.id === tabId);
+        if (!tab) {
+          return JSON.stringify({
+            ok: false,
+            error: `Tab ${tabId} is not open in workspace ${targetWorkspaceId}. Call canvas_list_tabs to refresh stale ids.`,
+          });
+        }
+        if (!await activateDockTab(targetWorkspaceId, tabId)) {
+          return JSON.stringify({ ok: false, error: 'No canvas window is open to activate the tab.' });
+        }
+        return JSON.stringify({ ok: true, tabId, kind: tab.kind, title: tab.title });
+      },
+    },
+
     canvas_open_tab: {
       name: 'canvas_open_tab',
       defer_loading: true,
       description:
-        'Open a URL as a web (link) tab in the right dock, or navigate an existing link tab to a new URL.\n' +
-        '- Without `tabId`: opens the URL as a dock tab (an already-open tab with the exact same URL is re-activated instead of duplicated).\n' +
-        '- With `tabId` (a link tab id from `canvas_list_tabs`): navigates that tab in place, keeping its identity.\n' +
-        'Only http(s) URLs are allowed. The new tab id becomes visible via `canvas_list_tabs` once the page starts loading; ' +
-        'read the page with `canvas_read_tab` and (when the webview-page-control flag is on) operate it with the page_* tools using the tab id.',
+        'Open an http(s) URL in a right-dock link tab. Omit tabId to open or reactivate by URL; ' +
+        'pass a link tabId from canvas_list_tabs to navigate that tab in place. ' +
+        'Then list tabs to confirm its id and use canvas_read_tab or enabled page_* controls.',
       inputSchema: z.object({
         url: z.string().describe('The http(s) URL to open.'),
         tabId: z
@@ -102,10 +148,8 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       name: 'canvas_search_history',
       defer_loading: true,
       description:
-        'Search the browsing history of the right-dock web tabs (pages the user opened or navigated to in this app). ' +
-        'Terms match URL and page title (case-insensitive, all terms must match); results are most-recent first with ' +
-        'visit counts and timestamps. Empty query returns the most recently visited pages. ' +
-        'Combine with canvas_open_tab to re-open a previously visited page.',
+        'Search right-dock web-tab history by URL/title. All terms match case-insensitively; ' +
+        'results are newest first. Empty query returns recent pages. Reopen with canvas_open_tab.',
       inputSchema: z.object({
         query: z
           .string()
@@ -128,27 +172,65 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       },
     },
 
+    canvas_execute_terminal_tab: {
+      name: 'canvas_execute_terminal_tab',
+      defer_loading: true,
+      description:
+        'Run a shell command in an open right-dock terminal tab from canvas_list_tabs. ' +
+        'Uses its live PTY (preserving cwd/environment) and returns captured output.',
+      inputSchema: z.object({
+        tabId: z.string().min(1).describe('Open terminal tab id from canvas_list_tabs.'),
+        command: z.string().min(1).describe('Shell command to execute in the terminal tab.'),
+        timeoutMs: z.number().int().positive().max(120_000).optional()
+          .describe('Maximum time to collect output. Defaults to 30 seconds; maximum 120 seconds.'),
+      }),
+      execute: async (input, ctx) => {
+        const tabId = (input.tabId as string).trim();
+        const command = input.command as string;
+        const timeoutMs = input.timeoutMs as number | undefined;
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const tab = getDockTabs(targetWorkspaceId).find((candidate) => candidate.id === tabId);
+        if (!tab) {
+          return JSON.stringify({
+            ok: false,
+            error: `Tab ${tabId} is not open in workspace ${targetWorkspaceId}. Call canvas_list_tabs to refresh stale ids.`,
+          });
+        }
+        if (tab.kind !== 'terminal') {
+          return JSON.stringify({ ok: false, error: `Tab ${tabId} is not a terminal tab (kind: ${tab.kind}).` });
+        }
+        if (!tab.sessionId) {
+          return JSON.stringify({ ok: false, error: `Terminal tab ${tabId} has no active PTY session.` });
+        }
+        const confirmation = await confirmTerminalExecution(command, ctx);
+        if (!confirmation.ok) {
+          return JSON.stringify({ ok: false, kind: 'terminal', tabId, error: confirmation.error });
+        }
+        const result = await execInSession(tab.sessionId, command, { timeout: timeoutMs ?? 30_000 });
+        return JSON.stringify(result.ok
+          ? { ok: true, kind: 'terminal', tabId, output: result.output ?? '' }
+          : { ok: false, kind: 'terminal', tabId, error: result.error ?? 'Terminal command failed.' });
+      },
+    },
+
     canvas_read_tab: {
       name: 'canvas_read_tab',
       defer_loading: true,
       description:
-        'Read the live content of a right-dock tab the user `@`-mentioned (the browser-like tabs at the top of the dock).\n' +
-        'The "Referenced Tabs" block in the request context lists each mentioned tab with the exact parameters to pass here.\n\n' +
-        'By `kind`:\n' +
-        '- link: reads the open web page inside the tab (auto strategy: dom → a11y → screenshot). Pass `tabId` (and `strategy`/`maxChars` if needed).\n' +
-        '- artifact: returns the current version content. Pass `artifactId`.\n' +
-        '- terminal: returns the terminal scrollback (recent output). Pass `sessionId`.\n' +
-        '- node-detail: a node-detail tab is a canvas node — call `canvas_read_node({ nodeId })` instead.\n\n' +
-        'For a `screenshot` result, call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description.',
+        'Read live right-dock tab content. Use fields from Referenced Tabs or canvas_list_tabs. ' +
+        'link requires tabId (dom/a11y/screenshot); artifact requires artifactId; terminal requires sessionId. ' +
+        'For node-detail use canvas_read_node, and for canvas preview use canvas_read_context. ' +
+        'Analyze screenshot results with canvas_analyze_image.',
       inputSchema: z.object({
         kind: z
-          .enum(['link', 'artifact', 'terminal', 'node-detail'])
+          .enum(['link', 'artifact', 'terminal', 'node-detail', 'canvas'])
           .describe('Tab kind, taken from the Referenced Tabs block.'),
         tabId: z.string().optional().describe('For kind="link": the dock tab id (also the webview registry key).'),
         url: z.string().optional().describe('For kind="link": the current page URL (informational).'),
         artifactId: z.string().optional().describe('For kind="artifact": the artifact id.'),
         sessionId: z.string().optional().describe('For kind="terminal": the PTY session id.'),
         nodeId: z.string().optional().describe('For kind="node-detail": the canvas node id (use canvas_read_node instead).'),
+        workspaceId: z.string().optional().describe('Content workspace for canvas/node/artifact tabs. Defaults to the current workspace.'),
         strategy: z
           .enum(['auto', 'dom', 'a11y', 'screenshot'])
           .optional()
@@ -161,7 +243,7 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
           .describe('For kind="link"/"terminal": max characters of text. Defaults to 12 000 (link) / all (terminal).'),
       }),
       execute: async (input) => {
-        const kind = input.kind as 'link' | 'artifact' | 'terminal' | 'node-detail';
+        const kind = input.kind as AgentContextTabRef['kind'];
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
 
         if (kind === 'node-detail') {
@@ -172,6 +254,16 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
             error:
               'A node-detail tab is a canvas node. ' +
               `Call canvas_read_node({ nodeId: "${nodeId}"${targetWorkspaceId ? `, workspaceId: "${targetWorkspaceId}"` : ''} }) to read it.`,
+          });
+        }
+
+        if (kind === 'canvas') {
+          return JSON.stringify({
+            ok: false,
+            kind,
+            error:
+              'A canvas-preview tab represents a workspace. ' +
+              `Call canvas_read_context({ workspaceId: "${targetWorkspaceId}" }) to inspect it.`,
           });
         }
 

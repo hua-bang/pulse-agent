@@ -199,6 +199,8 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     registerSubmitDomReviewComments,
   } = useChatInsertionBridge({ allNodes, openChat: dock.openChat });
 
+  useEffect(() => dock.registerAddDomSelectionToChat(handleAddDomSelectionToChat), [dock, handleAddDomSelectionToChat]);
+
   const workspaceNameById = useCallback(
     (workspaceId: string) => workspaces.find((workspace) => workspace.id === workspaceId)?.name,
     [workspaces],
