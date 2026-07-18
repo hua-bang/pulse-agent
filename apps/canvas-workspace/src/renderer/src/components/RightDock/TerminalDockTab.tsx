@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useI18n } from '../../i18n';
 import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 import { NodeTypeIcon } from '../icons';
@@ -11,6 +11,10 @@ interface TerminalDockTabProps {
   onActivate: (id: string) => void;
   onClose: (id: string) => void;
   onRename: (id: string, title: string) => void;
+  onDragStart: (event: DragEvent<HTMLElement>, id: string) => void;
+  onDragOver: (event: DragEvent<HTMLElement>, id: string) => void;
+  onDrop: (event: DragEvent<HTMLElement>, id: string) => void;
+  onDragEnd: () => void;
 }
 
 export const TerminalDockTab = ({
@@ -20,6 +24,10 @@ export const TerminalDockTab = ({
   onActivate,
   onClose,
   onRename,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }: TerminalDockTabProps) => {
   const { t } = useI18n();
   const defaultTitle = t('rightDock.terminalNumber', { number: tab.ordinal });
@@ -77,7 +85,11 @@ export const TerminalDockTab = ({
   };
 
   return (
-    <span className="right-dock__tab-shell">
+    <span
+      className="right-dock__tab-shell"
+      onDragOver={(event) => onDragOver(event, tab.id)}
+      onDrop={(event) => onDrop(event, tab.id)}
+    >
       <button
         ref={(element) => registerTab(tab.id, element)}
         type="button"
@@ -85,6 +97,9 @@ export const TerminalDockTab = ({
         aria-selected={active}
         className={`right-dock__tab right-dock__tab--with-close${active ? ' right-dock__tab--active' : ''}`}
         title={`${title} - ${t('rightDock.renameTerminalHint')}`}
+        draggable={!editing}
+        onDragStart={(event) => onDragStart(event, tab.id)}
+        onDragEnd={onDragEnd}
         onClick={() => onActivate(tab.id)}
         onDoubleClick={startRename}
         onKeyDown={(event) => {

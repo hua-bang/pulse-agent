@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type DragEvent,
 } from 'react';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
@@ -13,7 +14,6 @@ import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, isTerminalTabId } from './dock-store';
 import { useDockContext, useRightDockState } from './context';
 import { LinkTabIcon } from './LinkTabIcon';
-import { TerminalDockTab } from './TerminalDockTab';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useConsumePendingLinks } from '../../hooks/useConsumePendingLinks';
 import { useDockAgentBridge } from './useDockAgentBridge';
@@ -39,6 +39,7 @@ const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m
 const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
 const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
 const DockCreationControls = lazy(() => import('./DockCreationControls').then((m) => ({ default: m.DockCreationControls })));
+const TerminalDockTab = lazy(() => import('./TerminalDockTab').then((m) => ({ default: m.TerminalDockTab })));
 
 function readStoredWidth(): number | null {
   if (typeof window === 'undefined') return null;
@@ -124,6 +125,51 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
     width: 0,
     visible: false,
   });
+  const draggedTabIdRef = useRef<string | null>(null);
+  const draggedTabShellRef = useRef<HTMLElement | null>(null);
+  const tabDropTargetRef = useRef<HTMLElement | null>(null);
+
+  const clearTabDrag = () => {
+    draggedTabShellRef.current?.removeAttribute('data-dragging');
+    tabDropTargetRef.current?.removeAttribute('data-drop-position');
+    draggedTabIdRef.current = null;
+    draggedTabShellRef.current = null;
+    tabDropTargetRef.current = null;
+  };
+
+  const handleTabDragStart = (event: DragEvent<HTMLElement>, id: string) => {
+    clearTabDrag();
+    draggedTabIdRef.current = id;
+    draggedTabShellRef.current = event.currentTarget.parentElement;
+    draggedTabShellRef.current?.setAttribute('data-dragging', 'true');
+  };
+
+  const handleTabDragOver = (event: DragEvent<HTMLElement>, targetId: string) => {
+    const sourceId = draggedTabIdRef.current;
+    if (!sourceId || sourceId === targetId || isTerminalTabId(sourceId) !== isTerminalTabId(targetId)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const rect = event.currentTarget.getBoundingClientRect();
+    const position = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+    if (tabDropTargetRef.current !== event.currentTarget) {
+      tabDropTargetRef.current?.removeAttribute('data-drop-position');
+      tabDropTargetRef.current = event.currentTarget;
+    }
+    event.currentTarget.dataset.dropPosition = position;
+  };
+
+  const handleTabDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
+    const sourceId = draggedTabIdRef.current;
+    if (!sourceId || sourceId === targetId || isTerminalTabId(sourceId) !== isTerminalTabId(targetId)) {
+      clearTabDrag();
+      return;
+    }
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const position = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+    store.reorderTab(sourceId, targetId, position);
+    clearTabDrag();
+  };
 
   const registerTab = useCallback((id: string, element: HTMLButtonElement | null) => {
     if (element) {
@@ -280,21 +326,34 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
               <span className="right-dock__tab-unread" aria-hidden="true" />
             </button>
           )}
-          {terminalTabsVisible && state.terminalTabs.map((tab) => (
-            <TerminalDockTab
-              key={tab.id}
-              tab={tab}
-              active={tab.id === activePaneId}
-              registerTab={registerTab}
-              onActivate={(id) => store.activate(id)}
-              onClose={(id) => store.closeTerminal(id)}
-              onRename={(id, title) => store.renameTerminal(id, title)}
-            />
-          ))}
+          {terminalTabsVisible && (
+            <Suspense fallback={null}>
+              {state.terminalTabs.map((tab) => (
+                <TerminalDockTab
+                  key={tab.id}
+                  tab={tab}
+                  active={tab.id === activePaneId}
+                  registerTab={registerTab}
+                  onActivate={(id) => store.activate(id)}
+                  onClose={(id) => store.closeTerminal(id)}
+                  onRename={(id, title) => store.renameTerminal(id, title)}
+                  onDragStart={handleTabDragStart}
+                  onDragOver={handleTabDragOver}
+                  onDrop={handleTabDrop}
+                  onDragEnd={clearTabDrag}
+                />
+              ))}
+            </Suspense>
+          )}
           {state.tabs.map((tab) => {
             const active = tab.id === activePaneId;
             return (
-              <span key={tab.id} className="right-dock__tab-shell">
+              <span
+                key={tab.id}
+                className="right-dock__tab-shell"
+                onDragOver={(event) => handleTabDragOver(event, tab.id)}
+                onDrop={(event) => handleTabDrop(event, tab.id)}
+              >
                 <button
                   ref={(element) => registerTab(tab.id, element)}
                   type="button"
@@ -302,6 +361,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
                   aria-selected={active}
                   className={`right-dock__tab right-dock__tab--with-close${active ? ' right-dock__tab--active' : ''}`}
                   title={tab.title}
+                  draggable
+                  onDragStart={(event) => handleTabDragStart(event, tab.id)}
+                  onDragEnd={clearTabDrag}
                   onClick={() => store.activate(tab.id)}
                 >
                   {tab.kind === 'link' ? (
