@@ -12,6 +12,7 @@ export function useChatInsertionBridge({
 }: UseChatInsertionBridgeOptions) {
   const insertMentionByWorkspaceRef = useRef<Map<string, (node: CanvasNode, sourceWorkspaceId?: string) => void>>(new Map());
   const insertDomSelectionByWorkspaceRef = useRef<Map<string, (selection: AgentContextDomSelectionRef) => void>>(new Map());
+  const pendingDomSelectionsByWorkspaceRef = useRef<Map<string, AgentContextDomSelectionRef[]>>(new Map());
   const submitDomReviewByWorkspaceRef = useRef<Map<string, (comments: AgentContextDomReviewComment[]) => Promise<boolean>>>(new Map());
 
   const registerInsertMention = useCallback((workspaceId: string, fn: (node: CanvasNode, sourceWorkspaceId?: string) => void) => {
@@ -23,6 +24,9 @@ export function useChatInsertionBridge({
 
   const registerInsertDomSelectionMention = useCallback((workspaceId: string, fn: (selection: AgentContextDomSelectionRef) => void) => {
     insertDomSelectionByWorkspaceRef.current.set(workspaceId, fn);
+    const pending = pendingDomSelectionsByWorkspaceRef.current.get(workspaceId) ?? [];
+    pendingDomSelectionsByWorkspaceRef.current.delete(workspaceId);
+    for (const selection of pending) fn(selection);
     return () => {
       insertDomSelectionByWorkspaceRef.current.delete(workspaceId);
     };
@@ -71,17 +75,13 @@ export function useChatInsertionBridge({
 
   const handleAddDomSelectionToChat = useCallback((workspaceId: string, selection: AgentContextDomSelectionRef) => {
     openChat();
-    const tryInsert = () => {
-      const fn = insertDomSelectionByWorkspaceRef.current.get(workspaceId);
-      if (fn) {
-        fn({ ...selection, workspaceId: selection.workspaceId ?? workspaceId });
-        return true;
-      }
-      return false;
-    };
-    if (!tryInsert()) {
-      requestAnimationFrame(() => { tryInsert(); });
-    }
+    const normalized = { ...selection, workspaceId: selection.workspaceId ?? workspaceId };
+    const fn = insertDomSelectionByWorkspaceRef.current.get(workspaceId);
+    if (fn) fn(normalized);
+    else pendingDomSelectionsByWorkspaceRef.current.set(workspaceId, [
+      ...(pendingDomSelectionsByWorkspaceRef.current.get(workspaceId) ?? []),
+      normalized,
+    ]);
   }, [openChat]);
 
   const handleSubmitDomReviewComments = useCallback((workspaceId: string, comments: AgentContextDomReviewComment[]) => {

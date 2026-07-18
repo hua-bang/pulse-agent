@@ -178,6 +178,8 @@ pnpm --filter canvas-workspace package:linux
   previews. Link tabs register their live webviews under the stable dock tab id;
   page-element selection must reuse the shared iframe DOM picker/selection
   context and route the result through Workbench's active-workspace chat bridge.
+  That bridge must queue selections until the target composer registers; opening
+  chat and retrying on the next animation frame is not a reliable mount barrier.
 - `src/shared/canvas.ts`: canonical canvas node, edge, reference, and workspace
   node contracts.
 - `src/main/dock/`: right-dock tab support in main — `tab-store.ts` (renderer
