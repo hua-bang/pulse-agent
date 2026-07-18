@@ -248,15 +248,16 @@ export interface AgentContextDomSnapshotMeta {
 /**
  * A right-dock tab the user `@`-mentioned in the composer. Tabs are the
  * browser-like previews in the dock strip (open web pages, node detail,
- * artifacts, workspace terminals). Like other mentions this is a lightweight
+ * artifacts, canvas previews, workspace terminals). Like other mentions this is a lightweight
  * pointer — the agent reads the tab's live content on demand with
- * `canvas_read_tab` (link/artifact/terminal) or `canvas_read_node`
- * (node-detail), rather than the content being dumped into the prompt.
+ * `canvas_read_tab` (link/artifact/terminal), `canvas_read_node`
+ * (node-detail), or canvas context tools (canvas), rather than the content
+ * being dumped into the prompt.
  */
 export interface AgentContextTabRef {
   /** Dock tab id (also the webview registry key for link tabs). */
   id: string;
-  kind: 'link' | 'node-detail' | 'artifact' | 'terminal';
+  kind: 'link' | 'node-detail' | 'artifact' | 'canvas' | 'terminal';
   title: string;
   /** For kind === 'link': the current page URL. */
   url?: string;
@@ -269,6 +270,12 @@ export interface AgentContextTabRef {
   artifactId?: string;
   /** For kind === 'terminal': the PTY session id to read scrollback from. */
   sessionId?: string;
+  /** Whether this tab owns focus, even if the dock is currently collapsed. */
+  isActive?: boolean;
+  /** Whether this tab is currently rendered as a visible dock pane. */
+  isVisible?: boolean;
+  /** Whether this tab is paired beside chat in split view. */
+  isSplit?: boolean;
 }
 
 export interface AgentRequestContext {

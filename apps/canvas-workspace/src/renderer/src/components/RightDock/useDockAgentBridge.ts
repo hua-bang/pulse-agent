@@ -23,8 +23,8 @@ export function useDockAgentBridge(store: DockStore, state: DockState, activeWor
   }, [store]);
 
   useEffect(() => {
-    const offActivate = window.canvasWorkspace.dock.onActivateTab(({ tabId }) => {
-      if (tabId) store.activate(tabId);
+    const offActivate = window.canvasWorkspace.dock.onActivateTab(({ workspaceId, tabId }) => {
+      if (workspaceId === activeWorkspaceId && tabId) store.activate(tabId);
     });
     const offOpen = window.canvasWorkspace.dock.onOpenTab(({ url, tabId }) => {
       if (!url) return;
@@ -40,10 +40,10 @@ export function useDockAgentBridge(store: DockStore, state: DockState, activeWor
       offActivate();
       offOpen();
     };
-  }, [store]);
+  }, [store, activeWorkspaceId]);
 
   useEffect(() => {
     if (!activeWorkspaceId) return;
     window.canvasWorkspace.dock.publishTabs(activeWorkspaceId, buildDockTabRefs(state, activeWorkspaceId));
-  }, [state.tabs, state.terminalTabsByWorkspace, activeWorkspaceId]);
+  }, [state.tabs, state.terminalTabsByWorkspace, state.activeTabId, state.expanded, state.splitTabId, activeWorkspaceId]);
 }

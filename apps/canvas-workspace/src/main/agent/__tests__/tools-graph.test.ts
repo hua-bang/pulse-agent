@@ -40,6 +40,7 @@ vi.mock('electron', () => ({
 vi.mock('../../terminal/pty-manager', () => ({
   hasSession: () => false,
   writeToSession: () => false,
+  execInSession: async () => ({ ok: false, error: 'no session' }),
 }));
 
 // Stub the engine's GenerateImageTool import — the tools module pulls it in at
@@ -233,6 +234,7 @@ describe('createGlobalCanvasTools', () => {
   it('exposes read/search tools without any node mutation', async () => {
     const tools = createGlobalCanvasTools();
     expect(Object.keys(tools).sort()).toEqual([
+      'canvas_activate_tab',
       'canvas_ask_user',
       'canvas_list_edges',
       'canvas_list_nodes',
@@ -468,6 +470,7 @@ describe('deferred tool partition', () => {
     expect(deferred).toEqual([
       'artifact_pin_to_canvas',
       'artifact_update',
+      'canvas_activate_tab',
       'canvas_add_to_group',
       'canvas_analyze_image',
       'canvas_create_edge',
@@ -475,6 +478,7 @@ describe('deferred tool partition', () => {
       'canvas_create_terminal_node',
       'canvas_delete_edge',
       'canvas_delete_node',
+      'canvas_execute_terminal_tab',
       'canvas_generate_image',
       'canvas_generate_mindmap_image',
       'canvas_list_edges',

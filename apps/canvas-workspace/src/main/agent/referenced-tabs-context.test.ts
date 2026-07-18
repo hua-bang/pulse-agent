@@ -14,15 +14,17 @@ describe('formatReferencedTabsBlock', () => {
         { id: 'art', kind: 'artifact', title: 'Dash', workspaceId: 'ws-1', artifactId: 'a1' },
         { id: 'term', kind: 'terminal', title: 'Dev', sessionId: 'workspace-terminal:ws-1' },
         { id: 'nd', kind: 'node-detail', title: 'Note', workspaceId: 'ws-1', nodeId: 'node-9' },
+        { id: 'canvas', kind: 'canvas', title: 'Research', workspaceId: 'ws-2' },
       ],
       'ws-1',
     );
 
-    expect(block).toContain('Referenced Tabs — 4 tabs');
+    expect(block).toContain('Referenced Tabs — 5 tabs');
     expect(block).toContain('canvas_read_tab({ kind: "link", tabId: "link:1", workspaceId: "ws-1" })');
     expect(block).toContain('canvas_read_tab({ kind: "artifact", artifactId: "a1", workspaceId: "ws-1" })');
     expect(block).toContain('canvas_read_tab({ kind: "terminal", sessionId: "workspace-terminal:ws-1" })');
     expect(block).toContain('canvas_read_node({ nodeId: "node-9", workspaceId: "ws-1" })');
+    expect(block).toContain('canvas_read_context({ workspaceId: "ws-2" })');
   });
 
   it('falls back to the current workspace id when a tab omits its own', () => {

@@ -41,6 +41,9 @@ export function formatReferencedTabsBlock(
       case 'node-detail':
         how = `canvas node detail — read with \`canvas_read_node({ nodeId: "${tab.nodeId ?? ''}"${wsArg} })\``;
         break;
+      case 'canvas':
+        how = `canvas preview — inspect with \`canvas_read_context(${ws ? `{ workspaceId: "${ws}" }` : '{}'})\``;
+        break;
       default:
         how = 'unknown tab kind';
     }

@@ -5,7 +5,7 @@
  * Channels (push events subscribed in `RightDock/useDockAgentBridge`; pushes
  * don't appear in describe-canvas's handle↔invoke parity, so this comment is
  * their registry):
- *  - `dock:activate-tab` {tabId}       — make the tab the active dock pane
+ *  - `dock:activate-tab` {workspaceId, tabId} — make the tab the active dock pane
  *  - `dock:open-tab`     {url, tabId?} — open url as a web tab (tabId set →
  *    navigate that existing link tab; renderer falls back to a new tab when
  *    the id is unknown)
@@ -33,9 +33,9 @@ export function findDockLinkTab(
 }
 
 /** Bring a dock tab to the front. Returns false when no window is open. */
-export function activateDockTab(tabId: string): boolean {
+export function activateDockTab(workspaceId: string, tabId: string): boolean {
   const targets = liveWindowContents();
-  for (const wc of targets) wc.send('dock:activate-tab', { tabId });
+  for (const wc of targets) wc.send('dock:activate-tab', { workspaceId, tabId });
   return targets.length > 0;
 }
 

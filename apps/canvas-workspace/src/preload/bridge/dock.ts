@@ -6,7 +6,7 @@ export const createDockApi = (ipcRenderer: IpcRenderer) => ({
   publishTabs: (workspaceId: string, tabs: AgentContextTabRef[]) =>
     ipcRenderer.send("dock:publish-tabs", { workspaceId, tabs }),
 
-  onActivateTab: (callback: (payload: { tabId: string }) => void): Unsubscribe =>
+  onActivateTab: (callback: (payload: { workspaceId: string; tabId: string }) => void): Unsubscribe =>
     subscribe(ipcRenderer, "dock:activate-tab", callback),
 
   onOpenTab: (callback: (payload: { url: string; tabId?: string }) => void): Unsubscribe =>

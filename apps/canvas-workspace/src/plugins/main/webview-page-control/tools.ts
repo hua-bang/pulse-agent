@@ -64,7 +64,7 @@ async function resolveTarget(
     lookup: () => getWebContentsForNode(workspaceId, nodeId),
     activate: async () => {
       const result = await activateWorkspaceWindow(workspaceId);
-      if (dockTab) activateDockTab(nodeId);
+      if (dockTab) activateDockTab(workspaceId, nodeId);
       return result;
     },
     mode: 'operate',
