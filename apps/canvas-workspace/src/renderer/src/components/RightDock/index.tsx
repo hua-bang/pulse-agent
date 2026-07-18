@@ -59,7 +59,7 @@ function clampWidth(value: number): number {
   return Math.min(max, Math.max(MIN_WIDTH, value));
 }
 
-interface RightDockProps {
+interface Props {
   activeWorkspaceId: string;
   chatTabEnabled: boolean;
   workspaces: WorkspaceEntry[];
@@ -72,7 +72,7 @@ interface TabIndicatorState {
   visible: boolean;
 }
 
-export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
+export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: Props) => {
   const { store, setChatHost, setTerminalHost, pinUrlReference } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();

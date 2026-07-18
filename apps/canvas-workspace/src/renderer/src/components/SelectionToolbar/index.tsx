@@ -2,7 +2,7 @@ import './index.css';
 import { useI18n } from '../../i18n';
 import type { KeyboardEvent } from 'react';
 
-interface SelectionToolbarProps {
+interface Props {
   selectedCount: number;
   canFocus: boolean;
   focusModeActive: boolean;
@@ -127,7 +127,7 @@ export const SelectionToolbar = ({
   onPinReference,
   onAddToChat,
   onDelete,
-}: SelectionToolbarProps) => {
+}: Props) => {
   const { t } = useI18n();
   if (selectedCount <= 0) return null;
 

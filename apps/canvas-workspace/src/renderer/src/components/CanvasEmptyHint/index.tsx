@@ -6,7 +6,7 @@ import { useI18n } from '../../i18n';
 import { normalizeReferenceUrl } from '../ReferenceDrawer/utils';
 import './index.css';
 
-interface CanvasEmptyHintProps {
+interface Props {
   onCreateNode: (type: Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file' | 'iframe'>) => void;
   onCreateUrl?: (url: string) => void;
   onCreateDemo?: () => void;
@@ -24,7 +24,7 @@ export const CanvasEmptyHint = ({
   onOpenChat,
   onOpenShortcuts,
   onSetRootFolder,
-}: CanvasEmptyHintProps) => {
+}: Props) => {
   const { t } = useI18n();
   const [urlComposerOpen, setUrlComposerOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState('');
