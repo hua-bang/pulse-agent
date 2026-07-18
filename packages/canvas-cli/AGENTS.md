@@ -32,7 +32,7 @@ in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
 | Workspace/node/edge/context commands | `src/commands/workspace.ts`, `src/commands/node.ts`, `src/commands/edge.ts`, `src/commands/context.ts` |
 | Workspace auto-discovery (which canvas a command targets) | `src/core/workspace-resolution.ts`, `src/commands/options.ts` |
 | External-caller surface (status/describe, error contract) | `src/commands/status.ts`, `src/commands/describe.ts`, `src/output.ts` |
-| Live runtime commands | `src/commands/agent.ts`, `src/commands/team.ts`, `src/core/runtime-control.ts` |
+| Live runtime commands and capability client | `src/commands/agent.ts`, `src/commands/team.ts`, `src/core/runtime-control.ts`, `src/core/runtime-capabilities.ts` |
 | v2 recovery command | `src/commands/restore.ts` |
 | Public core exports | `src/core/index.ts` |
 | Store safety and schema compatibility | `src/core/store.ts`, `src/core/storage-v2.ts`, `src/core/types.ts`, `src/core/constants.ts` |
@@ -48,6 +48,9 @@ the root harness files above, then the package source/tests.
 
 - Treat `~/.pulse-coder/canvas/` and `~/.pulse-coder/canvas-runtime/` as user
   runtime data, never repository source of truth.
+- Keep the package test entry on `--no-file-parallelism`: the live-command and
+  status suites intentionally exercise the same hard-coded runtime descriptor,
+  so running those files concurrently races their backup/write/restore cycle.
 - Preserve store safety: workspace/node id validation, manifest locking,
   atomic writes, rolling `.bak` recovery, v2 per-node compatibility, and the
   guard that refuses accidental empty-node overwrites.
@@ -95,6 +98,10 @@ the root harness files above, then the package source/tests.
 - Live `agent` and `team` commands must keep using the runtime file plus bearer
   auth. Do not bypass runtime authentication or reach into Electron memory from
   this package.
+- `src/core/runtime-capabilities.ts` is the non-exiting client for experimental
+  live-app capabilities. Keep its structured `RuntimeClientResult` contract so
+  agent hosts can treat a missing/disabled Canvas runtime as a tool result, not
+  a process exit.
 - New commands resolve their workspace through `getWorkspaceCommandOptions`
   (`src/commands/options.ts`), not by reading `opts.workspace` directly. The
   fixed discovery order is `--workspace` → `$PULSE_CANVAS_WORKSPACE_ID` →
@@ -134,4 +141,6 @@ canvas-workspace runtime found."
   capability mapping.
 - `src/core/edges.ts`: edge create/list/delete behavior.
 - `src/core/runtime-control.ts`: runtime discovery and authenticated POST helper.
+- `src/core/runtime-capabilities.ts`: authenticated capability discovery/call
+  client for external agent hosts.
 - `skills/`: bundled Pulse Canvas skills copied by `install-skills`.

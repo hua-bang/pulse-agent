@@ -1,5 +1,4 @@
 import { PulseAgent } from 'pulse-coder-engine';
-import { createJsExecutor, createRunJsTool } from 'pulse-sandbox/src';
 import * as readline from 'readline';
 import type { Context, TaskListService } from 'pulse-coder-engine';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
@@ -11,6 +10,7 @@ import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
 import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
 import { resolveCliUiMode } from './ui-mode.js';
+import { createPulseCliTools } from './runtime-tools.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -80,10 +80,6 @@ class CoderCLI {
   private tui: TuiRenderer;
 
   constructor() {
-    const runJsTool = createRunJsTool({
-      executor: createJsExecutor()
-    });
-
     // 🎯 现在引擎自动包含内置插件，无需显式配置！
     this.agent = new PulseAgent({
       enginePlugins: {
@@ -96,9 +92,7 @@ class CoderCLI {
         dirs: ['.pulse-coder/config', '.coder/config', '~/.pulse-coder/config', '~/.coder/config'],
         scan: true
       },
-      tools: {
-        [runJsTool.name]: runJsTool
-      }
+      tools: createPulseCliTools()
       // 注意：不再需要 plugins: [...] 配置
     });
     this.context = { messages: [] };

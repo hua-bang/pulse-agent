@@ -120,6 +120,13 @@ installs the latter. Do not mix them.
 - The app owns v2 canvas storage migration, PTY sessions, runtime-control
   endpoints, plugin activation, and UI-visible data recovery. The CLI adapts to
   those contracts but does not own them.
+- Live-app capabilities belong under `src/main/runtime/capabilities/`; stable
+  Canvas Agent tools may adapt to them without changing their public names or
+  payloads. External `/capabilities/*` routes stay hidden unless the
+  `agent-runtime-control` experimental flag is enabled and always retain the
+  runtime file's bearer-auth boundary. Discovery includes each input JSON
+  schema, and the runtime policy must filter discovery and execution together;
+  Pulse CLI may access `read`/`operate`, never `unsafe`, by default.
 - Canvas node and edge shapes are sourced from `src/shared/canvas.ts`, not the
   shorter README node table. Current host node types include `file`,
   `terminal`, `frame`, `group`, `agent`, `text`, `iframe`, `image`, `shape`,

@@ -53,8 +53,16 @@ export const EXPERIMENTAL_FLAG_DYNAMIC_APP = 'dynamic-app';
 export const EXPERIMENTAL_FLAG_CHANNELS = 'chat-channels';
 export const EXPERIMENTAL_FLAG_AGENT_TEAMS = 'agent-teams';
 export const EXPERIMENTAL_FLAG_DEFAULT_BROWSER = 'default-browser';
+export const EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL = 'agent-runtime-control';
 
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
+  {
+    id: EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
+    label: 'Agent runtime control',
+    description:
+      'Lets authenticated local developer tools discover and call an allowlisted set of live application capabilities. Off by default while the runtime interface and permission model are experimental.',
+    defaultEnabled: false,
+  },
   {
     id: EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
     label: 'Agent DevTools',

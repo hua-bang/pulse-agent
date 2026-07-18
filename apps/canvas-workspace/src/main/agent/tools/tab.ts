@@ -8,8 +8,11 @@ import { getCurrentVersionContent } from '../../artifacts/store';
 import { getSessionScrollback } from '../../terminal/scrollback';
 import { execInSession } from '../../terminal/pty-manager';
 import { getDockTabs } from '../../dock/tab-store';
-import { activateDockTab, findDockLinkTab, openDockTab } from '../../dock/tab-actions';
 import { searchHistory } from '../../dock/history-store';
+import {
+  executeCapabilityAsCanvasTool,
+  getCanvasCapabilityRuntime,
+} from '../../runtime/capabilities';
 import type { AgentContextTabRef } from '../../../shared/agent-chat';
 import type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -62,10 +65,15 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         'Returns ids for `canvas_read_tab`, `canvas_activate_tab`, and resource-specific tools. ' +
         'For link tabs, use the tab id with `canvas_open_tab` or enabled page_* controls.',
       inputSchema: z.object({}),
-      execute: async (input) => {
+      execute: async (input, ctx) => {
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
-        const tabs = getDockTabs(targetWorkspaceId);
-        return JSON.stringify({ ok: true, count: tabs.length, tabs });
+        return executeCapabilityAsCanvasTool(
+          getCanvasCapabilityRuntime(),
+          'browser.tabs.list',
+          targetWorkspaceId,
+          input,
+          ctx,
+        );
       },
     },
 
@@ -78,20 +86,15 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       inputSchema: z.object({
         tabId: z.string().min(1).describe('Open dock tab id from canvas_list_tabs.'),
       }),
-      execute: async (input) => {
-        const tabId = (input.tabId as string).trim();
+      execute: async (input, ctx) => {
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
-        const tab = getDockTabs(targetWorkspaceId).find((candidate) => candidate.id === tabId);
-        if (!tab) {
-          return JSON.stringify({
-            ok: false,
-            error: `Tab ${tabId} is not open in workspace ${targetWorkspaceId}. Call canvas_list_tabs to refresh stale ids.`,
-          });
-        }
-        if (!await activateDockTab(targetWorkspaceId, tabId)) {
-          return JSON.stringify({ ok: false, error: 'No canvas window is open to activate the tab.' });
-        }
-        return JSON.stringify({ ok: true, tabId, kind: tab.kind, title: tab.title });
+        return executeCapabilityAsCanvasTool(
+          getCanvasCapabilityRuntime(),
+          'browser.tabs.activate',
+          targetWorkspaceId,
+          input,
+          ctx,
+        );
       },
     },
 
@@ -109,38 +112,15 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
           .optional()
           .describe('Existing link tab to navigate (from canvas_list_tabs). Omit to open a new tab.'),
       }),
-      execute: async (input) => {
-        const url = (input.url as string | undefined)?.trim() ?? '';
-        const tabId = (input.tabId as string | undefined)?.trim() || undefined;
+      execute: async (input, ctx) => {
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
-        let protocol = '';
-        try {
-          protocol = new URL(url).protocol;
-        } catch {
-          return JSON.stringify({ ok: false, error: `Not a valid URL: ${url}` });
-        }
-        if (protocol !== 'https:' && protocol !== 'http:') {
-          return JSON.stringify({ ok: false, error: `Only http(s) URLs can be opened in a tab (got ${protocol}).` });
-        }
-        // Unknown tab ids are not an error: the renderer falls back to opening
-        // a new tab, but tell the agent so it re-lists instead of assuming.
-        // (The main-side tab mirror is per-workspace, so an id can be real yet
-        // invisible here — only claim certainty when the mirror confirms it.)
-        const knownTab = tabId ? findDockLinkTab(targetWorkspaceId, tabId) : undefined;
-        const sent = openDockTab(url, tabId);
-        console.info(`[canvas-tab] open-tab url-host=${new URL(url).hostname} tab=${tabId ?? '(new)'} sent=${sent}`);
-        if (!sent) {
-          return JSON.stringify({ ok: false, error: 'No canvas window is open to receive the tab.' });
-        }
-        return JSON.stringify({
-          ok: true,
-          url,
-          ...(tabId ? { tabId } : {}),
-          ...(tabId && !knownTab
-            ? { note: 'tabId was not in this workspace\'s tab list; the dock navigates it if it exists, otherwise it opens the URL as a new tab.' }
-            : {}),
-          hint: 'Call canvas_list_tabs to get the tab id and confirm it is open, then canvas_read_tab to read the page.',
-        });
+        return executeCapabilityAsCanvasTool(
+          getCanvasCapabilityRuntime(),
+          'browser.tabs.open',
+          targetWorkspaceId,
+          input,
+          ctx,
+        );
       },
     },
 

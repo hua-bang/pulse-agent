@@ -5,7 +5,7 @@
 
 ## Module Positioning
 
-`pulse-coder-cli` owns the interactive terminal host on top of `pulse-coder-engine`. It handles the default Ink UI, the readline fallback UI, session persistence, slash commands, clarification input, ACP mode, teams commands, memory integration, task-list binding, and registration of the `run_js` tool from `pulse-sandbox`.
+`pulse-coder-cli` owns the interactive terminal host on top of `pulse-coder-engine`. It handles the default Ink UI, the readline fallback UI, session persistence, slash commands, clarification input, ACP mode, teams commands, memory integration, task-list binding, and host tool registration (`run_js` plus the experimental Pulse Canvas capability adapter).
 
 CLI behavior should remain a host layer over the engine. Engine runtime behavior belongs in `packages/engine`; ACP protocol behavior belongs in `packages/acp`; team coordination behavior belongs in `packages/agent-teams`; sandbox execution behavior belongs in `packages/pulse-sandbox`.
 
@@ -23,7 +23,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 | Team commands and teams mode | `src/team-commands.ts`, `../agent-teams/AGENTS.md` |
 | ACP commands and routing | `src/acp-commands.ts`, `../acp/AGENTS.md` |
 | Memory integration | `src/memory-integration.ts` |
-| `run_js` tool registration | `src/index.ts`, `src/ink-controller.ts`, `../pulse-sandbox/AGENTS.md` |
+| Host tool registration | `src/runtime-tools.ts`, `src/canvas-runtime-tools.ts`, `../pulse-sandbox/AGENTS.md`, `../canvas-cli/AGENTS.md` |
 | Focused behavior tests | `src/*.test.ts` |
 
 ## Local Constraints
@@ -34,6 +34,11 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 - Session files live under `~/.pulse-coder/sessions`; keep local runtime data out of source control and preserve session task-list metadata.
 - Slash command changes should preserve session persistence, queued input, abort handling, clarification flow, and ACP passthrough behavior.
 - This package currently has no `typecheck` script; do not document or rely on `pnpm --filter pulse-coder-cli typecheck` until `package.json` adds it.
+- `src/runtime-tools.ts` is the shared tool assembly for both UI hosts. Keep Ink
+  and readline on this entry so `run_js` and live-app capabilities cannot drift.
+- Live-app capability tools are absent by default; expose them only when
+  `PULSE_CODER_EXPERIMENTAL_APP_RUNTIME=1`. The Canvas host separately requires
+  its `agent-runtime-control` flag, so both sides opt into the hidden feature.
 - Current `run_js` registration imports `pulse-sandbox/src`; `src/sandbox-runner.ts` is not imported by the active CLI paths.
 - Contract changes with engine, ACP, teams, sandbox, or memory packages should use the affected workspace contracts/validation plus the root impact overlay.
 
@@ -59,3 +64,5 @@ Run commands from the repository root. `pnpm start` maps to the built CLI packag
 - `src/acp-commands.ts`: `/acp` state commands, platform key resolution, session listing, and session close.
 - `src/team-commands.ts`: `/team`, `/teams`, and `/solo` command surface.
 - `src/memory-integration.ts`: memory plugin setup and per-run memory context.
+- `src/runtime-tools.ts`, `src/canvas-runtime-tools.ts`: shared host-tool
+  assembly and the structured Pulse Canvas capability adapter.

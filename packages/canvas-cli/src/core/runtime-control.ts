@@ -12,30 +12,56 @@ export interface RuntimeInfo {
   createdAt: string;
 }
 
-export async function readRuntime(): Promise<RuntimeInfo> {
+export type RuntimeDiscoveryResult =
+  | { ok: true; value: RuntimeInfo }
+  | { ok: false; error: { code: string; message: string } };
+
+export async function tryReadRuntime(): Promise<RuntimeDiscoveryResult> {
   let raw: string;
   try {
     raw = await fs.readFile(RUNTIME_FILE, 'utf-8');
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') {
-      errorOutput(
-        'No active canvas-workspace runtime found.\n' +
-        'Open this workspace in Pulse Canvas before using live agent/team commands.',
-        { code: 'runtime_not_found' },
-      );
-    }
-    errorOutput(`Cannot read runtime file (${RUNTIME_FILE}): ${String(err)}`, { code: 'runtime_unreadable' });
+    return {
+      ok: false,
+      error: {
+        code: code === 'ENOENT' ? 'runtime_not_found' : 'runtime_unreadable',
+        message: code === 'ENOENT'
+          ? 'No active canvas-workspace runtime found.'
+          : `Cannot read runtime file (${RUNTIME_FILE}): ${String(err)}`,
+      },
+    };
   }
+
   try {
-    const info = JSON.parse(raw!) as RuntimeInfo;
+    const info = JSON.parse(raw) as RuntimeInfo;
     if (!info.baseUrl || !info.secret) {
-      errorOutput('Runtime file is missing baseUrl or secret. Restart Pulse Canvas.', { code: 'runtime_invalid' });
+      return {
+        ok: false,
+        error: {
+          code: 'runtime_invalid',
+          message: 'Runtime file is missing baseUrl or secret. Restart Pulse Canvas.',
+        },
+      };
     }
-    return info;
+    return { ok: true, value: info };
   } catch {
-    errorOutput('Runtime file is corrupt. Restart Pulse Canvas.', { code: 'runtime_corrupt' });
+    return {
+      ok: false,
+      error: { code: 'runtime_corrupt', message: 'Runtime file is corrupt. Restart Pulse Canvas.' },
+    };
   }
+}
+
+export async function readRuntime(): Promise<RuntimeInfo> {
+  const result = await tryReadRuntime();
+  if (!result.ok) {
+    const suffix = result.error.code === 'runtime_not_found'
+      ? '\nOpen this workspace in Pulse Canvas before using live agent/team commands.'
+      : '';
+    errorOutput(`${result.error.message}${suffix}`, { code: result.error.code });
+  }
+  return result.value;
 }
 
 export async function postRuntime<TBody extends object, TResponse>(

@@ -55,9 +55,33 @@ async function fileExists(): Promise<boolean> {
   }
 }
 
+async function setCapabilityRuntimeEnabled(enabled: boolean): Promise<void> {
+  const flagPath = `${sandboxHome}/.pulse-coder/canvas/experimental-features.json`;
+  await fs.mkdir(`${sandboxHome}/.pulse-coder/canvas`, { recursive: true });
+  await fs.writeFile(flagPath, JSON.stringify({ 'agent-runtime-control': enabled }));
+}
+
+async function postRuntime(
+  runtime: RuntimeInfo,
+  path: string,
+  body: object,
+  secret = runtime.secret,
+): Promise<{ status: number; body: any }> {
+  const response = await fetch(`${runtime.baseUrl}${path}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${secret}`,
+    },
+    body: JSON.stringify(body),
+  });
+  return { status: response.status, body: await response.json() };
+}
+
 describe('runtime-control server lifecycle', () => {
   beforeEach(async () => {
     await fs.rm(__test.RUNTIME_DIR, { recursive: true, force: true });
+    await setCapabilityRuntimeEnabled(false);
   });
 
   afterEach(async () => {
@@ -133,5 +157,46 @@ describe('runtime-control server lifecycle', () => {
     expect(first).toBe(true);
     expect(second).toBe(true);
     expect(baseUrl2).toBe(baseUrl1);
+  });
+
+  it('keeps capability routes hidden until the experimental flag is enabled', async () => {
+    await startRuntimeControlServer();
+    const runtime = await readRuntimeFile();
+
+    const response = await postRuntime(runtime, '/capabilities/list', {});
+    expect(response).toEqual({ status: 404, body: { ok: false, error: 'not found' } });
+  });
+
+  it('lists and calls allowlisted capabilities over the authenticated runtime', async () => {
+    await setCapabilityRuntimeEnabled(true);
+    await startRuntimeControlServer();
+    const runtime = await readRuntimeFile();
+
+    const unauthorized = await postRuntime(runtime, '/capabilities/list', {}, 'wrong');
+    expect(unauthorized.status).toBe(401);
+
+    const listed = await postRuntime(runtime, '/capabilities/list', {});
+    expect(listed.status).toBe(200);
+    expect(listed.body).toMatchObject({
+      ok: true,
+      capabilities: expect.arrayContaining([
+        expect.objectContaining({ name: 'browser.tabs.list', risk: 'read' }),
+        expect.objectContaining({
+          name: 'browser.tabs.open',
+          risk: 'operate',
+          inputSchema: expect.objectContaining({ type: 'object' }),
+        }),
+      ]),
+    });
+
+    const called = await postRuntime(runtime, '/capabilities/call', {
+      workspaceId: 'ws-1',
+      name: 'browser.tabs.list',
+      input: {},
+    });
+    expect(called).toEqual({
+      status: 200,
+      body: { ok: true, value: { count: 0, tabs: [] } },
+    });
   });
 });
