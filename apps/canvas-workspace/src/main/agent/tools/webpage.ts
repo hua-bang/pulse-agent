@@ -2,23 +2,12 @@ import { z } from 'zod';
 import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
 import { activateWorkspaceWindow } from '../../app/window-manager';
-import { readDOM, readDOMElement, readA11y, captureScreenshot } from '../../webview/reader';
+import { readDOMElement } from '../../webview/reader';
+import {
+  getCanvasCapabilityRuntime,
+  PAGE_READINESS_HINT,
+} from '../../runtime/capabilities';
 import type { CanvasTool } from './types';
-
-/**
- * Standing reminder attached to every successful DOM/a11y read. A "success"
- * here only means we extracted *some* rendered text — it does not mean the
- * data the user asked for is present. SPAs frequently render their chrome
- * (nav, headers, an empty table skeleton) before the async data lands, so a
- * read can look fine while the rows/numbers are still missing. The hint nudges
- * the agent to verify the expected content and wait + re-read instead of
- * silently summarising an empty page.
- */
-const READINESS_HINT =
-  'This is a point-in-time read of the live DOM — a "success" does not guarantee the data ' +
-  'finished loading. If the specific content you need (table rows, numbers, list items) looks ' +
-  'empty or missing, the page is likely still loading: call page_wait_for with a selector/' +
-  'predicate for that content, then read again before answering.';
 
 export function createWebpageTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -75,7 +64,7 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
               accessibility: r.accessibility,
               snapshot: r.snapshot,
               textLength: r.text.trim().length,
-              hint: READINESS_HINT,
+              hint: PAGE_READINESS_HINT,
             }
           : { ok: false, strategy: 'dom-selection', selector: r.selector, error: r.error });
       },
@@ -118,74 +107,29 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
               'Falls back to the next strategy if below this threshold. Defaults to 200.',
           ),
       }),
-      execute: async (input) => {
-        const nodeId = input.nodeId as string;
-        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
-        const strategy = (input.strategy as 'auto' | 'dom' | 'a11y' | 'screenshot') ?? 'auto';
-        const maxChars = (input.maxChars as number) ?? 12_000;
-        const sparseThreshold = (input.sparseThreshold as number) ?? 200;
-
-        // A 'screenshot' read needs a painted surface, so treat it as an
-        // operate (force-activate) request; dom/a11y reads work even on a
-        // display:none node, so only activate them when nothing is registered.
-        const wc = await ensureOperable({
-          lookup: () => getWebContentsForNode(targetWorkspaceId, nodeId),
-          activate: () => activateWorkspaceWindow(targetWorkspaceId),
-          mode: strategy === 'screenshot' ? 'operate' : 'read',
+      execute: async (input, context) => {
+        const { workspaceId: inputWorkspaceId, ...capabilityInput } = input;
+        const targetWorkspaceId = (inputWorkspaceId as string) || workspaceId;
+        const result = await getCanvasCapabilityRuntime().call(
+          'browser.page.read',
+          capabilityInput,
+          {
+            workspaceId: targetWorkspaceId,
+            actor: { kind: 'canvas-agent' },
+            abortSignal: context?.abortSignal,
+          },
+        );
+        if (result.ok) return JSON.stringify({ ok: true, ...(result.value as object) });
+        const details = result.error.details && typeof result.error.details === 'object'
+          ? result.error.details as Record<string, unknown>
+          : {};
+        return JSON.stringify({
+          ok: false,
+          ...(result.error.code === 'page_read_failed' && typeof details.strategy === 'string'
+            ? { strategy: details.strategy }
+            : {}),
+          error: result.error.message,
         });
-        if (!wc) {
-          return JSON.stringify({
-            ok: false,
-            error:
-              `No active webview for node ${nodeId} in workspace ${targetWorkspaceId} ` +
-              `(auto-activation attempted). Make sure the iframe node exists and is in URL mode.`,
-          });
-        }
-
-        // ── DOM ──────────────────────────────────────────────────────────
-        if (strategy === 'dom' || strategy === 'auto') {
-          const r = await readDOM(wc, maxChars);
-          if (strategy === 'dom') {
-            return JSON.stringify(r.ok
-              ? { ok: true, strategy: 'dom', title: r.title, url: r.url, text: r.text,
-                  textLength: r.text.trim().length, hint: READINESS_HINT }
-              : { ok: false, strategy: 'dom', error: r.error });
-          }
-          if (r.ok && r.text.trim().length >= sparseThreshold) {
-            return JSON.stringify({ ok: true, strategy: 'dom', title: r.title, url: r.url, text: r.text,
-              textLength: r.text.trim().length, hint: READINESS_HINT });
-          }
-        }
-
-        // ── a11y ─────────────────────────────────────────────────────────
-        if (strategy === 'a11y' || strategy === 'auto') {
-          const r = await readA11y(wc);
-          if (strategy === 'a11y') {
-            return JSON.stringify(r.ok
-              ? { ok: true, strategy: 'a11y', text: r.text,
-                  textLength: r.text.trim().length, hint: READINESS_HINT }
-              : { ok: false, strategy: 'a11y', error: r.error });
-          }
-          if (r.ok && r.text.trim().length >= sparseThreshold) {
-            return JSON.stringify({ ok: true, strategy: 'a11y', text: r.text,
-              textLength: r.text.trim().length, hint: READINESS_HINT });
-          }
-        }
-
-        // ── Screenshot ───────────────────────────────────────────────────
-        // Reached in auto mode only when both DOM and a11y came back sparse —
-        // a strong signal the page may still be loading, so flag it.
-        const r = await captureScreenshot(wc);
-        return JSON.stringify(r.ok
-          ? { ok: true, strategy: 'screenshot', imagePath: r.imagePath,
-              ...(strategy === 'auto'
-                ? { sparseTextFallback: true, hint:
-                    'DOM and a11y text were sparse, so this fell back to a screenshot. ' +
-                    'The page may still be loading. ' +
-                    'Call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description; ' +
-                    'if the expected content is missing, page_wait_for it and read again.' }
-                : { hint: 'Call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description.' }) }
-          : { ok: false, strategy: 'screenshot', error: r.error });
       },
     },
   };

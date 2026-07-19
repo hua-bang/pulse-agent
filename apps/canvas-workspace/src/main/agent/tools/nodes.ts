@@ -22,6 +22,7 @@ import {
   MOCK_TODO_LIST_NODE_TYPE,
 } from '../../../plugins/mock-node/constants';
 import { createNodeReadTools } from './node-read-tools';
+import { getCanvasCapabilityRuntime } from '../../runtime/capabilities';
 
 export function createNodeTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -308,62 +309,18 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         content: z.string().optional().describe('New content for file and text nodes.'),
         data: z.record(z.string(), z.unknown()).optional().describe('Partial data update (e.g. label, color for frames; textColor, backgroundColor, fontSize for text).'),
       }),
-      execute: async (input) => {
-        const nodeId = input.nodeId as string;
-
-        // First load drives validation and the file-side effect (if any).
-        // We read the backing file path from this snapshot because file
-        // path is set once at create-time and stable across writers.
-        const initial = await loadCanvas(workspaceId);
-        if (!initial) return 'Error: workspace not found';
-        const initialNode = initial.nodes.find(n => n.id === nodeId);
-        if (!initialNode) return `Error: node not found: ${nodeId}`;
-
-        // Side effect on the backing notes file. Done before re-read so a
-        // concurrent canvas write that lands between the two reads still
-        // sees consistent state (the file content and `data.content` will
-        // both reflect this update once the canvas write commits).
-        if (initialNode.type === 'file' && input.content != null && initialNode.data.filePath) {
-          await fs.writeFile(
-            initialNode.data.filePath as string,
-            input.content as string,
-            'utf-8',
-          );
-        }
-
-        // Re-read immediately before mutating so concurrent updates to
-        // OTHER fields of this node by another writer (renderer save,
-        // canvas-cli, MCP) survive. The previous code mutated the stale
-        // `initialNode` and spliced it back into the fresh canvas, which
-        // silently clobbered any concurrent changes to that node.
-        const fresh = (await loadCanvas(workspaceId)) ?? initial;
-        const idx = fresh.nodes.findIndex(n => n.id === nodeId);
-        if (idx === -1) {
-          // The node was deleted between our two reads. Do not resurrect
-          // it by re-inserting our patched copy — surface the conflict.
-          return `Error: node ${nodeId} was deleted concurrently; update aborted`;
-        }
-        const node = fresh.nodes[idx];
-
-        if (input.title) node.title = input.title as string;
-        if (node.type === 'file' && input.content != null) {
-          node.data.content = input.content as string;
-        }
-        if (node.type === 'text' && input.content != null) {
-          node.data.content = input.content as string;
-        }
-        if (input.data) {
-          const patch = input.data as Record<string, unknown>;
-          for (const [k, v] of Object.entries(patch)) {
-            node.data[k] = v;
-          }
-        }
-        node.updatedAt = Date.now();
-
-        await saveCanvas(workspaceId, fresh);
-        broadcastUpdate(workspaceId, [nodeId]);
-
-        return JSON.stringify({ ok: true, nodeId });
+      execute: async (input, context) => {
+        const result = await getCanvasCapabilityRuntime().call(
+          'canvas.nodes.update',
+          input,
+          {
+            workspaceId,
+            actor: { kind: 'canvas-agent' },
+            abortSignal: context?.abortSignal,
+          },
+        );
+        if (!result.ok) return `Error: ${result.error.message}`;
+        return JSON.stringify({ ok: true, ...(result.value as object) });
       },
     },
 

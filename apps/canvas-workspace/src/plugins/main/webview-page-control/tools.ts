@@ -23,10 +23,6 @@
  */
 
 import { z } from 'zod';
-import { getWebContentsForNode } from '../../../main/webview/registry';
-import { ensureOperable } from '../../../main/webview/ensure-operable';
-import { activateWorkspaceWindow } from '../../../main/app/window-manager';
-import { activateDockTab, findDockLinkTab } from '../../../main/dock/tab-actions';
 import {
   evalInPage,
   scrollPage,
@@ -35,72 +31,15 @@ import {
 } from './js-primitives';
 import {
   cdpClickAt,
-  cdpClickSelector,
-  cdpFillSelector,
   cdpPressKey,
 } from './cdp-actions';
 import { evaluateActionPolicy } from './policy';
-import type { CanvasTool } from '../../../main/agent/tools';
-
-interface ResolvedTarget {
-  wc: NonNullable<ReturnType<typeof getWebContentsForNode>>;
-  url: string;
-}
-
-async function resolveTarget(
-  workspaceId: string,
-  nodeId: string,
-): Promise<{ ok: true; target: ResolvedTarget } | { ok: false; error: string }> {
-  // Dock link tabs register their <webview> in the same registry, keyed by
-  // the tab id — so these tools accept either an iframe canvas node id or a
-  // link-tab id from canvas_list_tabs.
-  const dockTab = findDockLinkTab(workspaceId, nodeId);
-  // These tools click/fill/screenshot, which need a *painted* surface — so
-  // make the workspace active (un-hide its display:none container + show the
-  // window inactively, without stealing focus) before resolving the node.
-  // For a dock tab, also bring its pane to the front: inactive dock panes are
-  // visibility:hidden, which stops the guest from painting.
-  const wc = await ensureOperable({
-    lookup: () => getWebContentsForNode(workspaceId, nodeId),
-    activate: async () => {
-      if (!dockTab) return await activateWorkspaceWindow(workspaceId);
-      const ok = await activateDockTab(workspaceId, nodeId);
-      return ok ? { ok: true } : { ok: false, error: 'Could not activate the dock tab workspace.' };
-    },
-    mode: 'operate',
-  });
-  if (!wc) {
-    return {
-      ok: false,
-      error: dockTab
-        ? `No active webview for link tab ${nodeId} in workspace ${workspaceId} `
-          + `(auto-activation attempted). Make sure the tab is open in the dock and has finished loading.`
-        : `No active webview for node ${nodeId} in workspace ${workspaceId} `
-          + `(auto-activation attempted). Open the iframe node in URL mode and make sure it has finished loading.`,
-    };
-  }
-  const url = wc.getURL();
-  const decision = evaluateActionPolicy(url);
-  if (!decision.allow) {
-    return { ok: false, error: `policy blocked action on ${url}: ${decision.reason}` };
-  }
-  return { ok: true, target: { wc, url } };
-}
-
-function audit(action: string, nodeId: string, url: string, extra: Record<string, unknown> = {}): void {
-  let host = '';
-  try {
-    host = new URL(url).hostname;
-  } catch {
-    host = '(invalid url)';
-  }
-  console.info(
-    `[webview-action] ${action} node=${nodeId} host=${host} ${JSON.stringify(extra)}`,
-  );
-}
+import { auditPageAction, resolvePageControlTarget } from './target';
+import { getCanvasCapabilityRuntime } from '../../../main/runtime/capabilities';
+import type { CanvasTool, CanvasToolExecutionContext } from '../../../main/agent/tools';
 
 function serialise(action: string, nodeId: string, url: string, result: PageActionResult): string {
-  audit(action, nodeId, url, { ok: result.ok, ...(result.error ? { error: result.error } : {}) });
+  auditPageAction(action, nodeId, url, { ok: result.ok, ...(result.error ? { error: result.error } : {}) });
   try {
     if (result.ok) {
       return JSON.stringify({ ok: true, action, url, ...result.data });
@@ -123,6 +62,31 @@ function serialise(action: string, nodeId: string, url: string, result: PageActi
       error: `result was not JSON-serialisable: ${e instanceof Error ? e.message : String(e)}`,
     });
   }
+}
+
+async function executeStructuredPageCapability(
+  name: 'browser.page.click' | 'browser.page.fill',
+  action: 'page_click' | 'page_fill',
+  workspaceId: string,
+  input: Record<string, unknown>,
+  context?: CanvasToolExecutionContext,
+): Promise<string> {
+  const result = await getCanvasCapabilityRuntime().call(name, input, {
+    workspaceId,
+    actor: { kind: 'canvas-agent' },
+    abortSignal: context?.abortSignal,
+  });
+  if (result.ok) return JSON.stringify({ ok: true, ...(result.value as object) });
+  const details = result.error.details && typeof result.error.details === 'object'
+    ? result.error.details as Record<string, unknown>
+    : {};
+  return JSON.stringify({
+    ok: false,
+    action,
+    ...(typeof details.url === 'string' ? { url: details.url } : {}),
+    error: result.error.message,
+    ...(details.timedOut ? { timedOut: true } : {}),
+  });
 }
 
 const baseDescription =
@@ -167,7 +131,7 @@ export function createWebviewPageControlTools(
           .describe('Max time to wait for the script to settle. Default 5000.'),
       }),
       execute: async (input) => {
-        const r = await resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolvePageControlTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_eval', error: r.error });
         const result = await evalInPage(r.target.wc, input.code as string, input.timeoutMs as number | undefined);
         return serialise('page_eval', input.nodeId as string, r.target.url, result);
@@ -196,17 +160,13 @@ export function createWebviewPageControlTools(
           .describe('Keyboard modifiers held during the click.'),
         timeoutMs: z.number().int().positive().optional(),
       }),
-      execute: async (input) => {
-        const r = await resolveTarget(workspaceId, input.nodeId as string);
-        if (!r.ok) return JSON.stringify({ ok: false, action: 'page_click', error: r.error });
-        const result = await cdpClickSelector(r.target.wc, input.selector as string, {
-          button: input.button as 'left' | 'middle' | 'right' | undefined,
-          clickCount: input.clickCount as number | undefined,
-          modifiers: input.modifiers as string[] | undefined,
-          timeoutMs: input.timeoutMs as number | undefined,
-        });
-        return serialise('page_click', input.nodeId as string, r.target.url, result);
-      },
+      execute: (input, context) => executeStructuredPageCapability(
+        'browser.page.click',
+        'page_click',
+        workspaceId,
+        input,
+        context,
+      ),
     },
 
     page_click_at: {
@@ -230,7 +190,7 @@ export function createWebviewPageControlTools(
         timeoutMs: z.number().int().positive().optional(),
       }),
       execute: async (input) => {
-        const r = await resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolvePageControlTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_click_at', error: r.error });
         const result = await cdpClickAt(
           r.target.wc,
@@ -267,20 +227,13 @@ export function createWebviewPageControlTools(
           .describe('If false, appends instead of replacing. Default true.'),
         timeoutMs: z.number().int().positive().optional(),
       }),
-      execute: async (input) => {
-        const r = await resolveTarget(workspaceId, input.nodeId as string);
-        if (!r.ok) return JSON.stringify({ ok: false, action: 'page_fill', error: r.error });
-        const result = await cdpFillSelector(
-          r.target.wc,
-          input.selector as string,
-          input.value as string,
-          {
-            clearFirst: input.clearFirst as boolean | undefined,
-            timeoutMs: input.timeoutMs as number | undefined,
-          },
-        );
-        return serialise('page_fill', input.nodeId as string, r.target.url, result);
-      },
+      execute: (input, context) => executeStructuredPageCapability(
+        'browser.page.fill',
+        'page_fill',
+        workspaceId,
+        input,
+        context,
+      ),
     },
 
     page_press: {
@@ -309,7 +262,7 @@ export function createWebviewPageControlTools(
         timeoutMs: z.number().int().positive().optional(),
       }),
       execute: async (input) => {
-        const r = await resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolvePageControlTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_press', error: r.error });
         const result = await cdpPressKey(r.target.wc, input.key as string, {
           selector: input.selector as string | undefined,
@@ -364,7 +317,7 @@ export function createWebviewPageControlTools(
           { message: 'Provide one of: top, bottom, selector, or by{x,y}.' },
         ),
       execute: async (input) => {
-        const r = await resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolvePageControlTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_scroll', error: r.error });
         const result = await scrollPage(
           r.target.wc,
@@ -416,7 +369,7 @@ export function createWebviewPageControlTools(
           message: 'Provide either selector or predicate.',
         }),
       execute: async (input) => {
-        const r = await resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolvePageControlTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_wait_for', error: r.error });
         const result = await waitForCondition(r.target.wc, {
           selector: input.selector as string | undefined,

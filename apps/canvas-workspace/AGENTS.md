@@ -126,7 +126,11 @@ installs the latter. Do not mix them.
   `agent-runtime-control` experimental flag is enabled and always retain the
   runtime file's bearer-auth boundary. Discovery includes each input JSON
   schema, and the runtime policy must filter discovery and execution together;
-  Pulse CLI may access `read`/`operate`, never `unsafe`, by default.
+  Pulse CLI may access `read`/`operate`, never `unsafe`, by default. The shared
+  registry currently exposes browser-tab discovery, live page reads, Canvas
+  node read/search/update, and (only when `webview-page-control` is also
+  enabled) selector-based page click/fill. External node updates are limited to
+  title/content; arbitrary internal `data` patches remain Canvas-Agent-only.
 - Canvas node and edge shapes are sourced from `src/shared/canvas.ts`, not the
   shorter README node table. Current host node types include `file`,
   `terminal`, `frame`, `group`, `agent`, `text`, `iframe`, `image`, `shape`,
