@@ -8,6 +8,7 @@ import {
   cdpClickSelector,
   cdpFillSelector,
 } from '../../../plugins/main/webview-page-control/cdp-actions';
+import { evalInPage } from '../../../plugins/main/webview-page-control/js-primitives';
 import {
   auditPageAction,
   resolvePageControlTarget,
@@ -52,24 +53,45 @@ const pageFillInputSchema = z.object({
   timeoutMs: z.number().int().positive().optional(),
 });
 
+export const pageEvalInputSchema = z.object({
+  nodeId: z
+    .string()
+    .describe('ID of the iframe canvas node (or dock link-tab id) whose page to script.'),
+  code: z
+    .string()
+    .describe(
+      'JS function body to run inside the page. Use `return` to send a value back. ' +
+        'Example: "return document.querySelectorAll(\'a\').length"',
+    ),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Max time to wait for the script to settle. Default 5000.'),
+});
+
 export type PageReadInput = z.infer<typeof pageReadInputSchema>;
 export type PageClickInput = z.infer<typeof pageClickInputSchema>;
 export type PageFillInput = z.infer<typeof pageFillInputSchema>;
+export type PageEvalInput = z.infer<typeof pageEvalInputSchema>;
 
 export interface PageCapabilityDependencies {
   readPage: (workspaceId: string, input: PageReadInput) => Promise<unknown>;
   clickPage: (workspaceId: string, input: PageClickInput) => Promise<unknown>;
   fillPage: (workspaceId: string, input: PageFillInput) => Promise<unknown>;
+  evalPage: (workspaceId: string, input: PageEvalInput) => Promise<unknown>;
 }
 
 const defaultDependencies: PageCapabilityDependencies = {
   readPage: readLivePage,
   clickPage: clickLivePage,
   fillPage: fillLivePage,
+  evalPage: evalLivePage,
 };
 
 export interface PageCapabilityOptions {
-  includeOperations?: boolean;
+  includePageControl?: boolean;
 }
 
 export function createPageCapabilities(
@@ -85,7 +107,7 @@ export function createPageCapabilities(
       execute: (input, context) => dependencies.readPage(context.workspaceId, input),
     },
   ];
-  if (options.includeOperations !== false) definitions.push(
+  if (options.includePageControl !== false) definitions.push(
     {
       name: 'browser.page.click',
       description: 'Click a CSS-selected element in an open iframe node or dock link tab.',
@@ -99,6 +121,14 @@ export function createPageCapabilities(
       risk: 'operate',
       inputSchema: pageFillInputSchema,
       execute: (input, context) => dependencies.fillPage(context.workspaceId, input),
+    },
+    {
+      name: 'browser.page.eval',
+      description:
+        'Execute arbitrary JavaScript in an open iframe node or dock link tab. Canvas Agent only.',
+      risk: 'unsafe',
+      inputSchema: pageEvalInputSchema,
+      execute: (input, context) => dependencies.evalPage(context.workspaceId, input),
     },
   );
   return definitions;
@@ -230,6 +260,27 @@ async function fillLivePage(workspaceId: string, input: PageFillInput): Promise<
     });
   }
   return { action: 'page_fill', url: resolved.target.url, ...result.data };
+}
+
+async function evalLivePage(workspaceId: string, input: PageEvalInput): Promise<unknown> {
+  const resolved = await resolvePageControlTarget(workspaceId, input.nodeId);
+  if (!resolved.ok) throw pageActionError('page_eval', resolved.error);
+  const result = await evalInPage(resolved.target.wc, input.code, input.timeoutMs);
+  auditPageAction('page_eval', input.nodeId, resolved.target.url, {
+    ok: result.ok,
+    ...(result.error ? { error: result.error } : {}),
+  });
+  if (!result.ok) {
+    throw pageActionError('page_eval', result.error ?? 'page script failed', {
+      url: resolved.target.url,
+      timedOut: result.timedOut,
+    });
+  }
+  return {
+    action: 'page_eval',
+    url: resolved.target.url,
+    ...result.data,
+  };
 }
 
 function pageReadError(strategy: string, error?: string): CapabilityError {

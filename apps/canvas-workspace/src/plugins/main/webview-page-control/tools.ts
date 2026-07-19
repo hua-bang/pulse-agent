@@ -24,7 +24,6 @@
 
 import { z } from 'zod';
 import {
-  evalInPage,
   scrollPage,
   waitForCondition,
   type PageActionResult,
@@ -35,7 +34,10 @@ import {
 } from './cdp-actions';
 import { evaluateActionPolicy } from './policy';
 import { auditPageAction, resolvePageControlTarget } from './target';
-import { getCanvasCapabilityRuntime } from '../../../main/runtime/capabilities';
+import {
+  getCanvasCapabilityRuntime,
+  pageEvalInputSchema,
+} from '../../../main/runtime/capabilities';
 import type { CanvasTool, CanvasToolExecutionContext } from '../../../main/agent/tools';
 
 function serialise(action: string, nodeId: string, url: string, result: PageActionResult): string {
@@ -53,7 +55,7 @@ function serialise(action: string, nodeId: string, url: string, result: PageActi
     });
   } catch (e) {
     // BigInt / cycle / Date / other non-JSON-friendly content snuck in.
-    // evalInPage normally catches this earlier; this is the last-line
+    // Page primitives normally catch this earlier; this is the last-line
     // defense so the tool never throws into the engine.
     return JSON.stringify({
       ok: false,
@@ -65,8 +67,8 @@ function serialise(action: string, nodeId: string, url: string, result: PageActi
 }
 
 async function executeStructuredPageCapability(
-  name: 'browser.page.click' | 'browser.page.fill',
-  action: 'page_click' | 'page_fill',
+  name: 'browser.page.click' | 'browser.page.fill' | 'browser.page.eval',
+  action: 'page_click' | 'page_fill' | 'page_eval',
   workspaceId: string,
   input: Record<string, unknown>,
   context?: CanvasToolExecutionContext,
@@ -115,27 +117,14 @@ export function createWebviewPageControlTools(
         'The code body should `return` a JSON-serialisable value (or a Promise that resolves to one). ' +
         'Use sparingly — prefer page_click / page_fill / page_press / page_wait_for for structured actions. ' +
         baseDescription,
-      inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node (or dock link-tab id) whose page to script.'),
-        code: z
-          .string()
-          .describe(
-            'JS function body to run inside the page. Use `return` to send a value back. ' +
-              'Example: "return document.querySelectorAll(\'a\').length"',
-          ),
-        timeoutMs: z
-          .number()
-          .int()
-          .positive()
-          .optional()
-          .describe('Max time to wait for the script to settle. Default 5000.'),
-      }),
-      execute: async (input) => {
-        const r = await resolvePageControlTarget(workspaceId, input.nodeId as string);
-        if (!r.ok) return JSON.stringify({ ok: false, action: 'page_eval', error: r.error });
-        const result = await evalInPage(r.target.wc, input.code as string, input.timeoutMs as number | undefined);
-        return serialise('page_eval', input.nodeId as string, r.target.url, result);
-      },
+      inputSchema: pageEvalInputSchema,
+      execute: (input, context) => executeStructuredPageCapability(
+        'browser.page.eval',
+        'page_eval',
+        workspaceId,
+        input,
+        context,
+      ),
     },
 
     page_click: {

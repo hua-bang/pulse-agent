@@ -206,6 +206,7 @@ describe('runtime-control server lifecycle', () => {
     expect(listed.body.capabilities).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'browser.page.click' }),
       expect.objectContaining({ name: 'browser.page.fill' }),
+      expect.objectContaining({ name: 'browser.page.eval' }),
     ]));
 
     const called = await postRuntime(runtime, '/capabilities/call', {
@@ -228,6 +229,9 @@ describe('runtime-control server lifecycle', () => {
     expect(enabled.body.capabilities).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'browser.page.click' }),
       expect.objectContaining({ name: 'browser.page.fill' }),
+    ]));
+    expect(enabled.body.capabilities).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'browser.page.eval' }),
     ]));
 
     await setCapabilityRuntimeEnabled(true, false);

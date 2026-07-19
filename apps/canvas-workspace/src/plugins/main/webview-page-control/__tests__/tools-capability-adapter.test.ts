@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runtimeCall = vi.hoisted(() => vi.fn());
 
-vi.mock('../../../../main/runtime/capabilities', () => ({
+vi.mock('../../../../main/runtime/capabilities', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../../../main/runtime/capabilities')>(),
   getCanvasCapabilityRuntime: () => ({ call: runtimeCall }),
 }));
 
@@ -10,6 +11,44 @@ import { createWebviewPageControlTools } from '../tools';
 
 describe('page-control capability adapters', () => {
   beforeEach(() => runtimeCall.mockReset());
+
+  it('preserves the existing page_eval input contract', () => {
+    const schema = createWebviewPageControlTools('ws-1').page_eval.inputSchema;
+    expect(schema.safeParse({ nodeId: '', code: '', timeoutMs: 60_000 }).success).toBe(true);
+  });
+
+  it('routes page_eval through the unsafe runtime capability', async () => {
+    runtimeCall.mockResolvedValue({
+      ok: true,
+      value: {
+        action: 'page_eval',
+        url: 'https://example.test/',
+        value: { count: 3 },
+      },
+    });
+
+    const output = JSON.parse(await createWebviewPageControlTools('ws-1').page_eval.execute({
+      nodeId: 'web-1',
+      code: 'return { count: document.links.length }',
+    }));
+    expect(runtimeCall).toHaveBeenCalledWith(
+      'browser.page.eval',
+      {
+        nodeId: 'web-1',
+        code: 'return { count: document.links.length }',
+      },
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        actor: { kind: 'canvas-agent' },
+      }),
+    );
+    expect(output).toEqual({
+      ok: true,
+      action: 'page_eval',
+      url: 'https://example.test/',
+      value: { count: 3 },
+    });
+  });
 
   it('preserves page_click success output', async () => {
     runtimeCall.mockResolvedValue({

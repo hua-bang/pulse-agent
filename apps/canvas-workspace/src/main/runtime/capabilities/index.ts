@@ -24,6 +24,7 @@ const allowedRisks: Record<CapabilityActorKind, ReadonlySet<CapabilityRisk>> = {
 const pageOperationCapabilities = new Set([
   'browser.page.click',
   'browser.page.fill',
+  'browser.page.eval',
 ]);
 
 export function getCanvasCapabilityRuntime(): CapabilityRuntime {
