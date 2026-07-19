@@ -121,6 +121,15 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   into Pulse/Codex/Claude global skill dirs. Keep startup, Settings repair, and
   experimental-trigger installs on the shared `AgentToolingManager`; production
   installation must never depend on a source checkout, `pnpm`, or global link.
+  Treat the CLI + skills as one compatibility bundle. The persisted update
+  policy under the tooling root defaults to following app updates; `ask` and
+  `pinned` retain the active bundle until an explicit Settings update, while
+  damage repair of that active bundle remains automatic from its fingerprinted
+  local payload cache. Runtime payload directories are fingerprint-qualified
+  and immutable across updates so a same-semver replacement cannot overwrite
+  the CLI currently referenced by the launcher. Bundle activation is
+  failure-atomic: a skill, launcher, or active-state write failure must restore
+  the previously active set.
 - `harness/tools/driver/` launches the real Electron app. Use `temp`, `demo`,
   or `clone` profiles by default; use `real --allow-real-writes` only after
   explicit user intent because it can mutate real Pulse Canvas data.

@@ -28,10 +28,16 @@ try {
 
   child = spawn(executable, [], { env, stdio: 'ignore' });
   const wrapper = join(home, '.pulse-coder/bin/pulse-canvas');
+  const activeState = join(home, '.pulse-coder/tooling/pulse-canvas/active.json');
   await waitFor(wrapper, 30_000);
+  await waitFor(activeState, 30_000);
 
   const version = await run(wrapper, ['--version'], env);
   if (!version.trim()) throw new Error('Bundled CLI returned an empty version');
+  const active = JSON.parse(await fs.readFile(activeState, 'utf8'));
+  if (active.version !== version.trim()) {
+    throw new Error(`Active tooling state does not match CLI version: ${JSON.stringify(active)}`);
+  }
   const status = JSON.parse(await run(wrapper, ['--format', 'json', 'status'], env));
   if (status.runtime?.reachable !== true) {
     throw new Error(`Bundled CLI could not reach the packaged app: ${JSON.stringify(status)}`);

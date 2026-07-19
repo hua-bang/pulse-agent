@@ -7,7 +7,14 @@ import {
   createAgentToolingManager,
   type AgentToolingManager,
   type AgentToolingInstallResult,
+  type AgentToolingAction,
 } from './agent-tooling-manager';
+import { createAgentToolingQueue } from './agent-tooling-queue';
+import type {
+  AgentToolingUpdatePolicy,
+  SkillsInstallResult,
+  SkillTargetResult,
+} from '../../shared/settings-config';
 
 const SKILL_PARENT_DIRS = [
   join(homedir(), '.pulse-coder', 'skills'),
@@ -17,24 +24,8 @@ const SKILL_PARENT_DIRS = [
 
 const LEGACY_SKILL_DIRS = SKILL_PARENT_DIRS.map((dir) => join(dir, 'canvas'));
 
-export interface SkillTargetResult {
-  path: string;
-  ok: boolean;
-  error?: string;
-}
-
-export interface SkillsInstallResult {
-  ok: boolean;
-  skillsInstalled: boolean;
-  results: SkillTargetResult[];
-  cliInstalled: boolean;
-  cliPath: string;
-  version: string | null;
-  cliError: string | null;
-}
-
 let manager: AgentToolingManager | null = null;
-let installInFlight: Promise<AgentToolingInstallResult> | null = null;
+const toolingQueue = createAgentToolingQueue(getAgentToolingManager);
 
 function getAgentToolingManager(): AgentToolingManager {
   manager ??= createAgentToolingManager({
@@ -74,11 +65,18 @@ function findRepoRoot(): string | null {
 }
 
 /** Install or repair the app-owned pulse-canvas CLI and complete skill set. */
+async function reconcileTooling(
+  action: AgentToolingAction,
+): Promise<AgentToolingInstallResult> {
+  return toolingQueue.run(action);
+}
+
 export async function runInstall(): Promise<SkillsInstallResult> {
-  installInFlight ??= getAgentToolingManager().ensureInstalled()
-    .finally(() => { installInFlight = null; });
-  const result = await installInFlight;
-  return result;
+  return reconcileTooling('repair');
+}
+
+export async function runUpdate(): Promise<SkillsInstallResult> {
+  return reconcileTooling('update');
 }
 
 /**
@@ -90,7 +88,15 @@ export async function ensureAgentToolingAtStartup(
   writeLog: (source: string, message: string, detail?: string) => Promise<void>,
 ): Promise<void> {
   if (!app.isPackaged) return;
-  const result = await runInstall();
+  const result = await reconcileTooling('reconcile');
+  if (result.deferred) {
+    await writeLog(
+      'agent-tooling',
+      `pulse-canvas ${result.bundledVersion ?? 'unknown'} update deferred`,
+      `policy=${result.updatePolicy}; active=${result.version ?? 'none'}`,
+    );
+    return;
+  }
   if (result.ok) {
     await writeLog(
       'agent-tooling',
@@ -132,6 +138,7 @@ async function removeLegacyDir(dir: string): Promise<SkillTargetResult> {
 
 export function setupSkillInstallerIpc(): void {
   ipcMain.handle('skills:install', async () => runInstall());
+  ipcMain.handle('skills:update', async () => runUpdate());
 
   ipcMain.handle('skills:status', async () => {
     const [status, legacy] = await Promise.all([
@@ -144,6 +151,23 @@ export function setupSkillInstallerIpc(): void {
     };
   });
 
+  ipcMain.handle(
+    'skills:set-update-policy',
+    async (_event, payload: { policy?: unknown }) => {
+      if (!isUpdatePolicy(payload?.policy)) {
+        throw new Error(`Invalid agent tooling update policy: ${String(payload?.policy)}`);
+      }
+      const [status, legacy] = await Promise.all([
+        getAgentToolingManager().setUpdatePolicy(payload.policy),
+        Promise.all(LEGACY_SKILL_DIRS.map(checkLegacyDir)),
+      ]);
+      return {
+        ...status,
+        legacyDirs: legacy.filter((item) => item.exists).map((item) => item.dir),
+      };
+    },
+  );
+
   ipcMain.handle('skills:cleanup-legacy', async () => {
     const present = (await Promise.all(LEGACY_SKILL_DIRS.map(checkLegacyDir)))
       .filter((item) => item.exists)
@@ -151,4 +175,8 @@ export function setupSkillInstallerIpc(): void {
     const results = await Promise.all(present.map(removeLegacyDir));
     return { ok: results.every((result) => result.ok), results };
   });
+}
+
+function isUpdatePolicy(value: unknown): value is AgentToolingUpdatePolicy {
+  return value === 'follow-app' || value === 'ask' || value === 'pinned';
 }

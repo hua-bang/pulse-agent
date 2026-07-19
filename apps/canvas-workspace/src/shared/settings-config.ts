@@ -4,6 +4,8 @@ export interface SkillTargetResult {
   error?: string;
 }
 
+export type AgentToolingUpdatePolicy = 'follow-app' | 'ask' | 'pinned';
+
 export interface SkillsInstallResult {
   ok: boolean;
   skillsInstalled: boolean;
@@ -11,6 +13,13 @@ export interface SkillsInstallResult {
   cliInstalled: boolean;
   cliPath: string;
   version: string | null;
+  fingerprint: string | null;
+  bundledVersion: string | null;
+  bundledFingerprint: string | null;
+  updateAvailable: boolean;
+  updatePolicy: AgentToolingUpdatePolicy;
+  applied: boolean;
+  deferred: boolean;
   cliError?: string | null;
   error?: string;
 }
@@ -21,6 +30,11 @@ export interface SkillsStatusResult {
   cliInstalled: boolean;
   cliPath: string;
   version: string | null;
+  fingerprint: string | null;
+  bundledVersion: string | null;
+  bundledFingerprint: string | null;
+  updateAvailable: boolean;
+  updatePolicy: AgentToolingUpdatePolicy;
   results: SkillTargetResult[];
   legacyDirs: string[];
 }

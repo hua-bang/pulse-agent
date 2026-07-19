@@ -19,7 +19,9 @@ export const createDialogApi = (ipcRenderer: IpcRenderer): DialogApi => ({
 
 export const createSkillsApi = (ipcRenderer: IpcRenderer): SkillsApi => ({
   install: () => ipcRenderer.invoke("skills:install"),
+  update: () => ipcRenderer.invoke("skills:update"),
   status: () => ipcRenderer.invoke("skills:status"),
+  setUpdatePolicy: (policy) => ipcRenderer.invoke("skills:set-update-policy", { policy }),
   cleanupLegacy: () => ipcRenderer.invoke("skills:cleanup-legacy")
 });
 

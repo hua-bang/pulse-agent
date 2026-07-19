@@ -1,6 +1,29 @@
 import { promises as fs } from 'fs';
-import { basename, dirname, join } from 'path';
-import { createHash, randomUUID } from 'crypto';
+import { dirname, join } from 'path';
+
+import {
+  readUpdatePolicy,
+  resolveActiveState,
+  toolingRoot,
+  writeUpdatePolicy,
+  type AgentToolingActiveState,
+  type AgentToolingUpdatePolicy,
+} from './agent-tooling-state';
+import {
+  allExist,
+  fingerprintCliTree,
+  isBundleCurrent,
+  isLauncherCurrent,
+  unixWrapper,
+  windowsWrapper,
+} from './agent-tooling-files';
+import {
+  deployAgentTooling,
+  installedSkillContent,
+  type AgentToolingBundle,
+} from './agent-tooling-deployment';
+
+export type { AgentToolingUpdatePolicy } from './agent-tooling-state';
 
 export interface AgentToolingTargetResult {
   path: string;
@@ -11,6 +34,11 @@ export interface AgentToolingTargetResult {
 export interface AgentToolingStatus {
   installed: boolean;
   version: string | null;
+  fingerprint: string | null;
+  bundledVersion: string | null;
+  bundledFingerprint: string | null;
+  updateAvailable: boolean;
+  updatePolicy: AgentToolingUpdatePolicy;
   cliInstalled: boolean;
   cliPath: string;
   skillsInstalled: boolean;
@@ -20,11 +48,18 @@ export interface AgentToolingStatus {
 export interface AgentToolingInstallResult extends AgentToolingStatus {
   ok: boolean;
   cliError: string | null;
+  applied: boolean;
+  deferred: boolean;
 }
+
+export type AgentToolingAction = 'reconcile' | 'repair' | 'update';
 
 export interface AgentToolingManager {
   status(): Promise<AgentToolingStatus>;
-  ensureInstalled(): Promise<AgentToolingInstallResult>;
+  ensureInstalled(options?: {
+    action?: AgentToolingAction;
+  }): Promise<AgentToolingInstallResult>;
+  setUpdatePolicy(policy: AgentToolingUpdatePolicy): Promise<AgentToolingStatus>;
 }
 
 export interface AgentToolingManagerOptions {
@@ -35,16 +70,20 @@ export interface AgentToolingManagerOptions {
   platform: NodeJS.Platform;
 }
 
-interface BundleDescriptor {
-  version: string;
-  fingerprint: string;
-  cliSourceDir: string;
-  skills: Array<{ sourceName: string; installName: string; sourcePath: string }>;
+type BundleDescriptor = AgentToolingBundle;
+
+interface InstallationStatus {
+  installed: boolean;
+  version: string | null;
+  fingerprint: string | null;
+  cliInstalled: boolean;
+  cliPath: string;
+  skillsInstalled: boolean;
+  results: AgentToolingTargetResult[];
 }
 
 const CLI_PACKAGE_NAME = '@pulse-coder/canvas-cli';
 const MANAGED_MARKER = '.pulse-canvas-managed.json';
-const BUNDLE_MARKER = '.pulse-canvas-bundle.json';
 
 export function createAgentToolingManager(
   options: AgentToolingManagerOptions,
@@ -56,31 +95,29 @@ export function createAgentToolingManager(
   );
 
   return {
-    status: async () => {
-      try {
-        const bundle = await readBundle(options.bundleRoot);
-        return await inspectInstallation(options, bundle, cliPath);
-      } catch {
-        return {
-          installed: false,
-          version: null,
-          cliInstalled: false,
-          cliPath,
-          skillsInstalled: false,
-          results: [],
-        };
-      }
+    status: async () => readStatus(options, cliPath),
+    setUpdatePolicy: async (policy) => {
+      await writeUpdatePolicy(options.installRoot, policy);
+      return readStatus(options, cliPath);
     },
-    ensureInstalled: async () => {
+    ensureInstalled: async ({ action = 'reconcile' } = {}) => {
       let bundle: BundleDescriptor;
       try {
         bundle = await readBundle(options.bundleRoot);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        const updatePolicy = await readUpdatePolicy(options.installRoot);
         return {
           ok: false,
+          applied: false,
+          deferred: false,
           installed: false,
           version: null,
+          fingerprint: null,
+          bundledVersion: null,
+          bundledFingerprint: null,
+          updateAvailable: false,
+          updatePolicy,
           cliInstalled: false,
           cliPath,
           cliError: message,
@@ -89,25 +126,141 @@ export function createAgentToolingManager(
         };
       }
 
-      let cliError: string | null = null;
-      try {
-        await installCliBundle(options, bundle, cliPath);
-      } catch (error) {
-        cliError = error instanceof Error ? error.message : String(error);
-      }
-      const results = await installSkills(
-        options.skillParents,
-        bundle,
-        cliPath,
-        options.platform,
+      const updatePolicy = await readUpdatePolicy(options.installRoot);
+      const active = await resolveActiveState(options.installRoot, cliPath);
+      const updateAvailable = active !== null && !matchesBundle(active, bundle);
+      const keepActive = active !== null && updateAvailable && (
+        action === 'repair'
+        || (action === 'reconcile' && updatePolicy !== 'follow-app')
       );
-      const inspected = await inspectInstallation(options, bundle, cliPath, results);
+      const target = keepActive
+        ? await readActiveBundle(options, active)
+        : bundle;
+      const before = active
+        ? await inspectActiveInstallation(options, active, cliPath)
+        : emptyInstallation(cliPath);
+      if (before.installed && active && matchesBundle(active, target)) {
+        return {
+          ...withBundleStatus(before, bundle, updatePolicy),
+          ok: true,
+          cliError: null,
+          applied: false,
+          deferred: updateAvailable,
+        };
+      }
+      try {
+        await deployAgentTooling(options, target, cliPath, active);
+      } catch (error) {
+        const inspected = active
+          ? await inspectActiveInstallation(options, active, cliPath)
+          : emptyInstallation(cliPath);
+        return {
+          ...withBundleStatus(inspected, bundle, updatePolicy),
+          ok: false,
+          cliError: error instanceof Error ? error.message : String(error),
+          applied: false,
+          deferred: keepActive,
+        };
+      }
+      const activated = await readActiveBundle(options, {
+        version: target.version,
+        fingerprint: target.fingerprint,
+      });
+      const inspected = await inspectInstallation(options, activated, cliPath);
       return {
-        ...inspected,
+        ...withBundleStatus(inspected, bundle, updatePolicy),
         ok: inspected.installed,
-        cliError,
+        cliError: null,
+        applied: active === null || !matchesBundle(active, target),
+        deferred: !matchesBundle(target, bundle),
       };
     },
+  };
+}
+
+async function readStatus(
+  options: AgentToolingManagerOptions,
+  cliPath: string,
+): Promise<AgentToolingStatus> {
+  const updatePolicy = await readUpdatePolicy(options.installRoot);
+  let bundle: BundleDescriptor | null = null;
+  try {
+    bundle = await readBundle(options.bundleRoot);
+  } catch {
+    // A missing development build should not hide an existing installation.
+  }
+  const active = await resolveActiveState(options.installRoot, cliPath);
+  const inspected = active
+    ? await inspectActiveInstallation(options, active, cliPath)
+    : emptyInstallation(cliPath);
+  return withBundleStatus(inspected, bundle, updatePolicy);
+}
+
+function withBundleStatus(
+  installed: InstallationStatus,
+  bundle: BundleDescriptor | null,
+  updatePolicy: AgentToolingUpdatePolicy,
+): AgentToolingStatus {
+  return {
+    ...installed,
+    bundledVersion: bundle?.version ?? null,
+    bundledFingerprint: bundle?.fingerprint ?? null,
+    updateAvailable: bundle !== null && installed.version !== null && (
+      installed.version !== bundle.version || installed.fingerprint !== bundle.fingerprint
+    ),
+    updatePolicy,
+  };
+}
+
+function emptyInstallation(cliPath: string): InstallationStatus {
+  return {
+    installed: false,
+    version: null,
+    fingerprint: null,
+    cliInstalled: false,
+    cliPath,
+    skillsInstalled: false,
+    results: [],
+  };
+}
+
+function matchesBundle(active: AgentToolingActiveState, bundle: BundleDescriptor): boolean {
+  return active.version === bundle.version && active.fingerprint === bundle.fingerprint;
+}
+
+async function inspectActiveInstallation(
+  options: AgentToolingManagerOptions,
+  active: AgentToolingActiveState,
+  cliPath: string,
+): Promise<InstallationStatus> {
+  try {
+    return inspectInstallation(options, await readActiveBundle(options, active), cliPath);
+  } catch {
+    return {
+      ...emptyInstallation(cliPath),
+      version: active.version,
+      fingerprint: active.fingerprint,
+    };
+  }
+}
+
+async function readActiveBundle(
+  options: AgentToolingManagerOptions,
+  active: AgentToolingActiveState,
+): Promise<BundleDescriptor> {
+  const root = toolingRoot(options.installRoot);
+  const runtimeDir = join(root, '.runtime', active.fingerprint);
+  const cacheDir = join(root, '.cache', active.fingerprint);
+  const legacyDir = join(root, active.version);
+  const cacheCurrent = await isBundleCurrent(cacheDir, active.fingerprint);
+  const runtimeExists = await allExist([runtimeDir]);
+  const cliSourceDir = cacheCurrent ? cacheDir : runtimeExists ? runtimeDir : legacyDir;
+  const activeDir = runtimeExists || cacheCurrent ? runtimeDir : legacyDir;
+  return {
+    ...active,
+    cliSourceDir,
+    activeDir,
+    skills: await readSkills(cliSourceDir),
   };
 }
 
@@ -128,6 +281,17 @@ async function readBundle(bundleRoot: string): Promise<BundleDescriptor> {
 
   const cliSourceDir = packagedLayout ? packagedCli : sourceCli;
   await fs.access(join(cliSourceDir, 'index.cjs'));
+  const skills = await readSkills(cliSourceDir);
+  if (skills.length === 0) throw new Error(`No Canvas skills found in ${join(cliSourceDir, 'skills')}`);
+  return {
+    version: parsed.version,
+    fingerprint: await fingerprintCliTree(cliSourceDir),
+    cliSourceDir,
+    skills,
+  };
+}
+
+async function readSkills(cliSourceDir: string): Promise<BundleDescriptor['skills']> {
   const skillsDir = join(cliSourceDir, 'skills');
   const entries = (await fs.readdir(skillsDir, { withFileTypes: true }))
     .sort((left, right) => left.name.localeCompare(right.name));
@@ -146,109 +310,7 @@ async function readBundle(bundleRoot: string): Promise<BundleDescriptor> {
       // Ignore non-skill support directories in the bundled skills tree.
     }
   }
-  if (skills.length === 0) throw new Error(`No Canvas skills found in ${skillsDir}`);
-  return {
-    version: parsed.version,
-    fingerprint: await fingerprintCliTree(cliSourceDir),
-    cliSourceDir,
-    skills,
-  };
-}
-
-async function installCliBundle(
-  options: AgentToolingManagerOptions,
-  bundle: BundleDescriptor,
-  cliPath: string,
-): Promise<void> {
-  const toolingParent = join(options.installRoot, 'tooling', 'pulse-canvas');
-  const versionDir = join(toolingParent, bundle.version);
-  if (!await isBundleCurrent(versionDir, bundle.fingerprint)) {
-    await fs.mkdir(toolingParent, { recursive: true });
-    // This directory is app-owned and version-scoped. If its entrypoint is
-    // missing, replace the damaged installation instead of preserving a
-    // partial copy that can never pass status checks.
-    await fs.rm(versionDir, { recursive: true, force: true });
-    const stagingDir = join(
-      toolingParent,
-      `.${bundle.version}-${process.pid}-${randomUUID()}`,
-    );
-    await fs.cp(bundle.cliSourceDir, stagingDir, { recursive: true });
-    await fs.writeFile(
-      join(stagingDir, BUNDLE_MARKER),
-      `${JSON.stringify({
-        version: bundle.version,
-        fingerprint: bundle.fingerprint,
-      }, null, 2)}\n`,
-      'utf8',
-    );
-    try {
-      await fs.rename(stagingDir, versionDir);
-    } catch (error: any) {
-      await fs.rm(stagingDir, { recursive: true, force: true });
-      if (error?.code !== 'EEXIST' && error?.code !== 'ENOTEMPTY') throw error;
-    }
-  }
-
-  const entryPath = join(versionDir, 'index.cjs');
-  const wrapper = options.platform === 'win32'
-    ? windowsWrapper(options.hostExecutable, entryPath)
-    : unixWrapper(options.hostExecutable, entryPath);
-  await atomicWrite(cliPath, wrapper, options.platform === 'win32' ? undefined : 0o755);
-}
-
-async function installSkills(
-  parents: string[],
-  bundle: BundleDescriptor,
-  cliPath: string,
-  platform: NodeJS.Platform,
-): Promise<AgentToolingTargetResult[]> {
-  const results: AgentToolingTargetResult[] = [];
-  for (const parent of parents) {
-    for (const skill of bundle.skills) {
-      const targetDir = join(parent, skill.installName);
-      const targetPath = join(targetDir, 'SKILL.md');
-      try {
-        const content = await installedSkillContent(skill, cliPath, platform);
-        await atomicWrite(targetPath, content);
-        await atomicWrite(
-          join(targetDir, MANAGED_MARKER),
-          `${JSON.stringify({
-            version: bundle.version,
-            fingerprint: bundle.fingerprint,
-            source: skill.sourceName,
-          }, null, 2)}\n`,
-        );
-        results.push({ path: targetPath, ok: true });
-      } catch (error) {
-        results.push({
-          path: targetPath,
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-  }
-  return results;
-}
-
-function decorateSkillContent(
-  content: string,
-  cliPath: string,
-  platform: NodeJS.Platform,
-): string {
-  const invocation = platform === 'win32'
-    ? `& "${cliPath.split('"').join('`"')}"`
-    : shellQuote(cliPath);
-  const instruction =
-    `\n> Managed by Pulse Canvas. Invoke the bundled CLI as \`${invocation}\`; `
-    + 'do not assume `pulse-canvas` is on PATH.\n';
-  const withInstruction = content.replace(
-    /^(---\n[\s\S]*?\n---\n)/,
-    `$1${instruction}`,
-  );
-  return withInstruction
-    .replace(/(^|\n)pulse-canvas(?=\s)/g, `$1${invocation}`)
-    .replace(/`pulse-canvas(?=\s)/g, `\`${invocation}`);
+  return skills;
 }
 
 async function inspectInstallation(
@@ -256,14 +318,8 @@ async function inspectInstallation(
   bundle: BundleDescriptor,
   cliPath: string,
   knownResults?: AgentToolingTargetResult[],
-): Promise<AgentToolingStatus> {
-  const versionEntry = join(
-    options.installRoot,
-    'tooling',
-    'pulse-canvas',
-    bundle.version,
-    'index.cjs',
-  );
+): Promise<InstallationStatus> {
+  const versionEntry = join(bundle.activeDir ?? bundle.cliSourceDir, 'index.cjs');
   const expectedWrapper = options.platform === 'win32'
     ? windowsWrapper(options.hostExecutable, versionEntry)
     : unixWrapper(options.hostExecutable, versionEntry);
@@ -291,6 +347,7 @@ async function inspectInstallation(
   return {
     installed: cliInstalled && skillsInstalled,
     version: bundle.version,
+    fingerprint: bundle.fingerprint,
     cliInstalled,
     cliPath,
     skillsInstalled,
@@ -320,109 +377,4 @@ async function isManagedSkillCurrent(
   } catch {
     return false;
   }
-}
-
-async function installedSkillContent(
-  skill: BundleDescriptor['skills'][number],
-  cliPath: string,
-  platform: NodeJS.Platform,
-): Promise<string> {
-  let content = await fs.readFile(skill.sourcePath, 'utf8');
-  if (skill.sourceName === 'canvas') {
-    content = content.replace(/^name:.*$/m, 'name: pulse-canvas');
-  }
-  return decorateSkillContent(content, cliPath, platform);
-}
-
-async function isLauncherCurrent(
-  cliPath: string,
-  expectedContent: string,
-  platform: NodeJS.Platform,
-): Promise<boolean> {
-  try {
-    const [content, stat] = await Promise.all([
-      fs.readFile(cliPath, 'utf8'),
-      fs.stat(cliPath),
-    ]);
-    return content === expectedContent
-      && (platform === 'win32' || (stat.mode & 0o111) !== 0);
-  } catch {
-    return false;
-  }
-}
-
-async function isBundleCurrent(versionDir: string, fingerprint: string): Promise<boolean> {
-  try {
-    const marker = JSON.parse(
-      await fs.readFile(join(versionDir, BUNDLE_MARKER), 'utf8'),
-    ) as { fingerprint?: unknown };
-    return marker.fingerprint === fingerprint
-      && await fingerprintCliTree(versionDir) === fingerprint;
-  } catch {
-    return false;
-  }
-}
-
-async function fingerprintCliTree(cliDir: string): Promise<string> {
-  const hash = createHash('sha256');
-  hash.update(await fs.readFile(join(cliDir, 'index.cjs')));
-  const skillsDir = join(cliDir, 'skills');
-  const entries = (await fs.readdir(skillsDir, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .sort((left, right) => left.name.localeCompare(right.name));
-  for (const entry of entries) {
-    const skillPath = join(skillsDir, entry.name, 'SKILL.md');
-    try {
-      const content = await fs.readFile(skillPath);
-      hash.update(entry.name);
-      hash.update(content);
-    } catch {
-      // Match bundle discovery: support directories without SKILL.md are ignored.
-    }
-  }
-  return hash.digest('hex');
-}
-
-async function allExist(paths: string[]): Promise<boolean> {
-  try {
-    await Promise.all(paths.map((path) => fs.access(path)));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function atomicWrite(path: string, content: string, mode?: number): Promise<void> {
-  await fs.mkdir(dirname(path), { recursive: true });
-  const temporary = join(dirname(path), `.${basename(path)}.${process.pid}.${randomUUID()}`);
-  try {
-    await fs.writeFile(temporary, content, { encoding: 'utf8', ...(mode ? { mode } : {}) });
-    try {
-      await fs.rename(temporary, path);
-    } catch (error: any) {
-      if (error?.code !== 'EEXIST' && error?.code !== 'EPERM' && error?.code !== 'ENOTEMPTY') {
-        throw error;
-      }
-      await fs.rm(path, { force: true });
-      await fs.rename(temporary, path);
-    }
-    if (mode) await fs.chmod(path, mode);
-  } finally {
-    await fs.rm(temporary, { force: true });
-  }
-}
-
-function unixWrapper(hostExecutable: string, entryPath: string): string {
-  return '#!/bin/sh\n'
-    + `ELECTRON_RUN_AS_NODE=1 exec ${shellQuote(hostExecutable)} ${shellQuote(entryPath)} "$@"\n`;
-}
-
-function windowsWrapper(hostExecutable: string, entryPath: string): string {
-  return '@echo off\r\n'
-    + 'set "ELECTRON_RUN_AS_NODE=1"\r\n'
-    + `"${hostExecutable.split('"').join('""')}" "${entryPath.split('"').join('""')}" %*\r\n`;
-}
-
-function shellQuote(value: string): string {
-  return `'${value.split("'").join(`'"'"'`)}'`;
 }
