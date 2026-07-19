@@ -5,7 +5,11 @@ vi.mock('electron', () => ({
   ipcMain: { on: (channel: string, cb: (...args: unknown[]) => void) => handlers.set(channel, cb) },
 }));
 
-import { getDockTabs, setupDockTabsIpc } from '../tab-store';
+import {
+  getDockTabs,
+  getPublishedDockWorkspaceId,
+  setupDockTabsIpc,
+} from '../tab-store';
 import type { AgentContextTabRef } from '../../../shared/agent-chat';
 
 describe('dock tab-store', () => {
@@ -21,15 +25,18 @@ describe('dock tab-store', () => {
     const tabs: AgentContextTabRef[] = [
       { id: 'link:1', kind: 'link', title: 'Docs', url: 'https://x.dev', workspaceId: 'ws-1' },
     ];
-    handler!({}, { workspaceId: 'ws-1', tabs });
+    handler!({ sender: { id: 101 } }, { workspaceId: 'ws-1', tabs });
     expect(getDockTabs('ws-1')).toEqual(tabs);
+    expect(getPublishedDockWorkspaceId(101)).toBe('ws-1');
+    expect(getPublishedDockWorkspaceId(202)).toBe('');
 
     // No tabs array → ignored (keeps the prior snapshot).
-    handler!({}, { workspaceId: 'ws-1' });
+    handler!({ sender: { id: 101 } }, { workspaceId: 'ws-1' });
     expect(getDockTabs('ws-1')).toEqual(tabs);
 
     // No workspaceId → ignored (no crash, nothing stored).
-    handler!({}, { tabs: [] });
+    handler!({ sender: { id: 101 } }, { tabs: [] });
     expect(getDockTabs('')).toEqual([]);
+    expect(getPublishedDockWorkspaceId(101)).toBe('ws-1');
   });
 });

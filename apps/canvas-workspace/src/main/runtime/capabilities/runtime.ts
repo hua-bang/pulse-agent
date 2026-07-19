@@ -17,12 +17,14 @@ export class CapabilityRuntime {
     definitions: Iterable<AnyCapabilityDefinition>,
     private readonly policy: CapabilityPolicy = () => true,
   ) {
-    for (const definition of definitions) {
-      if (this.definitions.has(definition.name)) {
-        throw new Error(`Duplicate capability: ${definition.name}`);
-      }
-      this.definitions.set(definition.name, definition);
+    for (const definition of definitions) this.register(definition);
+  }
+
+  register(definition: AnyCapabilityDefinition): void {
+    if (this.definitions.has(definition.name)) {
+      throw new Error(`Duplicate capability: ${definition.name}`);
     }
+    this.definitions.set(definition.name, definition);
   }
 
   list(actor: CapabilityActor): CapabilityDescriptor[] {

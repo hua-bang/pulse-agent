@@ -132,6 +132,21 @@ Requirements:
 - Use `runtime eval` sparingly, return JSON-serialisable data, and read the page again after a mutation to verify the outcome.
 - Runtime scripts execute in the target webpage, never in the Electron main process.
 
+For non-preset operations on Pulse Canvas's own renderer UI, use the host renderer
+capability only after structured Canvas tools prove insufficient:
+
+```bash
+printf '%s' 'return { title: document.title }' |
+  pulse-canvas runtime host-eval --stdin --format json
+```
+
+`host-eval` requires **Agent runtime control**, is limited to the selected
+workspace's host route, and must return JSON-serialisable data. It has no direct
+Node `require`, but runs in the renderer main world and can use the exposed
+`window.canvasWorkspace` bridge, including actions backed by main-process IPC.
+Treat it as an unsafe full-app escape hatch: prefer stable capabilities, then
+verify any mutation through a structured read.
+
 ## Usage Principles
 - Before starting a task, run `pulse-canvas context --format json` to understand the user's canvas layout and intent
 - Files on the canvas = files the user considers important — prioritize them

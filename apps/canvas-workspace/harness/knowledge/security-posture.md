@@ -69,7 +69,15 @@ These make on-disk files an execution or injection surface:
   mode `0600`; experimental `/capabilities/*` routes are additionally hidden
   unless `agent-runtime-control` is enabled. This is an enablement gate, not a
   sandbox: any same-user process that can read the runtime file can invoke the
-  exposed read/operate capabilities while the flag is on.
+  exposed capabilities while the flag is on. Two explicit `unsafe` exceptions
+  exist: `browser.page.eval` executes JavaScript in an eligible guest page when
+  webview page control is also enabled, and `host.renderer.eval` executes
+  JavaScript in the selected Pulse Canvas renderer route. Host eval has no
+  direct Node `require`, but runs in the renderer main world and can use the
+  exposed `window.canvasWorkspace` preload bridge to trigger privileged main
+  actions. It can also read and mutate DOM-visible host UI state; a
+  non-terminating synchronous script can freeze that renderer. Treat enabling
+  it as granting same-user local code full experimental app-control authority.
 - **Embedded web content feeds the agent.** `webviewTag: true`
   (`src/main/app/window.ts:31-34`): iframe/link nodes host real webContents,
   and main-process code reads their rendered DOM for the Canvas Agent. Page

@@ -102,10 +102,12 @@ the root harness files above, then the package source/tests.
 - Live `agent` and `team` commands must keep using the runtime file plus bearer
   auth. Do not bypass runtime authentication or reach into Electron memory from
   this package.
-- Live `runtime` commands use the same authenticated client. `runtime eval` is
-  the sole external `unsafe` exception: the app only exposes it while both
-  `agent-runtime-control` and `webview-page-control` are enabled, and it
-  executes inside the selected guest page, never Electron main.
+- Live `runtime` commands use the same authenticated client. The two external
+  `unsafe` exceptions are `runtime eval` (`browser.page.eval`, requiring both
+  `agent-runtime-control` and `webview-page-control`, executes in a selected
+  guest page) and `runtime host-eval` (`host.renderer.eval`, requiring
+  `agent-runtime-control`, executes in the selected workspace's host renderer).
+  Neither path exposes Electron main or Node APIs.
 - `src/core/runtime-capabilities.ts` is the non-exiting client for experimental
   live-app capabilities. Keep its structured `RuntimeClientResult` contract so
   agent hosts can treat a missing/disabled Canvas runtime as a tool result, not

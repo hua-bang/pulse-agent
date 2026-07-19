@@ -38,6 +38,12 @@ import {
   __test,
 } from '../control-server';
 import { readCanvasFull, writeCanvasFull } from '../../canvas/storage';
+import { getCanvasCapabilityRuntime } from '../capabilities';
+import { createHostRendererCapabilities } from '../capabilities/host-renderer-capabilities';
+
+for (const capability of createHostRendererCapabilities()) {
+  getCanvasCapabilityRuntime().register(capability);
+}
 
 interface RuntimeInfo {
   pid: number;
@@ -201,6 +207,7 @@ describe('runtime-control server lifecycle', () => {
         expect.objectContaining({ name: 'canvas.nodes.read', risk: 'read' }),
         expect.objectContaining({ name: 'canvas.nodes.search', risk: 'read' }),
         expect.objectContaining({ name: 'canvas.nodes.update', risk: 'operate' }),
+        expect.objectContaining({ name: 'host.renderer.eval', risk: 'unsafe' }),
       ]),
     });
     expect(listed.body.capabilities).not.toEqual(expect.arrayContaining([
@@ -217,6 +224,16 @@ describe('runtime-control server lifecycle', () => {
     expect(called).toEqual({
       status: 200,
       body: { ok: true, value: { count: 0, tabs: [] } },
+    });
+
+    const hostEvalValidation = await postRuntime(runtime, '/capabilities/call', {
+      workspaceId: 'ws-1',
+      name: 'host.renderer.eval',
+      input: {},
+    });
+    expect(hostEvalValidation).toMatchObject({
+      status: 400,
+      body: { ok: false, error: { code: 'invalid_input' } },
     });
   });
 

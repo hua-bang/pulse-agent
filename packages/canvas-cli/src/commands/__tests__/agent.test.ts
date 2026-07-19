@@ -262,6 +262,37 @@ describe('pulse-canvas runtime capabilities', () => {
     });
   });
 
+  it('executes a host renderer script from stdin in the selected workspace', async () => {
+    let seenBody: unknown = null;
+    const { server, baseUrl } = await startStubServer((body) => {
+      seenBody = body;
+      return {
+        status: 200,
+        body: { ok: true, value: { action: 'host_renderer_eval', value: { sent: true } } },
+      };
+    });
+    await writeRuntime({ pid: process.pid, baseUrl, secret: 'tok', createdAt: '' });
+
+    const { stdout, exitCode } = await runCli([
+      '--workspace', 'ws-x', '--format', 'json',
+      'runtime', 'host-eval',
+      '--code', 'return { sent: true }',
+      '--timeout', '2000',
+    ]);
+    server.close();
+
+    expect(exitCode).toBe(null);
+    expect(seenBody).toEqual({
+      workspaceId: 'ws-x',
+      name: 'host.renderer.eval',
+      input: { code: 'return { sent: true }', timeoutMs: 2_000 },
+    });
+    expect(JSON.parse(stdout)).toEqual({
+      action: 'host_renderer_eval',
+      value: { sent: true },
+    });
+  });
+
   it('calls a discovered capability with structured JSON input', async () => {
     let seenBody: unknown = null;
     const { server, baseUrl } = await startStubServer((body) => {

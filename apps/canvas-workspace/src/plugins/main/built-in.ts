@@ -38,6 +38,11 @@ const WebviewPageControlPlugin = lazyPlugin(
   () => getExperimentalFlagSync(EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL),
   async () => (await import('./webview-page-control')).WebviewPageControlPlugin,
 );
+const HostRendererControlPlugin = lazyPlugin(
+  'host-renderer-control',
+  () => true,
+  async () => (await import('./host-renderer-control')).HostRendererControlPlugin,
+);
 const ChannelMainPlugin = lazyPlugin(
   'channel',
   () => getExperimentalFlagSync(EXPERIMENTAL_FLAG_CHANNELS)
@@ -49,6 +54,7 @@ const ChannelMainPlugin = lazyPlugin(
 export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [
   DevtoolsMainPlugin,
   WebviewPageControlPlugin,
+  HostRendererControlPlugin,
   DynamicAppPlugin,
   ChannelMainPlugin,
   MockNodeMainPlugin,

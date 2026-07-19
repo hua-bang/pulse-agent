@@ -148,9 +148,14 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   node read/search/update, and (only when `webview-page-control` is also
   enabled) selector-based page click/fill. Arbitrary page JavaScript is the
   `browser.page.eval` unsafe capability behind the stable deferred `page_eval`
-  Canvas Agent tool. It is the sole Pulse CLI `unsafe` exception and is only
-  externally reachable while both `agent-runtime-control` and
-  `webview-page-control` are enabled.
+  Canvas Agent tool and requires both flags for external access. Arbitrary
+  host-renderer JavaScript is the separate `host.renderer.eval` unsafe
+  capability behind the deferred `canvas_host_eval` tool and `pulse-canvas
+  runtime host-eval`; it requires `agent-runtime-control`, checks the selected
+  workspace route before execution, and runs in the host page's main world.
+  It has no direct Node `require`, but it can call the app's renderer-exposed
+  `canvasWorkspace` preload bridge and therefore can trigger privileged main
+  actions. These are the only Pulse CLI `unsafe` exceptions.
   External node updates are limited to title/content; arbitrary internal
   `data` patches remain Canvas-Agent-only.
 - Canvas node and edge shapes are sourced from `src/shared/canvas.ts`, not the

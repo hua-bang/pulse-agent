@@ -143,7 +143,9 @@ export async function callRuntimeCapability(
 
 function resolveTransportTimeout(request: RuntimeCapabilityRequest): number {
   if (request.transportTimeoutMs !== undefined) return request.transportTimeoutMs;
-  if (request.name !== 'browser.page.eval') return DEFAULT_TRANSPORT_TIMEOUT_MS;
+  if (request.name !== 'browser.page.eval' && request.name !== 'host.renderer.eval') {
+    return DEFAULT_TRANSPORT_TIMEOUT_MS;
+  }
 
   const input = request.input && typeof request.input === 'object'
     ? request.input as Record<string, unknown>

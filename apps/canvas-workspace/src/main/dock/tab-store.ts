@@ -10,18 +10,25 @@ import { ipcMain } from 'electron';
 import type { AgentContextTabRef } from '../../shared/agent-chat';
 
 const dockTabsByWorkspace = new Map<string, AgentContextTabRef[]>();
+const publishedWorkspaceByWebContents = new Map<number, string>();
 
 /** Open dock tabs last published for a workspace (empty if none/unknown). */
 export function getDockTabs(workspaceId: string): AgentContextTabRef[] {
   return dockTabsByWorkspace.get(workspaceId) ?? [];
 }
 
+/** Last workspace projection published by one host renderer. */
+export function getPublishedDockWorkspaceId(webContentsId: number): string {
+  return publishedWorkspaceByWebContents.get(webContentsId) ?? '';
+}
+
 export function setupDockTabsIpc(): void {
   ipcMain.on(
     'dock:publish-tabs',
-    (_event, payload: { workspaceId?: string; tabs?: AgentContextTabRef[] }) => {
+    (event, payload: { workspaceId?: string; tabs?: AgentContextTabRef[] }) => {
       if (!payload?.workspaceId || !Array.isArray(payload.tabs)) return;
       dockTabsByWorkspace.set(payload.workspaceId, payload.tabs);
+      publishedWorkspaceByWebContents.set(event.sender.id, payload.workspaceId);
     },
   );
 }

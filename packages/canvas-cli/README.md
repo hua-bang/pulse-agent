@@ -166,6 +166,20 @@ printf '%s' 'return document.title' |
 The app still applies its sensitive-domain and URL-scheme policy. The script
 runs in the selected webpage, never in the Electron main process.
 
+For a non-preset operation on Pulse Canvas's own renderer UI, use the separate
+host escape hatch after structured Canvas capabilities prove insufficient:
+
+```bash
+printf '%s' 'return { title: document.title }' |
+  pulse-canvas runtime host-eval --stdin --format json
+```
+
+`host-eval` requires **Agent runtime control**, checks the selected workspace
+route before executing, and must return JSON-serialisable data. It has no direct
+Node `require`, but runs in the host page's main world and can call the
+renderer-exposed `window.canvasWorkspace` bridge; treat it as full experimental
+app control for same-user local code.
+
 ### Agent
 
 Send follow-up input to a running agent node (an Enter is appended automatically). Requires the live runtime (see above).

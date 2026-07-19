@@ -77,6 +77,31 @@ export function registerRuntimeCommands(program: Command): void {
       if (!result.ok) errorOutput(result.error.message, { code: result.error.code });
       output(result.value, format, renderRuntimeValue);
     });
+
+  runtime.command('host-eval')
+    .option('--code <javascript>', 'Inline JavaScript function body')
+    .option('--file <path>', 'Read the JavaScript function body from a file')
+    .option('--stdin', 'Read the JavaScript function body from stdin')
+    .option('--timeout <ms>', 'Maximum execution time in milliseconds')
+    .description('Execute JavaScript inside the Pulse Canvas host renderer UI')
+    .action(async function (
+      this: Command,
+      options: { code?: string; file?: string; stdin?: boolean; timeout?: string },
+    ) {
+      const { format, workspace } = await getWorkspaceCommandOptions(
+        this,
+        { requireReadableCanvas: false },
+      );
+      const code = await readScript(options);
+      const timeoutMs = parsePageEvalTimeout(options.timeout);
+      const result = await callRuntimeCapability({
+        workspaceId: workspace,
+        name: 'host.renderer.eval',
+        input: { code, ...(timeoutMs === undefined ? {} : { timeoutMs }) },
+      });
+      if (!result.ok) errorOutput(result.error.message, { code: result.error.code });
+      output(result.value, format, renderRuntimeValue);
+    });
 }
 
 function renderCapabilities(data: unknown): string {

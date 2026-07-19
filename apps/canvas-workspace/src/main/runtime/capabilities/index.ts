@@ -3,7 +3,10 @@ import { createTabCapabilities } from './tab-capabilities';
 import { createNodeCapabilities } from './node-capabilities';
 import { createPageCapabilities } from './page-capabilities';
 import { getExperimentalFlagSync } from '../../settings/experimental-ipc';
-import { EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL } from '../../../shared/experimental-features';
+import {
+  EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
+  EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL,
+} from '../../../shared/experimental-features';
 import type { CapabilityActorKind, CapabilityRisk } from './types';
 
 export * from './runtime';
@@ -26,6 +29,7 @@ const pageOperationCapabilities = new Set([
   'browser.page.fill',
   'browser.page.eval',
 ]);
+const externalUnsafeCapabilities = new Set(['browser.page.eval', 'host.renderer.eval']);
 
 export function getCanvasCapabilityRuntime(): CapabilityRuntime {
   runtime ??= new CapabilityRuntime(
@@ -35,9 +39,14 @@ export function getCanvasCapabilityRuntime(): CapabilityRuntime {
       ...createNodeCapabilities(),
     ],
     (capability, actor) => {
-      const externalPageEval = actor.kind === 'pulse-cli'
-        && capability.name === 'browser.page.eval';
-      if (!allowedRisks[actor.kind].has(capability.risk) && !externalPageEval) return false;
+      if (
+        !allowedRisks[actor.kind].has(capability.risk)
+        && !(actor.kind === 'pulse-cli' && externalUnsafeCapabilities.has(capability.name))
+      ) return false;
+      if (
+        capability.name === 'host.renderer.eval'
+        && !getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL)
+      ) return false;
       return !pageOperationCapabilities.has(capability.name)
         || getExperimentalFlagSync(EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL);
     },

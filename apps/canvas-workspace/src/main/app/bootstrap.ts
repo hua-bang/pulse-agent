@@ -232,7 +232,6 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
 
     // Let on-demand activation (e.g. the channel plugin's /open) recreate the
     // window if it was closed.
-    setWindowFactory(openWindow);
     // Startup metrics: dom-ready on the first window closes the boot
     // critical path (whenReady → seeding → IPC → plugins → window → renderer).
     app.on("browser-window-created", (_event, win) => {
@@ -242,7 +241,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       });
     });
     startupMark("openWindow");
-    openWindow();
+    setWindowFactory(openWindow, openWindow());
 
     app.on("activate", () => {
       // Reopening the window after a close must restore the live channel too —
@@ -250,7 +249,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       // down here, leaving "app open but no runtime" (ENOENT for CLI live cmds).
       void ensureRuntimeControlServer(writeLog);
       if (BrowserWindow.getAllWindows().length === 0) {
-        openWindow();
+        setWindowFactory(openWindow, openWindow());
       }
     });
   });
