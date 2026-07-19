@@ -32,6 +32,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 |---|---|
 | Add a built-in plugin | `packages/engine/src/built-in/index.ts` + new subdir |
 | Register a tool | `packages/engine/src/tools/` (built-in) or `ctx.registerTool` in a plugin |
+| Add a Canvas capability for Tool + CLI | `harness/skills/add-canvas-capability/SKILL.md` |
 | Change the core loop / hooks | `packages/engine/src/core/loop.ts` |
 | Add/fix an MCP server config | `.pulse-coder/mcp.json` + `packages/engine/src/built-in/mcp-plugin/` |
 | Tune context compaction | `packages/engine/src/core/loop.ts` + env (`CONTEXT_WINDOW_TOKENS`, `COMPACT_*`, `KEEP_LAST_TURNS`) |
