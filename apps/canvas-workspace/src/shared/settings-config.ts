@@ -9,13 +9,18 @@ export interface SkillsInstallResult {
   skillsInstalled: boolean;
   results: SkillTargetResult[];
   cliInstalled: boolean;
-  manualCommand?: string | null;
+  cliPath: string;
+  version: string | null;
   cliError?: string | null;
   error?: string;
 }
 
 export interface SkillsStatusResult {
   installed: boolean;
+  skillsInstalled: boolean;
+  cliInstalled: boolean;
+  cliPath: string;
+  version: string | null;
   results: SkillTargetResult[];
   legacyDirs: string[];
 }

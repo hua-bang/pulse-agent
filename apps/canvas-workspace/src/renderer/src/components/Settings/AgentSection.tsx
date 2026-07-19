@@ -17,8 +17,6 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
   const [installing, setInstalling] = useState(false);
   const [cleaningLegacy, setCleaningLegacy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [manualCommand, setManualCommand] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -39,10 +37,9 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
     try {
       const result: SkillsInstallResult = await window.canvasWorkspace.skills.install();
       setLastResults(result.results);
-      setManualCommand(result.manualCommand ?? null);
       await loadStatus();
       const failed = result.results.filter((r) => !r.ok);
-      if (failed.length === 0) {
+      if (result.ok) {
         notify({
           tone: 'success',
           title: t('agent.skillInstalled'),
@@ -52,14 +49,15 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
           }),
         });
       } else {
+        if (result.cliError) setError(result.cliError);
         notify({
           tone: 'error',
           title: t('agent.someTargetsFailed'),
-          description: t('agent.someTargetsFailedDescription', {
-            failed: failed.length,
-            total: result.results.length,
-            plural: result.results.length === 1 ? '' : 's',
-          }),
+          description: result.cliError ?? t('agent.someTargetsFailedDescription', {
+              failed: failed.length,
+              total: result.results.length,
+              plural: result.results.length === 1 ? '' : 's',
+            }),
         });
       }
     } catch (err) {
@@ -104,7 +102,10 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
     }
   }, [loadStatus, notify, t]);
 
-  const displayResults = lastResults ?? status?.results ?? [];
+  const displayResults = [
+    ...(status ? [{ path: status.cliPath, ok: status.cliInstalled }] : []),
+    ...(lastResults ?? status?.results ?? []),
+  ];
   const allInstalled = status?.installed ?? false;
   const legacyDirs = status?.legacyDirs ?? [];
   const buttonLabel = installing
@@ -112,21 +113,6 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
     : allInstalled
       ? t('agent.reinstallSkill')
       : t('agent.installSkill');
-
-  const copyManualCommand = useCallback(async () => {
-    if (!manualCommand) return;
-    try {
-      await navigator.clipboard.writeText(manualCommand);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch (err) {
-      notify({
-        tone: 'error',
-        title: t('agent.copyFailed'),
-        description: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }, [manualCommand, notify, t]);
 
   return (
     <div className="agent-section">
@@ -190,22 +176,6 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
             </ul>
           )}
 
-          {manualCommand && (
-            <div className="agent-section-cli">
-              <div className="agent-section-cli-title">
-                {t('agent.nextStepTitle')}
-              </div>
-              <div className="agent-section-cli-desc">
-                {t('agent.nextStepDescription')}
-              </div>
-              <div className="agent-section-cli-cmd-row">
-                <code className="agent-section-cli-cmd">{manualCommand}</code>
-                <Button variant="secondary" size="sm" onClick={() => void copyManualCommand()}>
-                  {copied ? t('agent.copied') : t('agent.copy')}
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

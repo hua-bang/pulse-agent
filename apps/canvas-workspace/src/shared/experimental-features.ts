@@ -42,7 +42,6 @@ export interface ToolingInstallStatus {
   skillsInstalled: boolean;
   cliInstalled: boolean;
   cliError?: string | null;
-  manualCommand?: string | null;
 }
 
 export const EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE = 'canvas-agent-debug-trace';

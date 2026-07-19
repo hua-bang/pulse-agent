@@ -51,6 +51,10 @@ the root harness files above, then the package source/tests.
 - Keep the package test entry on `--no-file-parallelism`: the live-command and
   status suites intentionally exercise the same hard-coded runtime descriptor,
   so running those files concurrently races their backup/write/restore cycle.
+- The Electron app ships `dist/index.cjs` as an external-agent executable. Keep
+  its runtime dependencies bundled (currently `commander` via tsup
+  `noExternal`) so a packaged app can run it with Electron's Node runtime on a
+  machine without Node, pnpm, or this monorepo.
 - Preserve store safety: workspace/node id validation, manifest locking,
   atomic writes, rolling `.bak` recovery, v2 per-node compatibility, and the
   guard that refuses accidental empty-node overwrites.

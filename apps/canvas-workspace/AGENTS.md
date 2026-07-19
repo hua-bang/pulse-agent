@@ -62,7 +62,7 @@ before that the directory held only the Electron driver):
 **"skills" disambiguation** — `harness/skills/*/SKILL.md` are procedures for
 CODING agents working on this app; `src/main/agent/skills/` is the PRODUCT
 runtime-skills feature of the in-app Canvas Agent; `files/skill-installer.ts`
-installs the latter. Do not mix them.
+deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 
 ## Knowledge Navigation
 
@@ -114,6 +114,13 @@ installs the latter. Do not mix them.
 - Runtime data belongs under user locations such as `~/.pulse-coder/canvas/`,
   `~/.pulse-coder/canvas-runtime/`, and model/settings files. Do not write user
   runtime state into the repository.
+- Packaged builds bundle the existing `@pulse-coder/canvas-cli` under Electron
+  resources. On first launch and after app updates, the app idempotently
+  installs its versioned files under `~/.pulse-coder/tooling/pulse-canvas/`, a
+  no-system-Node wrapper under `~/.pulse-coder/bin/`, and all bundled skills
+  into Pulse/Codex/Claude global skill dirs. Keep startup, Settings repair, and
+  experimental-trigger installs on the shared `AgentToolingManager`; production
+  installation must never depend on a source checkout, `pnpm`, or global link.
 - `harness/tools/driver/` launches the real Electron app. Use `temp`, `demo`,
   or `clone` profiles by default; use `real --allow-real-writes` only after
   explicit user intent because it can mutate real Pulse Canvas data.

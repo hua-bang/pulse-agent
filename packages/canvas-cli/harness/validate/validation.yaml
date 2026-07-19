@@ -10,3 +10,10 @@ pathRules:
     required:
       - pnpm --filter @pulse-coder/canvas-cli test
       - pnpm --filter @pulse-coder/canvas-cli typecheck
+
+  - name: executable-bundle
+    paths:
+      - package.json
+      - tsup.config.ts
+    required:
+      - pnpm --filter @pulse-coder/canvas-cli build

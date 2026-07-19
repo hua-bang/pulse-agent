@@ -17,7 +17,10 @@ import { setupFileManagerIpc } from "../files/manager";
 // import { startMCPServer } from "../runtime/mcp-server";
 // import { ensureMCPRegistered } from "../runtime/mcp-registration";
 import { setupFileWatcherIpc, teardownFileWatcher } from "../files/watcher";
-import { setupSkillInstallerIpc } from "../files/skill-installer";
+import {
+  ensureAgentToolingAtStartup,
+  setupSkillInstallerIpc,
+} from "../files/skill-installer";
 import {
   getCanvasAgentService,
   setupCanvasAgentIpc,
@@ -144,6 +147,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupFileManagerIpc();
     setupFileWatcherIpc();
     setupSkillInstallerIpc();
+    await ensureAgentToolingAtStartup(writeLog);
     setupCanvasAgentIpc();
     setupCodexSessionsIpc();
     if (getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_TEAMS)) {

@@ -5,10 +5,10 @@
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "dev:temp-home": "sh -c 'SANDBOX_HOME=\"$(mktemp -d \"${TMPDIR:-/tmp}/pulse-canvas-dev-home.XXXXXX\")\" && echo \"Using HOME=$SANDBOX_HOME\" && HOME=\"$SANDBOX_HOME\" electron-vite dev'",
+    "dev": "pnpm run prepare:agent-tooling && electron-vite dev",
+    "dev:temp-home": "pnpm run prepare:agent-tooling && sh -c 'SANDBOX_HOME=\"$(mktemp -d \"${TMPDIR:-/tmp}/pulse-canvas-dev-home.XXXXXX\")\" && echo \"Using HOME=$SANDBOX_HOME\" && HOME=\"$SANDBOX_HOME\" electron-vite dev'",
     "build": "electron-vite build",
-    "preview": "electron-vite preview",
+    "preview": "pnpm run prepare:agent-tooling && electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "electron-rebuild -f -w node-pty",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
@@ -18,11 +18,12 @@
     "harness": "node ./harness/tools/driver/cli.mjs",
     "visual": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts",
     "visual:update": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts --update-snapshots",
-    "package": "electron-vite build && electron-builder",
-    "package:mac": "electron-vite build && electron-builder --mac",
-    "package:mac:arm64": "electron-vite build && electron-builder --mac --arm64",
-    "package:win": "electron-vite build && electron-builder --win",
-    "package:linux": "electron-vite build && electron-builder --linux",
+    "prepare:agent-tooling": "pnpm --filter @pulse-coder/canvas-cli build",
+    "package": "pnpm run prepare:agent-tooling && electron-vite build && electron-builder",
+    "package:mac": "pnpm run prepare:agent-tooling && electron-vite build && electron-builder --mac",
+    "package:mac:arm64": "pnpm run prepare:agent-tooling && electron-vite build && electron-builder --mac --arm64",
+    "package:win": "pnpm run prepare:agent-tooling && electron-vite build && electron-builder --win",
+    "package:linux": "pnpm run prepare:agent-tooling && electron-vite build && electron-builder --linux",
     "perf:bundle": "node scripts/perf/bundle-report.mjs",
     "perf:package": "node scripts/perf/package-report.mjs",
     "perf:split": "PULSE_CANVAS_ANALYZE=1 electron-vite build && node scripts/perf/bundle-treemap.mjs && open perf/out/bundle-split.html",
@@ -57,6 +58,20 @@
       "!resources/icon@2x.png",
       "!**/*.map",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../packages/canvas-cli/dist",
+        "to": "agent-tooling/canvas-cli",
+        "filter": [
+          "index.cjs",
+          "skills/**/*"
+        ]
+      },
+      {
+        "from": "../../packages/canvas-cli/package.json",
+        "to": "agent-tooling/canvas-cli-package.json"
+      }
     ],
     "extraMetadata": {
       "main": "dist/main/index.js"
