@@ -86,6 +86,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Visual-regression baseline for ui/ pieces | `harness/tools/ui-showcase/README.md`; run `pnpm run visual` / `pnpm run visual:update` |
 | Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` (NB: `nodes/` here = knowledge-node records + tags, NOT node types) |
 | Canvas Agent and tools | `src/main/agent/`, `src/main/agent/tools/`, `src/renderer/src/components/chat/` |
+| Agent long-term memory (global + per-workspace) | `src/main/agent/memory-store.ts` (store + prompt injection; explicit-save-only by design), `src/main/agent/tools/memory.ts` (`memory_save` eager, `memory_list`/`memory_forget` deferred), tests in `src/main/agent/__tests__/memory-store.test.ts` |
 | Add a capability shared by Tool + CLI | `../../harness/skills/add-canvas-capability/SKILL.md`; use `harness/skills/add-agent-tool/SKILL.md` for the optional task-specific Canvas Agent adapter |
 | Agent teams | `src/main/agent-teams/`, `src/renderer/src/components/AgentTeamFrame/` |
 | Runtime-control server | `src/main/runtime/control-server.ts` |
