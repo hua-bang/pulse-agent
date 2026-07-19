@@ -9,6 +9,7 @@ import { registerRestoreCommand } from './commands/restore';
 import { registerTeamCommands } from './commands/team';
 import { registerStatusCommand } from './commands/status';
 import { registerDescribeCommand } from './commands/describe';
+import { registerRuntimeCommands } from './commands/runtime';
 import { ENV_WORKSPACE_ID } from './core/workspace-resolution';
 import { setActiveFormat } from './output';
 
@@ -43,6 +44,7 @@ export function createCli(): Command {
   registerWorkspaceCommands(program);
   registerStatusCommand(program);
   registerDescribeCommand(program);
+  registerRuntimeCommands(program);
   registerNodeCommands(program);
   registerEdgeCommands(program);
   registerAgentCommands(program);

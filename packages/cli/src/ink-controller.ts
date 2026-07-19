@@ -1,5 +1,4 @@
 import { PulseAgent, type Context, type TaskListService } from 'pulse-coder-engine';
-import { createJsExecutor, createRunJsTool } from 'pulse-sandbox/src';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
 
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
@@ -11,6 +10,7 @@ import { runTeam, TeamsSession } from './team-commands.js';
 import type { TuiHelpItem } from './tui-renderer.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
 import type { InkCliController, InkCliSnapshot, CliInteractionMode } from './ink-app.js';
+import { createPulseCliTools } from './runtime-tools.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -100,10 +100,6 @@ class InkCoderController implements InkCliController {
   private readonly queuedInputs: string[] = [];
 
   constructor() {
-    const runJsTool = createRunJsTool({
-      executor: createJsExecutor()
-    });
-
     this.agent = new PulseAgent({
       enginePlugins: {
         plugins: [memoryIntegration.enginePlugin],
@@ -114,9 +110,7 @@ class InkCoderController implements InkCliController {
         dirs: ['.pulse-coder/config', '.coder/config', '~/.pulse-coder/config', '~/.coder/config'],
         scan: true
       },
-      tools: {
-        [runJsTool.name]: runJsTool
-      }
+      tools: createPulseCliTools()
     });
     this.context = { messages: [] };
     this.ui = new InkUiBridge({

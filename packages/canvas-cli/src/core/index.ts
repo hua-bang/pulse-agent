@@ -6,3 +6,5 @@ export * from './nodes';
 export * from './edges';
 export * from './context';
 export * from './notifier';
+export * from './runtime-control';
+export * from './runtime-capabilities';

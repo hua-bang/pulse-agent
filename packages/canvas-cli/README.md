@@ -2,7 +2,7 @@
 
 CLI for Pulse Canvas — lets external agents (Claude Code, Codex, etc.) read from and write to canvas workspaces.
 
-Most commands operate directly on the JSON store at `~/.pulse-coder/canvas/` (default) without the Electron app being involved. When the app is running, its `fs.watch` picks up store changes automatically — no IPC required. The `agent` and `team` command families are the exception: they require a running `apps/canvas-workspace` instance (documented under those commands below).
+Most commands operate directly on the JSON store at `~/.pulse-coder/canvas/` (default) without the Electron app being involved. When the app is running, its `fs.watch` picks up store changes automatically — no IPC required. The `agent`, `team`, and `runtime` command families are the exception: they require a running `apps/canvas-workspace` instance (documented under those commands below).
 
 ## Install
 
@@ -39,7 +39,7 @@ in `--format json`, prints a JSON object `{ "ok": false, "error": "…", "code":
 stable `code` rather than the message. Common codes: `no_workspace_selected`,
 `workspace_not_found`, `node_not_found`, `edge_not_found`, `invalid_argument`,
 `unsupported`, `path_confined`, `confirmation_required`, and the runtime family
-(`runtime_not_found`, `runtime_unreachable`, `runtime_auth`, …) for `agent`/`team`.
+(`runtime_not_found`, `runtime_unreachable`, `runtime_auth`, …) for live commands.
 
 ## Commands
 
@@ -64,7 +64,7 @@ pulse-canvas describe --format json  # Machine-readable manifest: commands, node
 
 `status` is the recommended pre-flight for an external caller: it never exits
 non-zero for "no workspace selected" (it reports that as data) and tells you
-whether the Electron runtime is up, i.e. whether the live `agent`/`team`
+whether the Electron runtime is up, i.e. whether the live `agent`/`team`/`runtime`
 commands are usable. `describe` emits a self-describing capability manifest
 (with `describeVersion` and `contextVersion`) so an agent can plan against the
 CLI without hard-coding its surface.
@@ -109,7 +109,7 @@ Node types and capabilities (the capability map reported by `node list`):
 
 `node create` accepts only the creatable types: `file`, `terminal`, `frame`, `group`, `agent`, and `mindmap`. The remaining types above are produced by the canvas app and are **read-only** from the CLI — `node read <id> --format json` returns their full persisted metadata. Unrecognized (future) node types still load and read as opaque nodes rather than breaking the CLI. `node write` supports `file`, `text`, `frame`, and `group`; `terminal`/`agent` require a live PTY. Pass `--confine-to-workspace` so a `file` node whose `filePath` points outside the workspace directory is refused (read falls back to in-memory content, write errors with code `path_confined`) — recommended when the canvas may be untrusted.
 
-> **iframe/dynamic-app content.** `node read` returns only what the store persists — for a URL-mode iframe that is the metadata (url, pageTitle, …), not the live web page body, which lives in the running Electron webview rather than the canvas store. Reading the rendered page would need a separate, runtime-authenticated `webview read` command (not yet implemented); plain `node read` never connects to Electron or fetches the network.
+> **iframe/dynamic-app content.** `node read` returns only what the store persists — for a URL-mode iframe that is the metadata (url, pageTitle, …), not the live web page body, which lives in the running Electron webview rather than the canvas store. With the Electron app running, use `runtime call browser.page.read --input '{"nodeId":"<nodeId>"}'` for the rendered page; plain `node read` never connects to Electron or fetches the network.
 
 ### Edge
 
@@ -141,7 +141,44 @@ The JSON output carries a `contextVersion` field (the output-contract version) s
 
 Returns workspace metadata plus a per-node summary: file paths, frame labels, terminal cwds, agent statuses, text excerpts, and iframe/embed metadata. This is the recommended entry point for agents — run it first to understand the canvas layout. To stay prompt-friendly, `context` deliberately excerpts long `text` bodies and omits heavy fields (an iframe's inlined `html`/`prompt`, a plugin's `payload`); fetch the full content of a specific node with `node read <id> --format json`.
 
-> **Runtime requirement — `agent` and `team`.** These two families do not read the JSON store. They require a running `apps/canvas-workspace` instance and authenticate to its loopback runtime-control server using the bearer secret in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`. Without it they fail with `No active canvas-workspace runtime found.` — open the workspace in Pulse Canvas first. All other command families (`workspace`, `node`, `edge`, `context`, `restore`, `install-skills`) operate directly on the store and need no runtime.
+> **Runtime requirement — `agent`, `team`, and `runtime`.** These families do not read the JSON store. They require a running `apps/canvas-workspace` instance and authenticate to its loopback runtime-control server using the bearer secret in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`. Without it they fail with `No active canvas-workspace runtime found.` — open the workspace in Pulse Canvas first. All other command families (`workspace`, `node`, `edge`, `context`, `restore`, `install-skills`) operate directly on the store and need no runtime.
+
+### Runtime
+
+Discover and call live application capabilities:
+
+```bash
+pulse-canvas runtime capabilities --format json
+pulse-canvas runtime call browser.tabs.list --input '{}' --format json
+```
+
+With **Agent runtime control** and **Webview page control (agent)** enabled,
+Claude Code and Codex can execute JavaScript inside an open iframe node or
+right-dock link tab. Prefer file or stdin input so scripts are not exposed in
+process arguments:
+
+```bash
+pulse-canvas runtime eval --node <nodeId> --file ./script.js --format json
+printf '%s' 'return document.title' |
+  pulse-canvas runtime eval --node <nodeId> --stdin --format json
+```
+
+The app still applies its sensitive-domain and URL-scheme policy. The script
+runs in the selected webpage, never in the Electron main process.
+
+For a non-preset operation on Pulse Canvas's own renderer UI, use the separate
+host escape hatch after structured Canvas capabilities prove insufficient:
+
+```bash
+printf '%s' 'return { title: document.title }' |
+  pulse-canvas runtime host-eval --stdin --format json
+```
+
+`host-eval` requires **Agent runtime control**, checks the selected workspace
+route before executing, and must return JSON-serialisable data. It has no direct
+Node `require`, but runs in the host page's main world and can call the
+renderer-exposed `window.canvasWorkspace` bridge; treat it as full experimental
+app control for same-user local code.
 
 ### Agent
 

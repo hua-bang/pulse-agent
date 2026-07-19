@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   tabs: [] as Array<Record<string, unknown>>,
   activateDockTab: vi.fn(async () => true),
+  openDockTab: vi.fn(() => true),
   execInSession: vi.fn(async () => ({ ok: true, output: 'tests passed' })),
 }));
 
@@ -12,7 +13,7 @@ vi.mock('../../dock/tab-store', () => ({
 vi.mock('../../dock/tab-actions', () => ({
   activateDockTab: mocks.activateDockTab,
   findDockLinkTab: vi.fn(),
-  openDockTab: vi.fn(),
+  openDockTab: mocks.openDockTab,
 }));
 vi.mock('../../terminal/pty-manager', () => ({
   execInSession: mocks.execInSession,
@@ -46,7 +47,21 @@ describe('dock tab interaction tools', () => {
       },
     ];
     mocks.activateDockTab.mockClear();
+    mocks.openDockTab.mockClear();
     mocks.execInSession.mockClear();
+  });
+
+  it('preserves list and open tool output while routing through capabilities', async () => {
+    const tools = createTabTools('ws-1');
+
+    const listed = JSON.parse(await tools.canvas_list_tabs.execute({}));
+    expect(listed).toMatchObject({ ok: true, count: 2, tabs: mocks.tabs });
+
+    const opened = JSON.parse(await tools.canvas_open_tab.execute({
+      url: 'https://example.com/docs',
+    }));
+    expect(opened).toMatchObject({ ok: true, url: 'https://example.com/docs' });
+    expect(mocks.openDockTab).toHaveBeenCalledWith('https://example.com/docs', undefined);
   });
 
   it('activates a listed tab and rejects stale tab ids', async () => {

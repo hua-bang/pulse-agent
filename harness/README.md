@@ -32,7 +32,7 @@ AGENTS.md / CLAUDE.md
 | Knowledge index | `knowledge/` | Index for the Knowledge surface — routes to existing knowledge SSOTs (root AGENTS, workspace AGENTS, workspace docs/contracts). |
 | Validate index | `validate/` | Index for the Validate surface — routes to root validation rules, workspace validation, checks, and run evidence. |
 | Tools | `tools/` | Harness tool index; wired executables live in `scripts/harness/` (runner + drift check). |
-| Skills | `skills/` | Stable repo action protocols; currently includes interactive harness visualization for root/package/app scopes. |
+| Skills | `skills/` | Stable repo action protocols; includes interactive harness visualization and the cross-workspace Canvas capability workflow. |
 
 ## Knowledge Routing
 
@@ -49,7 +49,7 @@ Keep source-of-truth routing lightweight and human-readable. Do not maintain a s
 | Package contract | Workspace `AGENTS.md`, `README.md`, `harness/knowledge/contracts.md` if present, otherwise local docs/types/tests |
 | App behavior | Workspace `AGENTS.md` or `CLAUDE.md`; add `docs/spec/` only when behavior needs durable product-level SSOT |
 | Runtime operation | Workspace `docs/runbook.md` or local entry file |
-| Future action protocol | Add `harness/skills/*.md` only after a recurring workflow is stable enough to justify a file |
+| Future action protocol | Add `harness/skills/<name>/SKILL.md` only after a recurring workflow is stable enough to justify a file |
 | Tool documentation | `harness/tools/README.md` and executable tool README files |
 
 ## Principles

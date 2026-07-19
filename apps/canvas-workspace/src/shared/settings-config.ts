@@ -4,25 +4,56 @@ export interface SkillTargetResult {
   error?: string;
 }
 
+export type AgentToolingUpdatePolicy = 'follow-app' | 'ask' | 'pinned';
+
 export interface SkillsInstallResult {
   ok: boolean;
   skillsInstalled: boolean;
   results: SkillTargetResult[];
   cliInstalled: boolean;
-  manualCommand?: string | null;
+  cliPath: string;
+  version: string | null;
+  fingerprint: string | null;
+  bundledVersion: string | null;
+  bundledFingerprint: string | null;
+  updateAvailable: boolean;
+  updatePolicy: AgentToolingUpdatePolicy;
+  applied: boolean;
+  deferred: boolean;
   cliError?: string | null;
   error?: string;
 }
 
 export interface SkillsStatusResult {
   installed: boolean;
+  skillsInstalled: boolean;
+  cliInstalled: boolean;
+  cliPath: string;
+  version: string | null;
+  fingerprint: string | null;
+  bundledVersion: string | null;
+  bundledFingerprint: string | null;
+  updateAvailable: boolean;
+  updatePolicy: AgentToolingUpdatePolicy;
   results: SkillTargetResult[];
   legacyDirs: string[];
+  shellPath: ShellPathResult;
 }
 
 export interface SkillsCleanupResult {
   ok: boolean;
   results: SkillTargetResult[];
+}
+
+export interface ShellPathResult {
+  ok: boolean;
+  supported: boolean;
+  configured: boolean;
+  changed: boolean;
+  shell: string | null;
+  profilePath: string | null;
+  command: string;
+  error?: string;
 }
 
 export type BuiltInToolCredentialId = 'openai' | 'gemini' | 'tavily';

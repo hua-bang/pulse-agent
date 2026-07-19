@@ -191,6 +191,29 @@ describe('canvas_search_nodes', () => {
   });
 });
 
+describe('node capability compatibility adapters', () => {
+  it('preserves canvas_read_node and canvas_update_node output while sharing the runtime', async () => {
+    await setupCanvas();
+    const tools = createCanvasTools(wsId);
+
+    const before = JSON.parse(await tools.canvas_read_node.execute({ nodeId: 'n-text' }));
+    expect(before).toMatchObject({ id: 'n-text', type: 'text', content: 'a quick note about pipelines' });
+
+    const updated = JSON.parse(await tools.canvas_update_node.execute({
+      nodeId: 'n-text',
+      title: 'Updated note',
+      content: 'runtime capability body',
+    }));
+    expect(updated).toEqual({ ok: true, nodeId: 'n-text' });
+
+    const { data } = await readCanvasFull(wsId);
+    expect(data?.nodes?.find((node) => node.id === 'n-text')).toMatchObject({
+      title: 'Updated note',
+      data: { content: 'runtime capability body' },
+    });
+  });
+});
+
 describe('canvas_create_node placement', () => {
   it('places a new node inside a target frame without moving existing nodes', async () => {
     await setupCanvas({

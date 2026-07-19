@@ -22,6 +22,8 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
 import { sendInputToAgentNode } from '../agent/session-send';
+import { handleCapabilityHttpRequest } from './capability-http';
+import { readBody, replyJson as reply } from './http-utils';
 const getCanvasAgentTeamsService = async () =>
   (await import('../agent-teams/service')).getCanvasAgentTeamsService();
 
@@ -289,6 +291,10 @@ async function handleRequest(
 
   if (!parsed || typeof parsed !== 'object') {
     return reply(res, 400, { ok: false, error: 'body must be a JSON object' });
+  }
+
+  if (await handleCapabilityHttpRequest(req.url, res, parsed as Record<string, unknown>)) {
+    return;
   }
 
   if (req.url === '/agent/send') {
@@ -651,32 +657,6 @@ function errorStatus(code: string): number {
     default:
       return 500;
   }
-}
-
-function reply(res: ServerResponse, status: number, body: unknown): void {
-  const json = JSON.stringify(body);
-  res.statusCode = status;
-  res.setHeader('content-type', 'application/json');
-  res.setHeader('content-length', Buffer.byteLength(json).toString());
-  res.end(json);
-}
-
-function readBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let received = 0;
-    req.on('data', (chunk: Buffer) => {
-      received += chunk.length;
-      if (received > maxBytes) {
-        reject(new Error(`request body exceeds ${maxBytes} bytes`));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
-  });
 }
 
 // Exported for tests.

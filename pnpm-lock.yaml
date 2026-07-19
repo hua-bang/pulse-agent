@@ -363,6 +363,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@pulse-coder/canvas-cli':
+        specifier: workspace:*
+        version: link:../canvas-cli
       ink:
         specifier: ^7.0.2
         version: 7.0.2(react@19.2.5)
@@ -387,6 +390,9 @@ importers:
       react:
         specifier: ^19.2.5
         version: 19.2.5
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@types/node':
         specifier: ^25.0.10

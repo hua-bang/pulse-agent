@@ -157,6 +157,167 @@ describe('pulse-canvas agent send', () => {
   });
 });
 
+describe('pulse-canvas runtime capabilities', () => {
+  it('discovers live capabilities through the authenticated runtime', async () => {
+    let seenAuth = '';
+    let seenUrl = '';
+    const { server, baseUrl } = await startStubServer((_body, headers, url) => {
+      seenAuth = String(headers.authorization ?? '');
+      seenUrl = url ?? '';
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          capabilities: [{
+            name: 'browser.page.eval',
+            description: 'Execute JavaScript in an open page.',
+            risk: 'unsafe',
+            inputSchema: { type: 'object' },
+          }],
+        },
+      };
+    });
+    await writeRuntime({ pid: process.pid, baseUrl, secret: 'tok', createdAt: '' });
+
+    const { stdout, exitCode } = await runCli([
+      '--format', 'json',
+      'runtime', 'capabilities',
+    ]);
+    server.close();
+
+    expect(exitCode).toBe(null);
+    expect(seenUrl).toBe('/capabilities/list');
+    expect(seenAuth).toBe('Bearer tok');
+    expect(JSON.parse(stdout)).toEqual([expect.objectContaining({
+      name: 'browser.page.eval',
+      risk: 'unsafe',
+    })]);
+  });
+
+  it('executes a page script loaded from a file in the selected workspace', async () => {
+    const scriptPath = join(
+      tmpdir(),
+      `pulse-canvas-runtime-${Date.now()}-${Math.random().toString(36).slice(2)}.js`,
+    );
+    await fs.writeFile(scriptPath, 'return { title: document.title }', 'utf8');
+    let seenBody: unknown = null;
+    let seenUrl = '';
+    const { server, baseUrl } = await startStubServer((body, _headers, url) => {
+      seenBody = body;
+      seenUrl = url ?? '';
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          value: {
+            action: 'page_eval',
+            url: 'https://example.test/',
+            value: { title: 'Example' },
+          },
+        },
+      };
+    });
+    await writeRuntime({ pid: process.pid, baseUrl, secret: 'tok', createdAt: '' });
+
+    const { stdout, exitCode } = await runCli([
+      '--workspace', 'ws-x', '--format', 'json',
+      'runtime', 'eval',
+      '--node', 'web-1',
+      '--file', scriptPath,
+      '--timeout', '2000',
+    ]);
+    server.close();
+    await fs.rm(scriptPath, { force: true });
+
+    expect(exitCode).toBe(null);
+    expect(seenUrl).toBe('/capabilities/call');
+    expect(seenBody).toEqual({
+      workspaceId: 'ws-x',
+      name: 'browser.page.eval',
+      input: {
+        nodeId: 'web-1',
+        code: 'return { title: document.title }',
+        timeoutMs: 2_000,
+      },
+    });
+    expect(JSON.parse(stdout)).toMatchObject({
+      action: 'page_eval',
+      value: { title: 'Example' },
+    });
+  });
+
+  it('reports an invalid eval timeout through the JSON error contract', async () => {
+    const { stderr, exitCode } = await runCli([
+      '--workspace', 'ws-x', '--format', 'json',
+      'runtime', 'eval',
+      '--node', 'web-1',
+      '--code', 'return document.title',
+      '--timeout', '0',
+    ]);
+
+    expect(exitCode).toBe(1);
+    expect(JSON.parse(stderr)).toMatchObject({
+      ok: false,
+      code: 'invalid_argument',
+    });
+  });
+
+  it('executes a host renderer script from stdin in the selected workspace', async () => {
+    let seenBody: unknown = null;
+    const { server, baseUrl } = await startStubServer((body) => {
+      seenBody = body;
+      return {
+        status: 200,
+        body: { ok: true, value: { action: 'host_renderer_eval', value: { sent: true } } },
+      };
+    });
+    await writeRuntime({ pid: process.pid, baseUrl, secret: 'tok', createdAt: '' });
+
+    const { stdout, exitCode } = await runCli([
+      '--workspace', 'ws-x', '--format', 'json',
+      'runtime', 'host-eval',
+      '--code', 'return { sent: true }',
+      '--timeout', '2000',
+    ]);
+    server.close();
+
+    expect(exitCode).toBe(null);
+    expect(seenBody).toEqual({
+      workspaceId: 'ws-x',
+      name: 'host.renderer.eval',
+      input: { code: 'return { sent: true }', timeoutMs: 2_000 },
+    });
+    expect(JSON.parse(stdout)).toEqual({
+      action: 'host_renderer_eval',
+      value: { sent: true },
+    });
+  });
+
+  it('calls a discovered capability with structured JSON input', async () => {
+    let seenBody: unknown = null;
+    const { server, baseUrl } = await startStubServer((body) => {
+      seenBody = body;
+      return { status: 200, body: { ok: true, value: { count: 2 } } };
+    });
+    await writeRuntime({ pid: process.pid, baseUrl, secret: 'tok', createdAt: '' });
+
+    const { stdout, exitCode } = await runCli([
+      '--workspace', 'ws-x', '--format', 'json',
+      'runtime', 'call', 'browser.tabs.list',
+      '--input', '{}',
+    ]);
+    server.close();
+
+    expect(exitCode).toBe(null);
+    expect(seenBody).toEqual({
+      workspaceId: 'ws-x',
+      name: 'browser.tabs.list',
+      input: {},
+    });
+    expect(JSON.parse(stdout)).toEqual({ count: 2 });
+  });
+});
+
 describe('pulse-canvas team propose-plan', () => {
   it('posts structured plans to /agent-team/propose-plan', async () => {
     const planPath = join(tmpdir(), `pulse-canvas-plan-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);

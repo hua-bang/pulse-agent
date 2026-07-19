@@ -17,7 +17,6 @@ import { setupFileManagerIpc } from "../files/manager";
 // import { startMCPServer } from "../runtime/mcp-server";
 // import { ensureMCPRegistered } from "../runtime/mcp-registration";
 import { setupFileWatcherIpc, teardownFileWatcher } from "../files/watcher";
-import { setupSkillInstallerIpc } from "../files/skill-installer";
 import {
   getCanvasAgentService,
   setupCanvasAgentIpc,
@@ -40,15 +39,9 @@ import {
 import { setupWebviewRegistryIpc } from "../webview/registry";
 import { startWebviewDiscardMonitor } from "../webview/discard-monitor";
 import { setupHtmlGeneratorIpc } from "../generation/ipc";
+import { setupWebpageReaderIpc } from "../webview/reader";
 import { setupArtifactIpc } from "../artifacts/ipc";
 import { setupShellIpc } from "./shell-ipc";
-import { setupUpdateIpc } from "./update-ipc";
-import { setupWebpageReaderIpc } from "../webview/reader";
-import { setupWorkspaceNodeIpc } from "../canvas/nodes/ipc";
-import {
-  ensureRuntimeControlServer,
-  stopRuntimeControlServer,
-} from "../runtime/control-server";
 import {
   BUILT_IN_MAIN_PLUGINS,
   reloadConfiguredExternalMainPlugins,
@@ -68,7 +61,6 @@ import {
   registerPulseCanvasProtocol,
   registerPulseCanvasSchemesAsPrivileged,
 } from "./protocol";
-import { configureApplicationMenu } from "./menu";
 import { logStartupSummaryOnce, startupMark } from "./startup-metrics";
 import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
@@ -86,6 +78,18 @@ interface AppPaths {
   preloadPath: string;
   rendererIndexPath: string;
   iconPath?: string;
+}
+
+async function ensureRuntimeControlServer(writeLog: WriteLog): Promise<boolean> {
+  const runtime = await import('../runtime/control-server');
+  return runtime.ensureRuntimeControlServer((message, detail) => {
+    void writeLog('main', message, detail);
+  });
+}
+
+async function stopRuntimeControlServer(): Promise<void> {
+  const runtime = await import('../runtime/control-server');
+  await runtime.stopRuntimeControlServer();
 }
 
 export function bootstrap({ mainDir }: BootstrapOptions): void {
@@ -121,6 +125,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // Must run before the window opens: the default menu's Undo/Redo
     // accelerators would otherwise swallow Cmd/Ctrl+Z before the
     // renderer's canvas-history handler receives the keydown.
+    const { configureApplicationMenu } = await import('./menu');
     configureApplicationMenu();
     setupRendererLogIpc(writeLog);
     setupFatalErrorLogging(writeLog);
@@ -143,7 +148,12 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     void auditPollutedWorkspacesAtStartup();
     setupFileManagerIpc();
     setupFileWatcherIpc();
+    const {
+      ensureAgentToolingAtStartup,
+      setupSkillInstallerIpc,
+    } = await import("../files/skill-installer");
     setupSkillInstallerIpc();
+    await ensureAgentToolingAtStartup(writeLog);
     setupCanvasAgentIpc();
     setupCodexSessionsIpc();
     if (getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_TEAMS)) {
@@ -172,6 +182,10 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // App-lifetime service; the interval dies with the process.
     startWebviewDiscardMonitor();
     setupHtmlGeneratorIpc();
+    const [{ setupWorkspaceNodeIpc }, { setupUpdateIpc }] = await Promise.all([
+      import('../canvas/nodes/ipc'),
+      import('./update-ipc'),
+    ]);
     setupArtifactIpc();
     setupShellIpc();
     setupDefaultBrowserIpc();
@@ -195,9 +209,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     await setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
     await reloadConfiguredExternalMainPlugins();
     startupMark("pluginsActivated");
-    void ensureRuntimeControlServer((message, detail) => {
-      void writeLog("main", message, detail);
-    }).then((ok) => {
+    void ensureRuntimeControlServer(writeLog).then((ok) => {
       if (!ok) {
         void writeLog(
           "main",
@@ -220,7 +232,6 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
 
     // Let on-demand activation (e.g. the channel plugin's /open) recreate the
     // window if it was closed.
-    setWindowFactory(openWindow);
     // Startup metrics: dom-ready on the first window closes the boot
     // critical path (whenReady → seeding → IPC → plugins → window → renderer).
     app.on("browser-window-created", (_event, win) => {
@@ -230,17 +241,15 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       });
     });
     startupMark("openWindow");
-    openWindow();
+    setWindowFactory(openWindow, openWindow());
 
     app.on("activate", () => {
       // Reopening the window after a close must restore the live channel too —
       // on macOS the process stays alive but the server was previously torn
       // down here, leaving "app open but no runtime" (ENOENT for CLI live cmds).
-      void ensureRuntimeControlServer((message, detail) => {
-        void writeLog("main", message, detail);
-      });
+      void ensureRuntimeControlServer(writeLog);
       if (BrowserWindow.getAllWindows().length === 0) {
-        openWindow();
+        setWindowFactory(openWindow, openWindow());
       }
     });
   });

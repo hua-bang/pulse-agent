@@ -12,6 +12,7 @@ export default defineConfig({
   sourcemap: true,
   target: 'es2022',
   platform: 'node',
+  noExternal: ['commander'],
   banner: { js: '#!/usr/bin/env node' },
   outExtension: () => ({ js: '.cjs' }),
 });

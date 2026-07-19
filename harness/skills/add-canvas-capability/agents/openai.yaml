@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Canvas Capability"
+  short_description: "Add one Canvas capability for tools and CLI"
+  default_prompt: "Use $add-canvas-capability to add a Canvas capability shared by native tools and pulse-canvas CLI."

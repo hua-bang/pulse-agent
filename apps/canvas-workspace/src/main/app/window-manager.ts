@@ -17,14 +17,16 @@ import { BrowserWindow } from 'electron';
 type WindowFactory = () => BrowserWindow;
 
 let windowFactory: WindowFactory | null = null;
+let canvasWindow: BrowserWindow | null = null;
 
 /** Registered by bootstrap so we can recreate the window if it was closed. */
-export function setWindowFactory(factory: WindowFactory): void {
+export function setWindowFactory(factory: WindowFactory, initialWindow: BrowserWindow): void {
   windowFactory = factory;
+  canvasWindow = initialWindow;
 }
 
 function liveWindow(): BrowserWindow | null {
-  return BrowserWindow.getAllWindows().find((w) => !w.isDestroyed()) ?? null;
+  return canvasWindow && !canvasWindow.isDestroyed() ? canvasWindow : null;
 }
 
 /**
@@ -39,7 +41,7 @@ export function getCanvasWindow(): BrowserWindow | null {
 }
 
 function getOrCreateWindow(): BrowserWindow | null {
-  return liveWindow() ?? windowFactory?.() ?? null;
+  return liveWindow() ?? (canvasWindow = windowFactory?.() ?? null);
 }
 
 function whenReady(win: BrowserWindow): Promise<void> {
@@ -52,6 +54,7 @@ function whenReady(win: BrowserWindow): Promise<void> {
 export interface ActivateResult {
   ok: boolean;
   error?: string;
+  window?: BrowserWindow;
 }
 
 /**
@@ -83,7 +86,7 @@ export async function activateWorkspaceWindow(workspaceId: string): Promise<Acti
     await win.webContents.executeJavaScript(
       `window.location.hash = ${JSON.stringify(hash)}; void 0;`,
     );
-    return { ok: true };
+    return { ok: true, window: win };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }

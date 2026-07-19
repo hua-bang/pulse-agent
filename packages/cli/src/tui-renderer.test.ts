@@ -94,7 +94,11 @@ describe('TuiRenderer', () => {
 
   it('supports runtime TUI toggling when terminal capabilities allow it', () => {
     const output = new MemoryOutput();
-    const renderer = new TuiRenderer({ output, enabled: false });
+    const renderer = new TuiRenderer({
+      output,
+      enabled: false,
+      env: { TERM: 'xterm-256color' },
+    });
 
     expect(renderer.isEnabled()).toBe(false);
     expect(renderer.setEnabled(true)).toBe(true);

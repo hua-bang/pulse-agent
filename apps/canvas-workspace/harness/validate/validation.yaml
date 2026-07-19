@@ -45,6 +45,34 @@ pathRules:
     required:
       - node apps/canvas-workspace/harness/tools/describe-canvas.mjs
 
+  - name: packaged-agent-tooling
+    paths:
+      - package.json
+      - src/main/files/agent-tooling-manager.ts
+      - src/main/files/agent-tooling-manager.test.ts
+      - src/main/files/agent-tooling-files.ts
+      - src/main/files/agent-tooling-deployment.ts
+      - src/main/files/agent-tooling-queue.ts
+      - src/main/files/agent-tooling-queue.test.ts
+      - src/main/files/agent-tooling-state.ts
+      - src/main/files/skill-installer.ts
+      - src/main/files/shell-path.ts
+      - src/main/files/shell-path.test.ts
+      - src/shared/settings-config.ts
+      - src/preload/bridge/settings.ts
+      - src/renderer/src/components/Settings/AgentSection.tsx
+      - src/renderer/src/components/Settings/AgentShellPathCard.tsx
+      - src/renderer/src/components/Settings/AgentSection.css
+      - src/main/__tests__/agent-tooling-package.test.ts
+      - harness/tools/smoke-packaged-agent-tooling.mjs
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/main/files/agent-tooling-manager.test.ts src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts src/main/__tests__/agent-tooling-package.test.ts
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/main/files/agent-tooling-manager.test.ts src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts src/main/__tests__/agent-tooling-package.test.ts
+    manual:
+      - pnpm --filter canvas-workspace package:mac:arm64 && node apps/canvas-workspace/harness/tools/smoke-packaged-agent-tooling.mjs
+
   # This plain-React visual fixture has an isolated tsconfig and Linux-only
   # screenshot baselines, so keep typechecking automatic and the pixel check
   # explicit until a suitable Linux runner owns it.

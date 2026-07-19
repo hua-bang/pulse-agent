@@ -1,11 +1,7 @@
 import { z } from 'zod';
-import {
-  listWorkspaceNodes,
-  type WorkspaceNodeRecord,
-} from '../../canvas/nodes/store';
-import { readKnowledgeTags } from '../../canvas/nodes/tags';
-import type { CanvasNode, CanvasTool } from './types';
-import { loadCanvas } from './_shared/canvas-io';
+
+import { getCanvasCapabilityRuntime } from '../../runtime/capabilities';
+import type { CanvasTool } from './types';
 
 export function createSearchTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -31,131 +27,20 @@ export function createSearchTools(workspaceId: string): Record<string, CanvasToo
         limit: z.number().int().positive().max(200).optional().describe('Max results to return. Default 30.'),
         workspaceId: z.string().optional().describe('Target workspace ID. Defaults to the current workspace.'),
       }),
-      execute: async (input) => {
-        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
-        const canvas = await loadCanvas(targetWorkspaceId);
-        if (!canvas) return `Error: workspace not found: ${targetWorkspaceId}`;
-
-        const query = typeof input.query === 'string' ? input.query.trim().toLowerCase() : '';
-        const typeFilter = (() => {
-          if (!input.type) return null;
-          const arr = Array.isArray(input.type) ? input.type : [input.type];
-          return new Set(arr as string[]);
-        })();
-        const tagFilter = (() => {
-          if (!input.tag) return null;
-          const arr: unknown[] = Array.isArray(input.tag) ? input.tag : [input.tag];
-          const cleaned = arr
-            .filter((t: unknown): t is string => typeof t === 'string')
-            .map((t: string) => t.trim())
-            .filter(Boolean);
-          return cleaned.length ? cleaned : null;
-        })();
-        const limit = (input.limit as number | undefined) ?? 30;
-
-        const wsNodeById = new Map<string, WorkspaceNodeRecord>();
-        // For each requested tag token, the set of stored values that count as a
-        // match. Stored tags are ids (slugs); a token may be a name, so resolve
-        // names → ids via the global tag store (case-insensitive).
-        let tagAcceptSets: Set<string>[] | null = null;
-        if (tagFilter) {
-          const records = await listWorkspaceNodes(targetWorkspaceId);
-          for (const record of records) wsNodeById.set(record.id, record);
-
-          const idsByName = new Map<string, string[]>();
-          for (const tg of await readKnowledgeTags()) {
-            const key = tg.name.trim().toLowerCase();
-            const arr = idsByName.get(key) ?? [];
-            arr.push(tg.id);
-            idsByName.set(key, arr);
-          }
-          tagAcceptSets = tagFilter.map((token) => {
-            const accept = new Set<string>([token]);
-            for (const id of idsByName.get(token.toLowerCase()) ?? []) accept.add(id);
-            return accept;
-          });
-        }
-
-        const matchHaystacks = (node: CanvasNode): string[] => {
-          const fields: string[] = [node.title ?? '', node.type ?? ''];
-          const data = node.data ?? {};
-          for (const key of ['content', 'label', 'url', 'filePath', 'cwd', 'prompt', 'html']) {
-            const v = data[key];
-            if (typeof v === 'string') fields.push(v);
-          }
-          return fields;
-        };
-
-        const snippetFor = (node: CanvasNode): string => {
-          const data = node.data ?? {};
-          const candidates: Array<string | undefined> = [
-            typeof data.content === 'string' ? (data.content as string) : undefined,
-            typeof data.label === 'string' ? (data.label as string) : undefined,
-            typeof data.url === 'string' ? (data.url as string) : undefined,
-            typeof data.filePath === 'string' ? (data.filePath as string) : undefined,
-          ];
-          const first = candidates.find((c) => c && c.trim().length > 0) ?? '';
-          const normalized = first.replace(/\s+/g, ' ').trim();
-          return normalized.length > 160 ? `${normalized.slice(0, 157)}...` : normalized;
-        };
-
-        const matches: Array<{
-          id: string;
-          type: string;
-          title: string;
-          snippet: string;
-          x: number;
-          y: number;
-          tags?: string[];
-        }> = [];
-
-        for (const node of canvas.nodes) {
-          if (typeFilter && !typeFilter.has(node.type)) continue;
-
-          if (tagAcceptSets) {
-            const record = wsNodeById.get(node.id);
-            const rawTags: unknown[] = Array.isArray(record?.properties?.tags)
-              ? (record!.properties!.tags as unknown[])
-              : [];
-            const tagSet = new Set(
-              rawTags.filter((t: unknown): t is string => typeof t === 'string'),
-            );
-            const hasAll = tagAcceptSets.every((accept) => {
-              for (const id of accept) if (tagSet.has(id)) return true;
-              return false;
-            });
-            if (!hasAll) continue;
-          }
-
-          if (query) {
-            const hay = matchHaystacks(node).join('\n').toLowerCase();
-            if (!hay.includes(query)) continue;
-          }
-
-          const record = wsNodeById.get(node.id);
-          const tags = Array.isArray(record?.properties?.tags)
-            ? (record!.properties!.tags as string[]).filter((t): t is string => typeof t === 'string')
-            : undefined;
-
-          matches.push({
-            id: node.id,
-            type: node.type,
-            title: node.title ?? '',
-            snippet: snippetFor(node),
-            x: node.x,
-            y: node.y,
-            ...(tags && tags.length ? { tags } : {}),
-          });
-          if (matches.length >= limit) break;
-        }
-
-        return JSON.stringify({
-          ok: true,
-          workspaceId: targetWorkspaceId,
-          total: matches.length,
-          truncated: matches.length >= limit,
-          matches,
-        });
+      execute: async (input, context) => {
+        const { workspaceId: inputWorkspaceId, ...capabilityInput } = input;
+        const targetWorkspaceId = (inputWorkspaceId as string) || workspaceId;
+        const result = await getCanvasCapabilityRuntime().call(
+          'canvas.nodes.search',
+          capabilityInput,
+          {
+            workspaceId: targetWorkspaceId,
+            actor: { kind: 'canvas-agent' },
+            abortSignal: context?.abortSignal,
+          },
+        );
+        if (!result.ok) return `Error: ${result.error.message}`;
+        return JSON.stringify({ ok: true, ...(result.value as object) });
       },
     },
   };

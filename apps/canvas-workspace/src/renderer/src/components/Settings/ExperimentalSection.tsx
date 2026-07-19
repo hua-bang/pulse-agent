@@ -69,7 +69,6 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
             title: t('experimental.toolingCliFailed'),
             description: t('experimental.toolingCliFailedDesc', {
               error: status.cliError ?? t('experimental.unknownError'),
-              command: status.manualCommand ?? '',
             }),
             autoCloseMs: 0,
           };

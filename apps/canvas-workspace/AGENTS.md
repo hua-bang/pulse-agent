@@ -62,7 +62,7 @@ before that the directory held only the Electron driver):
 **"skills" disambiguation** — `harness/skills/*/SKILL.md` are procedures for
 CODING agents working on this app; `src/main/agent/skills/` is the PRODUCT
 runtime-skills feature of the in-app Canvas Agent; `files/skill-installer.ts`
-installs the latter. Do not mix them.
+deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 
 ## Knowledge Navigation
 
@@ -86,6 +86,7 @@ installs the latter. Do not mix them.
 | Visual-regression baseline for ui/ pieces | `harness/tools/ui-showcase/README.md`; run `pnpm run visual` / `pnpm run visual:update` |
 | Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` (NB: `nodes/` here = knowledge-node records + tags, NOT node types) |
 | Canvas Agent and tools | `src/main/agent/`, `src/main/agent/tools/`, `src/renderer/src/components/chat/` |
+| Add a capability shared by Tool + CLI | `../../harness/skills/add-canvas-capability/SKILL.md`; use `harness/skills/add-agent-tool/SKILL.md` for the optional task-specific Canvas Agent adapter |
 | Agent teams | `src/main/agent-teams/`, `src/renderer/src/components/AgentTeamFrame/` |
 | Runtime-control server | `src/main/runtime/control-server.ts` |
 | Plugin node contract | `harness/knowledge/plugin-node-mf2.md`, `src/plugins/types.ts`, `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/mock-node/` |
@@ -114,12 +115,51 @@ installs the latter. Do not mix them.
 - Runtime data belongs under user locations such as `~/.pulse-coder/canvas/`,
   `~/.pulse-coder/canvas-runtime/`, and model/settings files. Do not write user
   runtime state into the repository.
+- Packaged builds bundle the existing `@pulse-coder/canvas-cli` under Electron
+  resources. On first launch and after app updates, the app idempotently
+  installs its versioned files under `~/.pulse-coder/tooling/pulse-canvas/`, a
+  no-system-Node wrapper under `~/.pulse-coder/bin/`, and all bundled skills
+  into Pulse/Codex/Claude global skill dirs. Keep startup, Settings repair, and
+  experimental-trigger installs on the shared `AgentToolingManager`; production
+  installation must never depend on a source checkout, `pnpm`, or global link.
+  Treat the CLI + skills as one compatibility bundle. The persisted update
+  policy under the tooling root defaults to following app updates; `ask` and
+  `pinned` retain the active bundle until an explicit Settings update, while
+  damage repair of that active bundle remains automatic from its fingerprinted
+  local payload cache. Runtime payload directories are fingerprint-qualified
+  and immutable across updates so a same-semver replacement cannot overwrite
+  the CLI currently referenced by the launcher. Bundle activation is
+  failure-atomic: a skill, launcher, or active-state write failure must restore
+  the previously active set. Settings may offer an explicit shell-PATH setup for
+  zsh/bash/fish; it appends one marked `~/.pulse-coder/bin` entry only after a
+  user click, never during automatic install/update.
 - `harness/tools/driver/` launches the real Electron app. Use `temp`, `demo`,
   or `clone` profiles by default; use `real --allow-real-writes` only after
   explicit user intent because it can mutate real Pulse Canvas data.
 - The app owns v2 canvas storage migration, PTY sessions, runtime-control
   endpoints, plugin activation, and UI-visible data recovery. The CLI adapts to
   those contracts but does not own them.
+- Live-app capabilities belong under `src/main/runtime/capabilities/`; stable
+  Canvas Agent tools may adapt to them without changing their public names or
+  payloads. External `/capabilities/*` routes stay hidden unless the
+  `agent-runtime-control` experimental flag is enabled and always retain the
+  runtime file's bearer-auth boundary. Discovery includes each input JSON
+  schema, and the runtime policy must filter discovery and execution together;
+  Pulse CLI may access `read`/`operate`, never `unsafe`, by default. The shared
+  registry currently exposes browser-tab discovery, live page reads, Canvas
+  node read/search/update, and (only when `webview-page-control` is also
+  enabled) selector-based page click/fill. Arbitrary page JavaScript is the
+  `browser.page.eval` unsafe capability behind the stable deferred `page_eval`
+  Canvas Agent tool and requires both flags for external access. Arbitrary
+  host-renderer JavaScript is the separate `host.renderer.eval` unsafe
+  capability behind the deferred `canvas_host_eval` tool and `pulse-canvas
+  runtime host-eval`; it requires `agent-runtime-control`, checks the selected
+  workspace route before execution, and runs in the host page's main world.
+  It has no direct Node `require`, but it can call the app's renderer-exposed
+  `canvasWorkspace` preload bridge and therefore can trigger privileged main
+  actions. These are the only Pulse CLI `unsafe` exceptions.
+  External node updates are limited to title/content; arbitrary internal
+  `data` patches remain Canvas-Agent-only.
 - Canvas node and edge shapes are sourced from `src/shared/canvas.ts`, not the
   shorter README node table. Current host node types include `file`,
   `terminal`, `frame`, `group`, `agent`, `text`, `iframe`, `image`, `shape`,

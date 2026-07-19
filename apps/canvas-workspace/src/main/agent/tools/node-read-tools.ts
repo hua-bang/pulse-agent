@@ -4,8 +4,8 @@ import {
   buildDetailedContext,
   buildWorkspaceSummary,
   formatSummaryForPrompt,
-  readNodeDetail,
 } from '../context-builder';
+import { getCanvasCapabilityRuntime } from '../../runtime/capabilities';
 import type { CanvasTool } from './types';
 
 export function createNodeReadTools(workspaceId: string): Record<string, CanvasTool> {
@@ -87,12 +87,20 @@ export function createNodeReadTools(workspaceId: string): Record<string, CanvasT
         nodeId: z.string().describe('The ID of the node to read.'),
         workspaceId: z.string().optional().describe('Target workspace ID. Defaults to the current workspace.'),
       }),
-      execute: async (input) => {
+      execute: async (input, context) => {
         const nodeId = input.nodeId as string;
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
-        const detail = await readNodeDetail(targetWorkspaceId, nodeId);
-        if (!detail) return `Error: node not found: ${nodeId} (workspace: ${targetWorkspaceId})`;
-        return JSON.stringify(detail, null, 2);
+        const result = await getCanvasCapabilityRuntime().call(
+          'canvas.nodes.read',
+          { nodeId },
+          {
+            workspaceId: targetWorkspaceId,
+            actor: { kind: 'canvas-agent' },
+            abortSignal: context?.abortSignal,
+          },
+        );
+        if (!result.ok) return `Error: ${result.error.message}`;
+        return JSON.stringify(result.value, null, 2);
       },
     },
   };

@@ -14,13 +14,14 @@
     },
     "./core": {
       "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.cjs",
       "require": "./dist/core/index.cjs"
     }
   },
   "scripts": {
     "build": "tsup && cp -r skills dist/",
     "dev": "tsup --watch",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "typecheck": "tsc --noEmit"
   },
   "files": [

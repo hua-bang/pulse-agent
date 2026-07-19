@@ -20,7 +20,6 @@ import {
   EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
   resolveFeatureValues,
 } from '../../shared/experimental-features';
-import { runInstall } from '../files/skill-installer';
 import { setDefaultBrowser } from '../default-browser/register';
 
 function getPath(): string {
@@ -131,9 +130,8 @@ export function setupExperimentalIpc(): void {
           }
         }
 
-        // When Agent Teams is turned on (off→on), install the latest canvas
-        // skill + CLI in the background. Experimental/dev-only: skill files
-        // land in the global skill dirs and the CLI is built + `pnpm link`-ed.
+        // When Agent Teams is turned on (off→on), install or repair the bundled
+        // Canvas skills and app-owned CLI wrapper in the background.
         // Fire-and-forget so the toggle stays responsive; the manual
         // Settings → Agent button re-runs the same routine with full feedback.
         if (
@@ -147,20 +145,20 @@ export function setupExperimentalIpc(): void {
             skillsInstalled: boolean;
             cliInstalled: boolean;
             cliError?: string | null;
-            manualCommand?: string | null;
           }) => {
             if (!sender.isDestroyed()) {
               sender.send('experimental:tooling-status', { feature: payload.id, ...status });
             }
           };
-          void runInstall()
+          void import('../files/skill-installer')
+            .then(({ runInstall }) => runInstall())
             .then((result) => {
               if (!result.skillsInstalled) {
                 console.warn('[experimental] agent-teams skill install incomplete', result.results);
               }
               if (!result.cliInstalled) {
                 console.warn(
-                  `[experimental] agent-teams CLI install skipped/failed: ${result.cliError ?? 'unknown'}. Run manually: ${result.manualCommand}`,
+                  `[experimental] agent-teams CLI install/repair failed: ${result.cliError ?? 'unknown'}`,
                 );
               } else {
                 console.log('[experimental] agent-teams skill + CLI installed');
@@ -170,7 +168,6 @@ export function setupExperimentalIpc(): void {
                 skillsInstalled: result.skillsInstalled,
                 cliInstalled: result.cliInstalled,
                 cliError: result.cliError,
-                manualCommand: result.manualCommand,
               });
             })
             .catch((err) => {
@@ -180,7 +177,6 @@ export function setupExperimentalIpc(): void {
                 skillsInstalled: false,
                 cliInstalled: false,
                 cliError: err instanceof Error ? err.message : String(err),
-                manualCommand: null,
               });
             });
         }

@@ -28,4 +28,3 @@ export default defineConfig((options) => {
     outExtension: () => ({ js: '.cjs' })
   };
 });
-
