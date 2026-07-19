@@ -57,7 +57,7 @@ export async function readRuntime(): Promise<RuntimeInfo> {
   const result = await tryReadRuntime();
   if (!result.ok) {
     const suffix = result.error.code === 'runtime_not_found'
-      ? '\nOpen this workspace in Pulse Canvas before using live agent/team commands.'
+      ? '\nOpen this workspace in Pulse Canvas before using live commands.'
       : '';
     errorOutput(`${result.error.message}${suffix}`, { code: result.error.code });
   }

@@ -147,7 +147,9 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   node read/search/update, and (only when `webview-page-control` is also
   enabled) selector-based page click/fill. Arbitrary page JavaScript is the
   `browser.page.eval` unsafe capability behind the stable deferred `page_eval`
-  Canvas Agent tool; it remains filtered from Pulse CLI discovery and calls.
+  Canvas Agent tool. It is the sole Pulse CLI `unsafe` exception and is only
+  externally reachable while both `agent-runtime-control` and
+  `webview-page-control` are enabled.
   External node updates are limited to title/content; arbitrary internal
   `data` patches remain Canvas-Agent-only.
 - Canvas node and edge shapes are sourced from `src/shared/canvas.ts`, not the

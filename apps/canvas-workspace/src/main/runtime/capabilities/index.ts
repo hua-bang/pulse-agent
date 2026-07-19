@@ -35,7 +35,9 @@ export function getCanvasCapabilityRuntime(): CapabilityRuntime {
       ...createNodeCapabilities(),
     ],
     (capability, actor) => {
-      if (!allowedRisks[actor.kind].has(capability.risk)) return false;
+      const externalPageEval = actor.kind === 'pulse-cli'
+        && capability.name === 'browser.page.eval';
+      if (!allowedRisks[actor.kind].has(capability.risk) && !externalPageEval) return false;
       return !pageOperationCapabilities.has(capability.name)
         || getExperimentalFlagSync(EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL);
     },

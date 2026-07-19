@@ -64,7 +64,7 @@ export function registerStatusCommand(program: Command): void {
             ? `Resolves to:      ${d.resolved.workspaceId} (source: ${d.resolved.source})`
             : `Resolves to:      (none — ${d.resolved.error ?? 'no workspace selected'})`,
           d.runtime.reachable
-            ? `Runtime:          reachable at ${d.runtime.baseUrl} (pid ${d.runtime.pid ?? '?'}) — agent/team available`
+            ? `Runtime:          reachable at ${d.runtime.baseUrl} (pid ${d.runtime.pid ?? '?'}) — live commands available`
             : `Runtime:          not available — ${d.runtime.error ?? 'unknown'}`,
         ];
         return lines.join('\n');

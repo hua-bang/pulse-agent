@@ -13,6 +13,7 @@ export interface RuntimeCapabilityRequest {
   workspaceId: string;
   name: string;
   input?: unknown;
+  transportTimeoutMs?: number;
 }
 
 export interface RuntimeClientError {
@@ -29,9 +30,10 @@ async function postRuntimeSafely(
   runtime: RuntimeInfo,
   path: string,
   body: object,
+  timeoutMs = 5_000,
 ): Promise<RuntimeClientResult<unknown>> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${runtime.baseUrl}${path}`, {
       method: 'POST',
@@ -127,6 +129,7 @@ export async function callRuntimeCapability(
       name: request.name,
       input: request.input ?? {},
     },
+    request.transportTimeoutMs,
   );
   if (!response.ok) return response;
   const payload = response.value as { value?: unknown };

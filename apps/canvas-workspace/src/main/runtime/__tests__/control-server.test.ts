@@ -229,16 +229,24 @@ describe('runtime-control server lifecycle', () => {
     expect(enabled.body.capabilities).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'browser.page.click' }),
       expect.objectContaining({ name: 'browser.page.fill' }),
+      expect.objectContaining({ name: 'browser.page.eval', risk: 'unsafe' }),
     ]));
-    expect(enabled.body.capabilities).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'browser.page.eval' }),
-    ]));
+    const evalValidation = await postRuntime(runtime, '/capabilities/call', {
+      workspaceId: 'ws-1',
+      name: 'browser.page.eval',
+      input: {},
+    });
+    expect(evalValidation).toMatchObject({
+      status: 400,
+      body: { ok: false, error: { code: 'invalid_input' } },
+    });
 
     await setCapabilityRuntimeEnabled(true, false);
     const disabled = await postRuntime(runtime, '/capabilities/list', {});
     expect(disabled.body.capabilities).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'browser.page.click' }),
       expect.objectContaining({ name: 'browser.page.fill' }),
+      expect.objectContaining({ name: 'browser.page.eval' }),
     ]));
     const forbidden = await postRuntime(runtime, '/capabilities/call', {
       workspaceId: 'ws-1',

@@ -125,7 +125,7 @@ export function createPageCapabilities(
     {
       name: 'browser.page.eval',
       description:
-        'Execute arbitrary JavaScript in an open iframe node or dock link tab. Canvas Agent only.',
+        'Execute arbitrary JavaScript in an open iframe node or dock link tab. Experimental.',
       risk: 'unsafe',
       inputSchema: pageEvalInputSchema,
       execute: (input, context) => dependencies.evalPage(context.workspaceId, input),

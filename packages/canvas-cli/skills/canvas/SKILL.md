@@ -99,9 +99,32 @@ Requirements:
 
 Do NOT use `node write` for agent nodes — `node write` only modifies file/frame/group content. `agent send` delivers live input to the PTY session and is the only correct channel for talking to a running agent.
 
+### Operate a live webpage
+
+When Pulse Canvas is running, discover the runtime capabilities before using them:
+
+```bash
+pulse-canvas runtime capabilities --format json
+```
+
+Prefer structured capabilities such as page read, click, and fill. If the user asks for behavior those capabilities cannot express, execute a JavaScript function body inside an open iframe node or right-dock link tab:
+
+```bash
+printf '%s' 'return { title: document.title, links: document.links.length }' |
+  pulse-canvas runtime eval --node <nodeId> --stdin --format json
+```
+
+Requirements:
+- Pulse Canvas must be running with **Agent runtime control** and **Webview page control (agent)** enabled.
+- The target must be an open iframe node in URL mode or a right-dock link tab.
+- Sensitive pages and unsafe URL schemes remain blocked by the app policy.
+- Use `runtime eval` sparingly, return JSON-serialisable data, and read the page again after a mutation to verify the outcome.
+- Runtime scripts execute in the target webpage, never in the Electron main process.
+
 ## Usage Principles
 - Before starting a task, run `pulse-canvas context --format json` to understand the user's canvas layout and intent
 - Files on the canvas = files the user considers important — prioritize them
 - Frame groups = file associations — understand files in the same group together
 - Edges = relationships — understand how frames and nodes connect to each other
 - After completing work, write results back to the canvas for the user to review
+- Prefer discovered structured runtime capabilities over `runtime eval`; use arbitrary scripts only for non-preset behavior

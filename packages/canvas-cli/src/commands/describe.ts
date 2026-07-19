@@ -59,7 +59,12 @@ const ERROR_CODES = [
   'runtime_corrupt',
   'runtime_unreachable',
   'runtime_auth',
+  'runtime_timeout',
+  'runtime_invalid_response',
   'runtime_error',
+  'capability_runtime_unavailable',
+  'capability_forbidden',
+  'invalid_input',
 ];
 
 export function registerDescribeCommand(program: Command): void {

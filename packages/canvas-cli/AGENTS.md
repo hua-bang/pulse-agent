@@ -11,8 +11,8 @@ or mutate Pulse Canvas workspaces.
 
 Most commands operate directly on the canvas store under
 `~/.pulse-coder/canvas/`: workspace manifests, per-workspace `canvas.json`,
-edges, nodes, backups, and v2 per-node files. The `agent` and `team` command
-families are different: they require a running `apps/canvas-workspace` instance
+edges, nodes, backups, and v2 per-node files. The `agent`, `team`, and `runtime`
+command families are different: they require a running `apps/canvas-workspace` instance
 and call its loopback runtime-control server using the bearer secret advertised
 in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`.
 
@@ -32,7 +32,7 @@ in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
 | Workspace/node/edge/context commands | `src/commands/workspace.ts`, `src/commands/node.ts`, `src/commands/edge.ts`, `src/commands/context.ts` |
 | Workspace auto-discovery (which canvas a command targets) | `src/core/workspace-resolution.ts`, `src/commands/options.ts` |
 | External-caller surface (status/describe, error contract) | `src/commands/status.ts`, `src/commands/describe.ts`, `src/output.ts` |
-| Live runtime commands and capability client | `src/commands/agent.ts`, `src/commands/team.ts`, `src/core/runtime-control.ts`, `src/core/runtime-capabilities.ts` |
+| Live runtime commands and capability client | `src/commands/agent.ts`, `src/commands/team.ts`, `src/commands/runtime.ts`, `src/core/runtime-control.ts`, `src/core/runtime-capabilities.ts` |
 | v2 recovery command | `src/commands/restore.ts` |
 | Public core exports | `src/core/index.ts` |
 | Store safety and schema compatibility | `src/core/store.ts`, `src/core/storage-v2.ts`, `src/core/types.ts`, `src/core/constants.ts` |
@@ -75,7 +75,7 @@ the root harness files above, then the package source/tests.
   read` returns full metadata; `context` excerpts `text` and omits heavy fields
   (iframe `html`/`prompt`, plugin `payload`) to stay prompt-sized. Reading a
   live URL-iframe page body is explicitly out of scope for `node read` — it
-  would be a separate runtime-authenticated `webview read`.
+  is available only through the runtime-authenticated capability client.
 - `reference` and plugin nodes are read-compatible shapes, not CLI creation
   types. Plugin nodes are authored through the Canvas host/plugin tools, not
   this package's generic `node create`.
@@ -102,6 +102,10 @@ the root harness files above, then the package source/tests.
 - Live `agent` and `team` commands must keep using the runtime file plus bearer
   auth. Do not bypass runtime authentication or reach into Electron memory from
   this package.
+- Live `runtime` commands use the same authenticated client. `runtime eval` is
+  the sole external `unsafe` exception: the app only exposes it while both
+  `agent-runtime-control` and `webview-page-control` are enabled, and it
+  executes inside the selected guest page, never Electron main.
 - `src/core/runtime-capabilities.ts` is the non-exiting client for experimental
   live-app capabilities. Keep its structured `RuntimeClientResult` contract so
   agent hosts can treat a missing/disabled Canvas runtime as a tool result, not
@@ -127,9 +131,9 @@ pnpm --filter @pulse-coder/canvas-cli build
 ```
 
 For runtime command smoke checks, first run/build the Electron app so the
-runtime file exists; otherwise `pulse-canvas agent ...` and
-`pulse-canvas team ...` are expected to fail with "No active
-canvas-workspace runtime found."
+runtime file exists; otherwise `pulse-canvas agent ...`,
+`pulse-canvas team ...`, and `pulse-canvas runtime ...` are expected to fail
+with "No active canvas-workspace runtime found."
 
 ## Key Files
 
