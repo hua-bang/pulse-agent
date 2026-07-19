@@ -39,6 +39,10 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 - Live-app capability tools are absent by default; expose them only when
   `PULSE_CODER_EXPERIMENTAL_APP_RUNTIME=1`. The Canvas host separately requires
   its `agent-runtime-control` flag, so both sides opt into the hidden feature.
+- When live-app capability tools are registered, their descriptions and the
+  bundled Pulse Canvas skill must route the agent to native tools first;
+  `pulse-canvas runtime` is the fallback for hosts without those tools. Both
+  entries share `@pulse-coder/canvas-cli/core`; do not fork transport policy.
 - Current `run_js` registration imports `pulse-sandbox/src`; `src/sandbox-runner.ts` is not imported by the active CLI paths.
 - Contract changes with engine, ACP, teams, sandbox, or memory packages should use the affected workspace contracts/validation plus the root impact overlay.
 

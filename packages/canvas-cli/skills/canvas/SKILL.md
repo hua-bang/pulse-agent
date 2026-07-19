@@ -101,6 +101,17 @@ Do NOT use `node write` for agent nodes — `node write` only modifies file/fram
 
 ### Operate a live webpage
 
+Choose the most direct runtime interface available:
+
+1. Prefer task-specific native Canvas tools such as `canvas_read_webpage`, `page_click`,
+   `page_fill`, or `page_eval` when the host provides them.
+2. Otherwise, prefer the native `app_capabilities_list` and `app_capability_call` tools
+   when they are available.
+3. Use `pulse-canvas runtime ...` when the host does not provide native runtime tools.
+
+These interfaces reach the same Capability Runtime. Do not shell out to
+`pulse-canvas runtime` when an equivalent native tool is available.
+
 When Pulse Canvas is running, discover the runtime capabilities before using them:
 
 ```bash
@@ -127,4 +138,5 @@ Requirements:
 - Frame groups = file associations — understand files in the same group together
 - Edges = relationships — understand how frames and nodes connect to each other
 - After completing work, write results back to the canvas for the user to review
-- Prefer discovered structured runtime capabilities over `runtime eval`; use arbitrary scripts only for non-preset behavior
+- Prefer native runtime tools over CLI fallback, and structured capabilities over
+  `runtime eval`; use arbitrary scripts only for non-preset behavior

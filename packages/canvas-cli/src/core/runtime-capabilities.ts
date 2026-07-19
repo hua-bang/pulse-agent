@@ -26,11 +26,16 @@ export type RuntimeClientResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: RuntimeClientError };
 
+const DEFAULT_TRANSPORT_TIMEOUT_MS = 5_000;
+const PAGE_EVAL_TRANSPORT_BUFFER_MS = 1_000;
+const MAX_TIMER_MS = 2_147_483_647;
+export const MAX_PAGE_EVAL_TIMEOUT_MS = MAX_TIMER_MS - PAGE_EVAL_TRANSPORT_BUFFER_MS;
+
 async function postRuntimeSafely(
   runtime: RuntimeInfo,
   path: string,
   body: object,
-  timeoutMs = 5_000,
+  timeoutMs = DEFAULT_TRANSPORT_TIMEOUT_MS,
 ): Promise<RuntimeClientResult<unknown>> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -129,9 +134,25 @@ export async function callRuntimeCapability(
       name: request.name,
       input: request.input ?? {},
     },
-    request.transportTimeoutMs,
+    resolveTransportTimeout(request),
   );
   if (!response.ok) return response;
   const payload = response.value as { value?: unknown };
   return { ok: true, value: payload.value };
+}
+
+function resolveTransportTimeout(request: RuntimeCapabilityRequest): number {
+  if (request.transportTimeoutMs !== undefined) return request.transportTimeoutMs;
+  if (request.name !== 'browser.page.eval') return DEFAULT_TRANSPORT_TIMEOUT_MS;
+
+  const input = request.input && typeof request.input === 'object'
+    ? request.input as Record<string, unknown>
+    : {};
+  const requested = input.timeoutMs;
+  const executionTimeout = typeof requested === 'number'
+    && Number.isInteger(requested)
+    && requested > 0
+    ? Math.min(requested, MAX_PAGE_EVAL_TIMEOUT_MS)
+    : DEFAULT_TRANSPORT_TIMEOUT_MS;
+  return executionTimeout + PAGE_EVAL_TRANSPORT_BUFFER_MS;
 }

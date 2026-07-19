@@ -20,7 +20,6 @@ import {
   EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
   resolveFeatureValues,
 } from '../../shared/experimental-features';
-import { runInstall } from '../files/skill-installer';
 import { setDefaultBrowser } from '../default-browser/register';
 
 function getPath(): string {
@@ -151,7 +150,8 @@ export function setupExperimentalIpc(): void {
               sender.send('experimental:tooling-status', { feature: payload.id, ...status });
             }
           };
-          void runInstall()
+          void import('../files/skill-installer')
+            .then(({ runInstall }) => runInstall())
             .then((result) => {
               if (!result.skillsInstalled) {
                 console.warn('[experimental] agent-teams skill install incomplete', result.results);

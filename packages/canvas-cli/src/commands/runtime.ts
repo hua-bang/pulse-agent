@@ -4,14 +4,11 @@ import { promises as fs } from 'fs';
 import {
   listRuntimeCapabilities,
   callRuntimeCapability,
+  MAX_PAGE_EVAL_TIMEOUT_MS,
   type RuntimeCapabilityDescriptor,
 } from '../core/runtime-capabilities';
 import { errorOutput, output } from '../output';
 import { getRootOptions, getWorkspaceCommandOptions } from './options';
-
-const DEFAULT_PAGE_EVAL_TIMEOUT_MS = 5_000;
-const TRANSPORT_TIMEOUT_BUFFER_MS = 1_000;
-const MAX_PAGE_EVAL_TIMEOUT_MS = 2_147_483_647 - TRANSPORT_TIMEOUT_BUFFER_MS;
 
 export function registerRuntimeCommands(program: Command): void {
   const runtime = program
@@ -76,8 +73,6 @@ export function registerRuntimeCommands(program: Command): void {
           code,
           ...(timeoutMs === undefined ? {} : { timeoutMs }),
         },
-        transportTimeoutMs:
-          (timeoutMs ?? DEFAULT_PAGE_EVAL_TIMEOUT_MS) + TRANSPORT_TIMEOUT_BUFFER_MS,
       });
       if (!result.ok) errorOutput(result.error.message, { code: result.error.code });
       output(result.value, format, renderRuntimeValue);

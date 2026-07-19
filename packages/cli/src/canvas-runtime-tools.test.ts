@@ -27,6 +27,13 @@ describe('Pulse CLI Canvas runtime tools', () => {
     ]);
   });
 
+  it('tells the agent to prefer native capability tools over shelling out to the CLI', () => {
+    const tools = createCanvasRuntimeTools();
+
+    expect(tools.app_capabilities_list.description).toContain('Prefer these native tools');
+    expect(tools.app_capability_call.description).toContain('Prefer this native tool');
+  });
+
   it('exposes live capability discovery as a structured agent tool', async () => {
     mocks.listRuntimeCapabilities.mockResolvedValue({
       ok: true,

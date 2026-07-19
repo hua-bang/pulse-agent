@@ -115,7 +115,7 @@ the root harness files above, then the package source/tests.
   fixed discovery order is `--workspace` → `$PULSE_CANVAS_WORKSPACE_ID` →
   `__workspaces__.json.activeId` → hard error; it never guesses (no
   "most recent" / "first in list"). Disk commands require a readable
-  `canvas.json`; runtime-mediated (`agent`/`team`) and `restore` pass
+  `canvas.json`; runtime-mediated (`agent`/`team`/`runtime`) and `restore` pass
   `{ requireReadableCanvas: false }` since the workspace lives in the app or is
   the thing being recovered.
 - Changes to command payloads, core exports, node/edge schemas, runtime routes,
@@ -139,8 +139,8 @@ with "No active canvas-workspace runtime found."
 
 - `src/index.ts`: executable entrypoint for `pulse-canvas`.
 - `src/cli.ts`: top-level command registration and global options.
-- `src/commands/`: workspace, node, edge, context, agent, team, restore, and
-  skill-install commands.
+- `src/commands/`: workspace, node, edge, context, agent, team, runtime,
+  restore, and skill-install commands.
 - `src/core/store.ts`: workspace manifests, canvas load/save, locks, backups,
   wipe guard, and node/edge mutation commits.
 - `src/core/storage-v2.ts`: compatibility layer for layout-only `canvas.json`
