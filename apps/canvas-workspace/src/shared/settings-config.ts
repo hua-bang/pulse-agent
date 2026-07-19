@@ -37,11 +37,23 @@ export interface SkillsStatusResult {
   updatePolicy: AgentToolingUpdatePolicy;
   results: SkillTargetResult[];
   legacyDirs: string[];
+  shellPath: ShellPathResult;
 }
 
 export interface SkillsCleanupResult {
   ok: boolean;
   results: SkillTargetResult[];
+}
+
+export interface ShellPathResult {
+  ok: boolean;
+  supported: boolean;
+  configured: boolean;
+  changed: boolean;
+  shell: string | null;
+  profilePath: string | null;
+  command: string;
+  error?: string;
 }
 
 export type BuiltInToolCredentialId = 'openai' | 'gemini' | 'tavily';

@@ -22,6 +22,7 @@ export const createSkillsApi = (ipcRenderer: IpcRenderer): SkillsApi => ({
   update: () => ipcRenderer.invoke("skills:update"),
   status: () => ipcRenderer.invoke("skills:status"),
   setUpdatePolicy: (policy) => ipcRenderer.invoke("skills:set-update-policy", { policy }),
+  configurePath: () => ipcRenderer.invoke("skills:configure-path"),
   cleanupLegacy: () => ipcRenderer.invoke("skills:cleanup-legacy")
 });
 

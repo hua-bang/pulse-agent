@@ -8,13 +8,19 @@ import {
   type AgentToolingManager,
   type AgentToolingInstallResult,
   type AgentToolingAction,
+  type AgentToolingStatus,
 } from './agent-tooling-manager';
 import { createAgentToolingQueue } from './agent-tooling-queue';
 import type {
   AgentToolingUpdatePolicy,
   SkillsInstallResult,
+  SkillsStatusResult,
   SkillTargetResult,
 } from '../../shared/settings-config';
+import {
+  configurePulseCanvasShellPath,
+  inspectPulseCanvasShellPath,
+} from './shell-path';
 
 const SKILL_PARENT_DIRS = [
   join(homedir(), '.pulse-coder', 'skills'),
@@ -136,20 +142,38 @@ async function removeLegacyDir(dir: string): Promise<SkillTargetResult> {
   }
 }
 
+async function withIntegrationStatus(
+  statusPromise: Promise<AgentToolingStatus>,
+): Promise<SkillsStatusResult> {
+  const [status, legacy, shellPath] = await Promise.all([
+    statusPromise,
+    Promise.all(LEGACY_SKILL_DIRS.map(checkLegacyDir)),
+    inspectPulseCanvasShellPath({
+      home: homedir(),
+      shell: process.env.SHELL,
+      platform: process.platform,
+    }),
+  ]);
+  return {
+    ...status,
+    legacyDirs: legacy.filter((item) => item.exists).map((item) => item.dir),
+    shellPath,
+  };
+}
+
 export function setupSkillInstallerIpc(): void {
   ipcMain.handle('skills:install', async () => runInstall());
   ipcMain.handle('skills:update', async () => runUpdate());
 
-  ipcMain.handle('skills:status', async () => {
-    const [status, legacy] = await Promise.all([
-      getAgentToolingManager().status(),
-      Promise.all(LEGACY_SKILL_DIRS.map(checkLegacyDir)),
-    ]);
-    return {
-      ...status,
-      legacyDirs: legacy.filter((item) => item.exists).map((item) => item.dir),
-    };
-  });
+  ipcMain.handle('skills:status', async () => withIntegrationStatus(
+    getAgentToolingManager().status(),
+  ));
+
+  ipcMain.handle('skills:configure-path', async () => configurePulseCanvasShellPath({
+    home: homedir(),
+    shell: process.env.SHELL,
+    platform: process.platform,
+  }));
 
   ipcMain.handle(
     'skills:set-update-policy',
@@ -157,14 +181,9 @@ export function setupSkillInstallerIpc(): void {
       if (!isUpdatePolicy(payload?.policy)) {
         throw new Error(`Invalid agent tooling update policy: ${String(payload?.policy)}`);
       }
-      const [status, legacy] = await Promise.all([
+      return withIntegrationStatus(
         getAgentToolingManager().setUpdatePolicy(payload.policy),
-        Promise.all(LEGACY_SKILL_DIRS.map(checkLegacyDir)),
-      ]);
-      return {
-        ...status,
-        legacyDirs: legacy.filter((item) => item.exists).map((item) => item.dir),
-      };
+      );
     },
   );
 

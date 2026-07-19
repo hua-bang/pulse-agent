@@ -13,6 +13,7 @@ import type {
   SkillsCleanupResult,
   SkillsInstallResult,
   SkillsStatusResult,
+  ShellPathResult,
   AgentToolingUpdatePolicy,
 } from '../../../shared/settings-config';
 
@@ -23,6 +24,7 @@ export interface SkillsApi {
   update: () => Promise<SkillsInstallResult>;
   status: () => Promise<SkillsStatusResult>;
   setUpdatePolicy: (policy: AgentToolingUpdatePolicy) => Promise<SkillsStatusResult>;
+  configurePath: () => Promise<ShellPathResult>;
   cleanupLegacy: () => Promise<SkillsCleanupResult>;
 }
 

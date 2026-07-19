@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import type {
   AgentToolingUpdatePolicy,
   SkillsInstallResult,
@@ -9,6 +9,8 @@ import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
 import { Button, FieldRow, Select } from '../ui';
 import './AgentSection.css';
+
+const AgentShellPathCard = lazy(() => import('./AgentShellPathCard'));
 
 interface AgentSectionProps {
   onClose: () => void;
@@ -217,6 +219,12 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
                 {t('agent.updateNow')}
               </Button>
             </div>
+          )}
+
+          {status?.cliInstalled && (
+            <Suspense fallback={null}>
+              <AgentShellPathCard shellPath={status.shellPath} onConfigured={loadStatus} />
+            </Suspense>
           )}
 
           {legacyDirs.length > 0 && (

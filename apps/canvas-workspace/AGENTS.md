@@ -130,7 +130,9 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   and immutable across updates so a same-semver replacement cannot overwrite
   the CLI currently referenced by the launcher. Bundle activation is
   failure-atomic: a skill, launcher, or active-state write failure must restore
-  the previously active set.
+  the previously active set. Settings may offer an explicit shell-PATH setup for
+  zsh/bash/fish; it appends one marked `~/.pulse-coder/bin` entry only after a
+  user click, never during automatic install/update.
 - `harness/tools/driver/` launches the real Electron app. Use `temp`, `demo`,
   or `clone` profiles by default; use `real --allow-real-writes` only after
   explicit user intent because it can mutate real Pulse Canvas data.
