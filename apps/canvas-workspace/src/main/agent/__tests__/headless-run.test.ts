@@ -25,6 +25,17 @@ vi.mock('electron', () => ({
   ipcMain: { handle: () => undefined, on: () => undefined },
 }));
 
+// memory-report builds its toolset from tools/index, whose module graph pulls
+// the PTY native binding and the plugin registry — same stubs as tools-graph.
+vi.mock('../../terminal/pty-manager', () => ({
+  hasSession: () => false,
+  writeToSession: () => false,
+  execInSession: async () => ({ ok: false, error: 'no session' }),
+}));
+vi.mock('../../../plugins/main', () => ({
+  getRegisteredCanvasToolFactories: () => new Map(),
+}));
+
 // The runner resolves the chat model before every run; stub it so tests never
 // touch real model settings or env keys.
 vi.mock('../model/config', () => ({
@@ -130,26 +141,10 @@ describe('generateMemoryReport', () => {
     );
   };
 
-  it('inlines workspaces, existing memory, and the session digest; passes NO tools', async () => {
+  it('runs an agent loop with the global-chat toolset minus the unattended exclusions', async () => {
     await writeManifest();
     await saveMemory({ kind: 'global' }, 'user prefers Chinese replies', 'preference');
     await saveMemory({ kind: 'workspace', workspaceId: 'ws-a' }, 'uses pnpm only', 'rule');
-    // One recent session so the pre-gathered digest has real content.
-    const sessionsDir = join(canvasDir, 'ws-a', 'agent-sessions');
-    await fs.mkdir(sessionsDir, { recursive: true });
-    await fs.writeFile(
-      join(sessionsDir, 'current.json'),
-      JSON.stringify({
-        sessionId: 'sess-1',
-        workspaceId: 'ws-a',
-        scope: { kind: 'workspace', workspaceId: 'ws-a' },
-        startedAt: new Date().toISOString(),
-        messages: [
-          { role: 'user', content: 'we decided to use fetch over axios', timestamp: Date.now() },
-        ],
-      }),
-      'utf-8',
-    );
 
     const { factory, captured } = fakeFactory({ run: async () => '# report' });
     const result = await generateMemoryReport({ days: 7, engineFactory: factory });
@@ -162,10 +157,23 @@ describe('generateMemoryReport', () => {
     expect(systemPrompt).toContain('uses pnpm only');
     expect(systemPrompt).toContain('last 7 days');
     expect(systemPrompt).toContain('候选 skills');
-    expect(systemPrompt).toContain('we decided to use fetch over axios');
-    expect(systemPrompt).toContain('no tools to call');
-    // No tools: generation is a single bounded LLM call.
-    expect(Object.keys((captured.config as { tools: Record<string, unknown> }).tools)).toEqual([]);
+    expect(systemPrompt).toContain('never call it per workspace');
+    expect((captured.runOptions as { maxSteps: number }).maxSteps).toBe(200);
+
+    // Deliberate alignment: exactly the global chat agent's toolset minus
+    // the interactive clarify tool and the memory write paths.
+    const { createGlobalCanvasTools } = await import('../tools');
+    const { HEADLESS_EXCLUDED_TOOLS } = await import('../memory-report');
+    const expected = Object.keys(createGlobalCanvasTools())
+      .filter((name) => !HEADLESS_EXCLUDED_TOOLS.has(name))
+      .sort();
+    const toolNames = Object.keys((captured.config as { tools: Record<string, unknown> }).tools).sort();
+    expect(toolNames).toEqual(expected);
+    expect(toolNames).toContain('session_summary');
+    expect(toolNames).toContain('knowledge_search_nodes');
+    expect(toolNames).not.toContain('canvas_ask_user');
+    expect(toolNames).not.toContain('memory_save');
+    expect(toolNames).not.toContain('memory_adopt');
   });
 
   it('runScheduledMemoryReport persists HTML, publishes a global artifact, and prunes beyond retention', async () => {
@@ -207,12 +215,15 @@ describe('generateMemoryReport', () => {
     expect(artifacts[0].versions[0].content).toBe(html);
   });
 
-  it('reports reading (during code-side gathering) then writing (on first text)', async () => {
+  it('reports reading with tool-call counts, then writing on first text', async () => {
     await writeManifest();
     const phases: string[] = [];
     const { factory } = fakeFactory({
       run: async (_context, options) => {
+        const onToolCall = options.onToolCall as (chunk: { toolName: string }) => void;
         const onText = options.onText as (delta: string) => void;
+        onToolCall({ toolName: 'session_summary' });
+        onToolCall({ toolName: 'knowledge_search_nodes' });
         onText('<!doctype');
         onText(' html>');
         return '<!doctype html><html><body>r</body></html>';
@@ -220,10 +231,12 @@ describe('generateMemoryReport', () => {
     });
     const result = await generateMemoryReport({
       engineFactory: factory,
-      onPhase: (p) => phases.push(p.phase),
+      onPhase: (p) => phases.push(`${p.phase}${p.toolCalls ? `:${p.toolCalls}` : ''}`),
     });
     expect(result.ok).toBe(true);
-    expect(phases).toEqual(['reading', 'writing']);
+    // Initial code-side 'reading' (immediate feedback), then per-tool-call
+    // counted events, then 'writing' on first text.
+    expect(phases).toEqual(['reading', 'reading:1', 'reading:2', 'writing']);
   });
 
   it('an external abort reports cancelled (distinct from timeout)', async () => {

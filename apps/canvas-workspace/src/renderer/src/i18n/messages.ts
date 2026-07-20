@@ -944,6 +944,7 @@ const en = {
   'experimental.memoryReportRunningDesc':
     'Reading recent sessions and writing the report — this can take several minutes for heavy usage. Closing this notice does NOT stop generation; the report opens automatically when ready. Quitting the app does.',
   'experimental.memoryReportPhaseReading': 'Reading recent chat sessions…',
+  'experimental.memoryReportPhaseReadingCount': 'Researching sessions and canvas… (tool call #{count})',
   'experimental.memoryReportPhaseWriting': 'Writing the report document…',
   'experimental.memoryReportCancelBtn': 'Cancel generation',
   'experimental.memoryReportCancelled': 'Report generation cancelled',
@@ -2280,6 +2281,7 @@ const zh: Record<keyof typeof en, string> = {
   'experimental.memoryReportRunningDesc':
     '正在读取近期会话并撰写报告，重度使用可能需要几分钟。关闭此提示不会中断生成，完成后会自动打开报告；退出应用才会中止。',
   'experimental.memoryReportPhaseReading': '正在读取会话记录…',
+  'experimental.memoryReportPhaseReadingCount': '正在检索会话与画布…（第 {count} 次工具调用）',
   'experimental.memoryReportPhaseWriting': '正在撰写报告文档…',
   'experimental.memoryReportCancelBtn': '取消生成',
   'experimental.memoryReportCancelled': '已取消生成',

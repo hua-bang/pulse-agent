@@ -8,13 +8,15 @@
  * the report tells the user to confirm candidates in chat, where the agent
  * uses `memory_adopt`.
  *
- * ALL context — workspace listing, existing memory, and the period's
- * session excerpts — is gathered in code and inlined into the system prompt
- * under hard character budgets, and the run gets NO tools. Real-app testing
- * showed why: with tools, a heavy user's unbounded session_summary payload
- * made the follow-up LLM call slow enough to hit the wall clock, and prompt
- * -side parameter hints are not a reliable input bound. Code-side budgets
- * are. Generation is therefore a single bounded LLM call.
+ * Runs a REAL agent loop (product decision 2026-07-20, revisiting an earlier
+ * single-call design): report quality comes from the agent surveying the
+ * period, drilling into the threads that matter, and cross-checking canvas
+ * knowledge — so it gets the same read-only tool family as the global chat
+ * agent, minus only the interactive clarify tool and memory writes (see
+ * HEADLESS_EXCLUDED_TOOLS). Unattended-run reliability is enforced by
+ * guardrails, not by capability cuts: output validation (a run that ends
+ * without an HTML document is a failure, never published), a wall-clock
+ * timeout, user-visible progress (tool-call counts), and cancellation.
  */
 
 import { promises as fs } from 'fs';
@@ -23,7 +25,8 @@ import { listWorkspaces } from '../canvas/workspaces';
 import { addArtifactVersion, createArtifact, listArtifacts } from '../artifacts/store';
 import { listMemory, memoryBaseDir, type MemoryEntry } from './memory-store';
 import { GLOBAL_CHAT_SESSION_STORE_ID } from './session-store';
-import { createSessionTools } from './tools/sessions';
+import { createGlobalCanvasTools } from './tools';
+import type { CanvasTool } from './tools/types';
 import {
   runHeadlessAgentTask,
   type HeadlessEngineFactory,
@@ -34,6 +37,8 @@ export type MemoryReportPhase = 'reading' | 'writing';
 
 export interface MemoryReportProgressEvent {
   phase: MemoryReportPhase;
+  /** Cumulative tool calls so far (reading phase only). */
+  toolCalls?: number;
 }
 
 export interface MemoryReportOptions {
@@ -49,59 +54,30 @@ export interface MemoryReportOptions {
 }
 
 const MAX_EXISTING_ENTRIES_PER_SCOPE = 50;
-/** Hard input budget for the inlined session digest (~20K tokens). */
-const SESSION_DIGEST_BUDGET_CHARS = 60_000;
-const DIGEST_MAX_MESSAGES_PER_SESSION = 30;
-
-interface SessionDigest {
-  text: string;
-  included: number;
-  omitted: number;
-}
 
 /**
- * Pre-gather the period's chat excerpts by invoking the session_summary tool
- * in code, then enforce a recency-first character budget. The model never
- * controls the input volume.
+ * The headless toolset IS the global chat agent's toolset (deliberate
+ * alignment — future complex background tasks reuse it as-is), with exactly
+ * two categories of exceptions:
+ * - `canvas_ask_user`: an unattended run has no user to answer.
+ * - memory writes (`memory_save`/`memory_forget`/`memory_adopt`): the memory
+ *   product's invariant is that writes happen only with the user's explicit
+ *   confirmation in chat — a background run must not hold a write path.
  */
-async function buildSessionsDigest(days: number): Promise<SessionDigest> {
-  let parsed: {
-    sessions?: Array<{ workspaceName?: string; workspaceId?: string; date?: string; excerpt?: string[] }>;
-  };
-  try {
-    const raw = await createSessionTools().session_summary.execute({
-      days,
-      maxMessagesPerSession: DIGEST_MAX_MESSAGES_PER_SESSION,
-    });
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    console.warn('[memory-report] failed to gather session digest:', err);
-    return { text: '(session history could not be read)', included: 0, omitted: 0 };
-  }
+export const HEADLESS_EXCLUDED_TOOLS = new Set([
+  'canvas_ask_user',
+  'memory_save',
+  'memory_forget',
+  'memory_adopt',
+]);
 
-  const sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
-  const sorted = [...sessions].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
-
-  const blocks: string[] = [];
-  let used = 0;
-  let included = 0;
-  for (const session of sorted) {
-    const header = `— ${session.workspaceName ?? session.workspaceId ?? 'unknown'} · ${session.date ?? ''}`;
-    const block = `${header}\n${(session.excerpt ?? []).join('\n')}`;
-    if (included > 0 && used + block.length > SESSION_DIGEST_BUDGET_CHARS) break;
-    blocks.push(block);
-    used += block.length;
-    included += 1;
+/** Global-chat toolset aligned for unattended use (see HEADLESS_EXCLUDED_TOOLS). */
+function buildReportTools(): Record<string, CanvasTool> {
+  const tools: Record<string, CanvasTool> = {};
+  for (const [name, tool] of Object.entries(createGlobalCanvasTools())) {
+    if (!HEADLESS_EXCLUDED_TOOLS.has(name)) tools[name] = tool;
   }
-  const omitted = sessions.length - included;
-  if (omitted > 0) {
-    blocks.push(`(…${omitted} earlier sessions omitted to fit the input budget)`);
-  }
-  return {
-    text: blocks.length > 0 ? blocks.join('\n\n') : '(no chat activity in this window)',
-    included,
-    omitted,
-  };
+  return tools;
 }
 
 function formatExistingEntries(label: string, entries: MemoryEntry[]): string[] {
@@ -121,10 +97,9 @@ function buildSystemPrompt(
   days: number,
   workspaces: Array<{ id: string; name: string }>,
   existingBlocks: string[],
-  sessionsDigest: string,
 ): string {
   return [
-    'You generate a periodic memory report for the Pulse Canvas user. This is a background run with NO tools: everything you need is below. Produce ONE final self-contained HTML document (`<!doctype html>` … `</html>`, all CSS inline, no external resources or scripts) and nothing else — no surrounding prose or code fences. Keep the styling at documentation density (simple readable typography, no marketing chrome). Do not attempt to save memory — adoption happens later in chat.',
+    'You generate a periodic memory report for the Pulse Canvas user. This is an unattended background agent run with read-only research tools. Your FINAL message must be ONE self-contained HTML document (`<!doctype html>` … `</html>`, all CSS inline, no external resources or scripts) and nothing else — no surrounding prose or code fences. Keep the styling at documentation density (simple readable typography, no marketing chrome). You have no memory-write tools — adoption happens later in chat.',
     '',
     `## Reporting window`,
     `The last ${days} days.`,
@@ -137,12 +112,10 @@ function buildSystemPrompt(
     '## Existing memory (dedupe rubric — do NOT re-propose what is already covered)',
     ...(existingBlocks.length > 0 ? existingBlocks : ['(no saved memory yet)']),
     '',
-    `## Chat activity in the window (pre-gathered excerpts, grouped by session)`,
-    sessionsDigest,
-    '',
     '## How to work',
-    '1. Read the chat activity above — it is the complete input; there are no tools to call.',
-    '2. Write the report (HTML body) in the user\'s dominant conversation language, structured as:',
+    `1. Survey: call \`session_summary\` ONCE with days=${days} and maxMessagesPerSession=30 — one call covers EVERY workspace and global chat; never call it per workspace.`,
+    '2. Research selectively: drill into the few threads that matter with `session_summary` (a specific sessionId), `session_search`, or the knowledge/canvas read tools when a session references canvas content worth checking. Depth over sweep — do NOT re-read everything; each extra call must answer a specific question you can name.',
+    '3. Write the report (HTML body) in the user\'s dominant conversation language, structured as:',
     '   - A short overall summary (2-3 lines).',
     '   - Per-workspace sections (use workspace NAMES): what happened, decisions made, problems solved. Skip idle workspaces.',
     '   - "候选记忆" — a numbered list. Each item: ONE distilled statement (≤500 chars) + suggested scope written exactly as `[全局]` or `[工作区: <name> (<id>)]` + kind (preference/fact/decision/rule/note). If an item supersedes an existing entry, append "更新: 替代 [mem-…]".',
@@ -175,19 +148,23 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
       );
     }
 
-    const digest = await buildSessionsDigest(days);
-
+    let toolCalls = 0;
     return await runHeadlessAgentTask(
       {
         label: 'memory-report',
-        systemPrompt: buildSystemPrompt(days, workspaces, existingBlocks, digest.text),
+        systemPrompt: buildSystemPrompt(days, workspaces, existingBlocks),
         prompt: `Generate the memory report for the last ${days} days.`,
-        // No tools: all input is pre-gathered and budgeted above, so the run
-        // is a single bounded LLM call.
-        // Heavy usage can still legitimately need minutes on slow models;
-        // the run is observable and cancellable, so a generous ceiling
-        // beats aborting real work.
+        // Full agent loop with the global agent's read-only tool family
+        // (curated for unattended use). Same generous step ceiling as chat;
+        // the wall clock, output validation, progress visibility, and the
+        // cancel button are the reliability guardrails.
+        tools: buildReportTools(),
+        maxSteps: 200,
         timeoutMs: options.timeoutMs ?? 10 * 60_000,
+        onToolCall: () => {
+          toolCalls += 1;
+          options.onPhase?.({ phase: 'reading', toolCalls });
+        },
         onTextStart: () => options.onPhase?.({ phase: 'writing' }),
         abortSignal: options.abortSignal,
       },

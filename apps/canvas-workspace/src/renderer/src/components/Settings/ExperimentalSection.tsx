@@ -161,15 +161,16 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
     });
     // Live phase pushes from main keep the toast honest about what the
     // background run is doing (reading sessions → writing the document).
-    const offProgress = window.canvasWorkspace.memoryReport.onProgress(({ phase }) => {
+    const offProgress = window.canvasWorkspace.memoryReport.onProgress(({ phase, toolCalls }) => {
       updateToast(toastId, {
         tone: 'loading',
         title: t('experimental.memoryReportRunning'),
-        description: t(
+        description:
           phase === 'writing'
-            ? 'experimental.memoryReportPhaseWriting'
-            : 'experimental.memoryReportPhaseReading',
-        ),
+            ? t('experimental.memoryReportPhaseWriting')
+            : toolCalls
+              ? t('experimental.memoryReportPhaseReadingCount', { count: String(toolCalls) })
+              : t('experimental.memoryReportPhaseReading'),
       });
     });
     try {
