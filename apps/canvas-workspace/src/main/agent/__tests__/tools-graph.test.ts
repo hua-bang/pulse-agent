@@ -275,6 +275,7 @@ describe('createGlobalCanvasTools', () => {
       'knowledge_analyze_image',
       'knowledge_read_node',
       'knowledge_search_nodes',
+      'memory_adopt',
       'memory_forget',
       'memory_list',
       'memory_save',
@@ -301,6 +302,57 @@ describe('createGlobalCanvasTools', () => {
     const found = JSON.parse(await tools.canvas_search_nodes.execute({ workspaceId: wsId, query: 'pipeline' }));
     expect(found.ok).toBe(true);
     expect(found.matches.map((m: { id: string }) => m.id)).toEqual(['n-text']);
+  });
+});
+
+describe('memory_adopt', () => {
+  const writeManifest = async (): Promise<void> => {
+    await fs.writeFile(
+      join(sandboxHome, '.pulse-coder', 'canvas', '__workspaces__.json'),
+      JSON.stringify({ workspaces: [{ id: wsId, name: 'Tools Test' }] }),
+      'utf-8',
+    );
+  };
+
+  it('routes confirmed candidates per scope and rejects unknown workspaces item-wise', async () => {
+    await writeManifest();
+    const tools = createCanvasTools(wsId);
+
+    const result = JSON.parse(await tools.memory_adopt.execute({
+      candidates: [
+        { content: 'reply in Chinese', kind: 'preference' },
+        { content: 'API layer uses fetch', kind: 'rule', workspaceId: wsId },
+        { content: 'orphan', workspaceId: 'ws-does-not-exist' },
+      ],
+    }));
+
+    expect(result.ok).toBe(false);
+    expect(result.adopted).toBe(2);
+    expect(result.results[0]).toMatchObject({ ok: true, scope: 'global' });
+    expect(result.results[1]).toMatchObject({ ok: true, scope: wsId });
+    expect(result.results[2].ok).toBe(false);
+    expect(result.results[2].error).toContain('ws-does-not-exist');
+
+    const { listMemory } = await import('../memory-store');
+    expect((await listMemory({ kind: 'global' })).map((e) => e.content)).toEqual(['reply in Chinese']);
+    expect((await listMemory({ kind: 'workspace', workspaceId: wsId })).map((e) => e.content)).toEqual([
+      'API layer uses fetch',
+    ]);
+  });
+
+  it('is the cross-scope exception: global chat can adopt into a workspace', async () => {
+    await writeManifest();
+    const tools = createGlobalCanvasTools();
+
+    const result = JSON.parse(await tools.memory_adopt.execute({
+      candidates: [{ content: 'ws decision from weekly report', kind: 'decision', workspaceId: wsId }],
+    }));
+    expect(result).toMatchObject({ ok: true, adopted: 1 });
+
+    const { listMemory } = await import('../memory-store');
+    expect((await listMemory({ kind: 'workspace', workspaceId: wsId })).map((e) => e.content)).toEqual([
+      'ws decision from weekly report',
+    ]);
   });
 });
 
@@ -522,6 +574,7 @@ describe('deferred tool partition', () => {
       'canvas_search_history',
       'canvas_send_to_agent',
       'canvas_update_edge',
+      'memory_adopt',
       'memory_forget',
       'memory_list',
       'session_search',
