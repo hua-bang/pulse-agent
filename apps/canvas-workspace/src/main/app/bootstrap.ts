@@ -35,6 +35,7 @@ import { getExperimentalFlagSync, setupExperimentalIpc } from "../settings/exper
 import {
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
   EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
+  EXPERIMENTAL_FLAG_SCHEDULED_MEMORY_REPORT,
 } from "../../shared/experimental-features";
 import { setupWebviewRegistryIpc } from "../webview/registry";
 import { startWebviewDiscardMonitor } from "../webview/discard-monitor";
@@ -162,6 +163,32 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
         () => BrowserWindow.getAllWindows(),
         (message, detail) => { void writeLog('agent-teams', message, detail); },
       );
+    }
+    // Scheduled memory report (experimental, off by default): the only
+    // place a background LLM run gets registered. Flag off = the scheduler
+    // is never constructed — zero background behavior, zero cost.
+    if (getExperimentalFlagSync(EXPERIMENTAL_FLAG_SCHEDULED_MEMORY_REPORT)) {
+      const [{ TaskScheduler }, { runScheduledMemoryReport }] = await Promise.all([
+        import('../scheduler/task-scheduler'),
+        import('../agent/memory-report'),
+      ]);
+      const scheduler = new TaskScheduler({
+        log: (message, detail) => { void writeLog('scheduler', message, detail); },
+      });
+      scheduler.register({
+        id: 'memory-report',
+        interval: 'weekly',
+        run: async () => {
+          const result = await runScheduledMemoryReport();
+          if (result.ok) {
+            void writeLog('scheduler', 'memory report written', result.path);
+          } else {
+            void writeLog('scheduler', 'memory report failed', result.error);
+          }
+        },
+      });
+      scheduler.start();
+      app.on('will-quit', () => scheduler.stop());
     }
     setupCanvasModelIpc();
     setupCanvasSkillsIpc();

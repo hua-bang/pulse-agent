@@ -24,6 +24,11 @@ import { homedir } from 'os';
 const memoryDir = (): string =>
   process.env.PULSE_CANVAS_MEMORY_DIR || join(homedir(), '.pulse-coder', 'canvas', 'memory');
 
+/** Base directory of all memory data (entry files + derived artifacts like reports). */
+export function memoryBaseDir(): string {
+  return memoryDir();
+}
+
 export type MemoryScope =
   | { kind: 'global' }
   | { kind: 'workspace'; workspaceId: string };

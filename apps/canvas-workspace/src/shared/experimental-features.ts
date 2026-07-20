@@ -53,6 +53,7 @@ export const EXPERIMENTAL_FLAG_CHANNELS = 'chat-channels';
 export const EXPERIMENTAL_FLAG_AGENT_TEAMS = 'agent-teams';
 export const EXPERIMENTAL_FLAG_DEFAULT_BROWSER = 'default-browser';
 export const EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL = 'agent-runtime-control';
+export const EXPERIMENTAL_FLAG_SCHEDULED_MEMORY_REPORT = 'scheduled-memory-report';
 
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
   {
@@ -102,6 +103,13 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     label: 'Chat channels (Feishu)',
     description:
       'Drive a workspace’s Canvas Agent from an external chat channel. Feishu (Lark) is supported today via the SDK long-connection (works behind NAT, no public URL). Also requires FEISHU_APP_ID / FEISHU_APP_SECRET env vars set before launch; without them the channel stays inactive even when this flag is on. Inbound messages are bound to a workspace (default + switchable via /bind), the agent runs, and output streams back as an interactive card. Off by default because it opens an outbound connection to Feishu and lets a remote chat drive the agent.',
+    defaultEnabled: false,
+  },
+  {
+    id: EXPERIMENTAL_FLAG_SCHEDULED_MEMORY_REPORT,
+    label: 'Scheduled memory report',
+    description:
+      'Generates a weekly cross-workspace memory report in the background (activity summary + candidate memories to adopt in chat). Reports land under ~/.pulse-coder/canvas/memory/reports/. Off by default because each run calls your configured LLM without an explicit prompt from you — enabling this means the app periodically spends your API quota. The background run is read-only: adopting candidates into memory always happens in chat with your confirmation.',
     defaultEnabled: false,
   },
   {

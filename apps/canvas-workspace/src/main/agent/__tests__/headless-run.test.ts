@@ -30,7 +30,7 @@ vi.mock('../model/config', () => ({
 }));
 
 import { runHeadlessAgentTask, type HeadlessEngineFactory } from '../headless-run';
-import { generateMemoryReport } from '../memory-report';
+import { generateMemoryReport, memoryReportsDir, runScheduledMemoryReport } from '../memory-report';
 import { saveMemory } from '../memory-store';
 
 const canvasDir = join(sandboxHome, '.pulse-coder', 'canvas');
@@ -141,6 +141,40 @@ describe('generateMemoryReport', () => {
 
     const toolNames = Object.keys((captured.config as { tools: Record<string, unknown> }).tools).sort();
     expect(toolNames).toEqual(['session_search', 'session_summary']);
+  });
+
+  it('runScheduledMemoryReport persists the report and prunes beyond retention', async () => {
+    await writeManifest();
+    const dir = memoryReportsDir();
+    await fs.mkdir(dir, { recursive: true });
+    // Pre-seed 12 older reports; the new one should push the oldest out.
+    for (let i = 1; i <= 12; i += 1) {
+      const day = String(i).padStart(2, '0');
+      await fs.writeFile(join(dir, `memory-report-2020-01-${day}.md`), 'old', 'utf-8');
+    }
+
+    const { factory } = fakeFactory({ run: async () => '# weekly report' });
+    const result = await runScheduledMemoryReport({ engineFactory: factory });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.path).toBeDefined();
+      expect(await fs.readFile(result.path!, 'utf-8')).toBe('# weekly report');
+    }
+    const remaining = (await fs.readdir(dir)).sort();
+    expect(remaining).toHaveLength(12);
+    expect(remaining).not.toContain('memory-report-2020-01-01.md');
+  });
+
+  it('runScheduledMemoryReport passes generation failures through without writing', async () => {
+    const { factory } = fakeFactory({
+      run: async () => {
+        throw new Error('no model');
+      },
+    });
+    const result = await runScheduledMemoryReport({ engineFactory: factory });
+    expect(result).toMatchObject({ ok: false, error: 'no model' });
+    await expect(fs.readdir(memoryReportsDir())).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('degrades to an ok:false result when context preparation fails', async () => {

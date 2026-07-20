@@ -13,8 +13,10 @@
  * prompt: fewer LLM round-trips, and the model can't skip the dedupe rubric.
  */
 
+import { promises as fs } from 'fs';
+import { join } from 'path';
 import { listWorkspaces } from '../canvas/workspaces';
-import { listMemory, type MemoryEntry } from './memory-store';
+import { listMemory, memoryBaseDir, type MemoryEntry } from './memory-store';
 import { createSessionTools } from './tools/sessions';
 import {
   runHeadlessAgentTask,
@@ -112,6 +114,51 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.warn('[memory-report] failed to prepare report context:', error);
+    return { ok: false, error };
+  }
+}
+
+// ─── Scheduled entry point ─────────────────────────────────────────
+
+/** Rolling retention for persisted reports. */
+const REPORTS_KEEP = 12;
+
+export function memoryReportsDir(): string {
+  return join(memoryBaseDir(), 'reports');
+}
+
+export type ScheduledMemoryReportResult = HeadlessRunResult & { path?: string };
+
+/**
+ * Scheduler task body: generate the report headlessly and persist it under
+ * `<memory>/reports/memory-report-YYYY-MM-DD.md` (same-day rerun overwrites;
+ * oldest reports pruned beyond the retention window). This on-disk file is
+ * the interim delivery surface until the global-artifact surface exists —
+ * the user reads it in chat ("看下最新记忆报告") or opens it directly.
+ */
+export async function runScheduledMemoryReport(
+  options: MemoryReportOptions = {},
+): Promise<ScheduledMemoryReportResult> {
+  const result = await generateMemoryReport(options);
+  if (!result.ok) return result;
+
+  try {
+    const dir = memoryReportsDir();
+    await fs.mkdir(dir, { recursive: true });
+    const stamp = new Date().toISOString().slice(0, 10);
+    const path = join(dir, `memory-report-${stamp}.md`);
+    await fs.writeFile(path, result.text, 'utf-8');
+
+    const reports = (await fs.readdir(dir))
+      .filter((name) => name.startsWith('memory-report-') && name.endsWith('.md'))
+      .sort();
+    for (const stale of reports.slice(0, Math.max(0, reports.length - REPORTS_KEEP))) {
+      await fs.rm(join(dir, stale), { force: true });
+    }
+    return { ...result, path };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.warn('[memory-report] generated but failed to persist:', error);
     return { ok: false, error };
   }
 }
