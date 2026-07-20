@@ -5,5 +5,7 @@ import { subscribe } from "./ipc";
 export const createMemoryReportApi = (ipcRenderer: IpcRenderer): MemoryReportApi => ({
   runNow: () => ipcRenderer.invoke("memory-report:run-now"),
 
+  cancel: () => ipcRenderer.invoke("memory-report:cancel"),
+
   onProgress: (callback) => subscribe(ipcRenderer, "memory-report:progress", callback),
 });

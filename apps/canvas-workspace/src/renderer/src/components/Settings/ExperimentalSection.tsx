@@ -161,15 +161,14 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
     });
     // Live phase pushes from main keep the toast honest about what the
     // background run is doing (reading sessions → writing the document).
-    const offProgress = window.canvasWorkspace.memoryReport.onProgress(({ phase }) => {
+    const offProgress = window.canvasWorkspace.memoryReport.onProgress(({ phase, toolCalls }) => {
       updateToast(toastId, {
         tone: 'loading',
         title: t('experimental.memoryReportRunning'),
-        description: t(
+        description:
           phase === 'writing'
-            ? 'experimental.memoryReportPhaseWriting'
-            : 'experimental.memoryReportPhaseReading',
-        ),
+            ? t('experimental.memoryReportPhaseWriting')
+            : t('experimental.memoryReportPhaseReading', { count: String(toolCalls ?? 1) }),
       });
     });
     try {
@@ -183,12 +182,19 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
               description: t('experimental.memoryReportDoneDesc'),
               autoCloseMs: 6000,
             }
-          : {
-              tone: 'error',
-              title: t('experimental.memoryReportFailed'),
-              description: res.error ?? t('experimental.unknownError'),
-              autoCloseMs: 0,
-            },
+          : res.cancelled
+            ? {
+                tone: 'info',
+                title: t('experimental.memoryReportCancelled'),
+                description: '',
+                autoCloseMs: 4000,
+              }
+            : {
+                tone: 'error',
+                title: t('experimental.memoryReportFailed'),
+                description: res.error ?? t('experimental.unknownError'),
+                autoCloseMs: 0,
+              },
       );
     } catch (err) {
       updateToast(toastId, {
@@ -322,11 +328,14 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
                     <Button
                       variant="secondary"
                       size="sm"
-                      disabled={reportRunning}
-                      onClick={() => void runReportNow()}
+                      onClick={() =>
+                        reportRunning
+                          ? void window.canvasWorkspace.memoryReport.cancel()
+                          : void runReportNow()
+                      }
                     >
                       {reportRunning
-                        ? t('experimental.memoryReportRunning')
+                        ? t('experimental.memoryReportCancelBtn')
                         : t('experimental.memoryReportTryBtn')}
                     </Button>
                   </li>

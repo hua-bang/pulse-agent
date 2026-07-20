@@ -10,10 +10,11 @@
  *    unconditionally so the button works right after enabling the flag,
  *    before the restart that arms the scheduler.
  *
+ *  - `memory-report:cancel` — abort the in-flight run (no-op when idle).
  *  - `memory-report:progress` (push, main → every window) — coarse phase of
- *    the in-flight run ({ phase: 'reading' | 'writing' }); drives the
- *    settings toast. Pushes are invisible to describe-canvas parity — this
- *    comment is their registry.
+ *    the in-flight run ({ phase: 'reading' | 'writing', toolCalls? });
+ *    drives the settings toast. Pushes are invisible to describe-canvas
+ *    parity — this comment is their registry.
  *
  * Single-flight: concurrent invocations share the in-flight run's promise.
  * The implementation modules load lazily on first use so this registration
@@ -31,21 +32,29 @@ function broadcastProgress(progress: MemoryReportProgress): void {
 }
 
 let inFlight: Promise<MemoryReportRunResult> | null = null;
+let currentAbort: AbortController | null = null;
 
 async function runNow(): Promise<MemoryReportRunResult> {
   const [{ runScheduledMemoryReport, GLOBAL_ARTIFACT_SCOPE_ID }, { openDockArtifact }] =
     await Promise.all([import('./memory-report'), import('../dock/tab-actions')]);
 
-  const result = await runScheduledMemoryReport({
-    onPhase: (phase) => broadcastProgress({ phase }),
-  });
-  if (!result.ok) {
-    return { ok: false, error: result.error };
+  const controller = new AbortController();
+  currentAbort = controller;
+  try {
+    const result = await runScheduledMemoryReport({
+      onPhase: (progress) => broadcastProgress(progress),
+      abortSignal: controller.signal,
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error, cancelled: result.cancelled };
+    }
+    if (result.artifactId) {
+      openDockArtifact(GLOBAL_ARTIFACT_SCOPE_ID, result.artifactId);
+    }
+    return { ok: true, artifactId: result.artifactId, path: result.path };
+  } finally {
+    if (currentAbort === controller) currentAbort = null;
   }
-  if (result.artifactId) {
-    openDockArtifact(GLOBAL_ARTIFACT_SCOPE_ID, result.artifactId);
-  }
-  return { ok: true, artifactId: result.artifactId, path: result.path };
 }
 
 export function setupMemoryReportIpc(): void {
@@ -58,5 +67,10 @@ export function setupMemoryReportIpc(): void {
         });
     }
     return inFlight;
+  });
+
+  ipcMain.handle('memory-report:cancel', async (): Promise<{ ok: boolean }> => {
+    currentAbort?.abort();
+    return { ok: true };
   });
 }

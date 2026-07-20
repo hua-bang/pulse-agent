@@ -33,11 +33,13 @@ export interface HeadlessRunOptions {
   onToolCall?: (toolName: string) => void;
   /** Fired once when the model starts emitting final text. */
   onTextStart?: () => void;
+  /** External cancellation (e.g. a user cancel button). */
+  abortSignal?: AbortSignal;
 }
 
 export type HeadlessRunResult =
   | { ok: true; text: string }
-  | { ok: false; error: string; timedOut?: boolean };
+  | { ok: false; error: string; timedOut?: boolean; cancelled?: boolean };
 
 /**
  * Minimal Engine surface the runner needs — also the test seam: tests inject
@@ -66,7 +68,14 @@ export async function runHeadlessAgentTask(
 ): Promise<HeadlessRunResult> {
   const abortController = new AbortController();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const timer = setTimeout(() => abortController.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    abortController.abort();
+  }, timeoutMs);
+  const onExternalAbort = (): void => abortController.abort();
+  options.abortSignal?.addEventListener('abort', onExternalAbort);
+  if (options.abortSignal?.aborted) abortController.abort();
 
   try {
     const engine = engineFactory({
@@ -104,11 +113,15 @@ export async function runHeadlessAgentTask(
     );
     return { ok: true, text: text || '' };
   } catch (err) {
-    const timedOut = abortController.signal.aborted;
+    const cancelled = Boolean(options.abortSignal?.aborted) && !timedOut;
     const error = err instanceof Error ? err.message : String(err);
-    console.warn(`[headless-run] ${options.label} failed${timedOut ? ' (timeout)' : ''}:`, error);
-    return { ok: false, error, timedOut: timedOut || undefined };
+    console.warn(
+      `[headless-run] ${options.label} ${cancelled ? 'cancelled' : `failed${timedOut ? ' (timeout)' : ''}`}:`,
+      error,
+    );
+    return { ok: false, error, timedOut: timedOut || undefined, cancelled: cancelled || undefined };
   } finally {
     clearTimeout(timer);
+    options.abortSignal?.removeEventListener('abort', onExternalAbort);
   }
 }

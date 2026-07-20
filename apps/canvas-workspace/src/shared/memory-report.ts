@@ -10,11 +10,15 @@ export interface MemoryReportRunResult {
   /** On-disk archive path of the generated report (on success). */
   path?: string;
   error?: string;
+  /** True when the run was cancelled by the user (not a real failure). */
+  cancelled?: boolean;
 }
 
 export interface MemoryReportProgress {
   /** Coarse generation phase: reading sessions → writing the document. */
   phase: 'reading' | 'writing';
+  /** Cumulative tool calls so far (reading phase only). */
+  toolCalls?: number;
 }
 
 export interface MemoryReportApi {
@@ -24,6 +28,8 @@ export interface MemoryReportApi {
    * run). Resolves when generation finishes; concurrent calls share one run.
    */
   runNow: () => Promise<MemoryReportRunResult>;
+  /** Cancel the in-flight run, if any. */
+  cancel: () => Promise<{ ok: boolean }>;
   /** Progress pushes for any in-flight run. Returns unsubscribe fn. */
   onProgress: (callback: (progress: MemoryReportProgress) => void) => () => void;
 }

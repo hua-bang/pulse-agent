@@ -28,12 +28,20 @@ import {
 
 export type MemoryReportPhase = 'reading' | 'writing';
 
+export interface MemoryReportProgressEvent {
+  phase: MemoryReportPhase;
+  /** Cumulative tool calls so far (reading phase only). */
+  toolCalls?: number;
+}
+
 export interface MemoryReportOptions {
   /** Reporting window in days. Default 7 (weekly). */
   days?: number;
   timeoutMs?: number;
   /** Coarse progress callback: reading sessions → writing the document. */
-  onPhase?: (phase: MemoryReportPhase) => void;
+  onPhase?: (progress: MemoryReportProgressEvent) => void;
+  /** External cancellation (the settings cancel button). */
+  abortSignal?: AbortSignal;
   /** Test seam, forwarded to runHeadlessAgentTask. */
   engineFactory?: HeadlessEngineFactory;
 }
@@ -73,7 +81,7 @@ function buildSystemPrompt(
     ...(existingBlocks.length > 0 ? existingBlocks : ['(no saved memory yet)']),
     '',
     '## How to work',
-    `1. Call \`session_summary\` ONCE with days=${days} — a single call already covers EVERY workspace and global chat. Do NOT call it per workspace. Use \`session_search\` only if you must locate one specific topic. Budget: at most 2 tool calls in total, then write the final HTML document as your final message.`,
+    `1. Call \`session_summary\` ONCE with days=${days} and maxMessagesPerSession=40 — a single call already covers EVERY workspace and global chat. Do NOT call it per workspace. Use \`session_search\` only if you must locate one specific topic. Budget: at most 2 tool calls in total, then write the final HTML document as your final message.`,
     '2. Write the report (HTML body) in the user\'s dominant conversation language, structured as:',
     '   - A short overall summary (2-3 lines).',
     '   - Per-workspace sections (use workspace NAMES): what happened, decisions made, problems solved. Skip idle workspaces.',
@@ -107,6 +115,7 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
     }
 
     const sessionTools = createSessionTools();
+    let toolCalls = 0;
 
     return await runHeadlessAgentTask(
       {
@@ -118,9 +127,16 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
         // net, not the cost guard: output validation plus the wall-clock
         // timeout are what actually bound a wandering run.
         maxSteps: 200,
-        timeoutMs: options.timeoutMs,
-        onToolCall: () => options.onPhase?.('reading'),
-        onTextStart: () => options.onPhase?.('writing'),
+        // Heavy users (many workspaces, long sessions) can legitimately need
+        // several minutes; the run is now observable and cancellable, so a
+        // generous ceiling beats aborting real work.
+        timeoutMs: options.timeoutMs ?? 10 * 60_000,
+        onToolCall: () => {
+          toolCalls += 1;
+          options.onPhase?.({ phase: 'reading', toolCalls });
+        },
+        onTextStart: () => options.onPhase?.({ phase: 'writing' }),
+        abortSignal: options.abortSignal,
       },
       ...(options.engineFactory ? [options.engineFactory] : []),
     );
@@ -176,7 +192,7 @@ export async function runScheduledMemoryReport(
   if (!looksLikeHtmlDocument(html)) {
     const snippet = html.replace(/\s+/g, ' ').trim().slice(0, 160);
     console.warn('[memory-report] run finished without an HTML document:', snippet);
-    return { ok: false, error: `模型未产出报告文档（可能中途耗尽步数）: ${snippet}` };
+    return { ok: false, error: `模型未产出报告文档: ${snippet}` };
   }
 
   try {

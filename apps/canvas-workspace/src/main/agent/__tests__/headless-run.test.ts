@@ -192,7 +192,7 @@ describe('generateMemoryReport', () => {
     expect(artifacts[0].versions[0].content).toBe(html);
   });
 
-  it('maps engine callbacks to coarse reading/writing phases, firing writing once', async () => {
+  it('maps engine callbacks to coarse reading/writing phases with tool-call counts', async () => {
     await writeManifest();
     const phases: string[] = [];
     const { factory } = fakeFactory({
@@ -200,6 +200,7 @@ describe('generateMemoryReport', () => {
         const onToolCall = options.onToolCall as (chunk: { toolName: string }) => void;
         const onText = options.onText as (delta: string) => void;
         onToolCall({ toolName: 'session_summary' });
+        onToolCall({ toolName: 'session_search' });
         onText('<!doctype');
         onText(' html>');
         return '<!doctype html><html><body>r</body></html>';
@@ -207,10 +208,30 @@ describe('generateMemoryReport', () => {
     });
     const result = await generateMemoryReport({
       engineFactory: factory,
-      onPhase: (phase) => phases.push(phase),
+      onPhase: (p) => phases.push(`${p.phase}${p.toolCalls ? `:${p.toolCalls}` : ''}`),
     });
     expect(result.ok).toBe(true);
-    expect(phases).toEqual(['reading', 'writing']);
+    expect(phases).toEqual(['reading:1', 'reading:2', 'writing']);
+  });
+
+  it('an external abort reports cancelled (distinct from timeout)', async () => {
+    await writeManifest();
+    const controller = new AbortController();
+    const { factory } = fakeFactory({
+      run: (_context, options) =>
+        new Promise((_resolve, reject) => {
+          (options.abortSignal as AbortSignal).addEventListener('abort', () =>
+            reject(new Error('Request aborted')),
+          );
+        }),
+    });
+    setTimeout(() => controller.abort(), 30);
+    const result = await generateMemoryReport({
+      engineFactory: factory,
+      abortSignal: controller.signal,
+    });
+    expect(result).toMatchObject({ ok: false, cancelled: true });
+    expect((result as { timedOut?: boolean }).timedOut).toBeUndefined();
   });
 
   it('rejects a run that ended without an HTML document instead of publishing it', async () => {
