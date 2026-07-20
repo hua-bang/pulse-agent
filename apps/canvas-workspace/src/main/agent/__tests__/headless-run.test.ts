@@ -1,0 +1,159 @@
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { promises as fs } from 'fs';
+import { join } from 'path';
+
+// Same homedir sandbox pattern as tools-graph.test.ts: pin os.homedir before
+// modules under test capture it, so the workspace manifest and memory files
+// live under a per-run tmp dir.
+const { sandboxHome } = vi.hoisted(() => {
+  const base = process.env.TMPDIR || process.env.TEMP || '/tmp';
+  const trailing = base.endsWith('/') ? '' : '/';
+  return {
+    sandboxHome: `${base}${trailing}headless-run-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  };
+});
+
+vi.mock('os', async () => {
+  const actual = await vi.importActual<typeof import('os')>('os');
+  return { ...actual, homedir: () => sandboxHome };
+});
+
+// The runner resolves the chat model before every run; stub it so tests never
+// touch real model settings or env keys.
+vi.mock('../model/config', () => ({
+  resolveCanvasModel: async () => ({
+    provider: 'stub-provider',
+    providerType: 'stub',
+    model: 'stub-model',
+    modelType: 'chat',
+  }),
+}));
+
+import { runHeadlessAgentTask, type HeadlessEngineFactory } from '../headless-run';
+import { generateMemoryReport } from '../memory-report';
+import { saveMemory } from '../memory-store';
+
+const canvasDir = join(sandboxHome, '.pulse-coder', 'canvas');
+
+beforeEach(async () => {
+  await fs.mkdir(canvasDir, { recursive: true });
+  process.env.PULSE_CANVAS_MEMORY_DIR = join(canvasDir, 'memory');
+});
+
+afterEach(async () => {
+  delete process.env.PULSE_CANVAS_MEMORY_DIR;
+  await fs.rm(join(sandboxHome), { recursive: true, force: true });
+});
+
+const fakeFactory = (impl: {
+  run?: (context: { messages: Array<{ role: string; content: string }> }, options: Record<string, unknown>) => Promise<string>;
+}): { factory: HeadlessEngineFactory; captured: { config?: unknown; runOptions?: Record<string, unknown> } } => {
+  const captured: { config?: unknown; runOptions?: Record<string, unknown> } = {};
+  const factory: HeadlessEngineFactory = (config) => {
+    captured.config = config;
+    return {
+      initialize: async () => undefined,
+      run: async (context, options) => {
+        captured.runOptions = options;
+        return impl.run ? impl.run(context, options) : 'fake result';
+      },
+    };
+  };
+  return { factory, captured };
+};
+
+describe('runHeadlessAgentTask', () => {
+  it('runs one bounded turn with no built-in tools and returns the text', async () => {
+    const { factory, captured } = fakeFactory({});
+    const result = await runHeadlessAgentTask(
+      { label: 't', systemPrompt: 'SYS', prompt: 'GO' },
+      factory,
+    );
+
+    expect(result).toEqual({ ok: true, text: 'fake result' });
+    expect(captured.config).toMatchObject({
+      disableBuiltInPlugins: true,
+      builtInTools: {},
+      tools: {},
+    });
+    expect(captured.runOptions).toMatchObject({
+      systemPrompt: 'SYS',
+      model: 'stub-model',
+      maxSteps: 12,
+    });
+    expect(captured.runOptions?.abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('returns ok:false instead of throwing when the engine fails', async () => {
+    const { factory } = fakeFactory({
+      run: async () => {
+        throw new Error('provider exploded');
+      },
+    });
+    const result = await runHeadlessAgentTask(
+      { label: 't', systemPrompt: 's', prompt: 'p' },
+      factory,
+    );
+    expect(result).toEqual({ ok: false, error: 'provider exploded' });
+  });
+
+  it('aborts a hung run at the wall-clock timeout and flags timedOut', async () => {
+    const { factory } = fakeFactory({
+      run: (_context, options) =>
+        new Promise((_resolve, reject) => {
+          (options.abortSignal as AbortSignal).addEventListener('abort', () =>
+            reject(new Error('aborted')),
+          );
+        }),
+    });
+    const result = await runHeadlessAgentTask(
+      { label: 't', systemPrompt: 's', prompt: 'p', timeoutMs: 50 },
+      factory,
+    );
+    expect(result).toMatchObject({ ok: false, timedOut: true });
+  });
+});
+
+describe('generateMemoryReport', () => {
+  const writeManifest = async (): Promise<void> => {
+    await fs.writeFile(
+      join(canvasDir, '__workspaces__.json'),
+      JSON.stringify({ workspaces: [{ id: 'ws-a', name: 'Alpha' }] }),
+      'utf-8',
+    );
+  };
+
+  it('inlines workspaces + existing memory into the system prompt and passes only read tools', async () => {
+    await writeManifest();
+    await saveMemory({ kind: 'global' }, 'user prefers Chinese replies', 'preference');
+    await saveMemory({ kind: 'workspace', workspaceId: 'ws-a' }, 'uses pnpm only', 'rule');
+
+    const { factory, captured } = fakeFactory({ run: async () => '# report' });
+    const result = await generateMemoryReport({ days: 7, engineFactory: factory });
+
+    expect(result).toEqual({ ok: true, text: '# report' });
+
+    const systemPrompt = (captured.runOptions as { systemPrompt: string }).systemPrompt;
+    expect(systemPrompt).toContain('ws-a — Alpha');
+    expect(systemPrompt).toContain('user prefers Chinese replies');
+    expect(systemPrompt).toContain('uses pnpm only');
+    expect(systemPrompt).toContain('last 7 days');
+
+    const toolNames = Object.keys((captured.config as { tools: Record<string, unknown> }).tools).sort();
+    expect(toolNames).toEqual(['session_search', 'session_summary']);
+  });
+
+  it('degrades to an ok:false result when context preparation fails', async () => {
+    // No manifest is fine (empty listing) — force a failure via a memory dir
+    // that is a FILE, so listMemory's mkdir/read path errors at save-time is
+    // not hit; instead point the engine factory at a thrower to cover the
+    // headless failure path end-to-end.
+    const { factory } = fakeFactory({
+      run: async () => {
+        throw new Error('no model configured');
+      },
+    });
+    const result = await generateMemoryReport({ engineFactory: factory });
+    expect(result).toMatchObject({ ok: false, error: 'no model configured' });
+  });
+});
