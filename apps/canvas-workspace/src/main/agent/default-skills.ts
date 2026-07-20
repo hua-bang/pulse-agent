@@ -23,6 +23,12 @@ interface DefaultSkill {
   name: string;
   description: string;
   body: string;
+  /**
+   * SHA-256 of previously bundled serialized SKILL.md versions. A user file
+   * matching one of these byte-for-byte is an untouched old default and gets
+   * upgraded in place; anything else is user-edited and left alone.
+   */
+  legacyHashes?: string[];
 }
 
 const SAVE_AS_SKILL: DefaultSkill = {
@@ -134,22 +140,26 @@ Build a period report from chat history, propose memory candidates, and persist 
 
 3. **Draft the report in chat:**
    - Per-workspace: 2-4 lines of what happened, decisions made, problems solved. Skip idle workspaces.
-   - **Candidates**: a numbered list. Each = ONE distilled statement (≤500 chars) + suggested scope (全局 or workspace name) + kind (preference/fact/decision/rule/note).
+   - **候选记忆**: a numbered list. Each = ONE distilled statement (≤500 chars) + suggested scope (全局 or workspace name) + kind (preference/fact/decision/rule/note).
    - Skip anything existing memory already covers; if a candidate supersedes an existing entry, mark it "更新: 替代 [mem-…]".
+   - **候选 skills** (optional, ≤2): ONLY when the SAME multi-step workflow succeeded at least twice this period and would clearly recur. Each = proposed skill name + one-line description + suggested scope (workspace / 全局) + which conversations evidence it. A one-off task or a vague theme is NOT a skill candidate.
    - Precision over recall — propose 3 solid candidates over 10 weak ones. Transient task state is NOT a candidate.
 
 4. **Wait for explicit confirmation.** The user picks numbers ("采纳 1、3"), edits wording, or rejects. Silence or "looks interesting" is NOT confirmation.
 
-5. **Persist via \`memory_adopt\`** with only the approved candidates — \`workspaceId\` from step 2's mapping, omitted for 全局. If a confirmed candidate replaces a stale entry, \`memory_forget\` that entry's id afterwards.
+5. **Persist approved items:**
+   - Memory → \`memory_adopt\` with only the approved candidates — \`workspaceId\` from step 2's mapping, omitted for 全局. If a confirmed candidate replaces a stale entry, \`memory_forget\` that entry's id afterwards.
+   - Skills → follow the save-as-skill procedure: draft name/description/body from the evidenced conversations, show the draft, then \`canvas_save_skill\` with the confirmed scope.
 
-6. **Report back**: what was written to which scope (ids), what was skipped.
+6. **Report back**: what was written to which scope (ids/paths), what was skipped.
 
 ## Rules
 
-- **Never call \`memory_adopt\` without the user's explicit approval of those exact candidates in this conversation.**
+- **Never call \`memory_adopt\` or \`canvas_save_skill\` without the user's explicit approval of those exact candidates in this conversation.**
 - \`memory_adopt\` is the ONLY cross-workspace write path, and only for this flow; routine remembering stays on \`memory_save\`.
 - Never copy raw transcript excerpts into a candidate — always distill to a standalone statement.
 `,
+  legacyHashes: ['a219d2705591b213a159a13d2a08d3c290f711502cea8bfea730da90c3cc2bf0'],
 };
 
 const DEFAULT_SKILLS: DefaultSkill[] = [SAVE_AS_SKILL, PROMOTE_SKILL, SUGGEST_TAGS, MEMORY_REVIEW];
@@ -188,10 +198,13 @@ export async function ensureDefaultSkillsSeeded(): Promise<void> {
     const file = join(dir, 'SKILL.md');
     try {
       const existing = await fs.readFile(file, 'utf8');
-      const legacyHash = skill.slug === 'suggest-tags' ? LEGACY_SUGGEST_TAGS_HASH : undefined;
+      const legacyHashes = [
+        ...(skill.legacyHashes ?? []),
+        ...(skill.slug === 'suggest-tags' ? [LEGACY_SUGGEST_TAGS_HASH] : []),
+      ];
       const referencesRemovedProposalTool = skill.slug === 'suggest-tags'
         && existing.includes('canvas_propose_node_change');
-      if ((legacyHash && sha256(existing) === legacyHash) || referencesRemovedProposalTool) {
+      if (legacyHashes.includes(sha256(existing)) || referencesRemovedProposalTool) {
         await fs.writeFile(file, serialize(skill), 'utf8');
         console.info(`[default-skills] upgraded bundled ${file}`);
       }

@@ -145,6 +145,7 @@ describe('generateMemoryReport', () => {
     expect(systemPrompt).toContain('user prefers Chinese replies');
     expect(systemPrompt).toContain('uses pnpm only');
     expect(systemPrompt).toContain('last 7 days');
+    expect(systemPrompt).toContain('候选 skills');
 
     const toolNames = Object.keys((captured.config as { tools: Record<string, unknown> }).tools).sort();
     expect(toolNames).toEqual(['session_search', 'session_summary']);

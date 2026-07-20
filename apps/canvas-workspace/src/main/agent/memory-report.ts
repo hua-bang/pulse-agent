@@ -74,7 +74,8 @@ function buildSystemPrompt(
     '   - A short overall summary (2-3 lines).',
     '   - Per-workspace sections (use workspace NAMES): what happened, decisions made, problems solved. Skip idle workspaces.',
     '   - "候选记忆" — a numbered list. Each item: ONE distilled statement (≤500 chars) + suggested scope written exactly as `[全局]` or `[工作区: <name> (<id>)]` + kind (preference/fact/decision/rule/note). If an item supersedes an existing entry, append "更新: 替代 [mem-…]".',
-    '   - Close by telling the user to reply in chat with the numbers they want to adopt.',
+    '   - "候选 skills" (optional section, at most 2 items): ONLY when the SAME multi-step workflow succeeded at least twice this period and would clearly recur. Each item: a proposed skill name + one-line description + suggested scope (`[全局]` or `[工作区: <name>]`) + which conversations evidence it. A one-off task or a vague theme is NOT a skill candidate; omit the section entirely when nothing qualifies.',
+    '   - Close by telling the user to reply in chat with the numbers they want to adopt (skills are saved via the save-as-skill flow after confirmation).',
     '3. Precision over recall: 3 solid candidates beat 10 weak ones. Never propose transient task state, and never copy raw transcript excerpts — always distill.',
   ].join('\n');
 }
