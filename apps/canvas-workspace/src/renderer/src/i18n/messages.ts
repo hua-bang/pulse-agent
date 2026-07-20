@@ -934,6 +934,9 @@ const en = {
   'experimental.toolingCliFailed': 'Agent tooling incomplete',
   'experimental.toolingCliFailedDesc':
     'The bundled CLI or one of its skills could not be installed: {error}',
+  'experimental.memoryReportNoModel': 'Scheduled memory report needs a chat model',
+  'experimental.memoryReportNoModelDesc':
+    'No chat model is configured, so weekly reports cannot be generated. Configure a model (and API key) under Settings → Model, then restart the app.',
 
   'workspaceSettings.kicker': 'Workspace Settings',
   'workspaceSettings.ariaLabel': 'Workspace settings',
@@ -2254,6 +2257,9 @@ const zh: Record<keyof typeof en, string> = {
   'experimental.toolingReadyDesc': 'Canvas skills 和内置 pulse-canvas CLI 已就绪。',
   'experimental.toolingCliFailed': 'Agent 工具安装不完整',
   'experimental.toolingCliFailedDesc': '内置 CLI 或部分 skill 安装失败：{error}',
+  'experimental.memoryReportNoModel': '定时记忆报告需要先配置聊天模型',
+  'experimental.memoryReportNoModelDesc':
+    '当前未配置聊天模型，每周报告将无法生成。请到 设置 → 模型 配置模型和 API Key，然后重启应用。',
 
   'workspaceSettings.kicker': '工作区设置',
   'workspaceSettings.ariaLabel': '工作区设置',

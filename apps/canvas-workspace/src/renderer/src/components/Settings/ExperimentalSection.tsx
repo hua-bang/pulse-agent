@@ -3,6 +3,7 @@ import type { ExperimentalFeatureDef } from '../../types';
 import {
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
   EXPERIMENTAL_FLAG_CHANNELS,
+  EXPERIMENTAL_FLAG_SCHEDULED_MEMORY_REPORT,
 } from '../../../../shared/experimental-features';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
@@ -110,6 +111,23 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
             title: t('experimental.toolingInstalling'),
             description: t('experimental.toolingInstallingDesc'),
           });
+        }
+        // The scheduled memory report generates via the configured chat
+        // model; without one every weekly run fails silently (log-only).
+        // Surface that at enable time instead of a week later.
+        if (id === EXPERIMENTAL_FLAG_SCHEDULED_MEMORY_REPORT && enabled && !previous) {
+          void window.canvasWorkspace.model
+            .status()
+            .then((res) => {
+              if (res.ok && res.status?.apiKeyPresent) return;
+              notify({
+                tone: 'info',
+                title: t('experimental.memoryReportNoModel'),
+                description: t('experimental.memoryReportNoModelDesc'),
+                autoCloseMs: 0,
+              });
+            })
+            .catch(() => undefined);
         }
       } catch (err) {
         setValues((v) => ({ ...v, [id]: previous ?? false }));
