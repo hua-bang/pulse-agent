@@ -144,8 +144,8 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 635KB(原 614)", "asOf": "2026-07-13",
-      "gate": { "kind": "ratchet", "baseline": 635, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "635 基线后渐增已贴满 +3% 上限(654),dock open-artifact 桥接(+~1KB)后实测 655;仍低于 target 680,但后续渲染层增长应先瘦身再提基线", "asOf": "2026-07-20",
+      "gate": { "kind": "ratchet", "baseline": 655, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
@@ -154,8 +154,8 @@
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,
-      "confidence": "high", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 635KB(原 614)", "asOf": "2026-07-13",
-      "gate": { "kind": "ratchet", "baseline": 635, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "与 entry_raw_kb 同步:贴线后 dock open-artifact 桥接落地实测 655(超 target 650,保留 target 作为瘦身压力)", "asOf": "2026-07-20",
+      "gate": { "kind": "ratchet", "baseline": 655, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,

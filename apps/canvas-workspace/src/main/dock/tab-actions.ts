@@ -9,10 +9,13 @@
  *  - `dock:open-tab`     {url, tabId?} — open url as a web tab (tabId set →
  *    navigate that existing link tab; renderer falls back to a new tab when
  *    the id is unknown)
+ *  - `dock:open-artifact` {workspaceId, artifactId} — open an artifact as the
+ *    active dock pane (workspaceId here is the artifact's STORAGE scope —
+ *    including the `__global_chat__` sentinel — not a routing constraint)
  *
  * Events are sent to every live window. Activation carries workspaceId, so a
- * renderer applies it only after that workspace becomes active; open-tab is
- * intentionally app-level and may be consumed by the live dock.
+ * renderer applies it only after that workspace becomes active; open-tab and
+ * open-artifact are intentionally app-level and may be consumed by the live dock.
  */
 import { BrowserWindow, type WebContents } from 'electron';
 import type { AgentContextTabRef } from '../../shared/agent-chat';
@@ -52,6 +55,21 @@ export function openDockTab(url: string, tabId?: string): boolean {
   const targets = liveWindowContents();
   for (const wc of targets) {
     wc.send('dock:open-tab', { url, ...(tabId ? { tabId } : {}) });
+  }
+  return targets.length > 0;
+}
+
+/**
+ * Open an artifact as the active dock pane. App-level like open-tab; the
+ * dock's artifact viewer fetches by (workspaceId, artifactId), so the global
+ * `__global_chat__` artifact scope works from any route. Returns false when
+ * no window is open to receive the command.
+ */
+export function openDockArtifact(workspaceId: string, artifactId: string): boolean {
+  if (!workspaceId || !artifactId) return false;
+  const targets = liveWindowContents();
+  for (const wc of targets) {
+    wc.send('dock:open-artifact', { workspaceId, artifactId });
   }
   return targets.length > 0;
 }

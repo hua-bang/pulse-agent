@@ -92,9 +92,10 @@ export function createMemoryTools(workspaceId: string): Record<string, CanvasToo
     name: 'memory_list',
     defer_loading: true,
     description:
-      'List saved long-term memory entries with ids (e.g. when the user asks what you remember, or before memory_forget). ' +
+      'List or search saved long-term memory entries with ids. Use when the user asks what you remember, before memory_forget, or to RETRIEVE fact/decision/note entries (those are not auto-injected into the prompt) — pass `query` to filter. ' +
       (isGlobalChat ? 'Global chat lists global memory.' : 'Lists global + this workspace by default.'),
     inputSchema: z.object({
+      query: z.string().optional().describe('Case-insensitive substring filter over entry content.'),
       ...(isGlobalChat
         ? {}
         : {
@@ -104,17 +105,20 @@ export function createMemoryTools(workspaceId: string): Record<string, CanvasToo
               .describe('Defaults to all.'),
           }),
     }),
-    execute: async (input: { scope?: 'all' | ScopeName }) => {
+    execute: async (input: { scope?: 'all' | ScopeName; query?: string }) => {
       const wanted = isGlobalChat ? 'global' : input?.scope ?? 'all';
+      const query = input?.query?.trim().toLowerCase();
+      const matches = (entries: MemoryEntry[]): MemoryEntry[] =>
+        query ? entries.filter((e) => e.content.toLowerCase().includes(query)) : entries;
       const sections: Record<string, unknown[]> = {};
       if (wanted === 'all' || wanted === 'global') {
-        sections.global = (await listMemory(globalScope)).map((e) => summarize(e, 'global'));
+        sections.global = matches(await listMemory(globalScope)).map((e) => summarize(e, 'global'));
       }
       if (workspaceScope && (wanted === 'all' || wanted === 'workspace')) {
-        sections.workspace = (await listMemory(workspaceScope)).map((e) => summarize(e, 'workspace'));
+        sections.workspace = matches(await listMemory(workspaceScope)).map((e) => summarize(e, 'workspace'));
       }
       const total = Object.values(sections).reduce((n, list) => n + list.length, 0);
-      return JSON.stringify({ ok: true, total, ...sections });
+      return JSON.stringify({ ok: true, total, ...(query ? { query } : {}), ...sections });
     },
   };
 

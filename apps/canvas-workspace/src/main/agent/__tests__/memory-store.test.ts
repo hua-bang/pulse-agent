@@ -100,10 +100,10 @@ describe('memory-store', () => {
   });
 
   describe('prompt section', () => {
-    const entry = (id: string, content: string, updatedAt: number): MemoryEntry => ({
+    const entry = (id: string, content: string, updatedAt: number, kind: MemoryEntry['kind'] = 'preference'): MemoryEntry => ({
       id,
       content,
-      kind: 'note',
+      kind,
       createdAt: updatedAt,
       updatedAt,
     });
@@ -129,9 +129,22 @@ describe('memory-store', () => {
       expect(section).toContain('more entries — use memory_list');
     });
 
+    it('injects preference/rule but keeps fact/decision/note retrieval-only', () => {
+      const section = formatMemoryPromptSection([
+        entry('mem-p', 'always reply in Chinese', 2, 'preference'),
+        entry('mem-f', 'user works at BigCo', 1, 'fact'),
+        entry('mem-d', 'chose fetch over axios', 1, 'decision'),
+      ]);
+      expect(section).toContain('always reply in Chinese');
+      expect(section).not.toContain('user works at BigCo');
+      expect(section).not.toContain('chose fetch over axios');
+      expect(section).toContain('2 fact/decision/note entries');
+      expect(section).toContain('memory_list');
+    });
+
     it('buildMemoryPromptSection loads from disk per scope', async () => {
-      await saveMemory(GLOBAL, 'global pref');
-      await saveMemory(WS, 'ws decision');
+      await saveMemory(GLOBAL, 'global pref', 'preference');
+      await saveMemory(WS, 'ws decision', 'rule');
       const wsSection = await buildMemoryPromptSection('ws-1');
       expect(wsSection).toContain('global pref');
       expect(wsSection).toContain('ws decision');

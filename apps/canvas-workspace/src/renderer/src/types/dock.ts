@@ -13,4 +13,9 @@ export interface DockApi {
   /** Main asks the dock to open a URL as a web tab (or navigate the existing
    *  link tab `tabId`). Returns unsubscribe fn. */
   onOpenTab: (callback: (payload: { url: string; tabId?: string }) => void) => () => void;
+  /** Main asks the dock to open an artifact pane (workspaceId is the
+   *  artifact's storage scope, e.g. `__global_chat__`). Returns unsubscribe fn. */
+  onOpenArtifact: (
+    callback: (payload: { workspaceId: string; artifactId: string }) => void,
+  ) => () => void;
 }

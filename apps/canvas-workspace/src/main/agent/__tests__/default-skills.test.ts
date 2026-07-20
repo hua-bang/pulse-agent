@@ -41,6 +41,8 @@ describe('ensureDefaultSkillsSeeded', () => {
     expect(Object.keys(byName).sort()).toEqual(['memory-review', 'promote-skill', 'save-as-skill', 'suggest-tags']);
     expect(byName['memory-review'].body).toMatch(/memory_adopt/);
     expect(byName['memory-review'].body).toMatch(/session_summary/);
+    expect(byName['memory-review'].body).toMatch(/候选 skills/);
+    expect(byName['memory-review'].body).toMatch(/canvas_save_skill/);
     expect(byName['save-as-skill'].description).toMatch(/save.*conversation|reusable skill/i);
     expect(byName['save-as-skill'].body).toMatch(/canvas_save_skill/);
     expect(byName['promote-skill'].body).toMatch(/canvas_promote_skill/);

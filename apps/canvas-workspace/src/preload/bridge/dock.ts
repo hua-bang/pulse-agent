@@ -11,4 +11,8 @@ export const createDockApi = (ipcRenderer: IpcRenderer) => ({
 
   onOpenTab: (callback: (payload: { url: string; tabId?: string }) => void): Unsubscribe =>
     subscribe(ipcRenderer, "dock:open-tab", callback),
+
+  onOpenArtifact: (
+    callback: (payload: { workspaceId: string; artifactId: string }) => void,
+  ): Unsubscribe => subscribe(ipcRenderer, "dock:open-artifact", callback),
 });

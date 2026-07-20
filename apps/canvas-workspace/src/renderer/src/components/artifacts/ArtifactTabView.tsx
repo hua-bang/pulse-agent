@@ -7,7 +7,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Artifact, ArtifactVersion } from '../../types';
+import {
+  ARTIFACT_CAPABILITY_MESSAGE,
+  ARTIFACT_CAPABILITY_RESPONSE,
+  type ArtifactCapabilityName,
+} from '../../../../shared/artifact-capabilities';
+import { useAppShell } from '../AppShellProvider';
 import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
+import { buildCapabilityBridgeScript } from './capabilityBridge';
 import './artifacts.css';
 
 const TYPE_LABEL: Record<string, string> = {
@@ -26,6 +33,45 @@ export const ArtifactTabView = ({ workspaceId, artifactId, onTitleChange }: Arti
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [pinning, setPinning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { notify } = useAppShell();
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  // Relay declared-capability calls from the sandboxed page to main and the
+  // result back; surface an audit toast for every successful write so the
+  // user sees each one outside the page too.
+  const capabilities = artifact?.capabilities;
+  useEffect(() => {
+    if (!capabilities?.length) return;
+    const onMessage = (event: MessageEvent) => {
+      const frame = iframeRef.current;
+      if (!frame || event.source !== frame.contentWindow) return;
+      const data = event.data as {
+        type?: string;
+        id?: string;
+        capability?: string;
+        payload?: unknown;
+      };
+      if (data?.type !== ARTIFACT_CAPABILITY_MESSAGE || !data.id || !data.capability) return;
+      void window.canvasWorkspace.artifactCapabilities
+        .invoke({
+          workspaceId,
+          artifactId,
+          capability: data.capability as ArtifactCapabilityName,
+          payload: (data.payload ?? {}) as never,
+        })
+        .then((result) => {
+          frame.contentWindow?.postMessage(
+            { type: ARTIFACT_CAPABILITY_RESPONSE, id: data.id, result },
+            '*',
+          );
+          if (result.ok && result.summary) {
+            notify({ tone: 'success', title: result.summary, description: '', autoCloseMs: 4000 });
+          }
+        });
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [capabilities, workspaceId, artifactId, notify]);
 
   // Load + subscribe for the lifetime of the (workspace, artifact) pair.
   useEffect(() => {
@@ -98,11 +144,15 @@ export const ArtifactTabView = ({ workspaceId, artifactId, onTitleChange }: Arti
       return <div className="artifact-drawer__empty">Loading…</div>;
     }
     if (artifact.type === 'html') {
+      const srcDoc = artifact.capabilities?.length
+        ? buildCapabilityBridgeScript(artifact.capabilities) + viewedVersion.content
+        : viewedVersion.content;
       return (
         <iframe
           key={viewedVersion.id}
+          ref={iframeRef}
           className="artifact-drawer__frame"
-          srcDoc={viewedVersion.content}
+          srcDoc={srcDoc}
           sandbox="allow-scripts"
           title={artifact.title}
         />

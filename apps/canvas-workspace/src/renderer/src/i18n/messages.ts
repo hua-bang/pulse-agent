@@ -934,6 +934,23 @@ const en = {
   'experimental.toolingCliFailed': 'Agent tooling incomplete',
   'experimental.toolingCliFailedDesc':
     'The bundled CLI or one of its skills could not be installed: {error}',
+  'experimental.memoryReportNoModel': 'Scheduled memory report needs a chat model',
+  'experimental.memoryReportNoModelDesc':
+    'No chat model is configured, so weekly reports cannot be generated. Configure a model (and API key) under Settings → Model, then restart the app.',
+  'experimental.memoryReportTryDesc':
+    'The first automatic report only arrives after a full week. Generate one now to see what it looks like — it opens in the right dock when ready.',
+  'experimental.memoryReportTryBtn': 'Generate a report now',
+  'experimental.memoryReportRunning': 'Generating memory report…',
+  'experimental.memoryReportRunningDesc':
+    'Reading recent sessions and writing the report — this can take several minutes for heavy usage. Closing this notice does NOT stop generation; the report opens automatically when ready. Quitting the app does.',
+  'experimental.memoryReportPhaseReading': 'Reading recent chat sessions…',
+  'experimental.memoryReportPhaseReadingCount': 'Researching sessions and canvas… (tool call #{count})',
+  'experimental.memoryReportPhaseWriting': 'Writing the report document…',
+  'experimental.memoryReportCancelBtn': 'Cancel generation',
+  'experimental.memoryReportCancelled': 'Report generation cancelled',
+  'experimental.memoryReportDone': 'Memory report ready',
+  'experimental.memoryReportDoneDesc': 'Opened in the right dock; also archived under ~/.pulse-coder/canvas/memory/reports/.',
+  'experimental.memoryReportFailed': 'Memory report generation failed',
 
   'workspaceSettings.kicker': 'Workspace Settings',
   'workspaceSettings.ariaLabel': 'Workspace settings',
@@ -2254,6 +2271,23 @@ const zh: Record<keyof typeof en, string> = {
   'experimental.toolingReadyDesc': 'Canvas skills 和内置 pulse-canvas CLI 已就绪。',
   'experimental.toolingCliFailed': 'Agent 工具安装不完整',
   'experimental.toolingCliFailedDesc': '内置 CLI 或部分 skill 安装失败：{error}',
+  'experimental.memoryReportNoModel': '定时记忆报告需要先配置聊天模型',
+  'experimental.memoryReportNoModelDesc':
+    '当前未配置聊天模型，每周报告将无法生成。请到 设置 → 模型 配置模型和 API Key，然后重启应用。',
+  'experimental.memoryReportTryDesc':
+    '第一份自动报告要等满一周才会生成。可以现在手动生成一份体验效果——完成后会在右侧面板打开。',
+  'experimental.memoryReportTryBtn': '立即生成一份',
+  'experimental.memoryReportRunning': '正在生成记忆报告…',
+  'experimental.memoryReportRunningDesc':
+    '正在读取近期会话并撰写报告，重度使用可能需要几分钟。关闭此提示不会中断生成，完成后会自动打开报告；退出应用才会中止。',
+  'experimental.memoryReportPhaseReading': '正在读取会话记录…',
+  'experimental.memoryReportPhaseReadingCount': '正在检索会话与画布…（第 {count} 次工具调用）',
+  'experimental.memoryReportPhaseWriting': '正在撰写报告文档…',
+  'experimental.memoryReportCancelBtn': '取消生成',
+  'experimental.memoryReportCancelled': '已取消生成',
+  'experimental.memoryReportDone': '记忆报告已生成',
+  'experimental.memoryReportDoneDesc': '已在右侧面板打开；同时存档于 ~/.pulse-coder/canvas/memory/reports/。',
+  'experimental.memoryReportFailed': '记忆报告生成失败',
 
   'workspaceSettings.kicker': '工作区设置',
   'workspaceSettings.ariaLabel': '工作区设置',
