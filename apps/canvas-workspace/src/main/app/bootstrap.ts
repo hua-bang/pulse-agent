@@ -234,6 +234,10 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       import('./update-ipc'),
     ]);
     setupArtifactIpc();
+    {
+      const { setupArtifactCapabilityIpc } = await import('../artifacts/capability-ipc');
+      setupArtifactCapabilityIpc();
+    }
     // Unconditional (not behind the scheduled-memory-report flag): the
     // settings try-it button must work right after enabling the flag,
     // before the restart that arms the scheduler. Implementation loads

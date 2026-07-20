@@ -1,6 +1,7 @@
 import type { PluginBridge } from '../../../plugins/types';
 import type { BrowsingHistoryApi } from '../../../shared/browsing-history';
 import type { MemoryReportApi } from '../../../shared/memory-report';
+import type { ArtifactCapabilitiesApi } from '../../../shared/artifact-capabilities';
 import type {
   CanvasSaveData,
   KnowledgeTagDefinition,
@@ -174,6 +175,7 @@ export interface CanvasWorkspaceApi {
   builtInTools: BuiltInToolsConfigApi;
   model: CanvasModelApi;
   memoryReport: MemoryReportApi;
+  artifactCapabilities: ArtifactCapabilitiesApi;
   promptProfile: PromptProfileApi;
   agent: AgentApi;
   codexSessions: CodexSessionsApi;

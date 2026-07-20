@@ -44,6 +44,8 @@ export interface Artifact {
     messageIndex?: number;
     origin?: 'agent_tool' | 'inline_promotion' | 'iframe_ai_tab';
   };
+  /** Runtime capabilities the page may invoke — set by creating code only. */
+  capabilities?: string[];
   createdAt: number;
   updatedAt: number;
 }
@@ -117,6 +119,7 @@ export async function createArtifact(
     content: string;
     prompt?: string;
     source?: Artifact['source'];
+    capabilities?: string[];
   },
 ): Promise<Artifact> {
   const all = await readArtifacts(workspaceId);
@@ -137,6 +140,7 @@ export async function createArtifact(
     ],
     currentVersionId: versionId,
     source: input.source,
+    ...(input.capabilities?.length ? { capabilities: input.capabilities } : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -171,7 +175,7 @@ export async function addArtifactVersion(
 export async function updateArtifact(
   workspaceId: string,
   artifactId: string,
-  patch: Partial<Pick<Artifact, 'title' | 'currentVersionId' | 'pinnedNodeId'>>,
+  patch: Partial<Pick<Artifact, 'title' | 'currentVersionId' | 'pinnedNodeId' | 'capabilities'>>,
 ): Promise<Artifact | null> {
   const all = await readArtifacts(workspaceId);
   const idx = all.findIndex(a => a.id === artifactId);

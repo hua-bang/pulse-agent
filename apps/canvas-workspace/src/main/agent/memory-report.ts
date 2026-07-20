@@ -22,7 +22,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { listWorkspaces } from '../canvas/workspaces';
-import { addArtifactVersion, createArtifact, listArtifacts } from '../artifacts/store';
+import { addArtifactVersion, createArtifact, listArtifacts, updateArtifact } from '../artifacts/store';
 import { listMemory, memoryBaseDir, type MemoryEntry } from './memory-store';
 import { GLOBAL_CHAT_SESSION_STORE_ID } from './session-store';
 import { createGlobalCanvasTools } from './tools';
@@ -120,7 +120,11 @@ function buildSystemPrompt(
     '   - Per-workspace sections (use workspace NAMES): what happened, decisions made, problems solved. Skip idle workspaces.',
     '   - "候选记忆" — a numbered list. Each item: ONE distilled statement (≤500 chars) + suggested scope written exactly as `[全局]` or `[工作区: <name> (<id>)]` + kind (preference/fact/decision/rule/note). If an item supersedes an existing entry, append "更新: 替代 [mem-…]".',
     '   - "候选 skills" (optional section, at most 2 items): ONLY when the SAME multi-step workflow succeeded at least twice this period and would clearly recur. Each item: a proposed skill name + one-line description + suggested scope (`[全局]` or `[工作区: <name>]`) + which conversations evidence it. A one-off task or a vague theme is NOT a skill candidate; omit the section entirely when nothing qualifies.',
-    '   - Close by telling the user to reply in chat with the numbers they want to adopt (skills are saved via the save-as-skill flow after confirmation).',
+    '   - Make every candidate INTERACTIVE: the in-app viewer injects `window.pulseArtifact` (capabilities: memory.adopt, skill.save). Render each memory candidate with a 采纳 button and each skill candidate with a 保存 button, wired exactly like this (copy this helper into your document):',
+    '     `<script>async function cap(btn,name,p){btn.disabled=true;const a=window.pulseArtifact;const fn=a&&(name==="memory.adopt"?a.memory.adopt:a.skill.save);const r=await(fn?fn(p):{ok:false,error:"仅应用内可用"});btn.textContent=r.ok?"✓ 已完成":(r.error||"失败");if(!r.ok)btn.disabled=false;}</script>`',
+    '     memory button: `onclick="cap(this,\'memory.adopt\',{content:\'…\',kind:\'preference\'})"` — include `workspaceId:\'<id>\'` for workspace-scoped candidates, omit for 全局.',
+    '     skill button: `onclick="cap(this,\'skill.save\',{name:\'…\',description:\'…\',body:\'…\',scope:\'workspace\',workspaceId:\'<id>\'})"` (or scope:\'global\'). Draft the full SKILL body yourself.',
+    '   - Also close by noting the user can alternatively adopt in chat ("采纳 1、3").',
     '3. Precision over recall: 3 solid candidates beat 10 weak ones. Never propose transient task state, and never copy raw transcript excerpts — always distill.',
   ].join('\n');
 }
@@ -181,6 +185,9 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
 
 /** Rolling retention for persisted reports. */
 const REPORTS_KEEP = 12;
+
+/** Runtime capabilities every report artifact declares (adopt-in-page UX). */
+const REPORT_CAPABILITIES = ['memory.adopt', 'skill.save'];
 
 /** Artifact storage scope for reports — shared with global-chat sessions. */
 export const GLOBAL_ARTIFACT_SCOPE_ID = GLOBAL_CHAT_SESSION_STORE_ID;
@@ -244,9 +251,22 @@ export async function runScheduledMemoryReport(
     // report artifact instead of piling up duplicates in the global scope.
     const title = `记忆周报 ${stamp}`;
     const existing = (await listArtifacts(GLOBAL_ARTIFACT_SCOPE_ID)).find((a) => a.title === title);
-    const artifact = existing
-      ? await addArtifactVersion(GLOBAL_ARTIFACT_SCOPE_ID, existing.id, { content: html })
-      : await createArtifact(GLOBAL_ARTIFACT_SCOPE_ID, { type: 'html', title, content: html });
+    let artifact;
+    if (existing) {
+      artifact = await addArtifactVersion(GLOBAL_ARTIFACT_SCOPE_ID, existing.id, { content: html });
+      if (!existing.capabilities?.length) {
+        await updateArtifact(GLOBAL_ARTIFACT_SCOPE_ID, existing.id, {
+          capabilities: REPORT_CAPABILITIES,
+        });
+      }
+    } else {
+      artifact = await createArtifact(GLOBAL_ARTIFACT_SCOPE_ID, {
+        type: 'html',
+        title,
+        content: html,
+        capabilities: REPORT_CAPABILITIES,
+      });
+    }
     return { ok: true, text: html, path, artifactId: artifact?.id ?? existing?.id };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);

@@ -33,6 +33,12 @@ export interface Artifact {
     messageIndex?: number;
     origin?: 'agent_tool' | 'inline_promotion' | 'iframe_ai_tab';
   };
+  /**
+   * Runtime capabilities this artifact's page may invoke (see
+   * shared/artifact-capabilities.ts). Set by the creating code, never by the
+   * page itself; absent means none.
+   */
+  capabilities?: string[];
   createdAt: number;
   updatedAt: number;
 }
