@@ -1,5 +1,5 @@
 import { APP_NAME, configureAppIdentity } from "./identity";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, Notification } from "electron";
 import { existsSync } from "fs";
 import { join } from "path";
 import { setupPtyIpc, killAllPty } from "../terminal/pty-manager";
@@ -168,10 +168,12 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // place a background LLM run gets registered. Flag off = the scheduler
     // is never constructed — zero background behavior, zero cost.
     if (getExperimentalFlagSync(EXPERIMENTAL_FLAG_SCHEDULED_MEMORY_REPORT)) {
-      const [{ TaskScheduler }, { runScheduledMemoryReport }] = await Promise.all([
-        import('../scheduler/task-scheduler'),
-        import('../agent/memory-report'),
-      ]);
+      const [{ TaskScheduler }, { runScheduledMemoryReport, GLOBAL_ARTIFACT_SCOPE_ID }, { openDockArtifact }] =
+        await Promise.all([
+          import('../scheduler/task-scheduler'),
+          import('../agent/memory-report'),
+          import('../dock/tab-actions'),
+        ]);
       const scheduler = new TaskScheduler({
         log: (message, detail) => { void writeLog('scheduler', message, detail); },
       });
@@ -180,10 +182,28 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
         interval: 'weekly',
         run: async () => {
           const result = await runScheduledMemoryReport();
-          if (result.ok) {
-            void writeLog('scheduler', 'memory report written', result.path);
-          } else {
+          if (!result.ok) {
             void writeLog('scheduler', 'memory report failed', result.error);
+            return;
+          }
+          void writeLog('scheduler', 'memory report written', result.path);
+          // OS notification, click → open the report in the dock. Best-effort:
+          // an unsupported platform just leaves the artifact + on-disk file.
+          if (result.artifactId && Notification.isSupported()) {
+            const notification = new Notification({
+              title: '记忆周报已生成',
+              body: '点击查看本周活动盘点与候选记忆',
+            });
+            const artifactId = result.artifactId;
+            notification.on('click', () => {
+              const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+              if (!win) return;
+              if (win.isMinimized()) win.restore();
+              win.show();
+              win.focus();
+              openDockArtifact(GLOBAL_ARTIFACT_SCOPE_ID, artifactId);
+            });
+            notification.show();
           }
         },
       });

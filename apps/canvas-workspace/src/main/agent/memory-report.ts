@@ -16,7 +16,9 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { listWorkspaces } from '../canvas/workspaces';
+import { createArtifact } from '../artifacts/store';
 import { listMemory, memoryBaseDir, type MemoryEntry } from './memory-store';
+import { GLOBAL_CHAT_SESSION_STORE_ID } from './session-store';
 import { createSessionTools } from './tools/sessions';
 import {
   runHeadlessAgentTask,
@@ -53,7 +55,7 @@ function buildSystemPrompt(
   existingBlocks: string[],
 ): string {
   return [
-    'You generate a periodic memory report for the Pulse Canvas user. This is a background run: produce ONE final markdown report and nothing else. Do not attempt to save memory — adoption happens later in chat.',
+    'You generate a periodic memory report for the Pulse Canvas user. This is a background run: produce ONE final self-contained HTML document (`<!doctype html>` … `</html>`, all CSS inline, no external resources or scripts) and nothing else — no surrounding prose or code fences. Keep the styling at documentation density (simple readable typography, no marketing chrome). Do not attempt to save memory — adoption happens later in chat.',
     '',
     `## Reporting window`,
     `The last ${days} days.`,
@@ -68,7 +70,7 @@ function buildSystemPrompt(
     '',
     '## How to work',
     `1. Call \`session_summary\` with days=${days} to read the period's chat activity across all workspaces and global chat. Use \`session_search\` only if you need to locate a specific topic.`,
-    '2. Write the report in the user\'s dominant conversation language, structured as:',
+    '2. Write the report (HTML body) in the user\'s dominant conversation language, structured as:',
     '   - A short overall summary (2-3 lines).',
     '   - Per-workspace sections (use workspace NAMES): what happened, decisions made, problems solved. Skip idle workspaces.',
     '   - "候选记忆" — a numbered list. Each item: ONE distilled statement (≤500 chars) + suggested scope written exactly as `[全局]` or `[工作区: <name> (<id>)]` + kind (preference/fact/decision/rule/note). If an item supersedes an existing entry, append "更新: 替代 [mem-…]".',
@@ -123,18 +125,26 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
 /** Rolling retention for persisted reports. */
 const REPORTS_KEEP = 12;
 
+/** Artifact storage scope for reports — shared with global-chat sessions. */
+export const GLOBAL_ARTIFACT_SCOPE_ID = GLOBAL_CHAT_SESSION_STORE_ID;
+
 export function memoryReportsDir(): string {
   return join(memoryBaseDir(), 'reports');
 }
 
-export type ScheduledMemoryReportResult = HeadlessRunResult & { path?: string };
+/** Models often wrap HTML in a ```html fence despite instructions — unwrap it. */
+function stripCodeFence(text: string): string {
+  const match = text.trim().match(/^```(?:html)?\s*\n([\s\S]*?)\n```\s*$/);
+  return match ? match[1] : text;
+}
+
+export type ScheduledMemoryReportResult = HeadlessRunResult & { path?: string; artifactId?: string };
 
 /**
- * Scheduler task body: generate the report headlessly and persist it under
- * `<memory>/reports/memory-report-YYYY-MM-DD.md` (same-day rerun overwrites;
- * oldest reports pruned beyond the retention window). This on-disk file is
- * the interim delivery surface until the global-artifact surface exists —
- * the user reads it in chat ("看下最新记忆报告") or opens it directly.
+ * Scheduler task body: generate the report headlessly, persist the HTML under
+ * `<memory>/reports/memory-report-YYYY-MM-DD.html` (same-day rerun overwrites;
+ * oldest pruned beyond retention) as the on-disk archive, and publish it as a
+ * global-scope artifact so the right dock can display it on any route.
  */
 export async function runScheduledMemoryReport(
   options: MemoryReportOptions = {},
@@ -143,19 +153,27 @@ export async function runScheduledMemoryReport(
   if (!result.ok) return result;
 
   try {
+    const html = stripCodeFence(result.text);
+    const stamp = new Date().toISOString().slice(0, 10);
+
     const dir = memoryReportsDir();
     await fs.mkdir(dir, { recursive: true });
-    const stamp = new Date().toISOString().slice(0, 10);
-    const path = join(dir, `memory-report-${stamp}.md`);
-    await fs.writeFile(path, result.text, 'utf-8');
+    const path = join(dir, `memory-report-${stamp}.html`);
+    await fs.writeFile(path, html, 'utf-8');
 
     const reports = (await fs.readdir(dir))
-      .filter((name) => name.startsWith('memory-report-') && name.endsWith('.md'))
+      .filter((name) => name.startsWith('memory-report-') && name.endsWith('.html'))
       .sort();
     for (const stale of reports.slice(0, Math.max(0, reports.length - REPORTS_KEEP))) {
       await fs.rm(join(dir, stale), { force: true });
     }
-    return { ...result, path };
+
+    const artifact = await createArtifact(GLOBAL_ARTIFACT_SCOPE_ID, {
+      type: 'html',
+      title: `记忆周报 ${stamp}`,
+      content: html,
+    });
+    return { ok: true, text: html, path, artifactId: artifact.id };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.warn('[memory-report] generated but failed to persist:', error);

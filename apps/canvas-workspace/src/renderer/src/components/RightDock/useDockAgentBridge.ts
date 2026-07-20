@@ -43,9 +43,17 @@ export function useDockAgentBridge(store: DockStore, state: DockState, activeWor
       // Unknown/absent tabId → open (or re-activate the URL-deduped) tab.
       store.openLink(url);
     });
+    const offOpenArtifact = window.canvasWorkspace.dock.onOpenArtifact(({ workspaceId, artifactId }) => {
+      if (!workspaceId || !artifactId) return;
+      // workspaceId is the artifact's STORAGE scope (may be the global
+      // `__global_chat__` sentinel) — the viewer fetches by that pair, so no
+      // active-workspace gating here.
+      store.openArtifact(workspaceId, artifactId);
+    });
     return () => {
       offActivate();
       offOpen();
+      offOpenArtifact();
     };
   }, [store, activeWorkspaceId]);
 

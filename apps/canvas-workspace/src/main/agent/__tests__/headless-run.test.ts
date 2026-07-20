@@ -18,6 +18,13 @@ vi.mock('os', async () => {
   return { ...actual, homedir: () => sandboxHome };
 });
 
+// memory-report publishes a global artifact; the artifact store broadcasts
+// over BrowserWindow, which needs stubbing outside an Electron runtime.
+vi.mock('electron', () => ({
+  BrowserWindow: { getAllWindows: () => [] },
+  ipcMain: { handle: () => undefined, on: () => undefined },
+}));
+
 // The runner resolves the chat model before every run; stub it so tests never
 // touch real model settings or env keys.
 vi.mock('../model/config', () => ({
@@ -143,27 +150,43 @@ describe('generateMemoryReport', () => {
     expect(toolNames).toEqual(['session_search', 'session_summary']);
   });
 
-  it('runScheduledMemoryReport persists the report and prunes beyond retention', async () => {
+  it('runScheduledMemoryReport persists HTML, publishes a global artifact, and prunes beyond retention', async () => {
     await writeManifest();
     const dir = memoryReportsDir();
     await fs.mkdir(dir, { recursive: true });
     // Pre-seed 12 older reports; the new one should push the oldest out.
     for (let i = 1; i <= 12; i += 1) {
       const day = String(i).padStart(2, '0');
-      await fs.writeFile(join(dir, `memory-report-2020-01-${day}.md`), 'old', 'utf-8');
+      await fs.writeFile(join(dir, `memory-report-2020-01-${day}.html`), 'old', 'utf-8');
     }
 
-    const { factory } = fakeFactory({ run: async () => '# weekly report' });
+    // Model wraps the document in a fence despite instructions — must unwrap.
+    const html = '<!doctype html><html><body>weekly</body></html>';
+    const { factory } = fakeFactory({ run: async () => `\`\`\`html\n${html}\n\`\`\`` });
     const result = await runScheduledMemoryReport({ engineFactory: factory });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.path).toBeDefined();
-      expect(await fs.readFile(result.path!, 'utf-8')).toBe('# weekly report');
+      expect(await fs.readFile(result.path!, 'utf-8')).toBe(html);
+      expect(result.artifactId).toBeDefined();
     }
     const remaining = (await fs.readdir(dir)).sort();
     expect(remaining).toHaveLength(12);
-    expect(remaining).not.toContain('memory-report-2020-01-01.md');
+    expect(remaining).not.toContain('memory-report-2020-01-01.html');
+
+    const artifactsRaw = await fs.readFile(
+      join(canvasDir, '__global_chat__', 'artifacts.json'),
+      'utf-8',
+    );
+    const artifacts = JSON.parse(artifactsRaw).artifacts;
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]).toMatchObject({
+      id: result.ok ? result.artifactId : '',
+      type: 'html',
+      workspaceId: '__global_chat__',
+    });
+    expect(artifacts[0].versions[0].content).toBe(html);
   });
 
   it('runScheduledMemoryReport passes generation failures through without writing', async () => {

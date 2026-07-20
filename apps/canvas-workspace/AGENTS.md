@@ -87,7 +87,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` (NB: `nodes/` here = knowledge-node records + tags, NOT node types) |
 | Canvas Agent and tools | `src/main/agent/`, `src/main/agent/tools/`, `src/renderer/src/components/chat/` |
 | Agent long-term memory (global + per-workspace) | `src/main/agent/memory-store.ts` (store + prompt injection; explicit-save-only by design), `src/main/agent/tools/memory.ts` (`memory_save` eager; `memory_list`/`memory_forget`/`memory_adopt` deferred — `memory_adopt` is the sole cross-workspace write path, reserved for user-confirmed candidates from the `memory-review` default skill), tests in `src/main/agent/__tests__/memory-store.test.ts` + `tools-graph.test.ts` |
-| Headless (background) agent runs | `src/main/agent/headless-run.ts` (one-shot bounded Engine run: no session store, `builtInTools:{}` = structurally read-only, wall-clock timeout, never throws), `src/main/agent/memory-report.ts` (first consumer — cross-workspace memory report; adoption stays interactive-only; scheduled entry persists to `<memory>/reports/` with rolling retention). Tests: `src/main/agent/__tests__/headless-run.test.ts` |
+| Headless (background) agent runs | `src/main/agent/headless-run.ts` (one-shot bounded Engine run: no session store, `builtInTools:{}` = structurally read-only, wall-clock timeout, never throws), `src/main/agent/memory-report.ts` (first consumer — cross-workspace memory report as self-contained HTML; adoption stays interactive-only; scheduled entry archives to `<memory>/reports/` with rolling retention AND publishes a `__global_chat__`-scoped artifact, surfaced by an OS notification whose click pushes `dock:open-artifact`). Tests: `src/main/agent/__tests__/headless-run.test.ts` |
 | Periodic task scheduler | `src/main/scheduler/task-scheduler.ts` — generic weekly/monthly/interval tasks with persisted lastRun + startup catch-up; deliberately not cron (no expressions/queues/retries; a failing run consumes its period). Registered tasks live in `app/bootstrap.ts`; the only current task (memory-report, weekly) is gated behind the `scheduled-memory-report` experimental flag, default off — flag off means the scheduler is never constructed. Tests: `src/main/scheduler/__tests__/task-scheduler.test.ts` |
 | Add a capability shared by Tool + CLI | `../../harness/skills/add-canvas-capability/SKILL.md`; use `harness/skills/add-agent-tool/SKILL.md` for the optional task-specific Canvas Agent adapter |
 | Agent teams | `src/main/agent-teams/`, `src/renderer/src/components/AgentTeamFrame/` |
@@ -232,7 +232,9 @@ pnpm --filter canvas-workspace package:linux
   tab mirror for `canvas_list_tabs`), `tab-actions.ts` (main→renderer
   workspace-scoped `dock:activate-tab` push behind `canvas_activate_tab` and
   the page_* tools' tab targeting, plus the app-level `dock:open-tab` push
-  behind `canvas_open_tab`),
+  behind `canvas_open_tab` and the app-level `dock:open-artifact` push used
+  by the scheduled memory report — artifact workspaceId is a storage scope
+  and may be the `__global_chat__` sentinel),
   `history-store.ts` (web-tab browsing history behind `canvas_search_history`).
   The renderer projection in `RightDock/tabRefs.ts` is the tab-discovery SSOT:
   it covers link, artifact, node-detail, canvas-preview, and terminal tabs plus
