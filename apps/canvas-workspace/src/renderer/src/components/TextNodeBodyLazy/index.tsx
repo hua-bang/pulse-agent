@@ -26,14 +26,17 @@ export const htmlToPreviewText = (html: string): string => {
 
 export const TextNodeBodyLazy = (props: Props) => {
   const data = props.node.data as TextNodeData;
-  const [editorLoaded, setEditorLoaded] = useState(!props.readOnly && props.isSelected && data.content === '');
+  // Mirrors FileNodeBodyLazy: mount the real (Tiptap-backed) body as soon as
+  // the node is interactive at all, not just once selected. TextNodeBody's own
+  // idle state is already non-editable and cheap to look at — gating it behind
+  // selection bought nothing but a flattened plain-text flash on every unselected
+  // node (rich marks like color/bold/headings only rendered after a click).
+  const [editorLoaded, setEditorLoaded] = useState(() => !props.readOnly);
   const text = useMemo(() => htmlToPreviewText(data.content ?? ''), [data.content]);
 
   useEffect(() => {
-    if (!props.readOnly && props.isSelected && data.content === '') {
-      setEditorLoaded(true);
-    }
-  }, [data.content, props.isSelected, props.readOnly]);
+    if (!props.readOnly) setEditorLoaded(true);
+  }, [props.readOnly]);
 
   if (editorLoaded) {
     return (
