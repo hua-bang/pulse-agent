@@ -48,7 +48,7 @@ export type HeadlessRunResult =
 export interface HeadlessEngineLike {
   initialize(): Promise<void>;
   run(
-    context: { messages: Array<{ role: string; content: string }> },
+    context: { messages: unknown[] },
     options: Record<string, unknown>,
   ): Promise<string>;
 }
@@ -88,8 +88,15 @@ export async function runHeadlessAgentTask(
 
     const modelConfig = await resolveCanvasModel();
     let textStarted = false;
+    // CONTRACT (mirrors canvas-agent): the engine loop does NOT accumulate
+    // step messages itself — it hands them to onResponse and the caller owns
+    // the mutable context. Without this, every loop iteration re-sends only
+    // the original user message, the model never sees its own tool calls or
+    // their results, and it repeats the same call until maxSteps/timeout.
+    const messages: unknown[] = [{ role: 'user', content: options.prompt }];
+    const runContext = { messages };
     const text = await engine.run(
-      { messages: [{ role: 'user', content: options.prompt }] },
+      runContext,
       {
         provider: modelConfig.provider,
         model: modelConfig.model,
@@ -97,6 +104,12 @@ export async function runHeadlessAgentTask(
         systemPrompt: options.systemPrompt,
         maxSteps: options.maxSteps ?? DEFAULT_MAX_STEPS,
         abortSignal: abortController.signal,
+        onResponse: (stepMessages: unknown[]) => {
+          for (const message of stepMessages) runContext.messages.push(message);
+        },
+        onCompacted: (newMessages: unknown[]) => {
+          runContext.messages = newMessages;
+        },
         ...(options.onToolCall
           ? { onToolCall: (chunk: { toolName?: string }) => options.onToolCall?.(chunk.toolName ?? '') }
           : {}),

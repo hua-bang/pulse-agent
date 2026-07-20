@@ -64,7 +64,7 @@ afterEach(async () => {
 });
 
 const fakeFactory = (impl: {
-  run?: (context: { messages: Array<{ role: string; content: string }> }, options: Record<string, unknown>) => Promise<string>;
+  run?: (context: { messages: unknown[] }, options: Record<string, unknown>) => Promise<string>;
 }): { factory: HeadlessEngineFactory; captured: { config?: unknown; runOptions?: Record<string, unknown> } } => {
   const captured: { config?: unknown; runOptions?: Record<string, unknown> } = {};
   const factory: HeadlessEngineFactory = (config) => {
@@ -100,6 +100,40 @@ describe('runHeadlessAgentTask', () => {
       maxSteps: 12,
     });
     expect(captured.runOptions?.abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('advances the message history via onResponse so tool loops can progress', async () => {
+    // Regression: without an onResponse handler pushing step messages into
+    // the mutable context, every engine-loop iteration re-sent only the
+    // original user message and the model repeated the same tool call until
+    // maxSteps/timeout (observed in real use as "tool call #31").
+    let seenAtSecondIteration = 0;
+    const factory: HeadlessEngineFactory = () => ({
+      initialize: async () => undefined,
+      run: async (context, opts) => {
+        const onResponse = opts.onResponse as (msgs: unknown[]) => void;
+        expect(typeof onResponse).toBe('function');
+        // Simulate step 1: assistant tool-call + tool-result handed back.
+        onResponse([
+          { role: 'assistant', content: [{ type: 'tool-call', toolName: 'session_summary' }] },
+          { role: 'tool', content: [{ type: 'tool-result', toolName: 'session_summary' }] },
+        ]);
+        // What the next loop iteration would see:
+        seenAtSecondIteration = context.messages.length;
+
+        const onCompacted = opts.onCompacted as (msgs: unknown[]) => void;
+        onCompacted([{ role: 'user', content: 'compacted' }]);
+        return 'done';
+      },
+    });
+
+    const result = await runHeadlessAgentTask(
+      { label: 't', systemPrompt: 's', prompt: 'p' },
+      factory,
+    );
+    expect(result).toEqual({ ok: true, text: 'done' });
+    // Original user message + the two step messages.
+    expect(seenAtSecondIteration).toBe(3);
   });
 
   it('returns ok:false instead of throwing when the engine fails', async () => {
