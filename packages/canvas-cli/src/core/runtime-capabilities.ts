@@ -28,6 +28,7 @@ export type RuntimeClientResult<T> =
 
 const DEFAULT_TRANSPORT_TIMEOUT_MS = 5_000;
 const PAGE_EVAL_TRANSPORT_BUFFER_MS = 1_000;
+const CHAT_DISPATCH_TRANSPORT_TIMEOUT_MS = 7_000;
 const MAX_TIMER_MS = 2_147_483_647;
 export const MAX_PAGE_EVAL_TIMEOUT_MS = MAX_TIMER_MS - PAGE_EVAL_TRANSPORT_BUFFER_MS;
 
@@ -134,15 +135,18 @@ export async function callRuntimeCapability(
       name: request.name,
       input: request.input ?? {},
     },
-    resolveTransportTimeout(request),
+    resolveRuntimeTransportTimeout(request),
   );
   if (!response.ok) return response;
   const payload = response.value as { value?: unknown };
   return { ok: true, value: payload.value };
 }
 
-function resolveTransportTimeout(request: RuntimeCapabilityRequest): number {
+export function resolveRuntimeTransportTimeout(request: RuntimeCapabilityRequest): number {
   if (request.transportTimeoutMs !== undefined) return request.transportTimeoutMs;
+  // Canvas Agent chat may need to mount its dock panel before its handler can
+  // accept the first request. The app itself retries for five seconds.
+  if (request.name === 'canvas.agent.chat') return CHAT_DISPATCH_TRANSPORT_TIMEOUT_MS;
   if (request.name !== 'browser.page.eval' && request.name !== 'host.renderer.eval') {
     return DEFAULT_TRANSPORT_TIMEOUT_MS;
   }

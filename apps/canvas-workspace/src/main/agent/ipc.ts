@@ -28,7 +28,7 @@ import { randomUUID } from 'crypto';
 import { CanvasAgentService } from './service';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
-import type { AgentRequestContext, AgentScope, AgentScopeRef } from './types';
+import type { AgentRequestContext, AgentScope, AgentScopeRef, CanvasAgentMessage } from './types';
 import { isPerfChatReplayRequest, replayPerfChatStream } from './perf-chat-replay';
 import { GLOBAL_CHAT_SESSION_STORE_ID, SessionStore } from './session-store';
 
@@ -76,6 +76,7 @@ export function setupCanvasAgentIpc(): void {
         mentionedWorkspaceIds?: string[];
         requestContext?: AgentRequestContext;
         attachments?: Array<{ id: string; path: string; fileName?: string; mimeType?: string }>;
+        sender?: CanvasAgentMessage['sender'];
       },
     ) => {
       const sessionId = randomUUID();
@@ -152,6 +153,7 @@ export function setupCanvasAgentIpc(): void {
                 sender.send(`canvas-agent:tool-input-end:${sessionId}`, data);
               }
             },
+            payload.sender,
           );
           if (!sender.isDestroyed()) {
             sender.send(`canvas-agent:chat-complete:${sessionId}`, result);

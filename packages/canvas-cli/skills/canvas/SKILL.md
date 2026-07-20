@@ -118,6 +118,21 @@ When Pulse Canvas is running, discover the runtime capabilities before using the
 pulse-canvas runtime capabilities --format json
 ```
 
+To send a message into the visible Canvas Agent chat, use the structured
+`canvas.agent.chat` capability. Do not simulate typing or use `host-eval` for
+this operation: the structured path records the coding agent's identity so
+the chat history displays the correct icon and label after reload.
+
+```bash
+pulse-canvas runtime call canvas.agent.chat --input '{
+  "message": "Please review the API contract.",
+  "sender": { "agentType": "codex", "label": "Backend Codex" }
+}' --format json
+```
+
+`sender.agentType` must be `codex` or `claude-code`; use `sender.label` to
+distinguish concurrent instances. It requires **Agent runtime control**.
+
 Prefer structured capabilities such as page read, click, and fill. If the user asks for behavior those capabilities cannot express, execute a JavaScript function body inside an open iframe node or right-dock link tab:
 
 ```bash

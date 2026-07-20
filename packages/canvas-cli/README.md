@@ -152,6 +152,22 @@ pulse-canvas runtime capabilities --format json
 pulse-canvas runtime call browser.tabs.list --input '{}' --format json
 ```
 
+To submit a message to the visible Canvas Agent chat as a coding agent, use
+the structured capability rather than scripting the host UI. The sender is
+saved with the turn and rendered with its curated icon:
+
+```bash
+pulse-canvas runtime call canvas.agent.chat --input '{
+  "message": "Please review the API contract.",
+  "sender": { "agentType": "codex", "label": "Backend Codex" }
+}' --format json
+```
+
+`sender.agentType` is `codex` or `claude-code`; `sender.label` distinguishes
+parallel instances of the same agent. This requires **Agent runtime control**
+and targets the workspace resolved by `--workspace`, `$PULSE_CANVAS_WORKSPACE_ID`,
+or the active canvas.
+
 With **Agent runtime control** and **Webview page control (agent)** enabled,
 Claude Code and Codex can execute JavaScript inside an open iframe node or
 right-dock link tab. Prefer file or stdin input so scripts are not exposed in

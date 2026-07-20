@@ -7,6 +7,7 @@ import { join } from 'path';
 import {
   callRuntimeCapability,
   listRuntimeCapabilities,
+  resolveRuntimeTransportTimeout,
 } from './runtime-capabilities';
 
 const runtimeFile = join(homedir(), '.pulse-coder', 'canvas-runtime', 'canvas-workspace.json');
@@ -67,6 +68,14 @@ async function advertise(baseUrl: string, secret = 'secret'): Promise<void> {
 }
 
 describe('runtime capability client', () => {
+  it('allows the Canvas Agent chat mount-and-dispatch window before timing out', () => {
+    expect(resolveRuntimeTransportTimeout({
+      workspaceId: 'ws-1',
+      name: 'canvas.agent.chat',
+      input: {},
+    })).toBe(7_000);
+  });
+
   it('returns a structured error instead of exiting when no runtime is active', async () => {
     await expect(listRuntimeCapabilities()).resolves.toEqual({
       ok: false,

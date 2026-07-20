@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentChatMessage, AgentRequestContext, ChatImageAttachment } from '../../../types';
+import type { AgentChatMessage, AgentChatSender, AgentRequestContext, ChatImageAttachment } from '../../../types';
 import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
 import { markToolResult, settleRunningTools, upsertToolInputStart } from './toolStreamState';
@@ -74,14 +74,14 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
     setStreamingTools([]);
   }, []);
 
-  const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
+  const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = [], sender?: AgentChatSender) => {
     const text = rawText.trim();
     if ((!text && attachments.length === 0) || loading) return false;
 
     const userMessage: AgentChatMessage = {
       role: 'user',
       content: text,
-      timestamp: Date.now(),
+      timestamp: Date.now(), sender,
       attachments: attachments.length > 0 ? attachments : undefined,
     };
 
@@ -97,7 +97,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         text,
         mentionedWorkspaceIds.length > 0 ? mentionedWorkspaceIds : undefined,
         requestContext,
-        attachments.length > 0 ? attachments : undefined,
+        attachments.length > 0 ? attachments : undefined, sender,
       );
 
       if (!result.ok || !result.sessionId) {
@@ -475,7 +475,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
     if (!original || original.role !== 'user') return false;
     const ok = await rewindTo(userIndex);
     if (!ok) return false;
-    return await sendMessage(trimmed, requestContext, original.attachments ?? []);
+    return await sendMessage(trimmed, requestContext, original.attachments ?? [], original.sender);
   }, [loading, messages, rewindTo, sendMessage]);
 
   /**
@@ -497,7 +497,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
     const userMessage = messages[userIndex];
     const ok = await rewindTo(userIndex);
     if (!ok) return false;
-    return await sendMessage(userMessage.content, requestContext, userMessage.attachments ?? []);
+    return await sendMessage(userMessage.content, requestContext, userMessage.attachments ?? [], userMessage.sender);
   }, [loading, messages, rewindTo, sendMessage]);
 
   const toggleSection = useCallback((messageIndex: number) => {

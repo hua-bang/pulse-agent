@@ -6,6 +6,11 @@ import type { HostRendererEvalInput } from './host-renderer-capabilities';
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 
+export interface HostRendererRunner {
+  id: number;
+  executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
+}
+
 export async function executeHostRendererEval(
   input: HostRendererEvalInput,
   context: CapabilityContext,
@@ -21,7 +26,21 @@ export async function executeHostRendererEval(
 }
 
 async function execute(input: HostRendererEvalInput, context: CapabilityContext): Promise<unknown> {
-  const activation = await activateWorkspaceWindow(context.workspaceId);
+  const runner = await resolveHostRenderer(context.workspaceId);
+  const execution = evalInPage(runner, input.code, input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const result = await withAbort(execution, context.abortSignal);
+  if (!result.ok) {
+    throw new CapabilityError(
+      result.timedOut ? 'host_renderer_timeout' : 'host_renderer_eval_failed',
+      result.error ?? 'Host renderer script failed',
+      { timedOut: result.timedOut === true },
+    );
+  }
+  return { action: 'host_renderer_eval', ...result.data };
+}
+
+export async function resolveHostRenderer(workspaceId: string): Promise<HostRendererRunner> {
+  const activation = await activateWorkspaceWindow(workspaceId);
   if (!activation.ok) {
     throw new CapabilityError(
       'host_renderer_unavailable',
@@ -35,28 +54,18 @@ async function execute(input: HostRendererEvalInput, context: CapabilityContext)
 
   const deadline = Date.now() + 3_000;
   while (
-    getPublishedDockWorkspaceId(runner.id) !== context.workspaceId
+    getPublishedDockWorkspaceId(runner.id) !== workspaceId
     && Date.now() < deadline
   ) {
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  if (getPublishedDockWorkspaceId(runner.id) !== context.workspaceId) {
+  if (getPublishedDockWorkspaceId(runner.id) !== workspaceId) {
     throw new CapabilityError(
       'host_renderer_unavailable',
-      `Canvas renderer did not activate workspace ${context.workspaceId}.`,
+      `Canvas renderer did not activate workspace ${workspaceId}.`,
     );
   }
-
-  const execution = evalInPage(runner, input.code, input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-  const result = await withAbort(execution, context.abortSignal);
-  if (!result.ok) {
-    throw new CapabilityError(
-      result.timedOut ? 'host_renderer_timeout' : 'host_renderer_eval_failed',
-      result.error ?? 'Host renderer script failed',
-      { timedOut: result.timedOut === true },
-    );
-  }
-  return { action: 'host_renderer_eval', ...result.data };
+  return runner;
 }
 
 function audit(context: CapabilityContext, ok: boolean): void {
