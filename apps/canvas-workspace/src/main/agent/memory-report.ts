@@ -8,9 +8,13 @@
  * the report tells the user to confirm candidates in chat, where the agent
  * uses `memory_adopt`.
  *
- * Context that the interactive skill fetches via tools (workspace listing,
- * existing memory) is gathered in code here and inlined into the system
- * prompt: fewer LLM round-trips, and the model can't skip the dedupe rubric.
+ * ALL context — workspace listing, existing memory, and the period's
+ * session excerpts — is gathered in code and inlined into the system prompt
+ * under hard character budgets, and the run gets NO tools. Real-app testing
+ * showed why: with tools, a heavy user's unbounded session_summary payload
+ * made the follow-up LLM call slow enough to hit the wall clock, and prompt
+ * -side parameter hints are not a reliable input bound. Code-side budgets
+ * are. Generation is therefore a single bounded LLM call.
  */
 
 import { promises as fs } from 'fs';
@@ -30,8 +34,6 @@ export type MemoryReportPhase = 'reading' | 'writing';
 
 export interface MemoryReportProgressEvent {
   phase: MemoryReportPhase;
-  /** Cumulative tool calls so far (reading phase only). */
-  toolCalls?: number;
 }
 
 export interface MemoryReportOptions {
@@ -47,6 +49,60 @@ export interface MemoryReportOptions {
 }
 
 const MAX_EXISTING_ENTRIES_PER_SCOPE = 50;
+/** Hard input budget for the inlined session digest (~20K tokens). */
+const SESSION_DIGEST_BUDGET_CHARS = 60_000;
+const DIGEST_MAX_MESSAGES_PER_SESSION = 30;
+
+interface SessionDigest {
+  text: string;
+  included: number;
+  omitted: number;
+}
+
+/**
+ * Pre-gather the period's chat excerpts by invoking the session_summary tool
+ * in code, then enforce a recency-first character budget. The model never
+ * controls the input volume.
+ */
+async function buildSessionsDigest(days: number): Promise<SessionDigest> {
+  let parsed: {
+    sessions?: Array<{ workspaceName?: string; workspaceId?: string; date?: string; excerpt?: string[] }>;
+  };
+  try {
+    const raw = await createSessionTools().session_summary.execute({
+      days,
+      maxMessagesPerSession: DIGEST_MAX_MESSAGES_PER_SESSION,
+    });
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    console.warn('[memory-report] failed to gather session digest:', err);
+    return { text: '(session history could not be read)', included: 0, omitted: 0 };
+  }
+
+  const sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
+  const sorted = [...sessions].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+
+  const blocks: string[] = [];
+  let used = 0;
+  let included = 0;
+  for (const session of sorted) {
+    const header = `— ${session.workspaceName ?? session.workspaceId ?? 'unknown'} · ${session.date ?? ''}`;
+    const block = `${header}\n${(session.excerpt ?? []).join('\n')}`;
+    if (included > 0 && used + block.length > SESSION_DIGEST_BUDGET_CHARS) break;
+    blocks.push(block);
+    used += block.length;
+    included += 1;
+  }
+  const omitted = sessions.length - included;
+  if (omitted > 0) {
+    blocks.push(`(…${omitted} earlier sessions omitted to fit the input budget)`);
+  }
+  return {
+    text: blocks.length > 0 ? blocks.join('\n\n') : '(no chat activity in this window)',
+    included,
+    omitted,
+  };
+}
 
 function formatExistingEntries(label: string, entries: MemoryEntry[]): string[] {
   if (entries.length === 0) return [];
@@ -65,9 +121,10 @@ function buildSystemPrompt(
   days: number,
   workspaces: Array<{ id: string; name: string }>,
   existingBlocks: string[],
+  sessionsDigest: string,
 ): string {
   return [
-    'You generate a periodic memory report for the Pulse Canvas user. This is a background run: produce ONE final self-contained HTML document (`<!doctype html>` … `</html>`, all CSS inline, no external resources or scripts) and nothing else — no surrounding prose or code fences. Keep the styling at documentation density (simple readable typography, no marketing chrome). Do not attempt to save memory — adoption happens later in chat.',
+    'You generate a periodic memory report for the Pulse Canvas user. This is a background run with NO tools: everything you need is below. Produce ONE final self-contained HTML document (`<!doctype html>` … `</html>`, all CSS inline, no external resources or scripts) and nothing else — no surrounding prose or code fences. Keep the styling at documentation density (simple readable typography, no marketing chrome). Do not attempt to save memory — adoption happens later in chat.',
     '',
     `## Reporting window`,
     `The last ${days} days.`,
@@ -80,8 +137,11 @@ function buildSystemPrompt(
     '## Existing memory (dedupe rubric — do NOT re-propose what is already covered)',
     ...(existingBlocks.length > 0 ? existingBlocks : ['(no saved memory yet)']),
     '',
+    `## Chat activity in the window (pre-gathered excerpts, grouped by session)`,
+    sessionsDigest,
+    '',
     '## How to work',
-    `1. Call \`session_summary\` ONCE with days=${days} and maxMessagesPerSession=40 — a single call already covers EVERY workspace and global chat. Do NOT call it per workspace. Use \`session_search\` only if you must locate one specific topic. Budget: at most 2 tool calls in total, then write the final HTML document as your final message.`,
+    '1. Read the chat activity above — it is the complete input; there are no tools to call.',
     '2. Write the report (HTML body) in the user\'s dominant conversation language, structured as:',
     '   - A short overall summary (2-3 lines).',
     '   - Per-workspace sections (use workspace NAMES): what happened, decisions made, problems solved. Skip idle workspaces.',
@@ -100,6 +160,7 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
   const days = options.days ?? 7;
 
   try {
+    options.onPhase?.({ phase: 'reading' });
     const { workspaces } = await listWorkspaces();
 
     const existingBlocks: string[] = [
@@ -114,27 +175,19 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
       );
     }
 
-    const sessionTools = createSessionTools();
-    let toolCalls = 0;
+    const digest = await buildSessionsDigest(days);
 
     return await runHeadlessAgentTask(
       {
         label: 'memory-report',
-        systemPrompt: buildSystemPrompt(days, workspaces, existingBlocks),
+        systemPrompt: buildSystemPrompt(days, workspaces, existingBlocks, digest.text),
         prompt: `Generate the memory report for the last ${days} days.`,
-        tools: sessionTools,
-        // Same generous ceiling as the chat agent — the step cap is a safety
-        // net, not the cost guard: output validation plus the wall-clock
-        // timeout are what actually bound a wandering run.
-        maxSteps: 200,
-        // Heavy users (many workspaces, long sessions) can legitimately need
-        // several minutes; the run is now observable and cancellable, so a
-        // generous ceiling beats aborting real work.
+        // No tools: all input is pre-gathered and budgeted above, so the run
+        // is a single bounded LLM call.
+        // Heavy usage can still legitimately need minutes on slow models;
+        // the run is observable and cancellable, so a generous ceiling
+        // beats aborting real work.
         timeoutMs: options.timeoutMs ?? 10 * 60_000,
-        onToolCall: () => {
-          toolCalls += 1;
-          options.onPhase?.({ phase: 'reading', toolCalls });
-        },
         onTextStart: () => options.onPhase?.({ phase: 'writing' }),
         abortSignal: options.abortSignal,
       },

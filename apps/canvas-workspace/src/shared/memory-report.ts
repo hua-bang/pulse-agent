@@ -17,8 +17,6 @@ export interface MemoryReportRunResult {
 export interface MemoryReportProgress {
   /** Coarse generation phase: reading sessions → writing the document. */
   phase: 'reading' | 'writing';
-  /** Cumulative tool calls so far (reading phase only). */
-  toolCalls?: number;
 }
 
 export interface MemoryReportApi {

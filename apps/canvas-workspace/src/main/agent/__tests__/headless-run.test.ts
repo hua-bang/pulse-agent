@@ -130,10 +130,26 @@ describe('generateMemoryReport', () => {
     );
   };
 
-  it('inlines workspaces + existing memory into the system prompt and passes only read tools', async () => {
+  it('inlines workspaces, existing memory, and the session digest; passes NO tools', async () => {
     await writeManifest();
     await saveMemory({ kind: 'global' }, 'user prefers Chinese replies', 'preference');
     await saveMemory({ kind: 'workspace', workspaceId: 'ws-a' }, 'uses pnpm only', 'rule');
+    // One recent session so the pre-gathered digest has real content.
+    const sessionsDir = join(canvasDir, 'ws-a', 'agent-sessions');
+    await fs.mkdir(sessionsDir, { recursive: true });
+    await fs.writeFile(
+      join(sessionsDir, 'current.json'),
+      JSON.stringify({
+        sessionId: 'sess-1',
+        workspaceId: 'ws-a',
+        scope: { kind: 'workspace', workspaceId: 'ws-a' },
+        startedAt: new Date().toISOString(),
+        messages: [
+          { role: 'user', content: 'we decided to use fetch over axios', timestamp: Date.now() },
+        ],
+      }),
+      'utf-8',
+    );
 
     const { factory, captured } = fakeFactory({ run: async () => '# report' });
     const result = await generateMemoryReport({ days: 7, engineFactory: factory });
@@ -146,11 +162,10 @@ describe('generateMemoryReport', () => {
     expect(systemPrompt).toContain('uses pnpm only');
     expect(systemPrompt).toContain('last 7 days');
     expect(systemPrompt).toContain('候选 skills');
-    expect(systemPrompt).toContain('Do NOT call it per workspace');
-    expect((captured.runOptions as { maxSteps: number }).maxSteps).toBe(200);
-
-    const toolNames = Object.keys((captured.config as { tools: Record<string, unknown> }).tools).sort();
-    expect(toolNames).toEqual(['session_search', 'session_summary']);
+    expect(systemPrompt).toContain('we decided to use fetch over axios');
+    expect(systemPrompt).toContain('no tools to call');
+    // No tools: generation is a single bounded LLM call.
+    expect(Object.keys((captured.config as { tools: Record<string, unknown> }).tools)).toEqual([]);
   });
 
   it('runScheduledMemoryReport persists HTML, publishes a global artifact, and prunes beyond retention', async () => {
@@ -192,15 +207,12 @@ describe('generateMemoryReport', () => {
     expect(artifacts[0].versions[0].content).toBe(html);
   });
 
-  it('maps engine callbacks to coarse reading/writing phases with tool-call counts', async () => {
+  it('reports reading (during code-side gathering) then writing (on first text)', async () => {
     await writeManifest();
     const phases: string[] = [];
     const { factory } = fakeFactory({
       run: async (_context, options) => {
-        const onToolCall = options.onToolCall as (chunk: { toolName: string }) => void;
         const onText = options.onText as (delta: string) => void;
-        onToolCall({ toolName: 'session_summary' });
-        onToolCall({ toolName: 'session_search' });
         onText('<!doctype');
         onText(' html>');
         return '<!doctype html><html><body>r</body></html>';
@@ -208,10 +220,10 @@ describe('generateMemoryReport', () => {
     });
     const result = await generateMemoryReport({
       engineFactory: factory,
-      onPhase: (p) => phases.push(`${p.phase}${p.toolCalls ? `:${p.toolCalls}` : ''}`),
+      onPhase: (p) => phases.push(p.phase),
     });
     expect(result.ok).toBe(true);
-    expect(phases).toEqual(['reading:1', 'reading:2', 'writing']);
+    expect(phases).toEqual(['reading', 'writing']);
   });
 
   it('an external abort reports cancelled (distinct from timeout)', async () => {
