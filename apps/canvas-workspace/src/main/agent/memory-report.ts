@@ -16,7 +16,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { listWorkspaces } from '../canvas/workspaces';
-import { createArtifact } from '../artifacts/store';
+import { addArtifactVersion, createArtifact, listArtifacts } from '../artifacts/store';
 import { listMemory, memoryBaseDir, type MemoryEntry } from './memory-store';
 import { GLOBAL_CHAT_SESSION_STORE_ID } from './session-store';
 import { createSessionTools } from './tools/sessions';
@@ -69,7 +69,7 @@ function buildSystemPrompt(
     ...(existingBlocks.length > 0 ? existingBlocks : ['(no saved memory yet)']),
     '',
     '## How to work',
-    `1. Call \`session_summary\` with days=${days} to read the period's chat activity across all workspaces and global chat. Use \`session_search\` only if you need to locate a specific topic.`,
+    `1. Call \`session_summary\` ONCE with days=${days} — a single call already covers EVERY workspace and global chat. Do NOT call it per workspace. Use \`session_search\` only if you must locate one specific topic. Budget: at most 2 tool calls in total, then write the final HTML document as your final message.`,
     '2. Write the report (HTML body) in the user\'s dominant conversation language, structured as:',
     '   - A short overall summary (2-3 lines).',
     '   - Per-workspace sections (use workspace NAMES): what happened, decisions made, problems solved. Skip idle workspaces.',
@@ -110,6 +110,9 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
         systemPrompt: buildSystemPrompt(days, workspaces, existingBlocks),
         prompt: `Generate the memory report for the last ${days} days.`,
         tools: sessionTools,
+        // Headroom above the default 12: with many workspaces a wandering
+        // model can burn steps on tool calls before writing the document.
+        maxSteps: 16,
         timeoutMs: options.timeoutMs,
       },
       ...(options.engineFactory ? [options.engineFactory] : []),
@@ -139,6 +142,15 @@ function stripCodeFence(text: string): string {
   return match ? match[1] : text;
 }
 
+/**
+ * The engine returns fallback prose (e.g. "Max steps reached…") when a run
+ * ends without a final document — publishing that as the report artifact is
+ * worse than failing. Accept only something that looks like an HTML document.
+ */
+function looksLikeHtmlDocument(text: string): boolean {
+  return /<!doctype\s+html|<html[\s>]/i.test(text);
+}
+
 export type ScheduledMemoryReportResult = HeadlessRunResult & { path?: string; artifactId?: string };
 
 /**
@@ -153,8 +165,14 @@ export async function runScheduledMemoryReport(
   const result = await generateMemoryReport(options);
   if (!result.ok) return result;
 
+  const html = stripCodeFence(result.text);
+  if (!looksLikeHtmlDocument(html)) {
+    const snippet = html.replace(/\s+/g, ' ').trim().slice(0, 160);
+    console.warn('[memory-report] run finished without an HTML document:', snippet);
+    return { ok: false, error: `模型未产出报告文档（可能中途耗尽步数）: ${snippet}` };
+  }
+
   try {
-    const html = stripCodeFence(result.text);
     const stamp = new Date().toISOString().slice(0, 10);
 
     const dir = memoryReportsDir();
@@ -169,12 +187,14 @@ export async function runScheduledMemoryReport(
       await fs.rm(join(dir, stale), { force: true });
     }
 
-    const artifact = await createArtifact(GLOBAL_ARTIFACT_SCOPE_ID, {
-      type: 'html',
-      title: `记忆周报 ${stamp}`,
-      content: html,
-    });
-    return { ok: true, text: html, path, artifactId: artifact.id };
+    // Same-day rerun (retry / try-it button) adds a version to the existing
+    // report artifact instead of piling up duplicates in the global scope.
+    const title = `记忆周报 ${stamp}`;
+    const existing = (await listArtifacts(GLOBAL_ARTIFACT_SCOPE_ID)).find((a) => a.title === title);
+    const artifact = existing
+      ? await addArtifactVersion(GLOBAL_ARTIFACT_SCOPE_ID, existing.id, { content: html })
+      : await createArtifact(GLOBAL_ARTIFACT_SCOPE_ID, { type: 'html', title, content: html });
+    return { ok: true, text: html, path, artifactId: artifact?.id ?? existing?.id };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.warn('[memory-report] generated but failed to persist:', error);

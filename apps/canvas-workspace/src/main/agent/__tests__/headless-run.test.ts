@@ -146,6 +146,8 @@ describe('generateMemoryReport', () => {
     expect(systemPrompt).toContain('uses pnpm only');
     expect(systemPrompt).toContain('last 7 days');
     expect(systemPrompt).toContain('候选 skills');
+    expect(systemPrompt).toContain('Do NOT call it per workspace');
+    expect((captured.runOptions as { maxSteps: number }).maxSteps).toBe(16);
 
     const toolNames = Object.keys((captured.config as { tools: Record<string, unknown> }).tools).sort();
     expect(toolNames).toEqual(['session_search', 'session_summary']);
@@ -188,6 +190,40 @@ describe('generateMemoryReport', () => {
       workspaceId: '__global_chat__',
     });
     expect(artifacts[0].versions[0].content).toBe(html);
+  });
+
+  it('rejects a run that ended without an HTML document instead of publishing it', async () => {
+    await writeManifest();
+    const { factory } = fakeFactory({
+      run: async () => 'Max steps reached, task may be incomplete.',
+    });
+    const result = await runScheduledMemoryReport({ engineFactory: factory });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('Max steps reached');
+    await expect(fs.readdir(memoryReportsDir())).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(
+      fs.readFile(join(canvasDir, '__global_chat__', 'artifacts.json'), 'utf-8'),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('same-day rerun adds a version to the existing report artifact instead of duplicating', async () => {
+    await writeManifest();
+    const first = '<!doctype html><html><body>v1</body></html>';
+    const second = '<!doctype html><html><body>v2</body></html>';
+
+    const run1 = await runScheduledMemoryReport({ engineFactory: fakeFactory({ run: async () => first }).factory });
+    const run2 = await runScheduledMemoryReport({ engineFactory: fakeFactory({ run: async () => second }).factory });
+    expect(run1.ok && run2.ok).toBe(true);
+    if (run1.ok && run2.ok) expect(run2.artifactId).toBe(run1.artifactId);
+
+    const artifacts = JSON.parse(
+      await fs.readFile(join(canvasDir, '__global_chat__', 'artifacts.json'), 'utf-8'),
+    ).artifacts;
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0].versions).toHaveLength(2);
+    expect(artifacts[0].versions[1].content).toBe(second);
+    expect(artifacts[0].currentVersionId).toBe(artifacts[0].versions[1].id);
   });
 
   it('runScheduledMemoryReport passes generation failures through without writing', async () => {
