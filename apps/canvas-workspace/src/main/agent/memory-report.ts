@@ -99,7 +99,11 @@ function buildSystemPrompt(
   existingBlocks: string[],
 ): string {
   return [
-    'You generate a periodic memory report for the Pulse Canvas user. This is an unattended background agent run with read-only research tools. Your FINAL message must be ONE self-contained HTML document (`<!doctype html>` … `</html>`, all CSS inline, no external resources or scripts) and nothing else — no surrounding prose or code fences. Keep the styling at documentation density (simple readable typography, no marketing chrome). You have no memory-write tools — adoption happens later in chat.',
+    'You generate a periodic memory report for the Pulse Canvas user. This is an unattended background agent run with read-only research tools. Your FINAL message must be ONE self-contained HTML document (`<!doctype html>` … `</html>`, no external resources) and nothing else — no surrounding prose or code fences. You have no memory-write tools — adoption happens later in chat or via the in-page buttons.',
+    '',
+    '## Visual style (match the host app — REQUIRED)',
+    'Embed the following <style> block VERBATIM in <head> and compose the page with its classes (.card per candidate, .badge for scope, .badge.kind for kind, .btn for actions, .row for card headers, .muted for meta text). You may add minimal layout-only CSS (margins/grid); never introduce other fonts, colors, or shadows.',
+    REPORT_STYLE_KIT,
     '',
     `## Reporting window`,
     `The last ${days} days.`,
@@ -188,6 +192,31 @@ const REPORTS_KEEP = 12;
 
 /** Runtime capabilities every report artifact declares (adopt-in-page UX). */
 const REPORT_CAPABILITIES = ['memory.adopt', 'skill.save'];
+
+/**
+ * Fixed style kit distilled from the app's design tokens (renderer
+ * styles.css :root — warm paper bg, ink text, Notion-blue accent, the app's
+ * mono font stack, 8px radii, soft card shadows). The prompt requires the
+ * model to embed this verbatim and compose with its classes, so report
+ * visuals match the workspace instead of drifting per generation.
+ */
+const REPORT_STYLE_KIT = `<style>
+:root{--bg:#f8f8f7;--surface:#fff;--border:#e8e5e0;--text:#37352f;--text-secondary:#787774;--text-muted:#b4b0a8;--accent:#2383e2;--accent-light:rgba(35,131,226,.08);--accent-border:rgba(35,131,226,.45);--success:#1f7a4d;--error:#c0392b;--radius:8px;--radius-sm:6px;--shadow-card:0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.05)}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font:14px/1.7 "SF Mono","Fira Code","Cascadia Code",Menlo,monospace;margin:0 auto;padding:32px 40px;max-width:860px}
+h1{font-size:20px;margin:0 0 4px}
+h2{font-size:15px;margin:32px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+h3{font-size:13px;margin:16px 0 8px;color:var(--text-secondary)}
+p,li{font-size:13px}
+.muted{color:var(--text-secondary);font-size:12px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-card);padding:14px 16px;margin:10px 0}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--accent-light);color:var(--accent);border:1px solid var(--accent-border);margin-right:6px}
+.badge.kind{background:rgba(0,0,0,.04);color:var(--text-secondary);border-color:var(--border)}
+.btn{font:inherit;font-size:12px;padding:5px 14px;border-radius:var(--radius-sm);border:1px solid var(--accent-border);background:var(--surface);color:var(--accent);cursor:pointer}
+.btn:hover{background:var(--accent-light)}
+.btn:disabled{color:var(--success);border-color:var(--border);background:transparent;cursor:default}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+</style>`;
 
 /** Artifact storage scope for reports — shared with global-chat sessions. */
 export const GLOBAL_ARTIFACT_SCOPE_ID = GLOBAL_CHAT_SESSION_STORE_ID;

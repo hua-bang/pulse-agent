@@ -192,6 +192,9 @@ describe('generateMemoryReport', () => {
     expect(systemPrompt).toContain('last 7 days');
     expect(systemPrompt).toContain('候选 skills');
     expect(systemPrompt).toContain('never call it per workspace');
+    // App-styled report: the design-token style kit ships verbatim in the prompt.
+    expect(systemPrompt).toContain('#2383e2');
+    expect(systemPrompt).toContain('VERBATIM');
     expect((captured.runOptions as { maxSteps: number }).maxSteps).toBe(200);
 
     // Deliberate alignment: exactly the global chat agent's toolset minus
