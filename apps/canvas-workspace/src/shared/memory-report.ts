@@ -12,6 +12,11 @@ export interface MemoryReportRunResult {
   error?: string;
 }
 
+export interface MemoryReportProgress {
+  /** Coarse generation phase: reading sessions → writing the document. */
+  phase: 'reading' | 'writing';
+}
+
 export interface MemoryReportApi {
   /**
    * Generate a memory report right now (user-initiated — not gated by the
@@ -19,4 +24,6 @@ export interface MemoryReportApi {
    * run). Resolves when generation finishes; concurrent calls share one run.
    */
   runNow: () => Promise<MemoryReportRunResult>;
+  /** Progress pushes for any in-flight run. Returns unsubscribe fn. */
+  onProgress: (callback: (progress: MemoryReportProgress) => void) => () => void;
 }

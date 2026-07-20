@@ -29,6 +29,10 @@ export interface HeadlessRunOptions {
   tools?: Record<string, CanvasTool>;
   maxSteps?: number;
   timeoutMs?: number;
+  /** Fired when the model starts a tool call (progress reporting). */
+  onToolCall?: (toolName: string) => void;
+  /** Fired once when the model starts emitting final text. */
+  onTextStart?: () => void;
 }
 
 export type HeadlessRunResult =
@@ -74,6 +78,7 @@ export async function runHeadlessAgentTask(
     await engine.initialize();
 
     const modelConfig = await resolveCanvasModel();
+    let textStarted = false;
     const text = await engine.run(
       { messages: [{ role: 'user', content: options.prompt }] },
       {
@@ -83,6 +88,18 @@ export async function runHeadlessAgentTask(
         systemPrompt: options.systemPrompt,
         maxSteps: options.maxSteps ?? DEFAULT_MAX_STEPS,
         abortSignal: abortController.signal,
+        ...(options.onToolCall
+          ? { onToolCall: (chunk: { toolName?: string }) => options.onToolCall?.(chunk.toolName ?? '') }
+          : {}),
+        ...(options.onTextStart
+          ? {
+              onText: () => {
+                if (textStarted) return;
+                textStarted = true;
+                options.onTextStart?.();
+              },
+            }
+          : {}),
       },
     );
     return { ok: true, text: text || '' };

@@ -147,7 +147,7 @@ describe('generateMemoryReport', () => {
     expect(systemPrompt).toContain('last 7 days');
     expect(systemPrompt).toContain('候选 skills');
     expect(systemPrompt).toContain('Do NOT call it per workspace');
-    expect((captured.runOptions as { maxSteps: number }).maxSteps).toBe(16);
+    expect((captured.runOptions as { maxSteps: number }).maxSteps).toBe(200);
 
     const toolNames = Object.keys((captured.config as { tools: Record<string, unknown> }).tools).sort();
     expect(toolNames).toEqual(['session_search', 'session_summary']);
@@ -190,6 +190,27 @@ describe('generateMemoryReport', () => {
       workspaceId: '__global_chat__',
     });
     expect(artifacts[0].versions[0].content).toBe(html);
+  });
+
+  it('maps engine callbacks to coarse reading/writing phases, firing writing once', async () => {
+    await writeManifest();
+    const phases: string[] = [];
+    const { factory } = fakeFactory({
+      run: async (_context, options) => {
+        const onToolCall = options.onToolCall as (chunk: { toolName: string }) => void;
+        const onText = options.onText as (delta: string) => void;
+        onToolCall({ toolName: 'session_summary' });
+        onText('<!doctype');
+        onText(' html>');
+        return '<!doctype html><html><body>r</body></html>';
+      },
+    });
+    const result = await generateMemoryReport({
+      engineFactory: factory,
+      onPhase: (phase) => phases.push(phase),
+    });
+    expect(result.ok).toBe(true);
+    expect(phases).toEqual(['reading', 'writing']);
   });
 
   it('rejects a run that ended without an HTML document instead of publishing it', async () => {

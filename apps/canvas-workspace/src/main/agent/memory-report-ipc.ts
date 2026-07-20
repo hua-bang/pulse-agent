@@ -10,13 +10,25 @@
  *    unconditionally so the button works right after enabling the flag,
  *    before the restart that arms the scheduler.
  *
+ *  - `memory-report:progress` (push, main → every window) — coarse phase of
+ *    the in-flight run ({ phase: 'reading' | 'writing' }); drives the
+ *    settings toast. Pushes are invisible to describe-canvas parity — this
+ *    comment is their registry.
+ *
  * Single-flight: concurrent invocations share the in-flight run's promise.
  * The implementation modules load lazily on first use so this registration
  * keeps the main entry bundle lean.
  */
 
-import { ipcMain } from 'electron';
-import type { MemoryReportRunResult } from '../../shared/memory-report';
+import { BrowserWindow, ipcMain } from 'electron';
+import type { MemoryReportProgress, MemoryReportRunResult } from '../../shared/memory-report';
+
+function broadcastProgress(progress: MemoryReportProgress): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    win.webContents.send('memory-report:progress', progress);
+  }
+}
 
 let inFlight: Promise<MemoryReportRunResult> | null = null;
 
@@ -24,7 +36,9 @@ async function runNow(): Promise<MemoryReportRunResult> {
   const [{ runScheduledMemoryReport, GLOBAL_ARTIFACT_SCOPE_ID }, { openDockArtifact }] =
     await Promise.all([import('./memory-report'), import('../dock/tab-actions')]);
 
-  const result = await runScheduledMemoryReport();
+  const result = await runScheduledMemoryReport({
+    onPhase: (phase) => broadcastProgress({ phase }),
+  });
   if (!result.ok) {
     return { ok: false, error: result.error };
   }

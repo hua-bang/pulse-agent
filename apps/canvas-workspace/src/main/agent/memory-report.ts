@@ -26,10 +26,14 @@ import {
   type HeadlessRunResult,
 } from './headless-run';
 
+export type MemoryReportPhase = 'reading' | 'writing';
+
 export interface MemoryReportOptions {
   /** Reporting window in days. Default 7 (weekly). */
   days?: number;
   timeoutMs?: number;
+  /** Coarse progress callback: reading sessions → writing the document. */
+  onPhase?: (phase: MemoryReportPhase) => void;
   /** Test seam, forwarded to runHeadlessAgentTask. */
   engineFactory?: HeadlessEngineFactory;
 }
@@ -110,10 +114,13 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
         systemPrompt: buildSystemPrompt(days, workspaces, existingBlocks),
         prompt: `Generate the memory report for the last ${days} days.`,
         tools: sessionTools,
-        // Headroom above the default 12: with many workspaces a wandering
-        // model can burn steps on tool calls before writing the document.
-        maxSteps: 16,
+        // Same generous ceiling as the chat agent — the step cap is a safety
+        // net, not the cost guard: output validation plus the wall-clock
+        // timeout are what actually bound a wandering run.
+        maxSteps: 200,
         timeoutMs: options.timeoutMs,
+        onToolCall: () => options.onPhase?.('reading'),
+        onTextStart: () => options.onPhase?.('writing'),
       },
       ...(options.engineFactory ? [options.engineFactory] : []),
     );

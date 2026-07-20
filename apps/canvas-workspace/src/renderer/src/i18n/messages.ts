@@ -943,6 +943,8 @@ const en = {
   'experimental.memoryReportRunning': 'Generating memory report…',
   'experimental.memoryReportRunningDesc':
     'Reading recent sessions and writing the report. This can take a minute.',
+  'experimental.memoryReportPhaseReading': 'Reading recent chat sessions…',
+  'experimental.memoryReportPhaseWriting': 'Writing the report document…',
   'experimental.memoryReportDone': 'Memory report ready',
   'experimental.memoryReportDoneDesc': 'Opened in the right dock; also archived under ~/.pulse-coder/canvas/memory/reports/.',
   'experimental.memoryReportFailed': 'Memory report generation failed',
@@ -2274,6 +2276,8 @@ const zh: Record<keyof typeof en, string> = {
   'experimental.memoryReportTryBtn': '立即生成一份',
   'experimental.memoryReportRunning': '正在生成记忆报告…',
   'experimental.memoryReportRunningDesc': '正在读取近期会话并撰写报告，可能需要一两分钟。',
+  'experimental.memoryReportPhaseReading': '正在读取会话记录…',
+  'experimental.memoryReportPhaseWriting': '正在撰写报告文档…',
   'experimental.memoryReportDone': '记忆报告已生成',
   'experimental.memoryReportDoneDesc': '已在右侧面板打开；同时存档于 ~/.pulse-coder/canvas/memory/reports/。',
   'experimental.memoryReportFailed': '记忆报告生成失败',
