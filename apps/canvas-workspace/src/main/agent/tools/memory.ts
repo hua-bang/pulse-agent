@@ -35,7 +35,7 @@ function summarize(entry: MemoryEntry, scope: ScopeName): Record<string, unknown
 const memoryKindSchema = z
   .enum(['preference', 'fact', 'decision', 'rule', 'note'])
   .optional()
-  .describe('What kind of memory this is. preference=how the user likes things done, fact=stable user/profile fact, decision=a choice made in this project, rule=a standing constraint, note=anything else. Defaults to note.');
+  .describe('preference | fact (profile) | decision | rule | note (default).');
 
 export function createMemoryTools(workspaceId: string): Record<string, CanvasTool> {
   const isGlobalChat = !workspaceId;
@@ -50,26 +50,24 @@ export function createMemoryTools(workspaceId: string): Record<string, CanvasToo
   };
 
   const scopeDescription = isGlobalChat
-    ? 'This is global chat, so all memory operations target GLOBAL memory.'
-    : 'Defaults to this workspace\'s memory; pass scope="global" only for things that should apply in every chat (user preferences, profile facts).';
+    ? 'Global chat always targets GLOBAL memory.'
+    : 'Defaults to this workspace; scope="global" for things that apply in every chat.';
 
   const memory_save: CanvasTool = {
     name: 'memory_save',
     description:
-      'Save ONE distilled statement into long-term memory so future chats remember it. ' +
-      'Use when the user says 记住/remember, states a stable preference / profile fact / standing rule, or when a hard-won decision or fix is worth keeping. ' +
-      'Do NOT save transient task state, whole documents, or content already stored on the canvas. ' +
-      'Saving content that matches an existing entry updates that entry instead of duplicating it. ' +
+      'Save ONE distilled statement into long-term memory (usage policy: see the Memory section of the system prompt). ' +
+      'Duplicate content updates the existing entry. ' +
       scopeDescription,
     inputSchema: z.object({
-      content: z.string().min(1).describe('The single statement to remember, distilled to one or two sentences (max 500 chars).'),
+      content: z.string().min(1).describe('One distilled statement, max 500 chars.'),
       ...(isGlobalChat
         ? {}
         : {
             scope: z
               .enum(['workspace', 'global'])
               .optional()
-              .describe('Where to save. workspace (default) = this workspace only; global = applies in every chat.'),
+              .describe('workspace (default) = this workspace only; global = every chat.'),
           }),
       kind: memoryKindSchema,
     }),
@@ -93,9 +91,8 @@ export function createMemoryTools(workspaceId: string): Record<string, CanvasToo
     name: 'memory_list',
     defer_loading: true,
     description:
-      'List saved long-term memory entries with their ids. ' +
-      'Use when the user asks what you remember, or to find an entry id before memory_forget. ' +
-      (isGlobalChat ? 'Global chat lists global memory.' : 'Lists both global and this workspace\'s memory by default.'),
+      'List saved long-term memory entries with ids (e.g. when the user asks what you remember, or before memory_forget). ' +
+      (isGlobalChat ? 'Global chat lists global memory.' : 'Lists global + this workspace by default.'),
     inputSchema: z.object({
       ...(isGlobalChat
         ? {}
@@ -103,7 +100,7 @@ export function createMemoryTools(workspaceId: string): Record<string, CanvasToo
             scope: z
               .enum(['all', 'workspace', 'global'])
               .optional()
-              .describe('Which scope to list. Defaults to all.'),
+              .describe('Defaults to all.'),
           }),
     }),
     execute: async (input: { scope?: 'all' | ScopeName }) => {
@@ -124,13 +121,11 @@ export function createMemoryTools(workspaceId: string): Record<string, CanvasToo
     name: 'memory_forget',
     defer_loading: true,
     description:
-      'Remove a long-term memory entry. Pass its exact `id` (from memory_list or the [mem-…] markers in the Memory section), or a `query` substring that matches exactly one entry. ' +
-      'A query matching several entries removes nothing and returns the candidates — re-issue with the right id. ' +
-      'Use when the user asks to forget something or a saved entry is wrong or stale. ' +
-      (isGlobalChat ? 'Global chat can only forget global memory.' : 'Searches this workspace\'s memory first, then global memory.'),
+      'Remove a memory entry by exact `id` ([mem-…] markers), or by a `query` substring matching exactly ONE entry; multiple matches remove nothing and return the candidates. ' +
+      (isGlobalChat ? 'Global chat can only forget global memory.' : 'Searches this workspace first, then global.'),
     inputSchema: z.object({
-      id: z.string().optional().describe('Exact entry id to remove, e.g. mem-1699999999-ab12cd.'),
-      query: z.string().optional().describe('Case-insensitive substring of the entry content. Must match exactly one entry.'),
+      id: z.string().optional().describe('Exact entry id.'),
+      query: z.string().optional().describe('Substring matching exactly one entry.'),
     }),
     execute: async (input: { id?: string; query?: string }) => {
       if (!input?.id && !input?.query?.trim()) {
