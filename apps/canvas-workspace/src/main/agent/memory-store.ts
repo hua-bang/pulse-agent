@@ -220,9 +220,30 @@ function renderEntries(entries: MemoryEntry[], budget: number): string[] {
 }
 
 /**
+ * Kind-based injection layering: behavior-shaping kinds are ALWAYS injected
+ * (they must influence every turn); record-keeping kinds stay on disk and
+ * are retrieved on demand via memory_list's query filter — so the prompt
+ * footprint stays flat as recorded facts accumulate.
+ */
+const INJECT_KINDS: ReadonlySet<MemoryKind> = new Set(['preference', 'rule']);
+
+function renderScopeEntries(entries: MemoryEntry[], budget: number): string[] {
+  if (entries.length === 0) return ['(no saved memory yet)'];
+  const injected = entries.filter((e) => INJECT_KINDS.has(e.kind));
+  const onDemand = entries.length - injected.length;
+  const lines = injected.length > 0 ? renderEntries(injected, budget) : [];
+  if (onDemand > 0) {
+    lines.push(
+      `- (${onDemand} fact/decision/note entries are stored but not auto-injected — retrieve with memory_list + query when the task touches them.)`,
+    );
+  }
+  return lines;
+}
+
+/**
  * Render the "## Memory" system-prompt section. Always rendered (even with
  * zero entries) so the agent knows the memory tools exist and when to use
- * them; entry lists are recency-ordered and char-budgeted per scope.
+ * them; injected lists are recency-ordered and char-budgeted per scope.
  */
 export function formatMemoryPromptSection(
   globalEntries: MemoryEntry[],
@@ -232,26 +253,19 @@ export function formatMemoryPromptSection(
     '',
     '## Memory',
     'Long-term memory saved from earlier conversations. Treat it as background context; when it conflicts with the user\'s current instruction, the current instruction wins.',
+    'Injected below: preference/rule entries (always). fact/decision/note entries are retrieval-only.',
     'Maintain it with the memory tools:',
     '- `memory_save` — when the user says 记住/remember, states a stable preference, profile fact, or standing rule, or when a hard-won decision/fix is worth keeping. Save ONE distilled statement per call; do NOT save transient task state or anything already on the canvas.',
     '- `memory_forget` — when the user asks to forget something or a saved entry is wrong or stale.',
-    '- `memory_list` — when the user asks what you remember.',
+    '- `memory_list` — when the user asks what you remember, or to RETRIEVE the non-injected fact/decision/note entries (supports a `query` substring filter).',
   ];
 
   lines.push('', '### Global memory (applies in every chat)');
-  lines.push(
-    ...(globalEntries.length > 0
-      ? renderEntries(globalEntries, PROMPT_BUDGET_PER_SCOPE)
-      : ['(no saved global memory yet)']),
-  );
+  lines.push(...renderScopeEntries(globalEntries, PROMPT_BUDGET_PER_SCOPE));
 
   if (workspaceEntries) {
     lines.push('', '### Workspace memory (this workspace only)');
-    lines.push(
-      ...(workspaceEntries.length > 0
-        ? renderEntries(workspaceEntries, PROMPT_BUDGET_PER_SCOPE)
-        : ['(no saved workspace memory yet)']),
-    );
+    lines.push(...renderScopeEntries(workspaceEntries, PROMPT_BUDGET_PER_SCOPE));
   }
 
   return lines.join('\n') + '\n';

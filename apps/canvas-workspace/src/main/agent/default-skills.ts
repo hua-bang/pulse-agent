@@ -142,7 +142,7 @@ Build a period report from chat history, propose memory candidates, and persist 
    - Per-workspace: 2-4 lines of what happened, decisions made, problems solved. Skip idle workspaces.
    - **候选记忆**: a numbered list. Each = ONE distilled statement (≤500 chars) + suggested scope (全局 or workspace name) + kind (preference/fact/decision/rule/note).
    - Skip anything existing memory already covers; if a candidate supersedes an existing entry, mark it "更新: 替代 [mem-…]".
-   - **候选 skills** (optional, ≤2): ONLY when the SAME multi-step workflow succeeded at least twice this period and would clearly recur. Each = proposed skill name + one-line description + suggested scope (workspace / 全局) + which conversations evidence it. A one-off task or a vague theme is NOT a skill candidate.
+   - **候选 skills** (up to 3; ALWAYS include this section): propose when a repeatable multi-step workflow succeeded and would clearly recur — prefer ≥2 occurrences, but ONE solid complete success with obvious reuse value qualifies. Each = proposed skill name + one-line description + suggested scope (workspace / 全局) + which conversations evidence it. A vague theme is NOT a candidate. When nothing qualifies, keep the section with one line explaining why (e.g. 本周期无可复用的完整流程).
    - Precision over recall — propose 3 solid candidates over 10 weak ones. Transient task state is NOT a candidate.
 
 4. **Wait for explicit confirmation.** The user picks numbers ("采纳 1、3"), edits wording, or rejects. Silence or "looks interesting" is NOT confirmation.
@@ -159,7 +159,10 @@ Build a period report from chat history, propose memory candidates, and persist 
 - \`memory_adopt\` is the ONLY cross-workspace write path, and only for this flow; routine remembering stays on \`memory_save\`.
 - Never copy raw transcript excerpts into a candidate — always distill to a standalone statement.
 `,
-  legacyHashes: ['a219d2705591b213a159a13d2a08d3c290f711502cea8bfea730da90c3cc2bf0'],
+  legacyHashes: [
+    'a219d2705591b213a159a13d2a08d3c290f711502cea8bfea730da90c3cc2bf0',
+    'd88227df2c7168ec8d8504ba1ad3902be17e4cf3992022093a7783a3f5c87394',
+  ],
 };
 
 const DEFAULT_SKILLS: DefaultSkill[] = [SAVE_AS_SKILL, PROMOTE_SKILL, SUGGEST_TAGS, MEMORY_REVIEW];
