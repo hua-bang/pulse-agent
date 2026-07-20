@@ -114,7 +114,45 @@ Works in global chat (the whole system) and inside a single workspace. It is adv
 `,
 };
 
-const DEFAULT_SKILLS: DefaultSkill[] = [SAVE_AS_SKILL, PROMOTE_SKILL, SUGGEST_TAGS];
+const MEMORY_REVIEW: DefaultSkill = {
+  slug: 'memory-review',
+  name: 'memory-review',
+  description:
+    'When the user asks to review a period and distill it into long-term memory — e.g. "帮我盘点这周", "生成记忆周报/记忆报告", "review this week and update your memory" — use this to build the report and adopt only user-confirmed candidates.',
+  body: `# memory-review
+
+Build a period report from chat history, propose memory candidates, and persist ONLY what the user confirms.
+
+## Steps
+
+1. **Pin the period.** Default: last 7 days. Use the user's period if they named one.
+
+2. **Gather (read-only).**
+   - \`session_summary\` for that period — covers every workspace + global chat.
+   - \`memory_list\` — existing entries are your dedupe rubric.
+   - \`canvas_list_workspaces\` — id↔name mapping for scope labels and \`memory_adopt\`.
+
+3. **Draft the report in chat:**
+   - Per-workspace: 2-4 lines of what happened, decisions made, problems solved. Skip idle workspaces.
+   - **Candidates**: a numbered list. Each = ONE distilled statement (≤500 chars) + suggested scope (全局 or workspace name) + kind (preference/fact/decision/rule/note).
+   - Skip anything existing memory already covers; if a candidate supersedes an existing entry, mark it "更新: 替代 [mem-…]".
+   - Precision over recall — propose 3 solid candidates over 10 weak ones. Transient task state is NOT a candidate.
+
+4. **Wait for explicit confirmation.** The user picks numbers ("采纳 1、3"), edits wording, or rejects. Silence or "looks interesting" is NOT confirmation.
+
+5. **Persist via \`memory_adopt\`** with only the approved candidates — \`workspaceId\` from step 2's mapping, omitted for 全局. If a confirmed candidate replaces a stale entry, \`memory_forget\` that entry's id afterwards.
+
+6. **Report back**: what was written to which scope (ids), what was skipped.
+
+## Rules
+
+- **Never call \`memory_adopt\` without the user's explicit approval of those exact candidates in this conversation.**
+- \`memory_adopt\` is the ONLY cross-workspace write path, and only for this flow; routine remembering stays on \`memory_save\`.
+- Never copy raw transcript excerpts into a candidate — always distill to a standalone statement.
+`,
+};
+
+const DEFAULT_SKILLS: DefaultSkill[] = [SAVE_AS_SKILL, PROMOTE_SKILL, SUGGEST_TAGS, MEMORY_REVIEW];
 
 // Exact SHA-256 of the previously bundled suggest-tags SKILL.md. Updating only
 // this byte-for-byte default migrates the obsolete direct-write workflow while

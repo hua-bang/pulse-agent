@@ -38,7 +38,9 @@ describe('ensureDefaultSkillsSeeded', () => {
     const skills = await listCanvasSkills({ level: 'global' });
     const byName = Object.fromEntries(skills.map((s) => [s.name, s]));
 
-    expect(Object.keys(byName).sort()).toEqual(['promote-skill', 'save-as-skill', 'suggest-tags']);
+    expect(Object.keys(byName).sort()).toEqual(['memory-review', 'promote-skill', 'save-as-skill', 'suggest-tags']);
+    expect(byName['memory-review'].body).toMatch(/memory_adopt/);
+    expect(byName['memory-review'].body).toMatch(/session_summary/);
     expect(byName['save-as-skill'].description).toMatch(/save.*conversation|reusable skill/i);
     expect(byName['save-as-skill'].body).toMatch(/canvas_save_skill/);
     expect(byName['promote-skill'].body).toMatch(/canvas_promote_skill/);

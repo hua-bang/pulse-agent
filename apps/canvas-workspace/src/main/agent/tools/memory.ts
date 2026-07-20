@@ -18,6 +18,7 @@ import {
   type MemoryEntry,
   type MemoryScope,
 } from '../memory-store';
+import { listWorkspaces } from '../../canvas/workspaces';
 import type { CanvasTool } from './types';
 
 type ScopeName = 'global' | 'workspace';
@@ -161,5 +162,61 @@ export function createMemoryTools(workspaceId: string): Record<string, CanvasToo
     },
   };
 
-  return { memory_save, memory_list, memory_forget };
+  const memory_adopt: CanvasTool = {
+    name: 'memory_adopt',
+    defer_loading: true,
+    description:
+      'Batch-write memory candidates the user just explicitly confirmed in a memory review/report (see the memory-review skill). ' +
+      'Each candidate routes to its own scope — this is the ONLY path allowed to write another workspace\'s memory, so call it strictly with user-approved candidates, never for routine saving (that is memory_save).',
+    inputSchema: z.object({
+      candidates: z
+        .array(
+          z.object({
+            content: z.string().min(1).describe('One distilled statement, max 500 chars.'),
+            kind: memoryKindSchema,
+            workspaceId: z.string().optional().describe('Target workspace id from the report; omit for global memory.'),
+          }),
+        )
+        .min(1)
+        .max(20)
+        .describe('Only the candidates the user approved.'),
+    }),
+    execute: async (input: {
+      candidates: Array<{ content: string; kind?: MemoryEntry['kind']; workspaceId?: string }>;
+    }) => {
+      const knownIds = new Set((await listWorkspaces()).workspaces.map((w) => w.id));
+      const results: Array<Record<string, unknown>> = [];
+      for (const candidate of input.candidates) {
+        const targetWs = candidate.workspaceId?.trim();
+        if (targetWs && !knownIds.has(targetWs)) {
+          results.push({
+            ok: false,
+            content: candidate.content,
+            error: `Unknown workspaceId "${targetWs}" — verify it with canvas_list_workspaces.`,
+          });
+          continue;
+        }
+        const scope: MemoryScope = targetWs ? { kind: 'workspace', workspaceId: targetWs } : globalScope;
+        try {
+          const saved = await saveMemory(scope, candidate.content, candidate.kind ?? 'note');
+          results.push({
+            ok: true,
+            scope: targetWs ?? 'global',
+            updatedExisting: saved.updated,
+            id: saved.entry.id,
+          });
+        } catch (err) {
+          results.push({
+            ok: false,
+            content: candidate.content,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+      const adopted = results.filter((r) => r.ok).length;
+      return JSON.stringify({ ok: adopted === results.length, adopted, total: results.length, results });
+    },
+  };
+
+  return { memory_save, memory_list, memory_forget, memory_adopt };
 }
