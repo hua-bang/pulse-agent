@@ -131,10 +131,13 @@ Build a period report from chat history, propose memory candidates, and persist 
 
 ## Steps
 
-1. **Pin the period.** Default: last 7 days. Use the user's period if they named one.
+1. **Pin the period AND the scope.** Period default: last 7 days. Scope:
+   - "盘点这个工作区 / 这个项目" (or any named workspace) → review ONE workspace: pass its \`workspaceId\` to \`session_summary\`, and propose candidates scoped to it (plus 全局 only for clearly universal preferences).
+   - "盘点这周 / 全部 / 全局" or unspecified → full sweep across every workspace + global chat.
+   - In a workspace chat, an unqualified "盘点" may mean either — if ambiguous, ask one short question.
 
 2. **Gather (read-only).**
-   - \`session_summary\` for that period — covers every workspace + global chat.
+   - \`session_summary\` for that period — omit \`workspaceId\` for the full sweep, pass it for a scoped review.
    - \`memory_list\` — existing entries are your dedupe rubric.
    - \`canvas_list_workspaces\` — id↔name mapping for scope labels and \`memory_adopt\`.
 
@@ -162,6 +165,7 @@ Build a period report from chat history, propose memory candidates, and persist 
   legacyHashes: [
     'a219d2705591b213a159a13d2a08d3c290f711502cea8bfea730da90c3cc2bf0',
     'd88227df2c7168ec8d8504ba1ad3902be17e4cf3992022093a7783a3f5c87394',
+    '22a131df6940eb92a2e1431b7847d6766a80211382d5c6ce9fddd83129b1aa18',
   ],
 };
 
