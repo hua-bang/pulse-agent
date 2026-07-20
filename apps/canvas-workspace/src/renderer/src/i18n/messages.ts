@@ -937,6 +937,15 @@ const en = {
   'experimental.memoryReportNoModel': 'Scheduled memory report needs a chat model',
   'experimental.memoryReportNoModelDesc':
     'No chat model is configured, so weekly reports cannot be generated. Configure a model (and API key) under Settings → Model, then restart the app.',
+  'experimental.memoryReportTryDesc':
+    'The first automatic report only arrives after a full week. Generate one now to see what it looks like — it opens in the right dock when ready.',
+  'experimental.memoryReportTryBtn': 'Generate a report now',
+  'experimental.memoryReportRunning': 'Generating memory report…',
+  'experimental.memoryReportRunningDesc':
+    'Reading recent sessions and writing the report. This can take a minute.',
+  'experimental.memoryReportDone': 'Memory report ready',
+  'experimental.memoryReportDoneDesc': 'Opened in the right dock; also archived under ~/.pulse-coder/canvas/memory/reports/.',
+  'experimental.memoryReportFailed': 'Memory report generation failed',
 
   'workspaceSettings.kicker': 'Workspace Settings',
   'workspaceSettings.ariaLabel': 'Workspace settings',
@@ -2260,6 +2269,14 @@ const zh: Record<keyof typeof en, string> = {
   'experimental.memoryReportNoModel': '定时记忆报告需要先配置聊天模型',
   'experimental.memoryReportNoModelDesc':
     '当前未配置聊天模型，每周报告将无法生成。请到 设置 → 模型 配置模型和 API Key，然后重启应用。',
+  'experimental.memoryReportTryDesc':
+    '第一份自动报告要等满一周才会生成。可以现在手动生成一份体验效果——完成后会在右侧面板打开。',
+  'experimental.memoryReportTryBtn': '立即生成一份',
+  'experimental.memoryReportRunning': '正在生成记忆报告…',
+  'experimental.memoryReportRunningDesc': '正在读取近期会话并撰写报告，可能需要一两分钟。',
+  'experimental.memoryReportDone': '记忆报告已生成',
+  'experimental.memoryReportDoneDesc': '已在右侧面板打开；同时存档于 ~/.pulse-coder/canvas/memory/reports/。',
+  'experimental.memoryReportFailed': '记忆报告生成失败',
 
   'workspaceSettings.kicker': '工作区设置',
   'workspaceSettings.ariaLabel': '工作区设置',

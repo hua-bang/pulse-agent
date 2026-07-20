@@ -29,6 +29,7 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [needsReload, setNeedsReload] = useState(false);
   const [reloading, setReloading] = useState(false);
+  const [reportRunning, setReportRunning] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -147,6 +148,47 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
     [values, notify, t],
   );
 
+  // Try-it button for the scheduled memory report: generate one on demand so
+  // the user sees the result immediately (the scheduler itself only runs
+  // after a full period). Generation can take a while — keep a loading toast
+  // open and resolve it with the outcome.
+  const runReportNow = useCallback(async () => {
+    setReportRunning(true);
+    const toastId = notify({
+      tone: 'loading',
+      title: t('experimental.memoryReportRunning'),
+      description: t('experimental.memoryReportRunningDesc'),
+    });
+    try {
+      const res = await window.canvasWorkspace.memoryReport.runNow();
+      updateToast(
+        toastId,
+        res.ok
+          ? {
+              tone: 'success',
+              title: t('experimental.memoryReportDone'),
+              description: t('experimental.memoryReportDoneDesc'),
+              autoCloseMs: 6000,
+            }
+          : {
+              tone: 'error',
+              title: t('experimental.memoryReportFailed'),
+              description: res.error ?? t('experimental.unknownError'),
+              autoCloseMs: 0,
+            },
+      );
+    } catch (err) {
+      updateToast(toastId, {
+        tone: 'error',
+        title: t('experimental.memoryReportFailed'),
+        description: err instanceof Error ? err.message : String(err),
+        autoCloseMs: 0,
+      });
+    } finally {
+      setReportRunning(false);
+    }
+  }, [notify, updateToast, t]);
+
   const resetAll = useCallback(async () => {
     const res = await window.canvasWorkspace.experimental.reset();
     if (res.ok) {
@@ -221,6 +263,8 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
               const busy = !!pending[feature.id];
               const showChannelConfig =
                 feature.id === EXPERIMENTAL_FLAG_CHANNELS && enabled;
+              const showMemoryReportTry =
+                feature.id === EXPERIMENTAL_FLAG_SCHEDULED_MEMORY_REPORT && enabled;
               return (
                 <Fragment key={feature.id}>
                 <li className="experimental-section-item">
@@ -252,6 +296,25 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
                 {showChannelConfig && (
                   <li className="experimental-section-config-row">
                     <ChannelConfigPanel />
+                  </li>
+                )}
+                {showMemoryReportTry && (
+                  <li className="experimental-section-config-row">
+                    <div className="experimental-section-item-body">
+                      <div className="experimental-section-item-desc">
+                        {t('experimental.memoryReportTryDesc')}
+                      </div>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={reportRunning}
+                      onClick={() => void runReportNow()}
+                    >
+                      {reportRunning
+                        ? t('experimental.memoryReportRunning')
+                        : t('experimental.memoryReportTryBtn')}
+                    </Button>
                   </li>
                 )}
                 </Fragment>

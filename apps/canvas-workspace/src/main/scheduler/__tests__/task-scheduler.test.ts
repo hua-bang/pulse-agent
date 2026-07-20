@@ -21,34 +21,37 @@ describe('TaskScheduler', () => {
   const scheduler = (log?: (m: string, d?: string) => void): TaskScheduler =>
     new TaskScheduler({ statePath, log: log ?? (() => undefined) });
 
-  it('runs a never-run task on the first check and persists lastRun', async () => {
+  const WEEK = 7 * 86_400_000;
+
+  it('anchors a never-run task on the first check instead of running it', async () => {
     const s = scheduler();
     let runs = 0;
     s.register({ id: 'job', interval: 'weekly', run: async () => { runs += 1; } });
 
     const now = Date.now();
     await s.runDueTasks(now);
-    expect(runs).toBe(1);
+    expect(runs).toBe(0);
 
     const state = JSON.parse(await fs.readFile(statePath, 'utf-8'));
     expect(state.lastRun.job).toBe(now);
   });
 
-  it('skips a task within its period and catches up across restarts once past due', async () => {
-    const week = 7 * 86_400_000;
+  it('runs after a full period, skips within it, and catches up across restarts', async () => {
     const start = Date.now();
 
     const first = scheduler();
     let runs = 0;
     first.register({ id: 'job', interval: 'weekly', run: async () => { runs += 1; } });
-    await first.runDueTasks(start);
-    await first.runDueTasks(start + week - 1000);
+    await first.runDueTasks(start); // anchor
+    await first.runDueTasks(start + WEEK - 1000);
+    expect(runs).toBe(0);
+    await first.runDueTasks(start + WEEK + 1000);
     expect(runs).toBe(1);
 
     // Fresh instance = app restart: state comes from disk, task is past due.
     const second = scheduler();
     second.register({ id: 'job', interval: 'weekly', run: async () => { runs += 1; } });
-    await second.runDueTasks(start + week + 1000);
+    await second.runDueTasks(start + 2 * WEEK + 5000);
     expect(runs).toBe(2);
   });
 
@@ -65,9 +68,10 @@ describe('TaskScheduler', () => {
       },
     });
 
-    const now = Date.now();
-    await s.runDueTasks(now);
-    await s.runDueTasks(now + 60 * 60_000); // next hourly check
+    const anchor = Date.now();
+    await s.runDueTasks(anchor);
+    await s.runDueTasks(anchor + WEEK + 1000);
+    await s.runDueTasks(anchor + WEEK + 1000 + 60 * 60_000); // next hourly check
     expect(attempts).toBe(1);
     expect(logs.some((l) => l.includes('flaky') && l.includes('no model configured'))).toBe(true);
   });
@@ -86,10 +90,11 @@ describe('TaskScheduler', () => {
       },
     });
 
-    const now = Date.now();
-    const firstRun = s.runDueTasks(now);
+    const anchor = Date.now();
+    await s.runDueTasks(anchor);
+    const firstRun = s.runDueTasks(anchor + WEEK + 1000);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    await s.runDueTasks(now + 1);
+    await s.runDueTasks(anchor + WEEK + 2000);
     expect(started).toBe(1);
     release();
     await firstRun;
@@ -103,7 +108,13 @@ describe('TaskScheduler', () => {
 
   it('start() fires the delayed first check; stop() before the delay cancels it', async () => {
     // Real (short) timers: the scheduler's check does real fs IO, which fake
-    // timers cannot flush deterministically.
+    // timers cannot flush deterministically. Pre-seed a past-due lastRun so
+    // the delayed check actually runs (a fresh task would only anchor).
+    await fs.writeFile(
+      statePath,
+      JSON.stringify({ version: 1, lastRun: { job: Date.now() - WEEK - 1000 } }),
+      'utf-8',
+    );
     const s = new TaskScheduler({ statePath, initialDelayMs: 30, checkEveryMs: 60_000, log: () => undefined });
     let runs = 0;
     s.register({ id: 'job', interval: 'weekly', run: async () => { runs += 1; } });

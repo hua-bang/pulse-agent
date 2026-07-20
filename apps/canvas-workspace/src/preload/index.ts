@@ -6,6 +6,7 @@ import { createAppInfoApi } from "./bridge/app-info";
 import { createArtifactsApi } from "./bridge/artifacts";
 import { createCodexSessionsApi } from "./bridge/codex-sessions";
 import { createDefaultBrowserApi } from "./bridge/default-browser";
+import { createMemoryReportApi } from "./bridge/memory-report";
 import { createDockApi } from "./bridge/dock";
 import { createFileApi } from "./bridge/file";
 import { readPluginFlags } from "./bridge/flags";
@@ -63,6 +64,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   llm: createLlmApi(ipcRenderer),
   promptProfile: createPromptProfileApi(ipcRenderer),
   model: createModelApi(ipcRenderer),
+  memoryReport: createMemoryReportApi(ipcRenderer),
   agent: createAgentApi(ipcRenderer),
   codexSessions: createCodexSessionsApi(ipcRenderer),
   agentTeams: createAgentTeamsApi(ipcRenderer),

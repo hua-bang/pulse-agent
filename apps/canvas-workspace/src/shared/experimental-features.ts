@@ -109,7 +109,7 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     id: EXPERIMENTAL_FLAG_SCHEDULED_MEMORY_REPORT,
     label: 'Scheduled memory report',
     description:
-      'Generates a weekly cross-workspace memory report in the background (activity summary + candidate memories to adopt in chat). Reports land under ~/.pulse-coder/canvas/memory/reports/. Off by default because each run calls your configured LLM without an explicit prompt from you — enabling this means the app periodically spends your API quota. The background run is read-only: adopting candidates into memory always happens in chat with your confirmation.',
+      'Generates a weekly cross-workspace memory report in the background (activity summary + candidate memories and skills to adopt in chat). The first automatic report arrives after a full week; use the try-it button below to generate one immediately. Reports open in the right dock and are archived under ~/.pulse-coder/canvas/memory/reports/. Off by default because each automatic run calls your configured LLM without an explicit prompt from you. The background run is read-only: adopting candidates always happens in chat with your confirmation.',
     defaultEnabled: false,
   },
   {

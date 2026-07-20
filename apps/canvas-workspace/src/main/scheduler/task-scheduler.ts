@@ -7,8 +7,11 @@
  * low-frequency interval covers long-running sessions. Deliberately NOT a
  * cron: no expressions, no sub-hour precision, no queues/retries — a task
  * that fails logs and consumes its period (no hourly retry storm when e.g.
- * no model is configured). First registration with no recorded lastRun runs
- * on the next check, so opting into a feature gives immediate feedback.
+ * no model is configured). First registration with no recorded lastRun is
+ * ANCHORED, not run: enabling a feature must never trigger background work
+ * immediately — a first full period passes before the first automatic run
+ * (features wanting "see one now" offer an explicit user-initiated action,
+ * e.g. the memory report's settings try-it button).
  *
  * Generic infrastructure: the scheduler knows nothing about its tasks.
  * First consumer is the scheduled memory report (bootstrap, flag-gated).
@@ -114,7 +117,12 @@ export class TaskScheduler {
     for (const task of this.tasks.values()) {
       if (this.running.has(task.id)) continue;
       const last = state.lastRun[task.id];
-      if (last !== undefined && now - last < intervalMs(task.interval)) continue;
+      if (last === undefined) {
+        // First sighting: anchor the period instead of running (see module doc).
+        await this.writeLastRun(task.id, now);
+        continue;
+      }
+      if (now - last < intervalMs(task.interval)) continue;
 
       this.running.add(task.id);
       // Record the attempt up front: success and failure both consume the
