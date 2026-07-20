@@ -169,8 +169,8 @@
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 600,
-      "confidence": "high", "basis": "512KB 基础上叠加默认浏览器(deep-link/单实例/协议注册)等主进程新代码;仍远低于 target 550", "asOf": "2026-07-16",
-      "gate": { "kind": "ratchet", "baseline": 530, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "530 基线上叠加 Canvas Agent 长期记忆(memory-store + memory_* 工具,描述已按门禁瘦身,净增约 8KB)后实测 554.9KB;首次略超 target 550,主进程后续新增应先考虑瘦身而非继续提基线", "asOf": "2026-07-20",
+      "gate": { "kind": "ratchet", "baseline": 555, "tolerancePct": 3, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,

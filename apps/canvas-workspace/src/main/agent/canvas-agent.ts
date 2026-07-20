@@ -23,6 +23,7 @@ import { SessionStore } from './session-store';
 import { sessionPreview } from './session-preview';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
+import { buildMemoryPromptSection } from './memory-store';
 import { createCanvasMcpOAuthProvider } from './mcp/oauth';
 import {
   attachTraceModel,
@@ -787,16 +788,22 @@ export class CanvasAgent {
       }
     }
 
+    // Long-term memory: global entries in every chat, plus this workspace's
+    // entries in workspace chat. Never throws (degrades to empty string).
+    const memorySection = await buildMemoryPromptSection(workspaceId);
+
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
     const systemPrompt = workspaceId
       ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
         + formatReferencedTabsBlock(requestContext?.tabs ?? [], workspaceId)
+        + memorySection
       : GLOBAL_AGENT_SYSTEM_PROMPT
         + formatSelectionFocusBlock(requestContext?.selectedNodes ?? [], { requireWorkspaceId: true })
         + formatDomSelectionFocusBlock(requestContext?.domSelections ?? [], { requireWorkspaceId: true })
         + formatScopeContextBlock(requestContext?.tags ?? [], requestContext?.canvases ?? [])
         + formatReferencedTabsBlock(requestContext?.tabs ?? [])
         + formatMentionedCanvasesSection(mentionedCanvases)
+        + memorySection
         + promptProfileSection;
     const debugTrace = isCanvasAgentDebugTraceEnabled()
       ? createCanvasAgentDebugTrace({

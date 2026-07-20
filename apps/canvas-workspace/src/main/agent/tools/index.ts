@@ -22,6 +22,7 @@ import { createSessionTools } from './sessions';
 import { createPluginNodeTools } from './plugin-nodes';
 import { createHtmlPatchTools } from './html-patch';
 import { createLayoutTools } from './layout-tools';
+import { createMemoryTools } from './memory';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -88,6 +89,9 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     // Screen / window capture is workspace-independent (it grabs the OS screen,
     // another app window, or this canvas window), so it works in global chat too.
     ...createScreenshotTools(''),
+    // Long-term memory. In global chat ('' workspaceId) the factory scopes
+    // every operation to GLOBAL memory, so this write is safe to expose here.
+    ...createMemoryTools(''),
   };
 }
 
@@ -114,6 +118,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createHtmlPatchTools(workspaceId),
     ...createPluginNodeTools(workspaceId),
     ...createLayoutTools(workspaceId),
+    ...createMemoryTools(workspaceId),
   };
 
   // Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's

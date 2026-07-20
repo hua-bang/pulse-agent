@@ -275,6 +275,9 @@ describe('createGlobalCanvasTools', () => {
       'knowledge_analyze_image',
       'knowledge_read_node',
       'knowledge_search_nodes',
+      'memory_forget',
+      'memory_list',
+      'memory_save',
       'session_search',
       'session_summary',
       'workspace_node_get',
@@ -488,6 +491,7 @@ describe('deferred tool partition', () => {
       'knowledge_analyze_image',
       'knowledge_read_node',
       'knowledge_search_nodes',
+      'memory_save',
       'visual_render',
     ]);
     expect(deferred).toEqual([
@@ -518,6 +522,8 @@ describe('deferred tool partition', () => {
       'canvas_search_history',
       'canvas_send_to_agent',
       'canvas_update_edge',
+      'memory_forget',
+      'memory_list',
       'session_search',
       'session_summary',
       'workspace_node_get',
