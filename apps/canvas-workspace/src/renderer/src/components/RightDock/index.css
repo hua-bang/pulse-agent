@@ -102,6 +102,7 @@
   opacity: 1;
   transform: none;
   visibility: visible;
+  overflow: visible;
   transition:
     max-height 0.24s var(--tab-ease),
     padding 0.24s var(--tab-ease),
