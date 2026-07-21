@@ -561,6 +561,33 @@
   justify-content: center;
 }
 
+/* Right-most controls sit flush against the viewport edge; centering the
+ * tooltip would push it off-screen, so align its trailing edge with the
+ * button instead. */
+.right-dock__tabs [data-tooltip].right-dock__tooltip-wrapper--right::before {
+  left: auto;
+  right: 0;
+  transform: translateY(-2px);
+}
+
+.right-dock__tabs [data-tooltip].right-dock__tooltip-wrapper--right:hover::before,
+.right-dock__tabs [data-tooltip].right-dock__tooltip-wrapper--right:focus-visible::before {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.right-dock__tabs [data-tooltip].right-dock__tooltip-wrapper--right::after {
+  left: auto;
+  right: 9px;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.right-dock__tabs [data-tooltip].right-dock__tooltip-wrapper--right:hover::after,
+.right-dock__tabs [data-tooltip].right-dock__tooltip-wrapper--right:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0) rotate(45deg);
+}
+
 /* The split toggle is disabled when there is nothing to split; keep the
  * tooltip wrapper hoverable while the inner button stays dimmed. */
 .right-dock__tooltip-wrapper .right-dock__split-toggle:disabled {

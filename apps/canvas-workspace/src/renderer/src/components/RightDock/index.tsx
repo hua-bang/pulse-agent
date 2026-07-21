@@ -342,7 +342,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
             canOpen={Boolean(activePaneId && hasDockSplitContentTab(state, activePaneId))}
           />
         )}
-        <span data-tooltip={t('rightDock.collapse')} className="right-dock__tooltip-wrapper">
+        <span data-tooltip={t('rightDock.collapse')} className="right-dock__tooltip-wrapper right-dock__tooltip-wrapper--right">
           <button
             type="button"
             className="right-dock__collapse"
