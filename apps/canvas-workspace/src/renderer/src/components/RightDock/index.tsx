@@ -288,6 +288,13 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
                   draggable
                   onDragStart={(event) => tabDrag.onDragStart(event, tab.id)}
                   onDragEnd={tabDrag.clear}
+                  onMouseDown={(event) => {
+                    // Activate on mouse-down: once the gesture turns into a
+                    // drag the browser suppresses the click, so click-only
+                    // activation reads as "tab didn't respond" after a few px
+                    // of pointer slip.
+                    if (event.button === 0) store.activate(tab.id);
+                  }}
                   onClick={() => store.activate(tab.id)}
                 >
                   {tab.kind === 'link' ? (
@@ -335,15 +342,17 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
             canOpen={Boolean(activePaneId && hasDockSplitContentTab(state, activePaneId))}
           />
         )}
-        <button
-          type="button"
-          className="right-dock__collapse"
-          aria-label={t('rightDock.collapse')}
-          title={t('rightDock.collapseTitle')}
-          onClick={() => store.collapse()}
-        >
-          ⇥
-        </button>
+        <span data-tooltip={t('rightDock.collapse')} className="right-dock__tooltip-wrapper right-dock__tooltip-wrapper--right">
+          <button
+            type="button"
+            className="right-dock__collapse"
+            aria-label={t('rightDock.collapseTitle')}
+            title={t('rightDock.collapse')}
+            onClick={() => store.collapse()}
+          >
+            ⇥
+          </button>
+        </span>
       </div>
       <DockPanes
         store={store}

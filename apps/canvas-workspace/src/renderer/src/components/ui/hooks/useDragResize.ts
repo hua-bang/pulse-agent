@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
+import { acquireInteractionShield } from '../../../utils/interactionShield';
 
 export interface DragResizeOptions {
   /** Which axis the handle drags along. */
@@ -53,6 +54,11 @@ export const useDragResize = (options: DragResizeOptions): DragResizeHandlers =>
     optionsRef.current.onDragStart?.();
     document.body.style.cursor = axis === 'x' ? 'col-resize' : 'row-resize';
     document.body.style.userSelect = 'none';
+    // Shield the whole window synchronously: the cursor leaves the handle
+    // immediately during a panel resize, and crossing a <webview> guest
+    // (dock link tab, canvas iframe node) would swallow the move stream and
+    // deadlock the drag. Released in `release()` below.
+    const releaseShield = acquireInteractionShield();
 
     const onMove = (moveEvent: MouseEvent) => {
       const opts = optionsRef.current;
@@ -68,6 +74,7 @@ export const useDragResize = (options: DragResizeOptions): DragResizeHandlers =>
       document.removeEventListener('mouseup', onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      releaseShield();
       teardownRef.current = null;
       optionsRef.current.onDragEnd?.(latest);
     };

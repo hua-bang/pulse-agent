@@ -120,4 +120,31 @@ describe('useDragResize', () => {
     mousemove(200); // listeners were torn down on unmount — this must be a no-op
     expect(onChange.mock.calls.length).toBe(callsBeforeFurtherMove);
   });
+
+  describe('interaction shield (webview drag deadlock guard)', () => {
+    const findShield = () => document.body.querySelector('.canvas-interaction-shield');
+
+    it('mounts the full-window shield synchronously on mousedown and removes it on mouseup', () => {
+      const handle = renderHandle({ axis: 'x', value: 100, min: 0, max: 300, onChange: vi.fn() });
+      expect(findShield()).toBeNull();
+
+      mousedown(handle, 100);
+      expect(findShield()).not.toBeNull();
+
+      mouseup();
+      expect(findShield()).toBeNull();
+    });
+
+    it('removes the shield when the component unmounts mid-drag', () => {
+      const handle = renderHandle({ axis: 'x', value: 100, min: 0, max: 300, onChange: vi.fn() });
+      mousedown(handle, 100);
+      expect(findShield()).not.toBeNull();
+
+      act(() => {
+        root?.unmount();
+      });
+      root = null; // already unmounted here; skip the afterEach unmount
+      expect(findShield()).toBeNull();
+    });
+  });
 });

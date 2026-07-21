@@ -151,3 +151,120 @@ describe('useCanvasMouseHandlers resize completion', () => {
     expect(onNodesChange).not.toHaveBeenCalled();
   });
 });
+
+describe('useCanvasMouseHandlers synchronous drag shield', () => {
+  let root: Root;
+  let host: HTMLElement;
+  let container: HTMLDivElement;
+  let hook: ReturnType<typeof useCanvasMouseHandlers>;
+
+  /** happy-dom's native MouseEvent does not set defaultPrevented after
+   *  preventDefault, so we use a plain object with the two always in sync. */
+  const dragEvent = (altKey = false): React.MouseEvent => {
+    const e: any = { button: 0, altKey, defaultPrevented: false };
+    e.preventDefault = () => { e.defaultPrevented = true; };
+    e.stopPropagation = vi.fn();
+    return e as React.MouseEvent;
+  };
+
+  const findShield = () => container.querySelector('.canvas-interaction-shield');
+
+  const Probe = () => {
+    hook = useCanvasMouseHandlers({
+      canvasId: 'canvas-1',
+      activeTool: 'select',
+      containerRef: { current: container },
+      suppressBlankClickRef: { current: false },
+      setSelectedNodeIds: vi.fn(),
+      setSelectedEdgeId: vi.fn(),
+      contextMenu: null,
+      closeContextMenu: vi.fn(),
+      isBlankCanvasTarget: () => true,
+      canvasMouseDown: vi.fn(),
+      canvasMouseMove: vi.fn(),
+      canvasMouseUp: vi.fn(),
+      moving: false,
+      panning: false,
+      onDragStart: vi.fn((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); }),
+      onDragMove: vi.fn(() => false),
+      onDragEnd: vi.fn(),
+      onDragCancel: vi.fn(),
+      onResizeCancel: vi.fn(),
+      resizingId: null,
+      onResizeStart: vi.fn(),
+      onResizeMove: vi.fn(() => false),
+      onResizeEnd: vi.fn(() => false),
+      edgeInteractionState: null,
+      marquee: { active: false, begin: vi.fn() },
+      shapeToolActive: false,
+      shapeDraft: null,
+      commitHistory: vi.fn(),
+      onNodesChange: vi.fn(),
+    });
+    return null;
+  };
+
+  beforeEach(() => {
+    host = document.createElement('div');
+    container = document.createElement('div');
+    host.appendChild(container);
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => root.render(<Probe />));
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it('mounts the interaction shield synchronously on drag mousedown', () => {
+    expect(findShield()).toBeNull();
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+    });
+    expect(findShield()).not.toBeNull();
+  });
+
+  it('mounts the shield on resize mousedown too', () => {
+    act(() => {
+      hook.handleSurfaceResizeStart(dragEvent(), 'node-1', 300, 200, 'bottom-right');
+    });
+    expect(findShield()).not.toBeNull();
+  });
+
+  it('removes the shield on mouseup', () => {
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+    });
+    expect(findShield()).not.toBeNull();
+    act(() => hook.handleMouseUp());
+    expect(findShield()).toBeNull();
+  });
+
+  it('removes the shield on Escape', () => {
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+    });
+    expect(findShield()).not.toBeNull();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(findShield()).toBeNull();
+  });
+
+  it('does not mount the shield on alt-drag (pan gesture)', () => {
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(true), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+    });
+    expect(findShield()).toBeNull();
+  });
+
+  it('does not double-mount when drag start fires twice', () => {
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+      hook.handleSurfaceResizeStart(dragEvent(), 'node-1', 300, 200, 'bottom-right');
+    });
+    expect(container.querySelectorAll('.canvas-interaction-shield').length).toBe(1);
+  });
+});

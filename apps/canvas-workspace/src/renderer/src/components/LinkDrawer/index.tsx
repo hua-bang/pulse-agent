@@ -133,6 +133,22 @@ export const LinkTabView = ({
   // back up to the raw input; Escape and outside presses dismiss.
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const SUGGEST_HOVER_CLOSE_DELAY_MS = 200;
+  const suggestCloseTimerRef = useRef<number | null>(null);
+  const cancelScheduledSuggestClose = useCallback(() => {
+    if (suggestCloseTimerRef.current !== null) {
+      window.clearTimeout(suggestCloseTimerRef.current);
+      suggestCloseTimerRef.current = null;
+    }
+  }, []);
+  const scheduleSuggestClose = useCallback(() => {
+    cancelScheduledSuggestClose();
+    suggestCloseTimerRef.current = window.setTimeout(() => {
+      suggestCloseTimerRef.current = null;
+      setSuggestOpen(false);
+    }, SUGGEST_HOVER_CLOSE_DELAY_MS);
+  }, [cancelScheduledSuggestClose]);
+  useEffect(() => cancelScheduledSuggestClose, [cancelScheduledSuggestClose]);
   // Untouched input still holding the current page's URL (the just-focused
   // state — onFocus selects it all) means "show me recent pages", not
   // "filter by this URL"; anything the user actually typed filters.
@@ -255,6 +271,8 @@ export const LinkTabView = ({
           className="link-drawer__address-form"
           onFocus={onActivate}
           onSubmit={handleNavigate}
+          onMouseEnter={cancelScheduledSuggestClose}
+          onMouseLeave={scheduleSuggestClose}
         >
           <TextField
             className="link-drawer__url"

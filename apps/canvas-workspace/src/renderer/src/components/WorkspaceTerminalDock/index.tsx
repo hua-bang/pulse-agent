@@ -19,6 +19,7 @@ import { TERMINAL_TAB_ID } from '../RightDock/dock-store';
 import {
   appendTerminalOutputTail,
   detectCodingAgentCommand,
+  detectCodingAgentExit,
   hasLikelyReturnedToShellPrompt,
 } from '../../utils/codingAgentCommand';
 import { scheduleBootOverlayDismiss } from './boot-overlay';
@@ -175,7 +176,10 @@ export const WorkspaceTerminalDock = ({
   const captureTerminalOutput = useCallback((data: string) => {
     if (!codingAgentActiveRef.current) return;
     terminalOutputTailRef.current = appendTerminalOutputTail(terminalOutputTailRef.current, data);
-    if (hasLikelyReturnedToShellPrompt(terminalOutputTailRef.current)) {
+    if (
+      hasLikelyReturnedToShellPrompt(terminalOutputTailRef.current) ||
+      detectCodingAgentExit(terminalOutputTailRef.current)
+    ) {
       finishCodingAgentHint();
     }
   }, [finishCodingAgentHint]);

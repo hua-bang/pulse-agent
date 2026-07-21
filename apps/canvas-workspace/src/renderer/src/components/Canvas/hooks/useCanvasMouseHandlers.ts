@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject, type R
 import type { CanvasNode } from '../../../types';
 import type { EdgeInteractionState } from '../../../hooks/useEdgeInteraction';
 import type { ResizeEdge } from '../../../hooks/useNodeResize';
+import { acquireInteractionShield } from '../../../utils/interactionShield';
 
 interface MarqueeApi {
   active: boolean;
@@ -131,6 +132,17 @@ export const useCanvasMouseHandlers = ({
   // so dragging remains uninterrupted when crossing text.
   const isDraggingRef = useRef(false);
   const [nodeGestureActive, setNodeGestureActive] = useState(false);
+  // Full-window pointer shield mounted synchronously on drag/resize
+  // mousedown via direct DOM — NOT React state. React's commit can lag a
+  // frame or two after the first drag motion, and in that window a fast
+  // drag can reach a webview guest (a canvas iframe node OR a dock link
+  // tab, which lives outside the canvas container) whose process then
+  // swallows the mousemove stream and deadlocks the gesture. Mounting a
+  // real div synchronously at mousedown closes that window. The shared
+  // acquireInteractionShield helper (z-index above the dock) is appended
+  // to the canvas container so the trailing click resolves on the
+  // container exactly like the React-mounted shield.
+  const releaseDragShieldRef = useRef<(() => void) | null>(null);
   // True once the current node gesture has produced real motion. A moved
   // drag ends with mouseup on the interaction shield, so the trailing click
   // resolves on the canvas container — without suppression it would fall
@@ -204,11 +216,22 @@ export const useCanvasMouseHandlers = ({
     [canvasMouseMove],
   );
 
+  const mountDragShield = () => {
+    if (releaseDragShieldRef.current) return;
+    releaseDragShieldRef.current = acquireInteractionShield(containerRef.current ?? document.body);
+  };
+
+  const unmountDragShield = () => {
+    releaseDragShieldRef.current?.();
+    releaseDragShieldRef.current = null;
+  };
+
   const handleSurfaceDragStart = useCallback(
     (e: React.MouseEvent, node: CanvasNode) => {
       const shouldTrackDrag = e.button === 0 && !e.altKey;
       onDragStart(e, node);
       isDraggingRef.current = shouldTrackDrag && e.defaultPrevented;
+      if (isDraggingRef.current) mountDragShield();
     },
     [onDragStart],
   );
@@ -225,6 +248,7 @@ export const useCanvasMouseHandlers = ({
     ) => {
       if (e.button === 0) {
         isDraggingRef.current = true;
+        mountDragShield();
       }
       onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
     },
@@ -248,6 +272,7 @@ export const useCanvasMouseHandlers = ({
     const resizeCommitted = onResizeEnd();
     isDraggingRef.current = false;
     setNodeGestureActive(false);
+    unmountDragShield();
     if (wasNodeGesture && nodeGestureMovedRef.current) {
       suppressBlankClickRef.current = true;
       if (!resizeWasActive || resizeCommitted) {
@@ -293,6 +318,7 @@ export const useCanvasMouseHandlers = ({
       onResizeCancel();
       isDraggingRef.current = false;
       setNodeGestureActive(false);
+      unmountDragShield();
       // The trailing mouseup must not commit, sync parents, or let its
       // click clear the selection that was just restored.
       if (nodeGestureMovedRef.current) suppressBlankClickRef.current = true;
@@ -308,6 +334,7 @@ export const useCanvasMouseHandlers = ({
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('keydown', onKeyDown, true);
+      unmountDragShield();
     };
   }, [handleWindowDragMove, handleMouseUp, onDragCancel, onResizeCancel, suppressBlankClickRef]);
 
