@@ -45,6 +45,64 @@ describe('canvas interaction shield selection', () => {
       motionShieldOnly: false,
     });
   });
+
+  describe('nodeGesturePending', () => {
+    it('activates iframe shielding but NOT the full-screen interaction shield on pending drag', () => {
+      // mousedown-on-node fired, pointer hasn't moved yet — shield iframes
+      // immediately so a webview guest can't swallow the first mousemove,
+      // but don't mount the full-screen overlay (it would break dblclick).
+      expect(getCanvasInteractionShieldState({
+        activeTool: 'select',
+        directInteractionActive: false,
+        moving: false,
+        nodeGesturePending: true,
+      })).toEqual({
+        iframeShieldActive: true,
+        interactionShieldActive: false,
+        motionShieldOnly: false,
+      });
+    });
+
+    it('iframe shielding stays active after motion commits the gesture (nodeGestureActive takes over)', () => {
+      // Once the pointer moves past the threshold, nodeGestureActive flips
+      // and the interaction shield mounts. nodeGesturePending is still set
+      // (it clears on mouseup), but the shield should stay active either way.
+      expect(getCanvasInteractionShieldState({
+        activeTool: 'select',
+        directInteractionActive: true,
+        moving: false,
+        nodeGesturePending: true,
+      })).toEqual({
+        iframeShieldActive: true,
+        interactionShieldActive: true,
+        motionShieldOnly: false,
+      });
+    });
+
+    it('nodeGesturePending alone is not enough for a full interaction shield', () => {
+      // Guarantee that a bare click (no motion) never mounts the z-index
+      // 1800 overlay — that's what protects double-click from being broken.
+      expect(getCanvasInteractionShieldState({
+        activeTool: 'select',
+        directInteractionActive: false,
+        moving: false,
+        nodeGesturePending: true,
+      }).interactionShieldActive).toBe(false);
+    });
+
+    it('nodeGesturePending defaults to false (backward compatible)', () => {
+      // Callers that don't pass the param must see the same behavior as before.
+      expect(getCanvasInteractionShieldState({
+        activeTool: 'select',
+        directInteractionActive: false,
+        moving: false,
+      })).toEqual({
+        iframeShieldActive: false,
+        interactionShieldActive: false,
+        motionShieldOnly: false,
+      });
+    });
+  });
 });
 
 describe('useCanvasMouseHandlers resize completion', () => {
