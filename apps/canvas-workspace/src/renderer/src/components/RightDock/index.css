@@ -103,6 +103,7 @@
   transform: none;
   visibility: visible;
   overflow: visible;
+  z-index: var(--layer-canvas-chrome);
   transition:
     max-height 0.24s var(--tab-ease),
     padding 0.24s var(--tab-ease),
@@ -512,6 +513,7 @@
   transform: translateX(-50%) translateY(-2px);
   transition: opacity 0.12s ease, transform 0.12s ease;
   display: block;
+  z-index: var(--layer-canvas-chrome-raised);
   pointer-events: none;
 }
 
