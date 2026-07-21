@@ -214,6 +214,7 @@ describe('useCanvasMouseHandlers synchronous iframe shield', () => {
   let root: Root;
   let host: HTMLElement;
   let container: HTMLDivElement;
+  let wrapper: HTMLDivElement;
   let hook: ReturnType<typeof useCanvasMouseHandlers>;
 
   /** happy-dom's native MouseEvent does not set defaultPrevented after
@@ -263,6 +264,10 @@ describe('useCanvasMouseHandlers synchronous iframe shield', () => {
   beforeEach(() => {
     host = document.createElement('div');
     container = document.createElement('div');
+    // Simulate an iframe node: .iframe-frame-wrapper inside the container.
+    wrapper = document.createElement('div');
+    wrapper.className = 'iframe-frame-wrapper';
+    container.appendChild(wrapper);
     host.appendChild(container);
     document.body.appendChild(host);
     root = createRoot(host);
@@ -274,37 +279,40 @@ describe('useCanvasMouseHandlers synchronous iframe shield', () => {
     host.remove();
   });
 
-  it('adds the iframe-shielding class synchronously on drag mousedown', () => {
+  it('places a real DOM shield above each iframe-frame-wrapper on drag mousedown', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(true);
+    const shield = wrapper.querySelector('div');
+    expect(shield).not.toBeNull();
+    expect(shield!.style.pointerEvents).toBe('auto');
+    expect(shield!.style.position).toBe('absolute');
   });
 
-  it('removes the iframe-shielding class on mouseup', () => {
+  it('removes all shield divs on mouseup', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(true);
+    expect(wrapper.children.length).toBe(1);
     act(() => hook.handleMouseUp());
-    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(false);
+    expect(wrapper.children.length).toBe(0);
   });
 
-  it('removes the iframe-shielding class on Escape', () => {
+  it('removes all shield divs on Escape', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(true);
+    expect(wrapper.children.length).toBe(1);
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     });
-    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(false);
+    expect(wrapper.children.length).toBe(0);
   });
 
-  it('does not shield on alt-drag (pan gesture)', () => {
+  it('does not create shields on alt-drag (pan gesture)', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(true), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(false);
+    expect(wrapper.children.length).toBe(0);
   });
 });

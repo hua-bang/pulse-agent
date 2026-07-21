@@ -142,6 +142,10 @@ export const useCanvasMouseHandlers = ({
   // True from mousedown-on-node until mouseup — drives immediate iframe
   // pointer-events:none so webview guests can't swallow drag mousemoves.
   const [nodeGesturePending, setNodeGesturePending] = useState(false);
+  // Shield divs placed above each .iframe-frame-wrapper during a drag/resize
+  // gesture. Real DOM elements (not CSS pseudo-elements) so they block hit
+  // testing synchronously — no style recalc race.
+  const iframeShieldsRef = useRef<HTMLDivElement[]>([]);
   // True once the current node gesture has produced real motion. A moved
   // drag ends with mouseup on the interaction shield, so the trailing click
   // resolves on the canvas container — without suppression it would fall
@@ -215,6 +219,24 @@ export const useCanvasMouseHandlers = ({
     [canvasMouseMove],
   );
 
+  const mountIframeShields = () => {
+    const container = containerRef.current;
+    if (!container) return;
+    const wrappers = container.querySelectorAll('.iframe-frame-wrapper');
+    wrappers.forEach((wrapper) => {
+      const shield = document.createElement('div');
+      shield.style.cssText =
+        'position:absolute;inset:0;z-index:4;pointer-events:auto;background:transparent';
+      wrapper.appendChild(shield);
+      iframeShieldsRef.current.push(shield);
+    });
+  };
+
+  const unmountIframeShields = () => {
+    for (const shield of iframeShieldsRef.current) shield.remove();
+    iframeShieldsRef.current.length = 0;
+  };
+
   const handleSurfaceDragStart = useCallback(
     (e: React.MouseEvent, node: CanvasNode) => {
       const shouldTrackDrag = e.button === 0 && !e.altKey;
@@ -222,18 +244,7 @@ export const useCanvasMouseHandlers = ({
       isDraggingRef.current = shouldTrackDrag && e.defaultPrevented;
       if (isDraggingRef.current) {
         setNodeGesturePending(true);
-        // Shield iframes before the next mousemove. classList.add is
-        // synchronous, but CSS style recalc (which computes pointer-events
-        // from the new class) is deferred to the next rendering frame.
-        // The OS can deliver a mousemove before that frame, so webview
-        // guests would still swallow the event. Forcing layout forces a
-        // synchronous style recalc for the entire subtree, guaranteeing
-        // pointer-events: none is in effect before the next hit test.
-        const container = containerRef.current;
-        if (container) {
-          container.classList.add('canvas-container--iframe-shielding');
-          void container.offsetHeight;
-        }
+        mountIframeShields();
       }
     },
     [onDragStart, containerRef],
@@ -252,11 +263,7 @@ export const useCanvasMouseHandlers = ({
       if (e.button === 0) {
         isDraggingRef.current = true;
         setNodeGesturePending(true);
-        const container = containerRef.current;
-        if (container) {
-          container.classList.add('canvas-container--iframe-shielding');
-          void container.offsetHeight;
-        }
+        mountIframeShields();
       }
       onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
     },
@@ -281,7 +288,7 @@ export const useCanvasMouseHandlers = ({
     isDraggingRef.current = false;
     setNodeGestureActive(false);
     setNodeGesturePending(false);
-    containerRef.current?.classList.remove('canvas-container--iframe-shielding');
+    unmountIframeShields();
     if (wasNodeGesture && nodeGestureMovedRef.current) {
       suppressBlankClickRef.current = true;
       if (!resizeWasActive || resizeCommitted) {
@@ -328,7 +335,7 @@ export const useCanvasMouseHandlers = ({
       isDraggingRef.current = false;
       setNodeGestureActive(false);
       setNodeGesturePending(false);
-      containerRef.current?.classList.remove('canvas-container--iframe-shielding');
+      unmountIframeShields();
       // The trailing mouseup must not commit, sync parents, or let its
       // click clear the selection that was just restored.
       if (nodeGestureMovedRef.current) suppressBlankClickRef.current = true;
