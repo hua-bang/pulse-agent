@@ -288,6 +288,13 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
                   draggable
                   onDragStart={(event) => tabDrag.onDragStart(event, tab.id)}
                   onDragEnd={tabDrag.clear}
+                  onMouseDown={(event) => {
+                    // Activate on mouse-down: once the gesture turns into a
+                    // drag the browser suppresses the click, so click-only
+                    // activation reads as "tab didn't respond" after a few px
+                    // of pointer slip.
+                    if (event.button === 0) store.activate(tab.id);
+                  }}
                   onClick={() => store.activate(tab.id)}
                 >
                   {tab.kind === 'link' ? (

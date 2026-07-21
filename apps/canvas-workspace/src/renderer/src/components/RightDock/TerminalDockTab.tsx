@@ -106,6 +106,12 @@ export const TerminalDockTab = ({
         draggable={!editing}
         onDragStart={(event) => onDragStart(event, tab.id)}
         onDragEnd={onDragEnd}
+        onMouseDown={(event) => {
+          // Activate on mouse-down: once the gesture turns into a drag the
+          // browser suppresses the click, so click-only activation reads as
+          // "tab didn't respond" after a few px of pointer slip.
+          if (event.button === 0) onActivate(tab.id);
+        }}
         onClick={() => onActivate(tab.id)}
         onDoubleClick={startRename}
         onKeyDown={(event) => {
