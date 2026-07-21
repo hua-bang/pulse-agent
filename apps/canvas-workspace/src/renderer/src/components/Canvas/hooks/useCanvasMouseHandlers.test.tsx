@@ -209,3 +209,102 @@ describe('useCanvasMouseHandlers resize completion', () => {
     expect(onNodesChange).not.toHaveBeenCalled();
   });
 });
+
+describe('useCanvasMouseHandlers synchronous iframe shield', () => {
+  let root: Root;
+  let host: HTMLElement;
+  let container: HTMLDivElement;
+  let hook: ReturnType<typeof useCanvasMouseHandlers>;
+
+  /** happy-dom's native MouseEvent does not set defaultPrevented after
+   *  preventDefault, so we use a plain object with the two always in sync. */
+  const dragEvent = (altKey = false): React.MouseEvent => {
+    const e: any = { button: 0, altKey, defaultPrevented: false };
+    e.preventDefault = () => { e.defaultPrevented = true; };
+    e.stopPropagation = vi.fn();
+    return e as React.MouseEvent;
+  };
+
+  const Probe = () => {
+    hook = useCanvasMouseHandlers({
+      canvasId: 'canvas-1',
+      activeTool: 'select',
+      containerRef: { current: container },
+      suppressBlankClickRef: { current: false },
+      setSelectedNodeIds: vi.fn(),
+      setSelectedEdgeId: vi.fn(),
+      contextMenu: null,
+      closeContextMenu: vi.fn(),
+      isBlankCanvasTarget: () => true,
+      canvasMouseDown: vi.fn(),
+      canvasMouseMove: vi.fn(),
+      canvasMouseUp: vi.fn(),
+      moving: false,
+      panning: false,
+      onDragStart: vi.fn((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); }),
+      onDragMove: vi.fn(() => false),
+      onDragEnd: vi.fn(),
+      onDragCancel: vi.fn(),
+      onResizeCancel: vi.fn(),
+      resizingId: null,
+      onResizeStart: vi.fn(),
+      onResizeMove: vi.fn(() => false),
+      onResizeEnd: vi.fn(() => false),
+      edgeInteractionState: null,
+      marquee: { active: false, begin: vi.fn() },
+      shapeToolActive: false,
+      shapeDraft: null,
+      commitHistory: vi.fn(),
+      onNodesChange: vi.fn(),
+    });
+    return null;
+  };
+
+  beforeEach(() => {
+    host = document.createElement('div');
+    container = document.createElement('div');
+    host.appendChild(container);
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => root.render(<Probe />));
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it('adds the iframe-shielding class synchronously on drag mousedown', () => {
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+    });
+    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(true);
+  });
+
+  it('removes the iframe-shielding class on mouseup', () => {
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+    });
+    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(true);
+    act(() => hook.handleMouseUp());
+    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(false);
+  });
+
+  it('removes the iframe-shielding class on Escape', () => {
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+    });
+    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(true);
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(false);
+  });
+
+  it('does not shield on alt-drag (pan gesture)', () => {
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(true), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+    });
+    expect(container.classList.contains('canvas-container--iframe-shielding')).toBe(false);
+  });
+});

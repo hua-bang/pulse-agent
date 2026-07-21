@@ -220,9 +220,16 @@ export const useCanvasMouseHandlers = ({
       const shouldTrackDrag = e.button === 0 && !e.altKey;
       onDragStart(e, node);
       isDraggingRef.current = shouldTrackDrag && e.defaultPrevented;
-      if (isDraggingRef.current) setNodeGesturePending(true);
+      if (isDraggingRef.current) {
+        setNodeGesturePending(true);
+        // Synchronously shield iframes before the next mousemove. React
+        // state alone can lose the race: the OS delivers the next pointer
+        // event before React commits the className change, so a webview
+        // guest swallows the mousemove and the drag deadlocks.
+        containerRef.current?.classList.add('canvas-container--iframe-shielding');
+      }
     },
-    [onDragStart],
+    [onDragStart, containerRef],
   );
 
   const handleSurfaceResizeStart = useCallback(
@@ -238,6 +245,7 @@ export const useCanvasMouseHandlers = ({
       if (e.button === 0) {
         isDraggingRef.current = true;
         setNodeGesturePending(true);
+        containerRef.current?.classList.add('canvas-container--iframe-shielding');
       }
       onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
     },
@@ -262,6 +270,7 @@ export const useCanvasMouseHandlers = ({
     isDraggingRef.current = false;
     setNodeGestureActive(false);
     setNodeGesturePending(false);
+    containerRef.current?.classList.remove('canvas-container--iframe-shielding');
     if (wasNodeGesture && nodeGestureMovedRef.current) {
       suppressBlankClickRef.current = true;
       if (!resizeWasActive || resizeCommitted) {
@@ -308,6 +317,7 @@ export const useCanvasMouseHandlers = ({
       isDraggingRef.current = false;
       setNodeGestureActive(false);
       setNodeGesturePending(false);
+      containerRef.current?.classList.remove('canvas-container--iframe-shielding');
       // The trailing mouseup must not commit, sync parents, or let its
       // click clear the selection that was just restored.
       if (nodeGestureMovedRef.current) suppressBlankClickRef.current = true;
