@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject, type R
 import type { CanvasNode } from '../../../types';
 import type { EdgeInteractionState } from '../../../hooks/useEdgeInteraction';
 import type { ResizeEdge } from '../../../hooks/useNodeResize';
+import { acquireInteractionShield } from '../../../utils/interactionShield';
 
 interface MarqueeApi {
   active: boolean;
@@ -137,11 +138,11 @@ export const useCanvasMouseHandlers = ({
   // drag can reach a webview guest (a canvas iframe node OR a dock link
   // tab, which lives outside the canvas container) whose process then
   // swallows the mousemove stream and deadlocks the gesture. Mounting a
-  // real div synchronously at mousedown closes that window. It reuses the
-  // existing interaction-shield class (z-index above the dock) and is
-  // appended to the canvas container so the trailing click resolves on
-  // the container exactly like the React-mounted shield.
-  const dragShieldRef = useRef<HTMLDivElement | null>(null);
+  // real div synchronously at mousedown closes that window. The shared
+  // acquireInteractionShield helper (z-index above the dock) is appended
+  // to the canvas container so the trailing click resolves on the
+  // container exactly like the React-mounted shield.
+  const releaseDragShieldRef = useRef<(() => void) | null>(null);
   // True once the current node gesture has produced real motion. A moved
   // drag ends with mouseup on the interaction shield, so the trailing click
   // resolves on the canvas container — without suppression it would fall
@@ -216,16 +217,13 @@ export const useCanvasMouseHandlers = ({
   );
 
   const mountDragShield = () => {
-    if (dragShieldRef.current) return;
-    const shield = document.createElement('div');
-    shield.className = 'canvas-interaction-shield';
-    (containerRef.current ?? document.body).appendChild(shield);
-    dragShieldRef.current = shield;
+    if (releaseDragShieldRef.current) return;
+    releaseDragShieldRef.current = acquireInteractionShield(containerRef.current ?? document.body);
   };
 
   const unmountDragShield = () => {
-    dragShieldRef.current?.remove();
-    dragShieldRef.current = null;
+    releaseDragShieldRef.current?.();
+    releaseDragShieldRef.current = null;
   };
 
   const handleSurfaceDragStart = useCallback(
