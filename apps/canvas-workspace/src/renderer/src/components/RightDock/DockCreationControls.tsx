@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useI18n } from '../../i18n';
-import { NewWebTabIcon } from '../icons/NewWebTabIcon';
+import { PlusIcon } from '../icons';
 import { Button } from '../ui';
 import { requestPreviewEvictOpen } from '../../utils/openNodeBridge';
 import type { DockStore } from './dock-store';
@@ -93,7 +93,7 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
             }
           }}
         >
-          <NewWebTabIcon size={16} />
+          <PlusIcon size={16} />
         </Button>
         {menuOpen && (
           <Suspense fallback={null}>
