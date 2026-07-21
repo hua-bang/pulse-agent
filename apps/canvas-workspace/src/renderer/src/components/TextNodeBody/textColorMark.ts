@@ -1,4 +1,4 @@
-import { Mark } from "@tiptap/react";
+import { Mark } from '@tiptap/react';
 
 export const TextColorMark = Mark.create({
   name: "textColor",

@@ -1,9 +1,9 @@
-import "./index.css";
-import type { CanvasNode, FrameNodeData } from "../../types";
-import { AgentTeamFrame } from "../AgentTeamFrame";
-import { NodeTypeBadge } from "../CanvasNodeView/NodeTypeBadge";
-import { useI18n } from "../../i18n";
-import { collectDirectContainerChildren } from "../../utils/frameHierarchy";
+import './index.css';
+import type { CanvasNode, FrameNodeData } from '../../types';
+import { AgentTeamFrame } from '../AgentTeamFrame';
+import { NodeTypeBadge } from '../CanvasNodeView/NodeTypeBadge';
+import { useI18n } from '../../i18n';
+import { collectDirectContainerChildren } from '../../utils/frameHierarchy';
 
 /** Maximum direct-child rows shown in a collapsed frame before "+N more". */
 const COLLAPSED_SUMMARY_MAX = 6;

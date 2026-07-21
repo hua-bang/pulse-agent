@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
-import "./index.css";
-import { TextSelectionBubble } from "./TextSelectionBubble";
-import { createTextNodeExtensions } from "./textNodeExtensions";
-import type { CanvasNode, TextNodeData } from "../../types";
-import { isImeComposing } from "../../utils/ime";
-import { useI18n } from "../../i18n";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { EditorContent, useEditor } from '@tiptap/react';
+import './index.css';
+import { TextSelectionBubble } from './TextSelectionBubble';
+import { createTextNodeExtensions } from './textNodeExtensions';
+import type { CanvasNode, TextNodeData } from '../../types';
+import { isImeComposing } from '../../utils/ime';
+import { useI18n } from '../../i18n';
 
 interface Props {
   node: CanvasNode;

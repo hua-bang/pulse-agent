@@ -1,4 +1,4 @@
-import type { CanvasNode, MindmapNodeData, PluginNodeData, ReferenceNodeData, TextNodeData } from "../types";
+import type { CanvasNode, MindmapNodeData, PluginNodeData, ReferenceNodeData, TextNodeData } from '../types';
 
 const TEXT_LABEL_MAX_CHARS = 10;
 const MINDMAP_LABEL_MAX_CHARS = 16;
