@@ -159,8 +159,8 @@
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,
-      "confidence": "high", "basis": "全览身份徽章 + P1-P4 手势期 zoom-out 优化(data-motion 信号驱动的内联 iframe 静态化 / 装饰压平 CSS)落地后实测 108KB(原 104);仍远低于 115 target", "asOf": "2026-07-15",
-      "gate": { "kind": "ratchet", "baseline": 108, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "基线对齐 master 连续 4 次实测 111KB(全览徽章 + 手势期 zoom-out 优化之后);本 PR RightDock 分屏/悬浮提示/agent 标签样式再加约 3KB 至 114,仍低于 115 target", "asOf": "2026-07-22",
+      "gate": { "kind": "ratchet", "baseline": 111, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.total_js_kb": {
       "profile": "global-deterministic", "target": 5350, "warning": 5600,
