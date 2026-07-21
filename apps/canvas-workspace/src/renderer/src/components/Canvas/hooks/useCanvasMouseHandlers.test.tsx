@@ -45,64 +45,6 @@ describe('canvas interaction shield selection', () => {
       motionShieldOnly: false,
     });
   });
-
-  describe('nodeGesturePending', () => {
-    it('activates iframe shielding but NOT the full-screen interaction shield on pending drag', () => {
-      // mousedown-on-node fired, pointer hasn't moved yet — shield iframes
-      // immediately so a webview guest can't swallow the first mousemove,
-      // but don't mount the full-screen overlay (it would break dblclick).
-      expect(getCanvasInteractionShieldState({
-        activeTool: 'select',
-        directInteractionActive: false,
-        moving: false,
-        nodeGesturePending: true,
-      })).toEqual({
-        iframeShieldActive: true,
-        interactionShieldActive: false,
-        motionShieldOnly: false,
-      });
-    });
-
-    it('iframe shielding stays active after motion commits the gesture (nodeGestureActive takes over)', () => {
-      // Once the pointer moves past the threshold, nodeGestureActive flips
-      // and the interaction shield mounts. nodeGesturePending is still set
-      // (it clears on mouseup), but the shield should stay active either way.
-      expect(getCanvasInteractionShieldState({
-        activeTool: 'select',
-        directInteractionActive: true,
-        moving: false,
-        nodeGesturePending: true,
-      })).toEqual({
-        iframeShieldActive: true,
-        interactionShieldActive: true,
-        motionShieldOnly: false,
-      });
-    });
-
-    it('nodeGesturePending alone is not enough for a full interaction shield', () => {
-      // Guarantee that a bare click (no motion) never mounts the z-index
-      // 1800 overlay — that's what protects double-click from being broken.
-      expect(getCanvasInteractionShieldState({
-        activeTool: 'select',
-        directInteractionActive: false,
-        moving: false,
-        nodeGesturePending: true,
-      }).interactionShieldActive).toBe(false);
-    });
-
-    it('nodeGesturePending defaults to false (backward compatible)', () => {
-      // Callers that don't pass the param must see the same behavior as before.
-      expect(getCanvasInteractionShieldState({
-        activeTool: 'select',
-        directInteractionActive: false,
-        moving: false,
-      })).toEqual({
-        iframeShieldActive: false,
-        interactionShieldActive: false,
-        motionShieldOnly: false,
-      });
-    });
-  });
 });
 
 describe('useCanvasMouseHandlers resize completion', () => {
@@ -210,11 +152,10 @@ describe('useCanvasMouseHandlers resize completion', () => {
   });
 });
 
-describe('useCanvasMouseHandlers synchronous iframe shield', () => {
+describe('useCanvasMouseHandlers synchronous drag shield', () => {
   let root: Root;
   let host: HTMLElement;
   let container: HTMLDivElement;
-  let wrapper: HTMLDivElement;
   let hook: ReturnType<typeof useCanvasMouseHandlers>;
 
   /** happy-dom's native MouseEvent does not set defaultPrevented after
@@ -225,6 +166,8 @@ describe('useCanvasMouseHandlers synchronous iframe shield', () => {
     e.stopPropagation = vi.fn();
     return e as React.MouseEvent;
   };
+
+  const findShield = () => container.querySelector('.canvas-interaction-shield');
 
   const Probe = () => {
     hook = useCanvasMouseHandlers({
@@ -264,10 +207,6 @@ describe('useCanvasMouseHandlers synchronous iframe shield', () => {
   beforeEach(() => {
     host = document.createElement('div');
     container = document.createElement('div');
-    // Simulate an iframe node: .iframe-frame-wrapper inside the container.
-    wrapper = document.createElement('div');
-    wrapper.className = 'iframe-frame-wrapper';
-    container.appendChild(wrapper);
     host.appendChild(container);
     document.body.appendChild(host);
     root = createRoot(host);
@@ -279,40 +218,53 @@ describe('useCanvasMouseHandlers synchronous iframe shield', () => {
     host.remove();
   });
 
-  it('places a real DOM shield above each iframe-frame-wrapper on drag mousedown', () => {
+  it('mounts the interaction shield synchronously on drag mousedown', () => {
+    expect(findShield()).toBeNull();
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    const shield = wrapper.querySelector('div');
-    expect(shield).not.toBeNull();
-    expect(shield!.style.pointerEvents).toBe('auto');
-    expect(shield!.style.position).toBe('absolute');
+    expect(findShield()).not.toBeNull();
   });
 
-  it('removes all shield divs on mouseup', () => {
+  it('mounts the shield on resize mousedown too', () => {
+    act(() => {
+      hook.handleSurfaceResizeStart(dragEvent(), 'node-1', 300, 200, 'bottom-right');
+    });
+    expect(findShield()).not.toBeNull();
+  });
+
+  it('removes the shield on mouseup', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(wrapper.children.length).toBe(1);
+    expect(findShield()).not.toBeNull();
     act(() => hook.handleMouseUp());
-    expect(wrapper.children.length).toBe(0);
+    expect(findShield()).toBeNull();
   });
 
-  it('removes all shield divs on Escape', () => {
+  it('removes the shield on Escape', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(wrapper.children.length).toBe(1);
+    expect(findShield()).not.toBeNull();
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     });
-    expect(wrapper.children.length).toBe(0);
+    expect(findShield()).toBeNull();
   });
 
-  it('does not create shields on alt-drag (pan gesture)', () => {
+  it('does not mount the shield on alt-drag (pan gesture)', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(true), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(wrapper.children.length).toBe(0);
+    expect(findShield()).toBeNull();
+  });
+
+  it('does not double-mount when drag start fires twice', () => {
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+      hook.handleSurfaceResizeStart(dragEvent(), 'node-1', 300, 200, 'bottom-right');
+    });
+    expect(container.querySelectorAll('.canvas-interaction-shield').length).toBe(1);
   });
 });
