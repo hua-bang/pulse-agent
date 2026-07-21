@@ -19,15 +19,16 @@ afterEach(() => {
 
 const tab: DockTerminalTab = { id: 'terminal-1', ordinal: 1 };
 
-const renderTab = (onActivate: (id: string) => void) => {
+const renderTab = (onActivate: (id: string) => void, overrides?: Partial<DockTerminalTab>) => {
   mount = document.createElement('div');
   document.body.appendChild(mount);
   root = createRoot(mount);
+  const renderedTab = { ...tab, ...overrides };
   flushSync(() => root?.render(
     <I18nProvider>
       <TerminalDockTab
-        tab={tab}
-        visual={getDockTabVisualState(tab.id, null, undefined)}
+        tab={renderedTab}
+        visual={getDockTabVisualState(renderedTab.id, null, undefined)}
         registerTab={() => {}}
         onActivate={onActivate}
         onClose={() => {}}
@@ -62,5 +63,30 @@ describe('TerminalDockTab activation gestures', () => {
     const button = renderTab(onActivate);
     button.click();
     expect(onActivate).toHaveBeenCalledWith(tab.id);
+  });
+});
+
+describe('TerminalDockTab agent-aware default title', () => {
+  it('shows "Terminal {ordinal}" when no agent is running', () => {
+    const button = renderTab(vi.fn());
+    expect(button.textContent).toContain('Terminal 1');
+  });
+
+  it('shows "Claude {ordinal}" for claude-code agent type', () => {
+    const button = renderTab(vi.fn(), { agentType: 'claude-code' });
+    expect(button.textContent).toContain('Claude 1');
+    expect(button.textContent).not.toContain('Terminal 1');
+  });
+
+  it('shows "Codex {ordinal}" for codex agent type', () => {
+    const button = renderTab(vi.fn(), { agentType: 'codex' });
+    expect(button.textContent).toContain('Codex 1');
+    expect(button.textContent).not.toContain('Terminal 1');
+  });
+
+  it('respects a user-defined title over the agent default', () => {
+    const button = renderTab(vi.fn(), { agentType: 'claude-code', title: 'My Session' });
+    expect(button.textContent).toContain('My Session');
+    expect(button.textContent).not.toContain('Claude 1');
   });
 });

@@ -31,7 +31,12 @@ export const TerminalDockTab = ({
   onDragEnd,
 }: TerminalDockTabProps) => {
   const { t } = useI18n();
-  const defaultTitle = t('rightDock.terminalNumber', { number: tab.ordinal });
+  const agentDefaultTitle = tab.agentType === 'claude-code'
+    ? `Claude ${tab.ordinal}`
+    : tab.agentType === 'codex'
+      ? `Codex ${tab.ordinal}`
+      : undefined;
+  const defaultTitle = agentDefaultTitle ?? t('rightDock.terminalNumber', { number: tab.ordinal });
   const title = tab.title ?? defaultTitle;
   const agentIconModifier = tab.agentType === 'claude-code' || tab.agentType === 'codex'
     ? ` right-dock__tab-icon--agent-${tab.agentType}`

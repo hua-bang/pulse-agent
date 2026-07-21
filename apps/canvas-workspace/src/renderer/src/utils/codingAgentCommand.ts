@@ -19,6 +19,18 @@ export const isCodingAgentCommand = (command: string): boolean => (
   detectCodingAgentCommand(command) !== undefined
 );
 
+/** Detects terminal output emitted after Claude or Codex exits, e.g.
+ *  `Resume this session with:\n  claude --resume <uuid>` or
+ *  `To continue this session, run codex resume <uuid>`.
+ *  This is more reliable than shell-prompt heuristics alone because the
+ *  message format is fixed and independent of the user's shell prompt. */
+const CLAUDE_EXIT_PATTERN = /Resume this session with:\s*\n\s*claude\s+--resume\s+\S+/i;
+const CODEX_EXIT_PATTERN = /To continue this session,.*?run\s+codex\s+resume\s+\S+/i;
+
+export const detectCodingAgentExit = (text: string): boolean => (
+  CLAUDE_EXIT_PATTERN.test(text) || CODEX_EXIT_PATTERN.test(text)
+);
+
 export const appendTerminalOutputTail = (tail: string, data: string): string => {
   const text = data.replace(ANSI_PATTERN, '').replace(/\r/g, '\n');
   return `${tail}${text}`.slice(-TERMINAL_OUTPUT_TAIL_LIMIT);
