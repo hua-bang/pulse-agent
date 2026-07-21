@@ -345,8 +345,8 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
         <button
           type="button"
           className="right-dock__collapse"
-          aria-label={t('rightDock.collapse')}
-          title={t('rightDock.collapseTitle')}
+          aria-label={t('rightDock.collapseTitle')}
+          title={t('rightDock.collapse')}
           onClick={() => store.collapse()}
         >
           ⇥

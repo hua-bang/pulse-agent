@@ -24,7 +24,7 @@ export const SplitViewToggle = ({ store, active, canOpen }: Props) => {
       size="sm"
       className="right-dock__split-toggle"
       aria-label={label}
-      title={label}
+      title={t('rightDock.splitView')}
       aria-pressed={active}
       disabled={!active && !canOpen}
       onClick={() => store.toggleSplitView()}
