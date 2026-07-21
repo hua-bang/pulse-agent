@@ -515,42 +515,106 @@ const resizeScenario = async (cdp, repeatCount = 1) => {
   return { moves, report: aggregateReports(reports) };
 };
 
+// Like hittablePointIn, but for STARTING A NODE DRAG. A node header hosts the
+// editable title, per-node buttons, and the right-side `.node-header__actions`
+// cluster; those children either stop the mousedown or handle it themselves, so
+// a press landing on one never reaches the header's drag handler — the node
+// never starts dragging and the run records zero `nodes-array-replace`. Scan
+// across the header biased to the left half (away from the actions cluster) and
+// skip any point whose topmost element is interactive, returning a point that
+// will actually engage a drag. Also reports the target's node-type class for
+// diagnostics.
+const draggableHeaderPointIn = async (cdp, selector) =>
+  evaluate(cdp, `(() => {
+    const interactiveSel = 'button, a, input, textarea, select, [contenteditable="true"], .node-header__actions';
+    const headers = document.querySelectorAll(${JSON.stringify(selector)});
+    for (const el of headers) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 24 || r.height < 8) continue;
+      const y = r.y + Math.min(12, r.height / 2);
+      if (y < 0 || y > innerHeight) continue;
+      for (let fx = 0.12; fx <= 0.62; fx += 0.04) {
+        const x = r.x + r.width * fx;
+        if (x < 0 || x > innerWidth) continue;
+        const top = document.elementFromPoint(x, y);
+        if (!top || !el.contains(top) || top.closest(interactiveSel)) continue;
+        const nodeEl = el.closest('.canvas-node');
+        const typeClass = nodeEl
+          ? [...nodeEl.classList].find((c) => c.startsWith('canvas-node--')) : null;
+        return { x: Math.round(x), y: Math.round(y), type: typeClass || 'unknown' };
+      }
+    }
+    return null;
+  })()`);
+
+// Press a node header and CONFIRM the app actually enters a drag — the renderer
+// adds `.canvas-node--dragging` once the pointer crosses the 4px threshold. If
+// the press doesn't engage (the point resolved to a control, the node shifted
+// out from under a stale coordinate, an overlay intercepted it, …), release and
+// retry from a freshly located point. On success, drag the node OUT and BACK so
+// it ends where it started: an anchored node keeps its header on-screen and
+// uncovered for the next run, which is what makes repeated drags reliable.
+//
+// This replaces a fragile press-and-hope: earlier versions pressed a
+// pre-computed header point and assumed a drag started, so anything that made
+// the press miss the drag handler on later repeats surfaced only as the opaque
+// "drag did not produce nodes-array-replace in run(s): 2, 3". Verifying
+// engagement makes the gesture self-healing and, if a drag genuinely can't be
+// started, fails with a diagnostic naming the target instead.
+const engageAndDragNode = async (cdp, headerSel, moves, attempts = 4) => {
+  let lastType = 'none';
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const point = await draggableHeaderPointIn(cdp, headerSel);
+    if (!point) {
+      await waitForCalmFrames(cdp);
+      continue;
+    }
+    lastType = point.type;
+    const { x: startX, y: startY } = point;
+    await mouse(cdp, 'mousePressed', startX, startY, { button: 'left', buttons: 1, clickCount: 1 });
+    let engaged = false;
+    for (let i = 1; i <= moves; i++) {
+      await mouse(cdp, 'mouseMoved', startX + i * 3, startY + i * 2, { buttons: 1 });
+      await sleep(16);
+      if (!engaged) {
+        // eslint-disable-next-line no-await-in-loop
+        engaged = await evaluate(cdp, `!!document.querySelector('.canvas-node--dragging')`);
+        // A real drag engages within the first few pixels; if it hasn't by
+        // now it won't, so stop wasting the out-stroke on a dead press.
+        if (!engaged && i >= 4) break;
+      }
+    }
+    if (!engaged) {
+      await mouse(cdp, 'mouseReleased', startX + 12, startY + 8, { button: 'left', buttons: 0, clickCount: 1 });
+      await waitForCalmFrames(cdp);
+      continue;
+    }
+    // Return to the start so the node ends anchored (net-zero move; the single
+    // nodes-array commit still fires on release regardless of net delta).
+    for (let i = moves; i >= 0; i--) {
+      await mouse(cdp, 'mouseMoved', startX + i * 3, startY + i * 2, { buttons: 1 });
+      await sleep(16);
+    }
+    await mouse(cdp, 'mouseReleased', startX, startY, { button: 'left', buttons: 0, clickCount: 1 });
+    return { ok: true };
+  }
+  return { ok: false, reason: `no node engaged a drag after ${attempts} attempts (last target: ${lastType})` };
+};
+
 const dragScenario = async (cdp, repeatCount = 1) => {
   const headerSel = '.canvas-node .node-header';
   const moves = 90;
   const reports = [];
-  // Re-query the live header each run and after every measured drag. A fixed
-  // coordinate can miss after a re-render and silently turn repeats into
-  // no-ops. The reset stays outside the measured window.
   await drainCanvasSave();
   for (let run = 0; run < repeatCount; run++) {
-    const point = await hittablePointIn(cdp, headerSel);
-    if (!point) throw new Error(`no unobstructed node header found (${headerSel})`);
     await waitForCalmFrames(cdp);
-    const startX = point.x;
-    const startY = point.y;
-
     await beginPerf(cdp, 'drag');
-    await mouse(cdp, 'mousePressed', startX, startY, { button: 'left', buttons: 1, clickCount: 1 });
-    for (let i = 1; i <= moves; i++) {
-      await mouse(cdp, 'mouseMoved', startX + i * 3, startY + i * 2, { buttons: 1 });
-      await sleep(16);
-    }
-    const endX = startX + moves * 3;
-    const endY = startY + moves * 2;
-    await mouse(cdp, 'mouseReleased', endX, endY, { button: 'left', buttons: 0, clickCount: 1 });
+    const result = await engageAndDragNode(cdp, headerSel, moves);
+    if (!result.ok) throw new Error(`drag run ${run + 1}/${repeatCount}: ${result.reason}`);
     await markActiveEnd(cdp);
     await drainCanvasSave();
     reports.push(await endPerf(cdp));
-
-    if (run < repeatCount - 1) {
-      const resetPoint = await hittablePointIn(cdp, headerSel);
-      if (!resetPoint) throw new Error(`node header unavailable for reset (${headerSel})`);
-      await mouse(cdp, 'mousePressed', resetPoint.x, resetPoint.y, { button: 'left', buttons: 1, clickCount: 1 });
-      await mouse(cdp, 'mouseMoved', startX, startY, { buttons: 1 });
-      await mouse(cdp, 'mouseReleased', startX, startY, { button: 'left', buttons: 0, clickCount: 1 });
-      await drainCanvasSave();
-    }
+    if (run < repeatCount - 1) await waitForCalmFrames(cdp);
   }
   requireCounterInEveryRun('drag', reports, 'nodes-array-replace');
   requireCounterInEveryRun('drag', reports, 'canvas-save-ipc');
