@@ -77,12 +77,21 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
           variant="icon"
           size="sm"
           className="right-dock__new-link"
-          aria-label={t('rightDock.newTab')}
-          title={t('rightDock.newTab')}
+          aria-label={t('rightDock.newWebTab')}
+          title={t('rightDock.newWebTab')}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-controls={menuOpen ? panelId : undefined}
-          onClick={openMenu}
+          onClick={() => {
+            setMenuOpen(false);
+            store.newLink(newTabTitle);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              openMenu();
+            }
+          }}
         >
           <PlusIcon size={16} />
         </Button>
