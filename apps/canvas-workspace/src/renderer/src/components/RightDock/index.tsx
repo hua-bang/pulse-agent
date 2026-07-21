@@ -342,15 +342,17 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
             canOpen={Boolean(activePaneId && hasDockSplitContentTab(state, activePaneId))}
           />
         )}
-        <button
-          type="button"
-          className="right-dock__collapse"
-          aria-label={t('rightDock.collapseTitle')}
-          title={t('rightDock.collapse')}
-          onClick={() => store.collapse()}
-        >
-          ⇥
-        </button>
+        <span data-tooltip={t('rightDock.collapse')} className="right-dock__tooltip-wrapper">
+          <button
+            type="button"
+            className="right-dock__collapse"
+            aria-label={t('rightDock.collapseTitle')}
+            title={t('rightDock.collapse')}
+            onClick={() => store.collapse()}
+          >
+            ⇥
+          </button>
+        </span>
       </div>
       <DockPanes
         store={store}

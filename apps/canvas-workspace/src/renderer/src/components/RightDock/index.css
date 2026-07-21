@@ -245,7 +245,7 @@
   transition: opacity 0.18s ease;
 }
 
-.right-dock__tab > * {
+.right-dock__tab>* {
   position: relative;
   z-index: 1;
 }
@@ -294,7 +294,7 @@
   border-right-color: transparent;
 }
 
-.right-dock__tab[data-split-part="chat"] + .right-dock__tab-shell[data-split-part="content"] .right-dock__tab {
+.right-dock__tab[data-split-part="chat"]+.right-dock__tab-shell[data-split-part="content"] .right-dock__tab {
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
@@ -340,10 +340,22 @@
     transform 0.2s var(--tab-ease);
 }
 
-.right-dock__tab-dot--chat { background: #1f7a4d; border-radius: 50%; }
-.right-dock__tab-dot--terminal { background: #0f766e; }
-.right-dock__tab-dot--artifact { background: #a594e0; }
-.right-dock__tab-dot--link { background: #2383e2; }
+.right-dock__tab-dot--chat {
+  background: #1f7a4d;
+  border-radius: 50%;
+}
+
+.right-dock__tab-dot--terminal {
+  background: #0f766e;
+}
+
+.right-dock__tab-dot--artifact {
+  background: #a594e0;
+}
+
+.right-dock__tab-dot--link {
+  background: #2383e2;
+}
 
 .right-dock__tab--active .right-dock__tab-dot {
   box-shadow:
@@ -457,7 +469,7 @@
 }
 
 .right-dock__tab-shell:hover .right-dock__tab-close,
-.right-dock__tab--active + .right-dock__tab-close,
+.right-dock__tab--active+.right-dock__tab-close,
 .right-dock__tab-close:focus-visible {
   opacity: 1;
   transform: scale(1);
@@ -485,6 +497,71 @@
 .right-dock__tab--chat[data-unread="true"] .right-dock__tab-unread {
   display: block;
   animation: right-dock-unread-pulse 1.8s ease-out infinite;
+}
+
+.right-dock__tabs [data-tooltip] {
+  position: relative;
+}
+
+.right-dock__tabs [data-tooltip]::before,
+.right-dock__tabs [data-tooltip]::after {
+  position: absolute;
+  left: 50%;
+  opacity: 0;
+  transform: translateX(-50%) translateY(-2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  display: block;
+  pointer-events: none;
+}
+
+.right-dock__tabs [data-tooltip]::before {
+  content: attr(data-tooltip);
+  top: calc(100% + 8px);
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: var(--shadow-float);
+}
+
+.right-dock__tabs [data-tooltip]::after {
+  content: "";
+  top: calc(100% + 4px);
+  width: 7px;
+  height: 7px;
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  transform: translateX(-50%) translateY(-2px) rotate(45deg);
+}
+
+.right-dock__tabs [data-tooltip]:hover::before,
+.right-dock__tabs [data-tooltip]:focus-visible::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.right-dock__tabs [data-tooltip]:hover::after,
+.right-dock__tabs [data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) rotate(45deg);
+}
+
+.right-dock__tooltip-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The split toggle is disabled when there is nothing to split; keep the
+ * tooltip wrapper hoverable while the inner button stays dimmed. */
+.right-dock__tooltip-wrapper .right-dock__split-toggle:disabled {
+  pointer-events: none;
 }
 
 .right-dock__new-link,
@@ -541,6 +618,7 @@
     opacity: 0.82;
     transform: translateY(1px) scale(0.985);
   }
+
   to {
     opacity: 1;
     transform: translateY(-1px) scale(1);
@@ -551,15 +629,18 @@
   0% {
     box-shadow: 0 0 0 0 rgba(224, 83, 61, 0.28);
   }
+
   70% {
     box-shadow: 0 0 0 6px rgba(224, 83, 61, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(224, 83, 61, 0);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .right-dock__tabs,
   .right-dock__tabs[data-visible="true"],
   .right-dock__tab-scroll,
