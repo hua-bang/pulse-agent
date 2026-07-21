@@ -254,7 +254,9 @@ Goal: prove the model with useful blocks.
 
 - Figma node: read frame/node structure, update selected node attributes.
 - Database/API node: read schema/query results, execute safe actions.
-- Document node: read structured content, patch sections.
+- Document node: read structured content, patch sections. First slice shipped:
+  `pdf.document` in `@pulse-canvas/nodes` renders a local PDF file and exposes
+  `set_source` / `extract_text` / `go_to_page` plus text-extracting `read`.
 - Agent node bridge: compose plugin nodes into workflows.
 
 ### Phase 6: Agent Composition Layer

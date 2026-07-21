@@ -69,9 +69,23 @@ export interface PluginNodeCapabilities {
 
 export type CanvasToolFactory = (workspaceId: string) => Record<string, unknown>;
 
+export interface PluginIpcInvokeEvent {
+  sender: unknown;
+  frameId: number;
+}
+
+export type PluginIpcHandler = (
+  event: PluginIpcInvokeEvent,
+  ...args: unknown[]
+) => unknown;
+
 export interface MainCtx {
   registerNodeCapabilities(nodeType: string, capabilities: PluginNodeCapabilities): void;
   registerCanvasTool(factory: CanvasToolFactory): void;
+  // Mirror of the host's MainCtx.handle (channel auto-prefixed `plugin:<id>:`,
+  // callable from the renderer view via `invoke`). Optional so the plugin
+  // degrades gracefully on hosts that predate plugin IPC.
+  handle?(channel: string, handler: PluginIpcHandler): void;
 }
 
 export type ExcalidrawElementRecord = Record<string, unknown>;
@@ -114,6 +128,53 @@ export interface ExcalidrawSkeletonElement {
   strokeWidth?: number;
   roughness?: number;
   opacity?: number;
+}
+
+export interface PdfSource {
+  path: string;
+  name: string;
+  size?: number;
+  addedAt?: string;
+}
+
+export interface PdfDocumentPayload extends Record<string, unknown> {
+  title?: string;
+  source?: PdfSource | null;
+  pageCount?: number | null;
+  currentPage?: number;
+  updatedAt?: string;
+}
+
+export interface PdfDocumentState {
+  title: string;
+  source: PdfSource | null;
+  pageCount: number | null;
+  currentPage: number;
+  updatedAt?: string;
+}
+
+export interface PdfDocumentSummary {
+  title: string;
+  fileName: string | null;
+  path: string | null;
+  pageCount: number | null;
+  currentPage: number;
+  hasSource: boolean;
+}
+
+export interface PdfPageText {
+  page: number;
+  text: string;
+}
+
+export interface PdfExtractResult {
+  pageCount: number;
+  pages: PdfPageText[];
+}
+
+export interface PdfExtractor {
+  probe(path: string): Promise<{ pageCount: number }>;
+  extract(path: string, pages?: number[]): Promise<PdfExtractResult>;
 }
 
 export interface ExcalidrawSceneSummary {

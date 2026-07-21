@@ -12,6 +12,11 @@
       "name": "excalidraw-node",
       "description": "Create and modify Excalidraw board plugin nodes in Pulse Canvas.",
       "path": "skills/excalidraw-node/SKILL.md"
+    },
+    {
+      "name": "pdf-node",
+      "description": "Attach, read, and navigate PDF document plugin nodes in Pulse Canvas.",
+      "path": "skills/pdf-node/SKILL.md"
     }
   ],
   "nodes": [
@@ -21,6 +26,18 @@
       "icon": "assets/excalidraw.svg",
       "capabilities": ["read", "write", "action"],
       "actions": ["set_scene", "append_elements", "add_text", "clear_scene", "summarize"],
+      "renderer": {
+        "remoteName": "pulse_canvas_nodes",
+        "entry": "dist/mf-manifest.json",
+        "expose": "./plugin"
+      }
+    },
+    {
+      "type": "pdf.document",
+      "title": "PDF Document",
+      "icon": "assets/pdf.svg",
+      "capabilities": ["read", "write", "action"],
+      "actions": ["set_source", "extract_text", "go_to_page", "summarize"],
       "renderer": {
         "remoteName": "pulse_canvas_nodes",
         "entry": "dist/mf-manifest.json",

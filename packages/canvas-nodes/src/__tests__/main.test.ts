@@ -39,10 +39,12 @@ describe('excalidraw main plugin', () => {
     const { ctx, registrations } = createCtx();
     await mainPlugin.activate(ctx);
 
-    expect(registrations).toHaveLength(1);
-    expect(registrations[0].nodeType).toBe(EXCALIDRAW_BOARD_NODE_TYPE);
+    const boardRegistration = registrations.find(
+      (entry) => entry.nodeType === EXCALIDRAW_BOARD_NODE_TYPE,
+    );
+    expect(boardRegistration).toBeDefined();
 
-    const read = await registrations[0].capabilities.read?.({
+    const read = await boardRegistration!.capabilities.read?.({
       workspaceId: 'ws',
       node: createNode({
         title: 'Sketch',

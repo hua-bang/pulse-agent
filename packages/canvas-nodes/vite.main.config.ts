@@ -17,7 +17,10 @@ export default defineConfig({
       fileName: () => 'main.js',
     },
     rollupOptions: {
-      external: [],
+      // electron resolves at runtime in the host main process; node builtins
+      // are provided by the runtime. pdfjs-dist stays out of the bundle via a
+      // variable dynamic-import specifier in src/pdf-extract.ts.
+      external: ['electron', /^node:/],
     },
   },
 });

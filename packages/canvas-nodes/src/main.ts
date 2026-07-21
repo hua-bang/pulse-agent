@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CANVAS_NODES_PLUGIN_ID, EXCALIDRAW_BOARD_NODE_TYPE } from './constants';
+import { registerPdfNode } from './pdf-main';
 import {
   applySceneInput,
   elementsFromSceneInput,
@@ -221,6 +222,8 @@ const mainPlugin = {
         }, null, 2),
       },
     }));
+
+    registerPdfNode(ctx);
   },
 };
 

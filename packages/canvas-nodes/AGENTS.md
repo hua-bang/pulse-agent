@@ -6,14 +6,16 @@
 ## Module Positioning
 
 `@pulse-canvas/nodes` owns runtime-loadable external node plugins for Pulse
-Canvas. The current package contributes the `pulse-canvas-nodes` plugin and the
-`excalidraw.board` node type, including:
+Canvas. The current package contributes the `pulse-canvas-nodes` plugin with
+two node types — `excalidraw.board` and `pdf.document` — including:
 
-- an Electron-main capability provider for semantic read/write/action behavior,
+- Electron-main capability providers for semantic read/write/action behavior,
 - a Module Federation renderer shell,
 - an isolated Excalidraw `<webview>` app,
+- a PDF viewer shell (Chromium's built-in viewer in a `<webview>`) with
+  main-side text extraction through `pdfjs-dist`,
 - compact scene helpers for agent-authored boards,
-- agent skill guidance for creating and modifying board nodes.
+- agent skill guidance for creating and modifying board and PDF nodes.
 
 This package is intentionally loaded as a plugin directory. The Canvas host
 should discover it through `manifest.json` and plugin loading, not by importing
@@ -29,13 +31,15 @@ package internals directly.
 | Build outputs and MF settings | `vite.config.ts`, `vite.webview.config.ts`, `vite.main.config.ts` |
 | Plugin ids and node type constants | `src/constants.ts` |
 | Host/plugin TypeScript contracts | `src/types.ts` |
-| Main-process capabilities and tools | `src/main.ts` |
+| Main-process capabilities and tools | `src/main.ts` (Excalidraw + wiring), `src/pdf-main.ts` (PDF capabilities, `pdf:pick-file` IPC) |
 | Renderer plugin registration | `src/plugin.tsx` |
 | Excalidraw renderer shell | `src/ExcalidrawNodeView.tsx`, `src/ExcalidrawNodeView.css` |
+| PDF renderer shell | `src/PdfNodeView.tsx`, `src/PdfNodeView.css` |
 | Isolated Excalidraw webview app | `src/webview-app.tsx`, `src/webview-app.css`, `index.html` |
 | Scene normalization/actions | `src/scene.ts` |
-| Tests | `src/__tests__/main.test.ts`, `src/__tests__/scene.test.ts` |
-| Agent-facing node guidance | `skills/excalidraw-node/SKILL.md` |
+| PDF payload helpers / text extraction | `src/pdf.ts` (renderer-safe), `src/pdf-extract.ts` (main-only, pdfjs) |
+| Tests | `src/__tests__/main.test.ts`, `src/__tests__/scene.test.ts`, `src/__tests__/pdf.test.ts`, `src/__tests__/pdf-main.test.ts`, `src/__tests__/pdf-extract.test.ts` |
+| Agent-facing node guidance | `skills/excalidraw-node/SKILL.md`, `skills/pdf-node/SKILL.md` |
 | Canvas host plugin contract | `../../apps/canvas-workspace/harness/knowledge/plugin-node-mf2.md`, `../../apps/canvas-workspace/AGENTS.md` |
 | Local validation | `harness/validate/validation.yaml` |
 
@@ -44,8 +48,16 @@ the root harness files and the Canvas host docs when behavior crosses into the a
 
 ## Local Constraints
 
-- Preserve the plugin identity `pulse-canvas-nodes` and node type
-  `excalidraw.board` unless coordinating a host/plugin contract change.
+- Preserve the plugin identity `pulse-canvas-nodes` and node types
+  `excalidraw.board` / `pdf.document` unless coordinating a host/plugin
+  contract change.
+- `src/pdf.ts` must stay renderer-safe (no node/electron imports); node-only
+  code lives in `src/pdf-main.ts` and `src/pdf-extract.ts`. `electron` and
+  `pdfjs-dist` are loaded through variable dynamic-import specifiers so the
+  vite main build leaves them to runtime resolution — keep it that way, the
+  lib bundle must not inline either.
+- PDF payloads store a file reference (`source.path`), never PDF bytes; text
+  extraction is cached per file fingerprint in memory, not persisted.
 - Keep the manifest as the public package contract: main entry
   `dist/main.js`, renderer entry `dist/mf-manifest.json`, webview entry
   `dist/index.html`, actions, capabilities, and skill metadata must stay in
