@@ -63,10 +63,12 @@ export const getCanvasInteractionShieldState = ({
   activeTool,
   directInteractionActive,
   moving,
+  nodeGesturePending = false,
 }: {
   activeTool: string;
   directInteractionActive: boolean;
   moving: boolean;
+  nodeGesturePending?: boolean;
 }): {
   iframeShieldActive: boolean;
   interactionShieldActive: boolean;
@@ -75,7 +77,13 @@ export const getCanvasInteractionShieldState = ({
   // A wheel gesture only needs the single full-canvas shield. Creating the
   // per-node pseudo shield for every iframe/webview at the first wheel tick
   // turns a cheap root transform into a large style/compositor transition.
-  iframeShieldActive: activeTool === 'hand' || directInteractionActive,
+  //
+  // nodeGesturePending: mousedown-on-node-header has fired but the pointer
+  // hasn't yet moved the 4 px drag-start threshold.  Iframes/webviews must
+  // be shielded NOW — before the first mousemove — because once the pointer
+  // enters a guest process the host never sees that mousemove and the drag
+  // deadlocks (shield waits for motion, motion waits for shield).
+  iframeShieldActive: activeTool === 'hand' || directInteractionActive || nodeGesturePending,
   interactionShieldActive: moving || directInteractionActive,
   motionShieldOnly: moving && !directInteractionActive,
 });
@@ -131,6 +139,9 @@ export const useCanvasMouseHandlers = ({
   // so dragging remains uninterrupted when crossing text.
   const isDraggingRef = useRef(false);
   const [nodeGestureActive, setNodeGestureActive] = useState(false);
+  // True from mousedown-on-node until mouseup — drives immediate iframe
+  // pointer-events:none so webview guests can't swallow drag mousemoves.
+  const [nodeGesturePending, setNodeGesturePending] = useState(false);
   // True once the current node gesture has produced real motion. A moved
   // drag ends with mouseup on the interaction shield, so the trailing click
   // resolves on the canvas container — without suppression it would fall
@@ -209,6 +220,7 @@ export const useCanvasMouseHandlers = ({
       const shouldTrackDrag = e.button === 0 && !e.altKey;
       onDragStart(e, node);
       isDraggingRef.current = shouldTrackDrag && e.defaultPrevented;
+      if (isDraggingRef.current) setNodeGesturePending(true);
     },
     [onDragStart],
   );
@@ -225,6 +237,7 @@ export const useCanvasMouseHandlers = ({
     ) => {
       if (e.button === 0) {
         isDraggingRef.current = true;
+        setNodeGesturePending(true);
       }
       onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
     },
@@ -248,6 +261,7 @@ export const useCanvasMouseHandlers = ({
     const resizeCommitted = onResizeEnd();
     isDraggingRef.current = false;
     setNodeGestureActive(false);
+    setNodeGesturePending(false);
     if (wasNodeGesture && nodeGestureMovedRef.current) {
       suppressBlankClickRef.current = true;
       if (!resizeWasActive || resizeCommitted) {
@@ -293,6 +307,7 @@ export const useCanvasMouseHandlers = ({
       onResizeCancel();
       isDraggingRef.current = false;
       setNodeGestureActive(false);
+      setNodeGesturePending(false);
       // The trailing mouseup must not commit, sync parents, or let its
       // click clear the selection that was just restored.
       if (nodeGestureMovedRef.current) suppressBlankClickRef.current = true;
@@ -347,6 +362,7 @@ export const useCanvasMouseHandlers = ({
     activeTool,
     directInteractionActive,
     moving,
+    nodeGesturePending,
   });
 
   useEffect(() => {
