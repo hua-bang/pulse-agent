@@ -222,11 +222,18 @@ export const useCanvasMouseHandlers = ({
       isDraggingRef.current = shouldTrackDrag && e.defaultPrevented;
       if (isDraggingRef.current) {
         setNodeGesturePending(true);
-        // Synchronously shield iframes before the next mousemove. React
-        // state alone can lose the race: the OS delivers the next pointer
-        // event before React commits the className change, so a webview
-        // guest swallows the mousemove and the drag deadlocks.
-        containerRef.current?.classList.add('canvas-container--iframe-shielding');
+        // Shield iframes before the next mousemove. classList.add is
+        // synchronous, but CSS style recalc (which computes pointer-events
+        // from the new class) is deferred to the next rendering frame.
+        // The OS can deliver a mousemove before that frame, so webview
+        // guests would still swallow the event. Forcing layout forces a
+        // synchronous style recalc for the entire subtree, guaranteeing
+        // pointer-events: none is in effect before the next hit test.
+        const container = containerRef.current;
+        if (container) {
+          container.classList.add('canvas-container--iframe-shielding');
+          void container.offsetHeight;
+        }
       }
     },
     [onDragStart, containerRef],
@@ -245,7 +252,11 @@ export const useCanvasMouseHandlers = ({
       if (e.button === 0) {
         isDraggingRef.current = true;
         setNodeGesturePending(true);
-        containerRef.current?.classList.add('canvas-container--iframe-shielding');
+        const container = containerRef.current;
+        if (container) {
+          container.classList.add('canvas-container--iframe-shielding');
+          void container.offsetHeight;
+        }
       }
       onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
     },
