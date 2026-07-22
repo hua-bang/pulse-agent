@@ -12,6 +12,7 @@ import {
   type NoteSearchOptions,
 } from '../../editor/noteSearchExtension';
 import { isImeComposing } from '../../utils/ime';
+import { useI18n } from '../../i18n';
 
 interface Props {
   editor: Editor;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export const NoteFindBar = ({ editor, onClose }: Props) => {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [replacement, setReplacement] = useState('');
   const [showReplace, setShowReplace] = useState(false);
@@ -68,25 +70,25 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
         <button
           className="note-find-toggle"
           onClick={() => setShowReplace((v) => !v)}
-          title={showReplace ? 'Hide replace' : 'Show replace'}
+          title={showReplace ? t('noteFind.hideReplace') : t('noteFind.showReplace')}
         >
           {showReplace ? '▾' : '▸'}
         </button>
         <input
           ref={inputRef}
           className={`note-find-input${invalid ? ' note-find-input--invalid' : ''}`}
-          placeholder="Find"
+          placeholder={t('noteFind.findPlaceholder')}
           value={query}
           onChange={(e) => runSearch(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-        <div className="note-find-toggles" role="group" aria-label="Search options">
+        <div className="note-find-toggles" role="group" aria-label={t('noteFind.searchOptions')}>
           <button
             type="button"
             className={`note-find-opt${options.caseSensitive ? ' note-find-opt--on' : ''}`}
             aria-pressed={options.caseSensitive}
-            aria-label="Match case"
-            title="Match case"
+            aria-label={t('noteFind.matchCase')}
+            title={t('noteFind.matchCase')}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => toggleOption('caseSensitive')}
           >
@@ -96,8 +98,8 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
             type="button"
             className={`note-find-opt${options.wholeWord ? ' note-find-opt--on' : ''}`}
             aria-pressed={options.wholeWord}
-            aria-label="Whole word"
-            title="Whole word"
+            aria-label={t('noteFind.wholeWord')}
+            title={t('noteFind.wholeWord')}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => toggleOption('wholeWord')}
           >
@@ -107,8 +109,8 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
             type="button"
             className={`note-find-opt${options.regex ? ' note-find-opt--on' : ''}`}
             aria-pressed={options.regex}
-            aria-label="Use regular expression"
-            title="Regular expression"
+            aria-label={t('noteFind.regex')}
+            title={t('noteFind.regex')}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => toggleOption('regex')}
           >
@@ -117,7 +119,7 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
         </div>
         <span
           className="note-find-count"
-          title={invalid ? 'Invalid regular expression' : undefined}
+          title={invalid ? t('noteFind.invalidRegex') : undefined}
         >
           {invalid ? '!' : total > 0 ? `${current}/${total}` : query ? '0/0' : ''}
         </span>
@@ -125,7 +127,7 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
           className="note-find-nav"
           onClick={() => navigateNoteSearch(editor.view, -1)}
           disabled={total === 0}
-          title="Previous (Shift+Enter)"
+          title={t('noteFind.previous')}
         >
           ‹
         </button>
@@ -133,11 +135,11 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
           className="note-find-nav"
           onClick={() => navigateNoteSearch(editor.view, 1)}
           disabled={total === 0}
-          title="Next (Enter)"
+          title={t('noteFind.next')}
         >
           ›
         </button>
-        <button className="note-find-close" onClick={onClose} title="Close (Esc)">
+        <button className="note-find-close" onClick={onClose} title={t('noteFind.close')}>
           ×
         </button>
       </div>
@@ -146,7 +148,7 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
           <span className="note-find-toggle note-find-toggle--spacer" />
           <input
             className="note-find-input"
-            placeholder="Replace"
+            placeholder={t('noteFind.replacePlaceholder')}
             value={replacement}
             onChange={(e) => setReplacement(e.target.value)}
             onKeyDown={(e) => {
@@ -165,14 +167,14 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
             onClick={() => replaceCurrentMatch(editor.view, replacement)}
             disabled={total === 0}
           >
-            Replace
+            {t('noteFind.replace')}
           </button>
           <button
             className="note-find-action"
             onClick={() => replaceAllMatches(editor.view, replacement)}
             disabled={total === 0}
           >
-            All
+            {t('noteFind.replaceAll')}
           </button>
         </div>
       )}

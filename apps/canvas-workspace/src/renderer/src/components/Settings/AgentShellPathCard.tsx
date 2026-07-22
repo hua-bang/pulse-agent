@@ -4,30 +4,22 @@ import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
 import { Button } from '../ui';
 
-interface AgentShellPathCardProps {
+interface Props {
   shellPath: ShellPathResult;
   onConfigured: () => Promise<void>;
 }
 
-const AgentShellPathCard = ({ shellPath, onConfigured }: AgentShellPathCardProps) => {
+export const AgentShellPathCard = ({ shellPath, onConfigured }: Props) => {
   const { notify } = useAppShell();
-  const { language, t } = useI18n();
+  const { t } = useI18n();
   const [configuring, setConfiguring] = useState(false);
-  const copy = language === 'zh'
-    ? {
-        title: '终端命令',
-        ready: (profile: string) => `已在 ${profile} 中配置 pulse-canvas。打开新终端后即可使用。`,
-        setup: (profile: string) => `将托管 CLI 目录加入 ${profile}，之后可在新终端中直接运行 pulse-canvas。`,
-        configure: '配置 PATH',
-        unsupported: '自动配置仅支持 zsh、bash 和 fish。请手动执行下面的命令。',
-      }
-    : {
-        title: 'Terminal command',
-        ready: (profile: string) => `pulse-canvas is configured in ${profile}. Open a new terminal to use it.`,
-        setup: (profile: string) => `Add the managed CLI directory to ${profile} so new terminals can run pulse-canvas directly.`,
-        configure: 'Configure PATH',
-        unsupported: 'Automatic setup supports zsh, bash, and fish. Run the command below manually.',
-      };
+  const copy = {
+    title: t('settings.shellPath.title'),
+    ready: (profile: string) => t('settings.shellPath.ready', { profile }),
+    setup: (profile: string) => t('settings.shellPath.setup', { profile }),
+    configure: t('settings.shellPath.configure'),
+    unsupported: t('settings.shellPath.unsupported'),
+  };
 
   const configure = async () => {
     setConfiguring(true);
@@ -71,5 +63,3 @@ const AgentShellPathCard = ({ shellPath, onConfigured }: AgentShellPathCardProps
     </div>
   );
 };
-
-export default AgentShellPathCard;

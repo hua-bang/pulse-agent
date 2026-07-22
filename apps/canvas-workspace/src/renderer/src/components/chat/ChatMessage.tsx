@@ -16,8 +16,10 @@ import {
   parseVisualToolResult,
 } from '../artifacts';
 import { CopyGeneratedImageButton, parseGeneratedImage } from './GeneratedImageActions';
+import { useI18n } from '../../i18n';
 
 const CopyMessageButton = memo(({ content }: { content: string }) => {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(async () => {
     try {
@@ -32,8 +34,8 @@ const CopyMessageButton = memo(({ content }: { content: string }) => {
     <button
       type="button"
       className={`chat-message-toolbar-btn chat-message-toolbar-btn--icon${copied ? ' chat-message-toolbar-btn--copied' : ''}`}
-      title={copied ? 'Copied!' : 'Copy message (markdown source)'}
-      aria-label="Copy message"
+      title={copied ? t('chatMessage.copied') : t('chatMessage.copy')}
+      aria-label={t('chatMessage.copyAriaLabel')}
       onClick={handleCopy}
     >
       {copied ? <CheckIcon size={12} strokeWidth={1.8} /> : <CopyIcon size={12} />}
@@ -94,6 +96,7 @@ export const ChatMessage = ({
   onRegenerate,
   onSessionJump,
 }: ChatMessageProps) => {
+  const { t } = useI18n();
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
       ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder })
@@ -429,8 +432,8 @@ export const ChatMessage = ({
             <button
               type="button"
               className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
-              title="Edit & resend"
-              aria-label="Edit and resend"
+              title={t('chatMessage.editResend')}
+              aria-label={t('chatMessage.editResendAriaLabel')}
               onClick={handleStartEdit}
             >
               <PencilIcon size={12} />
@@ -440,8 +443,8 @@ export const ChatMessage = ({
             <button
               type="button"
               className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
-              title="Regenerate response"
-              aria-label="Regenerate response"
+              title={t('chatMessage.regenerate')}
+              aria-label={t('chatMessage.regenerate')}
               onClick={handleRegenerate}
             >
               <RefreshIcon size={12} />
