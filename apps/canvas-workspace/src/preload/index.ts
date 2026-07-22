@@ -39,11 +39,25 @@ import { createWorkspaceNodesApi } from "./bridge/workspace-nodes";
 
 declare const __APP_VERSION__: string;
 
+const configuredWebviewConcurrency = Number.parseInt(
+  process.env.PULSE_CANVAS_WEBVIEW_CONCURRENCY ?? '',
+  10,
+);
+
 const sendLog = createLogSender(ipcRenderer);
 installRendererErrorLogging(sendLog);
 
 const canvasWorkspace: CanvasWorkspaceApi = {
   version: __APP_VERSION__,
+  runtimeConfig: {
+    perfMode: process.env.PULSE_CANVAS_PERF === '1',
+    webviewInitialLoadConcurrency:
+      process.env.PULSE_CANVAS_PERF === '1'
+      && Number.isFinite(configuredWebviewConcurrency)
+      && configuredWebviewConcurrency >= 0
+        ? configuredWebviewConcurrency
+        : 2,
+  },
   appInfo: createAppInfoApi(ipcRenderer),
   pluginFlags: readPluginFlags(ipcRenderer, sendLog),
   pty: createPtyApi(ipcRenderer),

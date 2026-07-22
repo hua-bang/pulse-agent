@@ -69,6 +69,28 @@ describe('useEmbeddedBrowser', () => {
     expect(onTitleChange).toHaveBeenCalledWith('Example page');
   });
 
+  it('releases the initial-load slot on completion or a main-frame failure', () => {
+    const onInitialLoadSettled = vi.fn();
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    flushSync(() => root?.render(
+      <SettlementHarness onInitialLoadSettled={onInitialLoadSettled} />,
+    ));
+
+    flushSync(() => webview.dispatchEvent(new Event('did-stop-loading')));
+    expect(onInitialLoadSettled).toHaveBeenCalledWith('complete');
+
+    const failed = new Event('did-fail-load') as Event & {
+      errorCode: number;
+      isMainFrame: boolean;
+    };
+    failed.errorCode = -105;
+    failed.isMainFrame = true;
+    flushSync(() => webview.dispatchEvent(failed));
+    expect(onInitialLoadSettled).toHaveBeenCalledWith('failed');
+  });
+
   it('does not reload a guest when an external store synchronously persists did-navigate', () => {
     const store = createUrlStore('https://example.com');
     mount = document.createElement('div');
@@ -193,6 +215,19 @@ const FocusHarness = ({ onFocus }: { onFocus: () => void }) => {
   const browser = useEmbeddedBrowser({
     className: 'test-webview',
     onFocus,
+    url: 'https://example.com',
+  });
+  return <div ref={browser.hostRef} />;
+};
+
+const SettlementHarness = ({
+  onInitialLoadSettled,
+}: {
+  onInitialLoadSettled: (reason: 'complete' | 'failed') => void;
+}) => {
+  const browser = useEmbeddedBrowser({
+    className: 'test-webview',
+    onInitialLoadSettled,
     url: 'https://example.com',
   });
   return <div ref={browser.hostRef} />;

@@ -137,6 +137,7 @@ export const DockPanes = ({
                 title={tab.title}
                 tabId={tab.id}
                 mountWebview={mountedLinkTabsRef.current.has(tab.id)}
+                active={tab.id === activePaneId || tab.id === splitTabId}
                 activeWorkspaceId={activeWorkspaceId}
                 onActivate={() => store.activate(tab.id)}
                 onTitleChange={(title) => store.setTitle(tab.id, title)}

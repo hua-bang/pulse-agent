@@ -29,6 +29,8 @@
     "perf:split": "PULSE_CANVAS_ANALYZE=1 electron-vite build && node scripts/perf/bundle-treemap.mjs && open perf/out/bundle-split.html",
     "perf:view": "open perf/out/bundle-split.html",
     "perf:scenarios": "node scripts/perf/run-scenarios.mjs",
+    "perf:webview-load": "node scripts/perf/webview-load-check.mjs",
+    "perf:webview-load:ab": "node scripts/perf/webview-load-ab.mjs",
     "setup:electron": "node scripts/setup/ensure-electron.mjs",
     "perf:dashboard": "node scripts/perf/dashboard.mjs",
     "perf:report": "node scripts/perf/report.mjs"

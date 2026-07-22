@@ -12,10 +12,16 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useI18n } from "../../i18n";
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
+import { useInitialWebviewLoadSlot } from '../EmbeddedBrowser/useInitialWebviewLoadSlot';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
 import { resolveAddressInput } from '../EmbeddedBrowser/address-input';
 import { AddressSuggestionList, useAddressSuggestions, type AddressSuggestion } from './AddressSuggestions';
 import { useWebviewRegistration } from '../IframeNodeBody/useWebviewRegistration';
+import { useWebviewRestore } from '../IframeNodeBody/useWebviewDiscard';
+import {
+  useDockWebviewBackgroundLifecycle,
+  useDockWebviewDiscard,
+} from './useDockWebviewLifecycle';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
 import { useAppShell } from '../AppShellProvider';
@@ -47,6 +53,8 @@ interface LinkTabViewProps {
    *  guest process + navigation per tab on the cold-start critical path.
    *  DockPanes flips this on first activation; once true it stays true. */
   mountWebview?: boolean;
+  /** Whether this tab is visible as the active or split dock pane. */
+  active?: boolean;
   onActivate?: () => void;
   onTitleChange?: (title: string) => void;
   /** Page favicon, reported once the webview resolves it, so the tab icon
@@ -67,6 +75,7 @@ export const LinkTabView = ({
   title,
   tabId,
   mountWebview = true,
+  active = true,
   onActivate,
   onTitleChange,
   onFaviconChange,
@@ -90,9 +99,23 @@ export const LinkTabView = ({
   // Last main-frame URL this tab navigated to — the key under which late
   // title/favicon events are folded into the same browsing-history visit.
   const lastVisitedUrlRef = useRef('');
+  const webviewHostRef = useRef<HTMLDivElement>(null);
+  const discard = useDockWebviewDiscard({
+    workspaceId: activeWorkspaceId,
+    tabId,
+    enabled: mountWebview,
+    active,
+    tabUrl: url,
+  });
+  const initialLoadSlot = useInitialWebviewLoadSlot({
+    id: `dock:${activeWorkspaceId || 'unknown'}:${tabId ?? url}`,
+    eligible: mountWebview && !discard.discarded && Boolean(url),
+    priority: active ? 0 : 500,
+  });
   const browser = useEmbeddedBrowser({
     className: 'link-drawer__webview',
-    enabled: mountWebview,
+    enabled: mountWebview && !discard.discarded && initialLoadSlot.granted,
+    hostRef: webviewHostRef,
     onFocus: onActivate,
     onFaviconChange: (favicons) => {
       const favicon = pickFaviconUrl(favicons);
@@ -108,14 +131,16 @@ export const LinkTabView = ({
       onGuestNavigate(nextUrl);
       window.canvasWorkspace.history.record({ url: nextUrl });
     },
+    onInitialLoadSettled: initialLoadSlot.release,
     onTitleChange: (title) => {
       onTitleChange?.(title);
       if (lastVisitedUrlRef.current) {
         window.canvasWorkspace.history.record({ url: lastVisitedUrlRef.current, title });
       }
     },
-    url,
+    url: discard.restore?.url ?? url,
   });
+  const loadState = initialLoadSlot.queued ? 'queued' : browser.loadState;
 
   // Register this tab's <webview> with main so the Canvas Agent can read the
   // live page (via canvas_read_tab), keyed by the dock tab id. Reuses the same
@@ -126,6 +151,14 @@ export const LinkTabView = ({
     nodeId: tabId ?? '',
     enabled: Boolean(tabId && activeWorkspaceId),
   });
+  useDockWebviewBackgroundLifecycle({
+    webview: browser.webview,
+    workspaceId: activeWorkspaceId,
+    tabId,
+    enabled: mountWebview && !discard.discarded,
+    active,
+  });
+  useWebviewRestore(browser.webview, discard.restore);
 
   // Keep the editable address synchronized with external tab navigation;
   // EmbeddedBrowser owns the Electron guest lifecycle and in-page updates.
@@ -271,7 +304,7 @@ export const LinkTabView = ({
           onBack={browser.goBack}
           onForward={browser.goForward}
           onReload={browser.reload}
-          loading={browser.loadState === 'loading'}
+          loading={loadState === 'loading'}
         />
         <form
           ref={addressFormRef}
@@ -363,7 +396,7 @@ export const LinkTabView = ({
           </Button>
         </div>
       </header>
-      {browser.loadState === 'loading' && (
+      {loadState === 'loading' && (
         <div
           className="link-drawer__loading-bar"
           role="progressbar"
@@ -396,7 +429,15 @@ export const LinkTabView = ({
           )}
         </div>
       )}
-      <div ref={browser.hostRef} className="link-drawer__webview-host" />
+      <div className="link-drawer__webview-surface">
+        <div ref={browser.hostRef} className="link-drawer__webview-host" />
+        {loadState === 'queued' && (
+          <div className="link-drawer__queued" role="status">
+            <strong>{title || t('node.type.webPage')}</strong>
+            <span>{t('linkDrawer.waitingToLoad')}</span>
+          </div>
+        )}
+      </div>
     </>
   );
 };

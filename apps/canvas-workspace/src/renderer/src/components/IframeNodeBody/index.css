@@ -129,6 +129,40 @@
   border-radius: 2px;
 }
 
+.iframe-load-queued {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.iframe-load-queued img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.iframe-load-queued strong {
+  max-width: 90%;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iframe-load-queued span {
+  font-size: 11px;
+}
+
 
 .iframe-load-error {
   position: absolute;

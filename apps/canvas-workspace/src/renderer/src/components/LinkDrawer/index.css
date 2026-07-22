@@ -207,11 +207,45 @@
 
 /* ── Webview host ───────────────────────────────────────────────────── */
 
+.link-drawer__webview-surface {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
 .link-drawer__webview-host {
   flex: 1;
   min-height: 0;
   display: flex;
   background: #fff;
+}
+
+.link-drawer__queued {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.link-drawer__queued strong {
+  max-width: 90%;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-drawer__queued span {
+  font-size: 11px;
 }
 
 .link-drawer__webview {

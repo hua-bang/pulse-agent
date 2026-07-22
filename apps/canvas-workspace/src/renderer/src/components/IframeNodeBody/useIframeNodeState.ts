@@ -8,6 +8,7 @@ import {
 import type { IframeNodeData } from '../../types';
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { useDeferredVisibleMount } from './useDeferredVisibleMount';
+import { useInitialWebviewLoadSlot } from '../EmbeddedBrowser/useInitialWebviewLoadSlot';
 import { useWebviewDiscard, useWebviewRestore } from './useWebviewDiscard';
 import { useWebviewRegistration } from './useWebviewRegistration';
 import type { EditMode, IframeNodeBodyProps } from './types';
@@ -86,6 +87,24 @@ export const useIframeNodeState = ({
     nodeUrl: url,
   });
 
+  const initialLoadSlot = useInitialWebviewLoadSlot({
+    id: `canvas:${workspaceId ?? 'unknown'}:${node.id}`,
+    eligible: mode === 'url' && shouldMountWebview && !webviewDiscarded && Boolean(url),
+    // Resolve after the host ref is attached. Reading this during render would
+    // make the cold-start batch fall back to DOM order because every ref is
+    // still null on its first render.
+    getPriority: () => {
+      const hostRect = webviewHostRef.current?.getBoundingClientRect();
+      if (!hostRect) return Number.MAX_SAFE_INTEGER;
+      return 1_000 + Math.round(Math.hypot(
+        hostRect.left + hostRect.width / 2 - window.innerWidth / 2,
+        hostRect.top + hostRect.height / 2 - window.innerHeight / 2,
+      ));
+    },
+    // RightDock active tabs occupy the lower priority range.
+    priority: 1_000,
+  });
+
   // Same deferred-mount gate for inline (html/srcdoc/artifact) iframes: on an
   // iframe-heavy canvas, creating every off-screen subdocument at mount time
   // doubled the 86-node mount's long-task blocking (measured 140ms → 290ms;
@@ -121,10 +140,11 @@ export const useIframeNodeState = ({
 
   const browser = useEmbeddedBrowser({
     className: 'iframe-frame',
-    enabled: mode === 'url' && shouldMountWebview && !webviewDiscarded,
+    enabled: mode === 'url' && shouldMountWebview && !webviewDiscarded && initialLoadSlot.granted,
     hostRef: webviewHostRef,
     mountKey: webviewKey,
     onFaviconChange: handleBrowserFaviconChange,
+    onInitialLoadSettled: initialLoadSlot.release,
     onTitleChange: handleBrowserTitleChange,
     // After a discard, wake remounts with the freeze-time guest url (which
     // may differ from the saved url after in-page navigation); the record
@@ -135,7 +155,11 @@ export const useIframeNodeState = ({
   // Scroll back to the freeze-time position once the woken guest is ready.
   useWebviewRestore(browser.webview, discardRestore);
 
-  const loadState = editing || mode !== 'url' ? 'idle' : browser.loadState;
+  const loadState = editing || mode !== 'url'
+    ? 'idle'
+    : initialLoadSlot.queued
+      ? 'queued'
+      : browser.loadState;
   const loadError = browser.loadError
     ? getFriendlyLoadErrorMessage(browser.loadError.description, browser.loadError.code)
     : null;
