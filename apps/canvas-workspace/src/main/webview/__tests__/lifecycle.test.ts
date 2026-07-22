@@ -73,11 +73,20 @@ describe('setWebviewLifecycle', () => {
     });
   });
 
-  it('keeps Feishu and Lark collaboration pages active', async () => {
+  it('keeps known real-time collaboration pages active', async () => {
     const urls = [
       'https://bytedance.larkoffice.com/wiki/example',
       'https://team.feishu.cn/docx/example',
       'https://team.larksuite.com/docx/example',
+      'https://docs.google.com/document/d/example/edit',
+      'https://word-edit.officeapps.live.com/we/example',
+      'https://contoso.sharepoint.com/:w:/r/sites/example',
+      'https://www.notion.so/example',
+      'https://docs.qq.com/doc/example',
+      'https://www.kdocs.cn/l/example',
+      'https://www.figma.com/design/example',
+      'https://miro.com/app/board/example',
+      'https://www.canva.com/design/example',
     ];
 
     for (const url of urls) {

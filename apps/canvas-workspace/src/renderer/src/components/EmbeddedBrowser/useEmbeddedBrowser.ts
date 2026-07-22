@@ -137,6 +137,19 @@ export const useEmbeddedBrowser = ({
       setLoadError({ code: detail.errorCode, description: detail.errorDescription });
       callbacksRef.current.onInitialLoadSettled?.('failed');
     };
+    const handleRenderProcessGone = (event: Event) => {
+      const detail = event as Event & { exitCode?: number; reason?: string };
+      setLoadState('failed');
+      setLoadError({
+        code: detail.exitCode,
+        description: detail.reason ?? 'The embedded page process exited unexpectedly.',
+      });
+      // Production deliberately has no wall-clock slot timeout: slow
+      // collaborative pages may take tens of seconds. A terminal guest crash
+      // is therefore an explicit failed settlement, or it would leak an
+      // active admission slot forever.
+      callbacksRef.current.onInitialLoadSettled?.('failed');
+    };
 
     element.addEventListener('did-navigate', handleNavigate);
     element.addEventListener('did-navigate-in-page', handleNavigate);
@@ -146,6 +159,7 @@ export const useEmbeddedBrowser = ({
     element.addEventListener('did-start-loading', handleStart);
     element.addEventListener('did-stop-loading', handleStop);
     element.addEventListener('did-fail-load', handleFail);
+    element.addEventListener('render-process-gone', handleRenderProcessGone);
 
     return () => {
       element.removeEventListener('did-navigate', handleNavigate);
@@ -156,6 +170,7 @@ export const useEmbeddedBrowser = ({
       element.removeEventListener('did-start-loading', handleStart);
       element.removeEventListener('did-stop-loading', handleStop);
       element.removeEventListener('did-fail-load', handleFail);
+      element.removeEventListener('render-process-gone', handleRenderProcessGone);
       element.remove();
       setWebview((current) => current === element ? null : current);
     };

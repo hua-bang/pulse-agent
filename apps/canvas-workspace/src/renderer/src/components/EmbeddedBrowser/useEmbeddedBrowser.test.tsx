@@ -69,7 +69,7 @@ describe('useEmbeddedBrowser', () => {
     expect(onTitleChange).toHaveBeenCalledWith('Example page');
   });
 
-  it('releases the initial-load slot on completion or a main-frame failure', () => {
+  it('releases the initial-load slot on completion, navigation failure, or guest crash', () => {
     const onInitialLoadSettled = vi.fn();
     mount = document.createElement('div');
     document.body.appendChild(mount);
@@ -89,6 +89,16 @@ describe('useEmbeddedBrowser', () => {
     failed.isMainFrame = true;
     flushSync(() => webview.dispatchEvent(failed));
     expect(onInitialLoadSettled).toHaveBeenCalledWith('failed');
+
+    const crashed = new Event('render-process-gone') as Event & {
+      exitCode: number;
+      reason: string;
+    };
+    crashed.exitCode = 137;
+    crashed.reason = 'crashed';
+    flushSync(() => webview.dispatchEvent(crashed));
+    expect(onInitialLoadSettled).toHaveBeenCalledTimes(3);
+    expect(onInitialLoadSettled).toHaveBeenLastCalledWith('failed');
   });
 
   it('does not reload a guest when an external store synchronously persists did-navigate', () => {

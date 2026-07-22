@@ -41,7 +41,23 @@ import type {
  * 1fps paint throttle, so this exemption only bypasses L2 freeze and, by the
  * freeze-first invariant, L3 discard.
  */
-const ALWAYS_ACTIVE_HOSTS = ['feishu.cn', 'larkoffice.com', 'larksuite.com'] as const;
+const ALWAYS_ACTIVE_HOSTS = [
+  // Documents and knowledge bases.
+  'feishu.cn',
+  'larkoffice.com',
+  'larksuite.com',
+  'docs.google.com',
+  'office.com',
+  'officeapps.live.com',
+  'sharepoint.com',
+  'notion.so',
+  'docs.qq.com',
+  'kdocs.cn',
+  // Real-time whiteboards and design files.
+  'figma.com',
+  'miro.com',
+  'canva.com',
+] as const;
 
 const isAlwaysActiveUrl = (rawUrl: string): boolean => {
   try {
