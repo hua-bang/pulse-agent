@@ -207,6 +207,7 @@ describe('runtime-control server lifecycle', () => {
         expect.objectContaining({ name: 'canvas.nodes.read', risk: 'read' }),
         expect.objectContaining({ name: 'canvas.nodes.search', risk: 'read' }),
         expect.objectContaining({ name: 'canvas.nodes.update', risk: 'operate' }),
+        expect.objectContaining({ name: 'canvas.agent.chat', risk: 'operate' }),
         expect.objectContaining({ name: 'host.renderer.eval', risk: 'unsafe' }),
       ]),
     });
@@ -232,6 +233,16 @@ describe('runtime-control server lifecycle', () => {
       input: {},
     });
     expect(hostEvalValidation).toMatchObject({
+      status: 400,
+      body: { ok: false, error: { code: 'invalid_input' } },
+    });
+
+    const chatValidation = await postRuntime(runtime, '/capabilities/call', {
+      workspaceId: 'ws-1',
+      name: 'canvas.agent.chat',
+      input: {},
+    });
+    expect(chatValidation).toMatchObject({
       status: 400,
       body: { ok: false, error: { code: 'invalid_input' } },
     });

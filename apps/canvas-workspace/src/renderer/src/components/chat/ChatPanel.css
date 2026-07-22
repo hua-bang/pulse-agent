@@ -444,6 +444,10 @@
   display: block;
 }
 
+.chat-message-avatar--sender {
+  color: var(--accent);
+}
+
 .chat-message-content {
   font-size: 14px;
   line-height: 1.6;
@@ -473,6 +477,13 @@
   align-items: flex-end;
   gap: 8px;
   max-width: min(92%, 560px);
+}
+
+.chat-message-sender-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
 }
 
 .chat-message-assistant .chat-message-body {

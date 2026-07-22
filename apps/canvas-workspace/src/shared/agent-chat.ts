@@ -137,10 +137,34 @@ export interface AgentChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  /** Present when a local coding agent initiated this user-role message. */
+  sender?: AgentChatSender;
   attachments?: ChatImageAttachment[];
   toolCalls?: AgentChatToolCall[];
   /** Stable identifier of the agent turn that produced this message. */
   runId?: string;
+}
+
+/** A curated coding-agent identity shown with externally submitted chat turns. */
+export interface AgentChatSender {
+  agentType: 'claude-code' | 'codex';
+  label: string;
+}
+
+/** Renderer bridge events used by the structured live Canvas Agent capability. */
+export const CANVAS_AGENT_EXTERNAL_CHAT_REQUEST_EVENT = 'pulse-canvas:external-chat-request';
+export const CANVAS_AGENT_EXTERNAL_CHAT_RESULT_EVENT = 'pulse-canvas:external-chat-result';
+
+export interface CanvasAgentExternalChatRequest {
+  requestId: string;
+  workspaceId: string;
+  message: string;
+  sender: AgentChatSender;
+}
+
+export interface CanvasAgentExternalChatResult {
+  requestId: string;
+  accepted: boolean;
 }
 
 export interface AgentContextNodeRef {

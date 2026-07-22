@@ -3,6 +3,7 @@ import { useCanvasModels } from '../ModelSettings';
 import type { AgentScope, WorkspaceOption } from '../types';
 import { useChatSessions } from './useChatSessions';
 import { useChatStream } from './useChatStream';
+import { useExternalChatSend } from './useExternalChatSend';
 import { useMentions } from './useMentions';
 
 interface UseChatComposerStateOptions {
@@ -51,6 +52,7 @@ export function useChatComposerState({
   const canvasModels = useCanvasModels();
 
   const chatStream = useChatStream({ agentScope, allWorkspaces });
+  useExternalChatSend(agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined, chatStream.sendMessage);
 
   const chatSessions = useChatSessions({
     agentScope,

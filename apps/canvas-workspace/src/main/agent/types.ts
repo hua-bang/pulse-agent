@@ -6,6 +6,8 @@
  * can perform canvas operations, file I/O, and coding tasks directly.
  */
 
+import type { AgentChatSender } from '../../shared/agent-chat';
+
 export type { AgentRequestContext } from '../../shared/agent-chat';
 
 // ─── Configuration ──────────────────────────────────────────────────
@@ -137,6 +139,7 @@ export interface CanvasAgentMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  sender?: AgentChatSender;
   attachments?: CanvasAgentImageAttachment[];
   toolCalls?: CanvasAgentToolCall[];
   // Stable identifier of the agent turn that produced this message.

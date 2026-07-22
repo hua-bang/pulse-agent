@@ -89,6 +89,7 @@ export class CanvasAgentService {
     onToolInputStart?: (data: { id: string; toolName: string }) => void,
     onToolInputDelta?: (data: { id: string; delta: string }) => void,
     onToolInputEnd?: (data: { id: string }) => void,
+    sender?: CanvasAgentMessage['sender'],
   ): Promise<ChatResponse> {
     return this.chatWithScope(
       workspaceScope(workspaceId),
@@ -103,6 +104,7 @@ export class CanvasAgentService {
       onToolInputStart,
       onToolInputDelta,
       onToolInputEnd,
+      sender,
     );
   }
 
@@ -119,6 +121,7 @@ export class CanvasAgentService {
     onToolInputStart?: (data: { id: string; toolName: string }) => void,
     onToolInputDelta?: (data: { id: string; delta: string }) => void,
     onToolInputEnd?: (data: { id: string }) => void,
+    sender?: CanvasAgentMessage['sender'],
   ): Promise<ChatResponse> {
     try {
       await this.activateScope(scope);
@@ -135,6 +138,7 @@ export class CanvasAgentService {
         onToolInputStart,
         onToolInputDelta,
         onToolInputEnd,
+        sender,
       );
       return { ok: true, response: result.response, runId: result.runId };
     } catch (err) {

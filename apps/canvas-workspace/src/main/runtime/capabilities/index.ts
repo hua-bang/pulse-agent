@@ -2,6 +2,7 @@ import { CapabilityRuntime } from './runtime';
 import { createTabCapabilities } from './tab-capabilities';
 import { createNodeCapabilities } from './node-capabilities';
 import { createPageCapabilities } from './page-capabilities';
+import { createChatCapabilities } from './chat-capabilities';
 import { getExperimentalFlagSync } from '../../settings/experimental-ipc';
 import {
   EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
@@ -36,6 +37,7 @@ export function getCanvasCapabilityRuntime(): CapabilityRuntime {
     [
       ...createTabCapabilities(),
       ...createPageCapabilities(),
+      ...createChatCapabilities(),
       ...createNodeCapabilities(),
     ],
     (capability, actor) => {

@@ -151,7 +151,8 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   schema, and the runtime policy must filter discovery and execution together;
   Pulse CLI may access `read`/`operate`, never `unsafe`, by default. The shared
   registry currently exposes browser-tab discovery, live page reads, Canvas
-  node read/search/update, and (only when `webview-page-control` is also
+  node read/search/update, labelled Canvas Agent chat submission for external
+  coding agents, and (only when `webview-page-control` is also
   enabled) selector-based page click/fill. Arbitrary page JavaScript is the
   `browser.page.eval` unsafe capability behind the stable deferred `page_eval`
   Canvas Agent tool and requires both flags for external access. Arbitrary

@@ -2,6 +2,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardE
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
 import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
+import { AgentIcon } from '../AgentNodeBody/AgentIcon';
+import { useI18n } from '../../i18n';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions } from './utils/mentions';
 import { isImeComposing } from '../../utils/ime';
@@ -94,6 +96,13 @@ export const ChatMessage = ({
   onRegenerate,
   onSessionJump,
 }: ChatMessageProps) => {
+  const { t } = useI18n();
+  const senderDescription = message.sender
+    ? t('chat.messageFromAgent', {
+      label: message.sender.label,
+      agent: message.sender.agentType === 'codex' ? 'Codex' : 'Claude Code',
+    })
+    : '';
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
       ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder })
@@ -226,12 +235,24 @@ export const ChatMessage = ({
 
   return (
     <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
+    {message.role === 'user' && message.sender && (
+      <div
+        className="chat-message-avatar chat-message-avatar--sender"
+        title={senderDescription}
+        aria-label={senderDescription}
+      >
+        <AgentIcon id={message.sender.agentType} size={18} />
+      </div>
+    )}
     {message.role === 'assistant' && (
       <div className="chat-message-avatar">
         <BotAvatarIcon size={20} />
       </div>
     )}
     <div className="chat-message-body">
+      {message.role === 'user' && message.sender && (
+        <div className="chat-message-sender-label">{message.sender.label}</div>
+      )}
       {message.attachments && message.attachments.length > 0 && (
         <div className="chat-message-images">
           {message.attachments.map((attachment, attachmentIndex) => (

@@ -751,6 +751,7 @@ export class CanvasAgent {
     onToolInputStart?: (data: { id: string; toolName: string }) => void,
     onToolInputDelta?: (data: { id: string; delta: string }) => void,
     onToolInputEnd?: (data: { id: string }) => void,
+    sender?: CanvasAgentMessage['sender'],
   ): Promise<{ response: string; runId?: string }> {
     const workspaceId = this.config.scope.kind === 'workspace'
       ? this.config.scope.workspaceId
@@ -841,6 +842,7 @@ export class CanvasAgent {
       role: 'user',
       content: message,
       timestamp: Date.now(),
+      sender,
       attachments: attachments.length > 0 ? attachments : undefined,
     });
 

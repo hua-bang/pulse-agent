@@ -20,6 +20,7 @@ import { useChatInsertionBridge } from './useChatInsertionBridge';
 import { useEvictAndPreview, usePeekNode, usePreviewNodeActionBridge } from './usePreviewNodeActionBridge';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
+import { useExternalChatBridge } from './useExternalChatBridge';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
@@ -72,6 +73,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const chatHost = useRightDockChatHost();
   const chatPanelOpen = isDockChatVisible(dockState);
   const loadedChatWorkspaceIds = useLoadedChatWorkspaceIds(chatPanelOpen, activeWorkspaceId);
+  useExternalChatBridge(activeWorkspaceId, dock.openChat);
   const terminalDockOpen = isDockTerminalVisible(dockState);
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
   const [referenceDrawerLoaded, setReferenceDrawerLoaded] = useState(false);
@@ -121,7 +123,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       [activeWorkspaceId]: undefined,
     }));
   }, [activeWorkspaceId]);
-
   const setActiveReference = useCallback((nodeId: string | undefined) => {
     setActiveReferenceIdByWorkspace((prev) => ({
       ...prev,
@@ -152,7 +153,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       return { ...prev, [activeWorkspaceId]: nextActive };
     });
   }, [activeWorkspaceId, allNodes, referencesByWorkspace]);
-
   const pinReferenceNode = useCallback((workspaceId: string, nodeId: string, sourceNode?: CanvasNode) => {
     setReferencesByWorkspace((prev) => {
       const current = prev[activeWorkspaceId] ?? [];

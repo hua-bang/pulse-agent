@@ -3,13 +3,14 @@ import type { AgentApi } from "../../renderer/src/types";
 import { subscribe } from "./ipc";
 
 export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
-  chat: (scopeRef, message, mentionedWorkspaceIds, requestContext, attachments) =>
+  chat: (scopeRef, message, mentionedWorkspaceIds, requestContext, attachments, sender) =>
     ipcRenderer.invoke("canvas-agent:chat", {
       ...scopeRef,
       message,
       mentionedWorkspaceIds,
       requestContext,
-      attachments
+      attachments,
+      sender,
     }),
 
   onTextDelta: (sessionId, callback) =>

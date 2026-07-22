@@ -1,5 +1,6 @@
 import type {
   AgentChatMessage,
+  AgentChatSender,
   AgentRequestContext,
   AgentScopeRef,
   AgentSessionInfo,
@@ -17,6 +18,7 @@ export interface AgentApi {
     mentionedWorkspaceIds?: string[],
     requestContext?: AgentRequestContext,
     attachments?: ChatImageAttachment[],
+    sender?: AgentChatSender,
   ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
   onTextDelta: (
     sessionId: string,
