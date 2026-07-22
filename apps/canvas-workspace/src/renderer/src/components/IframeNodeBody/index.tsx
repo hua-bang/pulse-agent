@@ -17,6 +17,7 @@ export const IframeNodeBody = ({
   isResizing,
   onAddDomSelectionToChat,
   onSubmitDomReviewComments,
+  onPageTitleChange,
   readOnly = false,
 }: IframeNodeBodyProps) => {
   const { openArtifact } = useRightDock();
@@ -31,6 +32,7 @@ export const IframeNodeBody = ({
     node,
     workspaceId,
     onUpdate,
+    onPageTitleChange,
     isResizing,
     readOnly,
   });

@@ -59,6 +59,7 @@ let originalIntersectionObserver: typeof IntersectionObserver | undefined;
 let mockWebview: (HTMLElement & { executeJavaScript: ReturnType<typeof vi.fn> }) | null;
 let discardCallback: ((payload: DiscardPayload) => void) | null;
 let hookState: ReturnType<typeof useIframeNodeState> | null = null;
+let harnessOptions: { readOnly: boolean; onPageTitleChange?: (title: string) => void };
 
 beforeEach(() => {
   MockIntersectionObserver.instances = [];
@@ -71,6 +72,7 @@ beforeEach(() => {
   mockWebview = null;
   discardCallback = null;
   hookState = null;
+  harnessOptions = { readOnly: false };
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,
     value: {
@@ -191,6 +193,28 @@ describe('useIframeNodeState', () => {
     expect(hookState?.webviewDiscarded).toBe(false);
     expect(unregisterWebview).not.toHaveBeenCalled();
   });
+
+  // Regression: the reference-drawer URL preview is readOnly, so the guest's
+  // page title never reached any persistence path and the entry kept showing
+  // the hostname. readOnly must forward the sanitized title instead.
+  it('forwards the guest page title in readOnly mode via onPageTitleChange', async () => {
+    const onPageTitleChange = vi.fn();
+    harnessOptions = { readOnly: true, onPageTitleChange };
+    await renderHookHarness();
+    flushSync(() => {
+      for (const observer of MockIntersectionObserver.instances) observer.trigger(true);
+    });
+    await flushEffects();
+    expect(mockWebview).not.toBeNull();
+
+    const titleEvent = new Event('page-title-updated');
+    Object.assign(titleEvent, { title: '  pulse-agent:   A repo about coding agent.  ' });
+    flushSync(() => {
+      mockWebview?.dispatchEvent(titleEvent);
+    });
+
+    expect(onPageTitleChange).toHaveBeenCalledWith('pulse-agent: A repo about coding agent.');
+  });
 });
 
 async function renderHookHarness(): Promise<void> {
@@ -209,7 +233,8 @@ function IframeHookHarness() {
     node: iframeNode,
     workspaceId: 'workspace-1',
     onUpdate: vi.fn(),
-    readOnly: false,
+    onPageTitleChange: harnessOptions.onPageTitleChange,
+    readOnly: harnessOptions.readOnly,
   });
   hookState = state;
 

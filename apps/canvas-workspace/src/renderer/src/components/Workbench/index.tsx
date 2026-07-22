@@ -6,24 +6,23 @@ import { ChatPanelLazy as ChatPanel } from '../chat/lazy';
 import { isDockChatVisible, isDockTerminalVisible, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
 import { buildDockTabRefs } from '../RightDock/tabRefs';
 import { createReferenceNodeDataSnapshot } from '../ReferenceDrawer/utils';
-import type { NodeReferenceEntry as NodeReferenceEntryForCanvas, ReferenceEntry } from '../ReferenceDrawer/types';
+import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../ReferenceDrawer/types';
 import type { SettingsSection } from '../Settings';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkbenchController } from './useWorkbenchState';
 import type { CanvasNode, ReferenceNodeData } from '../../types';
 import { createDefaultNode } from '../../utils/nodeFactory';
-import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { CanvasClipboard, CanvasNodePatchRequest } from '../../types/ui-interaction';
 import { isReferenceableNode, isReferenceableNodeType } from '../../utils/referenceNodes';
 import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 import { useChatInsertionBridge } from './useChatInsertionBridge';
 import { useEvictAndPreview, usePeekNode, usePreviewNodeActionBridge } from './usePreviewNodeActionBridge';
+import { useReferenceEntries } from './useReferenceEntries';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
-const EMPTY_REFERENCES: ReferenceEntry[] = [];
 const ReferenceDrawer = lazy(() => import('../ReferenceDrawer').then((m) => ({ default: m.ReferenceDrawer })));
 const KnowledgeChatPortal = lazy(() => import('./KnowledgeChatPortal').then((m) => ({ default: m.KnowledgeChatPortal })));
 interface WorkbenchProps {
@@ -73,10 +72,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const chatPanelOpen = isDockChatVisible(dockState);
   const loadedChatWorkspaceIds = useLoadedChatWorkspaceIds(chatPanelOpen, activeWorkspaceId);
   const terminalDockOpen = isDockTerminalVisible(dockState);
-  const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
-  const [referenceDrawerLoaded, setReferenceDrawerLoaded] = useState(false);
-  const [referencesByWorkspace, setReferencesByWorkspace] = useState<Record<string, ReferenceEntry[]>>({});
-  const [activeReferenceIdByWorkspace, setActiveReferenceIdByWorkspace] = useState<Record<string, string | undefined>>({});
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
   const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
   const patchRequestIdRef = useRef(0);
@@ -84,110 +79,29 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   // Publish the live-mounted set so the dock never previews an already-live canvas.
   useEffect(() => { dock.setMountedWorkspaces(mountedWorkspaceIds); }, [dock, mountedWorkspaceIds]);
   useEvictAndPreview({ mountedWorkspaceIds, evictWorkspace, terminalTabsByWorkspace: dockState.terminalTabsByWorkspace, openCanvasPreview: dock.openCanvasPreview });
-  useEffect(() => { if (referenceDrawerOpen) setReferenceDrawerLoaded(true); }, [referenceDrawerOpen]);
+  const {
+    activeReference,
+    activeReferenceNode,
+    clearAllReferences,
+    pinReferenceNode,
+    pinReferenceUrl,
+    referenceDrawerLoaded,
+    referenceDrawerOpen,
+    references,
+    removeReference,
+    setActiveReference,
+    setReferenceDrawerOpen,
+    updateUrlReferenceTitle,
+  } = useReferenceEntries({ activeWorkspaceId, allNodes, workspaces });
   useEffect(() => {
     for (const node of activeNodes) {
       const ref = node.ref;
       if (ref?.kind === 'workspace-node') ensureWorkspaceNodesLoaded(ref.workspaceId);
     }
   }, [activeNodes, ensureWorkspaceNodesLoaded]);
-  const references = referencesByWorkspace[activeWorkspaceId] ?? EMPTY_REFERENCES;
-  const activeReferenceId = activeReferenceIdByWorkspace[activeWorkspaceId];
-  const activeReference = activeReferenceId
-    ? references.find((entry) => (entry.kind === 'url' ? entry.id : `${entry.workspaceId}:${entry.nodeId}`) === activeReferenceId)
-    : undefined;
-  const activeReferenceNode = activeReference && activeReference.kind === 'node'
-    ? (allNodes[activeReference.workspaceId] ?? []).find((node) => node.id === activeReference.nodeId)
-    : undefined;
-  const removeReference = useCallback((referenceId: string) => {
-    setReferencesByWorkspace((prev) => {
-      const current = prev[activeWorkspaceId] ?? [];
-      const next = current.filter((entry) => (entry.kind === 'url' ? entry.id : `${entry.workspaceId}:${entry.nodeId}`) !== referenceId);
-      if (next.length === current.length) return prev;
-      return { ...prev, [activeWorkspaceId]: next };
-    });
-    setActiveReferenceIdByWorkspace((prev) => {
-      if (prev[activeWorkspaceId] !== referenceId) return prev;
-      return { ...prev, [activeWorkspaceId]: undefined };
-    });
-  }, [activeWorkspaceId]);
-  const clearAllReferences = useCallback(() => {
-    setReferencesByWorkspace((prev) => {
-      if (!prev[activeWorkspaceId]?.length) return prev;
-      return { ...prev, [activeWorkspaceId]: [] };
-    });
-    setActiveReferenceIdByWorkspace((prev) => ({
-      ...prev,
-      [activeWorkspaceId]: undefined,
-    }));
-  }, [activeWorkspaceId]);
-
-  const setActiveReference = useCallback((nodeId: string | undefined) => {
-    setActiveReferenceIdByWorkspace((prev) => ({
-      ...prev,
-      [activeWorkspaceId]: nodeId,
-    }));
-  }, [activeWorkspaceId]);
   // Reference "jump to node" peeks at other workspaces in the dock preview
   // instead of yanking the main canvas over (falls back when unpreviewable).
   const peekNode = usePeekNode({ activeWorkspaceId, workspaces, openCanvasPreview: dock.openCanvasPreview, onSelectWorkspace, requestNodeFocus });
-  useEffect(() => {
-    const current = referencesByWorkspace[activeWorkspaceId];
-    if (!current?.length) return;
-    const knownByWorkspace = new Map<string, Set<string>>();
-    for (const [workspaceId, snapshot] of Object.entries(allNodes)) {
-      knownByWorkspace.set(workspaceId, new Set(snapshot.map((node) => node.id)));
-    }
-    const filtered = current.filter((entry) => (
-      entry.kind === 'url'
-      || knownByWorkspace.get(entry.workspaceId)?.has(entry.nodeId)
-      || !Object.prototype.hasOwnProperty.call(allNodes, entry.workspaceId)
-    ));
-    if (filtered.length === current.length) return;
-    setReferencesByWorkspace((prev) => ({ ...prev, [activeWorkspaceId]: filtered }));
-    setActiveReferenceIdByWorkspace((prev) => {
-      const currentActive = prev[activeWorkspaceId];
-      if (currentActive && filtered.some((entry) => (entry.kind === 'url' ? entry.id : `${entry.workspaceId}:${entry.nodeId}`) === currentActive)) return prev;
-      const nextActive = filtered[0] ? (filtered[0].kind === 'url' ? filtered[0].id : `${filtered[0].workspaceId}:${filtered[0].nodeId}`) : undefined;
-      return { ...prev, [activeWorkspaceId]: nextActive };
-    });
-  }, [activeWorkspaceId, allNodes, referencesByWorkspace]);
-
-  const pinReferenceNode = useCallback((workspaceId: string, nodeId: string, sourceNode?: CanvasNode) => {
-    setReferencesByWorkspace((prev) => {
-      const current = prev[activeWorkspaceId] ?? [];
-      const exists = current.some((entry) => entry.kind === 'node' && entry.workspaceId === workspaceId && entry.nodeId === nodeId);
-      if (exists) return prev;
-      const workspace = workspaces.find((item) => item.id === workspaceId);
-      const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId) ?? sourceNode;
-      const entry: ReferenceEntry = {
-        kind: 'node',
-        workspaceId,
-        nodeId,
-        titleSnapshot: node ? getNodeDisplayLabel(node) : undefined,
-        typeSnapshot: node?.type,
-        workspaceNameSnapshot: workspace?.name,
-      };
-      return { ...prev, [activeWorkspaceId]: [...current, entry] };
-    });
-    setActiveReferenceIdByWorkspace((prev) => ({ ...prev, [activeWorkspaceId]: `${workspaceId}:${nodeId}` }));
-    setReferenceDrawerOpen(true);
-  }, [activeWorkspaceId, allNodes, workspaces]);
-
-  const pinReferenceUrl = useCallback((url: string, title?: string) => {
-    const id = `url:${url}`;
-    setReferencesByWorkspace((prev) => {
-      const current = prev[activeWorkspaceId] ?? [];
-      const exists = current.some((entry) => 'kind' in entry && entry.kind === 'url' && entry.url === url);
-      if (exists) return prev;
-      const entry: ReferenceEntry = { kind: 'url', id, url, title };
-      return { ...prev, [activeWorkspaceId]: [...current, entry] };
-    });
-    setActiveReferenceIdByWorkspace((prev) => ({ ...prev, [activeWorkspaceId]: id }));
-    setReferenceDrawerOpen(true);
-  }, [activeWorkspaceId]);
-
-  useEffect(() => dock.registerPinUrlReference(pinReferenceUrl), [dock, pinReferenceUrl]);
 
   const {
     handleAddDomSelectionToChat,
@@ -198,6 +112,8 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     registerInsertMention,
     registerSubmitDomReviewComments,
   } = useChatInsertionBridge({ allNodes, openChat: dock.openChat });
+
+  useEffect(() => dock.registerPinUrlReference(pinReferenceUrl), [dock, pinReferenceUrl]);
 
   useEffect(() => dock.registerAddDomSelectionToChat(handleAddDomSelectionToChat), [dock, handleAddDomSelectionToChat]);
 
@@ -407,6 +323,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
               onClearAll={clearAllReferences}
               onAddReference={pinReferenceNode}
               onAddUrlReference={pinReferenceUrl}
+              onUrlReferenceTitle={updateUrlReferenceTitle}
               onFocusNode={peekNode}
               onAddReferenceToCanvas={addReferenceToCanvas}
               onWorkspaceNodesRequest={ensureWorkspaceNodesLoaded}
