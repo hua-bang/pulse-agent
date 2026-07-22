@@ -42,6 +42,11 @@ interface LinkTabViewProps {
   /** Dock tab id — used as the webview registry key so the Canvas Agent can
    *  read this tab's live page via `canvas_read_tab`. */
   tabId?: string;
+  /** Gate the <webview> mount. Restored docks render every tab's pane stacked
+   *  (only the active one is visible), so mounting unconditionally spins up a
+   *  guest process + navigation per tab on the cold-start critical path.
+   *  DockPanes flips this on first activation; once true it stays true. */
+  mountWebview?: boolean;
   onActivate?: () => void;
   onTitleChange?: (title: string) => void;
   /** Page favicon, reported once the webview resolves it, so the tab icon
@@ -61,6 +66,7 @@ export const LinkTabView = ({
   url,
   title,
   tabId,
+  mountWebview = true,
   onActivate,
   onTitleChange,
   onFaviconChange,
@@ -86,6 +92,7 @@ export const LinkTabView = ({
   const lastVisitedUrlRef = useRef('');
   const browser = useEmbeddedBrowser({
     className: 'link-drawer__webview',
+    enabled: mountWebview,
     onFocus: onActivate,
     onFaviconChange: (favicons) => {
       const favicon = pickFaviconUrl(favicons);

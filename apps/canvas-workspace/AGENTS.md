@@ -223,6 +223,11 @@ pnpm --filter canvas-workspace package:linux
   portal ownership.
 - `src/renderer/src/components/RightDock/`: tabbed right dock for chat and
   previews. Link tabs register their live webviews under the stable dock tab id;
+  a link tab's webview mounts lazily on first activation (DockPanes gates
+  `LinkTabView`'s `mountWebview`) so restored docks don't spawn one guest
+  process per tab on the cold-start path — once mounted it stays mounted, and
+  agent tools that activate a tab before reading it poll for the registration
+  via `main/webview/ensure-operable.ts`.
   page-element selection must reuse the shared iframe DOM picker/selection
   context and route the result through Workbench's active-workspace chat bridge.
   That bridge must queue selections until the target composer registers; opening
