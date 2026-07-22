@@ -923,12 +923,15 @@
   z-index: 2;
 }
 
+/* Insets must match .reference-url-card--persistent / .reference-native-card--persistent
+   exactly: those previews stay mounted (webviews kept alive) underneath, and
+   any mismatch lets a strip of the mounted card peek out around the hint. */
 .reference-pick-hint--overlay {
   position: absolute;
-  top: 16px;
-  right: 18px;
-  bottom: 16px;
-  left: 18px;
+  top: 4px;
+  right: 14px;
+  bottom: 12px;
+  left: 14px;
   margin: 0;
   display: flex;
   align-items: center;
@@ -1018,9 +1021,19 @@
   text-decoration: underline;
 }
 
+/* The .canvas-node wrapper is absolutely positioned with inline width/height
+   from getNodeWrapperStyle, so a plain `flex: 1` never applies here — the
+   preview stayed pinned at the 420px preview-node height with dead space
+   above the footer. The card owns the geometry in the drawer: neutralize the
+   absolute box (relative keeps it the containing block for node chrome) and
+   let it flex to the card minus the footer. */
 .reference-native-card > .canvas-node {
-  flex: 1;
+  position: relative !important;
+  width: auto !important;
+  height: auto !important;
+  flex: 1 1 auto;
   min-height: 0;
+  align-self: stretch;
   border: 0;
   border-radius: 0;
   background: var(--surface);

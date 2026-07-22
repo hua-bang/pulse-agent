@@ -20,6 +20,7 @@ interface ReferencePreviewPanelProps {
   onFocusNode: (workspaceId: string, nodeId: string) => void;
   onOpenUrl: (url: string) => void;
   onRemoveReference: (referenceId: string) => void;
+  onUrlReferenceTitle?: (referenceId: string, title: string) => void;
   workspaceNameById: Map<string, string>;
 }
 
@@ -54,6 +55,7 @@ export const ReferencePreviewPanel = ({
   onFocusNode,
   onOpenUrl,
   onRemoveReference,
+  onUrlReferenceTitle,
   workspaceNameById,
 }: ReferencePreviewPanelProps) => {
   const { t } = useI18n();
@@ -172,7 +174,11 @@ export const ReferencePreviewPanel = ({
                 className="reference-url-slot"
                 style={ref.id === activeReferenceId ? ACTIVE_SLOT_STYLE : INACTIVE_SLOT_STYLE}
               >
-                <ReferenceUrlWebPreview reference={ref} drawerWidth={drawerWidth} />
+                <ReferenceUrlWebPreview
+                  reference={ref}
+                  drawerWidth={drawerWidth}
+                  onPageTitleChange={onUrlReferenceTitle}
+                />
               </div>
             ))}
           </div>
@@ -325,12 +331,20 @@ const NodeReferenceFooter = ({
 interface ReferenceUrlWebPreviewProps {
   reference: UrlReferenceEntry;
   drawerWidth: number;
+  onPageTitleChange?: (referenceId: string, title: string) => void;
 }
 
-const ReferenceUrlWebPreview = memo(({ reference, drawerWidth }: ReferenceUrlWebPreviewProps) => {
+const ReferenceUrlWebPreview = memo(({ reference, drawerWidth, onPageTitleChange }: ReferenceUrlWebPreviewProps) => {
   const previewNode = useMemo(
     () => createUrlPreviewNode(reference, drawerWidth),
     [reference, drawerWidth],
+  );
+  // The preview is readOnly, so the guest's page-title-updated can't flow
+  // through onUpdate; this writes it back onto the reference entry (what the
+  // entry list row displays).
+  const handlePageTitleChange = useCallback(
+    (title: string) => onPageTitleChange?.(reference.id, title),
+    [onPageTitleChange, reference.id],
   );
 
   return (
@@ -339,6 +353,7 @@ const ReferenceUrlWebPreview = memo(({ reference, drawerWidth }: ReferenceUrlWeb
         node={previewNode}
         onUpdate={() => undefined}
         isResizing={false}
+        onPageTitleChange={handlePageTitleChange}
         readOnly
       />
     </div>

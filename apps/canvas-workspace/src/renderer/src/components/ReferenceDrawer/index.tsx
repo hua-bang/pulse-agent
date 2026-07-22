@@ -26,6 +26,7 @@ interface ReferenceDrawerProps {
   onClearAll: () => void;
   onAddReference: (workspaceId: string, nodeId: string) => void;
   onAddUrlReference: (url: string, title?: string) => void;
+  onUrlReferenceTitle?: (referenceId: string, title: string) => void;
   onFocusNode: (workspaceId: string, nodeId: string) => void;
   onAddReferenceToCanvas: (entry: NodeReferenceEntry) => void;
   onWorkspaceNodesRequest: (workspaceId: string) => void;
@@ -47,6 +48,7 @@ export const ReferenceDrawer = ({
   onClearAll,
   onAddReference,
   onAddUrlReference,
+  onUrlReferenceTitle,
   onFocusNode,
   onAddReferenceToCanvas,
   onWorkspaceNodesRequest,
@@ -156,6 +158,7 @@ export const ReferenceDrawer = ({
               onFocusNode={onFocusNode}
               onOpenUrl={state.openUrl}
               onRemoveReference={onRemoveReference}
+              onUrlReferenceTitle={onUrlReferenceTitle}
               workspaceNameById={state.workspaceNameById}
             />
           </>

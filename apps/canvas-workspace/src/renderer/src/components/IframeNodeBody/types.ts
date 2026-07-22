@@ -11,5 +11,9 @@ export interface IframeNodeBodyProps {
   isResizing?: boolean;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
+  // Read-only embeds can't persist the guest page title through onUpdate
+  // (it's typically a noop there); this lets the host own persistence —
+  // e.g. the reference drawer writes it back onto the URL reference entry.
+  onPageTitleChange?: (title: string) => void;
   readOnly?: boolean;
 }

@@ -16,10 +16,10 @@ import {
   BLANK_PAGE_URL,
   getFriendlyLoadErrorMessage,
   normalizeUrl,
-  pickFaviconUrl,
   prettyTitle,
-  sanitizePageTitle,
   shouldSyncIframeTitle,
+  syncBrowserFavicon,
+  syncBrowserPageTitle,
 } from './utils';
 import { isImeComposing } from '../../utils/ime';
 import { useWebviewBackgroundThrottle } from './useWebviewBackgroundThrottle';
@@ -30,6 +30,7 @@ export const useIframeNodeState = ({
   node,
   workspaceId,
   onUpdate,
+  onPageTitleChange,
   readOnly = false,
 }: IframeNodeBodyProps) => {
   const data = node.data as IframeNodeData;
@@ -114,29 +115,19 @@ export const useIframeNodeState = ({
   const frameHostRef = useRef<HTMLDivElement>(null);
   const shouldMountInlineFrame = useDeferredVisibleMount(frameHostRef, '200px', `${mode}|${streamingActive}`);
 
-  const handleBrowserTitleChange = useCallback((title: string) => {
-    if (editing || readOnly) return;
-    const rawTitle = sanitizePageTitle(title);
-    const nextTitle = url === BLANK_PAGE_URL && rawTitle === BLANK_PAGE_URL ? 'Blank page' : rawTitle;
-    if (!nextTitle || nextTitle === node.title) return;
-    const latestData = latestDataRef.current;
-    if (!shouldSyncIframeTitle(node.title, latestData, url)) return;
+  const handleBrowserTitleChange = useCallback(
+    (title: string) => syncBrowserPageTitle(title, {
+      editing, readOnly, node, url, latestDataRef, onUpdate, onPageTitleChange,
+    }),
+    [editing, node, onPageTitleChange, onUpdate, readOnly, url],
+  );
 
-    const nextData = { ...latestData, pageTitle: nextTitle };
-    latestDataRef.current = nextData;
-    onUpdate(node.id, { title: nextTitle, data: nextData });
-  }, [editing, node.id, node.title, onUpdate, readOnly, url]);
-
-  const handleBrowserFaviconChange = useCallback((favicons: string[]) => {
-    if (editing || readOnly) return;
-    const faviconUrl = pickFaviconUrl(favicons);
-    if (!faviconUrl) return;
-    const latestData = latestDataRef.current;
-    if (latestData.faviconUrl === faviconUrl) return;
-    const nextData = { ...latestData, faviconUrl };
-    latestDataRef.current = nextData;
-    onUpdate(node.id, { data: nextData });
-  }, [editing, node.id, onUpdate, readOnly]);
+  const handleBrowserFaviconChange = useCallback(
+    (favicons: string[]) => syncBrowserFavicon(favicons, {
+      editing, readOnly, node, url, latestDataRef, onUpdate,
+    }),
+    [editing, node, onUpdate, readOnly, url],
+  );
 
   const browser = useEmbeddedBrowser({
     className: 'iframe-frame',

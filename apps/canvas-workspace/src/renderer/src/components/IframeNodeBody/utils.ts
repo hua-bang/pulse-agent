@@ -1,4 +1,4 @@
-import type { IframeNodeData } from '../../types';
+import type { CanvasNode, IframeNodeData } from '../../types';
 
 export const BLANK_PAGE_URL = 'about:blank';
 
@@ -48,6 +48,45 @@ export function pickFaviconUrl(favicons: string[] | undefined): string {
       return false;
     }
   }) ?? '';
+}
+
+export interface BrowserMetaSyncContext {
+  editing: boolean;
+  readOnly: boolean;
+  node: CanvasNode;
+  url: string;
+  latestDataRef: { current: IframeNodeData };
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onPageTitleChange?: (title: string) => void;
+}
+
+export function syncBrowserPageTitle(title: string, ctx: BrowserMetaSyncContext): void {
+  const rawTitle = sanitizePageTitle(title);
+  // Read-only embeds (e.g. the reference-drawer URL preview) never reach the
+  // onUpdate path — forward the guest title so the host can persist it.
+  if (ctx.readOnly) {
+    if (rawTitle) ctx.onPageTitleChange?.(rawTitle);
+    return;
+  }
+  if (ctx.editing) return;
+  const nextTitle = ctx.url === BLANK_PAGE_URL && rawTitle === BLANK_PAGE_URL ? 'Blank page' : rawTitle;
+  if (!nextTitle || nextTitle === ctx.node.title) return;
+  const latestData = ctx.latestDataRef.current;
+  if (!shouldSyncIframeTitle(ctx.node.title, latestData, ctx.url)) return;
+  const nextData = { ...latestData, pageTitle: nextTitle };
+  ctx.latestDataRef.current = nextData;
+  ctx.onUpdate(ctx.node.id, { title: nextTitle, data: nextData });
+}
+
+export function syncBrowserFavicon(favicons: string[], ctx: BrowserMetaSyncContext): void {
+  if (ctx.editing || ctx.readOnly) return;
+  const faviconUrl = pickFaviconUrl(favicons);
+  if (!faviconUrl) return;
+  const latestData = ctx.latestDataRef.current;
+  if (latestData.faviconUrl === faviconUrl) return;
+  const nextData = { ...latestData, faviconUrl };
+  ctx.latestDataRef.current = nextData;
+  ctx.onUpdate(ctx.node.id, { data: nextData });
 }
 
 export function getFriendlyLoadErrorMessage(
