@@ -242,6 +242,8 @@
 
 真实 Electron 确定性场景`scripts/perf/webview-load-check.mjs`在一次性 HOME 中挂 6 个独立 guest,每页固定 350ms 启动工作。全新 profile A/B:无限制峰值 6、首个/全部完成 406/427ms;并发 2 峰值严格为 2、首个/全部完成 398/1183ms,排队峰值 4 个占位,6 个均以 `complete` 释放。结论:短任务下首个完成时间未回归,代价是后台页面分批完成;该 fixture 只证明 admission/释放/占位机制,不能单独证明指定业务页面总是最先 ready。真实 Lark 的网络、鉴权、SPA hydration,以及加载中切换 active Dock 的端到端时延仍需有登录态页面实测。完整命令:`pnpm --filter canvas-workspace perf:webview-load:ab`。
 
+PR #838 的 Linux CI 暴露出 scheduler 随静态 `IframeNodeBody` 进入启动 chunk 后,入口 gzip 192KB 超过 191KB Gate。修复把整个 iframe body 放进 `DefaultCanvasNode` 既有的 React.lazy/Suspense 体系,并以 `bundle-boundaries.test.ts` 锁住动态边界;同口径本地 analyze build 降到 raw 604KB、gzip 175KB、startup CSS 101KB(修复前 CI 分别约 662/192/114KB),无需放宽基线。真实 Electron A/B 仍为并发峰值 6→2、首个完成 426→396ms、4 个排队占位,说明 chunk 延迟没有破坏调度与可见反馈。
+
 ## 合并另一实现的高价值项(2026-07-14,codex 移植批次)
 
 另有一版平行实现(`codex/canvas-webview-performance`)针对同一批主题做了系统优化。经代码级评估后,把其中**与本分支正交、或能补齐本分支留白**的四个子系统以 dynamic 多 agent 编排移植进来(每组"移植→对抗式评审→修复"流水线,四组评审全部 APPROVE、零必修),并适配到本分支已有的生命周期阶梯。CI 完整批次(`0e2537ee`)全绿:perf 17/17、large-canvas 三腿(报告 + 冻结/丢弃 + 深 zoom 探针)、macOS 打包。
