@@ -30,19 +30,33 @@
  * resume so DevTools can attach normally afterwards (detaching also clears
  * the emulation override — belt and braces with the explicit re-enable).
  */
+import type {
+  SetWebviewLifecycleResult,
+  WebviewLifecycleState,
+} from '../../shared/webview-lifecycle';
 
-export type WebviewLifecycleState = 'active' | 'frozen';
+/**
+ * Real-time collaboration sites that must keep their guest task queues and
+ * connections running while offscreen. They still receive the renderer's
+ * 1fps paint throttle, so this exemption only bypasses L2 freeze and, by the
+ * freeze-first invariant, L3 discard.
+ */
+const ALWAYS_ACTIVE_HOSTS = ['feishu.cn', 'larkoffice.com', 'larksuite.com'] as const;
 
-export interface SetLifecycleResult {
-  ok: boolean;
-  state?: WebviewLifecycleState;
-  /** Chrome-style exemption that prevented freezing. */
-  skipped?: 'destroyed' | 'audible' | 'devtools';
-  error?: string;
-}
+const isAlwaysActiveUrl = (rawUrl: string): boolean => {
+  try {
+    const hostname = new URL(rawUrl).hostname.toLowerCase();
+    return ALWAYS_ACTIVE_HOSTS.some(
+      (host) => hostname === host || hostname.endsWith(`.${host}`),
+    );
+  } catch {
+    return false;
+  }
+};
 
 /** The webContents surface this controller needs (test-injectable). */
 export interface FreezableWebContents {
+  getURL: () => string;
   isDestroyed: () => boolean;
   isCurrentlyAudible: () => boolean;
   isDevToolsOpened: () => boolean;
@@ -54,15 +68,51 @@ export interface FreezableWebContents {
   };
 }
 
+type FreezeExemption = Extract<SetWebviewLifecycleResult, { ok: false }>;
+
+/**
+ * Resolves every policy exemption before freeze-only snapshot/probe work.
+ * Reading the live guest URL can race guest teardown, which is equivalent to
+ * the existing destroyed exemption and must never escape as a rejected IPC.
+ */
+export const getWebviewFreezeExemption = (
+  wc: FreezableWebContents | null,
+): FreezeExemption | null => {
+  if (!wc || wc.isDestroyed()) {
+    return { ok: false, retryable: false, skipped: 'destroyed' };
+  }
+  let currentUrl: string;
+  try {
+    currentUrl = wc.getURL();
+  } catch {
+    return { ok: false, retryable: false, skipped: 'destroyed' };
+  }
+  if (isAlwaysActiveUrl(currentUrl)) {
+    // The exemption belongs to the CURRENT URL, not permanently to this
+    // webContents. Recheck at the caller's low-frequency retry interval so a
+    // background in-page navigation back to an ordinary site can freeze.
+    return { ok: false, retryable: true, skipped: 'always-active' };
+  }
+  if (wc.isCurrentlyAudible()) {
+    return { ok: false, retryable: true, skipped: 'audible' };
+  }
+  if (wc.isDevToolsOpened()) {
+    return { ok: false, retryable: true, skipped: 'devtools' };
+  }
+  return null;
+};
+
 export const setWebviewLifecycle = async (
   wc: FreezableWebContents | null,
   state: WebviewLifecycleState,
-): Promise<SetLifecycleResult> => {
-  if (!wc || wc.isDestroyed()) return { ok: false, skipped: 'destroyed' };
+): Promise<SetWebviewLifecycleResult> => {
+  if (!wc || wc.isDestroyed()) {
+    return { ok: false, retryable: false, skipped: 'destroyed' };
+  }
 
   if (state === 'frozen') {
-    if (wc.isCurrentlyAudible()) return { ok: false, skipped: 'audible' };
-    if (wc.isDevToolsOpened()) return { ok: false, skipped: 'devtools' };
+    const exemption = getWebviewFreezeExemption(wc);
+    if (exemption) return exemption;
     try {
       if (!wc.debugger.isAttached()) wc.debugger.attach('1.3');
       // Lifecycle freeze first: if it engages, the page gets its `freeze`
@@ -84,7 +134,11 @@ export const setWebviewLifecycle = async (
       } catch {
         // already detached — fine
       }
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      return {
+        ok: false,
+        retryable: true,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   }
 
@@ -102,7 +156,11 @@ export const setWebviewLifecycle = async (
     await wc.debugger.sendCommand('Page.setWebLifecycleState', { state: 'active' });
     return { ok: true, state: 'active' };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      ok: false,
+      retryable: true,
+      error: err instanceof Error ? err.message : String(err),
+    };
   } finally {
     // Release the pipe outside the frozen window so DevTools can attach.
     try {

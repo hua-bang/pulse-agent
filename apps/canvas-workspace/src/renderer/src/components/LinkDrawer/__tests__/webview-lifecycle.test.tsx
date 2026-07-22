@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EmbeddedWebviewTag } from '../../EmbeddedBrowser/types';
+import type { IframeApi } from '../../../types/iframe';
 import {
   useDockWebviewBackgroundLifecycle,
   useDockWebviewDiscard,
@@ -13,7 +14,12 @@ import {
 
 const iframeApi = {
   setFrameRate: vi.fn(async () => ({ ok: true })),
-  setLifecycle: vi.fn(async (_workspaceId: string, _tabId: string, state: 'active' | 'frozen') => ({ ok: true, state })),
+  setLifecycle: vi.fn<
+    Parameters<IframeApi['setLifecycle']>,
+    ReturnType<IframeApi['setLifecycle']>
+  >(
+    async (_workspaceId, _tabId, state) => ({ ok: true, state }),
+  ),
   onDiscarded: vi.fn(),
 };
 
@@ -76,6 +82,33 @@ describe('right-dock webview lifecycle', () => {
     await act(async () => root?.render(<Harness active />));
     expect(iframeApi.setLifecycle).toHaveBeenCalledWith('ws', 'link:tab', 'active');
     expect(iframeApi.setFrameRate).toHaveBeenCalledWith('ws', 'link:tab', 60);
+  });
+
+  it('rechecks an always-active guest in case its current URL changes while inactive', async () => {
+    iframeApi.setLifecycle.mockResolvedValue({
+      ok: false,
+      retryable: true,
+      skipped: 'always-active',
+    });
+    const webview = document.createElement('div') as unknown as EmbeddedWebviewTag;
+    const Harness = () => {
+      useDockWebviewBackgroundLifecycle({
+        webview,
+        workspaceId: 'ws',
+        tabId: 'link:tab',
+        enabled: true,
+        active: false,
+        freezeDelayMs: 5_000,
+      });
+      return null;
+    };
+
+    await act(async () => root?.render(<Harness />));
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(iframeApi.setLifecycle).toHaveBeenCalledTimes(1);
+
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+    expect(iframeApi.setLifecycle).toHaveBeenCalledTimes(2);
   });
 
   it('keeps a discarded tab unmounted until activation and preserves its restore target', async () => {

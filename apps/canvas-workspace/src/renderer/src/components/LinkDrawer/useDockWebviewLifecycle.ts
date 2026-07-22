@@ -134,9 +134,10 @@ export const useDockWebviewBackgroundLifecycle = ({
           }
           return;
         }
-        // Audible pages and DevTools are intentionally exempt, but retry in
-        // case that temporary condition disappears while the tab stays idle.
-        if (!cancelled && result.skipped !== 'destroyed') {
+        // Temporary exemptions and transient failures retry while the tab
+        // stays idle. Permanent policy exemptions must not generate one
+        // lifecycle request per minute forever.
+        if (!cancelled && result.retryable) {
           freezeTimer = setTimeout(freeze, FREEZE_RETRY_MS);
         }
       }).catch(() => {});

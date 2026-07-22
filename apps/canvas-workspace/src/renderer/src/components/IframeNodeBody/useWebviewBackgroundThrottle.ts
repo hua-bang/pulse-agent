@@ -159,7 +159,7 @@ export const useWebviewBackgroundThrottle = ({
             // Hide AFTER main captured the last-frame snapshot inside the
             // frozen call — see FROZEN_HIDDEN_CLASS.
             el.classList.add(FROZEN_HIDDEN_CLASS);
-          } else if (offscreen && result.skipped !== 'destroyed') {
+          } else if (offscreen && result.retryable) {
             freezeTimer = setTimeout(tryFreeze, freezeRetryMs);
           }
         })
