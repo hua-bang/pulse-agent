@@ -32,25 +32,3 @@
 .right-dock-resizing .app-body {
   transition: none;
 }
-
-.canvas-viewport {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-  height: 100%;
-  min-height: 0;
-}
-
-.canvas-host {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.canvas-host__main {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-}

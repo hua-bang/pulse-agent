@@ -1,3 +1,4 @@
+import './index.css';
 import type { SnapLine } from '../../utils/canvasSnapping';
 
 interface Props {
@@ -25,20 +26,7 @@ export const CanvasAlignmentGuides = ({ lines, scale }: Props) => {
   const strokeWidth = STROKE_PX / Math.max(scale, 0.0001);
 
   return (
-    <svg
-      className="canvas-alignment-guides"
-      style={{
-        position: 'absolute',
-        // Anchor at the canvas origin and let SVG draw negative
-        // coordinates — the guide may extend "before" the origin.
-        left: 0,
-        top: 0,
-        width: 1,
-        height: 1,
-        overflow: 'visible',
-        pointerEvents: 'none',
-      }}
-    >
+    <svg className="canvas-alignment-guides">
       {lines.map((line, i) => {
         if (line.axis === 'x') {
           return (
