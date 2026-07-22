@@ -8,10 +8,13 @@ import { I18nProvider } from '../../../i18n';
 
 // Capture the props each LinkTabView renders with (the real one lazy-loads a
 // live <webview>, which has no place in a happy-dom test).
-const latestLinkTabProps = vi.hoisted(() => new Map<string, { mountWebview?: boolean }>());
+const latestLinkTabProps = vi.hoisted(() => new Map<string, { mountWebview?: boolean; active?: boolean }>());
 vi.mock('../../LinkDrawer', () => ({
-  LinkTabView: (props: { tabId?: string; mountWebview?: boolean }) => {
-    if (props.tabId) latestLinkTabProps.set(props.tabId, { mountWebview: props.mountWebview });
+  LinkTabView: (props: { tabId?: string; mountWebview?: boolean; active?: boolean }) => {
+    if (props.tabId) latestLinkTabProps.set(props.tabId, {
+      mountWebview: props.mountWebview,
+      active: props.active,
+    });
     return null;
   },
 }));
@@ -108,11 +111,15 @@ describe('DockPanes lazy link-tab webview mount', () => {
 
     await vi.waitFor(() => expect(latestLinkTabProps.size).toBe(2));
     expect(latestLinkTabProps.get(tabA.id)?.mountWebview).toBe(true);
+    expect(latestLinkTabProps.get(tabA.id)?.active).toBe(true);
     expect(latestLinkTabProps.get(tabB.id)?.mountWebview).toBe(false);
+    expect(latestLinkTabProps.get(tabB.id)?.active).toBe(false);
 
     // Activating the second tab mounts its webview...
     renderPanes(store, tabB.id);
     await vi.waitFor(() => expect(latestLinkTabProps.get(tabB.id)?.mountWebview).toBe(true));
+    expect(latestLinkTabProps.get(tabA.id)?.active).toBe(false);
+    expect(latestLinkTabProps.get(tabB.id)?.active).toBe(true);
 
     // ...and switching away keeps it mounted (no reload on return).
     renderPanes(store, tabA.id);

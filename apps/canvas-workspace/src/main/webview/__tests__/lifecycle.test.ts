@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { setWebviewLifecycle, type FreezableWebContents } from '../lifecycle';
+import {
+  getWebviewFreezeExemption,
+  setWebviewLifecycle,
+  type FreezableWebContents,
+} from '../lifecycle';
 
 const makeWc = (overrides: Partial<{
   destroyed: boolean;
@@ -8,6 +12,8 @@ const makeWc = (overrides: Partial<{
   attached: boolean;
   attachError: Error;
   commandError: Error;
+  getUrl: () => string;
+  url: string;
 }> = {}) => {
   let attached = overrides.attached ?? false;
   const debuggerApi = {
@@ -25,6 +31,7 @@ const makeWc = (overrides: Partial<{
     }),
   };
   const wc: FreezableWebContents = {
+    getURL: overrides.getUrl ?? (() => overrides.url ?? 'https://example.com/'),
     isDestroyed: () => overrides.destroyed ?? false,
     isCurrentlyAudible: () => overrides.audible ?? false,
     isDevToolsOpened: () => overrides.devtools ?? false,
@@ -51,25 +58,101 @@ describe('setWebviewLifecycle', () => {
 
   it('mirrors Chrome exemptions: audible and devtools pages are never frozen', async () => {
     const audible = makeWc({ audible: true });
-    expect(await setWebviewLifecycle(audible.wc, 'frozen')).toEqual({ ok: false, skipped: 'audible' });
+    expect(await setWebviewLifecycle(audible.wc, 'frozen')).toEqual({
+      ok: false,
+      retryable: true,
+      skipped: 'audible',
+    });
     expect(audible.debuggerApi.attach).not.toHaveBeenCalled();
 
     const devtools = makeWc({ devtools: true });
-    expect(await setWebviewLifecycle(devtools.wc, 'frozen')).toEqual({ ok: false, skipped: 'devtools' });
+    expect(await setWebviewLifecycle(devtools.wc, 'frozen')).toEqual({
+      ok: false,
+      retryable: true,
+      skipped: 'devtools',
+    });
+  });
+
+  it('keeps known real-time collaboration pages active', async () => {
+    const urls = [
+      'https://bytedance.larkoffice.com/wiki/example',
+      'https://team.feishu.cn/docx/example',
+      'https://team.larksuite.com/docx/example',
+      'https://docs.google.com/document/d/example/edit',
+      'https://word-edit.officeapps.live.com/we/example',
+      'https://contoso.sharepoint.com/:w:/r/sites/example',
+      'https://www.notion.so/example',
+      'https://docs.qq.com/doc/example',
+      'https://www.kdocs.cn/l/example',
+      'https://www.figma.com/design/example',
+      'https://miro.com/app/board/example',
+      'https://www.canva.com/design/example',
+    ];
+
+    for (const url of urls) {
+      const { wc, debuggerApi } = makeWc({ url });
+      expect(await setWebviewLifecycle(wc, 'frozen')).toEqual({
+        ok: false,
+        retryable: true,
+        skipped: 'always-active',
+      });
+      expect(debuggerApi.attach).not.toHaveBeenCalled();
+    }
+  });
+
+  it('evaluates the guest current URL at freeze time after in-page navigation', () => {
+    let currentUrl = 'https://example.com/start';
+    const { wc } = makeWc({ getUrl: () => currentUrl });
+    expect(getWebviewFreezeExemption(wc)).toBeNull();
+
+    currentUrl = 'https://bytedance.larkoffice.com/wiki/navigated';
+    expect(getWebviewFreezeExemption(wc)).toEqual({
+      ok: false,
+      retryable: true,
+      skipped: 'always-active',
+    });
+
+    currentUrl = 'https://example.com/back';
+    expect(getWebviewFreezeExemption(wc)).toBeNull();
+  });
+
+  it('fails closed when the guest URL becomes unreadable during teardown', async () => {
+    const { wc, debuggerApi } = makeWc({
+      getUrl: () => {
+        throw new Error('guest destroyed');
+      },
+    });
+    expect(await setWebviewLifecycle(wc, 'frozen')).toEqual({
+      ok: false,
+      retryable: false,
+      skipped: 'destroyed',
+    });
+    expect(debuggerApi.attach).not.toHaveBeenCalled();
   });
 
   it('reports destroyed / missing webContents as a non-retryable skip', async () => {
-    expect(await setWebviewLifecycle(null, 'frozen')).toEqual({ ok: false, skipped: 'destroyed' });
+    expect(await setWebviewLifecycle(null, 'frozen')).toEqual({
+      ok: false,
+      retryable: false,
+      skipped: 'destroyed',
+    });
     const gone = makeWc({ destroyed: true });
-    expect(await setWebviewLifecycle(gone.wc, 'active')).toEqual({ ok: false, skipped: 'destroyed' });
+    expect(await setWebviewLifecycle(gone.wc, 'active')).toEqual({
+      ok: false,
+      retryable: false,
+      skipped: 'destroyed',
+    });
   });
 
   it('surfaces an attach conflict (external debugger) as a retryable error', async () => {
     const { wc } = makeWc({ attachError: new Error('Another debugger is already attached') });
     const result = await setWebviewLifecycle(wc, 'frozen');
     expect(result.ok).toBe(false);
-    expect(result.error).toContain('Another debugger');
-    expect(result.skipped).toBeUndefined();
+    if (!result.ok) {
+      expect(result.retryable).toBe(true);
+      expect(result.error).toContain('Another debugger');
+      expect(result.skipped).toBeUndefined();
+    }
   });
 
   it('rolls back a half-applied freeze: command failure detaches the pipe', async () => {

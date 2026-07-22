@@ -245,6 +245,10 @@ pnpm --filter canvas-workspace package:linux
   The renderer projection in `RightDock/tabRefs.ts` is the tab-discovery SSOT:
   it covers link, artifact, node-detail, canvas-preview, and terminal tabs plus
   active/visible/split state; terminal commands use `canvas_execute_terminal_tab`.
+- `src/main/webview/lifecycle.ts`: shared Canvas-node and right-dock webview
+  lifecycle policy. Real-time Feishu/Lark hosts remain eligible for the 1fps
+  paint throttle but are exempt from L2 freeze and therefore L3 discard; match
+  the guest's current URL, not the node/tab's originally saved URL.
 - `src/main/canvas/store.ts`: workspace manifest/store IPC, watchers, export,
   import, and migration hooks.
 - `src/main/canvas/storage.ts`: atomic JSON I/O, v2 split storage, migration,

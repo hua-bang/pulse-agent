@@ -12,9 +12,9 @@ import { fileURLToPath } from 'url';
  *  - chat/utils/mermaid.ts does `import('mermaid')` (keeps mermaid + its
  *    diagram sub-chunks out of the entry).
  *  - GraphPageLazy (B6) React.lazy-loads react-force-graph-2d + d3-force.
- *  - DefaultCanvasNode (C1/C6) React.lazy-loads the 5 heavy node bodies
- *    (text/file/agent/frame/terminal), evicting @tiptap/starter-kit +
- *    lowlight from the entry.
+ *  - DefaultCanvasNode (C1/C6 + webview startup) React.lazy-loads the 6
+ *    non-trivial node bodies (text/file/agent/frame/terminal/iframe), evicting
+ *    editor packages and the embedded-browser scheduler from the entry.
  *  - chat/lazy.tsx (C3) React.lazy-loads ChatPage + ChatPanel, evicting
  *    highlight.js + markdown-it + the chat tree.
  *  - WorkspaceTerminalPortal (C2) React.lazy-loads WorkspaceTerminalDock,
@@ -55,6 +55,7 @@ const DYNAMIC_ONLY_MODULE_SUFFIXES = [
   '/components/WorkspaceNodes/NodeDetailPage.tsx',
   '/components/FileNodeBody/index.tsx',
   '/components/TextNodeBody/index.tsx',
+  '/components/IframeNodeBody/index.tsx',
   '/components/chat/ChatPanel.tsx',
   '/components/ReferenceDrawer/index.tsx',
   '/components/CommandPalette/index.tsx',

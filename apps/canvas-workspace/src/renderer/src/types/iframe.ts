@@ -1,4 +1,8 @@
 import type { AgentContextDomSelectionRef } from './agent-chat';
+import type {
+  SetWebviewLifecycleResult,
+  WebviewLifecycleState,
+} from '../../../shared/webview-lifecycle';
 
 export interface IframeApi {
   registerWebview: (
@@ -36,18 +40,14 @@ export interface IframeApi {
    * tabs). 'frozen' suspends the page's task queues (JS/timers/network)
    * while keeping the process and memory intact; 'active' resumes
    * instantly with no reload. Freezing is refused for audible pages and
-   * pages with DevTools open (`skipped`), mirroring Chrome's exemptions.
+   * pages with DevTools open, and configured always-active collaboration
+   * sites (`skipped`), mirroring Chrome's exemptions.
    */
   setLifecycle: (
     workspaceId: string,
     nodeId: string,
-    state: 'active' | 'frozen',
-  ) => Promise<{
-    ok: boolean;
-    state?: 'active' | 'frozen';
-    skipped?: 'destroyed' | 'audible' | 'devtools';
-    error?: string;
-  }>;
+    state: WebviewLifecycleState,
+  ) => Promise<SetWebviewLifecycleResult>;
   /**
    * Fired by main's L3 discard monitor (Memory Saver style) when total
    * guest memory exceeds budget and this node's long-frozen webview was

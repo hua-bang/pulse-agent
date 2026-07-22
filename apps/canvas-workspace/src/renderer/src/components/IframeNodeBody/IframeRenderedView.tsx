@@ -8,6 +8,7 @@ import { appendDomPickerBridge } from './domPickerBridge';
 import { IframeOverviewBadge } from './IframeOverviewBadge';
 import type { LoadState } from './types';
 import { markOnce } from '../../perf/monitor';
+import { useI18n } from '../../i18n';
 
 interface IframeRenderedViewProps {
   artifact: Artifact | null;
@@ -106,6 +107,7 @@ export const IframeRenderedView = ({
   webviewKey,
   workspaceId,
 }: IframeRenderedViewProps) => {
+  const { t } = useI18n();
   const renderMode = mode === 'url' ? 'url' : 'html';
   const renderedHtml = isArtifactMode ? artifactHtml : html;
   const inspectableHtml = useMemo(
@@ -228,6 +230,13 @@ export const IframeRenderedView = ({
               key={webviewKey}
               className="iframe-frame-host"
             />
+            {loadState === 'queued' && !webviewDiscarded && (
+              <div className="iframe-load-queued" role="status">
+                {faviconUrl ? <img src={faviconUrl} alt="" /> : null}
+                <strong>{title || t('node.type.webPage')}</strong>
+                <span>{t('linkDrawer.waitingToLoad')}</span>
+              </div>
+            )}
             {webviewDiscarded && (
               // L3 discard placeholder (Memory Saver style): the guest
               // process was reclaimed for memory; the last-frame snapshot

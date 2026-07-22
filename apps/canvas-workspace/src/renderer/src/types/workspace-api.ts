@@ -34,6 +34,11 @@ import type { WebApi } from './web';
 
 export interface CanvasWorkspaceApi {
   version: string;
+  runtimeConfig: {
+    perfMode: boolean;
+    /** 0 disables the initial-load gate for perf A/B runs. */
+    webviewInitialLoadConcurrency: number;
+  };
   appInfo: AppInfoApi;
   pluginFlags: Record<string, boolean>;
   pty: {

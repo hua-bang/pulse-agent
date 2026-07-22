@@ -200,9 +200,10 @@
 
 **试过并按测量结果回滚的**(记录在 `useCanvas.ts` 阈值注释):手势中途翻转 overview 类(把 40 iframe 的显示切换抖动搬进手势窗口,zoom 16%→20.6% 帧超);拖拽节点临时 `will-change` 提层(Layerize 反而恶化)。
 
-**webview 休眠(Chrome 式生命周期,L2+L3 已实现)**:参照 Chrome 后台标签页的 throttled → frozen → discarded 阶梯,全链落地。
+**webview 休眠(Chrome 式生命周期,L2+L3 已实现)**:参照 Chrome 后台标签页的 throttled → frozen → discarded 阶梯,全链落地。实时协作白名单中的页面仅保留 L1 1fps 降帧、跳过 L2 冻结和 L3 丢弃；当前首批包括飞书/Lark、Google Docs、Microsoft 365/SharePoint、Notion、腾讯文档、金山文档、Figma/FigJam、Miro 和 Canva。匹配的是 guest 当前 URL，离开这些站点后会在低频重试中重新进入生命周期阶梯。
 - **L2 冻结**:离屏 5 分钟后经 CDP `Page.setWebLifecycleState('frozen')` 挂起页面任务队列(JS/定时器/网络全停、内存保留、**唤醒零重载**,页面收到标准 `freeze`/`resume` 事件),豁免与 Chrome 一致(audible / DevTools 打开不冻,被拒后 60s 重试);回视口先 resume 再恢复帧率,debugger 管道仅冻结期间持有。实现:`main/webview/lifecycle.ts`(控制器,7 个单测)+ `iframe:set-lifecycle` IPC + `useWebviewBackgroundThrottle` 冻结档。
 - **L3 丢弃(Memory Saver 式)**:主进程每 30s 用 `app.getAppMetrics()` 汇总 guest RSS,超预算(默认 1.5GB,`PULSE_CANVAS_WEBVIEW_MEMORY_BUDGET_MB` 可调)时**只从已冻结页面里**按最久冻结优先选取(纯策略 `discard-policy.ts`,4 个单测:活跃页永不丢、达预算即停),`capturePage` 抓末帧截图(限宽 800px,失败回退卡片)→ 广播 `iframe:discarded` → 渲染端卸载 `<webview>`(guest 进程释放)显示"休眠中"占位;**驻留视口 2s 或点击唤醒**(重建重载,同 Memory Saver 的 activate-to-restore 契约;dwell 门槛防平移扫过触发重载风暴)。实现:`main/webview/discard-monitor.ts` + `useWebviewDiscard.ts` + 占位 UI。
+- **Right Dock 补齐(2026-07-22)**:真机能耗排查发现生命周期原先只覆盖 Canvas iframe 节点;Right Dock 的已访问 link tab 虽由父 pane 设为 `visibility:hidden`,仍保留完整视口尺寸,5 个挂载 guest 中 4 个处于该形态,隐藏页 JS/timer/网络继续运行且单个 guest 突发达到约 20% CPU。`LinkDrawer/useDockWebviewLifecycle.ts` 现在以 dock active/split 状态(而非不可靠的 IntersectionObserver)驱动同一阶梯:失活立即 1fps、30 分钟冻结、超预算接受 L3 丢弃、再次激活按 freeze-time URL/scroll 恢复;audible/DevTools 豁免与 Canvas 节点一致。Dock 是通用业务页面入口,冻结宽限期刻意长于 Canvas 离屏节点的 5 分钟,降低上传、协作和长任务被暂停的风险。回归测试:`LinkDrawer/__tests__/webview-lifecycle.test.tsx` + `RightDock/__tests__/DockPanes.test.tsx`。
 - **沙箱内已验证**(Chromium CDP 探针 + 台架真实组件,2026-07-13):
   1. Chromium **顶层页面**探针:`Page.setWebLifecycleState('frozen')` 对可见页面静默空转(命令成功返回但 JS/网络照跑)——`SetPageFrozen` 要求 WebContents 处于 hidden。**截图前移到冻结瞬间**(冻结+隐藏后 paint 停止,丢弃时抓图会空白),存 `freezeSnapshots`,L3 优先消费。
   2. 恢复路径零重载(`loadedAt` 不变)、命令幂等无副作用——CDP 探针确认。
@@ -234,6 +235,14 @@
 **zoom 手势中段(scale 0.35-1)——以真机数据关闭(2026-07-14)**:台架的 21.3% zoomOut 残余帧超是用**同进程 iframe 代演 webview**的失真。新增诊断探针 `scripts/perf/zoom-gesture-probe.mjs`(large-canvas job 第三腿,不设门禁):专用工作区 5×5 网格(12 真 url webview + 12 内联动画 iframe,中心留空给滚轮),校准到 scale≈1、预热穿越阈值一次后测四个窗口。真机(真实 Electron,24 embed 全活跃)结果:深缩出 0.904→0.1 帧超 **5.1%**(零长任务)、overview settle 交换 **0%**、深缩回 2.2%、交换回 settle **0%**——真 webview 是跨进程 OOPIF 表面,手势中在合成器上缩放、不在宿主重栅格,成本只有台架代演的约 1/4。**"手势期给 live iframe 盖静态化层"候选据此不做**(CI 亦为软件渲染,绝对值仍偏悲观;结构性问题已回答)。探针迭代中还钉下三个 harness 事实:CDP `Input.dispatchMouseEvent` 合成的 ctrl+wheel 在 Electron 上到不了页面 zoom handler(探针改用 JS `WheelEvent{ctrlKey}`,渲染管线路径相同);后台 workspace 保持挂载、`.canvas-transform` 有多个,选可见者(`offsetParent !== null`);探针 HTTP server 在 guest 被杀时可能被半开连接吊住,verdict 后须显式 `process.exit(0)`。
 
 **后续**:`--seed-webpages>0` 档位已以 CI `large-canvas` job 落地(90 节点/40 网页 perf:report + webview 生命周期行为检查 + 深 zoom 探针,`performance` label 或手动 dispatch 触发),规模曲线(D6)与计时基线仍待真机;webview 休眠(L2 冻结 + L3 丢弃)已实现并经 CI 真实 Electron 行为验证,余下为观感/环境项(见上节清单)。
+
+### 冷启动 webview 初次加载调度(2026-07-22)
+
+真机 clone 排查确认可视 URL 节点的 `did-start-loading` 可在同一 3ms 内全部触发,原有 `useDeferredVisibleMount` 只把 guest 创建移出首帧,没有全局并发上限。新增 renderer-wide `InitialWebviewLoadScheduler`:默认同时放行 2 个**初次导航**,RightDock active/split 优先,Canvas 节点按距视口中心排序;仅在完成、主 frame 失败或卸载时释放名额(生产不以墙钟超时释放,避免 20–30s 的真实 Lark guest 仍在加载却让账面并发失真),已挂载页面的后续导航/刷新不受调度。若两个后台槽均被慢页占满,允许最多 1 个 active Dock 前台请求越过队列,避免用户主动操作无限等待。排队节点显示标题/favicon 占位,不再是白板。`PULSE_CANVAS_PERF=1 PULSE_CANVAS_WEBVIEW_CONCURRENCY=0|2` 提供隔离 A/B,生产默认固定为 2。
+
+真实 Electron 确定性场景`scripts/perf/webview-load-check.mjs`在一次性 HOME 中挂 6 个独立 guest,每页固定 350ms 启动工作。全新 profile A/B:无限制峰值 6、首个/全部完成 406/427ms;并发 2 峰值严格为 2、首个/全部完成 398/1183ms,排队峰值 4 个占位,6 个均以 `complete` 释放。结论:短任务下首个完成时间未回归,代价是后台页面分批完成;该 fixture 只证明 admission/释放/占位机制,不能单独证明指定业务页面总是最先 ready。真实 Lark 的网络、鉴权、SPA hydration,以及加载中切换 active Dock 的端到端时延仍需有登录态页面实测。完整命令:`pnpm --filter canvas-workspace perf:webview-load:ab`。
+
+PR #838 的 Linux CI 暴露出 scheduler 随静态 `IframeNodeBody` 进入启动 chunk 后,入口 gzip 192KB 超过 191KB Gate。修复把整个 iframe body 放进 `DefaultCanvasNode` 既有的 React.lazy/Suspense 体系,并以 `bundle-boundaries.test.ts` 锁住动态边界;同口径本地 analyze build 降到 raw 604KB、gzip 175KB、startup CSS 101KB(修复前 CI 分别约 662/192/114KB),无需放宽基线。真实 Electron A/B 仍为并发峰值 6→2、首个完成 426→396ms、4 个排队占位,说明 chunk 延迟没有破坏调度与可见反馈。
 
 ## 合并另一实现的高价值项(2026-07-14,codex 移植批次)
 

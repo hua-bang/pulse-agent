@@ -4,6 +4,7 @@ import type {
   BrowserLoadState,
   EmbeddedWebviewTag,
 } from './types';
+import type { InitialLoadReleaseReason } from './initial-load-scheduler';
 
 interface Options {
   className: string;
@@ -12,6 +13,7 @@ interface Options {
   mountKey?: string | number;
   onFaviconChange?: (favicons: string[]) => void;
   onFocus?: () => void;
+  onInitialLoadSettled?: (reason: Extract<InitialLoadReleaseReason, 'complete' | 'failed'>) => void;
   onNavigate?: (url: string) => void;
   onTitleChange?: (title: string) => void;
   url: string;
@@ -37,6 +39,7 @@ export const useEmbeddedBrowser = ({
   mountKey = 0,
   onFaviconChange,
   onFocus,
+  onInitialLoadSettled,
   onNavigate,
   onTitleChange,
   url,
@@ -50,8 +53,8 @@ export const useEmbeddedBrowser = ({
   const [canGoForward, setCanGoForward] = useState(false);
   const [loadState, setLoadState] = useState<BrowserLoadState>(url ? 'loading' : 'idle');
   const [loadError, setLoadError] = useState<BrowserLoadError | null>(null);
-  const callbacksRef = useRef({ onFaviconChange, onFocus, onNavigate, onTitleChange });
-  callbacksRef.current = { onFaviconChange, onFocus, onNavigate, onTitleChange };
+  const callbacksRef = useRef({ onFaviconChange, onFocus, onInitialLoadSettled, onNavigate, onTitleChange });
+  callbacksRef.current = { onFaviconChange, onFocus, onInitialLoadSettled, onNavigate, onTitleChange };
   const urlRef = useRef(url);
   urlRef.current = url;
   const guestUrlRef = useRef(url);
@@ -118,6 +121,7 @@ export const useEmbeddedBrowser = ({
     };
     const handleStop = () => {
       setLoadState((state) => state === 'failed' ? state : 'ready');
+      callbacksRef.current.onInitialLoadSettled?.('complete');
       const title = element.getTitle?.().trim();
       if (title) callbacksRef.current.onTitleChange?.(title);
       syncNavigation();
@@ -131,6 +135,20 @@ export const useEmbeddedBrowser = ({
       if (detail.isMainFrame === false || detail.errorCode === -3) return;
       setLoadState('failed');
       setLoadError({ code: detail.errorCode, description: detail.errorDescription });
+      callbacksRef.current.onInitialLoadSettled?.('failed');
+    };
+    const handleRenderProcessGone = (event: Event) => {
+      const detail = event as Event & { exitCode?: number; reason?: string };
+      setLoadState('failed');
+      setLoadError({
+        code: detail.exitCode,
+        description: detail.reason ?? 'The embedded page process exited unexpectedly.',
+      });
+      // Production deliberately has no wall-clock slot timeout: slow
+      // collaborative pages may take tens of seconds. A terminal guest crash
+      // is therefore an explicit failed settlement, or it would leak an
+      // active admission slot forever.
+      callbacksRef.current.onInitialLoadSettled?.('failed');
     };
 
     element.addEventListener('did-navigate', handleNavigate);
@@ -141,6 +159,7 @@ export const useEmbeddedBrowser = ({
     element.addEventListener('did-start-loading', handleStart);
     element.addEventListener('did-stop-loading', handleStop);
     element.addEventListener('did-fail-load', handleFail);
+    element.addEventListener('render-process-gone', handleRenderProcessGone);
 
     return () => {
       element.removeEventListener('did-navigate', handleNavigate);
@@ -151,6 +170,7 @@ export const useEmbeddedBrowser = ({
       element.removeEventListener('did-start-loading', handleStart);
       element.removeEventListener('did-stop-loading', handleStop);
       element.removeEventListener('did-fail-load', handleFail);
+      element.removeEventListener('render-process-gone', handleRenderProcessGone);
       element.remove();
       setWebview((current) => current === element ? null : current);
     };

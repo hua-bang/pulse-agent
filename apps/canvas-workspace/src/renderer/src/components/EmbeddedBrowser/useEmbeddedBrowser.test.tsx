@@ -69,6 +69,38 @@ describe('useEmbeddedBrowser', () => {
     expect(onTitleChange).toHaveBeenCalledWith('Example page');
   });
 
+  it('releases the initial-load slot on completion, navigation failure, or guest crash', () => {
+    const onInitialLoadSettled = vi.fn();
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    flushSync(() => root?.render(
+      <SettlementHarness onInitialLoadSettled={onInitialLoadSettled} />,
+    ));
+
+    flushSync(() => webview.dispatchEvent(new Event('did-stop-loading')));
+    expect(onInitialLoadSettled).toHaveBeenCalledWith('complete');
+
+    const failed = new Event('did-fail-load') as Event & {
+      errorCode: number;
+      isMainFrame: boolean;
+    };
+    failed.errorCode = -105;
+    failed.isMainFrame = true;
+    flushSync(() => webview.dispatchEvent(failed));
+    expect(onInitialLoadSettled).toHaveBeenCalledWith('failed');
+
+    const crashed = new Event('render-process-gone') as Event & {
+      exitCode: number;
+      reason: string;
+    };
+    crashed.exitCode = 137;
+    crashed.reason = 'crashed';
+    flushSync(() => webview.dispatchEvent(crashed));
+    expect(onInitialLoadSettled).toHaveBeenCalledTimes(3);
+    expect(onInitialLoadSettled).toHaveBeenLastCalledWith('failed');
+  });
+
   it('does not reload a guest when an external store synchronously persists did-navigate', () => {
     const store = createUrlStore('https://example.com');
     mount = document.createElement('div');
@@ -193,6 +225,19 @@ const FocusHarness = ({ onFocus }: { onFocus: () => void }) => {
   const browser = useEmbeddedBrowser({
     className: 'test-webview',
     onFocus,
+    url: 'https://example.com',
+  });
+  return <div ref={browser.hostRef} />;
+};
+
+const SettlementHarness = ({
+  onInitialLoadSettled,
+}: {
+  onInitialLoadSettled: (reason: 'complete' | 'failed') => void;
+}) => {
+  const browser = useEmbeddedBrowser({
+    className: 'test-webview',
+    onInitialLoadSettled,
     url: 'https://example.com',
   });
   return <div ref={browser.hostRef} />;

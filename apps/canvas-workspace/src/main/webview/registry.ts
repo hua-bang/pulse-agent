@@ -16,8 +16,16 @@
 import { ipcMain, webContents as allWebContents } from 'electron';
 import { performance } from 'node:perf_hooks';
 import type { AgentContextDomSelectionRef } from '../../shared/agent-chat';
+import type {
+  SetWebviewLifecycleResult,
+  WebviewLifecycleState,
+} from '../../shared/webview-lifecycle';
 import { createDomPickerScript } from './dom-snapshot-script';
-import { getFrozenSince, setWebviewLifecycle, type WebviewLifecycleState } from './lifecycle';
+import {
+  getFrozenSince,
+  getWebviewFreezeExemption,
+  setWebviewLifecycle,
+} from './lifecycle';
 import { forgetFreezeSnapshot, rememberFreezeSnapshot } from './discard-monitor';
 import { captureBoundedSnapshot } from './snapshot';
 import { buildFreezeRecord, probeFreezeState } from './freeze-probe';
@@ -400,15 +408,23 @@ export function setupWebviewRegistryIpc(): void {
     async (
       _event,
       payload: { workspaceId: string; nodeId: string; state: WebviewLifecycleState },
-    ) => {
+    ): Promise<SetWebviewLifecycleResult> => {
       if (
         !payload?.workspaceId ||
         !payload?.nodeId ||
         (payload.state !== 'active' && payload.state !== 'frozen')
       ) {
-        return { ok: false };
+        return {
+          ok: false,
+          retryable: false,
+          error: 'invalid lifecycle payload',
+        };
       }
       const wc = getWebContentsForNode(payload.workspaceId, payload.nodeId);
+      if (payload.state === 'frozen') {
+        const exemption = getWebviewFreezeExemption(wc ?? null);
+        if (exemption) return exemption;
+      }
       const key = `${payload.workspaceId}::${payload.nodeId}`;
       if (payload.state === 'frozen' && wc && getFrozenSince(wc) === undefined) {
         // (Guarded against duplicate 'frozen' requests: an already-frozen

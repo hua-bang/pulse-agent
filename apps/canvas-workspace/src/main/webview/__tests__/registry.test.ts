@@ -82,6 +82,14 @@ beforeEach(() => {
 });
 
 describe('webview registry generations', () => {
+  it('returns a complete non-retryable lifecycle result for invalid payloads', async () => {
+    await expect(invoke('iframe:set-lifecycle', { workspaceId: 'ws-1' })).resolves.toEqual({
+      ok: false,
+      retryable: false,
+      error: 'invalid lifecycle payload',
+    });
+  });
+
   it('does not let an old guest unregister a newer replacement', () => {
     registerNode(101);
     registerNode(202);

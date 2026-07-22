@@ -103,3 +103,5 @@ pathRules:
       - scripts/perf/**
     release:
       - pnpm --filter canvas-workspace perf:report
+    manual:
+      - pnpm --filter canvas-workspace perf:webview-load:ab

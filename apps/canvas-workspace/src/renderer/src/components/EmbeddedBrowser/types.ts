@@ -1,4 +1,4 @@
-export type BrowserLoadState = 'idle' | 'loading' | 'ready' | 'failed';
+export type BrowserLoadState = 'idle' | 'queued' | 'loading' | 'ready' | 'failed';
 
 export interface BrowserLoadError {
   code?: number;
