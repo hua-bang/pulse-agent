@@ -1,4 +1,4 @@
-import { lazy, Suspense, type CSSProperties, type MouseEventHandler } from 'react';
+import { lazy, Suspense, useRef, type CSSProperties, type MouseEventHandler } from 'react';
 import { useI18n } from '../../i18n';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { AgentContextDomSelectionRef } from '../../types';
@@ -47,6 +47,17 @@ export const DockPanes = ({
 }: Props) => {
   const { t } = useI18n();
   const splitActive = Boolean(splitTabId);
+  // Lazy-mount link-tab webviews. Every tab's pane renders stacked (inactive
+  // ones are `visibility: hidden`), so mounting each LinkTabView's <webview>
+  // unconditionally spins up a guest process + navigation per restored tab on
+  // the cold-start critical path — N heavy pages competing at the worst
+  // moment. Mount a tab's webview only once it has been VISIBLE (active or
+  // split); after that it stays mounted, so switching back never reloads.
+  // Agent tools that activate a tab before reading it already poll for the
+  // webview registration (main/webview/ensure-operable.ts).
+  const mountedLinkTabsRef = useRef(new Set<string>());
+  if (activePaneId) mountedLinkTabsRef.current.add(activePaneId);
+  if (splitTabId) mountedLinkTabsRef.current.add(splitTabId);
   const style = {
     '--split-content-width': `${splitContentWidth}px`,
     '--split-divider-width': `${splitDividerWidth}px`,
@@ -125,6 +136,7 @@ export const DockPanes = ({
                 url={tab.url}
                 title={tab.title}
                 tabId={tab.id}
+                mountWebview={mountedLinkTabsRef.current.has(tab.id)}
                 activeWorkspaceId={activeWorkspaceId}
                 onActivate={() => store.activate(tab.id)}
                 onTitleChange={(title) => store.setTitle(tab.id, title)}
