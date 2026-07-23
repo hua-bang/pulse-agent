@@ -8,6 +8,7 @@
  */
 
 import type { CanvasNode } from './canvas';
+import type { ArtifactType } from './artifacts';
 
 export interface NodeReferenceEntry {
   kind: 'node';
@@ -26,7 +27,21 @@ export interface UrlReferenceEntry {
   group?: string;
 }
 
-export type ReferenceEntry = NodeReferenceEntry | UrlReferenceEntry;
+/**
+ * An artifact pinned as reference context. `workspaceId` is the artifact's
+ * STORAGE scope (may be `__global_chat__`), independent of the canvas the
+ * drawer belongs to — the preview resolves by this pair, so cross-scope
+ * artifacts preview fine even where pin-to-canvas is scope-restricted.
+ */
+export interface ArtifactReferenceEntry {
+  kind: 'artifact';
+  workspaceId: string;
+  artifactId: string;
+  titleSnapshot?: string;
+  typeSnapshot?: ArtifactType;
+}
+
+export type ReferenceEntry = NodeReferenceEntry | UrlReferenceEntry | ArtifactReferenceEntry;
 
 export interface ReferencesApi {
   /** Load the persisted pinned entries for a workspace. */

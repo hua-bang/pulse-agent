@@ -12,6 +12,12 @@ type ArtifactScope = 'current' | 'all';
 interface ArtifactsPickerProps {
   activeWorkspaceId: string;
   workspaceNameById: Map<string, string>;
+  onPreviewArtifact: (artifact: {
+    workspaceId: string;
+    artifactId: string;
+    title?: string;
+    type?: ArtifactSummary['type'];
+  }) => void;
 }
 
 const ArtifactIcon = () => (
@@ -47,7 +53,7 @@ const PinIcon = ({ filled = false }: { filled?: boolean }) => (
  * mirror resolves content by the host canvas's workspaceId, so cross-scope
  * pins are disabled rather than silently broken.
  */
-export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById }: ArtifactsPickerProps) => {
+export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById, onPreviewArtifact }: ArtifactsPickerProps) => {
   const { t } = useI18n();
   const dock = useRightDock();
   const popoverId = useId();
@@ -159,8 +165,13 @@ export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById }: Artifa
                     key={`${item.workspaceId}:${item.id}`}
                     className="reference-artifact-item"
                     role="listitem"
-                    onClick={() => dock.openArtifact(item.workspaceId, item.id)}
-                    title={t('reference.artifactOpenDock')}
+                    onClick={() => onPreviewArtifact({
+                      workspaceId: item.workspaceId,
+                      artifactId: item.id,
+                      title: item.title,
+                      type: item.type,
+                    })}
+                    title={t('reference.artifactPreviewTip')}
                   >
                     <div className="reference-artifact-row">
                       <span className="reference-artifact-type">{item.type.toUpperCase()}</span>

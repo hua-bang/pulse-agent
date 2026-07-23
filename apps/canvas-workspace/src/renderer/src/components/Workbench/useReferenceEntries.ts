@@ -3,11 +3,10 @@ import type { CanvasNode } from '../../types';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { ReferenceEntry } from '../ReferenceDrawer/types';
+import { getReferenceId } from '../ReferenceDrawer/utils';
+import type { ArtifactType } from '../../types';
 
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
-
-const referenceId = (entry: ReferenceEntry): string =>
-  entry.kind === 'url' ? entry.id : `${entry.workspaceId}:${entry.nodeId}`;
 
 interface UseReferenceEntriesParams {
   activeWorkspaceId: string;
@@ -49,8 +48,8 @@ export const useReferenceEntries = ({
       lastSavedRef.current.set(activeWorkspaceId, persisted);
       setReferencesByWorkspace((prev) => {
         const current = prev[activeWorkspaceId] ?? [];
-        const currentIds = new Set(current.map(referenceId));
-        const merged = [...persisted.filter((entry) => !currentIds.has(referenceId(entry))), ...current];
+        const currentIds = new Set(current.map(getReferenceId));
+        const merged = [...persisted.filter((entry) => !currentIds.has(getReferenceId(entry))), ...current];
         return { ...prev, [activeWorkspaceId]: merged };
       });
     }).catch(() => {
@@ -73,7 +72,7 @@ export const useReferenceEntries = ({
   const references = referencesByWorkspace[activeWorkspaceId] ?? EMPTY_REFERENCES;
   const activeReferenceId = activeReferenceIdByWorkspace[activeWorkspaceId];
   const activeReference = activeReferenceId
-    ? references.find((entry) => (entry.kind === 'url' ? entry.id : `${entry.workspaceId}:${entry.nodeId}`) === activeReferenceId)
+    ? references.find((entry) => getReferenceId(entry) === activeReferenceId)
     : undefined;
   const activeReferenceNode = activeReference && activeReference.kind === 'node'
     ? (allNodes[activeReference.workspaceId] ?? []).find((node) => node.id === activeReference.nodeId)
@@ -82,7 +81,7 @@ export const useReferenceEntries = ({
   const removeReference = useCallback((referenceId: string) => {
     setReferencesByWorkspace((prev) => {
       const current = prev[activeWorkspaceId] ?? [];
-      const next = current.filter((entry) => (entry.kind === 'url' ? entry.id : `${entry.workspaceId}:${entry.nodeId}`) !== referenceId);
+      const next = current.filter((entry) => getReferenceId(entry) !== referenceId);
       if (next.length === current.length) return prev;
       return { ...prev, [activeWorkspaceId]: next };
     });
@@ -111,7 +110,7 @@ export const useReferenceEntries = ({
   }, [activeWorkspaceId]);
 
   // Drop node entries whose source node no longer exists (once that
-  // workspace's nodes are known); url entries always survive.
+  // workspace's nodes are known); url and artifact entries always survive.
   useEffect(() => {
     const current = referencesByWorkspace[activeWorkspaceId];
     if (!current?.length) return;
@@ -120,7 +119,7 @@ export const useReferenceEntries = ({
       knownByWorkspace.set(workspaceId, new Set(snapshot.map((node) => node.id)));
     }
     const filtered = current.filter((entry) => (
-      entry.kind === 'url'
+      entry.kind !== 'node'
       || knownByWorkspace.get(entry.workspaceId)?.has(entry.nodeId)
       || !Object.prototype.hasOwnProperty.call(allNodes, entry.workspaceId)
     ));
@@ -128,8 +127,8 @@ export const useReferenceEntries = ({
     setReferencesByWorkspace((prev) => ({ ...prev, [activeWorkspaceId]: filtered }));
     setActiveReferenceIdByWorkspace((prev) => {
       const currentActive = prev[activeWorkspaceId];
-      if (currentActive && filtered.some((entry) => (entry.kind === 'url' ? entry.id : `${entry.workspaceId}:${entry.nodeId}`) === currentActive)) return prev;
-      const nextActive = filtered[0] ? (filtered[0].kind === 'url' ? filtered[0].id : `${filtered[0].workspaceId}:${filtered[0].nodeId}`) : undefined;
+      if (currentActive && filtered.some((entry) => getReferenceId(entry) === currentActive)) return prev;
+      const nextActive = filtered[0] ? getReferenceId(filtered[0]) : undefined;
       return { ...prev, [activeWorkspaceId]: nextActive };
     });
   }, [activeWorkspaceId, allNodes, referencesByWorkspace]);
@@ -168,6 +167,29 @@ export const useReferenceEntries = ({
     setReferenceDrawerOpen(true);
   }, [activeWorkspaceId]);
 
+  const pinReferenceArtifact = useCallback((artifact: {
+    workspaceId: string;
+    artifactId: string;
+    title?: string;
+    type?: ArtifactType;
+  }) => {
+    const entry: ReferenceEntry = {
+      kind: 'artifact',
+      workspaceId: artifact.workspaceId,
+      artifactId: artifact.artifactId,
+      titleSnapshot: artifact.title,
+      typeSnapshot: artifact.type,
+    };
+    const id = getReferenceId(entry);
+    setReferencesByWorkspace((prev) => {
+      const current = prev[activeWorkspaceId] ?? [];
+      if (current.some((item) => getReferenceId(item) === id)) return prev;
+      return { ...prev, [activeWorkspaceId]: [...current, entry] };
+    });
+    setActiveReferenceIdByWorkspace((prev) => ({ ...prev, [activeWorkspaceId]: id }));
+    setReferenceDrawerOpen(true);
+  }, [activeWorkspaceId]);
+
   // The read-only URL preview can't persist the guest's page title through
   // the node onUpdate path, so the preview forwards it and we write it back
   // onto the reference entry (its title is what the entry list row shows).
@@ -188,6 +210,7 @@ export const useReferenceEntries = ({
     activeReference,
     activeReferenceNode,
     clearAllReferences,
+    pinReferenceArtifact,
     pinReferenceNode,
     pinReferenceUrl,
     referenceDrawerLoaded,

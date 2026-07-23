@@ -8,6 +8,7 @@ import { ReferenceUrlEditor } from './ReferenceUrlEditor';
 
 interface ReferenceDrawerToolbarProps {
   activeWorkspaceId: string;
+  onPreviewArtifact: Parameters<typeof ArtifactsPicker>[0]['onPreviewArtifact'];
   allNodes: Record<string, CanvasNode[]>;
   currentNodeCount: number;
   externalWorkspaceId?: string;
@@ -35,6 +36,7 @@ interface ReferenceDrawerToolbarProps {
 
 export const ReferenceDrawerToolbar = ({
   activeWorkspaceId,
+  onPreviewArtifact,
   allNodes,
   currentNodeCount,
   externalWorkspaceId,
@@ -81,6 +83,7 @@ export const ReferenceDrawerToolbar = ({
     <ArtifactsPicker
       activeWorkspaceId={activeWorkspaceId}
       workspaceNameById={workspaceNameById}
+      onPreviewArtifact={onPreviewArtifact}
     />
 
     <ReferenceUrlEditor
