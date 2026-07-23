@@ -13,6 +13,7 @@ import {
   type ArtifactCapabilityName,
 } from '../../../../shared/artifact-capabilities';
 import { useAppShell } from '../AppShellProvider';
+import { Select } from '../ui';
 import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
 import { buildCapabilityBridgeScript } from './capabilityBridge';
 import './artifacts.css';
@@ -136,6 +137,24 @@ export const ArtifactTabView = ({ workspaceId, artifactId, onTitleChange }: Arti
     }
   }, [workspaceId, artifactId, artifact, pinning]);
 
+  // Newest first. Switching writes currentVersionId back to the record, so
+  // every projection (this tab, the canvas mirror node) follows via the
+  // artifact:change broadcast — an old version becomes "current" again,
+  // which is also the rollback gesture.
+  const versionOptions = useMemo(() => {
+    if (!artifact) return [];
+    const total = artifact.versions.length;
+    return [...artifact.versions].reverse().map((version, index) => ({
+      value: version.id,
+      label: `v${total - index}`,
+      description: new Date(version.createdAt).toLocaleString(),
+    }));
+  }, [artifact]);
+
+  const handleVersionChange = useCallback((versionId: string) => {
+    void window.canvasWorkspace.artifacts.update(workspaceId, artifactId, { currentVersionId: versionId });
+  }, [workspaceId, artifactId]);
+
   const renderBody = () => {
     if (error) {
       return <div className="artifact-drawer__empty">{error}</div>;
@@ -183,6 +202,15 @@ export const ArtifactTabView = ({ workspaceId, artifactId, onTitleChange }: Arti
         <div className="artifact-drawer__toolbar">
           <span className="artifact-drawer__type-badge">{TYPE_LABEL[artifact.type] ?? artifact.type}</span>
           <div className="artifact-drawer__toolbar-spacer" />
+          {artifact.versions.length > 1 && viewedVersion && (
+            <Select
+              className="artifact-drawer__version-select"
+              ariaLabel="Artifact version"
+              value={viewedVersion.id}
+              options={versionOptions}
+              onChange={handleVersionChange}
+            />
+          )}
           {artifact.versions.length > 0 && (
             artifact.pinnedNodeId ? (
               <span className="artifact-drawer__pinned-badge">Pinned to canvas</span>
