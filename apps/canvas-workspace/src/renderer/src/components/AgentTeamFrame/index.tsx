@@ -23,7 +23,7 @@ import type {
   FrameNodeData,
 } from '../../types';
 
-interface AgentTeamFrameProps {
+interface Props {
   node: CanvasNode;
   getAllNodes?: () => CanvasNode[];
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
@@ -303,7 +303,7 @@ export const AgentTeamFrame = ({
   workspaceId,
   workspaceName,
   readOnly = false,
-}: AgentTeamFrameProps) => {
+}: Props) => {
   const data = node.data as FrameNodeData;
   const teamId = data.agentTeamId;
   const workspaceActive = useWorkspaceActive();

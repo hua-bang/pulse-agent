@@ -1,0 +1,11 @@
+.canvas-alignment-guides {
+  position: absolute;
+  /* Anchor at the canvas origin and let SVG draw negative
+     coordinates — the guide may extend "before" the origin. */
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}

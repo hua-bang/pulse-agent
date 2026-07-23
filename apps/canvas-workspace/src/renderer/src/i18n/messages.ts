@@ -1363,6 +1363,38 @@ const en = {
   'migration.toast.pollutionDesc': 'Migration was refused to prevent data loss. Use canvas-cli restore or refer to the docs to recover.',
   'migration.toast.auditTitle': 'Storage corruption detected in workspace "{workspaceId}"',
   'migration.toast.auditDesc': '{count} node(s) still have their real data in nodes/, but canvas.json was clobbered by a legacy tool. Run `canvas-cli restore apply {workspaceId} --from <snapshot>` to recover.',
+
+  'settings.shellPath.title': 'Terminal command',
+  'settings.shellPath.ready': 'pulse-canvas is configured in {profile}. Open a new terminal to use it.',
+  'settings.shellPath.setup': 'Add the managed CLI directory to {profile} so new terminals can run pulse-canvas directly.',
+  'settings.shellPath.configure': 'Configure PATH',
+  'settings.shellPath.unsupported': 'Automatic setup supports zsh, bash, and fish. Run the command below manually.',
+
+  'noteFind.hideReplace': 'Hide replace',
+  'noteFind.showReplace': 'Show replace',
+  'noteFind.findPlaceholder': 'Find',
+  'noteFind.searchOptions': 'Search options',
+  'noteFind.matchCase': 'Match case',
+  'noteFind.wholeWord': 'Whole word',
+  'noteFind.regex': 'Use regular expression',
+  'noteFind.invalidRegex': 'Invalid regular expression',
+  'noteFind.previous': 'Previous (Shift+Enter)',
+  'noteFind.next': 'Next (Enter)',
+  'noteFind.close': 'Close (Esc)',
+  'noteFind.replacePlaceholder': 'Replace',
+  'noteFind.replace': 'Replace',
+  'noteFind.replaceAll': 'All',
+
+  'noteOutline.title': 'Outline',
+  'noteOutline.close': 'Close outline',
+  'noteOutline.empty': 'No headings yet',
+
+  'chatMessage.copy': 'Copy message (markdown source)',
+  'chatMessage.copied': 'Copied!',
+  'chatMessage.copyAriaLabel': 'Copy message',
+  'chatMessage.editResend': 'Edit & resend',
+  'chatMessage.editResendAriaLabel': 'Edit and resend',
+  'chatMessage.regenerate': 'Regenerate response',
 } as const;
 
 const zh: Record<keyof typeof en, string> = {
@@ -2715,6 +2747,38 @@ const zh: Record<keyof typeof en, string> = {
   'migration.toast.pollutionDesc': '已拒绝执行迁移以防止数据丢失。请使用 canvas-cli restore 或参考文档恢复。',
   'migration.toast.auditTitle': '工作区 "{workspaceId}" 检测到存储污染',
   'migration.toast.auditDesc': '{count} 个节点的真实数据仍在 nodes/ 中，但 canvas.json 已被旧版工具破坏。请使用 `canvas-cli restore apply {workspaceId} --from <snapshot>` 恢复。',
+
+  'settings.shellPath.title': '终端命令',
+  'settings.shellPath.ready': '已在 {profile} 中配置 pulse-canvas。打开新终端后即可使用。',
+  'settings.shellPath.setup': '将托管 CLI 目录加入 {profile}，之后可在新终端中直接运行 pulse-canvas。',
+  'settings.shellPath.configure': '配置 PATH',
+  'settings.shellPath.unsupported': '自动配置仅支持 zsh、bash 和 fish。请手动执行下面的命令。',
+
+  'noteFind.hideReplace': '隐藏替换',
+  'noteFind.showReplace': '显示替换',
+  'noteFind.findPlaceholder': '查找',
+  'noteFind.searchOptions': '搜索选项',
+  'noteFind.matchCase': '区分大小写',
+  'noteFind.wholeWord': '全字匹配',
+  'noteFind.regex': '使用正则表达式',
+  'noteFind.invalidRegex': '正则表达式无效',
+  'noteFind.previous': '上一个 (Shift+Enter)',
+  'noteFind.next': '下一个 (Enter)',
+  'noteFind.close': '关闭 (Esc)',
+  'noteFind.replacePlaceholder': '替换',
+  'noteFind.replace': '替换',
+  'noteFind.replaceAll': '全部',
+
+  'noteOutline.title': '大纲',
+  'noteOutline.close': '关闭大纲',
+  'noteOutline.empty': '暂无标题',
+
+  'chatMessage.copy': '复制消息（Markdown 源码）',
+  'chatMessage.copied': '已复制！',
+  'chatMessage.copyAriaLabel': '复制消息',
+  'chatMessage.editResend': '编辑并重新发送',
+  'chatMessage.editResendAriaLabel': '编辑并重新发送',
+  'chatMessage.regenerate': '重新生成回复',
 };
 
 export const messages = {
