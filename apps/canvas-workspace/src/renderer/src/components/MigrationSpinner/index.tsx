@@ -251,5 +251,3 @@ export const MigrationSpinner = (): JSX.Element | null => {
     </div>
   );
 };
-
-export default MigrationSpinner;
