@@ -12,6 +12,7 @@ import {
 import type { CanvasNode } from '../../types';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { Button } from '../ui';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
 import { useI18n } from '../../i18n';
@@ -125,10 +126,10 @@ export const ReferencePicker = ({
 
   return (
     <div className="reference-picker-anchor" ref={pickerRef}>
-      <button
+      <Button
         ref={currentTriggerRef}
+        size="sm"
         className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen === 'current' ? ' reference-drawer-action--open' : ''}`}
-        type="button"
         onClick={() => {
           lastPickerTriggerRef.current = currentTriggerRef.current;
           setWorkspaceMenuOpen(false);
@@ -143,12 +144,12 @@ export const ReferencePicker = ({
       >
         <ListIcon />
         {t('reference.currentWorkspace')}
-      </button>
+      </Button>
 
-      <button
+      <Button
         ref={otherTriggerRef}
+        size="sm"
         className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen === 'other' ? ' reference-drawer-action--open' : ''}`}
-        type="button"
         onClick={() => {
           lastPickerTriggerRef.current = otherTriggerRef.current;
           setWorkspaceMenuOpen(false);
@@ -163,7 +164,7 @@ export const ReferencePicker = ({
       >
         <BranchIcon />
         {t('reference.otherWorkspace')}
-      </button>
+      </Button>
 
       {pickerOpen && (
         <div id={pickerPopoverId} className="reference-picker-popover" role="dialog" aria-label={t('reference.pickDialog')}>

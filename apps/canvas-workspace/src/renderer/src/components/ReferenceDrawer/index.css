@@ -1117,6 +1117,8 @@
 
 .reference-artifact-actions {
   display: flex;
-  gap: 6px;
-  margin-top: 6px;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex: none;
 }

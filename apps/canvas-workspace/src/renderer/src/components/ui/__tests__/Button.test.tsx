@@ -27,6 +27,12 @@ function render(node: ReactNode): HTMLButtonElement {
 }
 
 describe('Button', () => {
+  it('forwards ref to the underlying <button>', () => {
+    const ref = { current: null as HTMLButtonElement | null };
+    const el = render(<Button ref={ref}>Go</Button>);
+    expect(ref.current).toBe(el);
+  });
+
   it('defaults type to "button" when not specified', () => {
     const btn = render(<Button>Save</Button>);
     expect(btn.type).toBe('button');

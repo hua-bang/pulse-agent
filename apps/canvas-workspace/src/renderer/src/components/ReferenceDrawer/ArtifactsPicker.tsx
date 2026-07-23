@@ -21,6 +21,13 @@ const ArtifactIcon = () => (
   </svg>
 );
 
+const OpenInDockIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <rect x="2" y="2.5" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+    <path d="M9.5 2.5v11M11 6l1.5 2-1.5 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 /**
  * "Artifacts" source tab of the Library drawer: browse artifact metadata by
  * scope, open one in the right dock, or pin it onto the current canvas.
@@ -32,7 +39,7 @@ export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById }: Artifa
   const { t } = useI18n();
   const dock = useRightDock();
   const popoverId = useId();
-  const anchorRef = useRef<HTMLSpanElement>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<ArtifactScope>('current');
   const [loading, setLoading] = useState(false);
@@ -93,20 +100,19 @@ export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById }: Artifa
 
   return (
     <>
-      <span ref={anchorRef} className="reference-artifacts-anchor">
-        <Button
-          size="sm"
-          className="reference-drawer-action reference-drawer-action--ghost"
-          onClick={() => setOpen((prev) => !prev)}
-          title={t('reference.artifactsTitle')}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          aria-controls={open ? popoverId : undefined}
-        >
-          <ArtifactIcon />
-          {t('reference.artifacts')}
-        </Button>
-      </span>
+      <Button
+        ref={anchorRef}
+        size="sm"
+        className={`reference-drawer-action reference-drawer-action--ghost${open ? ' reference-drawer-action--open' : ''}`}
+        onClick={() => setOpen((prev) => !prev)}
+        title={t('reference.artifactsTitle')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? popoverId : undefined}
+      >
+        <ArtifactIcon />
+        {t('reference.artifacts')}
+      </Button>
 
       {open && (
         <Popover
@@ -143,28 +149,31 @@ export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById }: Artifa
                     <div className="reference-artifact-row">
                       <span className="reference-artifact-type">{item.type.toUpperCase()}</span>
                       <span className="reference-artifact-title" title={item.title}>{item.title}</span>
+                      <div className="reference-artifact-actions">
+                        <Button
+                          size="xs"
+                          variant="primary"
+                          disabled={crossScope || pinned || pinningId === item.id}
+                          title={crossScope ? t('reference.artifactScopeBlocked') : undefined}
+                          onClick={() => { void handlePin(item); }}
+                        >
+                          {pinned ? t('reference.artifactPinned') : t('reference.artifactPin')}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="icon"
+                          aria-label={t('reference.artifactOpenDock')}
+                          title={t('reference.artifactOpenDock')}
+                          onClick={() => dock.openArtifact(item.workspaceId, item.id)}
+                        >
+                          <OpenInDockIcon />
+                        </Button>
+                      </div>
                     </div>
                     <div className="reference-artifact-meta">
                       <span>v{item.versionCount}</span>
                       {scope !== 'current' && <span>{scopeName(item.workspaceId)}</span>}
                       <span>{new Date(item.updatedAt).toLocaleDateString()}</span>
-                    </div>
-                    <div className="reference-artifact-actions">
-                      <Button
-                        size="xs"
-                        variant="primary"
-                        disabled={crossScope || pinned || pinningId === item.id}
-                        title={crossScope ? t('reference.artifactScopeBlocked') : undefined}
-                        onClick={() => { void handlePin(item); }}
-                      >
-                        {pinned ? t('reference.artifactPinned') : t('reference.artifactPin')}
-                      </Button>
-                      <Button
-                        size="xs"
-                        onClick={() => dock.openArtifact(item.workspaceId, item.id)}
-                      >
-                        {t('reference.artifactOpenDock')}
-                      </Button>
                     </div>
                   </div>
                 );
