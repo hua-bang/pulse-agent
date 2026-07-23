@@ -2,10 +2,12 @@ import type { Dispatch, RefObject, SetStateAction } from 'react';
 import type { CanvasNode } from '../../types';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { ReferencePickerMode, ReferencePickerNodeGroup } from './types';
+import { ArtifactsPicker } from './ArtifactsPicker';
 import { ReferencePicker } from './ReferencePicker';
 import { ReferenceUrlEditor } from './ReferenceUrlEditor';
 
 interface ReferenceDrawerToolbarProps {
+  activeWorkspaceId: string;
   allNodes: Record<string, CanvasNode[]>;
   currentNodeCount: number;
   externalWorkspaceId?: string;
@@ -32,6 +34,7 @@ interface ReferenceDrawerToolbarProps {
 }
 
 export const ReferenceDrawerToolbar = ({
+  activeWorkspaceId,
   allNodes,
   currentNodeCount,
   externalWorkspaceId,
@@ -73,6 +76,11 @@ export const ReferenceDrawerToolbar = ({
       setSearchDraft={setSearchDraft}
       workspaceNameById={workspaceNameById}
       onPick={handleAddFromPicker}
+    />
+
+    <ArtifactsPicker
+      activeWorkspaceId={activeWorkspaceId}
+      workspaceNameById={workspaceNameById}
     />
 
     <ReferenceUrlEditor

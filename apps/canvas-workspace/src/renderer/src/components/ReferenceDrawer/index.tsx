@@ -102,6 +102,7 @@ export const ReferenceDrawer = ({
       </header>
 
       <ReferenceDrawerToolbar
+        activeWorkspaceId={activeWorkspaceId}
         allNodes={allNodes}
         currentNodeCount={state.eligibleCurrentNodeCount}
         externalWorkspaceId={state.externalWorkspaceId}

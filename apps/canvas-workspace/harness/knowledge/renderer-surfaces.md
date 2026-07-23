@@ -21,9 +21,20 @@ The workbench has exactly two side regions plus a modal tier:
                  app-shell dialogs / toasts (above everything)
 ```
 
-- **Left region — reference.** `ReferenceDrawer` is the only left-side
-  container: pinned nodes, URL references, previews. New "look things up
-  while working" surfaces belong here, not in a new drawer.
+- **Left region — Library.** `ReferenceDrawer` (displayed as "Library")
+  is the only left-side container: the pinned reference entries (persisted
+  per workspace in `references.json`, hydrated/saved by
+  `Workbench/useReferenceEntries`), source pickers for current/other
+  workspace nodes and URLs, an Artifacts browser
+  (`ReferenceDrawer/ArtifactsPicker` — scope filter across the current
+  workspace / `__global_chat__` / all scopes via `artifact:list-all`,
+  with open-in-dock and pin-to-canvas actions; cross-scope pins are
+  disabled because the artifact mirror resolves by the host canvas's
+  workspaceId), and previews. New "look things up while working"
+  surfaces belong here, not in a new drawer. Division of labor: Library
+  = browse/pick sources; Sidebar Layers = this canvas's spatial
+  structure tree; the experimental `/nodes` page = full-page knowledge
+  nodes management.
 - **Right region — `RightDock`** (`components/RightDock`): ONE tabbed
   panel whose first tab is the **pinned chat**; preview surfaces open as
   additional tabs — artifacts (`components/artifacts/ArtifactTabView`)

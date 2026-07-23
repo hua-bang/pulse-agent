@@ -74,7 +74,7 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     id: EXPERIMENTAL_FLAG_WORKSPACE_NODES,
     label: 'Workspace Nodes page',
     description:
-      'A workspace-wide knowledge library showing every node as a filterable grid, plus a per-node detail page. Surfaces a "Nodes" entry in the sidebar.',
+      'A workspace-wide knowledge nodes page showing every node as a filterable grid, plus a per-node detail page. Surfaces a "Nodes" entry in the sidebar.',
     defaultEnabled: false,
   },
   {

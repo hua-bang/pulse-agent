@@ -6,6 +6,9 @@ export const createArtifactsApi = (ipcRenderer: IpcRenderer): ArtifactsApi => ({
   list: (workspaceId) =>
     ipcRenderer.invoke("artifact:list", { workspaceId }),
 
+  listAll: () =>
+    ipcRenderer.invoke("artifact:list-all"),
+
   get: (workspaceId, artifactId) =>
     ipcRenderer.invoke("artifact:get", { workspaceId, artifactId }),
 

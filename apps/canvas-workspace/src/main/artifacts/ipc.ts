@@ -3,6 +3,7 @@
  *
  * Channels:
  *   artifact:list         (workspaceId)                          → Artifact[]
+ *   artifact:list-all     ()                                     → ArtifactSummary[] (metadata only, all scopes incl. __global_chat__)
  *   artifact:get          (workspaceId, artifactId)              → Artifact | null
  *   artifact:create       (workspaceId, input)                   → Artifact
  *   artifact:add-version  (workspaceId, artifactId, input)       → Artifact
@@ -22,6 +23,7 @@ import {
   createArtifact,
   deleteArtifact,
   getArtifact,
+  listAllArtifactSummaries,
   listArtifacts,
   updateArtifact,
   type Artifact,
@@ -30,6 +32,15 @@ import {
 import { broadcastCanvasUpdate } from '../canvas/broadcast';
 
 const BLANK_PAGE_URL = 'about:blank';
+
+/**
+ * Sentinel scopes (`__global_chat__` etc.) are artifact storage scopes, not
+ * real workspaces — they have no canvas UI. Pinning into one would fabricate
+ * an unreachable canvas.json under the sentinel directory.
+ */
+function isSentinelScope(workspaceId: string): boolean {
+  return workspaceId.startsWith('__');
+}
 
 interface PinPlacement {
   x?: number;
@@ -97,10 +108,18 @@ export async function pinArtifactToCanvas(
   artifactId: string,
   placement: PinPlacement = {},
 ): Promise<{ nodeId: string; artifact: Artifact } | { error: string }> {
+  if (isSentinelScope(workspaceId)) {
+    return { error: `Cannot pin: "${workspaceId}" is a storage scope, not a canvas workspace` };
+  }
   const artifact = await getArtifact(workspaceId, artifactId);
   if (!artifact) return { error: `Artifact not found: ${artifactId}` };
 
   const canvas = await loadCanvas(workspaceId);
+  // Already mirrored and the node still exists → return the live mirror
+  // instead of stacking a duplicate (the pin bookkeeping is single-slot).
+  if (artifact.pinnedNodeId && canvas?.nodes.some((n) => n.id === artifact.pinnedNodeId)) {
+    return { nodeId: artifact.pinnedNodeId, artifact };
+  }
   if (!canvas) {
     // Fresh workspace — bootstrap an empty canvas. Same shape canvas-store
     // creates on first save; safe because we're adding our node immediately.
@@ -153,10 +172,54 @@ async function writeWithNewNode(
   return { nodeId, artifact: updated };
 }
 
+/**
+ * Lazy repair for stale pin bookkeeping: canvas node deletion happens via
+ * whole-canvas saves that don't know about artifacts, so a mirror node can
+ * vanish while `pinnedNodeId` still points at it. Reads reconcile — any
+ * artifact whose pinned node no longer exists gets the slot cleared, so
+ * "Pinned" badges always reflect the real canvas.
+ */
+async function repairStalePins(workspaceId: string, artifacts: Artifact[]): Promise<Artifact[]> {
+  if (isSentinelScope(workspaceId)) return artifacts;
+  const pinned = artifacts.filter((a) => a.pinnedNodeId);
+  if (pinned.length === 0) return artifacts;
+  const canvas = await loadCanvas(workspaceId);
+  const nodeIds = new Set((canvas?.nodes ?? []).map((n) => n.id));
+  const repaired = await Promise.all(artifacts.map(async (artifact) => {
+    if (!artifact.pinnedNodeId || nodeIds.has(artifact.pinnedNodeId)) return artifact;
+    return await updateArtifact(workspaceId, artifact.id, { pinnedNodeId: undefined }) ?? artifact;
+  }));
+  return repaired;
+}
+
+/** Remove the canvas mirror node(s) of a deleted artifact. */
+async function removeMirrorNodes(workspaceId: string, artifactId: string): Promise<void> {
+  if (isSentinelScope(workspaceId)) return;
+  const canvas = await loadCanvas(workspaceId);
+  if (!canvas) return;
+  const removed = canvas.nodes.filter(
+    (n) => n.type === 'iframe' && n.data?.mode === 'artifact' && n.data?.artifactId === artifactId,
+  );
+  if (removed.length === 0) return;
+  canvas.nodes = canvas.nodes.filter((n) => !removed.includes(n));
+  canvas.savedAt = new Date().toISOString();
+  await writeCanvasFull(workspaceId, canvas);
+  broadcastCanvasUpdate(workspaceId, removed.map((n) => n.id));
+}
+
 export function setupArtifactIpc(): void {
   ipcMain.handle('artifact:list', async (_event, payload: { workspaceId: string }) => {
     try {
-      const artifacts = await listArtifacts(payload.workspaceId);
+      const artifacts = await repairStalePins(payload.workspaceId, await listArtifacts(payload.workspaceId));
+      return { ok: true, artifacts };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcMain.handle('artifact:list-all', async () => {
+    try {
+      const artifacts = await listAllArtifactSummaries();
       return { ok: true, artifacts };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -166,7 +229,8 @@ export function setupArtifactIpc(): void {
   ipcMain.handle('artifact:get', async (_event, payload: { workspaceId: string; artifactId: string }) => {
     try {
       const artifact = await getArtifact(payload.workspaceId, payload.artifactId);
-      return { ok: true, artifact: artifact ?? undefined };
+      const [repaired] = artifact ? await repairStalePins(payload.workspaceId, [artifact]) : [undefined];
+      return { ok: true, artifact: repaired ?? undefined };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
@@ -215,6 +279,9 @@ export function setupArtifactIpc(): void {
   ipcMain.handle('artifact:delete', async (_event, payload: { workspaceId: string; artifactId: string }) => {
     try {
       const ok = await deleteArtifact(payload.workspaceId, payload.artifactId);
+      // Deleting the artifact also removes its canvas mirror — a dangling
+      // mode:'artifact' iframe node would render an empty shell forever.
+      if (ok) await removeMirrorNodes(payload.workspaceId, payload.artifactId);
       return { ok };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

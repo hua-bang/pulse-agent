@@ -14,13 +14,22 @@
  */
 
 import { BrowserWindow } from 'electron';
-import { promises as fs } from 'fs';
+import { promises as fs, type Dirent } from 'fs';
 import { dirname, join, basename } from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
+import type { ArtifactSummary } from '../../shared/artifacts';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const FILE_VERSION = 1;
+
+/**
+ * The global-chat artifact scope (same sentinel as
+ * agent/session-store.ts GLOBAL_CHAT_SESSION_STORE_ID). It is the one
+ * `__`-prefixed directory that holds real artifacts — memory reports and
+ * global-chat products — so cross-workspace scans must include it.
+ */
+const GLOBAL_ARTIFACT_SCOPE = '__global_chat__';
 
 export type ArtifactType = 'html' | 'svg' | 'mermaid';
 
@@ -104,6 +113,43 @@ function broadcast(event: { workspaceId: string; artifactId: string; kind: 'crea
 
 export async function listArtifacts(workspaceId: string): Promise<Artifact[]> {
   return readArtifacts(workspaceId);
+}
+
+/**
+ * Metadata-only scan across every artifact scope on disk. Skips
+ * manifest/internal `__` directories EXCEPT `__global_chat__` — the same
+ * sentinel rule as session-store's listAllSessions; a blanket `__` skip
+ * would silently drop all global-chat artifacts from "all scopes" views.
+ */
+export async function listAllArtifactSummaries(): Promise<ArtifactSummary[]> {
+  let entries: Dirent[];
+  try {
+    entries = await fs.readdir(STORE_DIR, { withFileTypes: true });
+  } catch (err) {
+    if (isEnoent(err)) return [];
+    throw err;
+  }
+  const summaries: ArtifactSummary[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const dir = entry.name;
+    if ((dir.startsWith('__') && dir !== GLOBAL_ARTIFACT_SCOPE) || dir.startsWith('.')) continue;
+    const artifacts = await readArtifacts(dir);
+    for (const a of artifacts) {
+      summaries.push({
+        id: a.id,
+        workspaceId: a.workspaceId,
+        type: a.type,
+        title: a.title,
+        versionCount: a.versions.length,
+        ...(a.pinnedNodeId ? { pinnedNodeId: a.pinnedNodeId } : {}),
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
+      });
+    }
+  }
+  summaries.sort((a, b) => b.updatedAt - a.updatedAt);
+  return summaries;
 }
 
 export async function getArtifact(workspaceId: string, artifactId: string): Promise<Artifact | null> {

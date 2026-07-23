@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode } from '../../types';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { ReferenceEntry } from '../ReferenceDrawer/types';
 
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
+
+const referenceId = (entry: ReferenceEntry): string =>
+  entry.kind === 'url' ? entry.id : `${entry.workspaceId}:${entry.nodeId}`;
 
 interface UseReferenceEntriesParams {
   activeWorkspaceId: string;
@@ -27,6 +30,45 @@ export const useReferenceEntries = ({
   const [activeReferenceIdByWorkspace, setActiveReferenceIdByWorkspace] = useState<Record<string, string | undefined>>({});
 
   useEffect(() => { if (referenceDrawerOpen) setReferenceDrawerLoaded(true); }, [referenceDrawerOpen]);
+
+  // Pinned entries persist per workspace (references.json) so the drawer's
+  // "Pinned" section survives reload. Hydrate once per workspace; entries
+  // pinned before hydration resolves win over their persisted duplicates.
+  const hydratedWorkspacesRef = useRef(new Set<string>());
+  const lastSavedRef = useRef(new Map<string, ReferenceEntry[]>());
+
+  useEffect(() => {
+    if (!activeWorkspaceId || hydratedWorkspacesRef.current.has(activeWorkspaceId)) return;
+    hydratedWorkspacesRef.current.add(activeWorkspaceId);
+    const api = window.canvasWorkspace?.references;
+    if (!api) return;
+    let cancelled = false;
+    api.list(activeWorkspaceId).then((res) => {
+      if (cancelled || !res.ok || !res.references?.length) return;
+      const persisted = res.references;
+      lastSavedRef.current.set(activeWorkspaceId, persisted);
+      setReferencesByWorkspace((prev) => {
+        const current = prev[activeWorkspaceId] ?? [];
+        const currentIds = new Set(current.map(referenceId));
+        const merged = [...persisted.filter((entry) => !currentIds.has(referenceId(entry))), ...current];
+        return { ...prev, [activeWorkspaceId]: merged };
+      });
+    }).catch(() => {
+      // Hydration is best-effort; a failed read just starts the list empty.
+    });
+    return () => { cancelled = true; };
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId || !hydratedWorkspacesRef.current.has(activeWorkspaceId)) return;
+    const current = referencesByWorkspace[activeWorkspaceId];
+    if (current === undefined) return;
+    if (lastSavedRef.current.get(activeWorkspaceId) === current) return;
+    lastSavedRef.current.set(activeWorkspaceId, current);
+    window.canvasWorkspace?.references?.save(activeWorkspaceId, current).catch(() => {
+      // Best-effort write; the next mutation retries with the full list.
+    });
+  }, [activeWorkspaceId, referencesByWorkspace]);
 
   const references = referencesByWorkspace[activeWorkspaceId] ?? EMPTY_REFERENCES;
   const activeReferenceId = activeReferenceIdByWorkspace[activeWorkspaceId];

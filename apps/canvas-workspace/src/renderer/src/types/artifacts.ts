@@ -1,5 +1,6 @@
 import type {
   Artifact,
+  ArtifactSummary,
   ArtifactType,
 } from '../../../shared/artifacts';
 
@@ -7,6 +8,8 @@ export type * from '../../../shared/artifacts';
 
 export interface ArtifactsApi {
   list: (workspaceId: string) => Promise<{ ok: boolean; artifacts?: Artifact[]; error?: string }>;
+  /** Metadata-only listing across all scopes (incl. __global_chat__), newest first. */
+  listAll: () => Promise<{ ok: boolean; artifacts?: ArtifactSummary[]; error?: string }>;
   get: (
     workspaceId: string,
     artifactId: string,
