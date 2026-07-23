@@ -28,6 +28,18 @@ const OpenInDockIcon = () => (
   </svg>
 );
 
+const PinIcon = ({ filled = false }: { filled?: boolean }) => (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M9.8 1.8l4.4 4.4-1.6.5-2.3 2.3-.3 2.9-2.7-2.7-4.2 4.2-.6-.6 4.2-4.2-2.7-2.7 2.9-.3 2.3-2.3.6-1.5z"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinejoin="round"
+      fill={filled ? 'currentColor' : 'none'}
+    />
+  </svg>
+);
+
 /**
  * "Artifacts" source tab of the Library drawer: browse artifact metadata by
  * scope, open one in the right dock, or pin it onto the current canvas.
@@ -152,12 +164,16 @@ export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById }: Artifa
                       <div className="reference-artifact-actions">
                         <Button
                           size="xs"
-                          variant="primary"
+                          variant="icon"
+                          className="reference-artifact-pin"
                           disabled={crossScope || pinned || pinningId === item.id}
-                          title={crossScope ? t('reference.artifactScopeBlocked') : undefined}
+                          aria-label={pinned ? t('reference.artifactPinned') : t('reference.artifactPin')}
+                          title={crossScope
+                            ? t('reference.artifactScopeBlocked')
+                            : pinned ? t('reference.artifactPinned') : t('reference.artifactPin')}
                           onClick={() => { void handlePin(item); }}
                         >
-                          {pinned ? t('reference.artifactPinned') : t('reference.artifactPin')}
+                          <PinIcon filled={pinned} />
                         </Button>
                         <Button
                           size="xs"

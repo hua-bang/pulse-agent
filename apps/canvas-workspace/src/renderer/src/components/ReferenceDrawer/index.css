@@ -1122,3 +1122,11 @@
   margin-left: auto;
   flex: none;
 }
+
+/* Pin reads as the primary action even as an icon: accent-tinted in every
+   state (ui-btn's disabled opacity still fades it). The .ui-btn compound
+   outweighs the icon variant's own single-class color. */
+.ui-btn.reference-artifact-pin,
+.ui-btn.reference-artifact-pin:disabled {
+  color: var(--accent);
+}
