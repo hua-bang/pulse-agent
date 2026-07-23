@@ -62,12 +62,14 @@ function clampWidth(value: number): number {
 
 interface RightDockProps {
   activeWorkspaceId: string;
+  /** False until `activeWorkspaceId` has resolved past its mount-time placeholder. */
+  activeIdReady: boolean;
   chatTabEnabled: boolean;
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
 }
 
-export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
+export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
   const { store, setChatHost, setTerminalHost, pinUrlReference, addDomSelectionToChat } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
@@ -82,7 +84,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled, workspaces, onOpe
   useDockAgentBridge(store, state, activeWorkspaceId);
 
   // Cold start: drain URLs the OS queued before this dock could subscribe.
-  useConsumePendingLinks((url) => store.openLink(url));
+  // Gated on activeIdReady so the tab lands in the real workspace instead of
+  // the mount-time placeholder (see useConsumePendingLinks for why).
+  useConsumePendingLinks((url) => store.openLink(url), activeIdReady);
 
   useEffect(() => {
     if (chatTabEnabled) return;
