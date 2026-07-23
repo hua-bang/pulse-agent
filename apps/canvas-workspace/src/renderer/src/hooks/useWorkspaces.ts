@@ -68,6 +68,11 @@ export const useWorkspaces = () => {
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([DEFAULT_WORKSPACE]);
   const [folders, setFolders] = useState<FolderEntry[]>([]);
   const [activeId, setActiveId] = useState('default');
+  // `activeId` starts as a placeholder until the persisted manifest load
+  // below settles — consumers that must not act on the placeholder (e.g.
+  // draining deep-link URLs into the right workspace) gate on this instead
+  // of assuming the mount-time value is final.
+  const [activeIdReady, setActiveIdReady] = useState(false);
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
   const workspacesRef = useRef(workspaces);
@@ -77,7 +82,10 @@ export const useWorkspaces = () => {
 
   useEffect(() => {
     const api = window.canvasWorkspace?.store;
-    if (!api) return;
+    if (!api) {
+      setActiveIdReady(true);
+      return;
+    }
     void api.load(MANIFEST_ID).then((res) => {
       if (res.ok && res.data) {
         const manifest = res.data as unknown as WorkspaceManifest;
@@ -95,7 +103,7 @@ export const useWorkspaces = () => {
       } else {
         void api.save(MANIFEST_ID, { workspaces: [DEFAULT_WORKSPACE], folders: [], activeId: 'default' });
       }
-    });
+    }).catch(() => undefined).finally(() => setActiveIdReady(true));
   }, []);
 
   const saveManifest = useCallback(
@@ -362,6 +370,7 @@ export const useWorkspaces = () => {
     workspaces,
     folders,
     activeId,
+    activeIdReady,
     selectWorkspace,
     createWorkspace,
     renameWorkspace,
