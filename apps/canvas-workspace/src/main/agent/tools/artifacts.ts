@@ -5,7 +5,7 @@ import {
   getArtifact as storeGetArtifact,
 } from '../../artifacts/store';
 import { pinArtifactToCanvas } from '../../artifacts/ipc';
-import { applyArtifactEdits, type ArtifactEdit } from '../../artifacts/apply-edits';
+import { applyStringEdits, type StringEdit } from './_shared/string-edits';
 import type { CanvasTool } from './types';
 import { loadCanvas } from './_shared/canvas-io';
 import {
@@ -75,7 +75,7 @@ export function createArtifactTools(workspaceId: string): Record<string, CanvasT
       execute: async (input) => {
         const artifactId = input.artifactId as string;
         const fullContent = (input.content as string | undefined)?.trim() ? input.content as string : undefined;
-        const edits = input.edits as ArtifactEdit[] | undefined;
+        const edits = input.edits as StringEdit[] | undefined;
         const prompt = input.prompt as string | undefined;
         if (!fullContent && !edits?.length) {
           return JSON.stringify({ ok: false, error: 'Provide either content or a non-empty edits list' });
@@ -94,7 +94,7 @@ export function createArtifactTools(workspaceId: string): Record<string, CanvasT
           if (!currentVersion) {
             return JSON.stringify({ ok: false, error: 'Artifact has no versions to edit' });
           }
-          const applied = applyArtifactEdits(currentVersion.content, edits);
+          const applied = applyStringEdits(currentVersion.content, edits);
           if (!applied.ok) {
             return JSON.stringify({ ok: false, error: applied.error });
           }

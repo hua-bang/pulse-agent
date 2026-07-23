@@ -22,6 +22,7 @@ import {
   MOCK_TODO_LIST_NODE_TYPE,
 } from '../../../plugins/mock-node/constants';
 import { createNodeReadTools } from './node-read-tools';
+import { applyStringEdits, type StringEdit } from './_shared/string-edits';
 import { getCanvasCapabilityRuntime } from '../../runtime/capabilities';
 
 export function createNodeTools(workspaceId: string): Record<string, CanvasTool> {
@@ -302,17 +303,44 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
     canvas_update_node: {
       name: 'canvas_update_node',
       description:
-        'Update an existing canvas node. For file and text nodes, updates `content`. For frame nodes, updates label/color. For text nodes, `data.textColor`/`data.backgroundColor`/`data.fontSize` can also be patched.',
+        'Update an existing canvas node. For file and text nodes, updates `content` (full) or `edits` (exact string replacements against the current content — prefer for small changes; on a match failure retry with full content). For frame nodes, updates label/color. For text nodes, `data.textColor`/`data.backgroundColor`/`data.fontSize` can also be patched.',
       inputSchema: z.object({
         nodeId: z.string().describe('The ID of the node to update.'),
         title: z.string().optional().describe('New title (optional).'),
-        content: z.string().optional().describe('New content for file and text nodes.'),
+        content: z.string().optional().describe('New content for file and text nodes. Provide either this or `edits`, not both.'),
+        edits: z.array(z.object({
+          old_str: z.string().describe('Exact text in the current content — must match exactly once.'),
+          new_str: z.string().describe('Replacement text.'),
+        })).optional().describe('Exact string edits applied in order to the current content (file and text nodes only).'),
         data: z.record(z.string(), z.unknown()).optional().describe('Partial data update (e.g. label, color for frames; textColor, backgroundColor, fontSize for text).'),
       }),
       execute: async (input, context) => {
+        const edits = input.edits as StringEdit[] | undefined;
+        let content = input.content as string | undefined;
+        if (edits?.length) {
+          if (content != null) return 'Error: Provide content OR edits, not both';
+          // Resolve edits against the node's live content here in the tool;
+          // the capability contract stays full-content (external callers
+          // are unaffected).
+          const canvas = await loadCanvas(workspaceId);
+          const node = canvas?.nodes?.find((n) => n.id === (input.nodeId as string));
+          if (!node) return `Error: node not found: ${input.nodeId as string}`;
+          if (node.type !== 'file' && node.type !== 'text') {
+            return `Error: edits only apply to file/text node content (this node is type "${node.type}")`;
+          }
+          const currentContent = (node.data as Record<string, unknown>).content;
+          const applied = applyStringEdits(typeof currentContent === 'string' ? currentContent : '', edits);
+          if (!applied.ok) return `Error: ${applied.error}`;
+          content = applied.content;
+        }
         const result = await getCanvasCapabilityRuntime().call(
           'canvas.nodes.update',
-          input,
+          {
+            nodeId: input.nodeId,
+            ...(input.title != null ? { title: input.title } : {}),
+            ...(content != null ? { content } : {}),
+            ...(input.data != null ? { data: input.data } : {}),
+          },
           {
             workspaceId,
             actor: { kind: 'canvas-agent' },
@@ -320,7 +348,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
           },
         );
         if (!result.ok) return `Error: ${result.error.message}`;
-        return JSON.stringify({ ok: true, ...(result.value as object) });
+        return JSON.stringify({ ok: true, ...(edits?.length ? { editsApplied: edits.length } : {}), ...(result.value as object) });
       },
     },
 

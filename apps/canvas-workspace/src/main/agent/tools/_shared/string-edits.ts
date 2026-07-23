@@ -1,23 +1,24 @@
 /**
- * Exact string edits against an artifact version's content — the agent-side
- * alternative to regenerating the full document on every iteration. Each
- * edit's `old_str` must match the running content exactly once (same rule
- * as file-edit tools); edits apply sequentially, so a later edit may match
- * text produced by an earlier one. Failures return an error instead of
- * guessing — the model retries with full content. The applied result is
- * stored as a normal full version; storage never sees diffs.
+ * Exact string edits against a text body — the agent-side alternative to
+ * regenerating a full document on every iteration. Shared by
+ * `artifact_update` and `canvas_update_node`. Each edit's `old_str` must
+ * match the running content exactly once (same rule as file-edit tools);
+ * edits apply sequentially, so a later edit may match text produced by an
+ * earlier one. Failures return an error instead of guessing — the model
+ * retries with full content. Callers store the applied result as a normal
+ * full write; storage never sees diffs.
  */
 
-export interface ArtifactEdit {
+export interface StringEdit {
   old_str: string;
   new_str: string;
 }
 
-export type ApplyEditsResult =
+export type ApplyStringEditsResult =
   | { ok: true; content: string }
   | { ok: false; error: string };
 
-export function applyArtifactEdits(content: string, edits: ArtifactEdit[]): ApplyEditsResult {
+export function applyStringEdits(content: string, edits: StringEdit[]): ApplyStringEditsResult {
   if (edits.length === 0) {
     return { ok: false, error: 'edits is empty — pass at least one edit or use content instead' };
   }
@@ -31,7 +32,7 @@ export function applyArtifactEdits(content: string, edits: ArtifactEdit[]): Appl
     if (occurrences === 0) {
       return {
         ok: false,
-        error: `edit #${i + 1}: old_str not found in the current version — `
+        error: `edit #${i + 1}: old_str not found in the current content — `
           + 'check the exact text (including whitespace) or resend the full content instead',
       };
     }
