@@ -1075,6 +1075,11 @@
 .reference-artifact-item {
   padding: 7px 10px;
   border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+}
+
+.reference-artifact-item:hover {
+  background: var(--surface-hover);
 }
 
 .reference-artifact-item:last-child {

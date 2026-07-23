@@ -61,15 +61,14 @@ export function createArtifactTools(workspaceId: string): Record<string, CanvasT
       description:
         'Add a new version to an existing artifact. The new version becomes the current one; previous versions remain accessible in the drawer. ' +
         'Use this when the user asks to refine, iterate on, or fix an artifact you (or a previous turn) already created. ' +
-        'Pass the same artifactId returned by `artifact_create`. ' +
-        'For small changes prefer `edits` over regenerating everything; if an edit fails to match, retry with full `content`.',
+        'Pass the same artifactId returned by `artifact_create`. Prefer `edits` for small changes; on match failure retry with full `content`.',
       inputSchema: z.object({
         artifactId: z.string().describe('The artifact to iterate on (returned by an earlier artifact_create call).'),
-        content: z.string().optional().describe('Full content of the new version. Provide either this or `edits`, not both.'),
+        content: z.string().optional().describe('Full content of the new version. Pass this or `edits`, not both.'),
         edits: z.array(z.object({
-          old_str: z.string().describe('Exact text in the current version — must match exactly once.'),
+          old_str: z.string().describe('Exact text; must match exactly once.'),
           new_str: z.string().describe('Replacement text.'),
-        })).optional().describe('Exact string edits applied in order to the current version; the result is stored as a full new version.'),
+        })).optional().describe('Ordered exact-string edits against the current version; stored as a full new version.'),
         prompt: z.string().optional().describe('Optional prompt/spec that produced this iteration.'),
       }),
       execute: async (input) => {

@@ -20,7 +20,7 @@ export type ApplyStringEditsResult =
 
 export function applyStringEdits(content: string, edits: StringEdit[]): ApplyStringEditsResult {
   if (edits.length === 0) {
-    return { ok: false, error: 'edits is empty — pass at least one edit or use content instead' };
+    return { ok: false, error: 'edits is empty' };
   }
   let current = content;
   for (let i = 0; i < edits.length; i++) {
@@ -32,15 +32,13 @@ export function applyStringEdits(content: string, edits: StringEdit[]): ApplyStr
     if (occurrences === 0) {
       return {
         ok: false,
-        error: `edit #${i + 1}: old_str not found in the current content — `
-          + 'check the exact text (including whitespace) or resend the full content instead',
+        error: `edit #${i + 1}: old_str not found — check exact text or resend full content`,
       };
     }
     if (occurrences > 1) {
       return {
         ok: false,
-        error: `edit #${i + 1}: old_str appears ${occurrences} times — `
-          + 'include more surrounding context to make it unique',
+        error: `edit #${i + 1}: old_str appears ${occurrences} times — add surrounding context`,
       };
     }
     current = current.replace(oldStr, () => newStr);

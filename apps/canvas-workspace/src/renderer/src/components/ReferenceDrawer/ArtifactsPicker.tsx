@@ -7,7 +7,7 @@ import { useI18n } from '../../i18n';
 /** Storage scope of global-chat artifacts (not a canvas workspace). */
 const GLOBAL_ARTIFACT_SCOPE = '__global_chat__';
 
-type ArtifactScope = 'current' | 'global' | 'all';
+type ArtifactScope = 'current' | 'all';
 
 interface ArtifactsPickerProps {
   activeWorkspaceId: string;
@@ -68,8 +68,7 @@ export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById }: Artifa
         setItems(res.ok ? res.artifacts ?? [] : []);
         return;
       }
-      const workspaceId = scope === 'global' ? GLOBAL_ARTIFACT_SCOPE : activeWorkspaceId;
-      const res = await api.list(workspaceId);
+      const res = await api.list(activeWorkspaceId);
       const artifacts = res.ok ? res.artifacts ?? [] : [];
       setItems(artifacts
         .map((a) => ({
@@ -142,7 +141,6 @@ export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById }: Artifa
             onChange={(id) => setScope(id as ArtifactScope)}
             options={[
               { id: 'current', label: t('reference.artifactScopeCurrent') },
-              { id: 'global', label: t('reference.artifactScopeGlobal') },
               { id: 'all', label: t('reference.artifactScopeAll') },
             ]}
           />
@@ -157,11 +155,20 @@ export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById }: Artifa
                 const crossScope = item.workspaceId !== activeWorkspaceId;
                 const pinned = !crossScope && !!item.pinnedNodeId;
                 return (
-                  <div key={`${item.workspaceId}:${item.id}`} className="reference-artifact-item" role="listitem">
+                  <div
+                    key={`${item.workspaceId}:${item.id}`}
+                    className="reference-artifact-item"
+                    role="listitem"
+                    onClick={() => dock.openArtifact(item.workspaceId, item.id)}
+                    title={t('reference.artifactOpenDock')}
+                  >
                     <div className="reference-artifact-row">
                       <span className="reference-artifact-type">{item.type.toUpperCase()}</span>
                       <span className="reference-artifact-title" title={item.title}>{item.title}</span>
-                      <div className="reference-artifact-actions">
+                      <div
+                        className="reference-artifact-actions"
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         <Button
                           size="xs"
                           variant="icon"
