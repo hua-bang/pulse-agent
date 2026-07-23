@@ -1049,3 +1049,89 @@
   background: #fbfbfa;
   flex-wrap: nowrap;
 }
+
+/* ── Artifacts source tab (Library drawer) ── */
+
+/* Popover computes left/top; the caller's class supplies position: fixed
+   plus surface styling (see ui/Popover's className contract). */
+.reference-artifacts-popover {
+  position: fixed;
+  z-index: var(--layer-note-popover);
+  width: 300px;
+  max-height: 380px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+}
+
+.reference-artifacts-popover .reference-artifact-scopes {
+  margin: 8px 8px 4px;
+}
+
+.reference-artifact-item {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+}
+
+.reference-artifact-item:hover {
+  background: var(--surface-hover);
+}
+
+.reference-artifact-item:last-child {
+  border-bottom: none;
+}
+
+.reference-artifact-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.reference-artifact-type {
+  flex: none;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.reference-artifact-title {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-artifact-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+.reference-artifact-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex: none;
+}
+
+/* Pin reads as the primary action even as an icon: accent-tinted in every
+   state (ui-btn's disabled opacity still fades it). The .ui-btn compound
+   outweighs the icon variant's own single-class color. */
+.ui-btn.reference-artifact-pin,
+.ui-btn.reference-artifact-pin:disabled {
+  color: var(--accent);
+}

@@ -5,6 +5,7 @@ import {
   getArtifact as storeGetArtifact,
 } from '../../artifacts/store';
 import { pinArtifactToCanvas } from '../../artifacts/ipc';
+import { applyStringEdits, type StringEdit } from './_shared/string-edits';
 import type { CanvasTool } from './types';
 import { loadCanvas } from './_shared/canvas-io';
 import {
@@ -60,24 +61,45 @@ export function createArtifactTools(workspaceId: string): Record<string, CanvasT
       description:
         'Add a new version to an existing artifact. The new version becomes the current one; previous versions remain accessible in the drawer. ' +
         'Use this when the user asks to refine, iterate on, or fix an artifact you (or a previous turn) already created. ' +
-        'Pass the same artifactId returned by `artifact_create`.',
+        'Pass the same artifactId returned by `artifact_create`. Prefer `edits` for small changes; on match failure retry with full `content`.',
       inputSchema: z.object({
         artifactId: z.string().describe('The artifact to iterate on (returned by an earlier artifact_create call).'),
-        content: z.string().describe('Full content of the new version — this replaces, not patches.'),
+        content: z.string().optional().describe('Full content of the new version. Pass this or `edits`, not both.'),
+        edits: z.array(z.object({
+          old_str: z.string().describe('Exact text; must match exactly once.'),
+          new_str: z.string().describe('Replacement text.'),
+        })).optional().describe('Ordered exact-string edits against the current version; stored as a full new version.'),
         prompt: z.string().optional().describe('Optional prompt/spec that produced this iteration.'),
       }),
       execute: async (input) => {
         const artifactId = input.artifactId as string;
-        const content = (input.content as string) ?? '';
+        const fullContent = (input.content as string | undefined)?.trim() ? input.content as string : undefined;
+        const edits = input.edits as StringEdit[] | undefined;
         const prompt = input.prompt as string | undefined;
-        if (!content.trim()) {
-          return JSON.stringify({ ok: false, error: 'content is empty' });
+        if (!fullContent && !edits?.length) {
+          return JSON.stringify({ ok: false, error: 'Provide either content or a non-empty edits list' });
+        }
+        if (fullContent && edits?.length) {
+          return JSON.stringify({ ok: false, error: 'Provide content OR edits, not both' });
         }
         const existing = await storeGetArtifact(workspaceId, artifactId);
         if (!existing) {
           return JSON.stringify({ ok: false, error: `Artifact not found: ${artifactId}` });
         }
-        const artifact = await storeAddArtifactVersion(workspaceId, artifactId, { content, prompt });
+        let content = fullContent;
+        if (!content && edits) {
+          const currentVersion = existing.versions.find((v) => v.id === existing.currentVersionId)
+            ?? existing.versions[existing.versions.length - 1];
+          if (!currentVersion) {
+            return JSON.stringify({ ok: false, error: 'Artifact has no versions to edit' });
+          }
+          const applied = applyStringEdits(currentVersion.content, edits);
+          if (!applied.ok) {
+            return JSON.stringify({ ok: false, error: applied.error });
+          }
+          content = applied.content;
+        }
+        const artifact = await storeAddArtifactVersion(workspaceId, artifactId, { content: content as string, prompt });
         if (!artifact) {
           return JSON.stringify({ ok: false, error: `Artifact not found: ${artifactId}` });
         }
@@ -87,6 +109,7 @@ export function createArtifactTools(workspaceId: string): Record<string, CanvasT
           artifactId: artifact.id,
           versionId: artifact.currentVersionId,
           versionCount: artifact.versions.length,
+          ...(edits?.length ? { editsApplied: edits.length } : {}),
           type: artifact.type,
           title: artifact.title,
         });

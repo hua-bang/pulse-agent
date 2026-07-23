@@ -461,6 +461,14 @@
 
 .artifact-drawer__toolbar-spacer { flex: 1; }
 
+/* The ui-select root is width:100%; pin it down inside the flex toolbar. */
+.ui-select.artifact-drawer__version-select {
+  width: 112px;
+  min-width: 0;
+  flex: none;
+  font-size: 12px;
+}
+
 .artifact-drawer__action {
   font-size: 12px;
   font-weight: 500;

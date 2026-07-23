@@ -42,6 +42,7 @@ import { startWebviewDiscardMonitor } from "../webview/discard-monitor";
 import { setupHtmlGeneratorIpc } from "../generation/ipc";
 import { setupWebpageReaderIpc } from "../webview/reader";
 import { setupArtifactIpc } from "../artifacts/ipc";
+import { setupReferenceIpc } from "../references/ipc";
 import { setupShellIpc } from "./shell-ipc";
 import {
   BUILT_IN_MAIN_PLUGINS,
@@ -234,6 +235,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       import('./update-ipc'),
     ]);
     setupArtifactIpc();
+    setupReferenceIpc();
     {
       const { setupArtifactCapabilityIpc } = await import('../artifacts/capability-ipc');
       setupArtifactCapabilityIpc();

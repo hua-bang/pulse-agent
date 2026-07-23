@@ -83,6 +83,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     activeReference,
     activeReferenceNode,
     clearAllReferences,
+    pinReferenceArtifact,
     pinReferenceNode,
     pinReferenceUrl,
     referenceDrawerLoaded,
@@ -323,6 +324,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
               onClearAll={clearAllReferences}
               onAddReference={pinReferenceNode}
               onAddUrlReference={pinReferenceUrl}
+              onAddArtifactReference={pinReferenceArtifact}
               onUrlReferenceTitle={updateUrlReferenceTitle}
               onFocusNode={peekNode}
               onAddReferenceToCanvas={addReferenceToCanvas}

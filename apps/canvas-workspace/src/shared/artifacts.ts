@@ -13,6 +13,23 @@ export interface ArtifactVersion {
   createdAt: number;
 }
 
+/**
+ * Metadata-only projection for cross-workspace listings (the Library's
+ * "all scopes" view). Deliberately excludes version contents — a full
+ * cross-workspace `Artifact[]` would ship every version's HTML to the
+ * renderer just to draw a list.
+ */
+export interface ArtifactSummary {
+  id: string;
+  workspaceId: string;
+  type: ArtifactType;
+  title: string;
+  versionCount: number;
+  pinnedNodeId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Artifact {
   id: string;
   workspaceId: string;

@@ -2,11 +2,13 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
+import { Button } from '../ui';
 import { IframeNodeBody } from '../IframeNodeBody';
 import { useI18n } from '../../i18n';
 import { MIN_REFERENCE_DRAWER_WIDTH } from './constants';
-import type { NodeReferenceEntry, ReferenceEntry, UrlReferenceEntry } from './types';
-import { createUrlPreviewNode, getReferenceId, isUrlReference } from './utils';
+import { useRightDock } from '../RightDock';
+import type { ArtifactReferenceEntry, NodeReferenceEntry, ReferenceEntry, UrlReferenceEntry } from './types';
+import { createArtifactPreviewNode, createUrlPreviewNode, getReferenceId, isArtifactReference, isUrlReference } from './utils';
 
 interface ReferencePreviewPanelProps {
   references: ReferenceEntry[];
@@ -64,7 +66,7 @@ export const ReferencePreviewPanel = ({
     [references],
   );
   const nodeReferences = useMemo(
-    () => references.filter((entry): entry is NodeReferenceEntry => !isUrlReference(entry)),
+    () => references.filter((entry): entry is NodeReferenceEntry => !isUrlReference(entry) && !isArtifactReference(entry)),
     [references],
   );
 
@@ -140,11 +142,13 @@ export const ReferencePreviewPanel = ({
   }, [getNodeByEntry, nodeReferences]);
 
   const activeIsUrl = !!(activeReference && isUrlReference(activeReference));
+  const activeArtifactReference = activeReference && isArtifactReference(activeReference) ? activeReference : undefined;
   const activeUrlReference = activeIsUrl ? (activeReference as UrlReferenceEntry) : undefined;
   const activeReferenceId = activeReference ? getReferenceId(activeReference) : undefined;
   const activeNodeReferenceIsPersistent = !!(
     activeReference
     && !isUrlReference(activeReference)
+    && !isArtifactReference(activeReference)
     && activeReferenceNode?.type === 'iframe'
   );
   const activePersistentNodeReferenceId = activeNodeReferenceIsPersistent
@@ -246,7 +250,7 @@ export const ReferencePreviewPanel = ({
         );
       })}
 
-      {activeReference && !isUrlReference(activeReference) && activeReferenceNode && !activeNodeReferenceIsPersistent && (
+      {activeReference && !isUrlReference(activeReference) && !isArtifactReference(activeReference) && activeReferenceNode && !activeNodeReferenceIsPersistent && (
         <div className="reference-native-card reference-native-card--persistent">
           <ReferenceNativeNodePreview
             node={activeReferenceNode}
@@ -264,7 +268,16 @@ export const ReferencePreviewPanel = ({
         </div>
       )}
 
-      {activeReference && !isUrlReference(activeReference) && !activeReferenceNode && (
+      {activeArtifactReference && (
+        <ReferenceArtifactPreviewCard
+          entry={activeArtifactReference}
+          drawerWidth={drawerWidth}
+          onClearAll={onClearAll}
+          onRemoveReference={onRemoveReference}
+        />
+      )}
+
+      {activeReference && !isUrlReference(activeReference) && !isArtifactReference(activeReference) && !activeReferenceNode && (
         <div className="reference-pick-hint reference-pick-hint--overlay">{t('reference.sourceMissing')}</div>
       )}
 
@@ -412,3 +425,64 @@ const ReferenceNativeNodePreview = memo(({
 });
 
 ReferenceNativeNodePreview.displayName = 'ReferenceNativeNodePreview';
+
+interface ReferenceArtifactPreviewCardProps {
+  entry: ArtifactReferenceEntry;
+  drawerWidth: number;
+  onClearAll: () => void;
+  onRemoveReference: (referenceId: string) => void;
+}
+
+// Active-only (not persistent like webview cards): artifact mode renders a
+// sandboxed srcDoc iframe, so remounting on switch is cheap and safe.
+const ReferenceArtifactPreviewCard = ({
+  entry,
+  drawerWidth,
+  onClearAll,
+  onRemoveReference,
+}: ReferenceArtifactPreviewCardProps) => {
+  const { t } = useI18n();
+  const dock = useRightDock();
+  const previewNode = useMemo(
+    () => createArtifactPreviewNode(entry, drawerWidth),
+    [entry, drawerWidth],
+  );
+
+  return (
+    <div className="reference-url-card reference-url-card--preview" style={ACTIVE_SLOT_STYLE}>
+      <div className="reference-url-preview">
+        <IframeNodeBody
+          node={previewNode}
+          workspaceId={entry.workspaceId}
+          onUpdate={() => undefined}
+          isResizing={false}
+          readOnly
+        />
+      </div>
+      <div className="reference-card-footer">
+        <Button
+          size="xs"
+          className="reference-drawer-secondary"
+          onClick={() => dock.openArtifact(entry.workspaceId, entry.artifactId)}
+        >
+          {t('reference.artifactOpenDock')}
+        </Button>
+        <Button
+          size="xs"
+          className="reference-drawer-secondary"
+          onClick={() => onRemoveReference(getReferenceId(entry))}
+        >
+          {t('reference.unpin')}
+        </Button>
+        <Button
+          size="xs"
+          className="reference-drawer-secondary"
+          onClick={onClearAll}
+          title={t('reference.clearAllTitle')}
+        >
+          {t('reference.clearAll')}
+        </Button>
+      </div>
+    </div>
+  );
+};

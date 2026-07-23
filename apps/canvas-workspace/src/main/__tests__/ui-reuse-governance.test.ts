@@ -98,7 +98,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // raw <button>s sharing the node-header CSS family — adopting ui/Button for
   // one sibling would fork the family's styling; the whole family migrates
   // together in the ui-reuse burndown.
-  rawButtonTags: 325,
+  // 325→322 (Library drawer toolbar): the three source-picker trigger chips
+  // (ReferencePicker current/other, ReferenceUrlEditor) moved onto ui/Button
+  // (now forwardRef) so they match the new ArtifactsPicker trigger.
+  rawButtonTags: 322,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

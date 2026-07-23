@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type Dispatch, type FormEvent, type RefObject, type SetStateAction } from 'react';
 import { LinkIcon } from './Icons';
+import { Button } from '../ui';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useI18n } from '../../i18n';
 
@@ -64,10 +65,10 @@ export const ReferenceUrlEditor = ({
 
   return (
     <div className="reference-url-anchor" ref={urlEditorRef}>
-      <button
+      <Button
         ref={triggerRef}
+        size="sm"
         className={`reference-drawer-action reference-drawer-action--ghost${urlEditorOpen ? ' reference-drawer-action--open' : ''}`}
-        type="button"
         onClick={() => {
           setUrlEditorOpen((prev) => !prev);
           setUrlError(undefined);
@@ -78,7 +79,7 @@ export const ReferenceUrlEditor = ({
       >
         <LinkIcon />
         URL
-      </button>
+      </Button>
       {urlEditorOpen && (
         <form className="reference-url-popover" role="dialog" aria-label={t('reference.addUrlDialog')} onSubmit={handleSubmit}>
           <label className="reference-url-label" htmlFor="reference-url-input">{t('reference.urlLabel')}</label>

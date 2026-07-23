@@ -1,13 +1,18 @@
 import type { CanvasNode, ReferenceNodeData } from '../../types';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { MIN_REFERENCE_DRAWER_WIDTH } from './constants';
-import type { ReferenceEntry, ReferenceGroupKey, UrlReferenceEntry } from './types';
+import type { ArtifactReferenceEntry, ReferenceEntry, ReferenceGroupKey, UrlReferenceEntry } from './types';
 
 export const isUrlReference = (entry: ReferenceEntry): entry is UrlReferenceEntry => entry.kind === 'url';
 
-export const getReferenceId = (entry: ReferenceEntry) => isUrlReference(entry)
-  ? entry.id
-  : `${entry.workspaceId}:${entry.nodeId}`;
+export const isArtifactReference = (entry: ReferenceEntry): entry is ArtifactReferenceEntry =>
+  entry.kind === 'artifact';
+
+export const getReferenceId = (entry: ReferenceEntry) => {
+  if (isUrlReference(entry)) return entry.id;
+  if (isArtifactReference(entry)) return `artifact:${entry.workspaceId}:${entry.artifactId}`;
+  return `${entry.workspaceId}:${entry.nodeId}`;
+};
 
 export const getNodeReferenceId = (workspaceId: string, nodeId: string) => `${workspaceId}:${nodeId}`;
 
@@ -53,6 +58,26 @@ export const createUrlPreviewNode = (entry: UrlReferenceEntry, drawerWidth: numb
     mode: 'url',
     url: entry.url,
     pageTitle: entry.title,
+  },
+});
+
+/**
+ * Preview shell for an artifact reference: a synthetic iframe node in
+ * mode:'artifact', rendered by IframeNodeBody with the ARTIFACT's storage
+ * scope as workspaceId — which is why cross-scope entries preview fine.
+ */
+export const createArtifactPreviewNode = (entry: ArtifactReferenceEntry, drawerWidth: number): CanvasNode => ({
+  id: getReferenceId(entry),
+  type: 'iframe',
+  title: entry.titleSnapshot ?? 'Artifact',
+  x: 0,
+  y: 0,
+  width: Math.max(MIN_REFERENCE_DRAWER_WIDTH - 32, drawerWidth - 32),
+  height: 420,
+  data: {
+    mode: 'artifact',
+    url: 'about:blank',
+    artifactId: entry.artifactId,
   },
 });
 

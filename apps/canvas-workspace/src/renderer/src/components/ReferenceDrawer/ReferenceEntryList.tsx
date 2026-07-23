@@ -3,7 +3,7 @@ import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
 import { useI18n } from '../../i18n';
 import type { NodeReferenceEntry, ReferenceEntry } from './types';
-import { getReferenceId, getUrlHostname, getUrlReferenceLabel, isUrlReference } from './utils';
+import { getReferenceId, getUrlHostname, getUrlReferenceLabel, isArtifactReference, isUrlReference } from './utils';
 
 interface ReferenceEntryListProps {
   entries: ReferenceEntry[];
@@ -34,24 +34,32 @@ export const ReferenceEntryList = ({
     <ul className="reference-group-items">
       {entries.map((entry) => {
         const id = getReferenceId(entry);
-        const node = isUrlReference(entry) ? undefined : getNodeByEntry(entry);
+        const node = !isUrlReference(entry) && !isArtifactReference(entry) ? getNodeByEntry(entry) : undefined;
         const label = isUrlReference(entry)
           ? getUrlReferenceLabel(entry)
-          : node
-            ? getNodeDisplayLabel(node)
-            : entry.titleSnapshot ?? entry.nodeId;
-        const type = isUrlReference(entry) ? 'url' : node?.type ?? entry.typeSnapshot ?? 'missing';
+          : isArtifactReference(entry)
+            ? entry.titleSnapshot ?? entry.artifactId
+            : node
+              ? getNodeDisplayLabel(node)
+              : entry.titleSnapshot ?? entry.nodeId;
+        const type = isUrlReference(entry) || isArtifactReference(entry)
+          ? entry.kind
+          : node?.type ?? entry.typeSnapshot ?? 'missing';
         const active = id === activeId;
         const workspaceLabel = isUrlReference(entry)
           ? getUrlHostname(entry.url)
           : entry.workspaceId === activeWorkspaceId
             ? t('reference.current')
-            : workspaceNameById.get(entry.workspaceId) ?? entry.workspaceNameSnapshot ?? t('reference.workspace');
+            : workspaceNameById.get(entry.workspaceId)
+              ?? (isArtifactReference(entry) ? t('reference.artifactScopeGlobal') : entry.workspaceNameSnapshot)
+              ?? t('reference.workspace');
         const typeLabel = type === 'url'
           ? t('reference.group.url')
-          : type === 'missing'
-            ? t('reference.group.missing')
-            : t(CANVAS_NODE_TYPE_LABEL_KEY[type]);
+          : type === 'artifact'
+            ? t('reference.group.artifact')
+            : type === 'missing'
+              ? t('reference.group.missing')
+              : t(CANVAS_NODE_TYPE_LABEL_KEY[type]);
 
         return (
           <li key={id} className="reference-group-item-row">
@@ -59,7 +67,10 @@ export const ReferenceEntryList = ({
               type="button"
               className={`reference-group-item${active ? ' reference-group-item--active' : ''}`}
               onClick={() => onSelect(id)}
-              onDoubleClick={() => isUrlReference(entry) ? onOpenUrl(entry.url) : onFocus(entry.workspaceId, entry.nodeId)}
+              onDoubleClick={() => {
+                if (isUrlReference(entry)) onOpenUrl(entry.url);
+                else if (!isArtifactReference(entry)) onFocus(entry.workspaceId, entry.nodeId);
+              }}
             >
               <span className="reference-group-item-label" title={label}>
                 {label}

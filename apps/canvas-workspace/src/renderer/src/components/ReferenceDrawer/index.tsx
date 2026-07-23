@@ -26,6 +26,7 @@ interface ReferenceDrawerProps {
   onClearAll: () => void;
   onAddReference: (workspaceId: string, nodeId: string) => void;
   onAddUrlReference: (url: string, title?: string) => void;
+  onAddArtifactReference: (artifact: { workspaceId: string; artifactId: string; title?: string; type?: 'html' | 'svg' | 'mermaid' }) => void;
   onUrlReferenceTitle?: (referenceId: string, title: string) => void;
   onFocusNode: (workspaceId: string, nodeId: string) => void;
   onAddReferenceToCanvas: (entry: NodeReferenceEntry) => void;
@@ -48,6 +49,7 @@ export const ReferenceDrawer = ({
   onClearAll,
   onAddReference,
   onAddUrlReference,
+  onAddArtifactReference,
   onUrlReferenceTitle,
   onFocusNode,
   onAddReferenceToCanvas,
@@ -102,6 +104,8 @@ export const ReferenceDrawer = ({
       </header>
 
       <ReferenceDrawerToolbar
+        activeWorkspaceId={activeWorkspaceId}
+        onPreviewArtifact={onAddArtifactReference}
         allNodes={allNodes}
         currentNodeCount={state.eligibleCurrentNodeCount}
         externalWorkspaceId={state.externalWorkspaceId}

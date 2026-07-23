@@ -2,6 +2,7 @@ import type { PluginBridge } from '../../../plugins/types';
 import type { BrowsingHistoryApi } from '../../../shared/browsing-history';
 import type { MemoryReportApi } from '../../../shared/memory-report';
 import type { ArtifactCapabilitiesApi } from '../../../shared/artifact-capabilities';
+import type { ReferencesApi } from '../../../shared/references';
 import type {
   CanvasSaveData,
   KnowledgeTagDefinition,
@@ -188,6 +189,7 @@ export interface CanvasWorkspaceApi {
   iframe: IframeApi;
   llm: LlmApi;
   artifacts: ArtifactsApi;
+  references: ReferencesApi;
   shell: ShellApi;
   link: LinkApi;
   defaultBrowser: DefaultBrowserApi;

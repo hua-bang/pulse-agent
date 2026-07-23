@@ -1,4 +1,4 @@
-import { type ButtonHTMLAttributes } from 'react';
+import { forwardRef, type ButtonHTMLAttributes } from 'react';
 import './index.css';
 
 // Once per session — a lint nudge for missing icon aria-labels, not a log
@@ -30,19 +30,24 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
  * width/height per `size`), transparent background, hover tint, no text
  * label. The child is the icon; since there's no visible label, callers
  * MUST pass `aria-label` (a dev-time console.warn fires when it's missing).
+ *
+ * Forwards `ref` to the underlying `<button>` so callers can restore
+ * focus or anchor popovers to the trigger.
  */
-export const Button = ({
+export const Button = forwardRef<HTMLButtonElement, Props>(({
   variant = 'secondary',
   size = 'md',
   type = 'button',
   className,
   ...rest
-}: Props) => {
+}, ref) => {
   if (variant === 'icon' && !rest['aria-label'] && !warnedIconAriaLabel) {
     warnedIconAriaLabel = true;
     console.warn('ui/Button variant="icon" is missing an aria-label — icon-only buttons need one.');
   }
   const classes = ['ui-btn', `ui-btn--${variant}`, `ui-btn--${size}`];
   if (className) classes.push(className);
-  return <button type={type} className={classes.join(' ')} {...rest} />;
-};
+  return <button ref={ref} type={type} className={classes.join(' ')} {...rest} />;
+});
+
+Button.displayName = 'Button';
