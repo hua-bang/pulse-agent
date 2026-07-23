@@ -1052,8 +1052,11 @@
 
 /* ── Artifacts source tab (Library drawer) ── */
 
-/* Surface styling only — Popover owns geometry (position/left/top). */
+/* Popover computes left/top; the caller's class supplies position: fixed
+   plus surface styling (see ui/Popover's className contract). */
 .reference-artifacts-popover {
+  position: fixed;
+  z-index: var(--layer-note-popover);
   width: 300px;
   max-height: 380px;
   display: flex;
