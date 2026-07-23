@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { CanvasNode, TextNodeData } from "../types";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CanvasNode, TextNodeData } from '../types';
 
 const DEFAULT_MIN_WIDTH = 200;
 const DEFAULT_MIN_HEIGHT = 120;

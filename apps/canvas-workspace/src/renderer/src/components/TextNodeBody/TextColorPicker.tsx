@@ -1,7 +1,7 @@
-import { BG_COLOR_PRESETS, TEXT_COLOR_PRESETS } from "./colorPresets";
-import type { CanvasNode, TextNodeData } from "../../types";
-import { DropdownShell, SwatchRow } from "../ui";
-import { useI18n } from "../../i18n";
+import { BG_COLOR_PRESETS, TEXT_COLOR_PRESETS } from './colorPresets';
+import type { CanvasNode, TextNodeData } from '../../types';
+import { DropdownShell, SwatchRow } from '../ui';
+import { useI18n } from '../../i18n';
 
 /**
  * Color pickers for the text-node header (text color + background color).

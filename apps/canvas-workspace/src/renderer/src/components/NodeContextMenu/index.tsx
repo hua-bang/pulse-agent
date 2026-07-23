@@ -1,8 +1,8 @@
-import "./index.css";
-import { Popover } from "../ui/Popover";
-import { useI18n } from "../../i18n";
-import type { CreatableCanvasNodeType } from "../../utils/nodeFactory";
-import { useRightDock } from "../RightDock";
+import './index.css';
+import { Popover } from '../ui/Popover';
+import { useI18n } from '../../i18n';
+import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
+import { useRightDock } from '../RightDock';
 
 interface Props {
   x: number;

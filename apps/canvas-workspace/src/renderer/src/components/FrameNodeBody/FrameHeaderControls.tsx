@@ -1,7 +1,7 @@
-import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
-import type { CanvasNode, FrameNodeData } from "../../types";
-import { DropdownShell, SwatchRow } from "../ui";
-import { useI18n } from "../../i18n";
+import { useCallback, type MouseEvent as ReactMouseEvent } from 'react';
+import type { CanvasNode, FrameNodeData } from '../../types';
+import { DropdownShell, SwatchRow } from '../ui';
+import { useI18n } from '../../i18n';
 
 /**
  * Frame header controls (children toggle + color picker).
