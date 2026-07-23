@@ -63,7 +63,7 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       description:
         'List open right-dock tabs: link, node-detail, artifact, canvas preview, and terminal. ' +
         'Returns ids for `canvas_read_tab`, `canvas_activate_tab`, and resource-specific tools. ' +
-        'For link tabs, use the tab id with `canvas_open_tab` or enabled page_* controls.',
+        'For a link tab already open here, read it with `canvas_read_tab` (or drive it with enabled page_* controls).',
       inputSchema: z.object({}),
       execute: async (input, ctx) => {
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
@@ -102,9 +102,11 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       name: 'canvas_open_tab',
       defer_loading: true,
       description:
-        'Open an http(s) URL in a right-dock link tab. Omit tabId to open or reactivate by URL; ' +
-        'pass a link tabId from canvas_list_tabs to navigate that tab in place. ' +
-        'Then list tabs to confirm its id and use canvas_read_tab or enabled page_* controls.',
+        'Open an http(s) URL as a visible right-dock link tab in the user\'s dock (spawns a live webview). ' +
+        'This is a user-facing UI action — use it ONLY when the user explicitly asks to open/show a page, ' +
+        'or when they want to interact with a live page (page_* click/fill/navigate) that is not open yet. ' +
+        'To merely read or research a URL, do NOT open a tab: use tavily_extract / tavily, or canvas_read_webpage / canvas_read_tab for pages already open. ' +
+        'Omit tabId to open or reactivate by URL; pass a link tabId from canvas_list_tabs to navigate that tab in place.',
       inputSchema: z.object({
         url: z.string().describe('The http(s) URL to open.'),
         tabId: z
@@ -129,7 +131,8 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       defer_loading: true,
       description:
         'Search right-dock web-tab history by URL/title. All terms match case-insensitively; ' +
-        'results are newest first. Empty query returns recent pages. Reopen with canvas_open_tab.',
+        'results are newest first. Empty query returns recent pages. ' +
+        'If the user explicitly wants a result reopened in their dock, use canvas_open_tab.',
       inputSchema: z.object({
         query: z
           .string()
