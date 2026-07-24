@@ -7,21 +7,23 @@
  * swatch identity; CanvasNodeView/utils.ts parses the hue/chroma out of
  * `data.color` and exposes them as CSS custom props.
  *
- *   pillBg        -> L 0.56   Cx2.2   (solid chip, white text — the anchor)
+ *   pillBg        -> L 0.61   Cx2.6   (solid chip, white text — the anchor)
  *   pillText      -> white             (icon strokes too)
  *   countBg       -> white @ 0.22 over the chip
- *   bodyTint      -> L 0.978  Cx0.55  (perceptible wash, not near-white)
- *   bodyTintFocus -> L 0.972  Cx0.60
- *   border        -> L 0.86   Cx0.45
- *   borderHover   -> L 0.78   Cx0.60
+ *   bodyTint      -> L 0.958  Cx0.52  (near-opaque wash on a light canvas)
+ *   bodyTintFocus -> L 0.952  Cx0.56
+ *   border        -> L 0.885  Cx0.75
+ *   borderHover   -> L 0.82   Cx0.95
  *   borderFocus   -> L 0.80   Cx0.38
  *   identity      -> L 0.62   Cx0.95  (selection ring, focus mode border)
- *   dotPattern    -> L 0.88   Cx0.12
+ *   dotPattern    -> L 0.88   Cx0.12 @ 0.06 (sections read as flat color)
  *
- * Rebalanced 2026-07-24 toward the Heptabase reading: RESTRAINED wash on the
- * body (visible, so white cards get figure-ground separation) + a SATURATED
- * title chip as the section anchor. The old pale-pill/invisible-tint combo
- * averaged into gray at overview zoom.
+ * Calibrated 2026-07-24 against Heptabase reference boards (vision-read
+ * from screenshots; heptabase.com is unreachable under this session's
+ * network policy, so these are perceptual matches, not sampled pixels):
+ * LIGHT canvas + DEEPER near-opaque washes + brighter, more chromatic
+ * title chips. The earlier pale-pill/invisible-tint combo averaged into
+ * gray at overview zoom.
  *
  * --frame-color is kept as the picker dot's display value (sRGB color from
  * the stored string, used in one place); everything else goes via hue.
@@ -30,12 +32,12 @@
 .canvas-node--frame {
   --_c: var(--frame-chroma, 0.052);
   --_h: var(--frame-hue, 250);
-  /* Tunable opacity. The design reference uses an almost-solid pale tint;
+  /* Tunable opacity. The reference washes read as solid color;
    * keeping this as a variable lets focus/experiments still tune it. */
-  --_a: var(--frame-bg-alpha, 0.86);
+  --_a: var(--frame-bg-alpha, 0.96);
 
-  background: oklch(0.978 calc(var(--_c) * 0.55) var(--_h) / var(--_a));
-  border: 1px solid oklch(0.86 calc(var(--_c) * 0.45) var(--_h));
+  background: oklch(0.958 calc(var(--_c) * 0.52) var(--_h) / var(--_a));
+  border: 1px solid oklch(0.885 calc(var(--_c) * 0.75) var(--_h));
   border-radius: var(--radius-md);
   box-shadow: none;
   /* Header pill floats above the body, so we mustn't clip it. */
@@ -55,9 +57,9 @@
       oklch(0.88 calc(var(--_c) * 0.12) var(--_h)) 1px,
       transparent 1px);
   background-size: 30px 30px;
-  /* Quiet layer: the canvas grid already textures the backdrop; two dot
-   * patterns at full strength stack into uniform noise. */
-  opacity: 0.12;
+  /* Whisper-level: the reference sections read as FLAT color; keep only a
+   * trace of the pad texture as product identity. */
+  opacity: 0.06;
   z-index: 0;
 }
 
@@ -67,7 +69,7 @@
 }
 
 .canvas-node--frame:hover {
-  border-color: oklch(0.78 calc(var(--_c) * 0.60) var(--_h));
+  border-color: oklch(0.82 calc(var(--_c) * 0.95) var(--_h));
   box-shadow: none;
 }
 
@@ -79,7 +81,7 @@
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: oklch(0.972 calc(var(--_c) * 0.60) var(--_h) / 0.9);
+  background: oklch(0.952 calc(var(--_c) * 0.56) var(--_h) / 0.97);
   border-style: solid;
   border-color: oklch(0.80 calc(var(--_c) * 0.38) var(--_h));
   box-shadow: 0 0 0 2px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.28);
@@ -131,10 +133,11 @@
 
   /* Solid saturated chip + white text: the section ANCHOR. At overview zoom
    * these chips are what structures the whole board (Heptabase reading);
-   * the old pale pill read as one more gray blob. L 0.56 keeps white text
-   * at readable contrast across all eight hues; the graphite preset
-   * (chroma 0.006) degrades gracefully to a dark-gray chip. */
-  background: oklch(0.56 calc(var(--_c) * 2.2) var(--_h));
+   * the old pale pill read as one more gray blob. L 0.61 / Cx2.6 matches the
+   * reference chips' brighter, livelier tone (their green label reads as
+   * roughly L 0.61, C 0.14 at hue 149); the graphite preset (chroma 0.006)
+   * degrades gracefully to a gray chip. */
+  background: oklch(0.61 calc(var(--_c) * 2.6) var(--_h));
   border: none;
   border-radius: var(--radius-md);
   color: rgba(255, 255, 255, 0.97);
