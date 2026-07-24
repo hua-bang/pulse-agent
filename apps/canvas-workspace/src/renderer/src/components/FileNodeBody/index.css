@@ -93,11 +93,12 @@
  * caret never sits flush with the resize handle while typing. */
 .note-tiptap-editor .ProseMirror {
   min-height: 100%;
-  padding: 22px 32px 56px;
+  /* Top stays tight — the card title (node header) supplies the top mass. */
+  padding: 10px 32px 44px;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
     "Inter", "Helvetica Neue", Arial, sans-serif;
-  font-size: 14.5px;
-  line-height: 1.7;
+  font-size: 15px;
+  line-height: 1.62;
   color: var(--text);
   outline: none;
   caret-color: var(--accent);
@@ -166,6 +167,11 @@
 
 .note-tiptap-editor .ProseMirror li {
   margin: 0.18em 0;
+}
+
+/* Muted gray bullet/number markers, per the reference cards. */
+.note-tiptap-editor .ProseMirror li::marker {
+  color: var(--text-muted);
 }
 
 .note-tiptap-editor .ProseMirror ul[data-type="taskList"] {

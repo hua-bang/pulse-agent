@@ -61,20 +61,24 @@
  * the body instead of sitting on a hard divider. The toolbar (when
  * selected) and the editor share the same paper colour so the whole
  * card reads as one document surface. */
+/* Card chrome aligned to the Heptabase reference close-up: bigger radius,
+ * hairline border (the soft diffuse shadow does the lifting; deep-zoom edge
+ * legibility is covered by the counter-scaled outline ring below), and the
+ * title treated as the document's first heading rather than a chrome strip. */
 .canvas-node--file {
-  background: #fdfcf9;
-  border-color: rgba(55, 53, 47, 0.1);
+  background: var(--note-paper);
+  border-color: rgba(55, 53, 47, 0.07);
   border-radius: var(--radius-xl);
   box-shadow:
-    0 1px 2px rgba(55, 53, 47, 0.05),
-    0 7px 20px rgba(55, 53, 47, 0.08);
+    0 1px 2px rgba(55, 53, 47, 0.04),
+    0 10px 28px rgba(55, 53, 47, 0.07);
 }
 
 .canvas-node--file:hover {
   box-shadow:
-    0 1px 3px rgba(55, 53, 47, 0.06),
-    0 10px 26px rgba(55, 53, 47, 0.1);
-  border-color: rgba(55, 53, 47, 0.13);
+    0 1px 3px rgba(55, 53, 47, 0.05),
+    0 12px 32px rgba(55, 53, 47, 0.09);
+  border-color: rgba(55, 53, 47, 0.1);
 }
 
 .canvas-node--file.canvas-node--selected {
@@ -177,9 +181,16 @@
 .canvas-node--file > .node-header {
   background: transparent;
   border-bottom: 1px solid transparent;
-  min-height: 30px;
-  padding: 6px 12px 4px 14px;
+  min-height: 0;
+  /* Horizontal inset matches the editor column (32px) so the title reads as
+   * the document's first heading, flush with the body text. */
+  padding: 18px 32px 0;
   transition: border-color 0.15s ease;
+}
+
+/* Reference cards carry no type icon — the title IS the card's identity. */
+.canvas-node--file > .node-header .node-type-badge--file {
+  display: none;
 }
 
 .canvas-node--file.canvas-node--selected > .node-header {
@@ -187,10 +198,15 @@
 }
 
 .canvas-node--file > .node-header .node-title {
-  font-weight: 650;
-  font-size: 14px;
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.35;
   color: var(--text);
-  letter-spacing: 0.005em;
+  letter-spacing: -0.015em;
+  /* Reference titles wrap over multiple lines — no single-line ellipsis. */
+  white-space: normal;
+  overflow: visible;
+  padding: 0;
   transition: color 0.12s ease;
 }
 

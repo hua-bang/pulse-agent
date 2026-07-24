@@ -332,7 +332,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1874→1871: release gate cleanup reused the existing accent token and exact-value shadow tokens.
   // 1871→1863 (link actions): deleting the bespoke LinkDrawer action chrome
   // removed eight hardcoded color literals in favor of shared ui/Button styles.
-  hardcodedColorLiterals: 1863,
+  // 1863→1862 (Heptabase card alignment): the file card's literal paper
+  // background now routes through the --note-paper token.
+  hardcodedColorLiterals: 1862,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

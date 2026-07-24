@@ -33,7 +33,9 @@
   --accent-soft: rgba(59, 130, 246, 0.1);
   --accent-soft-strong: rgba(59, 130, 246, 0.22);
   --border-subtle: rgba(255, 255, 255, 0.14);
-  --note-paper: #fdfcf9;
+  /* Pure white per the Heptabase reference — cards pop off the tinted
+   * frame washes; the warm cream paper read as one more beige layer. */
+  --note-paper: #ffffff;
   --surface-1: rgba(0, 0, 0, 0.2);
   --surface-2: rgba(255, 255, 255, 0.03);
   --surface-alt: rgba(0, 0, 0, 0.05);
