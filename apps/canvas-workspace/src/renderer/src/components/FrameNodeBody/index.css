@@ -10,8 +10,8 @@
  *   pillBg        -> L 0.95   Cx0.60  (pale tinted label, NOT a solid chip)
  *   pillText      -> L 0.52   Cx2.4   (colored label text + icon strokes)
  *   countBg       -> L 0.90   Cx0.90  (tinted badge, colored text)
- *   bodyTint      -> L 0.972  Cx0.28  (whisper wash)
- *   bodyTintFocus -> L 0.965  Cx0.32
+ *   bodyTint      -> L 0.980  Cx0.20  (barely-there wash)
+ *   bodyTintFocus -> L 0.974  Cx0.24
  *   border        -> L 0.925  Cx0.45
  *   borderHover   -> L 0.87   Cx0.70
  *   borderFocus   -> L 0.80   Cx0.38
@@ -40,7 +40,7 @@
    * keeping this as a variable lets focus/experiments still tune it. */
   --_a: var(--frame-bg-alpha, 0.96);
 
-  background: oklch(0.972 calc(var(--_c) * 0.28) var(--_h) / var(--_a));
+  background: oklch(0.980 calc(var(--_c) * 0.20) var(--_h) / var(--_a));
   border: 1px solid oklch(0.925 calc(var(--_c) * 0.45) var(--_h));
   border-radius: var(--radius-md);
   box-shadow: none;
@@ -85,7 +85,7 @@
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: oklch(0.965 calc(var(--_c) * 0.32) var(--_h) / 0.97);
+  background: oklch(0.974 calc(var(--_c) * 0.24) var(--_h) / 0.97);
   border-style: solid;
   border-color: oklch(0.80 calc(var(--_c) * 0.38) var(--_h));
   box-shadow: 0 0 0 2px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.28);
