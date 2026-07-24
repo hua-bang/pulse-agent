@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { join, resolve, relative, isAbsolute } from 'path';
+import { dirname, join, resolve, relative, isAbsolute } from 'path';
 import { NODE_CAPABILITIES, DEFAULT_NODE_DIMENSIONS } from './constants';
 import { loadCanvas, saveCanvas, ensureWorkspaceDir, getWorkspaceDir, commitNodeMutation } from './store';
 import { notifyCanvasUpdated } from './notifier';
@@ -256,42 +256,40 @@ export interface WriteNodeOptions {
   confineToWorkspace?: boolean;
 }
 
-export async function writeNode(
-  workspaceId: string,
-  nodeId: string,
+/** A deferred backing-file write produced by {@link prepareNodeContent}. */
+export interface PreparedContentWrite {
+  path: string;
+  content: string;
+}
+
+/**
+ * Apply `content` to a node's in-memory data per its type — shared by
+ * `writeNode` (single-node CLI write) and `applyPlan` (atomic batch). File
+ * nodes RETURN the backing-file write instead of performing it, so batch
+ * callers can defer every fs effect until the whole plan validates.
+ */
+export function prepareNodeContent(
+  node: CanvasNode,
   content: string,
-  storeDir?: string,
+  wsDir: string,
   opts: WriteNodeOptions = {},
-): Promise<Result> {
-  const canvas = await loadCanvas(workspaceId, storeDir);
-  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}`, code: 'workspace_not_found' };
-
-  const node = canvas.nodes.find(n => n.id === nodeId);
-  if (!node) return { ok: false, error: `Node not found: ${nodeId}`, code: 'node_not_found' };
-
+): Result<{ fileWrite?: PreparedContentWrite }> {
   switch (node.type) {
     case 'file': {
+      let fileWrite: PreparedContentWrite | undefined;
       if (node.data.filePath) {
-        if (opts.confineToWorkspace) {
-          const wsDir = getWorkspaceDir(workspaceId, storeDir);
-          if (!isPathInside(node.data.filePath, wsDir)) {
-            return {
-              ok: false,
-              error: `Refusing to write file node: its filePath "${node.data.filePath}" is outside the workspace directory (--confine-to-workspace).`,
-              code: 'path_confined',
-            };
-          }
+        if (opts.confineToWorkspace && !isPathInside(node.data.filePath, wsDir)) {
+          return {
+            ok: false,
+            error: `Refusing to write file node: its filePath "${node.data.filePath}" is outside the workspace directory (--confine-to-workspace).`,
+            code: 'path_confined',
+          };
         }
-        await fs.writeFile(node.data.filePath, content, 'utf-8');
+        fileWrite = { path: node.data.filePath, content };
       }
       node.data.content = content;
       node.updatedAt = Date.now();
-      // Re-read canvas.json just before writing so concurrent changes
-      // from the Electron renderer (or other canvas-cli invocations) to
-      // other nodes are preserved. Only our target node is replaced.
-      await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
-      await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
-      return { ok: true, data: undefined };
+      return { ok: true, data: { fileWrite } };
     }
     case 'text': {
       // Text cards hold their markdown inline in `data.content`; writing is
@@ -299,9 +297,7 @@ export async function writeNode(
       // file on disk to update).
       node.data.content = content;
       node.updatedAt = Date.now();
-      await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
-      await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
-      return { ok: true, data: undefined };
+      return { ok: true, data: {} };
     }
     case 'frame':
     case 'group': {
@@ -313,9 +309,7 @@ export async function writeNode(
           node.data.childIds = patch.childIds.filter((id): id is string => typeof id === 'string');
         }
         node.updatedAt = Date.now();
-        await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
-        await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
-        return { ok: true, data: undefined };
+        return { ok: true, data: {} };
       } catch {
         return { ok: false, error: 'Container write expects JSON: { label?: string, color?: string, childIds?: string[] }', code: 'invalid_argument' };
       }
@@ -329,7 +323,33 @@ export async function writeNode(
   }
 }
 
-function autoPlace(nodes: Array<{ x?: number; y?: number; width?: number; height?: number }>): { x: number; y: number } {
+export async function writeNode(
+  workspaceId: string,
+  nodeId: string,
+  content: string,
+  storeDir?: string,
+  opts: WriteNodeOptions = {},
+): Promise<Result> {
+  const canvas = await loadCanvas(workspaceId, storeDir);
+  if (!canvas) return { ok: false, error: `Workspace not found: ${workspaceId}`, code: 'workspace_not_found' };
+
+  const node = canvas.nodes.find(n => n.id === nodeId);
+  if (!node) return { ok: false, error: `Node not found: ${nodeId}`, code: 'node_not_found' };
+
+  const prep = prepareNodeContent(node, content, getWorkspaceDir(workspaceId, storeDir), opts);
+  if (!prep.ok) return prep;
+  if (prep.data.fileWrite) {
+    await fs.writeFile(prep.data.fileWrite.path, prep.data.fileWrite.content, 'utf-8');
+  }
+  // Re-read canvas.json just before writing so concurrent changes
+  // from the Electron renderer (or other canvas-cli invocations) to
+  // other nodes are preserved. Only our target node is replaced.
+  await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
+  await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
+  return { ok: true, data: undefined };
+}
+
+export function autoPlace(nodes: Array<{ x?: number; y?: number; width?: number; height?: number }>): { x: number; y: number } {
   if (nodes.length === 0) return { x: 100, y: 100 };
   let maxRight = 0;
   let bestY = 100;
@@ -341,6 +361,61 @@ function autoPlace(nodes: Array<{ x?: number; y?: number; width?: number; height
     }
   }
   return { x: maxRight + 40, y: bestY };
+}
+
+export function genNodeId(): string {
+  return `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Backing markdown path for a file node created by the CLI. */
+export function buildNoteFilePath(wsDir: string, title: string, nodeId: string): string {
+  const safeTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return join(wsDir, 'notes', `${safeTitle}-${nodeId}.md`);
+}
+
+/**
+ * Type-specific initial `data` for a freshly created node — shared by
+ * `createNode` and `applyPlan`. Pure; the file-node backing file is the
+ * caller's responsibility (see {@link buildNoteFilePath}).
+ */
+export function buildInitialNodeData(
+  type: NodeType,
+  inputData: Record<string, unknown>,
+  title: string,
+): Record<string, unknown> {
+  switch (type) {
+    case 'file':
+      return { filePath: '', content: (inputData as Record<string, string>).content ?? '', saved: false, modified: false };
+    case 'terminal':
+      return { sessionId: '', cwd: (inputData as Record<string, string>).cwd ?? '' };
+    case 'frame':
+      return { color: (inputData as Record<string, string>).color ?? '#9575d4', label: (inputData as Record<string, string>).label ?? '' };
+    case 'group':
+      return {
+        color: (inputData as Record<string, string>).color ?? '#A594E0',
+        label: (inputData as Record<string, string>).label ?? '',
+        childIds: Array.isArray((inputData as { childIds?: unknown }).childIds)
+          ? ((inputData as { childIds: unknown[] }).childIds).filter((id): id is string => typeof id === 'string')
+          : [],
+      };
+    case 'agent':
+      return { sessionId: '', cwd: (inputData as Record<string, string>).cwd ?? '', agentType: (inputData as Record<string, string>).agentType ?? 'claude-code', status: 'idle' };
+    case 'mindmap': {
+      const rawRoot = (inputData as { root?: RawMindmapTopic }).root;
+      const root = rawRoot
+        ? normalizeMindmapTopic(rawRoot)
+        : {
+            id: genTopicId(),
+            text: title || 'Central topic',
+            children: [],
+          };
+      return { root, layout: 'right', rev: 0 };
+    }
+    default:
+      // Defensive completeness — callers reject non-creatable types before
+      // reaching this switch (DEFAULT_NODE_DIMENSIONS lookup).
+      return {};
+  }
 }
 
 export interface CreateNodeOptions {
@@ -373,7 +448,7 @@ export async function createNode(
     await saveCanvas(workspaceId, canvas, storeDir, { allowEmpty: true });
   }
 
-  const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const nodeId = genNodeId();
   const def = (DEFAULT_NODE_DIMENSIONS as Record<string, { title: string; width: number; height: number }>)[opts.type];
   if (!def) return { ok: false, error: `Unsupported node type: ${opts.type}`, code: 'unsupported' };
 
@@ -381,53 +456,12 @@ export async function createNode(
   const x = opts.x ?? auto.x;
   const y = opts.y ?? auto.y;
 
-  const inputData = opts.data ?? {};
-  // Defaults to `{}` for defensive completeness — `def` above already rejects
-  // any non-creatable type before we reach this switch.
-  let nodeData: Record<string, unknown> = {};
-  switch (opts.type) {
-    case 'file':
-      nodeData = { filePath: '', content: (inputData as Record<string, string>).content ?? '', saved: false, modified: false };
-      break;
-    case 'terminal':
-      nodeData = { sessionId: '', cwd: (inputData as Record<string, string>).cwd ?? '' };
-      break;
-    case 'frame':
-      nodeData = { color: (inputData as Record<string, string>).color ?? '#9575d4', label: (inputData as Record<string, string>).label ?? '' };
-      break;
-    case 'group':
-      nodeData = {
-        color: (inputData as Record<string, string>).color ?? '#A594E0',
-        label: (inputData as Record<string, string>).label ?? '',
-        childIds: Array.isArray((inputData as { childIds?: unknown }).childIds)
-          ? ((inputData as { childIds: unknown[] }).childIds).filter((id): id is string => typeof id === 'string')
-          : [],
-      };
-      break;
-    case 'agent':
-      nodeData = { sessionId: '', cwd: (inputData as Record<string, string>).cwd ?? '', agentType: (inputData as Record<string, string>).agentType ?? 'claude-code', status: 'idle' };
-      break;
-    case 'mindmap': {
-      const rawRoot = (inputData as { root?: RawMindmapTopic }).root;
-      const root = rawRoot
-        ? normalizeMindmapTopic(rawRoot)
-        : {
-            id: genTopicId(),
-            text: opts.title ?? 'Central topic',
-            children: [],
-          };
-      nodeData = { root, layout: 'right', rev: 0 };
-      break;
-    }
-  }
+  const nodeData = buildInitialNodeData(opts.type, opts.data ?? {}, opts.title ?? '');
 
   // For file nodes, always create a notes file so the node has a valid filePath
   if (opts.type === 'file') {
-    const notesDir = join(getWorkspaceDir(workspaceId, storeDir), 'notes');
-    await fs.mkdir(notesDir, { recursive: true });
-    const title = opts.title ?? def.title;
-    const safeTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const noteFile = join(notesDir, `${safeTitle}-${nodeId}.md`);
+    const noteFile = buildNoteFilePath(getWorkspaceDir(workspaceId, storeDir), opts.title ?? def.title, nodeId);
+    await fs.mkdir(dirname(noteFile), { recursive: true });
     await fs.writeFile(noteFile, String(nodeData.content ?? ''), 'utf-8');
     nodeData.filePath = noteFile;
     nodeData.saved = true;

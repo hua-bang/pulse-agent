@@ -50,6 +50,8 @@ const ERROR_CODES = [
   'invalid_argument',
   'unsupported',
   'path_confined',
+  'revision_conflict',
+  'workspace_mismatch',
   'confirmation_required',
   'io_error',
   'not_found',

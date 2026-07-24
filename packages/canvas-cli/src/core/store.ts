@@ -489,6 +489,11 @@ export async function saveCanvas(
     }
   }
 
+  // Monotonic write counter (see CanvasSaveData.revision). Central bump so
+  // every CLI mutation path advances it, making apply --atomic's
+  // baseRevision check meaningful across single-node commands too.
+  data.revision = (typeof data.revision === 'number' && Number.isFinite(data.revision) ? data.revision : 0) + 1;
+
   await writeMatchingSchema(workspaceId, data, storeDir, {
     removedIds: opts.removedIds,
     pruneUnknownNodeFiles: opts.pruneUnknownNodeFiles,

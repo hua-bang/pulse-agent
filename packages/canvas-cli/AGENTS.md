@@ -36,6 +36,7 @@ in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
 | v2 recovery command | `src/commands/restore.ts` |
 | Consistency check + safe repair (drift/orphans/edges) | `src/commands/doctor.ts`, `src/core/doctor.ts` |
 | Layout read/validate/frame-grid | `src/commands/layout.ts`, `src/core/layout.ts` |
+| Atomic batch mutation from a plan file | `src/commands/apply.ts`, `src/core/apply.ts` |
 | Public core exports | `src/core/index.ts` |
 | Store safety and schema compatibility | `src/core/store.ts`, `src/core/storage-v2.ts`, `src/core/types.ts`, `src/core/constants.ts` |
 | Node and edge behavior | `src/core/nodes.ts`, `src/core/edges.ts` |
@@ -69,6 +70,12 @@ the root harness files above, then the package source/tests.
   other's nodes; regression suite: `src/core/__tests__/storage-race.test.ts`.
   The lock serializes CLI↔CLI only — the app does not take it; app↔CLI
   concurrency still relies on per-node `updatedAt` arbitration.
+- `saveCanvas` bumps `canvas.revision` on every write (monotonic CLI write
+  counter). `apply --atomic`'s `baseRevision` compares against it: equality
+  means "no CLI write intervened", not "no write at all" — the app preserves
+  the field on save (spread-through) but does not bump it. Batch mutations
+  should prefer one `apply` plan (one lock, one save, all-or-nothing with
+  deferred fs effects) over loops of single-node commands.
 - Do not make this CLI trigger v2 migrations. `canvas-workspace` owns
   migration; the CLI adapts to the on-disk schema it finds.
 - Keep `restore` narrow: it recovers from v1 snapshots and archives live
@@ -161,6 +168,9 @@ with "No active canvas-workspace runtime found."
   containment, readability, aspect ratio), and frame-grid arrangement;
   containment is geometric (smallest frame holding a node's center). CLI face
   in `src/commands/layout.ts`.
+- `src/core/apply.ts`: atomic plan application — validate every op against an
+  in-memory copy, defer all fs effects, then one locked save; optimistic
+  concurrency via `baseRevision`. CLI face in `src/commands/apply.ts`.
 - `src/core/store.ts`: workspace manifests, canvas load/save, locks, backups,
   wipe guard, and node/edge mutation commits.
 - `src/core/storage-v2.ts`: compatibility layer for layout-only `canvas.json`

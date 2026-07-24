@@ -132,6 +132,14 @@ export interface CanvasSaveData {
    * (see storage-v2.ts#assembleV2).
    */
   schemaVersion?: 1 | 2;
+  /**
+   * Monotonic write counter, bumped by every CLI `saveCanvas`. Powers
+   * `apply --atomic`'s optimistic-concurrency `baseRevision` check. The app
+   * preserves unknown top-level fields on save but does not bump this —
+   * revision equality guarantees "no CLI write happened in between", not
+   * "no write at all".
+   */
+  revision?: number;
   nodes: CanvasNode[];
   edges?: CanvasEdge[];
   transform: CanvasTransform;
