@@ -389,7 +389,10 @@ export function buildInitialNodeData(
     case 'terminal':
       return { sessionId: '', cwd: (inputData as Record<string, string>).cwd ?? '' };
     case 'frame':
-      return { color: (inputData as Record<string, string>).color ?? '#9575d4', label: (inputData as Record<string, string>).label ?? '' };
+      // Neutral graphite by default (Heptabase reading): color is a scarce
+      // accent assigned deliberately, not a per-frame attribute — see the
+      // canvas-bootstrap skill's hue-budget rule.
+      return { color: (inputData as Record<string, string>).color ?? 'oklch(0.68 0.006 265)', label: (inputData as Record<string, string>).label ?? '' };
     case 'group':
       return {
         color: (inputData as Record<string, string>).color ?? '#A594E0',

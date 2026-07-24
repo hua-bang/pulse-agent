@@ -153,6 +153,10 @@ instead of a data dump. Apply them while planning; verify them in Phase 7:
 - **Highlight budget.** Colored emphasis (colored phrases, tinted cards)
   belongs on at most ~20% of cards — reserve it for load-bearing claims.
   Uniform emphasis reads as none.
+- **Hue budget.** At most 3 accent-colored frames per board; every other
+  frame (sources and auxiliary material always included) stays neutral
+  graphite. The restraint is what makes the accents anchor — see Frame
+  Colors below.
 - **Edges are local relations, not long-haul wiring.** Prefer short edges
   between neighboring cards and frames, give curves a small `bend` so they
   read organically, and avoid edges that cross multiple frames.
@@ -281,15 +285,22 @@ Before final response, run the dual-view acceptance:
 
 ## Frame Colors
 
-| Purpose | Hex |
-|---------|-----|
-| Overview / Summary | `#5594e8` |
-| Research / Analysis | `#9575d4` |
-| Contrasts / Tradeoffs | `#e8615a` |
-| Implementation | `#3eb889` |
-| Notes / Decisions | `#e89545` |
-| Data / Metrics | `#35aec2` |
-| Risks / Open Questions | `#d66aa3` |
+Default is NEUTRAL. Color is a scarce accent, not a per-frame attribute —
+a board where every frame carries its own hue reads as a rainbow
+dashboard, which is exactly the look to avoid.
+
+- Create frames WITHOUT a `color` (the default is neutral graphite); most
+  frames stay graphite.
+- Pick AT MOST 3 accent hues per board, on the frames the reader should
+  see first, reusing a hue rather than introducing a fourth:
+
+| Accent role | Swatch |
+|---|---|
+| Entry / overview — "start here" | Sky `oklch(0.68 0.108 224)` |
+| Core analysis — the main argument | Sage `oklch(0.68 0.108 142)` |
+| Risks / tensions / decisions | Coral `oklch(0.68 0.108 28)` |
+
+- Source and auxiliary-material frames are ALWAYS graphite.
 
 ## Quality Rules
 
