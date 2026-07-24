@@ -89,25 +89,36 @@ These make on-disk files an execution or injection surface:
   before its page can run JS; unsafe URLs are denied, OAuth-style popups get
   a real window, everything else is routed to the renderer's preview drawer
   instead of auto-opening.
-- **Google sign-in compat is host-scoped UA identity swapping + popup
-  rerouting** (`src/main/app/google-auth.ts`, `google-auth-popup.ts`):
-  UA-*string* spoofing alone is detectable — Chromium emits UA Client Hints
-  from the real bundled version and accounts.google.com rejects the
-  mismatch. On the exact-match Google auth hosts only, a per-webContents
-  Firefox UA override (suppresses client hints) plus a defaultSession
-  header rewrite presents a consistent Firefox identity
-  (`PULSE_GOOGLE_AUTH_IDENTITY=chrome` disables it — experiment arm only,
-  known-broken on Electron 30). An honest current-Chrome identity was
-  tried on Electron 42 (2026-07-17) and still rejected by `/v3/signin`
-  post-submit; the upgrade was reverted — see the evidence log in
-  google-auth.ts before re-running that loop. The allowlist is exact-match
-  by design — it loosens navigation policy, so suffix lookalikes
-  (`accounts.google.com.evil`) must never qualify. Google's strict
-  full-page flow additionally risk-scores embedded surfaces, so in-place
-  entry legs from `<webview>` guests are rerouted into a top-level
-  BrowserWindow popup on the same session (with the opener page as
-  referrer); the post-login continuation is handed back to the opener
-  webview so the one-shot URL is consumed there.
+- **Host-scoped UA identity swapping is centralized** in
+  `src/main/app/embedded-identity.ts`: UA-*string* spoofing alone
+  (bootstrap.ts's Chrome/140 rewrite) is detectable — Chromium emits UA
+  Client Hints and `navigator.userAgentData` from the real bundled version,
+  and sites that cross-check the two reject or crash on the mismatch. The
+  coordinator owns the ONE per-session `onBeforeSendHeaders` listener and a
+  single per-webContents UA-override manager (one saved-original map, so a
+  contents crossing between host sets never clobbers its restore UA), driven
+  by a list of `EmbeddedIdentityRule`s. Each rule presents a consistent
+  Firefox identity (Firefox emits no client hints) on its hosts via a
+  per-contents UA override plus a header rewrite that strips residual
+  `Sec-CH-*` and pins the Firefox UA. Two rules today:
+  - **Google sign-in** (`google-auth.ts`, `google-auth-popup.ts`): exact-match
+    Google auth hosts. The allowlist is exact-match by design — it also
+    loosens navigation policy in link-policy, so suffix lookalikes
+    (`accounts.google.com.evil`) must never qualify.
+    `PULSE_GOOGLE_AUTH_IDENTITY=chrome` returns a null rule (experiment arm
+    only, known-broken on Electron 30). An honest current-Chrome identity was
+    tried on Electron 42 (2026-07-17) and still rejected by `/v3/signin`
+    post-submit; the upgrade was reverted — see the evidence log in
+    google-auth.ts before re-running that loop. Google's strict full-page flow
+    additionally risk-scores embedded surfaces, so in-place entry legs from
+    `<webview>` guests are rerouted into a top-level BrowserWindow popup on the
+    same session (with the opener page as referrer); the post-login
+    continuation is handed back to the opener webview so the one-shot URL is
+    consumed there.
+  - **x.com** (`x-com-compat.ts`): suffix-match on `x.com`/`twitter.com` (this
+    rule does NOT loosen navigation policy, so suffix matching is safe). Fixes
+    x.com's "Something went wrong" error boundary, which its SPA renders when
+    the UA string and client hints disagree.
 
 ## Containment that DOES exist
 

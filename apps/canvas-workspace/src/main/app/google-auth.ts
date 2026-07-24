@@ -1,6 +1,15 @@
-import { app, session } from "electron";
+import {
+  firefoxUserAgent,
+  stripClientHintsPinUserAgent,
+  type EmbeddedIdentityRule,
+} from "./embedded-identity";
 
 // Google sign-in compatibility for embedded browsing surfaces.
+//
+// The per-webContents UA override and the session header rewrite are wired
+// through the shared coordinator in embedded-identity.ts (which owns the
+// single per-session onBeforeSendHeaders listener); this module contributes
+// the Google-auth-host rule and keeps the host allowlist and evidence log.
 //
 // The identity presented on Google's auth hosts is selectable via
 // PULSE_GOOGLE_AUTH_IDENTITY:
@@ -84,26 +93,13 @@ export function isGoogleAuthUrl(raw: string): boolean {
 export function googleAuthUserAgent(
   platform: NodeJS.Platform = process.platform
 ): string {
-  const platformToken =
-    platform === "darwin"
-      ? "Macintosh; Intel Mac OS X 10.15"
-      : platform === "win32"
-        ? "Windows NT 10.0; Win64; x64"
-        : "X11; Linux x86_64";
-  return `Mozilla/5.0 (${platformToken}; rv:${FIREFOX_VERSION}) Gecko/20100101 Firefox/${FIREFOX_VERSION}`;
+  return firefoxUserAgent(FIREFOX_VERSION, platform);
 }
 
 export function rewriteGoogleAuthHeaders(
   requestHeaders: Record<string, string>
 ): Record<string, string> {
-  const rewritten: Record<string, string> = {};
-  for (const [name, value] of Object.entries(requestHeaders)) {
-    const lower = name.toLowerCase();
-    if (lower.startsWith("sec-ch-") || lower === "user-agent") continue;
-    rewritten[name] = value;
-  }
-  rewritten["User-Agent"] = googleAuthUserAgent();
-  return rewritten;
+  return stripClientHintsPinUserAgent(requestHeaders, googleAuthUserAgent());
 }
 
 export function googleAuthIdentityMode(): "firefox" | "chrome" {
@@ -112,56 +108,20 @@ export function googleAuthIdentityMode(): "firefox" | "chrome" {
     : "firefox";
 }
 
-// Must run after app-ready (needs defaultSession); bootstrap calls it from
-// whenReady, before the first window opens.
-export function setupGoogleAuthCompat(): void {
-  if (googleAuthIdentityMode() === "chrome") return;
-
-  const originalUserAgents = new WeakMap<object, string>();
-
-  app.on("web-contents-created", (_event, contents) => {
-    const applyUserAgentForUrl = (url: string) => {
-      if (isGoogleAuthUrl(url)) {
-        if (!originalUserAgents.has(contents)) {
-          originalUserAgents.set(contents, contents.getUserAgent());
-          contents.setUserAgent(googleAuthUserAgent());
-        }
-      } else if (originalUserAgents.has(contents)) {
-        const original = originalUserAgents.get(contents);
-        originalUserAgents.delete(contents);
-        if (typeof original === "string") contents.setUserAgent(original);
-      }
-    };
-
-    // will-navigate covers renderer-initiated navigations before the request
-    // leaves; did-start-navigation additionally covers loadURL/popup initial
-    // loads. Server-side redirect hops keep whatever UA the leg started with,
-    // which is the correct behaviour for an OAuth continuation.
-    contents.on("will-navigate", (_navEvent, url) => {
-      applyUserAgentForUrl(url);
-    });
-    contents.on(
-      "did-start-navigation",
-      (_navEvent, url, _isInPage, isMainFrame) => {
-        if (isMainFrame) applyUserAgentForUrl(url);
-      }
-    );
-  });
-
-  // NOTE: Electron allows exactly ONE onBeforeSendHeaders listener per
-  // session — this is currently the sole registrant on defaultSession. If a
-  // second consumer ever needs request-header access, centralize both here.
-  session.defaultSession.webRequest.onBeforeSendHeaders(
-    {
-      urls: [
-        "https://accounts.google.com/*",
-        "https://accounts.youtube.com/*",
-      ],
-    },
-    (details, callback) => {
-      callback({
-        requestHeaders: rewriteGoogleAuthHeaders(details.requestHeaders),
-      });
-    }
-  );
+// The Google-auth-host identity rule, contributed to the shared coordinator
+// (embedded-identity.ts) from bootstrap's whenReady. Returns null for the
+// "chrome" identity A/B arm, which installs no override at all (known-broken
+// on Electron 30 — see the evidence log above).
+export function googleAuthIdentityRule(): EmbeddedIdentityRule | null {
+  if (googleAuthIdentityMode() === "chrome") return null;
+  return {
+    id: "google-auth",
+    matches: isGoogleAuthUrl,
+    userAgent: googleAuthUserAgent(),
+    headerUrls: [
+      "https://accounts.google.com/*",
+      "https://accounts.youtube.com/*",
+    ],
+    rewriteHeaders: rewriteGoogleAuthHeaders,
+  };
 }
