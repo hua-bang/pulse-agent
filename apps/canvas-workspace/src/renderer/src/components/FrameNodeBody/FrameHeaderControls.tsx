@@ -23,17 +23,20 @@ import { useI18n } from "../../i18n";
 // computed in CSS as `oklch(L C var(--frame-hue))`; see
 // CanvasNodeView/utils.ts for the parse path.
 //
-// `value` is the identity swatch written into `data.color`. The 9th preset
-// uses near-zero chroma so the frame reads as a quiet neutral.
+// `value` is the identity swatch written into `data.color`; only its HUE is
+// load-bearing (CanvasNodeView/utils.ts derives every tone from the hue, and
+// treats chroma < 0.02 as the graphite neutral). Hues match the user-supplied
+// pale-tint palette (rose/peach/green/blue/indigo/violet); the last preset
+// stays near-zero chroma so the frame reads as a quiet neutral.
 const COLOR_PRESETS = [
-  { name: "Coral",    hue: 28,  value: "oklch(0.68 0.108 28)"  },
-  { name: "Amber",    hue: 58,  value: "oklch(0.68 0.108 58)"  },
-  { name: "Olive",    hue: 98,  value: "oklch(0.68 0.108 98)"  },
-  { name: "Sage",     hue: 142, value: "oklch(0.68 0.108 142)" },
-  { name: "Teal",     hue: 184, value: "oklch(0.68 0.108 184)" },
-  { name: "Sky",      hue: 224, value: "oklch(0.68 0.108 224)" },
-  { name: "Indigo",   hue: 264, value: "oklch(0.68 0.108 264)" },
-  { name: "Mauve",    hue: 318, value: "oklch(0.68 0.108 318)" },
+  { name: "Rose",     hue: 6,   value: "oklch(0.68 0.108 6)"   },
+  { name: "Peach",    hue: 48,  value: "oklch(0.68 0.108 48)"  },
+  { name: "Amber",    hue: 96,  value: "oklch(0.68 0.108 96)"  },
+  { name: "Green",    hue: 168, value: "oklch(0.68 0.108 168)" },
+  { name: "Teal",     hue: 200, value: "oklch(0.68 0.108 200)" },
+  { name: "Blue",     hue: 241, value: "oklch(0.68 0.108 241)" },
+  { name: "Indigo",   hue: 261, value: "oklch(0.68 0.108 261)" },
+  { name: "Violet",   hue: 306, value: "oklch(0.68 0.108 306)" },
   { name: "Graphite", hue: 265, value: "oklch(0.68 0.006 265)" }
 ];
 

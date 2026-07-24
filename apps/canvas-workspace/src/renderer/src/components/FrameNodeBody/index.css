@@ -7,27 +7,31 @@
  * swatch identity; CanvasNodeView/utils.ts parses the hue/chroma out of
  * `data.color` and exposes them as CSS custom props.
  *
- *   pillBg        -> L 0.95   Cx0.60  (pale tinted label, NOT a solid chip)
+ *   pillBg        -> L 0.955  Cx0.42  (pale tinted label, NOT a solid chip)
  *   pillText      -> L 0.52   Cx2.4   (colored label text + icon strokes)
- *   countBg       -> L 0.90   Cx0.90  (tinted badge, colored text)
- *   bodyTint      -> L 0.980  Cx0.20  (barely-there wash)
- *   bodyTintFocus -> L 0.974  Cx0.24
+ *   countBg       -> L 0.90   Cx0.75  (tinted badge, colored text)
+ *   bodyTint      -> L 0.979  Cx0.17  (barely-there wash)
+ *   bodyTintFocus -> L 0.972  Cx0.20
  *   border        -> L 0.925  Cx0.45
  *   borderHover   -> L 0.87   Cx0.70
  *   borderFocus   -> L 0.80   Cx0.38
  *   identity      -> L 0.62   Cx0.95  (selection ring, focus mode border)
  *   dotPattern    -> L 0.88   Cx0.12 @ 0.06 (sections read as flat color)
  *
- * v4 "quiet label" (2026-07-24, vision-read from the tinted-label
- * reference board; like the earlier Heptabase passes these are perceptual
- * matches, not sampled pixels). The header grammar flips from the
- * Heptabase solid-chip-plus-white-text to a PALE TINTED LABEL with
- * COLORED text and icon: saturation lives only in the small type, washes
- * drop to a whisper, and the canvas goes cool near-white. Colored text on
- * the pale pill reads at ~4.8:1 — better contrast than white on the old
- * chip. Because intensity sits in the label text, multiple hues per board
- * stay calm (the hue-budget rule in canvas-bootstrap remains good
- * editorial practice regardless).
+ * v4 "quiet label" (2026-07-24). The header grammar is a PALE TINTED
+ * LABEL with COLORED text and icon: saturation lives only in the small
+ * type, washes drop to a whisper, and the canvas goes cool near-white.
+ * Colored text on the pale pill reads at ~4.8:1. Because intensity sits
+ * in the label text, multiple hues per board stay calm (the hue-budget
+ * rule in canvas-bootstrap remains good editorial practice regardless).
+ *
+ * Coefficients fitted to a user-supplied [title, body] hex palette
+ * (converted to OKLCH): titles land ~L0.955 C0.022, bodies ~L0.979
+ * C0.009. The label multiplier is uniform, so per-hue chroma is averaged
+ * — greens read a touch livelier and violets a touch calmer than the
+ * hand-picked source, in exchange for a coherent single formula that also
+ * covers arbitrary picker hues and the graphite neutral. The six accent
+ * PRESET hues (FrameHeaderControls) match the palette's families.
  *
  * --frame-color is kept as the picker dot's display value (sRGB color from
  * the stored string, used in one place); everything else goes via hue.
@@ -40,7 +44,7 @@
    * keeping this as a variable lets focus/experiments still tune it. */
   --_a: var(--frame-bg-alpha, 0.96);
 
-  background: oklch(0.980 calc(var(--_c) * 0.20) var(--_h) / var(--_a));
+  background: oklch(0.979 calc(var(--_c) * 0.17) var(--_h) / var(--_a));
   border: 1px solid oklch(0.925 calc(var(--_c) * 0.45) var(--_h));
   border-radius: var(--radius-md);
   box-shadow: none;
@@ -85,7 +89,7 @@
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: oklch(0.974 calc(var(--_c) * 0.24) var(--_h) / 0.97);
+  background: oklch(0.972 calc(var(--_c) * 0.20) var(--_h) / 0.97);
   border-style: solid;
   border-color: oklch(0.80 calc(var(--_c) * 0.38) var(--_h));
   box-shadow: 0 0 0 2px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.28);
@@ -139,7 +143,7 @@
    * saturation lives in the type, not in a solid block. Still legible as a
    * section anchor at overview zoom via the counter-scaled transform; the
    * graphite preset degrades to a gray label. */
-  background: oklch(0.95 calc(var(--_c) * 0.60) var(--_h));
+  background: oklch(0.955 calc(var(--_c) * 0.42) var(--_h));
   border: none;
   border-radius: var(--radius-md);
   color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
@@ -193,7 +197,7 @@
   padding: 0 6px;
   border: 0;
   border-radius: 7px;
-  background: oklch(0.90 calc(var(--_c) * 0.90) var(--_h));
+  background: oklch(0.90 calc(var(--_c) * 0.75) var(--_h));
   color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
   cursor: pointer;
   transition:
