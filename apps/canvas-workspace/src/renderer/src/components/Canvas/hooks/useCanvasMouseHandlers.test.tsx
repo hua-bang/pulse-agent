@@ -156,6 +156,7 @@ describe('useCanvasMouseHandlers synchronous drag shield', () => {
   let root: Root;
   let host: HTMLElement;
   let container: HTMLDivElement;
+  let guestWebview: HTMLElement;
   let hook: ReturnType<typeof useCanvasMouseHandlers>;
 
   /** happy-dom's native MouseEvent does not set defaultPrevented after
@@ -167,7 +168,10 @@ describe('useCanvasMouseHandlers synchronous drag shield', () => {
     return e as React.MouseEvent;
   };
 
-  const findShield = () => container.querySelector('.canvas-interaction-shield');
+  // The shield no longer inserts a DOM node of its own (see
+  // utils/interactionShield.ts) — it toggles pointer-events directly on
+  // every <webview>/<iframe> guest, so assert on that instead.
+  const isShielded = () => guestWebview.style.pointerEvents === 'none';
 
   const Probe = () => {
     hook = useCanvasMouseHandlers({
@@ -209,6 +213,14 @@ describe('useCanvasMouseHandlers synchronous drag shield', () => {
     container = document.createElement('div');
     host.appendChild(container);
     document.body.appendChild(host);
+    // A stand-in guest, appended as a sibling of `host` rather than inside
+    // it: acquireInteractionShield() queries the whole document for
+    // webview/iframe elements (matching a dock link-tab webview, which
+    // doesn't live inside the canvas container either), and React's
+    // createRoot(host) takes ownership of host's children on first render —
+    // anything appended inside host before that render gets wiped.
+    guestWebview = document.createElement('webview');
+    document.body.appendChild(guestWebview);
     root = createRoot(host);
     act(() => root.render(<Probe />));
   });
@@ -216,55 +228,78 @@ describe('useCanvasMouseHandlers synchronous drag shield', () => {
   afterEach(() => {
     act(() => root.unmount());
     host.remove();
+    guestWebview.remove();
   });
 
-  it('mounts the interaction shield synchronously on drag mousedown', () => {
-    expect(findShield()).toBeNull();
+  it('shields guest elements synchronously on drag mousedown', () => {
+    expect(isShielded()).toBe(false);
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(findShield()).not.toBeNull();
+    expect(isShielded()).toBe(true);
   });
 
-  it('mounts the shield on resize mousedown too', () => {
+  it('shields guest elements on resize mousedown too', () => {
     act(() => {
       hook.handleSurfaceResizeStart(dragEvent(), 'node-1', 300, 200, 'bottom-right');
     });
-    expect(findShield()).not.toBeNull();
+    expect(isShielded()).toBe(true);
   });
 
-  it('removes the shield on mouseup', () => {
+  it('unshields guest elements on mouseup', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(findShield()).not.toBeNull();
+    expect(isShielded()).toBe(true);
     act(() => hook.handleMouseUp());
-    expect(findShield()).toBeNull();
+    expect(isShielded()).toBe(false);
   });
 
-  it('removes the shield on Escape', () => {
+  it('unshields guest elements on Escape', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(findShield()).not.toBeNull();
+    expect(isShielded()).toBe(true);
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     });
-    expect(findShield()).toBeNull();
+    expect(isShielded()).toBe(false);
   });
 
-  it('does not mount the shield on alt-drag (pan gesture)', () => {
+  it('does not shield guests on alt-drag (pan gesture)', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(true), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
     });
-    expect(findShield()).toBeNull();
+    expect(isShielded()).toBe(false);
   });
 
-  it('does not double-mount when drag start fires twice', () => {
+  it('does not double-acquire when drag start fires twice', () => {
     act(() => {
       hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
       hook.handleSurfaceResizeStart(dragEvent(), 'node-1', 300, 200, 'bottom-right');
     });
-    expect(container.querySelectorAll('.canvas-interaction-shield').length).toBe(1);
+    expect(isShielded()).toBe(true);
+    // A single mouseup fully unshields — if the second start had acquired
+    // again (refcount 2), one release would leave it still shielded.
+    act(() => hook.handleMouseUp());
+    expect(isShielded()).toBe(false);
+  });
+
+  it('does not swallow a stationary click: guests are unshielded by the time mouseup resolves', () => {
+    // Regression test for the exact bug this rewrite fixes: a plain
+    // mousedown/mouseup with no motion in between (e.g. one half of a
+    // double-click) must not leave any guest — or, in the old
+    // full-viewport-div design, an overlay standing in front of the real
+    // node — as the mouseup hit-test target.
+    act(() => {
+      hook.handleSurfaceDragStart(dragEvent(), { id: 'node-1', x: 0, y: 0, width: 200, height: 100 } as any);
+    });
+    expect(isShielded()).toBe(true);
+    act(() => hook.handleMouseUp());
+    expect(isShielded()).toBe(false);
+    // The guest itself never had its own pointer-events touched beyond the
+    // shield's own set/restore, so a real click at its coordinates would
+    // resolve normally — nothing host-side is left covering it.
+    expect(guestWebview.style.pointerEvents).toBe('');
   });
 });

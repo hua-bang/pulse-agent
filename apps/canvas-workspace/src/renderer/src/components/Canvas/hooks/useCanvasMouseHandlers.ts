@@ -132,16 +132,16 @@ export const useCanvasMouseHandlers = ({
   // so dragging remains uninterrupted when crossing text.
   const isDraggingRef = useRef(false);
   const [nodeGestureActive, setNodeGestureActive] = useState(false);
-  // Full-window pointer shield mounted synchronously on drag/resize
-  // mousedown via direct DOM — NOT React state. React's commit can lag a
-  // frame or two after the first drag motion, and in that window a fast
-  // drag can reach a webview guest (a canvas iframe node OR a dock link
-  // tab, which lives outside the canvas container) whose process then
-  // swallows the mousemove stream and deadlocks the gesture. Mounting a
-  // real div synchronously at mousedown closes that window. The shared
-  // acquireInteractionShield helper (z-index above the dock) is appended
-  // to the canvas container so the trailing click resolves on the
-  // container exactly like the React-mounted shield.
+  // Guest (webview/iframe) pointer shield acquired synchronously on
+  // drag/resize mousedown via direct DOM — NOT React state. React's commit
+  // can lag a frame or two after the first drag motion, and in that window
+  // a fast drag can reach a webview guest (a canvas iframe node OR a dock
+  // link tab, which lives outside the canvas container) whose process then
+  // swallows the mousemove stream and deadlocks the gesture. The shared
+  // acquireInteractionShield helper closes that window by toggling
+  // pointer-events directly on every guest element (not a full-viewport
+  // overlay — that used to also intercept the trailing mouseup/click on an
+  // unmoved gesture, breaking "double-click a node title to rename").
   const releaseDragShieldRef = useRef<(() => void) | null>(null);
   // True once the current node gesture has produced real motion. A moved
   // drag ends with mouseup on the interaction shield, so the trailing click
@@ -218,7 +218,7 @@ export const useCanvasMouseHandlers = ({
 
   const mountDragShield = () => {
     if (releaseDragShieldRef.current) return;
-    releaseDragShieldRef.current = acquireInteractionShield(containerRef.current ?? document.body);
+    releaseDragShieldRef.current = acquireInteractionShield();
   };
 
   const unmountDragShield = () => {
