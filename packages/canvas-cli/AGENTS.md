@@ -58,6 +58,15 @@ the root harness files above, then the package source/tests.
 - Preserve store safety: workspace/node id validation, manifest locking,
   atomic writes, rolling `.bak` recovery, v2 per-node compatibility, and the
   guard that refuses accidental empty-node overwrites.
+- Every canvas write runs inside `withWorkspaceLock` (store.ts): full
+  load→mutate→save cycles must hold the per-workspace lock
+  (`<storeRoot>/__locks__/<id>.lock`), and v2 saves delete per-node files
+  only for ids the mutation explicitly removed — the full-sync sweep
+  (`pruneUnknownNodeFiles`) is reserved for restore/repair flows. Both rules
+  exist because parallel CLI writers used to drop and even delete each
+  other's nodes; regression suite: `src/core/__tests__/storage-race.test.ts`.
+  The lock serializes CLI↔CLI only — the app does not take it; app↔CLI
+  concurrency still relies on per-node `updatedAt` arbitration.
 - Do not make this CLI trigger v2 migrations. `canvas-workspace` owns
   migration; the CLI adapts to the on-disk schema it finds.
 - Keep `restore` narrow: it recovers from v1 snapshots and archives live

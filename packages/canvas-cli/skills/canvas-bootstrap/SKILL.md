@@ -162,10 +162,21 @@ Fallback path outside Canvas Agent runtime:
 
 ```bash
 pulse-canvas workspace create "<topic>" --format json
-pulse-canvas node create --type frame --title "<frame>" --format json
-pulse-canvas node create --type file --title "<node>" --data '{"content":"..."}' --format json
-pulse-canvas edge create --from <nodeId> --to <nodeId> --label "<label>" --kind flow --format json
+pulse-canvas node create --workspace <id> --type frame --title "<frame>" --format json
+pulse-canvas node create --workspace <id> --type file --title "<node>" --data '{"content":"..."}' --format json
+pulse-canvas edge create --workspace <id> --from <nodeId> --to <nodeId> --label "<label>" --kind flow --format json
 ```
+
+Write-safety rules (MANDATORY on the CLI path):
+
+- **Run all canvas mutations sequentially.** Never parallelize `node`/`edge`
+  create, update, write, or delete calls — no `&` background jobs, no
+  multi-shell fan-out, no concurrent sub-agents mutating the same workspace.
+  Every mutation rewrites the whole canvas; parallel writers can drop each
+  other's nodes. Batch your changes into one ordered sequence instead.
+- **Pass `--workspace <id>` explicitly on every mutation.** Do not rely on
+  the active-workspace fallback when several workspaces exist — confirm the
+  target once with `pulse-canvas workspace current`, then pin it.
 
 Use fallback coordinates only when no layout tool is available.
 

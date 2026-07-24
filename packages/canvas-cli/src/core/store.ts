@@ -24,7 +24,7 @@ function canvasPath(workspaceId: string, storeDir?: string): string {
   return join(getWorkspaceDir(workspaceId, storeDir), 'canvas.json');
 }
 
-const NON_WORKSPACE_DIRS = new Set(['skills', '__workspaces__', '__workspaces__.lock']);
+const NON_WORKSPACE_DIRS = new Set(['skills', '__workspaces__', '__workspaces__.lock', '__locks__']);
 
 export function isSafeWorkspaceId(workspaceId: string): boolean {
   if (!workspaceId) return false;
@@ -56,13 +56,29 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function withManifestLock<T>(storeDir: string | undefined, fn: () => Promise<T>): Promise<T> {
-  const root = resolveDir(storeDir);
-  await fs.mkdir(root, { recursive: true });
-  const lockDir = manifestLockPath(storeDir);
+export interface DirLockOptions {
+  /** Steal a lock whose dir hasn't been touched for this long. */
+  staleAfterMs?: number;
+  /** Give up (throw) after waiting this long for the holder. */
+  timeoutMs?: number;
+}
+
+/**
+ * Cross-process mutual exclusion via an atomically-created lock DIRECTORY
+ * (`fs.mkdir` without recursive is atomic on every platform), with stale-lock
+ * stealing and bounded wait. Same mechanism the manifest lock has always
+ * used, generalized so per-workspace canvas writes can share it.
+ */
+async function withDirLock<T>(
+  lockDir: string,
+  label: string,
+  fn: () => Promise<T>,
+  opts: DirLockOptions = {},
+): Promise<T> {
+  await fs.mkdir(dirname(lockDir), { recursive: true });
   const started = Date.now();
-  const staleAfterMs = 10_000;
-  const timeoutMs = 15_000;
+  const staleAfterMs = opts.staleAfterMs ?? 10_000;
+  const timeoutMs = opts.timeoutMs ?? 15_000;
 
   while (true) {
     try {
@@ -82,7 +98,7 @@ async function withManifestLock<T>(storeDir: string | undefined, fn: () => Promi
         continue;
       }
       if (Date.now() - started > timeoutMs) {
-        throw new Error('[canvas-cli] timed out waiting for workspace manifest lock');
+        throw new Error(`[canvas-cli] timed out waiting for ${label} lock`);
       }
       await sleep(25 + Math.floor(Math.random() * 35));
     }
@@ -92,6 +108,56 @@ async function withManifestLock<T>(storeDir: string | undefined, fn: () => Promi
     return await fn();
   } finally {
     await fs.rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+async function withManifestLock<T>(storeDir: string | undefined, fn: () => Promise<T>): Promise<T> {
+  return withDirLock(manifestLockPath(storeDir), 'workspace manifest', fn);
+}
+
+function workspaceLockDir(workspaceId: string, storeDir?: string): string {
+  // Sibling `__locks__/` at the store root, NOT inside the workspace dir:
+  // workspace dirs get exported/copied wholesale, and the app's storage
+  // scans workspace contents — a lock artifact must never travel with the
+  // data it guards. Leading `__` keeps it out of `listWorkspaceIds` (the
+  // safe-id regex requires an alphanumeric first char).
+  return join(resolveDir(storeDir), '__locks__', `${workspaceId}.lock`);
+}
+
+/** In-process queue per (storeRoot, workspaceId): the on-disk mkdir lock is
+ * not reentrant, so concurrent mutations inside ONE process must serialize
+ * before reaching it (they'd otherwise spin on each other until timeout). */
+const workspaceLockQueues = new Map<string, Promise<unknown>>();
+
+/**
+ * Serialize a full load → mutate → save cycle against a workspace's canvas,
+ * across processes (lock dir) and within this process (promise queue).
+ *
+ * Every canvas WRITE in canvas-cli must run inside this lock. Without it,
+ * two writers doing read-modify-write full-canvas saves lose updates, and —
+ * worse — the v2 orphan sweep could delete the other writer's just-created
+ * per-node files (see SplitV2Options.pruneUnknownNodeFiles). Do not nest
+ * calls for the same workspace: the in-process queue would deadlock.
+ */
+export async function withWorkspaceLock<T>(
+  workspaceId: string,
+  storeDir: string | undefined,
+  fn: () => Promise<T>,
+  opts: DirLockOptions = {},
+): Promise<T> {
+  assertSafeWorkspaceId(workspaceId);
+  const key = `${resolve(resolveDir(storeDir))}::${workspaceId}`;
+  const prev = workspaceLockQueues.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(r => { release = r; });
+  const tail = prev.then(() => gate);
+  workspaceLockQueues.set(key, tail);
+  await prev.catch(() => undefined); // our turn; a predecessor's error must not block us
+  try {
+    return await withDirLock(workspaceLockDir(workspaceId, storeDir), 'workspace canvas', fn, opts);
+  } finally {
+    release();
+    if (workspaceLockQueues.get(key) === tail) workspaceLockQueues.delete(key);
   }
 }
 
@@ -348,6 +414,18 @@ export interface SaveCanvasOptions {
    * deletion that happens to remove the last node.
    */
   allowEmpty?: boolean;
+  /**
+   * v2 workspaces only: per-node files to delete because this save
+   * EXPLICITLY removed those nodes. See `SplitV2Options.removedIds`.
+   */
+  removedIds?: readonly string[];
+  /**
+   * v2 workspaces only: restore the old full-sync sweep that deletes every
+   * per-node file absent from this snapshot. Reserved for restore/repair
+   * flows; never set it on the mutation path (concurrent-loss hazard — see
+   * `SplitV2Options.pruneUnknownNodeFiles`).
+   */
+  pruneUnknownNodeFiles?: boolean;
 }
 
 /**
@@ -411,7 +489,10 @@ export async function saveCanvas(
     }
   }
 
-  await writeMatchingSchema(workspaceId, data, storeDir);
+  await writeMatchingSchema(workspaceId, data, storeDir, {
+    removedIds: opts.removedIds,
+    pruneUnknownNodeFiles: opts.pruneUnknownNodeFiles,
+  });
 }
 
 /**
@@ -428,6 +509,7 @@ async function writeMatchingSchema(
   workspaceId: string,
   data: CanvasSaveData,
   storeDir?: string,
+  splitOpts: { removedIds?: readonly string[]; pruneUnknownNodeFiles?: boolean } = {},
 ): Promise<void> {
   const canvasFile = canvasPath(workspaceId, storeDir);
   const wsDir = getWorkspaceDir(workspaceId, storeDir);
@@ -449,7 +531,7 @@ async function writeMatchingSchema(
   }
 
   if (currentVersion === 2) {
-    const layout = await splitV2(wsDir, data);
+    const layout = await splitV2(wsDir, data, splitOpts);
     await atomicWriteCanvasJson(canvasFile, JSON.stringify(layout, null, 2));
     return;
   }
@@ -487,29 +569,38 @@ export async function commitNodeMutation(
   mutation: NodeMutation,
   storeDir?: string,
 ): Promise<CanvasSaveData | null> {
-  const fresh = (await loadCanvas(workspaceId, storeDir)) ?? {
-    nodes: [],
-    transform: { x: 0, y: 0, scale: 1 },
-    savedAt: new Date().toISOString(),
-  };
+  // The whole read→mutate→write cycle holds the workspace lock: the
+  // pre-lock era "re-read just before writing" only narrowed the lost-update
+  // window, and two interleaved full-canvas saves could still drop (or, via
+  // the v2 orphan sweep, actively delete) each other's nodes.
+  return withWorkspaceLock(workspaceId, storeDir, async () => {
+    const fresh = (await loadCanvas(workspaceId, storeDir)) ?? {
+      nodes: [],
+      transform: { x: 0, y: 0, scale: 1 },
+      savedAt: new Date().toISOString(),
+    };
 
-  if (mutation.upsert) {
-    const target = mutation.upsert;
-    const idx = fresh.nodes.findIndex(n => n.id === target.id);
-    if (idx >= 0) fresh.nodes[idx] = target;
-    else fresh.nodes.push(target);
-  }
-  if (mutation.removeId) {
-    const idx = fresh.nodes.findIndex(n => n.id === mutation.removeId);
-    if (idx === -1) return null;
-    fresh.nodes.splice(idx, 1);
-  }
+    if (mutation.upsert) {
+      const target = mutation.upsert;
+      const idx = fresh.nodes.findIndex(n => n.id === target.id);
+      if (idx >= 0) fresh.nodes[idx] = target;
+      else fresh.nodes.push(target);
+    }
+    if (mutation.removeId) {
+      const idx = fresh.nodes.findIndex(n => n.id === mutation.removeId);
+      if (idx === -1) return null;
+      fresh.nodes.splice(idx, 1);
+    }
 
-  fresh.savedAt = new Date().toISOString();
-  // `removeId` can legitimately reduce the canvas to 0 nodes when the user
-  // deletes the last one; opt in so the wipe guard doesn't reject that.
-  await saveCanvas(workspaceId, fresh, storeDir, { allowEmpty: true });
-  return fresh;
+    fresh.savedAt = new Date().toISOString();
+    // `removeId` can legitimately reduce the canvas to 0 nodes when the user
+    // deletes the last one; opt in so the wipe guard doesn't reject that.
+    await saveCanvas(workspaceId, fresh, storeDir, {
+      allowEmpty: true,
+      removedIds: mutation.removeId ? [mutation.removeId] : undefined,
+    });
+    return fresh;
+  });
 }
 
 /**
@@ -534,31 +625,35 @@ export async function commitEdgeMutation(
   mutation: EdgeMutation,
   storeDir?: string,
 ): Promise<CanvasSaveData | null> {
-  const fresh = (await loadCanvas(workspaceId, storeDir)) ?? {
-    nodes: [],
-    edges: [],
-    transform: { x: 0, y: 0, scale: 1 },
-    savedAt: new Date().toISOString(),
-  };
+  // Same critical-section rule as commitNodeMutation: edge saves rewrite the
+  // whole canvas.json too, so they contend with node mutations for the lock.
+  return withWorkspaceLock(workspaceId, storeDir, async () => {
+    const fresh = (await loadCanvas(workspaceId, storeDir)) ?? {
+      nodes: [],
+      edges: [],
+      transform: { x: 0, y: 0, scale: 1 },
+      savedAt: new Date().toISOString(),
+    };
 
-  const edges = fresh.edges ?? [];
+    const edges = fresh.edges ?? [];
 
-  if (mutation.upsert) {
-    const target = mutation.upsert;
-    const idx = edges.findIndex(e => e.id === target.id);
-    if (idx >= 0) edges[idx] = target;
-    else edges.push(target);
-  }
-  if (mutation.removeId) {
-    const idx = edges.findIndex(e => e.id === mutation.removeId);
-    if (idx === -1) return null;
-    edges.splice(idx, 1);
-  }
+    if (mutation.upsert) {
+      const target = mutation.upsert;
+      const idx = edges.findIndex(e => e.id === target.id);
+      if (idx >= 0) edges[idx] = target;
+      else edges.push(target);
+    }
+    if (mutation.removeId) {
+      const idx = edges.findIndex(e => e.id === mutation.removeId);
+      if (idx === -1) return null;
+      edges.splice(idx, 1);
+    }
 
-  fresh.edges = edges;
-  fresh.savedAt = new Date().toISOString();
-  await saveCanvas(workspaceId, fresh, storeDir, { allowEmpty: true });
-  return fresh;
+    fresh.edges = edges;
+    fresh.savedAt = new Date().toISOString();
+    await saveCanvas(workspaceId, fresh, storeDir, { allowEmpty: true });
+    return fresh;
+  });
 }
 
 export async function createWorkspace(
