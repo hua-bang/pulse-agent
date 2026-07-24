@@ -7,23 +7,26 @@
  * swatch identity; CanvasNodeView/utils.ts parses the hue/chroma out of
  * `data.color` and exposes them as CSS custom props.
  *
- *   pillBg        -> L 0.61   Cx2.6   (solid chip, white text — the anchor)
+ *   pillBg        -> L 0.67   Cx2.9   (vivid solid chip, white text)
  *   pillText      -> white             (icon strokes too)
  *   countBg       -> white @ 0.22 over the chip
- *   bodyTint      -> L 0.958  Cx0.52  (near-opaque wash on a light canvas)
- *   bodyTintFocus -> L 0.952  Cx0.56
+ *   bodyTint      -> L 0.955  Cx0.45  (soft near-opaque wash)
+ *   bodyTintFocus -> L 0.948  Cx0.50
  *   border        -> L 0.885  Cx0.75
  *   borderHover   -> L 0.82   Cx0.95
  *   borderFocus   -> L 0.80   Cx0.38
  *   identity      -> L 0.62   Cx0.95  (selection ring, focus mode border)
  *   dotPattern    -> L 0.88   Cx0.12 @ 0.06 (sections read as flat color)
  *
- * Calibrated 2026-07-24 against Heptabase reference boards (vision-read
- * from screenshots; heptabase.com is unreachable under this session's
- * network policy, so these are perceptual matches, not sampled pixels):
- * LIGHT canvas + DEEPER near-opaque washes + brighter, more chromatic
- * title chips. The earlier pale-pill/invisible-tint combo averaged into
- * gray at overview zoom.
+ * Calibrated 2026-07-24 against five Heptabase reference boards
+ * (vision-read from screenshots; heptabase.com is unreachable under this
+ * session's network policy, so these are perceptual matches, not sampled
+ * pixels). Their language: near-neutral light canvas, SOFT washes, and
+ * VIVID bright chips — green reads ≈ L0.70 C0.19 h148, coral ≈ L0.68
+ * C0.16 h30, blue ≈ L0.71 C0.13 h250, gray label ≈ L0.68 C0.005. A fixed
+ * L0.67 keeps every hue in that family while staying one formula; the
+ * amber/olive hues land a step deeper than their black-text yellow chip —
+ * accepted, since one formula can't vary text color per hue.
  *
  * --frame-color is kept as the picker dot's display value (sRGB color from
  * the stored string, used in one place); everything else goes via hue.
@@ -36,7 +39,7 @@
    * keeping this as a variable lets focus/experiments still tune it. */
   --_a: var(--frame-bg-alpha, 0.96);
 
-  background: oklch(0.958 calc(var(--_c) * 0.52) var(--_h) / var(--_a));
+  background: oklch(0.955 calc(var(--_c) * 0.45) var(--_h) / var(--_a));
   border: 1px solid oklch(0.885 calc(var(--_c) * 0.75) var(--_h));
   border-radius: var(--radius-md);
   box-shadow: none;
@@ -81,7 +84,7 @@
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: oklch(0.952 calc(var(--_c) * 0.56) var(--_h) / 0.97);
+  background: oklch(0.948 calc(var(--_c) * 0.50) var(--_h) / 0.97);
   border-style: solid;
   border-color: oklch(0.80 calc(var(--_c) * 0.38) var(--_h));
   box-shadow: 0 0 0 2px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.28);
@@ -131,13 +134,13 @@
   padding: 7px 12px 7px 10px;
   gap: 8px;
 
-  /* Solid saturated chip + white text: the section ANCHOR. At overview zoom
+  /* Vivid solid chip + white text: the section ANCHOR. At overview zoom
    * these chips are what structures the whole board (Heptabase reading);
-   * the old pale pill read as one more gray blob. L 0.61 / Cx2.6 matches the
-   * reference chips' brighter, livelier tone (their green label reads as
-   * roughly L 0.61, C 0.14 at hue 149); the graphite preset (chroma 0.006)
-   * degrades gracefully to a gray chip. */
-  background: oklch(0.61 calc(var(--_c) * 2.6) var(--_h));
+   * a pale pill reads as one more gray blob. L 0.67 / Cx2.9 sits in the
+   * reference chips' bright family (see the tone table at the top of this
+   * file); the graphite preset (chroma 0.006) degrades gracefully to the
+   * reference's gray label tone. */
+  background: oklch(0.67 calc(var(--_c) * 2.9) var(--_h));
   border: none;
   border-radius: var(--radius-md);
   color: rgba(255, 255, 255, 0.97);

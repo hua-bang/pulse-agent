@@ -8,10 +8,11 @@
 :root {
   color-scheme: light;
   --bg: #f8f8f7;
-  /* Heptabase-calibrated ground (2026-07-24, vision-read from reference
-   * boards): LIGHT warm gray, with figure-ground contrast carried by the
-   * deeper frame washes rather than a dark canvas. */
-  --bg-canvas: #f0efeb;
+  /* Heptabase-calibrated ground (2026-07-24, vision-read from five
+   * reference boards): near-neutral light gray, with figure-ground
+   * contrast carried by the frame washes and vivid section chips rather
+   * than a dark canvas. */
+  --bg-canvas: #f4f3f0;
   --surface: #ffffff;
   --surface-hover: #fafaf9;
   --border: #e8e5e0;
