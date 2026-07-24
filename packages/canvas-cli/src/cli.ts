@@ -6,6 +6,7 @@ import { registerInstallSkillsCommand } from './commands/install-skills';
 import { registerEdgeCommands } from './commands/edge';
 import { registerAgentCommands } from './commands/agent';
 import { registerRestoreCommand } from './commands/restore';
+import { registerDoctorCommand } from './commands/doctor';
 import { registerTeamCommands } from './commands/team';
 import { registerStatusCommand } from './commands/status';
 import { registerDescribeCommand } from './commands/describe';
@@ -50,6 +51,7 @@ export function createCli(): Command {
   registerAgentCommands(program);
   registerTeamCommands(program);
   registerRestoreCommand(program);
+  registerDoctorCommand(program);
   registerContextCommand(program);
   registerInstallSkillsCommand(program);
 

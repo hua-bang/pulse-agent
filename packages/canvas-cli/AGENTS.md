@@ -34,6 +34,7 @@ in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
 | External-caller surface (status/describe, error contract) | `src/commands/status.ts`, `src/commands/describe.ts`, `src/output.ts` |
 | Live runtime commands and capability client | `src/commands/agent.ts`, `src/commands/team.ts`, `src/commands/runtime.ts`, `src/core/runtime-control.ts`, `src/core/runtime-capabilities.ts` |
 | v2 recovery command | `src/commands/restore.ts` |
+| Consistency check + safe repair (drift/orphans/edges) | `src/commands/doctor.ts`, `src/core/doctor.ts` |
 | Public core exports | `src/core/index.ts` |
 | Store safety and schema compatibility | `src/core/store.ts`, `src/core/storage-v2.ts`, `src/core/types.ts`, `src/core/constants.ts` |
 | Node and edge behavior | `src/core/nodes.ts`, `src/core/edges.ts` |
@@ -152,6 +153,9 @@ with "No active canvas-workspace runtime found."
 - `src/cli.ts`: top-level command registration and global options.
 - `src/commands/`: workspace, node, edge, context, agent, team, runtime,
   restore, and skill-install commands.
+- `src/core/doctor.ts`: consistency analysis + conservative repair (markdown
+  wins on drift; orphans adopted, never deleted); CLI face in
+  `src/commands/doctor.ts`.
 - `src/core/store.ts`: workspace manifests, canvas load/save, locks, backups,
   wipe guard, and node/edge mutation commits.
 - `src/core/storage-v2.ts`: compatibility layer for layout-only `canvas.json`

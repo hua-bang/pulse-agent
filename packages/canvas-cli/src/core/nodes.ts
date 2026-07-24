@@ -67,7 +67,7 @@ export function getNodeCapabilities(type: NodeType): NodeCapability[] {
 }
 
 /** True if `child` resolves to a path at or under `parent`. */
-function isPathInside(child: string, parent: string): boolean {
+export function isPathInside(child: string, parent: string): boolean {
   const rel = relative(resolve(parent), resolve(child));
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
