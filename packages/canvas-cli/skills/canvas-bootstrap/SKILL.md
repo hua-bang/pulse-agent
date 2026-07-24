@@ -134,6 +134,29 @@ Planning rules:
 - Do not create action, task, terminal, or agent nodes by default. Only add them when the user explicitly asks for execution or follow-up work to be placed on the canvas.
 - Create 2-5 meaningful edges between frames or major nodes.
 
+Editorial rules — these are what make the board read as a knowledge map
+instead of a data dump. Apply them while planning; verify them in Phase 7:
+
+- **One claim per card.** Title = a single assertion sentence; body = 2-5
+  short support bullets. A card is not an article — move long-form prose
+  into a separate detail card and link it with an edge, so the first view
+  stays scannable.
+- **Card budget.** Deep topics should land around 25-35 atomic cards total.
+  If synthesis produces more, merge cards or push depth into linked detail
+  cards instead of widening the first view.
+- **Size encodes importance.** Thesis/conclusion cards widest (~460-520px),
+  evidence cards default (~320-380px), side annotations smaller. Never make
+  every card the same size — uniform sizing erases the argument's shape.
+- **Sources live on the periphery.** Source/reference cards go to the right
+  or bottom edge of the board, outside the main narrative flow — never
+  interleaved with claim cards.
+- **Highlight budget.** Colored emphasis (colored phrases, tinted cards)
+  belongs on at most ~20% of cards — reserve it for load-bearing claims.
+  Uniform emphasis reads as none.
+- **Edges are local relations, not long-haul wiring.** Prefer short edges
+  between neighboring cards and frames, give curves a small `bend` so they
+  read organically, and avoid edges that cross multiple frames.
+
 If research materially changes the approved plan, show the changed structure and ask for a quick confirmation before final creation.
 
 Node type strategy:
@@ -158,11 +181,37 @@ Preferred path inside Canvas Agent runtime:
    - `at` only when the user gave a precise location
 4. Create sparse edges with `canvas_create_edge`.
 
-Fallback path outside Canvas Agent runtime:
+Fallback path outside Canvas Agent runtime — prefer ONE atomic plan over
+command loops (one lock, one save, all-or-nothing):
 
 ```bash
 pulse-canvas workspace create "<topic>" --format json
-pulse-canvas node create --workspace <id> --type frame --title "<frame>" --format json
+pulse-canvas apply --workspace <id> --file canvas-plan.json --dry-run --format json
+pulse-canvas apply --workspace <id> --file canvas-plan.json --format json
+```
+
+Plan shape (full reference: `pulse-canvas apply --help`):
+
+```json
+{
+  "workspace": "<id>",
+  "baseRevision": 3,
+  "operations": [
+    { "action": "create", "type": "frame", "id": "f-overview", "title": "Overview", "x": 40, "y": 70, "width": 900, "height": 520 },
+    { "action": "create", "type": "file", "id": "c-thesis", "title": "One-sentence claim", "x": 80, "y": 130, "width": 480, "height": 300, "content": "- support 1\n- support 2" },
+    { "action": "createEdge", "from": "c-thesis", "to": "f-overview", "label": "belongs to", "bend": 24 }
+  ]
+}
+```
+
+- Always `--dry-run` first: it validates every operation with zero writes.
+- Include `baseRevision` (read it from a prior `apply` or `layout read`)
+  when other writers may touch the workspace; on `revision_conflict`,
+  re-read the canvas and rebuild the plan.
+
+Single-node commands remain for small incremental edits:
+
+```bash
 pulse-canvas node create --workspace <id> --type file --title "<node>" --data '{"content":"..."}' --format json
 pulse-canvas edge create --workspace <id> --from <nodeId> --to <nodeId> --label "<label>" --kind flow --format json
 ```
@@ -216,12 +265,18 @@ Manual fallback layout:
 
 ## Phase 7: Verify and Summarize
 
-Before final response:
+Before final response, run the dual-view acceptance:
 
 - Validate the final canvas layout (`pulse-canvas layout validate --workspace <id>`).
+- **Fit-view check** (the board at overview zoom): it must read as 3-6
+  colored regions with legible section chips, thesis cards visibly larger
+  than evidence cards, and sources parked on the periphery — not a uniform
+  grid of same-size cards.
+- **100%-view check**: read 2-3 cards in full; each must be one claim plus
+  short support bullets with source ids, not a pasted article.
 - Confirm every final frame has useful content.
 - Confirm important findings have source ids.
-- Confirm edges are sparse and meaningful.
+- Confirm edges are sparse, local, and meaningful.
 - Summarize the created frames, key findings, source quality, unresolved questions, and any layout caveats.
 
 ## Frame Colors
@@ -243,6 +298,9 @@ Before final response:
 3. Draft live-board content is clearly marked as draft.
 4. Final content is synthesized and actionable, not copied source fragments.
 5. Frames contain 2-4 substantial nodes unless the topic strongly justifies otherwise.
+6. One claim per card; long-form depth lives in linked detail cards.
+7. Size encodes importance, sources stay on the periphery, and colored
+   emphasis stays under ~20% of cards.
 6. Layout tools are the default for geometry; manual coordinates are fallback only.
 7. Existing unrelated nodes are not moved unless the user approved an organizing action.
 8. Edges explain relationships with short labels and meaningful kinds.

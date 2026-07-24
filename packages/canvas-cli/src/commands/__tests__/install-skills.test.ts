@@ -34,6 +34,8 @@ describe('installSkills', () => {
       expect(bootstrap).toContain('Action layer: omit by default');
       expect(bootstrap).toContain('pulse-canvas layout frame-grid');
       expect(bootstrap).toContain('Run all canvas mutations sequentially.');
+      expect(bootstrap).toContain('pulse-canvas apply');
+      expect(bootstrap).toContain('One claim per card.');
       expect(deepResearch).toContain('source_ledger');
       expect(deepResearch).toContain('canvas_candidates');
       expect(frameResearch).toContain('Resolve the Target Frame');
