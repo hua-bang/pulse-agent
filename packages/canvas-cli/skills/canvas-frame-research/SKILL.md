@@ -31,7 +31,7 @@ Identify the target frame before researching:
 Read the current frame context before planning:
 
 - `canvas_read_context` for workspace summary
-- `canvas_read_layout` for frame bounds, children, and nearby nodes
+- `pulse-canvas layout read --workspace <id> --format json` for frame bounds, children, and nearby nodes
 - `canvas_read_node` for the target frame and relevant child nodes
 - `canvas_list_edges` when relationships around the frame matter
 
@@ -111,14 +111,14 @@ Use manual coordinates only when layout tools are unavailable.
 
 ## Phase 5: Layout Only the Frame
 
-After creating or updating nodes, arrange only the target frame:
+After creating or updating nodes, arrange only the target frame (run the two commands sequentially, like all mutations):
 
-```text
-canvas_apply_layout({ mode: "frame_grid", frameId: "<target-frame-id>", fitFrame: true })
-canvas_apply_layout({ mode: "validate" })
+```bash
+pulse-canvas layout frame-grid --workspace <id> --frame <target-frame-id> --format json
+pulse-canvas layout validate --workspace <id> --format json
 ```
 
-Use `region_grid` only for a selected sub-area inside the target frame. Do not run `canvas_grid` unless the user explicitly asks to reorganize the larger canvas.
+Move individual nodes with `node update` if validation flags them. Do not reorganize frames outside the target frame unless the user explicitly asks to reorganize the larger canvas.
 
 ## Phase 6: Summarize
 

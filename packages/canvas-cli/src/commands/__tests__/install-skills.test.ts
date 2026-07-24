@@ -32,12 +32,13 @@ describe('installSkills', () => {
       expect(bootstrap).toContain('User-explicit research skill');
       expect(bootstrap).toContain('Node type strategy');
       expect(bootstrap).toContain('Action layer: omit by default');
-      expect(bootstrap).toContain('canvas_apply_layout({ mode: "frame_grid"');
+      expect(bootstrap).toContain('pulse-canvas layout frame-grid');
+      expect(bootstrap).toContain('Run all canvas mutations sequentially.');
       expect(deepResearch).toContain('source_ledger');
       expect(deepResearch).toContain('canvas_candidates');
       expect(frameResearch).toContain('Resolve the Target Frame');
       expect(frameResearch).toContain('Layout Only the Frame');
-      expect(frameResearch).toContain('Do not run `canvas_grid`');
+      expect(frameResearch).toContain('pulse-canvas layout frame-grid');
     } finally {
       await fs.rm(target, { recursive: true, force: true });
     }

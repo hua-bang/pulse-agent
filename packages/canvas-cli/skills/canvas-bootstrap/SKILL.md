@@ -112,7 +112,7 @@ Live-board rules:
 - Add source nodes or source summaries as they are reviewed.
 - Move findings from draft to synthesis only after cross-checking.
 - Keep live updates compact; do not flood the canvas with every search result.
-- Use `region_grid` to tidy the active draft area without moving unrelated nodes.
+- Use `pulse-canvas layout frame-grid --frame <draft-frame-id>` to tidy the active draft frame without moving unrelated nodes.
 - Run final layout after synthesis, not after every small update.
 
 If canvas tools are unavailable, report progress conversationally and create the canvas only when tools become available.
@@ -149,7 +149,7 @@ Node type strategy:
 
 Preferred path inside Canvas Agent runtime:
 
-1. Call `canvas_read_layout` before creating or arranging content in an existing workspace.
+1. Check existing geometry with `pulse-canvas layout read --workspace <id> --format json` before creating or arranging content in an existing workspace.
 2. Create frames and nodes with canvas creation tools.
 3. For single semantic insertions, use `placement` instead of raw coordinates:
    - `append_canvas` for a new top-level cluster
@@ -182,33 +182,28 @@ Use fallback coordinates only when no layout tool is available.
 
 ## Phase 6: Apply Layout
 
-Preferred layout path:
+Layout commands (run them sequentially, like all mutations):
 
-1. For each final frame, arrange its children:
+1. For each final frame, arrange its children into a grid and fit the frame:
 
-```text
-canvas_apply_layout({ mode: "frame_grid", frameId: "<frame-id>", fitFrame: true })
+```bash
+pulse-canvas layout frame-grid --workspace <id> --frame <frame-id> --format json
+# optional: --columns <n> --gap <px> --padding <px> --no-fit-frame
 ```
 
-2. Arrange top-level frames and standalone nodes:
+2. Position the frames themselves manually (there is no canvas-level
+   auto-grid yet): lay frames out in rows using the manual numbers below,
+   after `frame-grid` has settled each frame's final size.
 
-```text
-canvas_apply_layout({ mode: "canvas_grid", nodeIds: ["<frame-id>", "..."], respectLayoutLocked: true })
+3. Validate the result:
+
+```bash
+pulse-canvas layout validate --workspace <id> --format json
 ```
 
-3. For a selected area or live-board draft area:
-
-```text
-canvas_apply_layout({ mode: "region_grid", nodeIds: ["<node-id>", "..."] })
-```
-
-4. Validate the result:
-
-```text
-canvas_apply_layout({ mode: "validate" })
-```
-
-If validation reports overlaps or out-of-frame nodes, fix the relevant frame or region with `frame_grid` or `region_grid`, then validate again.
+4. If validation reports overlaps, frame straddling/overflow, narrow cards,
+   or an extreme aspect ratio, re-run `frame-grid` on the affected frame or
+   move the listed nodes with `node update`, then validate again.
 
 Manual fallback layout:
 
@@ -223,7 +218,7 @@ Manual fallback layout:
 
 Before final response:
 
-- Read or validate the final canvas layout.
+- Validate the final canvas layout (`pulse-canvas layout validate --workspace <id>`).
 - Confirm every final frame has useful content.
 - Confirm important findings have source ids.
 - Confirm edges are sparse and meaningful.
