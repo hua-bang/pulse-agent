@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDragResize, type DragResizeOptions } from '../hooks/useDragResize';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -122,29 +122,45 @@ describe('useDragResize', () => {
   });
 
   describe('interaction shield (webview drag deadlock guard)', () => {
-    const findShield = () => document.body.querySelector('.canvas-interaction-shield');
+    // acquireInteractionShield() no longer inserts a DOM node of its own —
+    // it toggles pointer-events directly on every <webview>/<iframe> guest
+    // in the document (see utils/interactionShield.ts) so an unmoved
+    // mousedown/mouseup pair still resolves its trailing click/dblclick on
+    // the real element instead of an overlay. Assert on that instead.
+    let guestWebview: HTMLElement;
 
-    it('mounts the full-window shield synchronously on mousedown and removes it on mouseup', () => {
-      const handle = renderHandle({ axis: 'x', value: 100, min: 0, max: 300, onChange: vi.fn() });
-      expect(findShield()).toBeNull();
-
-      mousedown(handle, 100);
-      expect(findShield()).not.toBeNull();
-
-      mouseup();
-      expect(findShield()).toBeNull();
+    beforeEach(() => {
+      guestWebview = document.createElement('webview');
+      document.body.appendChild(guestWebview);
     });
 
-    it('removes the shield when the component unmounts mid-drag', () => {
+    afterEach(() => {
+      guestWebview.remove();
+    });
+
+    const isShielded = () => guestWebview.style.pointerEvents === 'none';
+
+    it('shields guest elements synchronously on mousedown and unshields on mouseup', () => {
+      const handle = renderHandle({ axis: 'x', value: 100, min: 0, max: 300, onChange: vi.fn() });
+      expect(isShielded()).toBe(false);
+
+      mousedown(handle, 100);
+      expect(isShielded()).toBe(true);
+
+      mouseup();
+      expect(isShielded()).toBe(false);
+    });
+
+    it('unshields guest elements when the component unmounts mid-drag', () => {
       const handle = renderHandle({ axis: 'x', value: 100, min: 0, max: 300, onChange: vi.fn() });
       mousedown(handle, 100);
-      expect(findShield()).not.toBeNull();
+      expect(isShielded()).toBe(true);
 
       act(() => {
         root?.unmount();
       });
       root = null; // already unmounted here; skip the afterEach unmount
-      expect(findShield()).toBeNull();
+      expect(isShielded()).toBe(false);
     });
   });
 });

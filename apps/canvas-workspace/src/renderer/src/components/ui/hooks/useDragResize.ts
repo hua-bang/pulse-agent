@@ -54,10 +54,10 @@ export const useDragResize = (options: DragResizeOptions): DragResizeHandlers =>
     optionsRef.current.onDragStart?.();
     document.body.style.cursor = axis === 'x' ? 'col-resize' : 'row-resize';
     document.body.style.userSelect = 'none';
-    // Shield the whole window synchronously: the cursor leaves the handle
-    // immediately during a panel resize, and crossing a <webview> guest
-    // (dock link tab, canvas iframe node) would swallow the move stream and
-    // deadlock the drag. Released in `release()` below.
+    // Shield every webview/iframe guest synchronously: the cursor leaves the
+    // handle immediately during a panel resize, and crossing a <webview>
+    // guest (dock link tab, canvas iframe node) would swallow the move
+    // stream and deadlock the drag. Released in `release()` below.
     const releaseShield = acquireInteractionShield();
 
     const onMove = (moveEvent: MouseEvent) => {
