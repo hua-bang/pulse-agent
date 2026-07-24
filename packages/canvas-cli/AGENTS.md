@@ -34,6 +34,9 @@ in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
 | External-caller surface (status/describe, error contract) | `src/commands/status.ts`, `src/commands/describe.ts`, `src/output.ts` |
 | Live runtime commands and capability client | `src/commands/agent.ts`, `src/commands/team.ts`, `src/commands/runtime.ts`, `src/core/runtime-control.ts`, `src/core/runtime-capabilities.ts` |
 | v2 recovery command | `src/commands/restore.ts` |
+| Consistency check + safe repair (drift/orphans/edges) | `src/commands/doctor.ts`, `src/core/doctor.ts` |
+| Layout read/validate/frame-grid | `src/commands/layout.ts`, `src/core/layout.ts` |
+| Atomic batch mutation from a plan file | `src/commands/apply.ts`, `src/core/apply.ts` |
 | Public core exports | `src/core/index.ts` |
 | Store safety and schema compatibility | `src/core/store.ts`, `src/core/storage-v2.ts`, `src/core/types.ts`, `src/core/constants.ts` |
 | Node and edge behavior | `src/core/nodes.ts`, `src/core/edges.ts` |
@@ -58,6 +61,21 @@ the root harness files above, then the package source/tests.
 - Preserve store safety: workspace/node id validation, manifest locking,
   atomic writes, rolling `.bak` recovery, v2 per-node compatibility, and the
   guard that refuses accidental empty-node overwrites.
+- Every canvas write runs inside `withWorkspaceLock` (store.ts): full
+  load→mutate→save cycles must hold the per-workspace lock
+  (`<storeRoot>/__locks__/<id>.lock`), and v2 saves delete per-node files
+  only for ids the mutation explicitly removed — the full-sync sweep
+  (`pruneUnknownNodeFiles`) is reserved for restore/repair flows. Both rules
+  exist because parallel CLI writers used to drop and even delete each
+  other's nodes; regression suite: `src/core/__tests__/storage-race.test.ts`.
+  The lock serializes CLI↔CLI only — the app does not take it; app↔CLI
+  concurrency still relies on per-node `updatedAt` arbitration.
+- `saveCanvas` bumps `canvas.revision` on every write (monotonic CLI write
+  counter). `apply --atomic`'s `baseRevision` compares against it: equality
+  means "no CLI write intervened", not "no write at all" — the app preserves
+  the field on save (spread-through) but does not bump it. Batch mutations
+  should prefer one `apply` plan (one lock, one save, all-or-nothing with
+  deferred fs effects) over loops of single-node commands.
 - Do not make this CLI trigger v2 migrations. `canvas-workspace` owns
   migration; the CLI adapts to the on-disk schema it finds.
 - Keep `restore` narrow: it recovers from v1 snapshots and archives live
@@ -143,6 +161,16 @@ with "No active canvas-workspace runtime found."
 - `src/cli.ts`: top-level command registration and global options.
 - `src/commands/`: workspace, node, edge, context, agent, team, runtime,
   restore, and skill-install commands.
+- `src/core/doctor.ts`: consistency analysis + conservative repair (markdown
+  wins on drift; orphans adopted, never deleted); CLI face in
+  `src/commands/doctor.ts`.
+- `src/core/layout.ts`: geometry summary, layout validation (overlaps, frame
+  containment, readability, aspect ratio), and frame-grid arrangement;
+  containment is geometric (smallest frame holding a node's center). CLI face
+  in `src/commands/layout.ts`.
+- `src/core/apply.ts`: atomic plan application — validate every op against an
+  in-memory copy, defer all fs effects, then one locked save; optimistic
+  concurrency via `baseRevision`. CLI face in `src/commands/apply.ts`.
 - `src/core/store.ts`: workspace manifests, canvas load/save, locks, backups,
   wipe guard, and node/edge mutation commits.
 - `src/core/storage-v2.ts`: compatibility layer for layout-only `canvas.json`

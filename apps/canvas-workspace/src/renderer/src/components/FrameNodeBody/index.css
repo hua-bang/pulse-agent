@@ -7,16 +7,31 @@
  * swatch identity; CanvasNodeView/utils.ts parses the hue/chroma out of
  * `data.color` and exposes them as CSS custom props.
  *
- *   pillBg        -> L 0.945  Cx0.34
- *   pillText      -> L 0.42   Cx0.95   (also drives icon strokes)
- *   countBg       -> L 0.90   Cx0.46
- *   bodyTint      -> L 0.984  Cx0.10
- *   bodyTintFocus -> L 0.976  Cx0.14
- *   border        -> L 0.88   Cx0.30
- *   borderHover   -> L 0.80   Cx0.42
+ *   pillBg        -> L 0.955  Cx0.42  (pale tinted label, NOT a solid chip)
+ *   pillText      -> L 0.52   Cx2.4   (colored label text + icon strokes)
+ *   countBg       -> L 0.90   Cx0.75  (tinted badge, colored text)
+ *   bodyTint      -> L 0.979  Cx0.17  (barely-there wash)
+ *   bodyTintFocus -> L 0.972  Cx0.20
+ *   border        -> L 0.925  Cx0.45
+ *   borderHover   -> L 0.87   Cx0.70
  *   borderFocus   -> L 0.80   Cx0.38
  *   identity      -> L 0.62   Cx0.95  (selection ring, focus mode border)
- *   dotPattern    -> L 0.88   Cx0.12
+ *   dotPattern    -> L 0.88   Cx0.12 @ 0.06 (sections read as flat color)
+ *
+ * v4 "quiet label" (2026-07-24). The header grammar is a PALE TINTED
+ * LABEL with COLORED text and icon: saturation lives only in the small
+ * type, washes drop to a whisper, and the canvas goes cool near-white.
+ * Colored text on the pale pill reads at ~4.8:1. Because intensity sits
+ * in the label text, multiple hues per board stay calm (the hue-budget
+ * rule in canvas-bootstrap remains good editorial practice regardless).
+ *
+ * Coefficients fitted to a user-supplied [title, body] hex palette
+ * (converted to OKLCH): titles land ~L0.955 C0.022, bodies ~L0.979
+ * C0.009. The label multiplier is uniform, so per-hue chroma is averaged
+ * — greens read a touch livelier and violets a touch calmer than the
+ * hand-picked source, in exchange for a coherent single formula that also
+ * covers arbitrary picker hues and the graphite neutral. The six accent
+ * PRESET hues (FrameHeaderControls) match the palette's families.
  *
  * --frame-color is kept as the picker dot's display value (sRGB color from
  * the stored string, used in one place); everything else goes via hue.
@@ -25,12 +40,12 @@
 .canvas-node--frame {
   --_c: var(--frame-chroma, 0.052);
   --_h: var(--frame-hue, 250);
-  /* Tunable opacity. The design reference uses an almost-solid pale tint;
+  /* Tunable opacity. The reference washes read as solid color;
    * keeping this as a variable lets focus/experiments still tune it. */
-  --_a: var(--frame-bg-alpha, 0.86);
+  --_a: var(--frame-bg-alpha, 0.96);
 
-  background: oklch(0.984 calc(var(--_c) * 0.10) var(--_h) / var(--_a));
-  border: 1px solid oklch(0.88 calc(var(--_c) * 0.30) var(--_h));
+  background: oklch(0.979 calc(var(--_c) * 0.17) var(--_h) / var(--_a));
+  border: 1px solid oklch(0.925 calc(var(--_c) * 0.45) var(--_h));
   border-radius: var(--radius-md);
   box-shadow: none;
   /* Header pill floats above the body, so we mustn't clip it. */
@@ -50,7 +65,9 @@
       oklch(0.88 calc(var(--_c) * 0.12) var(--_h)) 1px,
       transparent 1px);
   background-size: 30px 30px;
-  opacity: 0.26;
+  /* Whisper-level: the reference sections read as FLAT color; keep only a
+   * trace of the pad texture as product identity. */
+  opacity: 0.06;
   z-index: 0;
 }
 
@@ -60,7 +77,7 @@
 }
 
 .canvas-node--frame:hover {
-  border-color: oklch(0.80 calc(var(--_c) * 0.42) var(--_h));
+  border-color: oklch(0.87 calc(var(--_c) * 0.70) var(--_h));
   box-shadow: none;
 }
 
@@ -72,7 +89,7 @@
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: oklch(0.976 calc(var(--_c) * 0.14) var(--_h) / 0.88);
+  background: oklch(0.972 calc(var(--_c) * 0.20) var(--_h) / 0.97);
   border-style: solid;
   border-color: oklch(0.80 calc(var(--_c) * 0.38) var(--_h));
   box-shadow: 0 0 0 2px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.28);
@@ -122,15 +139,15 @@
   padding: 7px 12px 7px 10px;
   gap: 8px;
 
-  background: oklch(0.945 calc(var(--_c) * 0.34) var(--_h));
+  /* Quiet tinted label (v4): pale hue-tinted pill with COLORED text — the
+   * saturation lives in the type, not in a solid block. Still legible as a
+   * section anchor at overview zoom via the counter-scaled transform; the
+   * graphite preset degrades to a gray label. */
+  background: oklch(0.955 calc(var(--_c) * 0.42) var(--_h));
   border: none;
   border-radius: var(--radius-md);
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
-
-  /* Soft tinted shadow — pill reads as floating, not glued to the body. */
-  box-shadow:
-    0 2px 8px oklch(0.42 calc(var(--_c) * 0.95) var(--_h) / 0.08),
-    0 0 0 1px oklch(0.42 calc(var(--_c) * 0.95) var(--_h) / 0.07);
+  color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
+  box-shadow: none;
 
   /* Header lives inside .canvas-transform; same scale-clamping logic as
    * before so the pill stays readable at deep zoom-out without going
@@ -141,14 +158,14 @@
 }
 
 .canvas-node--frame .node-header .node-type-badge--frame {
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
   width: 15px;
   height: 15px;
 }
 
 .canvas-node--frame .node-header .node-title {
   flex: 0 1 auto;
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
   font-weight: 700;
   font-size: 14px;
   line-height: 1.2;
@@ -156,7 +173,7 @@
 }
 
 .canvas-node--frame .node-header .node-title:focus {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.65);
   border-radius: var(--radius-xs);
 }
 
@@ -180,8 +197,8 @@
   padding: 0 6px;
   border: 0;
   border-radius: 7px;
-  background: oklch(0.90 calc(var(--_c) * 0.46) var(--_h));
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  background: oklch(0.90 calc(var(--_c) * 0.75) var(--_h));
+  color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
   cursor: pointer;
   transition:
     background 0.14s ease,
@@ -229,8 +246,8 @@
 }
 
 .frame-children-toggle:hover {
-  background: oklch(0.84 calc(var(--_c) * 0.62) var(--_h));
-  color: oklch(0.36 calc(var(--_c) * 1.05) var(--_h));
+  background: oklch(0.86 calc(var(--_c) * 1.1) var(--_h));
+  color: oklch(0.46 calc(var(--_c) * 2.6) var(--_h));
   transform: translateY(-0.5px);
 }
 
@@ -244,8 +261,8 @@
 }
 
 .frame-children-toggle:disabled:hover {
-  background: oklch(0.90 calc(var(--_c) * 0.46) var(--_h));
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  background: oklch(0.90 calc(var(--_c) * 0.90) var(--_h));
+  color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
   transform: none;
 }
 
@@ -271,16 +288,16 @@
 
 .canvas-node--frame .node-header .node-focus,
 .canvas-node--frame .node-header .node-close {
-  color: oklch(0.48 calc(var(--_c) * 0.72) var(--_h));
+  color: oklch(0.55 calc(var(--_c) * 1.8) var(--_h));
 }
 
 .canvas-node--frame .node-header .node-focus:hover {
-  background: oklch(0.88 calc(var(--_c) * 0.46) var(--_h));
-  color: oklch(0.36 calc(var(--_c) * 1.05) var(--_h));
+  background: oklch(0.88 calc(var(--_c) * 0.9) var(--_h));
+  color: oklch(0.46 calc(var(--_c) * 2.4) var(--_h));
 }
 
 .canvas-node--frame .node-header .node-close:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.06);
   color: #d03b3b;
 }
 
@@ -311,7 +328,7 @@
   width: 24px;
   height: 24px;
   border-radius: var(--radius-sm);
-  color: oklch(0.48 calc(var(--_c) * 0.72) var(--_h));
+  color: oklch(0.55 calc(var(--_c) * 1.8) var(--_h));
 }
 
 .canvas-node--frame .node-header .node-header__actions .node-reference svg,
@@ -463,9 +480,8 @@
   height: 12px;
   padding: 0;
   border-radius: 50%;
-  /* Border uses the frame identity so the dot reads as a colored ring
-   * even before hover. The fill stays transparent — the *hue picker
-   * trigger* shouldn't masquerade as the active swatch. */
+  /* Identity-colored ring on the pale label. The fill stays transparent —
+   * the *hue picker trigger* shouldn't masquerade as the active swatch. */
   border: 1.5px solid oklch(0.62 calc(var(--_c) * 0.95) var(--_h));
   background: transparent;
   cursor: pointer;

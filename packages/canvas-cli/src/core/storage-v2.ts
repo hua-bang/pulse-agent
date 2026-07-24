@@ -111,16 +111,30 @@ export async function readNodeFile(
   }
 }
 
-/** Atomic per-node write via tmp + rename. No rolling backup — files are small. */
+/**
+ * Atomic per-node write via tmp + rename. No rolling backup — files are small.
+ *
+ * The tmp name MUST be unique per writer (same recipe as store.ts's
+ * `atomicWriteCanvasJson` and the app's `atomicWriteJson`): a fixed
+ * `<path>.tmp` made concurrent full-canvas saves collide on the same tmp
+ * path — writer B's `writeFile` landed between writer A's `writeFile` and
+ * `rename`, so one rename raced the other and threw ENOENT mid-save.
+ */
 export async function writeNodeFile(
   workspaceDir: string,
   file: PerNodeFile,
 ): Promise<void> {
   const path = getNodeFilePath(workspaceDir, file.id);
-  const tmpPath = `${path}.tmp`;
+  const tmpPath =
+    `${path}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`;
   await fs.mkdir(dirname(path), { recursive: true });
-  await fs.writeFile(tmpPath, JSON.stringify(file, null, 2), 'utf-8');
-  await fs.rename(tmpPath, path);
+  try {
+    await fs.writeFile(tmpPath, JSON.stringify(file, null, 2), 'utf-8');
+    await fs.rename(tmpPath, path);
+  } catch (err) {
+    await fs.unlink(tmpPath).catch(() => undefined);
+    throw err;
+  }
 }
 
 export async function deleteNodeFile(
@@ -199,6 +213,24 @@ export async function assembleV2(
 // ─────────────────────────────────────────────────────────────────────────────
 // v2 write split
 
+export interface SplitV2Options {
+  /**
+   * Node ids whose per-node files should be deleted because the caller
+   * EXPLICITLY removed them in this mutation. This is the only default
+   * deletion path — see `pruneUnknownNodeFiles` for why.
+   */
+  removedIds?: readonly string[];
+  /**
+   * Restore the old "full sync" sweep: delete EVERY per-node file whose id
+   * is not in the incoming snapshot. Reserved for flows that know their
+   * snapshot is complete and exclusive (restore/repair). Never enable it on
+   * the mutation path: a writer whose snapshot predates another writer's
+   * freshly-created node would DELETE that node's file — exactly the
+   * concurrent-loss incident the default protects against.
+   */
+  pruneUnknownNodeFiles?: boolean;
+}
+
 /**
  * Split a v1-shape `CanvasSaveData` into a v2 on-disk layout + per-node
  * files. Returns the layout to be passed to the caller's normal
@@ -209,12 +241,15 @@ export async function assembleV2(
  * node, we KEEP the on-disk version. Defends against a stale renderer
  * snapshot clobbering a fresh canvas-workspace edit.
  *
- * Orphan cleanup: per-node files for nodes not present in the incoming
- * snapshot are removed.
+ * Orphan cleanup is OPT-IN per `SplitV2Options`: by default only ids the
+ * caller explicitly removed are deleted; unknown per-node files (typically
+ * a concurrent writer's brand-new node, else true leftovers) are preserved
+ * for `doctor` to adopt or prune deliberately.
  */
 export async function splitV2(
   workspaceDir: string,
   data: CanvasSaveData,
+  opts: SplitV2Options = {},
 ): Promise<CanvasSaveData> {
   const nodes = Array.isArray(data.nodes) ? data.nodes : [];
   const now = Date.now();
@@ -251,10 +286,18 @@ export async function splitV2(
     await writeNodeFile(workspaceDir, file);
   }
 
-  const onDisk = await listNodeFiles(workspaceDir);
-  for (const id of onDisk) {
-    if (!incomingIds.has(id)) {
-      await deleteNodeFile(workspaceDir, id);
+  if (opts.pruneUnknownNodeFiles) {
+    const onDisk = await listNodeFiles(workspaceDir);
+    for (const id of onDisk) {
+      if (!incomingIds.has(id)) {
+        await deleteNodeFile(workspaceDir, id);
+      }
+    }
+  } else if (opts.removedIds?.length) {
+    for (const id of opts.removedIds) {
+      if (!incomingIds.has(id)) {
+        await deleteNodeFile(workspaceDir, id);
+      }
     }
   }
 

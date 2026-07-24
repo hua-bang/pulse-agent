@@ -236,7 +236,53 @@ describe('splitV2', () => {
     expect(await readNodeFile(wsDir, 'ref-1')).toBeNull();
   });
 
-  it('cleans up orphan per-node files', async () => {
+  it('keeps unknown per-node files by default (concurrent-writer protection)', async () => {
+    const wsDir = join(testDir, wsId);
+    // Simulates a node another process created after this writer loaded its
+    // snapshot: it is on disk but absent from the incoming nodes. The old
+    // full-sync sweep deleted it — the concurrent-loss incident.
+    await writeNodeFile(wsDir, {
+      schemaVersion: PER_NODE_SCHEMA_VERSION,
+      id: 'concurrent',
+      type: 'text',
+      data: { content: 'created by another writer' },
+    });
+    const input: CanvasSaveData = {
+      nodes: [
+        { id: 'survivor', type: 'text', title: '', x: 0, y: 0, width: 1, height: 1, data: { content: 'kept' } },
+      ],
+      transform: { x: 0, y: 0, scale: 1 },
+      savedAt: '',
+    };
+    await splitV2(wsDir, input);
+    expect(await readNodeFile(wsDir, 'concurrent')).not.toBeNull();
+    expect(await readNodeFile(wsDir, 'survivor')).not.toBeNull();
+  });
+
+  it('deletes exactly the per-node files named in removedIds', async () => {
+    const wsDir = join(testDir, wsId);
+    for (const id of ['removed', 'unrelated']) {
+      await writeNodeFile(wsDir, {
+        schemaVersion: PER_NODE_SCHEMA_VERSION,
+        id,
+        type: 'text',
+        data: { content: id },
+      });
+    }
+    const input: CanvasSaveData = {
+      nodes: [
+        { id: 'survivor', type: 'text', title: '', x: 0, y: 0, width: 1, height: 1, data: { content: 'kept' } },
+      ],
+      transform: { x: 0, y: 0, scale: 1 },
+      savedAt: '',
+    };
+    await splitV2(wsDir, input, { removedIds: ['removed'] });
+    expect(await readNodeFile(wsDir, 'removed')).toBeNull();
+    expect(await readNodeFile(wsDir, 'unrelated')).not.toBeNull();
+    expect(await readNodeFile(wsDir, 'survivor')).not.toBeNull();
+  });
+
+  it('prunes unknown per-node files only with pruneUnknownNodeFiles (restore/repair path)', async () => {
     const wsDir = join(testDir, wsId);
     await writeNodeFile(wsDir, {
       schemaVersion: PER_NODE_SCHEMA_VERSION,
@@ -246,21 +292,12 @@ describe('splitV2', () => {
     });
     const input: CanvasSaveData = {
       nodes: [
-        {
-          id: 'survivor',
-          type: 'text',
-          title: '',
-          x: 0,
-          y: 0,
-          width: 1,
-          height: 1,
-          data: { content: 'kept' },
-        },
+        { id: 'survivor', type: 'text', title: '', x: 0, y: 0, width: 1, height: 1, data: { content: 'kept' } },
       ],
       transform: { x: 0, y: 0, scale: 1 },
       savedAt: '',
     };
-    await splitV2(wsDir, input);
+    await splitV2(wsDir, input, { pruneUnknownNodeFiles: true });
     expect(await readNodeFile(wsDir, 'orphan')).toBeNull();
     expect(await readNodeFile(wsDir, 'survivor')).not.toBeNull();
   });

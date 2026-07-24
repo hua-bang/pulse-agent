@@ -120,7 +120,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
             break;
           case 'frame':
             nodeData = {
-              color: (extraData.color as string) ?? '#9575d4',
+              color: (extraData.color as string) ?? 'oklch(0.68 0.006 265)',
               label: (extraData.label as string) ?? '',
             };
             break;

@@ -332,7 +332,11 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1874→1871: release gate cleanup reused the existing accent token and exact-value shadow tokens.
   // 1871→1863 (link actions): deleting the bespoke LinkDrawer action chrome
   // removed eight hardcoded color literals in favor of shared ui/Button styles.
-  hardcodedColorLiterals: 1863,
+  // 1863→1862 (Heptabase card alignment): the file card's literal paper
+  // background now routes through the --note-paper token.
+  // 1862→1861 (v4 quiet-label frame headers): the white-on-chip literals
+  // collapsed into hue-derived oklch formulas.
+  hardcodedColorLiterals: 1861,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -390,7 +394,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (inset base ring + a 2px literal focus ring, a near-variant of
   // --shadow-focus's 3px) and `.built-in-tool-primary-btn` carried 1 more —
   // all 3 deleted with the now-unused CSS.
-  shadowLiterals: 152,
+  // 152→151 (v4 quiet-label frame headers): the pill's tinted drop shadow
+  // is gone — flat labels per the reference.
+  shadowLiterals: 151,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

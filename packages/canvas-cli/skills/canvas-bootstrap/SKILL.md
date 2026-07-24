@@ -112,7 +112,7 @@ Live-board rules:
 - Add source nodes or source summaries as they are reviewed.
 - Move findings from draft to synthesis only after cross-checking.
 - Keep live updates compact; do not flood the canvas with every search result.
-- Use `region_grid` to tidy the active draft area without moving unrelated nodes.
+- Use `pulse-canvas layout frame-grid --frame <draft-frame-id>` to tidy the active draft frame without moving unrelated nodes.
 - Run final layout after synthesis, not after every small update.
 
 If canvas tools are unavailable, report progress conversationally and create the canvas only when tools become available.
@@ -134,6 +134,33 @@ Planning rules:
 - Do not create action, task, terminal, or agent nodes by default. Only add them when the user explicitly asks for execution or follow-up work to be placed on the canvas.
 - Create 2-5 meaningful edges between frames or major nodes.
 
+Editorial rules — these are what make the board read as a knowledge map
+instead of a data dump. Apply them while planning; verify them in Phase 7:
+
+- **One claim per card.** Title = a single assertion sentence; body = 2-5
+  short support bullets. A card is not an article — move long-form prose
+  into a separate detail card and link it with an edge, so the first view
+  stays scannable.
+- **Card budget.** Deep topics should land around 25-35 atomic cards total.
+  If synthesis produces more, merge cards or push depth into linked detail
+  cards instead of widening the first view.
+- **Size encodes importance.** Thesis/conclusion cards widest (~460-520px),
+  evidence cards default (~320-380px), side annotations smaller. Never make
+  every card the same size — uniform sizing erases the argument's shape.
+- **Sources live on the periphery.** Source/reference cards go to the right
+  or bottom edge of the board, outside the main narrative flow — never
+  interleaved with claim cards.
+- **Highlight budget.** Colored emphasis (colored phrases, tinted cards)
+  belongs on at most ~20% of cards — reserve it for load-bearing claims.
+  Uniform emphasis reads as none.
+- **Hue budget.** At most 3 accent-colored frames per board; every other
+  frame (sources and auxiliary material always included) stays neutral
+  graphite. The restraint is what makes the accents anchor — see Frame
+  Colors below.
+- **Edges are local relations, not long-haul wiring.** Prefer short edges
+  between neighboring cards and frames, give curves a small `bend` so they
+  read organically, and avoid edges that cross multiple frames.
+
 If research materially changes the approved plan, show the changed structure and ask for a quick confirmation before final creation.
 
 Node type strategy:
@@ -149,7 +176,7 @@ Node type strategy:
 
 Preferred path inside Canvas Agent runtime:
 
-1. Call `canvas_read_layout` before creating or arranging content in an existing workspace.
+1. Check existing geometry with `pulse-canvas layout read --workspace <id> --format json` before creating or arranging content in an existing workspace.
 2. Create frames and nodes with canvas creation tools.
 3. For single semantic insertions, use `placement` instead of raw coordinates:
    - `append_canvas` for a new top-level cluster
@@ -158,46 +185,78 @@ Preferred path inside Canvas Agent runtime:
    - `at` only when the user gave a precise location
 4. Create sparse edges with `canvas_create_edge`.
 
-Fallback path outside Canvas Agent runtime:
+Fallback path outside Canvas Agent runtime — prefer ONE atomic plan over
+command loops (one lock, one save, all-or-nothing):
 
 ```bash
 pulse-canvas workspace create "<topic>" --format json
-pulse-canvas node create --type frame --title "<frame>" --format json
-pulse-canvas node create --type file --title "<node>" --data '{"content":"..."}' --format json
-pulse-canvas edge create --from <nodeId> --to <nodeId> --label "<label>" --kind flow --format json
+pulse-canvas apply --workspace <id> --file canvas-plan.json --dry-run --format json
+pulse-canvas apply --workspace <id> --file canvas-plan.json --format json
 ```
+
+Plan shape (full reference: `pulse-canvas apply --help`):
+
+```json
+{
+  "workspace": "<id>",
+  "baseRevision": 3,
+  "operations": [
+    { "action": "create", "type": "frame", "id": "f-overview", "title": "Overview", "x": 40, "y": 70, "width": 900, "height": 520 },
+    { "action": "create", "type": "file", "id": "c-thesis", "title": "One-sentence claim", "x": 80, "y": 130, "width": 480, "height": 300, "content": "- support 1\n- support 2" },
+    { "action": "createEdge", "from": "c-thesis", "to": "f-overview", "label": "belongs to", "bend": 24 }
+  ]
+}
+```
+
+- Always `--dry-run` first: it validates every operation with zero writes.
+- Include `baseRevision` (read it from a prior `apply` or `layout read`)
+  when other writers may touch the workspace; on `revision_conflict`,
+  re-read the canvas and rebuild the plan.
+
+Single-node commands remain for small incremental edits:
+
+```bash
+pulse-canvas node create --workspace <id> --type file --title "<node>" --data '{"content":"..."}' --format json
+pulse-canvas edge create --workspace <id> --from <nodeId> --to <nodeId> --label "<label>" --kind flow --format json
+```
+
+Write-safety rules (MANDATORY on the CLI path):
+
+- **Run all canvas mutations sequentially.** Never parallelize `node`/`edge`
+  create, update, write, or delete calls — no `&` background jobs, no
+  multi-shell fan-out, no concurrent sub-agents mutating the same workspace.
+  Every mutation rewrites the whole canvas; parallel writers can drop each
+  other's nodes. Batch your changes into one ordered sequence instead.
+- **Pass `--workspace <id>` explicitly on every mutation.** Do not rely on
+  the active-workspace fallback when several workspaces exist — confirm the
+  target once with `pulse-canvas workspace current`, then pin it.
 
 Use fallback coordinates only when no layout tool is available.
 
 ## Phase 6: Apply Layout
 
-Preferred layout path:
+Layout commands (run them sequentially, like all mutations):
 
-1. For each final frame, arrange its children:
+1. For each final frame, arrange its children into a grid and fit the frame:
 
-```text
-canvas_apply_layout({ mode: "frame_grid", frameId: "<frame-id>", fitFrame: true })
+```bash
+pulse-canvas layout frame-grid --workspace <id> --frame <frame-id> --format json
+# optional: --columns <n> --gap <px> --padding <px> --no-fit-frame
 ```
 
-2. Arrange top-level frames and standalone nodes:
+2. Position the frames themselves manually (there is no canvas-level
+   auto-grid yet): lay frames out in rows using the manual numbers below,
+   after `frame-grid` has settled each frame's final size.
 
-```text
-canvas_apply_layout({ mode: "canvas_grid", nodeIds: ["<frame-id>", "..."], respectLayoutLocked: true })
+3. Validate the result:
+
+```bash
+pulse-canvas layout validate --workspace <id> --format json
 ```
 
-3. For a selected area or live-board draft area:
-
-```text
-canvas_apply_layout({ mode: "region_grid", nodeIds: ["<node-id>", "..."] })
-```
-
-4. Validate the result:
-
-```text
-canvas_apply_layout({ mode: "validate" })
-```
-
-If validation reports overlaps or out-of-frame nodes, fix the relevant frame or region with `frame_grid` or `region_grid`, then validate again.
+4. If validation reports overlaps, frame straddling/overflow, narrow cards,
+   or an extreme aspect ratio, re-run `frame-grid` on the affected frame or
+   move the listed nodes with `node update`, then validate again.
 
 Manual fallback layout:
 
@@ -210,25 +269,38 @@ Manual fallback layout:
 
 ## Phase 7: Verify and Summarize
 
-Before final response:
+Before final response, run the dual-view acceptance:
 
-- Read or validate the final canvas layout.
+- Validate the final canvas layout (`pulse-canvas layout validate --workspace <id>`).
+- **Fit-view check** (the board at overview zoom): it must read as 3-6
+  colored regions with legible section chips, thesis cards visibly larger
+  than evidence cards, and sources parked on the periphery — not a uniform
+  grid of same-size cards.
+- **100%-view check**: read 2-3 cards in full; each must be one claim plus
+  short support bullets with source ids, not a pasted article.
 - Confirm every final frame has useful content.
 - Confirm important findings have source ids.
-- Confirm edges are sparse and meaningful.
+- Confirm edges are sparse, local, and meaningful.
 - Summarize the created frames, key findings, source quality, unresolved questions, and any layout caveats.
 
 ## Frame Colors
 
-| Purpose | Hex |
-|---------|-----|
-| Overview / Summary | `#5594e8` |
-| Research / Analysis | `#9575d4` |
-| Contrasts / Tradeoffs | `#e8615a` |
-| Implementation | `#3eb889` |
-| Notes / Decisions | `#e89545` |
-| Data / Metrics | `#35aec2` |
-| Risks / Open Questions | `#d66aa3` |
+Default is NEUTRAL. Color is a scarce accent, not a per-frame attribute —
+a board where every frame carries its own hue reads as a rainbow
+dashboard, which is exactly the look to avoid.
+
+- Create frames WITHOUT a `color` (the default is neutral graphite); most
+  frames stay graphite.
+- Pick AT MOST 3 accent hues per board, on the frames the reader should
+  see first, reusing a hue rather than introducing a fourth:
+
+| Accent role | Swatch |
+|---|---|
+| Entry / overview — "start here" | Sky `oklch(0.68 0.108 224)` |
+| Core analysis — the main argument | Sage `oklch(0.68 0.108 142)` |
+| Risks / tensions / decisions | Coral `oklch(0.68 0.108 28)` |
+
+- Source and auxiliary-material frames are ALWAYS graphite.
 
 ## Quality Rules
 
@@ -237,6 +309,9 @@ Before final response:
 3. Draft live-board content is clearly marked as draft.
 4. Final content is synthesized and actionable, not copied source fragments.
 5. Frames contain 2-4 substantial nodes unless the topic strongly justifies otherwise.
+6. One claim per card; long-form depth lives in linked detail cards.
+7. Size encodes importance, sources stay on the periphery, and colored
+   emphasis stays under ~20% of cards.
 6. Layout tools are the default for geometry; manual coordinates are fallback only.
 7. Existing unrelated nodes are not moved unless the user approved an organizing action.
 8. Edges explain relationships with short labels and meaningful kinds.
