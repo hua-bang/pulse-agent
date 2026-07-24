@@ -8,7 +8,7 @@
 :root {
   color-scheme: light;
   --bg: #f8f8f7;
-  --bg-canvas: #eeecea;
+  --bg-canvas: #eae7e2;
   --surface: #ffffff;
   --surface-hover: #fafaf9;
   --border: #e8e5e0;
@@ -45,8 +45,8 @@
   --text-warning: #b45309;
   --overlay-backdrop: rgba(32, 34, 37, 0.22);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);
-  --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.06), 0 8px 20px rgba(0, 0, 0, 0.07);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 5px 14px rgba(0, 0, 0, 0.07);
+  --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.07), 0 9px 24px rgba(0, 0, 0, 0.09);
   --shadow-drag: 0 8px 28px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-float: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
   /* C2 exact-value tokenization (2026-07-10): the dominant focus-ring
@@ -72,6 +72,12 @@
   --radius-pill: 999px;
   --font: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
   --font-mono: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
+  /* Humanist sans for canvas READING surfaces (node/frame/group titles) —
+   * same stack as the note editor (FileNodeBody). App chrome stays on the
+   * mono --font identity; this token is only for text the user reads as
+   * knowledge-map content, where mono's terminal texture reads as noise. */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    "Inter", "Helvetica Neue", Arial, sans-serif;
   --sidebar-width: 240px;
   --sidebar-collapsed: 48px;
   --titlebar-height: 38px;

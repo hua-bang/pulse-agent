@@ -3,7 +3,7 @@
   top: 0;
   left: 0;
   background: var(--surface);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   display: flex;
@@ -63,18 +63,18 @@
  * card reads as one document surface. */
 .canvas-node--file {
   background: #fdfcf9;
-  border-color: rgba(55, 53, 47, 0.06);
+  border-color: rgba(55, 53, 47, 0.1);
   border-radius: var(--radius-xl);
   box-shadow:
-    0 1px 2px rgba(55, 53, 47, 0.04),
-    0 6px 18px rgba(55, 53, 47, 0.05);
+    0 1px 2px rgba(55, 53, 47, 0.05),
+    0 7px 20px rgba(55, 53, 47, 0.08);
 }
 
 .canvas-node--file:hover {
   box-shadow:
-    0 1px 3px rgba(55, 53, 47, 0.05),
-    0 10px 26px rgba(55, 53, 47, 0.08);
-  border-color: rgba(55, 53, 47, 0.09);
+    0 1px 3px rgba(55, 53, 47, 0.06),
+    0 10px 26px rgba(55, 53, 47, 0.1);
+  border-color: rgba(55, 53, 47, 0.13);
 }
 
 .canvas-node--file.canvas-node--selected {
@@ -187,9 +187,9 @@
 }
 
 .canvas-node--file > .node-header .node-title {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-weight: 650;
+  font-size: 14px;
+  color: var(--text);
   letter-spacing: 0.005em;
   transition: color 0.12s ease;
 }
@@ -205,7 +205,7 @@
 
 .canvas-node:hover {
   box-shadow: var(--shadow-card-hover);
-  border-color: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.12);
 }
 
 .canvas-node--selected {
@@ -559,6 +559,7 @@
 
 .node-title {
   flex: 1;
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
   outline: none;
@@ -814,6 +815,26 @@
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+/* Overview zoom: below scale 0.6 a 1px border renders sub-pixel and the card
+ * shadows blur away, so card-chromed nodes melt into the background — the
+ * "white on white" overview wash. Counter-scale a hairline ring so the edge
+ * stays exactly ~1 SCREEN pixel at any zoom (same trick as the frame pill's
+ * clamp). outline, not box-shadow, on purpose: it never fights the per-type
+ * shadow cascade and is exempt from the zoom-out shadow-kill fast path in
+ * Canvas/index.css. Chromeless bodies (image/shape/mindmap/text/group/
+ * reference) and frames (their tinted wash carries the edge) opt out by not
+ * being listed; fullscreen nodes are excluded because the transform is dead
+ * there while --canvas-scale still holds the old value. */
+.canvas-transform--small .canvas-node--file:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--terminal:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--agent:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--iframe:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--plugin:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--dynamic-app:not(.canvas-node--fullscreen) {
+  outline: calc(1px / var(--canvas-scale, 1)) solid rgba(55, 53, 47, 0.16);
+  outline-offset: calc(-1px / var(--canvas-scale, 1));
 }
 
 .node-body {

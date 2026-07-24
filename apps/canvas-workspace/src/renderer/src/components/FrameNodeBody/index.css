@@ -7,16 +7,21 @@
  * swatch identity; CanvasNodeView/utils.ts parses the hue/chroma out of
  * `data.color` and exposes them as CSS custom props.
  *
- *   pillBg        -> L 0.945  Cx0.34
- *   pillText      -> L 0.42   Cx0.95   (also drives icon strokes)
- *   countBg       -> L 0.90   Cx0.46
- *   bodyTint      -> L 0.984  Cx0.10
- *   bodyTintFocus -> L 0.976  Cx0.14
- *   border        -> L 0.88   Cx0.30
- *   borderHover   -> L 0.80   Cx0.42
+ *   pillBg        -> L 0.56   Cx2.2   (solid chip, white text — the anchor)
+ *   pillText      -> white             (icon strokes too)
+ *   countBg       -> white @ 0.22 over the chip
+ *   bodyTint      -> L 0.978  Cx0.55  (perceptible wash, not near-white)
+ *   bodyTintFocus -> L 0.972  Cx0.60
+ *   border        -> L 0.86   Cx0.45
+ *   borderHover   -> L 0.78   Cx0.60
  *   borderFocus   -> L 0.80   Cx0.38
  *   identity      -> L 0.62   Cx0.95  (selection ring, focus mode border)
  *   dotPattern    -> L 0.88   Cx0.12
+ *
+ * Rebalanced 2026-07-24 toward the Heptabase reading: RESTRAINED wash on the
+ * body (visible, so white cards get figure-ground separation) + a SATURATED
+ * title chip as the section anchor. The old pale-pill/invisible-tint combo
+ * averaged into gray at overview zoom.
  *
  * --frame-color is kept as the picker dot's display value (sRGB color from
  * the stored string, used in one place); everything else goes via hue.
@@ -29,8 +34,8 @@
    * keeping this as a variable lets focus/experiments still tune it. */
   --_a: var(--frame-bg-alpha, 0.86);
 
-  background: oklch(0.984 calc(var(--_c) * 0.10) var(--_h) / var(--_a));
-  border: 1px solid oklch(0.88 calc(var(--_c) * 0.30) var(--_h));
+  background: oklch(0.978 calc(var(--_c) * 0.55) var(--_h) / var(--_a));
+  border: 1px solid oklch(0.86 calc(var(--_c) * 0.45) var(--_h));
   border-radius: var(--radius-md);
   box-shadow: none;
   /* Header pill floats above the body, so we mustn't clip it. */
@@ -50,7 +55,9 @@
       oklch(0.88 calc(var(--_c) * 0.12) var(--_h)) 1px,
       transparent 1px);
   background-size: 30px 30px;
-  opacity: 0.26;
+  /* Quiet layer: the canvas grid already textures the backdrop; two dot
+   * patterns at full strength stack into uniform noise. */
+  opacity: 0.12;
   z-index: 0;
 }
 
@@ -60,7 +67,7 @@
 }
 
 .canvas-node--frame:hover {
-  border-color: oklch(0.80 calc(var(--_c) * 0.42) var(--_h));
+  border-color: oklch(0.78 calc(var(--_c) * 0.60) var(--_h));
   box-shadow: none;
 }
 
@@ -72,7 +79,7 @@
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: oklch(0.976 calc(var(--_c) * 0.14) var(--_h) / 0.88);
+  background: oklch(0.972 calc(var(--_c) * 0.60) var(--_h) / 0.9);
   border-style: solid;
   border-color: oklch(0.80 calc(var(--_c) * 0.38) var(--_h));
   box-shadow: 0 0 0 2px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.28);
@@ -122,15 +129,18 @@
   padding: 7px 12px 7px 10px;
   gap: 8px;
 
-  background: oklch(0.945 calc(var(--_c) * 0.34) var(--_h));
+  /* Solid saturated chip + white text: the section ANCHOR. At overview zoom
+   * these chips are what structures the whole board (Heptabase reading);
+   * the old pale pill read as one more gray blob. L 0.56 keeps white text
+   * at readable contrast across all eight hues; the graphite preset
+   * (chroma 0.006) degrades gracefully to a dark-gray chip. */
+  background: oklch(0.56 calc(var(--_c) * 2.2) var(--_h));
   border: none;
   border-radius: var(--radius-md);
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  color: rgba(255, 255, 255, 0.97);
 
   /* Soft tinted shadow — pill reads as floating, not glued to the body. */
-  box-shadow:
-    0 2px 8px oklch(0.42 calc(var(--_c) * 0.95) var(--_h) / 0.08),
-    0 0 0 1px oklch(0.42 calc(var(--_c) * 0.95) var(--_h) / 0.07);
+  box-shadow: 0 2px 10px oklch(0.42 calc(var(--_c) * 0.95) var(--_h) / 0.3);
 
   /* Header lives inside .canvas-transform; same scale-clamping logic as
    * before so the pill stays readable at deep zoom-out without going
@@ -141,14 +151,14 @@
 }
 
 .canvas-node--frame .node-header .node-type-badge--frame {
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  color: rgba(255, 255, 255, 0.92);
   width: 15px;
   height: 15px;
 }
 
 .canvas-node--frame .node-header .node-title {
   flex: 0 1 auto;
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  color: #ffffff;
   font-weight: 700;
   font-size: 14px;
   line-height: 1.2;
@@ -156,7 +166,8 @@
 }
 
 .canvas-node--frame .node-header .node-title:focus {
-  background: rgba(255, 255, 255, 0.55);
+  /* Dark scrim, not white: the chip text is white now. */
+  background: rgba(0, 0, 0, 0.22);
   border-radius: var(--radius-xs);
 }
 
@@ -180,8 +191,8 @@
   padding: 0 6px;
   border: 0;
   border-radius: 7px;
-  background: oklch(0.90 calc(var(--_c) * 0.46) var(--_h));
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
   cursor: pointer;
   transition:
     background 0.14s ease,
@@ -229,8 +240,8 @@
 }
 
 .frame-children-toggle:hover {
-  background: oklch(0.84 calc(var(--_c) * 0.62) var(--_h));
-  color: oklch(0.36 calc(var(--_c) * 1.05) var(--_h));
+  background: rgba(255, 255, 255, 0.32);
+  color: #ffffff;
   transform: translateY(-0.5px);
 }
 
@@ -244,8 +255,8 @@
 }
 
 .frame-children-toggle:disabled:hover {
-  background: oklch(0.90 calc(var(--_c) * 0.46) var(--_h));
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
   transform: none;
 }
 
@@ -271,17 +282,17 @@
 
 .canvas-node--frame .node-header .node-focus,
 .canvas-node--frame .node-header .node-close {
-  color: oklch(0.48 calc(var(--_c) * 0.72) var(--_h));
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .canvas-node--frame .node-header .node-focus:hover {
-  background: oklch(0.88 calc(var(--_c) * 0.46) var(--_h));
-  color: oklch(0.36 calc(var(--_c) * 1.05) var(--_h));
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
 }
 
 .canvas-node--frame .node-header .node-close:hover {
-  background: rgba(0, 0, 0, 0.08);
-  color: #d03b3b;
+  background: rgba(0, 0, 0, 0.25);
+  color: #ffd6d1;
 }
 
 .canvas-node--frame .node-header .node-header__actions,
@@ -311,7 +322,7 @@
   width: 24px;
   height: 24px;
   border-radius: var(--radius-sm);
-  color: oklch(0.48 calc(var(--_c) * 0.72) var(--_h));
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .canvas-node--frame .node-header .node-header__actions .node-reference svg,
@@ -463,10 +474,10 @@
   height: 12px;
   padding: 0;
   border-radius: 50%;
-  /* Border uses the frame identity so the dot reads as a colored ring
-   * even before hover. The fill stays transparent — the *hue picker
-   * trigger* shouldn't masquerade as the active swatch. */
-  border: 1.5px solid oklch(0.62 calc(var(--_c) * 0.95) var(--_h));
+  /* White ring on the saturated chip (the old identity-colored ring is
+   * invisible against the chip's own hue). The fill stays transparent —
+   * the *hue picker trigger* shouldn't masquerade as the active swatch. */
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
   background: transparent;
   cursor: pointer;
   transition: border-color 0.15s ease, transform 0.1s ease;
@@ -478,7 +489,7 @@
 }
 
 .frame-color-trigger:hover .frame-color-dot {
-  border-color: oklch(0.46 calc(var(--_c) * 1.05) var(--_h));
+  border-color: #ffffff;
   transform: scale(1.15);
 }
 
