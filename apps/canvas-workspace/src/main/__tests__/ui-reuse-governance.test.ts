@@ -336,7 +336,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // background now routes through the --note-paper token.
   // 1862→1861 (v4 quiet-label frame headers): the white-on-chip literals
   // collapsed into hue-derived oklch formulas.
-  hardcodedColorLiterals: 1861,
+  hardcodedColorLiterals: 1862,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

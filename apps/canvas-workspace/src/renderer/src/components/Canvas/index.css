@@ -74,6 +74,7 @@
   background-image:
     radial-gradient(circle, rgba(0, 0, 0, 0.08) 0.7px, transparent 0.7px);
   background-size: 24px 24px;
+  background-color: #eeecea;
 }
 
 .canvas-bottom-chrome {
@@ -151,13 +152,13 @@
   pointer-events: none;
 }
 
-.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-header__actions,
-.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-reference,
-.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-add-to-chat,
-.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-plugin-select,
-.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-focus,
-.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-fullscreen,
-.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-close {
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-header__actions,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-reference,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-add-to-chat,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-plugin-select,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-focus,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-fullscreen,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-close {
   opacity: 0;
   pointer-events: none;
 }
@@ -180,8 +181,8 @@
 }
 
 .canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node .node-header,
-.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--frame > .node-header,
-.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--group > .node-header {
+.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--frame>.node-header,
+.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--group>.node-header {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: none;
@@ -253,8 +254,13 @@
 }
 
 @keyframes canvas-focus-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* When a node is fullscreened we kill the canvas pan/zoom transform

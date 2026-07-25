@@ -100,10 +100,16 @@ export const useNodeDrag = (
   const [dragOffset, setDragOffset] = useState<NodeDragOffset | null>(null);
 
   const onDragStart = useCallback(
-    (e: React.MouseEvent, node: CanvasNode) => {
-      if (e.button !== 0 || e.altKey) return;
+    (e: React.MouseEvent, node: CanvasNode): boolean => {
+      if (e.button !== 0 || e.altKey) return false;
       e.stopPropagation();
-      e.preventDefault();
+      // IMPORTANT: Do NOT call e.preventDefault() here.
+      // preventDefault on mousedown prevents the browser from synthesizing
+      // click/dblclick events for stationary gestures, which silently
+      // breaks double-click-to-rename on every node header.  Instead we
+      // prevent text selection via the selectstart handler (see
+      // useCanvasMouseHandlers) and call preventDefault on the first real
+      // drag motion in markDragStarted below.
 
       const currentNodes = nodesRef.current;
       const currentSelectedIds = selectedIdsRef.current;
@@ -160,6 +166,7 @@ export const useNodeDrag = (
         started: false,
         dragSetIds: Array.from(dragSet),
       };
+      return true;
     },
     []
   );
@@ -179,6 +186,11 @@ export const useNodeDrag = (
     }
 
     d.started = true;
+    // Now that we're actually dragging (not just clicking), prevent the
+    // browser's default text-selection behavior.  We couldn't do this in
+    // onDragStart because preventDefault on mousedown would also block
+    // dblclick synthesis for stationary clicks.
+    e.preventDefault();
     setDraggingId(d.id);
     setDraggingIds(new Set(d.dragSetIds));
     setDragPreview({
