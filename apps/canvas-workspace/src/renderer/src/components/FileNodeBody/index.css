@@ -489,7 +489,7 @@
 
 @container (max-width: 560px) {
   .note-tiptap-editor .ProseMirror {
-    padding: 24px 24px 84px 52px;
+    padding: 24px;
     font-size: 15.5px;
   }
 
