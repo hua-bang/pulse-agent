@@ -6,6 +6,7 @@ import type { CanvasNode, TextNodeData, WorkspaceNodeRecord } from '../../../typ
 import { I18nProvider } from '../../../i18n';
 
 const canvasViewState = vi.hoisted(() => ({
+  hideHeader: false,
   node: null as CanvasNode | null,
   onUpdate: null as ((id: string, patch: Partial<CanvasNode>) => void) | null,
 }));
@@ -14,10 +15,13 @@ vi.mock('../../CanvasNodeView', () => ({
   CanvasNodeView: ({
     node,
     onUpdate,
+    hideHeader,
   }: {
     node: CanvasNode;
     onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+    hideHeader?: boolean;
   }) => {
+    canvasViewState.hideHeader = Boolean(hideHeader);
     canvasViewState.node = node;
     canvasViewState.onUpdate = onUpdate;
     return <div data-testid="canvas-node" data-content={(node.data as { content?: string }).content ?? ''} />;
@@ -53,6 +57,7 @@ afterEach(() => {
   host = null;
   canvasViewState.node = null;
   canvasViewState.onUpdate = null;
+  canvasViewState.hideHeader = false;
   Reflect.deleteProperty(window, 'canvasWorkspace');
 });
 
@@ -67,6 +72,12 @@ const render = (node: ReactNode) => {
 };
 
 describe('NodeCanvasPreview', () => {
+  it('renders only the body when the surrounding detail document owns the title', () => {
+    render(<NodeCanvasPreview workspaceId="workspace-1" record={NODE} />);
+
+    expect(canvasViewState.hideHeader).toBe(true);
+  });
+
   it('keeps the latest local draft when an older update acknowledgement arrives', async () => {
     const resolvers: Array<(result: unknown) => void> = [];
     const update = vi.fn(() => new Promise((resolve) => { resolvers.push(resolve); }));

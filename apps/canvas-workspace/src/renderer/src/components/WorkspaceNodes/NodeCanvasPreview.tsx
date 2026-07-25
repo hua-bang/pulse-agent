@@ -186,6 +186,7 @@ export const NodeCanvasPreview = ({
           onFocus={() => undefined}
           readOnly={readOnly}
           embedded
+          hideHeader
         />
       ) : (
         <div className="node-detail-panel__empty">{t('workspaceNodes.noTypePreview')}</div>

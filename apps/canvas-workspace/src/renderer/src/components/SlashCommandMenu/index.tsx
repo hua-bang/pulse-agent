@@ -50,6 +50,7 @@ export const SlashCommandMenu = ({
       ariaLabel={t('slashCommand.label')}
       autoFocus={false}
       keyboardNavigation={false}
+      closeOnCanvasMotion
       onClose={onClose}
     >
       <div className="slash-menu-search" aria-label={t('slashCommand.search')}>

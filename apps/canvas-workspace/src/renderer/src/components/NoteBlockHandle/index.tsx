@@ -40,6 +40,7 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
   const draggedIndexRef = useRef<number | null>(null);
   const didDragRef = useRef(false);
   const handleRef = useRef<HTMLSpanElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const menuOpenRef = useRef(menuOpen);
   menuOpenRef.current = menuOpen;
@@ -72,6 +73,18 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
         const rect = element.getBoundingClientRect();
         const cardRect = card.getBoundingClientRect();
         return { element, target: { index, top: rect.top - cardRect.top, height: rect.height } };
+      };
+      const targetBlockAtIndex = (index: number): BlockTarget | null => {
+        const element = root.children.item(index);
+        if (!(element instanceof HTMLElement)) return null;
+        const rect = element.getBoundingClientRect();
+        const cardRect = card.getBoundingClientRect();
+        return { index, top: rect.top - cardRect.top, height: rect.height };
+      };
+      const revealSelectedBlock = () => {
+        if (!editor.isFocused || menuOpenRef.current) return;
+        const target = targetBlockAtIndex(editor.state.selection.$from.index(0));
+        if (target) setActive(target);
       };
 
       const onMouseMove = (event: MouseEvent) => {
@@ -123,15 +136,23 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
         setDropTop(null);
         setMenuOpen(false);
       };
+      const refreshSelectedBlock = () => {
+        requestAnimationFrame(revealSelectedBlock);
+      };
       scroller?.addEventListener('scroll', clearStaleTarget);
-      editor.on('transaction', clearStaleTarget);
+      editor.on('focus', revealSelectedBlock);
+      editor.on('selectionUpdate', refreshSelectedBlock);
+      editor.on('transaction', refreshSelectedBlock);
+      revealSelectedBlock();
       detach = () => {
         root.removeEventListener('mousemove', onMouseMove);
         root.removeEventListener('mouseleave', onMouseLeave);
         root.removeEventListener('dragover', onDragOver);
         root.removeEventListener('drop', onDrop);
         scroller?.removeEventListener('scroll', clearStaleTarget);
-        editor.off('transaction', clearStaleTarget);
+        editor.off('focus', revealSelectedBlock);
+        editor.off('selectionUpdate', refreshSelectedBlock);
+        editor.off('transaction', refreshSelectedBlock);
       };
     };
 
@@ -173,6 +194,7 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
           <Plus size={15} weight="regular" aria-hidden="true" />
         </Button>
         <Button
+          ref={menuButtonRef}
           variant="icon"
           size="xs"
           className="note-block-handle"
@@ -209,10 +231,16 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
             placement="bottom"
             align="start"
             gap={4}
-            onClose={() => setMenuOpen(false)}
+            onClose={(reason) => {
+              setMenuOpen(false);
+              if (reason === 'escape') {
+                requestAnimationFrame(() => menuButtonRef.current?.focus());
+              }
+            }}
             className="note-block-menu"
             ariaLabel={t('noteBlock.actions')}
             panelId={panelId}
+            closeOnCanvasMotion
           >
             <Button
               size="sm"

@@ -6,6 +6,7 @@ import Underline from '@tiptap/extension-underline';
 import { Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { setCanvasMotion } from '../../hooks/canvasMotion';
 import { I18nProvider } from '../../i18n';
 import { FileNodeBubbleMenu } from '.';
 
@@ -17,6 +18,7 @@ let editorHost: HTMLDivElement | null = null;
 let editor: Editor | null = null;
 
 afterEach(() => {
+  setCanvasMotion('idle', false);
   if (root) act(() => root?.unmount());
   editor?.destroy();
   host?.remove();
@@ -28,6 +30,64 @@ afterEach(() => {
 });
 
 describe('FileNodeBubbleMenu', () => {
+  it('owns Escape and wheel events while the selection toolbar is open', () => {
+    host = document.createElement('div');
+    document.body.append(host);
+    editorHost = document.createElement('div');
+    document.body.append(editorHost);
+    editor = new Editor({
+      element: editorHost,
+      extensions: [
+        StarterKit.configure({ underline: false }),
+        Underline,
+        Highlight,
+      ],
+      content: '<p>Alpha</p>',
+    });
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    editor.view.focus();
+    const onClose = vi.fn();
+    const onCanvasWheel = vi.fn();
+    const onCanvasEscape = vi.fn();
+    window.addEventListener('keydown', onCanvasEscape);
+
+    root = createRoot(host);
+    act(() => root?.render(
+      <I18nProvider>
+        <div onWheel={onCanvasWheel}>
+          <FileNodeBubbleMenu
+            editor={editor!}
+            bubble={{ x: 120, y: 80, bottom: 100 }}
+            onOpenLinkPrompt={vi.fn()}
+            onClose={onClose}
+          />
+        </div>
+      </I18nProvider>,
+    ));
+
+    const toolbar = document.querySelector<HTMLElement>('.note-bubble-menu');
+    act(() => {
+      toolbar?.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        deltaY: 24,
+      }));
+    });
+    expect(onCanvasWheel).not.toHaveBeenCalled();
+
+    act(() => {
+      editor?.view.dom.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onCanvasEscape).not.toHaveBeenCalled();
+
+    window.removeEventListener('keydown', onCanvasEscape);
+  });
+
   it('formats the selection and changes its block type from the shared command registry', async () => {
     host = document.createElement('div');
     document.body.append(host);
@@ -44,6 +104,7 @@ describe('FileNodeBubbleMenu', () => {
     });
     editor.commands.setTextSelection({ from: 1, to: 6 });
     editor.view.focus();
+    const onClose = vi.fn();
 
     root = createRoot(host);
     act(() => root?.render(
@@ -52,12 +113,16 @@ describe('FileNodeBubbleMenu', () => {
           editor={editor!}
           bubble={{ x: 120, y: 80, bottom: 100 }}
           onOpenLinkPrompt={vi.fn()}
+          onClose={onClose}
         />
       </I18nProvider>,
     ));
 
-    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Bold"]')?.click());
+    const boldButton = document.querySelector<HTMLButtonElement>('[aria-label="Bold"]');
+    expect(boldButton?.getAttribute('aria-pressed')).toBe('false');
+    act(() => boldButton?.click());
     expect(editor.isActive('bold')).toBe(true);
+    expect(boldButton?.getAttribute('aria-pressed')).toBe('true');
 
     const typeButton = document.querySelector<HTMLButtonElement>('[aria-label="Turn into"]');
     act(() => {
@@ -98,5 +163,8 @@ describe('FileNodeBubbleMenu', () => {
     expect(editor.isFocused).toBe(true);
     expect(document.activeElement).toBe(editor.view.dom);
     expect(document.querySelector('.note-bubble-type-menu')).toBeNull();
+
+    act(() => setCanvasMotion('zoom-in', false));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

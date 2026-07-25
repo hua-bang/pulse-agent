@@ -46,6 +46,7 @@ const CanvasNodeViewComponent = ({
   onToggleFullscreen,
   readOnly = false,
   embedded = false,
+  hideHeader = false,
   renderMode = 'full',
 }: CanvasNodeViewProps) => {
   const viewModel = useCanvasNodeViewModel({
@@ -191,13 +192,14 @@ const CanvasNodeViewComponent = ({
       handleHeaderMouseDown={viewModel.handleHeaderMouseDown}
       handleNodeBodyMouseDown={viewModel.handleNodeBodyMouseDown}
       handleNodeClick={viewModel.handleNodeClick}
-      handleReference={viewModel.handleReference}
       handleAddToChat={viewModel.handleAddToChat}
       handleAddToCanvas={viewModel.handleAddToCanvas}
       handleTitleBlur={viewModel.handleTitleBlur}
       handleTitleDoubleClick={viewModel.handleTitleDoubleClick}
       handleTitleKeyDown={viewModel.handleTitleKeyDown}
+      handleTitlePaste={viewModel.handleTitlePaste}
       handleUngroup={viewModel.handleUngroup}
+      hideHeader={hideHeader}
       isEditingTitle={viewModel.isEditingTitle}
       isFullscreen={isFullscreen}
       isResizing={isResizing}
@@ -205,7 +207,6 @@ const CanvasNodeViewComponent = ({
       makeResizeHandler={viewModel.makeResizeHandler}
       node={node}
       onDragStart={onDragStart}
-      onReference={onReference}
       onAddToChat={onAddToChat}
       onAddToCanvas={onAddToCanvas}
       onAddDomSelectionToChat={onAddDomSelectionToChat}
@@ -249,5 +250,6 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.onRemoveNodes === next.onRemoveNodes &&
   prev.readOnly === next.readOnly &&
   prev.embedded === next.embedded &&
+  prev.hideHeader === next.hideHeader &&
   prev.renderMode === next.renderMode
 ));

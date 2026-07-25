@@ -66,6 +66,7 @@
  * legibility is covered by the counter-scaled outline ring below), and the
  * title treated as the document's first heading rather than a chrome strip. */
 .canvas-node--file {
+  container-type: inline-size;
   background: var(--note-paper);
   border-color: var(--note-border);
   border-radius: var(--radius-xl);
@@ -106,7 +107,7 @@
 /* The source pill overlays the top-right corner of the preview (sits "on
  * top" of the card) rather than poking out above its top edge — a detached
  * tab above the card reads as misplaced, especially when the body is empty. */
-.canvas-node--reference > .node-header {
+.canvas-node--reference>.node-header {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -123,11 +124,11 @@
   font-size: 10px;
 }
 
-.canvas-node--reference > .node-header:active {
+.canvas-node--reference>.node-header:active {
   cursor: default;
 }
 
-.canvas-node--reference > .node-header .node-title {
+.canvas-node--reference>.node-header .node-title {
   display: none;
 }
 
@@ -137,17 +138,17 @@
   height: 12px;
 }
 
-.canvas-node--reference > .node-header .node-focus,
-.canvas-node--reference > .node-header .node-open-detail,
-.canvas-node--reference > .node-header .node-close {
+.canvas-node--reference>.node-header .node-focus,
+.canvas-node--reference>.node-header .node-open-detail,
+.canvas-node--reference>.node-header .node-close {
   color: var(--accent);
   opacity: 0.75;
   background: transparent;
 }
 
-.canvas-node--reference > .node-header .node-focus:hover,
-.canvas-node--reference > .node-header .node-open-detail:hover,
-.canvas-node--reference > .node-header .node-close:hover {
+.canvas-node--reference>.node-header .node-focus:hover,
+.canvas-node--reference>.node-header .node-open-detail:hover,
+.canvas-node--reference>.node-header .node-close:hover {
   opacity: 1;
   background: rgba(35, 131, 226, 0.12);
 }
@@ -171,7 +172,7 @@
  * than two stacked surfaces (which is what makes the current node feel
  * "boxy"). The hard surface colour is swapped for transparent so the
  * paper tone from .canvas-node--file shows through. */
-.canvas-node--file > .node-header {
+.canvas-node--file>.node-header {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -179,20 +180,20 @@
   border-bottom: 1px solid transparent;
   min-height: 0;
   /* Horizontal inset visually aligns with the editor's 32px text column. */
-  padding: 19px 30px 15px;
+  padding: 20px 24px;
   transition: border-color 0.15s ease;
 }
 
 /* Note cards carry no type icon — the title IS the card's identity. */
-.canvas-node--file > .node-header .node-type-badge--file {
+.canvas-node--file>.node-header .node-type-badge--file {
   display: none;
 }
 
-.canvas-node--file.canvas-node--selected > .node-header {
+.canvas-node--file.canvas-node--selected>.node-header {
   border-bottom-color: var(--border-light);
 }
 
-.canvas-node--file > .node-header .node-title {
+.canvas-node--file>.node-header .node-title {
   flex: 1 1 auto;
   min-width: 0;
   font-weight: 700;
@@ -204,26 +205,26 @@
   transition: color 0.12s ease;
 }
 
-.canvas-node--file > .node-header .node-title:not([contenteditable='true']) {
+.canvas-node--file>.node-header .node-title:not([contenteditable='true']) {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.canvas-node--file > .node-header .node-title[contenteditable='true'] {
+.canvas-node--file>.node-header .node-title[contenteditable='true'] {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.canvas-node--file > .node-header .node-time-label {
+.canvas-node--file>.node-header .node-time-label {
   flex: 0 0 auto;
   opacity: 0.72;
 }
 
-.canvas-node--file > .node-header .node-header__actions {
+.canvas-node--file>.node-header .node-header__actions {
   max-width: 0;
   overflow: hidden;
   gap: 0;
@@ -232,26 +233,69 @@
   transition: max-width 160ms ease, opacity 120ms ease, gap 160ms ease;
 }
 
-.canvas-node--file:hover > .node-header .node-header__actions,
-.canvas-node--file.canvas-node--selected > .node-header .node-header__actions,
-.canvas-node--file > .node-header:focus-within .node-header__actions {
+.canvas-node--file>.node-header .node-header__actions>button {
+  width: 24px;
+  height: 24px;
+}
+
+.canvas-node--file:hover>.node-header .node-header__actions,
+.canvas-node--file.canvas-node--selected>.node-header .node-header__actions,
+.canvas-node--file>.node-header:focus-within .node-header__actions {
   max-width: 190px;
   gap: 4px;
   opacity: 1;
   pointer-events: auto;
 }
 
-.canvas-node--file.canvas-node--selected > .node-header .node-header__actions > button,
-.canvas-node--file > .node-header:focus-within .node-header__actions > button {
+.canvas-node--file.canvas-node--selected>.node-header .node-header__actions>button,
+.canvas-node--file>.node-header:focus-within .node-header__actions>button {
   opacity: 1;
 }
 
-.canvas-node--file:hover > .node-header .node-title,
-.canvas-node--file.canvas-node--selected > .node-header .node-title {
+.canvas-node--file:hover>.node-header .node-title,
+.canvas-node--file.canvas-node--selected>.node-header .node-title {
   color: var(--text);
 }
 
-.canvas-node--file > .node-header .node-type-badge--file {
+@container (max-width: 360px) {
+  .canvas-node--file>.node-header {
+    gap: 6px;
+    padding-inline: 16px;
+  }
+
+  .canvas-node--file>.node-header .node-time-label,
+  .canvas-node--file>.node-header .node-open-detail,
+  .canvas-node--file>.node-header .node-fullscreen,
+  .canvas-node--file>.node-header .node-focus {
+    display: none;
+  }
+
+  .canvas-node--file:hover>.node-header .node-header__actions,
+  .canvas-node--file.canvas-node--selected>.node-header .node-header__actions,
+  .canvas-node--file>.node-header:focus-within .node-header__actions {
+    max-width: 104px;
+  }
+}
+
+@container (max-width: 260px) {
+  .canvas-node--file>.node-header {
+    padding-inline: 12px;
+  }
+
+  .canvas-node--file>.node-header .node-add-to-chat,
+  .canvas-node--file>.node-header .node-add-to-canvas {
+    display: none;
+  }
+
+  .canvas-node--file:hover>.node-header .node-header__actions,
+  .canvas-node--file.canvas-node--selected>.node-header .node-header__actions,
+  .canvas-node--file>.node-header:focus-within .node-header__actions {
+    max-width: 56px;
+    gap: 2px;
+  }
+}
+
+.canvas-node--file>.node-header .node-type-badge--file {
   color: rgba(55, 53, 47, 0.45);
 }
 
@@ -281,11 +325,11 @@
     0 0 0 6px rgba(35, 131, 226, 0.05);
 }
 
-.canvas-node--iframe > .node-header {
+.canvas-node--iframe>.node-header {
   position: relative;
 }
 
-.canvas-node--iframe.canvas-node--selected > .node-header {
+.canvas-node--iframe.canvas-node--selected>.node-header {
   border-bottom-color: rgba(35, 131, 226, 0.18);
 }
 
@@ -384,7 +428,7 @@
 
 .canvas-node--embedded .node-focus,
 .canvas-node--embedded .node-close,
-.canvas-node--embedded .node-reference,
+.canvas-node--embedded .node-open-tab,
 .canvas-node--embedded .node-add-to-chat,
 .canvas-node--embedded .node-add-to-canvas,
 .canvas-node--embedded .node-open-detail,
@@ -456,8 +500,8 @@
   cursor: default;
 }
 
-.node-body--reference > .canvas-node--readonly,
-.node-body--reference > .canvas-node--embedded {
+.node-body--reference>.canvas-node--readonly,
+.node-body--reference>.canvas-node--embedded {
   height: 100% !important;
 }
 
@@ -469,7 +513,7 @@
  * are siblings of `.node-body--reference`, so they are unaffected. */
 .node-body--reference .node-focus,
 .node-body--reference .node-close,
-.node-body--reference .node-reference,
+.node-body--reference .node-open-tab,
 .node-body--reference .node-add-to-chat,
 .node-body--reference .node-add-to-canvas,
 .node-body--reference .node-open-detail,
@@ -564,11 +608,13 @@
 }
 
 @keyframes nodeStatusPulse {
+
   0%,
   100% {
     transform: scale(1);
     opacity: 1;
   }
+
   50% {
     transform: scale(1.25);
     opacity: 0.7;
@@ -678,7 +724,7 @@
   opacity: 1;
 }
 
-.node-reference,
+.node-open-tab,
 .node-add-to-chat,
 .node-add-to-canvas,
 .node-open-detail,
@@ -701,7 +747,7 @@
   transition: opacity 0.1s, background 0.1s, color 0.1s;
 }
 
-.node-reference {
+.node-open-tab {
   width: 20px;
   padding: 0;
 }
@@ -717,7 +763,7 @@
   width: 20px;
 }
 
-.canvas-node:hover .node-reference,
+.canvas-node:hover .node-open-tab,
 .canvas-node:hover .node-add-to-chat,
 .canvas-node:hover .node-add-to-canvas,
 .canvas-node:hover .node-open-detail,
@@ -729,7 +775,7 @@
   opacity: 1;
 }
 
-.node-reference:hover,
+.node-open-tab:hover,
 .node-add-to-chat:hover,
 .node-add-to-canvas:hover,
 .node-open-detail:hover,
@@ -834,7 +880,7 @@
 
 /* In the floating popover the buttons need to be visible immediately,
    overriding the default `opacity: 0` set on individual buttons. */
-.canvas-transform--small .canvas-node .node-header__actions .node-reference,
+.canvas-transform--small .canvas-node .node-header__actions .node-open-tab,
 .canvas-transform--small .canvas-node .node-header__actions .node-add-to-chat,
 .canvas-transform--small .canvas-node .node-header__actions .node-add-to-canvas,
 .canvas-transform--small .canvas-node .node-header__actions .node-open-detail,
@@ -1099,7 +1145,8 @@
   background: transparent;
   border: 1px solid transparent;
   box-shadow: none;
-  overflow: visible; /* let the ShapeStylePicker poke out above */
+  overflow: visible;
+  /* let the ShapeStylePicker poke out above */
 }
 
 .canvas-node--shape:hover {
@@ -1265,7 +1312,7 @@
   color: color-mix(in srgb, var(--group-color, #A594E0) 70%, #111111);
 }
 
-.canvas-node--group .node-header .node-reference,
+.canvas-node--group .node-header .node-open-tab,
 .canvas-node--group .node-header .node-add-to-chat,
 .canvas-node--group .node-header .node-add-to-canvas,
 .canvas-node--group .node-header .node-open-detail,
@@ -1373,23 +1420,43 @@
   0% {
     box-shadow: var(--shadow-card), 0 0 0 3px rgba(124, 92, 255, 0.85), 0 0 24px rgba(124, 92, 255, 0.45);
   }
+
   100% {
     box-shadow: var(--shadow-card);
   }
 }
 
 @keyframes agentLabelFade {
-  0% { opacity: 0; transform: translateY(4px); }
-  10% { opacity: 1; transform: translateY(0); }
-  80% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-2px); }
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
 }
 
 @keyframes nodeHighlight {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: var(--shadow-card);
   }
-  20%, 60% {
+
+  20%,
+  60% {
     box-shadow: var(--shadow-card), 0 0 0 3px var(--accent), 0 0 20px rgba(35, 131, 226, 0.3);
   }
 }
@@ -1430,10 +1497,7 @@
 .canvas-node.canvas-node--fullscreen:hover {
   position: absolute !important;
   inset:
-    var(--canvas-fullscreen-inset, 12px)
-    var(--canvas-fullscreen-inset, 12px)
-    var(--canvas-fullscreen-inset, 12px)
-    var(--canvas-fullscreen-inset, 12px) !important;
+    var(--canvas-fullscreen-inset, 12px) var(--canvas-fullscreen-inset, 12px) var(--canvas-fullscreen-inset, 12px) var(--canvas-fullscreen-inset, 12px) !important;
   width: auto !important;
   height: auto !important;
   transform: none !important;
@@ -1457,7 +1521,7 @@
  * single control surface — drop every node-header affordance so the
  * header stays clean (title only). The chip also owns the exit
  * button, so `.node-fullscreen` itself hides. */
-.canvas-node--fullscreen .node-reference,
+.canvas-node--fullscreen .node-open-tab,
 .canvas-node--fullscreen .node-add-to-chat,
 .canvas-node--fullscreen .node-add-to-canvas,
 .canvas-node--fullscreen .node-open-detail,

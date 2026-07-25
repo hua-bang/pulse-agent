@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useState,
 } from 'react';
+import { Tabs } from '@phosphor-icons/react';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { AppLogoIcon } from '../icons';
@@ -21,6 +22,13 @@ import { DockPanes } from './DockPanes';
 import { hasDockSplitContentTab } from './dock-split-state';
 import { useDockTabIndicator } from './useDockTabIndicator';
 import { getDockTabVisualState } from './dock-tab-visual-state';
+import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
+import { isImeComposing } from '../../utils/ime';
+import {
+  getRovingDockTabId,
+  handleDockResizeKeyDown,
+  handleDockTabListKeyDown,
+} from './dock-accessibility';
 import './index.css';
 import './terminal-tab.css';
 
@@ -59,6 +67,25 @@ function clampWidth(value: number): number {
   const max = Math.max(MIN_WIDTH, Math.round(viewport * MAX_VIEWPORT_RATIO));
   return Math.min(max, Math.max(MIN_WIDTH, value));
 }
+
+function persistWidth(value: number): void {
+  try {
+    window.localStorage.setItem(WIDTH_STORAGE_KEY, String(value));
+  } catch {
+    /* localStorage may be unavailable; preference simply won't persist. */
+  }
+}
+
+const isEditableEventTarget = (target: EventTarget | null): boolean => (
+  target instanceof HTMLElement
+  && (
+    target.isContentEditable
+    || target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement
+    || Boolean(target.closest('[contenteditable="true"]'))
+  )
+);
 
 interface RightDockProps {
   activeWorkspaceId: string;
@@ -118,6 +145,12 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
   const splitTabId = chatTabEnabled ? state.splitTabId : undefined;
   const splitViewActive = Boolean(splitTabId);
   const chatVisual = getDockTabVisualState(CHAT_TAB_ID, activePaneId, splitTabId);
+  const orderedTabIds = [
+    ...(chatTabEnabled ? [CHAT_TAB_ID] : []),
+    ...(terminalTabsVisible ? state.terminalTabs.map((tab) => tab.id) : []),
+    ...state.tabs.map((tab) => tab.id),
+  ];
+  const rovingTabId = getRovingDockTabId(orderedTabIds, activePaneId);
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
   const splitView = useDockSplitView({
     active: splitViewActive,
@@ -153,7 +186,14 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
   useEffect(() => {
     if (!visible) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (
+        e.key !== 'Escape'
+        || e.defaultPrevented
+        || isImeComposing(e)
+        || isEditableEventTarget(e.target)
+      ) {
+        return;
+      }
       const { activeTabId, terminalTabs } = store.getSnapshot();
       if (terminalTabs.some((tab) => tab.id === activeTabId)) {
         store.closeTerminal(activeTabId);
@@ -183,11 +223,7 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
     onDragStart: () => document.documentElement.classList.add(RESIZING_CLASS),
     onDragEnd: (finalWidth) => {
       document.documentElement.classList.remove(RESIZING_CLASS);
-      try {
-        window.localStorage.setItem(WIDTH_STORAGE_KEY, String(finalWidth));
-      } catch {
-        /* localStorage may be unavailable; preference simply won't persist. */
-      }
+      persistWidth(finalWidth);
     },
   });
   return (
@@ -201,9 +237,22 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
       <div
         className="right-dock__resize-handle"
         onMouseDown={resize.onMouseDown}
+        onKeyDown={(event) => handleDockResizeKeyDown(event, {
+          value: width,
+          min: MIN_WIDTH,
+          max: maxWidth,
+          onChange: (nextWidth) => {
+            setWidth(nextWidth);
+            persistWidth(nextWidth);
+          },
+        })}
+        tabIndex={0}
         role="separator"
         aria-orientation="vertical"
         aria-label={t('rightDock.resizePanel')}
+        aria-valuemin={MIN_WIDTH}
+        aria-valuemax={maxWidth}
+        aria-valuenow={width}
       />
       <div className="right-dock__tabs" data-visible={tabStripVisible}>
         <div
@@ -214,6 +263,11 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
           aria-multiselectable={splitViewActive || undefined}
           aria-label={t('rightDock.tabs')}
           onScroll={tabIndicator.update}
+          onKeyDown={(event) => handleDockTabListKeyDown(
+            event,
+            orderedTabIds,
+            (tabId) => store.activate(tabId),
+          )}
         >
           <span
             className="right-dock__tab-glider"
@@ -228,7 +282,10 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
             <button
               ref={(element) => tabIndicator.registerTab(CHAT_TAB_ID, element)}
               type="button"
+              id={dockTabElementId(CHAT_TAB_ID)}
+              data-dock-tab-id={CHAT_TAB_ID}
               role="tab"
+              aria-controls={dockPaneElementId(CHAT_TAB_ID)}
               aria-selected={chatVisual.selected}
               aria-expanded={chatVisual.splitActive ? chatVisual.splitVisible : undefined}
               className={`right-dock__tab right-dock__tab--chat${chatVisual.focused ? ' right-dock__tab--active' : ''}`}
@@ -237,6 +294,7 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
               data-split-part={chatVisual.splitPart}
               data-unread={state.chatUnread}
               title={t('rightDock.chat')}
+              tabIndex={rovingTabId === CHAT_TAB_ID ? 0 : -1}
               onClick={() => store.activate(CHAT_TAB_ID)}
             >
               <span className="right-dock__tab-icon right-dock__tab-icon--chat">
@@ -255,6 +313,7 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
                     key={tab.id}
                     tab={tab}
                     visual={visual}
+                    tabIndex={rovingTabId === tab.id ? 0 : -1}
                     registerTab={tabIndicator.registerTab}
                     onActivate={(id) => store.activate(id)}
                     onClose={(id) => store.closeTerminal(id)}
@@ -282,7 +341,10 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
                 <button
                   ref={(element) => tabIndicator.registerTab(tab.id, element)}
                   type="button"
+                  id={dockTabElementId(tab.id)}
+                  data-dock-tab-id={tab.id}
                   role="tab"
+                  aria-controls={dockPaneElementId(tab.id)}
                   aria-selected={visual.selected}
                   aria-expanded={visual.splitActive ? visual.splitVisible : undefined}
                   className={`right-dock__tab right-dock__tab--with-close${visual.focused ? ' right-dock__tab--active' : ''}`}
@@ -290,6 +352,7 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
                   data-split-visible={visual.splitVisible}
                   title={tab.title}
                   draggable
+                  tabIndex={rovingTabId === tab.id ? 0 : -1}
                   onDragStart={(event) => tabDrag.onDragStart(event, tab.id)}
                   onDragEnd={tabDrag.clear}
                   onMouseDown={(event) => {
@@ -304,6 +367,10 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
                   {tab.kind === 'link' ? (
                     <span className="right-dock__tab-icon right-dock__tab-icon--link">
                       <LinkTabIcon faviconUrl={tab.faviconUrl} />
+                    </span>
+                  ) : tab.kind === 'node-detail' ? (
+                    <span className="right-dock__tab-icon right-dock__tab-icon--node-detail">
+                      <Tabs size={14} weight="regular" aria-hidden="true" />
                     </span>
                   ) : (
                     <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
@@ -363,9 +430,13 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
         state={state}
         activePaneId={activePaneId}
         splitTabId={splitTabId}
+        chatTabEnabled={chatTabEnabled}
         splitContentWidth={splitView.contentWidth}
         splitDividerWidth={splitView.dividerWidth}
+        splitMinContentWidth={splitView.minContentWidth}
+        splitMaxContentWidth={splitView.maxContentWidth}
         onDividerMouseDown={splitView.onDividerMouseDown}
+        onDividerKeyDown={splitView.onDividerKeyDown}
         setChatHost={setChatHost}
         setTerminalHost={setTerminalHost}
         terminalHostMounted={terminalHostMounted}

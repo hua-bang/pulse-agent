@@ -1,5 +1,6 @@
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, RefObject } from 'react';
 import type { CanvasNode, ReferenceNodeData } from '../../types';
+import { useI18n } from '../../i18n';
 import { OpenSourceButton } from './NodeButtons';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import { NodeTypeBadge } from './NodeTypeBadge';
@@ -48,6 +49,7 @@ export const ReferenceCanvasNode = ({
   titleRef,
   wrapperStyle,
 }: ReferenceCanvasNodeProps) => {
+  const { t } = useI18n();
   const sourceNode = resolved?.node;
   const refData = node.data as ReferenceNodeData;
   const workspaceLabel = resolved?.workspaceName ?? refData.workspaceNameSnapshot ?? 'Workspace';
@@ -63,6 +65,9 @@ export const ReferenceCanvasNode = ({
           ref={titleRef}
           className="node-title"
           contentEditable={isEditingTitle}
+          role={isEditingTitle ? 'textbox' : undefined}
+          aria-label={isEditingTitle ? t('workspaceNodes.editTitle') : undefined}
+          aria-multiline={isEditingTitle ? false : undefined}
           suppressContentEditableWarning
           spellCheck={false}
           onBlur={handleTitleBlur}
@@ -83,6 +88,7 @@ export const ReferenceCanvasNode = ({
             onClick={handleClose}
             onMouseDown={(e) => e.stopPropagation()}
             title="Remove"
+            aria-label="Remove"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />

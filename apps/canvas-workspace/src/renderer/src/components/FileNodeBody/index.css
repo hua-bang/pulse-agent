@@ -8,6 +8,51 @@
   --note-layer-panel: 50;
 }
 
+.note-save-status {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: var(--note-layer-panel);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--note-paper) 92%, transparent);
+  box-shadow: var(--shadow-float);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.note-save-status--error {
+  border-color: color-mix(in srgb, var(--agent-danger) 28%, transparent);
+  background: color-mix(in srgb, var(--agent-danger) 7%, var(--note-paper));
+  color: var(--agent-danger);
+}
+
+.note-save-status__spinner {
+  animation: spin 0.75s linear infinite;
+}
+
+.note-save-status__retry.ui-btn {
+  min-height: 18px;
+  padding-inline: 6px;
+  border-radius: var(--radius-pill);
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-save-status__spinner {
+    animation: none;
+    opacity: 0.55;
+  }
+}
+
 /* The filename used to live in its own bar; in the Notion/Heptabase
  * redesign we want a single thin chrome strip, so the hint now floats
  * inline next to the toolbar status (rendered in JSX). The standalone
@@ -68,15 +113,15 @@
   content: none;
 }
 
-.note-callout > :first-child {
+.note-callout> :first-child {
   margin-top: 0;
 }
 
-.note-callout > :last-child {
+.note-callout> :last-child {
   margin-bottom: 0;
 }
 
-.note-tiptap-editor .ProseMirror .note-callout > p {
+.note-tiptap-editor .ProseMirror .note-callout>p {
   margin: 0;
 }
 
@@ -94,10 +139,10 @@
  * caret never sits flush with the resize handle while typing. */
 .note-tiptap-editor .ProseMirror {
   box-sizing: border-box;
-  width: min(100%, 720px);
+  width: min(100%, 900px);
   min-height: 100%;
   margin-inline: auto;
-  padding: 28px 40px 96px 58px;
+  padding: 28px 32px 96px 52px;
   font-family: var(--font-ui);
   font-size: 16px;
   line-height: 1.62;
@@ -193,7 +238,7 @@
   margin: 0.18em 0;
 }
 
-.note-tiptap-editor .ProseMirror ul[data-type="taskList"] li > label {
+.note-tiptap-editor .ProseMirror ul[data-type="taskList"] li>label {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -201,7 +246,7 @@
   margin: 0;
 }
 
-.note-tiptap-editor .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+.note-tiptap-editor .ProseMirror ul[data-type="taskList"] li>label input[type="checkbox"] {
   accent-color: var(--accent);
   cursor: pointer;
   width: 14px;
@@ -209,12 +254,12 @@
   margin: 0;
 }
 
-.note-tiptap-editor .ProseMirror ul[data-type="taskList"] li > div {
+.note-tiptap-editor .ProseMirror ul[data-type="taskList"] li>div {
   flex: 1;
   min-width: 0;
 }
 
-.note-tiptap-editor .ProseMirror ul[data-type="taskList"] li > div > p {
+.note-tiptap-editor .ProseMirror ul[data-type="taskList"] li>div>p {
   margin: 0;
 }
 
@@ -330,8 +375,8 @@
   text-align: left;
 }
 
-.note-tiptap-editor .ProseMirror td > p,
-.note-tiptap-editor .ProseMirror th > p {
+.note-tiptap-editor .ProseMirror td>p,
+.note-tiptap-editor .ProseMirror th>p {
   margin: 0;
 }
 
@@ -444,7 +489,7 @@
 
 @container (max-width: 560px) {
   .note-tiptap-editor .ProseMirror {
-    padding: 24px 28px 84px 58px;
+    padding: 24px 24px 84px 52px;
     font-size: 15.5px;
   }
 

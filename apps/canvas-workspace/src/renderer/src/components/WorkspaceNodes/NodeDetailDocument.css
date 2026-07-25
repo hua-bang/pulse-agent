@@ -77,7 +77,7 @@
   flex: 1;
 }
 
-.node-detail-panel__title-row > .ui-btn {
+.node-detail-panel__title-row>.ui-btn {
   flex-shrink: 0;
   margin-top: 4px;
 }
@@ -199,7 +199,7 @@
   gap: 10px;
 }
 
-.node-detail-panel__rail-heading > span {
+.node-detail-panel__rail-heading>span {
   color: var(--nodes-faint);
   font-size: 9px;
 }
@@ -212,6 +212,10 @@
   font-size: 11px;
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.node-detail-panel__source {
+  font-family: var(--font-mono);
 }
 
 .node-detail-panel__rail-empty {
@@ -258,9 +262,9 @@
 /* CanvasNodeView remains the implementation surface, including Tiptap and
  * its slash/bubble interactions. Only its canvas-card chrome dissolves here
  * so the editor reads as part of the surrounding document. */
-.node-detail-panel .node-canvas-preview > .canvas-node,
-.node-detail-panel .node-canvas-preview > .canvas-node:hover,
-.node-detail-panel .node-canvas-preview > .canvas-node:focus-within {
+.node-detail-panel .node-canvas-preview>.canvas-node,
+.node-detail-panel .node-canvas-preview>.canvas-node:hover,
+.node-detail-panel .node-canvas-preview>.canvas-node:focus-within {
   border: 0;
   border-radius: var(--radius-xs);
   background: transparent;
@@ -273,7 +277,7 @@
 
 .node-detail-panel .node-canvas-preview .note-tiptap-editor .ProseMirror,
 .node-detail-panel .node-canvas-preview .file-preview {
-  padding: 18px 0 52px 58px;
+  padding: 16px 16px 52px 52px;
 }
 
 .node-detail-panel__supplementary {
@@ -286,7 +290,7 @@
   border-bottom: 1px solid var(--nodes-border);
 }
 
-.node-detail-panel__disclosure > summary {
+.node-detail-panel__disclosure>summary {
   min-height: 46px;
   display: flex;
   align-items: center;
@@ -299,15 +303,15 @@
   user-select: none;
 }
 
-.node-detail-panel__disclosure > summary::-webkit-details-marker {
+.node-detail-panel__disclosure>summary::-webkit-details-marker {
   display: none;
 }
 
-.node-detail-panel__disclosure > summary:hover {
+.node-detail-panel__disclosure>summary:hover {
   color: var(--nodes-text);
 }
 
-.node-detail-panel__disclosure > summary:focus-visible {
+.node-detail-panel__disclosure>summary:focus-visible {
   border-radius: var(--radius-sm);
   outline: 2px solid var(--accent-border);
   outline-offset: 2px;
@@ -342,8 +346,8 @@
   font-size: 11px;
 }
 
-.node-detail-panel__disclosure-body .node-detail-panel__property-row > span,
-.node-detail-panel__disclosure-body .node-detail-panel__link-row > span,
+.node-detail-panel__disclosure-body .node-detail-panel__property-row>span,
+.node-detail-panel__disclosure-body .node-detail-panel__link-row>span,
 .node-detail-panel__disclosure-empty {
   color: var(--nodes-faint);
 }
@@ -509,7 +513,9 @@
     grid-template-columns: 1fr;
   }
 
-  .node-detail-panel__ai-insight { grid-column: auto; }
+  .node-detail-panel__ai-insight {
+    grid-column: auto;
+  }
 
   .node-detail-panel__document {
     padding-inline: 22px;
@@ -551,5 +557,59 @@
 
   .node-detail-panel--page .node-detail-panel__ai-insight {
     grid-column: auto;
+  }
+}
+
+@container (max-width: 560px) {
+  .node-detail-panel--dock .node-detail-panel__document {
+    padding: 26px 20px 44px;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__document-title {
+    font-size: 28px;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__document-meta {
+    flex-wrap: wrap;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__preview {
+    min-height: 240px;
+    margin-top: 18px;
+  }
+
+  .node-detail-panel--dock .node-relation-editor__form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container (max-width: 400px) {
+  .node-detail-panel--dock .node-detail-panel__document {
+    padding: 22px 16px 40px;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__title-row {
+    gap: 8px;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__document-title {
+    font-size: 26px;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__document-tags {
+    flex-basis: 100%;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__meta-divider {
+    display: none;
+  }
+
+  .node-detail-panel--dock .node-relation-editor__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .node-detail-panel--dock .node-relation-editor__predicate {
+    grid-column: 1 / -1;
+    max-width: 100%;
   }
 }

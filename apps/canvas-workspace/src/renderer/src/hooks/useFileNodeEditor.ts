@@ -81,6 +81,9 @@ interface Options {
   persistToFile: (markdown: string, filePath: string) => Promise<void>;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   onCommitState?: (state: 'saving' | 'saved' | 'error') => void;
+  /** Invalidates an older in-flight file write as soon as the user edits,
+   * before the debounced content commit and auto-save timer run. */
+  onContentChange?: () => void;
   readOnly?: boolean;
 }
 
@@ -98,6 +101,7 @@ export const useFileNodeEditor = ({
   persistToFile,
   onUpdate,
   onCommitState,
+  onContentChange,
   readOnly = false,
 }: Options) => {
   const { t } = useI18n();
@@ -219,6 +223,10 @@ export const useFileNodeEditor = ({
     content: data.content || '',
     editable: !readOnly,
     editorProps: {
+      attributes: {
+        'aria-label': t('noteEditor.label'),
+        'aria-multiline': 'true',
+      },
       handlePaste: (view, event) => {
         if (readOnly) return false;
         const items = Array.from(event.clipboardData?.items ?? []);
@@ -266,6 +274,7 @@ export const useFileNodeEditor = ({
       // them back replaces the whole canvas nodes array for every mounted
       // file node and can collide with unrelated interactions.
       if (!editor.isFocused) return;
+      onContentChange?.();
       // Coalesce the expensive serialize + nodes-array writeback (I-1).
       pendingEditorRef.current = editor;
       if (contentCommitRef.current) clearTimeout(contentCommitRef.current);
@@ -370,6 +379,8 @@ export const useFileNodeEditor = ({
           closeSlashMenu();
         }
       } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
         closeSlashMenu();
       }
     };
@@ -420,7 +431,12 @@ export const useFileNodeEditor = ({
     [editor, readOnly, closeLinkPrompt],
   );
 
-  const cancelLink = closeLinkPrompt;
+  const cancelLink = useCallback(() => {
+    closeLinkPrompt();
+    requestAnimationFrame(() => {
+      if (editor && !editor.isDestroyed) editor.commands.focus();
+    });
+  }, [closeLinkPrompt, editor]);
 
   const insertImageFromFile = useCallback(
     async (file: File) => {

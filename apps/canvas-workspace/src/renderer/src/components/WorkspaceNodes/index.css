@@ -1,6 +1,11 @@
+/* Design tokens for the Nodes surfaces. `.node-detail-panel` is included
+ * because NodeDetailPanel is shared between the Nodes full page and the
+ * right-dock Node tab — the dock context has no page wrapper to supply
+ * these variables. */
 .workspace-nodes-page,
 .workspace-node-detail-page,
-.workspace-graph-page {
+.workspace-graph-page,
+.node-detail-panel {
   --nodes-bg: #fbfbfa;
   --nodes-surface: #ffffff;
   --nodes-surface-soft: rgba(55, 53, 47, 0.04);
@@ -15,6 +20,11 @@
   --nodes-tag-dot: #9b9992;
   --nodes-link-dot: #7f8588;
   --nodes-shadow: 0 1px 2px rgba(15, 15, 15, 0.03), 0 6px 18px rgba(15, 15, 15, 0.04);
+}
+
+.workspace-nodes-page,
+.workspace-node-detail-page,
+.workspace-graph-page {
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -474,7 +484,9 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  container-type: inline-size;
   background: var(--nodes-surface);
+  font-family: var(--font-ui);
 }
 
 .node-detail-panel--page {

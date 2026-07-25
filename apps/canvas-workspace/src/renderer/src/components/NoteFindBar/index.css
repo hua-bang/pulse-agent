@@ -1,8 +1,11 @@
 .note-find-bar {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  position: relative;
+  align-self: flex-end;
+  flex-shrink: 0;
   z-index: var(--note-layer-panel, 50);
+  width: min(420px, calc(100% - 16px));
+  box-sizing: border-box;
+  margin: 8px 8px 0;
   background: var(--surface);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -11,7 +14,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 260px;
+  min-width: 0;
 }
 
 .note-find-row {
@@ -147,4 +150,14 @@
 .note-find-action:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+@container (max-width: 360px) {
+  .note-find-row {
+    flex-wrap: wrap;
+  }
+
+  .note-find-input {
+    flex-basis: calc(100% - 26px);
+  }
 }

@@ -1,5 +1,6 @@
 import { useEffect, type RefObject } from 'react';
 import { useEscapeClose } from './useEscapeClose';
+import { isImeComposing } from '../utils/ime';
 
 type MenuKeyboardNavOptions = {
   enabled?: boolean;
@@ -49,6 +50,7 @@ export const useMenuKeyboardNav = (
   useEffect(() => {
     if (!enabled) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isImeComposing(e)) return;
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') {
         return;
       }

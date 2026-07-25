@@ -153,7 +153,7 @@
 }
 
 .canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-header__actions,
-.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-reference,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-open-tab,
 .canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-add-to-chat,
 .canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-plugin-select,
 .canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-focus,

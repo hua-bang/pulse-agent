@@ -320,7 +320,7 @@
   z-index: auto;
 }
 
-.canvas-node--frame .node-header .node-header__actions .node-reference,
+.canvas-node--frame .node-header .node-header__actions .node-open-tab,
 .canvas-node--frame .node-header .node-header__actions .node-add-to-chat,
 .canvas-node--frame .node-header .node-header__actions .node-focus,
 .canvas-node--frame .node-header .node-header__actions .node-fullscreen,
@@ -331,7 +331,7 @@
   color: oklch(0.55 calc(var(--_c) * 1.8) var(--_h));
 }
 
-.canvas-node--frame .node-header .node-header__actions .node-reference svg,
+.canvas-node--frame .node-header .node-header__actions .node-open-tab svg,
 .canvas-node--frame .node-header .node-header__actions .node-add-to-chat svg,
 .canvas-node--frame .node-header .node-header__actions .node-focus svg,
 .canvas-node--frame .node-header .node-header__actions .node-fullscreen svg,
@@ -340,17 +340,17 @@
   height: 17px;
 }
 
-.canvas-node--frame:hover .node-header .node-header__actions .node-reference,
+.canvas-node--frame:hover .node-header .node-header__actions .node-open-tab,
 .canvas-node--frame:hover .node-header .node-header__actions .node-add-to-chat,
 .canvas-node--frame:hover .node-header .node-header__actions .node-focus,
 .canvas-node--frame:hover .node-header .node-header__actions .node-fullscreen,
 .canvas-node--frame:hover .node-header .node-header__actions .node-close,
-.canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-reference,
+.canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-open-tab,
 .canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-add-to-chat,
 .canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-focus,
 .canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-fullscreen,
 .canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-close,
-.canvas-node--frame .node-header:focus-within .node-header__actions .node-reference,
+.canvas-node--frame .node-header:focus-within .node-header__actions .node-open-tab,
 .canvas-node--frame .node-header:focus-within .node-header__actions .node-add-to-chat,
 .canvas-node--frame .node-header:focus-within .node-header__actions .node-focus,
 .canvas-node--frame .node-header:focus-within .node-header__actions .node-fullscreen,

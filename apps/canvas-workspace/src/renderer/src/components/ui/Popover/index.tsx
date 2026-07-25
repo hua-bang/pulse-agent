@@ -4,6 +4,10 @@ import { useViewportClampedPosition } from '../../../hooks/useViewportClampedPos
 import { useAnchorRectPosition } from '../../../hooks/useAnchorRectPosition';
 import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
 import { useClickOutside } from '../../../hooks/useClickOutside';
+import {
+  getCanvasMotion,
+  subscribeCanvasMotion,
+} from '../../../hooks/canvasMotion';
 
 // A stable "no anchor" ref so useAnchorRectPosition can be called
 // UNCONDITIONALLY below (rules-of-hooks — Popover supports two anchoring
@@ -61,6 +65,11 @@ interface SharedProps {
    *  close the menu the moment the pointer crosses into it. */
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  /** Dismiss when canvas pan/zoom starts. Canvas content moves through a
+   * compositor-only root transform, while this portaled fixed-position
+   * panel stays in viewport coordinates; keeping it open would detach it
+   * from its editor/card anchor until React settles. */
+  closeOnCanvasMotion?: boolean;
   children: ReactNode;
 }
 
@@ -147,6 +156,7 @@ export const Popover = (props: Props) => {
     panelId,
     onMouseEnter,
     onMouseLeave,
+    closeOnCanvasMotion = false,
     children,
   } = props;
 
@@ -210,6 +220,21 @@ export const Popover = (props: Props) => {
   // a transient event like a right-click), so this only applies here.
   useClickOutside(rectAnchored ? [ref, anchorRef] : ref, closeFromOutside);
 
+  useEffect(() => {
+    if (!closeOnCanvasMotion) return;
+    // From the panel's viewport-coordinate perspective the canvas anchor has
+    // moved outside its original context, so reuse the existing non-focus-
+    // restoring outside-close path rather than widening every menu API.
+    const closeForMotion = () => onClose('outside');
+    if (getCanvasMotion().mode !== 'idle') {
+      closeForMotion();
+      return;
+    }
+    return subscribeCanvasMotion((motion) => {
+      if (motion.mode !== 'idle') closeForMotion();
+    });
+  }, [closeOnCanvasMotion, onClose]);
+
   // Persistent Dock panes stay mounted and switch through `visibility` so
   // webviews and document scroll positions survive tab changes. A portaled
   // popover is outside that hidden subtree, so close it as soon as its anchor
@@ -263,6 +288,13 @@ export const Popover = (props: Props) => {
       style={style}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
+      onWheel={(event) => {
+        // React portal events bubble through the component tree rather than
+        // the DOM tree. Without this boundary, scrolling a portaled menu
+        // reaches Canvas.onWheel, starts a pan gesture, and immediately
+        // dismisses the menu through closeOnCanvasMotion.
+        event.stopPropagation();
+      }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >

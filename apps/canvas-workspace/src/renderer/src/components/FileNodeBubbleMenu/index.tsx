@@ -1,4 +1,12 @@
-import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   CaretDown,
   Code,
@@ -12,6 +20,8 @@ import {
 import type { Editor } from '@tiptap/react';
 import { ALL_SLASH_COMMANDS, type SlashCmd } from '../../editor/slashCommands';
 import type { NoteBubbleState } from '../../hooks/useNoteInteractionController';
+import { subscribeCanvasMotion } from '../../hooks/canvasMotion';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useI18n } from '../../i18n';
 import { EditorCommandIcon } from '../EditorCommandIcon';
 import { Button, Popover, Portal } from '../ui';
@@ -21,6 +31,7 @@ interface Props {
   editor: Editor;
   bubble: NoteBubbleState;
   onOpenLinkPrompt: () => void;
+  onClose: () => void;
 }
 
 const VIEWPORT_MARGIN_PX = 8;
@@ -30,12 +41,18 @@ const BLOCK_TYPE_COMMANDS = ALL_SLASH_COMMANDS.filter(
     Boolean(command.isBlockTypeActive),
 );
 
-export const FileNodeBubbleMenu = ({ editor, bubble, onOpenLinkPrompt }: Props) => {
+export const FileNodeBubbleMenu = ({
+  editor,
+  bubble,
+  onOpenLinkPrompt,
+  onClose,
+}: Props) => {
   const { t } = useI18n();
   const menuRef = useRef<HTMLDivElement>(null);
   const typeButtonRef = useRef<HTMLButtonElement>(null);
   const typePanelId = useId();
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+  const [, renderTransaction] = useReducer((value: number) => value + 1, 0);
   const [placement, setPlacement] = useState<{
     left: number;
     top: number;
@@ -55,6 +72,23 @@ export const FileNodeBubbleMenu = ({ editor, bubble, onOpenLinkPrompt }: Props) 
     const flipped = bubble.y - height - SELECTION_GAP_PX < VIEWPORT_MARGIN_PX;
     setPlacement({ left, top: flipped ? bubble.bottom : bubble.y, flipped });
   }, [bubble.bottom, bubble.x, bubble.y]);
+
+  useEffect(() => subscribeCanvasMotion((motion) => {
+    if (motion.mode !== 'idle') onClose();
+  }), [onClose]);
+
+  useEffect(() => {
+    const handleTransaction = () => renderTransaction();
+    editor.on('transaction', handleTransaction);
+    return () => {
+      editor.off('transaction', handleTransaction);
+    };
+  }, [editor]);
+
+  // The nested block-type Popover owns Escape while it is open. Otherwise
+  // the selection toolbar consumes Escape itself so the same key press does
+  // not also reach canvas-level deselection/dismiss handlers.
+  useEscapeClose(!typeMenuOpen, onClose);
 
   const currentBlockType = BLOCK_TYPE_COMMANDS.find((command) =>
     command.isBlockTypeActive(editor),
@@ -77,6 +111,7 @@ export const FileNodeBubbleMenu = ({ editor, bubble, onOpenLinkPrompt }: Props) 
       size="sm"
       className={`note-bubble-btn${active ? ' note-bubble-btn--active' : ''}`}
       aria-label={label}
+      aria-pressed={active}
       title={label}
       onClick={onClick}
     >
@@ -99,6 +134,12 @@ export const FileNodeBubbleMenu = ({ editor, bubble, onOpenLinkPrompt }: Props) 
             : `translate(-50%, calc(-100% - ${SELECTION_GAP_PX}px))`,
         }}
         onMouseDown={(event) => event.preventDefault()}
+        onWheel={(event) => {
+          // This toolbar is portaled to document.body, but React events still
+          // bubble through its canvas-side component ancestry. Keep trackpad
+          // input inside the toolbar from starting a canvas pan/zoom gesture.
+          event.stopPropagation();
+        }}
       >
         <Button
           ref={typeButtonRef}
@@ -125,6 +166,7 @@ export const FileNodeBubbleMenu = ({ editor, bubble, onOpenLinkPrompt }: Props) 
             ariaLabel={t('noteBubble.blockType')}
             panelId={typePanelId}
             autoFocus={false}
+            closeOnCanvasMotion
             onClose={(reason) => {
               setTypeMenuOpen(false);
               if (reason === 'escape') {

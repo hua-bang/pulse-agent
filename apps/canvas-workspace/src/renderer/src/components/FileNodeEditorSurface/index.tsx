@@ -53,6 +53,7 @@ export const FileNodeEditorSurface = ({
   closeMention,
 }: Props) => {
   const slashPanelId = useId();
+  const mentionPanelId = useId();
   const {
     slashMenu,
     mentionMenu,
@@ -62,6 +63,7 @@ export const FileNodeEditorSurface = ({
     outlineOpen,
     openSlashMenu,
     closeSlashMenu,
+    closeBubble,
     closeFindBar,
     closeOutline,
   } = interactions;
@@ -69,36 +71,89 @@ export const FileNodeEditorSurface = ({
   const activeSlashItem = slashMenu
     ? slashItems[Math.min(slashMenu.index, slashItems.length - 1)]
     : undefined;
+  const activeMention = mentionMenu
+    ? filteredMentions[Math.min(mentionMenu.index, filteredMentions.length - 1)]
+    : undefined;
 
   useEffect(() => {
     if (!editor) return;
-    const dom = editor.view.dom;
-    if (slashMenu) {
-      dom.setAttribute('aria-haspopup', 'listbox');
-      dom.setAttribute('aria-controls', slashPanelId);
-      dom.setAttribute('aria-expanded', 'true');
-      if (activeSlashItem) {
-        dom.setAttribute(
-          'aria-activedescendant',
-          `${slashPanelId}-${activeSlashItem.id}`,
-        );
-      } else {
-        dom.removeAttribute('aria-activedescendant');
-      }
-    } else {
-      dom.removeAttribute('aria-haspopup');
-      dom.removeAttribute('aria-controls');
-      dom.removeAttribute('aria-expanded');
-      dom.removeAttribute('aria-activedescendant');
-    }
-
-    return () => {
-      dom.removeAttribute('aria-haspopup');
-      dom.removeAttribute('aria-controls');
-      dom.removeAttribute('aria-expanded');
-      dom.removeAttribute('aria-activedescendant');
+    let mountedDom: HTMLElement | null = null;
+    const clearAria = () => {
+      mountedDom?.removeAttribute('aria-haspopup');
+      mountedDom?.removeAttribute('aria-controls');
+      mountedDom?.removeAttribute('aria-expanded');
+      mountedDom?.removeAttribute('aria-activedescendant');
     };
-  }, [activeSlashItem, editor, slashMenu, slashPanelId]);
+    const getMountedDom = () => {
+      try {
+        return editor.view.dom;
+      } catch (error) {
+        if (
+          error instanceof Error
+          && error.message.includes('editor view is not available')
+        ) {
+          return null;
+        }
+        throw error;
+      }
+    };
+    const syncAria = () => {
+      // `useEditor` creates the Editor before EditorContent mounts its view.
+      // Accessing editor.view during that gap throws and used to blank the
+      // whole canvas when several lazy file cards initialized together.
+      mountedDom = getMountedDom();
+      if (!mountedDom) return;
+      if (slashMenu) {
+        mountedDom.setAttribute('aria-haspopup', 'listbox');
+        mountedDom.setAttribute('aria-controls', slashPanelId);
+        mountedDom.setAttribute('aria-expanded', 'true');
+        if (activeSlashItem) {
+          mountedDom.setAttribute(
+            'aria-activedescendant',
+            `${slashPanelId}-${activeSlashItem.id}`,
+          );
+        } else {
+          mountedDom.removeAttribute('aria-activedescendant');
+        }
+      } else if (mentionMenu && filteredMentions.length > 0) {
+        mountedDom.setAttribute('aria-haspopup', 'listbox');
+        mountedDom.setAttribute('aria-controls', mentionPanelId);
+        mountedDom.setAttribute('aria-expanded', 'true');
+        if (activeMention) {
+          mountedDom.setAttribute(
+            'aria-activedescendant',
+            `${mentionPanelId}-${activeMention.id}`,
+          );
+        } else {
+          mountedDom.removeAttribute('aria-activedescendant');
+        }
+      } else {
+        clearAria();
+      }
+    };
+    const handleUnmount = () => {
+      clearAria();
+      mountedDom = null;
+    };
+
+    editor.on('mount', syncAria);
+    editor.on('unmount', handleUnmount);
+    syncAria();
+    return () => {
+      editor.off('mount', syncAria);
+      editor.off('unmount', handleUnmount);
+      clearAria();
+    };
+  }, [
+    activeMention,
+    activeSlashItem,
+    editor,
+    filteredMentions.length,
+    mentionMenu,
+    mentionPanelId,
+    slashMenu,
+    slashPanelId,
+  ]);
 
   return (
     <>
@@ -123,6 +178,7 @@ export const FileNodeEditorSurface = ({
           editor={editor}
           bubble={bubble}
           onOpenLinkPrompt={openLinkPrompt}
+          onClose={closeBubble}
         />
       )}
 
@@ -130,6 +186,16 @@ export const FileNodeEditorSurface = ({
         className="note-content"
         onPaste={(event) => event.stopPropagation()}
         onWheel={(event) => event.stopPropagation()}
+        onScrollCapture={() => {
+          // Slash, mention, and selection surfaces use one-shot viewport
+          // coordinates. Once the editor's own scroller moves, dismiss them
+          // together instead of leaving detached UI over unrelated content.
+          // Guard the setters so ordinary document scrolling stays on the
+          // browser's hot path after the one open surface has been closed.
+          if (bubble) closeBubble();
+          if (slashMenu) closeSlashMenu();
+          if (mentionMenu) closeMention();
+        }}
         onClickCapture={onLinkClickCapture}
       >
         <EditorContent editor={editor} className="note-tiptap-editor" />
@@ -177,6 +243,7 @@ export const FileNodeEditorSurface = ({
 
       {!readOnly && mentionMenu && (
         <NoteMentionMenu
+          panelId={mentionPanelId}
           x={mentionMenu.x}
           y={mentionMenu.y}
           items={filteredMentions}
