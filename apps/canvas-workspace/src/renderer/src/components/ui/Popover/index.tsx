@@ -40,6 +40,13 @@ interface SharedProps {
    * Escape-close and arrow-key nav behaviors are unaffected either way.
    */
   autoFocus?: boolean;
+  /**
+   * Whether Popover owns Escape and arrow-key menu navigation. Keep enabled
+   * for ordinary menus. Combobox-like surfaces whose live owner already
+   * handles IME-aware keyboard selection can disable it without giving up
+   * Popover's positioning and outside-press behavior.
+   */
+  keyboardNavigation?: boolean;
   /** Accessible name for the panel, rendered as `aria-label`. A bare
    *  `role="menu"` announces as an unnamed menu — pass one whenever the
    *  menu's purpose isn't obvious from its items. */
@@ -130,7 +137,18 @@ type Props = PointAnchorProps | RectAnchorProps;
  * Sidebar tree has no such ancestor).
  */
 export const Popover = (props: Props) => {
-  const { onClose, role = 'menu', className, autoFocus = true, ariaLabel, panelId, onMouseEnter, onMouseLeave, children } = props;
+  const {
+    onClose,
+    role = 'menu',
+    className,
+    autoFocus = true,
+    keyboardNavigation = true,
+    ariaLabel,
+    panelId,
+    onMouseEnter,
+    onMouseLeave,
+    children,
+  } = props;
 
   // Resolve inputs for BOTH anchoring hooks up front so both can be called
   // unconditionally below (rules-of-hooks) regardless of which mode this
@@ -176,7 +194,10 @@ export const Popover = (props: Props) => {
   const closeFromEscape = () => onClose('escape');
   const closeFromOutside = () => onClose('outside');
 
-  useMenuKeyboardNav(ref, closeFromEscape, { autoFocus });
+  useMenuKeyboardNav(ref, closeFromEscape, {
+    autoFocus,
+    enabled: keyboardNavigation,
+  });
   // In rect-anchor mode, the anchor is structurally the caller's TRIGGER
   // (that's the whole point of anchoring to it) and stays mounted outside
   // the portaled panel's own DOM subtree. Without exempting it, a press on

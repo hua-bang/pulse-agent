@@ -1,88 +1,108 @@
-import { useEffect, useId } from 'react';
-import './index.css';
-import { createPortal } from 'react-dom';
-import { useViewportClampedPosition } from '../../hooks/useViewportClampedPosition';
-import { useClickOutside } from '../../hooks/useClickOutside';
+import { useEffect } from 'react';
+import { MagnifyingGlass } from '@phosphor-icons/react';
+import {
+  groupSlashCommands,
+  type SlashCmd,
+} from '../../editor/slashCommands';
 import { useI18n } from '../../i18n';
-
-export interface SlashCommandDef {
-  id: string;
-  label: string;
-  desc: string;
-  icon: string;
-}
+import { EditorCommandIcon } from '../EditorCommandIcon';
+import { Button, Popover } from '../ui';
+import './index.css';
 
 interface Props {
+  panelId: string;
   x: number;
   y: number;
+  query: string;
   selectedIndex: number;
-  items: SlashCommandDef[];
-  onSelect: (cmd: SlashCommandDef) => void;
+  items: SlashCmd[];
+  onSelect: (command: SlashCmd) => void;
   onClose: () => void;
 }
 
 export const SlashCommandMenu = ({
+  panelId,
   x,
   y,
+  query,
   selectedIndex,
   items,
   onSelect,
   onClose,
 }: Props) => {
   const { t } = useI18n();
-  const listboxId = useId();
   const activeIndex = Math.min(selectedIndex, items.length - 1);
   const activeItem = items[activeIndex];
-  // Keep the menu fully on-screen: typing `/` near the right or bottom
-  // window edge would otherwise push the list out of the viewport.
-  const { ref: menuRef, pos } = useViewportClampedPosition<HTMLDivElement>(x, y + 6);
+  const groups = groupSlashCommands(items);
 
-  // Scroll active item into view
   useEffect(() => {
-    const el = menuRef.current?.querySelector('.slash-menu-item--active') as HTMLElement | null;
-    el?.scrollIntoView({ block: 'nearest' });
-  }, [selectedIndex]);
+    if (!activeItem) return;
+    document.getElementById(`${panelId}-${activeItem.id}`)?.scrollIntoView({ block: 'nearest' });
+  }, [activeItem, panelId]);
 
-  // Close on outside click
-  useClickOutside(menuRef, onClose);
-
-  if (items.length === 0) return null;
-
-  // Portal into document.body so position:fixed is relative to the viewport,
-  // not to the canvas-transform ancestor (which has a CSS transform that
-  // would otherwise shift fixed-positioned children away from the viewport).
-  return createPortal(
-    <div
-      ref={menuRef}
-      id={listboxId}
+  return (
+    <Popover
+      x={x}
+      y={y + 6}
       className="slash-menu"
       role="listbox"
-      aria-label={t('slashCommand.label')}
-      aria-activedescendant={activeItem ? `${listboxId}-${activeItem.id}` : undefined}
-      style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 'var(--layer-note-popover)' }}
+      panelId={panelId}
+      ariaLabel={t('slashCommand.label')}
+      autoFocus={false}
+      keyboardNavigation={false}
+      onClose={onClose}
     >
-      <div className="slash-menu-header">{t('slashCommand.blocks')}</div>
-      {items.map((item, i) => (
-        <button
-          key={item.id}
-          id={`${listboxId}-${item.id}`}
-          className={`slash-menu-item${i === activeIndex ? ' slash-menu-item--active' : ''}`}
-          role="option"
-          aria-selected={i === activeIndex}
-          aria-label={`${item.label}: ${item.desc}`}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onSelect(item);
-          }}
-        >
-          <span className="slash-menu-icon">{item.icon}</span>
-          <span className="slash-menu-label">
-            <strong>{item.label}</strong>
-            <small>{item.desc}</small>
-          </span>
-        </button>
-      ))}
-    </div>,
-    document.body,
+      <div className="slash-menu-search" aria-label={t('slashCommand.search')}>
+        <MagnifyingGlass size={15} weight="regular" aria-hidden="true" />
+        <span className="slash-menu-search-query">/{query}</span>
+      </div>
+
+      <div className="slash-menu-results">
+        {groups.map((group) => (
+          <section className="slash-menu-group" key={group.id}>
+            <div className="slash-menu-header">{t(group.labelKey)}</div>
+            {group.items.map((item) => {
+              const itemIndex = items.indexOf(item);
+              const label = t(item.labelKey);
+              const description = t(item.descKey);
+              return (
+                <Button
+                  key={item.id}
+                  id={`${panelId}-${item.id}`}
+                  size="sm"
+                  className={`slash-menu-item${
+                    itemIndex === activeIndex ? ' slash-menu-item--active' : ''
+                  }`}
+                  role="option"
+                  aria-selected={itemIndex === activeIndex}
+                  aria-label={`${label}: ${description}`}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    onSelect(item);
+                  }}
+                >
+                  <span className="slash-menu-icon">
+                    <EditorCommandIcon icon={item.icon} />
+                  </span>
+                  <span className="slash-menu-label">
+                    <strong>{label}</strong>
+                    <small>{description}</small>
+                  </span>
+                </Button>
+              );
+            })}
+          </section>
+        ))}
+        {items.length === 0 && (
+          <div className="slash-menu-empty">{t('slashCommand.noResults')}</div>
+        )}
+      </div>
+
+      <div className="slash-menu-footer" aria-hidden="true">
+        <span>{t('slashCommand.hintNavigate')}</span>
+        <span>{t('slashCommand.hintInsert')}</span>
+        <span>{t('slashCommand.hintClose')}</span>
+      </div>
+    </Popover>
   );
 };

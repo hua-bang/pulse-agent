@@ -101,7 +101,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 325→322 (Library drawer toolbar): the three source-picker trigger chips
   // (ReferencePicker current/other, ReferenceUrlEditor) moved onto ui/Button
   // (now forwardRef) so they match the new ArtifactsPicker trigger.
-  rawButtonTags: 322,
+  rawButtonTags: 309,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -177,7 +177,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // `.iframe-review-mini-btn { border-radius: 5px; }` literal is gone; the
   // migrated buttons use ui/Button's existing `var(--radius)`, already
   // untokenized-exempt.
-  borderRadiusLiterals: 118,
+  borderRadiusLiterals: 117,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -232,15 +232,15 @@ const RATCHET_BASELINE: Record<string, number> = {
   // ui/Popover's new `anchorRef` rect-anchoring mode (added this batch to
   // unlock exactly this migration; ui/Popover's own createPortal exit was
   // already counted pre-migration, so this is a pure -1, not a swap).
-  portalFiles: 7,
+  portalFiles: 5,
   // non-ui, non-test .tsx files that BOTH import useViewportClampedPosition
   // AND call createPortal — the signature of a hand-rolled point-anchored
   // popover shell living outside ui/Popover. Post-migration the three canvas
   // context menus (Node/Edge/Layer) route through ui/Popover, so the only
-  // remaining two are NoteMentionMenu + SlashCommandMenu — combobox-style
-  // menus with index-driven arrow-nav coupled to filtering state, which
-  // Popover's DOM-focus useMenuKeyboardNav model deliberately does not serve.
-  bespokePopoverPositioning: 2,
+  // remaining caller is NoteMentionMenu. SlashCommandMenu now reuses
+  // Popover geometry/dismissal with keyboardNavigation disabled because its
+  // IME-aware selection remains owned by the focused ProseMirror textbox.
+  bespokePopoverPositioning: 1,
   // Hand-rolled keydown listeners — overlay ESC belongs in useEscapeClose /
   // the ui/ shells. History as componentWindowKeydown (scoped to
   // components/, window.addEventListener('keydown' only): 10→7 —
@@ -336,7 +336,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // background now routes through the --note-paper token.
   // 1862→1861 (v4 quiet-label frame headers): the white-on-chip literals
   // collapsed into hue-derived oklch formulas.
-  hardcodedColorLiterals: 1862,
+  hardcodedColorLiterals: 1832,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -396,7 +396,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // all 3 deleted with the now-unused CSS.
   // 152→151 (v4 quiet-label frame headers): the pill's tinted drop shadow
   // is gone — flat labels per the reference.
-  shadowLiterals: 151,
+  shadowLiterals: 147,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

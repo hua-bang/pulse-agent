@@ -1,23 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './index.css';
-import { EditorContent } from '@tiptap/react';
 import type { CanvasNode, FileNodeData } from '../../types';
 import { useFileNodeEditor, getMarkdown } from '../../hooks/useFileNodeEditor';
 import { useFileNodeEditorRegistry } from '../../hooks/useFileNodeEditorRegistry';
 import { useNoteMentions } from '../../hooks/useNoteMentions';
-import { filterCmds } from '../../editor/slashCommands';
+import { useNoteOutlineEscape } from '../../hooks/useNoteOutlineEscape';
 import { dispatchOpenNode, parseNodeLinkHref } from '../../utils/openNodeBridge';
 import { FileNodeToolbar } from '../FileNodeToolbar';
-import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
-import { SlashCommandMenu } from '../SlashCommandMenu';
-import { NoteMentionMenu } from '../NoteMentionMenu';
-import { NoteFindBar } from '../NoteFindBar';
-import { NoteOutline } from '../NoteOutline';
-import { NoteLinkPrompt } from '../NoteLinkPrompt';
+import { FileNodeEditorSurface } from '../FileNodeEditorSurface';
 import { useRightDock } from '../RightDock';
 import { useI18n } from '../../i18n';
-import { deleteNoteBlock, duplicateCurrentNoteBlock, moveCurrentNoteBlock } from '../../editor/noteBlockCommands';
-import { NoteBlockHandle } from '../NoteBlockHandle';
+import {
+  deleteNoteBlock,
+  duplicateCurrentNoteBlock,
+  moveCurrentNoteBlock,
+} from '../../editor/noteBlockCommands';
 
 interface Props {
   node: CanvasNode;
@@ -81,22 +78,16 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   const {
     editor,
     interactions,
-    slashMenu,
-    bubble,
     handleSlashSelect,
-    linkPrompt,
     openLinkPrompt,
     applyLink,
     cancelLink,
     imageInputRef,
     openImagePicker,
     insertImageFromFile,
-    findBarOpen,
     openFindBar,
-    closeFindBar,
     outlineOpen,
     toggleOutline,
-    closeOutline,
   } = useFileNodeEditor({
     data,
     nodeIdRef,
@@ -126,7 +117,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   }, [autoFocus, editor]);
 
   const mentionCandidates = getAllNodes ? getAllNodes().filter((n) => n.id !== node.id) : [];
-  const { mentionMenu, filteredMentions, insertMention, closeMention } = useNoteMentions({
+  const { filteredMentions, insertMention, closeMention } = useNoteMentions({
     editor,
     candidates: mentionCandidates,
     readOnly,
@@ -134,42 +125,12 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     interactions,
   });
 
-  useEffect(() => {
-    if (
-      readOnly ||
-      !outlineOpen ||
-      slashMenu ||
-      mentionMenu ||
-      linkPrompt ||
-      findBarOpen
-    ) {
-      return;
-    }
-
-    const handler = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      const target = event.target instanceof Node ? event.target : null;
-      const eventBelongsToThisNote =
-        (target && cardRef.current?.contains(target)) || editor?.isFocused;
-      if (!eventBelongsToThisNote) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      closeOutline();
-    };
-
-    window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [
+  useNoteOutlineEscape({
     editor,
-    findBarOpen,
-    linkPrompt,
-    mentionMenu,
-    outlineOpen,
+    cardRef,
     readOnly,
-    slashMenu,
-    closeOutline,
-  ]);
+    interactions,
+  });
 
   // Publish this node's editor to the canvas-level registry so the
   // Ctrl/Cmd+F find bar can push its query into our NoteSearchExtension
@@ -198,8 +159,8 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       title: res.fileName || node.title,
       data: { filePath: res.filePath || '', content, saved: true, modified: false },
     });
-    showStatus(`Opened ${res.fileName}`);
-  }, [editor, node.title, onUpdate, showStatus, readOnly]);
+    showStatus(t('noteToolbar.opened', { name: res.fileName ?? '' }));
+  }, [editor, node.title, onUpdate, showStatus, readOnly, t]);
 
   const handleSaveAs = useCallback(async () => {
     if (readOnly) return;
@@ -222,8 +183,8 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
         modified: false,
       },
     });
-    showStatus(`Saved to ${res.fileName}`);
-  }, [editor, node.title, onUpdate, showStatus, readOnly]);
+    showStatus(t('noteToolbar.savedTo', { name: res.fileName ?? '' }));
+  }, [editor, node.title, onUpdate, showStatus, readOnly, t]);
 
   const handleManualSave = useCallback(() => {
     if (readOnly) return;
@@ -264,7 +225,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
         const targetWorkspaceId = nodeLink.workspaceId ?? workspaceId ?? '';
         const targetNodeKnown = !getAllNodes || getAllNodes().some((item) => item.id === nodeLink.nodeId);
         if (!targetNodeKnown && targetWorkspaceId === (workspaceId ?? '')) {
-          showStatus('Missing node', 'error');
+          showStatus(t('noteToolbar.missingNode'), 'error');
           return;
         }
         dispatchOpenNode({ workspaceId: targetWorkspaceId, nodeId: nodeLink.nodeId });
@@ -275,7 +236,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       e.stopPropagation();
       openLink(href);
     },
-    [getAllNodes, openLink, showStatus, workspaceId],
+    [getAllNodes, openLink, showStatus, t, workspaceId],
   );
 
   const filePath = data.filePath;
@@ -312,66 +273,22 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
         />
       )}
 
-      {!readOnly && findBarOpen && editor && <NoteFindBar editor={editor} onClose={closeFindBar} />}
-
-      {!readOnly && outlineOpen && editor && (
-        <NoteOutline editor={editor} onClose={closeOutline} />
-      )}
-
-      {!readOnly && linkPrompt && (
-        <NoteLinkPrompt
-          initial={linkPrompt.initial}
-          onApply={applyLink}
-          onCancel={cancelLink}
-        />
-      )}
-
-      {!readOnly && bubble && editor && (
-        <FileNodeBubbleMenu editor={editor} bubble={bubble} onOpenLinkPrompt={openLinkPrompt} />
-      )}
-
-      <div
-        className="note-content"
-        onPaste={(e) => e.stopPropagation()}
-        onWheel={(e) => e.stopPropagation()}
-        onClickCapture={handleLinkClickCapture}
-      >
-        <EditorContent editor={editor} className="note-tiptap-editor" />
-      </div>
-
-      {!readOnly && editor && (
-        <NoteBlockHandle editor={editor} cardRef={cardRef} />
-      )}
-
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handleImageInputChange}
+      <FileNodeEditorSurface
+        editor={editor}
+        readOnly={readOnly}
+        cardRef={cardRef}
+        interactions={interactions}
+        handleSlashSelect={handleSlashSelect}
+        openLinkPrompt={openLinkPrompt}
+        applyLink={applyLink}
+        cancelLink={cancelLink}
+        imageInputRef={imageInputRef}
+        onImageInputChange={handleImageInputChange}
+        onLinkClickCapture={handleLinkClickCapture}
+        filteredMentions={filteredMentions}
+        insertMention={insertMention}
+        closeMention={closeMention}
       />
-
-      {!readOnly && slashMenu && (
-        <SlashCommandMenu
-          x={slashMenu.x}
-          y={slashMenu.y}
-          selectedIndex={slashMenu.index}
-          items={filterCmds(slashMenu.query)}
-          onSelect={handleSlashSelect}
-          onClose={interactions.closeSlashMenu}
-        />
-      )}
-
-      {!readOnly && mentionMenu && (
-        <NoteMentionMenu
-          x={mentionMenu.x}
-          y={mentionMenu.y}
-          items={filteredMentions}
-          selectedIndex={mentionMenu.index}
-          onSelect={insertMention}
-          onClose={closeMention}
-        />
-      )}
     </div>
   );
 };

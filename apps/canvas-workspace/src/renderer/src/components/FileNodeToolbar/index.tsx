@@ -1,6 +1,20 @@
 import { useId, useRef, useState } from 'react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  DotsThree,
+  DownloadSimple,
+  FloppyDisk,
+  FolderOpen,
+  ImageSquare,
+  List,
+  MagnifyingGlass,
+  Trash,
+} from '@phosphor-icons/react';
 import { Button, Popover } from '../ui';
 import { useI18n } from '../../i18n';
+import { formatShortcut } from '../../utils/keyboardShortcut';
 import './index.css';
 
 interface Props {
@@ -77,7 +91,7 @@ export const FileNodeToolbar = ({
           aria-controls={open ? panelId : undefined}
           onClick={() => setOpen((value) => !value)}
         >
-          <span aria-hidden="true">•••</span>
+          <DotsThree size={18} weight="bold" aria-hidden="true" />
         </Button>
         {open && (
           <Popover
@@ -90,18 +104,53 @@ export const FileNodeToolbar = ({
             ariaLabel={t('noteToolbar.actions')}
             panelId={panelId}
           >
-            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onOpenFind)}>{t('noteToolbar.find')}</Button>
-            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" aria-pressed={outlineOpen} onClick={() => run(onToggleOutline)}>{t(outlineOpen ? 'noteToolbar.hideOutline' : 'noteToolbar.showOutline')}</Button>
-            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onInsertImage)}>{t('noteToolbar.insertImage')}</Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onOpenFind)}>
+              <MagnifyingGlass size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.find')}</span>
+              <kbd>{formatShortcut({ mod: true, key: 'F' })}</kbd>
+            </Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" aria-pressed={outlineOpen} onClick={() => run(onToggleOutline)}>
+              <List size={16} aria-hidden="true" />
+              <span>{t(outlineOpen ? 'noteToolbar.hideOutline' : 'noteToolbar.showOutline')}</span>
+            </Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onInsertImage)}>
+              <ImageSquare size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.insertImage')}</span>
+            </Button>
             <div className="note-toolbar-menu-separator" />
-            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onMoveBlockUp)}><span>{t('noteToolbar.moveBlockUp')}</span><kbd>⌥⇧↑</kbd></Button>
-            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onMoveBlockDown)}><span>{t('noteToolbar.moveBlockDown')}</span><kbd>⌥⇧↓</kbd></Button>
-            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onDuplicateBlock)}><span>{t('noteToolbar.duplicateBlock')}</span><kbd>Mod⇧D</kbd></Button>
-            <Button size="sm" variant="danger" className="note-toolbar-menu-item note-toolbar-menu-item--danger" role="menuitem" onClick={() => run(onDeleteBlock)}><span>{t('noteBlock.delete')}</span></Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onMoveBlockUp)}>
+              <ArrowUp size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.moveBlockUp')}</span>
+              <kbd>{formatShortcut({ alt: true, shift: true, key: '↑' })}</kbd>
+            </Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onMoveBlockDown)}>
+              <ArrowDown size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.moveBlockDown')}</span>
+              <kbd>{formatShortcut({ alt: true, shift: true, key: '↓' })}</kbd>
+            </Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onDuplicateBlock)}>
+              <Copy size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.duplicateBlock')}</span>
+              <kbd>{formatShortcut({ mod: true, shift: true, key: 'D' })}</kbd>
+            </Button>
+            <Button size="sm" variant="danger" className="note-toolbar-menu-item note-toolbar-menu-item--danger" role="menuitem" onClick={() => run(onDeleteBlock)}>
+              <Trash size={16} aria-hidden="true" />
+              <span>{t('noteBlock.delete')}</span>
+            </Button>
             <div className="note-toolbar-menu-separator" />
-            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onOpenFile)}>{t('noteToolbar.openFile')}</Button>
-            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onSave)}>{t('noteToolbar.save')}</Button>
-            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onSaveAs)}>{t('noteToolbar.saveAs')}</Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onOpenFile)}>
+              <FolderOpen size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.openFile')}</span>
+            </Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onSave)}>
+              <FloppyDisk size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.save')}</span>
+              <kbd>{formatShortcut({ mod: true, key: 'S' })}</kbd>
+            </Button>
+            <Button size="sm" className="note-toolbar-menu-item" role="menuitem" onClick={() => run(onSaveAs)}>
+              <DownloadSimple size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.saveAs')}</span>
+            </Button>
           </Popover>
         )}
       </span>

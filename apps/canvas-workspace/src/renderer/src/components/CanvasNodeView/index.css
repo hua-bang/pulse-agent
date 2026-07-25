@@ -67,26 +67,19 @@
  * title treated as the document's first heading rather than a chrome strip. */
 .canvas-node--file {
   background: var(--note-paper);
-  border-color: rgba(55, 53, 47, 0.07);
+  border-color: var(--note-border);
   border-radius: var(--radius-xl);
-  box-shadow:
-    0 1px 2px rgba(55, 53, 47, 0.04),
-    0 10px 28px rgba(55, 53, 47, 0.07);
+  box-shadow: var(--note-shadow);
 }
 
-.canvas-node--file:hover {
-  box-shadow:
-    0 1px 3px rgba(55, 53, 47, 0.05),
-    0 12px 32px rgba(55, 53, 47, 0.09);
-  border-color: rgba(55, 53, 47, 0.1);
+.canvas-node.canvas-node--file:hover {
+  box-shadow: var(--note-shadow-hover);
+  border-color: var(--note-border-hover);
 }
 
 .canvas-node--file.canvas-node--selected {
-  border-color: rgba(35, 131, 226, 0.32);
-  box-shadow:
-    0 1px 3px rgba(55, 53, 47, 0.05),
-    0 10px 26px rgba(55, 53, 47, 0.08),
-    0 0 0 2px rgba(35, 131, 226, 0.1);
+  border-color: var(--accent-border);
+  box-shadow: var(--note-shadow), var(--shadow-focus);
 }
 
 /* Reference nodes reuse the target node's native body rendering. The outer
@@ -179,35 +172,78 @@
  * "boxy"). The hard surface colour is swapped for transparent so the
  * paper tone from .canvas-node--file shows through. */
 .canvas-node--file > .node-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   background: transparent;
   border-bottom: 1px solid transparent;
   min-height: 0;
-  /* Horizontal inset matches the editor column (32px) so the title reads as
-   * the document's first heading, flush with the body text. */
-  padding: 18px 32px 0;
+  /* Horizontal inset visually aligns with the editor's 32px text column. */
+  padding: 19px 30px 15px;
   transition: border-color 0.15s ease;
 }
 
-/* Reference cards carry no type icon — the title IS the card's identity. */
+/* Note cards carry no type icon — the title IS the card's identity. */
 .canvas-node--file > .node-header .node-type-badge--file {
   display: none;
 }
 
 .canvas-node--file.canvas-node--selected > .node-header {
-  border-bottom-color: rgba(55, 53, 47, 0.05);
+  border-bottom-color: var(--border-light);
 }
 
 .canvas-node--file > .node-header .node-title {
+  flex: 1 1 auto;
+  min-width: 0;
   font-weight: 700;
-  font-size: 17px;
-  line-height: 1.35;
+  font-size: 18px;
+  line-height: 1.3;
   color: var(--text);
   letter-spacing: -0.015em;
-  /* Reference titles wrap over multiple lines — no single-line ellipsis. */
-  white-space: normal;
-  overflow: visible;
   padding: 0;
   transition: color 0.12s ease;
+}
+
+.canvas-node--file > .node-header .node-title:not([contenteditable='true']) {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-node--file > .node-header .node-title[contenteditable='true'] {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-node--file > .node-header .node-time-label {
+  flex: 0 0 auto;
+  opacity: 0.72;
+}
+
+.canvas-node--file > .node-header .node-header__actions {
+  max-width: 0;
+  overflow: hidden;
+  gap: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: max-width 160ms ease, opacity 120ms ease, gap 160ms ease;
+}
+
+.canvas-node--file:hover > .node-header .node-header__actions,
+.canvas-node--file.canvas-node--selected > .node-header .node-header__actions,
+.canvas-node--file > .node-header:focus-within .node-header__actions {
+  max-width: 190px;
+  gap: 4px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.canvas-node--file.canvas-node--selected > .node-header .node-header__actions > button,
+.canvas-node--file > .node-header:focus-within .node-header__actions > button {
+  opacity: 1;
 }
 
 .canvas-node--file:hover > .node-header .node-title,

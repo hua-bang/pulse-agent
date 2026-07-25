@@ -1,50 +1,98 @@
 .note-bubble-menu {
   position: fixed;
   z-index: var(--layer-note-popover);
-  /* transform (above vs below the selection) is set inline by the
-     component, which clamps the menu into the viewport. */
   display: flex;
   align-items: center;
   gap: 1px;
-  padding: 3px 4px;
-  background: var(--surface);
+  max-width: calc(100vw - 16px);
+  padding: 5px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
   box-shadow: var(--shadow-float);
+  font-family: var(--font-ui);
   pointer-events: auto;
   animation: fadeIn 0.1s ease;
 }
 
-.note-bubble-btn {
-  height: 26px;
-  min-width: 26px;
-  padding: 0 6px;
-  border: none;
+.note-bubble-type.ui-btn {
+  max-width: 116px;
+  gap: 6px;
+  padding: 0 8px;
+  border-color: transparent;
+  border-radius: var(--radius-md);
   background: transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
   color: var(--text-secondary);
-  transition: background 0.1s, color 0.1s;
+  font-weight: 560;
 }
 
-.note-bubble-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+.note-bubble-type.ui-btn:hover,
+.note-bubble-type.ui-btn[aria-expanded='true'] {
+  border-color: transparent;
+  background: var(--surface-alt);
   color: var(--text);
 }
 
-.note-bubble-btn--active {
+.note-bubble-type.ui-btn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-bubble-btn.ui-btn {
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+
+.note-bubble-btn.ui-btn:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.note-bubble-btn--active.ui-btn {
   background: var(--accent-light);
   color: var(--accent);
 }
 
 .note-bubble-divider {
   width: 1px;
-  height: 16px;
-  background: var(--border);
-  margin: 0 2px;
+  height: 20px;
   flex-shrink: 0;
+  margin: 0 3px;
+  background: var(--border);
+}
+
+.note-bubble-type-menu {
+  position: fixed;
+  z-index: var(--layer-note-popover);
+  width: 188px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  font-family: var(--font-ui);
+}
+
+.note-bubble-type-item.ui-btn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 0 9px;
+  border-color: transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 520;
+}
+
+.note-bubble-type-item.ui-btn:hover,
+.note-bubble-type-item--active.ui-btn {
+  border-color: transparent;
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.note-bubble-type-item--active.ui-btn {
+  color: var(--accent);
 }

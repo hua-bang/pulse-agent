@@ -1,7 +1,22 @@
 import { useEffect, useId, useRef, useState, type RefObject } from 'react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  DotsSixVertical,
+  Plus,
+  Trash,
+} from '@phosphor-icons/react';
 import type { Editor } from '@tiptap/react';
 import { useI18n } from '../../i18n';
-import { deleteNoteBlock, duplicateCurrentNoteBlock, moveCurrentNoteBlock, moveNoteBlockToIndex } from '../../editor/noteBlockCommands';
+import {
+  deleteNoteBlock,
+  duplicateCurrentNoteBlock,
+  insertSlashBlockAfter,
+  moveCurrentNoteBlock,
+  moveNoteBlockToIndex,
+} from '../../editor/noteBlockCommands';
+import { formatShortcut } from '../../utils/keyboardShortcut';
 import { Button, Popover } from '../ui';
 import './index.css';
 
@@ -14,9 +29,10 @@ interface BlockTarget {
 interface Props {
   editor: Editor;
   cardRef: RefObject<HTMLDivElement>;
+  onAddBlock?: (index: number) => void;
 }
 
-export const NoteBlockHandle = ({ editor, cardRef }: Props) => {
+export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
   const { t } = useI18n();
   const [active, setActive] = useState<BlockTarget | null>(null);
   const [dropTop, setDropTop] = useState<number | null>(null);
@@ -143,10 +159,26 @@ export const NoteBlockHandle = ({ editor, cardRef }: Props) => {
       >
         <Button
           variant="icon"
-          size="sm"
+          size="xs"
+          className="note-block-add"
+          aria-label={t('noteBlock.add')}
+          title={t('noteBlock.add')}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            if (onAddBlock) onAddBlock(active.index);
+            else insertSlashBlockAfter(editor, active.index);
+            setMenuOpen(false);
+          }}
+        >
+          <Plus size={15} weight="regular" aria-hidden="true" />
+        </Button>
+        <Button
+          variant="icon"
+          size="xs"
           className="note-block-handle"
           draggable
-          aria-label={t('noteBlock.actions')}
+          aria-label={t('noteBlock.drag')}
+          title={t('noteBlock.drag')}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-controls={menuOpen ? panelId : undefined}
@@ -169,7 +201,7 @@ export const NoteBlockHandle = ({ editor, cardRef }: Props) => {
             setTimeout(() => { didDragRef.current = false; }, 0);
           }}
         >
-          <span aria-hidden="true">⠿</span>
+          <DotsSixVertical size={17} weight="bold" aria-hidden="true" />
         </Button>
         {menuOpen && (
           <Popover
@@ -182,11 +214,49 @@ export const NoteBlockHandle = ({ editor, cardRef }: Props) => {
             ariaLabel={t('noteBlock.actions')}
             panelId={panelId}
           >
-            <Button size="sm" className="note-block-menu__item" role="menuitem" onClick={() => run((index) => moveCurrentNoteBlock(editor, -1, index))}>{t('noteToolbar.moveBlockUp')}</Button>
-            <Button size="sm" className="note-block-menu__item" role="menuitem" onClick={() => run((index) => moveCurrentNoteBlock(editor, 1, index))}>{t('noteToolbar.moveBlockDown')}</Button>
-            <Button size="sm" className="note-block-menu__item" role="menuitem" onClick={() => run((index) => duplicateCurrentNoteBlock(editor, index))}>{t('noteToolbar.duplicateBlock')}</Button>
+            <Button
+              size="sm"
+              className="note-block-menu__item"
+              role="menuitem"
+              disabled={active.index === 0}
+              onClick={() => run((index) => moveCurrentNoteBlock(editor, -1, index))}
+            >
+              <ArrowUp size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.moveBlockUp')}</span>
+              <small>{formatShortcut({ alt: true, shift: true, key: '↑' })}</small>
+            </Button>
+            <Button
+              size="sm"
+              className="note-block-menu__item"
+              role="menuitem"
+              disabled={active.index === editor.state.doc.childCount - 1}
+              onClick={() => run((index) => moveCurrentNoteBlock(editor, 1, index))}
+            >
+              <ArrowDown size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.moveBlockDown')}</span>
+              <small>{formatShortcut({ alt: true, shift: true, key: '↓' })}</small>
+            </Button>
+            <Button
+              size="sm"
+              className="note-block-menu__item"
+              role="menuitem"
+              onClick={() => run((index) => duplicateCurrentNoteBlock(editor, index))}
+            >
+              <Copy size={16} aria-hidden="true" />
+              <span>{t('noteToolbar.duplicateBlock')}</span>
+              <small>{formatShortcut({ mod: true, shift: true, key: 'D' })}</small>
+            </Button>
             <div className="note-block-menu__separator" />
-            <Button size="sm" variant="danger" className="note-block-menu__item note-block-menu__item--danger" role="menuitem" onClick={() => run((index) => deleteNoteBlock(editor, index))}>{t('noteBlock.delete')}</Button>
+            <Button
+              size="sm"
+              variant="danger"
+              className="note-block-menu__item note-block-menu__item--danger"
+              role="menuitem"
+              onClick={() => run((index) => deleteNoteBlock(editor, index))}
+            >
+              <Trash size={16} aria-hidden="true" />
+              <span>{t('noteBlock.delete')}</span>
+            </Button>
           </Popover>
         )}
       </span>

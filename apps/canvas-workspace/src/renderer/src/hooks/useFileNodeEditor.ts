@@ -16,8 +16,12 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { createLowlight } from 'lowlight';
 import { Markdown } from 'tiptap-markdown';
 import type { CanvasNode, FileNodeData } from '../types';
-import type { SlashCommandDef } from '../components/SlashCommandMenu';
-import { ALL_SLASH_COMMANDS, filterCmds, type SlashCmdContext } from '../editor/slashCommands';
+import {
+  filterCmds,
+  parseSlashQuery,
+  type SlashCmd,
+  type SlashCmdContext,
+} from '../editor/slashCommands';
 import { NoteSearchExtension } from '../editor/noteSearchExtension';
 import { Callout } from '../editor/calloutNode';
 import { isImeComposing } from '../utils/ime';
@@ -25,6 +29,7 @@ import { useNoteKeyboard } from './useNoteKeyboard';
 import { useNoteInteractionController } from './useNoteInteractionController';
 import { MarkdownSafeImage } from './fileNodeMarkdownImage';
 import { syntaxHighlightLanguages } from '../utils/syntaxHighlightLanguages';
+import { useI18n } from '../i18n';
 import {
   insertImageAtPos,
   insertImageAtSelection,
@@ -95,6 +100,7 @@ export const useFileNodeEditor = ({
   onCommitState,
   readOnly = false,
 }: Options) => {
+  const { t } = useI18n();
   const interactions = useNoteInteractionController();
   const {
     slashMenu,
@@ -189,7 +195,7 @@ export const useFileNodeEditor = ({
       EmptyLinePreservingParagraph,
       MarkdownSafeImage.configure({ inline: false }),
       Callout,
-      Placeholder.configure({ placeholder: "Type '/' for blocks, or just start writing…" }),
+      Placeholder.configure({ placeholder: t('noteEditor.placeholder') }),
       TaskList,
       TaskItem.configure({ nested: true }),
       Underline,
@@ -269,17 +275,15 @@ export const useFileNodeEditor = ({
       const { from } = editor.state.selection;
       const startPos = Math.max(0, from - 60);
       const textBefore = editor.state.doc.textBetween(startPos, from, '\n', '\0');
-      const slashMatch = textBefore.match(/(?:^|[\n ])\/(\w*)$/);
-      if (slashMatch) {
-        const query = slashMatch[1] ?? '';
-        const slashDocPos = from - query.length - 1;
-        const coords = editor.view.coordsAtPos(slashDocPos);
+      const slashQuery = parseSlashQuery(textBefore, from);
+      if (slashQuery) {
+        const coords = editor.view.coordsAtPos(slashQuery.slashFrom);
         openSlashMenu((prev) => ({
           x: coords.left,
           y: coords.bottom,
-          query,
-          index: prev?.query === query ? prev.index : 0,
-          slashFrom: slashDocPos,
+          query: slashQuery.query,
+          index: prev?.query === slashQuery.query ? prev.index : 0,
+          slashFrom: slashQuery.slashFrom,
         }));
       } else {
         if (slashMenuRef.current) closeSlashMenu();
@@ -304,8 +308,15 @@ export const useFileNodeEditor = ({
         });
       });
     },
-    onBlur: () => {
+    onBlur: ({ event }) => {
       commitContent(true); // flush pending debounced edit before focus leaves
+      const nextFocus = event.relatedTarget;
+      if (
+        nextFocus instanceof Element
+        && nextFocus.closest('.note-bubble-menu, .note-bubble-type-menu')
+      ) {
+        return;
+      }
       closeBubble();
     },
   });
@@ -377,11 +388,10 @@ export const useFileNodeEditor = ({
   const slashCtxRef = useRef<SlashCmdContext>(slashCtx);
   slashCtxRef.current = slashCtx;
 
-  const handleSlashSelect = useCallback((cmd: SlashCommandDef) => {
+  const handleSlashSelect = useCallback((cmd: SlashCmd) => {
     if (readOnly || !editor || !slashMenuRef.current) return;
     const { slashFrom } = slashMenuRef.current;
-    const fullCmd = ALL_SLASH_COMMANDS.find((c) => c.id === cmd.id);
-    fullCmd?.run(editor, slashFrom, editor.state.selection.from, slashCtxRef.current);
+    cmd.run(editor, slashFrom, editor.state.selection.from, slashCtxRef.current);
     closeSlashMenu();
   }, [editor, readOnly, closeSlashMenu, slashMenuRef]);
 
