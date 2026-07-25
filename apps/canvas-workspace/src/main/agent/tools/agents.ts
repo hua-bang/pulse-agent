@@ -18,6 +18,7 @@ export function createAgentTools(workspaceId: string): Record<string, CanvasTool
   return {
     canvas_create_agent_node: {
       name: 'canvas_create_agent_node',
+      defer_loading: true,
       description:
         'Create and optionally auto-launch an AI agent node on the canvas. ' +
         'Use this when you need to delegate a task to another agent (Claude Code or Codex). ' +

@@ -52,11 +52,23 @@ function extractToolFields(tool: Tool, registeredName?: string): SearchableField
 }
 
 function tokenize(value: string): string[] {
-  return value
-    .toLowerCase()
-    .split(/[^a-z0-9_\-]+/g)
-    .map((token) => token.trim())
-    .filter(Boolean);
+  const tokens: string[] = [];
+  for (const raw of value.toLowerCase().split(/[^a-z0-9_\-]+/g)) {
+    const token = raw.trim();
+    if (!token) continue;
+    tokens.push(token);
+    // snake_case / kebab-case tool names must also match their parts: a caller
+    // searching for a tool does not yet know its full name (that is the point
+    // of searching), so `canvas_create_edge` has to be reachable from
+    // "create edge". The full token stays indexed so exact-name queries keep
+    // their higher term frequency.
+    if (token.includes('_') || token.includes('-')) {
+      for (const part of token.split(/[_\-]+/g)) {
+        if (part) tokens.push(part);
+      }
+    }
+  }
+  return tokens;
 }
 
 function termFrequency(term: string, docTokens: string[]): number {
@@ -119,8 +131,17 @@ export function searchToolsBm25(
 
   const docs = Object.entries(tools).map(([toolName, tool]) => {
     const fields = extractToolFields(tool, toolName);
-    const docText = fields.map((field) => field.text).join(' ');
-    const docTokens = tokenize(docText);
+    // Honour each field's weight instead of flattening every field into one
+    // blob: a term hit on the tool NAME must outrank the same term appearing
+    // incidentally in some argument's description. Repeating a field's tokens
+    // `weight` times raises its term frequency, which is what BM25 scores on.
+    const docTokens: string[] = [];
+    for (const field of fields) {
+      const fieldTokens = tokenize(field.text);
+      for (let i = 0; i < field.weight; i += 1) {
+        docTokens.push(...fieldTokens);
+      }
+    }
     return {
       tool,
       toolName,

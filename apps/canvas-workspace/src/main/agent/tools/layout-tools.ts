@@ -20,6 +20,7 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
   return {
     canvas_read_layout: {
       name: 'canvas_read_layout',
+      defer_loading: true,
       description:
         'Read the geometric layout of the canvas: node bboxes, canvas bounds, frame containment, and non-frame overlaps. ' +
         'Use this before organizing nodes or deciding where to add/move something. This is the layout-aware companion to canvas_read_context.',
@@ -42,6 +43,7 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
 
     canvas_apply_layout: {
       name: 'canvas_apply_layout',
+      defer_loading: true,
       description:
         'Apply deterministic layout algorithms instead of hand-calculating x/y coordinates. ' +
         'Use mode="place_near" to place existing nodes near an anchor while avoiding collisions; ' +

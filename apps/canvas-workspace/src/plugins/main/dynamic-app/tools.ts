@@ -271,6 +271,7 @@ export function createDynamicAppTools(
   return {
     dynamic_app_create: {
       name: "dynamic_app_create",
+      defer_loading: true,
       description:
         "Create a LIVE data node on the canvas. Two kinds, picked via " +
         "`spec.kind`:\n\n" +
@@ -404,6 +405,7 @@ export function createDynamicAppTools(
 
     dynamic_app_list: {
       name: "dynamic_app_list",
+      defer_loading: true,
       description:
         "List every LIVE data node currently in this workspace.\n\n" +
         "Call this ONLY when you need to discover which dynamic app the " +
@@ -463,6 +465,7 @@ export function createDynamicAppTools(
 
     dynamic_app_update: {
       name: "dynamic_app_update",
+      defer_loading: true,
       description:
         "Modify an existing LIVE data node in place — change the title, " +
         "swap the fetcher (e.g. different polling interval / URL), " +

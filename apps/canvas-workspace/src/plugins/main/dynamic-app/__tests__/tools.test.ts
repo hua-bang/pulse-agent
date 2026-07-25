@@ -121,6 +121,17 @@ beforeEach(() => {
   broadcasts = [];
 });
 
+describe("dynamic app tool loading", () => {
+  it("defers all dynamic app tools until discovered", () => {
+    const { manager } = makeManager();
+    const tools = createDynamicAppTools(WS, manager);
+
+    expect(tools.dynamic_app_create.defer_loading).toBe(true);
+    expect(tools.dynamic_app_list.defer_loading).toBe(true);
+    expect(tools.dynamic_app_update.defer_loading).toBe(true);
+  });
+});
+
 describe("dynamic_app_create", () => {
   it("starts runner, persists spec, appends iframe node, returns ok", async () => {
     const { manager, calls } = makeManager();

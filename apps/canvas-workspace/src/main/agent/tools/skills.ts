@@ -45,6 +45,7 @@ export function createSkillTools(workspaceId: string): Record<string, CanvasTool
   return {
     canvas_save_skill: {
       name: 'canvas_save_skill',
+      defer_loading: true,
       description:
         'Persist a reusable skill as a SKILL.md. The agent should ONLY call ' +
         'this after the user has approved the draft name, description, and ' +
@@ -83,6 +84,7 @@ export function createSkillTools(workspaceId: string): Record<string, CanvasTool
 
     canvas_promote_skill: {
       name: 'canvas_promote_skill',
+      defer_loading: true,
       description:
         'Move a workspace-scoped skill to global scope so every canvas can ' +
         'use it. The agent should ONLY call this after the user explicitly ' +

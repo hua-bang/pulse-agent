@@ -109,6 +109,7 @@ export function createTaggingTools(): Record<string, CanvasTool> {
   return {
     canvas_tag_node: {
       name: 'canvas_tag_node',
+      defer_loading: true,
       description:
         'Add, remove, or replace knowledge tags on one or more nodes — in a single batched call. ' +
         'This is the ONLY canvas write available in global chat: it edits knowledge-layer tags (`properties.tags`) only, never the canvas layout. ' +
