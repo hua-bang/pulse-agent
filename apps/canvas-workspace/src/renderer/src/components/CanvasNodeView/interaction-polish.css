@@ -1,11 +1,11 @@
-.canvas-node--selected .node-reference,
+.canvas-node--selected .node-open-tab,
 .canvas-node--selected .node-add-to-chat,
 .canvas-node--selected .node-open-detail,
 .canvas-node--selected .node-plugin-select,
 .canvas-node--selected .node-focus,
 .canvas-node--selected .node-fullscreen,
 .canvas-node--selected .node-close,
-.node-reference:focus-visible,
+.node-open-tab:focus-visible,
 .node-add-to-chat:focus-visible,
 .node-open-detail:focus-visible,
 .node-plugin-select:focus-visible,
@@ -15,15 +15,16 @@
   opacity: 1;
 }
 
-.node-reference:focus-visible,
+.node-open-tab:focus-visible,
 .node-add-to-chat:focus-visible,
 .node-open-detail:focus-visible,
 .node-plugin-select:focus-visible,
 .node-focus:focus-visible,
 .node-fullscreen:focus-visible,
 .node-close:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.18);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 .reference-drag-handle {

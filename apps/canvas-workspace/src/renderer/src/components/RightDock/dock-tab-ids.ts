@@ -8,6 +8,21 @@ export const terminalTabId = (ordinal: number): string =>
 export const isTerminalTabId = (id: string): boolean =>
   id === TERMINAL_TAB_ID || id.startsWith(`${TERMINAL_TAB_ID}:`);
 
+const dockElementIdPart = (tabId: string): string => encodeURIComponent(tabId);
+
+/** Stable DOM id for the tab control represented by a dock tab id. */
+export const dockTabElementId = (tabId: string): string =>
+  `right-dock-tab-${dockElementIdPart(tabId)}`;
+
+/**
+ * Stable DOM id for the panel controlled by a dock tab. Terminal tabs share
+ * one live terminal host, so every terminal tab controls that same panel.
+ */
+export const dockPaneElementId = (tabId: string): string =>
+  isTerminalTabId(tabId)
+    ? 'right-dock-pane-terminal'
+    : `right-dock-pane-${dockElementIdPart(tabId)}`;
+
 export const artifactTabId = (workspaceId: string, artifactId: string): string =>
   `artifact:${workspaceId}:${artifactId}`;
 

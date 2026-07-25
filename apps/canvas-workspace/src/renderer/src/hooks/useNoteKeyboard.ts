@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { Editor } from '@tiptap/react';
 import type { FileNodeData } from '../types';
 import { duplicateCurrentNoteBlock, moveCurrentNoteBlock } from '../editor/noteBlockCommands';
+import { isImeComposing } from '../utils/ime';
 
 interface Options {
   editor: Editor | null;
@@ -30,6 +31,7 @@ export const useNoteKeyboard = ({
   useEffect(() => {
     if (!editor || readOnly) return;
     const handler = (e: KeyboardEvent) => {
+      if (isImeComposing(e)) return;
       const key = e.key.toLowerCase();
       if (e.altKey && e.shiftKey && (key === 'arrowup' || key === 'arrowdown')) {
         if (!editor.isFocused) return;

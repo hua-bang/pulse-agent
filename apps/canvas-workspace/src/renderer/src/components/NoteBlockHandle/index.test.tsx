@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../i18n';
 import { NoteBlockHandle } from '.';
 
@@ -57,6 +57,8 @@ describe('NoteBlockHandle', () => {
 
     root = createRoot(host);
     act(() => root?.render(<I18nProvider><NoteBlockHandle editor={editor!} cardRef={cardRef} /></I18nProvider>));
+    act(() => editor?.view.focus());
+    expect(document.querySelector('.note-block-handle')).not.toBeNull();
     act(() => firstBlock.dispatchEvent(new MouseEvent('mousemove', { bubbles: true })));
 
     const handle = document.querySelector<HTMLButtonElement>('.note-block-handle');
@@ -64,6 +66,20 @@ describe('NoteBlockHandle', () => {
     expect(handle?.closest<HTMLElement>('.note-block-handle-anchor')?.style.top).toBe('30px');
     act(() => handle?.click());
     expect(document.querySelector('.note-block-menu')?.textContent).toContain('Duplicate block');
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    const menuItem = document.querySelector<HTMLButtonElement>('.note-block-menu [role="menuitem"]');
+    act(() => menuItem?.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    })));
+    expect(document.querySelector('.note-block-menu')).toBeNull();
+    expect(document.activeElement).toBe(handle);
+
+    act(() => handle?.click());
     act(() => editor?.view.dom.parentElement?.dispatchEvent(new Event('scroll')));
     expect(document.querySelector('.note-block-handle')).toBeNull();
     expect(document.querySelector('.note-block-menu')).toBeNull();

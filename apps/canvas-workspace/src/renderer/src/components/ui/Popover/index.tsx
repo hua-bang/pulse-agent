@@ -4,6 +4,10 @@ import { useViewportClampedPosition } from '../../../hooks/useViewportClampedPos
 import { useAnchorRectPosition } from '../../../hooks/useAnchorRectPosition';
 import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
 import { useClickOutside } from '../../../hooks/useClickOutside';
+import {
+  getCanvasMotion,
+  subscribeCanvasMotion,
+} from '../../../hooks/canvasMotion';
 
 // A stable "no anchor" ref so useAnchorRectPosition can be called
 // UNCONDITIONALLY below (rules-of-hooks — Popover supports two anchoring
@@ -40,6 +44,13 @@ interface SharedProps {
    * Escape-close and arrow-key nav behaviors are unaffected either way.
    */
   autoFocus?: boolean;
+  /**
+   * Whether Popover owns Escape and arrow-key menu navigation. Keep enabled
+   * for ordinary menus. Combobox-like surfaces whose live owner already
+   * handles IME-aware keyboard selection can disable it without giving up
+   * Popover's positioning and outside-press behavior.
+   */
+  keyboardNavigation?: boolean;
   /** Accessible name for the panel, rendered as `aria-label`. A bare
    *  `role="menu"` announces as an unnamed menu — pass one whenever the
    *  menu's purpose isn't obvious from its items. */
@@ -54,6 +65,11 @@ interface SharedProps {
    *  close the menu the moment the pointer crosses into it. */
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  /** Dismiss when canvas pan/zoom starts. Canvas content moves through a
+   * compositor-only root transform, while this portaled fixed-position
+   * panel stays in viewport coordinates; keeping it open would detach it
+   * from its editor/card anchor until React settles. */
+  closeOnCanvasMotion?: boolean;
   children: ReactNode;
 }
 
@@ -130,7 +146,19 @@ type Props = PointAnchorProps | RectAnchorProps;
  * Sidebar tree has no such ancestor).
  */
 export const Popover = (props: Props) => {
-  const { onClose, role = 'menu', className, autoFocus = true, ariaLabel, panelId, onMouseEnter, onMouseLeave, children } = props;
+  const {
+    onClose,
+    role = 'menu',
+    className,
+    autoFocus = true,
+    keyboardNavigation = true,
+    ariaLabel,
+    panelId,
+    onMouseEnter,
+    onMouseLeave,
+    closeOnCanvasMotion = false,
+    children,
+  } = props;
 
   // Resolve inputs for BOTH anchoring hooks up front so both can be called
   // unconditionally below (rules-of-hooks) regardless of which mode this
@@ -176,7 +204,10 @@ export const Popover = (props: Props) => {
   const closeFromEscape = () => onClose('escape');
   const closeFromOutside = () => onClose('outside');
 
-  useMenuKeyboardNav(ref, closeFromEscape, { autoFocus });
+  useMenuKeyboardNav(ref, closeFromEscape, {
+    autoFocus,
+    enabled: keyboardNavigation,
+  });
   // In rect-anchor mode, the anchor is structurally the caller's TRIGGER
   // (that's the whole point of anchoring to it) and stays mounted outside
   // the portaled panel's own DOM subtree. Without exempting it, a press on
@@ -188,6 +219,21 @@ export const Popover = (props: Props) => {
   // mode has no persistent trigger element to exempt (its callers open from
   // a transient event like a right-click), so this only applies here.
   useClickOutside(rectAnchored ? [ref, anchorRef] : ref, closeFromOutside);
+
+  useEffect(() => {
+    if (!closeOnCanvasMotion) return;
+    // From the panel's viewport-coordinate perspective the canvas anchor has
+    // moved outside its original context, so reuse the existing non-focus-
+    // restoring outside-close path rather than widening every menu API.
+    const closeForMotion = () => onClose('outside');
+    if (getCanvasMotion().mode !== 'idle') {
+      closeForMotion();
+      return;
+    }
+    return subscribeCanvasMotion((motion) => {
+      if (motion.mode !== 'idle') closeForMotion();
+    });
+  }, [closeOnCanvasMotion, onClose]);
 
   // Persistent Dock panes stay mounted and switch through `visibility` so
   // webviews and document scroll positions survive tab changes. A portaled
@@ -242,6 +288,13 @@ export const Popover = (props: Props) => {
       style={style}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
+      onWheel={(event) => {
+        // React portal events bubble through the component tree rather than
+        // the DOM tree. Without this boundary, scrolling a portaled menu
+        // reaches Canvas.onWheel, starts a pan gesture, and immediately
+        // dismisses the menu through closeOnCanvasMotion.
+        event.stopPropagation();
+      }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >

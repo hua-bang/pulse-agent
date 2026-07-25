@@ -2,7 +2,13 @@
 import { Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { describe, expect, it } from 'vitest';
-import { deleteNoteBlock, duplicateCurrentNoteBlock, moveCurrentNoteBlock, moveNoteBlockToIndex } from './noteBlockCommands';
+import {
+  deleteNoteBlock,
+  duplicateCurrentNoteBlock,
+  insertSlashBlockAfter,
+  moveCurrentNoteBlock,
+  moveNoteBlockToIndex,
+} from './noteBlockCommands';
 
 const createEditor = () => new Editor({
   extensions: [StarterKit],
@@ -25,6 +31,15 @@ describe('note block commands', () => {
 
     expect(duplicateCurrentNoteBlock(editor)).toBe(true);
     expect(editor.getText({ blockSeparator: '|' })).toBe('Alpha|Alpha|Beta|Gamma');
+    editor.destroy();
+  });
+
+  it('inserts a slash paragraph after the hovered block and puts the caret after the slash', () => {
+    const editor = createEditor();
+
+    expect(insertSlashBlockAfter(editor, 1)).toBe(true);
+    expect(editor.getText({ blockSeparator: '|' })).toBe('Alpha|Beta|/|Gamma');
+    expect(editor.state.selection.from).toBe(15);
     editor.destroy();
   });
 

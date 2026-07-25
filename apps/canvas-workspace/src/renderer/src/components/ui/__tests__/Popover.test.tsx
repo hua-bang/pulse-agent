@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { setCanvasMotion } from '../../../hooks/canvasMotion';
 import { Popover } from '../Popover';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -10,6 +11,7 @@ let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
 afterEach(() => {
+  setCanvasMotion('idle', false);
   if (root) act(() => root?.unmount());
   host?.remove();
   root = null;
@@ -84,6 +86,56 @@ function setViewport(width: number, height: number) {
 }
 
 describe('Popover', () => {
+  it('dismisses a canvas-anchored popup when pan starts instead of leaving it at stale screen coordinates', () => {
+    const onClose = vi.fn();
+    render(
+      <Popover
+        x={320}
+        y={240}
+        onClose={onClose}
+        closeOnCanvasMotion
+        className="test-popover"
+      >
+        <button role="menuitem">Item</button>
+      </Popover>,
+    );
+
+    act(() => setCanvasMotion('pan', false));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledWith('outside');
+  });
+
+  it('keeps the popup open when a wheel gesture scrolls inside the portaled panel', () => {
+    const onClose = vi.fn();
+    const onCanvasWheel = vi.fn(() => setCanvasMotion('pan', false));
+    render(
+      <div onWheel={onCanvasWheel}>
+        <Popover
+          x={320}
+          y={240}
+          onClose={onClose}
+          closeOnCanvasMotion
+          className="test-popover"
+        >
+          <div className="scrollable-popup-content">Scrollable content</div>
+        </Popover>
+      </div>,
+    );
+
+    const panel = document.querySelector('.test-popover') as HTMLElement;
+    act(() => {
+      panel.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        deltaY: 40,
+      }));
+    });
+
+    expect(onCanvasWheel).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('portals its content to document.body, positioned from x/y', () => {
     render(
       <Popover x={40} y={60} onClose={vi.fn()} className="test-popover">

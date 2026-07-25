@@ -1,174 +1,245 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import './index.css';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import {
+  CaretDown,
+  Code,
+  HighlighterCircle,
+  LinkSimple,
+  TextB,
+  TextItalic,
+  TextStrikethrough,
+  TextUnderline,
+} from '@phosphor-icons/react';
 import type { Editor } from '@tiptap/react';
+import { ALL_SLASH_COMMANDS, type SlashCmd } from '../../editor/slashCommands';
 import type { NoteBubbleState } from '../../hooks/useNoteInteractionController';
+import { subscribeCanvasMotion } from '../../hooks/canvasMotion';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { useI18n } from '../../i18n';
+import { EditorCommandIcon } from '../EditorCommandIcon';
+import { Button, Popover, Portal } from '../ui';
+import './index.css';
 
 interface Props {
   editor: Editor;
   bubble: NoteBubbleState;
   onOpenLinkPrompt: () => void;
+  onClose: () => void;
 }
 
 const VIEWPORT_MARGIN_PX = 8;
 const SELECTION_GAP_PX = 8;
+const BLOCK_TYPE_COMMANDS = ALL_SLASH_COMMANDS.filter(
+  (command): command is SlashCmd & Required<Pick<SlashCmd, 'isBlockTypeActive'>> =>
+    Boolean(command.isBlockTypeActive),
+);
 
-export const FileNodeBubbleMenu = ({ editor, bubble, onOpenLinkPrompt }: Props) => {
-  // The CSS default hangs the menu centered above the selection, which cuts
-  // it off for selections near the top or side edges of the window. Measure
-  // after layout, clamp horizontally, and flip below the selection when
-  // there's no room above.
+export const FileNodeBubbleMenu = ({
+  editor,
+  bubble,
+  onOpenLinkPrompt,
+  onClose,
+}: Props) => {
+  const { t } = useI18n();
   const menuRef = useRef<HTMLDivElement>(null);
-  const [placement, setPlacement] = useState<{ left: number; top: number; flipped: boolean } | null>(null);
-  useLayoutEffect(() => {
-    const el = menuRef.current;
-    if (!el) return;
-    const w = el.offsetWidth;
-    const h = el.offsetHeight;
-    const halfW = w / 2;
-    const left = Math.max(
-      VIEWPORT_MARGIN_PX + halfW,
-      Math.min(bubble.x, window.innerWidth - VIEWPORT_MARGIN_PX - halfW),
-    );
-    const flipped = bubble.y - h - SELECTION_GAP_PX < VIEWPORT_MARGIN_PX;
-    setPlacement({ left, top: flipped ? bubble.bottom : bubble.y, flipped });
-  }, [bubble.x, bubble.y, bubble.bottom]);
+  const typeButtonRef = useRef<HTMLButtonElement>(null);
+  const typePanelId = useId();
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+  const [, renderTransaction] = useReducer((value: number) => value + 1, 0);
+  const [placement, setPlacement] = useState<{
+    left: number;
+    top: number;
+    flipped: boolean;
+  } | null>(null);
 
-  return createPortal(
-  <div
-    ref={menuRef}
-    className="note-bubble-menu"
-    style={{
-      left: placement?.left ?? bubble.x,
-      top: placement?.top ?? bubble.y,
-      // Above the selection by default; below it when clamped at the top.
-      transform: placement?.flipped
-        ? `translate(-50%, ${SELECTION_GAP_PX}px)`
-        : `translate(-50%, calc(-100% - ${SELECTION_GAP_PX}px))`,
-    }}
-    onMouseDown={(e) => e.preventDefault()}
-  >
-    <button
-      className={`note-bubble-btn ${editor.isActive('bold') ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleBold().run()}
-      title="Bold"
+  useLayoutEffect(() => {
+    const element = menuRef.current;
+    if (!element) return;
+    const width = element.offsetWidth;
+    const height = element.offsetHeight;
+    const halfWidth = width / 2;
+    const left = Math.max(
+      VIEWPORT_MARGIN_PX + halfWidth,
+      Math.min(bubble.x, window.innerWidth - VIEWPORT_MARGIN_PX - halfWidth),
+    );
+    const flipped = bubble.y - height - SELECTION_GAP_PX < VIEWPORT_MARGIN_PX;
+    setPlacement({ left, top: flipped ? bubble.bottom : bubble.y, flipped });
+  }, [bubble.bottom, bubble.x, bubble.y]);
+
+  useEffect(() => subscribeCanvasMotion((motion) => {
+    if (motion.mode !== 'idle') onClose();
+  }), [onClose]);
+
+  useEffect(() => {
+    const handleTransaction = () => renderTransaction();
+    editor.on('transaction', handleTransaction);
+    return () => {
+      editor.off('transaction', handleTransaction);
+    };
+  }, [editor]);
+
+  // The nested block-type Popover owns Escape while it is open. Otherwise
+  // the selection toolbar consumes Escape itself so the same key press does
+  // not also reach canvas-level deselection/dismiss handlers.
+  useEscapeClose(!typeMenuOpen, onClose);
+
+  const currentBlockType = BLOCK_TYPE_COMMANDS.find((command) =>
+    command.isBlockTypeActive(editor),
+  ) ?? BLOCK_TYPE_COMMANDS[0];
+
+  const runBlockType = (command: SlashCmd) => {
+    const { from } = editor.state.selection;
+    command.run(editor, from, from);
+    setTypeMenuOpen(false);
+  };
+
+  const iconButton = (
+    label: string,
+    active: boolean,
+    onClick: () => void,
+    icon: ReactNode,
+  ) => (
+    <Button
+      variant="icon"
+      size="sm"
+      className={`note-bubble-btn${active ? ' note-bubble-btn--active' : ''}`}
+      aria-label={label}
+      aria-pressed={active}
+      title={label}
+      onClick={onClick}
     >
-      <strong>B</strong>
-    </button>
-    <button
-      className={`note-bubble-btn ${editor.isActive('italic') ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleItalic().run()}
-      title="Italic"
-    >
-      <em>I</em>
-    </button>
-    <button
-      className={`note-bubble-btn ${editor.isActive('underline') ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleUnderline().run()}
-      title="Underline"
-    >
-      <span style={{ textDecoration: 'underline' }}>U</span>
-    </button>
-    <button
-      className={`note-bubble-btn ${editor.isActive('strike') ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleStrike().run()}
-      title="Strikethrough"
-    >
-      <span style={{ textDecoration: 'line-through' }}>S</span>
-    </button>
-    <button
-      className={`note-bubble-btn ${editor.isActive('highlight') ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleHighlight().run()}
-      title="Highlight"
-    >
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-        <path
-          d="M3 11l6-6 3 3-6 6H3v-3z"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-          fill="rgba(253, 224, 71, 0.6)"
-        />
-        <path d="M9 5l2-2 3 3-2 2" stroke="currentColor" strokeWidth="1.2" />
-      </svg>
-    </button>
-    <button
-      className={`note-bubble-btn ${editor.isActive('code') ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleCode().run()}
-      title="Inline code"
-    >
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>`·`</span>
-    </button>
-    <button
-      className={`note-bubble-btn ${editor.isActive('link') ? 'note-bubble-btn--active' : ''}`}
-      onClick={onOpenLinkPrompt}
-      title="Link"
-    >
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-        <path
-          d="M7 9l2-2M6.5 5.5L8 4a2.5 2.5 0 113.5 3.5L10 9M9.5 10.5L8 12a2.5 2.5 0 11-3.5-3.5L6 7"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-      </svg>
-    </button>
-    <div className="note-bubble-divider" />
-    <button
-      className={`note-bubble-btn ${editor.isActive('heading', { level: 1 }) ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-      title="Heading 1"
-    >
-      H1
-    </button>
-    <button
-      className={`note-bubble-btn ${editor.isActive('heading', { level: 2 }) ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-      title="Heading 2"
-    >
-      H2
-    </button>
-    <button
-      className={`note-bubble-btn ${editor.isActive('heading', { level: 3 }) ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-      title="Heading 3"
-    >
-      H3
-    </button>
-    <div className="note-bubble-divider" />
-    <button
-      className={`note-bubble-btn ${editor.isActive('bulletList') ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleBulletList().run()}
-      title="Bullet list"
-    >
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-        <path
-          d="M6 4h7M6 8h7M6 12h7"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-        <circle cx="3" cy="4" r="1.1" fill="currentColor" />
-        <circle cx="3" cy="8" r="1.1" fill="currentColor" />
-        <circle cx="3" cy="12" r="1.1" fill="currentColor" />
-      </svg>
-    </button>
-    <button
-      className={`note-bubble-btn ${editor.isActive('blockquote') ? 'note-bubble-btn--active' : ''}`}
-      onClick={() => editor.chain().focus().toggleBlockquote().run()}
-      title="Blockquote"
-    >
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-        <path d="M3 3v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        <path
-          d="M6 5h7M6 8h5M6 11h6"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-      </svg>
-    </button>
-  </div>,
-  document.body,
+      {icon}
+    </Button>
+  );
+
+  return (
+    <Portal>
+      <div
+        ref={menuRef}
+        className="note-bubble-menu"
+        role="toolbar"
+        aria-label={t('noteBubble.label')}
+        style={{
+          left: placement?.left ?? bubble.x,
+          top: placement?.top ?? bubble.y,
+          transform: placement?.flipped
+            ? `translate(-50%, ${SELECTION_GAP_PX}px)`
+            : `translate(-50%, calc(-100% - ${SELECTION_GAP_PX}px))`,
+        }}
+        onMouseDown={(event) => event.preventDefault()}
+        onWheel={(event) => {
+          // This toolbar is portaled to document.body, but React events still
+          // bubble through its canvas-side component ancestry. Keep trackpad
+          // input inside the toolbar from starting a canvas pan/zoom gesture.
+          event.stopPropagation();
+        }}
+      >
+        <Button
+          ref={typeButtonRef}
+          size="sm"
+          className="note-bubble-type"
+          aria-label={t('noteBubble.blockType')}
+          aria-haspopup="menu"
+          aria-expanded={typeMenuOpen}
+          aria-controls={typeMenuOpen ? typePanelId : undefined}
+          onClick={() => setTypeMenuOpen((open) => !open)}
+        >
+          {currentBlockType && <EditorCommandIcon icon={currentBlockType.icon} size={16} />}
+          <span>{currentBlockType ? t(currentBlockType.labelKey) : t('slashCommand.text.label')}</span>
+          <CaretDown size={11} weight="bold" aria-hidden="true" />
+        </Button>
+
+        {typeMenuOpen && (
+          <Popover
+            anchorRef={typeButtonRef}
+            placement="bottom"
+            align="start"
+            gap={6}
+            className="note-bubble-type-menu"
+            ariaLabel={t('noteBubble.blockType')}
+            panelId={typePanelId}
+            autoFocus={false}
+            closeOnCanvasMotion
+            onClose={(reason) => {
+              setTypeMenuOpen(false);
+              if (reason === 'escape') {
+                requestAnimationFrame(() => editor.commands.focus());
+              }
+            }}
+          >
+            {BLOCK_TYPE_COMMANDS.map((command) => {
+              const active = command.isBlockTypeActive(editor);
+              return (
+                <Button
+                  key={command.id}
+                  size="sm"
+                  className={`note-bubble-type-item${
+                    active ? ' note-bubble-type-item--active' : ''
+                  }`}
+                  role="menuitemradio"
+                  aria-checked={active}
+                  data-menu-autofocus={active ? 'true' : undefined}
+                  onClick={() => runBlockType(command)}
+                >
+                  <EditorCommandIcon icon={command.icon} size={16} />
+                  <span>{t(command.labelKey)}</span>
+                </Button>
+              );
+            })}
+          </Popover>
+        )}
+
+        <div className="note-bubble-divider" />
+        {iconButton(
+          t('noteBubble.bold'),
+          editor.isActive('bold'),
+          () => editor.chain().focus().toggleBold().run(),
+          <TextB size={16} weight="bold" aria-hidden="true" />,
+        )}
+        {iconButton(
+          t('noteBubble.italic'),
+          editor.isActive('italic'),
+          () => editor.chain().focus().toggleItalic().run(),
+          <TextItalic size={16} aria-hidden="true" />,
+        )}
+        {iconButton(
+          t('noteBubble.underline'),
+          editor.isActive('underline'),
+          () => editor.chain().focus().toggleUnderline().run(),
+          <TextUnderline size={16} aria-hidden="true" />,
+        )}
+        {iconButton(
+          t('noteBubble.strike'),
+          editor.isActive('strike'),
+          () => editor.chain().focus().toggleStrike().run(),
+          <TextStrikethrough size={16} aria-hidden="true" />,
+        )}
+        {iconButton(
+          t('noteBubble.highlight'),
+          editor.isActive('highlight'),
+          () => editor.chain().focus().toggleHighlight().run(),
+          <HighlighterCircle size={16} aria-hidden="true" />,
+        )}
+        {iconButton(
+          t('noteBubble.code'),
+          editor.isActive('code'),
+          () => editor.chain().focus().toggleCode().run(),
+          <Code size={16} aria-hidden="true" />,
+        )}
+        {iconButton(
+          t('noteBubble.link'),
+          editor.isActive('link'),
+          onOpenLinkPrompt,
+          <LinkSimple size={16} aria-hidden="true" />,
+        )}
+      </div>
+    </Portal>
   );
 };

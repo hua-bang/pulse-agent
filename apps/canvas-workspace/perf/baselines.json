@@ -163,9 +163,9 @@
       "gate": { "kind": "ratchet", "baseline": 111, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.total_js_kb": {
-      "profile": "global-deterministic", "target": 5350, "warning": 5600,
-      "confidence": "high", "basis": "Renderer Terser + chat/editor 共享完整 36 种 common grammar 后实测 5350KB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 5350, "tolerancePct": 3, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 5565, "warning": 5850,
+      "confidence": "high", "basis": "Heptabase/Notion 风格笔记编辑器（Slash、气泡格式、块级操作、提及、搜索与 Dock 无障碍）落地后实测 5565KB；启动入口仍低于原基线，增长位于按需编辑器能力，保留 3% ratchet 约束后续新增。", "asOf": "2026-07-26",
+      "gate": { "kind": "ratchet", "baseline": 5565, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 600,

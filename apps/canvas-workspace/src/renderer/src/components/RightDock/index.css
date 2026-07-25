@@ -57,8 +57,14 @@
 }
 
 .right-dock__resize-handle:hover,
-.right-dock__resize-handle:active {
+.right-dock__resize-handle:active,
+.right-dock__resize-handle:focus-visible {
   background: rgba(55, 53, 47, 0.12);
+}
+
+.right-dock__resize-handle:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: -2px;
 }
 
 /* ── Tab strip ──────────────────────────────────────────────────────────
@@ -377,6 +383,10 @@
   transition:
     color 0.18s ease,
     transform 0.2s var(--tab-ease);
+}
+
+.right-dock__tab-icon--node-detail {
+  color: var(--accent);
 }
 
 .right-dock__tab-icon--chat img {
@@ -749,6 +759,12 @@
 
 .right-dock__split-divider:hover,
 .right-dock__split-divider:active {
+  background: var(--accent-soft);
+}
+
+.right-dock__split-divider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
   background: var(--accent-soft);
 }
 

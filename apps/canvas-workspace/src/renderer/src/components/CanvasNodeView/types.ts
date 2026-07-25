@@ -50,6 +50,9 @@ export interface CanvasNodeViewProps {
   onToggleFullscreen?: (nodeId: string) => void;
   readOnly?: boolean;
   embedded?: boolean;
+  /** Render only the node body when a surrounding document already owns
+   * the title and metadata chrome (for example the node detail page/dock). */
+  hideHeader?: boolean;
   renderMode?: CanvasNodeRenderMode;
 }
 

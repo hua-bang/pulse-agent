@@ -1,23 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './index.css';
-import { EditorContent } from '@tiptap/react';
 import type { CanvasNode, FileNodeData } from '../../types';
 import { useFileNodeEditor, getMarkdown } from '../../hooks/useFileNodeEditor';
 import { useFileNodeEditorRegistry } from '../../hooks/useFileNodeEditorRegistry';
 import { useNoteMentions } from '../../hooks/useNoteMentions';
-import { filterCmds } from '../../editor/slashCommands';
+import { useNoteOutlineEscape } from '../../hooks/useNoteOutlineEscape';
 import { dispatchOpenNode, parseNodeLinkHref } from '../../utils/openNodeBridge';
-import { FileNodeToolbar } from '../FileNodeToolbar';
-import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
-import { SlashCommandMenu } from '../SlashCommandMenu';
-import { NoteMentionMenu } from '../NoteMentionMenu';
-import { NoteFindBar } from '../NoteFindBar';
-import { NoteOutline } from '../NoteOutline';
-import { NoteLinkPrompt } from '../NoteLinkPrompt';
+import { FileNodeEditorSurface } from '../FileNodeEditorSurface';
+import { SpinnerIcon } from '../icons';
 import { useRightDock } from '../RightDock';
+import { Button } from '../ui';
 import { useI18n } from '../../i18n';
-import { deleteNoteBlock, duplicateCurrentNoteBlock, moveCurrentNoteBlock } from '../../editor/noteBlockCommands';
-import { NoteBlockHandle } from '../NoteBlockHandle';
 
 interface Props {
   node: CanvasNode;
@@ -37,6 +30,8 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   const [statusText, setStatusText] = useState('');
   const [statusTone, setStatusTone] = useState<'saving' | 'saved' | 'error'>('saved');
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRevisionRef = useRef(0);
+  const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
   const cardRef = useRef<HTMLDivElement>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -46,11 +41,21 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   const workspaceIdRef = useRef(workspaceId);
   workspaceIdRef.current = workspaceId;
 
-  const showStatus = useCallback((msg: string, tone: 'saving' | 'saved' | 'error' = 'saved', duration = 2000) => {
+  const showStatus = useCallback((
+    msg: string,
+    tone: 'saving' | 'saved' | 'error' = 'saved',
+    duration: number | null = 2000,
+  ) => {
     if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
     setStatusTone(tone);
     setStatusText(msg);
-    statusTimerRef.current = setTimeout(() => setStatusText(''), duration);
+    statusTimerRef.current = duration === null
+      ? null
+      : setTimeout(() => setStatusText(''), duration);
+  }, []);
+
+  const invalidatePendingSave = useCallback(() => {
+    saveRevisionRef.current += 1;
   }, []);
 
   useEffect(() => () => {
@@ -59,21 +64,38 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
 
   const persistToFile = useCallback(
     async (markdown: string, filePath: string) => {
+      const revision = ++saveRevisionRef.current;
       const api = window.canvasWorkspace?.file;
       if (!api || !filePath) {
-        showStatus(t('noteToolbar.saveFailed'), 'error');
+        if (revision === saveRevisionRef.current) {
+          showStatus(t('noteToolbar.saveFailed'), 'error', null);
+        }
         return;
       }
-      const res = await api.write(filePath, markdown).catch(() => ({ ok: false }));
-      if (res.ok) {
-        setModified(false);
-        onUpdate(nodeIdRef.current, {
-          data: { ...dataRef.current, content: markdown, saved: true, modified: false },
+      const write = writeQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          const res = await api.write(filePath, markdown).catch(() => ({ ok: false }));
+          // A newer save is already queued. Let it own both the final file
+          // contents and the visible status instead of briefly reporting this
+          // stale revision as Saved/Error.
+          if (revision !== saveRevisionRef.current) return;
+          if (res.ok) {
+            try {
+              await onUpdate(nodeIdRef.current, {
+                data: { ...dataRef.current, content: markdown, saved: true, modified: false },
+              });
+              setModified(false);
+              showStatus(t('noteToolbar.saved'), 'saved');
+            } catch {
+              showStatus(t('noteToolbar.saveFailed'), 'error', null);
+            }
+          } else {
+            showStatus(t('noteToolbar.saveFailed'), 'error', null);
+          }
         });
-        showStatus(t('noteToolbar.saved'), 'saved');
-      } else {
-        showStatus(t('noteToolbar.saveFailed'), 'error');
-      }
+      writeQueueRef.current = write;
+      await write;
     },
     [onUpdate, showStatus, t]
   );
@@ -81,22 +103,12 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   const {
     editor,
     interactions,
-    slashMenu,
-    bubble,
     handleSlashSelect,
-    linkPrompt,
     openLinkPrompt,
     applyLink,
     cancelLink,
     imageInputRef,
-    openImagePicker,
     insertImageFromFile,
-    findBarOpen,
-    openFindBar,
-    closeFindBar,
-    outlineOpen,
-    toggleOutline,
-    closeOutline,
   } = useFileNodeEditor({
     data,
     nodeIdRef,
@@ -107,26 +119,52 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     persistToFile,
     onUpdate,
     readOnly,
+    onContentChange: invalidatePendingSave,
     onCommitState: (state) => {
       if (state === 'saving') {
         if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
         setStatusTone('saving');
         setStatusText(t('noteToolbar.saving'));
       } else {
+        const failed = state === 'error';
         showStatus(
-          t(state === 'saved' ? 'noteToolbar.saved' : 'noteToolbar.saveFailed'),
-          state === 'saved' ? 'saved' : 'error',
+          t(failed ? 'noteToolbar.saveFailed' : 'noteToolbar.saved'),
+          failed ? 'error' : 'saved',
+          failed ? null : 2000,
         );
       }
     },
   });
+
+  const retrySave = useCallback(async () => {
+    if (!editor) return;
+    const markdown = getMarkdown(editor);
+    const filePath = dataRef.current.filePath;
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = null;
+    setStatusTone('saving');
+    setStatusText(t('noteToolbar.saving'));
+    if (filePath) {
+      await persistToFile(markdown, filePath);
+      return;
+    }
+    try {
+      await onUpdate(nodeIdRef.current, {
+        data: { ...dataRef.current, content: markdown, modified: false },
+      });
+      setModified(false);
+      showStatus(t('noteToolbar.saved'), 'saved');
+    } catch {
+      showStatus(t('noteToolbar.saveFailed'), 'error', null);
+    }
+  }, [editor, onUpdate, persistToFile, showStatus, t]);
 
   useEffect(() => {
     if (autoFocus && editor) editor.commands.focus('end');
   }, [autoFocus, editor]);
 
   const mentionCandidates = getAllNodes ? getAllNodes().filter((n) => n.id !== node.id) : [];
-  const { mentionMenu, filteredMentions, insertMention, closeMention } = useNoteMentions({
+  const { filteredMentions, insertMention, closeMention } = useNoteMentions({
     editor,
     candidates: mentionCandidates,
     readOnly,
@@ -134,42 +172,12 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     interactions,
   });
 
-  useEffect(() => {
-    if (
-      readOnly ||
-      !outlineOpen ||
-      slashMenu ||
-      mentionMenu ||
-      linkPrompt ||
-      findBarOpen
-    ) {
-      return;
-    }
-
-    const handler = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      const target = event.target instanceof Node ? event.target : null;
-      const eventBelongsToThisNote =
-        (target && cardRef.current?.contains(target)) || editor?.isFocused;
-      if (!eventBelongsToThisNote) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      closeOutline();
-    };
-
-    window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [
+  useNoteOutlineEscape({
     editor,
-    findBarOpen,
-    linkPrompt,
-    mentionMenu,
-    outlineOpen,
+    cardRef,
     readOnly,
-    slashMenu,
-    closeOutline,
-  ]);
+    interactions,
+  });
 
   // Publish this node's editor to the canvas-level registry so the
   // Ctrl/Cmd+F find bar can push its query into our NoteSearchExtension
@@ -183,57 +191,6 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     registry.register(id, editor);
     return () => registry.unregister(id);
   }, [registry, editor, node.id]);
-
-  const handleOpenFile = useCallback(async () => {
-    if (readOnly) return;
-    const api = window.canvasWorkspace?.file;
-    if (!api) return;
-    const res = await api.openDialog();
-    if (!res.ok || res.canceled) return;
-    const content = res.content || '';
-    prevContentRef.current = content;
-    editor?.commands.setContent(content);
-    setModified(false);
-    onUpdate(nodeIdRef.current, {
-      title: res.fileName || node.title,
-      data: { filePath: res.filePath || '', content, saved: true, modified: false },
-    });
-    showStatus(`Opened ${res.fileName}`);
-  }, [editor, node.title, onUpdate, showStatus, readOnly]);
-
-  const handleSaveAs = useCallback(async () => {
-    if (readOnly) return;
-    const api = window.canvasWorkspace?.file;
-    if (!api || !editor) return;
-    const defaultName = dataRef.current.filePath
-      ? dataRef.current.filePath.split('/').pop() || 'untitled.md'
-      : (node.title || 'untitled') + '.md';
-    const markdown = getMarkdown(editor);
-    const res = await api.saveAsDialog(defaultName, markdown);
-    if (!res.ok || res.canceled) return;
-    setModified(false);
-    onUpdate(nodeIdRef.current, {
-      title: res.fileName || node.title,
-      data: {
-        ...dataRef.current,
-        filePath: res.filePath || dataRef.current.filePath,
-        content: markdown,
-        saved: true,
-        modified: false,
-      },
-    });
-    showStatus(`Saved to ${res.fileName}`);
-  }, [editor, node.title, onUpdate, showStatus, readOnly]);
-
-  const handleManualSave = useCallback(() => {
-    if (readOnly) return;
-    const fp = dataRef.current.filePath;
-    if (fp && editor) {
-      void persistToFile(getMarkdown(editor), fp);
-    } else {
-      void handleSaveAs();
-    }
-  }, [editor, persistToFile, handleSaveAs, readOnly]);
 
   const handleImageInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -264,7 +221,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
         const targetWorkspaceId = nodeLink.workspaceId ?? workspaceId ?? '';
         const targetNodeKnown = !getAllNodes || getAllNodes().some((item) => item.id === nodeLink.nodeId);
         if (!targetNodeKnown && targetWorkspaceId === (workspaceId ?? '')) {
-          showStatus('Missing node', 'error');
+          showStatus(t('noteToolbar.missingNode'), 'error');
           return;
         }
         dispatchOpenNode({ workspaceId: targetWorkspaceId, nodeId: nodeLink.nodeId });
@@ -275,103 +232,55 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       e.stopPropagation();
       openLink(href);
     },
-    [getAllNodes, openLink, showStatus, workspaceId],
+    [getAllNodes, openLink, showStatus, t, workspaceId],
   );
 
-  const filePath = data.filePath;
-  const fileName = filePath ? filePath.split('/').pop() : null;
-
   return (
-    <div ref={cardRef} className="note-card">
-      {!readOnly && (
-        <FileNodeToolbar
-          onOpenFile={handleOpenFile}
-          onSave={handleManualSave}
-          onSaveAs={handleSaveAs}
-          onInsertImage={openImagePicker}
-          onOpenFind={openFindBar}
-          onToggleOutline={toggleOutline}
-          onMoveBlockUp={() => {
-            if (editor) moveCurrentNoteBlock(editor, -1);
-          }}
-          onMoveBlockDown={() => {
-            if (editor) moveCurrentNoteBlock(editor, 1);
-          }}
-          onDuplicateBlock={() => {
-            if (editor) duplicateCurrentNoteBlock(editor);
-          }}
-          onDeleteBlock={() => {
-            if (editor) deleteNoteBlock(editor);
-          }}
-          outlineOpen={outlineOpen}
-          statusText={statusText}
-          statusTone={statusTone}
-          modified={modified}
-          fileName={fileName}
-          filePath={filePath ?? undefined}
-        />
+    <div
+      ref={cardRef}
+      className="note-card"
+      data-modified={modified ? 'true' : 'false'}
+    >
+      {statusText && (
+        <div
+          className={`note-save-status note-save-status--${statusTone}`}
+          role={statusTone === 'error' ? 'alert' : 'status'}
+          aria-live={statusTone === 'error' ? 'assertive' : 'polite'}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          {statusTone === 'saving' && (
+            <span aria-hidden="true">
+              <SpinnerIcon size={12} className="note-save-status__spinner" />
+            </span>
+          )}
+          <span>{statusText}</span>
+          {statusTone === 'error' && (
+            <Button
+              size="xs"
+              className="note-save-status__retry"
+              onClick={() => void retrySave()}
+            >
+              {t('noteToolbar.retry')}
+            </Button>
+          )}
+        </div>
       )}
-
-      {!readOnly && findBarOpen && editor && <NoteFindBar editor={editor} onClose={closeFindBar} />}
-
-      {!readOnly && outlineOpen && editor && (
-        <NoteOutline editor={editor} onClose={closeOutline} />
-      )}
-
-      {!readOnly && linkPrompt && (
-        <NoteLinkPrompt
-          initial={linkPrompt.initial}
-          onApply={applyLink}
-          onCancel={cancelLink}
-        />
-      )}
-
-      {!readOnly && bubble && editor && (
-        <FileNodeBubbleMenu editor={editor} bubble={bubble} onOpenLinkPrompt={openLinkPrompt} />
-      )}
-
-      <div
-        className="note-content"
-        onPaste={(e) => e.stopPropagation()}
-        onWheel={(e) => e.stopPropagation()}
-        onClickCapture={handleLinkClickCapture}
-      >
-        <EditorContent editor={editor} className="note-tiptap-editor" />
-      </div>
-
-      {!readOnly && editor && (
-        <NoteBlockHandle editor={editor} cardRef={cardRef} />
-      )}
-
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handleImageInputChange}
+      <FileNodeEditorSurface
+        editor={editor}
+        readOnly={readOnly}
+        cardRef={cardRef}
+        interactions={interactions}
+        handleSlashSelect={handleSlashSelect}
+        openLinkPrompt={openLinkPrompt}
+        applyLink={applyLink}
+        cancelLink={cancelLink}
+        imageInputRef={imageInputRef}
+        onImageInputChange={handleImageInputChange}
+        onLinkClickCapture={handleLinkClickCapture}
+        filteredMentions={filteredMentions}
+        insertMention={insertMention}
+        closeMention={closeMention}
       />
-
-      {!readOnly && slashMenu && (
-        <SlashCommandMenu
-          x={slashMenu.x}
-          y={slashMenu.y}
-          selectedIndex={slashMenu.index}
-          items={filterCmds(slashMenu.query)}
-          onSelect={handleSlashSelect}
-          onClose={interactions.closeSlashMenu}
-        />
-      )}
-
-      {!readOnly && mentionMenu && (
-        <NoteMentionMenu
-          x={mentionMenu.x}
-          y={mentionMenu.y}
-          items={filteredMentions}
-          selectedIndex={mentionMenu.index}
-          onSelect={insertMention}
-          onClose={closeMention}
-        />
-      )}
     </div>
   );
 };

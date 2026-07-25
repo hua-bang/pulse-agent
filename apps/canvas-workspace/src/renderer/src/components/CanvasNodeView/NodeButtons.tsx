@@ -46,33 +46,50 @@ export const CopyImageButton = ({ onClick }: { onClick: (e: MouseEvent) => void 
 );
 
 interface CloseButtonProps {
+  ariaLabel?: string;
   floating?: boolean;
   onClick: (e: MouseEvent) => void;
+  title?: string;
 }
 
-export const CloseButton = ({ floating, onClick }: CloseButtonProps) => (
+export const CloseButton = ({
+  ariaLabel = 'Remove node',
+  floating,
+  onClick,
+  title = 'Remove node',
+}: CloseButtonProps) => (
   <button
     className={`node-close${floating ? ' node-close--floating' : ''}`}
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title="Remove"
+    title={title}
+    aria-label={ariaLabel}
   >
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
       <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   </button>
 );
 
-export const FocusButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+export const FocusButton = ({
+  ariaLabel = 'Focus node',
+  onClick,
+  title = 'Focus node',
+}: {
+  ariaLabel?: string;
+  onClick: (e: MouseEvent) => void;
+  title?: string;
+}) => (
   <button
     className="node-focus"
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title="Focus"
+    title={title}
+    aria-label={ariaLabel}
   >
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
       <circle cx="6" cy="6" r="2" stroke="currentColor" strokeWidth="1.3" />
       <path d="M6 1v2M6 9v2M1 6h2M9 6h2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
@@ -106,32 +123,29 @@ export const PluginSelectElementButton = ({
   </button>
 );
 
-export const ReferenceButton = ({
+export const OpenTabButton = ({
+  ariaLabel,
   nodeTitle,
   onClick,
 }: {
+  ariaLabel?: string;
   nodeTitle: string;
   onClick: (e: MouseEvent) => void;
 }) => (
   <button
-    className="node-reference"
+    className="node-open-tab"
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
-    title="Reference"
-    aria-label={`Pin ${nodeTitle} as reference`}
+    title="Open in tab"
+    aria-label={ariaLabel ?? `Open ${nodeTitle} in tab`}
   >
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <rect x="2.8" y="3.2" width="12.4" height="11.6" rx="1.5" stroke="currentColor" strokeWidth="1.35" />
       <path
-        d="M5.2 2.8h7.6a1.4 1.4 0 011.4 1.4v10.6L9 11.8l-5.2 3V4.2a1.4 1.4 0 011.4-1.4z"
+        d="M3.2 6.5h11.6M5.1 4.85h3.2"
         stroke="currentColor"
         strokeWidth="1.35"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M6.6 6.2h4.8M6.6 8.7h3"
-        stroke="currentColor"
-        strokeWidth="1.2"
         strokeLinecap="round"
       />
     </svg>
@@ -149,7 +163,7 @@ export const AddToCanvasButton = ({ onClick }: { onClick: (e: MouseEvent) => voi
     title="Add to main canvas"
     aria-label="Add node to the main canvas as a reference"
   >
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
       <rect x="2.6" y="2.6" width="9.4" height="9.4" rx="1.6" stroke="currentColor" strokeWidth="1.35" />
       <path d="M13.4 9.6v3.8m-1.9-1.9h3.8" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
     </svg>
@@ -191,7 +205,7 @@ export const OpenSourceButton = ({
     aria-label={ariaLabel}
     disabled={disabled}
   >
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
       <path d="M4.5 2.5H2.8a1 1 0 00-1 1v5.7a1 1 0 001 1h5.7a1 1 0 001-1V7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       <path d="M7 1.8h3.2V5M5.6 6.4l4.3-4.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>

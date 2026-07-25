@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ClipboardEvent,
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
@@ -21,6 +22,39 @@ import {
   isCanvasPanGesture,
   sanitizeReferenceSourcePatch,
 } from './utils';
+
+const normalizePastedTitle = (value: string): string => (
+  value
+    .replace(/\r\n?|[\u2028\u2029]/g, '\n')
+    .replace(/[ \t]*\n+[ \t]*/g, ' ')
+);
+
+const insertTextAtSelection = (target: HTMLSpanElement, value: string): void => {
+  if (typeof document.execCommand === 'function'
+    && document.execCommand('insertText', false, value)) {
+    return;
+  }
+
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    target.append(document.createTextNode(value));
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+  if (!target.contains(range.commonAncestorContainer)) {
+    target.append(document.createTextNode(value));
+    return;
+  }
+
+  range.deleteContents();
+  const textNode = document.createTextNode(value);
+  range.insertNode(textNode);
+  range.setStartAfter(textNode);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+};
 
 export const useCanvasNodeViewModel = ({
   embedded,
@@ -185,7 +219,12 @@ export const useCanvasNodeViewModel = ({
         return;
       }
       const newTitle = e.currentTarget.textContent?.trim();
-      if (newTitle && newTitle !== node.title) {
+      if (!newTitle) {
+        // `contentEditable` mutates the DOM outside React. Because the
+        // persisted `node.title` prop did not change, React has no diff that
+        // would restore a cleared title when editing ends.
+        e.currentTarget.textContent = node.title;
+      } else if (newTitle !== node.title) {
         onUpdate(node.id, { title: newTitle });
       }
       setIsEditingTitle(false);
@@ -193,8 +232,31 @@ export const useCanvasNodeViewModel = ({
     [onUpdate, node.id, node.title, readOnly],
   );
 
+  const beginTitleEditing = useCallback(() => {
+    if (readOnly) return;
+    setIsEditingTitle(true);
+    requestAnimationFrame(() => {
+      if (!titleRef.current) return;
+      titleRef.current.focus();
+      const range = document.createRange();
+      range.selectNodeContents(titleRef.current);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
+  }, [readOnly]);
+
   const handleTitleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLSpanElement>) => {
+      if (!isEditingTitle) {
+        if (!readOnly && (e.key === 'Enter' || e.key === 'F2')) {
+          e.preventDefault();
+          e.stopPropagation();
+          beginTitleEditing();
+        }
+        return;
+      }
+
       // Enter/Escape during IME composition confirm/dismiss the candidate
       // text — committing or reverting the title there would eat the input.
       if (isImeComposing(e)) return;
@@ -202,30 +264,34 @@ export const useCanvasNodeViewModel = ({
         e.preventDefault();
         titleRef.current?.blur();
       } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
         if (titleRef.current) titleRef.current.textContent = node.title;
         titleRef.current?.blur();
       }
     },
-    [node.title],
+    [beginTitleEditing, isEditingTitle, node.title, readOnly],
+  );
+
+  const handleTitlePaste = useCallback(
+    (e: ClipboardEvent<HTMLSpanElement>) => {
+      if (!isEditingTitle || readOnly) return;
+      e.preventDefault();
+      e.stopPropagation();
+      insertTextAtSelection(
+        e.currentTarget,
+        normalizePastedTitle(e.clipboardData.getData('text/plain')),
+      );
+    },
+    [isEditingTitle, readOnly],
   );
 
   const handleTitleDoubleClick = useCallback(
     (e: MouseEvent) => {
       e.stopPropagation();
-      if (readOnly) return;
-      setIsEditingTitle(true);
-      requestAnimationFrame(() => {
-        if (titleRef.current) {
-          titleRef.current.focus();
-          const range = document.createRange();
-          range.selectNodeContents(titleRef.current);
-          const sel = window.getSelection();
-          sel?.removeAllRanges();
-          sel?.addRange(range);
-        }
-      });
+      beginTitleEditing();
     },
-    [readOnly],
+    [beginTitleEditing],
   );
 
   const makeResizeHandler = useCallback(
@@ -282,6 +348,7 @@ export const useCanvasNodeViewModel = ({
     handleTitleBlur,
     handleTitleDoubleClick,
     handleTitleKeyDown,
+    handleTitlePaste,
     handleToggleFullscreen,
     handleUngroup,
     isEditingTitle,

@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
+import { Button } from '../ui/Button';
 import './index.css';
 
 interface Props {
@@ -8,6 +11,7 @@ interface Props {
 }
 
 export const NoteLinkPrompt = ({ initial, onApply, onCancel }: Props) => {
+  const { t } = useI18n();
   const [value, setValue] = useState(initial);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -17,6 +21,7 @@ export const NoteLinkPrompt = ({ initial, onApply, onCancel }: Props) => {
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposing(e)) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       onApply(value);
@@ -27,30 +32,51 @@ export const NoteLinkPrompt = ({ initial, onApply, onCancel }: Props) => {
   };
 
   return (
-    <div className="note-link-prompt" onMouseDown={(e) => e.stopPropagation()}>
+    <div
+      className="note-link-prompt"
+      role="group"
+      aria-label={t('noteLink.label')}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <input
         ref={inputRef}
+        type="url"
         className="note-link-input"
-        placeholder="https://example.com"
+        placeholder={t('noteLink.urlPlaceholder')}
+        aria-label={t('noteLink.url')}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
       />
-      <button className="note-link-action" onClick={() => onApply(value)} title="Apply (Enter)">
-        Apply
-      </button>
+      <Button
+        size="xs"
+        className="note-link-action"
+        onClick={() => onApply(value)}
+        title={t('noteLink.applyHint')}
+      >
+        {t('noteLink.apply')}
+      </Button>
       {initial && (
-        <button
-          className="note-link-action note-link-action--danger"
+        <Button
+          variant="danger"
+          size="xs"
+          className="note-link-action"
           onClick={() => onApply('')}
-          title="Remove link"
+          title={t('noteLink.remove')}
         >
-          Remove
-        </button>
+          {t('noteLink.remove')}
+        </Button>
       )}
-      <button className="note-link-close" onClick={onCancel} title="Cancel (Esc)">
+      <Button
+        variant="icon"
+        size="xs"
+        className="note-link-close"
+        onClick={onCancel}
+        aria-label={t('noteLink.cancel')}
+        title={t('noteLink.cancel')}
+      >
         ×
-      </button>
+      </Button>
     </div>
   );
 };

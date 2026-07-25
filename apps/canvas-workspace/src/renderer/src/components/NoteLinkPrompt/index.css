@@ -1,9 +1,11 @@
 .note-link-prompt {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  right: 8px;
+  position: relative;
+  align-self: flex-end;
+  flex-shrink: 0;
   z-index: var(--note-layer-panel, 50);
+  width: min(420px, calc(100% - 16px));
+  box-sizing: border-box;
+  margin: 8px 8px 0;
   background: var(--surface);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -30,42 +32,21 @@
   border-color: var(--accent-border, var(--accent));
 }
 
-.note-link-action {
-  border: 1px solid var(--border-light);
-  background: transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 11px;
-  color: var(--text-secondary);
-  padding: 3px 10px;
-  white-space: nowrap;
+.note-link-action.ui-btn {
+  flex-shrink: 0;
 }
 
-.note-link-action:hover {
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--text);
-}
-
-.note-link-action--danger:hover {
-  color: #e03e3e;
-  border-color: rgba(224, 62, 62, 0.3);
-}
-
-.note-link-close {
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.note-link-close.ui-btn {
   font-size: 14px;
+  flex-shrink: 0;
 }
 
-.note-link-close:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text);
+@container (max-width: 360px) {
+  .note-link-prompt {
+    flex-wrap: wrap;
+  }
+
+  .note-link-input {
+    flex-basis: calc(100% - 26px);
+  }
 }

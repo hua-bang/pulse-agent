@@ -7,6 +7,12 @@ import { NodeTagEditor } from './NodeTagEditor';
 import { NodeTitleEditor } from './NodeTitleEditor';
 import { Button } from '../ui';
 import { formatTime, getNodeAiSummary, getNodeTags, getNodeTypeLabel, isKnowledgeNodeType } from './utils';
+// index.css owns the tag/chip classes and `--nodes-*` tokens this panel's
+// subtree (NodeTagEditor, NodeRelationEditor) relies on. The Nodes pages get
+// it via their own imports, but the right-dock Node tab renders this panel
+// without any Nodes page on the lazy-loaded path, so the panel must pull it
+// in itself.
+import './index.css';
 import './NodeDetailDocument.css';
 
 interface NodeDetailPanelProps {

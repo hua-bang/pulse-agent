@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useDragResize } from '../ui';
 
 const DEFAULT_SPLIT_WIDTH = 720;
 const MIN_SPLIT_PANE_WIDTH = 280;
 const SPLIT_DIVIDER_WIDTH = 6;
+const KEYBOARD_RESIZE_STEP = 24;
 const RESIZING_CLASS = 'right-dock-resizing';
 
 interface Options {
@@ -40,9 +41,23 @@ export const useDockSplitView = ({ active, dockWidth, setDockWidth, clampDockWid
     onDragEnd: () => document.documentElement.classList.remove(RESIZING_CLASS),
   });
 
+  const onDividerKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    event.stopPropagation();
+    const direction = event.key === 'ArrowLeft' ? -1 : 1;
+    setContentWidth((current) => Math.min(
+      maxContentWidth,
+      Math.max(MIN_SPLIT_PANE_WIDTH, current + direction * KEYBOARD_RESIZE_STEP),
+    ));
+  };
+
   return {
     contentWidth,
     dividerWidth: SPLIT_DIVIDER_WIDTH,
+    minContentWidth: MIN_SPLIT_PANE_WIDTH,
+    maxContentWidth,
     onDividerMouseDown: resize.onMouseDown,
+    onDividerKeyDown,
   };
 };

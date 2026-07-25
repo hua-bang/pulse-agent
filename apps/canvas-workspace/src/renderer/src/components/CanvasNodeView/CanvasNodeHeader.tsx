@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
-import type { FocusEvent, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react';
+import type {
+  ClipboardEvent,
+  FocusEvent,
+  KeyboardEvent,
+  MouseEvent,
+  ReactNode,
+  RefObject,
+} from 'react';
 import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../types';
+import { useI18n } from '../../i18n';
 import { FrameChildrenToggle, FrameColorPicker } from '../FrameNodeBody/FrameHeaderControls';
 import { TextColorPicker } from '../TextNodeBody/TextColorPicker';
 import {
@@ -9,10 +17,11 @@ import {
   CloseButton,
   FocusButton,
   OpenDetailButton,
+  OpenTabButton,
   PluginSelectElementButton,
-  ReferenceButton,
 } from './NodeButtons';
 import { NodeTypeBadge } from './NodeTypeBadge';
+import { isKnowledgeNodeType } from '../WorkspaceNodes/utils';
 import { isReferenceableNode } from '../../utils/referenceNodes';
 
 interface CanvasNodeHeaderProps {
@@ -23,19 +32,20 @@ interface CanvasNodeHeaderProps {
   handleHeaderMouseDown: (e: MouseEvent) => void;
   handlePluginSelectElement: (e: MouseEvent) => void;
   handleOpenDetail: (e: MouseEvent) => void;
-  handleReference: (e: MouseEvent) => void;
+  handleOpenTab: (e: MouseEvent) => void;
   handleAddToChat: (e: MouseEvent) => void;
   handleAddToCanvas: (e: MouseEvent) => void;
   handleTitleBlur: (e: FocusEvent<HTMLSpanElement>) => void;
   handleTitleDoubleClick: (e: MouseEvent) => void;
   handleTitleKeyDown: (e: KeyboardEvent<HTMLSpanElement>) => void;
+  handleTitlePaste: (e: ClipboardEvent<HTMLSpanElement>) => void;
   handleUngroup: (e: MouseEvent) => void;
   isEditingTitle: boolean;
   isFullscreen: boolean;
   isSelected: boolean;
   node: CanvasNode;
   pluginElementPickerActive: boolean;
-  onReference?: (nodeId: string) => void;
+  canOpenTab: boolean;
   onAddToChat?: (nodeId: string) => void;
   onAddToCanvas?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
@@ -78,19 +88,20 @@ export const CanvasNodeHeader = ({
   handleHeaderMouseDown,
   handlePluginSelectElement,
   handleOpenDetail,
-  handleReference,
+  handleOpenTab,
   handleAddToChat,
   handleAddToCanvas,
   handleTitleBlur,
   handleTitleDoubleClick,
   handleTitleKeyDown,
+  handleTitlePaste,
   handleUngroup,
   isEditingTitle,
   isFullscreen,
   isSelected,
   node,
   pluginElementPickerActive,
-  onReference,
+  canOpenTab,
   onAddToChat,
   onAddToCanvas,
   onUngroupSelectedGroups,
@@ -99,6 +110,7 @@ export const CanvasNodeHeader = ({
   relativeTime,
   titleRef,
 }: CanvasNodeHeaderProps) => {
+  const { t } = useI18n();
   const agentTeamRole = node.type === 'agent'
     ? (node.data as AgentNodeData).agentTeamRole
     : undefined;
@@ -116,10 +128,19 @@ export const CanvasNodeHeader = ({
         ref={titleRef}
         className="node-title"
         contentEditable={isEditingTitle}
+        role={isEditingTitle ? 'textbox' : readOnly ? undefined : 'button'}
+        tabIndex={readOnly ? undefined : 0}
+        aria-label={readOnly
+          ? undefined
+          : t('workspaceNodes.editTitleNamed', { title: node.title })}
+        aria-keyshortcuts={!isEditingTitle && !readOnly ? 'Enter F2' : undefined}
+        aria-multiline={isEditingTitle ? false : undefined}
+        title={isEditingTitle ? undefined : node.title}
         suppressContentEditableWarning
         spellCheck={false}
         onBlur={handleTitleBlur}
-        onKeyDown={isEditingTitle ? handleTitleKeyDown : undefined}
+        onKeyDown={readOnly ? undefined : handleTitleKeyDown}
+        onPaste={isEditingTitle ? handleTitlePaste : undefined}
         onDoubleClick={handleTitleDoubleClick}
         onMouseDown={(e) => {
           if (isEditingTitle) e.stopPropagation();
@@ -171,11 +192,12 @@ export const CanvasNodeHeader = ({
         {node.type === 'file' ? (
           <OpenDetailButton onClick={handleOpenDetail} />
         ) : null}
-        {/* Reference / add-to-chat stay available on readonly nodes (the dock
-            canvas preview) — they read the node, never mutate it. The embedded
-            reference-source path never passes these callbacks. */}
-        {onReference && isReferenceableNode(node) ? (
-          <ReferenceButton nodeTitle={node.title} onClick={handleReference} />
+        {canOpenTab && isKnowledgeNodeType(node.type) ? (
+          <OpenTabButton
+            ariaLabel={t('workspaceNodes.openNodeTab', { title: node.title })}
+            nodeTitle={node.title}
+            onClick={handleOpenTab}
+          />
         ) : null}
         {onAddToChat ? (
           <AddToChatButton onClick={handleAddToChat} />
@@ -190,8 +212,18 @@ export const CanvasNodeHeader = ({
           />
         ) : null}
         {fullscreenButton}
-        <FocusButton onClick={handleFocus} />
-        {readOnly ? null : <CloseButton onClick={handleClose} />}
+        <FocusButton
+          ariaLabel={t('workspaceNodes.focusNode', { title: node.title })}
+          onClick={handleFocus}
+          title={t('workspaceNodes.focusNode', { title: node.title })}
+        />
+        {readOnly ? null : (
+          <CloseButton
+            ariaLabel={t('workspaceNodes.removeNode', { title: node.title })}
+            onClick={handleClose}
+            title={t('workspaceNodes.removeNode', { title: node.title })}
+          />
+        )}
       </div>
     </div>
   );

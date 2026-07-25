@@ -4,10 +4,12 @@ import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 import { NodeTypeIcon } from '../icons';
 import type { DockTerminalTab } from './dock-store';
 import type { DockTabVisualState } from './dock-tab-visual-state';
+import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
 
 interface TerminalDockTabProps {
   tab: DockTerminalTab;
   visual: DockTabVisualState;
+  tabIndex: number;
   registerTab: (id: string, element: HTMLButtonElement | null) => void;
   onActivate: (id: string) => void;
   onClose: (id: string) => void;
@@ -21,6 +23,7 @@ interface TerminalDockTabProps {
 export const TerminalDockTab = ({
   tab,
   visual,
+  tabIndex,
   registerTab,
   onActivate,
   onClose,
@@ -101,13 +104,17 @@ export const TerminalDockTab = ({
       <button
         ref={(element) => registerTab(tab.id, element)}
         type="button"
+        id={dockTabElementId(tab.id)}
+        data-dock-tab-id={tab.id}
         role="tab"
+        aria-controls={dockPaneElementId(tab.id)}
         aria-selected={visual.selected}
         aria-expanded={visual.splitActive ? visual.splitVisible : undefined}
         className={`right-dock__tab right-dock__tab--with-close${visual.focused ? ' right-dock__tab--active' : ''}`}
         data-focused={visual.focused}
         data-split-visible={visual.splitVisible}
         title={`${title} - ${t('rightDock.renameTerminalHint')}`}
+        tabIndex={tabIndex}
         draggable={!editing}
         onDragStart={(event) => onDragStart(event, tab.id)}
         onDragEnd={onDragEnd}

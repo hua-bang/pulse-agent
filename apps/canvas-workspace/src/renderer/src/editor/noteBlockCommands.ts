@@ -65,6 +65,22 @@ export const duplicateCurrentNoteBlock = (editor: Editor, index?: number): boole
   return true;
 };
 
+export const insertSlashBlockAfter = (editor: Editor, index?: number): boolean => {
+  const block = topLevelBlockAt(editor, index);
+  const paragraphType = editor.schema.nodes.paragraph;
+  if (!block || !paragraphType) return false;
+
+  const slashText = editor.schema.text('/');
+  const paragraph = paragraphType.create(null, slashText);
+  const insertAt = block.from + block.node.nodeSize;
+  const { tr } = editor.state;
+  tr.insert(insertAt, paragraph);
+  tr.setSelection(TextSelection.create(tr.doc, insertAt + paragraph.nodeSize - 1));
+  editor.view.focus();
+  editor.view.dispatch(tr.scrollIntoView());
+  return true;
+};
+
 export const deleteNoteBlock = (editor: Editor, index?: number): boolean => {
   const block = topLevelBlockAt(editor, index);
   if (!block) return false;

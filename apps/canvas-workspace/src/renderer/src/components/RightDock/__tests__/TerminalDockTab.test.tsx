@@ -4,7 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TerminalDockTab } from '../TerminalDockTab';
 import { getDockTabVisualState } from '../dock-tab-visual-state';
-import type { DockTerminalTab } from '../dock-types';
+import { dockPaneElementId, dockTabElementId } from '../dock-tab-ids';
+import { TERMINAL_TAB_ID, type DockTerminalTab } from '../dock-store';
 import { I18nProvider } from '../../../i18n';
 
 let root: Root | null = null;
@@ -17,7 +18,7 @@ afterEach(() => {
   mount = null;
 });
 
-const tab: DockTerminalTab = { id: 'terminal-1', ordinal: 1 };
+const tab: DockTerminalTab = { id: TERMINAL_TAB_ID, ordinal: 1 };
 
 const renderTab = (onActivate: (id: string) => void, overrides?: Partial<DockTerminalTab>) => {
   mount = document.createElement('div');
@@ -29,6 +30,7 @@ const renderTab = (onActivate: (id: string) => void, overrides?: Partial<DockTer
       <TerminalDockTab
         tab={renderedTab}
         visual={getDockTabVisualState(renderedTab.id, null, undefined)}
+        tabIndex={-1}
         registerTab={() => {}}
         onActivate={onActivate}
         onClose={() => {}}
@@ -44,6 +46,14 @@ const renderTab = (onActivate: (id: string) => void, overrides?: Partial<DockTer
 };
 
 describe('TerminalDockTab activation gestures', () => {
+  it('connects the terminal tab to its shared terminal pane', () => {
+    const button = renderTab(vi.fn());
+    expect(button.id).toBe(dockTabElementId(tab.id));
+    expect(button.dataset.dockTabId).toBe(tab.id);
+    expect(button.getAttribute('aria-controls')).toBe(dockPaneElementId(tab.id));
+    expect(button.tabIndex).toBe(-1);
+  });
+
   it('activates on left mouse-down so a click swallowed by a drag still activates', () => {
     const onActivate = vi.fn();
     const button = renderTab(onActivate);

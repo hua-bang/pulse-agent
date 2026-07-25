@@ -1,9 +1,17 @@
-import { lazy, Suspense, useRef, type CSSProperties, type MouseEventHandler } from 'react';
+import {
+  lazy,
+  Suspense,
+  useRef,
+  type CSSProperties,
+  type KeyboardEventHandler,
+  type MouseEventHandler,
+} from 'react';
 import { useI18n } from '../../i18n';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { AgentContextDomSelectionRef } from '../../types';
 import { isTerminalTabId, type DockState, type DockStore } from './dock-store';
 import { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
+import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId } from './dock-tab-ids';
 
 const ArtifactTabView = lazy(() => import('../artifacts/ArtifactTabView').then((m) => ({ default: m.ArtifactTabView })));
 const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m.LinkTabView })));
@@ -15,9 +23,13 @@ interface Props {
   state: DockState;
   activePaneId: string | null;
   splitTabId?: string;
+  chatTabEnabled: boolean;
   splitContentWidth: number;
   splitDividerWidth: number;
+  splitMinContentWidth?: number;
+  splitMaxContentWidth?: number;
   onDividerMouseDown: MouseEventHandler;
+  onDividerKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   setChatHost: (element: HTMLDivElement | null) => void;
   setTerminalHost: (element: HTMLDivElement | null) => void;
   terminalHostMounted: boolean;
@@ -33,9 +45,13 @@ export const DockPanes = ({
   state,
   activePaneId,
   splitTabId,
+  chatTabEnabled,
   splitContentWidth,
   splitDividerWidth,
+  splitMinContentWidth,
+  splitMaxContentWidth,
   onDividerMouseDown,
+  onDividerKeyDown,
   setChatHost,
   setTerminalHost,
   terminalHostMounted,
@@ -47,6 +63,14 @@ export const DockPanes = ({
 }: Props) => {
   const { t } = useI18n();
   const splitActive = Boolean(splitTabId);
+  const chatVisible = chatTabEnabled && isDockChatVisible(state);
+  const terminalVisible = terminalHostMounted && isDockTerminalVisible(state);
+  const terminalPanelAvailable = state.terminalTabs.length > 0;
+  const labelledTerminalTabId = activePaneId && isTerminalTabId(activePaneId)
+    ? activePaneId
+    : splitTabId && isTerminalTabId(splitTabId)
+      ? splitTabId
+      : state.activeTerminalTabId ?? state.terminalTabs[0]?.id;
   // Lazy-mount link-tab webviews. Every tab's pane renders stacked (inactive
   // ones are `visibility: hidden`), so mounting each LinkTabView's <webview>
   // unconditionally spins up a guest process + navigation per restored tab on
@@ -66,7 +90,11 @@ export const DockPanes = ({
     <div className="right-dock__panes" data-split={splitActive} style={style}>
       <div
         ref={setChatHost}
-        className={`right-dock__pane right-dock__pane--chat${isDockChatVisible(state) ? ' right-dock__pane--active' : ''}${splitActive ? ' right-dock__pane--split-chat' : ''}`}
+        id={chatTabEnabled ? dockPaneElementId(CHAT_TAB_ID) : undefined}
+        role={chatTabEnabled ? 'tabpanel' : undefined}
+        aria-labelledby={chatTabEnabled ? dockTabElementId(CHAT_TAB_ID) : undefined}
+        aria-hidden={chatTabEnabled ? !chatVisible : true}
+        className={`right-dock__pane right-dock__pane--chat${chatVisible ? ' right-dock__pane--active' : ''}${splitActive ? ' right-dock__pane--split-chat' : ''}`}
         data-focused={activePaneId === 'chat'}
         onFocusCapture={() => {
           if (splitActive) store.openChat();
@@ -79,14 +107,25 @@ export const DockPanes = ({
         <div
           className="right-dock__split-divider"
           onMouseDown={onDividerMouseDown}
+          onKeyDown={onDividerKeyDown}
+          tabIndex={0}
           role="separator"
           aria-orientation="vertical"
           aria-label={t('rightDock.resizeSplitView')}
+          aria-valuemin={splitMinContentWidth}
+          aria-valuemax={splitMaxContentWidth}
+          aria-valuenow={splitContentWidth}
         />
       )}
       {terminalHostMounted && (
         <div
-          className={`right-dock__pane right-dock__pane--terminal${isDockTerminalVisible(state) ? ' right-dock__pane--active' : ''}${splitTabId && isTerminalTabId(splitTabId) ? ' right-dock__pane--split-content' : ''}`}
+          id={terminalPanelAvailable ? dockPaneElementId(labelledTerminalTabId ?? 'terminal') : undefined}
+          role={terminalPanelAvailable ? 'tabpanel' : undefined}
+          aria-labelledby={terminalPanelAvailable && labelledTerminalTabId
+            ? dockTabElementId(labelledTerminalTabId)
+            : undefined}
+          aria-hidden={!terminalVisible}
+          className={`right-dock__pane right-dock__pane--terminal${terminalVisible ? ' right-dock__pane--active' : ''}${splitTabId && isTerminalTabId(splitTabId) ? ' right-dock__pane--split-content' : ''}`}
           data-focused={state.terminalTabs.some((tab) => tab.id === activePaneId)}
           onFocusCapture={() => {
             if (splitTabId && isTerminalTabId(splitTabId)) store.activate(splitTabId);
@@ -101,6 +140,10 @@ export const DockPanes = ({
       {state.tabs.map((tab) => (
         <div
           key={tab.id}
+          id={dockPaneElementId(tab.id)}
+          role="tabpanel"
+          aria-labelledby={dockTabElementId(tab.id)}
+          aria-hidden={tab.id !== activePaneId && tab.id !== splitTabId}
           className={`right-dock__pane${tab.id === activePaneId || tab.id === splitTabId ? ' right-dock__pane--active' : ''}${tab.id === splitTabId ? ' right-dock__pane--split-content' : ''}`}
           data-focused={tab.id === activePaneId}
           onFocusCapture={() => {

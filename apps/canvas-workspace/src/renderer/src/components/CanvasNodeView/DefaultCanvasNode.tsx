@@ -4,6 +4,7 @@ import {
   useCallback,
   useState,
   type CSSProperties,
+  type ClipboardEvent,
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
@@ -14,6 +15,7 @@ import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasN
 import { DynamicAppNodeBody } from '../DynamicAppNodeBody';
 import { PluginNodeBody } from '../PluginNodeBody';
 import { useAppShell } from '../AppShellProvider';
+import { useRightDock } from '../RightDock';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
@@ -41,13 +43,14 @@ interface DefaultCanvasNodeProps {
   handleHeaderMouseDown: (e: MouseEvent) => void;
   handleNodeBodyMouseDown: (e: MouseEvent) => void;
   handleNodeClick: (e: MouseEvent) => void;
-  handleReference: (e: MouseEvent) => void;
   handleAddToChat: (e: MouseEvent) => void;
   handleAddToCanvas: (e: MouseEvent) => void;
   handleTitleBlur: (e: FocusEvent<HTMLSpanElement>) => void;
   handleTitleDoubleClick: (e: MouseEvent) => void;
   handleTitleKeyDown: (e: KeyboardEvent<HTMLSpanElement>) => void;
+  handleTitlePaste: (e: ClipboardEvent<HTMLSpanElement>) => void;
   handleUngroup: (e: MouseEvent) => void;
+  hideHeader: boolean;
   isEditingTitle: boolean;
   isFullscreen: boolean;
   isResizing: boolean;
@@ -55,7 +58,6 @@ interface DefaultCanvasNodeProps {
   makeResizeHandler: ResizeHandlerFactory;
   node: CanvasNode;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
-  onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
   onAddToCanvas?: (nodeId: string) => void;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
@@ -84,13 +86,14 @@ export const DefaultCanvasNode = ({
   handleHeaderMouseDown,
   handleNodeBodyMouseDown,
   handleNodeClick,
-  handleReference,
   handleAddToChat,
   handleAddToCanvas,
   handleTitleBlur,
   handleTitleDoubleClick,
   handleTitleKeyDown,
+  handleTitlePaste,
   handleUngroup,
+  hideHeader,
   isEditingTitle,
   isFullscreen,
   isResizing,
@@ -98,7 +101,6 @@ export const DefaultCanvasNode = ({
   makeResizeHandler,
   node,
   onDragStart,
-  onReference,
   onAddToChat,
   onAddToCanvas,
   onAddDomSelectionToChat,
@@ -117,6 +119,7 @@ export const DefaultCanvasNode = ({
   wrapperStyle,
 }: DefaultCanvasNodeProps) => {
   const { notify } = useAppShell();
+  const { openNodeDetail } = useRightDock();
   const [pluginElementPickerActive, setPluginElementPickerActive] = useState(false);
 
   const handlePluginSelectElement = useCallback((event: MouseEvent) => {
@@ -191,6 +194,12 @@ export const DefaultCanvasNode = ({
     dispatchOpenNodePage({ workspaceId: workspaceId ?? '', nodeId: node.id });
   }, [node.id, workspaceId]);
 
+  const handleOpenTab = useCallback((event: MouseEvent) => {
+    event.stopPropagation();
+    if (!workspaceId) return;
+    openNodeDetail(workspaceId, node.id, node.title.trim() || 'Untitled');
+  }, [node.id, node.title, openNodeDetail, workspaceId]);
+
   const frameTitleOnly = node.type === 'frame' && renderMode === 'frame-title';
   const frameBodyOnly = node.type === 'frame' && renderMode === 'frame-body';
   const nodeClasses = [
@@ -206,20 +215,21 @@ export const DefaultCanvasNode = ({
       handleFocus={handleFocus}
       handleHeaderMouseDown={handleHeaderMouseDown}
       handleOpenDetail={handleOpenDetail}
+      handleOpenTab={handleOpenTab}
       handlePluginSelectElement={handlePluginSelectElement}
-      handleReference={handleReference}
       handleAddToChat={handleAddToChat}
       handleAddToCanvas={handleAddToCanvas}
       handleTitleBlur={handleTitleBlur}
       handleTitleDoubleClick={handleTitleDoubleClick}
       handleTitleKeyDown={handleTitleKeyDown}
+      handleTitlePaste={handleTitlePaste}
       handleUngroup={handleUngroup}
       isEditingTitle={isEditingTitle}
       isFullscreen={isFullscreen}
       isSelected={isSelected}
       node={node}
       pluginElementPickerActive={pluginElementPickerActive}
-      onReference={onReference}
+      canOpenTab={Boolean(workspaceId)}
       onAddToChat={onAddToChat}
       onAddToCanvas={onAddToCanvas}
       onUngroupSelectedGroups={onUngroupSelectedGroups}
@@ -240,7 +250,7 @@ export const DefaultCanvasNode = ({
 
   return (
     <div className={nodeClasses} style={wrapperStyle} onClick={handleNodeClick}>
-      {!frameBodyOnly && header}
+      {!frameBodyOnly && !hideHeader && header}
       <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
         <Suspense fallback={null}>
         {node.type === 'file' ? (

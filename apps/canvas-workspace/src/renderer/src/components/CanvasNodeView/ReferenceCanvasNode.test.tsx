@@ -3,6 +3,7 @@ import { createRef, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../../i18n';
 import type { CanvasNode } from '../../types';
 import { ReferenceCanvasNode } from './ReferenceCanvasNode';
 
@@ -89,6 +90,14 @@ describe('ReferenceCanvasNode', () => {
 
     expect(handleHeaderMouseDown).toHaveBeenCalledTimes(1);
   });
+
+  it('announces title editing as a single-line text box', () => {
+    renderReferenceNode({ isEditingTitle: true });
+
+    const title = host?.querySelector('[role="textbox"]');
+    expect(title?.getAttribute('aria-label')).toBe('Edit node title');
+    expect(title?.getAttribute('aria-multiline')).toBe('false');
+  });
 });
 
 function renderReferenceNode(overrides: Partial<Parameters<typeof ReferenceCanvasNode>[0]> = {}) {
@@ -98,28 +107,30 @@ function renderReferenceNode(overrides: Partial<Parameters<typeof ReferenceCanva
 
   flushSync(() => {
     root?.render(
-      <ReferenceCanvasNode
-        classes="canvas-node canvas-node--reference"
-        handleClose={vi.fn()}
-        handleHeaderMouseDown={vi.fn()}
-        handleNodeBodyMouseDown={vi.fn()}
-        handleNodeClick={vi.fn()}
-        handleOpenReferenceSource={vi.fn()}
-        handleTitleBlur={vi.fn()}
-        handleTitleDoubleClick={vi.fn()}
-        handleTitleKeyDown={vi.fn()}
-        isEditingTitle={false}
-        isFullscreen={false}
-        isSelected={false}
-        makeResizeHandler={() => vi.fn()}
-        node={referenceNode}
-        readOnly={false}
-        renderReferenceSource={() => <div data-testid="reference-source">Source</div>}
-        resolved={{ node: sourceNode, workspaceName: 'Research' }}
-        titleRef={createRef<HTMLSpanElement>()}
-        wrapperStyle={{}}
-        {...overrides}
-      />,
+      <I18nProvider>
+        <ReferenceCanvasNode
+          classes="canvas-node canvas-node--reference"
+          handleClose={vi.fn()}
+          handleHeaderMouseDown={vi.fn()}
+          handleNodeBodyMouseDown={vi.fn()}
+          handleNodeClick={vi.fn()}
+          handleOpenReferenceSource={vi.fn()}
+          handleTitleBlur={vi.fn()}
+          handleTitleDoubleClick={vi.fn()}
+          handleTitleKeyDown={vi.fn()}
+          isEditingTitle={false}
+          isFullscreen={false}
+          isSelected={false}
+          makeResizeHandler={() => vi.fn()}
+          node={referenceNode}
+          readOnly={false}
+          renderReferenceSource={() => <div data-testid="reference-source">Source</div>}
+          resolved={{ node: sourceNode, workspaceName: 'Research' }}
+          titleRef={createRef<HTMLSpanElement>()}
+          wrapperStyle={{}}
+          {...overrides}
+        />
+      </I18nProvider>,
     );
   });
 }
