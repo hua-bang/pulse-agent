@@ -24,7 +24,7 @@ interface RightDockContextValue {
   registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => () => void;
 }
 
-const RightDockContext = createContext<RightDockContextValue | null>(null);
+export const RightDockContext = createContext<RightDockContextValue | null>(null);
 
 export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const store = useMemo(() => new DockStore(
