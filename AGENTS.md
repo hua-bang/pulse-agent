@@ -36,6 +36,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 | Change the core loop / hooks | `packages/engine/src/core/loop.ts` |
 | Add/fix an MCP server config | `.pulse-coder/mcp.json` + `packages/engine/src/built-in/mcp-plugin/` |
 | Tune context compaction | `packages/engine/src/core/loop.ts` + env (`CONTEXT_WINDOW_TOKENS`, `COMPACT_*`, `KEEP_LAST_TURNS`) |
+| Offload oversized tool results to disk | `packages/engine/src/built-in/tool-offload-plugin/` + env (`TOOL_OFFLOAD_THRESHOLD`, `TOOL_OFFLOAD_DIR`) |
 | Add a runtime skill | `.pulse-coder/skills/<name>/SKILL.md` |
 | Add a sub-agent | `.pulse-coder/agents/*.md` |
 | Change an orchestration role | `packages/orchestrator/` |

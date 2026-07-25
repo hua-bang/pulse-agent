@@ -97,6 +97,19 @@ export const MAX_TURNS = 100;
 export const MAX_ERROR_COUNT = 3;
 export const MAX_STEPS = 500;
 export const MAX_TOOL_OUTPUT_LENGTH = 30_000;
+
+/**
+ * Tool-output offloading. When a tool result's textual payload (the sum of all
+ * string lengths in the output, ignoring JSON structural overhead) exceeds this
+ * threshold, the offload plugin persists the full result to disk and replaces it
+ * in the message history with a compact stub (preview + file path). Subsequent
+ * turns / sub-agents read the file on demand via the `read` / `grep` tools.
+ *
+ * Override the threshold via TOOL_OFFLOAD_THRESHOLD. Override the storage dir via
+ * TOOL_OFFLOAD_DIR (defaults to `<cwd>/.pulse-coder/offload`).
+ */
+export const TOOL_OFFLOAD_THRESHOLD = Number(process.env.TOOL_OFFLOAD_THRESHOLD ?? 30_000);
+export const TOOL_OFFLOAD_DIR = (process.env.TOOL_OFFLOAD_DIR ?? '').trim();
 export const LLM_FIRST_CHUNK_TIMEOUT_MS = Number(process.env.LLM_FIRST_CHUNK_TIMEOUT_MS ?? 180_000);
 export const LLM_CALL_TIMEOUT_MS = Number(process.env.LLM_CALL_TIMEOUT_MS ?? 600_000);
 
