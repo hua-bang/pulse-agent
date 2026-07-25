@@ -18,6 +18,10 @@ interface Options {
 export const useDockTabIndicator = ({ activeTabId, visible, previewTabs, terminalTabs, chatTabEnabled, dockWidth }: Options) => {
   const tabsRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+  // Track the last tab we scrolled into view so closing a non-active tab
+  // (which changes previewTabs but not activeTabId) doesn't re-trigger the
+  // smooth scroll and produce the "tabs slide to the active one" jitter.
+  const lastScrolledTabId = useRef<string | null>(null);
   const [indicator, setIndicator] = useState<TabIndicatorState>({ left: 0, width: 0, visible: false });
   const registerTab = useCallback((id: string, element: HTMLButtonElement | null) => {
     if (element) tabRefs.current.set(id, element);
@@ -46,6 +50,12 @@ export const useDockTabIndicator = ({ activeTabId, visible, previewTabs, termina
   useLayoutEffect(update, [update, previewTabs, terminalTabs, chatTabEnabled, dockWidth]);
   useEffect(() => {
     if (!visible || !activeTabId) return;
+    // Only scroll when the active tab actually changes - not when the tab
+    // list reshuffles (e.g. a non-active tab closes). Closing a non-active
+    // tab changes previewTabs but cannot push the active tab out of view,
+    // so re-scrolling only adds the unwanted smooth slide.
+    if (lastScrolledTabId.current === activeTabId) return;
+    lastScrolledTabId.current = activeTabId;
     tabRefs.current.get(activeTabId)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
   }, [activeTabId, visible, previewTabs, terminalTabs]);
   useEffect(() => {
