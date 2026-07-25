@@ -354,6 +354,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
 
     canvas_delete_node: {
       name: 'canvas_delete_node',
+      defer_loading: true,
       description: 'Delete a node from the canvas.',
       inputSchema: z.object({
         nodeId: z.string().describe('The ID of the node to delete.'),
@@ -381,6 +382,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
 
     canvas_move_node: {
       name: 'canvas_move_node',
+      defer_loading: true,
       description: 'Move a node to a new position on the canvas.',
       inputSchema: z.object({
         nodeId: z.string().describe('The ID of the node to move.'),

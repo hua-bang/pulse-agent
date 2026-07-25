@@ -43,6 +43,7 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
 
     canvas_create_edge: {
       name: 'canvas_create_edge',
+      defer_loading: true,
       description:
         'Connect two nodes (or free points) on the canvas with an arrow. ' +
         'Endpoints are node-bound by default: pass `sourceNodeId` / `targetNodeId`. For a free-floating ' +
