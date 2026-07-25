@@ -51,6 +51,9 @@ export interface CanvasNodeViewProps {
   readOnly?: boolean;
   embedded?: boolean;
   renderMode?: CanvasNodeRenderMode;
+  /** File nodes only: mount the full tiptap editor instead of the lightweight
+   *  read-only MarkdownPreview (reference drawer preview). */
+  forceFileEditor?: boolean;
 }
 
 export type ResizeHandlerFactory = (edge: ResizeEdge) => (e: MouseEvent) => void;

@@ -47,6 +47,7 @@ const CanvasNodeViewComponent = ({
   readOnly = false,
   embedded = false,
   renderMode = 'full',
+  forceFileEditor = false,
 }: CanvasNodeViewProps) => {
   const viewModel = useCanvasNodeViewModel({
     embedded,
@@ -216,6 +217,7 @@ const CanvasNodeViewComponent = ({
       onUpdate={onUpdate}
       readOnly={readOnly}
       renderMode={renderMode}
+      forceFileEditor={forceFileEditor}
       relativeTime={viewModel.relativeTime}
       rootFolder={rootFolder}
       titleRef={viewModel.titleRef}
@@ -249,5 +251,6 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.onRemoveNodes === next.onRemoveNodes &&
   prev.readOnly === next.readOnly &&
   prev.embedded === next.embedded &&
-  prev.renderMode === next.renderMode
+  prev.renderMode === next.renderMode &&
+  prev.forceFileEditor === next.forceFileEditor
 ));

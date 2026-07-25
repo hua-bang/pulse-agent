@@ -327,7 +327,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
               onAddArtifactReference={pinReferenceArtifact}
               onUrlReferenceTitle={updateUrlReferenceTitle}
               onFocusNode={peekNode}
-              onAddReferenceToCanvas={addReferenceToCanvas}
               onWorkspaceNodesRequest={ensureWorkspaceNodesLoaded}
             />
           </Suspense>

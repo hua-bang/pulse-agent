@@ -10,6 +10,11 @@ interface Props {
   workspaceId?: string;
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
+  /** Mount the real tiptap editor even when readOnly. Read-only surfaces get
+   *  the lightweight MarkdownPreview by default (no tiptap/lowlight chunk);
+   *  single-preview surfaces like the reference drawer opt into the full
+   *  editor so code blocks/inline code render exactly like the canvas node. */
+  forceEditor?: boolean;
 }
 
 const FileNodeEditor = lazy(() =>
@@ -71,13 +76,13 @@ export const MarkdownPreview = ({ content }: { content: string }) => {
 };
 
 export const FileNodeBodyLazy = (props: Props) => {
-  const [editorLoaded, setEditorLoaded] = useState(() => !props.readOnly);
+  const [editorLoaded, setEditorLoaded] = useState(() => !props.readOnly || !!props.forceEditor);
   const { openLink } = useRightDock();
   const content = (props.node.data as FileNodeData).content ?? '';
 
   useEffect(() => {
-    if (!props.readOnly) setEditorLoaded(true);
-  }, [props.readOnly]);
+    if (!props.readOnly || props.forceEditor) setEditorLoaded(true);
+  }, [props.readOnly, props.forceEditor]);
 
   const activateEditor = useCallback(() => {
     if (!props.readOnly) setEditorLoaded(true);
