@@ -101,7 +101,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 325→322 (Library drawer toolbar): the three source-picker trigger chips
   // (ReferencePicker current/other, ReferenceUrlEditor) moved onto ui/Button
   // (now forwardRef) so they match the new ArtifactsPicker trigger.
-  rawButtonTags: 322,
+  // 322→318: the node-reference preview footer's four raw <button>s were
+  // removed with the footer (Open source / Add to canvas / Unpin / Clear all).
+  rawButtonTags: 318,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

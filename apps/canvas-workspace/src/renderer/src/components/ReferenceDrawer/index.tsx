@@ -5,7 +5,7 @@ import { ReferenceDrawerToolbar } from './ReferenceDrawerToolbar';
 import { ReferenceEmptyState } from './ReferenceEmptyState';
 import { ReferenceEntryList } from './ReferenceEntryList';
 import { ReferencePreviewPanel } from './ReferencePreviews';
-import type { NodeReferenceEntry, ReferenceEntry } from './types';
+import type { ReferenceEntry } from './types';
 import { useReferenceDrawerState } from './useReferenceDrawerState';
 import { getReferenceId } from './utils';
 import { useI18n } from '../../i18n';
@@ -29,7 +29,6 @@ interface ReferenceDrawerProps {
   onAddArtifactReference: (artifact: { workspaceId: string; artifactId: string; title?: string; type?: 'html' | 'svg' | 'mermaid' }) => void;
   onUrlReferenceTitle?: (referenceId: string, title: string) => void;
   onFocusNode: (workspaceId: string, nodeId: string) => void;
-  onAddReferenceToCanvas: (entry: NodeReferenceEntry) => void;
   onWorkspaceNodesRequest: (workspaceId: string) => void;
 }
 
@@ -52,7 +51,6 @@ export const ReferenceDrawer = ({
   onAddArtifactReference,
   onUrlReferenceTitle,
   onFocusNode,
-  onAddReferenceToCanvas,
   onWorkspaceNodesRequest,
 }: ReferenceDrawerProps) => {
   const { t } = useI18n();
@@ -157,7 +155,6 @@ export const ReferenceDrawer = ({
               copyUrl={state.copyUrl}
               drawerWidth={state.drawerWidth}
               getNodeByEntry={state.getNodeByEntry}
-              onAddReferenceToCanvas={onAddReferenceToCanvas}
               onClearAll={onClearAll}
               onFocusNode={onFocusNode}
               onOpenUrl={state.openUrl}

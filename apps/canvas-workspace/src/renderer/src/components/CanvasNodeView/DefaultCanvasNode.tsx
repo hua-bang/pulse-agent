@@ -66,6 +66,7 @@ interface DefaultCanvasNodeProps {
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   readOnly: boolean;
   renderMode?: CanvasNodeRenderMode;
+  forceFileEditor?: boolean;
   relativeTime: string | null;
   rootFolder?: string;
   titleRef: RefObject<HTMLSpanElement>;
@@ -109,6 +110,7 @@ export const DefaultCanvasNode = ({
   onUpdate,
   readOnly,
   renderMode = 'full',
+  forceFileEditor = false,
   relativeTime,
   rootFolder,
   titleRef,
@@ -244,7 +246,7 @@ export const DefaultCanvasNode = ({
       <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
         <Suspense fallback={null}>
         {node.type === 'file' ? (
-          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} />
+          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} forceEditor={forceFileEditor} />
         ) : node.type === 'terminal' ? (
           <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         ) : node.type === 'frame' || node.type === 'group' ? (
