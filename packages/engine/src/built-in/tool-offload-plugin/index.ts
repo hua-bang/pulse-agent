@@ -58,6 +58,16 @@ function createFsStore(dir: string): OffloadStore {
  * (read/bash/grep) stay below the threshold and are left untouched; the real
  * beneficiaries are uncapped sources like MCP tools and aggregate results such
  * as tavily's multi-result arrays.
+ *
+ * Retention policy — cache, NO automatic cleanup (by design). The offload
+ * directory is treated as a content-addressed cache: files are named by content
+ * hash (so identical results dedupe) and are intentionally never swept on a
+ * timer, session end, or size limit. This is deliberate: a stub in the message
+ * history is a durable pointer, and deleting the file it references would make
+ * old sessions/sub-agents lose the full result. Do NOT add a background cleanup
+ * sweep here — if disk pressure ever demands eviction, make it opt-in (env-gated
+ * size/age cap) and pair it with graceful read-degradation for missing files.
+ * The write path is decoupled from any eviction, so adding one later is easy.
  */
 export const builtInToolOffloadPlugin: EnginePlugin = {
   name: 'pulse-coder-engine/built-in-tool-offload',
