@@ -27,7 +27,7 @@ interface Options {
   canvasMouseUp: () => void;
   moving: boolean;
   panning: boolean;
-  onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
+  onDragStart: (e: React.MouseEvent, node: CanvasNode) => boolean;
   onDragMove: (e: React.MouseEvent) => boolean;
   onDragEnd: () => void;
   /** Abort handlers for Escape-mid-gesture: restore start positions /
@@ -229,8 +229,8 @@ export const useCanvasMouseHandlers = ({
   const handleSurfaceDragStart = useCallback(
     (e: React.MouseEvent, node: CanvasNode) => {
       const shouldTrackDrag = e.button === 0 && !e.altKey;
-      onDragStart(e, node);
-      isDraggingRef.current = shouldTrackDrag && e.defaultPrevented;
+      const dragPrepared = onDragStart(e, node);
+      isDraggingRef.current = shouldTrackDrag && dragPrepared;
       if (isDraggingRef.current) mountDragShield();
     },
     [onDragStart],

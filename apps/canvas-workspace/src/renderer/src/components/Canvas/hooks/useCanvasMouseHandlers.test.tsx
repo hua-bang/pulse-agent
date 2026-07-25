@@ -189,7 +189,7 @@ describe('useCanvasMouseHandlers synchronous drag shield', () => {
       canvasMouseUp: vi.fn(),
       moving: false,
       panning: false,
-      onDragStart: vi.fn((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); }),
+      onDragStart: vi.fn((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); return true; }),
       onDragMove: vi.fn(() => false),
       onDragEnd: vi.fn(),
       onDragCancel: vi.fn(),
