@@ -6,13 +6,11 @@
  * access in workspace chat and a read-only allowlist globally. Runs in Electron.
  */
 import { Engine } from 'pulse-coder-engine';
-import { createSkillsPlugin, createMcpPlugin, createToolOffloadPlugin } from 'pulse-coder-engine/built-in';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { join } from 'path';
 import { resolveCanvasModel } from './model/config';
-import { scopeMcpConfigPath, scopeRootDir, skillSourceDirs } from './config-scope';
-import { getCanvasPluginSkillScanPathsSync } from '../settings/canvas-plugins-config';
+import { createCanvasEnginePlugins } from './engine-plugins';
 import { agentBus } from '../../plugins/main';
 import {
   buildWorkspaceSummary,
@@ -25,7 +23,6 @@ import { sessionPreview } from './session-preview';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
 import { buildMemoryPromptSection } from './memory-store';
-import { createCanvasMcpOAuthProvider } from './mcp/oauth';
 import {
   attachTraceModel,
   createCanvasAgentDebugTrace,
@@ -613,57 +610,18 @@ export class CanvasAgent {
   }
 
   /**
-   * Construct the Engine with the skills + MCP plugins scoped to this
-   * workspace. Both plugins read two scopes — global (`~/.pulse-coder/canvas`)
-   * and this workspace — with the workspace winning on name/server collisions.
+   * Construct the Engine for this scope. The plugin list (and the scope-derived
+   * skill / MCP / offload paths it needs) lives in `./engine-plugins`.
    * Called from the constructor and again on `reloadEngine()` so MCP config
    * edits take effect.
    */
   private buildEngine(): any {
-    const workspaceId = this.config.scope.kind === 'workspace'
-      ? this.config.scope.workspaceId
-      : undefined;
-    const globalScope = { level: 'global' as const };
-    const wsScope = workspaceId ? { level: 'workspace' as const, workspaceId } : undefined;
-
-    // Skills: workspace dirs scanned first, then every standard global skill
-    // dir (canvas-managed, plus whatever the user has under ~/.pulse-coder,
-    // ~/.claude, ~/.codex, etc.). Earlier sources win on same-name — so the
-    // workspace's own skills override globals, and canvas-managed globals
-    // override skills from other tools.
-    const skillsScanPaths = [
-      ...(wsScope ? skillSourceDirs(wsScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })) : []),
-      ...skillSourceDirs(globalScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })),
-      ...getCanvasPluginSkillScanPathsSync().map((base) => ({ base, pattern: '**/SKILL.md' })),
-    ];
-    // MCP: global first, workspace later so it overrides on same server name.
-    const mcpConfigPaths = [
-      scopeMcpConfigPath(globalScope),
-      ...(wsScope ? [scopeMcpConfigPath(wsScope)] : []),
-    ];
-
     const toolPolicy = createCanvasAgentToolPolicy(this.config.scope);
-
-    // Offload oversized tool results (chiefly uncapped MCP output) to disk so
-    // they don't bloat the context window; the agent reads them on demand via
-    // the read/grep tools. Store under the workspace scope's user dir (never
-    // cwd — the Electron cwd is unpredictable and must not receive runtime data).
-    const offloadDir = join(scopeRootDir(wsScope ?? globalScope), 'offload');
 
     return new Engine({
       disableBuiltInPlugins: true,
       enginePlugins: {
-        plugins: [
-          createSkillsPlugin({ scanPaths: skillsScanPaths }),
-          createMcpPlugin({
-            configPaths: mcpConfigPaths,
-            authProviderFactory: ({ serverName, config }) => {
-              if (config.auth !== 'oauth') return undefined;
-              return createCanvasMcpOAuthProvider(serverName, config.oauth);
-            },
-          }),
-          createToolOffloadPlugin({ dir: offloadDir }),
-        ],
+        plugins: createCanvasEnginePlugins(this.config.scope) as never,
       },
       model: this.config.model,
       builtInTools: toolPolicy.builtInTools,
