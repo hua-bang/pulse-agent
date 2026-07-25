@@ -59,6 +59,7 @@ export function createPluginNodeTools(workspaceId: string): Record<string, Canva
   return {
     canvas_plugin_node_read: {
       name: 'canvas_plugin_node_read',
+      defer_loading: true,
       description:
         'Read a custom plugin node through its registered semantic read capability. ' +
         'Use this for type="plugin" nodes when you need plugin-owned state in a structured form. ' +
@@ -101,6 +102,7 @@ export function createPluginNodeTools(workspaceId: string): Record<string, Canva
 
     canvas_plugin_node_write: {
       name: 'canvas_plugin_node_write',
+      defer_loading: true,
       description:
         'Write to a custom plugin node through its registered write capability. ' +
         'Patch `payload` for plugin-owned JSON state, `data` for top-level plugin node data, or `title` for the canvas shell title. ' +
@@ -159,6 +161,7 @@ export function createPluginNodeTools(workspaceId: string): Record<string, Canva
 
     canvas_plugin_node_action: {
       name: 'canvas_plugin_node_action',
+      defer_loading: true,
       description:
         'Execute a named action on a custom plugin node through its registered action capability. ' +
         'Examples: increment a mock card, sync a design frame, run a plugin-specific transform. ' +

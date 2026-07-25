@@ -8,7 +8,6 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
   return {
     canvas_list_edges: {
       name: 'canvas_list_edges',
-      defer_loading: true,
       description:
         'List every edge (connection / arrow) on the canvas with resolved endpoint titles. ' +
         'Useful when you need to understand what the user has linked together — e.g. to figure out ' +
@@ -44,7 +43,6 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
 
     canvas_create_edge: {
       name: 'canvas_create_edge',
-      defer_loading: true,
       description:
         'Connect two nodes (or free points) on the canvas with an arrow. ' +
         'Endpoints are node-bound by default: pass `sourceNodeId` / `targetNodeId`. For a free-floating ' +
