@@ -8,7 +8,22 @@ import { offloadToolOutput, type OffloadStore } from './offload.js';
 export { measurePayloadSize, buildStub, offloadToolOutput } from './offload.js';
 export type { OffloadStore, OffloadResult, OffloadOptions } from './offload.js';
 
-function resolveOffloadDir(): string {
+export interface ToolOffloadPluginOptions {
+  /**
+   * Absolute directory to store offloaded results under. Overrides the
+   * env/cwd-based default. Hosts that run the engine off the repo root (e.g.
+   * the Electron app, whose cwd is unpredictable) MUST pass an explicit
+   * user-scoped path so nothing is written into a source tree.
+   */
+  dir?: string;
+  /** Payload-size threshold in chars. Defaults to TOOL_OFFLOAD_THRESHOLD. */
+  threshold?: number;
+}
+
+function resolveOffloadDir(dir?: string): string {
+  if (dir) {
+    return path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
+  }
   if (TOOL_OFFLOAD_DIR) {
     return path.isAbsolute(TOOL_OFFLOAD_DIR)
       ? TOOL_OFFLOAD_DIR
@@ -69,43 +84,52 @@ function createFsStore(dir: string): OffloadStore {
  * size/age cap) and pair it with graceful read-degradation for missing files.
  * The write path is decoupled from any eviction, so adding one later is easy.
  */
-export const builtInToolOffloadPlugin: EnginePlugin = {
-  name: 'pulse-coder-engine/built-in-tool-offload',
-  version: '1.0.0',
+export function createToolOffloadPlugin(options: ToolOffloadPluginOptions = {}): EnginePlugin {
+  return {
+    name: 'pulse-coder-engine/built-in-tool-offload',
+    version: '1.0.0',
 
-  async initialize(context: EnginePluginContext): Promise<void> {
-    const threshold = TOOL_OFFLOAD_THRESHOLD;
-    if (!Number.isFinite(threshold) || threshold <= 0) {
-      context.logger.warn('[ToolOffload] disabled: invalid TOOL_OFFLOAD_THRESHOLD', { threshold });
-      return;
-    }
-
-    const dir = resolveOffloadDir();
-    const store = createFsStore(dir);
-
-    context.registerHook('afterToolCall', async ({ name, output }) => {
-      try {
-        const result = await offloadToolOutput(output, { toolName: name, threshold, store });
-        if (!result) return;
-        context.logger.info('[ToolOffload] offloaded oversized tool output', {
-          tool: name,
-          payloadSize: result.payloadSize,
-          path: result.path,
-        });
-        return { output: result.output };
-      } catch (error) {
-        // Best-effort: never let offloading failure break the tool call. Fall
-        // back to returning the original (large) output unchanged.
-        context.logger.warn('[ToolOffload] offload failed; keeping inline output', {
-          tool: name,
-          error: error instanceof Error ? error.message : String(error),
-        });
+    async initialize(context: EnginePluginContext): Promise<void> {
+      const threshold = options.threshold ?? TOOL_OFFLOAD_THRESHOLD;
+      if (!Number.isFinite(threshold) || threshold <= 0) {
+        context.logger.warn('[ToolOffload] disabled: invalid threshold', { threshold });
         return;
       }
-    });
 
-    context.logger.info('[ToolOffload] registered afterToolCall offloader', { dir, threshold });
-  },
-};
+      const dir = resolveOffloadDir(options.dir);
+      const store = createFsStore(dir);
+
+      context.registerHook('afterToolCall', async ({ name, output }) => {
+        try {
+          const result = await offloadToolOutput(output, { toolName: name, threshold, store });
+          if (!result) return;
+          context.logger.info('[ToolOffload] offloaded oversized tool output', {
+            tool: name,
+            payloadSize: result.payloadSize,
+            path: result.path,
+          });
+          return { output: result.output };
+        } catch (error) {
+          // Best-effort: never let offloading failure break the tool call. Fall
+          // back to returning the original (large) output unchanged.
+          context.logger.warn('[ToolOffload] offload failed; keeping inline output', {
+            tool: name,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return;
+        }
+      });
+
+      context.logger.info('[ToolOffload] registered afterToolCall offloader', { dir, threshold });
+    },
+  };
+}
+
+/**
+ * Default instance for the built-in plugin list (env/cwd-based dir). Hosts that
+ * construct the engine off the repo root should use {@link createToolOffloadPlugin}
+ * with an explicit `dir` instead.
+ */
+export const builtInToolOffloadPlugin: EnginePlugin = createToolOffloadPlugin();
 
 export default builtInToolOffloadPlugin;

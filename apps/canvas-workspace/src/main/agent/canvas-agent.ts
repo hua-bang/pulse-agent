@@ -6,11 +6,12 @@
  * access in workspace chat and a read-only allowlist globally. Runs in Electron.
  */
 import { Engine } from 'pulse-coder-engine';
-import { createSkillsPlugin, createMcpPlugin } from 'pulse-coder-engine/built-in';
+import { createSkillsPlugin, createMcpPlugin, createToolOffloadPlugin } from 'pulse-coder-engine/built-in';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
+import { join } from 'path';
 import { resolveCanvasModel } from './model/config';
-import { scopeMcpConfigPath, skillSourceDirs } from './config-scope';
+import { scopeMcpConfigPath, scopeRootDir, skillSourceDirs } from './config-scope';
 import { getCanvasPluginSkillScanPathsSync } from '../settings/canvas-plugins-config';
 import { agentBus } from '../../plugins/main';
 import {
@@ -643,6 +644,12 @@ export class CanvasAgent {
 
     const toolPolicy = createCanvasAgentToolPolicy(this.config.scope);
 
+    // Offload oversized tool results (chiefly uncapped MCP output) to disk so
+    // they don't bloat the context window; the agent reads them on demand via
+    // the read/grep tools. Store under the workspace scope's user dir (never
+    // cwd — the Electron cwd is unpredictable and must not receive runtime data).
+    const offloadDir = join(scopeRootDir(wsScope ?? globalScope), 'offload');
+
     return new Engine({
       disableBuiltInPlugins: true,
       enginePlugins: {
@@ -655,6 +662,7 @@ export class CanvasAgent {
               return createCanvasMcpOAuthProvider(serverName, config.oauth);
             },
           }),
+          createToolOffloadPlugin({ dir: offloadDir }),
         ],
       },
       model: this.config.model,
