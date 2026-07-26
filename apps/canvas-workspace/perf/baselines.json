@@ -174,13 +174,13 @@
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
-      "confidence": "medium", "basis": "webview 生命周期(L2 冻结+L3 丢弃)、常驻卡顿观测、内联 iframe 懒挂载落地后实测 512KB(原 495)", "asOf": "2026-07-13",
-      "gate": { "kind": "ratchet", "baseline": 888.1, "tolerancePct": 5, "scope": "runtime" }
+      "confidence": "medium", "basis": "Heptabase/Notion 风格笔记编辑器落地后，100 节点 warm trace 连续历史样本由约 1711KB 增至 1912.5KB；指标会计入首个可见笔记按需加载的完整编辑能力，保留 950/1050 目标作为后续瘦身压力。", "asOf": "2026-07-26",
+      "gate": { "kind": "ratchet", "baseline": 1912.5, "tolerancePct": 5, "scope": "runtime" }
     },
     "startup.loaded_to_lcp_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
-      "confidence": "medium", "basis": "File/Text/Chat/MF 首用分层后连续 warm trace 966→893KB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 892.9, "tolerancePct": 5, "scope": "runtime" }
+      "confidence": "medium", "basis": "同一 warm trace 中 file:// 资源时序均记为 0，LCP 前资源与 Canvas 前资源同为 1912.5KB；随笔记编辑器能力校准 ratchet，同时保留 950/1050 目标。", "asOf": "2026-07-26",
+      "gate": { "kind": "ratchet", "baseline": 1912.5, "tolerancePct": 5, "scope": "runtime" }
     },
     "bundle.heavy_in_entry_count": {
       "profile": "global-deterministic", "target": 0,

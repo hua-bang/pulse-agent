@@ -14,11 +14,7 @@ export type EdgeInteractionPreviewPatch = Partial<
   Pick<CanvasEdge, 'source' | 'target' | 'bend' | 'curveMode'>
 >;
 
-/**
- * Active edge interaction. Only one can be in-flight at a time; the
- * overlay layer reads this to render the preview line and the handle
- * positions while the drag is live.
- */
+/** The single active edge interaction used to render live previews. */
 export type EdgeInteractionState =
   | {
       kind: 'connect';
@@ -41,8 +37,7 @@ export type EdgeInteractionState =
       original: EdgeEndpoint;
       cursor: Point;
       hoverNodeId: string | null;
-      /** Render-only geometry. The canonical edge is written once, on
-       *  mouseup, instead of once per pointer event. */
+      /** Render-only geometry, committed once on mouseup. */
       previewPatch: EdgeInteractionPreviewPatch;
     }
   | {
@@ -58,7 +53,6 @@ export type EdgeInteractionState =
       /** Automatic curves and previously adjusted smooth curves keep cubic
        * geometry; legacy non-zero bends continue using their quadratic path. */
       smoothBend: boolean;
-      /** Render-only geometry; committed once on mouseup. */
       previewPatch: EdgeInteractionPreviewPatch;
     }
   | {
@@ -69,7 +63,6 @@ export type EdgeInteractionState =
       initialTarget: EdgeEndpoint;
       originCursor: Point;
       cursor: Point;
-      /** Render-only geometry; committed once on mouseup. */
       previewPatch: EdgeInteractionPreviewPatch;
     };
 
@@ -85,10 +78,7 @@ interface UseEdgeInteractionArgs {
   commitHistory: () => void;
   /** Existing edge geometry at gesture start. */
   edges: CanvasEdge[];
-  /** Called once after a connect-drag successfully commits a new edge
-   *  (ignored for discarded clicks and self-drops). The Canvas wires
-   *  this to `setActiveTool('select')` so the user isn't stuck in
-   *  connect mode after drawing one arrow. */
+  /** Called once after a connect-drag successfully commits a new edge. */
   onConnectCommitted?: (edgeId: string) => void;
 }
 
@@ -229,11 +219,7 @@ export const useEdgeInteraction = ({
   const nodesById = useRef(new Map<string, CanvasNode>());
   nodesById.current = new Map(nodes.map((n) => [n.id, n]));
 
-  /**
-   * Compute the mouse position in canvas coordinates. Returns null if
-   * the container isn't mounted (shouldn't happen during an active
-   * drag, but we defensively bail).
-   */
+  /** Compute the mouse position in canvas coordinates when mounted. */
   const toCanvas = useCallback((clientX: number, clientY: number): Point | null => {
     const container = getContainer();
     if (!container) return null;
