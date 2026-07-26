@@ -81,7 +81,7 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     description:
       'Adds a DevTools route that inspects per-run agent debug traces (chat history, tool calls, raw LLM payloads).',
     defaultEnabled: false,
-    exposure: 'experimental',
+    exposure: 'grandfathered',
   },
   {
     id: EXPERIMENTAL_FLAG_WORKSPACE_NODES,

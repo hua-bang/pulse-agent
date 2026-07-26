@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   EXPERIMENTAL_FEATURES,
+  EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
   EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
   EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL,
@@ -16,6 +17,11 @@ const promotedFeatureIds = [
   EXPERIMENTAL_FLAG_WORKSPACE_GRAPH,
   EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL,
   EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
+];
+
+const grandfatheredFeatureIds = [
+  EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
+  EXPERIMENTAL_FLAG_AGENT_TEAMS,
 ];
 
 describe('experimental feature lifecycle', () => {
@@ -34,17 +40,20 @@ describe('experimental feature lifecycle', () => {
     }
   });
 
-  it('shows Agent Teams only to users who currently have it enabled', () => {
+  it('shows grandfathered features only to users who currently have them enabled', () => {
     const hiddenIds = getVisibleExperimentalFeatures({}).map((feature) => feature.id);
-    const visibleIds = getVisibleExperimentalFeatures({
-      [EXPERIMENTAL_FLAG_AGENT_TEAMS]: true,
-    }).map((feature) => feature.id);
+    const enabledOverrides = Object.fromEntries(
+      grandfatheredFeatureIds.map((id) => [id, true]),
+    );
+    const visibleIds = getVisibleExperimentalFeatures(enabledOverrides)
+      .map((feature) => feature.id);
+    const values = resolveFeatureValues(enabledOverrides);
 
-    expect(hiddenIds).not.toContain(EXPERIMENTAL_FLAG_AGENT_TEAMS);
-    expect(visibleIds).toContain(EXPERIMENTAL_FLAG_AGENT_TEAMS);
-    expect(resolveFeatureValues({
-      [EXPERIMENTAL_FLAG_AGENT_TEAMS]: true,
-    })[EXPERIMENTAL_FLAG_AGENT_TEAMS]).toBe(true);
+    for (const id of grandfatheredFeatureIds) {
+      expect(hiddenIds).not.toContain(id);
+      expect(visibleIds).toContain(id);
+      expect(values[id]).toBe(true);
+    }
   });
 
   it('allows mutation only for visible experimental features', () => {
