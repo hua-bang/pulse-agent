@@ -182,6 +182,15 @@
   flex: 1;
 }
 
+.chat-page-topbar-title {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ─── Body (chat view inside the page) ────────────────────── */
 
 .chat-page-body {
@@ -208,6 +217,10 @@
   max-width: 560px;
   margin: 0 auto;
   justify-content: center;
+}
+
+.chat-page-empty-spacer {
+  flex: 1;
 }
 
 .chat-page-body .chat-input-container {

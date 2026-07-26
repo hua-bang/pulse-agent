@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type React from 'react';
-import { PuzzlePiece } from '@phosphor-icons/react';
+import { CalendarBlank, PuzzlePiece } from '@phosphor-icons/react';
 import type { NavItem } from '../../../../plugins/types';
 import {
   PlusIcon,
@@ -30,6 +30,7 @@ interface SidebarHeaderProps {
   onEnterNodes: () => void;
   onEnterGraph: () => void;
   onEnterSkills: () => void;
+  onEnterScheduled: () => void;
   nodesEnabled: boolean;
   graphEnabled: boolean;
   pluginNavItems: ReadonlyArray<NavItem>;
@@ -50,6 +51,7 @@ export const SidebarHeader = ({
   onEnterNodes,
   onEnterGraph,
   onEnterSkills,
+  onEnterScheduled,
   nodesEnabled,
   graphEnabled,
   pluginNavItems,
@@ -148,6 +150,17 @@ export const SidebarHeader = ({
             <PuzzlePiece size={14} />
           </span>
           <span className="sidebar-nav-label">{t('sidebar.skills')}</span>
+        </Button>
+        <Button
+          variant="secondary"
+          className={`sidebar-nav-item${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-nav-item--active' : ''}`}
+          onClick={onEnterScheduled}
+          title={t('sidebar.scheduledTitle')}
+        >
+          <span className="sidebar-nav-icon">
+            <CalendarBlank size={14} />
+          </span>
+          <span className="sidebar-nav-label">{t('sidebar.scheduled')}</span>
         </Button>
         {pluginNavItems.map((item) => {
           const Icon = item.icon;

@@ -30,7 +30,11 @@ export function useChatSessions({
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
-  const scopeKey = agentScope.kind === 'global' ? 'global' : `workspace:${agentScope.workspaceId}`;
+  const scopeKey = agentScope.kind === 'workspace'
+    ? `workspace:${agentScope.workspaceId}`
+    : agentScope.kind === 'scheduled'
+      ? `scheduled:${agentScope.taskId}`
+      : 'global';
 
   // Always read the latest scope inside the effect without making the effect
   // depend on the object's identity (see below).

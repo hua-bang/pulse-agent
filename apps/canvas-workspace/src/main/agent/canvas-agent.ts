@@ -604,7 +604,9 @@ export class CanvasAgent {
   private get label(): string {
     return this.config.scope.kind === 'workspace'
       ? `workspace: ${this.config.scope.workspaceId}`
-      : 'global chat';
+      : this.config.scope.kind === 'scheduled'
+        ? `scheduled task: ${this.config.scope.taskId}`
+        : 'global chat';
   }
 
   /**

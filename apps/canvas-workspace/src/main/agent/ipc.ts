@@ -44,6 +44,9 @@ const sessionScopeMap = new Map<string, AgentScope>();
 
 function resolveAgentScope(payload: AgentScopeRef): AgentScope {
   if (payload.scope?.kind === 'global') return { kind: 'global' };
+  if (payload.scope?.kind === 'scheduled' && payload.scope.taskId) {
+    return { kind: 'scheduled', taskId: payload.scope.taskId };
+  }
   if (payload.scope?.kind === 'workspace' && payload.scope.workspaceId) {
     return { kind: 'workspace', workspaceId: payload.scope.workspaceId };
   }
@@ -86,7 +89,9 @@ export function setupCanvasAgentIpc(): void {
           onComplete: async (content) => {
             const storeId = scope.kind === 'workspace'
               ? scope.workspaceId
-              : GLOBAL_CHAT_SESSION_STORE_ID;
+              : scope.kind === 'scheduled'
+                ? `__scheduled__-${scope.taskId}`
+                : GLOBAL_CHAT_SESSION_STORE_ID;
             const store = new SessionStore(storeId, scope);
             await store.startSession();
             const timestamp = Date.now();

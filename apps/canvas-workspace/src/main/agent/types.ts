@@ -7,6 +7,7 @@
  */
 
 export type { AgentRequestContext } from '../../shared/agent-chat';
+import type { AgentScope as SharedAgentScope } from '../../shared/agent-chat';
 
 // ─── Configuration ──────────────────────────────────────────────────
 
@@ -19,9 +20,7 @@ export interface CanvasAgentConfig {
   model?: string;
 }
 
-export type AgentScope =
-  | { kind: 'workspace'; workspaceId: string }
-  | { kind: 'global' };
+export type AgentScope = SharedAgentScope;
 
 export interface AgentScopeRef {
   scope?: AgentScope;

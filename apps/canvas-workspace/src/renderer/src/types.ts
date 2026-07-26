@@ -1,6 +1,7 @@
 import type { CanvasWorkspaceApi } from './types/workspace-api';
 
 export type * from '../../shared/browsing-history';
+export type * from '../../shared/scheduled';
 export type * from './types/agent-chat';
 export type * from './types/agent-teams';
 export type * from './types/app-info';

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type KeyboardEventHandler } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type KeyboardEventHandler, type ReactNode } from 'react';
 import type { CanvasNode } from '../../types';
 import { CloseIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
 import type { SettingsSection } from '../Settings';
@@ -52,6 +52,11 @@ export interface ChatPageBodyProps {
   onOpenAppSettings: (section: SettingsSection) => void;
   /** Opens per-workspace settings when the chat scope is workspace-bound. */
   onOpenWorkspaceSettings?: (workspaceId: string) => void;
+  /** Fixed-task chats hide the cross-session rail/new-chat controls. */
+  fixedChat?: {
+    title: string;
+    banner?: ReactNode;
+  };
 }
 
 export const ChatPageBody = ({
@@ -77,6 +82,7 @@ export const ChatPageBody = ({
   onToggleRail,
   onOpenAppSettings,
   onOpenWorkspaceSettings,
+  fixedChat,
 }: ChatPageBodyProps) => {
   const { t } = useI18n();
   const { notify } = useAppShell();
@@ -375,26 +381,31 @@ export const ChatPageBody = ({
   }, [loading, onSelectSession]);
 
   return (
-    <>
     <div className="chat-page">
-      <div className={`chat-page-rail-wrapper${railCollapsed ? ' chat-page-rail-wrapper--collapsed' : ''}`}>
-        <ChatSessionsRail
-          allSessions={allSessions}
-          onNewSession={handleRailNewSession}
-          onSelectSession={handleRailSelectSession}
-        />
-      </div>
+      {!fixedChat && (
+        <div className={`chat-page-rail-wrapper${railCollapsed ? ' chat-page-rail-wrapper--collapsed' : ''}`}>
+          <ChatSessionsRail
+            allSessions={allSessions}
+            onNewSession={handleRailNewSession}
+            onSelectSession={handleRailSelectSession}
+          />
+        </div>
+      )}
 
       <div className="chat-page-main">
         <div className="chat-page-topbar">
-          <button
-            className="chat-panel-action-btn"
-            onClick={onToggleRail}
-            title={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
-            aria-label={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
-          >
-            <RailToggleIcon size={16} />
-          </button>
+          {fixedChat ? (
+            <strong className="chat-page-topbar-title">{fixedChat.title}</strong>
+          ) : (
+            <button
+              className="chat-panel-action-btn"
+              onClick={onToggleRail}
+              title={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
+              aria-label={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
+            >
+              <RailToggleIcon size={16} />
+            </button>
+          )}
           <div className="chat-page-topbar-spacer" />
           <ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />
           <button
@@ -413,14 +424,16 @@ export const ChatPageBody = ({
           >
             <SettingsIcon size={16} strokeWidth={1.25} />
           </button>
-          <button
-            className="chat-panel-action-btn"
-            onClick={() => void handleRailNewSession()}
-            title={t('chat.newAiChat')}
-            aria-label={t('chat.newAiChat')}
-          >
-            <PlusIcon size={16} strokeWidth={1.3} />
-          </button>
+          {!fixedChat && (
+            <button
+              className="chat-panel-action-btn"
+              onClick={() => void handleRailNewSession()}
+              title={t('chat.newAiChat')}
+              aria-label={t('chat.newAiChat')}
+            >
+              <PlusIcon size={16} strokeWidth={1.3} />
+            </button>
+          )}
           <button
             className="chat-panel-action-btn"
             onClick={onExit}
@@ -433,9 +446,9 @@ export const ChatPageBody = ({
 
         <ChatView
           className="chat-page-body"
-          banner={backEntry && onBackToSession ? (
+          banner={fixedChat?.banner ?? (backEntry && onBackToSession ? (
             <SessionBackBar entry={backEntry} disabled={loading} onBack={onBackToSession} />
-          ) : undefined}
+          ) : undefined)}
           messages={messages}
           loading={loading}
           workspaceId={anchorScopeId}
@@ -454,6 +467,7 @@ export const ChatPageBody = ({
           nodes={nodes}
           onNodeFocus={handleNodeFocus}
           onQuickAction={handleQuickAction}
+          emptyState={fixedChat ? <div className="chat-page-empty-spacer" /> : undefined} inputPlaceholder={fixedChat ? t('scheduled.followUpPlaceholder') : undefined}
           input={input}
           attachments={attachments}
           editableRef={editableRef}
@@ -482,6 +496,5 @@ export const ChatPageBody = ({
         />
       </div>
     </div>
-    </>
   );
 };

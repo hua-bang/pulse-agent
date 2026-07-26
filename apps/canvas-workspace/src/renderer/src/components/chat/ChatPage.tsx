@@ -48,7 +48,11 @@ export const ChatPage = ({
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
   const [newSessionRequest, setNewSessionRequest] = useState(0);
   const [railCollapsed, setRailCollapsed] = useState(true);
-  const scopeKey = agentScope.kind === 'global' ? 'global' : `workspace:${agentScope.workspaceId}`;
+  const scopeKey = agentScope.kind === 'workspace'
+    ? `workspace:${agentScope.workspaceId}`
+    : agentScope.kind === 'scheduled'
+      ? `scheduled:${agentScope.taskId}`
+      : 'global';
 
   // Jump trail for session-ref chip navigation. Owned here (not in the body)
   // so it survives the body remount a cross-workspace jump triggers.

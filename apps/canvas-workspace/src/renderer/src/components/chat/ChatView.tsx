@@ -45,6 +45,8 @@ interface ChatViewProps {
 
   // Quick actions (empty state)
   onQuickAction: (prompt: string, quickAction?: string) => Promise<void> | void;
+  emptyState?: ReactNode;
+  inputPlaceholder?: string;
 
   // Input
   input: string;
@@ -116,6 +118,8 @@ export const ChatView = ({
   onRemoveContext,
   onNodeFocus,
   onQuickAction,
+  emptyState,
+  inputPlaceholder,
   input,
   attachments,
   editableRef,
@@ -179,7 +183,7 @@ export const ChatView = ({
           onRegenerate={onRegenerate}
           onSessionJump={onSessionJump}
         />
-      ) : (
+      ) : emptyState !== undefined ? emptyState : (
         <ChatEmptyState
           selectedCount={selectedContext?.length ?? 0}
           onQuickAction={onQuickAction}
@@ -197,6 +201,7 @@ export const ChatView = ({
         onRemoveContext={onRemoveContext}
         contextComposer={contextComposer}
         knowledgeMode={knowledgeMode}
+        placeholder={inputPlaceholder}
         executionMode={executionMode}
         modelStatus={modelStatus}
         modelSelection={modelSelection}

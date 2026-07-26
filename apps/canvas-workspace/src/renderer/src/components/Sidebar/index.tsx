@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
-import { PuzzlePiece } from '@phosphor-icons/react';
+import { CalendarBlank, PuzzlePiece } from '@phosphor-icons/react';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import type { NavItem } from '../../../../plugins/types';
 import type { WorkspaceEntry, FolderEntry } from '../../hooks/useWorkspaces';
@@ -56,6 +56,7 @@ interface Props {
   onEnterNodes: () => void;
   onEnterGraph: () => void;
   onEnterSkills: () => void;
+  onEnterScheduled: () => void;
   /** When false, the Nodes nav button is hidden (feature flag off). */
   nodesEnabled: boolean;
   /** When false, the Graph nav button is hidden (feature flag off). */
@@ -75,6 +76,7 @@ export const Sidebar = ({
   activeNodes = [], selectedNodeIds = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
   onEnterNodes, onEnterGraph, nodesEnabled, graphEnabled,
   onEnterSkills,
+  onEnterScheduled,
 }: Props) => {
   const { notify } = useAppShell();
   const { t } = useI18n();
@@ -333,6 +335,7 @@ export const Sidebar = ({
             onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat}
             onEnterNodes={onEnterNodes} onEnterGraph={onEnterGraph}
             onEnterSkills={onEnterSkills}
+            onEnterScheduled={onEnterScheduled}
             nodesEnabled={nodesEnabled} graphEnabled={graphEnabled}
             pluginNavItems={pluginNavItems} onNavigate={onNavigate}
             showAddMenu={showAddMenu} onToggleAddMenu={() => setShowAddMenu((v) => !v)}
@@ -424,6 +427,15 @@ export const Sidebar = ({
             aria-label={t('sidebar.skills')}
           >
             <PuzzlePiece size={14} />
+          </Button>
+          <Button
+            variant="icon"
+            className={`sidebar-collapsed-btn${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-collapsed-btn--active' : ''}`}
+            onClick={onEnterScheduled}
+            title={t('sidebar.scheduledTitle')}
+            aria-label={t('sidebar.scheduled')}
+          >
+            <CalendarBlank size={14} />
           </Button>
           <button
             type="button"

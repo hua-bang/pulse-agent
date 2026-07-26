@@ -3,12 +3,8 @@
  *
  * Channels:
  *  - `memory-report:run-now` — generate a report immediately and open it in
- *    the dock. User-initiated, so deliberately NOT gated by the
- *    scheduled-memory-report experimental flag (the flag gates AUTOMATIC
- *    background spend; a click is explicit consent to one LLM run). This is
- *    the settings "try it" button behind the flag toggle — registered
- *    unconditionally so the button works right after enabling the flag,
- *    before the restart that arms the scheduler.
+ *    the dock. This is a compatibility entry point for older renderer
+ *    clients; new recurring work is created and opened through Scheduled.
  *
  *  - `memory-report:cancel` — abort the in-flight run (no-op when idle).
  *  - `memory-report:progress` (push, main → every window) — coarse phase of

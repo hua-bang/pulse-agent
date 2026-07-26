@@ -23,9 +23,9 @@ export interface MemoryReportProgress {
 
 export interface MemoryReportApi {
   /**
-   * Generate a memory report right now (user-initiated — not gated by the
-   * scheduled-memory-report flag; clicking is explicit consent to one LLM
-   * run). Resolves when generation finishes; concurrent calls share one run.
+   * Legacy on-demand rich memory-report entry point. New recurring work uses
+   * the stable Scheduled task API; this remains for compatibility with older
+   * renderer clients. Concurrent calls share one run.
    */
   runNow: () => Promise<MemoryReportRunResult>;
   /** Cancel the in-flight run, if any. */
