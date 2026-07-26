@@ -1,8 +1,8 @@
 # Scheduled task controls — design QA
 
 - Source visual truth: the two annotated Scheduled screenshots supplied with this task (`codex-clipboard-115a…png` and `codex-clipboard-080a…png`).
-- Implementation screenshots: `.harness/runs/harness-2026-07-26T14-19-05-735Z/screenshot-1785075550477.png` (list) and `.harness/runs/harness-2026-07-26T14-17-02-942Z/screenshot-1785075444011.png` (Chat).
-- Full-view comparisons: `scheduled-list-comparison.png` beside the final list screenshot, plus `scheduled-chat-comparison.png` beside the Chat screenshot.
+- Implementation screenshots: `docs/design-qa-assets/scheduled-controls-list.png` (list) and `docs/design-qa-assets/scheduled-controls-chat.png` (Chat).
+- Full-view comparisons: `docs/design-qa-assets/scheduled-controls-list-comparison.png` and `docs/design-qa-assets/scheduled-controls-chat-comparison.png`.
 - Source pixels: 3024 × 1898. Implementation pixels: 2400 × 1544.
 - Implementation CSS viewport: 1200 × 772 at device scale factor 2.
 - Density normalization: both sides were downsampled to 900 pixels high before side-by-side review.
@@ -48,8 +48,8 @@ final result: passed
 # Scheduled Pulse AI handoff and prompt generation — design QA
 
 - Source visual truth: the two annotated screenshots supplied for the follow-up (`codex-clipboard-a141…png` and `codex-clipboard-4435…png`).
-- Implementation screenshots: `.harness/runs/harness-2026-07-26T14-35-46-323Z/screenshot-1785076555177.png` (Scheduled list), `screenshot-1785076564587.png` (task editor), and `screenshot-1785076684326.png` (Run now in Pulse AI).
-- Combined comparisons: `scheduled-list-comparison.png` and `scheduled-editor-comparison.png` in the same harness run.
+- Implementation screenshots: `docs/design-qa-assets/scheduled-pulse-ai-list.png` (Scheduled list), `docs/design-qa-assets/scheduled-pulse-ai-editor.png` (task editor), and `docs/design-qa-assets/scheduled-pulse-ai-run-now.png` (Run now in Pulse AI).
+- Combined comparisons: `docs/design-qa-assets/scheduled-pulse-ai-list-comparison.png` and `docs/design-qa-assets/scheduled-pulse-ai-editor-comparison.png`.
 - Implementation CSS viewport: 1200 × 772 at device scale factor 2.
 
 ## Findings
