@@ -91,6 +91,17 @@
   container-type: inline-size;
 }
 
+.canvas-bottom-chrome--selection .selection-toolbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.canvas-bottom-chrome.canvas-bottom-chrome--selection .floating-toolbar,
+.canvas-bottom-chrome--selection .canvas-bottom-chrome__left,
+.canvas-bottom-chrome--selection .canvas-bottom-chrome__right {
+  grid-row: 2;
+}
+
 .canvas-bottom-chrome__left {
   grid-column: 1;
   grid-row: 1;

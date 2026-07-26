@@ -82,6 +82,8 @@ interface Options {
   setContextMenu: (menu: null) => void;
   setHighlightedId: (id: string | null) => void;
   handleFocusNode: (node: CanvasNode) => void;
+  activeTool: string;
+  setActiveTool: (tool: string) => void;
   focusModeEnabled?: boolean;
   canToggleFocusMode?: boolean;
   onToggleFocusMode?: () => void;
@@ -101,6 +103,7 @@ export const useCanvasKeyboard = ({
   findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches,
   contextMenu, setContextMenu,
   setHighlightedId, handleFocusNode,
+  activeTool, setActiveTool,
   focusModeEnabled = false,
   canToggleFocusMode = false,
   onToggleFocusMode,
@@ -159,6 +162,7 @@ export const useCanvasKeyboard = ({
       if (isMod && e.key === 'a' && !isEditable) {
         e.preventDefault();
         setSelectedNodeIds(nodes.map((n) => n.id));
+        setSelectedEdgeId(null);
         return;
       }
       if (isMod && e.key === 'd' && !isEditable) {
@@ -256,6 +260,10 @@ export const useCanvasKeyboard = ({
         // anything else with selection state.
         if (fullscreenActive) { onExitFullscreen?.(); return; }
         if (focusModeEnabled) { onExitFocusMode?.(); return; }
+        if (activeTool === 'connect' || activeTool.startsWith('shape-')) {
+          setActiveTool('select');
+          return;
+        }
         if (selectedEdgeId) { setSelectedEdgeId(null); return; }
         setSelectedNodeIds([]);
         return;
@@ -276,7 +284,7 @@ export const useCanvasKeyboard = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canvasId, undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboard, setClipboard, pasteNodes, pasteReferencedNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, fullscreenActive, onExitFullscreen, keyboardLocked]);
+  }, [canvasId, undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboard, setClipboard, pasteNodes, pasteReferencedNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches, contextMenu, setContextMenu, activeTool, setActiveTool, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, fullscreenActive, onExitFullscreen, keyboardLocked]);
 
   // Cmd/Ctrl+Tab to cycle through nodes (Shift reverses direction)
   useEffect(() => {
@@ -298,6 +306,7 @@ export const useCanvasKeyboard = ({
           }
           const nextNode = nodes[nextIndex];
           setSelectedNodeIds([nextNode.id]);
+          setSelectedEdgeId(null);
           setHighlightedId(nextNode.id);
           // In focus mode the dedicated reframe effect handles the zoom
           // with tighter padding/maxScale; calling handleFocusNode here
@@ -308,5 +317,5 @@ export const useCanvasKeyboard = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nodes, selectedNodeIds, setSelectedNodeIds, setHighlightedId, handleFocusNode, keyboardLocked, focusModeEnabled]);
+  }, [nodes, selectedNodeIds, setSelectedNodeIds, setSelectedEdgeId, setHighlightedId, handleFocusNode, keyboardLocked, focusModeEnabled]);
 };

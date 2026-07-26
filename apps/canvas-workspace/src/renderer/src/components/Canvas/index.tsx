@@ -357,12 +357,13 @@ export const Canvas = ({
 
   const handleNodeViewportFocus = useCallback((node: CanvasNode) => {
     setSelectedNodeIds([node.id]);
+    setSelectedEdgeId(null);
     setHighlightedId(node.id);
     // In focus mode the dedicated reframe effect handles the zoom with
     // tighter padding/maxScale — calling handleFocusNode here too would
     // produce a double reframe at different scales (visible jitter).
     if (!focus.focusModeActive) handleFocusNode(node);
-  }, [handleFocusNode, focus.focusModeActive, setSelectedNodeIds, setHighlightedId]);
+  }, [handleFocusNode, focus.focusModeActive, setHighlightedId, setSelectedEdgeId, setSelectedNodeIds]);
 
   const { pasteReferenceNodes } = useCanvasReferenceActions({
     addNode,
@@ -575,7 +576,7 @@ export const Canvas = ({
     findHasMatches: search.matches.length > 0,
     contextMenu: ctxMenu.contextMenu,
     setContextMenu: ctxMenu.setContextMenu,
-    setHighlightedId, handleFocusNode,
+    setHighlightedId, handleFocusNode, activeTool, setActiveTool,
     focusModeEnabled: focus.focusModeActive,
     canToggleFocusMode: focus.focusModeAvailable,
     onToggleFocusMode: focus.toggleFocusMode,
@@ -645,8 +646,7 @@ export const Canvas = ({
     pendingParentNodesRef: mouse.pendingParentNodesRef,
     hasAutoFittedRef,
     setTransformForSave, flushSave, fitAllNodes,
-    setSelectedNodeIds, setHighlightedId,
-    handleFocusNode, updateNode,
+    handleNodeViewportFocus, updateNode,
     handleExternalDelete: actions.handleExternalDelete,
     onNodesChange, onSelectionChange,
     focusNodeId, onFocusComplete,

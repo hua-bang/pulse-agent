@@ -6,20 +6,45 @@ interface UseChatInsertionBridgeOptions {
   openChat: () => void;
 }
 
+interface PendingNodeMention {
+  node: CanvasNode;
+  sourceWorkspaceId?: string;
+}
+
 export function useChatInsertionBridge({
   allNodes,
   openChat,
 }: UseChatInsertionBridgeOptions) {
   const insertMentionByWorkspaceRef = useRef<Map<string, (node: CanvasNode, sourceWorkspaceId?: string) => void>>(new Map());
+  const pendingNodeMentionsByWorkspaceRef = useRef<Map<string, PendingNodeMention[]>>(new Map());
   const insertDomSelectionByWorkspaceRef = useRef<Map<string, (selection: AgentContextDomSelectionRef) => void>>(new Map());
   const pendingDomSelectionsByWorkspaceRef = useRef<Map<string, AgentContextDomSelectionRef[]>>(new Map());
   const submitDomReviewByWorkspaceRef = useRef<Map<string, (comments: AgentContextDomReviewComment[]) => Promise<boolean>>>(new Map());
 
   const registerInsertMention = useCallback((workspaceId: string, fn: (node: CanvasNode, sourceWorkspaceId?: string) => void) => {
     insertMentionByWorkspaceRef.current.set(workspaceId, fn);
+    const pending = pendingNodeMentionsByWorkspaceRef.current.get(workspaceId) ?? [];
+    pendingNodeMentionsByWorkspaceRef.current.delete(workspaceId);
+    for (const mention of pending) {
+      if (mention.sourceWorkspaceId !== undefined) fn(mention.node, mention.sourceWorkspaceId);
+      else fn(mention.node);
+    }
     return () => {
       insertMentionByWorkspaceRef.current.delete(workspaceId);
     };
+  }, []);
+
+  const insertOrQueueMention = useCallback((workspaceId: string, mention: PendingNodeMention) => {
+    const fn = insertMentionByWorkspaceRef.current.get(workspaceId);
+    if (fn) {
+      if (mention.sourceWorkspaceId !== undefined) fn(mention.node, mention.sourceWorkspaceId);
+      else fn(mention.node);
+      return;
+    }
+    pendingNodeMentionsByWorkspaceRef.current.set(workspaceId, [
+      ...(pendingNodeMentionsByWorkspaceRef.current.get(workspaceId) ?? []),
+      mention,
+    ]);
   }, []);
 
   const registerInsertDomSelectionMention = useCallback((workspaceId: string, fn: (selection: AgentContextDomSelectionRef) => void) => {
@@ -43,35 +68,15 @@ export function useChatInsertionBridge({
     const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId);
     if (!node) return;
     openChat();
-    const tryInsert = () => {
-      const fn = insertMentionByWorkspaceRef.current.get(workspaceId);
-      if (fn) {
-        fn(node);
-        return true;
-      }
-      return false;
-    };
-    if (!tryInsert()) {
-      requestAnimationFrame(() => { tryInsert(); });
-    }
-  }, [allNodes, openChat]);
+    insertOrQueueMention(workspaceId, { node });
+  }, [allNodes, insertOrQueueMention, openChat]);
 
   /** Insert a node from ANOTHER workspace (dock canvas preview) into the
    *  given (active) workspace's composer as a cross-workspace mention. */
   const handleAddPreviewNodeToChat = useCallback((activeWorkspaceId: string, sourceWorkspaceId: string, node: CanvasNode) => {
     openChat();
-    const tryInsert = () => {
-      const fn = insertMentionByWorkspaceRef.current.get(activeWorkspaceId);
-      if (fn) {
-        fn(node, sourceWorkspaceId);
-        return true;
-      }
-      return false;
-    };
-    if (!tryInsert()) {
-      requestAnimationFrame(() => { tryInsert(); });
-    }
-  }, [openChat]);
+    insertOrQueueMention(activeWorkspaceId, { node, sourceWorkspaceId });
+  }, [insertOrQueueMention, openChat]);
 
   const handleAddDomSelectionToChat = useCallback((workspaceId: string, selection: AgentContextDomSelectionRef) => {
     openChat();
