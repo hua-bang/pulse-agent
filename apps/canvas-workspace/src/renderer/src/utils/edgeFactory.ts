@@ -9,6 +9,13 @@ export interface EdgePathGeometry {
   midpoint: Point;
 }
 
+export interface ResolvedEdgePathGeometry extends EdgePathGeometry {
+  sourcePoint: Point;
+  targetPoint: Point;
+}
+
+const ARROW_NODE_GAP = 6;
+
 const ANCHOR_NORMALS: Record<Exclude<EdgeAnchor, 'auto'>, UnitVector> = {
   top: { x: 0, y: -1 },
   right: { x: 1, y: 0 },
@@ -223,43 +230,88 @@ export const edgePathGeometry = (
   nodesById: Map<string, CanvasNode>,
 ): EdgePathGeometry => {
   const bend = edge.bend ?? 0;
-  if (bend) {
-    const midpoint = bendHandlePoint(s, t, bend);
-    const baseMidpoint = bendHandlePoint(s, t, 0);
-    const control = {
-      x: midpoint.x * 2 - baseMidpoint.x,
-      y: midpoint.y * 2 - baseMidpoint.y,
+  const sourceNormal = endpointOutwardNormal(edge.source, s, nodesById);
+  const targetNormal = endpointOutwardNormal(edge.target, t, nodesById);
+  if (sourceNormal && targetNormal) {
+    const distance = Math.hypot(t.x - s.x, t.y - s.y);
+    const handleLength = distance / 3;
+    const bendScale = distance === 0 ? 0 : bend * 4 / (3 * distance);
+    const bendOffset = {
+      x: (t.y - s.y) * bendScale,
+      y: -(t.x - s.x) * bendScale,
+    };
+    const c1 = {
+      x: s.x + sourceNormal.x * handleLength + bendOffset.x,
+      y: s.y + sourceNormal.y * handleLength + bendOffset.y,
+    };
+    const c2 = {
+      x: t.x + targetNormal.x * handleLength + bendOffset.x,
+      y: t.y + targetNormal.y * handleLength + bendOffset.y,
     };
     return {
-      d: `M ${s.x} ${s.y} Q ${control.x} ${control.y} ${t.x} ${t.y}`,
-      midpoint,
+      d: `M ${s.x} ${s.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${t.x} ${t.y}`,
+      midpoint: {
+        x: (s.x + 3 * c1.x + 3 * c2.x + t.x) / 8,
+        y: (s.y + 3 * c1.y + 3 * c2.y + t.y) / 8,
+      },
     };
   }
 
-  const sourceNormal = endpointOutwardNormal(edge.source, s, nodesById);
-  const targetNormal = endpointOutwardNormal(edge.target, t, nodesById);
-  if (!sourceNormal || !targetNormal) {
+  if (!bend) {
     return {
       d: `M ${s.x} ${s.y} L ${t.x} ${t.y}`,
       midpoint: bendHandlePoint(s, t, 0),
     };
   }
 
-  const handleLength = Math.hypot(t.x - s.x, t.y - s.y) / 3;
-  const c1 = {
-    x: s.x + sourceNormal.x * handleLength,
-    y: s.y + sourceNormal.y * handleLength,
-  };
-  const c2 = {
-    x: t.x + targetNormal.x * handleLength,
-    y: t.y + targetNormal.y * handleLength,
+  const midpoint = bendHandlePoint(s, t, bend);
+  const baseMidpoint = bendHandlePoint(s, t, 0);
+  const control = {
+    x: midpoint.x * 2 - baseMidpoint.x,
+    y: midpoint.y * 2 - baseMidpoint.y,
   };
   return {
-    d: `M ${s.x} ${s.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${t.x} ${t.y}`,
-    midpoint: {
-      x: (s.x + 3 * c1.x + 3 * c2.x + t.x) / 8,
-      y: (s.y + 3 * c1.y + 3 * c2.y + t.y) / 8,
-    },
+    d: `M ${s.x} ${s.y} Q ${control.x} ${control.y} ${t.x} ${t.y}`,
+    midpoint,
+  };
+};
+
+const insetTowardOther = (end: Point, other: Point, gap: number): Point => {
+  if (gap <= 0) return end;
+  const dx = end.x - other.x;
+  const dy = end.y - other.y;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return end;
+  return {
+    x: end.x - (dx / len) * gap,
+    y: end.y - (dy / len) * gap,
+  };
+};
+
+/**
+ * Resolve the exact path rendered for an edge, including automatic anchors
+ * and the small node gap reserved for visible arrow caps.
+ */
+export const resolveEdgePathGeometry = (
+  edge: CanvasEdge,
+  nodesById: Map<string, CanvasNode>,
+): ResolvedEdgePathGeometry => {
+  const approxS = resolveEndpoint(edge.source, nodesById);
+  const approxT = resolveEndpoint(edge.target, nodesById);
+  let sourcePoint = resolveEndpointToward(edge.source, nodesById, approxT);
+  let targetPoint = resolveEndpointToward(edge.target, nodesById, approxS);
+  const head = edge.arrowHead ?? 'triangle';
+  const tail = edge.arrowTail ?? 'none';
+  if (edge.target.kind === 'node' && head !== 'none') {
+    targetPoint = insetTowardOther(targetPoint, sourcePoint, ARROW_NODE_GAP);
+  }
+  if (edge.source.kind === 'node' && tail !== 'none') {
+    sourcePoint = insetTowardOther(sourcePoint, targetPoint, ARROW_NODE_GAP);
+  }
+  return {
+    sourcePoint,
+    targetPoint,
+    ...edgePathGeometry(edge, sourcePoint, targetPoint, nodesById),
   };
 };
 

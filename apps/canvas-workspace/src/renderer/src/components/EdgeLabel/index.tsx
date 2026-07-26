@@ -2,9 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../types';
 import {
-  edgePathGeometry,
-  resolveEndpoint,
-  resolveEndpointToward,
+  resolveEdgePathGeometry,
 } from '../../utils/edgeFactory';
 import { isImeComposing } from '../../utils/ime';
 
@@ -65,11 +63,7 @@ export const EdgeLabel = ({
 
   const screenPos = useMemo(() => {
     const nodesById = new Map(nodes.map((n) => [n.id, n]));
-    const approxS = resolveEndpoint(edge.source, nodesById);
-    const approxT = resolveEndpoint(edge.target, nodesById);
-    const s = resolveEndpointToward(edge.source, nodesById, approxT);
-    const t = resolveEndpointToward(edge.target, nodesById, approxS);
-    const mid = edgePathGeometry(edge, s, t, nodesById).midpoint;
+    const mid = resolveEdgePathGeometry(edge, nodesById).midpoint;
     return {
       x: mid.x * transform.scale + transform.x,
       y: mid.y * transform.scale + transform.y,

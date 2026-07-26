@@ -6,11 +6,9 @@ import type {
   EdgeStroke,
 } from '../types';
 import {
-  edgePathGeometry,
-  resolveEndpoint,
-  resolveEndpointToward,
+  resolveEdgePathGeometry,
 } from '../utils/edgeFactory';
-import { DEFAULT_EDGE_STROKE } from '../../../shared/canvas';
+import { resolveEdgeStroke } from '../../../shared/canvas';
 import type { EdgeInteractionState, Point } from '../hooks/useEdgeInteraction';
 import {
   capId,
@@ -69,7 +67,6 @@ const FOCUS_CONTEXT_EDGE_OPACITY = 0.45;
  *  at. Without this, the arrow-head marker sits flush against the node
  *  and gets visually swallowed by the node's background/border. tldraw
  *  leaves similar breathing room for the same reason. */
-const ARROW_NODE_GAP = 6;
 
 const strokeDasharray = (style: EdgeStroke['style']): string | undefined => {
   switch (style) {
@@ -99,27 +96,6 @@ export const applyEdgeInteractionPreview = (
   return { ...edge, ...patch };
 };
 
-/**
- * Pull the resolved `end` point back from the node boundary by `gap`
- * canvas units along the straight line from `other` → `end`. Used when
- * the endpoint is node-bound AND has a visible arrow cap, so the cap
- * doesn't render flush against the node (where it visually merges into
- * the node's border/background).
- *
- * Returns `end` unchanged when `gap` is 0 or the two points coincide.
- */
-const insetTowardOther = (end: Point, other: Point, gap: number): Point => {
-  if (gap <= 0) return end;
-  const dx = end.x - other.x;
-  const dy = end.y - other.y;
-  const len = Math.hypot(dx, dy);
-  if (len === 0) return end;
-  return {
-    x: end.x - (dx / len) * gap,
-    y: end.y - (dy / len) * gap,
-  };
-};
-
 const useMarkerDefs = (edges: CanvasEdge[]) => {
   return useMemo(() => {
     const markers = new Map<
@@ -127,7 +103,7 @@ const useMarkerDefs = (edges: CanvasEdge[]) => {
       { id: string; cap: EdgeArrowCap; color: string; side: 'head' | 'tail' }
     >();
     for (const edge of edges) {
-      const color = edge.stroke?.color ?? DEFAULT_EDGE_STROKE.color;
+      const color = resolveEdgeStroke(edge.stroke).color;
       const head = edge.arrowHead ?? 'triangle';
       const tail = edge.arrowTail ?? 'none';
       if (head !== 'none') {
@@ -188,19 +164,13 @@ const CanvasEdgesLayerComponent = ({
   const resolved = useMemo(() => {
     return edges.map((edge) => {
       const renderedEdge = applyEdgeInteractionPreview(edge, interactionState);
-      const approxS = resolveEndpoint(renderedEdge.source, nodesById);
-      const approxT = resolveEndpoint(renderedEdge.target, nodesById);
-      let s = resolveEndpointToward(renderedEdge.source, nodesById, approxT);
-      let t = resolveEndpointToward(renderedEdge.target, nodesById, approxS);
-      const head = renderedEdge.arrowHead ?? 'triangle';
-      const tail = renderedEdge.arrowTail ?? 'none';
-      if (renderedEdge.target.kind === 'node' && head !== 'none') {
-        t = insetTowardOther(t, s, ARROW_NODE_GAP);
-      }
-      if (renderedEdge.source.kind === 'node' && tail !== 'none') {
-        s = insetTowardOther(s, t, ARROW_NODE_GAP);
-      }
-      return { edge: renderedEdge, s, t };
+      const geometry = resolveEdgePathGeometry(renderedEdge, nodesById);
+      return {
+        edge: renderedEdge,
+        s: geometry.sourcePoint,
+        t: geometry.targetPoint,
+        geometry,
+      };
     });
   }, [edges, interactionState, nodesById]);
 
@@ -221,10 +191,9 @@ const CanvasEdgesLayerComponent = ({
     >
       <Markers markers={markers} />
 
-      {resolved.map(({ edge, s, t }) => {
-        const geometry = edgePathGeometry(edge, s, t, nodesById);
+      {resolved.map(({ edge, s, t, geometry }) => {
         const d = geometry.d;
-        const stroke = { ...DEFAULT_EDGE_STROKE, ...edge.stroke };
+        const stroke = resolveEdgeStroke(edge.stroke);
         const head = edge.arrowHead ?? 'triangle';
         const tail = edge.arrowTail ?? 'none';
         const isSelected = edge.id === selectedEdgeId;

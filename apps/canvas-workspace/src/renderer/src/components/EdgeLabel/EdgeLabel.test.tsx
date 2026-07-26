@@ -31,7 +31,6 @@ describe('EdgeLabel', () => {
       id: 'curved',
       source: { kind: 'node', nodeId: 'source', anchor: 'right' },
       target: { kind: 'node', nodeId: 'target', anchor: 'top' },
-      arrowHead: 'none',
       label: 'relationship',
     };
 
@@ -47,6 +46,6 @@ describe('EdgeLabel', () => {
       />,
     );
 
-    expect(html).toContain('left:163px;top:51px');
+    expect(html).toContain('left:159.85px;top:49.95px');
   });
 });

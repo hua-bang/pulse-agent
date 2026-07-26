@@ -377,6 +377,21 @@ export const DEFAULT_EDGE_STROKE: Readonly<Required<EdgeStroke>> = {
   style: 'solid',
 };
 
+const LEGACY_DEFAULT_EDGE_STROKE: Readonly<Required<EdgeStroke>> = {
+  color: '#1f2328',
+  width: 2.4,
+  style: 'solid',
+};
+
+export const resolveEdgeStroke = (stroke?: EdgeStroke): Required<EdgeStroke> => {
+  const resolved = { ...DEFAULT_EDGE_STROKE, ...stroke };
+  const isLegacyDefault =
+    resolved.color === LEGACY_DEFAULT_EDGE_STROKE.color &&
+    resolved.width === LEGACY_DEFAULT_EDGE_STROKE.width &&
+    resolved.style === LEGACY_DEFAULT_EDGE_STROKE.style;
+  return isLegacyDefault ? { ...DEFAULT_EDGE_STROKE } : resolved;
+};
+
 /**
  * A connection drawn between two endpoints on the canvas.
  *

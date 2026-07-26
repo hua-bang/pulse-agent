@@ -8,14 +8,15 @@ import type {
   EdgeStroke,
 } from '../../types';
 import {
-  edgePathGeometry,
-  resolveEndpoint,
-  resolveEndpointToward,
+  resolveEdgePathGeometry,
 } from '../../utils/edgeFactory';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 import { SwatchRow } from '../ui';
 import { useI18n, type I18nKey } from '../../i18n';
-import { DEFAULT_EDGE_STROKE } from '../../../../shared/canvas';
+import {
+  DEFAULT_EDGE_STROKE,
+  resolveEdgeStroke,
+} from '../../../../shared/canvas';
 
 /**
  * A compact floating panel, shown when an edge is selected, that lets
@@ -177,9 +178,10 @@ export const EdgeStylePanel = ({
   onRemove,
 }: Props) => {
   const { t } = useI18n();
-  const color = edge.stroke?.color ?? DEFAULT_EDGE_STROKE.color;
-  const width = edge.stroke?.width ?? DEFAULT_EDGE_STROKE.width;
-  const style = edge.stroke?.style ?? DEFAULT_EDGE_STROKE.style;
+  const resolvedStroke = resolveEdgeStroke(edge.stroke);
+  const color = resolvedStroke.color;
+  const width = resolvedStroke.width;
+  const style = resolvedStroke.style;
   const head: EdgeArrowCap = edge.arrowHead ?? 'triangle';
   const tail: EdgeArrowCap = edge.arrowTail ?? 'none';
 
@@ -218,11 +220,7 @@ export const EdgeStylePanel = ({
   // directly to container-relative coordinates.
   const screenPos = useMemo(() => {
     const nodesById = new Map(nodes.map((n) => [n.id, n]));
-    const approxS = resolveEndpoint(edge.source, nodesById);
-    const approxT = resolveEndpoint(edge.target, nodesById);
-    const s = resolveEndpointToward(edge.source, nodesById, approxT);
-    const t = resolveEndpointToward(edge.target, nodesById, approxS);
-    const mid = edgePathGeometry(edge, s, t, nodesById).midpoint;
+    const mid = resolveEdgePathGeometry(edge, nodesById).midpoint;
     return {
       x: mid.x * transform.scale + transform.x,
       y: mid.y * transform.scale + transform.y,

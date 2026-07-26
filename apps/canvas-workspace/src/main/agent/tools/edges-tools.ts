@@ -111,14 +111,15 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
           return `Error: target node not found: ${target.nodeId}`;
         }
 
-        const stroke: EdgeStroke | undefined =
+        const stroke: EdgeStroke =
           input.color != null || input.width != null || input.style != null
             ? {
                 color: (input.color as string | undefined) ?? DEFAULT_EDGE_STROKE.color,
                 width: (input.width as number | undefined) ?? DEFAULT_EDGE_STROKE.width,
-                style: (input.style as 'solid' | 'dashed' | 'dotted' | undefined) ?? 'solid',
+                style: (input.style as 'solid' | 'dashed' | 'dotted' | undefined) ??
+                  DEFAULT_EDGE_STROKE.style,
               }
-            : undefined;
+            : { ...DEFAULT_EDGE_STROKE };
 
         const edge: CanvasEdge = {
           id: genEdgeId(),

@@ -208,6 +208,7 @@ describe('default edge presentation', () => {
       source: { kind: 'point', x: 0, y: 0 },
       target: { kind: 'point', x: 100, y: 0 },
       arrowHead: 'none',
+      stroke: { color: '#1f2328', width: 2.4, style: 'solid' },
     };
 
     const html = renderToStaticMarkup(
