@@ -2,9 +2,7 @@
  * Canvas-agent tools contributed by the dynamic-app plugin.
  *
  * Three tools:
- *   - dynamic_app_create:  validate spec → start runner → persist spec
- *                          → append a `dynamic-app` canvas node pointing
- *                          at the runner's `/ui/<id>` URL.
+ *   - dynamic_app_create: validate, start, persist, and append its canvas node.
  *   - dynamic_app_list:    enumerate this workspace's dynamic apps,
  *                          returning ids + kind + summary so the agent
  *                          can disambiguate natural-language refs.
@@ -16,7 +14,6 @@
  * component (no URL-editor chrome). The reconciler and the inspector
  * IPC find them via `data.dynamicAppId`.
  */
-
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import {
