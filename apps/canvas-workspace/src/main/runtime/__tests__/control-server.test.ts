@@ -65,15 +65,12 @@ async function fileExists(): Promise<boolean> {
   }
 }
 
-async function setCapabilityRuntimeEnabled(
-  enabled: boolean,
-  pageControlEnabled = false,
-): Promise<void> {
+async function writeStaleDisabledCapabilityOverrides(): Promise<void> {
   const flagPath = `${sandboxHome}/.pulse-coder/canvas/experimental-features.json`;
   await fs.mkdir(`${sandboxHome}/.pulse-coder/canvas`, { recursive: true });
   await fs.writeFile(flagPath, JSON.stringify({
-    'agent-runtime-control': enabled,
-    'webview-page-control': pageControlEnabled,
+    'agent-runtime-control': false,
+    'webview-page-control': false,
   }));
 }
 
@@ -97,7 +94,7 @@ async function postRuntime(
 describe('runtime-control server lifecycle', () => {
   beforeEach(async () => {
     await fs.rm(__test.RUNTIME_DIR, { recursive: true, force: true });
-    await setCapabilityRuntimeEnabled(false);
+    await writeStaleDisabledCapabilityOverrides();
   });
 
   afterEach(async () => {
@@ -176,16 +173,20 @@ describe('runtime-control server lifecycle', () => {
     expect(baseUrl2).toBe(baseUrl1);
   });
 
-  it('keeps capability routes hidden until the experimental flag is enabled', async () => {
+  it('keeps stable capability routes enabled despite stale disabled overrides', async () => {
     await startRuntimeControlServer();
     const runtime = await readRuntimeFile();
 
     const response = await postRuntime(runtime, '/capabilities/list', {});
-    expect(response).toEqual({ status: 404, body: { ok: false, error: 'not found' } });
+    expect(response.status).toBe(200);
+    expect(response.body.capabilities).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'browser.page.click' }),
+      expect.objectContaining({ name: 'browser.page.fill' }),
+      expect.objectContaining({ name: 'browser.page.eval', risk: 'unsafe' }),
+    ]));
   });
 
   it('lists and calls allowlisted capabilities over the authenticated runtime', async () => {
-    await setCapabilityRuntimeEnabled(true);
     await startRuntimeControlServer();
     const runtime = await readRuntimeFile();
 
@@ -210,10 +211,10 @@ describe('runtime-control server lifecycle', () => {
         expect.objectContaining({ name: 'host.renderer.eval', risk: 'unsafe' }),
       ]),
     });
-    expect(listed.body.capabilities).not.toEqual(expect.arrayContaining([
+    expect(listed.body.capabilities).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'browser.page.click' }),
       expect.objectContaining({ name: 'browser.page.fill' }),
-      expect.objectContaining({ name: 'browser.page.eval' }),
+      expect.objectContaining({ name: 'browser.page.eval', risk: 'unsafe' }),
     ]));
 
     const called = await postRuntime(runtime, '/capabilities/call', {
@@ -237,8 +238,7 @@ describe('runtime-control server lifecycle', () => {
     });
   });
 
-  it('reacts to page-control flag changes in both discovery and execution', async () => {
-    await setCapabilityRuntimeEnabled(true, true);
+  it('validates stable page-control calls before executing them', async () => {
     await startRuntimeControlServer();
     const runtime = await readRuntimeFile();
 
@@ -257,27 +257,9 @@ describe('runtime-control server lifecycle', () => {
       status: 400,
       body: { ok: false, error: { code: 'invalid_input' } },
     });
-
-    await setCapabilityRuntimeEnabled(true, false);
-    const disabled = await postRuntime(runtime, '/capabilities/list', {});
-    expect(disabled.body.capabilities).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'browser.page.click' }),
-      expect.objectContaining({ name: 'browser.page.fill' }),
-      expect.objectContaining({ name: 'browser.page.eval' }),
-    ]));
-    const forbidden = await postRuntime(runtime, '/capabilities/call', {
-      workspaceId: 'ws-1',
-      name: 'browser.page.fill',
-      input: { nodeId: 'web-1', selector: 'input', value: 'blocked' },
-    });
-    expect(forbidden).toMatchObject({
-      status: 403,
-      body: { ok: false, error: { code: 'capability_forbidden' } },
-    });
   });
 
   it('searches, updates, and reads Canvas nodes through the runtime protocol', async () => {
-    await setCapabilityRuntimeEnabled(true);
     await writeCanvasFull('ws-runtime', {
       nodes: [{
         id: 'note-1',

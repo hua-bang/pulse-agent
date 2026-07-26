@@ -53,9 +53,9 @@ interface Props {
   onEnterChat: () => void;
   onEnterNodes: () => void;
   onEnterGraph: () => void;
-  /** When false, the Nodes nav button is hidden (experimental flag off). */
+  /** When false, the Nodes nav button is hidden (feature flag off). */
   nodesEnabled: boolean;
-  /** When false, the Graph nav button is hidden (experimental flag off). */
+  /** When false, the Graph nav button is hidden (feature flag off). */
   graphEnabled: boolean;
   pluginNavItems: ReadonlyArray<NavItem>;
   onNavigate: (path: string) => void;

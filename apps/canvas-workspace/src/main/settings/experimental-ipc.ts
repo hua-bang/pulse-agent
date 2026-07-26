@@ -4,7 +4,8 @@
  * Persists user overrides at
  * `~/.pulse-coder/canvas/experimental-features.json` (override the path
  * with `PULSE_CANVAS_EXPERIMENTAL_FEATURES`). The renderer reads the
- * registered defs + the current resolved values via `experimental:list`,
+ * visible user-configurable defs + the current resolved values via
+ * `experimental:list`,
  * toggles via `experimental:set`, and asks the host to reload after a
  * change via `experimental:reload-window` (changes only take effect on
  * the next preload run).
@@ -18,6 +19,8 @@ import {
   EXPERIMENTAL_FEATURES,
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
   EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
+  canConfigureExperimentalFeature,
+  getVisibleExperimentalFeatures,
   resolveFeatureValues,
 } from '../../shared/experimental-features';
 import { setDefaultBrowser } from '../default-browser/register';
@@ -92,7 +95,7 @@ export function setupExperimentalIpc(): void {
       const overrides = await readOverrides();
       return {
         ok: true,
-        features: EXPERIMENTAL_FEATURES,
+        features: getVisibleExperimentalFeatures(overrides),
         values: resolveFeatureValues(overrides),
         path: getPath(),
       };
@@ -108,10 +111,14 @@ export function setupExperimentalIpc(): void {
         if (!payload || typeof payload.id !== 'string') {
           return { ok: false, error: 'Missing flag id' };
         }
-        if (!EXPERIMENTAL_FEATURES.some((f) => f.id === payload.id)) {
+        const feature = EXPERIMENTAL_FEATURES.find((f) => f.id === payload.id);
+        if (!feature) {
           return { ok: false, error: `Unknown experimental feature: ${payload.id}` };
         }
         const overrides = await readOverrides();
+        if (!canConfigureExperimentalFeature(feature, overrides)) {
+          return { ok: false, error: `Experimental feature is not configurable: ${payload.id}` };
+        }
         const wasEnabled = resolveFeatureValues(overrides)[payload.id] === true;
         overrides[payload.id] = !!payload.enabled;
         await writeOverrides(overrides);

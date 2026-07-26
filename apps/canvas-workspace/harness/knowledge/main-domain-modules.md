@@ -121,9 +121,12 @@ Electron app shell.
 
 ### `settings/`
 
-Settings and feature-flag ownership: experimental flag overrides, canvas
-plugin config + IPC, built-in tools config + IPC, plugin manifest icons. If a
-setting becomes domain-specific, it moves into that domain.
+Settings and feature-flag ownership: the shared feature registry resolves
+`experimental`, product-owned `stable`, and enabled-user-only `grandfathered`
+lifecycles; only the applicable entries surface as Experimental overrides.
+This module also owns canvas plugin config + IPC, built-in tools config + IPC,
+and plugin manifest icons. If a setting becomes domain-specific, it moves into
+that domain.
 
 ### `perf/`
 
