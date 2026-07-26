@@ -4,18 +4,38 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
 import { AppShellProvider } from '../../AppShellProvider';
+import { RightDockProvider, useRightDockState } from '../../RightDock';
+import type { DockState } from '../../RightDock/dock-store';
 import { ScheduledPage } from '../ScheduledPage';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
+let dockState: DockState | undefined;
+
+const DockStateProbe = () => {
+  dockState = useRightDockState();
+  return null;
+};
+
+const renderPage = (onOpenTask: (taskId: string) => void) => (
+  <I18nProvider>
+    <AppShellProvider>
+      <RightDockProvider>
+        <DockStateProbe />
+        <ScheduledPage onOpenTask={onOpenTask} />
+      </RightDockProvider>
+    </AppShellProvider>
+  </I18nProvider>
+);
 
 afterEach(() => {
   if (root) act(() => root?.unmount());
   host?.remove();
   root = null;
   host = null;
+  dockState = undefined;
   vi.restoreAllMocks();
 });
 
@@ -51,13 +71,7 @@ describe('ScheduledPage', () => {
     document.body.appendChild(host);
     root = createRoot(host);
     await act(async () => {
-      root?.render(
-        <I18nProvider>
-          <AppShellProvider>
-            <ScheduledPage onOpenTask={onOpenTask} />
-          </AppShellProvider>
-        </I18nProvider>,
-      );
+      root?.render(renderPage(onOpenTask));
     });
 
     const row = host.querySelector<HTMLButtonElement>('[data-task-id="daily-brief"]');
@@ -66,12 +80,14 @@ describe('ScheduledPage', () => {
     expect(onOpenTask).toHaveBeenCalledWith('daily-brief');
   });
 
-  it('opens task chat immediately when run-now starts in the background', async () => {
+  it('starts a fresh scheduled session and opens it in Pulse AI', async () => {
     const onOpenTask = vi.fn();
-    const runNow = vi.fn(() => new Promise<never>(() => undefined));
+    const runNow = vi.fn(async () => ({ ok: true }));
+    const newSession = vi.fn(async () => ({ ok: true }));
     Object.defineProperty(window, 'canvasWorkspace', {
       configurable: true,
       value: {
+        agent: { newSession },
         scheduled: {
           list: vi.fn(async () => ({
             ok: true,
@@ -99,17 +115,23 @@ describe('ScheduledPage', () => {
     document.body.appendChild(host);
     root = createRoot(host);
     await act(async () => {
-      root?.render(
-        <I18nProvider>
-          <AppShellProvider>
-            <ScheduledPage onOpenTask={onOpenTask} />
-          </AppShellProvider>
-        </I18nProvider>,
-      );
+      root?.render(renderPage(onOpenTask));
     });
 
-    act(() => host?.querySelector<HTMLButtonElement>('[aria-label="Run now"]')?.click());
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>('[aria-label="Run now"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(newSession).toHaveBeenCalledWith({
+      scope: { kind: 'scheduled', taskId: 'daily-brief' },
+    });
     expect(runNow).toHaveBeenCalledWith('daily-brief');
-    expect(onOpenTask).toHaveBeenCalledWith('daily-brief');
+    expect(onOpenTask).not.toHaveBeenCalled();
+    expect(dockState).toMatchObject({
+      expanded: true,
+      scheduledChatTaskId: 'daily-brief',
+      scheduledChatRevision: 2,
+    });
   });
 });

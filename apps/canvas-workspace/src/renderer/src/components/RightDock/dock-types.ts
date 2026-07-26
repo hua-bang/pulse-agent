@@ -29,6 +29,12 @@ export interface DockState {
   splitTabId?: string;
   expanded: boolean;
   chatUnread: boolean;
+  /** When set, Pulse AI renders the dedicated conversation for this task
+   *  instead of the active workspace conversation. */
+  scheduledChatTaskId?: string;
+  /** Incremented after a manual run so the task conversation reloads its
+   *  newly persisted result. */
+  scheduledChatRevision?: number;
   terminalTabsByWorkspace: Record<string, DockTerminalWorkspaceState>;
   activeTerminalWorkspaceId: string;
   terminalTabs: DockTerminalTab[];

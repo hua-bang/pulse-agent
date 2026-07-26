@@ -45,6 +45,24 @@ describe('DockStore', () => {
     });
   });
 
+  it('opens a scheduled task in Pulse AI and returns to workspace chat', () => {
+    const dock = new DockStore();
+
+    dock.openScheduledChat('daily-brief');
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: CHAT_TAB_ID,
+      expanded: true,
+      scheduledChatTaskId: 'daily-brief',
+      scheduledChatRevision: 1,
+    });
+
+    dock.refreshScheduledChat('daily-brief');
+    expect(dock.getSnapshot().scheduledChatRevision).toBe(2);
+
+    dock.openChat();
+    expect(dock.getSnapshot().scheduledChatTaskId).toBeUndefined();
+  });
+
   it('refuses to preview a workspace that is already mounted in the main canvas', () => {
     const dock = new DockStore();
     dock.setMountedWorkspaces(['ws1']);

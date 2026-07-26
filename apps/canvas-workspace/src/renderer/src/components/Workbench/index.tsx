@@ -72,6 +72,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const dockState = useRightDockState();
   const chatHost = useRightDockChatHost();
   const chatPanelOpen = isDockChatVisible(dockState);
+  const scheduledChatTaskId = dockState.scheduledChatTaskId;
   const loadedChatWorkspaceIds = useLoadedChatWorkspaceIds(chatPanelOpen, activeWorkspaceId);
   const terminalDockOpen = isDockTerminalVisible(dockState);
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
@@ -401,7 +402,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
               <div
                 key={ws.id}
                 className="right-dock__chat-instance"
-                style={knowledgeChatContext.active || ws.id !== activeWorkspaceId ? { display: 'none' } : undefined}
+                style={scheduledChatTaskId || knowledgeChatContext.active || ws.id !== activeWorkspaceId ? { display: 'none' } : undefined}
               >
                 <ChatPanel
                   workspaceId={ws.id}
@@ -420,7 +421,19 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                 />
               </div>
             ))}
-            {knowledgeChatContext.active && (
+            {scheduledChatTaskId && (
+              <div className="right-dock__chat-instance">
+                <ChatPanel
+                  key={`${scheduledChatTaskId}:${dockState.scheduledChatRevision ?? 0}`}
+                  agentScope={{ kind: 'scheduled', taskId: scheduledChatTaskId }}
+                  allWorkspaces={workspaces}
+                  onClose={dock.collapse}
+                  onOpenAppSettings={onOpenAppSettings}
+                  onTurnComplete={dock.notifyChatActivity}
+                />
+              </div>
+            )}
+            {!scheduledChatTaskId && knowledgeChatContext.active && (
               <Suspense fallback={null}>
                 <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces} contextNodes={knowledgeChatContext.explicitContext?.nodes} contextTags={knowledgeChatContext.explicitContext?.tags} contextCanvases={knowledgeChatContext.explicitContext?.canvases} composerRequest={knowledgeChatContext.explicitContext?.composerRequest} onComposerRequestHandled={onKnowledgeComposerRequestHandled} onRemoveContext={onRemoveKnowledgeChatContext} onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTurnComplete={dock.notifyChatActivity} />
               </Suspense>

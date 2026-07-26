@@ -585,7 +585,7 @@ const AppContent = () => {
           })}
         </PulseRouter>
       </div>
-      <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat' && activeView !== 'scheduled-task'} />
+      <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat' && activeView !== 'scheduled' && activeView !== 'scheduled-task'} />
       <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={activeView !== 'chat' && activeView !== 'scheduled-task'} reserveSpace={activeView !== 'skills'} onOpenNodePage={openNodePage} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings

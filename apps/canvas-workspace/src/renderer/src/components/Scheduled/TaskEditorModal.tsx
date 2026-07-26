@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { Sparkle } from '@phosphor-icons/react';
 import type { ScheduledTask, ScheduledTaskInput } from '../../../../shared/scheduled';
 import { Button, FieldRow, Modal, Select, TextField } from '../ui';
 import { useI18n } from '../../i18n';
+import { useAppShell } from '../AppShellProvider';
 
 const INTERVAL_OPTIONS = [
   { value: '30', labelKey: 'scheduled.interval.30m' },
@@ -20,17 +22,48 @@ interface Props {
 
 export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
   const { t } = useI18n();
+  const { notify } = useAppShell();
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
   const [interval, setIntervalValue] = useState('1440');
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setTitle(task?.title ?? '');
     setPrompt(task?.prompt ?? '');
     setIntervalValue(String(task?.intervalMinutes ?? 1440));
+    setGenerating(false);
   }, [open, task]);
+
+  const generatePrompt = async () => {
+    if ((!title.trim() && !prompt.trim()) || generating) return;
+    setGenerating(true);
+    try {
+      const response = await window.canvasWorkspace.agent.polishScheduledPrompt({
+        title: title.trim(),
+        currentPrompt: prompt.trim() || undefined,
+      });
+      if (response.ok && response.content) {
+        setPrompt(response.content);
+      } else {
+        notify({
+          tone: 'error',
+          title: t('scheduled.aiFailed'),
+          description: response.error,
+        });
+      }
+    } catch (error) {
+      notify({
+        tone: 'error',
+        title: t('scheduled.aiFailed'),
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const submit = async () => {
     if (!title.trim() || !prompt.trim() || saving) return;
@@ -70,15 +103,29 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
           placeholder={t('scheduled.taskNamePlaceholder')}
           autoFocus
         />
-        <TextField
-          multiline
-          rows={7}
-          label={t('scheduled.prompt')}
-          hint={t('scheduled.promptHint')}
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          placeholder={t('scheduled.promptPlaceholder')}
-        />
+        <div className="scheduled-editor__prompt-field">
+          <div className="scheduled-editor__prompt-heading">
+            <span id="scheduled-editor-prompt-label">{t('scheduled.prompt')}</span>
+            <Button
+              size="xs"
+              disabled={(!title.trim() && !prompt.trim()) || generating}
+              onClick={() => void generatePrompt()}
+            >
+              <Sparkle size={13} weight="fill" />
+              {generating ? t('scheduled.aiGenerating') : t('scheduled.aiPolish')}
+            </Button>
+          </div>
+          <TextField
+            multiline
+            rows={7}
+            aria-labelledby="scheduled-editor-prompt-label"
+            hint={t('scheduled.promptHint')}
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder={t('scheduled.promptPlaceholder')}
+            readOnly={generating}
+          />
+        </div>
         <FieldRow label={t('scheduled.cadence')}>
           <Select
             value={interval}

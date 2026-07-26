@@ -11,6 +11,7 @@ import {
 import type { ScheduledTask, ScheduledTaskInput } from '../../../../shared/scheduled';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
+import { useDockContext } from '../RightDock/context';
 import { Button, EmptyState } from '../ui';
 import { intervalLabel, timeLabel } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
@@ -23,6 +24,7 @@ interface Props {
 export const ScheduledPage = ({ onOpenTask }: Props) => {
   const { t } = useI18n();
   const { notify, confirm } = useAppShell();
+  const { store: dockStore } = useDockContext();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -67,13 +69,20 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
     }
   };
 
-  const runNow = (task: ScheduledTask) => {
-    onOpenTask(task.id);
-    void window.canvasWorkspace.scheduled.runNow(task.id).then((response) => {
-      if (!response.ok) {
-        notify({ tone: 'error', title: t('scheduled.runFailed'), description: response.error });
-      }
-    });
+  const runNow = async (task: ScheduledTask) => {
+    const scope = { kind: 'scheduled' as const, taskId: task.id };
+    const session = await window.canvasWorkspace.agent.newSession({ scope });
+    if (!session.ok) {
+      notify({ tone: 'error', title: t('scheduled.runFailed'), description: session.error });
+      return;
+    }
+
+    dockStore.openScheduledChat(task.id);
+    const response = await window.canvasWorkspace.scheduled.runNow(task.id);
+    dockStore.refreshScheduledChat(task.id);
+    if (!response.ok) {
+      notify({ tone: 'error', title: t('scheduled.runFailed'), description: response.error });
+    }
   };
 
   const removeTask = async (task: ScheduledTask) => {
@@ -163,7 +172,7 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
                   size="xs"
                   aria-label={t('scheduled.runNow')}
                   title={t('scheduled.runNow')}
-                  onClick={() => runNow(task)}
+                  onClick={() => void runNow(task)}
                 >
                   <Play size={13} />
                   {t('scheduled.runNow')}

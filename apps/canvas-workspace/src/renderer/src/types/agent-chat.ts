@@ -118,6 +118,10 @@ export interface AgentApi {
     imagePath: string,
     title?: string,
   ) => Promise<{ ok: boolean; nodeId?: string; error?: string }>;
+  polishScheduledPrompt: (payload: {
+    title: string;
+    currentPrompt?: string;
+  }) => Promise<{ ok: boolean; content?: string; error?: string }>;
   streamWorkspaceDoc: (payload: {
     workspaceName: string;
     intent: string;

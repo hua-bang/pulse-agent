@@ -27,6 +27,7 @@ import { ipcMain } from 'electron';
 import { randomUUID } from 'crypto';
 import { CanvasAgentService } from './service';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
+import { generateScheduledPrompt } from './scheduled-prompt-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
 import type { AgentRequestContext, AgentScope, AgentScopeRef } from './types';
 import { isPerfChatReplayRequest, replayPerfChatStream } from './perf-chat-replay';
@@ -67,6 +68,18 @@ function getService(): CanvasAgentService {
 
 export function setupCanvasAgentIpc(): void {
   const svc = getService();
+
+  ipcMain.handle(
+    'canvas-agent:polish-scheduled-prompt',
+    async (_event, payload: { title?: string; currentPrompt?: string }) => {
+      const title = payload?.title?.trim() ?? '';
+      const currentPrompt = payload?.currentPrompt?.trim();
+      if (!title && !currentPrompt) {
+        return { ok: false, error: 'Task name or instructions are required' };
+      }
+      return generateScheduledPrompt(title, currentPrompt);
+    },
+  );
 
   ipcMain.handle(
     'canvas-agent:chat',

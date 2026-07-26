@@ -2,21 +2,16 @@
  * Owns activation, dedupe, workspace sessions, closing order, split pairing,
  * collapse retention, and chat unread policy. React binds with
  * `useSyncExternalStore` in components/RightDock. */
-import {
-  CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId,
-  isTerminalTabId, linkTabId, nodeDetailTabId, terminalTabId,
-} from './dock-tab-ids';
+import { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, nodeDetailTabId, terminalTabId } from './dock-tab-ids';
 import { DockLinkSessionStore, type DockSessionPersistence } from './dock-link-sessions';
 import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
 import { applyDockSplitState, getSplitViewToggle } from './dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
 import { openSkillTab } from './dock-skill-tabs';
+import { getOpenChatPatch, getOpenScheduledChatPatch, getRefreshScheduledChatPatch } from './dock-chat-state';
 import type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
-export {
-  CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId,
-  isTerminalTabId, linkTabId, nodeDetailTabId, skillTabId, terminalTabId,
-} from './dock-tab-ids';
+export { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, nodeDetailTabId, skillTabId, terminalTabId } from './dock-tab-ids';
 export type { DockLinkSession, DockLinkSessions, DockLinkTab, DockSessionPersistence } from './dock-link-sessions';
 export type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 const DEFAULT_TERMINAL_WORKSPACE_ID = '__default__';
@@ -272,15 +267,15 @@ export class DockStore {
   }
 
   /** Pair the active content tab with the pinned Pulse AI pane. */
-  toggleSplitView(): void {
-    const next = getSplitViewToggle(this.state);
-    if (next) this.commit(next);
-  }
+  toggleSplitView(): void { const next = getSplitViewToggle(this.state); if (next) this.commit(next); }
 
-  openChat(): void {
-    if (this.state.expanded && this.state.activeTabId === CHAT_TAB_ID && !this.state.chatUnread) return;
-    this.commit({ expanded: true, activeTabId: CHAT_TAB_ID, chatUnread: false });
-  }
+  openChat(): void { const next = getOpenChatPatch(this.state); if (next) this.commit(next); }
+
+  /** Open Pulse AI on a scheduled task's dedicated chat scope. */
+  openScheduledChat(taskId: string): void { const next = getOpenScheduledChatPatch(this.state, taskId); if (next) this.commit(next); }
+
+  /** Reload the visible task conversation after its background run persists. */
+  refreshScheduledChat(taskId: string): void { const next = getRefreshScheduledChatPatch(this.state, taskId); if (next) this.commit(next); }
 
   /** Toolbar chat button: collapse when already looking at chat, else show chat. */
   toggleChat(): void {
