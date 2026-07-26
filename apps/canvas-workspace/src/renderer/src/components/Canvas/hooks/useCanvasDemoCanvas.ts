@@ -109,12 +109,12 @@ export const useCanvasDemoCanvas = ({
   addEdge(createDefaultEdge(
     { kind: 'node', nodeId: goal.id, anchor: 'bottom' },
     { kind: 'node', nodeId: agent.id, anchor: 'auto' },
-    { label: t('canvas.demo.edgeBrief'), stroke: { color: '#2383e2', width: 2.4, style: 'solid' } },
+    { label: t('canvas.demo.edgeBrief'), stroke: { color: '#2383e2', width: 4, style: 'solid' } },
   ));
   addEdge(createDefaultEdge(
     { kind: 'node', nodeId: repo.id, anchor: 'bottom' },
     { kind: 'node', nodeId: agent.id, anchor: 'auto' },
-    { label: t('canvas.demo.edgeContext'), stroke: { color: '#10b981', width: 2.4, style: 'solid' } },
+    { label: t('canvas.demo.edgeContext'), stroke: { color: '#10b981', width: 4, style: 'solid' } },
   ));
 
   makeFrame(leftB, t('canvas.demo.frameResearchTitle'), '#f59e0b');
@@ -146,7 +146,7 @@ export const useCanvasDemoCanvas = ({
   addEdge(createDefaultEdge(
     { kind: 'node', nodeId: source.id, anchor: 'right' },
     { kind: 'node', nodeId: takeaways.id, anchor: 'left' },
-    { label: t('canvas.demo.edgeCapture'), stroke: { color: '#f59e0b', width: 2.4, style: 'solid' } },
+    { label: t('canvas.demo.edgeCapture'), stroke: { color: '#f59e0b', width: 4, style: 'solid' } },
   ));
 
   makeFrame(leftC, t('canvas.demo.frameBrainstormTitle'), '#9575d4');
@@ -185,7 +185,7 @@ export const useCanvasDemoCanvas = ({
   addEdge(createDefaultEdge(
     { kind: 'node', nodeId: ideas.id, anchor: 'bottom' },
     { kind: 'node', nodeId: plan.id, anchor: 'top' },
-    { label: t('canvas.demo.edgePrioritize'), stroke: { color: '#9575d4', width: 2.4, style: 'solid' } },
+    { label: t('canvas.demo.edgePrioritize'), stroke: { color: '#9575d4', width: 4, style: 'solid' } },
   ));
 
   setSelectedNodeIds([goal.id]);

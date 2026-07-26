@@ -111,8 +111,9 @@ export interface CanvasEdge {
   id: string;
   source: EdgeEndpoint;
   target: EdgeEndpoint;
-  /** Peak perpendicular offset of the rendered curve. 0 = straight line. */
+  /** Peak perpendicular offset of a manual curve. 0 lets the renderer route node-bound edges automatically. */
   bend?: number;
+  curveMode?: 'smooth';
   arrowHead?: EdgeArrowCap;
   arrowTail?: EdgeArrowCap;
   stroke?: EdgeStroke;

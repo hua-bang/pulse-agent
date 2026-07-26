@@ -1,18 +1,40 @@
 import type { CanvasEdge, CanvasNode, EdgeAnchor, EdgeEndpoint } from '../types';
+import { DEFAULT_EDGE_STROKE } from '../../../shared/canvas';
+
+type Point = { x: number; y: number };
+type UnitVector = { x: number; y: number };
+
+export interface EdgePathGeometry {
+  d: string;
+  midpoint: Point;
+}
+
+export interface ResolvedEdgePathGeometry extends EdgePathGeometry {
+  sourcePoint: Point;
+  targetPoint: Point;
+}
+
+const ARROW_NODE_GAP = 6;
+
+const ANCHOR_NORMALS: Record<Exclude<EdgeAnchor, 'auto'>, UnitVector> = {
+  top: { x: 0, y: -1 },
+  right: { x: 1, y: 0 },
+  bottom: { x: 0, y: 1 },
+  left: { x: -1, y: 0 },
+};
 
 let edgeIdCounter = 0;
 export const genEdgeId = (): string => `edge-${Date.now()}-${++edgeIdCounter}`;
 
 /**
  * Create a new edge with sensible defaults:
- *  - no bend (straight line),
+ *  - no manual bend (node-bound edges use automatic smooth routing),
  *  - triangular arrow head on target, nothing on source,
- *  - medium-weight solid black stroke (sits at the middle "M" tick of
- *    EdgeStylePanel's width ladder, so freshly-drawn lines read clearly
- *    on the canvas without jumping out).
+ *  - high-contrast solid stroke matching the large "L" width tick in
+ *    EdgeStylePanel, so it remains legible while zoomed out.
  *
- * Visual defaults mirror tldraw's default arrow. The caller decides the
- * endpoints, kind, label, etc.
+ * Visual defaults mirror Heptabase's canvas-space connector treatment.
+ * The caller decides the endpoints, kind, label, etc.
  */
 export const createDefaultEdge = (
   source: EdgeEndpoint,
@@ -25,7 +47,7 @@ export const createDefaultEdge = (
   bend: 0,
   arrowHead: 'triangle',
   arrowTail: 'none',
-  stroke: { color: '#1f2328', width: 2.4, style: 'solid' },
+  stroke: { ...DEFAULT_EDGE_STROKE },
   updatedAt: Date.now(),
   ...overrides,
 });
@@ -174,6 +196,136 @@ export const bendHandlePoint = (
   const nx = dy / len;
   const ny = -dx / len;
   return { x: mx + nx * bend, y: my + ny * bend };
+};
+
+const endpointOutwardNormal = (
+  endpoint: EdgeEndpoint,
+  point: Point,
+  nodesById: Map<string, CanvasNode>,
+): UnitVector | null => {
+  if (endpoint.kind === 'point') return null;
+  if (endpoint.anchor && endpoint.anchor !== 'auto') return ANCHOR_NORMALS[endpoint.anchor];
+  const node = nodesById.get(endpoint.nodeId);
+  if (!node) return null;
+  const sides: Array<{ distance: number; normal: UnitVector }> = [
+    { distance: Math.abs(point.x - node.x), normal: ANCHOR_NORMALS.left },
+    { distance: Math.abs(point.x - (node.x + node.width)), normal: ANCHOR_NORMALS.right },
+    { distance: Math.abs(point.y - node.y), normal: ANCHOR_NORMALS.top },
+    { distance: Math.abs(point.y - (node.y + node.height)), normal: ANCHOR_NORMALS.bottom },
+  ];
+  return sides.reduce((closest, side) =>
+    side.distance < closest.distance ? side : closest).normal;
+};
+
+/**
+ * Build the visible path and its t=0.5 point from one geometry source.
+ * Node-bound zero-bend edges use cubic handles that leave and enter along
+ * the two anchor normals; free endpoints remain straight, while a non-zero
+ * bend preserves the existing manually controlled quadratic curve.
+ */
+export const edgePathGeometry = (
+  edge: Pick<CanvasEdge, 'source' | 'target' | 'bend' | 'curveMode'>,
+  s: Point,
+  t: Point,
+  nodesById: Map<string, CanvasNode>,
+): EdgePathGeometry => {
+  const bend = edge.bend ?? 0;
+  if (bend && edge.curveMode !== 'smooth') {
+    const midpoint = bendHandlePoint(s, t, bend);
+    const baseMidpoint = bendHandlePoint(s, t, 0);
+    const control = {
+      x: midpoint.x * 2 - baseMidpoint.x,
+      y: midpoint.y * 2 - baseMidpoint.y,
+    };
+    return {
+      d: `M ${s.x} ${s.y} Q ${control.x} ${control.y} ${t.x} ${t.y}`,
+      midpoint,
+    };
+  }
+
+  const sourceNormal = endpointOutwardNormal(edge.source, s, nodesById);
+  const targetNormal = endpointOutwardNormal(edge.target, t, nodesById);
+  if (sourceNormal && targetNormal) {
+    const distance = Math.hypot(t.x - s.x, t.y - s.y);
+    const handleLength = distance / 3;
+    const bendScale = distance === 0 ? 0 : bend * 4 / (3 * distance);
+    const bendOffset = {
+      x: (t.y - s.y) * bendScale,
+      y: -(t.x - s.x) * bendScale,
+    };
+    const c1 = {
+      x: s.x + sourceNormal.x * handleLength + bendOffset.x,
+      y: s.y + sourceNormal.y * handleLength + bendOffset.y,
+    };
+    const c2 = {
+      x: t.x + targetNormal.x * handleLength + bendOffset.x,
+      y: t.y + targetNormal.y * handleLength + bendOffset.y,
+    };
+    return {
+      d: `M ${s.x} ${s.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${t.x} ${t.y}`,
+      midpoint: {
+        x: (s.x + 3 * c1.x + 3 * c2.x + t.x) / 8,
+        y: (s.y + 3 * c1.y + 3 * c2.y + t.y) / 8,
+      },
+    };
+  }
+
+  if (!bend) {
+    return {
+      d: `M ${s.x} ${s.y} L ${t.x} ${t.y}`,
+      midpoint: bendHandlePoint(s, t, 0),
+    };
+  }
+
+  const midpoint = bendHandlePoint(s, t, bend);
+  const baseMidpoint = bendHandlePoint(s, t, 0);
+  const control = {
+    x: midpoint.x * 2 - baseMidpoint.x,
+    y: midpoint.y * 2 - baseMidpoint.y,
+  };
+  return {
+    d: `M ${s.x} ${s.y} Q ${control.x} ${control.y} ${t.x} ${t.y}`,
+    midpoint,
+  };
+};
+
+const insetTowardOther = (end: Point, other: Point, gap: number): Point => {
+  if (gap <= 0) return end;
+  const dx = end.x - other.x;
+  const dy = end.y - other.y;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return end;
+  return {
+    x: end.x - (dx / len) * gap,
+    y: end.y - (dy / len) * gap,
+  };
+};
+
+/**
+ * Resolve the exact path rendered for an edge, including automatic anchors
+ * and the small node gap reserved for visible arrow caps.
+ */
+export const resolveEdgePathGeometry = (
+  edge: CanvasEdge,
+  nodesById: Map<string, CanvasNode>,
+): ResolvedEdgePathGeometry => {
+  const approxS = resolveEndpoint(edge.source, nodesById);
+  const approxT = resolveEndpoint(edge.target, nodesById);
+  let sourcePoint = resolveEndpointToward(edge.source, nodesById, approxT);
+  let targetPoint = resolveEndpointToward(edge.target, nodesById, approxS);
+  const head = edge.arrowHead ?? 'triangle';
+  const tail = edge.arrowTail ?? 'none';
+  if (edge.target.kind === 'node' && head !== 'none') {
+    targetPoint = insetTowardOther(targetPoint, sourcePoint, ARROW_NODE_GAP);
+  }
+  if (edge.source.kind === 'node' && tail !== 'none') {
+    sourcePoint = insetTowardOther(sourcePoint, targetPoint, ARROW_NODE_GAP);
+  }
+  return {
+    sourcePoint,
+    targetPoint,
+    ...edgePathGeometry(edge, sourcePoint, targetPoint, nodesById),
+  };
 };
 
 /**

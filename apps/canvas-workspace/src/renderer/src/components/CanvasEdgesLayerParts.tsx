@@ -1,5 +1,4 @@
-import type { CanvasEdge, CanvasNode, EdgeArrowCap } from '../types';
-import { bendHandlePoint } from '../utils/edgeFactory';
+import type { CanvasNode, EdgeArrowCap } from '../types';
 import type { Point } from '../hooks/useEdgeInteraction';
 
 export const SELECTION_COLOR = '#2a7fff';
@@ -60,18 +59,16 @@ export const Markers = ({
 );
 
 export const EdgeHandles = ({
-  edge,
   s,
   t,
+  midpoint,
   onHandleMouseDown,
 }: {
-  edge: CanvasEdge;
   s: Point;
   t: Point;
+  midpoint: Point;
   onHandleMouseDown: (handle: 'source' | 'target' | 'bend', e: React.MouseEvent) => void;
 }) => {
-  const bend = edge.bend ?? 0;
-  const mid = bendHandlePoint(s, t, bend);
   const handleStyle: React.CSSProperties = {
     pointerEvents: 'all',
     cursor: 'grab',
@@ -94,8 +91,8 @@ export const EdgeHandles = ({
         }}
       />
       <circle
-        cx={mid.x}
-        cy={mid.y}
+        cx={midpoint.x}
+        cy={midpoint.y}
         r={HANDLE_RADIUS - 0.5}
         fill="#ffffff"
         stroke={SELECTION_COLOR}

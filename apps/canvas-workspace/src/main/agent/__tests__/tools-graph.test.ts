@@ -73,6 +73,7 @@ import {
   WORKSPACE_NODE_SCHEMA_VERSION,
 } from '../../canvas/nodes/store';
 import { upsertKnowledgeTag } from '../../canvas/nodes/tags';
+import type { CanvasEdge } from '../../../shared/canvas';
 
 const wsId = 'ws-tools-test';
 
@@ -249,6 +250,51 @@ describe('canvas_create_node placement', () => {
       y: result.y,
       width: 120,
       height: 80,
+    });
+  });
+});
+
+describe('canvas_create_edge', () => {
+  it('persists the canonical stroke when no style override is supplied', async () => {
+    await setupCanvas();
+    const tools = createCanvasTools(wsId);
+
+    const result = JSON.parse(await tools.canvas_create_edge.execute({
+      sourceNodeId: 'n-file',
+      targetNodeId: 'n-text',
+    }));
+
+    expect(result.ok).toBe(true);
+    const { data } = await readCanvasFull(wsId);
+    expect((data?.edges?.[0] as CanvasEdge | undefined)?.stroke).toEqual({
+      color: '#2e2e2e',
+      width: 4,
+      style: 'solid',
+    });
+  });
+
+  it('normalizes legacy defaults before applying a partial style update', async () => {
+    await setupCanvas({
+      edges: [{
+        id: 'legacy-edge',
+        source: { kind: 'node', nodeId: 'n-file' },
+        target: { kind: 'node', nodeId: 'n-text' },
+        stroke: { color: '#1f2328', width: 2.4, style: 'solid' },
+      }],
+    });
+    const tools = createCanvasTools(wsId);
+
+    const result = JSON.parse(await tools.canvas_update_edge.execute({
+      edgeId: 'legacy-edge',
+      color: '#ff0000',
+    }));
+
+    expect(result.ok).toBe(true);
+    const { data } = await readCanvasFull(wsId);
+    expect((data?.edges?.[0] as CanvasEdge | undefined)?.stroke).toEqual({
+      color: '#ff0000',
+      width: 4,
+      style: 'solid',
     });
   });
 });

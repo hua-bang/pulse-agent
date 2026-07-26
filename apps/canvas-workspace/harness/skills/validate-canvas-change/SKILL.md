@@ -10,11 +10,12 @@ source of truth. Run from the repository root.
 
 ## Choose the Level
 
-- During iteration, run `pnpm run harness` (default `quick`). Keep feedback
+- During iteration, run `node scripts/harness/run-harness-check.mjs` (default
+  `quick`). Keep feedback
   fast and do not run the full performance report.
 - When the change is functionally complete, run
-  `pnpm run harness -- --level standard`.
-- Run `pnpm run harness -- --level release` only for a performance-focused
+  `node scripts/harness/run-harness-check.mjs --level standard`.
+- Run `node scripts/harness/run-harness-check.mjs --level release` only for a performance-focused
   task, a performance-sensitive change, or release evidence.
 - Do not use `--all` as routine acceptance for a local change. It intentionally
   selects `release` and performs a repository-wide sweep.

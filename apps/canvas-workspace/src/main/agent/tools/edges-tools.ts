@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import type { CanvasEdge, CanvasTool, EdgeArrowCap, EdgeEndpoint, EdgeStroke } from './types';
+import {
+  DEFAULT_EDGE_STROKE,
+  resolveEdgeStroke,
+} from '../../../shared/canvas';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
 import { buildEndpoint, describeEndpoint, genEdgeId } from './_shared/edges';
@@ -67,10 +71,12 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
           .describe('Cap rendered at the target end. Default: "triangle".'),
         arrowTail: z.enum(['none', 'triangle', 'arrow', 'dot', 'bar']).optional()
           .describe('Cap rendered at the source end. Default: "none".'),
-        color: z.string().optional().describe('Stroke color (hex, e.g. "#1f2328").'),
-        width: z.number().optional().describe('Stroke width in px. Default 2.4.'),
+        color: z.string().optional().describe('Stroke color (hex, e.g. "#2e2e2e").'),
+        width: z.number().optional().describe('Stroke width in canvas units. Default 4.'),
         style: z.enum(['solid', 'dashed', 'dotted']).optional().describe('Stroke dash style. Default "solid".'),
-        bend: z.number().optional().describe('Perpendicular peak offset of the curve. 0 (default) = straight line.'),
+        bend: z.number().optional().describe(
+          'Perpendicular peak offset of a manual curve. 0 (default) uses smooth automatic routing for node-bound edges.',
+        ),
         kind: z.string().optional().describe('Optional semantic tag (e.g. "depends-on", "references").'),
         payload: z.record(z.string(), z.unknown()).optional().describe('Free-form extra data attached to the edge.'),
       }),
@@ -108,14 +114,15 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
           return `Error: target node not found: ${target.nodeId}`;
         }
 
-        const stroke: EdgeStroke | undefined =
+        const stroke: EdgeStroke =
           input.color != null || input.width != null || input.style != null
             ? {
-                color: (input.color as string | undefined) ?? '#1f2328',
-                width: (input.width as number | undefined) ?? 2.4,
-                style: (input.style as 'solid' | 'dashed' | 'dotted' | undefined) ?? 'solid',
+                color: (input.color as string | undefined) ?? DEFAULT_EDGE_STROKE.color,
+                width: (input.width as number | undefined) ?? DEFAULT_EDGE_STROKE.width,
+                style: (input.style as 'solid' | 'dashed' | 'dotted' | undefined) ??
+                  DEFAULT_EDGE_STROKE.style,
               }
-            : undefined;
+            : { ...DEFAULT_EDGE_STROKE };
 
         const edge: CanvasEdge = {
           id: genEdgeId(),
@@ -189,16 +196,20 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
         const freshIdx = freshEdges.findIndex((e) => e.id === edgeId);
         if (freshIdx === -1) return `Error: edge not found: ${edgeId}`;
         const existing = freshEdges[freshIdx];
+        const existingStroke = resolveEdgeStroke(existing.stroke);
 
         const nextStroke =
           input.color != null || input.width != null || input.style != null
             ? {
-                color: (input.color as string | undefined) ?? existing.stroke?.color ?? '#1f2328',
-                width: (input.width as number | undefined) ?? existing.stroke?.width ?? 2.4,
+                color:
+                  (input.color as string | undefined) ??
+                  existingStroke.color,
+                width:
+                  (input.width as number | undefined) ??
+                  existingStroke.width,
                 style:
                   (input.style as 'solid' | 'dashed' | 'dotted' | undefined) ??
-                  existing.stroke?.style ??
-                  'solid',
+                  existingStroke.style,
               }
             : existing.stroke;
         const next: CanvasEdge = {

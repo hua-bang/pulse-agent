@@ -1,5 +1,6 @@
 import { loadCanvas, commitEdgeMutation } from './store';
 import { notifyCanvasUpdated } from './notifier';
+import { DEFAULT_EDGE_STROKE } from './constants';
 import type {
   CanvasEdge,
   EdgeAnchor,
@@ -46,7 +47,7 @@ export async function createEdge(
     bend: opts.bend ?? 0,
     arrowHead: opts.arrowHead ?? 'triangle',
     arrowTail: opts.arrowTail ?? 'none',
-    stroke: opts.stroke ?? { color: '#1f2328', width: 2.4, style: 'solid' },
+    stroke: opts.stroke ?? { ...DEFAULT_EDGE_STROKE },
     label: opts.label,
     kind: opts.kind,
     payload: opts.payload,

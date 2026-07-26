@@ -153,6 +153,7 @@ describe('edge interaction preview projection', () => {
       cursor: { x: 50, y: 30 },
       originBend: 0,
       originOffset: 0,
+      smoothBend: false,
       previewPatch: { bend: -30 },
     };
     expect(applyEdgeInteractionPreview(freeEdge, bendState)).toMatchObject({ bend: -30 });
@@ -161,5 +162,61 @@ describe('edge interaction preview projection', () => {
       id: 'other',
       bend: 0,
     });
+  });
+});
+
+describe('default edge presentation', () => {
+  it('renders node-bound edges as anchor-aware cubic curves', () => {
+    const curvedNodes: CanvasNode[] = [
+      {
+        id: 'source',
+        type: 'text',
+        title: 'Source',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 60,
+        data: { text: 'source' },
+      } as CanvasNode,
+      {
+        id: 'target',
+        type: 'text',
+        title: 'Target',
+        x: 146,
+        y: 102,
+        width: 100,
+        height: 60,
+        data: { text: 'target' },
+      } as CanvasNode,
+    ];
+    const edge: CanvasEdge = {
+      id: 'curved',
+      source: { kind: 'node', nodeId: 'source', anchor: 'right' },
+      target: { kind: 'node', nodeId: 'target', anchor: 'top' },
+      arrowHead: 'none',
+    };
+
+    const html = renderToStaticMarkup(
+      <CanvasEdgesLayer edges={[edge]} nodes={curvedNodes} selectedEdgeId={null} />,
+    );
+
+    expect(html).toContain('d="M 100 30 C 140 30 196 62 196 102"');
+  });
+
+  it('uses Heptabase-like world-space ink with a forgiving screen-space hit target', () => {
+    const edge: CanvasEdge = {
+      id: 'styled',
+      source: { kind: 'point', x: 0, y: 0 },
+      target: { kind: 'point', x: 100, y: 0 },
+      arrowHead: 'none',
+      stroke: { color: '#1f2328', width: 2.4, style: 'solid' },
+    };
+
+    const html = renderToStaticMarkup(
+      <CanvasEdgesLayer edges={[edge]} nodes={[]} selectedEdgeId={null} />,
+    );
+
+    expect(html).toContain('stroke="transparent" stroke-width="16" vector-effect="non-scaling-stroke"');
+    expect(html).toContain('stroke="#2e2e2e" stroke-width="4"');
   });
 });

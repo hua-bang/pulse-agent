@@ -152,6 +152,32 @@ describe('useEdgeInteraction move gestures', () => {
     expect(updateEdge).toHaveBeenCalledWith('edge-1', { bend: -30 });
   });
 
+  it('keeps an asymmetric automatic curve cubic on its first manual bend', () => {
+    edges = [{
+      id: 'edge-1',
+      source: { kind: 'node', nodeId: 'node-a', anchor: 'right' },
+      target: { kind: 'node', nodeId: 'node-b', anchor: 'top' },
+      bend: 0,
+    }];
+    act(() => root.render(<Probe />));
+    act(() => hook.beginMoveBend(
+      'edge-1',
+      { x: 100, y: 30 },
+      { x: 196, y: 102 },
+      163,
+      51,
+    ));
+
+    move([163.6, 50.2]);
+
+    expect(hook.state).toMatchObject({
+      kind: 'move-bend',
+      previewPatch: { curveMode: 'smooth' },
+    });
+    if (hook.state?.kind !== 'move-bend') throw new Error('expected move-bend state');
+    expect(hook.state.previewPatch.bend).toBeCloseTo(1);
+  });
+
   it('drops an ephemeral move on Escape without writing or committing history', () => {
     act(() => hook.beginMoveEdge('edge-1', 10, 10));
     move([30, 40], [50, 60]);
