@@ -121,8 +121,10 @@ export function useChatSessions({
 
   const handleNewSession = useCallback(async () => {
     setSessionMenuOpen(false);
-    await window.canvasWorkspace.agent.newSession({ scope: agentScope });
+    const result = await window.canvasWorkspace.agent.newSession({ scope: agentScope });
+    if (!result.ok) return result;
     onMessagesLoaded([]);
+    return result;
   }, [agentScope, onMessagesLoaded]);
 
   const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {

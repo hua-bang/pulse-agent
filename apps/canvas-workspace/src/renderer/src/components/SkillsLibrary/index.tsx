@@ -117,9 +117,8 @@ export const SkillsLibrary = ({
     ));
   }, [globalSkills, query, visibleScopeView, workspaceContextId, workspaceSkills]);
 
-  const addToChat = (skill: CanvasSkillEntry) => {
-    dock.addSkillToChat(workspaceContextId, skill.name);
-    notify({ tone: 'success', title: t('skillsLibrary.addedToChat', { name: skill.name }) });
+  const startSkillChat = (skill: CanvasSkillEntry) => {
+    dock.startSkillChat(workspaceContextId, skill.name);
   };
   const promote = async (skill: DisplaySkill) => {
     if (skill.configScope.level !== 'workspace') return;
@@ -281,7 +280,7 @@ export const SkillsLibrary = ({
         skills={displaySkills}
         query={query}
         onOpen={(skill) => dock.openSkill(skill.configScope, skill)}
-        onAddToChat={addToChat}
+        onStartChat={startSkillChat}
         onPromote={(skill) => void promote(skill)}
         onRemove={(skill) => void removeSkill(skill)}
       />

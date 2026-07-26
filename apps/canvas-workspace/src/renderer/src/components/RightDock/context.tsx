@@ -24,8 +24,8 @@ interface RightDockContextValue {
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
   addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
   registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => () => void;
-  addSkillToChat: (workspaceId: string, skillName: string) => void;
-  registerAddSkillToChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
+  startSkillChat: (workspaceId: string, skillName: string) => void;
+  registerStartSkillChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
 }
 
 const RightDockContext = createContext<RightDockContextValue | null>(null);
@@ -38,7 +38,7 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
   const pinUrlReferenceRef = useRef<((url: string, title?: string) => void) | null>(null);
   const addDomSelectionToChatRef = useRef<((workspaceId: string, selection: AgentContextDomSelectionRef) => void) | null>(null);
-  const addSkillToChatRef = useRef<((workspaceId: string, skillName: string) => void) | null>(null);
+  const startSkillChatRef = useRef<((workspaceId: string, skillName: string) => void) | null>(null);
   const pinUrlReference = useCallback((url: string, title?: string) => {
     pinUrlReferenceRef.current?.(url, title);
   }, []);
@@ -57,13 +57,13 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
       if (addDomSelectionToChatRef.current === handler) addDomSelectionToChatRef.current = null;
     };
   }, []);
-  const addSkillToChat = useCallback((workspaceId: string, skillName: string) => {
-    addSkillToChatRef.current?.(workspaceId, skillName);
+  const startSkillChat = useCallback((workspaceId: string, skillName: string) => {
+    startSkillChatRef.current?.(workspaceId, skillName);
   }, []);
-  const registerAddSkillToChat = useCallback((handler: (workspaceId: string, skillName: string) => void) => {
-    addSkillToChatRef.current = handler;
+  const registerStartSkillChat = useCallback((handler: (workspaceId: string, skillName: string) => void) => {
+    startSkillChatRef.current = handler;
     return () => {
-      if (addSkillToChatRef.current === handler) addSkillToChatRef.current = null;
+      if (startSkillChatRef.current === handler) startSkillChatRef.current = null;
     };
   }, []);
   const value = useMemo<RightDockContextValue>(() => ({
@@ -76,9 +76,9 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
     registerPinUrlReference,
     addDomSelectionToChat,
     registerAddDomSelectionToChat,
-    addSkillToChat,
-    registerAddSkillToChat,
-  }), [store, chatHost, terminalHost, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, addSkillToChat, registerAddSkillToChat]);
+    startSkillChat,
+    registerStartSkillChat,
+  }), [store, chatHost, terminalHost, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, startSkillChat, registerStartSkillChat]);
   return <RightDockContext.Provider value={value}>{children}</RightDockContext.Provider>;
 };
 
@@ -111,8 +111,8 @@ export function useRightDock(): {
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
   addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
   registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => () => void;
-  addSkillToChat: (workspaceId: string, skillName: string) => void;
-  registerAddSkillToChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
+  startSkillChat: (workspaceId: string, skillName: string) => void;
+  registerStartSkillChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
 } {
   const {
     store,
@@ -120,8 +120,8 @@ export function useRightDock(): {
     registerPinUrlReference,
     addDomSelectionToChat,
     registerAddDomSelectionToChat,
-    addSkillToChat,
-    registerAddSkillToChat,
+    startSkillChat,
+    registerStartSkillChat,
   } = useDockContext();
   return useMemo(() => ({
     openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
@@ -149,9 +149,9 @@ export function useRightDock(): {
     registerPinUrlReference,
     addDomSelectionToChat,
     registerAddDomSelectionToChat,
-    addSkillToChat,
-    registerAddSkillToChat,
-  }), [store, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, addSkillToChat, registerAddSkillToChat]);
+    startSkillChat,
+    registerStartSkillChat,
+  }), [store, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, startSkillChat, registerStartSkillChat]);
 }
 
 export const useRightDockState = (): DockState => {

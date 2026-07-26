@@ -48,7 +48,7 @@ interface Props {
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
   pinUrlReference: (url: string, title?: string) => void;
   onAddDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
-  onAddSkillToChat?: (workspaceId: string, skillName: string) => void;
+  onStartSkillChat?: (workspaceId: string, skillName: string) => void;
 }
 
 export const DockPanes = ({
@@ -71,7 +71,7 @@ export const DockPanes = ({
   onOpenNodePage,
   pinUrlReference,
   onAddDomSelectionToChat,
-  onAddSkillToChat = () => undefined,
+  onStartSkillChat = () => undefined,
 }: Props) => {
   const { t } = useI18n();
   const splitActive = Boolean(splitTabId);
@@ -191,7 +191,7 @@ export const DockPanes = ({
                 tab={tab}
                 activeWorkspaceId={activeWorkspaceId}
                 workspaceName={skillWorkspaceName(tab, workspaces)}
-                onAddToChat={onAddSkillToChat}
+                onStartChat={onStartSkillChat}
                 onPromoted={(skill) => {
                   store.close(tab.id);
                   store.openSkill({ level: 'global' }, skill);

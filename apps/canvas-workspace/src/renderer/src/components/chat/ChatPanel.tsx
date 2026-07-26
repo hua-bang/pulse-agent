@@ -17,6 +17,7 @@ import type { AgentScope, ChatPanelProps, SelectedContextChip } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
+import { useStartSkillChat } from './hooks/useStartSkillChat';
 function escapeDomMentionPart(value: string): string {
   return value.replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim();
 }
@@ -60,7 +61,7 @@ export const ChatPanel = ({
   onOpenAppSettings,
   onOpenWorkspaceSettings,
   onRegisterInsertMention,
-  onRegisterInsertSkillMention,
+  onRegisterStartSkillChat,
   onRegisterInsertDomSelectionMention,
   onRegisterSubmitDomReviewComments,
   onTurnComplete,
@@ -68,6 +69,7 @@ export const ChatPanel = ({
   const { t } = useI18n();
   const { notify } = useAppShell();
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
+  const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
   const requestContextRef = useRef<AgentRequestContext>();
 
   // Keep a stable identity for the scope. Passing a fresh literal on every
@@ -158,9 +160,7 @@ export const ChatPanel = ({
     if (!onRegisterInsertMention) return;
     return onRegisterInsertMention(insertNodeMention);
   }, [insertNodeMention, onRegisterInsertMention]);
-  useEffect(() => onRegisterInsertSkillMention?.(insertSkillMention), [
-    insertSkillMention, onRegisterInsertSkillMention,
-  ]);
+  useStartSkillChat({ loading, clearInput, handleNewSession, insertSkillMention, setSessionBackStack, onRegister: onRegisterStartSkillChat });
 
   useEffect(() => {
     if (!onRegisterInsertDomSelectionMention) return;
@@ -345,7 +345,6 @@ export const ChatPanel = ({
   // Where chip-jumps came from, newest last. Cleared on manual session
   // switches (menu pick / new chat) — back-navigation only makes sense for
   // the jump trail itself.
-  const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
 
   const jumpToSession = useCallback(async (sessionId: string, jumpWorkspaceId: string, messageIndex?: number) => {
     await handleLoadSession(sessionId, jumpWorkspaceId !== scopeWorkspaceId ? jumpWorkspaceId : undefined);

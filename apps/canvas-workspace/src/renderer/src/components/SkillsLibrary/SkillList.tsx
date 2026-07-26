@@ -12,7 +12,7 @@ interface Props {
   skills: DisplaySkill[];
   query: string;
   onOpen: (skill: DisplaySkill) => void;
-  onAddToChat: (skill: DisplaySkill) => void;
+  onStartChat: (skill: DisplaySkill) => void;
   onPromote: (skill: DisplaySkill) => void;
   onRemove: (skill: DisplaySkill) => void;
 }
@@ -21,7 +21,7 @@ export const SkillList = ({
   skills,
   query,
   onOpen,
-  onAddToChat,
+  onStartChat,
   onPromote,
   onRemove,
 }: Props) => {
@@ -54,9 +54,9 @@ export const SkillList = ({
                 <Button
                   variant="icon"
                   size="md"
-                  aria-label={t('skillsLibrary.addToChat')}
-                  title={t('skillsLibrary.addToChat')}
-                  onClick={() => onAddToChat(skill)}
+                  aria-label={t('skillsLibrary.startChat')}
+                  title={t('skillsLibrary.startChat')}
+                  onClick={() => onStartChat(skill)}
                 >
                   <ChatCircleDots size={16} />
                 </Button>

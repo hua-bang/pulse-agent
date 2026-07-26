@@ -108,23 +108,25 @@ export const Workbench: React.FC<WorkbenchProps> = ({
 
   const {
     handleAddDomSelectionToChat,
-    handleAddSkillToChat,
+    handleStartSkillChat,
     handleAddNodeToChat,
     handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
     registerInsertMention,
-    registerInsertSkillMention,
+    registerStartSkillChat,
     registerSubmitDomReviewComments,
   } = useChatInsertionBridge({ allNodes, openChat: dock.openChat });
 
   useEffect(() => dock.registerPinUrlReference(pinReferenceUrl), [dock, pinReferenceUrl]);
 
   useEffect(() => dock.registerAddDomSelectionToChat(handleAddDomSelectionToChat), [dock, handleAddDomSelectionToChat]);
-  useEffect(() => dock.registerAddSkillToChat((workspaceId, skillName) => {
-    onActivateWorkspace(workspaceId);
-    handleAddSkillToChat(workspaceId, skillName);
-  }), [dock, handleAddSkillToChat, onActivateWorkspace]);
+  useEffect(() => dock.registerStartSkillChat((workspaceId, skillName) => {
+    if (workspaceId !== activeWorkspaceId) onActivateWorkspace(workspaceId);
+    // The bridge invokes an already mounted target composer immediately and
+    // otherwise holds the request until that workspace registers its composer.
+    handleStartSkillChat(workspaceId, skillName);
+  }), [activeWorkspaceId, dock, handleStartSkillChat, onActivateWorkspace]);
 
   const workspaceNameById = useCallback(
     (workspaceId: string) => workspaces.find((workspace) => workspace.id === workspaceId)?.name,
@@ -411,7 +413,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
                   onOpenAppSettings={onOpenAppSettings} onOpenWorkspaceSettings={onOpenWorkspaceSettings}
                   onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
-                  onRegisterInsertSkillMention={(fn) => registerInsertSkillMention(ws.id, fn)}
+                  onRegisterStartSkillChat={(fn) => registerStartSkillChat(ws.id, fn)}
                   onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
                   onRegisterSubmitDomReviewComments={(fn) => registerSubmitDomReviewComments(ws.id, fn)}
                   onTurnComplete={dock.notifyChatActivity}

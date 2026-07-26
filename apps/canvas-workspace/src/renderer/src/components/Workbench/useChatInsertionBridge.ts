@@ -20,8 +20,8 @@ export function useChatInsertionBridge({
   const insertDomSelectionByWorkspaceRef = useRef<Map<string, (selection: AgentContextDomSelectionRef) => void>>(new Map());
   const pendingDomSelectionsByWorkspaceRef = useRef<Map<string, AgentContextDomSelectionRef[]>>(new Map());
   const submitDomReviewByWorkspaceRef = useRef<Map<string, (comments: AgentContextDomReviewComment[]) => Promise<boolean>>>(new Map());
-  const insertSkillByWorkspaceRef = useRef<Map<string, (skillName: string) => void>>(new Map());
-  const pendingSkillsByWorkspaceRef = useRef<Map<string, string[]>>(new Map());
+  const startSkillChatByWorkspaceRef = useRef<Map<string, (skillName: string) => Promise<void>>>(new Map());
+  const pendingSkillByWorkspaceRef = useRef<Map<string, string>>(new Map());
 
   const registerInsertMention = useCallback((workspaceId: string, fn: (node: CanvasNode, sourceWorkspaceId?: string) => void) => {
     insertMentionByWorkspaceRef.current.set(workspaceId, fn);
@@ -66,15 +66,17 @@ export function useChatInsertionBridge({
     };
   }, []);
 
-  const registerInsertSkillMention = useCallback((workspaceId: string, fn: (skillName: string) => void) => {
-    insertSkillByWorkspaceRef.current.set(workspaceId, fn);
-    const pending = pendingSkillsByWorkspaceRef.current.get(workspaceId) ?? [];
-    pendingSkillsByWorkspaceRef.current.delete(workspaceId);
-    for (const skillName of pending) fn(skillName);
+  const registerStartSkillChat = useCallback((workspaceId: string, fn: (skillName: string) => Promise<void>) => {
+    startSkillChatByWorkspaceRef.current.set(workspaceId, fn);
+    const pending = pendingSkillByWorkspaceRef.current.get(workspaceId);
+    pendingSkillByWorkspaceRef.current.delete(workspaceId);
+    if (pending) void fn(pending).finally(openChat);
     return () => {
-      insertSkillByWorkspaceRef.current.delete(workspaceId);
+      if (startSkillChatByWorkspaceRef.current.get(workspaceId) === fn) {
+        startSkillChatByWorkspaceRef.current.delete(workspaceId);
+      }
     };
-  }, []);
+  }, [openChat]);
 
   const handleAddNodeToChat = useCallback((workspaceId: string, nodeId: string) => {
     const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId);
@@ -101,14 +103,14 @@ export function useChatInsertionBridge({
     ]);
   }, [openChat]);
 
-  const handleAddSkillToChat = useCallback((workspaceId: string, skillName: string) => {
+  const handleStartSkillChat = useCallback((workspaceId: string, skillName: string) => {
+    const fn = startSkillChatByWorkspaceRef.current.get(workspaceId);
+    if (fn) {
+      void fn(skillName).finally(openChat);
+      return;
+    }
+    pendingSkillByWorkspaceRef.current.set(workspaceId, skillName);
     openChat();
-    const fn = insertSkillByWorkspaceRef.current.get(workspaceId);
-    if (fn) fn(skillName);
-    else pendingSkillsByWorkspaceRef.current.set(workspaceId, [
-      ...(pendingSkillsByWorkspaceRef.current.get(workspaceId) ?? []),
-      skillName,
-    ]);
   }, [openChat]);
 
   const handleSubmitDomReviewComments = useCallback((workspaceId: string, comments: AgentContextDomReviewComment[]) => {
@@ -128,13 +130,13 @@ export function useChatInsertionBridge({
 
   return {
     handleAddDomSelectionToChat,
-    handleAddSkillToChat,
+    handleStartSkillChat,
     handleAddNodeToChat,
     handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
     registerInsertMention,
-    registerInsertSkillMention,
+    registerStartSkillChat,
     registerSubmitDomReviewComments,
   };
 }
