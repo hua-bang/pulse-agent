@@ -27,66 +27,66 @@ export const SkillList = ({
 }: Props) => {
   const { t } = useI18n();
 
-  if (skills.length === 0) {
-    return (
-      <EmptyState
-        icon={<PuzzlePiece size={24} />}
-        title={query ? t('skillsLibrary.noMatches') : t('skillsConfig.empty')}
-      />
-    );
-  }
-
   return (
-    <ul className="skills-library__list">
-      {skills.map((skill) => (
-        <li key={`${skill.configScope.level}:${skill.path}`} className="skills-library__row">
-          <Button
-            variant="secondary"
-            className="skills-library__row-main"
-            onClick={() => onOpen(skill)}
-          >
-            <span>
-              <strong>{skill.name}</strong>
-              <small>{skill.source}</small>
-              {skill.overridesGlobal && <em>{t('skillsLibrary.overridesGlobal')}</em>}
-            </span>
-            <p>{skill.description}</p>
-          </Button>
-          <div className="skills-library__row-actions">
-            <Button
-              variant="icon"
-              size="md"
-              aria-label={t('skillsLibrary.addToChat')}
-              title={t('skillsLibrary.addToChat')}
-              onClick={() => onAddToChat(skill)}
-            >
-              <ChatCircleDots size={16} />
-            </Button>
-            {skill.configScope.level === 'workspace' && skill.writable && (
+    <div className="skills-library__list-scroll">
+      {skills.length === 0 ? (
+        <EmptyState
+          icon={<PuzzlePiece size={24} />}
+          title={query ? t('skillsLibrary.noMatches') : t('skillsConfig.empty')}
+        />
+      ) : (
+        <ul className="skills-library__list">
+          {skills.map((skill) => (
+            <li key={`${skill.configScope.level}:${skill.path}`} className="skills-library__row">
               <Button
-                variant="icon"
-                size="md"
-                aria-label={t('skillsLibrary.promoteToGlobal', { name: skill.name })}
-                title={t('skillsLibrary.promoteToGlobal', { name: skill.name })}
-                onClick={() => onPromote(skill)}
+                variant="secondary"
+                className="skills-library__row-main"
+                onClick={() => onOpen(skill)}
               >
-                <ArrowUpRight size={16} />
+                <span>
+                  <strong>{skill.name}</strong>
+                  <small>{skill.source}</small>
+                  {skill.overridesGlobal && <em>{t('skillsLibrary.overridesGlobal')}</em>}
+                </span>
+                <p>{skill.description}</p>
               </Button>
-            )}
-            {skill.writable && (
-              <Button
-                variant="icon"
-                size="md"
-                aria-label={t('skillsLibrary.removeTitle', { name: skill.name })}
-                title={t('skillsLibrary.removeTitle', { name: skill.name })}
-                onClick={() => onRemove(skill)}
-              >
-                <Trash size={16} />
-              </Button>
-            )}
-          </div>
-        </li>
-      ))}
-    </ul>
+              <div className="skills-library__row-actions">
+                <Button
+                  variant="icon"
+                  size="md"
+                  aria-label={t('skillsLibrary.addToChat')}
+                  title={t('skillsLibrary.addToChat')}
+                  onClick={() => onAddToChat(skill)}
+                >
+                  <ChatCircleDots size={16} />
+                </Button>
+                {skill.configScope.level === 'workspace' && skill.writable && (
+                  <Button
+                    variant="icon"
+                    size="md"
+                    aria-label={t('skillsLibrary.promoteToGlobal', { name: skill.name })}
+                    title={t('skillsLibrary.promoteToGlobal', { name: skill.name })}
+                    onClick={() => onPromote(skill)}
+                  >
+                    <ArrowUpRight size={16} />
+                  </Button>
+                )}
+                {skill.writable && (
+                  <Button
+                    variant="icon"
+                    size="md"
+                    aria-label={t('skillsLibrary.removeTitle', { name: skill.name })}
+                    title={t('skillsLibrary.removeTitle', { name: skill.name })}
+                    onClick={() => onRemove(skill)}
+                  >
+                    <Trash size={16} />
+                  </Button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 };
