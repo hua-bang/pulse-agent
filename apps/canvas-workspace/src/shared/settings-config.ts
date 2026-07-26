@@ -98,14 +98,22 @@ export interface CanvasSkillEntry {
   scope: 'global' | 'workspace';
   path: string;
   source: CanvasSkillSourceName;
-  /** False for skills owned by other agent tools; Edit/Delete are hidden. */
+  /** False for skills owned by other agent tools; mutating actions are hidden. */
   writable: boolean;
+  /** Files bundled beside SKILL.md, relative to the Skill directory. */
+  resources?: Array<{ name: string; path: string }>;
 }
 
 export interface CanvasSkillsStatus {
   scope: 'global' | 'workspace';
   dir: string;
   skills: CanvasSkillEntry[];
+}
+
+export interface CanvasSkillPromoteResult {
+  skill: CanvasSkillEntry;
+  globalStatus: CanvasSkillsStatus;
+  workspaceStatus: CanvasSkillsStatus;
 }
 
 export interface CanvasSkillInput {

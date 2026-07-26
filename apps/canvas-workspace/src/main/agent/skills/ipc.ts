@@ -23,6 +23,7 @@ import {
   upsertCanvasSkill,
   type UpsertCanvasSkillInput,
 } from './config';
+import { promoteCanvasSkill } from './promote';
 
 async function refreshAgents(scope: CanvasConfigScope): Promise<void> {
   const service = getCanvasAgentService();
@@ -61,6 +62,26 @@ export function setupCanvasSkillsIpc(): void {
         const status = await removeCanvasSkill(scope, payload.name);
         await refreshAgents(scope);
         return { ok: true, status };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-skills:promote',
+    async (_event, payload: { workspaceId?: unknown; name?: unknown }) => {
+      try {
+        const scope = parseScopePayload({
+          level: 'workspace',
+          workspaceId: payload?.workspaceId,
+        });
+        if (scope.level !== 'workspace' || typeof payload?.name !== 'string') {
+          throw new Error('Workspace id and skill name are required');
+        }
+        const result = await promoteCanvasSkill(scope.workspaceId, payload.name);
+        await refreshAgents({ level: 'global' });
+        return { ok: true, result };
       } catch (err) {
         return { ok: false, error: String(err) };
       }

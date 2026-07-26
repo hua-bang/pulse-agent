@@ -22,10 +22,12 @@ import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } 
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
 const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
+const SkillsLibrary = lazy(() => import('./components/SkillsLibrary').then((module) => ({ default: module.SkillsLibrary })));
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
 const ROUTE_NODES = '/nodes';
 const ROUTE_GRAPH = '/graph';
+const ROUTE_SKILLS = '/skills';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
 const readSidebarCollapsedPreference = (): boolean => {
@@ -39,7 +41,6 @@ const readSidebarCollapsedPreference = (): boolean => {
   }
   return false;
 };
-
 const writeSidebarCollapsedPreference = (collapsed: boolean): void => {
   try {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
@@ -47,15 +48,12 @@ const writeSidebarCollapsedPreference = (collapsed: boolean): void => {
     // Preference persistence is best-effort only.
   }
 };
-
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
 const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true;
 const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true;
-
 type ActiveView = 'canvas' | 'chat' | string;
-
 const AppContent = () => {
   const { t } = useI18n();
   const dock = useRightDock();
@@ -76,8 +74,8 @@ const AppContent = () => {
     NODES_ENABLED && (routePath === ROUTE_NODES || detailNodeMatch !== null);
   const graphRouteActive = GRAPH_ENABLED && routePath === ROUTE_GRAPH;
   const activeView: ActiveView =
-    routePath === ROUTE_CHAT
-      ? 'chat'
+    routePath === ROUTE_CHAT ? 'chat'
+      : routePath === ROUTE_SKILLS ? 'skills'
       : nodesRouteActive
         ? detailNodeMatch
           ? 'node-detail'
@@ -88,9 +86,7 @@ const AppContent = () => {
             ? routePath
             : 'canvas';
   const routeQuery = routeParams.toString();
-
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
-
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
@@ -120,7 +116,6 @@ const AppContent = () => {
     setWorkspaceSettingsLoaded(true);
     setSettingsWorkspaceId(workspaceId);
   }, []);
-
   const handleSidebarToggle = useCallback(() => {
     setSidebarCollapsed((collapsed) => {
       const next = !collapsed;
@@ -526,6 +521,7 @@ const AppContent = () => {
           onEnterChat={enterChatView}
           onEnterNodes={enterNodesView}
           onEnterGraph={enterGraphView}
+          onEnterSkills={() => setLocation(ROUTE_SKILLS)}
           nodesEnabled={NODES_ENABLED}
           graphEnabled={GRAPH_ENABLED}
           pluginNavItems={pluginNavItems}
@@ -543,6 +539,7 @@ const AppContent = () => {
               onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
               onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
               onSelectWorkspace={handleSelectWorkspace}
+              onActivateWorkspace={selectWorkspace}
               onOpenAppSettings={openAppSettings}
               onOpenWorkspaceSettings={openWorkspaceSettings}
               onSetActiveRootFolder={handleSetActiveRootFolder}
@@ -570,6 +567,9 @@ const AppContent = () => {
               />
             </PulseRouterView>
           )}
+          <PulseRouterView name="skills"><Suspense fallback={null}><SkillsLibrary activeWorkspaceId={activeId} workspaces={workspaces} onSelectWorkspace={(workspaceId) => {
+            ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId);
+          }} /></Suspense></PulseRouterView>
           {pluginRoutes.map((route) => {
             return (
               <PulseRouterView key={route.path} name={route.path}>

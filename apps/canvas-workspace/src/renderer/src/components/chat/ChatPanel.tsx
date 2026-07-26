@@ -17,17 +17,14 @@ import type { AgentScope, ChatPanelProps, SelectedContextChip } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
-
 function escapeDomMentionPart(value: string): string {
   return value.replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim();
 }
-
 function buildDomReviewPrompt(comments: AgentContextDomReviewComment[]): string {
   const lines = [
     `Apply these ${comments.length} DOM review comments to the selected web UI elements.`,
     '',
   ];
-
   comments.forEach((comment, index) => {
     const selection = comment.selection;
     const label = escapeDomMentionPart(selection.label || `DOM selection ${index + 1}`);
@@ -40,10 +37,8 @@ function buildDomReviewPrompt(comments: AgentContextDomReviewComment[]): string 
       if (excerpt) lines.push(`   Element text: ${excerpt}`);
     }
   });
-
   return lines.join('\n');
 }
-
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
@@ -65,6 +60,7 @@ export const ChatPanel = ({
   onOpenAppSettings,
   onOpenWorkspaceSettings,
   onRegisterInsertMention,
+  onRegisterInsertSkillMention,
   onRegisterInsertDomSelectionMention,
   onRegisterSubmitDomReviewComments,
   onTurnComplete,
@@ -122,6 +118,7 @@ export const ChatPanel = ({
     input,
     insertDomSelectionMention,
     insertNodeMention,
+    insertSkillMention,
     loading,
     mentionIndex,
     mentionItems,
@@ -161,6 +158,9 @@ export const ChatPanel = ({
     if (!onRegisterInsertMention) return;
     return onRegisterInsertMention(insertNodeMention);
   }, [insertNodeMention, onRegisterInsertMention]);
+  useEffect(() => onRegisterInsertSkillMention?.(insertSkillMention), [
+    insertSkillMention, onRegisterInsertSkillMention,
+  ]);
 
   useEffect(() => {
     if (!onRegisterInsertDomSelectionMention) return;

@@ -20,6 +20,8 @@ export function useChatInsertionBridge({
   const insertDomSelectionByWorkspaceRef = useRef<Map<string, (selection: AgentContextDomSelectionRef) => void>>(new Map());
   const pendingDomSelectionsByWorkspaceRef = useRef<Map<string, AgentContextDomSelectionRef[]>>(new Map());
   const submitDomReviewByWorkspaceRef = useRef<Map<string, (comments: AgentContextDomReviewComment[]) => Promise<boolean>>>(new Map());
+  const insertSkillByWorkspaceRef = useRef<Map<string, (skillName: string) => void>>(new Map());
+  const pendingSkillsByWorkspaceRef = useRef<Map<string, string[]>>(new Map());
 
   const registerInsertMention = useCallback((workspaceId: string, fn: (node: CanvasNode, sourceWorkspaceId?: string) => void) => {
     insertMentionByWorkspaceRef.current.set(workspaceId, fn);
@@ -64,6 +66,16 @@ export function useChatInsertionBridge({
     };
   }, []);
 
+  const registerInsertSkillMention = useCallback((workspaceId: string, fn: (skillName: string) => void) => {
+    insertSkillByWorkspaceRef.current.set(workspaceId, fn);
+    const pending = pendingSkillsByWorkspaceRef.current.get(workspaceId) ?? [];
+    pendingSkillsByWorkspaceRef.current.delete(workspaceId);
+    for (const skillName of pending) fn(skillName);
+    return () => {
+      insertSkillByWorkspaceRef.current.delete(workspaceId);
+    };
+  }, []);
+
   const handleAddNodeToChat = useCallback((workspaceId: string, nodeId: string) => {
     const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId);
     if (!node) return;
@@ -89,6 +101,16 @@ export function useChatInsertionBridge({
     ]);
   }, [openChat]);
 
+  const handleAddSkillToChat = useCallback((workspaceId: string, skillName: string) => {
+    openChat();
+    const fn = insertSkillByWorkspaceRef.current.get(workspaceId);
+    if (fn) fn(skillName);
+    else pendingSkillsByWorkspaceRef.current.set(workspaceId, [
+      ...(pendingSkillsByWorkspaceRef.current.get(workspaceId) ?? []),
+      skillName,
+    ]);
+  }, [openChat]);
+
   const handleSubmitDomReviewComments = useCallback((workspaceId: string, comments: AgentContextDomReviewComment[]) => {
     openChat();
     const trySubmit = () => {
@@ -106,11 +128,13 @@ export function useChatInsertionBridge({
 
   return {
     handleAddDomSelectionToChat,
+    handleAddSkillToChat,
     handleAddNodeToChat,
     handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
     registerInsertMention,
+    registerInsertSkillMention,
     registerSubmitDomReviewComments,
   };
 }

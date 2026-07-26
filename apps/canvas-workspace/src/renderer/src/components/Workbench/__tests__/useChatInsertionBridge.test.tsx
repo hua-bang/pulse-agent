@@ -102,4 +102,15 @@ describe('useChatInsertionBridge', () => {
     act(() => bridge.registerInsertDomSelectionMention('workspace-1', insert));
     expect(insert).toHaveBeenCalledWith({ ...selection, workspaceId: 'workspace-1' });
   });
+
+  it('holds a Skill mention until the workspace composer registers', () => {
+    const insert = vi.fn();
+
+    act(() => bridge.handleAddSkillToChat('workspace-1', 'release-canvas'));
+    expect(openChat).toHaveBeenCalledOnce();
+    expect(insert).not.toHaveBeenCalled();
+
+    act(() => bridge.registerInsertSkillMention('workspace-1', insert));
+    expect(insert).toHaveBeenCalledWith('release-canvas');
+  });
 });

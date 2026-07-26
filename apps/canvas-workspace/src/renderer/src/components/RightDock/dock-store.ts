@@ -2,7 +2,6 @@
  * Owns activation, dedupe, workspace sessions, closing order, split pairing,
  * collapse retention, and chat unread policy. React binds with
  * `useSyncExternalStore` in components/RightDock. */
-
 import {
   CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId,
   isTerminalTabId, linkTabId, nodeDetailTabId, terminalTabId,
@@ -11,10 +10,12 @@ import { DockLinkSessionStore, type DockSessionPersistence } from './dock-link-s
 import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
 import { applyDockSplitState, getSplitViewToggle } from './dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
+import { openSkillTab } from './dock-skill-tabs';
 import type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
+import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
 export {
   CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId,
-  isTerminalTabId, linkTabId, nodeDetailTabId, terminalTabId,
+  isTerminalTabId, linkTabId, nodeDetailTabId, skillTabId, terminalTabId,
 } from './dock-tab-ids';
 export type { DockLinkSession, DockLinkSessions, DockLinkTab, DockSessionPersistence } from './dock-link-sessions';
 export type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
@@ -33,7 +34,6 @@ const INITIAL: DockState = {
   terminalOpen: false,
   mountedWorkspaceIds: new Set<string>(),
 };
-
 export class DockStore {
   private state: DockState = INITIAL;
   private listeners = new Set<() => void>();
@@ -50,7 +50,6 @@ export class DockStore {
       this.listeners.delete(listener);
     };
   };
-
   getSnapshot = (): DockState => this.state;
 
   private commit(next: Partial<DockState>): void {
@@ -131,6 +130,13 @@ export class DockStore {
     }
     const tab: DockPreviewTab = { id, kind: 'node-detail', title, workspaceId, nodeId };
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+  }
+
+  openSkill(scope: CanvasConfigScope, skill: CanvasSkillEntry): void {
+    this.commit({
+      ...openSkillTab(this.state.tabs, scope, skill),
+      expanded: true,
+    });
   }
 
   /** Open a read-only preview of a workspace's canvas as a dock tab. Deduped

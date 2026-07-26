@@ -11,6 +11,8 @@ import {
 import { DockStore, type DockState } from './dock-store';
 import { createDockSessionPersistence } from './dock-session-persistence';
 import type { AgentContextDomSelectionRef } from '../../types';
+import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
+import { skillTabId } from './dock-tab-ids';
 
 interface RightDockContextValue {
   store: DockStore;
@@ -22,6 +24,8 @@ interface RightDockContextValue {
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
   addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
   registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => () => void;
+  addSkillToChat: (workspaceId: string, skillName: string) => void;
+  registerAddSkillToChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
 }
 
 const RightDockContext = createContext<RightDockContextValue | null>(null);
@@ -34,6 +38,7 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
   const pinUrlReferenceRef = useRef<((url: string, title?: string) => void) | null>(null);
   const addDomSelectionToChatRef = useRef<((workspaceId: string, selection: AgentContextDomSelectionRef) => void) | null>(null);
+  const addSkillToChatRef = useRef<((workspaceId: string, skillName: string) => void) | null>(null);
   const pinUrlReference = useCallback((url: string, title?: string) => {
     pinUrlReferenceRef.current?.(url, title);
   }, []);
@@ -52,6 +57,15 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
       if (addDomSelectionToChatRef.current === handler) addDomSelectionToChatRef.current = null;
     };
   }, []);
+  const addSkillToChat = useCallback((workspaceId: string, skillName: string) => {
+    addSkillToChatRef.current?.(workspaceId, skillName);
+  }, []);
+  const registerAddSkillToChat = useCallback((handler: (workspaceId: string, skillName: string) => void) => {
+    addSkillToChatRef.current = handler;
+    return () => {
+      if (addSkillToChatRef.current === handler) addSkillToChatRef.current = null;
+    };
+  }, []);
   const value = useMemo<RightDockContextValue>(() => ({
     store,
     chatHost,
@@ -62,7 +76,9 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
     registerPinUrlReference,
     addDomSelectionToChat,
     registerAddDomSelectionToChat,
-  }), [store, chatHost, terminalHost, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat]);
+    addSkillToChat,
+    registerAddSkillToChat,
+  }), [store, chatHost, terminalHost, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, addSkillToChat, registerAddSkillToChat]);
   return <RightDockContext.Provider value={value}>{children}</RightDockContext.Provider>;
 };
 
@@ -76,6 +92,8 @@ export const useDockContext = (): RightDockContextValue => {
 export function useRightDock(): {
   openArtifact: (workspaceId: string, artifactId: string) => void;
   openNodeDetail: (workspaceId: string, nodeId: string, title: string) => void;
+  openSkill: (scope: CanvasConfigScope, skill: CanvasSkillEntry) => void;
+  closeSkill: (scope: CanvasConfigScope, skillName: string) => void;
   openCanvasPreview: (workspaceId: string, title: string) => boolean;
   openLink: (url: string) => void;
   newLink: () => void;
@@ -93,6 +111,8 @@ export function useRightDock(): {
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
   addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
   registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => () => void;
+  addSkillToChat: (workspaceId: string, skillName: string) => void;
+  registerAddSkillToChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
 } {
   const {
     store,
@@ -100,10 +120,17 @@ export function useRightDock(): {
     registerPinUrlReference,
     addDomSelectionToChat,
     registerAddDomSelectionToChat,
+    addSkillToChat,
+    registerAddSkillToChat,
   } = useDockContext();
   return useMemo(() => ({
     openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
     openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
+    openSkill: (scope: CanvasConfigScope, skill: CanvasSkillEntry) => store.openSkill(scope, skill),
+    closeSkill: (scope: CanvasConfigScope, skillName: string) => store.close(skillTabId(
+      scope.level === 'workspace' ? scope.workspaceId : 'global',
+      skillName,
+    )),
     openCanvasPreview: (workspaceId: string, title: string) => store.openCanvasPreview(workspaceId, title),
     openLink: (url: string) => store.openLink(url),
     newLink: () => store.newLink(),
@@ -122,7 +149,9 @@ export function useRightDock(): {
     registerPinUrlReference,
     addDomSelectionToChat,
     registerAddDomSelectionToChat,
-  }), [store, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat]);
+    addSkillToChat,
+    registerAddSkillToChat,
+  }), [store, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, addSkillToChat, registerAddSkillToChat]);
 }
 
 export const useRightDockState = (): DockState => {

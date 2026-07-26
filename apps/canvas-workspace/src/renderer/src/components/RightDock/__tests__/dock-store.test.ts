@@ -7,6 +7,7 @@ import {
   canvasPreviewTabId,
   linkTabId,
   nodeDetailTabId,
+  skillTabId,
   terminalTabId,
   type DockLinkSessions,
   type DockSessionPersistence,
@@ -134,6 +135,33 @@ describe('DockStore', () => {
         title: 'Updated title',
       }),
     ]);
+  });
+
+  it('opens and refreshes one Skill detail tab per scope', () => {
+    const dock = new DockStore();
+    const scope = { level: 'workspace', workspaceId: 'ws1' } as const;
+    const skill = {
+      name: 'release-canvas',
+      description: 'Prepare a release.',
+      body: 'Validate.',
+      scope: 'workspace' as const,
+      path: '/skills/release-canvas/SKILL.md',
+      source: 'canvas' as const,
+      writable: true,
+    };
+
+    dock.openSkill(scope, skill);
+    dock.openSkill(scope, { ...skill, description: 'Updated description.' });
+
+    expect(dock.getSnapshot().tabs).toHaveLength(1);
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: skillTabId('ws1', skill.name),
+      expanded: true,
+    });
+    expect(dock.getSnapshot().tabs[0]).toMatchObject({
+      kind: 'skill',
+      skill: { description: 'Updated description.' },
+    });
   });
 
   it('opens different URLs as separate link tabs', () => {

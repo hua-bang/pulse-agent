@@ -82,6 +82,8 @@ export interface ChatPanelProps {
   onOpenWorkspaceSettings?: (workspaceId: string) => void;
   /** Called once the insert-mention function is ready; returns a cleanup fn. */
   onRegisterInsertMention?: (fn: (node: CanvasNode, sourceWorkspaceId?: string) => void) => () => void;
+  /** Called once the Skill mention inserter is ready; returns a cleanup fn. */
+  onRegisterInsertSkillMention?: (fn: (skillName: string) => void) => () => void;
   /** Called once the DOM-selection mention inserter is ready; returns a cleanup fn. */
   onRegisterInsertDomSelectionMention?: (fn: (selection: AgentContextDomSelectionRef) => void) => () => void;
   /** Called once the batch DOM review submitter is ready; returns a cleanup fn. */

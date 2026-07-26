@@ -97,7 +97,7 @@ interface RightDockProps {
 }
 
 export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
-  const { store, setChatHost, setTerminalHost, pinUrlReference, addDomSelectionToChat } = useDockContext();
+  const { store, setChatHost, setTerminalHost, pinUrlReference, addDomSelectionToChat, addSkillToChat } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
 
@@ -445,6 +445,7 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
         onOpenNodePage={onOpenNodePage}
         pinUrlReference={pinUrlReference}
         onAddDomSelectionToChat={addDomSelectionToChat}
+        onAddSkillToChat={addSkillToChat}
       />
     </aside>
   );

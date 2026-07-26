@@ -1,0 +1,145 @@
+.skill-detail {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.skill-detail__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 24px 96px;
+}
+
+.skill-detail__kicker,
+.skill-detail__label {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.skill-detail h2 {
+  margin: 18px 0 0;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.skill-detail__description {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.skill-detail__section {
+  display: grid;
+  gap: 9px;
+  margin-top: 26px;
+}
+
+.skill-detail__location {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+
+.skill-detail__location > span,
+.skill-detail__promote > span,
+.skill-detail__resource > span:nth-child(2) {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.skill-detail__location strong,
+.skill-detail__promote strong,
+.skill-detail__resource strong {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.skill-detail__location small,
+.skill-detail__promote small,
+.skill-detail__resource small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-detail__promote {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 11px;
+  border: 1px solid var(--accent-soft-strong);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.skill-detail__content {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.skill-detail__content .file-preview {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.skill-detail__resource {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  background: var(--bg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.skill-detail__resource:hover {
+  background: var(--surface-subtle);
+}
+
+.skill-detail__resource > span:last-child {
+  color: var(--accent);
+  font-size: 9px;
+}
+
+.skill-detail__actions {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px 24px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}

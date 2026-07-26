@@ -32,6 +32,7 @@ interface WorkbenchProps {
   knowledgeChatContext: KnowledgeChatRouteContext;
   onRemoveKnowledgeChatContext?: (key: string) => void; onKnowledgeComposerRequestHandled?: (requestId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
+  onActivateWorkspace: (workspaceId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
   /** Opens the settings drawer for a specific workspace. */
@@ -45,6 +46,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   knowledgeChatContext,
   onRemoveKnowledgeChatContext, onKnowledgeComposerRequestHandled,
   onSelectWorkspace,
+  onActivateWorkspace,
   onOpenAppSettings,
   onOpenWorkspaceSettings,
   onSetActiveRootFolder,
@@ -106,17 +108,23 @@ export const Workbench: React.FC<WorkbenchProps> = ({
 
   const {
     handleAddDomSelectionToChat,
+    handleAddSkillToChat,
     handleAddNodeToChat,
     handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
     registerInsertMention,
+    registerInsertSkillMention,
     registerSubmitDomReviewComments,
   } = useChatInsertionBridge({ allNodes, openChat: dock.openChat });
 
   useEffect(() => dock.registerPinUrlReference(pinReferenceUrl), [dock, pinReferenceUrl]);
 
   useEffect(() => dock.registerAddDomSelectionToChat(handleAddDomSelectionToChat), [dock, handleAddDomSelectionToChat]);
+  useEffect(() => dock.registerAddSkillToChat((workspaceId, skillName) => {
+    onActivateWorkspace(workspaceId);
+    handleAddSkillToChat(workspaceId, skillName);
+  }), [dock, handleAddSkillToChat, onActivateWorkspace]);
 
   const workspaceNameById = useCallback(
     (workspaceId: string) => workspaces.find((workspace) => workspace.id === workspaceId)?.name,
@@ -403,6 +411,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
                   onOpenAppSettings={onOpenAppSettings} onOpenWorkspaceSettings={onOpenWorkspaceSettings}
                   onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
+                  onRegisterInsertSkillMention={(fn) => registerInsertSkillMention(ws.id, fn)}
                   onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
                   onRegisterSubmitDomReviewComments={(fn) => registerSubmitDomReviewComments(ws.id, fn)}
                   onTurnComplete={dock.notifyChatActivity}
