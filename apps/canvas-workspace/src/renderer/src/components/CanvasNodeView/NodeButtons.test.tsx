@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CloseButton, FocusButton, OpenTabButton } from './NodeButtons';
+import { I18nProvider } from '../../i18n';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -26,7 +27,11 @@ describe('OpenTabButton', () => {
     root = createRoot(host);
 
     act(() => {
-      root?.render(<OpenTabButton nodeTitle="Technical plan" onClick={onClick} />);
+      root?.render(
+        <I18nProvider>
+          <OpenTabButton nodeTitle="Technical plan" onClick={onClick} />
+        </I18nProvider>,
+      );
     });
 
     const button = host.querySelector('button');
@@ -50,10 +55,10 @@ describe('OpenTabButton', () => {
 
     act(() => {
       root?.render(
-        <>
+        <I18nProvider>
           <FocusButton onClick={onClick} />
           <CloseButton onClick={onClick} />
-        </>,
+        </I18nProvider>,
       );
     });
 

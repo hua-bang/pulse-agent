@@ -16,8 +16,10 @@ import {
   parseVisualToolResult,
 } from '../artifacts';
 import { CopyGeneratedImageButton, parseGeneratedImage } from './GeneratedImageActions';
+import { useI18n } from '../../i18n';
 
 const CopyMessageButton = memo(({ content }: { content: string }) => {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(async () => {
     try {
@@ -32,8 +34,8 @@ const CopyMessageButton = memo(({ content }: { content: string }) => {
     <button
       type="button"
       className={`chat-message-toolbar-btn chat-message-toolbar-btn--icon${copied ? ' chat-message-toolbar-btn--copied' : ''}`}
-      title={copied ? 'Copied!' : 'Copy message (markdown source)'}
-      aria-label="Copy message"
+      title={copied ? t('chat.copyMessageCopied') : t('chat.copyMessageTooltip')}
+      aria-label={t('chat.copyMessageLabel')}
       onClick={handleCopy}
     >
       {copied ? <CheckIcon size={12} strokeWidth={1.8} /> : <CopyIcon size={12} />}

@@ -22,6 +22,7 @@ import { useRightDock } from '../RightDock';
 import { extractPartialStringField } from './partialJson';
 import { STREAMING_SHELL, withAutoHeight } from './streamingShell';
 import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
+import { useI18n } from '../../i18n';
 
 export interface InlineVisualPayload {
   type: ArtifactType;
@@ -67,6 +68,7 @@ export const ChatInlineVisual = ({
   streamedContent,
   streaming = false,
 }: ChatInlineVisualProps) => {
+  const { t } = useI18n();
   const { openArtifact } = useRightDock();
   const [savedId, setSavedId] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
@@ -345,27 +347,27 @@ export const ChatInlineVisual = ({
               className="chat-inline-visual__btn"
               onClick={(e) => void handleOpen(e)}
               disabled={opening || !livePayload.content}
-              title="Open in side drawer"
+              title={t('chatInlineVisual.openInSideDrawer')}
             >
-              {opening ? 'Opening…' : 'Open'}
+              {opening ? t('chatInlineVisual.opening') : t('chatInlineVisual.open')}
             </button>
             <button
               type="button"
               className="chat-inline-visual__btn"
               onClick={handleCopy}
               disabled={!livePayload.content}
-              title="Copy source"
+              title={t('chatInlineVisual.copySource')}
             >
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? t('chatInlineVisual.copied') : t('chatInlineVisual.copy')}
             </button>
             <button
               type="button"
               className="chat-inline-visual__btn chat-inline-visual__btn--primary"
               onClick={(e) => void handleSaveToCanvas(e)}
               disabled={pinning || pinned || !livePayload.content}
-              title="Save to canvas"
+              title={t('chatInlineVisual.saveToCanvas')}
             >
-              {pinning ? 'Saving…' : pinned ? 'Saved' : 'Save'}
+              {pinning ? t('chatInlineVisual.saving') : pinned ? t('chatInlineVisual.saved') : t('chatInlineVisual.save')}
             </button>
           </>
         )}

@@ -168,8 +168,8 @@ export const IframeRenderedView = ({
               size="xs"
               className="iframe-bar-btn"
               onClick={() => void handleRegenerate()}
-              title="Regenerate"
-              aria-label="Regenerate"
+              title={t('iframeNode.regenerate')}
+              aria-label={t('iframeNode.regenerate')}
             >
               <SparkIcon />
             </Button>
@@ -210,8 +210,8 @@ export const IframeRenderedView = ({
               size="xs"
               className="iframe-bar-btn"
               onClick={handleOpenExternal}
-              title="Open externally"
-              aria-label="Open externally"
+              title={t('iframeNode.openExternally')}
+              aria-label={t('iframeNode.openExternally')}
             >
               <ExternalLinkIcon />
             </Button>
