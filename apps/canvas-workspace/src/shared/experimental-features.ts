@@ -175,8 +175,7 @@ export function getVisibleExperimentalFeatures(
   overrides: Record<string, boolean>,
 ): ExperimentalFeatureDef[] {
   return EXPERIMENTAL_FEATURES.filter((def) => (
-    def.exposure === 'experimental'
-    || (def.exposure === 'grandfathered' && overrides[def.id] === true)
+    canConfigureExperimentalFeature(def, overrides)
   ));
 }
 
