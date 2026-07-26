@@ -18,6 +18,7 @@ interface ChatViewProps {
   beforeHeader?: ReactNode;
   /** Rendered between the header and the messages list (e.g. session back bar). */
   banner?: ReactNode;
+  pendingLabel?: string;
 
   // Streaming + messages
   messages: AgentChatMessage[];
@@ -45,6 +46,8 @@ interface ChatViewProps {
 
   // Quick actions (empty state)
   onQuickAction: (prompt: string, quickAction?: string) => Promise<void> | void;
+  emptyState?: ReactNode;
+  inputPlaceholder?: string;
 
   // Input
   input: string;
@@ -95,6 +98,7 @@ export const ChatView = ({
   header,
   beforeHeader,
   banner,
+  pendingLabel,
   messages,
   loading,
   workspaceId,
@@ -116,6 +120,8 @@ export const ChatView = ({
   onRemoveContext,
   onNodeFocus,
   onQuickAction,
+  emptyState,
+  inputPlaceholder,
   input,
   attachments,
   editableRef,
@@ -146,7 +152,7 @@ export const ChatView = ({
   onSessionJump,
   onResizeStart,
 }: ChatViewProps) => {
-  const hasMessages = messages.length > 0 || loading;
+  const hasMessages = messages.length > 0 || loading || Boolean(pendingLabel);
 
   return (
     <div className={className ?? 'chat-view'}>
@@ -178,8 +184,9 @@ export const ChatView = ({
           onEditUserMessage={onEditUserMessage}
           onRegenerate={onRegenerate}
           onSessionJump={onSessionJump}
+          pendingLabel={pendingLabel}
         />
-      ) : (
+      ) : emptyState !== undefined ? emptyState : (
         <ChatEmptyState
           selectedCount={selectedContext?.length ?? 0}
           onQuickAction={onQuickAction}
@@ -197,6 +204,7 @@ export const ChatView = ({
         onRemoveContext={onRemoveContext}
         contextComposer={contextComposer}
         knowledgeMode={knowledgeMode}
+        placeholder={inputPlaceholder}
         executionMode={executionMode}
         modelStatus={modelStatus}
         modelSelection={modelSelection}

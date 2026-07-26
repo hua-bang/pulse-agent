@@ -91,6 +91,9 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   addImageToCanvas: (workspaceId, imagePath, title) =>
     ipcRenderer.invoke("canvas-agent:add-image-to-canvas", { workspaceId, imagePath, title }),
 
+  polishScheduledPrompt: (payload) =>
+    ipcRenderer.invoke("canvas-agent:polish-scheduled-prompt", payload),
+
   streamWorkspaceDoc: (payload) =>
     ipcRenderer.invoke("canvas-agent:stream-workspace-doc", payload),
 

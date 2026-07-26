@@ -13,17 +13,16 @@
  * a write happens. That keeps the policy editable as content.
  */
 
-import { promises as fs } from 'fs';
 import { z } from 'zod';
 import {
   scopeSkillsDir,
   type CanvasConfigScope,
 } from '../config-scope';
 import {
-  removeCanvasSkill,
   skillSlug,
   upsertCanvasSkill,
 } from '../skills/config';
+import { promoteCanvasSkill } from '../skills/promote';
 import { getCanvasAgentService } from '../ipc';
 import type { CanvasTool } from './types';
 
@@ -94,50 +93,13 @@ export function createSkillTools(workspaceId: string): Record<string, CanvasTool
         name: z.string().describe('Name of the workspace skill to promote.'),
       }),
       execute: async (input) => {
-        const slug = skillSlug(input.name);
-        const src = `${scopeSkillsDir(wsScope)}/${slug}/SKILL.md`;
-        let content: string;
         try {
-          content = await fs.readFile(src, 'utf8');
-        } catch (err: any) {
-          if (err?.code === 'ENOENT') {
-            return `Error: no workspace skill named "${input.name}" — check the name and try again.`;
-          }
-          throw err;
+          const result = await promoteCanvasSkill(workspaceId, input.name);
+          await refresh(globalScope);
+          return `Promoted "${result.skill.name}" to global. Removed the workspace copy and refreshed all active canvases.`;
+        } catch (error) {
+          return `Error: ${error instanceof Error ? error.message : String(error)}`;
         }
-        // Re-parse from front matter so we go through the same validation
-        // as a fresh upsert (catches a malformed file before we touch global).
-        const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(content);
-        if (!match) {
-          return `Error: workspace skill "${input.name}" has no parseable front matter; aborting promote.`;
-        }
-        const [, frontMatter, body] = match;
-        const meta: Record<string, string> = {};
-        for (const line of frontMatter.split(/\r?\n/)) {
-          const kv = /^(\w+)\s*:\s*(.*)$/.exec(line);
-          if (!kv) continue;
-          let value = kv[2].trim();
-          if (value.startsWith('"')) {
-            try {
-              value = JSON.parse(value) as string;
-            } catch {
-              /* leave as-is */
-            }
-          }
-          meta[kv[1]] = value;
-        }
-        if (!meta.name || !meta.description) {
-          return `Error: workspace skill "${input.name}" missing name/description; aborting promote.`;
-        }
-        await upsertCanvasSkill(globalScope, {
-          name: meta.name,
-          description: meta.description,
-          body: body.replace(/^\s+/, ''),
-        });
-        await removeCanvasSkill(wsScope, meta.name);
-        // Global change → refresh every active agent.
-        await refresh(globalScope);
-        return `Promoted "${meta.name}" to global. Removed the workspace copy and refreshed all active canvases.`;
       },
     },
   };

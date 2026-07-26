@@ -9,6 +9,7 @@ export interface ChatImageAttachment {
 
 export type AgentScope =
   | { kind: 'workspace'; workspaceId: string }
+  | { kind: 'scheduled'; taskId: string }
   | { kind: 'global' };
 
 export interface AgentScopeRef {

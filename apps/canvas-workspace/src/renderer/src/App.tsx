@@ -21,11 +21,9 @@ import { PulseRouter, PulseRouterView } from './components/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
+import { ScheduledRouteViews, SkillsRouteView } from './components/RouteViews';
 const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
-const ROUTE_CANVAS = '/';
-const ROUTE_CHAT = '/chat';
-const ROUTE_NODES = '/nodes';
-const ROUTE_GRAPH = '/graph';
+const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
 const readSidebarCollapsedPreference = (): boolean => {
@@ -39,7 +37,6 @@ const readSidebarCollapsedPreference = (): boolean => {
   }
   return false;
 };
-
 const writeSidebarCollapsedPreference = (collapsed: boolean): void => {
   try {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
@@ -47,15 +44,12 @@ const writeSidebarCollapsedPreference = (collapsed: boolean): void => {
     // Preference persistence is best-effort only.
   }
 };
-
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
 const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true;
 const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true;
-
 type ActiveView = 'canvas' | 'chat' | string;
-
 const AppContent = () => {
   const { t } = useI18n();
   const dock = useRightDock();
@@ -67,6 +61,7 @@ const AppContent = () => {
   const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
   const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
   const detailNodeMatch = routePath.match(/^\/nodes\/([^/]+)\/([^/]+)$/);
+  const scheduledTaskMatch = routePath.match(/^\/scheduled\/([^/]+)$/);
   const detailNode: KnowledgeNodeSelection | null = detailNodeMatch
     ? { workspaceId: decodeURIComponent(detailNodeMatch[1]), nodeId: decodeURIComponent(detailNodeMatch[2]) }
     : null;
@@ -76,8 +71,10 @@ const AppContent = () => {
     NODES_ENABLED && (routePath === ROUTE_NODES || detailNodeMatch !== null);
   const graphRouteActive = GRAPH_ENABLED && routePath === ROUTE_GRAPH;
   const activeView: ActiveView =
-    routePath === ROUTE_CHAT
-      ? 'chat'
+    routePath === ROUTE_CHAT ? 'chat'
+      : routePath === ROUTE_SKILLS ? 'skills'
+      : scheduledTaskMatch ? 'scheduled-task'
+      : routePath === ROUTE_SCHEDULED ? 'scheduled'
       : nodesRouteActive
         ? detailNodeMatch
           ? 'node-detail'
@@ -88,9 +85,7 @@ const AppContent = () => {
             ? routePath
             : 'canvas';
   const routeQuery = routeParams.toString();
-
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
-
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
@@ -120,7 +115,6 @@ const AppContent = () => {
     setWorkspaceSettingsLoaded(true);
     setSettingsWorkspaceId(workspaceId);
   }, []);
-
   const handleSidebarToggle = useCallback(() => {
     setSidebarCollapsed((collapsed) => {
       const next = !collapsed;
@@ -225,6 +219,10 @@ const AppContent = () => {
   const navigateToPath = useCallback((path: string) => {
     setLocation(path);
   }, [setLocation]);
+
+  useEffect(() => window.canvasWorkspace.scheduled.onOpenTask((taskId) => {
+    setLocation(`${ROUTE_SCHEDULED}/${encodeURIComponent(taskId)}`);
+  }), [setLocation]);
 
   const handleSelectWorkspace = useCallback((id: string) => {
     ensureWorkspaceNodesLoaded(id);
@@ -526,6 +524,8 @@ const AppContent = () => {
           onEnterChat={enterChatView}
           onEnterNodes={enterNodesView}
           onEnterGraph={enterGraphView}
+          onEnterSkills={() => setLocation(ROUTE_SKILLS)}
+          onEnterScheduled={() => setLocation(ROUTE_SCHEDULED)}
           nodesEnabled={NODES_ENABLED}
           graphEnabled={GRAPH_ENABLED}
           pluginNavItems={pluginNavItems}
@@ -543,6 +543,7 @@ const AppContent = () => {
               onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
               onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
               onSelectWorkspace={handleSelectWorkspace}
+              onActivateWorkspace={selectWorkspace}
               onOpenAppSettings={openAppSettings}
               onOpenWorkspaceSettings={openWorkspaceSettings}
               onSetActiveRootFolder={handleSetActiveRootFolder}
@@ -563,13 +564,18 @@ const AppContent = () => {
           <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} />
           {GRAPH_ENABLED && (
             <PulseRouterView name="graph">
-              <GraphPage
-                workspaces={workspaces}
-                selectedNode={selectedNode}
-                onSelectNode={setSelectedNode}
-              />
+              <GraphPage workspaces={workspaces} selectedNode={selectedNode} onSelectNode={setSelectedNode} />
             </PulseRouterView>
           )}
+          <SkillsRouteView activeWorkspaceId={activeId} workspaces={workspaces}
+            onSelectWorkspace={(workspaceId) => { ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId); }}
+          />
+          <ScheduledRouteViews
+            scheduledTaskId={scheduledTaskMatch ? decodeURIComponent(scheduledTaskMatch[1]) : null}
+            onOpenScheduledTask={(taskId) => setLocation(`${ROUTE_SCHEDULED}/${encodeURIComponent(taskId)}`)}
+            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)}
+            onOpenAppSettings={openAppSettings}
+          />
           {pluginRoutes.map((route) => {
             return (
               <PulseRouterView key={route.path} name={route.path}>
@@ -579,8 +585,8 @@ const AppContent = () => {
           })}
         </PulseRouter>
       </div>
-      <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat'} />
-      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={activeView !== 'chat'} onOpenNodePage={openNodePage} />
+      <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat' && activeView !== 'scheduled' && activeView !== 'scheduled-task'} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={activeView !== 'chat' && activeView !== 'scheduled-task'} reserveSpace={activeView !== 'skills'} onOpenNodePage={openNodePage} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         appLoaded={appSettingsLoaded}
@@ -597,12 +603,6 @@ const AppContent = () => {
   );
 };
 const App = () => (
-  <I18nProvider>
-    <AppShellProvider>
-      <RightDockProvider>
-        <AppContent />
-      </RightDockProvider>
-    </AppShellProvider>
-  </I18nProvider>
+  <I18nProvider><AppShellProvider><RightDockProvider><AppContent /></RightDockProvider></AppShellProvider></I18nProvider>
 );
 export default App;

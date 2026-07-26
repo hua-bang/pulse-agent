@@ -1,8 +1,11 @@
+import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
+
 export type DockPreviewTab =
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
   | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string }
   | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string }
-  | { id: string; kind: 'canvas'; title: string; workspaceId: string };
+  | { id: string; kind: 'canvas'; title: string; workspaceId: string }
+  | { id: string; kind: 'skill'; title: string; scope: CanvasConfigScope; skill: CanvasSkillEntry };
 
 export interface DockTerminalTab {
   id: string;
@@ -26,6 +29,12 @@ export interface DockState {
   splitTabId?: string;
   expanded: boolean;
   chatUnread: boolean;
+  /** When set, Pulse AI renders the dedicated conversation for this task
+   *  instead of the active workspace conversation. */
+  scheduledChatTaskId?: string;
+  /** Incremented after a manual run so the task conversation reloads its
+   *  newly persisted result. */
+  scheduledChatRevision?: number;
   terminalTabsByWorkspace: Record<string, DockTerminalWorkspaceState>;
   activeTerminalWorkspaceId: string;
   terminalTabs: DockTerminalTab[];

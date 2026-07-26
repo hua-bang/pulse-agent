@@ -7,6 +7,7 @@ import {
   canvasPreviewTabId,
   linkTabId,
   nodeDetailTabId,
+  skillTabId,
   terminalTabId,
   type DockLinkSessions,
   type DockSessionPersistence,
@@ -42,6 +43,24 @@ describe('DockStore', () => {
       terminalOpen: false,
       mountedWorkspaceIds: new Set(),
     });
+  });
+
+  it('opens a scheduled task in Pulse AI and returns to workspace chat', () => {
+    const dock = new DockStore();
+
+    dock.openScheduledChat('daily-brief');
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: CHAT_TAB_ID,
+      expanded: true,
+      scheduledChatTaskId: 'daily-brief',
+      scheduledChatRevision: 1,
+    });
+
+    dock.refreshScheduledChat('daily-brief');
+    expect(dock.getSnapshot().scheduledChatRevision).toBe(2);
+
+    dock.openChat();
+    expect(dock.getSnapshot().scheduledChatTaskId).toBeUndefined();
   });
 
   it('refuses to preview a workspace that is already mounted in the main canvas', () => {
@@ -134,6 +153,33 @@ describe('DockStore', () => {
         title: 'Updated title',
       }),
     ]);
+  });
+
+  it('opens and refreshes one Skill detail tab per scope', () => {
+    const dock = new DockStore();
+    const scope = { level: 'workspace', workspaceId: 'ws1' } as const;
+    const skill = {
+      name: 'release-canvas',
+      description: 'Prepare a release.',
+      body: 'Validate.',
+      scope: 'workspace' as const,
+      path: '/skills/release-canvas/SKILL.md',
+      source: 'canvas' as const,
+      writable: true,
+    };
+
+    dock.openSkill(scope, skill);
+    dock.openSkill(scope, { ...skill, description: 'Updated description.' });
+
+    expect(dock.getSnapshot().tabs).toHaveLength(1);
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: skillTabId('ws1', skill.name),
+      expanded: true,
+    });
+    expect(dock.getSnapshot().tabs[0]).toMatchObject({
+      kind: 'skill',
+      skill: { description: 'Updated description.' },
+    });
   });
 
   it('opens different URLs as separate link tabs', () => {

@@ -17,6 +17,7 @@ import { applyStartupNavigation } from './navigation.mjs';
 import { readSession, stopSession, writeSession } from './session.mjs';
 import { assertDisplayAvailable, ensureHeadlessDisplay, shouldRunHeadless } from './headless.mjs';
 import { collectFlags, prepareProfile, writeExperimentalFlags } from './profiles.mjs';
+import { pruneRunDirectories } from './retention.mjs';
 import { getFreePort, isPidAlive } from './utils.mjs';
 import { waitForPageTarget } from './cdp.mjs';
 
@@ -46,6 +47,7 @@ export async function startCommand(rawArgs) {
   const id = `harness-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   const artifactsDir = join(HARNESS_DIR, 'runs', id);
   await fs.mkdir(artifactsDir, { recursive: true });
+  await pruneRunDirectories(join(HARNESS_DIR, 'runs'));
 
   const profileInfo = await prepareProfile(profile, opts, artifactsDir);
   const flags = collectFlags(opts);

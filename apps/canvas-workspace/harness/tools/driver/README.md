@@ -117,6 +117,10 @@ Screenshots, logs, and other run artifacts are written under:
 apps/canvas-workspace/.harness/runs/<session-id>/
 ```
 
+The driver retains the latest 20 timestamped `harness-*` session directories
+and removes older generated sessions when a new session starts. Other
+directories under `runs/` are left untouched.
+
 ## Experimental Flags
 
 Flags are written to a per-run file and passed through

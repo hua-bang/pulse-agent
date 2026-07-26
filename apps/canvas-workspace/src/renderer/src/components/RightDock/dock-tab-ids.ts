@@ -32,6 +32,9 @@ export const nodeDetailTabId = (workspaceId: string, nodeId: string): string =>
 export const canvasPreviewTabId = (workspaceId: string): string =>
   `canvas:${encodeURIComponent(workspaceId)}`;
 
+export const skillTabId = (scopeKey: string, skillName: string): string =>
+  `skill:${encodeURIComponent(scopeKey)}:${encodeURIComponent(skillNameKey(skillName))}`;
+
 export const linkTabId = (url: string): string => {
   let hash = 2166136261;
   for (let i = 0; i < url.length; i += 1) {
@@ -40,3 +43,4 @@ export const linkTabId = (url: string): string => {
   }
   return `${LINK_TAB_ID}:${url.length.toString(36)}:${(hash >>> 0).toString(36)}`;
 };
+import { skillNameKey } from '../../../../shared/skill-name';

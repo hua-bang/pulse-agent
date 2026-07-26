@@ -19,14 +19,14 @@ import {
   type CanvasSkillSourceName,
   type SkillSourceDir,
 } from '../config-scope';
-
+import { skillNameKey } from '../../../shared/skill-name';
+import { findSkillResources } from './resources';
 export interface CanvasSkill {
   /** Unique skill name (also drives the on-disk directory slug). */
   name: string;
   description: string;
   body: string;
 }
-
 export interface CanvasSkillEntry extends CanvasSkill {
   scope: 'global' | 'workspace';
   path: string;
@@ -38,14 +38,13 @@ export interface CanvasSkillEntry extends CanvasSkill {
    * for visibility but managed elsewhere.
    */
   writable: boolean;
+  resources: Array<{ name: string; path: string }>;
 }
-
 export interface CanvasSkillsStatus {
   scope: 'global' | 'workspace';
   dir: string;
   skills: CanvasSkillEntry[];
 }
-
 export interface UpsertCanvasSkillInput extends CanvasSkill {
   /** Previous name when renaming, so the old directory can be removed. */
   originalName?: string;
@@ -175,7 +174,7 @@ export async function listCanvasSkills(scope: CanvasConfigScope): Promise<Canvas
       const parsed = parseSkill(content);
       if (!parsed) continue;
 
-      const nameKey = parsed.name.toLowerCase();
+      const nameKey = skillNameKey(parsed.name);
       if (seenNames.has(nameKey)) continue;
       seenNames.add(nameKey);
 
@@ -185,6 +184,7 @@ export async function listCanvasSkills(scope: CanvasConfigScope): Promise<Canvas
         path,
         source: src.source,
         writable: src.writable,
+        resources: await findSkillResources(path),
       });
     }
   }

@@ -17,17 +17,15 @@ import type { AgentScope, ChatPanelProps, SelectedContextChip } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
-
+import { useStartSkillChat } from './hooks/useStartSkillChat';
 function escapeDomMentionPart(value: string): string {
   return value.replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim();
 }
-
 function buildDomReviewPrompt(comments: AgentContextDomReviewComment[]): string {
   const lines = [
     `Apply these ${comments.length} DOM review comments to the selected web UI elements.`,
     '',
   ];
-
   comments.forEach((comment, index) => {
     const selection = comment.selection;
     const label = escapeDomMentionPart(selection.label || `DOM selection ${index + 1}`);
@@ -40,14 +38,14 @@ function buildDomReviewPrompt(comments: AgentContextDomReviewComment[]): string 
       if (excerpt) lines.push(`   Element text: ${excerpt}`);
     }
   });
-
   return lines.join('\n');
 }
-
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
   knowledgeMode = false,
+  banner,
+  pendingLabel,
   allWorkspaces,
   nodes,
   knowledgeNodes,
@@ -65,6 +63,7 @@ export const ChatPanel = ({
   onOpenAppSettings,
   onOpenWorkspaceSettings,
   onRegisterInsertMention,
+  onRegisterStartSkillChat,
   onRegisterInsertDomSelectionMention,
   onRegisterSubmitDomReviewComments,
   onTurnComplete,
@@ -72,14 +71,10 @@ export const ChatPanel = ({
   const { t } = useI18n();
   const { notify } = useAppShell();
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
+  const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
   const requestContextRef = useRef<AgentRequestContext>();
 
-  // Keep a stable identity for the scope. Passing a fresh literal on every
-  // render would make the scope-keyed effects in useChatSessions/useChatStream
-  // re-run on each streaming setState, reloading history mid-stream and wiping
-  // the in-flight assistant message (intermediate tool/text output vanishing +
-  // flicker). Callers that pass an explicit `agentScope` (the global Nodes /
-  // Graph host) must memoize it for the same reason.
+  // Keep a stable identity so scope-keyed effects do not reload mid-stream.
   const agentScope = useMemo<AgentScope>(
     () => agentScopeProp ?? { kind: 'workspace', workspaceId: workspaceId ?? '' },
     [agentScopeProp, workspaceId],
@@ -122,6 +117,7 @@ export const ChatPanel = ({
     input,
     insertDomSelectionMention,
     insertNodeMention,
+    insertSkillMention,
     loading,
     mentionIndex,
     mentionItems,
@@ -161,6 +157,7 @@ export const ChatPanel = ({
     if (!onRegisterInsertMention) return;
     return onRegisterInsertMention(insertNodeMention);
   }, [insertNodeMention, onRegisterInsertMention]);
+  useStartSkillChat({ loading, clearInput, handleNewSession, insertSkillMention, setSessionBackStack, onRegister: onRegisterStartSkillChat });
 
   useEffect(() => {
     if (!onRegisterInsertDomSelectionMention) return;
@@ -345,7 +342,6 @@ export const ChatPanel = ({
   // Where chip-jumps came from, newest last. Cleared on manual session
   // switches (menu pick / new chat) — back-navigation only makes sense for
   // the jump trail itself.
-  const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
 
   const jumpToSession = useCallback(async (sessionId: string, jumpWorkspaceId: string, messageIndex?: number) => {
     await handleLoadSession(sessionId, jumpWorkspaceId !== scopeWorkspaceId ? jumpWorkspaceId : undefined);
@@ -443,9 +439,10 @@ export const ChatPanel = ({
           anchors={<ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />}
         />
       }
-      banner={backEntry ? (
-        <SessionBackBar entry={backEntry} disabled={loading} onBack={() => void handleSessionBack()} />
-      ) : undefined}
+      banner={backEntry
+        ? <SessionBackBar entry={backEntry} disabled={loading} onBack={() => void handleSessionBack()} />
+        : banner}
+      pendingLabel={pendingLabel}
       messages={messages}
       loading={loading}
       workspaceId={anchorScopeId}

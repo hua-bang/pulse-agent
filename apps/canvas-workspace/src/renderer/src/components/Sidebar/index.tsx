@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { CalendarBlank, PuzzlePiece } from '@phosphor-icons/react';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import type { NavItem } from '../../../../plugins/types';
 import type { WorkspaceEntry, FolderEntry } from '../../hooks/useWorkspaces';
@@ -13,6 +14,7 @@ import { LayersPanel } from './LayersPanel';
 import { LayerContextMenu } from './LayerContextMenu';
 import { useAppShell } from '../AppShellProvider';
 import { AvatarIcon, SettingsIcon } from '../icons';
+import { Button } from '../ui';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { buildCanvasNodeLink } from '../../utils/canvasLinks';
 import { copyTextToClipboard } from '../../utils/clipboard';
@@ -53,6 +55,8 @@ interface Props {
   onEnterChat: () => void;
   onEnterNodes: () => void;
   onEnterGraph: () => void;
+  onEnterSkills: () => void;
+  onEnterScheduled: () => void;
   /** When false, the Nodes nav button is hidden (feature flag off). */
   nodesEnabled: boolean;
   /** When false, the Graph nav button is hidden (feature flag off). */
@@ -71,6 +75,8 @@ export const Sidebar = ({
   onReorderWorkspace, onReorderFolder,
   activeNodes = [], selectedNodeIds = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
   onEnterNodes, onEnterGraph, nodesEnabled, graphEnabled,
+  onEnterSkills,
+  onEnterScheduled,
 }: Props) => {
   const { notify } = useAppShell();
   const { t } = useI18n();
@@ -328,6 +334,8 @@ export const Sidebar = ({
           <SidebarHeader
             onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat}
             onEnterNodes={onEnterNodes} onEnterGraph={onEnterGraph}
+            onEnterSkills={onEnterSkills}
+            onEnterScheduled={onEnterScheduled}
             nodesEnabled={nodesEnabled} graphEnabled={graphEnabled}
             pluginNavItems={pluginNavItems} onNavigate={onNavigate}
             showAddMenu={showAddMenu} onToggleAddMenu={() => setShowAddMenu((v) => !v)}
@@ -411,6 +419,24 @@ export const Sidebar = ({
           >
             <AvatarIcon size={14} />
           </button>
+          <Button
+            variant="icon"
+            className={`sidebar-collapsed-btn${activeView === 'skills' ? ' sidebar-collapsed-btn--active' : ''}`}
+            onClick={onEnterSkills}
+            title={t('sidebar.skillsTitle')}
+            aria-label={t('sidebar.skills')}
+          >
+            <PuzzlePiece size={14} />
+          </Button>
+          <Button
+            variant="icon"
+            className={`sidebar-collapsed-btn${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-collapsed-btn--active' : ''}`}
+            onClick={onEnterScheduled}
+            title={t('sidebar.scheduledTitle')}
+            aria-label={t('sidebar.scheduled')}
+          >
+            <CalendarBlank size={14} />
+          </Button>
           <button
             type="button"
             className="sidebar-collapsed-btn"

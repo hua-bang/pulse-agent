@@ -20,6 +20,7 @@ import { useEvictAndPreview, usePeekNode, usePreviewNodeActionBridge } from './u
 import { useReferenceEntries } from './useReferenceEntries';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
+import { ScheduledChatPanel } from '../Scheduled/ScheduledChatPanel';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
@@ -32,6 +33,7 @@ interface WorkbenchProps {
   knowledgeChatContext: KnowledgeChatRouteContext;
   onRemoveKnowledgeChatContext?: (key: string) => void; onKnowledgeComposerRequestHandled?: (requestId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
+  onActivateWorkspace: (workspaceId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
   /** Opens the settings drawer for a specific workspace. */
@@ -45,6 +47,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   knowledgeChatContext,
   onRemoveKnowledgeChatContext, onKnowledgeComposerRequestHandled,
   onSelectWorkspace,
+  onActivateWorkspace,
   onOpenAppSettings,
   onOpenWorkspaceSettings,
   onSetActiveRootFolder,
@@ -70,6 +73,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const dockState = useRightDockState();
   const chatHost = useRightDockChatHost();
   const chatPanelOpen = isDockChatVisible(dockState);
+  const scheduledChatTaskId = dockState.scheduledChatTaskId;
   const loadedChatWorkspaceIds = useLoadedChatWorkspaceIds(chatPanelOpen, activeWorkspaceId);
   const terminalDockOpen = isDockTerminalVisible(dockState);
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
@@ -106,17 +110,25 @@ export const Workbench: React.FC<WorkbenchProps> = ({
 
   const {
     handleAddDomSelectionToChat,
+    handleStartSkillChat,
     handleAddNodeToChat,
     handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
     registerInsertMention,
+    registerStartSkillChat,
     registerSubmitDomReviewComments,
   } = useChatInsertionBridge({ allNodes, openChat: dock.openChat });
 
   useEffect(() => dock.registerPinUrlReference(pinReferenceUrl), [dock, pinReferenceUrl]);
 
   useEffect(() => dock.registerAddDomSelectionToChat(handleAddDomSelectionToChat), [dock, handleAddDomSelectionToChat]);
+  useEffect(() => dock.registerStartSkillChat((workspaceId, skillName) => {
+    if (workspaceId !== activeWorkspaceId) onActivateWorkspace(workspaceId);
+    // The bridge invokes an already mounted target composer immediately and
+    // otherwise holds the request until that workspace registers its composer.
+    handleStartSkillChat(workspaceId, skillName);
+  }), [activeWorkspaceId, dock, handleStartSkillChat, onActivateWorkspace]);
 
   const workspaceNameById = useCallback(
     (workspaceId: string) => workspaces.find((workspace) => workspace.id === workspaceId)?.name,
@@ -391,7 +403,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
               <div
                 key={ws.id}
                 className="right-dock__chat-instance"
-                style={knowledgeChatContext.active || ws.id !== activeWorkspaceId ? { display: 'none' } : undefined}
+                style={scheduledChatTaskId || knowledgeChatContext.active || ws.id !== activeWorkspaceId ? { display: 'none' } : undefined}
               >
                 <ChatPanel
                   workspaceId={ws.id}
@@ -403,13 +415,26 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
                   onOpenAppSettings={onOpenAppSettings} onOpenWorkspaceSettings={onOpenWorkspaceSettings}
                   onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
+                  onRegisterStartSkillChat={(fn) => registerStartSkillChat(ws.id, fn)}
                   onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
                   onRegisterSubmitDomReviewComments={(fn) => registerSubmitDomReviewComments(ws.id, fn)}
                   onTurnComplete={dock.notifyChatActivity}
                 />
               </div>
             ))}
-            {knowledgeChatContext.active && (
+            {scheduledChatTaskId && (
+              <div className="right-dock__chat-instance">
+                <ScheduledChatPanel
+                  taskId={scheduledChatTaskId}
+                  revision={dockState.scheduledChatRevision ?? 0}
+                  allWorkspaces={workspaces}
+                  onClose={dock.collapse}
+                  onOpenAppSettings={onOpenAppSettings}
+                  onTurnComplete={dock.notifyChatActivity}
+                />
+              </div>
+            )}
+            {!scheduledChatTaskId && knowledgeChatContext.active && (
               <Suspense fallback={null}>
                 <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces} contextNodes={knowledgeChatContext.explicitContext?.nodes} contextTags={knowledgeChatContext.explicitContext?.tags} contextCanvases={knowledgeChatContext.explicitContext?.canvases} composerRequest={knowledgeChatContext.explicitContext?.composerRequest} onComposerRequestHandled={onKnowledgeComposerRequestHandled} onRemoveContext={onRemoveKnowledgeChatContext} onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTurnComplete={dock.notifyChatActivity} />
               </Suspense>

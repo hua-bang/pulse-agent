@@ -28,7 +28,7 @@ vi.mock('./DockCreationControls', () => ({
 let root: Root | null = null;
 let mount: HTMLDivElement | null = null;
 
-const SeededDock = () => {
+const SeededDock = ({ reserveSpace = true }: { reserveSpace?: boolean }) => {
   const { store } = useDockContext();
   const seededRef = useRef(false);
   if (!seededRef.current) {
@@ -42,13 +42,14 @@ const SeededDock = () => {
       activeWorkspaceId="ws-1"
       activeIdReady
       chatTabEnabled
+      reserveSpace={reserveSpace}
       workspaces={[]}
       onOpenNodePage={() => undefined}
     />
   );
 };
 
-const renderDock = async () => {
+const renderDock = async (reserveSpace = true) => {
   mount = document.createElement('div');
   document.body.appendChild(mount);
   root = createRoot(mount);
@@ -56,7 +57,7 @@ const renderDock = async () => {
     root?.render(
       <I18nProvider>
         <RightDockProvider>
-          <SeededDock />
+          <SeededDock reserveSpace={reserveSpace} />
         </RightDockProvider>
       </I18nProvider>,
     );
@@ -165,6 +166,14 @@ describe('RightDock keyboard resize separator', () => {
     });
     expect(dock.style.width).toBe('480px');
     expect(window.localStorage.getItem('canvas-workspace:right-dock-width')).toBe('480');
+  });
+});
+
+describe('RightDock page layout', () => {
+  it('does not reserve shell width when the dock overlays a library page', async () => {
+    await renderDock(false);
+
+    expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('0px');
   });
 });
 

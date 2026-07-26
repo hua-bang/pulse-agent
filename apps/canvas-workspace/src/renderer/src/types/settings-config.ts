@@ -9,6 +9,7 @@ import type {
   CanvasPluginsStatus,
   CanvasSkillImportEntry,
   CanvasSkillInput,
+  CanvasSkillPromoteResult,
   CanvasSkillsStatus,
   SkillsCleanupResult,
   SkillsInstallResult,
@@ -49,6 +50,10 @@ export interface CanvasSkillsApi {
     scope: CanvasConfigScope,
     name: string,
   ) => Promise<{ ok: boolean; status?: CanvasSkillsStatus; error?: string }>;
+  promote: (
+    workspaceId: string,
+    name: string,
+  ) => Promise<{ ok: boolean; result?: CanvasSkillPromoteResult; error?: string }>;
   importZip: (
     scope: CanvasConfigScope,
     bytes: ArrayBuffer,

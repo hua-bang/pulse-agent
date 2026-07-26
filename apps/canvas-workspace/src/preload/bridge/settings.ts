@@ -35,6 +35,9 @@ export const createCanvasSkillsApi = (ipcRenderer: IpcRenderer): CanvasSkillsApi
   remove: (scope, name) =>
     ipcRenderer.invoke("canvas-skills:remove", { scope, name }),
 
+  promote: (workspaceId, name) =>
+    ipcRenderer.invoke("canvas-skills:promote", { workspaceId, name }),
+
   importZip: (scope, bytes) =>
     ipcRenderer.invoke("canvas-skills:import-zip", { scope, bytes }),
 

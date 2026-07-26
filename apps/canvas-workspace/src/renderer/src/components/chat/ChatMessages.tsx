@@ -34,9 +34,10 @@ interface ChatMessagesProps {
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
+  pendingLabel?: string;
 }
 
-const LoadingPlaceholder = () => (
+const LoadingPlaceholder = ({ label }: { label?: string }) => (
   <div className="chat-message chat-message-assistant">
     <div className="chat-message-avatar">
       <BotAvatarIcon size={18} />
@@ -46,6 +47,7 @@ const LoadingPlaceholder = () => (
         <div className="chat-loading-dot" />
         <div className="chat-loading-dot" />
         <div className="chat-loading-dot" />
+        {label && <span className="chat-loading-label">{label}</span>}
       </div>
     </div>
   </div>
@@ -147,6 +149,7 @@ export const ChatMessages = ({
   onEditUserMessage,
   onRegenerate,
   onSessionJump,
+  pendingLabel,
 }: ChatMessagesProps) => {
   const { t } = useI18n();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -195,7 +198,7 @@ export const ChatMessages = ({
     if (pinnedRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }
-  }, [messages, pendingClarify, streamingTools, scrollToLatest]);
+  }, [messages, pendingClarify, pendingLabel, streamingTools, scrollToLatest]);
 
   const handleMessageClick = useCallback(async (event: MouseEvent) => {
     const target = event.target as HTMLElement | null;
@@ -313,7 +316,9 @@ export const ChatMessages = ({
             />
           );
         })}
-        {loading && !hasStreamingAssistantMessage && <LoadingPlaceholder />}
+        {(loading || pendingLabel) && !hasStreamingAssistantMessage && (
+          <LoadingPlaceholder label={pendingLabel} />
+        )}
         {pendingClarify && (
           <ClarificationCard
             pendingClarify={pendingClarify}

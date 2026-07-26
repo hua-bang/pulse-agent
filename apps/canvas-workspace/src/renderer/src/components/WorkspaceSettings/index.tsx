@@ -17,7 +17,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { Drawer, Button, TextField, FieldRow } from '../ui';
-import { SkillsManager } from '../settings-config/SkillsManager';
 import { McpManager } from '../settings-config/McpManager';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
@@ -290,12 +289,6 @@ export const WorkspaceSettingsDrawer = ({
               </div>
             </>
           )}
-        </section>
-
-        <section className="workspace-settings-section">
-          <div className="workspace-settings-section-title">{t('settings.skills.title')}</div>
-          <div className="workspace-settings-field-hint">{t('skillsConfig.scopeHint.workspace')}</div>
-          <SkillsManager scope={{ level: 'workspace', workspaceId: workspace.id }} showInherited />
         </section>
 
         <section className="workspace-settings-section">

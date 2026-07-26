@@ -1,6 +1,7 @@
 import type { PluginBridge } from '../../../plugins/types';
 import type { BrowsingHistoryApi } from '../../../shared/browsing-history';
 import type { MemoryReportApi } from '../../../shared/memory-report';
+import type { ScheduledApi } from '../../../shared/scheduled';
 import type { ArtifactCapabilitiesApi } from '../../../shared/artifact-capabilities';
 import type { ReferencesApi } from '../../../shared/references';
 import type {
@@ -189,6 +190,7 @@ export interface CanvasWorkspaceApi {
   builtInTools: BuiltInToolsConfigApi;
   model: CanvasModelApi;
   memoryReport: MemoryReportApi;
+  scheduled: ScheduledApi;
   artifactCapabilities: ArtifactCapabilitiesApi;
   promptProfile: PromptProfileApi;
   agent: AgentApi;

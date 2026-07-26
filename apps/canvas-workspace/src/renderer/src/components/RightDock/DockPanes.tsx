@@ -9,14 +9,24 @@ import {
 import { useI18n } from '../../i18n';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { AgentContextDomSelectionRef } from '../../types';
-import { isTerminalTabId, type DockState, type DockStore } from './dock-store';
+import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './dock-store';
 import { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
 import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId } from './dock-tab-ids';
+
+const skillWorkspaceName = (
+  tab: Extract<DockPreviewTab, { kind: 'skill' }>,
+  workspaces: WorkspaceEntry[],
+): string | undefined => {
+  if (tab.scope.level !== 'workspace') return undefined;
+  const workspaceId = tab.scope.workspaceId;
+  return workspaces.find((workspace) => workspace.id === workspaceId)?.name;
+};
 
 const ArtifactTabView = lazy(() => import('../artifacts/ArtifactTabView').then((m) => ({ default: m.ArtifactTabView })));
 const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m.LinkTabView })));
 const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
 const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
+const SkillDetailDockTab = lazy(() => import('./SkillDetailDockTab').then((m) => ({ default: m.SkillDetailDockTab })));
 
 interface Props {
   store: DockStore;
@@ -38,6 +48,7 @@ interface Props {
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
   pinUrlReference: (url: string, title?: string) => void;
   onAddDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
+  onStartSkillChat?: (workspaceId: string, skillName: string) => void;
 }
 
 export const DockPanes = ({
@@ -60,6 +71,7 @@ export const DockPanes = ({
   onOpenNodePage,
   pinUrlReference,
   onAddDomSelectionToChat,
+  onStartSkillChat = () => undefined,
 }: Props) => {
   const { t } = useI18n();
   const splitActive = Boolean(splitTabId);
@@ -172,6 +184,19 @@ export const DockPanes = ({
           ) : tab.kind === 'canvas' ? (
             <Suspense fallback={null}>
               <CanvasPreview workspaceId={tab.workspaceId} canvasName={tab.title} rootFolder={workspaces.find((workspace) => workspace.id === tab.workspaceId)?.rootFolder} />
+            </Suspense>
+          ) : tab.kind === 'skill' ? (
+            <Suspense fallback={null}>
+              <SkillDetailDockTab
+                tab={tab}
+                activeWorkspaceId={activeWorkspaceId}
+                workspaceName={skillWorkspaceName(tab, workspaces)}
+                onStartChat={onStartSkillChat}
+                onPromoted={(skill) => {
+                  store.close(tab.id);
+                  store.openSkill({ level: 'global' }, skill);
+                }}
+              />
             </Suspense>
           ) : (
             <Suspense fallback={null}>

@@ -27,6 +27,7 @@ import { ipcMain } from 'electron';
 import { randomUUID } from 'crypto';
 import { CanvasAgentService } from './service';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
+import { generateScheduledPrompt } from './scheduled-prompt-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
 import type { AgentRequestContext, AgentScope, AgentScopeRef } from './types';
 import { isPerfChatReplayRequest, replayPerfChatStream } from './perf-chat-replay';
@@ -44,6 +45,9 @@ const sessionScopeMap = new Map<string, AgentScope>();
 
 function resolveAgentScope(payload: AgentScopeRef): AgentScope {
   if (payload.scope?.kind === 'global') return { kind: 'global' };
+  if (payload.scope?.kind === 'scheduled' && payload.scope.taskId) {
+    return { kind: 'scheduled', taskId: payload.scope.taskId };
+  }
   if (payload.scope?.kind === 'workspace' && payload.scope.workspaceId) {
     return { kind: 'workspace', workspaceId: payload.scope.workspaceId };
   }
@@ -66,6 +70,18 @@ export function setupCanvasAgentIpc(): void {
   const svc = getService();
 
   ipcMain.handle(
+    'canvas-agent:polish-scheduled-prompt',
+    async (_event, payload: { title?: string; currentPrompt?: string }) => {
+      const title = payload?.title?.trim() ?? '';
+      const currentPrompt = payload?.currentPrompt?.trim();
+      if (!title && !currentPrompt) {
+        return { ok: false, error: 'Task name or instructions are required' };
+      }
+      return generateScheduledPrompt(title, currentPrompt);
+    },
+  );
+
+  ipcMain.handle(
     'canvas-agent:chat',
     async (
       event,
@@ -86,7 +102,9 @@ export function setupCanvasAgentIpc(): void {
           onComplete: async (content) => {
             const storeId = scope.kind === 'workspace'
               ? scope.workspaceId
-              : GLOBAL_CHAT_SESSION_STORE_ID;
+              : scope.kind === 'scheduled'
+                ? `__scheduled__-${scope.taskId}`
+                : GLOBAL_CHAT_SESSION_STORE_ID;
             const store = new SessionStore(storeId, scope);
             await store.startSession();
             const timestamp = Date.now();

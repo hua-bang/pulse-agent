@@ -24,13 +24,12 @@ import { BuiltInToolsSection } from './BuiltInToolsSection';
 import { ExperimentalSection } from './ExperimentalSection';
 import { LanguageSection } from './LanguageSection';
 import { UpdateSection } from './UpdateSection';
-import { SkillsManager } from '../settings-config/SkillsManager';
 import { McpManager } from '../settings-config/McpManager';
 import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'plugins' | 'browser' | 'experimental' | 'updates' | 'language';
+export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'mcp' | 'plugins' | 'browser' | 'experimental' | 'updates' | 'language';
 
 const GLOBAL_SCOPE = { level: 'global' } as const;
 
@@ -65,12 +64,6 @@ const SECTIONS: SectionDef[] = [
     labelKey: 'settings.agent.label',
     descriptionKey: 'settings.agent.description',
     titleKey: 'settings.agent.title',
-  },
-  {
-    id: 'skills',
-    labelKey: 'settings.skills.label',
-    descriptionKey: 'settings.skills.description',
-    titleKey: 'settings.skills.title',
   },
   {
     id: 'mcp',
@@ -180,11 +173,6 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
           )}
           {activeSection === 'built-in-tools' && <BuiltInToolsSection onClose={onClose} />}
           {activeSection === 'agent' && <AgentSection onClose={onClose} />}
-          {activeSection === 'skills' && (
-            <div className="cfg-pane">
-              <SkillsManager scope={GLOBAL_SCOPE} />
-            </div>
-          )}
           {activeSection === 'mcp' && (
             <div className="cfg-pane">
               <McpManager scope={GLOBAL_SCOPE} />

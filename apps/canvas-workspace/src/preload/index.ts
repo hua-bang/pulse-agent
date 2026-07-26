@@ -8,6 +8,7 @@ import { createReferencesApi } from "./bridge/references";
 import { createCodexSessionsApi } from "./bridge/codex-sessions";
 import { createDefaultBrowserApi } from "./bridge/default-browser";
 import { createMemoryReportApi } from "./bridge/memory-report";
+import { createScheduledApi } from "./bridge/scheduled";
 import { createArtifactCapabilitiesApi } from "./bridge/artifact-capabilities";
 import { createDockApi } from "./bridge/dock";
 import { createFileApi } from "./bridge/file";
@@ -81,6 +82,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   promptProfile: createPromptProfileApi(ipcRenderer),
   model: createModelApi(ipcRenderer),
   memoryReport: createMemoryReportApi(ipcRenderer),
+  scheduled: createScheduledApi(ipcRenderer),
   artifactCapabilities: createArtifactCapabilitiesApi(ipcRenderer),
   agent: createAgentApi(ipcRenderer),
   codexSessions: createCodexSessionsApi(ipcRenderer),

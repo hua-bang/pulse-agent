@@ -1,0 +1,39 @@
+import { lazy, Suspense } from 'react';
+import type { SettingsSection } from '../Settings';
+import { PulseRouterView } from '../router';
+
+const ScheduledPage = lazy(() => import('./ScheduledPage').then((module) => ({ default: module.ScheduledPage })));
+const ScheduledTaskChatPage = lazy(() => import('./ScheduledTaskChatPage').then((module) => ({ default: module.ScheduledTaskChatPage })));
+
+interface Props {
+  scheduledTaskId: string | null;
+  onOpenScheduledTask: (taskId: string) => void;
+  onExitScheduledTask: () => void;
+  onOpenAppSettings: (section: SettingsSection) => void;
+}
+
+export const ScheduledRouteViews = ({
+  scheduledTaskId,
+  onOpenScheduledTask,
+  onExitScheduledTask,
+  onOpenAppSettings,
+}: Props) => (
+  <>
+    <PulseRouterView name="scheduled">
+      <Suspense fallback={null}>
+        <ScheduledPage onOpenTask={onOpenScheduledTask} />
+      </Suspense>
+    </PulseRouterView>
+    <PulseRouterView name="scheduled-task">
+      {scheduledTaskId && (
+        <Suspense fallback={null}>
+          <ScheduledTaskChatPage
+            taskId={scheduledTaskId}
+            onExit={onExitScheduledTask}
+            onOpenAppSettings={onOpenAppSettings}
+          />
+        </Suspense>
+      )}
+    </PulseRouterView>
+  </>
+);

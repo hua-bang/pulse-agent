@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { I18nKey } from '../../i18n';
@@ -46,6 +46,10 @@ export interface ChatPanelProps {
   agentScope?: AgentScope;
   /** Enables Nodes-specific empty actions and composer copy. */
   knowledgeMode?: boolean;
+  /** Optional host-owned status rendered between the chat header and messages. */
+  banner?: ReactNode;
+  /** Optional host-owned progress copy rendered as the latest assistant message. */
+  pendingLabel?: string;
   allWorkspaces?: WorkspaceOption[];
   nodes?: CanvasNode[];
   /** Cross-workspace knowledge nodes offered in the `@` popup (global host). */
@@ -82,6 +86,8 @@ export interface ChatPanelProps {
   onOpenWorkspaceSettings?: (workspaceId: string) => void;
   /** Called once the insert-mention function is ready; returns a cleanup fn. */
   onRegisterInsertMention?: (fn: (node: CanvasNode, sourceWorkspaceId?: string) => void) => () => void;
+  /** Called once the "new chat with Skill" action is ready; returns a cleanup fn. */
+  onRegisterStartSkillChat?: (fn: (skillName: string) => Promise<void>) => () => void;
   /** Called once the DOM-selection mention inserter is ready; returns a cleanup fn. */
   onRegisterInsertDomSelectionMention?: (fn: (selection: AgentContextDomSelectionRef) => void) => () => void;
   /** Called once the batch DOM review submitter is ready; returns a cleanup fn. */

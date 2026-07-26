@@ -12,7 +12,8 @@ interface UseChatStreamOptions {
 }
 
 const agentScopeKey = (scope: AgentScope): string =>
-  scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
+  scope.kind === 'workspace' ? `workspace:${scope.workspaceId}`
+    : scope.kind === 'scheduled' ? `scheduled:${scope.taskId}` : 'global';
 
 export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOptions) {
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);

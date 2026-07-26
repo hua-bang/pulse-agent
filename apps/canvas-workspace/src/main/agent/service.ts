@@ -31,11 +31,18 @@ const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
 
-const scopeKey = (scope: AgentScope): string =>
-  scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
+const scopeKey = (scope: AgentScope): string => {
+  if (scope.kind === 'workspace') return `workspace:${scope.workspaceId}`;
+  if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
+  return 'global';
+};
+export const scheduledSessionStoreId = (taskId: string): string => `__scheduled__-${taskId}`;
 
-const scopeSessionStoreId = (scope: AgentScope): string =>
-  scope.kind === 'global' ? GLOBAL_CHAT_SESSION_STORE_ID : scope.workspaceId;
+const scopeSessionStoreId = (scope: AgentScope): string => {
+  if (scope.kind === 'workspace') return scope.workspaceId;
+  if (scope.kind === 'scheduled') return scheduledSessionStoreId(scope.taskId);
+  return GLOBAL_CHAT_SESSION_STORE_ID;
+};
 
 export class CanvasAgentService {
   private agents = new Map<string, CanvasAgent>();

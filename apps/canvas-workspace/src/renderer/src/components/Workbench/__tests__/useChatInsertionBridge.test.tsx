@@ -102,4 +102,47 @@ describe('useChatInsertionBridge', () => {
     act(() => bridge.registerInsertDomSelectionMention('workspace-1', insert));
     expect(insert).toHaveBeenCalledWith({ ...selection, workspaceId: 'workspace-1' });
   });
+
+  it('holds a new Skill chat request until the workspace composer registers', async () => {
+    const startSkillChat = vi.fn().mockResolvedValue(undefined);
+
+    act(() => bridge.handleStartSkillChat('workspace-1', 'release-canvas'));
+    expect(openChat).toHaveBeenCalledOnce();
+    expect(startSkillChat).not.toHaveBeenCalled();
+
+    act(() => bridge.registerStartSkillChat('workspace-1', startSkillChat));
+    await act(async () => Promise.resolve());
+    expect(startSkillChat).toHaveBeenCalledWith('release-canvas');
+  });
+
+  it('keeps only the latest Skill chat request queued before the composer registers', async () => {
+    const startSkillChat = vi.fn().mockResolvedValue(undefined);
+
+    act(() => {
+      bridge.handleStartSkillChat('workspace-1', 'first-skill');
+      bridge.handleStartSkillChat('workspace-1', 'second-skill');
+      bridge.registerStartSkillChat('workspace-1', startSkillChat);
+    });
+    await act(async () => Promise.resolve());
+    expect(startSkillChat).toHaveBeenCalledTimes(1);
+    expect(startSkillChat).toHaveBeenCalledWith('second-skill');
+  });
+
+  it('focuses chat after an already mounted composer finishes starting the session', async () => {
+    let finish: (() => void) | undefined;
+    const startSkillChat = vi.fn(() => new Promise<void>((resolve) => {
+      finish = resolve;
+    }));
+
+    act(() => bridge.registerStartSkillChat('workspace-1', startSkillChat));
+    act(() => bridge.handleStartSkillChat('workspace-1', 'memory-review'));
+    expect(startSkillChat).toHaveBeenCalledWith('memory-review');
+    expect(openChat).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finish?.();
+      await Promise.resolve();
+    });
+    expect(openChat).toHaveBeenCalledOnce();
+  });
 });

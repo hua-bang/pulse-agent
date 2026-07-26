@@ -13,7 +13,7 @@ import { appendMentionChipToEditable } from '../utils/editableMentions';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { buildAttachmentFileName } from './attachmentFileName';
 import { useEditableInputControl } from './useEditableInputControl';
-
+import { useSkillMentionInsertion } from './useSkillMentionInsertion';
 interface UseMentionsOptions {
   allWorkspaces?: WorkspaceOption[];
   agentScope: AgentScope;
@@ -33,10 +33,8 @@ interface UseMentionsOptions {
   onSubmit: (text: string, requestContext?: AgentRequestContext, attachments?: ChatImageAttachment[]) => Promise<boolean>;
   getRequestContext?: () => AgentRequestContext | undefined;
 }
-
 function flattenEntries(entries: DirEntry[], rootFolder: string, prefix = ''): MentionItem[] {
   const items: MentionItem[] = [];
-
   for (const entry of entries) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.type === 'file') {
@@ -124,6 +122,7 @@ export function useMentions({
     element.focus();
   }, [nodes]);
 
+  const insertSkillMention = useSkillMentionInsertion({ editableRef, nodes, setInput });
   const { clearInput, focusInput, replaceInput } = useEditableInputControl({
     editableRef,
     mentionBuildSeqRef,
@@ -488,6 +487,7 @@ export function useMentions({
     input,
     insertDomSelectionMention,
     insertNodeMention,
+    insertSkillMention,
     mentionIndex,
     mentionItems,
     mentionOpen,
