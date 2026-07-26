@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, type ReactNode } from 'react';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgentScope } from '../../../../../shared/agent-chat';
@@ -8,18 +8,19 @@ import { AppShellProvider } from '../../AppShellProvider';
 
 const captured = vi.hoisted(() => ({
   scope: null as AgentScope | null,
+  bannerPresent: false,
 }));
 
 vi.mock('../../chat/ChatPageBody', () => ({
   ChatPageBody: ({ agentScope, fixedChat }: {
     agentScope: AgentScope;
-    fixedChat?: { title: string; banner?: ReactNode };
+    fixedChat?: { title: string; banner?: unknown };
   }) => {
     captured.scope = agentScope;
+    captured.bannerPresent = fixedChat?.banner != null;
     return (
       <main>
         <h1>{fixedChat?.title}</h1>
-        {fixedChat?.banner}
       </main>
     );
   },
@@ -38,11 +39,12 @@ afterEach(() => {
   root = null;
   host = null;
   captured.scope = null;
+  captured.bannerPresent = false;
   vi.restoreAllMocks();
 });
 
 describe('ScheduledTaskChatPage', () => {
-  it('opens the task in its isolated chat scope with scheduling context', async () => {
+  it('opens the task in its isolated chat scope without a duplicate definition banner', async () => {
     Object.defineProperty(window, 'canvasWorkspace', {
       configurable: true,
       value: {
@@ -90,8 +92,7 @@ describe('ScheduledTaskChatPage', () => {
     });
 
     expect(captured.scope).toEqual({ kind: 'scheduled', taskId: 'daily-brief' });
-    expect(host.textContent).toContain('Automation: Daily brief');
-    expect(host.textContent).toContain('Summarize what needs my attention.');
-    expect(host.textContent).toContain('Last run failed: Model unavailable');
+    expect(host.textContent).toContain('Daily brief');
+    expect(captured.bannerPresent).toBe(false);
   });
 });

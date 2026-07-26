@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   CalendarBlank,
-  ChatCircleDots,
+  CalendarCheck,
+  Pause,
   PencilSimple,
   Play,
   Plus,
@@ -148,21 +149,33 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
                       ? t('scheduled.lastSuccess', { time: timeLabel(task.lastSuccessAt, t('scheduled.never')) })
                       : t('scheduled.neverRun')}
                 </span>
-                <ChatCircleDots size={17} />
               </Button>
               <div className="scheduled-page__row-actions">
-                <Button size="xs" onClick={() => void toggleTask(task)}>
+                <Button
+                  size="xs"
+                  title={task.enabled ? t('scheduled.pause') : t('scheduled.resume')}
+                  onClick={() => void toggleTask(task)}
+                >
+                  {task.enabled ? <Pause size={13} /> : <CalendarCheck size={13} />}
                   {task.enabled ? t('scheduled.pause') : t('scheduled.resume')}
                 </Button>
-                <Button variant="icon" size="sm" aria-label={t('scheduled.runNow')} onClick={() => runNow(task)}>
-                  <Play size={14} />
+                <Button
+                  size="xs"
+                  aria-label={t('scheduled.runNow')}
+                  title={t('scheduled.runNow')}
+                  onClick={() => runNow(task)}
+                >
+                  <Play size={13} />
+                  {t('scheduled.runNow')}
                 </Button>
-                <Button variant="icon" size="sm" aria-label={t('scheduled.editTask')} onClick={() => openEdit(task)}>
-                  <PencilSimple size={14} />
+                <Button size="xs" title={t('scheduled.editTask')} onClick={() => openEdit(task)}>
+                  <PencilSimple size={13} />
+                  {t('scheduled.editTask')}
                 </Button>
                 {task.source === 'user' && (
-                  <Button variant="icon" size="sm" aria-label={t('scheduled.deleteTask')} onClick={() => void removeTask(task)}>
-                    <Trash size={14} />
+                  <Button variant="danger" size="xs" title={t('scheduled.deleteTask')} onClick={() => void removeTask(task)}>
+                    <Trash size={13} />
+                    {t('scheduled.deleteTask')}
                   </Button>
                 )}
               </div>
