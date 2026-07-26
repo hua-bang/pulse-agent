@@ -1304,6 +1304,7 @@ const en = {
   'scheduled.automationCadence': 'Cadence: {cadence}',
   'scheduled.automationLastRun': 'Last run: {time}',
   'scheduled.automationNeverRun': 'Last run: never',
+  'scheduled.automationLastError': 'Last run failed: {error}',
 
   'skillsConfig.globalScope': 'Global',
   'skillsConfig.workspaceScope': 'This workspace',
@@ -2830,6 +2831,7 @@ const zh: Record<keyof typeof en, string> = {
   'scheduled.automationCadence': '执行频率：{cadence}',
   'scheduled.automationLastRun': '上次运行：{time}',
   'scheduled.automationNeverRun': '上次运行：从未',
+  'scheduled.automationLastError': '上次运行失败：{error}',
 
   'skillsConfig.globalScope': '全局',
   'skillsConfig.workspaceScope': '当前工作区',

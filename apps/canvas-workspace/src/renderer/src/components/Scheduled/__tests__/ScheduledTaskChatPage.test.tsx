@@ -59,7 +59,9 @@ describe('ScheduledTaskChatPage', () => {
               createdAt: 1,
               updatedAt: 1,
               nextRunAt: Date.now() + 60_000,
-              runCount: 0,
+              lastAttemptAt: Date.now(),
+              lastError: 'Model unavailable',
+              runCount: 1,
               status: 'idle',
             }],
           })),
@@ -90,5 +92,6 @@ describe('ScheduledTaskChatPage', () => {
     expect(captured.scope).toEqual({ kind: 'scheduled', taskId: 'daily-brief' });
     expect(host.textContent).toContain('Automation: Daily brief');
     expect(host.textContent).toContain('Summarize what needs my attention.');
+    expect(host.textContent).toContain('Last run failed: Model unavailable');
   });
 });

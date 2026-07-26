@@ -2,7 +2,8 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ScheduledTaskService } from '../scheduled-task-service';
+import type { ScheduledTask } from '../../shared/scheduled';
+import { ScheduledTaskService } from '../scheduled/scheduled-task-service';
 
 describe('ScheduledTaskService', () => {
   let root: string;
@@ -15,6 +16,7 @@ describe('ScheduledTaskService', () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await fs.rm(root, { recursive: true, force: true });
   });
 
@@ -140,6 +142,47 @@ describe('ScheduledTaskService', () => {
       lastSessionId: 'session-manual',
       runCount: 1,
     });
+  });
+
+  it('wakes at a newly created task exact due time between heartbeat checks', async () => {
+    vi.useFakeTimers();
+    const start = Date.UTC(2026, 6, 26, 9, 0);
+    vi.setSystemTime(start);
+    let resolveExecution: (() => void) | undefined;
+    const executionStarted = new Promise<void>((resolve) => {
+      resolveExecution = resolve;
+    });
+    const execute = vi.fn(async () => {
+      resolveExecution?.();
+      return { sessionId: 'session-exact' };
+    });
+    const service = new ScheduledTaskService({
+      statePath,
+      execute,
+    });
+    try {
+      service.start();
+
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      await service.createTask({
+        title: 'Half-hour pulse',
+        prompt: 'Check for important changes.',
+        intervalMinutes: 30,
+      });
+
+      await vi.advanceTimersByTimeAsync(30 * 60_000 - 1);
+      expect(execute).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      await executionStarted;
+      expect(execute).toHaveBeenCalledTimes(1);
+      let completed: ScheduledTask | undefined = (await service.listTasks())[0];
+      for (let attempt = 0; attempt < 10 && !completed?.lastSuccessAt; attempt += 1) {
+        completed = await service.getTask((await service.listTasks())[0]!.id);
+      }
+      expect(completed?.lastSuccessAt).toBe(start + 40 * 60_000);
+    } finally {
+      service.stop();
+    }
   });
 
   it('seeds the stable weekly memory report once and leaves it disabled until the user opts in', async () => {

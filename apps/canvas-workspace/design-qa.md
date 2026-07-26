@@ -1,8 +1,8 @@
 # Scheduled task chat — design QA
 
-- Source visual truth: `/var/folders/47/8lvrntxs52xdcrv32zkfrwww0000gn/T/codex-clipboard-03b64e28-fc68-4a9a-b9a3-ba0bb533b8f2.png`
-- Implementation screenshot: `/Users/jasperhu/project/pulse-agent/apps/canvas-workspace/.harness/runs/harness-2026-07-26T13-34-08-800Z/screenshot-1785072861101.png`
-- Combined comparison: `/Users/jasperhu/project/pulse-agent/apps/canvas-workspace/.harness/runs/harness-2026-07-26T13-34-08-800Z/scheduled-reference-comparison.png`
+- Source visual truth: the Codex Daily brief screenshot supplied with the task.
+- Implementation evidence: a native Electron harness run captured the stable Scheduled tab, dedicated task Chat, completed result, and follow-up composer.
+- Comparison method: the source and implementation captures were combined side by side at native resolution for visual review; disposable harness artifacts are intentionally not committed.
 - Source pixels: 2486 × 2146
 - Implementation pixels: 2400 × 1544
 - Implementation CSS viewport: 1200 × 772 at device scale factor 2

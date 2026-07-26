@@ -11,31 +11,13 @@ import type { ScheduledTask, ScheduledTaskInput } from '../../../../shared/sched
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
 import { Button, EmptyState } from '../ui';
+import { intervalLabel, timeLabel } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
 import './index.css';
 
 interface Props {
   onOpenTask: (taskId: string) => void;
 }
-
-const intervalLabel = (minutes: number, t: ReturnType<typeof useI18n>['t']): string => {
-  if (minutes === 30) return t('scheduled.interval.30m');
-  if (minutes === 60) return t('scheduled.interval.1h');
-  if (minutes === 360) return t('scheduled.interval.6h');
-  if (minutes === 1440) return t('scheduled.interval.daily');
-  if (minutes === 10080) return t('scheduled.interval.weekly');
-  return t('scheduled.interval.custom', { minutes });
-};
-
-const timeLabel = (value: number | undefined, fallback: string): string => {
-  if (!value) return fallback;
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(value);
-};
 
 export const ScheduledPage = ({ onOpenTask }: Props) => {
   const { t } = useI18n();

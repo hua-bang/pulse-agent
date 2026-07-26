@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ScheduledTask, ScheduledTaskInput } from '../../../../shared/scheduled';
-import { Button, Modal, Select, TextField } from '../ui';
+import { Button, FieldRow, Modal, Select, TextField } from '../ui';
 import { useI18n } from '../../i18n';
 
 const INTERVAL_OPTIONS = [
@@ -79,8 +79,7 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
           onChange={(event) => setPrompt(event.target.value)}
           placeholder={t('scheduled.promptPlaceholder')}
         />
-        <label className="scheduled-editor__schedule">
-          <span>{t('scheduled.cadence')}</span>
+        <FieldRow label={t('scheduled.cadence')}>
           <Select
             value={interval}
             ariaLabel={t('scheduled.cadence')}
@@ -91,7 +90,7 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
             }))}
             onChange={setIntervalValue}
           />
-        </label>
+        </FieldRow>
       </div>
       <footer className="scheduled-editor__actions">
         <Button onClick={onClose}>{t('scheduled.cancel')}</Button>

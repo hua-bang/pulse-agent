@@ -52,6 +52,9 @@ export class ScheduledTaskService {
   private running = new Set<string>();
   private initialTimer: NodeJS.Timeout | null = null;
   private intervalTimer: NodeJS.Timeout | null = null;
+  private dueTimer: NodeJS.Timeout | null = null;
+  private started = false;
+  private timerGeneration = 0;
 
   constructor(options: ScheduledTaskServiceOptions) {
     this.statePath = options.statePath ?? defaultStatePath();
@@ -70,20 +73,26 @@ export class ScheduledTaskService {
   }
 
   start(): void {
-    if (this.initialTimer || this.intervalTimer) return;
-    this.initialTimer = setTimeout(() => {
-      void this.runDueTasks();
+    if (this.started) return;
+    this.started = true;
+    this.initialTimer = setTimeout(async () => {
+      this.initialTimer = null;
+      await this.runDueTasks().finally(() => this.refreshDueTimer());
     }, DEFAULT_INITIAL_DELAY_MS);
-    this.intervalTimer = setInterval(() => {
-      void this.runDueTasks();
+    this.intervalTimer = setInterval(async () => {
+      await this.runDueTasks().finally(() => this.refreshDueTimer());
     }, SCHEDULED_CHECK_EVERY_MS);
   }
 
   stop(): void {
+    this.started = false;
+    this.timerGeneration += 1;
     if (this.initialTimer) clearTimeout(this.initialTimer);
     if (this.intervalTimer) clearInterval(this.intervalTimer);
+    if (this.dueTimer) clearTimeout(this.dueTimer);
     this.initialTimer = null;
     this.intervalTimer = null;
+    this.dueTimer = null;
   }
 
   async ensureMemoryReportTask(): Promise<ScheduledTask> {
@@ -205,7 +214,45 @@ export class ScheduledTaskService {
     } finally {
       this.running.delete(task.id);
       await this.emitChange();
+      await this.refreshDueTimer();
     }
+  }
+
+  private async refreshDueTimer(): Promise<void> {
+    if (!this.started) return;
+    const generation = ++this.timerGeneration;
+    const tasks = await this.listTasks();
+    if (!this.started || generation !== this.timerGeneration) return;
+    this.applyDueTimer(tasks);
+  }
+
+  private scheduleDueTimer(tasks: ScheduledTask[]): void {
+    if (!this.started) return;
+    this.timerGeneration += 1;
+    this.applyDueTimer(tasks);
+  }
+
+  private applyDueTimer(tasks: ScheduledTask[]): void {
+    if (this.dueTimer) clearTimeout(this.dueTimer);
+    const nextRunAt = tasks
+      .filter((task) => task.enabled && !this.running.has(task.id))
+      .reduce<number | undefined>(
+        (earliest, task) => earliest === undefined ? task.nextRunAt : Math.min(earliest, task.nextRunAt),
+        undefined,
+      );
+    if (nextRunAt === undefined) {
+      this.dueTimer = null;
+      return;
+    }
+
+    const delay = Math.min(
+      SCHEDULED_CHECK_EVERY_MS,
+      Math.max(0, nextRunAt - this.now()),
+    );
+    this.dueTimer = setTimeout(async () => {
+      this.dueTimer = null;
+      await this.runDueTasks().finally(() => this.refreshDueTimer());
+    }, delay);
   }
 
   private async readState(): Promise<ScheduledTaskState> {
@@ -230,6 +277,7 @@ export class ScheduledTaskService {
       await fs.writeFile(tmp, JSON.stringify(state, null, 2), 'utf-8');
       await fs.rename(tmp, this.statePath);
       this.onChange?.(state.tasks.map((task) => ({ ...task, status: this.running.has(task.id) ? 'running' : 'idle' })));
+      this.scheduleDueTimer(state.tasks);
     });
     this.queue = next.catch(() => undefined);
     return next;

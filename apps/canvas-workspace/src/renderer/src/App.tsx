@@ -21,7 +21,7 @@ import { PulseRouter, PulseRouterView } from './components/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
-import { StableRouteViews } from './components/StableRouteViews';
+import { ScheduledRouteViews, SkillsRouteView } from './components/RouteViews';
 const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
@@ -567,11 +567,11 @@ const AppContent = () => {
               <GraphPage workspaces={workspaces} selectedNode={selectedNode} onSelectNode={setSelectedNode} />
             </PulseRouterView>
           )}
-          <StableRouteViews
-            activeWorkspaceId={activeId}
-            workspaces={workspaces}
-            scheduledTaskId={scheduledTaskMatch ? decodeURIComponent(scheduledTaskMatch[1]) : null}
+          <SkillsRouteView activeWorkspaceId={activeId} workspaces={workspaces}
             onSelectWorkspace={(workspaceId) => { ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId); }}
+          />
+          <ScheduledRouteViews
+            scheduledTaskId={scheduledTaskMatch ? decodeURIComponent(scheduledTaskMatch[1]) : null}
             onOpenScheduledTask={(taskId) => setLocation(`${ROUTE_SCHEDULED}/${encodeURIComponent(taskId)}`)}
             onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)}
             onOpenAppSettings={openAppSettings}

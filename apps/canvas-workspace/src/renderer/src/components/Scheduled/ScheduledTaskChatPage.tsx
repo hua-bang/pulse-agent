@@ -6,6 +6,7 @@ import type { SettingsSection } from '../Settings';
 import { useAppShell } from '../AppShellProvider';
 import { ChatPageBody } from '../chat/ChatPageBody';
 import { Button } from '../ui';
+import { intervalLabel, timeLabel } from './formatters';
 import './index.css';
 
 interface Props {
@@ -13,14 +14,6 @@ interface Props {
   onExit: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
 }
-
-const cadence = (minutes: number): string => {
-  if (minutes === 30) return '30m';
-  if (minutes % (7 * 24 * 60) === 0) return `${minutes / (7 * 24 * 60)}w`;
-  if (minutes % (24 * 60) === 0) return `${minutes / (24 * 60)}d`;
-  if (minutes % 60 === 0) return `${minutes / 60}h`;
-  return `${minutes}m`;
-};
 
 export const ScheduledTaskChatPage = ({ taskId, onExit, onOpenAppSettings }: Props) => {
   const { t } = useI18n();
@@ -70,21 +63,25 @@ export const ScheduledTaskChatPage = ({ taskId, onExit, onOpenAppSettings }: Pro
       <div className="scheduled-chat-banner__meta">
         <span>{t('scheduled.automationLabel', { title: task.title })}</span>
         <span>{t('scheduled.automationId', { id: task.id })}</span>
-        <span>{t('scheduled.automationCadence', { cadence: cadence(task.intervalMinutes) })}</span>
+        <span>
+          {t('scheduled.automationCadence', {
+            cadence: intervalLabel(task.intervalMinutes, t),
+          })}
+        </span>
         <span>
           {task.lastSuccessAt
             ? t('scheduled.automationLastRun', {
-                time: new Intl.DateTimeFormat(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }).format(task.lastSuccessAt),
+                time: timeLabel(task.lastSuccessAt, ''),
               })
             : t('scheduled.automationNeverRun')}
         </span>
       </div>
       <p>{task.prompt}</p>
+      {task.lastError && (
+        <p className="scheduled-chat-banner__error" role="alert">
+          {t('scheduled.automationLastError', { error: task.lastError })}
+        </p>
+      )}
       <div className="scheduled-chat-banner__actions">
         <Button size="sm" onClick={() => void toggle()}>
           {task.enabled ? <Pause size={14} /> : <Play size={14} />}
@@ -113,7 +110,7 @@ export const ScheduledTaskChatPage = ({ taskId, onExit, onOpenAppSettings }: Pro
       railCollapsed
       onToggleRail={() => undefined}
       onOpenAppSettings={onOpenAppSettings}
-      fixedChat={{ title: task.title, banner: task.lastAttemptAt ? undefined : banner }}
+      fixedChat={{ title: task.title, banner }}
     />
   );
 };
