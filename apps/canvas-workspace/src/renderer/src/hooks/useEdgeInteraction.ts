@@ -11,7 +11,7 @@ import {
 const CONNECT_DRAG_MIN_DISTANCE = 6;
 export type Point = { x: number; y: number };
 export type EdgeInteractionPreviewPatch = Partial<
-  Pick<CanvasEdge, 'source' | 'target' | 'bend'>
+  Pick<CanvasEdge, 'source' | 'target' | 'bend' | 'curveMode'>
 >;
 
 /**
@@ -55,6 +55,9 @@ export type EdgeInteractionState =
       /** Base bend plus cursor offset delta avoids a drag-start jump. */
       originBend: number;
       originOffset: number;
+      /** Automatic curves and previously adjusted smooth curves keep cubic
+       * geometry; legacy non-zero bends continue using their quadratic path. */
+      smoothBend: boolean;
       /** Render-only geometry; committed once on mouseup. */
       previewPatch: EdgeInteractionPreviewPatch;
     }
@@ -149,10 +152,17 @@ const movePreviewAt = (
   if (current.kind === 'move-bend') {
     const offset = bendFromCursor(current.s, current.t, pt);
     const bend = current.originBend + (offset - current.originOffset);
+    const previewPatch: EdgeInteractionPreviewPatch =
+      bend === current.originBend
+        ? {}
+        : {
+            bend,
+            ...(current.smoothBend ? { curveMode: 'smooth' as const } : {}),
+          };
     return {
       ...current,
       cursor: pt,
-      previewPatch: bend === current.originBend ? {} : { bend },
+      previewPatch,
     };
   }
 
@@ -423,11 +433,13 @@ export const useEdgeInteraction = ({
     // curve (not just the midpoint handle) feels continuous.
     const originOffset = bendFromCursor(s, t, pt);
     const persistedBend = edge?.bend ?? 0;
-    // Automatic node routing can put the zero-bend handle away from the
-    // straight midpoint. The first manual move switches to the legacy
-    // quadratic representation, so seed it with that visual offset to
-    // avoid a jump while preserving persisted non-zero bend semantics.
-    const originBend = persistedBend === 0 ? originOffset : persistedBend;
+    const isNodeBound =
+      edge?.source.kind === 'node' &&
+      edge.target.kind === 'node';
+    const smoothBend =
+      edge?.curveMode === 'smooth' ||
+      (persistedBend === 0 && isNodeBound);
+    const originBend = persistedBend;
     setInteractionState({
       kind: 'move-bend',
       edgeId,
@@ -436,6 +448,7 @@ export const useEdgeInteraction = ({
       cursor: pt,
       originBend,
       originOffset,
+      smoothBend,
       previewPatch: {},
     });
   }, [edges, setInteractionState, toCanvas]);

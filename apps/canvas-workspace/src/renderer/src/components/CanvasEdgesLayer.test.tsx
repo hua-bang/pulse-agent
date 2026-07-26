@@ -153,6 +153,7 @@ describe('edge interaction preview projection', () => {
       cursor: { x: 50, y: 30 },
       originBend: 0,
       originOffset: 0,
+      smoothBend: false,
       previewPatch: { bend: -30 },
     };
     expect(applyEdgeInteractionPreview(freeEdge, bendState)).toMatchObject({ bend: -30 });

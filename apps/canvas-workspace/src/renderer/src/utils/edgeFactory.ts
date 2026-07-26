@@ -224,13 +224,13 @@ const endpointOutwardNormal = (
  * bend preserves the existing manually controlled quadratic curve.
  */
 export const edgePathGeometry = (
-  edge: Pick<CanvasEdge, 'source' | 'target' | 'bend'>,
+  edge: Pick<CanvasEdge, 'source' | 'target' | 'bend' | 'curveMode'>,
   s: Point,
   t: Point,
   nodesById: Map<string, CanvasNode>,
 ): EdgePathGeometry => {
   const bend = edge.bend ?? 0;
-  if (bend) {
+  if (bend && edge.curveMode !== 'smooth') {
     const midpoint = bendHandlePoint(s, t, bend);
     const baseMidpoint = bendHandlePoint(s, t, 0);
     const control = {
@@ -248,13 +248,18 @@ export const edgePathGeometry = (
   if (sourceNormal && targetNormal) {
     const distance = Math.hypot(t.x - s.x, t.y - s.y);
     const handleLength = distance / 3;
+    const bendScale = distance === 0 ? 0 : bend * 4 / (3 * distance);
+    const bendOffset = {
+      x: (t.y - s.y) * bendScale,
+      y: -(t.x - s.x) * bendScale,
+    };
     const c1 = {
-      x: s.x + sourceNormal.x * handleLength,
-      y: s.y + sourceNormal.y * handleLength,
+      x: s.x + sourceNormal.x * handleLength + bendOffset.x,
+      y: s.y + sourceNormal.y * handleLength + bendOffset.y,
     };
     const c2 = {
-      x: t.x + targetNormal.x * handleLength,
-      y: t.y + targetNormal.y * handleLength,
+      x: t.x + targetNormal.x * handleLength + bendOffset.x,
+      y: t.y + targetNormal.y * handleLength + bendOffset.y,
     };
     return {
       d: `M ${s.x} ${s.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${t.x} ${t.y}`,
@@ -265,9 +270,22 @@ export const edgePathGeometry = (
     };
   }
 
+  if (!bend) {
+    return {
+      d: `M ${s.x} ${s.y} L ${t.x} ${t.y}`,
+      midpoint: bendHandlePoint(s, t, 0),
+    };
+  }
+
+  const midpoint = bendHandlePoint(s, t, bend);
+  const baseMidpoint = bendHandlePoint(s, t, 0);
+  const control = {
+    x: midpoint.x * 2 - baseMidpoint.x,
+    y: midpoint.y * 2 - baseMidpoint.y,
+  };
   return {
-    d: `M ${s.x} ${s.y} L ${t.x} ${t.y}`,
-    midpoint: bendHandlePoint(s, t, 0),
+    d: `M ${s.x} ${s.y} Q ${control.x} ${control.y} ${t.x} ${t.y}`,
+    midpoint,
   };
 };
 

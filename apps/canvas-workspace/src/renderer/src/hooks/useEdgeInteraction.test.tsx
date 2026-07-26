@@ -152,7 +152,7 @@ describe('useEdgeInteraction move gestures', () => {
     expect(updateEdge).toHaveBeenCalledWith('edge-1', { bend: -30 });
   });
 
-  it('seeds the first manual bend from an automatic curve handle without jumping', () => {
+  it('keeps an asymmetric automatic curve cubic on its first manual bend', () => {
     edges = [{
       id: 'edge-1',
       source: { kind: 'node', nodeId: 'node-a', anchor: 'right' },
@@ -160,14 +160,22 @@ describe('useEdgeInteraction move gestures', () => {
       bend: 0,
     }];
     act(() => root.render(<Probe />));
-    act(() => hook.beginMoveBend('edge-1', { x: 0, y: 0 }, { x: 100, y: 0 }, 50, -20));
+    act(() => hook.beginMoveBend(
+      'edge-1',
+      { x: 100, y: 30 },
+      { x: 196, y: 102 },
+      163,
+      51,
+    ));
 
-    move([50, -21]);
+    move([163.6, 50.2]);
 
     expect(hook.state).toMatchObject({
       kind: 'move-bend',
-      previewPatch: { bend: 21 },
+      previewPatch: { curveMode: 'smooth' },
     });
+    if (hook.state?.kind !== 'move-bend') throw new Error('expected move-bend state');
+    expect(hook.state.previewPatch.bend).toBeCloseTo(1);
   });
 
   it('drops an ephemeral move on Escape without writing or committing history', () => {

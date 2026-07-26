@@ -404,6 +404,9 @@ export interface CanvasEdge {
   source: EdgeEndpoint;
   target: EdgeEndpoint;
   bend?: number;
+  /** New manually adjusted smooth curves stay cubic. Absent preserves the
+   * legacy quadratic representation for existing non-zero bends. */
+  curveMode?: 'smooth';
   arrowHead?: EdgeArrowCap;
   arrowTail?: EdgeArrowCap;
   stroke?: EdgeStroke;
