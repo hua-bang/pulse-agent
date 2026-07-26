@@ -42,3 +42,31 @@ The two full-view comparisons keep the controls legible, so a separate crop was 
 - P3: if task rows become substantially denser, secondary actions can move into an overflow menu while keeping Run now visible.
 
 final result: passed
+
+---
+
+# Scheduled Pulse AI handoff and prompt generation — design QA
+
+- Source visual truth: the two annotated screenshots supplied for the follow-up (`codex-clipboard-a141…png` and `codex-clipboard-4435…png`).
+- Implementation screenshots: `.harness/runs/harness-2026-07-26T14-35-46-323Z/screenshot-1785076555177.png` (Scheduled list), `screenshot-1785076564587.png` (task editor), and `screenshot-1785076684326.png` (Run now in Pulse AI).
+- Combined comparisons: `scheduled-list-comparison.png` and `scheduled-editor-comparison.png` in the same harness run.
+- Implementation CSS viewport: 1200 × 772 at device scale factor 2.
+
+## Findings
+
+No actionable P0, P1, or P2 visual differences remain.
+
+- The redundant bottom-right Pulse AI launcher is no longer rendered on Scheduled; Pulse AI remains available through Run now.
+- Run now expands the existing right-dock Pulse AI tab and displays the scheduled task's dedicated conversation rather than navigating to a second chat page.
+- The editor preserves the existing field rhythm. `Write with AI` sits on the Instructions label row, uses the shared Button and Phosphor Sparkle icon, and keeps generated copy editable.
+- Empty task name/instructions correctly disables AI generation and Save; generated text is returned to the existing textarea.
+- No new image assets, custom SVGs, color values, or radius values were introduced.
+
+## Primary interactions checked
+
+- Opened Scheduled in the native Electron harness and confirmed the floating launcher is absent.
+- Opened Create task and confirmed AI generation is discoverable without increasing modal width.
+- Clicked Run now and confirmed Pulse AI opens as a dock tab with the scheduled task prompt, result, session controls, and follow-up composer.
+- Focused Scheduled/RightDock tests, renderer/main TypeScript checks, and the production build passed.
+
+final result: passed
