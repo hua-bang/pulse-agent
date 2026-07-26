@@ -134,4 +134,69 @@ describe('ScheduledPage', () => {
       scheduledChatRevision: 2,
     });
   });
+
+  it('shows an immediate running state and prevents duplicate manual runs', async () => {
+    const onOpenTask = vi.fn();
+    let finishRun: ((value: { ok: boolean }) => void) | undefined;
+    const runNow = vi.fn(() => new Promise<{ ok: boolean }>((resolve) => {
+      finishRun = resolve;
+    }));
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: {
+        agent: { newSession: vi.fn(async () => ({ ok: true })) },
+        scheduled: {
+          list: vi.fn(async () => ({
+            ok: true,
+            tasks: [{
+              id: 'daily-brief',
+              title: 'Daily brief',
+              prompt: 'Summarize what needs my attention.',
+              intervalMinutes: 30,
+              enabled: true,
+              source: 'user',
+              createdAt: 1,
+              updatedAt: 1,
+              nextRunAt: Date.now() + 60_000,
+              runCount: 0,
+              status: 'idle',
+            }],
+          })),
+          onChanged: vi.fn(() => () => undefined),
+          runNow,
+        },
+      },
+    });
+
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(renderPage(onOpenTask));
+    });
+
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>('[aria-label="Run now"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const runningButton = host.querySelector<HTMLButtonElement>('[aria-label="Running scheduled task"]');
+    expect(runningButton?.disabled).toBe(true);
+    expect(runningButton?.textContent).toContain('Running');
+    runningButton?.click();
+    expect(runNow).toHaveBeenCalledTimes(1);
+    expect(dockState).toMatchObject({
+      expanded: true,
+      scheduledChatTaskId: 'daily-brief',
+      scheduledChatRevision: 1,
+    });
+
+    await act(async () => {
+      finishRun?.({ ok: true });
+      await Promise.resolve();
+    });
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="Run now"]')?.disabled).toBe(false);
+    expect(dockState?.scheduledChatRevision).toBe(2);
+  });
 });

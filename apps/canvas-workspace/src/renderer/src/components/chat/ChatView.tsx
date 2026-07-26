@@ -18,6 +18,7 @@ interface ChatViewProps {
   beforeHeader?: ReactNode;
   /** Rendered between the header and the messages list (e.g. session back bar). */
   banner?: ReactNode;
+  pendingLabel?: string;
 
   // Streaming + messages
   messages: AgentChatMessage[];
@@ -97,6 +98,7 @@ export const ChatView = ({
   header,
   beforeHeader,
   banner,
+  pendingLabel,
   messages,
   loading,
   workspaceId,
@@ -150,7 +152,7 @@ export const ChatView = ({
   onSessionJump,
   onResizeStart,
 }: ChatViewProps) => {
-  const hasMessages = messages.length > 0 || loading;
+  const hasMessages = messages.length > 0 || loading || Boolean(pendingLabel);
 
   return (
     <div className={className ?? 'chat-view'}>
@@ -182,6 +184,7 @@ export const ChatView = ({
           onEditUserMessage={onEditUserMessage}
           onRegenerate={onRegenerate}
           onSessionJump={onSessionJump}
+          pendingLabel={pendingLabel}
         />
       ) : emptyState !== undefined ? emptyState : (
         <ChatEmptyState

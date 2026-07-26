@@ -6,6 +6,7 @@ import {
   PencilSimple,
   Play,
   Plus,
+  SpinnerGap,
   Trash,
 } from '@phosphor-icons/react';
 import type { ScheduledTask, ScheduledTaskInput } from '../../../../shared/scheduled';
@@ -27,6 +28,7 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
   const { store: dockStore } = useDockContext();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [runningTaskIds, setRunningTaskIds] = useState<Set<string>>(() => new Set());
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | undefined>();
 
@@ -70,18 +72,32 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
   };
 
   const runNow = async (task: ScheduledTask) => {
+    if (runningTaskIds.has(task.id) || task.status === 'running') return;
+    setRunningTaskIds((current) => new Set(current).add(task.id));
     const scope = { kind: 'scheduled' as const, taskId: task.id };
-    const session = await window.canvasWorkspace.agent.newSession({ scope });
-    if (!session.ok) {
-      notify({ tone: 'error', title: t('scheduled.runFailed'), description: session.error });
-      return;
-    }
+    try {
+      const session = await window.canvasWorkspace.agent.newSession({ scope });
+      if (!session.ok) {
+        notify({ tone: 'error', title: t('scheduled.runFailed'), description: session.error });
+        return;
+      }
 
-    dockStore.openScheduledChat(task.id);
-    const response = await window.canvasWorkspace.scheduled.runNow(task.id);
-    dockStore.refreshScheduledChat(task.id);
-    if (!response.ok) {
-      notify({ tone: 'error', title: t('scheduled.runFailed'), description: response.error });
+      dockStore.openScheduledChat(task.id);
+      const response = await window.canvasWorkspace.scheduled.runNow(task.id);
+      dockStore.refreshScheduledChat(task.id);
+      if (!response.ok || response.task?.lastError) {
+        notify({
+          tone: 'error',
+          title: t('scheduled.runFailed'),
+          description: response.error ?? response.task?.lastError,
+        });
+      }
+    } finally {
+      setRunningTaskIds((current) => {
+        const next = new Set(current);
+        next.delete(task.id);
+        return next;
+      });
     }
   };
 
@@ -131,65 +147,69 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
         />
       ) : (
         <ul className="scheduled-page__list">
-          {tasks.map((task) => (
-            <li key={task.id} className="scheduled-page__row">
-              <Button
-                className="scheduled-page__row-main"
-                data-task-id={task.id}
-                onClick={() => onOpenTask(task.id)}
-              >
-                <span className={`scheduled-page__status${task.enabled ? ' scheduled-page__status--enabled' : ''}`} />
-                <span className="scheduled-page__row-copy">
-                  <strong>{task.title}</strong>
-                  <small>{task.prompt}</small>
-                </span>
-                <span className="scheduled-page__meta">
-                  <span>{intervalLabel(task.intervalMinutes, t)}</span>
-                  <small>
-                    {task.enabled
-                      ? t('scheduled.nextRun', { time: timeLabel(task.nextRunAt, t('scheduled.never')) })
-                      : t('scheduled.paused')}
-                  </small>
-                </span>
-                <span className="scheduled-page__last-run">
-                  {task.lastError
-                    ? t('scheduled.lastFailed', { time: timeLabel(task.lastAttemptAt, t('scheduled.never')) })
-                    : task.lastSuccessAt
-                      ? t('scheduled.lastSuccess', { time: timeLabel(task.lastSuccessAt, t('scheduled.never')) })
-                      : t('scheduled.neverRun')}
-                </span>
-              </Button>
-              <div className="scheduled-page__row-actions">
+          {tasks.map((task) => {
+            const running = task.status === 'running' || runningTaskIds.has(task.id);
+            return (
+              <li key={task.id} className="scheduled-page__row">
                 <Button
-                  size="xs"
-                  title={task.enabled ? t('scheduled.pause') : t('scheduled.resume')}
-                  onClick={() => void toggleTask(task)}
+                  className="scheduled-page__row-main"
+                  data-task-id={task.id}
+                  onClick={() => onOpenTask(task.id)}
                 >
-                  {task.enabled ? <Pause size={13} /> : <CalendarCheck size={13} />}
-                  {task.enabled ? t('scheduled.pause') : t('scheduled.resume')}
+                  <span className={`scheduled-page__status${task.enabled ? ' scheduled-page__status--enabled' : ''}`} />
+                  <span className="scheduled-page__row-copy">
+                    <strong>{task.title}</strong>
+                    <small>{task.prompt}</small>
+                  </span>
+                  <span className="scheduled-page__meta">
+                    <span>{intervalLabel(task.intervalMinutes, t)}</span>
+                    <small>
+                      {task.enabled
+                        ? t('scheduled.nextRun', { time: timeLabel(task.nextRunAt, t('scheduled.never')) })
+                        : t('scheduled.paused')}
+                    </small>
+                  </span>
+                  <span className="scheduled-page__last-run">
+                    {task.lastError
+                      ? t('scheduled.lastFailed', { time: timeLabel(task.lastAttemptAt, t('scheduled.never')) })
+                      : task.lastSuccessAt
+                        ? t('scheduled.lastSuccess', { time: timeLabel(task.lastSuccessAt, t('scheduled.never')) })
+                        : t('scheduled.neverRun')}
+                  </span>
                 </Button>
-                <Button
-                  size="xs"
-                  aria-label={t('scheduled.runNow')}
-                  title={t('scheduled.runNow')}
-                  onClick={() => void runNow(task)}
-                >
-                  <Play size={13} />
-                  {t('scheduled.runNow')}
-                </Button>
-                <Button size="xs" title={t('scheduled.editTask')} onClick={() => openEdit(task)}>
-                  <PencilSimple size={13} />
-                  {t('scheduled.editTask')}
-                </Button>
-                {task.source === 'user' && (
-                  <Button variant="danger" size="xs" title={t('scheduled.deleteTask')} onClick={() => void removeTask(task)}>
-                    <Trash size={13} />
-                    {t('scheduled.deleteTask')}
+                <div className="scheduled-page__row-actions">
+                  <Button
+                    size="xs"
+                    title={task.enabled ? t('scheduled.pause') : t('scheduled.resume')}
+                    onClick={() => void toggleTask(task)}
+                  >
+                    {task.enabled ? <Pause size={13} /> : <CalendarCheck size={13} />}
+                    {task.enabled ? t('scheduled.pause') : t('scheduled.resume')}
                   </Button>
-                )}
-              </div>
-            </li>
-          ))}
+                  <Button
+                    size="xs"
+                    aria-label={running ? t('scheduled.running') : t('scheduled.runNow')}
+                    title={running ? t('scheduled.running') : t('scheduled.runNow')}
+                    disabled={running}
+                    onClick={() => void runNow(task)}
+                  >
+                    {running ? <SpinnerGap className="scheduled-spin" size={13} /> : <Play size={13} />}
+                    {running ? t('scheduled.runningShort') : t('scheduled.runNow')}
+                  </Button>
+                  <Button size="xs" title={t('scheduled.editTask')} onClick={() => openEdit(task)}>
+                    <PencilSimple size={13} />
+                    {t('scheduled.editTask')}
+                  </Button>
+                  {task.source === 'user' && (
+                    <Button variant="danger" size="xs" title={t('scheduled.deleteTask')} onClick={() => void removeTask(task)}>
+                      <Trash size={13} />
+                      {t('scheduled.deleteTask')}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 

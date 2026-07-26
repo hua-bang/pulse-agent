@@ -45,6 +45,36 @@ final result: passed
 
 ---
 
+# Scheduled run feedback and dock-responsive rows — design QA
+
+- Source visual truth: the annotated follow-up screenshot `codex-clipboard-54a8…png`.
+- Implementation capture: native Electron harness session `harness-2026-07-26T14-59-06-100Z`, at a 1200 × 772 CSS viewport and 2× device scale.
+- Review method: the source and implementation captures were normalized to the same height and inspected in one side-by-side comparison.
+
+## Findings
+
+No actionable P0, P1, or P2 visual differences remain.
+
+- Opening Pulse AI now switches the Scheduled list to a dock-aware compact row layout. Task metadata stays with the task body and the labelled actions move onto their own line, so controls no longer overlap.
+- Run now immediately disables itself and changes to a spinning `Running…` state, preventing duplicate launches.
+- The scheduled Pulse AI conversation shows a running status strip until the background turn finishes. A failed run exposes its error in the same location and through the existing app notification.
+- While a run is pending, the message stream also shows a lightweight Pulse AI reply with animated dots and explicit progress copy in the spot where the result will appear.
+- When the run finishes, the conversation remounts from durable scheduled history so the result and follow-up composer are visible.
+- The implementation reuses the shared spinner keyframe, design tokens, Button component, and Phosphor icons.
+
+## Primary interactions checked
+
+- Seeded two tasks in the disposable demo profile and opened Scheduled.
+- Clicked Run now and confirmed the right-dock Pulse AI tab opened a fresh scheduled conversation.
+- Confirmed the narrow Scheduled list kept both task rows and all actions readable with no overlap.
+- Confirmed the in-conversation progress reply remains aligned with ordinary assistant messages and disappears when the pending state ends.
+- Confirmed the completed turn appeared in Pulse AI and remained available for follow-up.
+- Focused Scheduled/service/governance tests, TypeScript checks, and the production build passed.
+
+final result: passed
+
+---
+
 # Scheduled Pulse AI handoff and prompt generation — design QA
 
 - Source visual truth: the two annotated screenshots supplied for the follow-up (`codex-clipboard-a141…png` and `codex-clipboard-4435…png`).

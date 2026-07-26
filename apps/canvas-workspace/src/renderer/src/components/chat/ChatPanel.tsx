@@ -44,6 +44,8 @@ export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
   knowledgeMode = false,
+  banner,
+  pendingLabel,
   allWorkspaces,
   nodes,
   knowledgeNodes,
@@ -72,12 +74,7 @@ export const ChatPanel = ({
   const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
   const requestContextRef = useRef<AgentRequestContext>();
 
-  // Keep a stable identity for the scope. Passing a fresh literal on every
-  // render would make the scope-keyed effects in useChatSessions/useChatStream
-  // re-run on each streaming setState, reloading history mid-stream and wiping
-  // the in-flight assistant message (intermediate tool/text output vanishing +
-  // flicker). Callers that pass an explicit `agentScope` (the global Nodes /
-  // Graph host) must memoize it for the same reason.
+  // Keep a stable identity so scope-keyed effects do not reload mid-stream.
   const agentScope = useMemo<AgentScope>(
     () => agentScopeProp ?? { kind: 'workspace', workspaceId: workspaceId ?? '' },
     [agentScopeProp, workspaceId],
@@ -442,9 +439,10 @@ export const ChatPanel = ({
           anchors={<ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />}
         />
       }
-      banner={backEntry ? (
-        <SessionBackBar entry={backEntry} disabled={loading} onBack={() => void handleSessionBack()} />
-      ) : undefined}
+      banner={backEntry
+        ? <SessionBackBar entry={backEntry} disabled={loading} onBack={() => void handleSessionBack()} />
+        : banner}
+      pendingLabel={pendingLabel}
       messages={messages}
       loading={loading}
       workspaceId={anchorScopeId}

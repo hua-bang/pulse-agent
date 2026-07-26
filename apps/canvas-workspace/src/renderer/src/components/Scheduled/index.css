@@ -1,4 +1,6 @@
 .scheduled-page {
+  flex: 1;
+  min-width: 0;
   height: 100%;
   overflow-y: auto;
   padding: 28px clamp(24px, 4vw, 48px) 60px;
@@ -184,6 +186,69 @@
   justify-content: flex-end;
   gap: 8px;
   border-top: 1px solid var(--border);
+}
+
+.scheduled-spin {
+  animation: spin 0.8s linear infinite;
+}
+
+.scheduled-chat-status {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.scheduled-chat-status > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.scheduled-chat-status > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.scheduled-chat-status strong,
+.scheduled-chat-status small {
+  overflow-wrap: anywhere;
+}
+
+.scheduled-chat-status strong {
+  font-size: 11px;
+}
+
+.scheduled-chat-status small {
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.scheduled-chat-status--error {
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+
+.app:has(.right-dock[data-expanded='true']) .scheduled-page__row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app:has(.right-dock[data-expanded='true']) .scheduled-page__row-main {
+  grid-template-columns: 8px minmax(0, 1fr) minmax(110px, auto);
+}
+
+.app:has(.right-dock[data-expanded='true']) .scheduled-page__last-run {
+  display: none;
+}
+
+.app:has(.right-dock[data-expanded='true']) .scheduled-page__row-actions {
+  justify-content: flex-end;
+  padding: 0 12px 12px 34px;
 }
 
 @media (max-width: 860px) {

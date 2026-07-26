@@ -20,6 +20,7 @@ import { useEvictAndPreview, usePeekNode, usePreviewNodeActionBridge } from './u
 import { useReferenceEntries } from './useReferenceEntries';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
+import { ScheduledChatPanel } from '../Scheduled/ScheduledChatPanel';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
@@ -423,9 +424,9 @@ export const Workbench: React.FC<WorkbenchProps> = ({
             ))}
             {scheduledChatTaskId && (
               <div className="right-dock__chat-instance">
-                <ChatPanel
-                  key={`${scheduledChatTaskId}:${dockState.scheduledChatRevision ?? 0}`}
-                  agentScope={{ kind: 'scheduled', taskId: scheduledChatTaskId }}
+                <ScheduledChatPanel
+                  taskId={scheduledChatTaskId}
+                  revision={dockState.scheduledChatRevision ?? 0}
                   allWorkspaces={workspaces}
                   onClose={dock.collapse}
                   onOpenAppSettings={onOpenAppSettings}
