@@ -5,7 +5,7 @@ import { EditorContent } from '@tiptap/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileNodeData } from '../types';
 import { I18nProvider } from '../i18n';
-import { useFileNodeEditor } from './useFileNodeEditor';
+import { getMarkdown, useFileNodeEditor } from './useFileNodeEditor';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -74,13 +74,57 @@ describe('useFileNodeEditor slash ownership', () => {
   });
 });
 
-const EditorHarness = () => {
+describe('useFileNodeEditor rich text colors', () => {
+  it('preserves text and highlight colors through the Markdown roundtrip', async () => {
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <EditorHarness initialData={{ filePath: '', content: 'Alpha' }} />
+        </I18nProvider>,
+      );
+      await Promise.resolve();
+    });
+
+    const editor = hookState?.editor;
+    expect(editor).not.toBeNull();
+    act(() => {
+      editor?.commands.setTextSelection({ from: 1, to: 6 });
+      editor?.chain()
+        .setMark('textColor', { color: '#e03131' })
+        .setHighlight({ color: '#d0ebff' })
+        .run();
+    });
+    const markdown = getMarkdown(editor);
+    expect(markdown).toContain('color: #e03131');
+    expect(markdown).toContain('background-color: #d0ebff');
+
+    act(() => root?.unmount());
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <EditorHarness initialData={{ filePath: '', content: markdown }} />
+        </I18nProvider>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(hookState?.editor?.isActive('textColor', { color: '#e03131' })).toBe(true);
+    expect(hookState?.editor?.isActive('highlight', { color: '#d0ebff' })).toBe(true);
+  });
+});
+
+const EditorHarness = ({ initialData = data }: { initialData?: FileNodeData }) => {
   const state = useFileNodeEditor({
-    data,
+    data: initialData,
     nodeIdRef: { current: 'file-1' },
-    dataRef: { current: data },
+    dataRef: { current: initialData },
     workspaceIdRef: { current: 'workspace-1' },
-    prevContentRef: { current: data.content },
+    prevContentRef: { current: initialData.content },
     setModified: vi.fn(),
     persistToFile: vi.fn().mockResolvedValue(undefined),
     onUpdate: vi.fn().mockResolvedValue(undefined),
