@@ -1,6 +1,6 @@
 ---
 name: canvas-deep-research
-description: Source-backed research workflow for Pulse Canvas bootstrapping, due diligence, technical/product/market landscape analysis, current-state research, and any canvas task where Codex must gather reliable evidence before producing an artifact. Use when canvas-bootstrap needs a bundled research protocol, or when the user asks to research reliable sources before creating or organizing a canvas.
+description: Source-backed, representation-aware research workflow for Pulse Canvas bootstrapping, due diligence, technical/product/market landscape analysis, current-state research, and canvas tasks that need reliable evidence before artifact creation. Use when canvas-bootstrap or canvas-frame-research needs a research brief with sources, uncertainty, and justified candidates for cards, mindmaps, interactive HTML, images, or spatial relationships.
 ---
 
 # Canvas Deep Research
@@ -115,9 +115,19 @@ research_brief:
         to: "Frame or node title"
         label: "Relationship"
         kind: "flow | dependency | reference | contrast"
+    representations:
+      - type: "file | mindmap | html | image | frames-edges"
+        purpose: "Why this representation improves understanding"
+        source_ids: ["S1"]
+        learning_question: "Required for HTML; what should interaction clarify?"
+        interaction:
+          variables: ["Meaningful variable a user can change"]
+          feedback: "What changes visibly and what relationship it reveals"
+          takeaway: "Durable conclusion to preserve in a searchable card"
+        fallback: "Simpler representation if the preferred node type is unavailable"
 ```
 
-Keep `canvas_candidates` concise. It is a handoff, not a final layout.
+Keep `canvas_candidates` concise. Omit fields that do not apply. It is a handoff, not a final layout or an instruction to create every proposed representation.
 
 ## Canvas Handoff Rules
 
@@ -129,3 +139,8 @@ When another skill such as `canvas-bootstrap` will create a canvas:
 - Include source ids inside each node summary so final canvas content can cite evidence.
 - Include only meaningful edges; avoid connecting everything to everything.
 - Mark draft, uncertain, or assumption-heavy nodes clearly.
+- Recommend a mindmap only for a genuine hierarchy, taxonomy, decomposition, or branching question.
+- Recommend HTML only when manipulating meaningful variables can clarify causality, relationships, trade-offs, sequence, scale, or counterfactual outcomes. Static display alone is not sufficient.
+- Recommend images for visual evidence, diagrams, photographs, or explanations that materially benefit from visual form. Include provenance or the evidence source.
+- Keep ordinary prose and durable conclusions in file cards. Do not rasterize editable text or propose rich nodes merely for decoration.
+- Let the downstream canvas skill make the final representation and layout decision.

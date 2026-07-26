@@ -1,7 +1,6 @@
 ---
 name: canvas
-description: Operate Pulse Canvas workspaces — read user-curated context, write results, create nodes
-version: 1.0.0
+description: "Operate Pulse Canvas workspaces through the CLI and live Canvas runtime: read user-curated context, write results, create cards, frames, mindmaps, interactive HTML, and images, connect nodes, and verify rendered output. Use for direct Canvas inspection or mutation after a planning/research skill has chosen the intended representation."
 ---
 
 # Pulse Canvas
@@ -40,7 +39,30 @@ pulse-canvas node write <nodeId> --content "..."
 pulse-canvas node create --type file --title "Report" --data '{"content":"..."}'
 ```
 
-Supported `--type` values: `file`, `terminal`, `frame`, `agent`, `mindmap`.
+CLI-supported `--type` values: `file`, `terminal`, `frame`, `group`, `agent`, `mindmap`.
+
+### Choose CLI or Live Canvas Runtime
+
+Use the CLI for disk-backed reads, cards, frames/groups, agents/terminals, mindmaps, edges, layout, and atomic plans.
+
+The CLI can read app-produced `text`, `iframe`, and `image` nodes and can write existing text nodes, but it does not generically create iframe or image nodes. Do not invent a CLI representation for them.
+
+When native Canvas Agent tools are available, use the live runtime for richer nodes:
+
+- `canvas_create_node` with `type: "iframe"` and `data.mode: "html"` for a self-contained interactive explanation.
+- `artifact_create` followed by `artifact_pin_to_canvas` when the HTML should remain a versioned artifact.
+- `canvas_create_node` with `type: "image"` and an absolute `data.filePath` for an existing image.
+- `canvas_generate_image` when the user explicitly asks to generate a visual explanation.
+- `canvas_create_node` with `type: "mindmap"` and recursive `data.root` for hierarchy, taxonomy, decomposition, or branching.
+
+Keep ordinary prose and durable conclusions in file cards. HTML should clarify a stated learning question through meaningful controls and visible feedback; images should have descriptive titles and provenance.
+
+After creating a rich node:
+
+1. Read it back with a native Canvas read tool or `node read`.
+2. For HTML, exercise the important control or state transition and confirm the visible result.
+3. For images, verify the file loads and the title/alt/provenance is present.
+4. Check the surrounding frame and Fit view so the rich node supports rather than overwhelms the reading path.
 
 #### Mindmap
 
