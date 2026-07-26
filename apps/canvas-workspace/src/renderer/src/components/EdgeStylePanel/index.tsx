@@ -249,7 +249,7 @@ export const EdgeStylePanel = ({
   }, [screenPos.x, screenPos.y, openSection]);
 
   const setStroke = (patch: Partial<EdgeStroke>) => {
-    onUpdate(edge.id, { stroke: { ...edge.stroke, ...patch } });
+    onUpdate(edge.id, { stroke: { ...resolvedStroke, ...patch } });
   };
 
   const toggleSection = (section: Section) =>
