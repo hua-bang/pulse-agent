@@ -5,6 +5,7 @@ import {
   resolveEdgePathGeometry,
 } from '../../utils/edgeFactory';
 import { isImeComposing } from '../../utils/ime';
+import { useI18n } from '../../i18n';
 
 /**
  * Inline label on an edge.
@@ -41,6 +42,7 @@ export const EdgeLabel = ({
   onCommit,
   onCancel,
 }: Props) => {
+  const { t } = useI18n();
   const [draft, setDraft] = useState(edge.label ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -119,7 +121,7 @@ export const EdgeLabel = ({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={() => onCommit(edge.id, draft)}
-          placeholder="Label"
+          placeholder={t('edgeLabel.placeholder')}
           // Avoid the browser trying to autofill edge labels.
           autoComplete="off"
           spellCheck={false}

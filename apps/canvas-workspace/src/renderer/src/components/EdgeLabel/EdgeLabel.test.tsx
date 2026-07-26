@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CanvasEdge, CanvasNode } from '../../types';
 import { EdgeLabel } from '.';
+import { I18nProvider } from '../../i18n';
 
 describe('EdgeLabel', () => {
   it('sits on the visual midpoint of an automatically routed curve', () => {
@@ -35,15 +36,17 @@ describe('EdgeLabel', () => {
     };
 
     const html = renderToStaticMarkup(
-      <EdgeLabel
-        edge={edge}
-        nodes={nodes}
-        transform={{ x: 0, y: 0, scale: 1 }}
-        isEditing={false}
-        onStartEdit={vi.fn()}
-        onCommit={vi.fn()}
-        onCancel={vi.fn()}
-      />,
+      <I18nProvider>
+        <EdgeLabel
+          edge={edge}
+          nodes={nodes}
+          transform={{ x: 0, y: 0, scale: 1 }}
+          isEditing={false}
+          onStartEdit={vi.fn()}
+          onCommit={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </I18nProvider>,
     );
 
     expect(html).toContain('left:159.85px;top:49.95px');
@@ -62,15 +65,17 @@ describe('EdgeLabel', () => {
     };
 
     const html = renderToStaticMarkup(
-      <EdgeLabel
-        edge={edge}
-        nodes={[]}
-        transform={{ x: 0, y: 0, scale: 1 }}
-        isEditing={false}
-        onStartEdit={vi.fn()}
-        onCommit={vi.fn()}
-        onCancel={vi.fn()}
-      />,
+      <I18nProvider>
+        <EdgeLabel
+          edge={edge}
+          nodes={[]}
+          transform={{ x: 0, y: 0, scale: 1 }}
+          isEditing={false}
+          onStartEdit={vi.fn()}
+          onCommit={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </I18nProvider>,
     );
 
     expect(html).toContain('color:#7c2d12');

@@ -87,7 +87,7 @@ const isEditableEventTarget = (target: EventTarget | null): boolean => (
   )
 );
 
-interface RightDockProps {
+interface Props {
   activeWorkspaceId: string;
   /** False until `activeWorkspaceId` has resolved past its mount-time placeholder. */
   activeIdReady: boolean;
@@ -96,7 +96,7 @@ interface RightDockProps {
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
 }
 
-export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
+export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, workspaces, onOpenNodePage }: Props) => {
   const { store, setChatHost, setTerminalHost, pinUrlReference, addDomSelectionToChat } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();

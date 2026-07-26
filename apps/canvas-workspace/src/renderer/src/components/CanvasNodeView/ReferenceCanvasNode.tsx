@@ -87,8 +87,8 @@ export const ReferenceCanvasNode = ({
             type="button"
             onClick={handleClose}
             onMouseDown={(e) => e.stopPropagation()}
-            title="Remove"
-            aria-label="Remove"
+            title={t('workspaceNodes.removeReferenceNode')}
+            aria-label={t('workspaceNodes.removeReferenceNode')}
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />

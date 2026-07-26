@@ -203,7 +203,7 @@ export const AgentPicker = ({
               type="button"
               className="agent-text-link"
               onClick={onBack}
-              title="Back to saved configuration"
+              title={t('agent.backToSavedConfig')}
             >
               ← {t('agent.back')}
             </button>
@@ -354,8 +354,8 @@ export const AgentPicker = ({
                     type="button"
                     className="agent-dir-icon"
                     onClick={onPickFolder}
-                    title="Browse…"
-                    aria-label="Browse for folder"
+                    title={t('agent.browseEllipsis')}
+                    aria-label={t('agent.browseForFolder')}
                   >
                     <FolderGlyph />
                   </button>
