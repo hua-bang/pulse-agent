@@ -30,6 +30,7 @@ import { useNoteInteractionController } from './useNoteInteractionController';
 import { MarkdownSafeImage } from './fileNodeMarkdownImage';
 import { syntaxHighlightLanguages } from '../utils/syntaxHighlightLanguages';
 import { useI18n } from '../i18n';
+import { TextColorMark } from '../components/TextNodeBody/textColorMark';
 import {
   insertImageAtPos,
   insertImageAtSelection,
@@ -203,7 +204,8 @@ export const useFileNodeEditor = ({
       TaskList,
       TaskItem.configure({ nested: true }),
       Underline,
-      Highlight.configure({ multicolor: false }),
+      TextColorMark,
+      Highlight.configure({ multicolor: true }),
       Link.configure({
         openOnClick: false,
         autolink: true,
@@ -218,7 +220,11 @@ export const useFileNodeEditor = ({
       TableHeader,
       TableCell,
       NoteSearchExtension,
-      Markdown.configure({ html: false, transformPastedText: true }),
+      // Text and highlight colors have no CommonMark representation. Keep
+      // those marks losslessly in the backing Markdown as schema-parsed
+      // inline HTML (`span` / `mark`); Tiptap only admits tags and
+      // attributes declared by the registered extensions.
+      Markdown.configure({ html: true, transformPastedText: true }),
     ],
     content: data.content || '',
     editable: !readOnly,

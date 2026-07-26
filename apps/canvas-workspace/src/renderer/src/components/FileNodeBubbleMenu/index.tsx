@@ -24,6 +24,10 @@ import { subscribeCanvasMotion } from '../../hooks/canvasMotion';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useI18n } from '../../i18n';
 import { EditorCommandIcon } from '../EditorCommandIcon';
+import {
+  HIGHLIGHT_COLOR_PRESETS,
+  TEXT_COLOR_PRESETS,
+} from '../TextNodeBody/colorPresets';
 import { Button, Popover, Portal } from '../ui';
 import './index.css';
 
@@ -50,8 +54,11 @@ export const FileNodeBubbleMenu = ({
   const { t } = useI18n();
   const menuRef = useRef<HTMLDivElement>(null);
   const typeButtonRef = useRef<HTMLButtonElement>(null);
+  const colorButtonRef = useRef<HTMLButtonElement>(null);
   const typePanelId = useId();
+  const colorPanelId = useId();
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+  const [colorMenuOpen, setColorMenuOpen] = useState(false);
   const [, renderTransaction] = useReducer((value: number) => value + 1, 0);
   const [placement, setPlacement] = useState<{
     left: number;
@@ -88,7 +95,7 @@ export const FileNodeBubbleMenu = ({
   // The nested block-type Popover owns Escape while it is open. Otherwise
   // the selection toolbar consumes Escape itself so the same key press does
   // not also reach canvas-level deselection/dismiss handlers.
-  useEscapeClose(!typeMenuOpen, onClose);
+  useEscapeClose(!typeMenuOpen && !colorMenuOpen, onClose);
 
   const currentBlockType = BLOCK_TYPE_COMMANDS.find((command) =>
     command.isBlockTypeActive(editor),
@@ -197,6 +204,133 @@ export const FileNodeBubbleMenu = ({
         )}
 
         <div className="note-bubble-divider" />
+        <Button
+          ref={colorButtonRef}
+          variant="icon"
+          size="sm"
+          className={`note-bubble-btn note-bubble-color-trigger${
+            editor.isActive('textColor') || editor.isActive('highlight')
+              ? ' note-bubble-btn--active'
+              : ''
+          }`}
+          aria-label={t('canvas.textStyle.inlineFormatting')}
+          aria-haspopup="menu"
+          aria-expanded={colorMenuOpen}
+          aria-controls={colorMenuOpen ? colorPanelId : undefined}
+          title={t('canvas.textStyle.inlineFormatting')}
+          onClick={() => setColorMenuOpen((open) => !open)}
+        >
+          <span aria-hidden="true">A</span>
+          <span className="note-bubble-color-trigger__underline" aria-hidden="true" />
+        </Button>
+        {colorMenuOpen && (
+          <Popover
+            anchorRef={colorButtonRef}
+            placement="bottom"
+            align="start"
+            gap={6}
+            className="note-bubble-color-menu"
+            ariaLabel={t('canvas.textStyle.inlineFormatting')}
+            panelId={colorPanelId}
+            autoFocus={false}
+            closeOnCanvasMotion
+            onClose={(reason) => {
+              setColorMenuOpen(false);
+              if (reason === 'escape') {
+                requestAnimationFrame(() => editor.commands.focus());
+              }
+            }}
+          >
+            <div
+              className="note-bubble-color-menu__group"
+              role="group"
+              aria-label={t('canvas.textStyle.selectionTextColor')}
+            >
+              <span className="note-bubble-color-menu__label">
+                {t('canvas.textStyle.selectionTextColor')}
+              </span>
+              <div className="note-bubble-color-menu__swatches">
+                {TEXT_COLOR_PRESETS.map((preset) => {
+                  const active = editor.isActive('textColor', { color: preset.value });
+                  return (
+                    <Button
+                      variant="icon"
+                      size="sm"
+                      key={preset.name}
+                      className={`note-bubble-color-swatch note-bubble-color-swatch--text${
+                        active ? ' note-bubble-color-swatch--active' : ''
+                      }`}
+                      style={{ color: preset.value }}
+                      title={t('canvas.textStyle.selectionTextColorOption', { name: preset.name })}
+                      aria-label={t('canvas.textStyle.selectionTextColorOption', {
+                        name: preset.name,
+                      })}
+                      role="menuitemradio"
+                      aria-checked={active}
+                      onClick={() =>
+                        editor.chain().focus().setMark('textColor', { color: preset.value }).run()
+                      }
+                    >
+                      A
+                    </Button>
+                  );
+                })}
+                <Button
+                  variant="icon"
+                  size="sm"
+                  className="note-bubble-color-swatch note-bubble-color-swatch--clear"
+                  title={t('canvas.textStyle.clearTextColor')}
+                  aria-label={t('canvas.textStyle.clearTextColor')}
+                  role="menuitem"
+                  onClick={() => editor.chain().focus().unsetMark('textColor').run()}
+                />
+              </div>
+            </div>
+            <div
+              className="note-bubble-color-menu__group"
+              role="group"
+              aria-label={t('canvas.textStyle.selectionHighlight')}
+            >
+              <span className="note-bubble-color-menu__label">
+                {t('canvas.textStyle.selectionHighlight')}
+              </span>
+              <div className="note-bubble-color-menu__swatches">
+                {HIGHLIGHT_COLOR_PRESETS.map((preset) => {
+                  const active = editor.isActive('highlight', { color: preset.value });
+                  return (
+                    <Button
+                      variant="icon"
+                      size="sm"
+                      key={preset.name}
+                      className={`note-bubble-color-swatch note-bubble-color-swatch--highlight${
+                        active ? ' note-bubble-color-swatch--active' : ''
+                      }`}
+                      style={{ backgroundColor: preset.value }}
+                      title={t('canvas.textStyle.selectionHighlightOption', { name: preset.name })}
+                      aria-label={t('canvas.textStyle.selectionHighlightOption', {
+                        name: preset.name,
+                      })}
+                      role="menuitemradio"
+                      aria-checked={active}
+                      onClick={() =>
+                        editor.chain().focus().setHighlight({ color: preset.value }).run()
+                      }
+                    />
+                  );
+                })}
+                <Button
+                  variant="icon"
+                  size="sm"
+                  className="note-bubble-color-swatch note-bubble-color-swatch--clear"
+                  title={t('canvas.textStyle.clearHighlight')}
+                  aria-label={t('canvas.textStyle.clearHighlight')}
+                  role="menuitem"
+                  onClick={() => editor.chain().focus().unsetHighlight().run()}
+                />
+              </div>
+            </div>
+          </Popover>
+        )}
         {iconButton(
           t('noteBubble.bold'),
           editor.isActive('bold'),

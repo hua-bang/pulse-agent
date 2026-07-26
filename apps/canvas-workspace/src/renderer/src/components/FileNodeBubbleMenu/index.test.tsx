@@ -8,6 +8,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setCanvasMotion } from '../../hooks/canvasMotion';
 import { I18nProvider } from '../../i18n';
+import { TextColorMark } from '../TextNodeBody/textColorMark';
 import { FileNodeBubbleMenu } from '.';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -40,7 +41,8 @@ describe('FileNodeBubbleMenu', () => {
       extensions: [
         StarterKit.configure({ underline: false }),
         Underline,
-        Highlight,
+        TextColorMark,
+        Highlight.configure({ multicolor: true }),
       ],
       content: '<p>Alpha</p>',
     });
@@ -86,6 +88,59 @@ describe('FileNodeBubbleMenu', () => {
     expect(onCanvasEscape).not.toHaveBeenCalled();
 
     window.removeEventListener('keydown', onCanvasEscape);
+  });
+
+  it('applies text and highlight colors to the selection', () => {
+    host = document.createElement('div');
+    document.body.append(host);
+    editorHost = document.createElement('div');
+    document.body.append(editorHost);
+    editor = new Editor({
+      element: editorHost,
+      extensions: [
+        StarterKit.configure({ underline: false }),
+        Underline,
+        TextColorMark,
+        Highlight.configure({ multicolor: true }),
+      ],
+      content: '<p>Alpha</p>',
+    });
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    editor.view.focus();
+
+    root = createRoot(host);
+    act(() => root?.render(
+      <I18nProvider>
+        <FileNodeBubbleMenu
+          editor={editor!}
+          bubble={{ x: 120, y: 80, bottom: 100 }}
+          onOpenLinkPrompt={vi.fn()}
+          onClose={vi.fn()}
+        />
+      </I18nProvider>,
+    ));
+
+    const colorButton = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Inline formatting"]',
+    );
+    act(() => colorButton?.click());
+    const redText = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Use Red on selected text"]',
+    );
+    const blueHighlight = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Use Blue highlight on selected text"]',
+    );
+    expect(redText).not.toBeNull();
+    expect(blueHighlight).not.toBeNull();
+    expect(redText?.getAttribute('role')).toBe('menuitemradio');
+    expect(blueHighlight?.getAttribute('role')).toBe('menuitemradio');
+
+    act(() => redText?.click());
+    expect(editor.isActive('textColor', { color: '#e03131' })).toBe(true);
+    expect(redText?.getAttribute('aria-checked')).toBe('true');
+
+    act(() => blueHighlight?.click());
+    expect(editor.isActive('highlight', { color: '#d0ebff' })).toBe(true);
   });
 
   it('formats the selection and changes its block type from the shared command registry', async () => {
