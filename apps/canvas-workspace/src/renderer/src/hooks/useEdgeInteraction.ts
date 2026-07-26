@@ -331,12 +331,13 @@ export const useEdgeInteraction = ({
     // Window focus loss never delivers the mouseup — finish the gesture
     // like the node-drag handlers do, so the edge isn't left half-dragged.
     const onBlur = () => handleUp();
-    // Escape aborts; capture + stopPropagation keeps the canvas-level
-    // Escape handler from also deselecting on the same press.
+    // Connect cancellation continues to the canvas Escape handler so the tool
+    // exits; editing an existing edge consumes Escape to preserve selection.
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      e.stopPropagation();
+      const wasConnecting = stateRef.current?.kind === 'connect';
       handleCancel();
+      if (!wasConnecting) e.stopPropagation();
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);

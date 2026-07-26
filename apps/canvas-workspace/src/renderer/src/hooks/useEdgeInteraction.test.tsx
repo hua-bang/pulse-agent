@@ -182,13 +182,40 @@ describe('useEdgeInteraction move gestures', () => {
     act(() => hook.beginMoveEdge('edge-1', 10, 10));
     move([30, 40], [50, 60]);
 
+    const bubbleHandler = vi.fn();
+    window.addEventListener('keydown', bubbleHandler);
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      document.body.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      }));
     });
+    window.removeEventListener('keydown', bubbleHandler);
 
     expect(updateEdge).not.toHaveBeenCalled();
     expect(commitHistory).not.toHaveBeenCalled();
     expect(hook.state).toBeNull();
+    expect(bubbleHandler).not.toHaveBeenCalled();
+  });
+
+  it('lets a cancelled connect draft continue to the Escape handler that exits connect mode', () => {
+    act(() => hook.beginConnect(10, 10));
+    expect(hook.state).toMatchObject({ kind: 'connect' });
+
+    const bubbleHandler = vi.fn();
+    window.addEventListener('keydown', bubbleHandler);
+    act(() => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+    window.removeEventListener('keydown', bubbleHandler);
+
+    expect(hook.state).toBeNull();
+    expect(bubbleHandler).toHaveBeenCalledOnce();
   });
 
   it('does not start a whole-edge move when both endpoints are node-bound', () => {

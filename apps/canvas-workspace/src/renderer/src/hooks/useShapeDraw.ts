@@ -83,11 +83,10 @@ export const useShapeDraw = ({
       setDraft(null);
     };
     // Escape aborts the draft — no shape is committed on the following
-    // mouseup. Capture phase + stopPropagation so the canvas-level Escape
-    // handler doesn't also react to the same press.
+    // mouseup. Let the same key continue to the canvas-level handler so it
+    // can return the active shape tool to select mode in one press.
     const handleKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      e.stopPropagation();
       draftRef.current = null;
       setDraft(null);
     };

@@ -27,9 +27,7 @@ interface Options {
   setTransformForSave: (transform: CanvasTransform) => void;
   flushSave: () => void;
   fitAllNodes: (nodes: CanvasNode[]) => void;
-  setSelectedNodeIds: (ids: string[]) => void;
-  setHighlightedId: (id: string | null) => void;
-  handleFocusNode: (node: CanvasNode) => void;
+  handleNodeViewportFocus: (node: CanvasNode) => void;
   updateNode: (id: string, patch: Partial<CanvasNode>) => void;
   handleExternalDelete: (deleteNodeId: string) => void;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
@@ -69,9 +67,7 @@ export const useCanvasSyncEffects = ({
   setTransformForSave,
   flushSave,
   fitAllNodes,
-  setSelectedNodeIds,
-  setHighlightedId,
-  handleFocusNode,
+  handleNodeViewportFocus,
   updateNode,
   handleExternalDelete,
   onNodesChange,
@@ -133,11 +129,7 @@ export const useCanvasSyncEffects = ({
     if (!loaded) return;
     if (!focusNodeId) return;
     const node = nodesRef.current.find((n) => n.id === focusNodeId);
-    if (node) {
-      setSelectedNodeIds([node.id]);
-      setHighlightedId(node.id);
-      handleFocusNode(node);
-    }
+    if (node) handleNodeViewportFocus(node);
     onFocusComplete?.();
   }, [focusNodeId, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
