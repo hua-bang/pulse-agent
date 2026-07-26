@@ -8,13 +8,14 @@ import type {
   EdgeStroke,
 } from '../../types';
 import {
-  bendHandlePoint,
+  edgePathGeometry,
   resolveEndpoint,
   resolveEndpointToward,
 } from '../../utils/edgeFactory';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 import { SwatchRow } from '../ui';
 import { useI18n, type I18nKey } from '../../i18n';
+import { DEFAULT_EDGE_STROKE } from '../../../../shared/canvas';
 
 /**
  * A compact floating panel, shown when an edge is selected, that lets
@@ -48,7 +49,7 @@ type Section = 'color' | 'width' | 'style' | 'head' | 'tail';
 // off-white canvas background at both zoom extremes. First entry matches
 // DEFAULT_STROKE.color in CanvasEdgesLayer.
 const COLORS: string[] = [
-  '#1f2328',
+  DEFAULT_EDGE_STROKE.color,
   '#e5484d',
   '#f76808',
   '#ffba18',
@@ -60,7 +61,7 @@ const COLORS: string[] = [
 const WIDTHS: Array<{ label: string; value: number }> = [
   { label: 'S', value: 1.6 },
   { label: 'M', value: 2.4 },
-  { label: 'L', value: 3.6 },
+  { label: 'L', value: 4 },
 ];
 
 const STYLES: Array<NonNullable<EdgeStroke['style']>> = ['solid', 'dashed', 'dotted'];
@@ -176,9 +177,9 @@ export const EdgeStylePanel = ({
   onRemove,
 }: Props) => {
   const { t } = useI18n();
-  const color = edge.stroke?.color ?? '#1f2328';
-  const width = edge.stroke?.width ?? 2.4;
-  const style = edge.stroke?.style ?? 'solid';
+  const color = edge.stroke?.color ?? DEFAULT_EDGE_STROKE.color;
+  const width = edge.stroke?.width ?? DEFAULT_EDGE_STROKE.width;
+  const style = edge.stroke?.style ?? DEFAULT_EDGE_STROKE.style;
   const head: EdgeArrowCap = edge.arrowHead ?? 'triangle';
   const tail: EdgeArrowCap = edge.arrowTail ?? 'none';
 
@@ -221,7 +222,7 @@ export const EdgeStylePanel = ({
     const approxT = resolveEndpoint(edge.target, nodesById);
     const s = resolveEndpointToward(edge.source, nodesById, approxT);
     const t = resolveEndpointToward(edge.target, nodesById, approxS);
-    const mid = bendHandlePoint(s, t, edge.bend ?? 0);
+    const mid = edgePathGeometry(edge, s, t, nodesById).midpoint;
     return {
       x: mid.x * transform.scale + transform.x,
       y: mid.y * transform.scale + transform.y,

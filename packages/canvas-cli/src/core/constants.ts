@@ -1,8 +1,14 @@
 import { join } from 'path';
 import { homedir } from 'os';
-import type { CreatableNodeType, KnownNodeType, NodeCapability } from './types';
+import type { CreatableNodeType, EdgeStroke, KnownNodeType, NodeCapability } from './types';
 
 export const DEFAULT_STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
+
+export const DEFAULT_EDGE_STROKE: Readonly<Required<EdgeStroke>> = {
+  color: '#2e2e2e',
+  width: 4,
+  style: 'solid',
+};
 
 export const NODE_CAPABILITIES: Record<KnownNodeType, NodeCapability[]> = {
   file: ['read', 'write'],

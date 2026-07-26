@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../types';
 import {
-  bendHandlePoint,
+  edgePathGeometry,
   resolveEndpoint,
   resolveEndpointToward,
 } from '../../utils/edgeFactory';
@@ -11,8 +11,8 @@ import { isImeComposing } from '../../utils/ime';
 /**
  * Inline label on an edge.
  *
- * Positioned at the edge's visual midpoint (the bend-handle point, which
- * coincides with the curve at t=0.5 — see `bendHandlePoint`). Rendered in
+ * Positioned at the edge's visual midpoint using the same path geometry
+ * as the SVG edge. Rendered in
  * the overlay layer rather than inside the edges SVG so the label text is
  * a real DOM element — easy to style, wrap, and edit via a plain <input>.
  *
@@ -69,7 +69,7 @@ export const EdgeLabel = ({
     const approxT = resolveEndpoint(edge.target, nodesById);
     const s = resolveEndpointToward(edge.source, nodesById, approxT);
     const t = resolveEndpointToward(edge.target, nodesById, approxS);
-    const mid = bendHandlePoint(s, t, edge.bend ?? 0);
+    const mid = edgePathGeometry(edge, s, t, nodesById).midpoint;
     return {
       x: mid.x * transform.scale + transform.x,
       y: mid.y * transform.scale + transform.y,

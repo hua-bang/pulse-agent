@@ -41,9 +41,9 @@ export function registerEdgeCommands(program: Command): void {
     .option('--arrow-head <cap>', 'Arrow head: none, triangle, arrow, dot, bar')
     .option('--arrow-tail <cap>', 'Arrow tail: none, triangle, arrow, dot, bar')
     .option('--color <hex>', 'Stroke color (hex)')
-    .option('--width <n>', 'Stroke width in pixels', parseFloat)
+    .option('--width <n>', 'Stroke width in canvas units', parseFloat)
     .option('--style <style>', 'Stroke style: solid, dashed, dotted')
-    .option('--bend <n>', 'Curve offset in pixels (0 = straight)', parseFloat)
+    .option('--bend <n>', 'Curve offset in pixels (0 = automatic node routing)', parseFloat)
     .description('Create a new edge between two nodes')
     .action(async function (this: Command, cmdOpts: {
       from: string;

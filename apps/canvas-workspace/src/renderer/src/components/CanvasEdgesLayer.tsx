@@ -6,9 +6,11 @@ import type {
   EdgeStroke,
 } from '../types';
 import {
+  edgePathGeometry,
   resolveEndpoint,
   resolveEndpointToward,
 } from '../utils/edgeFactory';
+import { DEFAULT_EDGE_STROKE } from '../../../shared/canvas';
 import type { EdgeInteractionState, Point } from '../hooks/useEdgeInteraction';
 import {
   capId,
@@ -54,13 +56,7 @@ export interface CanvasEdgesLayerProps {
   onBodyContextMenu?: (edgeId: string, e: React.MouseEvent) => void;
 }
 
-const DEFAULT_STROKE: Required<EdgeStroke> = {
-  color: '#1f2328',
-  width: 2.4,
-  style: 'solid',
-};
-
-const HIT_PROXY_WIDTH = 10;
+const HIT_PROXY_WIDTH = 16;
 /** Edges fully outside the focus context fade to this opacity in focus
  * mode — matches the node dim level so the canvas reads as a single
  * cohesive faded layer behind the focused card. */
@@ -82,30 +78,6 @@ const strokeDasharray = (style: EdgeStroke['style']): string | undefined => {
     case 'solid':
     default:       return undefined;
   }
-};
-
-const bendControlPoint = (
-  sx: number, sy: number,
-  tx: number, ty: number,
-  bend: number,
-): { cx: number; cy: number } => {
-  const mx = (sx + tx) / 2;
-  const my = (sy + ty) / 2;
-  if (!bend) return { cx: mx, cy: my };
-  const dx = tx - sx;
-  const dy = ty - sy;
-  const len = Math.hypot(dx, dy) || 1;
-  const nx = dy / len;
-  const ny = -dx / len;
-  // bend = peak offset of rendered curve; control point sits at 2×bend
-  // because a quadratic's t=0.5 value is (M + P1)/2 (see useEdgeInteraction).
-  return { cx: mx + nx * bend * 2, cy: my + ny * bend * 2 };
-};
-
-const buildPathData = (s: Point, t: Point, bend: number): string => {
-  if (!bend) return `M ${s.x} ${s.y} L ${t.x} ${t.y}`;
-  const { cx, cy } = bendControlPoint(s.x, s.y, t.x, t.y, bend);
-  return `M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`;
 };
 
 /** Apply render-only drag geometry without mutating the canonical edge. */
@@ -155,7 +127,7 @@ const useMarkerDefs = (edges: CanvasEdge[]) => {
       { id: string; cap: EdgeArrowCap; color: string; side: 'head' | 'tail' }
     >();
     for (const edge of edges) {
-      const color = edge.stroke?.color ?? DEFAULT_STROKE.color;
+      const color = edge.stroke?.color ?? DEFAULT_EDGE_STROKE.color;
       const head = edge.arrowHead ?? 'triangle';
       const tail = edge.arrowTail ?? 'none';
       if (head !== 'none') {
@@ -250,9 +222,9 @@ const CanvasEdgesLayerComponent = ({
       <Markers markers={markers} />
 
       {resolved.map(({ edge, s, t }) => {
-        const bend = edge.bend ?? 0;
-        const d = buildPathData(s, t, bend);
-        const stroke = { ...DEFAULT_STROKE, ...edge.stroke };
+        const geometry = edgePathGeometry(edge, s, t, nodesById);
+        const d = geometry.d;
+        const stroke = { ...DEFAULT_EDGE_STROKE, ...edge.stroke };
         const head = edge.arrowHead ?? 'triangle';
         const tail = edge.arrowTail ?? 'none';
         const isSelected = edge.id === selectedEdgeId;
@@ -327,7 +299,7 @@ const CanvasEdgesLayerComponent = ({
                 fill="none"
                 stroke={SELECTION_COLOR}
                 strokeOpacity={0.35}
-                strokeWidth={(stroke.width ?? DEFAULT_STROKE.width) + 6}
+                strokeWidth={stroke.width + 6}
                 strokeLinecap="round"
               />
             )}
@@ -340,9 +312,9 @@ const CanvasEdgesLayerComponent = ({
                 the handle's ring stays clearly readable. */}
             {isSelected && onHandleMouseDown && (
               <EdgeHandles
-                edge={edge}
                 s={s}
                 t={t}
+                midpoint={geometry.midpoint}
                 onHandleMouseDown={(handle, e) =>
                   onHandleMouseDown(edge.id, handle, e, { s, t })
                 }

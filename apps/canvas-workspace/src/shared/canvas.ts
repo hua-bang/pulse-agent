@@ -371,6 +371,12 @@ export interface EdgeStroke {
   style?: 'solid' | 'dashed' | 'dotted';
 }
 
+export const DEFAULT_EDGE_STROKE: Readonly<Required<EdgeStroke>> = {
+  color: '#2e2e2e',
+  width: 4,
+  style: 'solid',
+};
+
 /**
  * A connection drawn between two endpoints on the canvas.
  *
