@@ -92,11 +92,20 @@ interface RightDockProps {
   /** False until `activeWorkspaceId` has resolved past its mount-time placeholder. */
   activeIdReady: boolean;
   chatTabEnabled: boolean;
+  /** Canvas reflows around the dock; library-style routes let it overlay. */
+  reserveSpace: boolean;
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
 }
 
-export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, workspaces, onOpenNodePage }: RightDockProps) => {
+export const RightDock = ({
+  activeWorkspaceId,
+  activeIdReady,
+  chatTabEnabled,
+  reserveSpace,
+  workspaces,
+  onOpenNodePage,
+}: RightDockProps) => {
   const { store, setChatHost, setTerminalHost, pinUrlReference, addDomSelectionToChat, addSkillToChat } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
@@ -176,12 +185,12 @@ export const RightDock = ({ activeWorkspaceId, activeIdReady, chatTabEnabled, wo
   }, []);
 
   useEffect(() => {
-    const inset = visible && chatTabEnabled ? `${width}px` : '0px';
+    const inset = visible && chatTabEnabled && reserveSpace ? `${width}px` : '0px';
     document.documentElement.style.setProperty('--right-dock-inset', inset);
     return () => {
       document.documentElement.style.setProperty('--right-dock-inset', '0px');
     };
-  }, [visible, chatTabEnabled, width]);
+  }, [visible, chatTabEnabled, reserveSpace, width]);
 
   useEffect(() => {
     if (!visible) return;

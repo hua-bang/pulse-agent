@@ -5,7 +5,7 @@
  * The dock stays mounted while collapsed (translated off-screen) so chat
  * and preview tabs keep their state. On the canvas route it reserves its
  * width via --right-dock-inset (consumed by .app-body), behaving like an
- * in-flow column; on other routes it overlays.
+ * in-flow column; callers can opt library-style routes into overlay mode.
  *
  * Sits on --layer-dock: above canvas chrome (floating toolbar, zoom
  * indicator, fullscreen chip), below the search bar and modal tiers.

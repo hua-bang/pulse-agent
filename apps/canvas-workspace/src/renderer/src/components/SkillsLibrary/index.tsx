@@ -1,14 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowUpRight,
-  ChatCircleDots,
   Check,
   FolderSimple,
   Globe,
-  Plus,
-  PuzzlePiece,
-  Trash,
-  UploadSimple,
 } from '@phosphor-icons/react';
 import type {
   CanvasConfigScope,
@@ -21,16 +15,13 @@ import { subscribeCanvasSkillsChanged } from '../../utils/skillsEvents';
 import { skillNameKey } from '../../../../shared/skill-name';
 import { useAppShell } from '../AppShellProvider';
 import { useRightDock } from '../RightDock';
-import { Button, EmptyState, SegmentedControl, Select, TextField } from '../ui';
+import { SegmentedControl, TextField } from '../ui';
 import { SkillEditorModal } from './SkillEditorModal';
+import { LibraryContextSelect } from './LibraryContextSelect';
+import { SkillList } from './SkillList';
+import { SkillsLibraryHeader } from './SkillsLibraryHeader';
+import type { DisplaySkill, LibraryContext, ScopeView } from './types';
 import './index.css';
-
-type ScopeView = 'effective' | 'workspace' | 'global';
-type DisplaySkill = CanvasSkillEntry & {
-  configScope: CanvasConfigScope;
-  overridesGlobal: boolean;
-};
-
 interface Props {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
@@ -50,30 +41,51 @@ export const SkillsLibrary = ({
   const [globalSkills, setGlobalSkills] = useState<CanvasSkillEntry[]>([]);
   const [query, setQuery] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
+  const [libraryContext, setLibraryContext] = useState<LibraryContext>({
+    kind: 'workspace',
+    workspaceId: activeWorkspaceId,
+  });
   const loadSequenceRef = useRef(0);
-  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
+  const globalPerspective = libraryContext.kind === 'global';
+  const visibleScopeView: ScopeView = globalPerspective ? 'global' : scopeView;
+  const workspaceContextId = libraryContext.kind === 'workspace'
+    ? libraryContext.workspaceId
+    : activeWorkspaceId;
+  const activeWorkspace = workspaces.find((workspace) => workspace.id === workspaceContextId);
+
+  useEffect(() => {
+    setLibraryContext((current) => {
+      if (current.kind === 'global' || current.workspaceId === activeWorkspaceId) return current;
+      return { kind: 'workspace', workspaceId: activeWorkspaceId };
+    });
+  }, [activeWorkspaceId]);
 
   const load = useCallback(async () => {
     const sequence = ++loadSequenceRef.current;
-    const [workspaceResult, globalResult] = await Promise.all([
-      window.canvasWorkspace.canvasSkills.list({
+    const globalRequest = window.canvasWorkspace.canvasSkills.list({ level: 'global' });
+    const workspaceRequest = globalPerspective
+      ? Promise.resolve(null)
+      : window.canvasWorkspace.canvasSkills.list({
         level: 'workspace',
-        workspaceId: activeWorkspaceId,
-      }),
-      window.canvasWorkspace.canvasSkills.list({ level: 'global' }),
-    ]);
+        workspaceId: workspaceContextId,
+      });
+    const [workspaceResult, globalResult] = await Promise.all([workspaceRequest, globalRequest]);
     if (sequence !== loadSequenceRef.current) return;
-    if (!workspaceResult.ok || !workspaceResult.status || !globalResult.ok || !globalResult.status) {
+    if (
+      !globalResult.ok
+      || !globalResult.status
+      || (!globalPerspective && (!workspaceResult?.ok || !workspaceResult.status))
+    ) {
       notify({
         tone: 'error',
         title: t('skillsLibrary.loadFailed'),
-        description: workspaceResult.error ?? globalResult.error,
+        description: workspaceResult?.error ?? globalResult.error,
       });
       return;
     }
-    setWorkspaceSkills(workspaceResult.status.skills);
+    setWorkspaceSkills(workspaceResult?.status?.skills ?? []);
     setGlobalSkills(globalResult.status.skills);
-  }, [activeWorkspaceId, notify, t]);
+  }, [globalPerspective, notify, t, workspaceContextId]);
 
   useEffect(() => {
     void load();
@@ -85,7 +97,7 @@ export const SkillsLibrary = ({
     const workspaceNames = new Set(workspaceSkills.map((skill) => skillNameKey(skill.name)));
     const local = workspaceSkills.map((skill) => ({
       ...skill,
-      configScope: { level: 'workspace', workspaceId: activeWorkspaceId } as const,
+      configScope: { level: 'workspace', workspaceId: workspaceContextId } as const,
       overridesGlobal: globalNames.has(skillNameKey(skill.name)),
     }));
     const global = globalSkills.map((skill) => ({
@@ -93,23 +105,22 @@ export const SkillsLibrary = ({
       configScope: { level: 'global' } as const,
       overridesGlobal: false,
     }));
-    const source = scopeView === 'workspace'
+    const source = visibleScopeView === 'global'
+      ? global
+      : visibleScopeView === 'workspace'
       ? local
-      : scopeView === 'global'
-        ? global
-        : [...local, ...global.filter((skill) => !workspaceNames.has(skillNameKey(skill.name)))];
+      : [...local, ...global.filter((skill) => !workspaceNames.has(skillNameKey(skill.name)))];
     const normalizedQuery = skillNameKey(query);
     return source.filter((skill) => (
       !normalizedQuery
       || skillNameKey(`${skill.name} ${skill.description} ${skill.source}`).includes(normalizedQuery)
     ));
-  }, [activeWorkspaceId, globalSkills, query, scopeView, workspaceSkills]);
+  }, [globalSkills, query, visibleScopeView, workspaceContextId, workspaceSkills]);
 
   const addToChat = (skill: CanvasSkillEntry) => {
-    dock.addSkillToChat(activeWorkspaceId, skill.name);
+    dock.addSkillToChat(workspaceContextId, skill.name);
     notify({ tone: 'success', title: t('skillsLibrary.addedToChat', { name: skill.name }) });
   };
-
   const promote = async (skill: DisplaySkill) => {
     if (skill.configScope.level !== 'workspace') return;
     const accepted = await confirm({
@@ -119,7 +130,7 @@ export const SkillsLibrary = ({
     });
     if (!accepted) return;
     const response = await window.canvasWorkspace.canvasSkills.promote(
-      activeWorkspaceId,
+      workspaceContextId,
       skill.name,
     );
     if (!response.ok || !response.result) {
@@ -170,9 +181,9 @@ export const SkillsLibrary = ({
   };
 
   const importZip = async (file: File) => {
-    const target: CanvasConfigScope = scopeView === 'global'
+    const target: CanvasConfigScope = visibleScopeView === 'global'
       ? { level: 'global' }
-      : { level: 'workspace', workspaceId: activeWorkspaceId };
+      : { level: 'workspace', workspaceId: workspaceContextId };
     const response = await window.canvasWorkspace.canvasSkills.importZip(
       target,
       await file.arrayBuffer(),
@@ -206,53 +217,51 @@ export const SkillsLibrary = ({
     { id: 'global', label: <><Globe size={14} />{t('skillsLibrary.global')} <small>{globalSkills.length}</small></> },
   ];
 
-  const heading = scopeView === 'effective'
+  const heading = visibleScopeView === 'global'
+    ? t('skillsLibrary.availableEverywhere')
+    : scopeView === 'effective'
     ? t('skillsLibrary.availableIn', { workspace: activeWorkspace?.name ?? '' })
-    : scopeView === 'workspace'
-      ? t('skillsLibrary.savedIn', { workspace: activeWorkspace?.name ?? '' })
-      : t('skillsLibrary.availableEverywhere');
+    : t('skillsLibrary.savedIn', { workspace: activeWorkspace?.name ?? '' });
+
+  const selectLibraryContext = (value: LibraryContext) => {
+    setLibraryContext(value);
+    if (value.kind === 'global') {
+      setScopeView('global');
+      return;
+    }
+    setScopeView('effective');
+    onSelectWorkspace(value.workspaceId);
+  };
 
   return (
     <main className="skills-library">
-      <header className="skills-library__header">
-        <div>
-          <span>{t('skillsLibrary.kicker')}</span>
-          <h1>{t('skillsLibrary.title')}</h1>
-          <p>{t('skillsLibrary.description')}</p>
-        </div>
-        <div className="skills-library__header-actions">
-          <Button variant="secondary" onClick={chooseImport}>
-            <UploadSimple size={16} />
-            {t('skillsLibrary.import')}
-          </Button>
-          <Button variant="primary" onClick={() => setEditorOpen(true)}>
-            <Plus size={16} />
-            {t('skillsConfig.add')}
-          </Button>
-        </div>
-      </header>
+      <SkillsLibraryHeader
+        onImport={chooseImport}
+        onAdd={() => setEditorOpen(true)}
+      />
 
       <div className="skills-library__scope-bar">
-        <Select
-          value={activeWorkspaceId}
-          ariaLabel={t('skillsLibrary.activeWorkspace')}
-          className="skills-library__workspace-select"
-          options={workspaces.map((workspace) => ({
-            value: workspace.id,
-            label: workspace.name,
-            description: t('skillsLibrary.activeWorkspace'),
-            icon: <FolderSimple size={15} />,
-          }))}
-          onChange={onSelectWorkspace}
+        <LibraryContextSelect
+          value={libraryContext}
+          workspaces={workspaces}
+          onChange={selectLibraryContext}
         />
-        <SegmentedControl
-          ariaPattern="tab"
-          ariaLabel={t('skillsLibrary.title')}
-          value={scopeView}
-          options={scopeOptions}
-          onChange={(value) => setScopeView(value as ScopeView)}
-          className="skills-library__scope-tabs"
-        />
+        {globalPerspective ? (
+          <div className="skills-library__global-summary">
+            <Globe size={16} />
+            <span>{t('skillsLibrary.availableEverywhere')}</span>
+            <small>{t('skillsLibrary.skillCount', { count: globalSkills.length })}</small>
+          </div>
+        ) : (
+          <SegmentedControl
+            ariaPattern="tab"
+            ariaLabel={t('skillsLibrary.title')}
+            value={scopeView}
+            options={scopeOptions}
+            onChange={(value) => setScopeView(value as ScopeView)}
+            className="skills-library__scope-tabs"
+          />
+        )}
       </div>
 
       <TextField
@@ -268,71 +277,21 @@ export const SkillsLibrary = ({
         <span>{t('skillsLibrary.skillCount', { count: displaySkills.length })}</span>
       </div>
 
-      {displaySkills.length === 0 ? (
-        <EmptyState
-          icon={<PuzzlePiece size={24} />}
-          title={query ? t('skillsLibrary.noMatches') : t('skillsConfig.empty')}
-        />
-      ) : (
-        <ul className="skills-library__list">
-          {displaySkills.map((skill) => (
-            <li key={`${skill.configScope.level}:${skill.path}`} className="skills-library__row">
-              <Button
-                variant="secondary"
-                className="skills-library__row-main"
-                onClick={() => dock.openSkill(skill.configScope, skill)}
-              >
-                <span>
-                  <strong>{skill.name}</strong>
-                  <small>{skill.source}</small>
-                  {skill.overridesGlobal && <em>{t('skillsLibrary.overridesGlobal')}</em>}
-                </span>
-                <p>{skill.description}</p>
-              </Button>
-              <div className="skills-library__row-actions">
-                <Button
-                  variant="icon"
-                  size="md"
-                  aria-label={t('skillsLibrary.addToChat')}
-                  title={t('skillsLibrary.addToChat')}
-                  onClick={() => addToChat(skill)}
-                >
-                  <ChatCircleDots size={16} />
-                </Button>
-                {skill.configScope.level === 'workspace' && skill.writable && (
-                  <Button
-                    variant="icon"
-                    size="md"
-                    aria-label={t('skillsLibrary.promoteToGlobal', { name: skill.name })}
-                    title={t('skillsLibrary.promoteToGlobal', { name: skill.name })}
-                    onClick={() => void promote(skill)}
-                  >
-                    <ArrowUpRight size={16} />
-                  </Button>
-                )}
-                {skill.writable && (
-                  <Button
-                    variant="icon"
-                    size="md"
-                    aria-label={t('skillsLibrary.removeTitle', { name: skill.name })}
-                    title={t('skillsLibrary.removeTitle', { name: skill.name })}
-                    onClick={() => void removeSkill(skill)}
-                  >
-                    <Trash size={16} />
-                  </Button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      <SkillList
+        skills={displaySkills}
+        query={query}
+        onOpen={(skill) => dock.openSkill(skill.configScope, skill)}
+        onAddToChat={addToChat}
+        onPromote={(skill) => void promote(skill)}
+        onRemove={(skill) => void removeSkill(skill)}
+      />
 
       <SkillEditorModal
         open={editorOpen}
-        workspaceScope={{ level: 'workspace', workspaceId: activeWorkspaceId }}
-        initialScope={scopeView === 'global'
+        workspaceScope={{ level: 'workspace', workspaceId: workspaceContextId }}
+        initialScope={visibleScopeView === 'global'
           ? { level: 'global' }
-          : { level: 'workspace', workspaceId: activeWorkspaceId }}
+          : { level: 'workspace', workspaceId: workspaceContextId }}
         onClose={() => setEditorOpen(false)}
         onCreate={createSkill}
       />
