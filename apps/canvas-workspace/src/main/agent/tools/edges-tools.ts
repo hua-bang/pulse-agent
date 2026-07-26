@@ -33,6 +33,7 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
             source: describeEndpoint(e.source, nodesById),
             target: describeEndpoint(e.target, nodesById),
             label: e.label,
+            labelStyle: e.labelStyle,
             kind: e.kind,
             arrowHead: e.arrowHead ?? 'triangle',
             arrowTail: e.arrowTail ?? 'none',
@@ -67,6 +68,9 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
         targetX: z.number().optional().describe('Free-point target X (canvas coords).'),
         targetY: z.number().optional().describe('Free-point target Y (canvas coords).'),
         label: z.string().optional().describe('Optional short label displayed on the edge.'),
+        labelColor: z.string().optional().describe('Optional CSS color for the edge label text.'),
+        labelBackgroundColor: z.string().optional()
+          .describe('Optional CSS background color for the edge label chip.'),
         arrowHead: z.enum(['none', 'triangle', 'arrow', 'dot', 'bar']).optional()
           .describe('Cap rendered at the target end. Default: "triangle".'),
         arrowTail: z.enum(['none', 'triangle', 'arrow', 'dot', 'bar']).optional()
@@ -133,6 +137,13 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
           arrowTail: (input.arrowTail as EdgeArrowCap | undefined) ?? 'none',
           stroke,
           label: input.label as string | undefined,
+          labelStyle:
+            input.labelColor != null || input.labelBackgroundColor != null
+              ? {
+                  color: input.labelColor as string | undefined,
+                  backgroundColor: input.labelBackgroundColor as string | undefined,
+                }
+              : undefined,
           kind: input.kind as string | undefined,
           payload: input.payload as Record<string, unknown> | undefined,
           updatedAt: Date.now(),
@@ -171,6 +182,8 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
       inputSchema: z.object({
         edgeId: z.string().describe('The ID of the edge to update.'),
         label: z.string().optional(),
+        labelColor: z.string().optional(),
+        labelBackgroundColor: z.string().optional(),
         kind: z.string().optional(),
         payload: z.record(z.string(), z.unknown()).optional(),
         arrowHead: z.enum(['none', 'triangle', 'arrow', 'dot', 'bar']).optional(),
@@ -215,6 +228,17 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
         const next: CanvasEdge = {
           ...existing,
           label: input.label !== undefined ? (input.label as string) : existing.label,
+          labelStyle:
+            input.labelColor != null || input.labelBackgroundColor != null
+              ? {
+                  color:
+                    (input.labelColor as string | undefined) ??
+                    existing.labelStyle?.color,
+                  backgroundColor:
+                    (input.labelBackgroundColor as string | undefined) ??
+                    existing.labelStyle?.backgroundColor,
+                }
+              : existing.labelStyle,
           kind: input.kind !== undefined ? (input.kind as string) : existing.kind,
           payload:
             input.payload !== undefined

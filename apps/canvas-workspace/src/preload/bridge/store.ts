@@ -26,6 +26,9 @@ export const createStoreApi = (ipcRenderer: IpcRenderer): CanvasWorkspaceApi["st
   importWorkspace: () =>
     ipcRenderer.invoke("canvas:importWorkspace"),
 
+  importWorkspaceFromPath: (filePath) =>
+    ipcRenderer.invoke("canvas:importWorkspaceFromPath", { filePath }),
+
   listPollutedWorkspaces: () =>
     ipcRenderer.invoke("canvas:listPollutedWorkspaces"),
 

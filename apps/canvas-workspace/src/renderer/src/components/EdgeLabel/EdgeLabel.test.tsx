@@ -48,4 +48,32 @@ describe('EdgeLabel', () => {
 
     expect(html).toContain('left:159.85px;top:49.95px');
   });
+
+  it('renders imported label foreground and background colors', () => {
+    const edge: CanvasEdge = {
+      id: 'styled',
+      source: { kind: 'point', x: 0, y: 0 },
+      target: { kind: 'point', x: 100, y: 0 },
+      label: 'supports',
+      labelStyle: {
+        color: '#7c2d12',
+        backgroundColor: '#ffedd5',
+      },
+    };
+
+    const html = renderToStaticMarkup(
+      <EdgeLabel
+        edge={edge}
+        nodes={[]}
+        transform={{ x: 0, y: 0, scale: 1 }}
+        isEditing={false}
+        onStartEdit={vi.fn()}
+        onCommit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain('color:#7c2d12');
+    expect(html).toContain('background-color:#ffedd5');
+  });
 });

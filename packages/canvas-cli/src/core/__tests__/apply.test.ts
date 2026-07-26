@@ -50,7 +50,14 @@ describe('applyPlan: atomic batch', () => {
         // NOTE: creatable types mirror `node create` (text/iframe/image are
         // the A5 gap, to be extended in BOTH paths through the parity gate).
         { action: 'create', type: 'file', id: 'card-b', title: 'Card B', content: 'body B' },
-        { action: 'createEdge', id: 'e1', from: 'card-a', to: 'card-b', label: 'supports' },
+        {
+          action: 'createEdge',
+          id: 'e1',
+          from: 'card-a',
+          to: 'card-b',
+          label: 'supports',
+          labelStyle: { color: '#7c2d12', backgroundColor: '#ffedd5' },
+        },
       ],
     }, { storeDir: testDir });
 
@@ -63,6 +70,10 @@ describe('applyPlan: atomic batch', () => {
     const canvas = await loadCanvas(wsId, testDir);
     expect(canvas?.nodes.map(n => n.id).sort()).toEqual(['card-a', 'card-b', 'seed']);
     expect(canvas?.edges?.map(e => e.id)).toEqual(['e1']);
+    expect(canvas?.edges?.[0]).toMatchObject({
+      labelStyle: { color: '#7c2d12', backgroundColor: '#ffedd5' },
+    });
+    expect(canvas?.edges?.[0].updatedAt).toEqual(expect.any(Number));
     // File node got a real backing markdown file with the plan's content.
     const cardA = canvas?.nodes.find(n => n.id === 'card-a');
     expect(String(cardA?.data.filePath)).toContain(join(wsDir, 'notes'));

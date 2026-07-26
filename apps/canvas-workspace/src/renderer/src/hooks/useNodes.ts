@@ -17,9 +17,20 @@ import { resizeGroupsToChildren } from '../utils/resizeGroupsToChildren';
 import { count } from '../perf/counters';
 import { degradeEndpointsForDeletedNode } from '../utils/edgeFactory';
 import { useNodeHistory } from './useNodeHistory';
+import { mergeExternalEdgeUpdate } from './external-edge-sync';
 
 const SAVE_DEBOUNCE_MS = 800;
 const DEFAULT_CANVAS_ID = 'default';
+
+type ExternalUpdateEvent = {
+  workspaceId: string;
+  nodeIds: string[];
+  edgeIds?: string[];
+  source: string;
+};
+
+export const shouldReloadForExternalUpdate = (event: ExternalUpdateEvent): boolean =>
+  event.nodeIds.length > 0 || (event.edgeIds?.length ?? 0) > 0;
 
 export interface AddNodeOptions {
   fileName?: string;
@@ -69,6 +80,7 @@ export const useNodes = (
    * as a CLI delete and wipe it from the canvas.
    */
   const persistedIdsRef = useRef<Set<string>>(new Set());
+  const persistedEdgeIdsRef = useRef<Set<string>>(new Set());
 
   const doSave = useCallback(() => {
     if (!loadedRef.current) {
@@ -102,6 +114,7 @@ export const useNodes = (
       // it's safe for the external-update handler to treat future
       // disk-absence of these ids as "deleted elsewhere".
       for (const n of snapshot) persistedIdsRef.current.add(n.id);
+      for (const edge of edgeSnapshot) persistedEdgeIdsRef.current.add(edge.id);
     }).catch((err) => {
       console.warn('[canvas] save failed:', err);
       onSaveErrorRef.current?.();
@@ -160,7 +173,7 @@ export const useNodes = (
 
     const unsubscribe = storeApi.onExternalUpdate(async (event) => {
       if (event.workspaceId !== canvasId) return;
-      if (!Array.isArray(event.nodeIds) || event.nodeIds.length === 0) return;
+      if (!shouldReloadForExternalUpdate(event)) return;
       // Drop events that arrive before the initial load completes —
       // the upcoming load will read the latest disk state anyway, and
       // operating on an empty nodesRef here would corrupt the view.
@@ -224,14 +237,17 @@ export const useNodes = (
       nodesRef.current = nextNodes;
       setNodes(nextNodes);
 
-      // Edges for Step 1: treat disk as authoritative. CLI-side edge mutations
-      // are rare compared to node changes, and the external-update event
-      // currently carries no edge-level granularity. Replacing wholesale
-      // keeps us in sync for the common cases (CLI added/removed an edge,
-      // or a bound node was deleted elsewhere and edges were degraded).
       const diskEdges = Array.isArray(result.data.edges) ? result.data.edges : [];
-      edgesRef.current = diskEdges;
-      setEdges(diskEdges);
+      const changedEdgeIds = new Set(event.edgeIds ?? []);
+      const nextEdges = mergeExternalEdgeUpdate(
+        edgesRef.current,
+        diskEdges,
+        changedEdgeIds,
+        persistedEdgeIdsRef.current,
+      );
+      for (const edge of diskEdges) persistedEdgeIdsRef.current.add(edge.id);
+      edgesRef.current = nextEdges;
+      setEdges(nextEdges);
 
       // Mark the affected nodes as externally-edited for 2.5s so the Canvas
       // component can render a transient highlight.
@@ -317,6 +333,7 @@ export const useNodes = (
       return;
     }
     persistedIdsRef.current = new Set();
+    persistedEdgeIdsRef.current = new Set();
     void api.load(canvasId).then((result) => {
       if (result.ok && result.data) {
         const saved = result.data;
@@ -332,6 +349,7 @@ export const useNodes = (
         // the external-update handler can tell future deletes apart
         // from locally-added unsaved nodes.
         for (const n of loadedNodes) persistedIdsRef.current.add(n.id);
+        for (const edge of loadedEdges) persistedEdgeIdsRef.current.add(edge.id);
         if (saved.transform && onRestoreTransformRef.current) {
           onRestoreTransformRef.current(saved.transform);
         }

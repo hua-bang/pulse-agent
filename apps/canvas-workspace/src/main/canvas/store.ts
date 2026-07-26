@@ -1,7 +1,7 @@
 import type { Dirent } from "fs";
 import { ipcMain, BrowserWindow, dialog } from "electron";
 import { promises as fs, watch as fsWatch, FSWatcher } from "fs";
-import { join, basename, dirname, relative, resolve, sep, isAbsolute } from "path";
+import { join, basename, dirname, relative, sep, isAbsolute } from "path";
 import { homedir } from "os";
 import {
   atomicWriteJson,
@@ -22,7 +22,6 @@ import {
   createWorkspaceExportArchive,
   createWorkspaceExportPayload,
   isSafeRelativePath,
-  parseWorkspaceExportFile,
   type WorkspaceExportFile,
 } from "./workspace-export-archive";
 import {
@@ -31,6 +30,12 @@ import {
   collectExternalWorkspaceFiles,
   confirmSkippedExternalFilesExport,
 } from "./workspace-export-external-files";
+import {
+  importWorkspaceArchiveToStore,
+  relativePathFromPortableUrl,
+  rewriteCanvasFilePaths,
+} from './workspace-import';
+import { edgesToMap, mergeExternalEdges, readOnDiskEdgeMap, type SyncableEdge } from './edge-sync';
 
 /**
  * Extra fields the canvas-store side attaches to migration-progress events
@@ -118,31 +123,6 @@ const toPortableRelativePath = (filePath: string, workspaceDir: string): string 
 const portableUrlForRelativePath = (relativePath: string): string =>
   `${PORTABLE_WORKSPACE_URL_PREFIX}${encodeURI(relativePath)}`;
 
-const relativePathFromPortableUrl = (value: string): string | null => {
-  if (!value.startsWith(PORTABLE_WORKSPACE_URL_PREFIX)) return null;
-  return decodeURI(value.slice(PORTABLE_WORKSPACE_URL_PREFIX.length));
-};
-
-const rewriteCanvasFilePaths = (
-  value: unknown,
-  mapper: (filePath: string) => string,
-): unknown => {
-  if (Array.isArray(value)) {
-    return value.map((item) => rewriteCanvasFilePaths(item, mapper));
-  }
-  if (!value || typeof value !== 'object') return value;
-
-  const out: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (key === 'filePath' && typeof item === 'string') {
-      out[key] = mapper(item);
-    } else {
-      out[key] = rewriteCanvasFilePaths(item, mapper);
-    }
-  }
-  return out;
-};
-
 const collectWorkspaceFiles = async (workspaceDir: string): Promise<WorkspaceExportFile[]> => {
   const files: WorkspaceExportFile[] = [];
 
@@ -202,6 +182,21 @@ const createUniqueImportedWorkspaceId = async (): Promise<string> => {
     }
   }
   return `ws-imported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+};
+
+export const importWorkspaceFromPath = async (sourcePath: string) => {
+  const workspaceId = await createUniqueImportedWorkspaceId();
+  const imported = await importWorkspaceArchiveToStore({
+    sourcePath, storeDir: STORE_DIR, workspaceId, agentsTemplate: AGENTS_MD_TEMPLATE,
+  });
+  const restoredData = imported.canvas as CanvasSaveData;
+  knownNodeIds.set(workspaceId, new Set(
+    (restoredData.nodes ?? []).map((node) => node.id).filter((id): id is string => Boolean(id)),
+  ));
+  knownEdgeIds.set(workspaceId, new Set((restoredData.edges ?? []).map((edge) => edge.id)));
+  lastSnapshot.set(workspaceId, nodesToMap(restoredData.nodes));
+  lastEdgeSnapshot.set(workspaceId, edgesToMap(restoredData.edges));
+  return imported;
 };
 
 /** Manifest stays as a flat file; all other workspaces live in subdirectories. */
@@ -275,8 +270,11 @@ interface CanvasNode {
   [k: string]: unknown;
 }
 
+type CanvasEdge = SyncableEdge;
+
 interface CanvasSaveData {
   nodes?: CanvasNode[];
+  edges?: CanvasEdge[];
   [k: string]: unknown;
 }
 
@@ -317,6 +315,7 @@ const migrateNotePaths = async (
  * from "user deleted a node" (ID was seen, now missing from memory).
  */
 const knownNodeIds = new Map<string, Set<string>>();
+const knownEdgeIds = new Map<string, Set<string>>();
 
 /**
  * Merge external changes (e.g. from canvas-cli) into the data being saved.
@@ -347,7 +346,7 @@ const SKIP_WRITE = Symbol('canvas-store:skip-write');
 type MergeResult = CanvasSaveData | typeof SKIP_WRITE;
 
 type DiskReadOutcome =
-  | { kind: 'ok'; nodes: CanvasNode[] }
+  | { kind: 'ok'; nodes: CanvasNode[]; edges: CanvasEdge[] }
   | { kind: 'missing' }
   | { kind: 'unparseable'; err: unknown }
   | { kind: 'ioerror'; err: unknown };
@@ -375,7 +374,8 @@ const readDiskCanvas = async (
       const result = await readCanvasFull(id);
       if (result.data === null) return { kind: 'missing' };
       const nodes = Array.isArray(result.data.nodes) ? (result.data.nodes as CanvasNode[]) : [];
-      return { kind: 'ok', nodes };
+      const edges = Array.isArray(result.data.edges) ? (result.data.edges as CanvasEdge[]) : [];
+      return { kind: 'ok', nodes, edges };
     } catch (err) {
       // Parse failure almost always means we caught another writer
       // (canvas-cli mid-flush). A brief backoff almost always lands on
@@ -573,6 +573,8 @@ const mergeExternalNodes = async (
   }
 
   const diskNodes = disk.nodes;
+  const memoryEdges = Array.isArray(inMemoryData.edges) ? inMemoryData.edges : [];
+  const diskEdges = disk.edges;
 
   // Hard safety: never let a save with an empty node list clobber a
   // non-empty on-disk canvas. This shields against early-lifecycle
@@ -676,6 +678,7 @@ const mergeExternalNodes = async (
   return {
     ...inMemoryData,
     nodes: [...mergedExisting, ...externalNewNodes, ...preservedMissing],
+    edges: mergeExternalEdges(memoryEdges, diskEdges, knownEdgeIds.get(id) ?? new Set<string>()),
   };
 };
 
@@ -730,6 +733,7 @@ const withSaveLock = async <T>(id: string, fn: () => Promise<T>): Promise<T> => 
 const watchers = new Map<string, FSWatcher>();
 const watcherDebounce = new Map<string, NodeJS.Timeout>();
 const lastSnapshot = new Map<string, Map<string, CanvasNode>>();
+const lastEdgeSnapshot = new Map<string, Map<string, CanvasEdge>>();
 
 const nodesToMap = (nodes: CanvasNode[] | undefined): Map<string, CanvasNode> => {
   const m = new Map<string, CanvasNode>();
@@ -762,9 +766,9 @@ const readOnDiskNodeMap = async (
   }
 };
 
-const diffSnapshots = (
-  before: Map<string, CanvasNode>,
-  after: Map<string, CanvasNode>,
+const diffSnapshots = <T extends { updatedAt?: number }>(
+  before: Map<string, T>,
+  after: Map<string, T>,
 ): string[] => {
   const ids = new Set<string>();
   for (const [id, node] of after) {
@@ -784,11 +788,12 @@ const diffSnapshots = (
   return Array.from(ids);
 };
 
-const broadcastExternalUpdate = (workspaceId: string, nodeIds: string[]) => {
+const broadcastExternalUpdate = (workspaceId: string, nodeIds: string[], edgeIds: string[] = []) => {
   const payload = {
     type: 'canvas:updated' as const,
     workspaceId,
     nodeIds,
+    edgeIds,
     source: 'fs-watch' as const,
   };
   for (const win of BrowserWindow.getAllWindows()) {
@@ -809,17 +814,21 @@ const handleWatcherFire = async (workspaceId: string): Promise<void> => {
     return;
   }
   const newMap = nodesToMap(data.nodes);
+  const newEdgeMap = edgesToMap(data.edges);
   const oldMap = lastSnapshot.get(workspaceId) ?? new Map<string, CanvasNode>();
+  const oldEdgeMap = lastEdgeSnapshot.get(workspaceId) ?? new Map<string, CanvasEdge>();
   const changedIds = diffSnapshots(oldMap, newMap);
-  if (changedIds.length === 0) return;
+  const changedEdgeIds = diffSnapshots(oldEdgeMap, newEdgeMap);
+  if (changedIds.length === 0 && changedEdgeIds.length === 0) return;
   lastSnapshot.set(workspaceId, newMap);
+  lastEdgeSnapshot.set(workspaceId, newEdgeMap);
   // Keep knownNodeIds aligned with disk so `mergeExternalNodes` Rule 2
   // (disk-only never-seen → append) doesn't re-add nodes that the
   // watcher has already observed.
   const known = knownNodeIds.get(workspaceId) ?? new Set<string>();
   for (const id of newMap.keys()) known.add(id);
   knownNodeIds.set(workspaceId, known);
-  broadcastExternalUpdate(workspaceId, changedIds);
+  broadcastExternalUpdate(workspaceId, changedIds, changedEdgeIds);
 };
 
 const startWorkspaceWatcher = (workspaceId: string): void => {
@@ -1119,6 +1128,7 @@ const stopWorkspaceWatcher = (workspaceId: string): void => {
     watcherDebounce.delete(workspaceId);
   }
   lastSnapshot.delete(workspaceId);
+  lastEdgeSnapshot.delete(workspaceId);
   stopNodesWatcher(workspaceId);
 };
 
@@ -1154,6 +1164,9 @@ export const setupCanvasStoreIpc = () => {
             // (see the broadcast below).
             const rendererMemoryMap = nodesToMap(
               (payload.data as CanvasSaveData).nodes,
+            );
+            const rendererMemoryEdgeMap = edgesToMap(
+              (payload.data as CanvasSaveData).edges,
             );
             // First merge against current disk state. This picks up any
             // CLI-added nodes (Rule 2) and resolves per-node conflicts
@@ -1199,6 +1212,7 @@ export const setupCanvasStoreIpc = () => {
             // node as changed on every save in v2 mode.
             const onDiskMap = await readOnDiskNodeMap(payload.id);
             lastSnapshot.set(payload.id, onDiskMap);
+            lastEdgeSnapshot.set(payload.id, await readOnDiskEdgeMap(getFilePath(payload.id)));
             // Same idea for v2 per-node files: snapshot their exact
             // bytes so the nodes/ watcher's debounced fire can diff
             // against them and suppress the echo of our own write.
@@ -1211,6 +1225,7 @@ export const setupCanvasStoreIpc = () => {
             // for the pickedUp broadcast below — that comparison is
             // memory-vs-memory, not against the watcher snapshot.
             const mergedMap = nodesToMap(merged.nodes);
+            const mergedEdgeMap = edgesToMap(merged.edges);
             // Now that the write has landed, mark every persisted id as
             // known so subsequent `mergeExternalNodes` calls can tell
             // "memory-only node the user just created" (not in known →
@@ -1238,6 +1253,14 @@ export const setupCanvasStoreIpc = () => {
               }
             }
             knownNodeIds.set(payload.id, knownForWs);
+            const knownEdgesForWs = knownEdgeIds.get(payload.id) ?? new Set<string>();
+            for (const edge of merged.edges ?? []) knownEdgesForWs.add(edge.id);
+            for (const id of Array.from(knownEdgesForWs)) {
+              if (!mergedEdgeMap.has(id) && !rendererMemoryEdgeMap.has(id)) {
+                knownEdgesForWs.delete(id);
+              }
+            }
+            knownEdgeIds.set(payload.id, knownEdgesForWs);
             // If the merge result differs from the renderer's memory,
             // the CLI made changes between the renderer's last sync
             // and this save, and we just silently absorbed them into
@@ -1247,8 +1270,9 @@ export const setupCanvasStoreIpc = () => {
             // manual reload). Push the diff back explicitly so its
             // in-memory state catches up.
             const pickedUp = diffSnapshots(rendererMemoryMap, mergedMap);
-            if (pickedUp.length > 0) {
-              broadcastExternalUpdate(payload.id, pickedUp);
+            const pickedUpEdges = diffSnapshots(rendererMemoryEdgeMap, mergedEdgeMap);
+            if (pickedUp.length > 0 || pickedUpEdges.length > 0) {
+              broadcastExternalUpdate(payload.id, pickedUp, pickedUpEdges);
             }
           });
         }
@@ -1314,12 +1338,16 @@ export const setupCanvasStoreIpc = () => {
             );
             knownNodeIds.set(payload.id, known);
           }
+          if (Array.isArray(data.edges) && !knownEdgeIds.has(payload.id)) {
+            knownEdgeIds.set(payload.id, new Set(data.edges.map((edge) => edge.id)));
+          }
           // Seed / refresh the watcher's last-known snapshot using the
           // on-disk shape (layout-only for v2, full for v1). Starting the
           // watcher here means we only watch workspaces the user has
           // actually opened, and the canvas.json file is guaranteed to
           // exist by this point.
           lastSnapshot.set(payload.id, await readOnDiskNodeMap(payload.id));
+          lastEdgeSnapshot.set(payload.id, await readOnDiskEdgeMap(getFilePath(payload.id)));
           startWorkspaceWatcher(payload.id);
           // For v2 workspaces, also seed the per-node content snapshot
           // and start watching nodes/ so per-node data edits (canvas-cli
@@ -1466,46 +1494,27 @@ export const setupCanvasStoreIpc = () => {
         return { ok: false, canceled: true };
       }
 
-      const raw = await fs.readFile(result.filePaths[0]);
-      const imported = parseWorkspaceExportFile(raw);
-      const workspaceId = await createUniqueImportedWorkspaceId();
-      const workspaceName = imported.workspace.name.trim() || 'Imported Workspace';
-      const workspaceDir = getWorkspaceDir(workspaceId);
-      await fs.mkdir(workspaceDir, { recursive: true });
-
-      for (const file of imported.files) {
-        const targetPath = resolve(workspaceDir, file.relativePath);
-        const rel = relative(workspaceDir, targetPath);
-        if (rel.startsWith('..') || isAbsolute(rel)) {
-          throw new Error(`Workspace export contains an unsafe file path: ${file.relativePath}`);
-        }
-        await fs.mkdir(dirname(targetPath), { recursive: true });
-        await fs.writeFile(targetPath, Buffer.from(file.content, 'base64'));
-      }
-
-      const restoredCanvas = rewriteCanvasFilePaths(imported.canvas, (filePath) => {
-        const relativePath = relativePathFromPortableUrl(filePath);
-        if (!relativePath) return filePath;
-        if (!isSafeRelativePath(relativePath)) return filePath;
-        return join(workspaceDir, relativePath);
-      });
-      await ensureWorkspaceDir(workspaceId);
-      await atomicWriteCanvasJson(getFilePath(workspaceId), JSON.stringify(restoredCanvas, null, 2));
-
-      const restoredData = restoredCanvas as CanvasSaveData;
-      if (Array.isArray(restoredData.nodes)) {
-        knownNodeIds.set(
-          workspaceId,
-          new Set(restoredData.nodes.map((n) => n.id).filter((id): id is string => Boolean(id))),
-        );
-        lastSnapshot.set(workspaceId, nodesToMap(restoredData.nodes));
-      }
-
-      return { ok: true, workspaceId, workspaceName, fileCount: imported.files.length };
+      const { canvas: _canvas, ...imported } = await importWorkspaceFromPath(result.filePaths[0]);
+      return { ok: true, ...imported };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+
+  ipcMain.handle(
+    'canvas:importWorkspaceFromPath',
+    async (_event, payload: { filePath: string }) => {
+      try {
+        if (!payload || typeof payload.filePath !== 'string' || payload.filePath.trim() === '') {
+          return { ok: false, error: 'filePath is required' };
+        }
+        const { canvas: _canvas, ...imported } = await importWorkspaceFromPath(payload.filePath);
+        return { ok: true, ...imported };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  );
 
   ipcMain.handle(
     'canvas:delete',
@@ -1514,6 +1523,7 @@ export const setupCanvasStoreIpc = () => {
         if (payload.id === MANIFEST_ID) return { ok: false, error: 'Cannot delete manifest' };
         stopWorkspaceWatcher(payload.id);
         knownNodeIds.delete(payload.id);
+        knownEdgeIds.delete(payload.id);
         const dir = getWorkspaceDir(payload.id);
         await fs.rm(dir, { recursive: true, force: true });
         // Also remove old flat file if it still exists

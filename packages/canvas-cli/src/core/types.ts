@@ -107,6 +107,11 @@ export interface EdgeStroke {
   style?: 'solid' | 'dashed' | 'dotted';
 }
 
+export interface EdgeLabelStyle {
+  color?: string;
+  backgroundColor?: string;
+}
+
 export interface CanvasEdge {
   id: string;
   source: EdgeEndpoint;
@@ -118,6 +123,7 @@ export interface CanvasEdge {
   arrowTail?: EdgeArrowCap;
   stroke?: EdgeStroke;
   label?: string;
+  labelStyle?: EdgeLabelStyle;
   /** Optional semantic tag for downstream consumers (agent, layout, etc). */
   kind?: string;
   /** Free-form extension slot mirroring `CanvasNodeData`. */

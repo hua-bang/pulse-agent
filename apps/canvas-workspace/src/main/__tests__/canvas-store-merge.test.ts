@@ -8,7 +8,11 @@ vi.mock('electron', () => ({
   dialog: { showMessageBox: vi.fn() },
 }));
 
-import { preserveMainOwnedQueueFields } from '../canvas/store';
+import {
+  preserveMainOwnedQueueFields,
+} from '../canvas/store';
+import { mergeExternalEdges } from '../canvas/edge-sync';
+import type { CanvasEdge } from '../../shared/canvas';
 
 type MergeNode = Parameters<typeof preserveMainOwnedQueueFields>[0];
 
@@ -83,5 +87,39 @@ describe('preserveMainOwnedQueueFields', () => {
     const fileMemory = { ...plainAgentMemory, type: 'file' as const };
     const fileDisk = { ...plainAgentDisk, type: 'file' as const };
     expect(preserveMainOwnedQueueFields(fileMemory, fileDisk)).toBe(fileMemory);
+  });
+});
+
+const edge = (id: string, updatedAt: number, label = id): CanvasEdge => ({
+  id,
+  source: { kind: 'point', x: 0, y: 0 },
+  target: { kind: 'point', x: 100, y: 100 },
+  label,
+  updatedAt,
+});
+
+describe('mergeExternalEdges', () => {
+  it('keeps an edge added by an external writer when the renderer saves stale edges', () => {
+    const merged = mergeExternalEdges(
+      [edge('known', 10)],
+      [edge('known', 10), edge('external', 20)],
+      new Set(['known']),
+    );
+
+    expect(merged.map((item) => item.id)).toEqual(['known', 'external']);
+  });
+
+  it('uses updatedAt to preserve the newer external edge version', () => {
+    const merged = mergeExternalEdges(
+      [edge('known', 10, 'stale')],
+      [edge('known', 20, 'fresh')],
+      new Set(['known']),
+    );
+
+    expect(merged[0].label).toBe('fresh');
+  });
+
+  it('does not resurrect an edge deleted by the renderer', () => {
+    expect(mergeExternalEdges([], [edge('known', 10)], new Set(['known']))).toEqual([]);
   });
 });

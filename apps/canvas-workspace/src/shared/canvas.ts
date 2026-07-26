@@ -371,6 +371,11 @@ export interface EdgeStroke {
   style?: 'solid' | 'dashed' | 'dotted';
 }
 
+export interface EdgeLabelStyle {
+  color?: string;
+  backgroundColor?: string;
+}
+
 export const DEFAULT_EDGE_STROKE: Readonly<Required<EdgeStroke>> = {
   color: '#2e2e2e',
   width: 4,
@@ -411,6 +416,7 @@ export interface CanvasEdge {
   arrowTail?: EdgeArrowCap;
   stroke?: EdgeStroke;
   label?: string;
+  labelStyle?: EdgeLabelStyle;
   kind?: string;
   payload?: Record<string, unknown>;
   /** Epoch millis of last mutation; used for cross-process merge. */
