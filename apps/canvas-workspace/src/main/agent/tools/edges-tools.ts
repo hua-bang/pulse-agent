@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import type { CanvasEdge, CanvasTool, EdgeArrowCap, EdgeEndpoint, EdgeStroke } from './types';
-import { DEFAULT_EDGE_STROKE } from '../../../shared/canvas';
+import {
+  DEFAULT_EDGE_STROKE,
+  resolveEdgeStroke,
+} from '../../../shared/canvas';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
 import { buildEndpoint, describeEndpoint, genEdgeId } from './_shared/edges';
@@ -193,22 +196,20 @@ export function createEdgeTools(workspaceId: string): Record<string, CanvasTool>
         const freshIdx = freshEdges.findIndex((e) => e.id === edgeId);
         if (freshIdx === -1) return `Error: edge not found: ${edgeId}`;
         const existing = freshEdges[freshIdx];
+        const existingStroke = resolveEdgeStroke(existing.stroke);
 
         const nextStroke =
           input.color != null || input.width != null || input.style != null
             ? {
                 color:
                   (input.color as string | undefined) ??
-                  existing.stroke?.color ??
-                  DEFAULT_EDGE_STROKE.color,
+                  existingStroke.color,
                 width:
                   (input.width as number | undefined) ??
-                  existing.stroke?.width ??
-                  DEFAULT_EDGE_STROKE.width,
+                  existingStroke.width,
                 style:
                   (input.style as 'solid' | 'dashed' | 'dotted' | undefined) ??
-                  existing.stroke?.style ??
-                  'solid',
+                  existingStroke.style,
               }
             : existing.stroke;
         const next: CanvasEdge = {

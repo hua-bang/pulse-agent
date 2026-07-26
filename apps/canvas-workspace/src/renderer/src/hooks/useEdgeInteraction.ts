@@ -418,11 +418,16 @@ export const useEdgeInteraction = ({
     const pt = toCanvas(clientX, clientY);
     if (!pt) return;
     const edge = edges.find((e) => e.id === edgeId);
-    const originBend = edge?.bend ?? 0;
     // Cursor's offset-from-straight-line at mousedown time — baseline
     // for delta math in handleMove so dragging from anywhere on the
     // curve (not just the midpoint handle) feels continuous.
     const originOffset = bendFromCursor(s, t, pt);
+    const persistedBend = edge?.bend ?? 0;
+    // Automatic node routing can put the zero-bend handle away from the
+    // straight midpoint. The first manual move switches to the legacy
+    // quadratic representation, so seed it with that visual offset to
+    // avoid a jump while preserving persisted non-zero bend semantics.
+    const originBend = persistedBend === 0 ? originOffset : persistedBend;
     setInteractionState({
       kind: 'move-bend',
       edgeId,

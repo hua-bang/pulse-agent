@@ -16,7 +16,7 @@ describe('createDefaultEdge', () => {
     });
   });
 
-  it('adds a manual bend continuously on top of automatic node routing', () => {
+  it('preserves the quadratic geometry of existing manual node bends', () => {
     const nodes: CanvasNode[] = [
       { id: 'a', x: 0, y: 0, width: 100, height: 60 } as CanvasNode,
       { id: 'b', x: 146, y: 102, width: 100, height: 60 } as CanvasNode,
@@ -30,13 +30,10 @@ describe('createDefaultEdge', () => {
     };
     const sourcePoint = { x: 100, y: 30 };
     const targetPoint = { x: 196, y: 102 };
-    const automatic = edgePathGeometry(edge, sourcePoint, targetPoint, nodesById);
     const moved = edgePathGeometry({ ...edge, bend: 1 }, sourcePoint, targetPoint, nodesById);
 
-    expect(moved.d).toContain(' C ');
-    expect(Math.hypot(
-      moved.midpoint.x - automatic.midpoint.x,
-      moved.midpoint.y - automatic.midpoint.y,
-    )).toBeCloseTo(1);
+    expect(moved.d).toContain(' Q ');
+    expect(moved.midpoint.x).toBeCloseTo(148.6);
+    expect(moved.midpoint.y).toBeCloseTo(65.2);
   });
 });
