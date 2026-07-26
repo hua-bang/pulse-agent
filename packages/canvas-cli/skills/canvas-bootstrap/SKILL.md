@@ -1,15 +1,23 @@
 ---
 name: canvas-bootstrap
-description: Deep-research a topic and build a structured Pulse Canvas workspace with approved research depth, source-backed findings, progressive or final canvas creation, spatially organized frames, content nodes, and connections. Use when the user asks to bootstrap, generate, research, organize, or build an AI-created canvas.
+description: Build or reorganize a structured Pulse Canvas workspace. Use create mode when the user asks to bootstrap, generate, research, or build an AI-created canvas with source-backed findings. Use organize-existing mode when the user asks to tidy,整理,重排,归类,优化布局, improve readability, or organize an existing whole canvas without adding new research.
 ---
 
-# Canvas Bootstrap
+# Canvas Bootstrap and Organization
 
-Turn a topic into a source-backed Pulse Canvas workspace. This skill is an orchestrator: use a user-approved research skill or the bundled `canvas-deep-research` protocol for evidence gathering, then use canvas layout tools for geometry.
+Create a source-backed Pulse Canvas workspace or organize an existing whole canvas. In create mode, orchestrate approved research and layout. In organize-existing mode, preserve content and improve information architecture and geometry.
+
+## Choose the Mode
+
+- `create`: the user wants a new research-backed canvas or substantial new content. Follow Phases 0-7.
+- `organize-existing`: the user wants existing canvas content grouped, renamed, resized, connected, or laid out more clearly. Follow **Organize an Existing Canvas**, then Phase 6 and Phase 7.
+- `frame-research`: the user wants to enrich or verify one existing frame. Use `canvas-frame-research` instead.
+
+Do not make an organize-only request pass through the research depth gate.
 
 ## Core Contract
 
-- Ask for research depth first unless the user already provided it.
+- In `create` mode, ask for research depth first unless the user already provided it.
 - After depth is chosen, show a research plan and wait for user modification or approval.
 - Do not start substantial research before the plan is approved.
 - Do not create canvas nodes before approval. Optional live-board creation also requires approval.
@@ -18,6 +26,105 @@ Turn a topic into a source-backed Pulse Canvas workspace. This skill is an orche
 - Keep content and layout separate: research determines what belongs on the canvas; layout tools determine where it goes.
 - Use the user's language for user-facing questions, plans, summaries, and node content unless the user requests otherwise.
 - If the user asks to expand, enrich, verify, or research inside an existing frame, use `canvas-frame-research` instead of this whole-canvas bootstrap flow.
+
+## Organize an Existing Canvas
+
+Use this flow for `organize-existing` mode. Do not browse or add research unless the user separately asks for it.
+
+### 1. Read Before Moving
+
+Resolve the current or named workspace, then inspect:
+
+```bash
+'/Users/jasperhu/.pulse-coder/bin/pulse-canvas' context --workspace <id> --format json
+'/Users/jasperhu/.pulse-coder/bin/pulse-canvas' layout read --workspace <id> --format json
+'/Users/jasperhu/.pulse-coder/bin/pulse-canvas' edge list --workspace <id> --format json
+```
+
+Build an inventory of:
+
+- frames and geometric membership
+- unframed or ambiguously framed nodes
+- node titles, types, dimensions, and content density
+- overlaps, straddling, overflow, extreme whitespace, and narrow cards
+- existing connections and long crossing edges
+- visual hierarchy, source/reference material, and likely reading path
+
+Treat frame membership as spatial, not only semantic. Do not assume a nearby card belongs in a frame when its content is ambiguous.
+
+### 2. Diagnose the Board
+
+Separate problems into three layers:
+
+- **information architecture**: unclear groups, weak or generic frame names, duplicated categories, missing overview, scattered sources
+- **editorial shape**: article-sized cards, vague titles, multiple claims per card, no visible thesis or conclusion
+- **geometry**: overlaps, inconsistent gaps, uniform card sizing, stretched frames, edge crossings, poor Fit-view aspect ratio
+
+Default to geometry and grouping changes only. Preserve node ids, card wording, rich-text marks, links, and existing evidence. Rewriting, splitting, merging, deleting, or creating cards requires explicit approval.
+
+### 3. Propose the Reorganization
+
+For more than a trivial move, present a compact plan before mutation:
+
+- frames to retain, rename, merge, split, or create
+- cards that will move between frames
+- representation changes, such as a mindmap overview, HTML comparison, or image evidence
+- size hierarchy for thesis, evidence, annotation, and source cards
+- edge changes, if any
+- items intentionally left untouched
+
+Call out ambiguous cards separately. Ask for approval before moving unrelated existing nodes or changing editorial content.
+
+### 4. Choose the Representation
+
+Keep file cards as the default for atomic claims and searchable, editable prose. Introduce richer node types only when the representation materially improves understanding:
+
+- **Mindmap**: use for a true hierarchy, taxonomy, decomposition, or branching question. It is especially useful as a collapsible overview that links to detailed cards. Do not force timelines, debates, or many-to-many relationships into a tree.
+- **HTML/iframe**: use as an interactive explanation when manipulating a concept helps the reader understand causality, relationships, trade-offs, sequence, scale, or counterfactual outcomes. Good forms include parameter-driven models, step-through processes, explorable diagrams, comparison controls, and timeline scrubbing. A dashboard qualifies only when its interaction teaches something; static metric display does not. Keep it self-contained and pair it with a short searchable note containing the main conclusion. Do not turn ordinary prose into a miniature website.
+- **Image**: use for diagrams, photographs, scanned evidence, source screenshots, or generated visual explanations. Add a descriptive title/alt text and visible provenance. Never rasterize editable text merely to make the board look polished.
+- **Frames + cards + edges**: retain for spatial arguments, evidence maps, workflows, and non-hierarchical relationships.
+
+Prefer a hybrid board when useful: a mindmap as the overview, file cards for evidence and explanation, one HTML node for interactive understanding, and images for visual source material.
+
+Every HTML node must have an explicit learning contract:
+
+- the question or concept the interaction should clarify
+- controls that map to meaningful conceptual variables
+- immediate visual feedback that exposes what changed and why
+- a useful default state and short in-node guidance
+- a nearby searchable card summarizing the durable takeaway
+
+Representation changes are content-shape changes. In organize-existing mode, do not replace or delete the original cards until the user approves the conversion and the new representation has been verified.
+
+Creation path:
+
+- Create mindmaps through `canvas_create_node` or the CLI `mindmap` node type.
+- Create HTML through Canvas runtime `canvas_create_node` with `type: "iframe"` and `data.mode: "html"`, or create an HTML artifact and pin it to the canvas.
+- Create images through `canvas_create_node` with an absolute `data.filePath`, `canvas_generate_image`, or image paste/import.
+- The external Canvas CLI cannot generically create app-produced iframe or image nodes. Do not invent a CLI fallback; use the live Canvas runtime or keep a file-card placeholder with the intended representation clearly marked.
+
+### 5. Apply Safely
+
+- Prefer one atomic `apply` plan with `baseRevision` for node moves/resizes and edge changes.
+- Run `--dry-run` before the real apply.
+- Run all mutations sequentially and pin `--workspace <id>`.
+- Use `layout frame-grid` only after the intended children of a frame are settled.
+- Arrange top-level frames manually into a readable overview; do not force every board into the same grid.
+- Keep source/reference cards on the right or bottom periphery.
+- Use at most three accent frame colors; keep auxiliary frames neutral.
+- Prefer short local edges. Preserve meaningful existing labels.
+
+### 6. Validate Preservation
+
+Before and after counts must match for organize-only work unless the approved plan explicitly changes them:
+
+- node count
+- edge count
+- frame count
+- titled-card count
+- rich-text/color-bearing card count when available
+
+Run `layout validate`, inspect Fit view, and read representative cards at 100%. If the board is technically valid but the reading path remains unclear, revise the top-level frame arrangement instead of shrinking everything further.
 
 ## Phase 0: Depth Gate
 
@@ -166,8 +273,11 @@ If research materially changes the approved plan, show the changed structure and
 Node type strategy:
 
 - Overview layer: use summary-style note nodes for the research question, key conclusions, reading path, and strongest takeaways.
+- Hierarchy layer: use a mindmap when the content is genuinely tree-shaped and benefits from collapse/expand navigation.
 - Structure layer: use frames, shapes, and edges to show categories, comparisons, timelines, dependencies, tensions, and hierarchy.
 - Detail layer: use note or file nodes for deeper explanations, evidence, assumptions, and per-topic analysis.
+- Interactive-understanding layer: use one or a small number of HTML/iframe nodes for explorable models, simulations, step-through explanations, counterfactuals, or relationship discovery; keep ordinary prose and durable conclusions in file cards.
+- Image layer: use image nodes for diagrams, photos, visual evidence, and generated explanations, with descriptive titles and provenance.
 - Source layer: use source or web nodes when available; otherwise use source-summary note nodes. Keep source ids visible.
 - Open-question layer: use note nodes for unresolved questions, conflicts, weak evidence, and areas that need future human judgment.
 - Action layer: omit by default. Leave follow-up tasks for the user to add later unless explicitly requested.

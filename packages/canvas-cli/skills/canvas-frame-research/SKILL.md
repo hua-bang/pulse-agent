@@ -1,6 +1,6 @@
 ---
 name: canvas-frame-research
-description: Extend an existing Pulse Canvas frame with local, source-backed research while preserving the surrounding canvas. Use when the user asks to research, enrich, expand, verify, update, or add sources/details inside a selected or named frame, rather than bootstrapping a whole new canvas.
+description: Extend an existing Pulse Canvas frame with local, source-backed research and an appropriate mix of cards, mindmaps, interactive HTML, images, and relationships while preserving the surrounding canvas. Use when the user asks to research, enrich, expand, verify, update, visualize, or add sources/details inside a selected or named frame rather than bootstrapping a whole new canvas.
 ---
 
 # Canvas Frame Research
@@ -86,20 +86,36 @@ Default node budget:
 Layer the information from shallow to deep:
 
 - Overview layer: one short summary or "what changed" note when useful.
+- Hierarchy layer: a mindmap when the finding is genuinely tree-shaped.
 - Structure layer: shapes or small structural notes for categories, comparison axes, timelines, or relationships.
 - Detail layer: note or file nodes for deeper analysis.
+- Interactive-understanding layer: one HTML node when manipulating meaningful variables clarifies causality, relationships, trade-offs, sequence, scale, or counterfactual outcomes.
+- Image layer: diagrams, photographs, screenshots, or generated explanations when visual form carries evidence or understanding.
 - Source layer: source or web nodes when available; otherwise source-summary notes.
 - Open-question layer: note nodes for unresolved claims, conflicts, or weak evidence.
 - Action layer: omit by default. Let the user add follow-up tasks later unless explicitly requested.
+
+Choose the simplest representation that teaches the finding:
+
+- Keep ordinary prose, claims, and durable conclusions in file cards.
+- Use a mindmap only for hierarchy, taxonomy, decomposition, or branching.
+- Use HTML as an interactive explanation, not decorative presentation. Define its learning question, conceptual controls, visible feedback, default guidance, and durable takeaway before creating it.
+- Use images for visual evidence or explanation, with a descriptive title and visible provenance.
+- Use cards and edges for debates, evidence maps, workflows, and many-to-many relationships.
+
+For HTML, create a nearby searchable card containing the conclusion and source ids. Rich nodes count against the frame's node budget; do not add them on top of redundant cards.
 
 ## Phase 4: Create Local Nodes
 
 Preferred Canvas Agent path:
 
 1. Create new nodes with `placement: { mode: "inside_frame", frameId: "<target-frame-id>" }`.
-2. Use source/web node types when the runtime supports them; otherwise use note/file nodes with source ids.
-3. Connect only meaningful local relationships with `canvas_create_edge`.
-4. Avoid duplicating existing child nodes. Update or extend an existing node when that is cleaner.
+2. Create mindmaps with `canvas_create_node` and a recursive `data.root`.
+3. Create interactive HTML with `canvas_create_node` using `type: "iframe"` and `data.mode: "html"`, or create an HTML artifact and pin it inside the frame.
+4. Create images from an absolute local path with `canvas_create_node`, or use `canvas_generate_image` when the user requests a generated explanation.
+5. Use source/web node types when the runtime supports them; otherwise use note/file nodes with source ids.
+6. Connect only meaningful local relationships with `canvas_create_edge`.
+7. Avoid duplicating existing child nodes. Update or extend an existing node when that is cleaner.
 
 Fallback CLI path:
 
@@ -108,6 +124,8 @@ pulse-canvas node create --type file --title "<node>" --data '{"content":"..."}'
 ```
 
 Use manual coordinates only when layout tools are unavailable.
+
+The CLI can create mindmaps but cannot generically create app-produced iframe or image nodes. If the live Canvas runtime is unavailable, keep the evidence in a file card and report the deferred representation instead of inventing a CLI workaround.
 
 ## Phase 5: Layout Only the Frame
 
@@ -125,6 +143,7 @@ Move individual nodes with `node update` if validation flags them. Do not reorga
 Tell the user:
 
 - what was added or updated
+- why each rich representation was chosen
 - which sources support the new claims
 - what remains uncertain
 - whether anything should become a new sibling frame instead of staying local
@@ -138,3 +157,5 @@ Tell the user:
 5. Action-oriented nodes are opt-in, not default.
 6. Layout is local to the target frame.
 7. If the frame becomes crowded, suggest splitting into a sibling frame instead of forcing more nodes inside.
+8. Mindmaps remain tree-shaped; HTML interactions have a learning contract and were exercised; images include provenance.
+9. Durable conclusions remain searchable in file cards even when HTML or images carry the explanation.
