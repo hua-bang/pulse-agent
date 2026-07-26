@@ -2,6 +2,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../types';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
 import type { NodeDragOffset } from '../../hooks/useNodeDrag';
+import type { MergeMindmapTopicRequest } from '../../utils/mindmapTransfer';
 
 export type CanvasNodeRenderMode = 'full' | 'frame-body' | 'frame-title';
 
@@ -34,6 +35,13 @@ export interface CanvasNodeViewProps {
   onRemove: (id: string) => void;
   onRemoveNodes?: (ids: string[]) => void;
   onExportMindmapImage: (id: string) => void;
+  onMergeMindmapTopic?: (request: MergeMindmapTopicRequest) => boolean;
+  onSplitMindmapTopic?: (
+    sourceNodeId: string,
+    sourceTopicId: string,
+    clientX: number,
+    clientY: number,
+  ) => boolean;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
   /** Optional copy for the standard focus icon when a read-only preview opens

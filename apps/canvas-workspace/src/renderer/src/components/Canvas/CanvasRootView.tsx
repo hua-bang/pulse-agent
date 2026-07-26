@@ -8,6 +8,7 @@ import { EdgeContextMenu } from '../EdgeContextMenu';
 import type { CanvasProps } from './types';
 import type { NodeDragOffset, NodeDragPreview } from '../../hooks/useNodeDrag';
 import type { NodeResizePreview } from '../../hooks/useNodeResize';
+import type { MergeMindmapTopicRequest } from '../../utils/mindmapTransfer';
 
 type CanvasRootViewProps = Pick<
   CanvasProps,
@@ -95,6 +96,13 @@ type CanvasRootViewProps = Pick<
   updateEdge: (id: string, patch: any) => void;
   updateNode: (id: string, patch: Partial<CanvasNode>) => void;
   onRemoveNodesLocally: (ids: string[]) => void;
+  onMergeMindmapTopic: (request: MergeMindmapTopicRequest) => boolean;
+  onSplitMindmapTopic: (
+    sourceNodeId: string,
+    sourceTopicId: string,
+    clientX: number,
+    clientY: number,
+  ) => boolean;
 };
 
 export const CanvasRootView = ({
@@ -176,6 +184,8 @@ export const CanvasRootView = ({
   transformLayerRef,
   updateEdge,
   updateNode,
+  onMergeMindmapTopic,
+  onSplitMindmapTopic,
 }: CanvasRootViewProps) => {
   // Right-click menu on a connection. Selecting the edge first keeps the
   // style panel / Delete-key behavior consistent with the menu actions.
@@ -258,6 +268,8 @@ export const CanvasRootView = ({
         onRemoveNodes={onRemoveNodesLocally}
         onSelect={handleSelectNode}
         onExportMindmapImage={actions.handleExportMindmapImage}
+        onMergeMindmapTopic={onMergeMindmapTopic}
+        onSplitMindmapTopic={onSplitMindmapTopic}
         onFocus={handleNodeViewportFocus}
         onReference={onPinReferenceNode}
         onAddToChat={onAddToChat}

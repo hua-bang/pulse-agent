@@ -19,6 +19,7 @@ import type { SnapLine } from '../../utils/canvasSnapping';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 import { useI18n } from '../../i18n';
 import type { CanvasNodeRenderMode } from '../CanvasNodeView/types';
+import type { MindmapTransferHandlers } from '../../utils/mindmapTransfer';
 import { markOnce } from '../../perf/monitor';
 
 const FIT_TRANSITION =
@@ -73,7 +74,7 @@ interface NodeRenderGroup {
   regular: CanvasNode[];
 }
 
-interface CanvasSurfaceProps {
+interface CanvasSurfaceProps extends MindmapTransferHandlers {
   transform: { x: number; y: number; scale: number };
   transformLayerRef: RefObject<HTMLDivElement>;
   /** Scale as of the last moment the canvas was at rest (useCanvas).
@@ -220,6 +221,8 @@ export const CanvasSurface = ({
   onRemove,
   onRemoveNodes,
   onExportMindmapImage,
+  onMergeMindmapTopic,
+  onSplitMindmapTopic,
   onSelect,
   onFocus,
   onReference,
@@ -276,6 +279,8 @@ export const CanvasSurface = ({
       onRemove={onRemove}
       onRemoveNodes={onRemoveNodes}
       onExportMindmapImage={onExportMindmapImage}
+      onMergeMindmapTopic={onMergeMindmapTopic}
+      onSplitMindmapTopic={onSplitMindmapTopic}
       onSelect={onSelect}
       onFocus={onFocus}
       onReference={onReference}

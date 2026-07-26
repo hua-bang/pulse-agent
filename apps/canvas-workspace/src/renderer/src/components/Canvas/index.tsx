@@ -36,6 +36,10 @@ import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../types';
 import type { CanvasProps } from './types';
 import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../shared/experimental-features';
 import { WorkspaceActiveProvider } from '../../hooks/useWorkspaceActive';
+import {
+  getSelectionAfterMindmapMerge,
+  type MergeMindmapTopicRequest,
+} from '../../utils/mindmapTransfer';
 
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
@@ -174,6 +178,7 @@ export const Canvas = ({
     setTransformForSave, flushSave, commitHistory,
     undo, redo, duplicateNode, pasteNodes,
     groupNodes, ungroupNodes, wrapNodesInFrame,
+    mergeMindmapTopic, splitMindmapTopic,
   } = useNodes(
     canvasId,
     (savedTransform) => {
@@ -187,6 +192,26 @@ export const Canvas = ({
   useEffect(() => { flushSaveRef.current = flushSave; }, [flushSave]);
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+
+  const handleSplitMindmapTopic = useCallback(
+    (
+      sourceNodeId: string,
+      sourceTopicId: string,
+      clientX: number,
+      clientY: number,
+    ): boolean => {
+      const container = containerRef.current;
+      if (!container) return false;
+      const point = screenToCanvas(clientX, clientY, container);
+      return splitMindmapTopic({
+        sourceNodeId,
+        sourceTopicId,
+        x: point.x - 24,
+        y: point.y - 24,
+      }) !== null;
+    },
+    [screenToCanvas, splitMindmapTopic],
+  );
 
   // React's root wheel listener is passive, so useCanvas.handleWheel cannot
   // suppress Chromium's default ctrl/meta+wheel page zoom (trackpad pinch
@@ -213,6 +238,19 @@ export const Canvas = ({
     handleMarqueeSelect,
     getAllNodes,
   } = useCanvasSelection({ nodesRef });
+
+  const handleMergeMindmapTopic = useCallback(
+    (request: MergeMindmapTopicRequest): boolean => {
+      const nextSelection = getSelectionAfterMindmapMerge(
+        nodesRef.current,
+        request,
+      );
+      const changed = mergeMindmapTopic(request);
+      if (changed && nextSelection) setSelectedNodeIds(nextSelection);
+      return changed;
+    },
+    [mergeMindmapTopic, setSelectedNodeIds],
+  );
 
   const handleRemoveNodesLocally = useCallback((ids: string[]) => {
     if (ids.length === 0) return;
@@ -666,6 +704,8 @@ export const Canvas = ({
       onReferenceToggle={onReferenceToggle}
       onUpdateReferenceSource={onUpdateReferenceSource}
       onRemoveNodesLocally={handleRemoveNodesLocally}
+      onMergeMindmapTopic={handleMergeMindmapTopic}
+      onSplitMindmapTopic={handleSplitMindmapTopic}
       openShortcuts={openShortcuts}
       paletteCommands={paletteCommands}
       referenceDrawerOpen={referenceDrawerOpen}

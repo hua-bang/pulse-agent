@@ -32,6 +32,8 @@ const CanvasNodeViewComponent = ({
   onRemove,
   onRemoveNodes,
   onExportMindmapImage,
+  onMergeMindmapTopic,
+  onSplitMindmapTopic,
   onSelect,
   onFocus,
   onReference,
@@ -174,6 +176,8 @@ const CanvasNodeViewComponent = ({
         onAutoResize={onAutoResize}
         onDragStart={onDragStart}
         onExportMindmapImage={onExportMindmapImage}
+        onMergeMindmapTopic={onMergeMindmapTopic}
+        onSplitMindmapTopic={onSplitMindmapTopic}
         onSelect={onSelect}
         onUpdate={onUpdate}
         readOnly={readOnly}
@@ -253,6 +257,8 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.onAddDomSelectionToChat === next.onAddDomSelectionToChat &&
   prev.onSubmitDomReviewComments === next.onSubmitDomReviewComments &&
   prev.onRemoveNodes === next.onRemoveNodes &&
+  prev.onMergeMindmapTopic === next.onMergeMindmapTopic &&
+  prev.onSplitMindmapTopic === next.onSplitMindmapTopic &&
   prev.readOnly === next.readOnly &&
   prev.renderFullFileBody === next.renderFullFileBody &&
   prev.embedded === next.embedded &&

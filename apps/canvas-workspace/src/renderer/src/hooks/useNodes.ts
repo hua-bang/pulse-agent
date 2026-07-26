@@ -18,6 +18,7 @@ import { count } from '../perf/counters';
 import { degradeEndpointsForDeletedNode } from '../utils/edgeFactory';
 import { useNodeHistory } from './useNodeHistory';
 import { mergeExternalEdgeUpdate } from './external-edge-sync';
+import { useMindmapTransfers } from './useMindmapTransfers';
 
 const SAVE_DEBOUNCE_MS = 800;
 const DEFAULT_CANVAS_ID = 'default';
@@ -144,6 +145,9 @@ export const useNodes = (
     historyRef, historyIndexRef,
     applyNodes, applyEdges, applyState, commitHistory, undo, redo,
   } = useNodeHistory(scheduleSave);
+  const { mergeMindmapTopic, splitMindmapTopic } = useMindmapTransfers({
+    nodesRef, edgesRef, applyState,
+  });
 
   const setTransformForSave = useCallback(
     (t: CanvasTransform) => {
@@ -878,6 +882,8 @@ export const useNodes = (
     updateNode,
     removeNode,
     removeNodes,
+    mergeMindmapTopic,
+    splitMindmapTopic,
     syncDeletedNodes,
     moveNode,
     moveNodes,

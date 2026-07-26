@@ -1,4 +1,7 @@
 import type { CanvasNode } from '../../types';
+import type {
+  MergeMindmapTopicRequest,
+} from '../../utils/mindmapTransfer';
 
 export interface MindmapNodeBodyProps {
   node: CanvasNode;
@@ -7,6 +10,13 @@ export interface MindmapNodeBodyProps {
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   onSelectNode: (id: string) => void;
   onAutoResize: (id: string, width: number, height: number) => void;
+  onMergeTopic?: (request: MergeMindmapTopicRequest) => boolean;
+  onSplitTopic?: (
+    sourceNodeId: string,
+    sourceTopicId: string,
+    clientX: number,
+    clientY: number,
+  ) => boolean;
   readOnly?: boolean;
 }
 

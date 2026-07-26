@@ -176,6 +176,10 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   shorter README node table. Current host node types include `file`,
   `terminal`, `frame`, `group`, `agent`, `text`, `iframe`, `image`, `shape`,
   `mindmap`, `reference`, `dynamic-app`, and `plugin`.
+- Cross-mindmap topic transfers are canvas-level atomic transactions: rekey
+  every moved topic subtree, update both maps in one history snapshot, and
+  degrade bound edges in that same snapshot when a whole source map is removed.
+  Topic components own only drag intent; `useNodes` owns mutation and undo.
 - Plugin nodes use stable host type `plugin` with plugin-owned
   `data.payload`. **New node capabilities default to plugin nodes** (decided
   2026-07-08); extending the host `CanvasNode['type']` union is the
