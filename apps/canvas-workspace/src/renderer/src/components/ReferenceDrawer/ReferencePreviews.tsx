@@ -235,14 +235,13 @@ export const ReferencePreviewPanel = ({
               node={node}
               drawerWidth={drawerWidth}
               workspaceName={workspaceNameById.get(entry.workspaceId) ?? entry.workspaceNameSnapshot}
+              onAddToCanvas={() => onAddReferenceToCanvas(entry)}
               onFocusNode={() => onFocusNode(entry.workspaceId, entry.nodeId)}
             />
             {isActive && (
               <NodeReferenceFooter
-                entry={entry}
-                onAddReferenceToCanvas={onAddReferenceToCanvas}
+                referenceId={id}
                 onClearAll={onClearAll}
-                onFocusNode={onFocusNode}
                 onRemoveReference={onRemoveReference}
               />
             )}
@@ -256,13 +255,12 @@ export const ReferencePreviewPanel = ({
             node={activeReferenceNode}
             drawerWidth={drawerWidth}
             workspaceName={workspaceNameById.get(activeReference.workspaceId) ?? activeReference.workspaceNameSnapshot}
+            onAddToCanvas={() => onAddReferenceToCanvas(activeReference)}
             onFocusNode={() => onFocusNode(activeReference.workspaceId, activeReference.nodeId)}
           />
           <NodeReferenceFooter
-            entry={activeReference}
-            onAddReferenceToCanvas={onAddReferenceToCanvas}
+            referenceId={getReferenceId(activeReference)}
             onClearAll={onClearAll}
-            onFocusNode={onFocusNode}
             onRemoveReference={onRemoveReference}
           />
         </div>
@@ -289,43 +287,30 @@ export const ReferencePreviewPanel = ({
 };
 
 interface NodeReferenceFooterProps {
-  entry: NodeReferenceEntry;
-  onAddReferenceToCanvas: (entry: NodeReferenceEntry) => void;
+  referenceId: string;
   onClearAll: () => void;
-  onFocusNode: (workspaceId: string, nodeId: string) => void;
   onRemoveReference: (referenceId: string) => void;
+  enable?: boolean;
 }
 
 const NodeReferenceFooter = ({
-  entry,
-  onAddReferenceToCanvas,
+  referenceId,
   onClearAll,
-  onFocusNode,
   onRemoveReference,
+  enable = false
 }: NodeReferenceFooterProps) => {
   const { t } = useI18n();
+
+  if (!enable) {
+    return null;
+  }
 
   return (
     <div className="reference-card-footer">
       <button
         className="reference-drawer-secondary"
         type="button"
-        onClick={() => onFocusNode(entry.workspaceId, entry.nodeId)}
-        title={t('reference.openSource')}
-      >
-        {t('reference.openSource')}
-      </button>
-      <button
-        className="reference-drawer-secondary"
-        type="button"
-        onClick={() => onAddReferenceToCanvas(entry)}
-      >
-        {t('reference.addToCanvas')}
-      </button>
-      <button
-        className="reference-drawer-secondary"
-        type="button"
-        onClick={() => onRemoveReference(getReferenceId(entry))}
+        onClick={() => onRemoveReference(referenceId)}
       >
         {t('reference.unpin')}
       </button>
@@ -379,6 +364,7 @@ interface ReferenceNativeNodePreviewProps {
   node: CanvasNode;
   drawerWidth: number;
   workspaceName?: string;
+  onAddToCanvas: () => void;
   onFocusNode: () => void;
 }
 
@@ -386,8 +372,10 @@ const ReferenceNativeNodePreview = memo(({
   node,
   drawerWidth,
   workspaceName,
+  onAddToCanvas,
   onFocusNode,
 }: ReferenceNativeNodePreviewProps) => {
+  const { t } = useI18n();
   const previewNode = useMemo(
     () => ({
       ...node,
@@ -419,7 +407,13 @@ const ReferenceNativeNodePreview = memo(({
       onExportMindmapImage={() => undefined}
       onSelect={() => undefined}
       onFocus={handleFocus}
+      focusAction={{
+        ariaLabel: t('reference.openSource'),
+        title: t('reference.openSource'),
+      }}
+      onAddToCanvas={() => onAddToCanvas()}
       readOnly
+      renderFullFileBody
     />
   );
 });

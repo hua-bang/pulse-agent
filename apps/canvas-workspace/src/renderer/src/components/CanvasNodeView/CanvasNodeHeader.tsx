@@ -26,6 +26,10 @@ import { isReferenceableNode } from '../../utils/referenceNodes';
 
 interface CanvasNodeHeaderProps {
   fullscreenButton: ReactNode;
+  focusAction?: {
+    ariaLabel: string;
+    title: string;
+  };
   containerDescendantCount: number;
   handleClose: (e: MouseEvent) => void;
   handleFocus: (e: MouseEvent) => void;
@@ -82,6 +86,7 @@ const NodeLeadingGlyph = ({ node, faviconUrl }: { node: CanvasNode; faviconUrl?:
 
 export const CanvasNodeHeader = ({
   fullscreenButton,
+  focusAction,
   containerDescendantCount,
   handleClose,
   handleFocus,
@@ -213,9 +218,9 @@ export const CanvasNodeHeader = ({
         ) : null}
         {fullscreenButton}
         <FocusButton
-          ariaLabel={t('workspaceNodes.focusNode', { title: node.title })}
+          ariaLabel={focusAction?.ariaLabel ?? t('workspaceNodes.focusNode', { title: node.title })}
           onClick={handleFocus}
-          title={t('workspaceNodes.focusNode', { title: node.title })}
+          title={focusAction?.title ?? t('workspaceNodes.focusNode', { title: node.title })}
         />
         {readOnly ? null : (
           <CloseButton

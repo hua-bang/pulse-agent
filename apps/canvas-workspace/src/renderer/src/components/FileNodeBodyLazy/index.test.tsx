@@ -32,13 +32,20 @@ const node = {
   updatedAt: 1,
 } as CanvasNode;
 
-const renderFileNodeBodyLazy = async (readOnly = false) => {
+const renderFileNodeBodyLazy = async (readOnly = false, renderFullEditor = false) => {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
 
   await act(async () => {
-    root?.render(<FileNodeBodyLazy node={node} onUpdate={vi.fn()} readOnly={readOnly} />);
+    root?.render(
+      <FileNodeBodyLazy
+        node={node}
+        onUpdate={vi.fn()}
+        readOnly={readOnly}
+        renderFullEditor={renderFullEditor}
+      />,
+    );
   });
 
   return host;
@@ -96,5 +103,12 @@ describe('FileNodeBodyLazy', () => {
 
     expect(view.querySelector('[data-testid="mock-file-editor"]')).toBeNull();
     expect(view.querySelector('.file-preview')).not.toBeNull();
+  });
+
+  it('can use the full editor renderer for a read-only preview', async () => {
+    const view = await renderFileNodeBodyLazy(true, true);
+
+    expect(view.querySelector('[data-testid="mock-file-editor"]')).not.toBeNull();
+    expect(view.querySelector('.file-preview')).toBeNull();
   });
 });

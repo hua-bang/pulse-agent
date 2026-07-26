@@ -4,9 +4,8 @@
  * Registers a set of canvas-agent tools (`page_eval`, `page_click`,
  * `page_click_at`, `page_fill`, `page_press`, `page_scroll`,
  * `page_wait_for`) that let the agent control pages inside iframe
- * canvas nodes via CDP. Gated by the `webview-page-control` experimental
- * flag — when off, the plugin doesn't activate at all and the agent
- * never sees the tool names.
+ * canvas nodes via CDP. Registered through the `webview-page-control`
+ * feature flag; the current stable lifecycle keeps it enabled.
  *
  * URL policy and CDP infrastructure live in sibling files inside this
  * folder; the only outward dependency is on `main/webview/cdp-session.ts`

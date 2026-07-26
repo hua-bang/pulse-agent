@@ -93,6 +93,19 @@ describe('CanvasNodeHeader title', () => {
     expect(title.getAttribute('role')).toBeNull();
     expect(title.getAttribute('aria-label')).toBeNull();
   });
+
+  it('uses preview-specific copy for the standard source action icon', () => {
+    renderHeader({
+      focusAction: {
+        ariaLabel: 'Open source',
+        title: 'Open source',
+      },
+    });
+
+    const action = host?.querySelector('.node-focus') as HTMLButtonElement;
+    expect(action.getAttribute('aria-label')).toBe('Open source');
+    expect(action.getAttribute('title')).toBe('Open source');
+  });
 });
 
 function renderHeader(overrides: Partial<Parameters<typeof CanvasNodeHeader>[0]> = {}) {

@@ -1,8 +1,9 @@
 /**
  * Experimental feature registry.
  *
- * Add a new entry to {@link EXPERIMENTAL_FEATURES} to surface a toggle in
- * Settings → Experimental. The flag id is read by plugins via
+ * Add a new entry to {@link EXPERIMENTAL_FEATURES} to register its lifecycle.
+ * Entries with `exposure: 'experimental'` surface a toggle in Settings →
+ * Experimental. The flag id is read by plugins via
  * `globalThis.canvasWorkspace.pluginFlags[id]` — so to gate a renderer
  * plugin behind a flag, set the plugin's `enabledWhen` to:
  *
@@ -26,8 +27,18 @@ export interface ExperimentalFeatureDef {
   label: string;
   /** One-sentence description for the Settings UI. */
   description: string;
-  /** Value used when the user has not toggled this flag. */
+  /**
+   * Product-owned value. Experimental/grandfathered features use it when the
+   * user has no override; stable features always use it.
+   */
   defaultEnabled: boolean;
+  /**
+   * Lifecycle controls whether the feature is user-configurable:
+   * - experimental: always shown in Settings → Experimental
+   * - stable: hidden; runtime follows the product-owned default
+   * - grandfathered: shown only while an existing user override is true
+   */
+  exposure: 'experimental' | 'stable' | 'grandfathered';
 }
 
 /**
@@ -60,8 +71,9 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     id: EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
     label: 'Agent runtime control',
     description:
-      'Lets authenticated local developer tools discover and call an allowlisted set of live application capabilities. Off by default while the runtime interface and permission model are experimental.',
-    defaultEnabled: false,
+      'Lets authenticated local developer tools discover and call an allowlisted set of live application capabilities.',
+    defaultEnabled: true,
+    exposure: 'stable',
   },
   {
     id: EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
@@ -69,27 +81,31 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     description:
       'Adds a DevTools route that inspects per-run agent debug traces (chat history, tool calls, raw LLM payloads).',
     defaultEnabled: false,
+    exposure: 'grandfathered',
   },
   {
     id: EXPERIMENTAL_FLAG_WORKSPACE_NODES,
     label: 'Workspace Nodes page',
     description:
       'A workspace-wide knowledge nodes page showing every node as a filterable grid, plus a per-node detail page. Surfaces a "Nodes" entry in the sidebar.',
-    defaultEnabled: false,
+    defaultEnabled: true,
+    exposure: 'stable',
   },
   {
     id: EXPERIMENTAL_FLAG_WORKSPACE_GRAPH,
     label: 'Workspace Graph page',
     description:
       'A force-directed graph view of all nodes in the workspace with grouped toolbar and suggest-search. Surfaces a "Graph" entry in the sidebar.',
-    defaultEnabled: false,
+    defaultEnabled: true,
+    exposure: 'stable',
   },
   {
     id: EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL,
     label: 'Webview page control (agent)',
     description:
       'Lets the Canvas Agent control pages inside iframe nodes — click (by selector or pixel coordinates), fill, press keys, scroll, wait for selectors, run arbitrary JS. Clicks and key presses go through Chromium DevTools Protocol (real input events that fire pointer / hover / user-activation handlers) — the OS cursor does not move. Blocked on file://, chrome://, devtools:// and a built-in sensitive-domain list (banks, payments, mainstream login). Customize via ~/.pulse-coder/canvas/webview-action-policy.json. Treat this as giving an LLM access to whatever you are currently logged into.',
-    defaultEnabled: false,
+    defaultEnabled: true,
+    exposure: 'stable',
   },
   {
     id: EXPERIMENTAL_FLAG_DYNAMIC_APP,
@@ -97,6 +113,7 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     description:
       'Lets the Canvas Agent create live, server-backed iframe nodes — either polling apps (pull an external JSON endpoint on a schedule, optionally transform, render in LLM-authored HTML) or stateful apps (own their state, accept user mutations via POST actions, persist across restarts; todos / notes / counters / small forms). Each app gets its own loopback HTTP server in the Electron main process. LLM-authored transforms and action handlers run in a vm sandbox (no fetch / require / process; 1s sync timeout). State and spec files live under ~/.pulse-coder/canvas/<workspaceId>/dynamic-apps/. Off by default because this surfaces three new agent tools and a long-running HTTP server.',
     defaultEnabled: false,
+    exposure: 'experimental',
   },
   {
     id: EXPERIMENTAL_FLAG_CHANNELS,
@@ -104,6 +121,7 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     description:
       'Drive a workspace’s Canvas Agent from an external chat channel. Feishu (Lark) is supported today via the SDK long-connection (works behind NAT, no public URL). Also requires FEISHU_APP_ID / FEISHU_APP_SECRET env vars set before launch; without them the channel stays inactive even when this flag is on. Inbound messages are bound to a workspace (default + switchable via /bind), the agent runs, and output streams back as an interactive card. Off by default because it opens an outbound connection to Feishu and lets a remote chat drive the agent.',
     defaultEnabled: false,
+    exposure: 'experimental',
   },
   {
     id: EXPERIMENTAL_FLAG_SCHEDULED_MEMORY_REPORT,
@@ -111,6 +129,7 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     description:
       'Generates a weekly cross-workspace memory report in the background (activity summary + candidate memories and skills to adopt in chat). The first automatic report arrives after a full week; use the try-it button below to generate one immediately. Reports open in the right dock and are archived under ~/.pulse-coder/canvas/memory/reports/. Off by default because each automatic run calls your configured LLM without an explicit prompt from you. The background run is read-only: adopting candidates always happens in chat with your confirmation.',
     defaultEnabled: false,
+    exposure: 'experimental',
   },
   {
     id: EXPERIMENTAL_FLAG_AGENT_TEAMS,
@@ -118,6 +137,7 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     description:
       'Shows the Agent Team canvas entry for experimental multi-agent planning and execution. Existing Agent Team frames can still be opened from saved canvases.',
     defaultEnabled: false,
+    exposure: 'grandfathered',
   },
   {
     id: EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
@@ -125,23 +145,45 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     description:
       'Registers Pulse Canvas as your system handler for http/https links, so links opened anywhere on your computer open in an in-app browser tab instead of your real browser. NOT RECOMMENDED: Pulse Canvas is not a full web browser — many sites (logins, banking, anything sending X-Frame-Options / CSP frame-ancestors) will not load in-app, and there are no bookmarks, extensions, profiles, or password autofill. Enabling this also turns on a single-instance lock (a second launch focuses the existing window instead of opening a new one), and your OS may still require you to confirm the switch in System Settings. Restart the app after toggling for it to fully take effect. Only works in a packaged build; leave off unless you specifically want links captured into the canvas. Turning it off unregisters the handler.',
     defaultEnabled: false,
+    exposure: 'experimental',
   },
 ];
 
 /**
- * Merge user overrides on top of registry defaults. Unknown override keys
- * are preserved (so a stale persisted entry from a removed feature does
- * not crash anything), but only registered flags show up in Settings.
+ * Resolve runtime values from lifecycle policy plus user overrides. Stable
+ * features follow their product-owned default; experimental and grandfathered
+ * features allow an existing user override. Unknown keys are preserved so a
+ * stale persisted entry from a removed feature does not crash anything.
  */
 export function resolveFeatureValues(
   overrides: Record<string, boolean>,
 ): Record<string, boolean> {
   const out: Record<string, boolean> = {};
   for (const def of EXPERIMENTAL_FEATURES) {
-    out[def.id] = overrides[def.id] ?? def.defaultEnabled;
+    out[def.id] = def.exposure === 'stable'
+      ? def.defaultEnabled
+      : overrides[def.id] ?? def.defaultEnabled;
   }
   for (const [k, v] of Object.entries(overrides)) {
     if (!(k in out) && typeof v === 'boolean') out[k] = v;
   }
   return out;
+}
+
+/** Return only features that should appear in Settings → Experimental. */
+export function getVisibleExperimentalFeatures(
+  overrides: Record<string, boolean>,
+): ExperimentalFeatureDef[] {
+  return EXPERIMENTAL_FEATURES.filter((def) => (
+    canConfigureExperimentalFeature(def, overrides)
+  ));
+}
+
+/** Match the mutation surface to the list shown to the current user. */
+export function canConfigureExperimentalFeature(
+  def: ExperimentalFeatureDef,
+  overrides: Record<string, boolean>,
+): boolean {
+  return def.exposure === 'experimental'
+    || (def.exposure === 'grandfathered' && overrides[def.id] === true);
 }

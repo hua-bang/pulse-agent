@@ -103,7 +103,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (now forwardRef) so they match the new ArtifactsPicker trigger.
   // 309→306 (editor link prompt): Apply/Remove/Cancel now share ui/Button
   // instead of carrying a fourth bespoke micro-button family.
-  rawButtonTags: 306,
+  // 306→304 (Library preview): source and add-to-canvas reuse the native
+  // node-header icon actions instead of duplicating footer text buttons.
+  rawButtonTags: 304,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

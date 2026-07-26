@@ -163,9 +163,8 @@ export const AddToCanvasButton = ({ onClick }: { onClick: (e: MouseEvent) => voi
     title="Add to main canvas"
     aria-label="Add node to the main canvas as a reference"
   >
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-      <rect x="2.6" y="2.6" width="9.4" height="9.4" rx="1.6" stroke="currentColor" strokeWidth="1.35" />
-      <path d="M13.4 9.6v3.8m-1.9-1.9h3.8" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 3.25v9.5M3.25 8h9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   </button>
 );

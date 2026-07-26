@@ -3,7 +3,7 @@
  * keys, wait for selectors, run arbitrary JS.
  *
  * Registered as a canvas plugin (see `./index.ts`); gating on the
- * `webview-page-control` experimental flag is handled by the plugin's
+ * `webview-page-control` feature flag is handled by the plugin's
  * `enabledWhen` — by the time this file's factory is called, the flag
  * is known to be on.
  *
@@ -92,7 +92,7 @@ async function executeStructuredPageCapability(
 }
 
 const baseDescription =
-  'Experimental — requires the `webview-page-control` flag. ' +
+  'Requires the `webview-page-control` capability. ' +
   'Operates on iframe canvas nodes in URL mode AND right-dock web tabs — ' +
   'pass the iframe node id or the link-tab id (from canvas_list_tabs) as `nodeId`. ' +
   'Blocked on file://, chrome://, devtools://, view-source://, and a ' +
