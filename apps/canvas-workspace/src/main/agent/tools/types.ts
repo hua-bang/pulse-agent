@@ -55,6 +55,7 @@ export interface CanvasEdge {
   arrowTail?: EdgeArrowCap;
   stroke?: EdgeStroke;
   label?: string;
+  labelStyle?: { color?: string; backgroundColor?: string };
   kind?: string;
   payload?: Record<string, unknown>;
   updatedAt?: number;

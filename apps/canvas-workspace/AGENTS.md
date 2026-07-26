@@ -141,9 +141,16 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 - `harness/tools/driver/` launches the real Electron app. Use `temp`, `demo`,
   or `clone` profiles by default; use `real --allow-real-writes` only after
   explicit user intent because it can mutate real Pulse Canvas data.
+  Reopening `demo` without `--reset` preserves its existing manifest and
+  imported workspaces; fixture reseeding is a reset operation.
 - The app owns v2 canvas storage migration, PTY sessions, runtime-control
   endpoints, plugin activation, and UI-visible data recovery. The CLI adapts to
   those contracts but does not own them.
+- External canvas-store synchronization must treat edges as first-class state:
+  watcher events carry edge ids, renderer reloads must accept edge-only events,
+  and stale saves merge edges by `updatedAt` without dropping unsaved local
+  edges. Guards: `src/main/__tests__/canvas-store-merge.test.ts` and
+  `src/renderer/src/hooks/useNodes.external-update.test.ts`.
 - Live-app capabilities belong under `src/main/runtime/capabilities/`; stable
   Canvas Agent tools may adapt to them without changing their public names or
   payloads. External `/capabilities/*` routes stay hidden unless the

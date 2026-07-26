@@ -15,7 +15,7 @@ export async function prepareProfile(profile, opts) {
   if (profile === 'demo') {
     const home = join(HARNESS_DIR, 'demo-home');
     if (opts.reset) await fs.rm(home, { recursive: true, force: true });
-    await seedDemoHome(home);
+    await seedDemoHome(home, { force: opts.reset === true });
     return { home, workspaceId: 'harness-demo', cleanupHome: false };
   }
 
@@ -49,10 +49,13 @@ export async function writeExperimentalFlags(flags, artifactsDir) {
   return flagsPath;
 }
 
-async function seedDemoHome(home) {
+export async function seedDemoHome(home, { force = false } = {}) {
   const storeDir = join(home, STORE_RELATIVE_DIR);
   const workspaceId = 'harness-demo';
   const workspaceDir = join(storeDir, workspaceId);
+  const manifestPath = join(storeDir, '__workspaces__.json');
+  const canvasPath = join(workspaceDir, 'canvas.json');
+  if (!force && existsSync(manifestPath)) return;
   const notesDir = join(workspaceDir, 'notes');
   await fs.mkdir(notesDir, { recursive: true });
   const notePath = join(notesDir, 'Harness_Demo-node-harness-note.md');
@@ -74,13 +77,13 @@ async function seedDemoHome(home) {
     '<label for="guest-input">Guest input</label>',
     '<input id="guest-input" autocomplete="off">',
   ].join('\n'), 'utf8');
-  await fs.writeFile(join(storeDir, '__workspaces__.json'), JSON.stringify({
+  await fs.writeFile(manifestPath, JSON.stringify({
     workspaces: [{ id: workspaceId, name: 'Harness Demo' }],
     folders: [],
     activeId: workspaceId,
   }, null, 2));
   const now = Date.now();
-  await fs.writeFile(join(workspaceDir, 'canvas.json'), JSON.stringify({
+  await fs.writeFile(canvasPath, JSON.stringify({
     schemaVersion: 1,
     nodes: [
       {

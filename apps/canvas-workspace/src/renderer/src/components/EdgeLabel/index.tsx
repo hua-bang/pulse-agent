@@ -92,6 +92,8 @@ export const EdgeLabel = ({
       style={{
         left: screenPos.x,
         top: screenPos.y,
+        color: edge.labelStyle?.color,
+        backgroundColor: edge.labelStyle?.backgroundColor,
         ['--edge-label-scale' as string]: labelScale,
       }}
       onMouseDown={(e) => e.stopPropagation()}

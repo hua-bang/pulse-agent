@@ -15,6 +15,7 @@ export interface CreateEdgeOptions {
   sourceAnchor?: EdgeAnchor;
   targetAnchor?: EdgeAnchor;
   label?: string;
+  labelStyle?: CanvasEdge['labelStyle'];
   kind?: string;
   arrowHead?: EdgeArrowCap;
   arrowTail?: EdgeArrowCap;
@@ -49,6 +50,7 @@ export async function createEdge(
     arrowTail: opts.arrowTail ?? 'none',
     stroke: opts.stroke ?? { ...DEFAULT_EDGE_STROKE },
     label: opts.label,
+    labelStyle: opts.labelStyle,
     kind: opts.kind,
     payload: opts.payload,
     updatedAt: Date.now(),

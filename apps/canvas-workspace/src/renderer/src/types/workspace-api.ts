@@ -90,6 +90,13 @@ export interface CanvasWorkspaceApi {
       fileCount?: number;
       error?: string;
     }>;
+    importWorkspaceFromPath: (filePath: string) => Promise<{
+      ok: boolean;
+      workspaceId?: string;
+      workspaceName?: string;
+      fileCount?: number;
+      error?: string;
+    }>;
     /**
      * Returns workspaces whose canvas.json was clobbered by a v1-unaware
      * writer. Renderer surfaces sticky alerts for each; recovery is via
@@ -105,6 +112,7 @@ export interface CanvasWorkspaceApi {
       callback: (event: {
         workspaceId: string;
         nodeIds: string[];
+        edgeIds?: string[];
         kind?: 'create' | 'update' | 'delete';
         source: string;
       }) => void,

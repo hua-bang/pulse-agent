@@ -67,6 +67,7 @@ export interface ApplyCreateEdgeOp {
   from: string;
   to: string;
   label?: string;
+  labelStyle?: CanvasEdge['labelStyle'];
   kind?: string;
   bend?: number;
 }
@@ -256,8 +257,10 @@ export async function applyPlan(
             id,
             source: { kind: 'node', nodeId: op.from },
             target: { kind: 'node', nodeId: op.to },
+            updatedAt: Date.now(),
           };
           if (op.label !== undefined) edge.label = op.label;
+          if (op.labelStyle !== undefined) edge.labelStyle = op.labelStyle;
           if (op.kind !== undefined) edge.kind = op.kind;
           if (op.bend !== undefined) edge.bend = op.bend;
           edges.push(edge);
