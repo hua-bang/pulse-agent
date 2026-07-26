@@ -1,5 +1,6 @@
 import { useState, type CSSProperties, type MouseEvent } from 'react';
 import type { CanvasNode } from '../../types';
+import type { MergeMindmapTopicRequest } from '../../utils/mindmapTransfer';
 import { MindmapNodeBody } from '../MindmapNodeBody';
 import { NodeContextMenu } from '../NodeContextMenu';
 import { CloseButton, FullscreenButton } from './NodeButtons';
@@ -16,6 +17,13 @@ interface MindmapCanvasNodeProps {
   onAutoResize: (id: string, width: number, height: number) => void;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
   onExportMindmapImage: (id: string) => void;
+  onMergeMindmapTopic?: (request: MergeMindmapTopicRequest) => boolean;
+  onSplitMindmapTopic?: (
+    sourceNodeId: string,
+    sourceTopicId: string,
+    clientX: number,
+    clientY: number,
+  ) => boolean;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   readOnly: boolean;
@@ -35,6 +43,8 @@ export const MindmapCanvasNode = ({
   onAutoResize,
   onDragStart,
   onExportMindmapImage,
+  onMergeMindmapTopic,
+  onSplitMindmapTopic,
   onSelect,
   onUpdate,
   readOnly,
@@ -70,6 +80,8 @@ export const MindmapCanvasNode = ({
           onUpdate={onUpdate}
           onSelectNode={onSelect}
           onAutoResize={onAutoResize}
+          onMergeTopic={onMergeMindmapTopic}
+          onSplitTopic={onSplitMindmapTopic}
           readOnly={readOnly}
         />
       </div>

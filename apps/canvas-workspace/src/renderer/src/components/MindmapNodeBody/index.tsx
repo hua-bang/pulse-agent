@@ -10,6 +10,8 @@ export const MindmapNodeBody = ({
   onUpdate,
   onSelectNode,
   onAutoResize,
+  onMergeTopic,
+  onSplitTopic,
   readOnly = false,
 }: MindmapNodeBodyProps) => {
   const controller = useMindmapController({
@@ -17,12 +19,16 @@ export const MindmapNodeBody = ({
     onUpdate,
     onSelectNode,
     onAutoResize,
+    onMergeTopic,
+    onSplitTopic,
     readOnly,
   });
 
   return (
     <div
       className={`mindmap-node-body${isSelected ? ' mindmap-node-body--selected' : ''}${isOuterDragging ? ' mindmap-node-body--outer-dragging' : ''}`}
+      data-mindmap-node-id={node.id}
+      data-mindmap-drop-enabled={!readOnly && onMergeTopic ? 'true' : undefined}
     >
       <div
         className="mindmap-viewport"
@@ -63,13 +69,14 @@ export const MindmapNodeBody = ({
               topic={topic}
               isSelected={controller.selectedId === topic.id}
               isEditing={controller.editingId === topic.id}
+              initialInput={controller.editingId === topic.id ? controller.editingInitialInput : undefined}
               outerCanvasSelected={isSelected}
               isDragSource={controller.reorder?.sourceId === topic.id}
               dropHint={controller.getDropHint(topic.id)}
               onBeginReorder={(e) => controller.beginReorder(topic.id, e)}
               onAddChild={() => controller.addChild(topic.id)}
               onSelect={() => controller.selectTopic(topic.id)}
-              onEnterEdit={() => controller.enterTopicEdit(topic.id)}
+              onEnterEdit={(initialInput) => controller.enterTopicEdit(topic.id, initialInput)}
               onCommitText={(text) => controller.renameTopic(topic.id, text)}
               onToggleCollapsed={() => controller.toggleTopicCollapsed(topic.id)}
               onKeyAction={(action) => controller.handleTopicKeyAction(topic.id, action)}

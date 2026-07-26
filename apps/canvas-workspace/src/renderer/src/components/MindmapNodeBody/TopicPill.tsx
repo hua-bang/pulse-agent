@@ -15,13 +15,14 @@ interface TopicPillProps {
   topic: LaidOutTopic;
   isSelected: boolean;
   isEditing: boolean;
+  initialInput?: string;
   outerCanvasSelected: boolean;
   isDragSource: boolean;
   dropHint: DropHint;
   onBeginReorder: (e: MouseEvent) => void;
   onAddChild: () => void;
   onSelect: () => void;
-  onEnterEdit: () => void;
+  onEnterEdit: (initialInput?: string) => void;
   onCommitText: (text: string) => void;
   onToggleCollapsed: () => void;
   onKeyAction: (action: KeyAction) => void;
@@ -32,6 +33,7 @@ export const TopicPill = ({
   topic,
   isSelected,
   isEditing,
+  initialInput,
   outerCanvasSelected,
   isDragSource,
   dropHint,
@@ -52,6 +54,9 @@ export const TopicPill = ({
     if (readOnly || !isEditing) return;
     const el = editorRef.current;
     if (!el) return;
+    if (initialInput) {
+      el.innerText = `${topic.text}${initialInput}`;
+    }
     el.focus();
     const range = document.createRange();
     range.selectNodeContents(el);
@@ -61,7 +66,7 @@ export const TopicPill = ({
       sel.removeAllRanges();
       sel.addRange(range);
     }
-  }, [isEditing, readOnly]);
+  }, [initialInput, isEditing, readOnly, topic.text]);
 
   useEffect(() => {
     if (isEditing || readOnly) return;
@@ -81,11 +86,6 @@ export const TopicPill = ({
     if (next !== topic.text) onCommitText(next);
   }, [onCommitText, topic.text, readOnly]);
 
-  const cancel = useCallback(() => {
-    const el = editorRef.current;
-    if (el) el.innerText = topic.text;
-  }, [topic.text]);
-
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (readOnly) return;
@@ -101,7 +101,7 @@ export const TopicPill = ({
       if (isEditing) {
         if (e.key === 'Escape') {
           consume();
-          cancel();
+          commit();
           onKeyAction({ kind: 'exit' });
           return;
         }
@@ -176,11 +176,12 @@ export const TopicPill = ({
             && !e.altKey
             && e.key.toLowerCase() !== 'f'
           ) {
-            onEnterEdit();
+            consume();
+            onEnterEdit(e.key);
           }
       }
     },
-    [cancel, commit, isEditing, onEnterEdit, onKeyAction, topic.hasChildren, topic.text, readOnly],
+    [commit, isEditing, onEnterEdit, onKeyAction, topic.hasChildren, topic.text, readOnly],
   );
 
   const isRoot = topic.depth === 0;
