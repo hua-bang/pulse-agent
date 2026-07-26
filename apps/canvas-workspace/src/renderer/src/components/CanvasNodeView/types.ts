@@ -36,6 +36,12 @@ export interface CanvasNodeViewProps {
   onExportMindmapImage: (id: string) => void;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
+  /** Optional copy for the standard focus icon when a read-only preview opens
+   * its source node rather than focusing the node in the current canvas. */
+  focusAction?: {
+    ariaLabel: string;
+    title: string;
+  };
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
   /** Place this node on the main canvas as a reference (dock preview only). */
@@ -49,6 +55,9 @@ export interface CanvasNodeViewProps {
   isFullscreen?: boolean;
   onToggleFullscreen?: (nodeId: string) => void;
   readOnly?: boolean;
+  /** Keep file nodes on their full Tiptap renderer while preventing edits.
+   * Used by Library previews so they match the source canvas node exactly. */
+  renderFullFileBody?: boolean;
   embedded?: boolean;
   /** Render only the node body when a surrounding document already owns
    * the title and metadata chrome (for example the node detail page/dock). */

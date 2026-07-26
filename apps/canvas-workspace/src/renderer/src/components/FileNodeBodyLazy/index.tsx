@@ -10,6 +10,7 @@ interface Props {
   workspaceId?: string;
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
+  renderFullEditor?: boolean;
 }
 
 const FileNodeEditor = lazy(() =>
@@ -71,13 +72,13 @@ export const MarkdownPreview = ({ content }: { content: string }) => {
 };
 
 export const FileNodeBodyLazy = (props: Props) => {
-  const [editorLoaded, setEditorLoaded] = useState(() => !props.readOnly);
+  const [editorLoaded, setEditorLoaded] = useState(() => props.renderFullEditor || !props.readOnly);
   const { openLink } = useRightDock();
   const content = (props.node.data as FileNodeData).content ?? '';
 
   useEffect(() => {
-    if (!props.readOnly) setEditorLoaded(true);
-  }, [props.readOnly]);
+    if (props.renderFullEditor || !props.readOnly) setEditorLoaded(true);
+  }, [props.readOnly, props.renderFullEditor]);
 
   const activateEditor = useCallback(() => {
     if (!props.readOnly) setEditorLoaded(true);

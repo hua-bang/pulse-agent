@@ -24,6 +24,7 @@ const CanvasNodeViewComponent = ({
   isHighlighted,
   isAgentEdited,
   focusState = 'neutral',
+  focusAction,
   onDragStart,
   onResizeStart,
   onUpdate,
@@ -45,6 +46,7 @@ const CanvasNodeViewComponent = ({
   isFullscreen = false,
   onToggleFullscreen,
   readOnly = false,
+  renderFullFileBody = false,
   embedded = false,
   hideHeader = false,
   renderMode = 'full',
@@ -185,6 +187,7 @@ const CanvasNodeViewComponent = ({
     <DefaultCanvasNode
       classes={viewModel.classes}
       fullscreenButton={fullscreenButton}
+      focusAction={focusAction}
       getAllNodes={getAllNodes}
       containerDescendantCount={viewModel.containerDescendantCount}
       handleClose={viewModel.handleClose}
@@ -216,6 +219,7 @@ const CanvasNodeViewComponent = ({
       onUngroupSelectedGroups={onUngroupSelectedGroups}
       onUpdate={onUpdate}
       readOnly={readOnly}
+      renderFullFileBody={renderFullFileBody}
       renderMode={renderMode}
       relativeTime={viewModel.relativeTime}
       rootFolder={rootFolder}
@@ -240,6 +244,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.isHighlighted === next.isHighlighted &&
   prev.isAgentEdited === next.isAgentEdited &&
   prev.focusState === next.focusState &&
+  prev.focusAction === next.focusAction &&
   prev.isFullscreen === next.isFullscreen &&
   prev.onToggleFullscreen === next.onToggleFullscreen &&
   prev.resolveReferenceNode === next.resolveReferenceNode &&
@@ -249,6 +254,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.onSubmitDomReviewComments === next.onSubmitDomReviewComments &&
   prev.onRemoveNodes === next.onRemoveNodes &&
   prev.readOnly === next.readOnly &&
+  prev.renderFullFileBody === next.renderFullFileBody &&
   prev.embedded === next.embedded &&
   prev.hideHeader === next.hideHeader &&
   prev.renderMode === next.renderMode

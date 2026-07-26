@@ -36,6 +36,10 @@ const TextNodeBody = lazy(() => import('../TextNodeBodyLazy').then((m) => ({ def
 interface DefaultCanvasNodeProps {
   classes: string;
   fullscreenButton: ReactNode;
+  focusAction?: {
+    ariaLabel: string;
+    title: string;
+  };
   getAllNodes?: () => CanvasNode[];
   containerDescendantCount: number;
   handleClose: (e: MouseEvent) => void;
@@ -67,6 +71,7 @@ interface DefaultCanvasNodeProps {
   onUngroupSelectedGroups?: () => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
   readOnly: boolean;
+  renderFullFileBody: boolean;
   renderMode?: CanvasNodeRenderMode;
   relativeTime: string | null;
   rootFolder?: string;
@@ -79,6 +84,7 @@ interface DefaultCanvasNodeProps {
 export const DefaultCanvasNode = ({
   classes,
   fullscreenButton,
+  focusAction,
   getAllNodes,
   containerDescendantCount,
   handleClose,
@@ -110,6 +116,7 @@ export const DefaultCanvasNode = ({
   onUngroupSelectedGroups,
   onUpdate,
   readOnly,
+  renderFullFileBody,
   renderMode = 'full',
   relativeTime,
   rootFolder,
@@ -210,6 +217,7 @@ export const DefaultCanvasNode = ({
   const header = (
     <CanvasNodeHeader
       fullscreenButton={fullscreenButton}
+      focusAction={focusAction}
       containerDescendantCount={containerDescendantCount}
       handleClose={handleClose}
       handleFocus={handleFocus}
@@ -254,7 +262,14 @@ export const DefaultCanvasNode = ({
       <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
         <Suspense fallback={null}>
         {node.type === 'file' ? (
-          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} />
+          <FileNodeBody
+            node={node}
+            onUpdate={onUpdate}
+            workspaceId={workspaceId}
+            getAllNodes={getAllNodes}
+            readOnly={readOnly}
+            renderFullEditor={renderFullFileBody}
+          />
         ) : node.type === 'terminal' ? (
           <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         ) : node.type === 'frame' || node.type === 'group' ? (
