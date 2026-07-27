@@ -76,6 +76,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Main/renderer/preload boundaries | `harness/knowledge/conventions/README.md`, `harness/knowledge/conventions/architecture-boundaries.md` |
 | Renderer conventions | `harness/knowledge/conventions/frontend.md` |
 | Main-process conventions | `harness/knowledge/conventions/backend.md` |
+| PATH for anything the app spawns | `src/main/shell-path.ts` — a GUI launch inherits a stripped PATH, and every child (agent `bash`, which the engine spawns with NO `env`, MCP stdio servers, the bundled CLI) takes `process.env` verbatim, so a missing binary surfaces as a bare "command not found". Repaired once in `bootstrap.ts` before any spawn: `augmentProcessPath()` (sync, well-known per-user bin dirs incl. `~/.pulse-coder/bin`) then a best-effort `applyLoginShellPath()` (async, timeout-bounded `$SHELL -ilc`, only ever widens). PTY env shares the same bin-dir list — do not fork a second copy. Tests: `src/main/__tests__/shell-path.test.ts` |
 | Main domain map | `harness/knowledge/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
 | Renderer routes and full-app surfaces | `harness/knowledge/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
 | Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
