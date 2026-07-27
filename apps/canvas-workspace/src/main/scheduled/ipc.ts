@@ -7,8 +7,9 @@
  *   scheduled:update
  *   scheduled:remove
  *   scheduled:run-now
- *   scheduled:changed     (main → renderer push)
- *   scheduled:open-task  (main → renderer push)
+ *   scheduled:changed       (main → renderer push)
+ *   scheduled:open-task     (main → renderer push)
+ *   scheduled:run-finished  (main → renderer push, success AND failure)
  */
 
 import { ipcMain } from 'electron';

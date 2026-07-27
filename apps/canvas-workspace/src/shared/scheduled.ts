@@ -57,6 +57,14 @@ export interface ScheduledTaskExecutionResult {
   sessionId?: string;
 }
 
+/** Emitted once per finished run attempt — success AND failure. */
+export interface ScheduledRunFinished {
+  taskId: string;
+  title: string;
+  ok: boolean;
+  error?: string;
+}
+
 export interface ScheduledApi {
   list: () => Promise<{ ok: boolean; tasks?: ScheduledTask[]; error?: string }>;
   create: (
@@ -72,6 +80,7 @@ export interface ScheduledApi {
   ) => Promise<{ ok: boolean; task?: ScheduledTask; error?: string }>;
   onChanged: (callback: (tasks: ScheduledTask[]) => void) => () => void;
   onOpenTask: (callback: (taskId: string) => void) => () => void;
+  onRunFinished: (callback: (run: ScheduledRunFinished) => void) => () => void;
 }
 
 const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
