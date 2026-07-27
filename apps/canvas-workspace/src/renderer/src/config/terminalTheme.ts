@@ -1,4 +1,5 @@
 import type { ITerminalOptions } from '@xterm/xterm';
+import { createTerminalLinkHandler } from './terminalLinkHandler';
 
 export const BASE_TERMINAL_FONT_SIZE = 12;
 
@@ -78,4 +79,5 @@ export const TERMINAL_OPTIONS: ITerminalOptions = {
   allowTransparency: true,
   scrollback: 5000,
   smoothScrollDuration: 100,
+  linkHandler: createTerminalLinkHandler(),
 };

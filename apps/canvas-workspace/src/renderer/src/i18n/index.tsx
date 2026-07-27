@@ -33,7 +33,10 @@ const isLanguageCode = (value: unknown): value is LanguageCode => (
   typeof value === 'string' && SUPPORTED_LANGUAGES.includes(value as LanguageCode)
 );
 
-const getInitialLanguage = (): LanguageCode => {
+/** Exported for non-React callers (e.g. the terminal link-confirm dialog,
+ *  which runs outside any component tree) that need the active language
+ *  without a hook. */
+export const getInitialLanguage = (): LanguageCode => {
   if (typeof window === 'undefined') return DEFAULT_LANGUAGE;
 
   const stored = window.localStorage.getItem(STORAGE_KEY);
