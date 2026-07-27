@@ -29,30 +29,34 @@ import {
   finalizeCanvasAgentDebugTrace,
   isCanvasAgentDebugTraceEnabled,
   recordTraceMessageSnapshot,
-  recordTraceToolCall,
-  recordTraceToolResult,
 } from './debug-trace';
 import type {
   AgentScope,
   AgentRequestContext,
   CanvasAgentConfig,
-  CanvasAgentDebugTrace,
   CanvasAgentImageAttachment,
   CanvasAgentMessage,
-  CanvasAgentToolCall,
   WorkspaceSummary,
 } from './types';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
 import { formatSelectionFocusBlock } from './selection-focus-context';
 import { formatReferencedTabsBlock } from './referenced-tabs-context';
-import { stripRoleMentionMarkers } from '../../shared/agent-roles';
+import {
+  stripRoleMentionMarkers,
+  type AgentRoleDefinition,
+  type RoleTurnStartEvent,
+  type RoleTurnEndEvent,
+} from '../../shared/agent-roles';
 import {
   applySpeakerLabelToResponseMessages,
   formatActiveRoleSection,
   formatRoleHistoryNote,
-  resolveActiveRole,
+  resolveActiveRoles,
+  roleTurnRef,
   sessionMessageToModelMessage,
+  shouldRunRelaySegment,
 } from './role-turn';
+import { buildEngineStreamCallbacks, modelMessagesToToolCalls } from './engine-stream-callbacks';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const CANVAS_AGENT_MAX_STEPS = 200;
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
@@ -88,70 +92,6 @@ When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>
 - Be concise and direct. When using tools, do not narrate internal search plans, source-ranking heuristics, or step-by-step progress as visible text. Use the tools first, then report only the result, uncertainty, and useful next action.
 - Ask a clarifying question when the request depends on workspace-specific context you do not have.
 `;
-// AI SDK v6 wraps tool execute return values into a tagged `ToolResultOutput`
-// — `{ type: 'text'|'json'|'error-text'|'error-json'|..., value }` — on the
-// `tool-result` parts of persisted ModelMessages. Stringifying the wrapper
-// loses the original payload (renderers can no longer JSON.parse the
-// tool's actual return value), so unwrap to the inner value first. Plain
-// strings and untyped objects pass through unchanged for back-compat.
-function unwrapToolOutput(raw: unknown): string {
-  if (typeof raw === 'string') return raw;
-  if (raw && typeof raw === 'object') {
-    const r = raw as { type?: unknown; value?: unknown };
-    if (typeof r.type === 'string' && 'value' in r) {
-      const v = r.value;
-      if (typeof v === 'string') return v;
-      return JSON.stringify(v) ?? String(v);
-    }
-  }
-  return JSON.stringify(raw) ?? String(raw);
-}
-
-function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentToolCall[] {
-  const toolCalls: CanvasAgentToolCall[] = [];
-  const byToolCallId = new Map<string, CanvasAgentToolCall>();
-  const findOrCreate = (toolCallId: string, name: string): CanvasAgentToolCall => {
-    const existing = byToolCallId.get(toolCallId);
-    if (existing) {
-      if (!existing.name && name) existing.name = name;
-      return existing;
-    }
-    const tool: CanvasAgentToolCall = {
-      id: toolCalls.length + 1,
-      name,
-      toolCallId,
-      status: 'running',
-    };
-    toolCalls.push(tool);
-    byToolCallId.set(toolCallId, tool);
-    return tool;
-  };
-  for (const message of messages) {
-    const content = (message as any).content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if (part?.type === 'tool-call') {
-        const toolCallId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
-        const name = typeof part.toolName === 'string' ? part.toolName : '';
-        if (!toolCallId || !name) continue;
-        const tool = findOrCreate(toolCallId, name);
-        tool.name = name;
-        tool.args = part.input ?? part.args;
-      }
-
-      if (part?.type === 'tool-result') {
-        const toolCallId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
-        const name = typeof part.toolName === 'string' ? part.toolName : '';
-        if (!toolCallId || !name) continue;
-        const tool = findOrCreate(toolCallId, name);
-        tool.name = name;
-        tool.status = 'done';
-        tool.result = unwrapToolOutput(part.output ?? part.result);
-      }
-    }
-  }
-  return toolCalls;
-}
 // ─── System prompt ─────────────────────────────────────────────────
 const BASE_SYSTEM_PROMPT = `You are the Canvas Agent — the AI Copilot for this workspace.
 
@@ -594,6 +534,8 @@ export class CanvasAgent {
 
   /** AbortController for the currently-running chat turn, if any. */
   private currentAbortController: AbortController | null = null;
+  /** Graceful relay-stop flag for the currently-running turn, if any. */
+  private currentRelayStop: { stopped: boolean } | null = null;
   /** Pending clarification resolvers keyed by request id. */
   private pendingClarifications = new Map<string, (answer: string) => void>();
 
@@ -721,6 +663,8 @@ export class CanvasAgent {
     onToolInputStart?: (data: { id: string; toolName: string }) => void,
     onToolInputDelta?: (data: { id: string; delta: string }) => void,
     onToolInputEnd?: (data: { id: string }) => void,
+    onRoleTurnStart?: (event: RoleTurnStartEvent) => void,
+    onRoleTurnEnd?: (event: RoleTurnEndEvent) => void,
   ): Promise<{ response: string; runId?: string; speakerRole?: { id: string; name: string; color: string } }> {
     const workspaceId = this.config.scope.kind === 'workspace'
       ? this.config.scope.workspaceId
@@ -762,19 +706,16 @@ export class CanvasAgent {
     // entries in workspace chat. Never throws (degrades to empty string).
     const memorySection = await buildMemoryPromptSection(workspaceId);
 
-    // Multi-role chat: the first `@[role:...]` marker picks this turn's
-    // persona; none (or a stale one) → default assistant.
-    const activeRole = await resolveActiveRole(message);
-    const hasLabeledRoleHistory = !activeRole
+    // Multi-role chat: role markers pick this turn's speakers, in mention
+    // order. None (or all stale) → the default assistant. Several → a RELAY:
+    // each role runs as its own segment against the shared history, so later
+    // speakers see earlier speakers' labeled replies from this very turn.
+    const activeRoles = await resolveActiveRoles(message);
+    const hasLabeledRoleHistory = activeRoles.length === 0
       && (this.sessionStore.getCurrentSession()?.messages.some(m => !!m.speakerRoleName) ?? false);
-    const roleSection = activeRole
-      ? formatActiveRoleSection(activeRole)
-      : hasLabeledRoleHistory
-        ? formatRoleHistoryNote()
-        : '';
 
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
-    const systemPrompt = (workspaceId
+    const basePrompt = workspaceId
       ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
         + formatReferencedTabsBlock(requestContext?.tabs ?? [], workspaceId)
         + memorySection
@@ -785,20 +726,7 @@ export class CanvasAgent {
         + formatReferencedTabsBlock(requestContext?.tabs ?? [])
         + formatMentionedCanvasesSection(mentionedCanvases)
         + memorySection
-        + promptProfileSection)
-      + roleSection;
-    const debugTrace = isCanvasAgentDebugTraceEnabled()
-      ? createCanvasAgentDebugTrace({
-          sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
-          userPrompt: message,
-          attachmentCount: attachments.length,
-          requestContext,
-          mentionedCanvases,
-          summary,
-          systemPrompt,
-          currentCanvasSummary,
-        })
-      : undefined;
+        + promptProfileSection;
 
     // Model-facing user text: role markers become plain `@name` (the store
     // keeps the raw marker for chips and regenerate/edit replays).
@@ -832,10 +760,12 @@ export class CanvasAgent {
     // Build the context — pass a mutable reference so onResponse/onCompacted can update it
     const context = { messages: this.messages };
 
-    // One AbortController per chat turn. Exposed via this.abort() so callers
-    // can interrupt a long-running generation.
+    // One AbortController per chat turn (hard stop, exposed via abort());
+    // relayStop is the graceful boundary stop exposed via stopRelay().
     const abortController = new AbortController();
     this.currentAbortController = abortController;
+    const relayStop = { stopped: false };
+    this.currentRelayStop = relayStop;
 
     // Wire the clarify tool through: each clarification request gets a
     // resolver stashed in `pendingClarifications` keyed by request id. The
@@ -854,137 +784,129 @@ export class CanvasAgent {
         }
       : undefined;
 
-    const responseMessages: ModelMessage[] = [];
+    const segments: Array<AgentRoleDefinition | null> = activeRoles.length > 0 ? activeRoles : [null];
+    const queue = segments.map(roleTurnRef);
+    let last: { response: string; runId?: string; role: AgentRoleDefinition | null } | null = null;
 
     try {
       const modelConfig = await resolveCanvasModel();
-      attachTraceModel(debugTrace, {
-        provider: modelConfig.providerType,
-        model: this.config.model ?? modelConfig.model,
-        modelType: modelConfig.modelType,
-      });
-      const resultText = await this.engine.run(context, {
-        provider: modelConfig.provider,
-        model: this.config.model ?? modelConfig.model,
-        modelType: modelConfig.modelType,
-        systemPrompt,
-        maxSteps: CANVAS_AGENT_MAX_STEPS,
-        abortSignal: abortController.signal,
-        runContext: {
-          executionMode: requestContext?.executionMode ?? 'auto',
-        },
-        onClarificationRequest: engineClarificationHandler,
-        onText,
-        onToolCall: (onToolCall || debugTrace)
-          ? (chunk: any) => {
-              // AI SDK v6 uses `input`; older versions use `args`
-              const args = chunk.input ?? chunk.args;
-              console.info('[canvas-agent] tool-call chunk keys:', Object.keys(chunk), 'input:', chunk.input, 'args:', chunk.args);
-              recordTraceToolCall(debugTrace, { name: chunk.toolName, args, toolCallId: chunk.toolCallId });
-              onToolCall?.({ name: chunk.toolName, args, toolCallId: chunk.toolCallId });
-            }
-          : undefined,
-        onToolResult: (onToolResult || debugTrace)
-          ? (chunk: any) => {
-              // AI SDK v6 uses `output`; older versions use `result`
-              const raw = chunk.output ?? chunk.result;
-              console.info('[canvas-agent] tool-result chunk keys:', Object.keys(chunk), 'output:', typeof chunk.output, 'result:', typeof chunk.result);
-              recordTraceToolResult(debugTrace, { name: chunk.toolName, rawResult: raw, toolCallId: chunk.toolCallId });
-              onToolResult?.({
-                name: chunk.toolName,
-                result: unwrapToolOutput(raw),
-                toolCallId: chunk.toolCallId,
-              });
-            }
-          : undefined,
-        onToolInputStart: onToolInputStart
-          ? (chunk: { id: string; toolName: string }) => {
-              console.info('[canvas-agent] tool-input-start', chunk.toolName, chunk.id);
-              onToolInputStart(chunk);
-            }
-          : undefined,
-        onToolInputDelta: onToolInputDelta
-          ? (chunk: { id: string; delta: string }) => {
-              // Sample log — full delta firehose is too noisy for a long run.
-              if (Math.random() < 0.02) {
-                console.info('[canvas-agent] tool-input-delta (sampled)', chunk.id, chunk.delta.length + 'B');
-              }
-              onToolInputDelta(chunk);
-            }
-          : undefined,
-        onToolInputEnd: onToolInputEnd
-          ? (chunk: { id: string }) => {
-              console.info('[canvas-agent] tool-input-end', chunk.id);
-              onToolInputEnd(chunk);
-            }
-          : undefined,
-        onResponse: (msgs: ModelMessage[]) => {
-          for (const msg of msgs) {
-            this.messages.push(msg);
-            responseMessages.push(msg);
-          }
-        },
-        onCompacted: (newMessages: ModelMessage[]) => {
-          this.messages = newMessages;
-          context.messages = newMessages;
-        },
-      });
+      for (let index = 0; index < segments.length; index++) {
+        if (!shouldRunRelaySegment(index, {
+          aborted: abortController.signal.aborted,
+          stopRequested: relayStop.stopped,
+        })) break;
+        const role = segments[index];
+        const segmentPrompt = basePrompt + (role
+          ? formatActiveRoleSection(role, { index, total: segments.length })
+          : hasLabeledRoleHistory ? formatRoleHistoryNote() : '');
+        const debugTrace = isCanvasAgentDebugTraceEnabled()
+          ? createCanvasAgentDebugTrace({
+              sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
+              userPrompt: message,
+              attachmentCount: attachments.length,
+              requestContext,
+              mentionedCanvases,
+              summary,
+              systemPrompt: segmentPrompt,
+              currentCanvasSummary,
+            })
+          : undefined;
+        attachTraceModel(debugTrace, {
+          provider: modelConfig.providerType,
+          model: this.config.model ?? modelConfig.model,
+          modelType: modelConfig.modelType,
+        });
+        onRoleTurnStart?.({ index, total: segments.length, speakerRole: roleTurnRef(role), queue });
 
-      const responseText = resultText || '(no response)';
-      recordTraceMessageSnapshot(debugTrace, { systemPrompt, messages: context.messages });
-
-      // Persist assistant response together with the tool-call frames that
-      // produced it so saved/restored chat sessions can render tool chips,
-      // inline visuals, artifacts, and generated images instead of losing
-      // them after reload.
-      const toolCalls = modelMessagesToToolCalls(responseMessages);
-      // Live-push speaker label on the model history — MUST mirror the
-      // session-reload path in `sessionMessageToModelMessage`.
-      if (activeRole) {
-        applySpeakerLabelToResponseMessages(responseMessages, activeRole.name);
-      }
-      const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace);
-      this.sessionStore.addMessage({
-        role: 'assistant',
-        content: responseText,
-        timestamp: Date.now(),
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-        runId: finalizedTrace?.runId,
-        speakerRoleId: activeRole?.id,
-        speakerRoleName: activeRole?.name,
-        speakerRoleColor: activeRole?.color,
-      });
-
-      // Notify subscribed plugins (devtools persists the trace to its own
-      // store; other plugins may inspect the finalized turn). Emitted
-      // only when a trace was actually captured.
-      if (finalizedTrace) {
-        // Await listeners so plugin storage (e.g. devtools persisting the
-        // trace) is flushed before chat() returns. The renderer card can
-        // then fetch the trace by runId immediately without racing the
-        // write.
-        await agentBus.emitTurnAsync('turnEnd', {
-          runId: finalizedTrace.runId,
-          sessionId: finalizedTrace.sessionId,
-          data: {
-            trace: finalizedTrace,
-            assistantPreview: responseText.slice(0, 180),
-            workspaceId: workspaceId ?? 'global',
-            workspaceName: summary?.workspaceName ?? 'Global Chat',
+        const responseMessages: ModelMessage[] = [];
+        const resultText = await this.engine.run(context, {
+          provider: modelConfig.provider,
+          model: this.config.model ?? modelConfig.model,
+          modelType: modelConfig.modelType,
+          systemPrompt: segmentPrompt,
+          maxSteps: CANVAS_AGENT_MAX_STEPS,
+          abortSignal: abortController.signal,
+          runContext: {
+            executionMode: requestContext?.executionMode ?? 'auto',
           },
+          onClarificationRequest: engineClarificationHandler,
+          ...buildEngineStreamCallbacks(
+            { onText, onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd },
+            debugTrace,
+          ),
+          onResponse: (msgs: ModelMessage[]) => {
+            for (const msg of msgs) {
+              this.messages.push(msg);
+              responseMessages.push(msg);
+            }
+          },
+          onCompacted: (newMessages: ModelMessage[]) => {
+            this.messages = newMessages;
+            context.messages = newMessages;
+          },
+        });
+
+        const responseText = resultText || '(no response)';
+        recordTraceMessageSnapshot(debugTrace, { systemPrompt: segmentPrompt, messages: context.messages });
+
+        // Persist the segment with its tool-call frames so restored sessions
+        // render tool chips, inline visuals, and artifacts after reload.
+        const toolCalls = modelMessagesToToolCalls(responseMessages);
+        // Live-push speaker label on the model history — MUST mirror the
+        // session-reload path in `sessionMessageToModelMessage`. This is also
+        // what lets segment N+1 read segment N's reply with attribution.
+        if (role) {
+          applySpeakerLabelToResponseMessages(responseMessages, role.name);
+        }
+        const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace);
+        this.sessionStore.addMessage({
+          role: 'assistant',
+          content: responseText,
+          timestamp: Date.now(),
+          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          runId: finalizedTrace?.runId,
+          speakerRoleId: role?.id,
+          speakerRoleName: role?.name,
+          speakerRoleColor: role?.color,
+        });
+
+        // Notify subscribed plugins (devtools persists the trace to its own
+        // store). Awaited so plugin storage is flushed before the segment
+        // completes and the renderer can fetch the trace by runId.
+        if (finalizedTrace) {
+          await agentBus.emitTurnAsync('turnEnd', {
+            runId: finalizedTrace.runId,
+            sessionId: finalizedTrace.sessionId,
+            data: {
+              trace: finalizedTrace,
+              assistantPreview: responseText.slice(0, 180),
+              workspaceId: workspaceId ?? 'global',
+              workspaceName: summary?.workspaceName ?? 'Global Chat',
+            },
+          });
+        }
+
+        last = { response: responseText, runId: finalizedTrace?.runId, role };
+        onRoleTurnEnd?.({
+          index,
+          total: segments.length,
+          response: responseText,
+          runId: finalizedTrace?.runId,
+          speakerRole: roleTurnRef(role),
         });
       }
 
       return {
-        response: responseText,
-        runId: finalizedTrace?.runId,
-        speakerRole: activeRole
-          ? { id: activeRole.id, name: activeRole.name, color: activeRole.color }
-          : undefined,
+        response: last?.response ?? '(no response)',
+        runId: last?.runId,
+        speakerRole: roleTurnRef(last?.role ?? null) ?? undefined,
       };
     } finally {
       if (this.currentAbortController === abortController) {
         this.currentAbortController = null;
+      }
+      if (this.currentRelayStop === relayStop) {
+        this.currentRelayStop = null;
       }
       this.pendingClarifications.clear();
     }
@@ -996,6 +918,17 @@ export class CanvasAgent {
    */
   abort(): void {
     this.currentAbortController?.abort();
+  }
+
+  /**
+   * Graceful relay stop: the segment currently speaking finishes normally,
+   * queued segments are skipped (see `shouldRunRelaySegment`). Returns false
+   * when no turn is running.
+   */
+  stopRelay(): boolean {
+    if (!this.currentRelayStop) return false;
+    this.currentRelayStop.stopped = true;
+    return true;
   }
 
   /**

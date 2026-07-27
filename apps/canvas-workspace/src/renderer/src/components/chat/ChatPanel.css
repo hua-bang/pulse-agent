@@ -2755,3 +2755,69 @@
   line-height: 1;
   user-select: none;
 }
+
+/* ─── Multi-role relay progress bar ─────────────────────────── */
+
+.chat-relay-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 14px 6px;
+  padding: 5px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.chat-relay-step-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-relay-arrow {
+  color: var(--text-muted);
+  margin: 0 2px;
+}
+
+.chat-relay-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  line-height: 1.5;
+}
+
+.chat-relay-step--speaking {
+  font-weight: 700;
+}
+
+.chat-relay-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  animation: chat-relay-pulse 1.3s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes chat-relay-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.chat-relay-speaking-label {
+  font-weight: 400;
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+/* ui/Button carries the danger styling; the bar only positions it. */
+.chat-relay-stop-btn {
+  margin-left: auto;
+}

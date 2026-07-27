@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEventHandler } from 'react';
-import { DOM_MENTION_PREFIX } from './constants';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import { SessionTitle } from './SessionTitle';
@@ -18,28 +17,7 @@ import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { useStartSkillChat } from './hooks/useStartSkillChat';
-function escapeDomMentionPart(value: string): string {
-  return value.replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim();
-}
-function buildDomReviewPrompt(comments: AgentContextDomReviewComment[]): string {
-  const lines = [
-    `Apply these ${comments.length} DOM review comments to the selected web UI elements.`,
-    '',
-  ];
-  comments.forEach((comment, index) => {
-    const selection = comment.selection;
-    const label = escapeDomMentionPart(selection.label || `DOM selection ${index + 1}`);
-    const marker = `@[${DOM_MENTION_PREFIX}${selection.id}|${label}]`;
-    lines.push(`${index + 1}. ${marker}`);
-    lines.push(`   Comment: ${comment.text.trim()}`);
-    lines.push(`   Selector: ${selection.selector}`);
-    if (selection.text) {
-      const excerpt = selection.text.replace(/\s+/g, ' ').trim().slice(0, 220);
-      if (excerpt) lines.push(`   Element text: ${excerpt}`);
-    }
-  });
-  return lines.join('\n');
-}
+import { buildDomReviewPrompt } from './utils/domReviewPrompt';
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
@@ -104,6 +82,8 @@ export const ChatPanel = ({
     clearInput,
     editUserMessage,
     regenerateAssistantMessage,
+    relay,
+    stopRelay,
     collapsedSections,
     editableRef,
     expandedTools,
@@ -453,6 +433,8 @@ export const ChatPanel = ({
       collapsedSections={collapsedSections}
       expandedTools={expandedTools}
       pendingClarify={pendingClarify}
+      relay={relay}
+      onStopRelay={stopRelay}
       clarifyInput={clarifyInput}
       onClarifyInputChange={setClarifyInput}
       onAnswerClarification={answerClarification}

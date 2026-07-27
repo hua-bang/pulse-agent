@@ -4,14 +4,25 @@ import {
   formatSpeakerLabel,
   labelAssistantContent,
   parseFirstRoleMention,
+  parseRoleMentions,
   sanitizeAgentRoleName,
   stripRoleMentionMarkers,
 } from './agent-roles';
 
 describe('role mention markers', () => {
-  it('parses the first role marker and ignores later ones (one speaker per turn)', () => {
+  it('parses the first role marker (single-speaker view of the relay list)', () => {
     const text = '@[role:r1|产品经理] 先评估,@[role:r2|架构师] 你后说';
     expect(parseFirstRoleMention(text)).toEqual({ roleId: 'r1', name: '产品经理' });
+  });
+
+  it('parses ALL role markers in order, deduped by id (relay queue)', () => {
+    const text = '@[role:r1|产品经理] @[role:r2|架构师] @[role:r1|产品经理] @[role:r3|评审员] 一起评审';
+    expect(parseRoleMentions(text)).toEqual([
+      { roleId: 'r1', name: '产品经理' },
+      { roleId: 'r2', name: '架构师' },
+      { roleId: 'r3', name: '评审员' },
+    ]);
+    expect(parseRoleMentions('no markers')).toEqual([]);
   });
 
   it('returns null without a marker and falls back to the id for an empty name', () => {

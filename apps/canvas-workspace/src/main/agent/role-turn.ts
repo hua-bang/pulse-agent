@@ -14,35 +14,72 @@
 import type { ModelMessage } from 'ai';
 import {
   labelAssistantContent,
-  parseFirstRoleMention,
+  parseRoleMentions,
   stripRoleMentionMarkers,
   type AgentRoleDefinition,
+  type RoleTurnRoleRef,
 } from '../../shared/agent-roles';
-import { getAgentRole } from './roles-store';
+import { listAgentRoles } from './roles-store';
 import type { CanvasAgentMessage } from './types';
 
 /**
- * Role addressed by `message`, or null when the message has no role marker
- * or the marker points at a role that no longer exists (stale mention after
- * a delete → the turn degrades to the default assistant).
+ * Roles addressed by `message`, in mention order, resolved against the
+ * library. Stale mentions (deleted roles) are dropped; an empty result means
+ * the default assistant takes the turn. More than one role = a RELAY: each
+ * speaks in order as its own attributed message.
  */
-export async function resolveActiveRole(message: string): Promise<AgentRoleDefinition | null> {
-  const mention = parseFirstRoleMention(message);
-  if (!mention) return null;
+export async function resolveActiveRoles(message: string): Promise<AgentRoleDefinition[]> {
+  const mentions = parseRoleMentions(message);
+  if (mentions.length === 0) return [];
   try {
-    return await getAgentRole(mention.roleId);
+    const byId = new Map((await listAgentRoles()).map(role => [role.id, role]));
+    return mentions
+      .map(mention => byId.get(mention.roleId))
+      .filter((role): role is AgentRoleDefinition => !!role);
   } catch (err) {
-    console.warn('[canvas-agent] failed to resolve role mention, using default assistant:', err);
-    return null;
+    console.warn('[canvas-agent] failed to resolve role mentions, using default assistant:', err);
+    return [];
   }
+}
+
+/** Single-speaker view of {@link resolveActiveRoles} (kept for P0 callers/tests). */
+export async function resolveActiveRole(message: string): Promise<AgentRoleDefinition | null> {
+  return (await resolveActiveRoles(message))[0] ?? null;
+}
+
+export const roleTurnRef = (role: AgentRoleDefinition | null): RoleTurnRoleRef | null =>
+  role ? { id: role.id, name: role.name, color: role.color } : null;
+
+/**
+ * Relay boundary policy: a graceful stop ("停止接龙") lets the CURRENT
+ * segment finish and skips only FUTURE segments — segment 0 always runs.
+ * A hard abort stops everything. Extracted so the boundary rule is pinned
+ * by tests instead of living implicitly in the loop.
+ */
+export function shouldRunRelaySegment(
+  index: number,
+  state: { aborted: boolean; stopRequested: boolean },
+): boolean {
+  if (state.aborted) return false;
+  if (state.stopRequested && index > 0) return false;
+  return true;
 }
 
 /**
  * Persona section appended to the system prompt when a role speaks. The
  * multi-party protocol note is included so the role reads the labeled
- * history correctly and never writes its own label.
+ * history correctly and never writes its own label. In a relay, the role is
+ * told its position so it builds on (rather than repeats) earlier speakers.
  */
-export function formatActiveRoleSection(role: AgentRoleDefinition): string {
+export function formatActiveRoleSection(
+  role: AgentRoleDefinition,
+  relay?: { index: number; total: number },
+): string {
+  const relayNote = relay && relay.total > 1
+    ? [
+        `- This turn is a RELAY: ${relay.total} roles reply in order to the same user message, and you are speaker ${relay.index + 1} of ${relay.total}. Earlier speakers' replies for this turn are already in the history — respond to them where relevant instead of repeating their points.`,
+      ]
+    : [];
   return [
     '',
     '## Active Speaking Role (本轮发言角色)',
@@ -56,6 +93,7 @@ export function formatActiveRoleSection(role: AgentRoleDefinition): string {
     `- This chat may contain replies from several roles. In the history, an assistant message starting with 【RoleName】 was spoken by that role; unlabeled assistant messages came from the default assistant.`,
     `- Speak ONLY as ${role.name}. Never fabricate or paraphrase replies for other roles, and never answer on their behalf.`,
     '- Do NOT prefix your reply with 【...】 yourself — attribution is added by the system.',
+    ...relayNote,
     '- The persona shapes tone, perspective, and priorities only. It MUST NOT override tool-usage rules, safety rules, confirmation rules, or scope rules from the sections above.',
     '',
   ].join('\n');

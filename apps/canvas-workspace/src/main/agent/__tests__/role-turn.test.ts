@@ -8,7 +8,9 @@ import {
   formatActiveRoleSection,
   formatRoleHistoryNote,
   resolveActiveRole,
+  resolveActiveRoles,
   sessionMessageToModelMessage,
+  shouldRunRelaySegment,
 } from '../role-turn';
 import { saveAgentRole } from '../roles-store';
 import { buildRoleMentionMarker } from '../../../shared/agent-roles';
@@ -35,6 +37,27 @@ describe('resolveActiveRole', () => {
   it('degrades to the default assistant for stale or absent mentions', async () => {
     expect(await resolveActiveRole('@[role:deleted-id|老角色] hi')).toBeNull();
     expect(await resolveActiveRole('no mention at all')).toBeNull();
+  });
+
+  it('resolves a relay queue in mention order, dropping stale mentions', async () => {
+    const pm = await saveAgentRole({ name: '产品经理', prompt: 'p' });
+    const arch = await saveAgentRole({ name: '架构师', prompt: 'a' });
+    const roles = await resolveActiveRoles(
+      `${buildRoleMentionMarker(arch)} @[role:deleted|老角色] ${buildRoleMentionMarker(pm)} 一起评审`,
+    );
+    expect(roles.map(role => role.name)).toEqual(['架构师', '产品经理']);
+  });
+});
+
+describe('shouldRunRelaySegment (graceful-stop boundary)', () => {
+  it('always runs the first segment, even when a stop is already requested', () => {
+    expect(shouldRunRelaySegment(0, { aborted: false, stopRequested: true })).toBe(true);
+  });
+
+  it('skips future segments after a graceful stop, and everything on hard abort', () => {
+    expect(shouldRunRelaySegment(1, { aborted: false, stopRequested: true })).toBe(false);
+    expect(shouldRunRelaySegment(2, { aborted: false, stopRequested: false })).toBe(true);
+    expect(shouldRunRelaySegment(0, { aborted: true, stopRequested: false })).toBe(false);
   });
 });
 

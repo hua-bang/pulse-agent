@@ -10,6 +10,8 @@ import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
 import { ChatMessages } from './ChatMessages';
+import { RelayBar } from './RelayBar';
+import type { RelayProgress } from './hooks/relayTurnHandlers';
 import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
 
 interface ChatViewProps {
@@ -33,6 +35,9 @@ interface ChatViewProps {
   clarifyInput: string;
   onClarifyInputChange: (value: string) => void;
   onAnswerClarification: () => Promise<void>;
+  /** Multi-role relay progress (only rendered while a relay turn runs). */
+  relay?: RelayProgress | null;
+  onStopRelay?: () => void;
   onToggleSection: (messageIndex: number) => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
@@ -111,6 +116,8 @@ export const ChatView = ({
   clarifyInput,
   onClarifyInputChange,
   onAnswerClarification,
+  relay,
+  onStopRelay,
   onToggleSection,
   onToggleToolExpand,
   onAddImageToCanvas,
@@ -194,6 +201,9 @@ export const ChatView = ({
           onConfigureModel={onOpenModelSettings}
           knowledgeMode={knowledgeMode}
         />
+      )}
+      {relay && relay.total > 1 && onStopRelay && (
+        <RelayBar relay={relay} onStop={onStopRelay} />
       )}
       <ChatInput
         loading={loading}

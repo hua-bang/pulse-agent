@@ -6,6 +6,7 @@ import './ChatPage.css';
 import './ChatPanel.css';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
+import { RailToggleIcon } from './RailToggleIcon';
 import { sessionTitleText } from './utils/sessionTitle';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
@@ -16,13 +17,6 @@ import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { scopeSessionStoreId } from '../../../../shared/agent-chat';
-
-const RailToggleIcon = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-    <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" strokeWidth="1.3" />
-    <path d="M6 2.5v11" stroke="currentColor" strokeWidth="1.3" />
-  </svg>
-);
 
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
@@ -134,6 +128,8 @@ export const ChatPageBody = ({
     currentScopeName,
     pendingClarify,
     regenerateAssistantMessage,
+    relay,
+    stopRelay,
     removeAttachment,
     selectMention,
     sendMessage,
@@ -458,6 +454,8 @@ export const ChatPageBody = ({
           collapsedSections={collapsedSections}
           expandedTools={expandedTools}
           pendingClarify={pendingClarify}
+          relay={relay}
+          onStopRelay={stopRelay}
           clarifyInput={clarifyInput}
           onClarifyInputChange={setClarifyInput}
           onAnswerClarification={answerClarification}

@@ -77,18 +77,55 @@ export interface RoleMentionRef {
 }
 
 /**
- * First role marker in a message — the turn's addressed role. Later role
- * markers are deliberately ignored in P0 (one speaker per turn); they stay
- * in the text as plain references.
+ * Every role marker in a message, in order of first appearance, deduped by
+ * role id. One message @-ing several roles is a RELAY: the roles reply in
+ * this order, each as its own attributed message.
  */
-export function parseFirstRoleMention(text: string): RoleMentionRef | null {
+export function parseRoleMentions(text: string): RoleMentionRef[] {
   const re = new RegExp(ROLE_MENTION_RE.source, 'g');
-  const match = re.exec(text);
-  if (!match) return null;
-  const roleId = match[1].trim();
-  const name = match[2].trim();
-  if (!roleId) return null;
-  return { roleId, name: name || roleId };
+  const mentions: RoleMentionRef[] = [];
+  const seen = new Set<string>();
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    const roleId = match[1].trim();
+    if (!roleId || seen.has(roleId)) continue;
+    seen.add(roleId);
+    const name = match[2].trim();
+    mentions.push({ roleId, name: name || roleId });
+  }
+  return mentions;
+}
+
+/** First role marker — the single-speaker view of {@link parseRoleMentions}. */
+export function parseFirstRoleMention(text: string): RoleMentionRef | null {
+  return parseRoleMentions(text)[0] ?? null;
+}
+
+// ─── Relay (multi-role turn) stream events ──────────────────────────
+
+export interface RoleTurnRoleRef {
+  id: string;
+  name: string;
+  color: string;
+}
+
+/** Pushed before each segment of a turn (single-speaker turns emit one with total=1). */
+export interface RoleTurnStartEvent {
+  index: number;
+  total: number;
+  /** null → the default assistant speaks this segment. */
+  speakerRole: RoleTurnRoleRef | null;
+  /** Full relay queue, so the renderer can draw progress from the first event. */
+  queue: Array<RoleTurnRoleRef | null>;
+}
+
+/** Pushed after a segment's run finished successfully. */
+export interface RoleTurnEndEvent {
+  index: number;
+  total: number;
+  response: string;
+  runId?: string;
+  speakerRole: RoleTurnRoleRef | null;
 }
 
 /**
