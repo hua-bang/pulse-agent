@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   CalendarBlank,
   CalendarCheck,
-  ChatCircle,
   Pause,
   PencilSimple,
   Play,
@@ -19,11 +18,7 @@ import { scheduleLabel, timeLabel } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
 import './index.css';
 
-interface Props {
-  onOpenTask: (taskId: string) => void;
-}
-
-export const ScheduledPage = ({ onOpenTask }: Props) => {
+export const ScheduledPage = () => {
   const { t } = useI18n();
   const { notify, confirm } = useAppShell();
   const { store: dockStore } = useDockContext();
@@ -178,14 +173,6 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
                   </span>
                 </div>
                 <div className="scheduled-page__row-actions">
-                  <Button
-                    size="xs"
-                    title={t('scheduled.openChat')}
-                    onClick={() => onOpenTask(task.id)}
-                  >
-                    <ChatCircle size={13} />
-                    {t('scheduled.openChat')}
-                  </Button>
                   <Button
                     size="xs"
                     title={task.enabled ? t('scheduled.pause') : t('scheduled.resume')}

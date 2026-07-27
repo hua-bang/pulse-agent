@@ -571,7 +571,6 @@ const AppContent = () => {
           />
           <ScheduledRouteViews
             scheduledTaskId={scheduledTaskMatch ? decodeURIComponent(scheduledTaskMatch[1]) : null}
-            onOpenScheduledTask={(taskId) => setLocation(`${ROUTE_SCHEDULED}/${encodeURIComponent(taskId)}`)}
             onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)}
             onOpenAppSettings={openAppSettings}
           />
