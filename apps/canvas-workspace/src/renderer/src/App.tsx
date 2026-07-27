@@ -22,6 +22,7 @@ import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } 
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
 import { ScheduledRouteViews, SkillsRouteView } from './components/RouteViews';
+import { useScheduledRunToasts } from './components/Scheduled/useScheduledRunToasts';
 const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
@@ -220,9 +221,7 @@ const AppContent = () => {
     setLocation(path);
   }, [setLocation]);
 
-  useEffect(() => window.canvasWorkspace.scheduled.onOpenTask((taskId) => {
-    setLocation(`${ROUTE_SCHEDULED}/${encodeURIComponent(taskId)}`);
-  }), [setLocation]);
+  useScheduledRunToasts((taskId) => setLocation(`${ROUTE_CHAT}?scheduledTask=${encodeURIComponent(taskId)}`));
 
   const handleSelectWorkspace = useCallback((id: string) => {
     ensureWorkspaceNodesLoaded(id);
@@ -552,6 +551,7 @@ const AppContent = () => {
           <PulseRouterView name="chat">
             <ChatPage
               allWorkspaces={workspaces}
+              openScheduledTaskId={routeParams.get('scheduledTask')}
               getWorkspaceNodes={getWorkspaceNodes}
               getWorkspaceRootFolder={getWorkspaceRootFolder}
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
@@ -572,7 +572,6 @@ const AppContent = () => {
           />
           <ScheduledRouteViews
             scheduledTaskId={scheduledTaskMatch ? decodeURIComponent(scheduledTaskMatch[1]) : null}
-            onOpenScheduledTask={(taskId) => setLocation(`${ROUTE_SCHEDULED}/${encodeURIComponent(taskId)}`)}
             onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)}
             onOpenAppSettings={openAppSettings}
           />

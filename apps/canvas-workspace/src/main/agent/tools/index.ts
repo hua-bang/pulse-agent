@@ -23,6 +23,7 @@ import { createPluginNodeTools } from './plugin-nodes';
 import { createHtmlPatchTools } from './html-patch';
 import { createLayoutTools } from './layout-tools';
 import { createMemoryTools } from './memory';
+import { createScheduledTools } from './scheduled';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -92,6 +93,9 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     // Long-term memory. In global chat ('' workspaceId) the factory scopes
     // every operation to GLOBAL memory, so this write is safe to expose here.
     ...createMemoryTools(''),
+    // Scheduled tasks are app-level (no ambient workspace), so they stay
+    // unwrapped here exactly as in workspace chat.
+    ...createScheduledTools(),
   };
 }
 
@@ -119,6 +123,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createPluginNodeTools(workspaceId),
     ...createLayoutTools(workspaceId),
     ...createMemoryTools(workspaceId),
+    ...createScheduledTools(),
   };
 
   // Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's

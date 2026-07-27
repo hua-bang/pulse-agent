@@ -3,19 +3,25 @@ import { randomUUID } from 'crypto';
 import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type {
+  ScheduledSchedule,
   ScheduledTask,
   ScheduledTaskExecutionResult,
   ScheduledTaskInput,
   ScheduledTaskPatch,
 } from '../../shared/scheduled';
-import { SCHEDULED_MIN_INTERVAL_MINUTES } from '../../shared/scheduled';
+import { computeNextRunAt, normalizeSchedule } from '../../shared/scheduled';
 
 interface ScheduledTaskState {
   version: 1;
   tasks: ScheduledTask[];
 }
 
+/** Pre-`schedule` records stored only a relative interval. */
+type PersistedTask = ScheduledTask & { intervalMinutes?: number };
+
 const WEEK_MINUTES = 7 * 24 * 60;
+/** Monday 09:00 local. Weekday numbering matches `Date#getDay()`. */
+const MEMORY_REPORT_SCHEDULE: ScheduledSchedule = { kind: 'weekly', weekday: 1, timeOfDay: '09:00' };
 const DEFAULT_INITIAL_DELAY_MS = 45_000;
 export const SCHEDULED_CHECK_EVERY_MS = 30 * 60_000;
 
@@ -30,11 +36,17 @@ const defaultStatePath = (): string =>
   process.env.PULSE_CANVAS_SCHEDULED_TASKS_PATH
   || join(homedir(), '.pulse-coder', 'canvas', 'scheduled-tasks.json');
 
-const normalizeInterval = (intervalMinutes: number): number => {
-  if (!Number.isFinite(intervalMinutes) || intervalMinutes < SCHEDULED_MIN_INTERVAL_MINUTES) {
-    throw new Error(`Scheduled task interval must be at least ${SCHEDULED_MIN_INTERVAL_MINUTES} minutes`);
-  }
-  return Math.round(intervalMinutes);
+/**
+ * Records written before absolute schedules existed carry `intervalMinutes`
+ * instead of `schedule`; lift them on read so the rest of the service only
+ * ever sees the union.
+ */
+const migratePersistedTask = ({ intervalMinutes, ...task }: PersistedTask): ScheduledTask => {
+  if (task.schedule) return task;
+  return {
+    ...task,
+    schedule: { kind: 'interval', intervalMinutes: intervalMinutes ?? WEEK_MINUTES },
+  };
 };
 
 const normalizeRequiredText = (value: string, label: string): string => {
@@ -95,20 +107,27 @@ export class ScheduledTaskService {
     this.dueTimer = null;
   }
 
+  /**
+   * Seeds the built-in weekly report at a predictable local slot (Monday
+   * 09:00) rather than "7 days after whenever the app first launched", which
+   * is the whole point of a weekly report. Seeding is one-shot: an install
+   * that already has the task keeps its stored schedule untouched.
+   */
   async ensureMemoryReportTask(): Promise<ScheduledTask> {
     const existing = await this.getTask('memory-report');
     if (existing) return existing;
     const createdAt = this.now();
+    const schedule = MEMORY_REPORT_SCHEDULE;
     const task: ScheduledTask = {
       id: 'memory-report',
       title: 'Memory report',
       prompt: 'Review the last 7 days of Canvas activity and prepare a memory report.',
-      intervalMinutes: WEEK_MINUTES,
+      schedule,
       enabled: false,
       source: 'memory-report',
       createdAt,
       updatedAt: createdAt,
-      nextRunAt: createdAt + WEEK_MINUTES * 60_000,
+      nextRunAt: computeNextRunAt(schedule, createdAt),
       runCount: 0,
       status: 'idle',
     };
@@ -120,17 +139,17 @@ export class ScheduledTaskService {
 
   async createTask(input: ScheduledTaskInput): Promise<ScheduledTask> {
     const createdAt = this.now();
-    const intervalMinutes = normalizeInterval(input.intervalMinutes);
+    const schedule = normalizeSchedule(input.schedule);
     const task: ScheduledTask = {
       id: randomUUID(),
       title: normalizeRequiredText(input.title, 'Task title'),
       prompt: normalizeRequiredText(input.prompt, 'Task prompt'),
-      intervalMinutes,
+      schedule,
       enabled: input.enabled ?? true,
       source: 'user',
       createdAt,
       updatedAt: createdAt,
-      nextRunAt: createdAt + intervalMinutes * 60_000,
+      nextRunAt: computeNextRunAt(schedule, createdAt),
       runCount: 0,
       status: 'idle',
     };
@@ -147,13 +166,13 @@ export class ScheduledTaskService {
       if (!task) throw new Error('Scheduled task not found');
       if (patch.title !== undefined) task.title = normalizeRequiredText(patch.title, 'Task title');
       if (patch.prompt !== undefined) task.prompt = normalizeRequiredText(patch.prompt, 'Task prompt');
-      if (patch.intervalMinutes !== undefined) {
-        task.intervalMinutes = normalizeInterval(patch.intervalMinutes);
-        task.nextRunAt = this.now() + task.intervalMinutes * 60_000;
+      if (patch.schedule !== undefined) {
+        task.schedule = normalizeSchedule(patch.schedule);
+        task.nextRunAt = computeNextRunAt(task.schedule, this.now());
       }
       if (patch.enabled !== undefined) {
         task.enabled = patch.enabled;
-        if (patch.enabled) task.nextRunAt = this.now() + task.intervalMinutes * 60_000;
+        if (patch.enabled) task.nextRunAt = computeNextRunAt(task.schedule, this.now());
       }
       task.updatedAt = this.now();
       updated = { ...task };
@@ -194,7 +213,7 @@ export class ScheduledTaskService {
       current.lastAttemptAt = attemptedAt;
       current.runCount += 1;
       current.lastError = undefined;
-      if (advanceSchedule) current.nextRunAt = attemptedAt + current.intervalMinutes * 60_000;
+      if (advanceSchedule) current.nextRunAt = computeNextRunAt(current.schedule, attemptedAt);
     });
     try {
       const result = await this.execute({ ...task, status: 'running' });
@@ -258,10 +277,10 @@ export class ScheduledTaskService {
   private async readState(): Promise<ScheduledTaskState> {
     try {
       const raw = await fs.readFile(this.statePath, 'utf-8');
-      const parsed = JSON.parse(raw) as Partial<ScheduledTaskState>;
+      const parsed = JSON.parse(raw) as { tasks?: PersistedTask[] };
       return {
         version: 1,
-        tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+        tasks: Array.isArray(parsed.tasks) ? parsed.tasks.map(migratePersistedTask) : [],
       };
     } catch {
       return { version: 1, tasks: [] };

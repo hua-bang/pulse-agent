@@ -7,6 +7,7 @@ import { chmodSync, existsSync } from "fs";
 import { readlink } from "fs/promises";
 import { delimiter, dirname, join, resolve } from "path";
 import { PtySessionLeaseRegistry } from "./session-lease";
+import { commonPosixBinDirs, mergePath } from "../shell-path";
 
 const sessions = new Map<string, pty.IPty>();
 const sessionLeases = new PtySessionLeaseRegistry();
@@ -107,41 +108,12 @@ const toStringEnv = (): Record<string, string> => {
   return env;
 };
 
-const uniquePath = (parts: string[]): string[] => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const part of parts) {
-    if (!part || seen.has(part)) continue;
-    seen.add(part);
-    result.push(part);
-  }
-  return result;
-};
-
-const commonPosixBinDirs = (): string[] => {
-  const home = homedir();
-  return [
-    join(home, ".local", "bin"),
-    join(home, "bin"),
-    join(home, ".npm-global", "bin"),
-    join(home, ".yarn", "bin"),
-    join(home, ".bun", "bin"),
-    join(home, ".cargo", "bin"),
-    join(home, "Library", "pnpm"),
-    "/opt/homebrew/bin",
-    "/opt/homebrew/sbin",
-    "/usr/local/bin",
-    "/usr/local/sbin",
-  ];
-};
-
 const buildPtyEnv = (): Record<string, string> => {
   const env = toStringEnv();
   if (platform() === "win32") return env;
-  env.PATH = uniquePath([
-    ...(env.PATH ? env.PATH.split(delimiter) : []),
-    ...commonPosixBinDirs(),
-  ]).join(delimiter);
+  // Shares one bin-dir list with the startup PATH repair, so a command the
+  // agent's bash can find is also findable in a terminal node, and vice versa.
+  env.PATH = mergePath(env.PATH, commonPosixBinDirs());
   return env;
 };
 

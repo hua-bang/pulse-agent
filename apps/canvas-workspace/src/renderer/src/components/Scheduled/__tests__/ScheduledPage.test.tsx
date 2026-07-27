@@ -19,12 +19,12 @@ const DockStateProbe = () => {
   return null;
 };
 
-const renderPage = (onOpenTask: (taskId: string) => void) => (
+const renderPage = () => (
   <I18nProvider>
     <AppShellProvider>
       <RightDockProvider>
         <DockStateProbe />
-        <ScheduledPage onOpenTask={onOpenTask} />
+        <ScheduledPage />
       </RightDockProvider>
     </AppShellProvider>
   </I18nProvider>
@@ -40,8 +40,7 @@ afterEach(() => {
 });
 
 describe('ScheduledPage', () => {
-  it('lists scheduled tasks and opens the task chat when a row is clicked', async () => {
-    const onOpenTask = vi.fn();
+  it('lists scheduled tasks without any navigation target in the row', async () => {
     Object.defineProperty(window, 'canvasWorkspace', {
       configurable: true,
       value: {
@@ -52,7 +51,7 @@ describe('ScheduledPage', () => {
               id: 'daily-brief',
               title: 'Daily brief',
               prompt: 'Summarize what needs my attention.',
-              intervalMinutes: 24 * 60,
+              schedule: { kind: 'daily', timeOfDay: '09:00' },
               enabled: true,
               source: 'user',
               createdAt: 1,
@@ -71,17 +70,20 @@ describe('ScheduledPage', () => {
     document.body.appendChild(host);
     root = createRoot(host);
     await act(async () => {
-      root?.render(renderPage(onOpenTask));
+      root?.render(renderPage());
     });
 
-    const row = host.querySelector<HTMLButtonElement>('[data-task-id="daily-brief"]');
+    const row = host.querySelector<HTMLElement>('[data-task-id="daily-brief"]');
     expect(row?.textContent).toContain('Daily brief');
-    act(() => row?.click());
-    expect(onOpenTask).toHaveBeenCalledWith('daily-brief');
+
+    // The row is presentational: no row-wide button, and no per-row chat
+    // entry. Every control is one of the explicit task actions.
+    expect(row?.querySelector('.scheduled-page__row-main')?.tagName).toBe('DIV');
+    expect([...host.querySelectorAll('button')].map((button) => button.textContent?.trim()))
+      .toEqual(['Create task', 'Pause', 'Run now', 'Edit task', 'Delete task']);
   });
 
   it('starts a fresh scheduled session and opens it in Pulse AI', async () => {
-    const onOpenTask = vi.fn();
     const runNow = vi.fn(async () => ({ ok: true }));
     const newSession = vi.fn(async () => ({ ok: true }));
     Object.defineProperty(window, 'canvasWorkspace', {
@@ -95,7 +97,7 @@ describe('ScheduledPage', () => {
               id: 'daily-brief',
               title: 'Daily brief',
               prompt: 'Summarize what needs my attention.',
-              intervalMinutes: 30,
+              schedule: { kind: 'interval', intervalMinutes: 30 },
               enabled: true,
               source: 'user',
               createdAt: 1,
@@ -115,7 +117,7 @@ describe('ScheduledPage', () => {
     document.body.appendChild(host);
     root = createRoot(host);
     await act(async () => {
-      root?.render(renderPage(onOpenTask));
+      root?.render(renderPage());
     });
 
     await act(async () => {
@@ -127,7 +129,6 @@ describe('ScheduledPage', () => {
       scope: { kind: 'scheduled', taskId: 'daily-brief' },
     });
     expect(runNow).toHaveBeenCalledWith('daily-brief');
-    expect(onOpenTask).not.toHaveBeenCalled();
     expect(dockState).toMatchObject({
       expanded: true,
       scheduledChatTaskId: 'daily-brief',
@@ -136,7 +137,6 @@ describe('ScheduledPage', () => {
   });
 
   it('shows an immediate running state and prevents duplicate manual runs', async () => {
-    const onOpenTask = vi.fn();
     let finishRun: ((value: { ok: boolean }) => void) | undefined;
     const runNow = vi.fn(() => new Promise<{ ok: boolean }>((resolve) => {
       finishRun = resolve;
@@ -152,7 +152,7 @@ describe('ScheduledPage', () => {
               id: 'daily-brief',
               title: 'Daily brief',
               prompt: 'Summarize what needs my attention.',
-              intervalMinutes: 30,
+              schedule: { kind: 'interval', intervalMinutes: 30 },
               enabled: true,
               source: 'user',
               createdAt: 1,
@@ -172,7 +172,7 @@ describe('ScheduledPage', () => {
     document.body.appendChild(host);
     root = createRoot(host);
     await act(async () => {
-      root?.render(renderPage(onOpenTask));
+      root?.render(renderPage());
     });
 
     await act(async () => {

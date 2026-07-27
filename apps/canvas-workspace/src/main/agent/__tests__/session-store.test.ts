@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { SessionStore } from '../session-store';
+import { scheduledSessionStoreId } from '../../../shared/agent-chat';
 import type { CanvasAgentMessage } from '../types';
 
 const makeMessage = (index: number): CanvasAgentMessage => ({
@@ -124,5 +125,24 @@ describe('SessionStore', () => {
 
     const archived = await reloaded.listArchivedSessions();
     expect(archived.some((s) => s.sessionId === firstSessionId)).toBe(true);
+  });
+
+  it('lists scheduled task stores alongside workspaces but still hides internals', async () => {
+    const scheduledId = scheduledSessionStoreId('memory-report');
+    for (const storeId of ['ws-1', '__global_chat__', scheduledId]) {
+      const store = new SessionStore(storeId);
+      await store.startSession();
+      store.addMessage(makeMessage(0));
+      await store.archiveSession();
+    }
+    // A non-session internal directory must stay invisible.
+    await fs.mkdir(join(root, '__manifest__'), { recursive: true });
+
+    const groups = await SessionStore.listAllWorkspaceSessions();
+    const ids = groups.map((group) => group.workspaceId).sort();
+
+    expect(ids).toEqual(['__global_chat__', scheduledId, 'ws-1'].sort());
+    expect(groups.find((group) => group.workspaceId === scheduledId)?.sessions.length)
+      .toBeGreaterThan(0);
   });
 });

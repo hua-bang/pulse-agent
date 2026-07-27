@@ -1,56 +1,62 @@
-import { BrowserWindow, Notification } from 'electron';
+import { BrowserWindow } from 'electron';
 import { getCanvasAgentService } from '../agent/ipc';
-import type { ScheduledTask } from '../../shared/scheduled';
+import type { ScheduledRunFinished, ScheduledTask } from '../../shared/scheduled';
+import { describeSchedule } from '../../shared/scheduled';
 import { ScheduledTaskService } from './scheduled-task-service';
 
 let service: ScheduledTaskService | null = null;
 
-const cadenceLabel = (intervalMinutes: number): string => {
-  if (intervalMinutes % (7 * 24 * 60) === 0) return `Every ${intervalMinutes / (7 * 24 * 60)} week(s)`;
-  if (intervalMinutes % (24 * 60) === 0) return `Every ${intervalMinutes / (24 * 60)} day(s)`;
-  if (intervalMinutes % 60 === 0) return `Every ${intervalMinutes / 60} hour(s)`;
-  return `Every ${intervalMinutes} minutes`;
-};
-
 const taskRunPrompt = (task: ScheduledTask): string => [
   `Scheduled task: ${task.title}`,
   `Task ID: ${task.id}`,
-  `Cadence: ${cadenceLabel(task.intervalMinutes)}`,
+  `Cadence: ${describeSchedule(task.schedule)}`,
   '',
   task.prompt,
   '',
-  'This is an unattended scheduled run. Complete the task with the available read-only tools. '
-    + 'If required context is unavailable, explain what is missing instead of asking a live clarification question.',
+  'Unattended scheduled run. Shell commands are available, but nobody is watching — avoid anything '
+    + 'destructive. If required context is unavailable, say what is missing instead of asking a clarifying question.',
 ].join('\n');
 
-export function openScheduledTask(taskId: string): void {
+/**
+ * Announces a finished attempt to the renderer, which raises a sticky toast.
+ *
+ * In-app only, by decision: an OS notification is the unreliable channel
+ * (Focus modes, missing notification daemons, unsigned dev builds and — with
+ * no AppUserModelID — Windows all drop it silently), and it duplicated a
+ * signal the app can deliver itself. Broadcasting to every window is correct:
+ * only windows running the app renderer have a listener, and today the app
+ * opens exactly one (the Google-auth popup carries no preload, so it ignores
+ * this).
+ */
+function announceRunFinished(outcome: ScheduledRunFinished): void {
   for (const win of BrowserWindow.getAllWindows()) {
-    if (win.isDestroyed()) continue;
-    if (win.isMinimized()) win.restore();
-    win.show();
-    win.focus();
-    win.webContents.send('scheduled:open-task', taskId);
+    if (!win.isDestroyed()) win.webContents.send('scheduled:run-finished', outcome);
   }
 }
 
 async function executeScheduledTask(task: ScheduledTask): Promise<{ sessionId?: string }> {
   const agentService = getCanvasAgentService();
   const scope = { kind: 'scheduled' as const, taskId: task.id };
-  const result = await agentService.chatWithScope(scope, taskRunPrompt(task));
-  if (!result.ok) throw new Error(result.error ?? 'Scheduled task failed');
-  const sessionId = await agentService.resolveCurrentSessionId(scope);
-
-  if (Notification.isSupported()) {
-    const notification = new Notification({
+  try {
+    const result = await agentService.chatWithScope(scope, taskRunPrompt(task));
+    if (!result.ok) throw new Error(result.error ?? 'Scheduled task failed');
+    const sessionId = await agentService.resolveCurrentSessionId(scope);
+    announceRunFinished({ taskId: task.id, title: task.title, ok: true });
+    return { sessionId: sessionId ?? undefined };
+  } catch (error) {
+    // A failed run used to be announced nowhere: the throw happened before
+    // the announcement, leaving `lastError` in the list as the only trace.
+    announceRunFinished({
+      taskId: task.id,
       title: task.title,
-      body: 'Scheduled task completed. Click to continue in Chat.',
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
     });
-    notification.on('click', () => openScheduledTask(task.id));
-    notification.show();
+    throw error;
   }
-
-  return { sessionId: sessionId ?? undefined };
 }
+
+export const __testing = { executeScheduledTask };
 
 export function getScheduledTaskService(): ScheduledTaskService {
   if (!service) {

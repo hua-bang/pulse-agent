@@ -12,6 +12,8 @@ import { homedir } from 'os';
 import { CanvasAgent, type CanvasClarificationRequest } from './canvas-agent';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './session-store';
+import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
+import { scheduledTaskTitles } from './scheduled-session-names';
 import { sessionPreview } from './session-preview';
 import type {
   AgentRequestContext,
@@ -36,14 +38,6 @@ const scopeKey = (scope: AgentScope): string => {
   if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
   return 'global';
 };
-export const scheduledSessionStoreId = (taskId: string): string => `__scheduled__-${taskId}`;
-
-const scopeSessionStoreId = (scope: AgentScope): string => {
-  if (scope.kind === 'workspace') return scope.workspaceId;
-  if (scope.kind === 'scheduled') return scheduledSessionStoreId(scope.taskId);
-  return GLOBAL_CHAT_SESSION_STORE_ID;
-};
-
 export class CanvasAgentService {
   private agents = new Map<string, CanvasAgent>();
 
@@ -309,12 +303,16 @@ export class CanvasAgentService {
   ): Promise<CrossWorkspaceSessionGroup[]> {
     const diskGroups = await SessionStore.listAllWorkspaceSessions();
     const groups: CrossWorkspaceSessionGroup[] = [];
+    const scheduledTitles = await scheduledTaskTitles();
 
     for (const g of diskGroups) {
-      // If this workspace has an active in-memory agent, use its live session list
-      const scope: AgentScope = g.workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
-        ? { kind: 'global' }
-        : workspaceScope(g.workspaceId);
+      const scheduledTaskId = scheduledTaskIdFromStoreId(g.workspaceId);
+      // If this scope has an active in-memory agent, use its live session list
+      const scope: AgentScope = scheduledTaskId
+        ? { kind: 'scheduled', taskId: scheduledTaskId }
+        : g.workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
+          ? { kind: 'global' }
+          : workspaceScope(g.workspaceId);
       const agent = this.getAgent(scope);
       const sessions = agent
         ? await agent.listSessions()
@@ -322,9 +320,11 @@ export class CanvasAgentService {
 
       groups.push({
         workspaceId: g.workspaceId,
-        workspaceName: g.workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
-          ? GLOBAL_CHAT_WORKSPACE_NAME
-          : workspaceNames[g.workspaceId] || g.workspaceId,
+        workspaceName: scheduledTaskId
+          ? scheduledTitles.get(scheduledTaskId) || scheduledTaskId
+          : g.workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
+            ? GLOBAL_CHAT_WORKSPACE_NAME
+            : workspaceNames[g.workspaceId] || g.workspaceId,
         sessions,
       });
     }
