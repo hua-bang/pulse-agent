@@ -7,21 +7,19 @@ const ScheduledTaskChatPage = lazy(() => import('./ScheduledTaskChatPage').then(
 
 interface Props {
   scheduledTaskId: string | null;
-  onOpenScheduledTask: (taskId: string) => void;
   onExitScheduledTask: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
 }
 
 export const ScheduledRouteViews = ({
   scheduledTaskId,
-  onOpenScheduledTask,
   onExitScheduledTask,
   onOpenAppSettings,
 }: Props) => (
   <>
     <PulseRouterView name="scheduled">
       <Suspense fallback={null}>
-        <ScheduledPage onOpenTask={onOpenScheduledTask} />
+        <ScheduledPage />
       </Suspense>
     </PulseRouterView>
     <PulseRouterView name="scheduled-task">

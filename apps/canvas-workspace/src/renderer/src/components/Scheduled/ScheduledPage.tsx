@@ -14,16 +14,12 @@ import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
 import { useDockContext } from '../RightDock/context';
 import { Button, EmptyState } from '../ui';
-import { intervalLabel, timeLabel } from './formatters';
+import { scheduleLabel, timeLabel } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
 import './index.css';
 
-interface Props {
-  onOpenTask: (taskId: string) => void;
-}
-
-export const ScheduledPage = ({ onOpenTask }: Props) => {
-  const { t } = useI18n();
+export const ScheduledPage = () => {
+  const { t, language } = useI18n();
   const { notify, confirm } = useAppShell();
   const { store: dockStore } = useDockContext();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
@@ -150,19 +146,18 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
           {tasks.map((task) => {
             const running = task.status === 'running' || runningTaskIds.has(task.id);
             return (
-              <li key={task.id} className="scheduled-page__row">
-                <Button
-                  className="scheduled-page__row-main"
-                  data-task-id={task.id}
-                  onClick={() => onOpenTask(task.id)}
-                >
+              <li key={task.id} className="scheduled-page__row" data-task-id={task.id}>
+                {/* Presentational only. The whole row used to be one button, so
+                    every stray click on the title or the cadence text opened a
+                    chat; actions now live exclusively in the button group. */}
+                <div className="scheduled-page__row-main">
                   <span className={`scheduled-page__status${task.enabled ? ' scheduled-page__status--enabled' : ''}`} />
                   <span className="scheduled-page__row-copy">
                     <strong>{task.title}</strong>
                     <small>{task.prompt}</small>
                   </span>
                   <span className="scheduled-page__meta">
-                    <span>{intervalLabel(task.intervalMinutes, t)}</span>
+                    <span>{scheduleLabel(task.schedule, t, language)}</span>
                     <small>
                       {task.enabled
                         ? t('scheduled.nextRun', { time: timeLabel(task.nextRunAt, t('scheduled.never')) })
@@ -176,7 +171,7 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
                         ? t('scheduled.lastSuccess', { time: timeLabel(task.lastSuccessAt, t('scheduled.never')) })
                         : t('scheduled.neverRun')}
                   </span>
-                </Button>
+                </div>
                 <div className="scheduled-page__row-actions">
                   <Button
                     size="xs"

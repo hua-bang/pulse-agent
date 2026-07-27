@@ -1,13 +1,16 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { CanvasNode } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatPageBody } from './ChatPageBody';
 import type { SessionBackEntry } from './SessionBackBar';
 import type { AgentScope, WorkspaceOption } from './types';
+import { scheduledTaskIdFromStoreId } from '../../../../shared/agent-chat';
 
 interface ChatPageProps {
   allWorkspaces: WorkspaceOption[];
+  /** Scheduled task whose chat should be opened on entry (route query). */
+  openScheduledTaskId?: string | null;
   getWorkspaceNodes?: (workspaceId: string) => CanvasNode[];
   getWorkspaceRootFolder?: (workspaceId: string) => string | undefined;
   onWorkspaceContextRequest?: (workspaceId: string) => void;
@@ -36,6 +39,7 @@ interface ChatPageProps {
  */
 export const ChatPage = ({
   allWorkspaces,
+  openScheduledTaskId,
   getWorkspaceNodes,
   getWorkspaceRootFolder,
   onWorkspaceContextRequest,
@@ -54,6 +58,14 @@ export const ChatPage = ({
       ? `scheduled:${agentScope.taskId}`
       : 'global';
 
+  // Entry from the run-finished toast: land on the task's own conversation
+  // in this page's rail rather than a separate full-page route.
+  useEffect(() => {
+    if (!openScheduledTaskId) return;
+    setAgentScope({ kind: 'scheduled', taskId: openScheduledTaskId });
+    setPendingSessionId(null);
+  }, [openScheduledTaskId]);
+
   // Jump trail for session-ref chip navigation. Owned here (not in the body)
   // so it survives the body remount a cross-workspace jump triggers.
   const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
@@ -63,10 +75,21 @@ export const ChatPage = ({
   // triggers the body remount, and the new body mount effect will pick up
   // initialPendingSessionId.
   const navigateToSession = useCallback((session: { sessionId: string; workspaceId: string }) => {
-    const nextScope: AgentScope = session.workspaceId === '__global_chat__'
-      ? { kind: 'global' }
-      : { kind: 'workspace', workspaceId: session.workspaceId };
-    const nextScopeKey = nextScope.kind === 'global' ? 'global' : `workspace:${nextScope.workspaceId}`;
+    // The rail's `workspaceId` is really a session-STORE id, so the two
+    // sentinel stores (global chat, one per scheduled task) must map back to
+    // their own scope kinds — treating them as workspace ids would activate
+    // an agent against a workspace that does not exist.
+    const scheduledTaskId = scheduledTaskIdFromStoreId(session.workspaceId);
+    const nextScope: AgentScope = scheduledTaskId
+      ? { kind: 'scheduled', taskId: scheduledTaskId }
+      : session.workspaceId === '__global_chat__'
+        ? { kind: 'global' }
+        : { kind: 'workspace', workspaceId: session.workspaceId };
+    const nextScopeKey = nextScope.kind === 'global'
+      ? 'global'
+      : nextScope.kind === 'scheduled'
+        ? `scheduled:${nextScope.taskId}`
+        : `workspace:${nextScope.workspaceId}`;
     if (nextScopeKey === scopeKey) {
       setPendingSessionId(session.sessionId);
       return;

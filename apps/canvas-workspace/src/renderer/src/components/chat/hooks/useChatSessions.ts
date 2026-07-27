@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentChatMessage, AgentSessionInfo } from '../../../types';
 import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
 import { useClickOutside } from '../../../hooks/useClickOutside';
+import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 
 interface UseChatSessionsOptions {
   agentScope: AgentScope;
@@ -61,6 +62,7 @@ export function useChatSessions({
   const [otherSessions, setOtherSessions] = useState<OtherWorkspaceSession[]>(
     () => sessionsCache.get(scopeKey)?.otherSessions ?? [],
   );
+  const [currentScopeName, setCurrentScopeName] = useState<string | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
 
@@ -105,10 +107,17 @@ export function useChatSessions({
 
         const allResult = await window.canvasWorkspace.agent.listAllSessions(workspaceNameMap);
         if (allResult.ok && allResult.groups) {
+          // Groups are keyed by session-STORE id, which is the workspace id
+          // only for workspace scopes; global chat and each scheduled task
+          // have their own sentinel store. Dedupe on the store id so the
+          // current scope is never listed twice.
+          const currentStoreId = scopeSessionStoreId(agentScope);
           const flattened: OtherWorkspaceSession[] = [];
           for (const group of allResult.groups) {
-            if (workspaceId && group.workspaceId === workspaceId) continue;
-            if (agentScope.kind === 'global' && group.workspaceId === '__global_chat__') continue;
+            if (group.workspaceId === currentStoreId) {
+              setCurrentScopeName(group.workspaceName);
+              continue;
+            }
             for (const session of group.sessions) {
               flattened.push({
                 ...session,
@@ -172,6 +181,7 @@ export function useChatSessions({
 
   return {
     otherSessions,
+    currentScopeName,
     handleLoadSession,
     handleNewSession,
     loadSessions,

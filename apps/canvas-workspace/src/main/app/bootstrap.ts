@@ -65,6 +65,7 @@ import {
 import { logStartupSummaryOnce, startupMark } from "./startup-metrics";
 import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
+import { applyLoginShellPath, augmentProcessPath } from "../shell-path";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
 import { setupGoogleAuthCompat } from "./google-auth";
@@ -118,6 +119,15 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
 
   app.whenReady().then(async () => {
     startupMark("whenReady");
+    // Before anything can spawn a child: a GUI launch inherits a stripped
+    // PATH, and every spawn (agent `bash`, MCP stdio servers, the bundled
+    // CLI) takes process.env verbatim. Static dirs are applied synchronously;
+    // the login-shell probe runs a user rc file, so it stays off the critical
+    // path and only ever widens PATH.
+    augmentProcessPath();
+    void applyLoginShellPath()
+      .then((applied) => { if (applied) void writeLog("main", "PATH extended from login shell"); })
+      .catch(() => undefined);
     startLoopDelaySampler(writeLog);
     spoofUserAgentFallback();
     setupGoogleAuthCompat();

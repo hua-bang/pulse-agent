@@ -16,6 +16,47 @@ export interface AgentScopeRef {
   scope: AgentScope;
 }
 
+/**
+ * Session-store directory id for a scheduled task's isolated chat scope.
+ *
+ * Session listings key groups by STORE id, not workspace id, and the stores
+ * that are not workspaces use a `__` sentinel prefix. Anything that turns a
+ * listed session back into a scope must map these explicitly — treating one
+ * as a workspace id activates an agent against a workspace that
+ * does not exist.
+ */
+export const SCHEDULED_SESSION_STORE_PREFIX = '__scheduled__-';
+
+export const scheduledSessionStoreId = (taskId: string): string =>
+  `${SCHEDULED_SESSION_STORE_PREFIX}${taskId}`;
+
+/** Task id if `storeId` is a scheduled store, else null. */
+export const scheduledTaskIdFromStoreId = (storeId: string): string | null =>
+  storeId.startsWith(SCHEDULED_SESSION_STORE_PREFIX)
+    ? storeId.slice(SCHEDULED_SESSION_STORE_PREFIX.length)
+    : null;
+
+export const GLOBAL_CHAT_STORE_ID = '__global_chat__';
+
+/** The session-store id a scope reads and writes. */
+export const scopeSessionStoreId = (scope: AgentScope): string => {
+  if (scope.kind === 'workspace') return scope.workspaceId;
+  if (scope.kind === 'scheduled') return scheduledSessionStoreId(scope.taskId);
+  return GLOBAL_CHAT_STORE_ID;
+};
+
+/**
+ * Whether a session-store directory holds user-readable conversations.
+ * Blindly listing `__`-prefixed dirs would surface manifests and internals,
+ * but a blanket skip hides real chats — global and scheduled stores both
+ * live behind the prefix — so the readable kinds are allowlisted.
+ */
+export const isListableSessionStore = (dir: string): boolean => {
+  if (dir.startsWith('.')) return false;
+  if (!dir.startsWith('__')) return true;
+  return dir === GLOBAL_CHAT_STORE_ID || dir.startsWith(SCHEDULED_SESSION_STORE_PREFIX);
+};
+
 export interface AgentChatToolCall {
   id: number;
   name: string;

@@ -9,14 +9,25 @@ host actually does and does not gate. Facts verified against source
 
 ## Execution reach of the Canvas Agent
 
-- **Workspace chat keeps full-privilege engine built-ins; global chat does
-  not.** Workspace scope still receives `read`, `write`, `edit`, `grep`, `ls`,
-  and `bash` in the Electron **main process**, with no sandbox or path
-  confinement. Global scope now passes an explicit `builtInTools` allowlist
-  (`read`, `grep`, `ls`, Tavily read tools, and `clarify`); `write`, `edit`,
-  `bash`, node-content mutation, and disk-writing image generation are absent
-  from that Engine's built-in set. This boundary does not classify user-configured MCP/plugin
-  tools, which remain separate trust surfaces described below.
+- **Workspace chat keeps full-privilege engine built-ins; global chat and
+  scheduled runs get a narrower allowlist — but it now includes `bash`.**
+  Workspace scope still receives `read`, `write`, `edit`, `grep`, `ls`, and
+  `bash` in the Electron **main process**, with no sandbox or path
+  confinement. Every non-workspace scope (global chat AND every scheduled
+  task — one `if` in `tool-policy.ts` covers both) passes an explicit
+  `builtInTools` allowlist: `read`, `grep`, `ls`, `bash`, Tavily read tools,
+  and `clarify`. `write`, `edit`, node-content mutation, and disk-writing
+  image generation stay absent.
+  `bash` was added there deliberately (owner decision, 2026-07-27) because
+  the useful global/scheduled work is shell work — `lark-cli`, `ntn` and
+  friends — and without it a task that runs fine in workspace chat breaks the
+  moment it is scheduled. Understand what it costs: arbitrary process
+  execution at main-process privilege is now reachable from a scope with no
+  ambient workspace, and in the scheduled case **with nobody watching**, on a
+  prompt that may have been shaped by injected web/page content. Anything
+  that narrows this again should narrow `bash` specifically, not re-describe
+  the list as read-only. This boundary does not classify user-configured
+  MCP/plugin tools, which remain separate trust surfaces described below.
 - **A second command-execution path exists besides `bash`:**
   `canvas_create_terminal_node` (`src/main/agent/tools/terminals.ts:16`)
   accepts a `command` input that auto-executes once the PTY shell is ready.
@@ -121,6 +132,15 @@ These make on-disk files an execution or injection surface:
   local settings/env, not source.
 - The harness driver's `real` profile requires `--allow-real-writes` before
   it can touch real user data (`harness/tools/driver/src/profiles.mjs`).
+- Scheduled-task writes from the agent (`scheduled_task_create` /
+  `scheduled_task_update`, `src/main/agent/tools/scheduled.ts`) are bounded by
+  three deliberate choices, not by a capability gate: all three tools are
+  `defer_loading` so they are absent until explicitly loaded; every write
+  broadcasts `scheduled:changed`, so a new or edited task appears in the
+  Scheduled page rather than landing silently; and deleting is not exposed at
+  all (removal stays a UI action). Their descriptions restrict calls to what
+  the user asked in their own words — the same description-level convention
+  `memory_adopt` relies on.
 
 ## When you change things here
 
@@ -128,6 +148,12 @@ These make on-disk files an execution or injection surface:
   main-process privilege. Read this doc + `terminals.ts` for the precedent of
   gating side effects (spawn-target scoping) before adding execute-class
   tools.
+- A tool that schedules FUTURE unattended runs is a persistence mechanism, not
+  a one-shot side effect: injected content that reaches it survives the turn.
+  `scheduled_task_*` is the current precedent, including the accepted
+  consequence that a scheduled run itself carries these tools (its scope
+  resolves to the global tool set in `agent/tool-policy.ts`) so the user can
+  retune a task from its own chat.
 - Anything that reads web/iframe content into agent context inherits the
   prompt-injection amplification above — treat page text like attacker input.
 - If you touch `buildEngine()`, decide the engine-plugin `scan` question

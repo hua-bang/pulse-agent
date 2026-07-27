@@ -55,7 +55,7 @@ describe('ScheduledTaskChatPage', () => {
               id: 'daily-brief',
               title: 'Daily brief',
               prompt: 'Summarize what needs my attention.',
-              intervalMinutes: 24 * 60,
+              schedule: { kind: 'daily', timeOfDay: '09:00' },
               enabled: true,
               source: 'user',
               createdAt: 1,

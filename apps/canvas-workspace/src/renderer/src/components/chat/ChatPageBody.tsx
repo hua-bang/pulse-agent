@@ -15,6 +15,7 @@ import type { AgentScope, WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
+import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 
 const RailToggleIcon = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
@@ -130,6 +131,7 @@ export const ChatPageBody = ({
     messageTools,
     messages,
     otherSessions,
+    currentScopeName,
     pendingClarify,
     regenerateAssistantMessage,
     removeAttachment,
@@ -328,14 +330,12 @@ export const ChatPageBody = ({
     [regenerateAssistantMessage],
   );
 
-  // Merge sessions from the current workspace with sessions from every other
-  // workspace into a single list, sorted by date (newest first).
+  // Merge the current scope's sessions with every other store's into one
+  // list, newest first. Keyed by STORE id — a scheduled scope is not global.
   const allSessions: UnifiedSession[] = useMemo(() => {
-    const currentWorkspaceName =
-      workspaceId
-        ? allWorkspaces.find((w) => w.id === workspaceId)?.name ?? workspaceId
-        : 'Global Chat';
-    const currentSessionWorkspaceId = workspaceId ?? '__global_chat__';
+    const currentSessionWorkspaceId = scopeSessionStoreId(agentScope);
+    const currentWorkspaceName = currentScopeName
+      ?? (workspaceId ? allWorkspaces.find((w) => w.id === workspaceId)?.name ?? workspaceId : 'Global Chat');
 
     const unified: UnifiedSession[] = [
       ...sessions.map((s) => ({
@@ -360,7 +360,7 @@ export const ChatPageBody = ({
 
     unified.sort((a, b) => b.date.localeCompare(a.date));
     return unified;
-  }, [sessions, otherSessions, workspaceId, allWorkspaces]);
+  }, [sessions, otherSessions, workspaceId, allWorkspaces, agentScope, currentScopeName]);
 
   // Session switches are blocked while a turn is streaming — swapping the
   // message list mid-generation would let the in-flight stream write into
