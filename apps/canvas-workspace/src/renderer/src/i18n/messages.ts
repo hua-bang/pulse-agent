@@ -1006,6 +1006,11 @@ const en = {
   'agent.removeLegacyDirs': 'Remove legacy dirs',
   'agent.targetsAria': 'Agent integration install targets',
   'agent.close': 'Close',
+  'agent.shellPathTitle': 'Terminal command',
+  'agent.shellPathReady': 'pulse-canvas is configured in {profile}. Open a new terminal to use it.',
+  'agent.shellPathSetup': 'Add the managed CLI directory to {profile} so new terminals can run pulse-canvas directly.',
+  'agent.shellPathConfigure': 'Configure PATH',
+  'agent.shellPathUnsupported': 'Automatic setup supports zsh, bash, and fish. Run the command below manually.',
 
   'experimental.loadFailed': 'Failed to load experimental features',
   'experimental.updateFailed': 'Could not update flag',
@@ -2557,6 +2562,11 @@ const zh: Record<keyof typeof en, string> = {
   'agent.removeLegacyDirs': '移除旧目录',
   'agent.targetsAria': 'Agent 集成安装目标',
   'agent.close': '关闭',
+  'agent.shellPathTitle': '终端命令',
+  'agent.shellPathReady': '已在 {profile} 中配置 pulse-canvas。打开新终端后即可使用。',
+  'agent.shellPathSetup': '将托管 CLI 目录加入 {profile}，之后可在新终端中直接运行 pulse-canvas。',
+  'agent.shellPathConfigure': '配置 PATH',
+  'agent.shellPathUnsupported': '自动配置仅支持 zsh、bash 和 fish。请手动执行下面的命令。',
 
   'experimental.loadFailed': '加载实验功能失败',
   'experimental.updateFailed': '无法更新开关',
