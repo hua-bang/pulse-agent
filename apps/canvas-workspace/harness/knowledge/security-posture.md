@@ -9,14 +9,25 @@ host actually does and does not gate. Facts verified against source
 
 ## Execution reach of the Canvas Agent
 
-- **Workspace chat keeps full-privilege engine built-ins; global chat does
-  not.** Workspace scope still receives `read`, `write`, `edit`, `grep`, `ls`,
-  and `bash` in the Electron **main process**, with no sandbox or path
-  confinement. Global scope now passes an explicit `builtInTools` allowlist
-  (`read`, `grep`, `ls`, Tavily read tools, and `clarify`); `write`, `edit`,
-  `bash`, node-content mutation, and disk-writing image generation are absent
-  from that Engine's built-in set. This boundary does not classify user-configured MCP/plugin
-  tools, which remain separate trust surfaces described below.
+- **Workspace chat keeps full-privilege engine built-ins; global chat and
+  scheduled runs get a narrower allowlist — but it now includes `bash`.**
+  Workspace scope still receives `read`, `write`, `edit`, `grep`, `ls`, and
+  `bash` in the Electron **main process**, with no sandbox or path
+  confinement. Every non-workspace scope (global chat AND every scheduled
+  task — one `if` in `tool-policy.ts` covers both) passes an explicit
+  `builtInTools` allowlist: `read`, `grep`, `ls`, `bash`, Tavily read tools,
+  and `clarify`. `write`, `edit`, node-content mutation, and disk-writing
+  image generation stay absent.
+  `bash` was added there deliberately (owner decision, 2026-07-27) because
+  the useful global/scheduled work is shell work — `lark-cli`, `ntn` and
+  friends — and without it a task that runs fine in workspace chat breaks the
+  moment it is scheduled. Understand what it costs: arbitrary process
+  execution at main-process privilege is now reachable from a scope with no
+  ambient workspace, and in the scheduled case **with nobody watching**, on a
+  prompt that may have been shaped by injected web/page content. Anything
+  that narrows this again should narrow `bash` specifically, not re-describe
+  the list as read-only. This boundary does not classify user-configured
+  MCP/plugin tools, which remain separate trust surfaces described below.
 - **A second command-execution path exists besides `bash`:**
   `canvas_create_terminal_node` (`src/main/agent/tools/terminals.ts:16`)
   accepts a `command` input that auto-executes once the PTY shell is ready.
