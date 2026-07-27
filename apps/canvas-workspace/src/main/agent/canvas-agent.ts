@@ -45,6 +45,14 @@ import type {
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
 import { formatSelectionFocusBlock } from './selection-focus-context';
 import { formatReferencedTabsBlock } from './referenced-tabs-context';
+import { stripRoleMentionMarkers } from '../../shared/agent-roles';
+import {
+  applySpeakerLabelToResponseMessages,
+  formatActiveRoleSection,
+  formatRoleHistoryNote,
+  resolveActiveRole,
+  sessionMessageToModelMessage,
+} from './role-turn';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const CANVAS_AGENT_MAX_STEPS = 200;
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
@@ -143,12 +151,6 @@ function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentToolCall
     }
   }
   return toolCalls;
-}
-function sessionMessageToModelMessage(message: CanvasAgentMessage): ModelMessage {
-  const content = message.attachments?.length
-    ? `${message.content}\n\nAttached image files:\n${message.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
-    : message.content;
-  return { role: message.role, content } as ModelMessage;
 }
 // ─── System prompt ─────────────────────────────────────────────────
 const BASE_SYSTEM_PROMPT = `You are the Canvas Agent — the AI Copilot for this workspace.
@@ -719,7 +721,7 @@ export class CanvasAgent {
     onToolInputStart?: (data: { id: string; toolName: string }) => void,
     onToolInputDelta?: (data: { id: string; delta: string }) => void,
     onToolInputEnd?: (data: { id: string }) => void,
-  ): Promise<{ response: string; runId?: string }> {
+  ): Promise<{ response: string; runId?: string; speakerRole?: { id: string; name: string; color: string } }> {
     const workspaceId = this.config.scope.kind === 'workspace'
       ? this.config.scope.workspaceId
       : undefined;
@@ -760,8 +762,19 @@ export class CanvasAgent {
     // entries in workspace chat. Never throws (degrades to empty string).
     const memorySection = await buildMemoryPromptSection(workspaceId);
 
+    // Multi-role chat: the first `@[role:...]` marker picks this turn's
+    // persona; none (or a stale one) → default assistant.
+    const activeRole = await resolveActiveRole(message);
+    const hasLabeledRoleHistory = !activeRole
+      && (this.sessionStore.getCurrentSession()?.messages.some(m => !!m.speakerRoleName) ?? false);
+    const roleSection = activeRole
+      ? formatActiveRoleSection(activeRole)
+      : hasLabeledRoleHistory
+        ? formatRoleHistoryNote()
+        : '';
+
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
-    const systemPrompt = workspaceId
+    const systemPrompt = (workspaceId
       ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
         + formatReferencedTabsBlock(requestContext?.tabs ?? [], workspaceId)
         + memorySection
@@ -772,7 +785,8 @@ export class CanvasAgent {
         + formatReferencedTabsBlock(requestContext?.tabs ?? [])
         + formatMentionedCanvasesSection(mentionedCanvases)
         + memorySection
-        + promptProfileSection;
+        + promptProfileSection)
+      + roleSection;
     const debugTrace = isCanvasAgentDebugTraceEnabled()
       ? createCanvasAgentDebugTrace({
           sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
@@ -786,9 +800,12 @@ export class CanvasAgent {
         })
       : undefined;
 
+    // Model-facing user text: role markers become plain `@name` (the store
+    // keeps the raw marker for chips and regenerate/edit replays).
+    const modelUserText = stripRoleMentionMarkers(message);
     const attachmentPrompt = attachments.length > 0
       ? [
-          message,
+          modelUserText,
           '',
           'User attached image files for this turn:',
           ...attachments.map((attachment, index) => {
@@ -800,7 +817,7 @@ export class CanvasAgent {
             ? 'Use canvas_analyze_image with imagePaths when you need to inspect these images.'
             : 'Use the available filesystem/image-capable tools when you need to inspect these local image paths.',
         ].join('\n')
-      : message;
+      : modelUserText;
 
     // Add user message. The model sees local paths; session history keeps
     // structured attachments so the renderer can show image previews.
@@ -921,6 +938,11 @@ export class CanvasAgent {
       // inline visuals, artifacts, and generated images instead of losing
       // them after reload.
       const toolCalls = modelMessagesToToolCalls(responseMessages);
+      // Live-push speaker label on the model history — MUST mirror the
+      // session-reload path in `sessionMessageToModelMessage`.
+      if (activeRole) {
+        applySpeakerLabelToResponseMessages(responseMessages, activeRole.name);
+      }
       const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace);
       this.sessionStore.addMessage({
         role: 'assistant',
@@ -928,6 +950,9 @@ export class CanvasAgent {
         timestamp: Date.now(),
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         runId: finalizedTrace?.runId,
+        speakerRoleId: activeRole?.id,
+        speakerRoleName: activeRole?.name,
+        speakerRoleColor: activeRole?.color,
       });
 
       // Notify subscribed plugins (devtools persists the trace to its own
@@ -950,7 +975,13 @@ export class CanvasAgent {
         });
       }
 
-      return { response: responseText, runId: finalizedTrace?.runId };
+      return {
+        response: responseText,
+        runId: finalizedTrace?.runId,
+        speakerRole: activeRole
+          ? { id: activeRole.id, name: activeRole.name, color: activeRole.color }
+          : undefined,
+      };
     } finally {
       if (this.currentAbortController === abortController) {
         this.currentAbortController = null;

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { CanvasWorkspaceApi } from "../renderer/src/types";
 import { createAgentApi } from "./bridge/agent";
+import { createAgentRolesApi } from "./bridge/agent-roles";
 import { createAgentTeamsApi } from "./bridge/agent-teams";
 import { createAppInfoApi } from "./bridge/app-info";
 import { createArtifactsApi } from "./bridge/artifacts";
@@ -85,6 +86,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   scheduled: createScheduledApi(ipcRenderer),
   artifactCapabilities: createArtifactCapabilitiesApi(ipcRenderer),
   agent: createAgentApi(ipcRenderer),
+  agentRoles: createAgentRolesApi(ipcRenderer),
   codexSessions: createCodexSessionsApi(ipcRenderer),
   agentTeams: createAgentTeamsApi(ipcRenderer),
   artifacts: createArtifactsApi(ipcRenderer),

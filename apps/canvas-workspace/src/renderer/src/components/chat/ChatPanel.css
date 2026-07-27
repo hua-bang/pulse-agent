@@ -2707,3 +2707,51 @@
     box-shadow: 0 0 0 0 rgba(35, 131, 226, 0);
   }
 }
+
+/* ─── Multi-role chat (speaker attribution + role mentions) ── */
+
+/* Role mention chip — fixed violet family (tokens in styles.css); per-role
+   color identity lives on the reply badge (a snapshot that survives role
+   edits/deletes). */
+.chat-mention-chip--role {
+  color: var(--role-accent);
+  background: var(--role-accent-soft);
+}
+
+.chat-mention-chip--role .chat-mention-chip-icon {
+  color: var(--role-accent-icon);
+}
+
+/* Speaker badge above a role's reply. Inline color/background come from the
+   message's speakerRoleColor snapshot; these are the neutral fallbacks. */
+.chat-message-speaker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 1px 0 4px;
+  padding: 1.5px 9px 1.5px 7px;
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  background: var(--surface-alt);
+}
+
+.chat-message-speaker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* Role reply avatar: colored initial instead of the default bot mark. */
+.chat-message-avatar--role {
+  border: none;
+  font-weight: 700;
+  font-size: 12.5px;
+  line-height: 1;
+  user-select: none;
+}

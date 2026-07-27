@@ -1,11 +1,11 @@
 import { createElement, type ReactNode } from 'react';
-import type { AgentContextCanvasRef, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, CanvasNode } from '../../../types';
-import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAB_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
+import type { CanvasNode } from '../../../types';
+import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, ROLE_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAB_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
 import { MENTION_RE, encodeMentionPart, pipedMentionLabel } from './mentionMarkers';
-import { readDomSelectionDataset, writeDomSelectionDataset } from './domMentionData';
+import { writeDomSelectionDataset } from './domMentionData';
 import { sessionTitleText } from './sessionTitle';
 import {
   buildTabMentionChip,
@@ -156,6 +156,26 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   // can collect it at send time; the builder lives in ./tabMentions.
   if (item.type === 'tab' && item.tab) return buildTabMentionChip(item, nodeType);
 
+  // Role mentions serialize to `@[role:<id>|<name>]` — the marker the main
+  // process parses to pick the turn's speaking persona.
+  if (item.type === 'role' && item.roleId) {
+    chip.className = 'chat-mention-chip chat-mention-chip--input chat-mention-chip--role';
+    chip.contentEditable = 'false';
+    chip.dataset.mention = `${ROLE_MENTION_PREFIX}${item.roleId}|${item.label}`;
+    chip.dataset.nodeType = 'role';
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'chat-mention-chip-icon';
+    iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('role')}</svg>`;
+    chip.appendChild(iconSpan);
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'chat-mention-chip-label';
+    labelSpan.textContent = item.label;
+    chip.appendChild(labelSpan);
+    return chip;
+  }
+
   // Canvas-node mentions focus the node; file/folder mentions open their
   // project path in VS Code when clicked.
   const isNavigable = (isNode && !!item.nodeId) || ((isFile || isFolder) && !!item.path);
@@ -221,47 +241,9 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   return chip;
 }
 
-/**
- * Collect structured, workspace-aware context refs from the inline mention
- * chips a user inserted into the composer. Used by the global Nodes/detail
- * assistant so cross-workspace `@`-mentions resolve precisely — node refs carry
- * their workspaceId, tags the workspaces they occur in, canvases their id.
- */
-export function collectContextRefsFromEditable(editable: HTMLElement): {
-  nodes: AgentContextNodeRef[];
-  tags: AgentContextTagRef[];
-  canvases: AgentContextCanvasRef[];
-  domSelections: AgentContextDomSelectionRef[];
-} {
-  const nodes: AgentContextNodeRef[] = [];
-  const tags: AgentContextTagRef[] = [];
-  const canvases: AgentContextCanvasRef[] = [];
-  const domSelections: AgentContextDomSelectionRef[] = [];
-  const chips = editable.querySelectorAll<HTMLElement>('[data-mention-kind]');
-
-  chips.forEach((chip) => {
-    const kind = chip.dataset.mentionKind;
-    const label = chip.querySelector('.chat-mention-chip-label')?.textContent ?? '';
-    if (kind === 'node' && chip.dataset.nodeId) {
-      nodes.push({
-        id: chip.dataset.nodeId,
-        title: label,
-        type: (chip.dataset.nodeType ?? 'file') as CanvasNode['type'],
-        workspaceId: chip.dataset.workspaceId || undefined,
-      });
-    } else if (kind === 'tag' && chip.dataset.tag) {
-      const ids = chip.dataset.workspaceIds ? chip.dataset.workspaceIds.split(',').filter(Boolean) : [];
-      tags.push({ name: chip.dataset.tag, workspaceIds: ids.length ? ids : undefined });
-    } else if (kind === 'canvas' && chip.dataset.workspaceId) {
-      canvases.push({ id: chip.dataset.workspaceId, name: label });
-    } else if (kind === 'dom-selection') {
-      const ref = readDomSelectionDataset(chip, label, domSelections.length);
-      if (ref) domSelections.push(ref);
-    }
-  });
-
-  return { nodes, tags, canvases, domSelections };
-}
+// collectContextRefsFromEditable moved to ./contextRefs (500-line gate);
+// re-exported so existing importers are unaffected.
+export { collectContextRefsFromEditable } from './contextRefs';
 
 export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactNode {
   const parts: ReactNode[] = [];
@@ -386,6 +368,28 @@ export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactN
       continue;
     }
 
+    if (rawLabel.startsWith(ROLE_MENTION_PREFIX)) {
+      const roleLabel = pipedMentionLabel(rawLabel, ROLE_MENTION_PREFIX, 'Role');
+      parts.push(
+        createElement(
+          'span',
+          {
+            key: match.index,
+            className: 'chat-mention-chip chat-mention-chip--role',
+            'data-node-type': 'role',
+          } as any,
+          createElement(
+            'span',
+            { className: 'chat-mention-chip-icon' },
+            createElement(MentionNodeIcon, { nodeType: 'role' }),
+          ),
+          createElement('span', { className: 'chat-mention-chip-label' }, roleLabel),
+        ),
+      );
+      lastIndex = re.lastIndex;
+      continue;
+    }
+
     const node = nodes?.find(item => item.title === rawLabel);
     parts.push(
       createElement(
@@ -454,6 +458,11 @@ export function renderMdWithMentions(
 
     if (rawLabel.startsWith(TAB_MENTION_PREFIX)) {
       return renderTabMentionHtml(rawLabel);
+    }
+
+    if (rawLabel.startsWith(ROLE_MENTION_PREFIX)) {
+      const roleLabel = pipedMentionLabel(rawLabel, ROLE_MENTION_PREFIX, 'Role');
+      return `<span class="chat-mention-chip chat-mention-chip--role" data-node-type="role"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('role')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(roleLabel)}</span></span>`;
     }
 
     if (rawLabel.startsWith(SESSION_MENTION_PREFIX)) {

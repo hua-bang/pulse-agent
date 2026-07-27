@@ -142,6 +142,13 @@ export interface CanvasAgentMessage {
   // Plugins (e.g. devtools) look up turn-scoped data — such as the
   // captured debug trace — by this id via their own storage.
   runId?: string;
+  // Multi-role chat speaker attribution (assistant messages only). Name and
+  // color are SNAPSHOTS taken when the turn ran, so renaming or deleting a
+  // role never rewrites history. Content stays clean — the model-visible
+  // 【name】 label is applied only on the model-facing projection.
+  speakerRoleId?: string;
+  speakerRoleName?: string;
+  speakerRoleColor?: string;
 }
 
 // ─── Session persistence ────────────────────────────────────────────
@@ -275,6 +282,8 @@ export interface ChatResponse {
   response?: string;
   runId?: string;
   error?: string;
+  /** Multi-role chat: the role that spoke this turn (absent → default assistant). */
+  speakerRole?: { id: string; name: string; color: string };
 }
 
 export interface AgentStatusResponse {

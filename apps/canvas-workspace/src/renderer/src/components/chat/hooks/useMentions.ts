@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentContextDomSelectionRef, AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment, DirEntry } from '../../../types';
+import type { AgentContextDomSelectionRef, AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment } from '../../../types';
 import { isImeComposing } from '../../../utils/ime';
 import {
   MENTION_GROUP_ORDER,
@@ -12,6 +12,8 @@ import { buildTabMentionItems, collectContextRefsFromEditable, createMentionChip
 import { appendMentionChipToEditable } from '../utils/editableMentions';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { buildAttachmentFileName } from './attachmentFileName';
+import { flattenEntries } from './fileMentionItems';
+import { loadRoleMentionItems } from './roleMentionItems';
 import { useEditableInputControl } from './useEditableInputControl';
 import { useSkillMentionInsertion } from './useSkillMentionInsertion';
 interface UseMentionsOptions {
@@ -32,24 +34,6 @@ interface UseMentionsOptions {
   collectStructuredContext?: boolean;
   onSubmit: (text: string, requestContext?: AgentRequestContext, attachments?: ChatImageAttachment[]) => Promise<boolean>;
   getRequestContext?: () => AgentRequestContext | undefined;
-}
-function flattenEntries(entries: DirEntry[], rootFolder: string, prefix = ''): MentionItem[] {
-  const items: MentionItem[] = [];
-  for (const entry of entries) {
-    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.type === 'file') {
-      items.push({ type: 'file', label: path, path: `${rootFolder}/${path}` });
-      continue;
-    }
-
-    // Directory: add it as a mention candidate, then recurse into children.
-    items.push({ type: 'folder', label: `${path}/`, path: `${rootFolder}/${path}` });
-    if (entry.children) {
-      items.push(...flattenEntries(entry.children, rootFolder, path));
-    }
-  }
-
-  return items;
 }
 
 export function useMentions({
@@ -160,6 +144,10 @@ export function useMentions({
     }
 
     const items: MentionItem[] = [];
+
+    // Chat roles lead the popup — addressing a persona is the primary reason
+    // to type `@` in a role-enabled conversation.
+    items.push(...await loadRoleMentionItems());
 
     if (dockTabs) items.push(...buildTabMentionItems(dockTabs));
 

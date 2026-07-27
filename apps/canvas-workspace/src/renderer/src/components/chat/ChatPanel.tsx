@@ -434,6 +434,7 @@ export const ChatPanel = ({
           onOpenSettings={handleOpenScopeSettings}
           settingsLabel={settingsButtonLabel}
           onOpenPromptSettings={() => onOpenAppSettings('reply-style')}
+          onOpenRolesSettings={() => onOpenAppSettings('chat-roles')}
           onLoadSession={handleLoadSessionFromMenu}
           onClose={onClose}
           anchors={<ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />}

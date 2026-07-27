@@ -24,6 +24,8 @@ export function mentionIconSvg(nodeType: string): string {
       return '<path d="M1.5 4.5a1 1 0 0 1 1-1H6l1.2 1.5h4.3a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V4.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>';
     case 'session':
       return '<path d="M2.5 3h9a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H6.8L4 12.2V10H2.5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.5 5.8h5M4.5 7.8h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>';
+    case 'role':
+      return '<circle cx="7" cy="4.8" r="2.3" stroke="currentColor" stroke-width="1.2"/><path d="M2.8 12a4.2 4.2 0 0 1 8.4 0" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M10.6 2.6l.5 1 1.1.2-.8.8.2 1.1-1-.5" stroke="currentColor" stroke-width="0.9" stroke-linejoin="round"/>';
     case 'dom':
       return '<rect x="2" y="2" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.2 5.2L2.8 7l1.4 1.8M9.8 5.2L11.2 7 9.8 8.8M6.2 10.2L7.8 3.8" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>';
     default:

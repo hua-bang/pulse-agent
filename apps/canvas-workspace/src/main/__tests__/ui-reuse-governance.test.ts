@@ -105,7 +105,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // instead of carrying a fourth bespoke micro-button family.
   // 306→304 (Library preview): source and add-to-canvas reuse the native
   // node-header icon actions instead of duplicating footer text buttons.
-  rawButtonTags: 304,
+  // 304→303 (multi-role chat): RolesSettings shipped on ui/Button + SwatchRow
+  // and PromptSettings' footer migrated to ui/Button, more than offsetting
+  // the two new raw buttons (role list rows + the chat-header roles entry).
+  rawButtonTags: 303,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

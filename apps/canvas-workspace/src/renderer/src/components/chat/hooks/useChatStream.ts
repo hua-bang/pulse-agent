@@ -4,6 +4,8 @@ import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption 
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
 import { markToolResult, settleRunningTools, upsertToolInputStart } from './toolStreamState';
 import { createTextDeltaBatcher } from './textDeltaBatcher';
+import { subscribeVisualStream } from './visualStreamSubscription';
+import { parseFirstRoleMention } from '../../../../../shared/agent-roles';
 import { count } from '../../../perf/counters';
 
 interface UseChatStreamOptions {
@@ -119,13 +121,18 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       const toolCalls: ToolCallStatus[] = [];
       setActiveSessionId(sessionId);
 
+      // Multi-role: badge the streaming reply with the name from the role
+      // marker; the authoritative snapshot (id + color, or nothing when the
+      // mention was stale) arrives with chat-complete and overwrites it.
+      const speakerName = parseFirstRoleMention(text)?.name;
+
       const ensureAssistantMessage = () => {
         if (assistantIndex.current >= 0) return;
         setMessages(prev => {
           if (assistantIndex.current >= 0) return prev;
           assistantIndex.current = prev.length;
           streamingMsgIdx.current = prev.length;
-          return [...prev, { role: 'assistant', content: '', timestamp: Date.now() }];
+          return [...prev, { role: 'assistant', content: '', timestamp: Date.now(), speakerRoleName: speakerName }];
         });
       };
 
@@ -204,34 +211,8 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         publishTools();
       });
 
-      // Side-channel: visual_render pushes already-extracted content as the
-      // tool chunks its final HTML over animation frames. We accept these
-      // chunks regardless of which session emitted them — the toolCallId
-      // disambiguates — but filter to the active workspace so a stray
-      // chunk from a parallel workspace agent doesn't leak in.
-      let visualStreamFrames = 0;
-      const unsubscribeVisualStream = window.canvasWorkspace.agent.onVisualStream(data => {
-        if (!workspaceId || data.workspaceId !== workspaceId) return;
-        const tool = findTool(data.toolCallId);
-        if (!tool) {
-          if (visualStreamFrames < 3) {
-            console.warn('[useChatStream] visual-stream frame for unknown toolCallId', data.toolCallId);
-            visualStreamFrames++;
-          }
-          return;
-        }
-        visualStreamFrames++;
-        // Sample-log progress so we can verify chunks arrive at ~60fps.
-        if (visualStreamFrames === 1 || data.done || visualStreamFrames % 15 === 0) {
-          console.info(
-            `[useChatStream] visual-stream frame=${visualStreamFrames} ` +
-            `bytes=${data.content.length} done=${!!data.done} toolCallId=${data.toolCallId}`,
-          );
-        }
-        tool.streamedContent = data.content;
-        if (data.done) tool.streamedDone = true;
-        publishTools();
-      });
+      // Side-channel visual_render chunks (see visualStreamSubscription.ts).
+      const unsubscribeVisualStream = subscribeVisualStream({ workspaceId, findTool, publishTools });
 
       const unsubscribeToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, data => {
         ensureAssistantMessage();
@@ -292,6 +273,11 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
             ...message,
             toolCalls: toolSnapshot ?? message.toolCalls,
             runId: completeResult.runId ?? message.runId,
+            // Authoritative speaker snapshot; undefined intentionally clears
+            // a streaming-time badge whose role mention turned out stale.
+            speakerRoleId: completeResult.speakerRole?.id,
+            speakerRoleName: completeResult.speakerRole?.name,
+            speakerRoleColor: completeResult.speakerRole?.color,
           }
         );
 

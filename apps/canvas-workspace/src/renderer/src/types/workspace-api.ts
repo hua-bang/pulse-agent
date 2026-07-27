@@ -3,6 +3,7 @@ import type { BrowsingHistoryApi } from '../../../shared/browsing-history';
 import type { MemoryReportApi } from '../../../shared/memory-report';
 import type { ScheduledApi } from '../../../shared/scheduled';
 import type { ArtifactCapabilitiesApi } from '../../../shared/artifact-capabilities';
+import type { AgentRolesApi } from '../../../shared/agent-roles';
 import type { ReferencesApi } from '../../../shared/references';
 import type {
   CanvasSaveData,
@@ -194,6 +195,7 @@ export interface CanvasWorkspaceApi {
   artifactCapabilities: ArtifactCapabilitiesApi;
   promptProfile: PromptProfileApi;
   agent: AgentApi;
+  agentRoles: AgentRolesApi;
   codexSessions: CodexSessionsApi;
   agentTeams: AgentTeamsApi;
   iframe: IframeApi;

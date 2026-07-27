@@ -137,7 +137,7 @@ export class CanvasAgentService {
         onToolInputDelta,
         onToolInputEnd,
       );
-      return { ok: true, response: result.response, runId: result.runId };
+      return { ok: true, response: result.response, runId: result.runId, speakerRole: result.speakerRole };
     } catch (err) {
       console.error(`[canvas-agent-service] chat error for ${scopeKey(scope)}:`, err);
       return { ok: false, error: String(err) };

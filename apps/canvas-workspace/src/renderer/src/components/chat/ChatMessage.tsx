@@ -4,6 +4,7 @@ import { toFileUrl } from '../../utils/fileUrl';
 import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions } from './utils/mentions';
+import { roleColorSoft } from './utils/roleColors';
 import { isImeComposing } from '../../utils/ime';
 import { renderMermaidIn } from './utils/mermaid';
 import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
@@ -227,11 +228,27 @@ export const ChatMessage = ({
   return (
     <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
     {message.role === 'assistant' && (
-      <div className="chat-message-avatar">
-        <BotAvatarIcon size={20} />
+      <div
+        className={`chat-message-avatar${message.speakerRoleName ? ' chat-message-avatar--role' : ''}`}
+        style={message.speakerRoleName && message.speakerRoleColor
+          ? { color: message.speakerRoleColor, background: roleColorSoft(message.speakerRoleColor) }
+          : undefined}
+      >
+        {message.speakerRoleName ? message.speakerRoleName.slice(0, 1) : <BotAvatarIcon size={20} />}
       </div>
     )}
     <div className="chat-message-body">
+      {message.role === 'assistant' && message.speakerRoleName && (
+        <span
+          className="chat-message-speaker"
+          style={message.speakerRoleColor
+            ? { color: message.speakerRoleColor, background: roleColorSoft(message.speakerRoleColor) }
+            : undefined}
+        >
+          <span className="chat-message-speaker-dot" />
+          {message.speakerRoleName}
+        </span>
+      )}
       {message.attachments && message.attachments.length > 0 && (
         <div className="chat-message-images">
           {message.attachments.map((attachment, attachmentIndex) => (

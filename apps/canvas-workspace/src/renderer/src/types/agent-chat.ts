@@ -24,7 +24,13 @@ export interface AgentApi {
   ) => () => void;
   onChatComplete: (
     sessionId: string,
-    callback: (result: { ok: boolean; response?: string; runId?: string; error?: string }) => void,
+    callback: (result: {
+      ok: boolean;
+      response?: string;
+      runId?: string;
+      error?: string;
+      speakerRole?: { id: string; name: string; color: string };
+    }) => void,
   ) => () => void;
   onToolCall: (
     sessionId: string,
