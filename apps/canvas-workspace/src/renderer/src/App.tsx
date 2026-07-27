@@ -221,7 +221,7 @@ const AppContent = () => {
     setLocation(path);
   }, [setLocation]);
 
-  useScheduledRunToasts((taskId) => setLocation(`${ROUTE_SCHEDULED}/${encodeURIComponent(taskId)}`));
+  useScheduledRunToasts((taskId) => setLocation(`${ROUTE_CHAT}?scheduledTask=${encodeURIComponent(taskId)}`));
 
   const handleSelectWorkspace = useCallback((id: string) => {
     ensureWorkspaceNodesLoaded(id);
@@ -551,6 +551,7 @@ const AppContent = () => {
           <PulseRouterView name="chat">
             <ChatPage
               allWorkspaces={workspaces}
+              openScheduledTaskId={routeParams.get('scheduledTask')}
               getWorkspaceNodes={getWorkspaceNodes}
               getWorkspaceRootFolder={getWorkspaceRootFolder}
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}

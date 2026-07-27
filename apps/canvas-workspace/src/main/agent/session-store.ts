@@ -21,12 +21,14 @@ import type {
   CanvasAgentSession,
 } from './types';
 import { sessionPreview } from './session-preview';
+import { isListableSessionStore } from '../../shared/agent-chat';
 // Read lazily (not a module-level const derived at import time) so tests can
 // point it at an isolated tmpdir via the env var without needing vi.mock.
 const storeDir = (): string =>
   process.env.PULSE_CANVAS_SESSION_STORE_DIR || join(homedir(), '.pulse-coder', 'canvas');
 export const GLOBAL_CHAT_SESSION_STORE_ID = '__global_chat__';
 export const GLOBAL_CHAT_WORKSPACE_NAME = 'Global Chat';
+
 
 interface WorkspaceManifest {
   workspaces: Array<{ id: string; name: string }>;
@@ -333,9 +335,7 @@ export class SessionStore {
     }
 
     for (const dir of dirs) {
-      // Skip manifest/internal entries except the global chat session store.
-      if ((dir.startsWith('__') && dir !== GLOBAL_CHAT_SESSION_STORE_ID) || dir.startsWith('.')) continue;
-
+      if (!isListableSessionStore(dir)) continue;
       const sessionsDir = join(storeDir(), dir, 'agent-sessions');
       const archiveDir = join(sessionsDir, 'archive');
       const currentPath = join(sessionsDir, 'current.json');
@@ -493,7 +493,7 @@ export class SessionStore {
     }
 
     for (const workspaceId of dirs) {
-      if ((workspaceId.startsWith('__') && workspaceId !== GLOBAL_CHAT_SESSION_STORE_ID) || workspaceId.startsWith('.')) continue;
+      if (!isListableSessionStore(workspaceId)) continue;
       const workspaceName = workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
         ? GLOBAL_CHAT_WORKSPACE_NAME
         : workspaceNames.get(workspaceId) ?? workspaceId;
