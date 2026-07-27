@@ -10,7 +10,7 @@ import { normalizeSchedule } from '../../../../shared/scheduled';
 import { Button, FieldRow, Modal, Select, TextField, type SelectOption } from '../ui';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
-import { WEEKDAY_KEYS, intervalLabel } from './formatters';
+import { intervalLabel, weekdayNames } from './formatters';
 import { TimeOfDaySelect } from './TimeOfDaySelect';
 
 /**
@@ -61,7 +61,7 @@ interface Props {
 }
 
 export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { notify } = useAppShell();
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
@@ -212,9 +212,9 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
                 value={String(weekday)}
                 ariaLabel={t('scheduled.weekday')}
                 menuPlacement="top"
-                options={WEEKDAY_KEYS.map((key, index) => ({
+                options={weekdayNames(language).map((label, index) => ({
                   value: String(index),
-                  label: t(key),
+                  label,
                 }))}
                 onChange={(value) => setWeekday(Number(value) as ScheduledWeekday)}
               />

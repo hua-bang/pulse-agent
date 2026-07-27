@@ -2,17 +2,24 @@ import type { ScheduledSchedule, ScheduledWeekday } from '../../../../shared/sch
 import type { useI18n } from '../../i18n';
 
 type Translate = ReturnType<typeof useI18n>['t'];
+type Language = ReturnType<typeof useI18n>['language'];
 
-/** Indexed by `Date#getDay()` — 0 = Sunday. */
-export const WEEKDAY_KEYS = [
-  'scheduled.weekday.0',
-  'scheduled.weekday.1',
-  'scheduled.weekday.2',
-  'scheduled.weekday.3',
-  'scheduled.weekday.4',
-  'scheduled.weekday.5',
-  'scheduled.weekday.6',
-] as const;
+/**
+ * Weekday names come from `Intl`, not the message catalogue: the platform
+ * already knows them in every locale, and 7 hardcoded strings per language
+ * would ship in the entry chunk for no benefit. 2026-01-04 is a Sunday, so
+ * adding the weekday index lands on the right day.
+ */
+const WEEKDAY_ANCHOR = Date.UTC(2026, 0, 4);
+
+export const weekdayNames = (language: Language): string[] => {
+  const format = new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
+    weekday: 'long',
+    timeZone: 'UTC',
+  });
+  return Array.from({ length: 7 }, (_, index) =>
+    format.format(new Date(WEEKDAY_ANCHOR + index * 86_400_000)));
+};
 
 export const intervalLabel = (minutes: number, t: Translate): string => {
   if (minutes === 30) return t('scheduled.interval.30m');
@@ -23,14 +30,15 @@ export const intervalLabel = (minutes: number, t: Translate): string => {
   return t('scheduled.interval.custom', { minutes });
 };
 
-export const weekdayLabel = (weekday: ScheduledWeekday, t: Translate): string =>
-  t(WEEKDAY_KEYS[weekday]);
-
-export const scheduleLabel = (schedule: ScheduledSchedule, t: Translate): string => {
+export const scheduleLabel = (
+  schedule: ScheduledSchedule,
+  t: Translate,
+  language: Language,
+): string => {
   if (schedule.kind === 'daily') return t('scheduled.cadence.dailyAt', { time: schedule.timeOfDay });
   if (schedule.kind === 'weekly') {
     return t('scheduled.cadence.weeklyAt', {
-      day: weekdayLabel(schedule.weekday, t),
+      day: weekdayNames(language)[schedule.weekday],
       time: schedule.timeOfDay,
     });
   }

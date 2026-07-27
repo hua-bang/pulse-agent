@@ -13,9 +13,8 @@ const taskRunPrompt = (task: ScheduledTask): string => [
   '',
   task.prompt,
   '',
-  'This is an unattended scheduled run. Complete the task with the available tools; shell commands '
-    + 'are available, but nobody is watching, so avoid anything destructive or irreversible. '
-    + 'If required context is unavailable, explain what is missing instead of asking a live clarification question.',
+  'Unattended scheduled run. Shell commands are available, but nobody is watching — avoid anything '
+    + 'destructive. If required context is unavailable, say what is missing instead of asking a clarifying question.',
 ].join('\n');
 
 /**

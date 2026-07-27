@@ -19,7 +19,7 @@ import { TaskEditorModal } from './TaskEditorModal';
 import './index.css';
 
 export const ScheduledPage = () => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { notify, confirm } = useAppShell();
   const { store: dockStore } = useDockContext();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
@@ -157,7 +157,7 @@ export const ScheduledPage = () => {
                     <small>{task.prompt}</small>
                   </span>
                   <span className="scheduled-page__meta">
-                    <span>{scheduleLabel(task.schedule, t)}</span>
+                    <span>{scheduleLabel(task.schedule, t, language)}</span>
                     <small>
                       {task.enabled
                         ? t('scheduled.nextRun', { time: timeLabel(task.nextRunAt, t('scheduled.never')) })
