@@ -18,6 +18,39 @@ interface UseChatSessionsOptions {
   skipInitialHistory?: boolean;
 }
 
+interface CachedSessions {
+  sessions: AgentSessionInfo[];
+  otherSessions: OtherWorkspaceSession[];
+}
+
+/**
+ * Cross-mount, per-scope cache of the last-known session list. ChatPageBody
+ * remounts this hook on every cross-workspace rail switch (React `key`), which
+ * would otherwise reset sessions/otherSessions to empty and flash the rail's
+ * empty state until loadSessions() re-fetches. Seeding initial state from here
+ * repaints the last-known list instantly; loadSessions() still refreshes it in
+ * the background. Module-scoped by design: shared by every useChatSessions()
+ * instance (ChatPage's rail and ChatPanel's header dropdown alike).
+ *
+ * Bounded to the most recently touched scopes (Map insertion order doubles as
+ * recency) so a long-running renderer visiting many workspaces/scheduled
+ * tasks can't grow this unboundedly.
+ */
+const SESSIONS_CACHE_LIMIT = 20;
+const sessionsCache = new Map<string, CachedSessions>();
+
+function patchSessionsCache(key: string, patch: Partial<CachedSessions>): void {
+  const prev = sessionsCache.get(key) ?? { sessions: [], otherSessions: [] };
+  // Delete-then-set moves the key to the end of the Map's iteration order,
+  // marking it most-recently-used.
+  sessionsCache.delete(key);
+  sessionsCache.set(key, { ...prev, ...patch });
+  if (sessionsCache.size > SESSIONS_CACHE_LIMIT) {
+    const oldestKey = sessionsCache.keys().next().value;
+    if (oldestKey !== undefined) sessionsCache.delete(oldestKey);
+  }
+}
+
 export function useChatSessions({
   agentScope,
   allWorkspaces,
@@ -25,18 +58,32 @@ export function useChatSessions({
   eagerLoad = false,
   skipInitialHistory = false,
 }: UseChatSessionsOptions) {
-  const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
-  const [sessions, setSessions] = useState<AgentSessionInfo[]>([]);
-  const [otherSessions, setOtherSessions] = useState<OtherWorkspaceSession[]>([]);
-  const [currentScopeName, setCurrentScopeName] = useState<string | null>(null);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
-  const sessionMenuRef = useRef<HTMLDivElement>(null);
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const scopeKey = agentScope.kind === 'workspace'
     ? `workspace:${agentScope.workspaceId}`
     : agentScope.kind === 'scheduled'
       ? `scheduled:${agentScope.taskId}`
       : 'global';
+
+  const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
+  // Lazy initializers only run once, at mount — a cache hit (revisiting an
+  // already-loaded scope) repaints immediately instead of starting empty.
+  const [sessions, setSessions] = useState<AgentSessionInfo[]>(
+    () => sessionsCache.get(scopeKey)?.sessions ?? [],
+  );
+  const [otherSessions, setOtherSessions] = useState<OtherWorkspaceSession[]>(
+    () => sessionsCache.get(scopeKey)?.otherSessions ?? [],
+  );
+  const [currentScopeName, setCurrentScopeName] = useState<string | null>(null);
+  // A cache miss on an eager-load mount is about to trigger loadSessions()
+  // in an effect below, which runs after the first paint — starting this
+  // false would let that first paint fall through to the empty-state branch
+  // (allSessions is [] until the fetch resolves) and briefly show "No
+  // previous chats yet." on every scope's true first visit.
+  const [sessionsLoading, setSessionsLoading] = useState(
+    () => eagerLoad && !sessionsCache.has(scopeKey),
+  );
+  const sessionMenuRef = useRef<HTMLDivElement>(null);
 
   // Always read the latest scope inside the effect without making the effect
   // depend on the object's identity (see below).
@@ -68,6 +115,7 @@ export function useChatSessions({
       const result = await window.canvasWorkspace.agent.listSessions({ scope: agentScope });
       if (result.ok && result.sessions) {
         setSessions(result.sessions);
+        patchSessionsCache(scopeKey, { sessions: result.sessions });
       }
 
       if (allWorkspaces && (agentScope.kind === 'global' || allWorkspaces.length > 1)) {
@@ -100,14 +148,16 @@ export function useChatSessions({
 
           flattened.sort((left, right) => right.date.localeCompare(left.date));
           setOtherSessions(flattened);
+          patchSessionsCache(scopeKey, { otherSessions: flattened });
         }
       } else {
         setOtherSessions([]);
+        patchSessionsCache(scopeKey, { otherSessions: [] });
       }
     } finally {
       setSessionsLoading(false);
     }
-  }, [agentScope, allWorkspaces, workspaceId]);
+  }, [agentScope, allWorkspaces, scopeKey, workspaceId]);
 
   useEffect(() => {
     if (!eagerLoad) return;

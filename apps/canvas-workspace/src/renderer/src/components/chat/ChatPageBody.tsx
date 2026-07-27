@@ -137,7 +137,7 @@ export const ChatPageBody = ({
     removeAttachment,
     selectMention,
     sendMessage,
-    sessions,
+    sessions, sessionsLoading,
     setClarifyInput,
     setMentionIndex,
     streamingTools,
@@ -385,7 +385,7 @@ export const ChatPageBody = ({
       {!fixedChat && (
         <div className={`chat-page-rail-wrapper${railCollapsed ? ' chat-page-rail-wrapper--collapsed' : ''}`}>
           <ChatSessionsRail
-            allSessions={allSessions}
+            allSessions={allSessions} loading={sessionsLoading}
             onNewSession={handleRailNewSession}
             onSelectSession={handleRailSelectSession}
           />

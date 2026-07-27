@@ -152,11 +152,21 @@
   color: #6b6b68;
 }
 
-.chat-page-rail-empty {
+.chat-page-rail-empty,
+.chat-page-rail-loading {
   padding: 12px 10px;
   font-size: 12px;
   color: #9b9a97;
+}
+
+.chat-page-rail-empty {
   line-height: 1.5;
+}
+
+.chat-page-rail-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ─── Main column (right) ──────────────────────────────────── */
