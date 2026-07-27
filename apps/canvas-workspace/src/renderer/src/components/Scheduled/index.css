@@ -181,6 +181,15 @@
   letter-spacing: 0.01em;
 }
 
+/* Cadence + its conditional weekday/time controls share one row until the
+   modal gets narrow, then stack. */
+.scheduled-editor__cadence {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+
 .scheduled-editor__actions {
   display: flex;
   justify-content: flex-end;

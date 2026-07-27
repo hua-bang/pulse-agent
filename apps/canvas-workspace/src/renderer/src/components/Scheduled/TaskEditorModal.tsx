@@ -1,17 +1,56 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Sparkle } from '@phosphor-icons/react';
-import type { ScheduledTask, ScheduledTaskInput } from '../../../../shared/scheduled';
-import { Button, FieldRow, Modal, Select, TextField } from '../ui';
+import type {
+  ScheduledSchedule,
+  ScheduledTask,
+  ScheduledTaskInput,
+  ScheduledWeekday,
+} from '../../../../shared/scheduled';
+import { normalizeSchedule } from '../../../../shared/scheduled';
+import { Button, FieldRow, Modal, Select, TextField, type SelectOption } from '../ui';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
+import { WEEKDAY_KEYS, intervalLabel } from './formatters';
 
-const INTERVAL_OPTIONS = [
-  { value: '30', labelKey: 'scheduled.interval.30m' },
-  { value: '60', labelKey: 'scheduled.interval.1h' },
-  { value: '360', labelKey: 'scheduled.interval.6h' },
-  { value: '1440', labelKey: 'scheduled.interval.daily' },
-  { value: '10080', labelKey: 'scheduled.interval.weekly' },
+/**
+ * Cadence picker values. `interval:<minutes>` keeps the relative cadence
+ * (next run = now + N); `daily` / `weekly` pin a local wall-clock time and
+ * reveal the time (and weekday) controls.
+ */
+const CADENCE_OPTIONS = [
+  { value: 'interval:30', labelKey: 'scheduled.interval.30m' },
+  { value: 'interval:60', labelKey: 'scheduled.interval.1h' },
+  { value: 'interval:360', labelKey: 'scheduled.interval.6h' },
+  { value: 'interval:1440', labelKey: 'scheduled.interval.daily' },
+  { value: 'interval:10080', labelKey: 'scheduled.interval.weekly' },
+  { value: 'daily', labelKey: 'scheduled.cadence.dailyOption' },
+  { value: 'weekly', labelKey: 'scheduled.cadence.weeklyOption' },
 ] as const;
+
+const DEFAULT_TIME_OF_DAY = '09:00';
+const DEFAULT_WEEKDAY: ScheduledWeekday = 1;
+
+const cadenceValueOf = (schedule: ScheduledSchedule | undefined): string => {
+  if (!schedule) return 'daily';
+  return schedule.kind === 'interval' ? `interval:${schedule.intervalMinutes}` : schedule.kind;
+};
+
+const buildSchedule = (
+  cadence: string,
+  timeOfDay: string,
+  weekday: ScheduledWeekday,
+): ScheduledSchedule | null => {
+  const candidate: ScheduledSchedule = cadence === 'daily'
+    ? { kind: 'daily', timeOfDay }
+    : cadence === 'weekly'
+      ? { kind: 'weekly', weekday, timeOfDay }
+      : { kind: 'interval', intervalMinutes: Number(cadence.slice('interval:'.length)) };
+  try {
+    return normalizeSchedule(candidate);
+  } catch {
+    return null;
+  }
+};
 
 interface Props {
   open: boolean;
@@ -25,7 +64,9 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
   const { notify } = useAppShell();
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [interval, setIntervalValue] = useState('1440');
+  const [cadence, setCadence] = useState<string>('daily');
+  const [timeOfDay, setTimeOfDay] = useState(DEFAULT_TIME_OF_DAY);
+  const [weekday, setWeekday] = useState<ScheduledWeekday>(DEFAULT_WEEKDAY);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
 
@@ -33,9 +74,36 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
     if (!open) return;
     setTitle(task?.title ?? '');
     setPrompt(task?.prompt ?? '');
-    setIntervalValue(String(task?.intervalMinutes ?? 1440));
+    setCadence(cadenceValueOf(task?.schedule));
+    setTimeOfDay(task?.schedule.kind === 'daily' || task?.schedule.kind === 'weekly'
+      ? task.schedule.timeOfDay
+      : DEFAULT_TIME_OF_DAY);
+    setWeekday(task?.schedule.kind === 'weekly' ? task.schedule.weekday : DEFAULT_WEEKDAY);
     setGenerating(false);
   }, [open, task]);
+
+  const schedule = useMemo(
+    () => buildSchedule(cadence, timeOfDay, weekday),
+    [cadence, timeOfDay, weekday],
+  );
+
+  /**
+   * A stored interval outside the presets (e.g. a hand-edited state file)
+   * must stay representable, otherwise saving would silently rewrite it.
+   */
+  const cadenceOptions = useMemo(() => {
+    const options: SelectOption[] = CADENCE_OPTIONS.map((option) => ({
+      value: option.value,
+      label: t(option.labelKey),
+    }));
+    if (!options.some((option) => option.value === cadence) && cadence.startsWith('interval:')) {
+      options.unshift({
+        value: cadence,
+        label: intervalLabel(Number(cadence.slice('interval:'.length)), t),
+      });
+    }
+    return options;
+  }, [cadence, t]);
 
   const generatePrompt = async () => {
     if ((!title.trim() && !prompt.trim()) || generating) return;
@@ -66,13 +134,13 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
   };
 
   const submit = async () => {
-    if (!title.trim() || !prompt.trim() || saving) return;
+    if (!title.trim() || !prompt.trim() || !schedule || saving) return;
     setSaving(true);
     try {
       const saved = await onSave({
         title: title.trim(),
         prompt: prompt.trim(),
-        intervalMinutes: Number(interval),
+        schedule,
         enabled: task?.enabled ?? true,
       });
       if (saved) onClose();
@@ -126,24 +194,47 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
             readOnly={generating}
           />
         </div>
-        <FieldRow label={t('scheduled.cadence')}>
-          <Select
-            value={interval}
-            ariaLabel={t('scheduled.cadence')}
-            menuPlacement="top"
-            options={INTERVAL_OPTIONS.map((option) => ({
-              value: option.value,
-              label: t(option.labelKey),
-            }))}
-            onChange={setIntervalValue}
-          />
-        </FieldRow>
+        <div className="scheduled-editor__cadence">
+          <FieldRow label={t('scheduled.cadence')}>
+            <Select
+              value={cadence}
+              ariaLabel={t('scheduled.cadence')}
+              menuPlacement="top"
+              options={cadenceOptions}
+              onChange={setCadence}
+            />
+          </FieldRow>
+          {cadence === 'weekly' && (
+            <FieldRow label={t('scheduled.weekday')}>
+              <Select
+                value={String(weekday)}
+                ariaLabel={t('scheduled.weekday')}
+                menuPlacement="top"
+                options={WEEKDAY_KEYS.map((key, index) => ({
+                  value: String(index),
+                  label: t(key),
+                }))}
+                onChange={(value) => setWeekday(Number(value) as ScheduledWeekday)}
+              />
+            </FieldRow>
+          )}
+          {(cadence === 'daily' || cadence === 'weekly') && (
+            <TextField
+              label={t('scheduled.timeOfDay')}
+              hint={t('scheduled.timeOfDayHint')}
+              type="time"
+              step={60}
+              value={timeOfDay}
+              onChange={(event) => setTimeOfDay(event.target.value)}
+            />
+          )}
+        </div>
       </div>
       <footer className="scheduled-editor__actions">
         <Button onClick={onClose}>{t('scheduled.cancel')}</Button>
         <Button
           variant="primary"
-          disabled={!title.trim() || !prompt.trim() || saving}
+          disabled={!title.trim() || !prompt.trim() || !schedule || saving}
           onClick={() => void submit()}
         >
           {saving ? t('scheduled.saving') : t('scheduled.saveTask')}

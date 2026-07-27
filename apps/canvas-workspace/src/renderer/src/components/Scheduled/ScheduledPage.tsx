@@ -14,7 +14,7 @@ import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
 import { useDockContext } from '../RightDock/context';
 import { Button, EmptyState } from '../ui';
-import { intervalLabel, timeLabel } from './formatters';
+import { scheduleLabel, timeLabel } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
 import './index.css';
 
@@ -162,7 +162,7 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
                     <small>{task.prompt}</small>
                   </span>
                   <span className="scheduled-page__meta">
-                    <span>{intervalLabel(task.intervalMinutes, t)}</span>
+                    <span>{scheduleLabel(task.schedule, t)}</span>
                     <small>
                       {task.enabled
                         ? t('scheduled.nextRun', { time: timeLabel(task.nextRunAt, t('scheduled.never')) })
