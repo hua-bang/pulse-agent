@@ -11,6 +11,7 @@ import { Button, FieldRow, Modal, Select, TextField, type SelectOption } from '.
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
 import { WEEKDAY_KEYS, intervalLabel } from './formatters';
+import { TimeOfDaySelect } from './TimeOfDaySelect';
 
 /**
  * Cadence picker values. `interval:<minutes>` keeps the relative cadence
@@ -86,6 +87,7 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
     () => buildSchedule(cadence, timeOfDay, weekday),
     [cadence, timeOfDay, weekday],
   );
+  const absolute = cadence === 'daily' || cadence === 'weekly';
 
   /**
    * A stored interval outside the presets (e.g. a hand-edited state file)
@@ -218,17 +220,17 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
               />
             </FieldRow>
           )}
-          {(cadence === 'daily' || cadence === 'weekly') && (
-            <TextField
+          {absolute && (
+            <TimeOfDaySelect
               label={t('scheduled.timeOfDay')}
-              hint={t('scheduled.timeOfDayHint')}
-              type="time"
-              step={60}
               value={timeOfDay}
-              onChange={(event) => setTimeOfDay(event.target.value)}
+              onChange={setTimeOfDay}
             />
           )}
         </div>
+        {absolute && (
+          <p className="scheduled-editor__cadence-hint">{t('scheduled.timeOfDayHint')}</p>
+        )}
       </div>
       <footer className="scheduled-editor__actions">
         <Button onClick={onClose}>{t('scheduled.cancel')}</Button>

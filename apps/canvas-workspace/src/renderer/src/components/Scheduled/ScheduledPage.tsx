@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   CalendarBlank,
   CalendarCheck,
+  ChatCircle,
   Pause,
   PencilSimple,
   Play,
@@ -150,12 +151,11 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
           {tasks.map((task) => {
             const running = task.status === 'running' || runningTaskIds.has(task.id);
             return (
-              <li key={task.id} className="scheduled-page__row">
-                <Button
-                  className="scheduled-page__row-main"
-                  data-task-id={task.id}
-                  onClick={() => onOpenTask(task.id)}
-                >
+              <li key={task.id} className="scheduled-page__row" data-task-id={task.id}>
+                {/* Presentational only. The whole row used to be one button, so
+                    every stray click on the title or the cadence text opened a
+                    chat; actions now live exclusively in the button group. */}
+                <div className="scheduled-page__row-main">
                   <span className={`scheduled-page__status${task.enabled ? ' scheduled-page__status--enabled' : ''}`} />
                   <span className="scheduled-page__row-copy">
                     <strong>{task.title}</strong>
@@ -176,8 +176,16 @@ export const ScheduledPage = ({ onOpenTask }: Props) => {
                         ? t('scheduled.lastSuccess', { time: timeLabel(task.lastSuccessAt, t('scheduled.never')) })
                         : t('scheduled.neverRun')}
                   </span>
-                </Button>
+                </div>
                 <div className="scheduled-page__row-actions">
+                  <Button
+                    size="xs"
+                    title={t('scheduled.openChat')}
+                    onClick={() => onOpenTask(task.id)}
+                  >
+                    <ChatCircle size={13} />
+                    {t('scheduled.openChat')}
+                  </Button>
                   <Button
                     size="xs"
                     title={task.enabled ? t('scheduled.pause') : t('scheduled.resume')}

@@ -54,29 +54,18 @@
   border-bottom: 1px solid var(--border);
 }
 
-.scheduled-page__row:hover {
-  background: var(--surface-subtle);
-}
+/* No hover highlight: the row is presentational, and a row-wide highlight
+   reads as "clickable" when only the action buttons are. */
 
 .scheduled-page__row-main {
   display: grid;
   grid-template-columns: 8px minmax(220px, 1fr) minmax(140px, auto) minmax(140px, auto);
   align-items: center;
-  justify-content: initial;
   gap: 14px;
-  width: 100%;
-  height: auto;
   min-width: 0;
   padding: 13px 12px;
-  border: 0;
   color: var(--text);
-  background: transparent;
   text-align: left;
-  cursor: pointer;
-}
-
-.scheduled-page__row-main.ui-btn--secondary:hover:not(:disabled) {
-  background: transparent;
 }
 
 .scheduled-page__status {
@@ -188,6 +177,26 @@
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   align-items: start;
   gap: 12px;
+}
+
+.scheduled-editor__cadence-hint {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Hour : minute, sized so both dropdowns stay legible when the cadence grid
+   collapses to one column. */
+.scheduled-time {
+  display: grid;
+  grid-template-columns: minmax(56px, 1fr) auto minmax(56px, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.scheduled-time__separator {
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .scheduled-editor__actions {

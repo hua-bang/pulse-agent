@@ -40,7 +40,7 @@ afterEach(() => {
 });
 
 describe('ScheduledPage', () => {
-  it('lists scheduled tasks and opens the task chat when a row is clicked', async () => {
+  it('lists scheduled tasks and opens the chat only from the explicit button', async () => {
     const onOpenTask = vi.fn();
     Object.defineProperty(window, 'canvasWorkspace', {
       configurable: true,
@@ -74,9 +74,20 @@ describe('ScheduledPage', () => {
       root?.render(renderPage(onOpenTask));
     });
 
-    const row = host.querySelector<HTMLButtonElement>('[data-task-id="daily-brief"]');
+    const row = host.querySelector<HTMLElement>('[data-task-id="daily-brief"]');
     expect(row?.textContent).toContain('Daily brief');
-    act(() => row?.click());
+
+    // The row itself carries no click target — only the action buttons do.
+    expect(row?.querySelector('.scheduled-page__row-main')?.tagName).toBe('DIV');
+    act(() => {
+      row?.querySelector<HTMLElement>('.scheduled-page__row-main')?.click();
+      row?.querySelector<HTMLElement>('.scheduled-page__row-copy strong')?.click();
+    });
+    expect(onOpenTask).not.toHaveBeenCalled();
+
+    const openButton = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Open chat'));
+    act(() => openButton?.click());
     expect(onOpenTask).toHaveBeenCalledWith('daily-brief');
   });
 

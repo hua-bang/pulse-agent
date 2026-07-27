@@ -20,6 +20,22 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const triggerFor = (ariaLabel: string): HTMLButtonElement | null =>
+  document.querySelector<HTMLButtonElement>(`.ui-select__trigger[aria-label="${ariaLabel}"]`);
+
+/**
+ * Opens the labelled ui/Select and clicks the option with `label`. The open
+ * and the pick need separate `act` passes — the menu only exists after the
+ * trigger's state update has flushed.
+ */
+const pickOption = async (ariaLabel: string, label: string): Promise<void> => {
+  await act(async () => { triggerFor(ariaLabel)?.click(); });
+  const option = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')]
+    .find((candidate) => candidate.textContent?.trim() === label);
+  if (!option) throw new Error(`No "${label}" option under ${ariaLabel}`);
+  await act(async () => { option.click(); });
+};
+
 describe('TaskEditorModal', () => {
   it('uses AI to draft editable instructions from the task name', async () => {
     const polishScheduledPrompt = vi.fn(async () => ({
@@ -114,17 +130,11 @@ describe('TaskEditorModal', () => {
       );
     });
 
-    const timeInput = document.querySelector<HTMLInputElement>('input[type="time"]');
-    expect(timeInput?.value).toBe('09:00');
+    expect(triggerFor('Hour')?.textContent).toContain('09');
+    expect(triggerFor('Minute')?.textContent).toContain('00');
 
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value',
-      )?.set;
-      setter?.call(timeInput, '07:30');
-      timeInput?.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    await pickOption('Hour', '07');
+    await pickOption('Minute', '30');
 
     const saveButton = [...document.querySelectorAll<HTMLButtonElement>('button')]
       .find((button) => button.textContent?.includes('Save task'));
@@ -138,7 +148,7 @@ describe('TaskEditorModal', () => {
     }));
   });
 
-  it('blocks saving while the wall-clock time is incomplete', async () => {
+  it('keeps a stored off-grid minute selectable instead of rounding it away', async () => {
     Object.defineProperty(window, 'canvasWorkspace', {
       configurable: true,
       value: { agent: { polishScheduledPrompt: vi.fn() } },
@@ -158,7 +168,9 @@ describe('TaskEditorModal', () => {
                 id: 'daily-brief',
                 title: 'Daily brief',
                 prompt: 'Summarize what needs my attention.',
-                schedule: { kind: 'daily', timeOfDay: '09:00' },
+                // The agent tools accept any HH:mm, so the picker has to carry
+                // values the 5-minute grid does not contain.
+                schedule: { kind: 'daily', timeOfDay: '09:07' },
                 enabled: true,
                 source: 'user',
                 createdAt: 1,
@@ -175,24 +187,28 @@ describe('TaskEditorModal', () => {
       );
     });
 
-    const timeInput = document.querySelector<HTMLInputElement>('input[type="time"]');
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value',
-      )?.set;
-      setter?.call(timeInput, '');
-      timeInput?.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    expect(triggerFor('Minute')?.textContent).toContain('07');
 
+    await act(async () => {
+      triggerFor('Minute')?.click();
+    });
+    const minutes = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')]
+      .map((option) => option.textContent?.trim());
+    expect(minutes).toContain('07');
+    expect(minutes).toContain('05');
+    expect(minutes).toContain('10');
+
+    await act(async () => {
+      triggerFor('Minute')?.click();
+    });
     const saveButton = [...document.querySelectorAll<HTMLButtonElement>('button')]
       .find((button) => button.textContent?.includes('Save task'));
-    expect(saveButton?.disabled).toBe(true);
-
     await act(async () => {
       saveButton?.click();
       await Promise.resolve();
     });
-    expect(onSave).not.toHaveBeenCalled();
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      schedule: { kind: 'daily', timeOfDay: '09:07' },
+    }));
   });
 });
