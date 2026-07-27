@@ -357,13 +357,6 @@ function configureAppChrome(
     }
   }
 
-  // Windows drops notifications from a process with no AppUserModelID —
-  // silently, with no error — so scheduled-run notifications would never
-  // appear there. Must match electron-builder's `appId`.
-  if (process.platform === "win32") {
-    app.setAppUserModelId("com.pulse-coder.canvas-workspace");
-  }
-
   // About panel: shown by the native menu. iconPath is honored on Linux and
   // Windows; macOS reads the icon from the app bundle.
   app.setAboutPanelOptions({

@@ -1,18 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Guards the completion signal for a scheduled run. The failure path used to
- * announce nothing (the throw happened before the notification), and the
- * notification object was dropped straight after `show()`, which lets
- * Electron collect it before the OS displays it.
+ * Guards the completion signal for a scheduled run: one renderer push per
+ * finished attempt, success AND failure. The failure path used to announce
+ * nothing at all — the throw happened before the announcement, leaving
+ * `lastError` in the list as the only trace.
+ *
+ * There is deliberately no OS notification; `assertNoOsNotification` keeps a
+ * future edit from quietly reintroducing that second channel.
  */
 const h = vi.hoisted(() => ({
   sent: [] as Array<{ channel: string; payload: unknown }>,
-  notifications: [] as Array<{
-    options: { title: string; body: string };
-    shown: boolean;
-    handlers: Map<string, () => void>;
-  }>,
+  osNotifications: 0,
   chatResult: { ok: true } as { ok: boolean; error?: string },
   chatThrows: null as Error | null,
 }));
@@ -20,18 +19,11 @@ const h = vi.hoisted(() => ({
 vi.mock('electron', () => {
   class FakeNotification {
     static isSupported = () => true;
-    shown = false;
-    handlers = new Map<string, () => void>();
-    constructor(public options: { title: string; body: string }) {
-      h.notifications.push(this as never);
+    constructor() {
+      h.osNotifications += 1;
     }
-    on(event: string, handler: () => void) {
-      this.handlers.set(event, handler);
-      return this;
-    }
-    show() {
-      this.shown = true;
-    }
+    on() { return this; }
+    show() { /* counted in the constructor */ }
   }
   return {
     Notification: FakeNotification,
@@ -81,9 +73,12 @@ const task: ScheduledTask = {
 
 const runFinishedPushes = () => h.sent.filter((event) => event.channel === 'scheduled:run-finished');
 
+/** The completion signal is in-app only — no second, unreliable OS channel. */
+const assertNoOsNotification = () => expect(h.osNotifications).toBe(0);
+
 beforeEach(() => {
   h.sent.length = 0;
-  h.notifications.length = 0;
+  h.osNotifications = 0;
   h.chatResult = { ok: true };
   h.chatThrows = null;
 });
@@ -93,13 +88,11 @@ afterEach(() => {
 });
 
 describe('scheduled run completion signal', () => {
-  it('notifies and pushes to the renderer when a run succeeds', async () => {
+  it('pushes exactly one in-app announcement when a run succeeds', async () => {
     const result = await __testing.executeScheduledTask(task);
 
     expect(result).toEqual({ sessionId: 'session-1' });
-    expect(h.notifications).toHaveLength(1);
-    expect(h.notifications[0].shown).toBe(true);
-    expect(h.notifications[0].options.body).toContain('completed');
+    assertNoOsNotification();
     expect(runFinishedPushes()).toEqual([
       {
         channel: 'scheduled:run-finished',
@@ -113,9 +106,7 @@ describe('scheduled run completion signal', () => {
 
     await expect(__testing.executeScheduledTask(task)).rejects.toThrow('model unavailable');
 
-    expect(h.notifications).toHaveLength(1);
-    expect(h.notifications[0].shown).toBe(true);
-    expect(h.notifications[0].options.body).toContain('model unavailable');
+    assertNoOsNotification();
     expect(runFinishedPushes()[0].payload).toEqual({
       taskId: 'daily-brief',
       title: 'Morning brief',
@@ -129,28 +120,5 @@ describe('scheduled run completion signal', () => {
 
     await expect(__testing.executeScheduledTask(task)).rejects.toThrow('engine exploded');
     expect(runFinishedPushes()[0].payload).toMatchObject({ ok: false, error: 'engine exploded' });
-  });
-
-  it('holds the notification until it closes so it cannot be collected mid-show', async () => {
-    const before = __testing.pendingNotificationCount();
-    await __testing.executeScheduledTask(task);
-
-    expect(__testing.pendingNotificationCount()).toBe(before + 1);
-    h.notifications[0].handlers.get('close')?.();
-    expect(__testing.pendingNotificationCount()).toBe(before);
-  });
-
-  it('drops a held notification after the hold window when close never fires', async () => {
-    vi.useFakeTimers();
-    try {
-      const before = __testing.pendingNotificationCount();
-      await __testing.executeScheduledTask(task);
-      expect(__testing.pendingNotificationCount()).toBe(before + 1);
-
-      vi.advanceTimersByTime(60_000);
-      expect(__testing.pendingNotificationCount()).toBe(before);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

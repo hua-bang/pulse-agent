@@ -79,7 +79,6 @@ export interface ScheduledApi {
     taskId: string,
   ) => Promise<{ ok: boolean; task?: ScheduledTask; error?: string }>;
   onChanged: (callback: (tasks: ScheduledTask[]) => void) => () => void;
-  onOpenTask: (callback: (taskId: string) => void) => () => void;
   onRunFinished: (callback: (run: ScheduledRunFinished) => void) => () => void;
 }
 

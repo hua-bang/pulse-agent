@@ -9,6 +9,5 @@ export const createScheduledApi = (ipcRenderer: IpcRenderer): ScheduledApi => ({
   remove: (taskId) => ipcRenderer.invoke('scheduled:remove', taskId),
   runNow: (taskId) => ipcRenderer.invoke('scheduled:run-now', taskId),
   onChanged: (callback) => subscribe(ipcRenderer, 'scheduled:changed', callback),
-  onOpenTask: (callback) => subscribe(ipcRenderer, 'scheduled:open-task', callback),
   onRunFinished: (callback) => subscribe(ipcRenderer, 'scheduled:run-finished', callback),
 });
