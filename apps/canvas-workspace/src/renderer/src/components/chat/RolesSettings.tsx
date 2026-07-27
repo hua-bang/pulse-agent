@@ -86,11 +86,13 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
   const [savedHint, setSavedHint] = useState(false);
 
   // Bind the editor to the first role once loaded (or the new-role form when
-  // the library is empty). Existing selection survives refreshes.
+  // the library is empty). A selection or a DIRTY new-role draft survives
+  // refreshes; a pristine new-role form yields to the first loaded role so
+  // opening the section never lands on a blank editor.
   useEffect(() => {
     setDraft(prev => {
       if (prev?.id && roles.some(role => role.id === prev.id)) return prev;
-      if (prev && !prev.id) return prev;
+      if (prev && !prev.id && (prev.name.trim() || prev.prompt.trim())) return prev;
       const first = roles[0];
       return first
         ? { id: first.id, name: first.name, color: first.color, prompt: first.prompt }
