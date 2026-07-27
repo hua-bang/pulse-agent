@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type {
+  ScheduledSchedule,
   ScheduledTask,
   ScheduledTaskExecutionResult,
   ScheduledTaskInput,
@@ -19,6 +20,8 @@ interface ScheduledTaskState {
 type PersistedTask = ScheduledTask & { intervalMinutes?: number };
 
 const WEEK_MINUTES = 7 * 24 * 60;
+/** Monday 09:00 local. Weekday numbering matches `Date#getDay()`. */
+const MEMORY_REPORT_SCHEDULE: ScheduledSchedule = { kind: 'weekly', weekday: 1, timeOfDay: '09:00' };
 const DEFAULT_INITIAL_DELAY_MS = 45_000;
 export const SCHEDULED_CHECK_EVERY_MS = 30 * 60_000;
 
@@ -104,20 +107,27 @@ export class ScheduledTaskService {
     this.dueTimer = null;
   }
 
+  /**
+   * Seeds the built-in weekly report at a predictable local slot (Monday
+   * 09:00) rather than "7 days after whenever the app first launched", which
+   * is the whole point of a weekly report. Seeding is one-shot: an install
+   * that already has the task keeps its stored schedule untouched.
+   */
   async ensureMemoryReportTask(): Promise<ScheduledTask> {
     const existing = await this.getTask('memory-report');
     if (existing) return existing;
     const createdAt = this.now();
+    const schedule = MEMORY_REPORT_SCHEDULE;
     const task: ScheduledTask = {
       id: 'memory-report',
       title: 'Memory report',
       prompt: 'Review the last 7 days of Canvas activity and prepare a memory report.',
-      schedule: { kind: 'interval', intervalMinutes: WEEK_MINUTES },
+      schedule,
       enabled: false,
       source: 'memory-report',
       createdAt,
       updatedAt: createdAt,
-      nextRunAt: createdAt + WEEK_MINUTES * 60_000,
+      nextRunAt: computeNextRunAt(schedule, createdAt),
       runCount: 0,
       status: 'idle',
     };

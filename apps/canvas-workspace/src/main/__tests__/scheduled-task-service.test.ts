@@ -186,7 +186,8 @@ describe('ScheduledTaskService', () => {
   });
 
   it('seeds the stable weekly memory report once and leaves it disabled until the user opts in', async () => {
-    const now = Date.UTC(2026, 6, 26, 9, 0);
+    // 2026-07-26 is a Sunday, so the seeded Monday slot is the next day.
+    const now = new Date(2026, 6, 26, 9, 0).getTime();
     const service = new ScheduledTaskService({
       statePath,
       now: () => now,
@@ -199,12 +200,41 @@ describe('ScheduledTaskService', () => {
     expect(first).toMatchObject({
       id: 'memory-report',
       source: 'memory-report',
-      schedule: { kind: 'interval', intervalMinutes: 7 * 24 * 60 },
+      schedule: { kind: 'weekly', weekday: 1, timeOfDay: '09:00' },
       enabled: false,
-      nextRunAt: now + 7 * 24 * 60 * 60_000,
+      nextRunAt: new Date(2026, 6, 27, 9, 0).getTime(),
     });
     expect(second).toEqual(first);
     expect(await service.listTasks()).toHaveLength(1);
+  });
+
+  it('leaves an already-seeded memory report on its stored schedule', async () => {
+    const now = new Date(2026, 6, 26, 9, 0).getTime();
+    await fs.writeFile(statePath, JSON.stringify({
+      version: 1,
+      tasks: [{
+        id: 'memory-report',
+        title: 'Memory report',
+        prompt: 'Review the last 7 days of Canvas activity and prepare a memory report.',
+        intervalMinutes: 7 * 24 * 60,
+        enabled: true,
+        source: 'memory-report',
+        createdAt: now,
+        updatedAt: now,
+        nextRunAt: now + 7 * 24 * 60 * 60_000,
+        runCount: 3,
+        status: 'idle',
+      }],
+    }), 'utf-8');
+
+    const service = new ScheduledTaskService({ statePath, now: () => now, execute: vi.fn() });
+    const seeded = await service.ensureMemoryReportTask();
+
+    expect(seeded).toMatchObject({
+      schedule: { kind: 'interval', intervalMinutes: 7 * 24 * 60 },
+      enabled: true,
+      runCount: 3,
+    });
   });
 
   it('pins a daily task to the next local wall-clock slot instead of a relative offset', async () => {
