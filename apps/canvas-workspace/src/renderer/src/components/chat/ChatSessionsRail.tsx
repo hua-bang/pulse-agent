@@ -1,4 +1,4 @@
-import { ListLinesIcon, PlusIcon } from '../icons';
+import { ListLinesIcon, PlusIcon, SpinnerIcon } from '../icons';
 import { useI18n } from '../../i18n';
 import { SessionTitle } from './SessionTitle';
 import { sessionTitleText } from './utils/sessionTitle';
@@ -15,6 +15,8 @@ export interface UnifiedSession {
 
 interface ChatSessionsRailProps {
   allSessions: UnifiedSession[];
+  /** True while the session list is being (re)fetched, e.g. after a scope switch. */
+  loading?: boolean;
   onNewSession: () => void | Promise<void>;
   onSelectSession: (session: UnifiedSession) => void;
 }
@@ -28,6 +30,7 @@ interface ChatSessionsRailProps {
  */
 export const ChatSessionsRail = ({
   allSessions,
+  loading = false,
   onNewSession,
   onSelectSession,
 }: ChatSessionsRailProps) => {
@@ -44,7 +47,12 @@ export const ChatSessionsRail = ({
       </button>
 
       <div className="chat-page-rail-scroll">
-        {allSessions.length === 0 ? (
+        {loading && allSessions.length === 0 ? (
+          <div className="chat-page-rail-loading">
+            <SpinnerIcon size={14} className="chat-spin" />
+            <span>{t('chat.loadingSessions')}</span>
+          </div>
+        ) : allSessions.length === 0 ? (
           <div className="chat-page-rail-empty">{t('chat.noPreviousChats')}</div>
         ) : (
           <div className="chat-page-rail-list">
