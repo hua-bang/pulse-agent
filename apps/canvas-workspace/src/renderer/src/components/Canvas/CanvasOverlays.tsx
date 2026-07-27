@@ -9,13 +9,10 @@ import type { UseCanvasSearchReturn } from '../../hooks/useCanvasSearch';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
 import { EdgeLabel } from '../EdgeLabel';
 import { ChatFloatingButton } from '../ChatFloatingButton';
-import { SelectionToolbar } from '../SelectionToolbar';
 import { useI18n } from '../../i18n';
 import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
 import type { AddNodeOptions } from '../../hooks/useNodes';
 import { applyEdgeInteractionPreview } from '../CanvasEdgesLayer';
-
-const noop = () => undefined;
 
 const CommandPalette = lazy(() =>
   import('../CommandPalette').then((module) => ({ default: module.CommandPalette })),
@@ -200,7 +197,6 @@ export const CanvasOverlays = ({
   const { t } = useI18n();
   const renderEdgeLabels = shouldRenderEdgeLabels({ moving, editingEdgeLabelId });
   const renderEdgeStylePanel = shouldRenderEdgeStylePanel(moving);
-  const selectionActive = selectedNodeIds.length > 0;
   const overlayEdges = useMemo(
     () => projectEdgeOverlayGeometry(edges, selectedEdge, edgeInteractionState),
     [edgeInteractionState, edges, selectedEdge],
@@ -303,29 +299,10 @@ export const CanvasOverlays = ({
         className={[
           'canvas-bottom-chrome',
           moving ? 'canvas-bottom-chrome--moving' : '',
-          selectionActive ? 'canvas-bottom-chrome--selection' : '',
         ].filter(Boolean).join(' ')}
       >
-        {selectionActive && (
-          <SelectionToolbar
-            selectedCount={selectedNodeIds.length}
-            canFocus={selectedNodeIds.length === 1 && !!focusModeAvailable}
-            focusModeActive={!!focusModeActive}
-            canGroup={selectedNodeIds.length > 1}
-            canPinReference={selectedNodeIds.length === 1 && !!onPinReferenceSelection}
-            canAddToChat={selectedNodeIds.length === 1 && !!onAddSelectionToChat}
-            showPinReference={!!onPinReferenceSelection}
-            showAddToChat={!!onAddSelectionToChat}
-            onFitSelection={onFitSelection ?? noop}
-            onDuplicate={onDuplicateSelection ?? noop}
-            onToggleFocus={onToggleFocusMode ?? noop}
-            onGroup={onGroupSelection ?? noop}
-            onWrapFrame={onWrapSelectionInFrame ?? noop}
-            onPinReference={onPinReferenceSelection ?? noop}
-            onAddToChat={onAddSelectionToChat ?? noop}
-            onDelete={onDeleteSelection ?? noop}
-          />
-        )}
+        {/* Selection toolbar hidden for now (product call on 2026-07-27);
+          selection-related props above stay wired for a future re-enable. */}
         <FloatingToolbar
           activeTool={activeTool}
           onToolChange={onToolChange}

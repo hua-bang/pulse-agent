@@ -44,12 +44,6 @@ const baseProps = (): CanvasOverlaysProps => ({
   transform: { x: 0, y: 0, scale: 1 },
 });
 
-const clickButton = (host: HTMLElement, label: string) => {
-  const button = host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
-  expect(button).not.toBeNull();
-  act(() => button?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
-};
-
 describe('CanvasOverlays selection actions', () => {
   let host: HTMLDivElement;
   let root: Root;
@@ -83,58 +77,30 @@ describe('CanvasOverlays selection actions', () => {
     });
   };
 
-  it('shows selection actions and forwards single-selection commands', () => {
-    const onFitSelection = vi.fn();
-    const onDuplicateSelection = vi.fn();
-    const onToggleFocusMode = vi.fn();
-    const onWrapSelectionInFrame = vi.fn();
-    const onPinReferenceSelection = vi.fn();
-    const onAddSelectionToChat = vi.fn();
-    const onDeleteSelection = vi.fn();
-
+  it('stays hidden for a single selection', () => {
     render({
       selectedNodeIds: ['node-1'],
       focusModeAvailable: true,
-      onFitSelection,
-      onDuplicateSelection,
-      onToggleFocusMode,
-      onWrapSelectionInFrame,
-      onPinReferenceSelection,
-      onAddSelectionToChat,
-      onDeleteSelection,
+      onFitSelection: vi.fn(),
+      onDuplicateSelection: vi.fn(),
+      onToggleFocusMode: vi.fn(),
+      onWrapSelectionInFrame: vi.fn(),
+      onPinReferenceSelection: vi.fn(),
+      onAddSelectionToChat: vi.fn(),
+      onDeleteSelection: vi.fn(),
     });
 
-    expect(host.querySelector('[role="toolbar"][aria-label="Selection actions"]')).not.toBeNull();
-    expect(host.querySelector('.canvas-bottom-chrome--selection')).not.toBeNull();
-
-    clickButton(host, 'Fit the selection in view');
-    clickButton(host, 'Duplicate selection');
-    clickButton(host, 'Focus selection');
-    clickButton(host, 'Wrap in frame');
-    clickButton(host, 'Pin selection as reference');
-    clickButton(host, 'Add selection to chat');
-    clickButton(host, 'Delete selection');
-
-    expect(onFitSelection).toHaveBeenCalledOnce();
-    expect(onDuplicateSelection).toHaveBeenCalledOnce();
-    expect(onToggleFocusMode).toHaveBeenCalledOnce();
-    expect(onWrapSelectionInFrame).toHaveBeenCalledOnce();
-    expect(onPinReferenceSelection).toHaveBeenCalledOnce();
-    expect(onAddSelectionToChat).toHaveBeenCalledOnce();
-    expect(onDeleteSelection).toHaveBeenCalledOnce();
+    expect(host.querySelector('[role="toolbar"][aria-label="Selection actions"]')).toBeNull();
+    expect(host.querySelector('.canvas-bottom-chrome--selection')).toBeNull();
   });
 
-  it('keeps group available for a multi-selection', () => {
-    const onGroupSelection = vi.fn();
-
+  it('stays hidden for a multi-selection', () => {
     render({
       selectedNodeIds: ['node-1', 'node-2'],
-      onGroupSelection,
+      onGroupSelection: vi.fn(),
     });
 
-    expect(host.querySelector('[role="toolbar"][aria-label="Selection actions"]')).not.toBeNull();
-    clickButton(host, 'Group selection');
-    expect(onGroupSelection).toHaveBeenCalledOnce();
+    expect(host.querySelector('[role="toolbar"][aria-label="Selection actions"]')).toBeNull();
   });
 
   it('hides selection actions when the selection is empty', () => {
