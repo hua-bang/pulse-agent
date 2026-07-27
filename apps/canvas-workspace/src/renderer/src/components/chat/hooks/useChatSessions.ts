@@ -31,12 +31,24 @@ interface CachedSessions {
  * repaints the last-known list instantly; loadSessions() still refreshes it in
  * the background. Module-scoped by design: shared by every useChatSessions()
  * instance (ChatPage's rail and ChatPanel's header dropdown alike).
+ *
+ * Bounded to the most recently touched scopes (Map insertion order doubles as
+ * recency) so a long-running renderer visiting many workspaces/scheduled
+ * tasks can't grow this unboundedly.
  */
+const SESSIONS_CACHE_LIMIT = 20;
 const sessionsCache = new Map<string, CachedSessions>();
 
 function patchSessionsCache(key: string, patch: Partial<CachedSessions>): void {
   const prev = sessionsCache.get(key) ?? { sessions: [], otherSessions: [] };
+  // Delete-then-set moves the key to the end of the Map's iteration order,
+  // marking it most-recently-used.
+  sessionsCache.delete(key);
   sessionsCache.set(key, { ...prev, ...patch });
+  if (sessionsCache.size > SESSIONS_CACHE_LIMIT) {
+    const oldestKey = sessionsCache.keys().next().value;
+    if (oldestKey !== undefined) sessionsCache.delete(oldestKey);
+  }
 }
 
 export function useChatSessions({
@@ -63,7 +75,14 @@ export function useChatSessions({
     () => sessionsCache.get(scopeKey)?.otherSessions ?? [],
   );
   const [currentScopeName, setCurrentScopeName] = useState<string | null>(null);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
+  // A cache miss on an eager-load mount is about to trigger loadSessions()
+  // in an effect below, which runs after the first paint — starting this
+  // false would let that first paint fall through to the empty-state branch
+  // (allSessions is [] until the fetch resolves) and briefly show "No
+  // previous chats yet." on every scope's true first visit.
+  const [sessionsLoading, setSessionsLoading] = useState(
+    () => eagerLoad && !sessionsCache.has(scopeKey),
+  );
   const sessionMenuRef = useRef<HTMLDivElement>(null);
 
   // Always read the latest scope inside the effect without making the effect
