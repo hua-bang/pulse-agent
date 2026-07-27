@@ -1,39 +1,15 @@
 import { BrowserWindow, Notification } from 'electron';
 import { getCanvasAgentService } from '../agent/ipc';
-import type { ScheduledSchedule, ScheduledTask } from '../../shared/scheduled';
+import type { ScheduledTask } from '../../shared/scheduled';
+import { describeSchedule } from '../../shared/scheduled';
 import { ScheduledTaskService } from './scheduled-task-service';
 
 let service: ScheduledTaskService | null = null;
 
-const WEEKDAY_NAMES = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-] as const;
-
-const intervalCadenceLabel = (intervalMinutes: number): string => {
-  if (intervalMinutes % (7 * 24 * 60) === 0) return `Every ${intervalMinutes / (7 * 24 * 60)} week(s)`;
-  if (intervalMinutes % (24 * 60) === 0) return `Every ${intervalMinutes / (24 * 60)} day(s)`;
-  if (intervalMinutes % 60 === 0) return `Every ${intervalMinutes / 60} hour(s)`;
-  return `Every ${intervalMinutes} minutes`;
-};
-
-const cadenceLabel = (schedule: ScheduledSchedule): string => {
-  if (schedule.kind === 'daily') return `Every day at ${schedule.timeOfDay} local time`;
-  if (schedule.kind === 'weekly') {
-    return `Every ${WEEKDAY_NAMES[schedule.weekday]} at ${schedule.timeOfDay} local time`;
-  }
-  return intervalCadenceLabel(schedule.intervalMinutes);
-};
-
 const taskRunPrompt = (task: ScheduledTask): string => [
   `Scheduled task: ${task.title}`,
   `Task ID: ${task.id}`,
-  `Cadence: ${cadenceLabel(task.schedule)}`,
+  `Cadence: ${describeSchedule(task.schedule)}`,
   '',
   task.prompt,
   '',

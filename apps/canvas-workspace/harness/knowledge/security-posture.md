@@ -121,6 +121,15 @@ These make on-disk files an execution or injection surface:
   local settings/env, not source.
 - The harness driver's `real` profile requires `--allow-real-writes` before
   it can touch real user data (`harness/tools/driver/src/profiles.mjs`).
+- Scheduled-task writes from the agent (`scheduled_task_create` /
+  `scheduled_task_update`, `src/main/agent/tools/scheduled.ts`) are bounded by
+  three deliberate choices, not by a capability gate: all three tools are
+  `defer_loading` so they are absent until explicitly loaded; every write
+  broadcasts `scheduled:changed`, so a new or edited task appears in the
+  Scheduled page rather than landing silently; and deleting is not exposed at
+  all (removal stays a UI action). Their descriptions restrict calls to what
+  the user asked in their own words — the same description-level convention
+  `memory_adopt` relies on.
 
 ## When you change things here
 
@@ -128,6 +137,12 @@ These make on-disk files an execution or injection surface:
   main-process privilege. Read this doc + `terminals.ts` for the precedent of
   gating side effects (spawn-target scoping) before adding execute-class
   tools.
+- A tool that schedules FUTURE unattended runs is a persistence mechanism, not
+  a one-shot side effect: injected content that reaches it survives the turn.
+  `scheduled_task_*` is the current precedent, including the accepted
+  consequence that a scheduled run itself carries these tools (its scope
+  resolves to the global tool set in `agent/tool-policy.ts`) so the user can
+  retune a task from its own chat.
 - Anything that reads web/iframe content into agent context inherits the
   prompt-injection amplification above — treat page text like attacker input.
 - If you touch `buildEngine()`, decide the engine-plugin `scan` question

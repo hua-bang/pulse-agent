@@ -325,12 +325,18 @@ describe('createGlobalCanvasTools', () => {
       'memory_forget',
       'memory_list',
       'memory_save',
+      'scheduled_task_create',
+      'scheduled_task_list',
+      'scheduled_task_update',
       'session_search',
       'session_summary',
       'workspace_node_get',
       'workspace_node_list',
     ]);
-    // Global knowledge access is read-only.
+    // Global knowledge access is read-only. The writes that ARE here are
+    // deliberate non-node ones: memory (global scope) and scheduled tasks
+    // (app-level, so unwrapped rather than workspace-scoped).
+    expect(tools.scheduled_task_create.description).not.toContain('Global chat note');
     expect(tools.canvas_tag_node).toBeUndefined();
     expect(tools.canvas_create_node).toBeUndefined();
     expect(tools.canvas_apply_layout).toBeUndefined();
@@ -623,6 +629,9 @@ describe('deferred tool partition', () => {
       'memory_adopt',
       'memory_forget',
       'memory_list',
+      'scheduled_task_create',
+      'scheduled_task_list',
+      'scheduled_task_update',
       'session_search',
       'session_summary',
       'workspace_node_get',

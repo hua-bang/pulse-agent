@@ -110,6 +110,33 @@ export const normalizeSchedule = (schedule: ScheduledSchedule): ScheduledSchedul
   throw new Error(`Unsupported scheduled task cadence: ${String((schedule as { kind?: unknown }).kind)}`);
 };
 
+const WEEKDAY_NAMES = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const;
+
+/**
+ * English, machine-facing cadence summary for the scheduled-run prompt and
+ * the agent tools. The localized UI label lives in the renderer's
+ * `components/Scheduled/formatters.ts`.
+ */
+export const describeSchedule = (schedule: ScheduledSchedule): string => {
+  if (schedule.kind === 'daily') return `Every day at ${schedule.timeOfDay} local time`;
+  if (schedule.kind === 'weekly') {
+    return `Every ${WEEKDAY_NAMES[schedule.weekday]} at ${schedule.timeOfDay} local time`;
+  }
+  const { intervalMinutes } = schedule;
+  if (intervalMinutes % (7 * 24 * 60) === 0) return `Every ${intervalMinutes / (7 * 24 * 60)} week(s)`;
+  if (intervalMinutes % (24 * 60) === 0) return `Every ${intervalMinutes / (24 * 60)} day(s)`;
+  if (intervalMinutes % 60 === 0) return `Every ${intervalMinutes / 60} hour(s)`;
+  return `Every ${intervalMinutes} minutes`;
+};
+
 /**
  * The first run strictly after `from`.
  *
