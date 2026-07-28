@@ -6,5 +6,9 @@ export const createAgentRolesApi = (ipcRenderer: IpcRenderer): AgentRolesApi => 
 
   save: (input) => ipcRenderer.invoke("agent-roles:save", { input }),
 
-  remove: (id) => ipcRenderer.invoke("agent-roles:delete", { id })
+  remove: (id) => ipcRenderer.invoke("agent-roles:delete", { id }),
+
+  getSettings: () => ipcRenderer.invoke("agent-roles:settings-get"),
+
+  saveSettings: (settings) => ipcRenderer.invoke("agent-roles:settings-save", { settings })
 });

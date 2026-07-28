@@ -2797,6 +2797,13 @@
   font-weight: 700;
 }
 
+/* Auto-appended (agent@agent) queue entries: dashed underline + a "由 X
+   点名" tooltip distinguish them from user-named speakers. */
+.chat-relay-step--handoff {
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+}
+
 .chat-relay-dot {
   width: 6px;
   height: 6px;

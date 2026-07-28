@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRoleMentionMarker,
+  findRoleNameMentions,
   formatSpeakerLabel,
   labelAssistantContent,
+  normalizeAgentRoleSettings,
   parseFirstRoleMention,
   parseRoleMentions,
   sanitizeAgentRoleName,
@@ -53,6 +55,39 @@ describe('speaker labels', () => {
   it('leaves content untouched without a speaker', () => {
     expect(labelAssistantContent('结论如下', undefined)).toBe('结论如下');
     expect(labelAssistantContent('结论如下', '  ')).toBe('结论如下');
+  });
+});
+
+describe('findRoleNameMentions (agent@agent handoff signal)', () => {
+  const names = ['评审', '评审员', '产品经理', 'Reviewer'];
+
+  it('finds plain @Name mentions in first-occurrence order, deduped', () => {
+    expect(findRoleNameMentions('先请 @产品经理 评估,再让 @评审员 把关。@产品经理 你先。', names))
+      .toEqual(['产品经理', '评审员']);
+  });
+
+  it('longest name wins on overlap — "@评审员" never counts for "评审"', () => {
+    expect(findRoleNameMentions('请 @评审员 看看', names)).toEqual(['评审员']);
+    expect(findRoleNameMentions('请 @评审 看看', names)).toEqual(['评审']);
+  });
+
+  it('matches ASCII names case-insensitively but returns the canonical name', () => {
+    expect(findRoleNameMentions('cc @reviewer please', names)).toEqual(['Reviewer']);
+  });
+
+  it('returns nothing without an @ or without candidates', () => {
+    expect(findRoleNameMentions('没有点名任何人', names)).toEqual([]);
+    expect(findRoleNameMentions('@产品经理', [])).toEqual([]);
+    expect(findRoleNameMentions('邮箱 a@b.com 不是点名', names)).toEqual([]);
+  });
+});
+
+describe('normalizeAgentRoleSettings', () => {
+  it('defaults handoff OFF and only accepts literal true', () => {
+    expect(normalizeAgentRoleSettings(undefined)).toEqual({ allowRoleHandoff: false });
+    expect(normalizeAgentRoleSettings({})).toEqual({ allowRoleHandoff: false });
+    expect(normalizeAgentRoleSettings({ allowRoleHandoff: 'yes' })).toEqual({ allowRoleHandoff: false });
+    expect(normalizeAgentRoleSettings({ allowRoleHandoff: true })).toEqual({ allowRoleHandoff: true });
   });
 });
 

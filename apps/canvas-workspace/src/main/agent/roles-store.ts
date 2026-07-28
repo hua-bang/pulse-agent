@@ -15,8 +15,10 @@ import {
   AGENT_ROLE_COLORS,
   AGENT_ROLE_PROMPT_MAX_LENGTH,
   isValidAgentRoleColor,
+  normalizeAgentRoleSettings,
   sanitizeAgentRoleName,
   type AgentRoleDefinition,
+  type AgentRoleLibrarySettings,
   type AgentRoleSaveInput,
 } from '../../shared/agent-roles';
 
@@ -43,12 +45,20 @@ function normalizeRole(value: unknown): AgentRoleDefinition | null {
   };
 }
 
-async function readRoles(): Promise<AgentRoleDefinition[]> {
+interface AgentRoleLibrary {
+  roles: AgentRoleDefinition[];
+  settings: AgentRoleLibrarySettings;
+}
+
+async function readLibrary(): Promise<AgentRoleLibrary> {
   try {
     const raw = await fs.readFile(getRolesPath(), 'utf8');
     const parsed = JSON.parse(raw) as unknown;
     const list = Array.isArray(parsed) ? parsed : (parsed as { roles?: unknown[] })?.roles;
-    if (!Array.isArray(list)) return [];
+    const settings = normalizeAgentRoleSettings(
+      Array.isArray(parsed) ? undefined : (parsed as { settings?: unknown })?.settings,
+    );
+    if (!Array.isArray(list)) return { roles: [], settings };
     const roles: AgentRoleDefinition[] = [];
     const seenIds = new Set<string>();
     for (const entry of list) {
@@ -58,17 +68,27 @@ async function readRoles(): Promise<AgentRoleDefinition[]> {
         roles.push(role);
       }
     }
-    return roles;
+    return { roles, settings };
   } catch (err: any) {
-    if (err?.code === 'ENOENT') return [];
+    if (err?.code === 'ENOENT') return { roles: [], settings: normalizeAgentRoleSettings(undefined) };
     throw err;
   }
 }
 
+async function readRoles(): Promise<AgentRoleDefinition[]> {
+  return (await readLibrary()).roles;
+}
+
+/** Role writes go through here so library settings survive every role edit. */
 async function writeRoles(roles: AgentRoleDefinition[]): Promise<void> {
+  const { settings } = await readLibrary();
+  await writeLibrary({ roles, settings });
+}
+
+async function writeLibrary(library: AgentRoleLibrary): Promise<void> {
   const path = getRolesPath();
   await fs.mkdir(dirname(path), { recursive: true });
-  await fs.writeFile(path, `${JSON.stringify({ roles }, null, 2)}\n`, 'utf8');
+  await fs.writeFile(path, `${JSON.stringify(library, null, 2)}\n`, 'utf8');
 }
 
 function pickDefaultColor(roles: AgentRoleDefinition[]): string {
@@ -134,4 +154,15 @@ export async function deleteAgentRole(id: string): Promise<boolean> {
   if (next.length === roles.length) return false;
   await writeRoles(next);
   return true;
+}
+
+export async function getAgentRoleSettings(): Promise<AgentRoleLibrarySettings> {
+  return (await readLibrary()).settings;
+}
+
+export async function saveAgentRoleSettings(input: unknown): Promise<AgentRoleLibrarySettings> {
+  const { roles } = await readLibrary();
+  const settings = normalizeAgentRoleSettings(input);
+  await writeLibrary({ roles, settings });
+  return settings;
 }

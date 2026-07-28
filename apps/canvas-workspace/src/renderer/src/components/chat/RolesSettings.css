@@ -1,5 +1,10 @@
 /* ─── Chat roles settings (multi-role group chat personas) ── */
 
+/* Agent@agent switch card — intro-card layout with the control centered. */
+.chat-roles-handoff-card {
+  align-items: center;
+}
+
 .chat-roles-list {
   display: flex;
   flex-direction: column;

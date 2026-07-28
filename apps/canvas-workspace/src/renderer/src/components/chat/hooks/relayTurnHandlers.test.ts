@@ -85,6 +85,29 @@ describe('relay segment lifecycle', () => {
     expect(h.relay.value).toBeNull();
     expect(h.messages.value[1].speakerRoleName).toBeUndefined();
   });
+
+  it('surfaces the bar mid-turn when a handoff grows a single-role turn into a relay', () => {
+    const h = harness();
+
+    // User @-ed only 产品经理 — no bar while it speaks.
+    h.handlers.handleRoleTurnStart({ index: 0, total: 1, speakerRole: pm, queue: [pm] });
+    expect(h.relay.value).toBeNull();
+
+    // 产品经理's reply @-ed 架构师 → the end event already announces total=2;
+    // the bar stays hidden until the appended speaker actually starts.
+    h.handlers.handleRoleTurnEnd({ index: 0, total: 2, response: '@架构师 你看看。', speakerRole: pm });
+    expect(h.relay.value).toBeNull();
+
+    const grownQueue = [pm, { ...arch, namedBy: '产品经理' }];
+    h.handlers.handleRoleTurnStart({ index: 1, total: 2, speakerRole: arch, queue: grownQueue });
+    expect(h.relay.value).toMatchObject({ speaking: 1, total: 2 });
+    expect(h.relay.value?.queue[1]).toMatchObject({ id: 'r2', namedBy: '产品经理' });
+
+    h.handlers.handleRoleTurnEnd({ index: 1, total: 2, response: '补充完毕。', speakerRole: arch });
+    expect(h.relay.value).toMatchObject({ speaking: 2, total: 2 });
+    expect(h.messages.value).toHaveLength(3);
+    expect(h.messages.value[2]).toMatchObject({ content: '补充完毕。', speakerRoleName: '架构师' });
+  });
 });
 
 describe('applyTurnCompletion', () => {

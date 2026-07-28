@@ -34,11 +34,39 @@ export interface AgentRoleSaveInput {
 
 export type AgentRolesResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 
+/**
+ * Library-level behavior settings (stored alongside the roles in roles.json).
+ * `allowRoleHandoff` is the agent@agent switch: when ON, a role's reply may
+ * hand the floor to other roles by writing plain `@RoleName`, which appends
+ * them to the SAME turn's relay queue. Default OFF — replies then treat
+ * @names as ordinary text, exactly the pre-P2 behavior.
+ */
+export interface AgentRoleLibrarySettings {
+  allowRoleHandoff: boolean;
+}
+
+export const DEFAULT_AGENT_ROLE_SETTINGS: AgentRoleLibrarySettings = {
+  allowRoleHandoff: false,
+};
+
+export const normalizeAgentRoleSettings = (value: unknown): AgentRoleLibrarySettings => ({
+  allowRoleHandoff: (value as Partial<AgentRoleLibrarySettings> | null | undefined)?.allowRoleHandoff === true,
+});
+
+/**
+ * Hard cap on segments per turn. User-named speakers are never truncated;
+ * the cap bounds AUTO-GROWTH — handoffs stop appending once the queue holds
+ * this many segments, so two roles can never ping-pong a turn forever.
+ */
+export const ROLE_RELAY_MAX_SEGMENTS = 6;
+
 /** Preload surface: `window.canvasWorkspace.agentRoles`. */
 export interface AgentRolesApi {
   list: () => Promise<AgentRolesResult<{ roles: AgentRoleDefinition[] }>>;
   save: (input: AgentRoleSaveInput) => Promise<AgentRolesResult<{ role: AgentRoleDefinition }>>;
   remove: (id: string) => Promise<AgentRolesResult<{ removed: boolean }>>;
+  getSettings: () => Promise<AgentRolesResult<{ settings: AgentRoleLibrarySettings }>>;
+  saveSettings: (settings: AgentRoleLibrarySettings) => Promise<AgentRolesResult<{ settings: AgentRoleLibrarySettings }>>;
 }
 
 // ─── Validation limits (shared so UI and store agree) ───────────────
@@ -107,6 +135,8 @@ export interface RoleTurnRoleRef {
   id: string;
   name: string;
   color: string;
+  /** Set on auto-appended queue entries: name of the role whose reply @-ed this one in. */
+  namedBy?: string;
 }
 
 /** Pushed before each segment of a turn (single-speaker turns emit one with total=1). */
@@ -138,6 +168,58 @@ export function stripRoleMentionMarkers(text: string): string {
     const label = name.trim();
     return label ? `@${label}` : '';
   });
+}
+
+/**
+ * Plain-text `@RoleName` occurrences in a role's REPLY — the agent@agent
+ * handoff signal. Name-based on purpose: models write plain group-chat
+ * addresses (the same `@name` form they see in user text), never internal
+ * `@[role:...]` markers. Longest name wins at any position and the matched
+ * span is consumed, so with roles "评审" and "评审员" the text "@评审员"
+ * counts only for 评审员. Case-insensitive for ASCII names. Returns
+ * canonical names in first-occurrence order, deduped.
+ */
+export function findRoleNameMentions(text: string, names: readonly string[]): string[] {
+  const candidates = [...new Set(names.map(name => name.trim()).filter(Boolean))]
+    .sort((a, b) => b.length - a.length);
+  if (candidates.length === 0 || !text.includes('@')) return [];
+
+  // Lowercased haystack for ASCII-insensitive matching. Any lowercase that
+  // shifts code-unit offsets (exotic unicode) falls back to exact-case for
+  // that string, so match spans always share one coordinate space.
+  const lowerText = text.toLowerCase();
+  const insensitiveMode = lowerText.length === text.length;
+  const haystack = insensitiveMode ? lowerText : text;
+  const consumed: Array<[number, number]> = [];
+  const hits: Array<{ pos: number; name: string }> = [];
+
+  for (const name of candidates) {
+    const lowerName = name.toLowerCase();
+    const insensitive = insensitiveMode && lowerName.length === name.length;
+    const source = insensitive ? haystack : text;
+    const needle = `@${insensitive ? lowerName : name}`;
+    let from = 0;
+    while (true) {
+      const pos = source.indexOf(needle, from);
+      if (pos === -1) break;
+      const end = pos + needle.length;
+      if (!consumed.some(([start, stop]) => pos < stop && end > start)) {
+        consumed.push([pos, end]);
+        hits.push({ pos, name });
+      }
+      from = pos + 1;
+    }
+  }
+
+  hits.sort((a, b) => a.pos - b.pos);
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const hit of hits) {
+    if (seen.has(hit.name)) continue;
+    seen.add(hit.name);
+    ordered.push(hit.name);
+  }
+  return ordered;
 }
 
 // ─── Speaker attribution ────────────────────────────────────────────

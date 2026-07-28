@@ -31,7 +31,8 @@ export const RelayBar = ({ relay, onStop }: RelayBarProps) => {
           >
             {index > 0 && <span className="chat-relay-arrow">→</span>}
             <span
-              className={`chat-relay-step${done ? ' chat-relay-step--done' : ''}${speaking ? ' chat-relay-step--speaking' : ''}`}
+              className={`chat-relay-step${done ? ' chat-relay-step--done' : ''}${speaking ? ' chat-relay-step--speaking' : ''}${role?.namedBy ? ' chat-relay-step--handoff' : ''}`}
+              title={role?.namedBy ? t('roles.relayNamedBy', { name: role.namedBy }) : undefined}
               style={color && (done || speaking)
                 ? { color, background: speaking ? roleColorSoft(color) : undefined }
                 : undefined}

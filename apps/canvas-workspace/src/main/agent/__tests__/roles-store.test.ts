@@ -3,7 +3,14 @@ import { mkdtempSync, rmSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { deleteAgentRole, getAgentRole, listAgentRoles, saveAgentRole } from '../roles-store';
+import {
+  deleteAgentRole,
+  getAgentRole,
+  getAgentRoleSettings,
+  listAgentRoles,
+  saveAgentRole,
+  saveAgentRoleSettings,
+} from '../roles-store';
 
 let dir: string;
 
@@ -64,5 +71,30 @@ describe('roles-store', () => {
     const first = await saveAgentRole({ name: 'A', prompt: 'p' });
     const second = await saveAgentRole({ name: 'B', prompt: 'p' });
     expect(second.color).not.toBe(first.color);
+  });
+
+  it('defaults library settings to handoff OFF (legacy files included)', async () => {
+    expect(await getAgentRoleSettings()).toEqual({ allowRoleHandoff: false });
+    await saveAgentRole({ name: 'A', prompt: 'p' });
+    expect(await getAgentRoleSettings()).toEqual({ allowRoleHandoff: false });
+  });
+
+  it('round-trips settings and normalizes junk input', async () => {
+    expect(await saveAgentRoleSettings({ allowRoleHandoff: true })).toEqual({ allowRoleHandoff: true });
+    expect(await getAgentRoleSettings()).toEqual({ allowRoleHandoff: true });
+    expect(await saveAgentRoleSettings({ allowRoleHandoff: 'yes' as unknown as boolean })).toEqual({ allowRoleHandoff: false });
+  });
+
+  it('role saves and deletes preserve the settings, and settings saves preserve roles', async () => {
+    await saveAgentRoleSettings({ allowRoleHandoff: true });
+    const role = await saveAgentRole({ name: 'A', prompt: 'p' });
+    expect(await getAgentRoleSettings()).toEqual({ allowRoleHandoff: true });
+
+    await deleteAgentRole(role.id);
+    expect(await getAgentRoleSettings()).toEqual({ allowRoleHandoff: true });
+
+    await saveAgentRole({ name: 'B', prompt: 'p' });
+    await saveAgentRoleSettings({ allowRoleHandoff: false });
+    expect(await listAgentRoles()).toHaveLength(1);
   });
 });

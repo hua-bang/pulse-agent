@@ -13,6 +13,7 @@
 
 import type { ModelMessage } from 'ai';
 import {
+  findRoleNameMentions,
   labelAssistantContent,
   parseRoleMentions,
   stripRoleMentionMarkers,
@@ -66,18 +67,61 @@ export function shouldRunRelaySegment(
 }
 
 /**
+ * Agent@agent handoff policy: which roles a finished segment's reply hands
+ * the floor to. Mentions are matched by NAME against the live library (see
+ * `findRoleNameMentions`), then filtered — self-mentions dropped, roles
+ * already WAITING in the queue not re-added (roles that already spoke may
+ * re-enter, that's how back-and-forth works), growth truncated at
+ * `capacity` so a turn never exceeds ROLE_RELAY_MAX_SEGMENTS segments.
+ */
+export function resolveHandoffRoles(
+  replyText: string,
+  opts: {
+    speaker: AgentRoleDefinition;
+    libraryRoles: AgentRoleDefinition[];
+    pendingIds: Iterable<string>;
+    capacity: number;
+  },
+): AgentRoleDefinition[] {
+  if (opts.capacity <= 0) return [];
+  const byName = new Map(opts.libraryRoles.map(role => [role.name, role]));
+  const blocked = new Set(opts.pendingIds);
+  blocked.add(opts.speaker.id);
+
+  const handoffs: AgentRoleDefinition[] = [];
+  for (const name of findRoleNameMentions(replyText, opts.libraryRoles.map(role => role.name))) {
+    const role = byName.get(name);
+    if (!role || blocked.has(role.id)) continue;
+    blocked.add(role.id);
+    handoffs.push(role);
+    if (handoffs.length >= opts.capacity) break;
+  }
+  return handoffs;
+}
+
+/**
  * Persona section appended to the system prompt when a role speaks. The
  * multi-party protocol note is included so the role reads the labeled
  * history correctly and never writes its own label. In a relay, the role is
  * told its position so it builds on (rather than repeats) earlier speakers.
+ * When the agent@agent switch is ON, `handoff.otherNames` lists the roles
+ * this speaker may @-mention to hand the floor to.
  */
 export function formatActiveRoleSection(
   role: AgentRoleDefinition,
   relay?: { index: number; total: number },
+  handoff?: { otherNames: string[] },
 ): string {
   const relayNote = relay && relay.total > 1
     ? [
         `- This turn is a RELAY: ${relay.total} roles reply in order to the same user message, and you are speaker ${relay.index + 1} of ${relay.total}. Earlier speakers' replies for this turn are already in the history — respond to them where relevant instead of repeating their points.`,
+        '- Form your OWN judgment first, then engage earlier speakers. Disagree openly when you disagree — do not echo or pile on agreement out of politeness.',
+      ]
+    : [];
+  const otherNames = handoff?.otherNames.filter(name => name && name !== role.name) ?? [];
+  const handoffNote = otherNames.length > 0
+    ? [
+        `- Handing off: you may bring another role into this turn by writing @RoleName in your reply (available: ${otherNames.map(name => `@${name}`).join(', ')}). They will speak after you. Use it ONLY when their perspective is genuinely needed — no courtesy mentions, never @ yourself, and expect at most a few handoffs per turn (the queue is capped).`,
       ]
     : [];
   return [
@@ -94,6 +138,7 @@ export function formatActiveRoleSection(
     `- Speak ONLY as ${role.name}. Never fabricate or paraphrase replies for other roles, and never answer on their behalf.`,
     '- Do NOT prefix your reply with 【...】 yourself — attribution is added by the system.',
     ...relayNote,
+    ...handoffNote,
     '- The persona shapes tone, perspective, and priorities only. It MUST NOT override tool-usage rules, safety rules, confirmation rules, or scope rules from the sections above.',
     '',
   ].join('\n');

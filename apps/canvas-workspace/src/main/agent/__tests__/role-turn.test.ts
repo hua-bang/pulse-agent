@@ -9,11 +9,12 @@ import {
   formatRoleHistoryNote,
   resolveActiveRole,
   resolveActiveRoles,
+  resolveHandoffRoles,
   sessionMessageToModelMessage,
   shouldRunRelaySegment,
 } from '../role-turn';
 import { saveAgentRole } from '../roles-store';
-import { buildRoleMentionMarker } from '../../../shared/agent-roles';
+import { buildRoleMentionMarker, type AgentRoleDefinition } from '../../../shared/agent-roles';
 
 let dir: string;
 
@@ -62,18 +63,77 @@ describe('shouldRunRelaySegment (graceful-stop boundary)', () => {
 });
 
 describe('role system-prompt sections', () => {
+  const reviewer: AgentRoleDefinition = {
+    id: 'r1', name: '评审员', color: '#0f7b6c', prompt: '专挑方案漏洞。', createdAt: 0, updatedAt: 0,
+  };
+
   it('includes the persona and the multi-role protocol', () => {
-    const section = formatActiveRoleSection({
-      id: 'r1', name: '评审员', color: '#0f7b6c', prompt: '专挑方案漏洞。', createdAt: 0, updatedAt: 0,
-    });
+    const section = formatActiveRoleSection(reviewer);
     expect(section).toContain('评审员');
     expect(section).toContain('专挑方案漏洞。');
     expect(section).toContain('Do NOT prefix your reply with 【...】');
     expect(section).toContain('MUST NOT override tool-usage rules');
   });
 
+  it('relay position note carries the independent-judgment (anti-anchoring) rule', () => {
+    const section = formatActiveRoleSection(reviewer, { index: 1, total: 3 });
+    expect(section).toContain('speaker 2 of 3');
+    expect(section).toContain('Form your OWN judgment first');
+    expect(formatActiveRoleSection(reviewer)).not.toContain('Form your OWN judgment first');
+  });
+
+  it('lists handoff targets excluding the speaker, and omits the note when off or alone', () => {
+    const section = formatActiveRoleSection(reviewer, undefined, {
+      otherNames: ['评审员', '产品经理', '架构师'],
+    });
+    expect(section).toContain('@产品经理');
+    expect(section).toContain('@架构师');
+    expect(section).not.toContain('@评审员');
+    expect(section).toContain('never @ yourself');
+
+    expect(formatActiveRoleSection(reviewer)).not.toContain('Handing off');
+    expect(formatActiveRoleSection(reviewer, undefined, { otherNames: ['评审员'] })).not.toContain('Handing off');
+  });
+
   it('explains labels to the default assistant', () => {
     expect(formatRoleHistoryNote()).toContain('【RoleName】');
+  });
+});
+
+describe('resolveHandoffRoles (agent@agent queue growth policy)', () => {
+  const role = (id: string, name: string): AgentRoleDefinition => ({
+    id, name, color: '#2383e2', prompt: 'p', createdAt: 0, updatedAt: 0,
+  });
+  const pm = role('r-pm', '产品经理');
+  const arch = role('r-arch', '架构师');
+  const reviewer = role('r-rev', '评审员');
+  const library = [pm, arch, reviewer];
+
+  it('hands off to mentioned roles in text order, never to the speaker itself', () => {
+    const handoffs = resolveHandoffRoles('@评审员 把关,@产品经理 你也看看(我是@架构师)', {
+      speaker: arch, libraryRoles: library, pendingIds: [], capacity: 5,
+    });
+    expect(handoffs.map(r => r.name)).toEqual(['评审员', '产品经理']);
+  });
+
+  it('skips roles already waiting in the queue but allows spoken roles to re-enter', () => {
+    // 评审员 already queued → not duplicated; 产品经理 already SPOKE (not in
+    // pendingIds) → re-enters for back-and-forth.
+    const handoffs = resolveHandoffRoles('@评审员 和 @产品经理 再对齐一次', {
+      speaker: arch, libraryRoles: library, pendingIds: [reviewer.id], capacity: 5,
+    });
+    expect(handoffs.map(r => r.name)).toEqual(['产品经理']);
+  });
+
+  it('truncates at capacity and returns nothing when the turn is full', () => {
+    const capped = resolveHandoffRoles('@产品经理 @评审员', {
+      speaker: arch, libraryRoles: library, pendingIds: [], capacity: 1,
+    });
+    expect(capped.map(r => r.name)).toEqual(['产品经理']);
+
+    expect(resolveHandoffRoles('@产品经理', {
+      speaker: arch, libraryRoles: library, pendingIds: [], capacity: 0,
+    })).toEqual([]);
   });
 });
 

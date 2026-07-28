@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AgentRoleDefinition } from '../../types';
 import { AGENT_ROLE_COLORS, AGENT_ROLE_NAME_MAX_LENGTH, AGENT_ROLE_PROMPT_MAX_LENGTH } from '../../../../shared/agent-roles';
 import { useI18n } from '../../i18n';
-import { Button, SwatchRow, TextField } from '../ui';
+import { Button, SegmentedControl, SwatchRow, TextField } from '../ui';
 import { invalidateRoleMentionItems } from './hooks/roleMentionItems';
 import { roleColorSoft } from './utils/roleColors';
 import './ModelSettings.css';
@@ -89,6 +89,22 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
   const [saving, setSaving] = useState(false);
   const [savedHint, setSavedHint] = useState(false);
 
+  // Agent@agent handoff switch (library-level; null until loaded). Saved
+  // optimistically — the next turn reads it fresh main-side.
+  const [handoffEnabled, setHandoffEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void window.canvasWorkspace.agentRoles.getSettings().then(result => {
+      if (!cancelled && result.ok) setHandoffEnabled(result.settings.allowRoleHandoff);
+    });
+    return () => { cancelled = true; };
+  }, []);
+  const handleHandoffChange = useCallback((id: string) => {
+    const next = id === 'on';
+    setHandoffEnabled(next);
+    void window.canvasWorkspace.agentRoles.saveSettings({ allowRoleHandoff: next });
+  }, []);
+
   // Bind the editor to the first role once loaded (or the new-role form when
   // the library is empty). A selection or a DIRTY new-role draft survives
   // refreshes; a pristine new-role form yields to the first loaded role so
@@ -142,6 +158,24 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
             <strong>{t('roles.introTitle')}</strong>
             <p>{t('roles.introDescription')}</p>
           </div>
+        </div>
+
+        <div className="chat-model-settings-card chat-model-settings-card--intro chat-roles-handoff-card">
+          <div>
+            <strong>{t('roles.handoff')}</strong>
+            <p>{t('roles.handoffHint')}</p>
+          </div>
+          {handoffEnabled !== null && (
+            <SegmentedControl
+              options={[
+                { id: 'off', label: t('roles.handoffOff') },
+                { id: 'on', label: t('roles.handoffOn') },
+              ]}
+              value={handoffEnabled ? 'on' : 'off'}
+              onChange={handleHandoffChange}
+              ariaLabel={t('roles.handoff')}
+            />
+          )}
         </div>
 
         {error && <div className="chat-model-settings-error">{error}</div>}

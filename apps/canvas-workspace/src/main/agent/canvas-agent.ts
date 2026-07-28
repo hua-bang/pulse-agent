@@ -42,6 +42,7 @@ import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './do
 import { formatSelectionFocusBlock } from './selection-focus-context';
 import { formatReferencedTabsBlock } from './referenced-tabs-context';
 import {
+  ROLE_RELAY_MAX_SEGMENTS,
   stripRoleMentionMarkers,
   type AgentRoleDefinition,
   type RoleTurnStartEvent,
@@ -52,10 +53,12 @@ import {
   formatActiveRoleSection,
   formatRoleHistoryNote,
   resolveActiveRoles,
+  resolveHandoffRoles,
   roleTurnRef,
   sessionMessageToModelMessage,
   shouldRunRelaySegment,
 } from './role-turn';
+import { getAgentRoleSettings, listAgentRoles } from './roles-store';
 import { buildEngineStreamCallbacks, modelMessagesToToolCalls } from './engine-stream-callbacks';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const CANVAS_AGENT_MAX_STEPS = 200;
@@ -714,6 +717,22 @@ export class CanvasAgent {
     const hasLabeledRoleHistory = activeRoles.length === 0
       && (this.sessionStore.getCurrentSession()?.messages.some(m => !!m.speakerRoleName) ?? false);
 
+    // Agent@agent handoff (opt-in library switch, read per turn): when ON, a
+    // role's reply may @-mention other roles by NAME to append them to this
+    // very turn's queue. Only role segments hand off — default-assistant
+    // turns never grow a queue. Failure degrades to handoff-off.
+    let handoffLibrary: AgentRoleDefinition[] = [];
+    if (activeRoles.length > 0) {
+      try {
+        if ((await getAgentRoleSettings()).allowRoleHandoff) {
+          handoffLibrary = await listAgentRoles();
+        }
+      } catch (err) {
+        console.warn('[canvas-agent] failed to read role-handoff settings, handoff off this turn:', err);
+      }
+    }
+    const handoffEnabled = handoffLibrary.length > 1;
+
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
     const basePrompt = workspaceId
       ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
@@ -797,7 +816,11 @@ export class CanvasAgent {
         })) break;
         const role = segments[index];
         const segmentPrompt = basePrompt + (role
-          ? formatActiveRoleSection(role, { index, total: segments.length })
+          ? formatActiveRoleSection(
+              role,
+              { index, total: segments.length },
+              handoffEnabled ? { otherNames: handoffLibrary.map(entry => entry.name) } : undefined,
+            )
           : hasLabeledRoleHistory ? formatRoleHistoryNote() : '');
         const debugTrace = isCanvasAgentDebugTraceEnabled()
           ? createCanvasAgentDebugTrace({
@@ -884,6 +907,23 @@ export class CanvasAgent {
               workspaceName: summary?.workspaceName ?? 'Global Chat',
             },
           });
+        }
+
+        // Agent@agent: scan this role's reply for @Name handoffs and grow the
+        // queue in place (policy + cap in resolveHandoffRoles). Done BEFORE
+        // the end event so its `total` already announces the new speakers.
+        // Skipped once a stop is pending — the queue is frozen at that point.
+        if (handoffEnabled && role && !relayStop.stopped && !abortController.signal.aborted) {
+          const handoffs = resolveHandoffRoles(responseText, {
+            speaker: role,
+            libraryRoles: handoffLibrary,
+            pendingIds: segments.slice(index + 1).flatMap(entry => (entry ? [entry.id] : [])),
+            capacity: ROLE_RELAY_MAX_SEGMENTS - segments.length,
+          });
+          for (const handoffRole of handoffs) {
+            segments.push(handoffRole);
+            queue.push({ ...roleTurnRef(handoffRole)!, namedBy: role.name });
+          }
         }
 
         last = { response: responseText, runId: finalizedTrace?.runId, role };
