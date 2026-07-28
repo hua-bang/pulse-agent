@@ -217,7 +217,6 @@ export const ChatPageBody = ({
   }, [clearInput, focusInput, notConfigured, openModelSettingsWithHint, sendMessage]);
 
   const handleSubmit = useCallback(async () => {
-    // External-only turn → user's own CLI, no app provider (see ChatPanel).
     if (notConfigured && !isExternalOnlyRoleMessage(input)) {
       openModelSettingsWithHint();
       return false;
