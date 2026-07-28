@@ -9,11 +9,8 @@
  * beyond what the user's local agent config already allows.
  */
 
-import { spawn } from 'child_process';
-import { existsSync } from 'fs';
 import type { ExternalSegmentRequest, ExternalSegmentResult } from './types';
-
-export const EXTERNAL_SEGMENT_TIMEOUT_MS = 10 * 60_000;
+import { runJsonlCli } from './spawn-jsonl';
 
 export const claudeCodeCommand = (): string =>
   process.env.PULSE_CANVAS_CLAUDE_CODE_CMD?.trim() || 'claude';
@@ -40,7 +37,8 @@ export const createClaudeStreamState = (): ClaudeStreamState => ({ sawPartial: f
 
 /**
  * Consume one stream-json line. Tolerant by design: unknown event types are
- * ignored so CLI version drift degrades to coarser streaming, not a crash.
+ * ignored so CLI version drift degrades to coarser streaming, not a crash
+ * (the real 2.1.220 stream already carries kinds we don't model).
  */
 export function consumeClaudeStreamLine(
   state: ClaudeStreamState,
@@ -97,77 +95,22 @@ export function consumeClaudeStreamLine(
 
 export async function runClaudeCodeSegment(request: ExternalSegmentRequest): Promise<ExternalSegmentResult> {
   const command = claudeCodeCommand();
-  const args = buildClaudeCodeArgs({ sessionId: request.sessionId });
-  const timeoutMs = request.timeoutMs ?? EXTERNAL_SEGMENT_TIMEOUT_MS;
+  const state = createClaudeStreamState();
 
-  // A missing cwd makes spawn fail with a misleading ENOENT on the COMMAND;
-  // surface the actual misconfiguration instead.
-  if (!existsSync(request.cwd)) {
-    throw new Error(`External role working directory does not exist: ${request.cwd}`);
-  }
-
-  return await new Promise<ExternalSegmentResult>((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: request.cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: process.env,
-    });
-
-    const state = createClaudeStreamState();
-    let stdoutRest = '';
-    const stderrTail: string[] = [];
-    let settled = false;
-
-    const settle = (fn: () => void) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      request.abortSignal.removeEventListener('abort', onAbort);
-      fn();
-    };
-    const fail = (message: string) => settle(() => reject(new Error(message)));
-
-    const killChild = () => {
-      child.kill('SIGTERM');
-      setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* gone */ } }, 2000).unref();
-    };
-    const onAbort = () => { killChild(); fail('External agent run aborted'); };
-    const timer = setTimeout(() => { killChild(); fail(`External agent run timed out after ${Math.round(timeoutMs / 1000)}s`); }, timeoutMs);
-    timer.unref();
-
-    if (request.abortSignal.aborted) { onAbort(); return; }
-    request.abortSignal.addEventListener('abort', onAbort);
-
-    child.on('error', (err) => fail(`Failed to launch "${command}": ${err.message}`));
-
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      stdoutRest += chunk;
-      let newlineIndex = stdoutRest.indexOf('\n');
-      while (newlineIndex >= 0) {
-        consumeClaudeStreamLine(state, stdoutRest.slice(0, newlineIndex), request.onText);
-        stdoutRest = stdoutRest.slice(newlineIndex + 1);
-        newlineIndex = stdoutRest.indexOf('\n');
-      }
-    });
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk: string) => {
-      stderrTail.push(chunk);
-      if (stderrTail.length > 20) stderrTail.shift();
-    });
-
-    child.on('close', (code) => {
-      consumeClaudeStreamLine(state, stdoutRest, request.onText);
-      if (state.errorMessage) { fail(state.errorMessage); return; }
-      const text = state.resultText ?? state.parts.join('');
-      if (code !== 0 && !text) {
-        fail(`"${command}" exited with code ${code}: ${stderrTail.join('').trim().slice(-400) || 'no output'}`);
-        return;
-      }
-      settle(() => resolve({ text, sessionId: state.sessionId }));
-    });
-
-    child.stdin.write(request.prompt);
-    child.stdin.end();
+  const exit = await runJsonlCli({
+    command,
+    args: buildClaudeCodeArgs({ sessionId: request.sessionId }),
+    cwd: request.cwd,
+    prompt: request.prompt,
+    abortSignal: request.abortSignal,
+    timeoutMs: request.timeoutMs,
+    onLine: (line) => consumeClaudeStreamLine(state, line, request.onText),
   });
+
+  if (state.errorMessage) throw new Error(state.errorMessage);
+  const text = state.resultText ?? state.parts.join('');
+  if (exit.code !== 0 && !text) {
+    throw new Error(`"${command}" exited with code ${exit.code}: ${exit.stderrTail || 'no output'}`);
+  }
+  return { text, sessionId: state.sessionId };
 }

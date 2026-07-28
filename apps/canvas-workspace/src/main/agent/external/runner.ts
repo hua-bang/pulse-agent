@@ -7,19 +7,15 @@
 import { spawn } from 'child_process';
 import type { AgentRoleExternalFamily } from '../../../shared/agent-roles';
 import { claudeCodeCommand, runClaudeCodeSegment } from './claude-code';
+import { codexCommand, runCodexSegment } from './codex';
 import type { ExternalSegmentRequest, ExternalSegmentResult } from './types';
-
-export const codexCommand = (): string =>
-  process.env.PULSE_CANVAS_CODEX_CMD?.trim() || 'codex';
 
 export function externalCliCommand(family: AgentRoleExternalFamily): string {
   return family === 'claude-code' ? claudeCodeCommand() : codexCommand();
 }
 
 export async function runExternalSegment(request: ExternalSegmentRequest): Promise<ExternalSegmentResult> {
-  if (request.family === 'claude-code') return runClaudeCodeSegment(request);
-  // Deliberate: the family enum ships codex-ready, the adapter lands next.
-  throw new Error('Codex driver is not wired yet — use a claude-code role for now.');
+  return request.family === 'claude-code' ? runClaudeCodeSegment(request) : runCodexSegment(request);
 }
 
 /** `<cli> --version` with a short timeout; ok → first stdout line. */

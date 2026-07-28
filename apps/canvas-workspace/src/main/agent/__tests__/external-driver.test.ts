@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import type { AgentRoleDefinition } from '../../../shared/agent-roles';
 import { consumeClaudeStreamLine, createClaudeStreamState, runClaudeCodeSegment } from '../external/claude-code';
+import { buildCodexArgs, consumeCodexStreamLine, createCodexStreamState, runCodexSegment } from '../external/codex';
 import { renderExternalSegmentPrompt } from '../external/prompt';
 import { runExternalRoleSegment } from '../external/segment';
 import { getExternalSessionId, saveExternalSessionId } from '../external/state-store';
@@ -172,6 +173,73 @@ describe('claude-code adapter + segment orchestration (fake CLI)', () => {
     });
     setTimeout(() => controller.abort(), 150);
     await expect(run).rejects.toThrow(/aborted/i);
+  });
+});
+
+describe('codex stream parser (both JSONL dialects)', () => {
+  it('dialect A: protocol events — deltas, duplicate full message skipped, task_complete result', () => {
+    const state = createCodexStreamState();
+    const deltas: string[] = [];
+    const feed = (obj: unknown) => consumeCodexStreamLine(state, JSON.stringify(obj), d => deltas.push(d));
+
+    feed({ id: '0', msg: { type: 'session_configured', session_id: 'codex-sess-1' } });
+    feed({ id: '1', msg: { type: 'agent_message_delta', delta: '改' } });
+    feed({ id: '1', msg: { type: 'agent_message_delta', delta: '好了' } });
+    feed({ id: '1', msg: { type: 'agent_message', message: '改好了' } });
+    feed({ id: '2', msg: { type: 'token_count', total: 42 } });
+    feed({ id: '3', msg: { type: 'task_complete', last_agent_message: '改好了' } });
+
+    expect(deltas).toEqual(['改', '好了']);
+    expect(state.sessionId).toBe('codex-sess-1');
+    expect(state.resultText).toBe('改好了');
+  });
+
+  it('dialect B: thread events — thread id, item text, turn.failed error', () => {
+    const state = createCodexStreamState();
+    const deltas: string[] = [];
+    const feed = (obj: unknown) => consumeCodexStreamLine(state, JSON.stringify(obj), d => deltas.push(d));
+
+    feed({ type: 'thread.started', thread_id: 'thread-9' });
+    feed({ type: 'item.completed', item: { item_type: 'agent_message', text: '两个风险已修复。' } });
+    feed({ type: 'turn.completed', usage: {} });
+
+    expect(deltas).toEqual(['两个风险已修复。']);
+    expect(state.sessionId).toBe('thread-9');
+
+    const failing = createCodexStreamState();
+    consumeCodexStreamLine(failing, JSON.stringify({ type: 'turn.failed', error: { message: 'sandbox denied' } }), () => {});
+    expect(failing.errorMessage).toBe('sandbox denied');
+  });
+
+  it('builds exec vs exec-resume argv with the stdin sentinel', () => {
+    expect(buildCodexArgs({})).toEqual(['exec', '--json', '--skip-git-repo-check', '-']);
+    expect(buildCodexArgs({ sessionId: 's1' })).toEqual(['exec', 'resume', 's1', '--json', '--skip-git-repo-check', '-']);
+  });
+
+  it('runs end-to-end against a fake codex binary', async () => {
+    const path = join(dir, 'fake-codex');
+    writeFileSync(path, [
+      '#!/usr/bin/env node',
+      "let input = '';",
+      "process.stdin.on('data', (c) => { input += c; });",
+      "process.stdin.on('end', () => {",
+      "  const out = (o) => process.stdout.write(JSON.stringify(o) + '\\n');",
+      "  out({ type: 'thread.started', thread_id: 'thread-1' });",
+      "  out({ type: 'item.completed', item: { item_type: 'agent_message', text: 'mode=' + process.argv[2] + ' bytes=' + input.length } });",
+      "  out({ type: 'turn.completed' });",
+      '});',
+    ].join('\n'));
+    chmodSync(path, 0o755);
+    process.env.PULSE_CANVAS_CODEX_CMD = path;
+
+    const result = await runCodexSegment({
+      family: 'codex', cwd: dir, prompt: 'y'.repeat(32),
+      abortSignal: new AbortController().signal, onText: () => {},
+    });
+    delete process.env.PULSE_CANVAS_CODEX_CMD;
+
+    expect(result.sessionId).toBe('thread-1');
+    expect(result.text).toBe('mode=exec bytes=32');
   });
 });
 
