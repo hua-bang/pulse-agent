@@ -3,7 +3,7 @@ import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
 import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
-import { useRoleColors } from './hooks/roleMentionItems';
+import { useRoleColors, useRoleNameColors } from './hooks/roleMentionItems';
 import { renderMdWithMentions } from './utils/mentions';
 import { roleColorSoft } from './utils/roleColors';
 import { isImeComposing } from '../../utils/ime';
@@ -99,11 +99,13 @@ export const ChatMessage = ({
   // Live role accents so `@角色` chips in the transcript match each role's
   // color (falls back to the violet tokens for deleted/unknown roles).
   const roleColors = useRoleColors();
+  // Assistant-only: chip the plain `@Name` a role writes when handing off.
+  const roleNames = useRoleNameColors();
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
-      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder, roleColors })
+      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder, roleColors, roleNames })
       : ''),
-    [message.role, message.content, nodes, isStreaming, rootFolder, roleColors],
+    [message.role, message.content, nodes, isStreaming, rootFolder, roleColors, roleNames],
   );
   const userHtml = useMemo(
     () => (message.role === 'user'

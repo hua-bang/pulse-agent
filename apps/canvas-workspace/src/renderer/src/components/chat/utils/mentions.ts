@@ -44,6 +44,58 @@ function roleAccentStyleAttr(color: string | undefined): string {
   return ` style="--role-accent:${color};--role-accent-icon:${color};--role-accent-soft:${soft}"`;
 }
 
+const roleChipHtml = (name: string, color: string | undefined): string =>
+  `<span class="chat-mention-chip chat-mention-chip--role" data-node-type="role"${roleAccentStyleAttr(color)}>`
+  + `<span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('role')}</svg></span>`
+  + `<span class="chat-mention-chip-label">${escapeHtml(name)}</span></span>`;
+
+/**
+ * Chip the plain-text `@RoleName` an AGENT writes when handing off — models
+ * never emit the internal `@[role:id|name]` marker, so without this the same
+ * mention looks styled from the composer and bare from a role's reply.
+ *
+ * Applies only to assistant HTML: a plain `@name` a USER types does NOT route
+ * to that role (routing needs the marker), so chipping it there would promise
+ * something that did not happen.
+ *
+ * Rewrites text between tags only — never inside a tag or a code/pre block —
+ * and requires a non-word char before the `@` so `a@b.com` is left alone.
+ * Longest name wins and its span is consumed.
+ */
+export function renderRoleNameMentions(html: string, roleNames: ReadonlyMap<string, string>): string {
+  if (roleNames.size === 0 || !html.includes('@')) return html;
+  const names = [...roleNames.keys()].sort((a, b) => b.length - a.length);
+  const parts = html.split(/(<[^>]*>)/);
+  let codeDepth = 0;
+
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index];
+    if (part.startsWith('<')) {
+      const tag = /^<(\/?)(code|pre)\b/i.exec(part);
+      if (tag) codeDepth = Math.max(0, codeDepth + (tag[1] ? -1 : 1));
+      continue;
+    }
+    if (codeDepth > 0 || !part.includes('@')) continue;
+
+    let out = '';
+    let cursor = 0;
+    while (cursor < part.length) {
+      const at = part.indexOf('@', cursor);
+      if (at < 0) { out += part.slice(cursor); break; }
+      out += part.slice(cursor, at);
+      const prev = at > 0 ? part[at - 1] : '';
+      const rest = part.slice(at + 1);
+      const name = /[\w]/.test(prev) ? undefined : names.find(entry => rest.startsWith(escapeHtml(entry)));
+      if (!name) { out += '@'; cursor = at + 1; continue; }
+      out += roleChipHtml(name, roleNames.get(name));
+      cursor = at + 1 + escapeHtml(name).length;
+    }
+    parts[index] = out;
+  }
+
+  return parts.join('');
+}
+
 function resolveMentionFilePath(rootFolder: string | undefined, relativePath: string): string {
   const root = rootFolder?.trim().replace(/[\\/]+$/, '') ?? '';
   const relative = relativePath.trim().replace(/^[\\/]+/, '').replace(/[\\/]+$/, '');
@@ -271,11 +323,13 @@ export function renderMdWithMentions(
     rootFolder?: string;
     /** Role id → accent color (see useRoleColors); missing ids keep the violet fallback. */
     roleColors?: ReadonlyMap<string, string>;
+    /** Role name → accent color; set for ASSISTANT content only (see renderRoleNameMentions). */
+    roleNames?: ReadonlyMap<string, string>;
   },
 ): string {
   const html = renderMarkdown(content, options);
 
-  return html.replace(MENTION_RE, (_match, rawLabel: string) => {
+  const withMarkers = html.replace(MENTION_RE, (_match, rawLabel: string) => {
     if (rawLabel.startsWith(CANVAS_MENTION_PREFIX)) {
       const workspaceLabel = rawLabel.slice(CANVAS_MENTION_PREFIX.length);
       return `<span class="chat-mention-chip chat-mention-chip--workspace" data-node-type="workspace"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('workspace')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(workspaceLabel)}</span></span>`;
@@ -341,4 +395,6 @@ export function renderMdWithMentions(
     const clickableClass = nodeId || filePath ? ' chat-mention-chip--clickable' : '';
     return `<span class="chat-mention-chip${clickableClass}" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"${filePathAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(rawLabel)}</span></span>`;
   });
+
+  return options?.roleNames ? renderRoleNameMentions(withMarkers, options.roleNames) : withMarkers;
 }

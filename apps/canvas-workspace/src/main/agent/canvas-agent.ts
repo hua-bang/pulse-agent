@@ -53,9 +53,11 @@ import {
   formatActiveRoleSection,
   formatRoleHistoryNote,
   handoffTargetRoles,
+  replaceFinalAssistantText,
   resolveActiveRoles,
   resolveHandoffRoles,
   roleTurnRef,
+  sanitizeRoleSegmentText,
   sessionMessageToModelMessage,
   shouldRunRelaySegment,
 } from './role-turn';
@@ -740,6 +742,8 @@ export class CanvasAgent {
     // filtered out of the target library; per-segment self-filtering already
     // collapses the empty case (no note, nothing to scan into).
     const handoffEnabled = handoffLibrary.length > 0;
+    // Speaker labels the impersonation guard recognizes; other 【...】 is text.
+    const knownRoleNames = new Set([...activeRoles, ...handoffLibrary].map(entry => entry.name));
 
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
     const basePrompt = workspaceId
@@ -899,7 +903,12 @@ export class CanvasAgent {
           });
         }
 
-        const responseText = resultText || '(no response)';
+        // Impersonation guard (sanitizeRoleSegmentText) runs BEFORE persisting,
+        // labeling, and the handoff scan — all consumers see one speaker.
+        const rawText = resultText || '(no response)';
+        const responseText = role
+          ? sanitizeRoleSegmentText(rawText, role.name, knownRoleNames) || '(no response)'
+          : rawText;
         recordTraceMessageSnapshot(debugTrace, { systemPrompt: segmentPrompt, messages: context.messages });
 
         // Persist the segment with its tool-call frames so restored sessions
@@ -909,6 +918,8 @@ export class CanvasAgent {
         // session-reload path in `sessionMessageToModelMessage`. This is also
         // what lets segment N+1 read segment N's reply with attribution.
         if (role) {
+          // Trimmed? sync the live history or the next speaker reads the cut part.
+          if (responseText !== rawText) replaceFinalAssistantText(responseMessages, responseText);
           applySpeakerLabelToResponseMessages(responseMessages, role.name);
         }
         const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace);

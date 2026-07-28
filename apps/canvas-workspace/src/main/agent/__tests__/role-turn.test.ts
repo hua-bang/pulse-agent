@@ -7,9 +7,11 @@ import {
   applySpeakerLabelToResponseMessages,
   formatActiveRoleSection,
   formatRoleHistoryNote,
+  replaceFinalAssistantText,
   resolveActiveRole,
   resolveActiveRoles,
   resolveHandoffRoles,
+  sanitizeRoleSegmentText,
   sessionMessageToModelMessage,
   shouldRunRelaySegment,
 } from '../role-turn';
@@ -97,6 +99,52 @@ describe('role system-prompt sections', () => {
 
   it('explains labels to the default assistant', () => {
     expect(formatRoleHistoryNote()).toContain('【RoleName】');
+  });
+});
+
+describe('sanitizeRoleSegmentText (impersonation guard)', () => {
+  const names = ['华铧', '张一鸣'];
+
+  it('drops a self label and truncates where the reply starts another role\'s turn', () => {
+    const raw = [
+      '【张一鸣】 第 8 轮:产品目标不应是让用户离不开。',
+      '',
+      '满意度和心理健康冲突时,应优先长期健康。',
+      '',
+      '@华铧 下一轮可以谈创造力:内容会贬值吗?【华铧】 第 9 轮:创作会更繁荣。',
+      '当表达成本接近于零…【张一鸣】 第 10 轮:平台需要保留共同空间。',
+    ].join('\n');
+
+    const clean = sanitizeRoleSegmentText(raw, '张一鸣', names);
+    expect(clean.startsWith('第 8 轮')).toBe(true);
+    expect(clean).toContain('@华铧 下一轮可以谈创造力:内容会贬值吗?');
+    expect(clean).not.toContain('【华铧】');
+    expect(clean).not.toContain('第 9 轮');
+    expect(clean).not.toContain('第 10 轮');
+  });
+
+  it('leaves a clean reply untouched and keeps 【】 that is not a role label', () => {
+    const clean = '结论:值得做。我们讨论的是【AI 对人的影响】这个题目,先收窄范围。';
+    expect(sanitizeRoleSegmentText(clean, '华铧', names)).toBe(clean);
+  });
+
+  it('truncates at a line-start label too, and never returns leading blanks', () => {
+    const raw = '我的判断是 A。\n【张一鸣】 我不同意。';
+    expect(sanitizeRoleSegmentText(raw, '华铧', names)).toBe('我的判断是 A。');
+  });
+});
+
+describe('replaceFinalAssistantText', () => {
+  it('rewrites the last assistant text so the next speaker cannot read the trimmed part', () => {
+    const messages: ModelMessage[] = [
+      { role: 'assistant', content: [{ type: 'tool-call', toolCallId: 't1', toolName: 'canvas_read_node', input: {} }] } as unknown as ModelMessage,
+      { role: 'tool', content: [{ type: 'tool-result', toolCallId: 't1', toolName: 'canvas_read_node', output: 'x' }] } as unknown as ModelMessage,
+      { role: 'assistant', content: [{ type: 'text', text: '我的判断是 A。【张一鸣】 我不同意。' }] } as unknown as ModelMessage,
+    ];
+    replaceFinalAssistantText(messages, '我的判断是 A。');
+
+    expect((messages[2] as { content: Array<{ text?: string }> }).content[0].text).toBe('我的判断是 A。');
+    expect((messages[0] as { content: Array<{ type: string }> }).content[0].type).toBe('tool-call');
   });
 });
 

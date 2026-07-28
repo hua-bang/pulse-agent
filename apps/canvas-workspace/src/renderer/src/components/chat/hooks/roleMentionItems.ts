@@ -15,19 +15,26 @@ let cache: { at: number; items: MentionItem[] } | null = null;
 let pending: Promise<MentionItem[]> | null = null;
 
 let roleColors: ReadonlyMap<string, string> = new Map();
+/** name → color, for the plain-text `@Name` an agent writes when handing off. */
+let roleNameColors: ReadonlyMap<string, string> = new Map();
 /** Ids of externally-driven roles (local coding-agent CLIs) from the last load. */
 let externalRoleIds: ReadonlySet<string> = new Set();
 const colorListeners = new Set<() => void>();
 
 function publishRoleColors(items: MentionItem[]): void {
   const next = new Map<string, string>();
+  const byName = new Map<string, string>();
   for (const item of items) {
     if (item.roleId && item.roleColor) next.set(item.roleId, item.roleColor);
+    if (item.label && item.roleColor) byName.set(item.label, item.roleColor);
   }
   const changed = next.size !== roleColors.size
-    || [...next].some(([id, color]) => roleColors.get(id) !== color);
+    || [...next].some(([id, color]) => roleColors.get(id) !== color)
+    || byName.size !== roleNameColors.size
+    || [...byName].some(([name, color]) => roleNameColors.get(name) !== color);
   if (!changed) return;
   roleColors = next;
+  roleNameColors = byName;
   colorListeners.forEach(listener => listener());
 }
 
@@ -86,6 +93,10 @@ export function getRoleColors(): ReadonlyMap<string, string> {
   return roleColors;
 }
 
+export function getRoleNameColors(): ReadonlyMap<string, string> {
+  return roleNameColors;
+}
+
 /** Notifies whenever the id → color snapshot actually changes; returns unsubscribe. */
 export function subscribeRoleColors(listener: () => void): () => void {
   colorListeners.add(listener);
@@ -102,6 +113,21 @@ export function useRoleColors(): ReadonlyMap<string, string> {
   useEffect(() => {
     const unsubscribe = subscribeRoleColors(() => setColors(roleColors));
     void loadRoleMentionItems().then(() => setColors(roleColors));
+    return unsubscribe;
+  }, []);
+  return colors;
+}
+
+/**
+ * name → accent color. Agents hand off by writing plain `@RoleName` (they
+ * never emit internal markers), so the transcript needs name lookup to chip
+ * those mentions.
+ */
+export function useRoleNameColors(): ReadonlyMap<string, string> {
+  const [colors, setColors] = useState(roleNameColors);
+  useEffect(() => {
+    const unsubscribe = subscribeRoleColors(() => setColors(roleNameColors));
+    void loadRoleMentionItems().then(() => setColors(roleNameColors));
     return unsubscribe;
   }, []);
   return colors;

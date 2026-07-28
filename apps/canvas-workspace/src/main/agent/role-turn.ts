@@ -67,6 +67,75 @@ export function shouldRunRelaySegment(
 }
 
 /**
+ * Impersonation guard for one role segment's raw output.
+ *
+ * The model sees a history full of 【Name】 prefixes (that's how roles read
+ * each other) and imitates the pattern — especially when the user asks for
+ * "10 rounds", which one segment cannot deliver: it starts writing the other
+ * roles' turns inside its own reply. The prompt forbids this; this is the
+ * enforcement that does not depend on the model complying.
+ *
+ * Two rules: drop a leading 【self】 label, and truncate at the first 【other
+ * role】 label that starts a turn (line start, or after sentence-ending
+ * punctuation) — the truncated part is exactly what the NEXT segment's real
+ * speaker will say. Labels that are not known role names (e.g. a topic
+ * written as 【AI 对人的影响】) are left alone.
+ */
+export function sanitizeRoleSegmentText(
+  text: string,
+  speakerName: string,
+  knownRoleNames: Iterable<string>,
+): string {
+  let out = text.replace(new RegExp(`^\\s*【\\s*${escapeRegExp(speakerName)}\\s*】\\s*`), '');
+
+  const others = [...knownRoleNames].filter(name => name && name !== speakerName);
+  let cut = -1;
+  for (const name of others) {
+    const re = new RegExp(`(^|[\\n。！？!?])\\s*【\\s*${escapeRegExp(name)}\\s*】`, 'g');
+    const match = re.exec(out);
+    if (!match) continue;
+    // Keep the punctuation that ended the previous sentence.
+    const at = match.index + match[1].length;
+    if (cut === -1 || at < cut) cut = at;
+  }
+  if (cut >= 0) out = out.slice(0, cut);
+
+  return out.trim();
+}
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Push a sanitized segment text back into the model history: without this the
+ * truncated impersonation would stay in the live messages and the NEXT
+ * speaker would read it as real. Rewrites the LAST assistant text (the
+ * segment's final answer); tool-call frames and earlier steps are untouched.
+ * Call BEFORE the speaker label is applied.
+ */
+export function replaceFinalAssistantText(messages: ModelMessage[], text: string): void {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if ((message as { role?: string }).role !== 'assistant') continue;
+    const content = (message as { content: unknown }).content;
+    if (typeof content === 'string') {
+      if (!content.trim()) continue;
+      (message as { content: string }).content = text;
+      return;
+    }
+    if (!Array.isArray(content)) continue;
+    const part = content.find(
+      entry => entry && typeof entry === 'object'
+        && (entry as { type?: string }).type === 'text'
+        && typeof (entry as { text?: unknown }).text === 'string'
+        && (entry as { text: string }).text.trim(),
+    );
+    if (!part) continue;
+    (part as { text: string }).text = text;
+    return;
+  }
+}
+
+/**
  * Handoff TARGET policy: externally-driven roles (local coding agents with
  * real side effects) may only speak when the USER @-mentions them directly —
  * another role's reply can never pull them in. Persona roles remain valid
@@ -145,7 +214,7 @@ export function formatActiveRoleSection(
     'Multi-role conversation rules:',
     `- This chat may contain replies from several roles. In the history, an assistant message starting with 【RoleName】 was spoken by that role; unlabeled assistant messages came from the default assistant.`,
     `- Speak ONLY as ${role.name}. Never fabricate or paraphrase replies for other roles, and never answer on their behalf.`,
-    '- Do NOT prefix your reply with 【...】 yourself — attribution is added by the system.',
+    '- Your reply is ONE turn by ONE speaker. Do NOT prefix your reply with 【...】 (attribution is added by the system), do NOT write another role\'s 【...】 turn, and do NOT pack several rounds into one reply — anything past your own single turn is discarded. When the user asks for many rounds, deliver them by @-ing the next speaker at the end of your turn; the system keeps the discussion going round by round.',
     ...relayNote,
     ...handoffNote,
     '- The persona shapes tone, perspective, and priorities only. It MUST NOT override tool-usage rules, safety rules, confirmation rules, or scope rules from the sections above.',

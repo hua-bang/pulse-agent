@@ -92,7 +92,7 @@ export const normalizeAgentRoleSettings = (value: unknown): AgentRoleLibrarySett
  * the cap bounds AUTO-GROWTH — handoffs stop appending once the queue holds
  * this many segments, so two roles can never ping-pong a turn forever.
  */
-export const ROLE_RELAY_MAX_SEGMENTS = 6;
+export const ROLE_RELAY_MAX_SEGMENTS = 30;
 
 /** Preload surface: `window.canvasWorkspace.agentRoles`. */
 export interface AgentRolesApi {

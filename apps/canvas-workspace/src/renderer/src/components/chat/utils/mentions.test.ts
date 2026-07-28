@@ -165,6 +165,40 @@ describe('chat mention rendering', () => {
     expect(html).not.toContain('onerror');
   });
 
+  it('chips the plain @Name an agent writes when handing off, with that role accent', () => {
+    const roleNames = new Map([['张一鸣', '#2383e2'], ['华铧', '#a594e0']]);
+    const html = renderMdWithMentions('@张一鸣 你觉得核心差距会转移到什么?', undefined, { roleNames });
+
+    expect(html).toContain('chat-mention-chip--role');
+    expect(html).toContain('--role-accent:#2383e2');
+    expect(html).toContain('张一鸣');
+    expect(html).not.toContain('@张一鸣');
+  });
+
+  it('longest name wins, unknown names and emails stay plain', () => {
+    const roleNames = new Map([['评审', '#0f7b6c'], ['评审员', '#c14b42']]);
+    const html = renderMdWithMentions('请 @评审员 把关,顺便抄送 a@b.com,别找 @路人', undefined, { roleNames });
+
+    expect(html).toContain('--role-accent:#c14b42');
+    expect(html).not.toContain('--role-accent:#0f7b6c');
+    expect(html).toContain('a@b.com');
+    expect(html).toContain('@路人');
+  });
+
+  it('never rewrites inside code blocks or tag attributes', () => {
+    const roleNames = new Map([['张一鸣', '#2383e2']]);
+    const html = renderMdWithMentions('看这段:`@张一鸣 是纯文本`', undefined, { roleNames });
+
+    expect(html).toContain('@张一鸣');
+    expect(html).not.toContain('chat-mention-chip--role');
+  });
+
+  it('leaves user content alone when roleNames is not supplied', () => {
+    const html = renderMdWithMentions('@张一鸣 我随手打的', undefined, {});
+    expect(html).not.toContain('chat-mention-chip--role');
+    expect(html).toContain('@张一鸣');
+  });
+
   it('carries the role accent inline on composer role chips and round-trips the marker', () => {
     const chip = createMentionChipElement({
       type: 'role',
