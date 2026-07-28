@@ -141,4 +141,43 @@ describe('chat mention rendering', () => {
     expect(html).toContain('Docs');
     expect(html).toContain('说说这个');
   });
+
+  it('colors a transcript role chip from roleColors and falls back to the violet tokens otherwise', () => {
+    const roleColors = new Map([['role-1', '#2383e2']]);
+
+    const colored = renderMdWithMentions('@[role:role-1|产品经理] 先评估', undefined, { roleColors });
+    expect(colored).toContain('chat-mention-chip--role');
+    expect(colored).toContain('--role-accent:#2383e2');
+    expect(colored).toContain('--role-accent-soft:rgba(35, 131, 226, 0.18)');
+    expect(colored).toContain('产品经理');
+
+    // Unknown (e.g. deleted) role id → class tokens only, no inline override.
+    const fallback = renderMdWithMentions('@[role:role-gone|评审员] 你看看', undefined, { roleColors });
+    expect(fallback).toContain('chat-mention-chip--role');
+    expect(fallback).not.toContain('--role-accent:');
+  });
+
+  it('drops a non-#rrggbb role color instead of letting it into the style attribute', () => {
+    const roleColors = new Map([['role-1', '"><img src=x onerror=alert(1)>']]);
+    const html = renderMdWithMentions('@[role:role-1|产品经理] hi', undefined, { roleColors });
+    expect(html).toContain('chat-mention-chip--role');
+    expect(html).not.toContain('style=');
+    expect(html).not.toContain('onerror');
+  });
+
+  it('carries the role accent inline on composer role chips and round-trips the marker', () => {
+    const chip = createMentionChipElement({
+      type: 'role',
+      label: '产品经理',
+      roleId: 'role-1',
+      roleColor: '#d9730d',
+    });
+    expect(chip.style.getPropertyValue('--role-accent')).toBe('#d9730d');
+    expect(chip.style.getPropertyValue('--role-accent-icon')).toBe('#d9730d');
+    expect(chip.style.getPropertyValue('--role-accent-soft')).toBe('rgba(217, 115, 13, 0.18)');
+
+    const editable = document.createElement('div');
+    editable.appendChild(chip);
+    expect(serializeEditable(editable)).toBe('@[role:role-1|产品经理]');
+  });
 });

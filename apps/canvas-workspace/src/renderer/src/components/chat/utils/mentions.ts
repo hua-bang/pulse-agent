@@ -1,4 +1,3 @@
-import { createElement, type ReactNode } from 'react';
 import type { CanvasNode } from '../../../types';
 import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, ROLE_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAB_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
@@ -6,11 +5,11 @@ import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
 import { MENTION_RE, encodeMentionPart, pipedMentionLabel } from './mentionMarkers';
 import { writeDomSelectionDataset } from './domMentionData';
+import { roleColorSoft } from './roleColors';
 import { sessionTitleText } from './sessionTitle';
 import {
   buildTabMentionChip,
   renderTabMentionHtml,
-  renderTabMentionNode,
   tabMentionIconType,
 } from './tabMentions';
 
@@ -30,6 +29,19 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/**
+ * Inline override of the `--role-accent*` tokens for one role chip, so the
+ * existing `.chat-mention-chip--role` rules (chip + child icon) resolve that
+ * role's accent instead of the violet defaults. `roleColorSoft` doubles as
+ * the `#rrggbb` validity gate: anything else returns '' and the chip keeps
+ * the class fallback, and only validated values ever reach the style attr.
+ */
+function roleAccentStyleAttr(color: string | undefined): string {
+  const soft = roleColorSoft(color, 0.18);
+  if (!soft) return '';
+  return ` style="--role-accent:${color};--role-accent-icon:${color};--role-accent-soft:${soft}"`;
 }
 
 function resolveMentionFilePath(rootFolder: string | undefined, relativePath: string): string {
@@ -164,6 +176,13 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
     chip.dataset.mention = `${ROLE_MENTION_PREFIX}${item.roleId}|${item.label}`;
     chip.dataset.nodeType = 'role';
 
+    const soft = roleColorSoft(item.roleColor, 0.18);
+    if (item.roleColor && soft) {
+      chip.style.setProperty('--role-accent', item.roleColor);
+      chip.style.setProperty('--role-accent-icon', item.roleColor);
+      chip.style.setProperty('--role-accent-soft', soft);
+    }
+
     const iconSpan = document.createElement('span');
     iconSpan.className = 'chat-mention-chip-icon';
     iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('role')}</svg>`;
@@ -245,183 +264,14 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
 // re-exported so existing importers are unaffected.
 export { collectContextRefsFromEditable } from './contextRefs';
 
-export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactNode {
-  const parts: ReactNode[] = [];
-  const re = new RegExp(MENTION_RE.source, 'g');
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = re.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(content.slice(lastIndex, match.index));
-    }
-
-    const rawLabel = match[1];
-    if (rawLabel.startsWith(CANVAS_MENTION_PREFIX)) {
-      const workspaceLabel = rawLabel.slice(CANVAS_MENTION_PREFIX.length);
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--workspace',
-            'data-node-type': 'workspace',
-          } as any,
-          createElement(
-            'span',
-            { className: 'chat-mention-chip-icon' },
-            createElement(MentionNodeIcon, { nodeType: 'workspace' }),
-          ),
-          createElement('span', { className: 'chat-mention-chip-label' }, workspaceLabel),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(SKILL_MENTION_PREFIX)) {
-      const skillLabel = rawLabel.slice(SKILL_MENTION_PREFIX.length);
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--skill',
-            'data-node-type': 'skill',
-          } as any,
-          createElement('span', { className: 'chat-mention-chip-label' }, skillLabel),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(FOLDER_MENTION_PREFIX)) {
-      const folderLabel = rawLabel.slice(FOLDER_MENTION_PREFIX.length);
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--folder',
-            'data-node-type': 'folder',
-          } as any,
-          createElement(
-            'span',
-            { className: 'chat-mention-chip-icon' },
-            createElement(MentionNodeIcon, { nodeType: 'folder' }),
-          ),
-          createElement('span', { className: 'chat-mention-chip-label' }, `${folderLabel}/`),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(TAG_MENTION_PREFIX)) {
-      const tagLabel = rawLabel.slice(TAG_MENTION_PREFIX.length);
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--tag',
-            'data-node-type': 'tag',
-          } as any,
-          createElement(
-            'span',
-            { className: 'chat-mention-chip-icon' },
-            createElement('span', { className: 'chat-mention-chip-hash' }, '#'),
-          ),
-          createElement('span', { className: 'chat-mention-chip-label' }, tagLabel),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(DOM_MENTION_PREFIX)) {
-      const domLabel = pipedMentionLabel(rawLabel, DOM_MENTION_PREFIX, 'DOM selection');
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--dom',
-            'data-node-type': 'dom',
-          } as any,
-          createElement(
-            'span',
-            { className: 'chat-mention-chip-icon' },
-            createElement(MentionNodeIcon, { nodeType: 'dom' }),
-          ),
-          createElement('span', { className: 'chat-mention-chip-label' }, domLabel),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(TAB_MENTION_PREFIX)) {
-      parts.push(renderTabMentionNode(rawLabel, match.index));
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(ROLE_MENTION_PREFIX)) {
-      const roleLabel = pipedMentionLabel(rawLabel, ROLE_MENTION_PREFIX, 'Role');
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--role',
-            'data-node-type': 'role',
-          } as any,
-          createElement(
-            'span',
-            { className: 'chat-mention-chip-icon' },
-            createElement(MentionNodeIcon, { nodeType: 'role' }),
-          ),
-          createElement('span', { className: 'chat-mention-chip-label' }, roleLabel),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    const node = nodes?.find(item => item.title === rawLabel);
-    parts.push(
-      createElement(
-        'span',
-        {
-          key: match.index,
-          className: 'chat-mention-chip chat-mention-chip--clickable',
-          'data-node-type': node?.type,
-          'data-node-id': node?.id,
-        } as any,
-        createElement(
-          'span',
-          { className: 'chat-mention-chip-icon' },
-          createElement(MentionNodeIcon, { nodeType: node?.type ?? 'file' }),
-        ),
-        createElement('span', { className: 'chat-mention-chip-label' }, rawLabel),
-      ),
-    );
-    lastIndex = re.lastIndex;
-  }
-
-  if (lastIndex < content.length) {
-    parts.push(content.slice(lastIndex));
-  }
-
-  return parts.length > 0 ? parts : content;
-}
-
 export function renderMdWithMentions(
   content: string,
   nodes?: CanvasNode[],
-  options?: RenderMarkdownOptions & { rootFolder?: string },
+  options?: RenderMarkdownOptions & {
+    rootFolder?: string;
+    /** Role id → accent color (see useRoleColors); missing ids keep the violet fallback. */
+    roleColors?: ReadonlyMap<string, string>;
+  },
 ): string {
   const html = renderMarkdown(content, options);
 
@@ -462,7 +312,11 @@ export function renderMdWithMentions(
 
     if (rawLabel.startsWith(ROLE_MENTION_PREFIX)) {
       const roleLabel = pipedMentionLabel(rawLabel, ROLE_MENTION_PREFIX, 'Role');
-      return `<span class="chat-mention-chip chat-mention-chip--role" data-node-type="role"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('role')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(roleLabel)}</span></span>`;
+      const body = rawLabel.slice(ROLE_MENTION_PREFIX.length);
+      const pipeIndex = body.indexOf('|');
+      const roleId = pipeIndex >= 0 ? body.slice(0, pipeIndex) : body;
+      const accent = roleAccentStyleAttr(options?.roleColors?.get(roleId));
+      return `<span class="chat-mention-chip chat-mention-chip--role" data-node-type="role"${accent}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('role')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(roleLabel)}</span></span>`;
     }
 
     if (rawLabel.startsWith(SESSION_MENTION_PREFIX)) {

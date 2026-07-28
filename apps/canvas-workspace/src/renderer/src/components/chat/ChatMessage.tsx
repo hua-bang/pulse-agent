@@ -3,6 +3,7 @@ import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
 import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
+import { useRoleColors } from './hooks/roleMentionItems';
 import { renderMdWithMentions } from './utils/mentions';
 import { roleColorSoft } from './utils/roleColors';
 import { isImeComposing } from '../../utils/ime';
@@ -95,17 +96,20 @@ export const ChatMessage = ({
   onRegenerate,
   onSessionJump,
 }: ChatMessageProps) => {
+  // Live role accents so `@角色` chips in the transcript match each role's
+  // color (falls back to the violet tokens for deleted/unknown roles).
+  const roleColors = useRoleColors();
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
-      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder })
+      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder, roleColors })
       : ''),
-    [message.role, message.content, nodes, isStreaming, rootFolder],
+    [message.role, message.content, nodes, isStreaming, rootFolder, roleColors],
   );
   const userHtml = useMemo(
     () => (message.role === 'user'
-      ? renderMdWithMentions(message.content, nodes, { rootFolder })
+      ? renderMdWithMentions(message.content, nodes, { rootFolder, roleColors })
       : ''),
-    [message.role, message.content, nodes, rootFolder],
+    [message.role, message.content, nodes, rootFolder, roleColors],
   );
   // Copy is offered for any settled message (user or assistant) with a body.
   const showCopyToolbar = !isStreaming && !!message.content;

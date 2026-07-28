@@ -3,6 +3,7 @@ import type { AgentRoleDefinition } from '../../types';
 import { AGENT_ROLE_COLORS, AGENT_ROLE_NAME_MAX_LENGTH, AGENT_ROLE_PROMPT_MAX_LENGTH } from '../../../../shared/agent-roles';
 import { useI18n } from '../../i18n';
 import { Button, SwatchRow, TextField } from '../ui';
+import { invalidateRoleMentionItems } from './hooks/roleMentionItems';
 import { roleColorSoft } from './utils/roleColors';
 import './ModelSettings.css';
 import './RolesSettings.css';
@@ -46,6 +47,8 @@ export function useAgentRoles(): UseAgentRolesResult {
       return null;
     }
     setError(undefined);
+    // Repaint popup entries + transcript chip accents without waiting out the TTL.
+    void invalidateRoleMentionItems();
     await refresh();
     return result.role;
   }, [refresh]);
@@ -57,6 +60,7 @@ export function useAgentRoles(): UseAgentRolesResult {
       return false;
     }
     setError(undefined);
+    void invalidateRoleMentionItems();
     await refresh();
     return true;
   }, [refresh]);
