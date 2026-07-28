@@ -86,7 +86,10 @@ export function sanitizeRoleSegmentText(
   speakerName: string,
   knownRoleNames: Iterable<string>,
 ): string {
-  let out = text.replace(new RegExp(`^\\s*【\\s*${escapeRegExp(speakerName)}\\s*】\\s*`), '');
+  // SELF labels are stripped wherever they appear (a reply that restates the
+  // question first puts its own label mid-text, not at the start; the content
+  // after it is the role's own valid answer, so truncating would eat it).
+  let out = stripSpeakerSelfLabels(text, speakerName);
 
   const others = [...knownRoleNames].filter(name => name && name !== speakerName);
   let cut = -1;
@@ -101,6 +104,12 @@ export function sanitizeRoleSegmentText(
   if (cut >= 0) out = out.slice(0, cut);
 
   return out.trim();
+}
+
+/** Remove every 【speaker】 label — the system owns attribution, a reply never legitimately contains its own. */
+export function stripSpeakerSelfLabels(text: string, speakerName: string): string {
+  if (!speakerName || !text.includes('【')) return text;
+  return text.replace(new RegExp(`【\\s*${escapeRegExp(speakerName)}\\s*】\\s*`, 'g'), '');
 }
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -214,7 +223,7 @@ export function formatActiveRoleSection(
     'Multi-role conversation rules:',
     `- This chat may contain replies from several roles. In the history, an assistant message starting with 【RoleName】 was spoken by that role; unlabeled assistant messages came from the default assistant.`,
     `- Speak ONLY as ${role.name}. Never fabricate or paraphrase replies for other roles, and never answer on their behalf.`,
-    '- Your reply is ONE turn by ONE speaker. Do NOT prefix your reply with 【...】 (attribution is added by the system), do NOT write another role\'s 【...】 turn, and do NOT pack several rounds into one reply — anything past your own single turn is discarded. When the user asks for many rounds, deliver them by @-ing the next speaker at the end of your turn; the system keeps the discussion going round by round.',
+    '- Your reply is ONE turn by ONE speaker. Never write 【...】 anywhere (attribution is added by the system), never write another role\'s turn, and do NOT pack several rounds into one reply — anything past your own single turn is discarded. Answer directly instead of restating the question that was addressed to you. When the user asks for many rounds, deliver them by @-ing the next speaker at the end of your turn; the system keeps the discussion going round by round.',
     ...relayNote,
     ...handoffNote,
     '- The persona shapes tone, perspective, and priorities only. It MUST NOT override tool-usage rules, safety rules, confirmation rules, or scope rules from the sections above.',
@@ -247,8 +256,15 @@ export function sessionMessageToModelMessage(message: CanvasAgentMessage): Model
   const base = message.attachments?.length
     ? `${message.content}\n\nAttached image files:\n${message.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
     : message.content;
+  // Assistant projection also scrubs stray self-labels from STORED content —
+  // messages persisted before the impersonation guard existed carry them, and
+  // replaying them verbatim teaches the model to imitate the pattern. The one
+  // canonical label is then prepended, same as the live path.
   const content = message.role === 'assistant'
-    ? labelAssistantContent(base, message.speakerRoleName)
+    ? labelAssistantContent(
+        message.speakerRoleName ? stripSpeakerSelfLabels(base, message.speakerRoleName) : base,
+        message.speakerRoleName,
+      )
     : stripRoleMentionMarkers(base);
   return { role: message.role, content } as ModelMessage;
 }

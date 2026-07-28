@@ -73,7 +73,7 @@ describe('role system-prompt sections', () => {
     const section = formatActiveRoleSection(reviewer);
     expect(section).toContain('评审员');
     expect(section).toContain('专挑方案漏洞。');
-    expect(section).toContain('Do NOT prefix your reply with 【...】');
+    expect(section).toContain('Never write 【...】 anywhere');
     expect(section).toContain('MUST NOT override tool-usage rules');
   });
 
@@ -126,6 +126,14 @@ describe('sanitizeRoleSegmentText (impersonation guard)', () => {
   it('leaves a clean reply untouched and keeps 【】 that is not a role label', () => {
     const clean = '结论:值得做。我们讨论的是【AI 对人的影响】这个题目,先收窄范围。';
     expect(sanitizeRoleSegmentText(clean, '华铧', names)).toBe(clean);
+  });
+
+  it('strips a MID-TEXT self label (question restated first) without eating the answer', () => {
+    const raw = '@张一鸣 你认为 AI 最终会强化大公司,还是释放小团队? 【张一鸣】 两者会同时发生:平台层更集中,应用层更分散。';
+    const clean = sanitizeRoleSegmentText(raw, '张一鸣', names);
+    expect(clean).not.toContain('【张一鸣】');
+    expect(clean).toContain('两者会同时发生');
+    expect(clean).toContain('@张一鸣 你认为');
   });
 
   it('truncates at a line-start label too, and never returns leading blanks', () => {
@@ -230,6 +238,16 @@ describe('speaker-label injection points stay in lockstep', () => {
     expect(
       sessionMessageToModelMessage({ role: 'user', content: '@[role:r1|产品经理] 评估一下', timestamp: 1 }).content,
     ).toBe('@产品经理 评估一下');
+  });
+
+  it('reload projection scrubs pre-guard self-labels from stored content', () => {
+    const projected = sessionMessageToModelMessage({
+      role: 'assistant',
+      content: '@张一鸣 问题? 【张一鸣】 两者会同时发生。',
+      timestamp: 1,
+      speakerRoleName: '张一鸣',
+    });
+    expect(projected.content).toBe('【张一鸣】 @张一鸣 问题? 两者会同时发生。');
   });
 
   it('keeps attachment listings intact while labeling', () => {
