@@ -67,6 +67,15 @@ export function shouldRunRelaySegment(
 }
 
 /**
+ * Handoff TARGET policy: externally-driven roles (local coding agents with
+ * real side effects) may only speak when the USER @-mentions them directly —
+ * another role's reply can never pull them in. Persona roles remain valid
+ * targets. Used to build both the target library and the advertised @names.
+ */
+export const handoffTargetRoles = (roles: AgentRoleDefinition[]): AgentRoleDefinition[] =>
+  roles.filter(role => !role.external);
+
+/**
  * Agent@agent handoff policy: which roles a finished segment's reply hands
  * the floor to. Mentions are matched by NAME against the live library (see
  * `findRoleNameMentions`), then filtered — self-mentions dropped, roles

@@ -15,6 +15,7 @@ import {
   AGENT_ROLE_COLORS,
   AGENT_ROLE_PROMPT_MAX_LENGTH,
   isValidAgentRoleColor,
+  normalizeAgentRoleExternal,
   normalizeAgentRoleSettings,
   sanitizeAgentRoleName,
   type AgentRoleDefinition,
@@ -33,6 +34,7 @@ function normalizeRole(value: unknown): AgentRoleDefinition | null {
   if (typeof raw.id !== 'string' || !raw.id.trim()) return null;
   const name = sanitizeAgentRoleName(typeof raw.name === 'string' ? raw.name : '');
   if (!name) return null;
+  const external = normalizeAgentRoleExternal(raw.external);
   return {
     id: raw.id.trim(),
     name,
@@ -40,6 +42,7 @@ function normalizeRole(value: unknown): AgentRoleDefinition | null {
       ? raw.color.toLowerCase()
       : AGENT_ROLE_COLORS[0],
     prompt: typeof raw.prompt === 'string' ? raw.prompt.trim().slice(0, AGENT_ROLE_PROMPT_MAX_LENGTH) : '',
+    ...(external ? { external } : {}),
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : 0,
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : 0,
   };
@@ -126,10 +129,21 @@ export async function saveAgentRole(input: AgentRoleSaveInput): Promise<AgentRol
     ? input.color.toLowerCase()
     : existing?.color ?? pickDefaultColor(roles);
 
+  // external: object → set (must validate), null → clear, absent → keep.
+  let external = existing?.external;
+  if (input.external === null) {
+    external = undefined;
+  } else if (input.external !== undefined) {
+    external = normalizeAgentRoleExternal(input.external);
+    if (!external) throw new Error('Invalid external driver: family (claude-code|codex) and cwd are required');
+  }
+
   if (existing) {
     existing.name = name;
     existing.color = color;
     existing.prompt = prompt;
+    if (external) existing.external = external;
+    else delete existing.external;
     existing.updatedAt = now;
     await writeRoles(roles);
     return existing;
@@ -140,6 +154,7 @@ export async function saveAgentRole(input: AgentRoleSaveInput): Promise<AgentRol
     name,
     color,
     prompt,
+    ...(external ? { external } : {}),
     createdAt: now,
     updatedAt: now,
   };

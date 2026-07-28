@@ -20,6 +20,8 @@ export interface AgentRoleDefinition {
   color: string;
   /** Persona system-prompt fragment injected when this role speaks. */
   prompt: string;
+  /** Present → segments come from a local coding-agent CLI instead of the built-in engine. */
+  external?: AgentRoleExternalDriver;
   createdAt: number;
   updatedAt: number;
 }
@@ -30,7 +32,39 @@ export interface AgentRoleSaveInput {
   name: string;
   color?: string;
   prompt: string;
+  /** Object → set the driver; `null` → clear it; absent → keep as-is. */
+  external?: AgentRoleExternalDriver | null;
 }
+
+// ─── External driver (local coding-agent CLI) ───────────────────────
+
+export type AgentRoleExternalFamily = 'claude-code' | 'codex';
+
+export const AGENT_ROLE_EXTERNAL_FAMILIES: readonly AgentRoleExternalFamily[] = ['claude-code', 'codex'];
+
+/**
+ * Driver config for an externally-driven role: its segments are produced by a
+ * LOCAL coding-agent CLI spawned headless per turn (with per-chat-session
+ * continuity), not by the built-in engine. `cwd` is the directory the agent
+ * works in — it doubles as the safety boundary, and external roles only ever
+ * speak when the USER @-mentions them directly (agent@agent handoff never
+ * targets them).
+ */
+export interface AgentRoleExternalDriver {
+  family: AgentRoleExternalFamily;
+  cwd: string;
+}
+
+export const normalizeAgentRoleExternal = (value: unknown): AgentRoleExternalDriver | undefined => {
+  const raw = value as Partial<AgentRoleExternalDriver> | null | undefined;
+  if (!raw || typeof raw !== 'object') return undefined;
+  const family = AGENT_ROLE_EXTERNAL_FAMILIES.includes(raw.family as AgentRoleExternalFamily)
+    ? (raw.family as AgentRoleExternalFamily)
+    : undefined;
+  const cwd = typeof raw.cwd === 'string' ? raw.cwd.trim() : '';
+  if (!family || !cwd) return undefined;
+  return { family, cwd };
+};
 
 export type AgentRolesResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -67,6 +101,8 @@ export interface AgentRolesApi {
   remove: (id: string) => Promise<AgentRolesResult<{ removed: boolean }>>;
   getSettings: () => Promise<AgentRolesResult<{ settings: AgentRoleLibrarySettings }>>;
   saveSettings: (settings: AgentRoleLibrarySettings) => Promise<AgentRolesResult<{ settings: AgentRoleLibrarySettings }>>;
+  /** Health check for a driver family: is its CLI on PATH, and which version. */
+  externalProbe: (family: AgentRoleExternalFamily) => Promise<AgentRolesResult<{ version: string }>>;
 }
 
 // ─── Validation limits (shared so UI and store agree) ───────────────

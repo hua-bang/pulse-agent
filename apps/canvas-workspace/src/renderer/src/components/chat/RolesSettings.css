@@ -5,6 +5,27 @@
   align-items: center;
 }
 
+/* Small driver tag next to an externally-driven role's name. */
+.chat-roles-row-driver {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 15px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  vertical-align: 1px;
+}
+
+.chat-roles-driver-status,
+.chat-roles-driver-hint {
+  margin: -4px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
 .chat-roles-list {
   display: flex;
   flex-direction: column;

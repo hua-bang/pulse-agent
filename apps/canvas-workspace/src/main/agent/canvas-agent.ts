@@ -52,6 +52,7 @@ import {
   applySpeakerLabelToResponseMessages,
   formatActiveRoleSection,
   formatRoleHistoryNote,
+  handoffTargetRoles,
   resolveActiveRoles,
   resolveHandoffRoles,
   roleTurnRef,
@@ -59,6 +60,7 @@ import {
   shouldRunRelaySegment,
 } from './role-turn';
 import { getAgentRoleSettings, listAgentRoles } from './roles-store';
+import { runExternalRoleSegment } from './external/segment';
 import { buildEngineStreamCallbacks, modelMessagesToToolCalls } from './engine-stream-callbacks';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const CANVAS_AGENT_MAX_STEPS = 200;
@@ -721,17 +723,23 @@ export class CanvasAgent {
     // role's reply may @-mention other roles by NAME to append them to this
     // very turn's queue. Only role segments hand off — default-assistant
     // turns never grow a queue. Failure degrades to handoff-off.
+    // Externally-driven roles are excluded as TARGETS (and from the advertised
+    // names): a coding agent with real side effects only ever speaks when the
+    // USER @-mentions it directly. They may still hand off TO persona roles.
     let handoffLibrary: AgentRoleDefinition[] = [];
     if (activeRoles.length > 0) {
       try {
         if ((await getAgentRoleSettings()).allowRoleHandoff) {
-          handoffLibrary = await listAgentRoles();
+          handoffLibrary = handoffTargetRoles(await listAgentRoles());
         }
       } catch (err) {
         console.warn('[canvas-agent] failed to read role-handoff settings, handoff off this turn:', err);
       }
     }
-    const handoffEnabled = handoffLibrary.length > 1;
+    // >0 (not >1): the speaker may be an external role that is itself
+    // filtered out of the target library; per-segment self-filtering already
+    // collapses the empty case (no note, nothing to scan into).
+    const handoffEnabled = handoffLibrary.length > 0;
 
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
     const basePrompt = workspaceId
@@ -822,7 +830,8 @@ export class CanvasAgent {
               handoffEnabled ? { otherNames: handoffLibrary.map(entry => entry.name) } : undefined,
             )
           : hasLabeledRoleHistory ? formatRoleHistoryNote() : '');
-        const debugTrace = isCanvasAgentDebugTraceEnabled()
+        // External segments produce no engine trace (no model config of ours).
+        const debugTrace = !role?.external && isCanvasAgentDebugTraceEnabled()
           ? createCanvasAgentDebugTrace({
               sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
               userPrompt: message,
@@ -842,32 +851,53 @@ export class CanvasAgent {
         onRoleTurnStart?.({ index, total: segments.length, speakerRole: roleTurnRef(role), queue });
 
         const responseMessages: ModelMessage[] = [];
-        const resultText = await this.engine.run(context, {
-          provider: modelConfig.provider,
-          model: this.config.model ?? modelConfig.model,
-          modelType: modelConfig.modelType,
-          systemPrompt: segmentPrompt,
-          maxSteps: CANVAS_AGENT_MAX_STEPS,
-          abortSignal: abortController.signal,
-          runContext: {
-            executionMode: requestContext?.executionMode ?? 'auto',
-          },
-          onClarificationRequest: engineClarificationHandler,
-          ...buildEngineStreamCallbacks(
-            { onText, onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd },
-            debugTrace,
-          ),
-          onResponse: (msgs: ModelMessage[]) => {
-            for (const msg of msgs) {
-              this.messages.push(msg);
-              responseMessages.push(msg);
-            }
-          },
-          onCompacted: (newMessages: ModelMessage[]) => {
-            this.messages = newMessages;
-            context.messages = newMessages;
-          },
-        });
+        let resultText: string;
+        if (role?.external) {
+          // Externally-driven role: the segment comes from a local coding-agent
+          // CLI. Its reply is appended to the shared model history by hand
+          // (the engine's onResponse does this for built-in segments), so the
+          // downstream label/persist/handoff pipeline stays identical.
+          resultText = await runExternalRoleSegment({
+            role,
+            external: role.external,
+            chatSessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
+            history: this.sessionStore.getCurrentSession()?.messages ?? [],
+            currentAsk: modelUserText,
+            handoffNames: handoffEnabled ? handoffLibrary.map(entry => entry.name) : [],
+            abortSignal: abortController.signal,
+            onText: onText ?? (() => {}),
+          });
+          const externalMessage = { role: 'assistant', content: resultText } as ModelMessage;
+          this.messages.push(externalMessage);
+          responseMessages.push(externalMessage);
+        } else {
+          resultText = await this.engine.run(context, {
+            provider: modelConfig.provider,
+            model: this.config.model ?? modelConfig.model,
+            modelType: modelConfig.modelType,
+            systemPrompt: segmentPrompt,
+            maxSteps: CANVAS_AGENT_MAX_STEPS,
+            abortSignal: abortController.signal,
+            runContext: {
+              executionMode: requestContext?.executionMode ?? 'auto',
+            },
+            onClarificationRequest: engineClarificationHandler,
+            ...buildEngineStreamCallbacks(
+              { onText, onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd },
+              debugTrace,
+            ),
+            onResponse: (msgs: ModelMessage[]) => {
+              for (const msg of msgs) {
+                this.messages.push(msg);
+                responseMessages.push(msg);
+              }
+            },
+            onCompacted: (newMessages: ModelMessage[]) => {
+              this.messages = newMessages;
+              context.messages = newMessages;
+            },
+          });
+        }
 
         const responseText = resultText || '(no response)';
         recordTraceMessageSnapshot(debugTrace, { systemPrompt: segmentPrompt, messages: context.messages });

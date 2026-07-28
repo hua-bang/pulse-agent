@@ -73,6 +73,27 @@ describe('roles-store', () => {
     expect(second.color).not.toBe(first.color);
   });
 
+  it('stores, updates, and clears the external driver with validation', async () => {
+    const created = await saveAgentRole({
+      name: 'Claude工程师', prompt: '写代码。',
+      external: { family: 'claude-code', cwd: '/tmp/project' },
+    });
+    expect(created.external).toEqual({ family: 'claude-code', cwd: '/tmp/project' });
+
+    // Absent → keep; null → clear; invalid → reject.
+    const kept = await saveAgentRole({ id: created.id, name: 'Claude工程师', prompt: '写代码。' });
+    expect(kept.external).toEqual({ family: 'claude-code', cwd: '/tmp/project' });
+
+    await expect(saveAgentRole({
+      id: created.id, name: 'Claude工程师', prompt: '写代码。',
+      external: { family: 'vim' as never, cwd: '/tmp' },
+    })).rejects.toThrow(/external driver/i);
+
+    const cleared = await saveAgentRole({ id: created.id, name: 'Claude工程师', prompt: '写代码。', external: null });
+    expect(cleared.external).toBeUndefined();
+    expect((await listAgentRoles())[0].external).toBeUndefined();
+  });
+
   it('defaults library settings to handoff OFF (legacy files included)', async () => {
     expect(await getAgentRoleSettings()).toEqual({ allowRoleHandoff: false });
     await saveAgentRole({ name: 'A', prompt: 'p' });

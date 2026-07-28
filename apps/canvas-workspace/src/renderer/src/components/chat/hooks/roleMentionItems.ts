@@ -38,7 +38,7 @@ async function readRoleMentionItems(): Promise<MentionItem[]> {
         label: role.name,
         roleId: role.id,
         roleColor: role.color,
-        description: role.prompt.replace(/\s+/g, ' ').slice(0, 60),
+        description: `${role.external ? `[${role.external.family === 'claude-code' ? 'Claude Code' : 'Codex'}] ` : ''}${role.prompt.replace(/\s+/g, ' ').slice(0, 60)}`,
       }));
     }
   } catch {
