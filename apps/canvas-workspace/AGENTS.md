@@ -118,6 +118,19 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   for tool-surface growth; repeated usage prose belongs in the system prompt.
 - Follow file-size governance: new production `.ts`/`.tsx` files must stay at
   or below 500 lines, and existing over-500 baseline files must not grow.
+- Terminal scrollback reaching an agent goes through `src/main/terminal/
+  scrollback-text.ts` — the single owner of the cleaning rules (ANSI/control
+  strip, right-edge TUI padding, blank-run collapse, line-boundary tail cut).
+  Both read paths use it: `getSessionScrollback` (live tab, `canvas_read_tab`)
+  and `normalizeNodeScrollback` (persisted node data, `canvas_read_node` /
+  `canvas_read_context` detail="full", capped at
+  `NODE_SCROLLBACK_READ_MAX_CHARS`). It is a pure module with no `pty-manager`
+  import ON PURPOSE — that would drag `electron` + `node-pty` into
+  `context-builder`'s graph. Do not re-implement the rules at a call site: the
+  node path shipped raw 50k-char TUI buffers for months precisely because it
+  did not share the tab path's cleaner. Tests:
+  `src/main/terminal/scrollback-text.test.ts`,
+  `src/main/agent/__tests__/terminal-node-read.test.ts`.
 - Runtime data belongs under user locations such as `~/.pulse-coder/canvas/`,
   `~/.pulse-coder/canvas-runtime/`, and model/settings files. Do not write user
   runtime state into the repository.

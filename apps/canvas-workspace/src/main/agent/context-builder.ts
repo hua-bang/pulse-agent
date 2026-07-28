@@ -12,6 +12,7 @@ import type { EdgeSummary, NodeSummary, WorkspaceSummary } from './types';
 import type { CanvasNodeRef } from '../../shared/canvas';
 import { getNodeRenderedText } from '../webview/registry';
 import { readCanvasFull } from '../canvas/storage';
+import { normalizeNodeScrollback } from '../terminal/scrollback-text';
 import {
   formatPluginNodeFallbackContent,
   getPluginNodeCapabilityKinds,
@@ -598,12 +599,11 @@ async function populateNodeDetail(
       }
       break;
     }
+    // Stored scrollback is a raw TUI buffer (box padding, redrawn frames, up to
+    // 50k chars) — normalize + tail-cap it, sharing the live tab path's rules.
     case 'terminal':
-      detailed.scrollback = (node.data.scrollback as string) ?? '';
-      detailed.cwd = (node.data.cwd as string) ?? '';
-      break;
     case 'agent':
-      detailed.scrollback = (node.data.scrollback as string) ?? '';
+      detailed.scrollback = normalizeNodeScrollback((node.data.scrollback as string) ?? '');
       detailed.cwd = (node.data.cwd as string) ?? '';
       break;
     case 'frame':
