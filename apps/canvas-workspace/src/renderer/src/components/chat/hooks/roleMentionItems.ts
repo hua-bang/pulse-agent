@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { parseRoleMentions } from '../../../../../shared/agent-roles';
 import type { MentionItem } from '../types';
 
 /**
@@ -14,6 +15,8 @@ let cache: { at: number; items: MentionItem[] } | null = null;
 let pending: Promise<MentionItem[]> | null = null;
 
 let roleColors: ReadonlyMap<string, string> = new Map();
+/** Ids of externally-driven roles (local coding-agent CLIs) from the last load. */
+let externalRoleIds: ReadonlySet<string> = new Set();
 const colorListeners = new Set<() => void>();
 
 function publishRoleColors(items: MentionItem[]): void {
@@ -40,6 +43,7 @@ async function readRoleMentionItems(): Promise<MentionItem[]> {
         roleColor: role.color,
         description: `${role.external ? `[${role.external.family === 'claude-code' ? 'Claude Code' : 'Codex'}] ` : ''}${role.prompt.replace(/\s+/g, ' ').slice(0, 60)}`,
       }));
+      externalRoleIds = new Set(result.roles.filter(role => role.external).map(role => role.id));
     }
   } catch {
     items = [];
@@ -47,6 +51,20 @@ async function readRoleMentionItems(): Promise<MentionItem[]> {
   cache = { at: Date.now(), items };
   publishRoleColors(items);
   return items;
+}
+
+/**
+ * True when the outgoing text @-mentions at least one role and EVERY
+ * mentioned role is externally driven. Such a turn never touches the app's
+ * model provider (the CLI brings its own auth), so the no-provider send
+ * guard lets it through. Best-effort by design: an id the cache hasn't seen
+ * counts as non-external (guard stays closed), and a persona pulled in
+ * mid-turn via agent@agent handoff still fails visibly in its own segment.
+ */
+export function isExternalOnlyRoleMessage(text: string): boolean {
+  const mentions = parseRoleMentions(text);
+  if (mentions.length === 0) return false;
+  return mentions.every(mention => externalRoleIds.has(mention.roleId));
 }
 
 export function loadRoleMentionItems(): Promise<MentionItem[]> {

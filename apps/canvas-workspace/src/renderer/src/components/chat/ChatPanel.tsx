@@ -8,6 +8,7 @@ import './DomMention.css';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
+import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useComposerRequest } from './hooks/useComposerRequest';
 import { useAppShell } from '../AppShellProvider';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
@@ -279,19 +280,24 @@ export const ChatPanel = ({
 
   useComposerRequest({ request: composerRequest, focusInput, replaceInput, submitQuickAction: (prompt, quickAction) => { void handleQuickAction(prompt, quickAction); }, onHandled: onComposerRequestHandled });
 
+  // A turn addressed ONLY to externally-driven roles runs on the user's own
+  // CLI (its auth, its billing) — no app provider needed, so it passes the
+  // no-provider guard. Quick actions / DOM review always use the built-in
+  // model and stay guarded.
   const handleSubmit = useCallback(async () => {
-    if (notConfigured) {
+    if (notConfigured && !isExternalOnlyRoleMessage(input)) {
       openModelSettingsWithHint();
       return false;
     }
     return await submitCurrentInput(requestContext);
-  }, [notConfigured, openModelSettingsWithHint, requestContext, submitCurrentInput]);
+  }, [input, notConfigured, openModelSettingsWithHint, requestContext, submitCurrentInput]);
 
   const handleComposerKeyDown = useCallback<KeyboardEventHandler<HTMLDivElement>>((event) => {
     const mentionSelecting = mentionOpen && mentionItems.length > 0;
     const hasDraft = Boolean(input.trim() || attachments.length > 0);
     if (
       notConfigured
+      && !isExternalOnlyRoleMessage(input)
       && hasDraft
       && !mentionSelecting
       && event.key === 'Enter'
