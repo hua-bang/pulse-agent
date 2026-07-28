@@ -8,6 +8,7 @@
 
 import type { AgentRoleDefinition, AgentRoleExternalDriver } from '../../../shared/agent-roles';
 import type { CanvasAgentMessage } from '../types';
+import { resolveExternalCwd } from './cwd';
 import { renderExternalSegmentPrompt } from './prompt';
 import { runExternalSegment } from './runner';
 import { clearExternalSessionId, getExternalSessionId, saveExternalSessionId } from './state-store';
@@ -18,6 +19,8 @@ export async function runExternalRoleSegment(opts: {
   role: AgentRoleDefinition;
   external: AgentRoleExternalDriver;
   chatSessionId: string;
+  /** Current workspace root, when the chat has one — the default work dir. */
+  workspaceRootFolder?: string;
   history: CanvasAgentMessage[];
   currentAsk: string;
   handoffNames: string[];
@@ -25,13 +28,20 @@ export async function runExternalRoleSegment(opts: {
   onText: (delta: string) => void;
 }): Promise<string> {
   const { role, external, chatSessionId } = opts;
-  const roleWithDriver = { id: role.id, external };
+  // Session continuity keys on the RESOLVED directory: @ the same role from
+  // another workspace and it starts a fresh CLI session there.
+  const cwd = await resolveExternalCwd({
+    roleId: role.id,
+    configuredCwd: external.cwd,
+    workspaceRootFolder: opts.workspaceRootFolder,
+  });
+  const roleWithDriver = { id: role.id, external: { family: external.family, cwd } };
   const sessionId = await getExternalSessionId(chatSessionId, roleWithDriver);
 
   const runOnce = async (resumeId: string | undefined) => {
     const prompt = renderExternalSegmentPrompt({
       role,
-      cwd: external.cwd,
+      cwd,
       history: opts.history,
       currentAsk: opts.currentAsk,
       handoffNames: opts.handoffNames,
@@ -39,7 +49,7 @@ export async function runExternalRoleSegment(opts: {
     });
     return runExternalSegment({
       family: external.family,
-      cwd: external.cwd,
+      cwd,
       prompt,
       sessionId: resumeId,
       abortSignal: opts.abortSignal,

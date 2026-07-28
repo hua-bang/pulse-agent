@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { existsSync } from 'fs';
 import type { AgentRoleDefinition } from '../../../shared/agent-roles';
 import { consumeClaudeStreamLine, createClaudeStreamState, runClaudeCodeSegment } from '../external/claude-code';
+import { resolveExternalCwd } from '../external/cwd';
 import { buildCodexArgs, consumeCodexStreamLine, createCodexStreamState, runCodexSegment } from '../external/codex';
 import { renderExternalSegmentPrompt } from '../external/prompt';
 import { runExternalRoleSegment } from '../external/segment';
@@ -50,6 +52,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.PULSE_CANVAS_EXTERNAL_AGENT_STATE;
+  delete process.env.PULSE_CANVAS_EXTERNAL_AGENT_HOME;
   delete process.env.PULSE_CANVAS_CLAUDE_CODE_CMD;
   rmSync(dir, { recursive: true, force: true });
 });
@@ -89,9 +92,11 @@ describe('claude stream-json parser', () => {
 describe('external session state store', () => {
   it('round-trips per (chat session × role) and invalidates on family/cwd change', async () => {
     const r = role();
-    await saveExternalSessionId('chat-1', { id: r.id, external: r.external! }, 'sess-9');
-    expect(await getExternalSessionId('chat-1', { id: r.id, external: r.external! })).toBe('sess-9');
-    expect(await getExternalSessionId('chat-2', { id: r.id, external: r.external! })).toBeUndefined();
+    // The state store takes the RESOLVED driver ref — cwd is always concrete here.
+    const resolved = { id: r.id, external: { family: 'claude-code' as const, cwd: '/tmp/project' } };
+    await saveExternalSessionId('chat-1', resolved, 'sess-9');
+    expect(await getExternalSessionId('chat-1', resolved)).toBe('sess-9');
+    expect(await getExternalSessionId('chat-2', resolved)).toBeUndefined();
     expect(await getExternalSessionId('chat-1', { id: r.id, external: { family: 'claude-code', cwd: '/elsewhere' } })).toBeUndefined();
     expect(await getExternalSessionId('chat-1', { id: r.id, external: { family: 'codex', cwd: '/tmp/project' } })).toBeUndefined();
   });
@@ -137,10 +142,26 @@ describe('claude-code adapter + segment orchestration (fake CLI)', () => {
     expect(result.text).toContain('prompt_bytes=64');
   });
 
+  it('a role with NO configured cwd runs in the per-role scratch dir out of the box', async () => {
+    process.env.PULSE_CANVAS_CLAUDE_CODE_CMD = installFakeClaude();
+    process.env.PULSE_CANVAS_EXTERNAL_AGENT_HOME = join(dir, 'homes');
+    const r = role({ external: { family: 'claude-code' } });
+
+    const text = await runExternalRoleSegment({
+      role: r, external: r.external!, chatSessionId: 'chat-1',
+      history: [], currentAsk: '聊聊看法', handoffNames: [],
+      abortSignal: new AbortController().signal, onText: () => {},
+    });
+
+    expect(text).toContain('改完了');
+    expect(existsSync(join(dir, 'homes', r.id))).toBe(true);
+  });
+
   it('retries once on a stale resume and persists the fresh session id', async () => {
     process.env.PULSE_CANVAS_CLAUDE_CODE_CMD = installFakeClaude();
     const r = role({ external: { family: 'claude-code', cwd: dir } });
-    await saveExternalSessionId('chat-1', { id: r.id, external: r.external! }, 'sess-old');
+    const resolved = { id: r.id, external: { family: 'claude-code' as const, cwd: dir } };
+    await saveExternalSessionId('chat-1', resolved, 'sess-old');
 
     const text = await runExternalRoleSegment({
       role: r, external: r.external!, chatSessionId: 'chat-1',
@@ -149,7 +170,7 @@ describe('claude-code adapter + segment orchestration (fake CLI)', () => {
     });
 
     expect(text).toContain('改完了');
-    expect(await getExternalSessionId('chat-1', { id: r.id, external: r.external! })).toBe('sess-new');
+    expect(await getExternalSessionId('chat-1', resolved)).toBe('sess-new');
   });
 
   it('reports a missing working directory as a config error, not a launch failure', async () => {
@@ -173,6 +194,26 @@ describe('claude-code adapter + segment orchestration (fake CLI)', () => {
     });
     setTimeout(() => controller.abort(), 150);
     await expect(run).rejects.toThrow(/aborted/i);
+  });
+});
+
+describe('resolveExternalCwd (conversation-time directory chain)', () => {
+  it('configured pin wins, and a missing pin is a config error — never silently replaced', async () => {
+    expect(await resolveExternalCwd({ roleId: 'r1', configuredCwd: dir, workspaceRootFolder: '/elsewhere' })).toBe(dir);
+    await expect(resolveExternalCwd({ roleId: 'r1', configuredCwd: join(dir, 'gone') }))
+      .rejects.toThrow(/does not exist/);
+  });
+
+  it('falls back to the workspace root, then auto-creates the per-role scratch dir', async () => {
+    expect(await resolveExternalCwd({ roleId: 'r1', workspaceRootFolder: dir })).toBe(dir);
+
+    process.env.PULSE_CANVAS_EXTERNAL_AGENT_HOME = join(dir, 'homes');
+    const scratch = await resolveExternalCwd({ roleId: 'r1' });
+    expect(scratch).toBe(join(dir, 'homes', 'r1'));
+    expect(existsSync(scratch)).toBe(true);
+
+    // A stale/nonexistent workspace root degrades to scratch, not an error.
+    expect(await resolveExternalCwd({ roleId: 'r1', workspaceRootFolder: join(dir, 'gone') })).toBe(scratch);
   });
 });
 

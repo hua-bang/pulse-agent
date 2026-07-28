@@ -699,9 +699,11 @@ export class CanvasAgent {
     }
 
     let workspaceDocSection = '';
+    let workspaceRootFolder: string | undefined;
     if (workspaceId) {
       try {
         const meta = await readWorkspaceMeta(workspaceId);
+        workspaceRootFolder = meta.rootFolder;
         const workspaceDoc = await readWorkspaceDoc(meta.rootFolder);
         workspaceDocSection = formatWorkspaceContextSection(meta.rootFolder, workspaceDoc);
       } catch (err) {
@@ -865,6 +867,7 @@ export class CanvasAgent {
             role,
             external: role.external,
             chatSessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
+            workspaceRootFolder,
             history: this.sessionStore.getCurrentSession()?.messages ?? [],
             currentAsk: modelUserText,
             handoffNames: handoffEnabled ? handoffLibrary.map(entry => entry.name) : [],

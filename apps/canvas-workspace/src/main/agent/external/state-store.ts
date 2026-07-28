@@ -11,10 +11,16 @@
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
-import type { AgentRoleDefinition, AgentRoleExternalDriver } from '../../../shared/agent-roles';
+import type { AgentRoleExternalFamily } from '../../../shared/agent-roles';
+
+/** Driver identity with the cwd RESOLVED (see external/cwd.ts) — never optional here. */
+interface ResolvedDriverRef {
+  id: string;
+  external: { family: AgentRoleExternalFamily; cwd: string };
+}
 
 interface ExternalChannelState {
-  family: AgentRoleExternalDriver['family'];
+  family: AgentRoleExternalFamily;
   cwd: string;
   sessionId: string;
   updatedAt: number;
@@ -49,7 +55,7 @@ async function writeState(state: ExternalStateFile): Promise<void> {
 
 export async function getExternalSessionId(
   chatSessionId: string,
-  role: Pick<AgentRoleDefinition, 'id'> & { external: AgentRoleExternalDriver },
+  role: ResolvedDriverRef,
 ): Promise<string | undefined> {
   const state = await readState();
   const channel = state.channels[channelKey(chatSessionId, role.id)];
@@ -60,7 +66,7 @@ export async function getExternalSessionId(
 
 export async function saveExternalSessionId(
   chatSessionId: string,
-  role: Pick<AgentRoleDefinition, 'id'> & { external: AgentRoleExternalDriver },
+  role: ResolvedDriverRef,
   sessionId: string,
 ): Promise<void> {
   if (!sessionId) return;

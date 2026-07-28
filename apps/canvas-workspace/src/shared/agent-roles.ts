@@ -45,14 +45,16 @@ export const AGENT_ROLE_EXTERNAL_FAMILIES: readonly AgentRoleExternalFamily[] = 
 /**
  * Driver config for an externally-driven role: its segments are produced by a
  * LOCAL coding-agent CLI spawned headless per turn (with per-chat-session
- * continuity), not by the built-in engine. `cwd` is the directory the agent
- * works in — it doubles as the safety boundary, and external roles only ever
- * speak when the USER @-mentions them directly (agent@agent handoff never
- * targets them).
+ * continuity), not by the built-in engine. `cwd` is OPTIONAL and pins the
+ * role to one directory; when absent (the default) the directory is resolved
+ * at conversation time — the chat's workspace root folder, else a per-role
+ * scratch dir — so a role needs zero folder preparation. External roles only
+ * ever speak when the USER @-mentions them directly (agent@agent handoff
+ * never targets them).
  */
 export interface AgentRoleExternalDriver {
   family: AgentRoleExternalFamily;
-  cwd: string;
+  cwd?: string;
 }
 
 export const normalizeAgentRoleExternal = (value: unknown): AgentRoleExternalDriver | undefined => {
@@ -61,9 +63,9 @@ export const normalizeAgentRoleExternal = (value: unknown): AgentRoleExternalDri
   const family = AGENT_ROLE_EXTERNAL_FAMILIES.includes(raw.family as AgentRoleExternalFamily)
     ? (raw.family as AgentRoleExternalFamily)
     : undefined;
+  if (!family) return undefined;
   const cwd = typeof raw.cwd === 'string' ? raw.cwd.trim() : '';
-  if (!family || !cwd) return undefined;
-  return { family, cwd };
+  return cwd ? { family, cwd } : { family };
 };
 
 export type AgentRolesResult<T> = ({ ok: true } & T) | { ok: false; error: string };

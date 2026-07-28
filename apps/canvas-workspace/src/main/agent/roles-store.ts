@@ -135,7 +135,7 @@ export async function saveAgentRole(input: AgentRoleSaveInput): Promise<AgentRol
     external = undefined;
   } else if (input.external !== undefined) {
     external = normalizeAgentRoleExternal(input.external);
-    if (!external) throw new Error('Invalid external driver: family (claude-code|codex) and cwd are required');
+    if (!external) throw new Error('Invalid external driver: family must be claude-code or codex');
   }
 
   if (existing) {

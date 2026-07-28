@@ -177,7 +177,9 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
       name: draft.name,
       color: draft.color,
       prompt: draft.prompt,
-      external: draft.driver === 'persona' ? null : { family: draft.driver, cwd: draft.cwd.trim() },
+      external: draft.driver === 'persona'
+        ? null
+        : { family: draft.driver, ...(draft.cwd.trim() ? { cwd: draft.cwd.trim() } : {}) },
     });
     setSaving(false);
     if (saved) {
@@ -195,8 +197,7 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
     setDraft(null);
   }, [draft, remove]);
 
-  const canSave = !!draft && !!draft.name.trim() && !!draft.prompt.trim() && !saving
-    && (draft.driver === 'persona' || !!draft.cwd.trim());
+  const canSave = !!draft && !!draft.name.trim() && !!draft.prompt.trim() && !saving;
 
   return (
     <>

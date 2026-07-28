@@ -73,6 +73,13 @@ describe('roles-store', () => {
     expect(second.color).not.toBe(first.color);
   });
 
+  it('saves an external driver with NO cwd — the default, resolved at conversation time', async () => {
+    const created = await saveAgentRole({ name: '随行工程师', prompt: 'p', external: { family: 'claude-code' } });
+    expect(created.external).toEqual({ family: 'claude-code' });
+    expect((await listAgentRoles())[0].external?.cwd).toBeUndefined();
+    await deleteAgentRole(created.id);
+  });
+
   it('stores, updates, and clears the external driver with validation', async () => {
     const created = await saveAgentRole({
       name: 'Claude工程师', prompt: '写代码。',
