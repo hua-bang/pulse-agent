@@ -53,11 +53,9 @@ export interface ChatPageBodyProps {
   onOpenAppSettings: (section: SettingsSection) => void;
   /** Opens per-workspace settings when the chat scope is workspace-bound. */
   onOpenWorkspaceSettings?: (workspaceId: string) => void;
-  /** Fixed-task chats hide the cross-session rail/new-chat controls. */
-  fixedChat?: {
-    title: string;
-    banner?: ReactNode;
-  };
+  /** Fixed-task chats hide the cross-session rail/new-chat controls;
+   *  `pendingLabel` covers a turn this page did not itself start. */
+  fixedChat?: { title: string; banner?: ReactNode; pendingLabel?: string };
 }
 
 export const ChatPageBody = ({
@@ -449,6 +447,7 @@ export const ChatPageBody = ({
           banner={fixedChat?.banner ?? (backEntry && onBackToSession ? (
             <SessionBackBar entry={backEntry} disabled={loading} onBack={onBackToSession} />
           ) : undefined)}
+          pendingLabel={fixedChat?.pendingLabel}
           messages={messages}
           loading={loading}
           workspaceId={anchorScopeId}

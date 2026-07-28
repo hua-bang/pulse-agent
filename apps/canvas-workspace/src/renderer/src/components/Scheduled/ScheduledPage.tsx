@@ -14,8 +14,9 @@ import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
 import { useDockContext } from '../RightDock/context';
 import { Button, EmptyState } from '../ui';
-import { scheduleLabel, timeLabel } from './formatters';
+import { runStatusLine, scheduleLabel, timeLabel } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
+import { scheduledRunStatus, useActiveScheduledRuns, useRunClock } from './useScheduledRunProgress';
 import './index.css';
 
 export const ScheduledPage = () => {
@@ -27,6 +28,8 @@ export const ScheduledPage = () => {
   const [runningTaskIds, setRunningTaskIds] = useState<Set<string>>(() => new Set());
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | undefined>();
+  const activeRuns = useActiveScheduledRuns();
+  const clock = useRunClock(tasks.some((task) => task.status === 'running'));
 
   const load = useCallback(async () => {
     const response = await window.canvasWorkspace.scheduled.list();
@@ -145,6 +148,7 @@ export const ScheduledPage = () => {
         <ul className="scheduled-page__list">
           {tasks.map((task) => {
             const running = task.status === 'running' || runningTaskIds.has(task.id);
+            const { progress, elapsedMs } = scheduledRunStatus(task, activeRuns, clock);
             return (
               <li key={task.id} className="scheduled-page__row" data-task-id={task.id}>
                 {/* Presentational only. The whole row used to be one button, so
@@ -158,10 +162,15 @@ export const ScheduledPage = () => {
                   </span>
                   <span className="scheduled-page__meta">
                     <span>{scheduleLabel(task.schedule, t, language)}</span>
-                    <small>
-                      {task.enabled
-                        ? t('scheduled.nextRun', { time: timeLabel(task.nextRunAt, t('scheduled.never')) })
-                        : t('scheduled.paused')}
+                    {/* While a run is in flight its live activity displaces
+                        the next-run time: "is it still working" is the only
+                        question the row can answer that the user is asking. */}
+                    <small className={running ? 'scheduled-page__meta-running' : undefined}>
+                      {running
+                        ? runStatusLine(progress, elapsedMs, t)
+                        : task.enabled
+                          ? t('scheduled.nextRun', { time: timeLabel(task.nextRunAt, t('scheduled.never')) })
+                          : t('scheduled.paused')}
                     </small>
                   </span>
                   <span className="scheduled-page__last-run">

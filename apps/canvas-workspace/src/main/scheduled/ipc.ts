@@ -7,13 +7,15 @@
  *   scheduled:update
  *   scheduled:remove
  *   scheduled:run-now
+ *   scheduled:progress      (snapshot of in-flight runs)
  *   scheduled:changed       (main → renderer push)
  *   scheduled:run-finished  (main → renderer push, success AND failure)
+ *   scheduled:run-progress  (main → renderer push, per activity transition)
  */
 
 import { ipcMain } from 'electron';
 import type { ScheduledTaskInput, ScheduledTaskPatch } from '../../shared/scheduled';
-import { getScheduledTaskService } from './runtime';
+import { activeRunProgress, getScheduledTaskService } from './runtime';
 
 export function setupScheduledTaskIpc(): void {
   const service = getScheduledTaskService();
@@ -53,6 +55,8 @@ export function setupScheduledTaskIpc(): void {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
+
+  ipcMain.handle('scheduled:progress', () => ({ ok: true, runs: activeRunProgress() }));
 
   ipcMain.handle('scheduled:run-now', async (_event, taskId: string) => {
     try {

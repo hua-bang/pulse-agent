@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { SpinnerGap, WarningCircle } from '@phosphor-icons/react';
 import type { ScheduledTask } from '../../../../shared/scheduled';
 import type { SettingsSection } from '../Settings';
 import type { WorkspaceOption } from '../chat/types';
 import { ChatPanelLazy as ChatPanel } from '../chat/lazy';
-import { useI18n } from '../../i18n';
+import { useScheduledChatStatus } from './useScheduledChatStatus';
 import './index.css';
 
 interface ScheduledChatPanelProps {
@@ -24,9 +23,9 @@ export const ScheduledChatPanel = ({
   onOpenAppSettings,
   onTurnComplete,
 }: ScheduledChatPanelProps) => {
-  const { t } = useI18n();
   const [task, setTask] = useState<ScheduledTask>();
   const agentScope = useMemo(() => ({ kind: 'scheduled' as const, taskId }), [taskId]);
+  const { banner, pendingLabel } = useScheduledChatStatus(task);
 
   useEffect(() => {
     let active = true;
@@ -43,31 +42,13 @@ export const ScheduledChatPanel = ({
     };
   }, [taskId]);
 
-  const banner = task?.status === 'running' ? (
-    <div className="scheduled-chat-status" role="status">
-      <SpinnerGap className="scheduled-spin" size={15} />
-      <span>
-        <strong>{t('scheduled.running')}</strong>
-        <small>{t('scheduled.runningHint')}</small>
-      </span>
-    </div>
-  ) : task?.lastError ? (
-    <div className="scheduled-chat-status scheduled-chat-status--error" role="alert">
-      <WarningCircle size={15} />
-      <span>
-        <strong>{t('scheduled.runFailed')}</strong>
-        <small>{task.lastError}</small>
-      </span>
-    </div>
-  ) : undefined;
-
   return (
     <ChatPanel
       key={`${taskId}:${revision}`}
       agentScope={agentScope}
       allWorkspaces={allWorkspaces}
       banner={banner}
-      pendingLabel={task?.status === 'running' ? t('scheduled.runningInline') : undefined}
+      pendingLabel={pendingLabel}
       onClose={onClose}
       onOpenAppSettings={onOpenAppSettings}
       onTurnComplete={onTurnComplete}

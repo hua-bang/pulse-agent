@@ -114,6 +114,15 @@
   color: var(--text-muted);
 }
 
+/* Live run activity replaces the next-run time in place; the accent keeps it
+   readable as "happening now" rather than another muted timestamp. */
+.scheduled-page__meta small.scheduled-page__meta-running {
+  overflow: hidden;
+  color: var(--accent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .scheduled-page__row-actions {
   display: flex;
   align-items: center;
@@ -245,6 +254,15 @@
   color: var(--text-secondary);
   font-size: 10px;
   line-height: 1.45;
+}
+
+/* The one line that moves while the run is in flight — elapsed time, current
+   activity, step count. Kept at the banner's own accent colour so it reads as
+   live state rather than the muted explanatory hint below it. */
+.scheduled-chat-status small.scheduled-chat-status__activity {
+  color: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .scheduled-chat-status--error {

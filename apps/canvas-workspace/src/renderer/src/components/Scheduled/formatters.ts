@@ -1,4 +1,8 @@
-import type { ScheduledSchedule, ScheduledWeekday } from '../../../../shared/scheduled';
+import type {
+  ScheduledRunProgress,
+  ScheduledSchedule,
+  ScheduledWeekday,
+} from '../../../../shared/scheduled';
 import type { useI18n } from '../../i18n';
 
 type Translate = ReturnType<typeof useI18n>['t'];
@@ -43,6 +47,48 @@ export const scheduleLabel = (
     });
   }
   return intervalLabel(schedule.intervalMinutes, t);
+};
+
+/**
+ * `m:ss` (or `h:mm:ss` past the hour) — a clock, not prose, so it stays short
+ * enough for the dock's status line and reads the same in every language.
+ */
+export const elapsedLabel = (elapsedMs: number): string => {
+  const total = Math.max(0, Math.floor(elapsedMs / 1000));
+  const seconds = String(total % 60).padStart(2, '0');
+  const minutes = Math.floor(total / 60) % 60;
+  const hours = Math.floor(total / 3600);
+  if (hours === 0) return `${minutes}:${seconds}`;
+  return `${hours}:${String(minutes).padStart(2, '0')}:${seconds}`;
+};
+
+const activityLabel = (progress: ScheduledRunProgress | undefined, t: Translate): string => {
+  if (progress?.activity === 'tool' && progress.toolName) {
+    return t('scheduled.activity.tool', { tool: progress.toolName });
+  }
+  if (progress?.activity === 'thinking') return t('scheduled.activity.thinking');
+  if (progress?.activity === 'writing') return t('scheduled.activity.writing');
+  return t('scheduled.activity.starting');
+};
+
+/**
+ * One line answering "is this thing still working, and on what" — the
+ * question a multi-minute unattended run leaves open. Elapsed time is the
+ * liveness part and is always shown once a start time is known; the activity
+ * and step count come from the run's progress pushes.
+ */
+export const runStatusLine = (
+  progress: ScheduledRunProgress | undefined,
+  elapsedMs: number | undefined,
+  t: Translate,
+): string => {
+  const parts = [];
+  if (elapsedMs !== undefined) {
+    parts.push(t('scheduled.runningFor', { elapsed: elapsedLabel(elapsedMs) }));
+  }
+  parts.push(activityLabel(progress, t));
+  if (progress && progress.steps > 0) parts.push(t('scheduled.runStep', { step: progress.steps }));
+  return parts.join(' · ');
 };
 
 export const timeLabel = (value: number | undefined, fallback: string): string => {

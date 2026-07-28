@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n';
 import type { SettingsSection } from '../Settings';
 import { useAppShell } from '../AppShellProvider';
 import { ChatPageBody } from '../chat/ChatPageBody';
+import { useScheduledChatStatus } from './useScheduledChatStatus';
 import './index.css';
 
 interface Props {
@@ -16,6 +17,7 @@ export const ScheduledTaskChatPage = ({ taskId, onExit, onOpenAppSettings }: Pro
   const { t } = useI18n();
   const { notify } = useAppShell();
   const [task, setTask] = useState<ScheduledTask | null>(null);
+  const { banner, pendingLabel } = useScheduledChatStatus(task ?? undefined);
 
   const load = useCallback(async () => {
     const response = await window.canvasWorkspace.scheduled.list();
@@ -56,7 +58,7 @@ export const ScheduledTaskChatPage = ({ taskId, onExit, onOpenAppSettings }: Pro
       railCollapsed
       onToggleRail={() => undefined}
       onOpenAppSettings={onOpenAppSettings}
-      fixedChat={{ title: task.title }}
+      fixedChat={{ title: task.title, banner, pendingLabel }}
     />
   );
 };

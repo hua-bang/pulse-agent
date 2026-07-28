@@ -65,6 +65,30 @@ export interface ScheduledRunFinished {
   error?: string;
 }
 
+/** What an in-flight run is doing right now. */
+export type ScheduledRunActivity = 'starting' | 'thinking' | 'tool' | 'writing';
+
+/**
+ * Live state of an in-flight run, pushed on every activity transition.
+ *
+ * A scheduled run executes in main with no streaming surface, so the UI used
+ * to show a static "the result will appear when this finishes" for however
+ * many minutes the run took — indistinguishable from a wedged run. This is
+ * the signal that makes the wait legible: elapsed time comes from
+ * `startedAt`, and the rest says what the agent is doing.
+ */
+export interface ScheduledRunProgress {
+  taskId: string;
+  /** Epoch ms the run started; the UI ticks elapsed time off this. */
+  startedAt: number;
+  updatedAt: number;
+  activity: ScheduledRunActivity;
+  /** Tool being executed; set while `activity === 'tool'`. */
+  toolName?: string;
+  /** Tool calls started so far — a coarse step counter for the UI. */
+  steps: number;
+}
+
 export interface ScheduledApi {
   list: () => Promise<{ ok: boolean; tasks?: ScheduledTask[]; error?: string }>;
   create: (
@@ -78,8 +102,15 @@ export interface ScheduledApi {
   runNow: (
     taskId: string,
   ) => Promise<{ ok: boolean; task?: ScheduledTask; error?: string }>;
+  /**
+   * Snapshot of every in-flight run. Progress is push-only and lives in
+   * memory, so a surface that mounts mid-run (reopening the dock panel, say)
+   * would otherwise sit blank until the next transition.
+   */
+  progress: () => Promise<{ ok: boolean; runs?: ScheduledRunProgress[]; error?: string }>;
   onChanged: (callback: (tasks: ScheduledTask[]) => void) => () => void;
   onRunFinished: (callback: (run: ScheduledRunFinished) => void) => () => void;
+  onRunProgress: (callback: (progress: ScheduledRunProgress) => void) => () => void;
 }
 
 const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
