@@ -35,10 +35,25 @@
   /* Pure white per the Heptabase reference — cards pop off the tinted
    * frame washes; the warm cream paper read as one more beige layer. */
   --note-paper: #ffffff;
-  --note-border: rgba(55, 53, 47, 0.12);
-  --note-border-hover: rgba(55, 53, 47, 0.16);
-  --note-shadow: 0 1px 2px rgba(55, 53, 47, 0.04), 0 5px 16px rgba(55, 53, 47, 0.055);
-  --note-shadow-hover: 0 1px 2px rgba(55, 53, 47, 0.045), 0 7px 20px rgba(55, 53, 47, 0.07);
+  /* Spatial object system: content objects float above the neutral canvas.
+   * These are intentionally scoped to Note / Text / Web nodes; app chrome
+   * keeps the denser legacy elevation scale. */
+  --content-node-radius: 18px;
+  --content-node-shadow:
+    0 5px 18px color-mix(in srgb, var(--text) 6%, transparent),
+    0 1px 3px color-mix(in srgb, var(--text) 4%, transparent);
+  --content-node-shadow-hover:
+    0 10px 28px color-mix(in srgb, var(--text) 10%, transparent),
+    0 2px 7px color-mix(in srgb, var(--text) 5%, transparent);
+  --content-node-shadow-drag:
+    0 14px 34px color-mix(in srgb, var(--text) 13%, transparent),
+    0 3px 10px color-mix(in srgb, var(--text) 6%, transparent);
+  --content-node-selection: var(--accent);
+  --shadow-content-selection: 0 0 0 1px var(--accent-soft);
+  --note-border: rgba(55, 53, 47, 0.09);
+  --note-border-hover: rgba(55, 53, 47, 0.14);
+  --note-shadow: var(--content-node-shadow);
+  --note-shadow-hover: var(--content-node-shadow-hover);
   --note-callout-bg: #faf6ef;
   --note-callout-border: #eee8de;
   --note-inline-code-bg: rgba(55, 53, 47, 0.07);

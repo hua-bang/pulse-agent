@@ -78,6 +78,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* A stable paper footer keeps the last visible line away from the rounded
+   * edge even before the editor reaches its own end-of-document padding. */
+  padding-bottom: 16px;
 }
 
 /* Node-mention chips: `@`-links to other canvas nodes, rendered inline. */
@@ -129,8 +132,30 @@
   flex: 1;
   overflow-y: auto;
   height: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
   /* Scoped paper colour driven by the card root so colour-mode swaps
    * or per-node tints can override in one place. */
+}
+
+.note-tiptap-editor:hover {
+  scrollbar-color: var(--border) transparent;
+}
+
+.note-tiptap-editor::-webkit-scrollbar {
+  width: 8px;
+}
+
+.note-tiptap-editor::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  background-clip: content-box;
+}
+
+.note-tiptap-editor:hover::-webkit-scrollbar-thumb {
+  background: var(--border);
+  background-clip: content-box;
 }
 
 /* Generous reading column inspired by Notion/Heptabase pages.
@@ -142,10 +167,10 @@
   width: min(100%, 900px);
   min-height: 100%;
   margin-inline: auto;
-  padding: 28px 32px 96px 52px;
+  padding: 12px 40px 72px;
   font-family: var(--font-ui);
   font-size: 16px;
-  line-height: 1.62;
+  line-height: 1.7;
   color: var(--text);
   outline: none;
   caret-color: var(--accent);
@@ -166,12 +191,12 @@
 }
 
 .note-tiptap-editor .ProseMirror h1 {
-  font-size: 1.9em;
-  font-weight: 650;
+  font-size: 1.69em;
+  font-weight: 590;
   margin: 0.95em 0 0.4em;
   color: var(--text);
-  line-height: 1.26;
-  letter-spacing: -0.025em;
+  line-height: 1.2;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
@@ -180,21 +205,21 @@
 }
 
 .note-tiptap-editor .ProseMirror h2 {
-  font-size: 1.42em;
-  font-weight: 650;
+  font-size: 1.38em;
+  font-weight: 590;
   margin: 1.5em 0 0.5em;
   color: var(--text);
   line-height: 1.34;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
 .note-tiptap-editor .ProseMirror h3 {
   font-size: 1.16em;
-  font-weight: 650;
+  font-weight: 590;
   margin: 1.25em 0 0.4em;
   color: var(--text);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
@@ -489,7 +514,7 @@
 
 @container (max-width: 560px) {
   .note-tiptap-editor .ProseMirror {
-    padding: 24px;
+    padding: 12px 32px 72px;
     font-size: 15.5px;
   }
 

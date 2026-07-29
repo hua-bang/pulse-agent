@@ -22,8 +22,8 @@
 }
 
 .canvas-node--iframe.canvas-node--selected .iframe-bar {
-  border-bottom-color: rgba(35, 131, 226, 0.16);
-  background: color-mix(in srgb, var(--accent-light) 34%, var(--surface));
+  border-bottom-color: var(--border-light);
+  background: var(--surface);
 }
 
 /* In fullscreen the bar stays docked at the top — same as the windowed
