@@ -141,4 +141,77 @@ describe('chat mention rendering', () => {
     expect(html).toContain('Docs');
     expect(html).toContain('说说这个');
   });
+
+  it('colors a transcript role chip from roleColors and falls back to the violet tokens otherwise', () => {
+    const roleColors = new Map([['role-1', '#2383e2']]);
+
+    const colored = renderMdWithMentions('@[role:role-1|产品经理] 先评估', undefined, { roleColors });
+    expect(colored).toContain('chat-mention-chip--role');
+    expect(colored).toContain('--role-accent:#2383e2');
+    expect(colored).toContain('--role-accent-soft:rgba(35, 131, 226, 0.18)');
+    expect(colored).toContain('产品经理');
+
+    // Unknown (e.g. deleted) role id → class tokens only, no inline override.
+    const fallback = renderMdWithMentions('@[role:role-gone|评审员] 你看看', undefined, { roleColors });
+    expect(fallback).toContain('chat-mention-chip--role');
+    expect(fallback).not.toContain('--role-accent:');
+  });
+
+  it('drops a non-#rrggbb role color instead of letting it into the style attribute', () => {
+    const roleColors = new Map([['role-1', '"><img src=x onerror=alert(1)>']]);
+    const html = renderMdWithMentions('@[role:role-1|产品经理] hi', undefined, { roleColors });
+    expect(html).toContain('chat-mention-chip--role');
+    expect(html).not.toContain('style=');
+    expect(html).not.toContain('onerror');
+  });
+
+  it('chips the plain @Name an agent writes when handing off, with that role accent', () => {
+    const roleNames = new Map([['张一鸣', '#2383e2'], ['华铧', '#a594e0']]);
+    const html = renderMdWithMentions('@张一鸣 你觉得核心差距会转移到什么?', undefined, { roleNames });
+
+    expect(html).toContain('chat-mention-chip--role');
+    expect(html).toContain('--role-accent:#2383e2');
+    expect(html).toContain('张一鸣');
+    expect(html).not.toContain('@张一鸣');
+  });
+
+  it('longest name wins, unknown names and emails stay plain', () => {
+    const roleNames = new Map([['评审', '#0f7b6c'], ['评审员', '#c14b42']]);
+    const html = renderMdWithMentions('请 @评审员 把关,顺便抄送 a@b.com,别找 @路人', undefined, { roleNames });
+
+    expect(html).toContain('--role-accent:#c14b42');
+    expect(html).not.toContain('--role-accent:#0f7b6c');
+    expect(html).toContain('a@b.com');
+    expect(html).toContain('@路人');
+  });
+
+  it('never rewrites inside code blocks or tag attributes', () => {
+    const roleNames = new Map([['张一鸣', '#2383e2']]);
+    const html = renderMdWithMentions('看这段:`@张一鸣 是纯文本`', undefined, { roleNames });
+
+    expect(html).toContain('@张一鸣');
+    expect(html).not.toContain('chat-mention-chip--role');
+  });
+
+  it('leaves user content alone when roleNames is not supplied', () => {
+    const html = renderMdWithMentions('@张一鸣 我随手打的', undefined, {});
+    expect(html).not.toContain('chat-mention-chip--role');
+    expect(html).toContain('@张一鸣');
+  });
+
+  it('carries the role accent inline on composer role chips and round-trips the marker', () => {
+    const chip = createMentionChipElement({
+      type: 'role',
+      label: '产品经理',
+      roleId: 'role-1',
+      roleColor: '#d9730d',
+    });
+    expect(chip.style.getPropertyValue('--role-accent')).toBe('#d9730d');
+    expect(chip.style.getPropertyValue('--role-accent-icon')).toBe('#d9730d');
+    expect(chip.style.getPropertyValue('--role-accent-soft')).toBe('rgba(217, 115, 13, 0.18)');
+
+    const editable = document.createElement('div');
+    editable.appendChild(chip);
+    expect(serializeEditable(editable)).toBe('@[role:role-1|产品经理]');
+  });
 });

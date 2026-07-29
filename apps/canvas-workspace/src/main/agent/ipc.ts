@@ -3,7 +3,9 @@
  *
  * Channels:
  *   canvas-agent:chat              — send a message, stream text deltas, get final response
- *   canvas-agent:abort             — interrupt the currently-running chat turn
+ *   canvas-agent:abort             — interrupt the currently-running chat turn (hard stop)
+ *   canvas-agent:stop-relay        — graceful multi-role relay stop: current segment
+ *                                    finishes, queued segments are skipped
  *   canvas-agent:clarify-answer    — deliver a user reply to a pending clarification
  *   canvas-agent:status            — check if agent is active
  *   canvas-agent:list-skills       — list skills (name + description) for the / popup
@@ -20,6 +22,12 @@
  *   Tool call starts arrive on    `canvas-agent:tool-call:{sessionId}`.
  *   Tool results arrive on        `canvas-agent:tool-result:{sessionId}`.
  *   Clarification requests arrive on `canvas-agent:clarify-request:{sessionId}`.
+ *   Segment starts arrive on      `canvas-agent:role-turn-start:{sessionId}`
+ *     (every turn emits them, total=1 for single-speaker turns; a multi-role
+ *     relay emits one per segment with the full queue for progress UI).
+ *   Segment completions arrive on `canvas-agent:role-turn-end:{sessionId}`
+ *     (successful segments only — a failed segment surfaces through
+ *     chat-complete's error instead).
  *   Completion arrives on         `canvas-agent:chat-complete:{sessionId}`.
  */
 
@@ -170,6 +178,16 @@ export function setupCanvasAgentIpc(): void {
                 sender.send(`canvas-agent:tool-input-end:${sessionId}`, data);
               }
             },
+            (event) => {
+              if (!sender.isDestroyed()) {
+                sender.send(`canvas-agent:role-turn-start:${sessionId}`, event);
+              }
+            },
+            (event) => {
+              if (!sender.isDestroyed()) {
+                sender.send(`canvas-agent:role-turn-end:${sessionId}`, event);
+              }
+            },
           );
           if (!sender.isDestroyed()) {
             sender.send(`canvas-agent:chat-complete:${sessionId}`, result);
@@ -204,6 +222,16 @@ export function setupCanvasAgentIpc(): void {
       if (!workspaceId) return { ok: false, error: 'No active run for sessionId' };
       svc.abort(workspaceId);
       return { ok: true };
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-agent:stop-relay',
+    (_event, payload: { sessionId: string }) => {
+      const scope = payload.sessionId ? sessionScopeMap.get(payload.sessionId) : undefined;
+      if (!scope) return { ok: false, error: 'No active run for sessionId' };
+      const stopped = svc.stopRelayForScope(scope);
+      return { ok: stopped, error: stopped ? undefined : 'No relay in flight' };
     },
   );
 

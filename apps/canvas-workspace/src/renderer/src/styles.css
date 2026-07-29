@@ -57,6 +57,11 @@
   --accent-file: #d9730d;
   --accent-term: #0f7b6c;
   --accent-frame: #a594e0;
+  /* Multi-role chat: fixed chip family + neutral speaker-badge fallbacks
+     (per-role colors come inline from each message's stored snapshot). */
+  --role-accent: #6d55b8;
+  --role-accent-icon: #8a72d6;
+  --role-accent-soft: rgba(165, 148, 224, 0.18);
   --success: #1f7a4d;
   --error: #c0392b;
   --text-warning: #b45309;

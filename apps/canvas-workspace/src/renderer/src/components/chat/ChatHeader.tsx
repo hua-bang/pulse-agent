@@ -1,5 +1,5 @@
 import { useCallback, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
+import { AvatarIcon, CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
@@ -26,6 +26,8 @@ interface ChatHeaderProps {
   onOpenSettings: () => void;
   settingsLabel: string;
   onOpenPromptSettings: () => void;
+  /** Opens the chat-roles Settings section (multi-role group chat personas). */
+  onOpenRolesSettings?: () => void;
   onClose: () => void;
   /** Slot for the in-chat anchor / TOC control. */
   anchors?: ReactNode;
@@ -45,6 +47,7 @@ export const ChatHeader = ({
   onOpenSettings,
   settingsLabel,
   onOpenPromptSettings,
+  onOpenRolesSettings,
   onClose,
   anchors,
 }: ChatHeaderProps) => {
@@ -186,6 +189,16 @@ export const ChatHeader = ({
       </div>
       <div className="chat-panel-actions">
         {anchors}
+        {onOpenRolesSettings && (
+          <button
+            className="chat-panel-action-btn"
+            onClick={onOpenRolesSettings}
+            title={t('chat.rolesSettings')}
+            aria-label={t('chat.rolesSettings')}
+          >
+            <AvatarIcon size={16} strokeWidth={1.25} />
+          </button>
+        )}
         <button
           className="chat-panel-action-btn"
           onClick={onOpenPromptSettings}

@@ -17,6 +17,8 @@ export type EmptyStateQuickAction = LocalizedCanvasQuickAction | KnowledgeQuickA
 
 export const CANVAS_MENTION_PREFIX = 'canvas:';
 export const SKILL_MENTION_PREFIX = 'skill:';
+/** Multi-role chat persona: `@[role:<id>|<name>]` (SSOT: shared/agent-roles). */
+export { ROLE_MENTION_PREFIX } from '../../../../shared/agent-roles';
 export const FOLDER_MENTION_PREFIX = 'folder:';
 export const TAG_MENTION_PREFIX = 'tag:';
 export const DOM_MENTION_PREFIX = 'dom:';
@@ -26,6 +28,7 @@ export const TAB_MENTION_PREFIX = 'tab:';
 export const SESSION_MENTION_PREFIX = 'session:';
 
 export const MENTION_GROUPS = [
+  { key: 'role', label: 'Roles', labelKey: 'chat.mention.role' },
   { key: 'skill', label: 'Skills', labelKey: 'chat.mention.skills' },
   { key: 'tab', label: 'Tabs', labelKey: 'chat.mention.tab' },
   { key: 'session', label: 'Sessions', labelKey: 'chat.mention.session' },
@@ -109,6 +112,7 @@ export const KNOWLEDGE_QUICK_ACTIONS: KnowledgeQuickAction[] = [
 ];
 
 export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
+  if (item.type === 'role') return 'role';
   if (item.type === 'skill') return 'skill';
   if (item.type === 'tab') return 'tab';
   if (item.type === 'session') return 'session';

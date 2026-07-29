@@ -7,6 +7,7 @@ import type {
   CrossWorkspaceSessionGroup,
   SessionSearchHit,
 } from '../../../shared/agent-chat';
+import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../../shared/agent-roles';
 
 export type * from '../../../shared/agent-chat';
 
@@ -24,7 +25,13 @@ export interface AgentApi {
   ) => () => void;
   onChatComplete: (
     sessionId: string,
-    callback: (result: { ok: boolean; response?: string; runId?: string; error?: string }) => void,
+    callback: (result: {
+      ok: boolean;
+      response?: string;
+      runId?: string;
+      error?: string;
+      speakerRole?: { id: string; name: string; color: string };
+    }) => void,
   ) => () => void;
   onToolCall: (
     sessionId: string,
@@ -65,6 +72,18 @@ export interface AgentApi {
     sessionId: string,
     callback: (data: { id: string; question: string; context?: string }) => void,
   ) => () => void;
+  /** Multi-role relay: fired before each segment (single-speaker turns emit one with total=1). */
+  onRoleTurnStart: (
+    sessionId: string,
+    callback: (event: RoleTurnStartEvent) => void,
+  ) => () => void;
+  /** Fired after each successful segment with its finalized response + speaker snapshot. */
+  onRoleTurnEnd: (
+    sessionId: string,
+    callback: (event: RoleTurnEndEvent) => void,
+  ) => () => void;
+  /** Graceful relay stop: current segment finishes, queued segments are skipped. */
+  stopRelay: (sessionId: string) => Promise<{ ok: boolean; error?: string }>;
   answerClarification: (
     sessionId: string,
     requestId: string,

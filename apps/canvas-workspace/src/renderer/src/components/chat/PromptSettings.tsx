@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../types';
 import { useI18n, type I18nKey } from '../../i18n';
-import { TextField } from '../ui';
+import { Button, TextField } from '../ui';
 import './ModelSettings.css';
 
 interface UsePromptProfileResult {
@@ -209,20 +209,15 @@ export const ReplyStyleSection = ({
 
       <div className="chat-model-settings-footer">
         <span>{profile?.path}</span>
-        <button type="button" className="chat-model-secondary-btn" onClick={() => void reset()} disabled={saving}>
+        <Button size="sm" onClick={() => void reset()} disabled={saving}>
           {t('prompt.resetDefault')}
-        </button>
-        <button type="button" className="chat-model-secondary-btn" onClick={onClose} disabled={saving}>
+        </Button>
+        <Button size="sm" onClick={onClose} disabled={saving}>
           {t('prompt.close')}
-        </button>
-        <button
-          type="button"
-          className="chat-model-primary-btn"
-          onClick={() => void save()}
-          disabled={saving || !dirty}
-        >
+        </Button>
+        <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving || !dirty}>
           {saving ? t('prompt.saving') : savedHint ? t('prompt.saved') : t('prompt.save')}
-        </button>
+        </Button>
       </div>
     </>
   );

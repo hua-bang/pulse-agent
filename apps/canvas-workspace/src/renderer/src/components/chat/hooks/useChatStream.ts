@@ -4,6 +4,13 @@ import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption 
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
 import { markToolResult, settleRunningTools, upsertToolInputStart } from './toolStreamState';
 import { createTextDeltaBatcher } from './textDeltaBatcher';
+import { subscribeVisualStream } from './visualStreamSubscription';
+import {
+  applyTurnCompletion,
+  createRelayTurnHandlers,
+  createSegmentState,
+  type RelayProgress,
+} from './relayTurnHandlers';
 import { count } from '../../../perf/counters';
 
 interface UseChatStreamOptions {
@@ -23,6 +30,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
   const [messageTools, setMessageTools] = useState<Map<number, ToolCallStatus[]>>(new Map());
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [relay, setRelay] = useState<RelayProgress | null>(null);
   const [pendingClarify, setPendingClarify] = useState<PendingClarification | null>(null);
   const [clarifyInput, setClarifyInput] = useState('');
   const toolIdCounter = useRef(0);
@@ -49,6 +57,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
     // composer and stale tool chips.
     setLoading(false);
     setStreamingTools([]);
+    setRelay(null);
     streamingMsgIdx.current = -1;
 
     return cleanupSubscriptions;
@@ -115,15 +124,16 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       }
 
       const sessionId = result.sessionId;
-      const assistantIndex = { current: -1 };
-      const toolCalls: ToolCallStatus[] = [];
+      // One turn = 1..N segments (a multi-role relay); each segment owns its
+      // own bubble + tool list. Lifecycle lives in relayTurnHandlers.ts.
+      const segment = createSegmentState();
       setActiveSessionId(sessionId);
 
       const ensureAssistantMessage = () => {
-        if (assistantIndex.current >= 0) return;
+        if (segment.msgIndex >= 0) return;
         setMessages(prev => {
-          if (assistantIndex.current >= 0) return prev;
-          assistantIndex.current = prev.length;
+          if (segment.msgIndex >= 0) return prev;
+          segment.msgIndex = prev.length;
           streamingMsgIdx.current = prev.length;
           return [...prev, { role: 'assistant', content: '', timestamp: Date.now() }];
         });
@@ -139,14 +149,16 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         unsubscribeToolInputEnd();
         unsubscribeVisualStream();
         unsubscribeClarify();
+        unsubscribeRoleTurnStart();
+        unsubscribeRoleTurnEnd();
         activeUnsubsRef.current = [];
       };
 
       const publishTools = () => {
-        const snapshot = [...toolCalls];
+        const snapshot = [...segment.tools];
         setStreamingTools(snapshot);
-        if (assistantIndex.current >= 0) {
-          setMessageTools(prev => new Map(prev).set(assistantIndex.current, snapshot));
+        if (segment.msgIndex >= 0) {
+          setMessageTools(prev => new Map(prev).set(segment.msgIndex, snapshot));
         }
       };
 
@@ -160,7 +172,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         onFlush: (delta) => {
           count('chat-stream-commit');
           setMessages(prev => {
-            const index = assistantIndex.current;
+            const index = segment.msgIndex;
             if (index < 0 || index >= prev.length) return prev;
             const next = [...prev];
             next[index] = { ...next[index], content: next[index].content + delta };
@@ -171,11 +183,11 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
 
       const findTool = (toolCallId: string | undefined, name?: string) => {
         if (toolCallId) {
-          const byId = toolCalls.find(t => t.toolCallId === toolCallId);
+          const byId = segment.tools.find(t => t.toolCallId === toolCallId);
           if (byId) return byId;
         }
         if (name) {
-          return toolCalls.find(t => t.name === name && t.status === 'running');
+          return segment.tools.find(t => t.name === name && t.status === 'running');
         }
         return undefined;
       };
@@ -186,7 +198,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       // toolCallId before the final tool-call chunk arrives.
       const unsubscribeToolInputStart = window.canvasWorkspace.agent.onToolInputStart(sessionId, data => {
         ensureAssistantMessage();
-        upsertToolInputStart(toolCalls, data, () => ++toolIdCounter.current);
+        upsertToolInputStart(segment.tools, data, () => ++toolIdCounter.current);
         publishTools();
       });
 
@@ -204,34 +216,8 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         publishTools();
       });
 
-      // Side-channel: visual_render pushes already-extracted content as the
-      // tool chunks its final HTML over animation frames. We accept these
-      // chunks regardless of which session emitted them — the toolCallId
-      // disambiguates — but filter to the active workspace so a stray
-      // chunk from a parallel workspace agent doesn't leak in.
-      let visualStreamFrames = 0;
-      const unsubscribeVisualStream = window.canvasWorkspace.agent.onVisualStream(data => {
-        if (!workspaceId || data.workspaceId !== workspaceId) return;
-        const tool = findTool(data.toolCallId);
-        if (!tool) {
-          if (visualStreamFrames < 3) {
-            console.warn('[useChatStream] visual-stream frame for unknown toolCallId', data.toolCallId);
-            visualStreamFrames++;
-          }
-          return;
-        }
-        visualStreamFrames++;
-        // Sample-log progress so we can verify chunks arrive at ~60fps.
-        if (visualStreamFrames === 1 || data.done || visualStreamFrames % 15 === 0) {
-          console.info(
-            `[useChatStream] visual-stream frame=${visualStreamFrames} ` +
-            `bytes=${data.content.length} done=${!!data.done} toolCallId=${data.toolCallId}`,
-          );
-        }
-        tool.streamedContent = data.content;
-        if (data.done) tool.streamedDone = true;
-        publishTools();
-      });
+      // Side-channel visual_render chunks (see visualStreamSubscription.ts).
+      const unsubscribeVisualStream = subscribeVisualStream({ workspaceId, findTool, publishTools });
 
       const unsubscribeToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, data => {
         ensureAssistantMessage();
@@ -243,7 +229,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
           existing.args = data.args;
           existing.inputStreaming = false;
         } else {
-          toolCalls.push({
+          segment.tools.push({
             id: ++toolIdCounter.current,
             name: data.name,
             args: data.args,
@@ -255,7 +241,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       });
 
       const unsubscribeToolResult = window.canvasWorkspace.agent.onToolResult(sessionId, data => {
-        markToolResult(toolCalls, data);
+        markToolResult(segment.tools, data);
         publishTools();
       });
 
@@ -271,82 +257,43 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         setClarifyInput('');
       });
 
+      const segmentHandlers = createRelayTurnHandlers({
+        segment,
+        streamingMsgIdx,
+        flushDeltas: () => textDeltaBatcher.flush(),
+        setMessages,
+        setMessageTools,
+        setCollapsedSections,
+        setStreamingTools,
+        setRelay,
+      });
+      const unsubscribeRoleTurnStart = window.canvasWorkspace.agent.onRoleTurnStart(
+        sessionId, segmentHandlers.handleRoleTurnStart,
+      );
+      const unsubscribeRoleTurnEnd = window.canvasWorkspace.agent.onRoleTurnEnd(
+        sessionId, segmentHandlers.handleRoleTurnEnd,
+      );
+
       const unsubscribeComplete = window.canvasWorkspace.agent.onChatComplete(sessionId, completeResult => {
         textDeltaBatcher.flush();
         cleanupTurn();
-        settleRunningTools(toolCalls);
-        if (assistantIndex.current >= 0 && toolCalls.length > 0) {
-          setCollapsedSections(prev => new Set(prev).add(assistantIndex.current));
+        settleRunningTools(segment.tools);
+        const toolSnapshot = segment.tools.length > 0 ? segment.tools.map(tool => ({ ...tool })) : undefined;
+        if (segment.msgIndex >= 0 && toolSnapshot) {
+          setCollapsedSections(prev => new Set(prev).add(segment.msgIndex));
         }
+
+        // Frozen segments (role-turn-end) are final; this only settles a
+        // still-in-flight bubble or appends an error message.
+        applyTurnCompletion({ completeResult, segment, toolSnapshot, setMessages });
 
         setStreamingTools([]);
         setExpandedTools(new Set());
+        setRelay(null);
         streamingMsgIdx.current = -1;
         setActiveSessionId(null);
         setPendingClarify(null);
         setClarifyInput('');
-
-        const toolSnapshot = toolCalls.length > 0 ? toolCalls.map(tool => ({ ...tool })) : undefined;
-        const mergeAssistantMessage = (message: AgentChatMessage): AgentChatMessage => (
-          {
-            ...message,
-            toolCalls: toolSnapshot ?? message.toolCalls,
-            runId: completeResult.runId ?? message.runId,
-          }
-        );
-
-        if (!completeResult.ok) {
-          setMessages(prev => {
-            if (assistantIndex.current < 0) {
-              return [
-                ...prev,
-                mergeAssistantMessage({
-                  role: 'assistant',
-                  content: `Error: ${completeResult.error ?? 'Unknown error'}`,
-                  timestamp: Date.now(),
-                }),
-              ];
-            }
-
-            const next = [...prev];
-            const index = assistantIndex.current;
-            const existingContent = next[index]?.content;
-            next[index] = mergeAssistantMessage({
-              ...next[index],
-              content: existingContent || `Error: ${completeResult.error ?? 'Unknown error'}`,
-            });
-            return next;
-          });
-        } else if (completeResult.response) {
-          setMessages(prev => {
-            if (assistantIndex.current < 0) {
-              return [
-                ...prev,
-                mergeAssistantMessage({
-                  role: 'assistant',
-                  content: completeResult.response ?? '',
-                  timestamp: Date.now(),
-                }),
-              ];
-            }
-
-            const next = [...prev];
-            next[assistantIndex.current] = mergeAssistantMessage({
-              ...next[assistantIndex.current],
-              content: completeResult.response ?? '',
-            });
-            return next;
-          });
-        } else if (toolSnapshot && assistantIndex.current >= 0) {
-          setMessages(prev => {
-            const index = assistantIndex.current;
-            if (index < 0 || index >= prev.length) return prev;
-            const next = [...prev];
-            next[index] = mergeAssistantMessage(next[index]);
-            return next;
-          });
-        }
-
         setLoading(false);
       });
 
@@ -360,6 +307,8 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         unsubscribeDelta,
         unsubscribeComplete,
         unsubscribeClarify,
+        unsubscribeRoleTurnStart,
+        unsubscribeRoleTurnEnd,
         textDeltaBatcher.cancel,
       );
 
@@ -375,6 +324,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       ]);
       setLoading(false);
       setActiveSessionId(null);
+      setRelay(null);
       setPendingClarify(null);
       setClarifyInput('');
       return false;
@@ -396,6 +346,18 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       ]);
     }
   }, [workspaceId]);
+
+  /** Graceful relay stop: current speaker finishes, queued speakers are skipped. */
+  const stopRelay = useCallback(async () => {
+    const sessionId = activeSessionId;
+    if (!sessionId) return;
+    setRelay(prev => (prev ? { ...prev, stopping: true } : prev));
+    try {
+      await window.canvasWorkspace.agent.stopRelay(sessionId);
+    } catch (error) {
+      console.error('[chat-panel] stop-relay failed:', error);
+    }
+  }, [activeSessionId]);
 
   const abort = useCallback(async () => {
     const sessionId = activeSessionId;
@@ -521,6 +483,8 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
 
   return {
     abort,
+    relay,
+    stopRelay,
     addImageToCanvas,
     answerClarification,
     clarifyInput,

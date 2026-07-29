@@ -1,16 +1,15 @@
-import { createElement, type ReactNode } from 'react';
-import type { AgentContextCanvasRef, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, CanvasNode } from '../../../types';
-import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAB_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
+import type { CanvasNode } from '../../../types';
+import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, ROLE_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAB_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
 import { MENTION_RE, encodeMentionPart, pipedMentionLabel } from './mentionMarkers';
-import { readDomSelectionDataset, writeDomSelectionDataset } from './domMentionData';
+import { writeDomSelectionDataset } from './domMentionData';
+import { roleColorSoft } from './roleColors';
 import { sessionTitleText } from './sessionTitle';
 import {
   buildTabMentionChip,
   renderTabMentionHtml,
-  renderTabMentionNode,
   tabMentionIconType,
 } from './tabMentions';
 
@@ -30,6 +29,71 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/**
+ * Inline override of the `--role-accent*` tokens for one role chip, so the
+ * existing `.chat-mention-chip--role` rules (chip + child icon) resolve that
+ * role's accent instead of the violet defaults. `roleColorSoft` doubles as
+ * the `#rrggbb` validity gate: anything else returns '' and the chip keeps
+ * the class fallback, and only validated values ever reach the style attr.
+ */
+function roleAccentStyleAttr(color: string | undefined): string {
+  const soft = roleColorSoft(color, 0.18);
+  if (!soft) return '';
+  return ` style="--role-accent:${color};--role-accent-icon:${color};--role-accent-soft:${soft}"`;
+}
+
+const roleChipHtml = (name: string, color: string | undefined): string =>
+  `<span class="chat-mention-chip chat-mention-chip--role" data-node-type="role"${roleAccentStyleAttr(color)}>`
+  + `<span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('role')}</svg></span>`
+  + `<span class="chat-mention-chip-label">${escapeHtml(name)}</span></span>`;
+
+/**
+ * Chip the plain-text `@RoleName` an AGENT writes when handing off — models
+ * never emit the internal `@[role:id|name]` marker, so without this the same
+ * mention looks styled from the composer and bare from a role's reply.
+ *
+ * Applies only to assistant HTML: a plain `@name` a USER types does NOT route
+ * to that role (routing needs the marker), so chipping it there would promise
+ * something that did not happen.
+ *
+ * Rewrites text between tags only — never inside a tag or a code/pre block —
+ * and requires a non-word char before the `@` so `a@b.com` is left alone.
+ * Longest name wins and its span is consumed.
+ */
+export function renderRoleNameMentions(html: string, roleNames: ReadonlyMap<string, string>): string {
+  if (roleNames.size === 0 || !html.includes('@')) return html;
+  const names = [...roleNames.keys()].sort((a, b) => b.length - a.length);
+  const parts = html.split(/(<[^>]*>)/);
+  let codeDepth = 0;
+
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index];
+    if (part.startsWith('<')) {
+      const tag = /^<(\/?)(code|pre)\b/i.exec(part);
+      if (tag) codeDepth = Math.max(0, codeDepth + (tag[1] ? -1 : 1));
+      continue;
+    }
+    if (codeDepth > 0 || !part.includes('@')) continue;
+
+    let out = '';
+    let cursor = 0;
+    while (cursor < part.length) {
+      const at = part.indexOf('@', cursor);
+      if (at < 0) { out += part.slice(cursor); break; }
+      out += part.slice(cursor, at);
+      const prev = at > 0 ? part[at - 1] : '';
+      const rest = part.slice(at + 1);
+      const name = /[\w]/.test(prev) ? undefined : names.find(entry => rest.startsWith(escapeHtml(entry)));
+      if (!name) { out += '@'; cursor = at + 1; continue; }
+      out += roleChipHtml(name, roleNames.get(name));
+      cursor = at + 1 + escapeHtml(name).length;
+    }
+    parts[index] = out;
+  }
+
+  return parts.join('');
 }
 
 function resolveMentionFilePath(rootFolder: string | undefined, relativePath: string): string {
@@ -156,6 +220,33 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   // can collect it at send time; the builder lives in ./tabMentions.
   if (item.type === 'tab' && item.tab) return buildTabMentionChip(item, nodeType);
 
+  // Role mentions serialize to `@[role:<id>|<name>]` — the marker the main
+  // process parses to pick the turn's speaking persona.
+  if (item.type === 'role' && item.roleId) {
+    chip.className = 'chat-mention-chip chat-mention-chip--input chat-mention-chip--role';
+    chip.contentEditable = 'false';
+    chip.dataset.mention = `${ROLE_MENTION_PREFIX}${item.roleId}|${item.label}`;
+    chip.dataset.nodeType = 'role';
+
+    const soft = roleColorSoft(item.roleColor, 0.18);
+    if (item.roleColor && soft) {
+      chip.style.setProperty('--role-accent', item.roleColor);
+      chip.style.setProperty('--role-accent-icon', item.roleColor);
+      chip.style.setProperty('--role-accent-soft', soft);
+    }
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'chat-mention-chip-icon';
+    iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('role')}</svg>`;
+    chip.appendChild(iconSpan);
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'chat-mention-chip-label';
+    labelSpan.textContent = item.label;
+    chip.appendChild(labelSpan);
+    return chip;
+  }
+
   // Canvas-node mentions focus the node; file/folder mentions open their
   // project path in VS Code when clicked.
   const isNavigable = (isNode && !!item.nodeId) || ((isFile || isFolder) && !!item.path);
@@ -221,207 +312,24 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   return chip;
 }
 
-/**
- * Collect structured, workspace-aware context refs from the inline mention
- * chips a user inserted into the composer. Used by the global Nodes/detail
- * assistant so cross-workspace `@`-mentions resolve precisely — node refs carry
- * their workspaceId, tags the workspaces they occur in, canvases their id.
- */
-export function collectContextRefsFromEditable(editable: HTMLElement): {
-  nodes: AgentContextNodeRef[];
-  tags: AgentContextTagRef[];
-  canvases: AgentContextCanvasRef[];
-  domSelections: AgentContextDomSelectionRef[];
-} {
-  const nodes: AgentContextNodeRef[] = [];
-  const tags: AgentContextTagRef[] = [];
-  const canvases: AgentContextCanvasRef[] = [];
-  const domSelections: AgentContextDomSelectionRef[] = [];
-  const chips = editable.querySelectorAll<HTMLElement>('[data-mention-kind]');
-
-  chips.forEach((chip) => {
-    const kind = chip.dataset.mentionKind;
-    const label = chip.querySelector('.chat-mention-chip-label')?.textContent ?? '';
-    if (kind === 'node' && chip.dataset.nodeId) {
-      nodes.push({
-        id: chip.dataset.nodeId,
-        title: label,
-        type: (chip.dataset.nodeType ?? 'file') as CanvasNode['type'],
-        workspaceId: chip.dataset.workspaceId || undefined,
-      });
-    } else if (kind === 'tag' && chip.dataset.tag) {
-      const ids = chip.dataset.workspaceIds ? chip.dataset.workspaceIds.split(',').filter(Boolean) : [];
-      tags.push({ name: chip.dataset.tag, workspaceIds: ids.length ? ids : undefined });
-    } else if (kind === 'canvas' && chip.dataset.workspaceId) {
-      canvases.push({ id: chip.dataset.workspaceId, name: label });
-    } else if (kind === 'dom-selection') {
-      const ref = readDomSelectionDataset(chip, label, domSelections.length);
-      if (ref) domSelections.push(ref);
-    }
-  });
-
-  return { nodes, tags, canvases, domSelections };
-}
-
-export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactNode {
-  const parts: ReactNode[] = [];
-  const re = new RegExp(MENTION_RE.source, 'g');
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = re.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(content.slice(lastIndex, match.index));
-    }
-
-    const rawLabel = match[1];
-    if (rawLabel.startsWith(CANVAS_MENTION_PREFIX)) {
-      const workspaceLabel = rawLabel.slice(CANVAS_MENTION_PREFIX.length);
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--workspace',
-            'data-node-type': 'workspace',
-          } as any,
-          createElement(
-            'span',
-            { className: 'chat-mention-chip-icon' },
-            createElement(MentionNodeIcon, { nodeType: 'workspace' }),
-          ),
-          createElement('span', { className: 'chat-mention-chip-label' }, workspaceLabel),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(SKILL_MENTION_PREFIX)) {
-      const skillLabel = rawLabel.slice(SKILL_MENTION_PREFIX.length);
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--skill',
-            'data-node-type': 'skill',
-          } as any,
-          createElement('span', { className: 'chat-mention-chip-label' }, skillLabel),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(FOLDER_MENTION_PREFIX)) {
-      const folderLabel = rawLabel.slice(FOLDER_MENTION_PREFIX.length);
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--folder',
-            'data-node-type': 'folder',
-          } as any,
-          createElement(
-            'span',
-            { className: 'chat-mention-chip-icon' },
-            createElement(MentionNodeIcon, { nodeType: 'folder' }),
-          ),
-          createElement('span', { className: 'chat-mention-chip-label' }, `${folderLabel}/`),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(TAG_MENTION_PREFIX)) {
-      const tagLabel = rawLabel.slice(TAG_MENTION_PREFIX.length);
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--tag',
-            'data-node-type': 'tag',
-          } as any,
-          createElement(
-            'span',
-            { className: 'chat-mention-chip-icon' },
-            createElement('span', { className: 'chat-mention-chip-hash' }, '#'),
-          ),
-          createElement('span', { className: 'chat-mention-chip-label' }, tagLabel),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(DOM_MENTION_PREFIX)) {
-      const domLabel = pipedMentionLabel(rawLabel, DOM_MENTION_PREFIX, 'DOM selection');
-      parts.push(
-        createElement(
-          'span',
-          {
-            key: match.index,
-            className: 'chat-mention-chip chat-mention-chip--dom',
-            'data-node-type': 'dom',
-          } as any,
-          createElement(
-            'span',
-            { className: 'chat-mention-chip-icon' },
-            createElement(MentionNodeIcon, { nodeType: 'dom' }),
-          ),
-          createElement('span', { className: 'chat-mention-chip-label' }, domLabel),
-        ),
-      );
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    if (rawLabel.startsWith(TAB_MENTION_PREFIX)) {
-      parts.push(renderTabMentionNode(rawLabel, match.index));
-      lastIndex = re.lastIndex;
-      continue;
-    }
-
-    const node = nodes?.find(item => item.title === rawLabel);
-    parts.push(
-      createElement(
-        'span',
-        {
-          key: match.index,
-          className: 'chat-mention-chip chat-mention-chip--clickable',
-          'data-node-type': node?.type,
-          'data-node-id': node?.id,
-        } as any,
-        createElement(
-          'span',
-          { className: 'chat-mention-chip-icon' },
-          createElement(MentionNodeIcon, { nodeType: node?.type ?? 'file' }),
-        ),
-        createElement('span', { className: 'chat-mention-chip-label' }, rawLabel),
-      ),
-    );
-    lastIndex = re.lastIndex;
-  }
-
-  if (lastIndex < content.length) {
-    parts.push(content.slice(lastIndex));
-  }
-
-  return parts.length > 0 ? parts : content;
-}
+// collectContextRefsFromEditable moved to ./contextRefs (500-line gate);
+// re-exported so existing importers are unaffected.
+export { collectContextRefsFromEditable } from './contextRefs';
 
 export function renderMdWithMentions(
   content: string,
   nodes?: CanvasNode[],
-  options?: RenderMarkdownOptions & { rootFolder?: string },
+  options?: RenderMarkdownOptions & {
+    rootFolder?: string;
+    /** Role id → accent color (see useRoleColors); missing ids keep the violet fallback. */
+    roleColors?: ReadonlyMap<string, string>;
+    /** Role name → accent color; set for ASSISTANT content only (see renderRoleNameMentions). */
+    roleNames?: ReadonlyMap<string, string>;
+  },
 ): string {
   const html = renderMarkdown(content, options);
 
-  return html.replace(MENTION_RE, (_match, rawLabel: string) => {
+  const withMarkers = html.replace(MENTION_RE, (_match, rawLabel: string) => {
     if (rawLabel.startsWith(CANVAS_MENTION_PREFIX)) {
       const workspaceLabel = rawLabel.slice(CANVAS_MENTION_PREFIX.length);
       return `<span class="chat-mention-chip chat-mention-chip--workspace" data-node-type="workspace"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('workspace')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(workspaceLabel)}</span></span>`;
@@ -456,6 +364,15 @@ export function renderMdWithMentions(
       return renderTabMentionHtml(rawLabel);
     }
 
+    if (rawLabel.startsWith(ROLE_MENTION_PREFIX)) {
+      const roleLabel = pipedMentionLabel(rawLabel, ROLE_MENTION_PREFIX, 'Role');
+      const body = rawLabel.slice(ROLE_MENTION_PREFIX.length);
+      const pipeIndex = body.indexOf('|');
+      const roleId = pipeIndex >= 0 ? body.slice(0, pipeIndex) : body;
+      const accent = roleAccentStyleAttr(options?.roleColors?.get(roleId));
+      return `<span class="chat-mention-chip chat-mention-chip--role" data-node-type="role"${accent}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('role')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(roleLabel)}</span></span>`;
+    }
+
     if (rawLabel.startsWith(SESSION_MENTION_PREFIX)) {
       const sessionRef = parseSessionMention(rawLabel);
       if (sessionRef) {
@@ -478,4 +395,6 @@ export function renderMdWithMentions(
     const clickableClass = nodeId || filePath ? ' chat-mention-chip--clickable' : '';
     return `<span class="chat-mention-chip${clickableClass}" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"${filePathAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(rawLabel)}</span></span>`;
   });
+
+  return options?.roleNames ? renderRoleNameMentions(withMarkers, options.roleNames) : withMarkers;
 }

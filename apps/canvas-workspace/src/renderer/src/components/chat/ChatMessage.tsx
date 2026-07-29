@@ -3,7 +3,9 @@ import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
 import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
+import { useRoleColors, useRoleNameColors } from './hooks/roleMentionItems';
 import { renderMdWithMentions } from './utils/mentions';
+import { roleColorSoft } from './utils/roleColors';
 import { isImeComposing } from '../../utils/ime';
 import { renderMermaidIn } from './utils/mermaid';
 import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
@@ -94,17 +96,22 @@ export const ChatMessage = ({
   onRegenerate,
   onSessionJump,
 }: ChatMessageProps) => {
+  // Live role accents so `@角色` chips in the transcript match each role's
+  // color (falls back to the violet tokens for deleted/unknown roles).
+  const roleColors = useRoleColors();
+  // Assistant-only: chip the plain `@Name` a role writes when handing off.
+  const roleNames = useRoleNameColors();
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
-      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder })
+      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder, roleColors, roleNames })
       : ''),
-    [message.role, message.content, nodes, isStreaming, rootFolder],
+    [message.role, message.content, nodes, isStreaming, rootFolder, roleColors, roleNames],
   );
   const userHtml = useMemo(
     () => (message.role === 'user'
-      ? renderMdWithMentions(message.content, nodes, { rootFolder })
+      ? renderMdWithMentions(message.content, nodes, { rootFolder, roleColors })
       : ''),
-    [message.role, message.content, nodes, rootFolder],
+    [message.role, message.content, nodes, rootFolder, roleColors],
   );
   // Copy is offered for any settled message (user or assistant) with a body.
   const showCopyToolbar = !isStreaming && !!message.content;
@@ -227,11 +234,27 @@ export const ChatMessage = ({
   return (
     <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
     {message.role === 'assistant' && (
-      <div className="chat-message-avatar">
-        <BotAvatarIcon size={20} />
+      <div
+        className={`chat-message-avatar${message.speakerRoleName ? ' chat-message-avatar--role' : ''}`}
+        style={message.speakerRoleName && message.speakerRoleColor
+          ? { color: message.speakerRoleColor, background: roleColorSoft(message.speakerRoleColor) }
+          : undefined}
+      >
+        {message.speakerRoleName ? message.speakerRoleName.slice(0, 1) : <BotAvatarIcon size={20} />}
       </div>
     )}
     <div className="chat-message-body">
+      {message.role === 'assistant' && message.speakerRoleName && (
+        <span
+          className="chat-message-speaker"
+          style={message.speakerRoleColor
+            ? { color: message.speakerRoleColor, background: roleColorSoft(message.speakerRoleColor) }
+            : undefined}
+        >
+          <span className="chat-message-speaker-dot" />
+          {message.speakerRoleName}
+        </span>
+      )}
       {message.attachments && message.attachments.length > 0 && (
         <div className="chat-message-images">
           {message.attachments.map((attachment, attachmentIndex) => (

@@ -168,9 +168,9 @@
       "gate": { "kind": "ratchet", "baseline": 5565, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
-      "profile": "global-deterministic", "target": 550, "warning": 600,
-      "confidence": "high", "basis": "555 基线上叠加 0.1.26 webview 生命周期治理(#838)与 Library 主进程部分(references 持久化域 + artifact pin 生命周期/list-all + 共享 string-edits 与工具 edits 模式,新增描述与错误串已按门禁瘦身)后实测 572.2KB;仍低于 warning 600,主进程后续新增应先考虑瘦身而非继续提基线", "asOf": "2026-07-23",
-      "gate": { "kind": "ratchet", "baseline": 572, "tolerancePct": 3, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 550, "warning": 620,
+      "confidence": "high", "basis": "572 基线被 0.1.32 发布线渐增吃满:master 实测 589.1,恰在 +3% 上限 589.2 之内,任何主进程新增都会红。多角色群聊主进程部分(角色库存取/IPC、人设注入与两处署名投影、接龙循环 + agent@agent 接话策略、chat_role_* 工具)落地后实测 602.8KB,增量约 13.7KB;提示词与工具描述为功能载荷、注释经 esbuild minify 不计入,复核无可免费瘦身项。提基线至 603,保留 target 550 作为瘦身压力,warning 同步移至 620。", "asOf": "2026-07-28",
+      "gate": { "kind": "ratchet", "baseline": 603, "tolerancePct": 3, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,

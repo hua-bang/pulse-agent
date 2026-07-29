@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { MENTION_GROUP_LABEL_KEY, getMentionGroupKey } from './constants';
 import type { MentionItem } from './types';
 import { MentionNodeIcon, tabMentionIconType } from './utils/mentions';
+import { roleColorSoft } from './utils/roleColors';
 import { useI18n } from '../../i18n';
 import { SessionTitle } from './SessionTitle';
 import { sessionTitleText } from './utils/sessionTitle';
@@ -35,19 +36,21 @@ export const ChatMentionPopup = ({
         const groupKey = getMentionGroupKey(item);
         const previousGroupKey = index > 0 ? getMentionGroupKey(mentionItems[index - 1]) : null;
         const showHeader = previousGroupKey !== groupKey;
-        const nodeType = item.type === 'workspace'
-          ? 'workspace'
-          : item.type === 'skill'
-            ? 'skill'
-            : item.type === 'folder'
-              ? 'folder'
-              : item.type === 'session'
-                ? 'session'
-                : item.type === 'tab'
-                  ? tabMentionIconType(item.tab?.kind)
-                  : item.type === 'node'
-                    ? item.nodeType ?? 'file'
-                    : 'file';
+        const nodeType = item.type === 'role'
+          ? 'role'
+          : item.type === 'workspace'
+            ? 'workspace'
+            : item.type === 'skill'
+              ? 'skill'
+              : item.type === 'folder'
+                ? 'folder'
+                : item.type === 'session'
+                  ? 'session'
+                  : item.type === 'tab'
+                    ? tabMentionIconType(item.tab?.kind)
+                    : item.type === 'node'
+                      ? item.nodeType ?? 'file'
+                      : 'file';
 
         return (
           <div key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}>
@@ -64,7 +67,12 @@ export const ChatMentionPopup = ({
               onMouseEnter={() => onMentionIndexChange(index)}
             >
               {item.type !== 'skill' && (
-                <span className="chat-mention-item-icon">
+                <span
+                  className="chat-mention-item-icon"
+                  style={item.type === 'role' && item.roleColor
+                    ? { color: item.roleColor, background: roleColorSoft(item.roleColor) }
+                    : undefined}
+                >
                   {item.type === 'tag'
                     ? <span className="chat-mention-chip-hash">#</span>
                     : <MentionNodeIcon size={14} nodeType={nodeType} />}

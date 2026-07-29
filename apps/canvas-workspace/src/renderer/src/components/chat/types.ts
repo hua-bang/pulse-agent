@@ -106,8 +106,12 @@ export type ToolCallStatus = AgentChatToolCall;
 export type { ChatImageAttachment };
 
 export interface MentionItem {
-  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'tag' | 'session' | 'dom' | 'tab';
+  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'tag' | 'session' | 'dom' | 'tab' | 'role';
   label: string;
+  /** For type === 'role': the chat persona's id from the role library. */
+  roleId?: string;
+  /** For type === 'role': the persona's accent color (popup icon tint). */
+  roleColor?: string;
   nodeType?: CanvasNode['type'];
   /** For type === 'node': the canvas node id, used to focus it when clicked. */
   nodeId?: string;

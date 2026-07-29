@@ -39,6 +39,15 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   onClarifyRequest: (sessionId, callback) =>
     subscribe(ipcRenderer, `canvas-agent:clarify-request:${sessionId}`, callback),
 
+  onRoleTurnStart: (sessionId, callback) =>
+    subscribe(ipcRenderer, `canvas-agent:role-turn-start:${sessionId}`, callback),
+
+  onRoleTurnEnd: (sessionId, callback) =>
+    subscribe(ipcRenderer, `canvas-agent:role-turn-end:${sessionId}`, callback),
+
+  stopRelay: (sessionId) =>
+    ipcRenderer.invoke("canvas-agent:stop-relay", { sessionId }),
+
   answerClarification: (sessionId, requestId, answer) =>
     ipcRenderer.invoke("canvas-agent:clarify-answer", { sessionId, requestId, answer }),
 

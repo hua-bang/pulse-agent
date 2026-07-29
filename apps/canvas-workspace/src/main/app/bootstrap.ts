@@ -28,6 +28,7 @@ import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
 import { ensureDefaultSkillsSeeded } from "../agent/default-skills";
 import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
+import { setupAgentRolesIpc } from "../agent/agent-roles-ipc";
 import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
 import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
 import { setupCanvasPluginsConfigIpc } from "../settings/canvas-plugins-ipc";
@@ -204,6 +205,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       void writeLog("main", "ensureDefaultSkillsSeeded failed", String(err));
     });
     setupCanvasPromptIpc();
+    setupAgentRolesIpc();
     setupExperimentalIpc();
     setupWebviewRegistryIpc();
     // L3 of the webview lifecycle: budget-driven discard of long-frozen

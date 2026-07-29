@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEventHandler } from 'react';
-import { DOM_MENTION_PREFIX } from './constants';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import { SessionTitle } from './SessionTitle';
@@ -9,6 +8,7 @@ import './DomMention.css';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
+import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useComposerRequest } from './hooks/useComposerRequest';
 import { useAppShell } from '../AppShellProvider';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
@@ -18,28 +18,7 @@ import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { useStartSkillChat } from './hooks/useStartSkillChat';
-function escapeDomMentionPart(value: string): string {
-  return value.replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim();
-}
-function buildDomReviewPrompt(comments: AgentContextDomReviewComment[]): string {
-  const lines = [
-    `Apply these ${comments.length} DOM review comments to the selected web UI elements.`,
-    '',
-  ];
-  comments.forEach((comment, index) => {
-    const selection = comment.selection;
-    const label = escapeDomMentionPart(selection.label || `DOM selection ${index + 1}`);
-    const marker = `@[${DOM_MENTION_PREFIX}${selection.id}|${label}]`;
-    lines.push(`${index + 1}. ${marker}`);
-    lines.push(`   Comment: ${comment.text.trim()}`);
-    lines.push(`   Selector: ${selection.selector}`);
-    if (selection.text) {
-      const excerpt = selection.text.replace(/\s+/g, ' ').trim().slice(0, 220);
-      if (excerpt) lines.push(`   Element text: ${excerpt}`);
-    }
-  });
-  return lines.join('\n');
-}
+import { buildDomReviewPrompt } from './utils/domReviewPrompt';
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
@@ -104,6 +83,8 @@ export const ChatPanel = ({
     clearInput,
     editUserMessage,
     regenerateAssistantMessage,
+    relay,
+    stopRelay,
     collapsedSections,
     editableRef,
     expandedTools,
@@ -299,19 +280,24 @@ export const ChatPanel = ({
 
   useComposerRequest({ request: composerRequest, focusInput, replaceInput, submitQuickAction: (prompt, quickAction) => { void handleQuickAction(prompt, quickAction); }, onHandled: onComposerRequestHandled });
 
+  // A turn addressed ONLY to externally-driven roles runs on the user's own
+  // CLI (its auth, its billing) — no app provider needed, so it passes the
+  // no-provider guard. Quick actions / DOM review always use the built-in
+  // model and stay guarded.
   const handleSubmit = useCallback(async () => {
-    if (notConfigured) {
+    if (notConfigured && !isExternalOnlyRoleMessage(input)) {
       openModelSettingsWithHint();
       return false;
     }
     return await submitCurrentInput(requestContext);
-  }, [notConfigured, openModelSettingsWithHint, requestContext, submitCurrentInput]);
+  }, [input, notConfigured, openModelSettingsWithHint, requestContext, submitCurrentInput]);
 
   const handleComposerKeyDown = useCallback<KeyboardEventHandler<HTMLDivElement>>((event) => {
     const mentionSelecting = mentionOpen && mentionItems.length > 0;
     const hasDraft = Boolean(input.trim() || attachments.length > 0);
     if (
       notConfigured
+      && !isExternalOnlyRoleMessage(input)
       && hasDraft
       && !mentionSelecting
       && event.key === 'Enter'
@@ -434,6 +420,7 @@ export const ChatPanel = ({
           onOpenSettings={handleOpenScopeSettings}
           settingsLabel={settingsButtonLabel}
           onOpenPromptSettings={() => onOpenAppSettings('reply-style')}
+          onOpenRolesSettings={() => onOpenAppSettings('chat-roles')}
           onLoadSession={handleLoadSessionFromMenu}
           onClose={onClose}
           anchors={<ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />}
@@ -452,6 +439,8 @@ export const ChatPanel = ({
       collapsedSections={collapsedSections}
       expandedTools={expandedTools}
       pendingClarify={pendingClarify}
+      relay={relay}
+      onStopRelay={stopRelay}
       clarifyInput={clarifyInput}
       onClarifyInputChange={setClarifyInput}
       onAnswerClarification={answerClarification}

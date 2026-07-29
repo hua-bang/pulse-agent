@@ -24,6 +24,7 @@ import { createHtmlPatchTools } from './html-patch';
 import { createLayoutTools } from './layout-tools';
 import { createMemoryTools } from './memory';
 import { createScheduledTools } from './scheduled';
+import { createRoleTools } from './roles';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -96,6 +97,8 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     // Scheduled tasks are app-level (no ambient workspace), so they stay
     // unwrapped here exactly as in workspace chat.
     ...createScheduledTools(),
+    // Group-chat roles live in one app-level library — same posture.
+    ...createRoleTools(),
   };
 }
 
@@ -124,6 +127,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createLayoutTools(workspaceId),
     ...createMemoryTools(workspaceId),
     ...createScheduledTools(),
+    ...createRoleTools(),
   };
 
   // Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's

@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import { Drawer } from '../ui';
 import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
+import { RolesSection } from '../chat/RolesSettings';
 import { AgentSection } from './AgentSection';
 import { BrowserSection } from './BrowserSection';
 import { BuiltInToolsSection } from './BuiltInToolsSection';
@@ -29,7 +30,7 @@ import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'mcp' | 'plugins' | 'browser' | 'experimental' | 'updates' | 'language';
+export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'chat-roles' | 'agent' | 'mcp' | 'plugins' | 'browser' | 'experimental' | 'updates' | 'language';
 
 const GLOBAL_SCOPE = { level: 'global' } as const;
 
@@ -58,6 +59,12 @@ const SECTIONS: SectionDef[] = [
     labelKey: 'settings.replyStyle.label',
     descriptionKey: 'settings.replyStyle.description',
     titleKey: 'settings.replyStyle.title',
+  },
+  {
+    id: 'chat-roles',
+    labelKey: 'settings.roles.label',
+    descriptionKey: 'settings.roles.description',
+    titleKey: 'settings.roles.title',
   },
   {
     id: 'agent',
@@ -171,6 +178,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
               onReset={promptProfile.reset}
             />
           )}
+          {activeSection === 'chat-roles' && <RolesSection onClose={onClose} />}
           {activeSection === 'built-in-tools' && <BuiltInToolsSection onClose={onClose} />}
           {activeSection === 'agent' && <AgentSection onClose={onClose} />}
           {activeSection === 'mcp' && (

@@ -183,6 +183,12 @@ export interface AgentChatMessage {
   toolCalls?: AgentChatToolCall[];
   /** Stable identifier of the agent turn that produced this message. */
   runId?: string;
+  /** Multi-role chat: id of the role that spoke this assistant message. */
+  speakerRoleId?: string;
+  /** Snapshot of the role's name at the time of the turn. */
+  speakerRoleName?: string;
+  /** Snapshot of the role's accent color at the time of the turn. */
+  speakerRoleColor?: string;
 }
 
 export interface AgentContextNodeRef {
