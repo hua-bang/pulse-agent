@@ -1,3 +1,4 @@
+import { useCallback, useRef } from 'react';
 import type { AgentContextTabRef, AgentRequestContext, CanvasNode } from '../../../types';
 import { useCanvasModels } from '../ModelSettings';
 import type { AgentScope, WorkspaceOption } from '../types';
@@ -60,6 +61,16 @@ export function useChatComposerState({
     skipInitialHistory,
   });
 
+  // A turn must not be sent into a conversation that is still being fetched:
+  // the thread on screen is a skeleton and the main-side session pointer is
+  // mid-swap, so the message could land in either session. Mirror image of the
+  // rule the surfaces already apply the other way round (session switches are
+  // blocked while a turn streams). Read through a ref so the composer's
+  // callbacks stay stable while the flag flips.
+  const sessionLoadingRef = useRef(false);
+  sessionLoadingRef.current = chatSessions.sessionLoading;
+  const isSubmitBlocked = useCallback(() => sessionLoadingRef.current, []);
+
   const mentions = useMentions({
     allWorkspaces,
     agentScope,
@@ -71,6 +82,7 @@ export function useChatComposerState({
     collectStructuredContext,
     onSubmit: chatStream.sendMessage,
     getRequestContext,
+    isSubmitBlocked,
   });
 
   return {

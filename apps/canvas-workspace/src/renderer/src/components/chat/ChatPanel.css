@@ -609,9 +609,11 @@
   animation: chat-skeleton-shimmer 1.5s ease-in-out infinite;
 }
 
+/* Same sweep direction and duration as .iframe-shimmer-bar — the app's one
+   existing shimmer — so the two read as the same idiom. */
 @keyframes chat-skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
