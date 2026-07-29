@@ -20,6 +20,7 @@ import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
 import { RolesSection } from '../chat/RolesSettings';
 import { AgentSection } from './AgentSection';
+import { AppearanceSection } from './AppearanceSection';
 import { BrowserSection } from './BrowserSection';
 import { BuiltInToolsSection } from './BuiltInToolsSection';
 import { ExperimentalSection } from './ExperimentalSection';
@@ -30,7 +31,7 @@ import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'chat-roles' | 'agent' | 'mcp' | 'plugins' | 'browser' | 'experimental' | 'updates' | 'language';
+export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'chat-roles' | 'agent' | 'mcp' | 'plugins' | 'browser' | 'experimental' | 'updates' | 'appearance' | 'language';
 
 const GLOBAL_SCOPE = { level: 'global' } as const;
 
@@ -101,6 +102,12 @@ const SECTIONS: SectionDef[] = [
     labelKey: 'settings.updates.label',
     descriptionKey: 'settings.updates.description',
     titleKey: 'settings.updates.title',
+  },
+  {
+    id: 'appearance',
+    labelKey: 'settings.appearance.label',
+    descriptionKey: 'settings.appearance.description',
+    titleKey: 'settings.appearance.title',
   },
   {
     id: 'language',
@@ -194,6 +201,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
           {activeSection === 'browser' && <BrowserSection />}
           {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}
           {activeSection === 'updates' && <UpdateSection />}
+          {activeSection === 'appearance' && <AppearanceSection />}
           {activeSection === 'language' && <LanguageSection />}
         </div>
       </div>

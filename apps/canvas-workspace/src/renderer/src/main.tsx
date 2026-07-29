@@ -10,9 +10,11 @@ import {
 } from "../../plugins/renderer";
 import { installPerfMonitor, markOnce } from "./perf/monitor";
 import { installJankMonitor } from "./perf/jank-monitor";
+import { initStoredTheme } from "./theme";
 
 installPerfMonitor();
 installJankMonitor();
+initStoredTheme();
 markOnce("renderer:main-start");
 
 const root = document.getElementById("root");

@@ -64,6 +64,14 @@ work goes through the typed bridge `window.canvasWorkspace` (typed by
   `interaction-polish.css`) and imported from the component file.
 - Follow the existing design-token usage (oklch palette, frame styles) seen in
   `design/` and existing component CSS rather than hardcoding ad-hoc colors.
+- Appearance themes are **token overlays**: `styles.css` scopes redefinitions
+  under `:root[data-theme='spatial']`; `src/renderer/src/theme.ts` applies and
+  persists the choice (localStorage `pulse-canvas.theme`, surfaced in Settings →
+  Appearance, applied pre-render from `main.tsx`). A theme delta is token
+  redefinitions plus at most narrowly scoped component rules that reference
+  theme tokens (e.g. the `--pill-*` toolbar family) — never new raw CSS
+  literals, which the ui-reuse ratchet counts outside custom-property
+  definition lines.
 
 ## UI reuse (governed — ratchet-enforced)
 

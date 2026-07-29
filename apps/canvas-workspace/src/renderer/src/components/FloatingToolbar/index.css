@@ -400,3 +400,51 @@
     margin: 0 2px;
   }
 }
+
+/* ---- Spatial theme: the signature black pill ----
+ * Token-only overrides (--pill-* defined in styles.css under
+ * :root[data-theme='spatial']); dropdown panels keep the light
+ * ui-dropdown surface, matching the reference boards. */
+
+:root[data-theme='spatial'] .floating-toolbar {
+  background: var(--pill-bg);
+  border-color: var(--pill-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--pill-shadow);
+  padding: 5px 7px;
+}
+
+:root[data-theme='spatial'] .floating-toolbar .toolbar-btn {
+  color: var(--pill-text);
+  border-radius: var(--radius-pill);
+}
+
+:root[data-theme='spatial'] .floating-toolbar .toolbar-btn:hover,
+:root[data-theme='spatial'] .floating-toolbar .toolbar-btn:focus-visible {
+  background: var(--pill-hover-bg);
+  color: var(--pill-text-strong);
+}
+
+:root[data-theme='spatial'] .floating-toolbar .toolbar-btn:disabled:hover {
+  background: transparent;
+  color: var(--pill-text);
+}
+
+:root[data-theme='spatial'] .floating-toolbar .toolbar-btn--active,
+:root[data-theme='spatial'] .floating-toolbar .toolbar-btn--active:hover {
+  background: var(--pill-active-bg);
+  color: var(--pill-text-strong);
+}
+
+:root[data-theme='spatial'] .floating-toolbar .terminal-tool-split--active .terminal-tool-add,
+:root[data-theme='spatial'] .floating-toolbar .terminal-tool-split--active .terminal-tool-add:hover,
+:root[data-theme='spatial'] .floating-toolbar .terminal-tool-split--active .terminal-tool-add:focus-visible {
+  background: var(--pill-active-bg);
+  color: var(--pill-text-strong);
+}
+
+:root[data-theme='spatial'] .floating-toolbar .toolbar-divider,
+:root[data-theme='spatial'] .floating-toolbar .shape-tool-split .shape-tool-caret::before,
+:root[data-theme='spatial'] .floating-toolbar .terminal-tool-split .terminal-tool-add::before {
+  background: var(--pill-divider);
+}

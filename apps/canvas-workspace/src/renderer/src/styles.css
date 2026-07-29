@@ -125,6 +125,73 @@
   --layer-toast: 2100;               /* app-shell toasts */
 }
 
+/* ── Spatial theme ────────────────────────────────────────────────
+ * Opt-in look activated by `data-theme="spatial"` on <html>
+ * (src/renderer/src/theme.ts; Settings → Appearance). Vision-read from
+ * the get-spatial.com reference boards (2026-07-29): cool near-white
+ * ground, pure-white shadow-floated cards, near-black ink, indigo
+ * interactive accent, chartreuse marker highlight, mint frame / coral
+ * file accents, sans chrome, larger radii, and the signature black
+ * pill toolbar (--pill-* tokens, applied in FloatingToolbar/index.css).
+ * Token redefinitions only — unchanged tokens inherit :root, component
+ * structure is untouched, and every literal sits on a custom-property
+ * definition line (the ui-reuse governance counters exempt those). */
+:root[data-theme='spatial'] {
+  --bg: #edeff2;
+  --bg-canvas: #f2f4f6;
+  --surface-hover: #f5f6f8;
+  --border: #e2e5e9;
+  --border-light: #eceef1;
+  --text: #191b1d;
+  --text-secondary: #7c8187;
+  --text-muted: #b0b5bb;
+  --accent: #3d4ff2;
+  --accent-light: rgba(61, 79, 242, 0.08);
+  --accent-border: rgba(61, 79, 242, 0.45);
+  --accent-muted: rgba(61, 79, 242, 0.16);
+  --accent-soft: rgba(61, 79, 242, 0.1);
+  --accent-soft-strong: rgba(61, 79, 242, 0.22);
+  --accent-file: #f2603d;
+  --accent-term: #12876d;
+  --accent-frame: #3fbfae;
+  --note-border: rgba(20, 22, 26, 0.08);
+  --note-border-hover: rgba(20, 22, 26, 0.14);
+  --note-shadow: 0 1px 2px rgba(16, 18, 22, 0.04), 0 10px 28px rgba(16, 18, 22, 0.07);
+  --note-shadow-hover: 0 2px 4px rgba(16, 18, 22, 0.05), 0 14px 34px rgba(16, 18, 22, 0.09);
+  --note-callout-bg: #f3f5f7;
+  --note-callout-border: #e5e8eb;
+  --note-inline-code-bg: rgba(20, 22, 26, 0.06);
+  --note-code-block-bg: rgba(20, 22, 26, 0.045);
+  --note-highlight-bg: rgba(240, 255, 60, 0.6);
+  --note-scroll-thumb: rgba(20, 22, 26, 0.12);
+  --note-scroll-thumb-hover: rgba(20, 22, 26, 0.22);
+  --success: #18915d;
+  --error: #d8402e;
+  --overlay-backdrop: rgba(14, 16, 20, 0.32);
+  --shadow-sm: 0 1px 3px rgba(16, 18, 22, 0.05);
+  --shadow-card: 0 1px 3px rgba(16, 18, 22, 0.05), 0 8px 20px rgba(16, 18, 22, 0.07);
+  --shadow-card-hover: 0 2px 6px rgba(16, 18, 22, 0.06), 0 12px 30px rgba(16, 18, 22, 0.1);
+  --shadow-drag: 0 12px 34px rgba(16, 18, 22, 0.14), 0 3px 10px rgba(16, 18, 22, 0.08);
+  --shadow-float: 0 6px 28px rgba(16, 18, 22, 0.1), 0 0 0 1px rgba(16, 18, 22, 0.04);
+  --shadow-focus: 0 0 0 3px rgba(61, 79, 242, 0.15);
+  --radius: 10px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius-xs: 5px;
+  --radius-xl: 16px;
+  --font: var(--font-ui);
+  /* Signature black pill toolbar (consumed by FloatingToolbar/index.css). */
+  --pill-bg: #17181b;
+  --pill-border: rgba(255, 255, 255, 0.08);
+  --pill-text: #b9bdc4;
+  --pill-text-strong: #f4f5f7;
+  --pill-hover-bg: rgba(255, 255, 255, 0.1);
+  --pill-active-bg: rgba(255, 255, 255, 0.17);
+  --pill-divider: rgba(255, 255, 255, 0.14);
+  --pill-shadow: 0 12px 32px rgba(10, 12, 16, 0.32), 0 2px 8px rgba(10, 12, 16, 0.22);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

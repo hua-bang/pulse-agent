@@ -1,0 +1,35 @@
+.appearance-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.appearance-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px;
+}
+
+.appearance-card {
+  border: 1px solid var(--note-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.appearance-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.appearance-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
