@@ -25,6 +25,13 @@ interface ChatViewProps {
   // Streaming + messages
   messages: AgentChatMessage[];
   loading: boolean;
+  /**
+   * True while the selected conversation's messages are being fetched. Keeps
+   * the thread mounted (showing a skeleton) instead of falling through to the
+   * empty state, which is what a scope switch used to render for the whole
+   * round trip.
+   */
+  sessionLoading?: boolean;
   workspaceId: string;
   rootFolder?: string;
   streamingTools: ToolCallStatus[];
@@ -106,6 +113,7 @@ export const ChatView = ({
   pendingLabel,
   messages,
   loading,
+  sessionLoading = false,
   workspaceId,
   rootFolder,
   streamingTools,
@@ -159,7 +167,7 @@ export const ChatView = ({
   onSessionJump,
   onResizeStart,
 }: ChatViewProps) => {
-  const hasMessages = messages.length > 0 || loading || Boolean(pendingLabel);
+  const hasMessages = messages.length > 0 || loading || sessionLoading || Boolean(pendingLabel);
 
   return (
     <div className={className ?? 'chat-view'}>
@@ -173,6 +181,7 @@ export const ChatView = ({
         <ChatMessages
           messages={messages}
           loading={loading}
+          sessionLoading={sessionLoading}
           nodes={nodes}
           workspaceId={workspaceId}
           rootFolder={rootFolder}

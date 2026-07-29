@@ -553,6 +553,74 @@
   40% { transform: scale(1); }
 }
 
+/* ── Session-detail skeleton ─────────────────────────────────────────────
+ *
+ * The thread's loading state, shown while a conversation's messages are in
+ * flight (rail pick, session-ref chip jump, back bar, scope switch). It is
+ * built on the REAL .chat-message / .chat-message-avatar / .chat-message-body
+ * classes so the placeholder occupies the same geometry the real bubbles land
+ * on — swapping one for the other must not reflow the thread.
+ *
+ * Distinct from .chat-loading (the three dots): that one means "the model is
+ * generating a reply", this one means "we are fetching what was already
+ * said". Do not merge them. */
+.chat-thread-skeleton {
+  /* One place to tune the placeholder palette; every bar below inherits it. */
+  --chat-skeleton-base: rgba(55, 53, 47, 0.07);
+  --chat-skeleton-sheen: rgba(55, 53, 47, 0.13);
+  display: flex;
+  flex-direction: column;
+  /* Matches .chat-messages' own inter-message gap. */
+  gap: 2px;
+}
+
+/* .chat-skeleton-row deliberately adds nothing: inheriting .chat-message's
+   own padding-bottom is what keeps each placeholder on the exact baseline
+   its real bubble will land on. It exists as a hook for the design pass. */
+
+.chat-skeleton-avatar {
+  background: var(--chat-skeleton-base);
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.chat-skeleton-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Aligns the first bar with the cap height of real first-line text. */
+  padding-top: 7px;
+}
+
+.chat-message-user .chat-skeleton-body {
+  align-items: flex-end;
+}
+
+.chat-skeleton-line {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    90deg,
+    var(--chat-skeleton-base) 0%,
+    var(--chat-skeleton-sheen) 50%,
+    var(--chat-skeleton-base) 100%
+  );
+  background-size: 200% 100%;
+  animation: chat-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes chat-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-skeleton-line {
+    animation: none;
+    background: var(--chat-skeleton-base);
+  }
+}
+
 /* ─── Input area ───────────────────────────────────────────── */
 
 .chat-input-container {

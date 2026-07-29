@@ -14,8 +14,18 @@ interface UseChatSessionsOptions {
    * When true, don't call getHistory on mount. Use this when the caller is
    * about to load a specific session manually — avoids a race between the
    * initial getHistory and the pending loadSession.
+   *
+   * Setting this OBLIGES the caller to call handleLoadSession: `sessionLoading`
+   * is seeded true at mount and, with the history fetch skipped, only a thread
+   * fetch clears it.
    */
   skipInitialHistory?: boolean;
+}
+
+/** Shared shape of every IPC call that replaces the whole message thread. */
+interface ThreadFetchResult {
+  ok: boolean;
+  messages?: AgentChatMessage[];
 }
 
 interface CachedSessions {
@@ -83,6 +93,20 @@ export function useChatSessions({
   const [sessionsLoading, setSessionsLoading] = useState(
     () => eagerLoad && !sessionsCache.has(scopeKey),
   );
+  // Detail counterpart of sessionsLoading: true while THIS session's messages
+  // are in flight. Both thread fetches — the mount/scope-change getHistory
+  // below and handleLoadSession — used to run with no pending state at all,
+  // so for the whole IPC round trip the view either kept the previous
+  // session's messages on screen or (after a scope remount, where the thread
+  // starts empty) fell through to the empty state. Seeded true because a
+  // fetch is always imminent at mount: either the history effect runs, or
+  // skipInitialHistory promised a handleLoadSession call.
+  const [sessionLoading, setSessionLoading] = useState(true);
+  // Monotonic token for thread fetches. Only the newest fetch may write to
+  // the thread or clear the flag — two quick session picks (or a pick landing
+  // while the mount history fetch is still open) would otherwise let the
+  // slower response overwrite the session the user actually asked for.
+  const threadRequestRef = useRef(0);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
 
   // Always read the latest scope inside the effect without making the effect
@@ -96,15 +120,35 @@ export function useChatSessions({
   // effect on each streaming setState, and `onMessagesLoaded` (replaceMessages)
   // would clobber the in-flight assistant message — making intermediate tool
   // calls / streamed text disappear and the view flicker mid-turn.
-  useEffect(() => {
-    if (skipInitialHistory) return;
-    void (async () => {
-      const result = await window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current });
+  /**
+   * Runs a thread-replacing fetch behind `sessionLoading`, dropping the result
+   * of any fetch that a newer one has already superseded.
+   */
+  const runThreadFetch = useCallback(async (fetchThread: () => Promise<ThreadFetchResult>) => {
+    const token = ++threadRequestRef.current;
+    setSessionLoading(true);
+    try {
+      const result = await fetchThread();
+      // A newer fetch (or a new-session reset) took over while this one was
+      // open: neither its messages nor its "done" belong to what's on screen.
+      if (token !== threadRequestRef.current) return;
       if (result.ok && result.messages) {
         onMessagesLoaded(result.messages);
       }
-    })();
-  }, [onMessagesLoaded, skipInitialHistory, scopeKey]);
+    } finally {
+      if (token === threadRequestRef.current) {
+        setSessionLoading(false);
+      }
+    }
+  }, [onMessagesLoaded]);
+
+  useEffect(() => {
+    // The caller is about to run its own handleLoadSession; leave
+    // sessionLoading seeded true so the thread stays in its loading state
+    // continuously instead of flashing empty between the two.
+    if (skipInitialHistory) return;
+    void runThreadFetch(() => window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current }));
+  }, [runThreadFetch, skipInitialHistory, scopeKey]);
 
   useClickOutside(sessionMenuRef, () => setSessionMenuOpen(false), sessionMenuOpen);
   const closeSessionMenu = useCallback(() => setSessionMenuOpen(false), []);
@@ -182,6 +226,10 @@ export function useChatSessions({
     setSessionMenuOpen(false);
     const result = await window.canvasWorkspace.agent.newSession({ scope: agentScope });
     if (!result.ok) return result;
+    // Retire any in-flight thread fetch: its messages belong to the session
+    // we just navigated away from, and a blank new chat is not "loading".
+    threadRequestRef.current += 1;
+    setSessionLoading(false);
     onMessagesLoaded([]);
     return result;
   }, [agentScope, onMessagesLoaded]);
@@ -189,14 +237,12 @@ export function useChatSessions({
   const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
     setSessionMenuOpen(false);
 
-    const result = sourceWorkspaceId && workspaceId && sourceWorkspaceId !== workspaceId
-      ? await window.canvasWorkspace.agent.loadCrossWorkspaceSession(workspaceId, sourceWorkspaceId, sessionId)
-      : await window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId);
-
-    if (result.ok && result.messages) {
-      onMessagesLoaded(result.messages);
-    }
-  }, [agentScope, onMessagesLoaded, workspaceId]);
+    await runThreadFetch(() => (
+      sourceWorkspaceId && workspaceId && sourceWorkspaceId !== workspaceId
+        ? window.canvasWorkspace.agent.loadCrossWorkspaceSession(workspaceId, sourceWorkspaceId, sessionId)
+        : window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId)
+    ));
+  }, [agentScope, runThreadFetch, workspaceId]);
 
   return {
     otherSessions,
@@ -210,5 +256,6 @@ export function useChatSessions({
     sessionMenuRef,
     sessions,
     sessionsLoading,
+    sessionLoading,
   };
 }

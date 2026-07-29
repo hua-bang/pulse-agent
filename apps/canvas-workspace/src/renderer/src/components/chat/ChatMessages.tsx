@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { BotAvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
+import { ChatThreadSkeleton } from './ChatThreadSkeleton';
 import type { PendingClarification, ToolCallStatus } from './types';
 import { buildAnchorElementId } from './utils/anchors';
 import { useI18n } from '../../i18n';
@@ -35,6 +36,12 @@ interface ChatMessagesProps {
   onRegenerate?: (index: number) => Promise<boolean> | void;
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
   pendingLabel?: string;
+  /**
+   * True while THIS conversation's messages are being fetched. Replaces the
+   * thread with a skeleton: whatever `messages` still holds belongs to the
+   * session being navigated away from, so showing it would be a lie.
+   */
+  sessionLoading?: boolean;
 }
 
 const LoadingPlaceholder = ({ label }: { label?: string }) => (
@@ -150,6 +157,7 @@ export const ChatMessages = ({
   onRegenerate,
   onSessionJump,
   pendingLabel,
+  sessionLoading = false,
 }: ChatMessagesProps) => {
   const { t } = useI18n();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -289,7 +297,9 @@ export const ChatMessages = ({
         className={`chat-messages${loading ? ' chat-messages--loading' : ''}`}
         onClick={handleMessageClick}
         onScroll={handleScroll}
+        aria-busy={sessionLoading || undefined}
       >
+        {sessionLoading ? <ChatThreadSkeleton /> : <>
         {messages.map((message, index) => {
           const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
           const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
@@ -327,9 +337,10 @@ export const ChatMessages = ({
             onAnswerClarification={onAnswerClarification}
           />
         )}
+        </>}
         <div ref={messagesEndRef} />
       </div>
-      {!atBottom && messages.length > 0 && (
+      {!atBottom && messages.length > 0 && !sessionLoading && (
         <button
           type="button"
           className="chat-jump-latest"

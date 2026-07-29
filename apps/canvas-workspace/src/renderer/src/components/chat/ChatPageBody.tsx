@@ -134,7 +134,7 @@ export const ChatPageBody = ({
     removeAttachment,
     selectMention,
     sendMessage,
-    sessions, sessionsLoading,
+    sessions, sessionsLoading, sessionLoading,
     setClarifyInput,
     setMentionIndex,
     streamingTools,
@@ -448,7 +448,7 @@ export const ChatPageBody = ({
             <SessionBackBar entry={backEntry} disabled={loading} onBack={onBackToSession} />
           ) : undefined)}
           messages={messages}
-          loading={loading}
+          loading={loading} sessionLoading={sessionLoading}
           workspaceId={anchorScopeId}
           rootFolder={rootFolder}
           streamingTools={streamingTools}
