@@ -63,13 +63,25 @@ export function useChatComposerState({
 
   // A turn must not be sent into a conversation that is still being fetched:
   // the thread on screen is a skeleton and the main-side session pointer is
-  // mid-swap, so the message could land in either session. Mirror image of the
-  // rule the surfaces already apply the other way round (session switches are
-  // blocked while a turn streams). Read through a ref so the composer's
-  // callbacks stay stable while the flag flips.
+  // mid-swap, so the message could land in either session — and the pending
+  // replaceMessages would erase it either way. Mirror image of the rule the
+  // surfaces already apply the other way round (session switches are blocked
+  // while a turn streams).
+  //
+  // The veto sits on sendMessage rather than on the composer's submit path
+  // because the composer is NOT the only entry: quick actions arrive
+  // programmatically (Knowledge Chat's Summarize → useComposerRequest →
+  // handleQuickAction) and DOM review submits its own prompt, both calling
+  // sendMessage directly. This is the one funnel they all pass through — and
+  // because every surface reads sendMessage off this hook's result, wrapping
+  // it here covers them without touching each call site. Read through a ref
+  // so consumers' callbacks stay stable while the flag flips.
   const sessionLoadingRef = useRef(false);
   sessionLoadingRef.current = chatSessions.sessionLoading;
-  const isSubmitBlocked = useCallback(() => sessionLoadingRef.current, []);
+  const sendMessage = useCallback<typeof chatStream.sendMessage>(async (...args) => {
+    if (sessionLoadingRef.current) return false;
+    return chatStream.sendMessage(...args);
+  }, [chatStream.sendMessage]);
 
   const mentions = useMentions({
     allWorkspaces,
@@ -80,15 +92,17 @@ export function useChatComposerState({
     knowledgeTags,
     dockTabs,
     collectStructuredContext,
-    onSubmit: chatStream.sendMessage,
+    onSubmit: sendMessage,
     getRequestContext,
-    isSubmitBlocked,
   });
 
   return {
     ...chatStream,
     ...chatSessions,
     ...mentions,
+    // Must stay AFTER the chatStream spread — this is the vetoed wrapper, and
+    // every surface's quick actions / DOM review read sendMessage from here.
+    sendMessage,
     canvasModels,
   };
 }
