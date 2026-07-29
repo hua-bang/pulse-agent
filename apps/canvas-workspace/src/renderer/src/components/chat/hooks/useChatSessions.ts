@@ -112,12 +112,13 @@ export function useChatSessions({
   // — so two overlapping switches leave the main-side pointer at whichever
   // call finishes last, while the token paints whichever was clicked last.
   // Those two can disagree, and then the next turn persists into a
-  // conversation the user is not looking at. Refusing an overlapping switch
-  // is what keeps the pointer and the thread in agreement; the token stays as
-  // the renderer-side arbiter for the one overlap still allowed. getHistory
-  // is deliberately exempt: it activates and reads, never promotes, so a pick
-  // may overlap the mount history fetch harmlessly.
-  const switchInFlightRef = useRef(false);
+  // conversation the user is not looking at. Switches therefore run one at a
+  // time (see runExclusiveSwitch); the token stays as the renderer-side
+  // arbiter for the one overlap still allowed. getHistory is deliberately
+  // exempt: it activates and reads, never promotes, so a pick may overlap the
+  // mount history fetch harmlessly.
+  const switchChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const switchRequestRef = useRef(0);
   const sessionListRequestRef = useRef(0);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
   const previousScopeKeyRef = useRef(scopeKey);
@@ -173,6 +174,30 @@ export function useChatSessions({
       }
     }
   }, [onMessagesLoaded]);
+
+  /**
+   * Serializes the session SWITCHES so that last-issued is last-completed,
+   * keeping the main-side pointer and the painted thread in agreement.
+   *
+   * Queue rather than refuse. Refusing an overlapping switch used to be safe
+   * because ChatPageBody remounted this hook per scope, so the guard could
+   * never outlive the pick that set it. It stays mounted now, so a refusal
+   * would drop a cross-scope pick made while an earlier load was still open —
+   * the rail would show the new session while the thread and the main-side
+   * pointer stayed on the old one, which is the very divergence this guards.
+   *
+   * A switch superseded WHILE QUEUED is skipped: the user has since asked for
+   * a different one, and running it would promote a session nobody is looking
+   * at. Only the newest queued switch survives.
+   */
+  const runExclusiveSwitch = useCallback(<T,>(run: () => Promise<T>): Promise<T | undefined> => {
+    const seq = ++switchRequestRef.current;
+    const next = switchChainRef.current
+      .catch(() => undefined)
+      .then(() => (seq === switchRequestRef.current ? run() : undefined));
+    switchChainRef.current = next;
+    return next;
+  }, []);
 
   useEffect(() => {
     // The caller is about to run its own handleLoadSession; leave
@@ -292,36 +317,29 @@ export function useChatSessions({
 
   const handleNewSession = useCallback(async () => {
     setSessionMenuOpen(false);
-    if (switchInFlightRef.current) return { ok: false };
-    switchInFlightRef.current = true;
-    try {
-      const result = await window.canvasWorkspace.agent.newSession({ scope: agentScope });
-      if (!result.ok) return result;
+    const result = await runExclusiveSwitch(async () => {
+      const created = await window.canvasWorkspace.agent.newSession({ scope: agentScope });
+      if (!created.ok) return created;
       // Retire any in-flight thread fetch: its messages belong to the session
       // we just navigated away from, and a blank new chat is not "loading".
       threadRequestRef.current += 1;
       setSessionLoading(false);
       onMessagesLoaded([]);
-      return result;
-    } finally {
-      switchInFlightRef.current = false;
-    }
-  }, [agentScope, onMessagesLoaded]);
+      return created;
+    });
+    // Superseded while queued — a newer switch owns the thread now, and it is
+    // the one that will report success or failure.
+    return result ?? { ok: false };
+  }, [agentScope, onMessagesLoaded, runExclusiveSwitch]);
 
   const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
     setSessionMenuOpen(false);
-    if (switchInFlightRef.current) return;
-    switchInFlightRef.current = true;
-    try {
-      await runThreadFetch(() => (
-        sourceWorkspaceId && workspaceId && sourceWorkspaceId !== workspaceId
-          ? window.canvasWorkspace.agent.loadCrossWorkspaceSession(workspaceId, sourceWorkspaceId, sessionId)
-          : window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId)
-      ));
-    } finally {
-      switchInFlightRef.current = false;
-    }
-  }, [agentScope, runThreadFetch, workspaceId]);
+    await runExclusiveSwitch(() => runThreadFetch(() => (
+      sourceWorkspaceId && workspaceId && sourceWorkspaceId !== workspaceId
+        ? window.canvasWorkspace.agent.loadCrossWorkspaceSession(workspaceId, sourceWorkspaceId, sessionId)
+        : window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId)
+    )));
+  }, [agentScope, runExclusiveSwitch, runThreadFetch, workspaceId]);
 
   return {
     otherSessions,

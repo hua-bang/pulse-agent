@@ -143,14 +143,15 @@ describe('useChatSessions — session detail loading', () => {
     expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('session a')]);
   });
 
-  it('refuses a second switch while one is in flight', async () => {
+  it('defers a second switch instead of overlapping or dropping it', async () => {
     await mount();
     const first = deferred<ThreadResult>();
     agent.loadSession.mockReturnValueOnce(first.promise);
 
-    let pending!: Promise<void>;
-    await act(async () => { pending = latest!.handleLoadSession('session-a'); });
-    await act(async () => { await latest!.handleLoadSession('session-b'); });
+    let pendingA!: Promise<void>;
+    let pendingB!: Promise<void>;
+    await act(async () => { pendingA = latest!.handleLoadSession('session-a'); });
+    await act(async () => { pendingB = latest!.handleLoadSession('session-b'); });
 
     // loadSession archives the current session and promotes the requested one
     // main-side, so overlapping calls leave the agent pointing at whichever
@@ -158,34 +159,71 @@ describe('useChatSessions — session detail loading', () => {
     // Only ONE switch may be in flight, or the two can disagree.
     expect(agent.loadSession).toHaveBeenCalledTimes(1);
 
+    agent.loadSession.mockResolvedValueOnce({ ok: true, messages: [message('session b')] });
     await act(async () => {
       first.resolve({ ok: true, messages: [message('session a')] });
-      await pending;
+      await pendingA;
+      await pendingB;
     });
 
-    // ...and the surface is switchable again once it settles.
-    await act(async () => { await latest!.handleLoadSession('session-b'); });
+    // ...but the pick is DEFERRED, never dropped. Dropping it would strand the
+    // rail on the session the user chose while the thread and the main-side
+    // pointer stayed on the previous one.
     expect(agent.loadSession).toHaveBeenCalledTimes(2);
+    expect(agent.loadSession).toHaveBeenLastCalledWith(expect.anything(), 'session-b');
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('session b')]);
+    expect(latest?.sessionLoading).toBe(false);
   });
 
-  it('refuses a new chat while a switch is in flight', async () => {
+  it('runs only the newest of several switches queued behind one in flight', async () => {
+    await mount();
+    const first = deferred<ThreadResult>();
+    agent.loadSession.mockReturnValueOnce(first.promise);
+
+    const pending: Promise<void>[] = [];
+    await act(async () => { pending.push(latest!.handleLoadSession('session-a')); });
+    await act(async () => {
+      pending.push(latest!.handleLoadSession('session-b'));
+      pending.push(latest!.handleLoadSession('session-c'));
+    });
+
+    agent.loadSession.mockResolvedValueOnce({ ok: true, messages: [message('session c')] });
+    await act(async () => {
+      first.resolve({ ok: true, messages: [message('session a')] });
+      await Promise.all(pending);
+    });
+
+    // 'session-b' was superseded before it ever started: promoting it would
+    // point main-side at a conversation the user has already navigated past.
+    expect(agent.loadSession).toHaveBeenCalledTimes(2);
+    expect(agent.loadSession).toHaveBeenLastCalledWith(expect.anything(), 'session-c');
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('session c')]);
+  });
+
+  it('defers a new chat behind an in-flight switch', async () => {
     await mount();
     const first = deferred<ThreadResult>();
     agent.loadSession.mockReturnValueOnce(first.promise);
 
     let pending!: Promise<void>;
-    await act(async () => { pending = latest!.handleLoadSession('session-a'); });
     let result: { ok: boolean } | undefined;
-    await act(async () => { result = await latest!.handleNewSession(); });
+    let pendingNew!: Promise<{ ok: boolean }>;
+    await act(async () => { pending = latest!.handleLoadSession('session-a'); });
+    await act(async () => { pendingNew = latest!.handleNewSession(); });
 
     // newSession promotes a session too — same divergence, same rule.
     expect(agent.newSession).not.toHaveBeenCalled();
-    expect(result?.ok).toBe(false);
 
     await act(async () => {
       first.resolve({ ok: true, messages: [message('session a')] });
       await pending;
+      result = await pendingNew;
     });
+
+    expect(agent.newSession).toHaveBeenCalledTimes(1);
+    expect(result?.ok).toBe(true);
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([]);
+    expect(latest?.sessionLoading).toBe(false);
   });
 
   it('drops a superseded history fetch instead of overwriting the picked session', async () => {
