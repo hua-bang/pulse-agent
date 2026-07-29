@@ -197,7 +197,10 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
     setDraft(null);
   }, [draft, remove]);
 
-  const canSave = !!draft && !!draft.name.trim() && !!draft.prompt.trim() && !saving;
+  // External roles bring their own instructions, so the persona prompt is
+  // optional for them; a persona role IS its prompt.
+  const canSave = !!draft && !!draft.name.trim() && !saving
+    && (draft.driver !== 'persona' || !!draft.prompt.trim());
 
   return (
     <>
@@ -312,7 +315,7 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
             )}
             <TextField
               multiline
-              label={t('roles.prompt')}
+              label={draft.driver === 'persona' ? t('roles.prompt') : t('roles.promptOptional')}
               hint={t('prompt.customHint', { count: draft.prompt.trim().length, max: AGENT_ROLE_PROMPT_MAX_LENGTH })}
               className="chat-prompt-custom-textarea"
               placeholder={t('roles.promptPlaceholder')}

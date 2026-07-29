@@ -7,7 +7,8 @@
  */
 
 import type { AgentRoleDefinition, AgentRoleExternalDriver } from '../../../shared/agent-roles';
-import type { CanvasAgentMessage } from '../types';
+import type { CanvasAgentMessage, CanvasAgentToolCall } from '../types';
+import type { ExternalStreamHandlers } from './tool-events';
 import { resolveExternalCwd } from './cwd';
 import { renderExternalSegmentPrompt } from './prompt';
 import { runExternalSegment } from './runner';
@@ -15,7 +16,7 @@ import { clearExternalSessionId, getExternalSessionId, saveExternalSessionId } f
 
 const RESUME_FAILURE_RE = /session|conversation|resume/i;
 
-export async function runExternalRoleSegment(opts: {
+export async function runExternalRoleSegment(opts: ExternalStreamHandlers & {
   role: AgentRoleDefinition;
   external: AgentRoleExternalDriver;
   chatSessionId: string;
@@ -25,8 +26,7 @@ export async function runExternalRoleSegment(opts: {
   currentAsk: string;
   handoffNames: string[];
   abortSignal: AbortSignal;
-  onText: (delta: string) => void;
-}): Promise<string> {
+}): Promise<{ text: string; toolCalls: CanvasAgentToolCall[] }> {
   const { role, external, chatSessionId } = opts;
   // Session continuity keys on the RESOLVED directory: @ the same role from
   // another workspace and it starts a fresh CLI session there.
@@ -38,7 +38,14 @@ export async function runExternalRoleSegment(opts: {
   const roleWithDriver = { id: role.id, external: { family: external.family, cwd } };
   const sessionId = await getExternalSessionId(chatSessionId, roleWithDriver);
 
+  // Tool activity is mirrored into a persistable list as it streams, so a
+  // reloaded session keeps the chips the live run showed.
+  let toolCalls: CanvasAgentToolCall[] = [];
+  let byId = new Map<string, CanvasAgentToolCall>();
+
   const runOnce = async (resumeId: string | undefined) => {
+    toolCalls = [];
+    byId = new Map();
     const prompt = renderExternalSegmentPrompt({
       role,
       cwd,
@@ -54,6 +61,26 @@ export async function runExternalRoleSegment(opts: {
       sessionId: resumeId,
       abortSignal: opts.abortSignal,
       onText: opts.onText,
+      onToolCall: (event) => {
+        const tool: CanvasAgentToolCall = {
+          id: toolCalls.length + 1,
+          name: event.name,
+          toolCallId: event.toolCallId,
+          status: 'running',
+          args: event.args,
+        };
+        toolCalls.push(tool);
+        byId.set(event.toolCallId, tool);
+        opts.onToolCall?.(event);
+      },
+      onToolResult: (event) => {
+        const tool = byId.get(event.toolCallId);
+        if (tool) {
+          tool.status = 'done';
+          tool.result = event.result;
+        }
+        opts.onToolResult?.(event);
+      },
     });
   };
 
@@ -70,5 +97,5 @@ export async function runExternalRoleSegment(opts: {
   if (result.sessionId) {
     await saveExternalSessionId(chatSessionId, roleWithDriver, result.sessionId);
   }
-  return result.text;
+  return { text: result.text, toolCalls };
 }

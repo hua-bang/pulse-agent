@@ -11,6 +11,13 @@
 
 import type { ExternalSegmentRequest, ExternalSegmentResult } from './types';
 import { runJsonlCli } from './spawn-jsonl';
+import {
+  finishTool,
+  flattenResultContent,
+  startTool,
+  type ExternalStreamHandlers,
+  type ToolNameMap,
+} from './tool-events';
 
 export const claudeCodeCommand = (): string =>
   process.env.PULSE_CANVAS_CLAUDE_CODE_CMD?.trim() || 'claude';
@@ -31,9 +38,13 @@ export interface ClaudeStreamState {
   parts: string[];
   resultText?: string;
   errorMessage?: string;
+  /** tool_use id → tool name, so tool_result events can name their chip. */
+  toolNames: ToolNameMap;
 }
 
-export const createClaudeStreamState = (): ClaudeStreamState => ({ sawPartial: false, parts: [] });
+export const createClaudeStreamState = (): ClaudeStreamState => ({
+  sawPartial: false, parts: [], toolNames: new Map(),
+});
 
 /**
  * Consume one stream-json line. Tolerant by design: unknown event types are
@@ -43,7 +54,7 @@ export const createClaudeStreamState = (): ClaudeStreamState => ({ sawPartial: f
 export function consumeClaudeStreamLine(
   state: ClaudeStreamState,
   line: string,
-  onText: (delta: string) => void,
+  handlers: ExternalStreamHandlers,
 ): void {
   const trimmed = line.trim();
   if (!trimmed) return;
@@ -63,18 +74,35 @@ export function consumeClaudeStreamLine(
     if (delta?.type === 'text_delta' && typeof delta.text === 'string' && delta.text) {
       state.sawPartial = true;
       state.parts.push(delta.text);
-      onText(delta.text);
+      handlers.onText(delta.text);
     }
     return;
   }
 
-  if (event?.type === 'assistant' && !state.sawPartial) {
+  if (event?.type === 'assistant') {
     const content = event.message?.content;
     if (Array.isArray(content)) {
       for (const block of content) {
-        if (block?.type === 'text' && typeof block.text === 'string' && block.text) {
+        // Text blocks duplicate the token partials once those have started.
+        if (block?.type === 'text' && !state.sawPartial && typeof block.text === 'string' && block.text) {
           state.parts.push(block.text);
-          onText(block.text);
+          handlers.onText(block.text);
+        }
+        if (block?.type === 'tool_use') {
+          startTool(state.toolNames, handlers, block.id, String(block.name ?? 'tool'), block.input);
+        }
+      }
+    }
+    return;
+  }
+
+  // Tool results come back as a synthetic `user` turn.
+  if (event?.type === 'user') {
+    const content = event.message?.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block?.type === 'tool_result') {
+          finishTool(state.toolNames, handlers, block.tool_use_id, flattenResultContent(block.content));
         }
       }
     }
@@ -104,7 +132,7 @@ export async function runClaudeCodeSegment(request: ExternalSegmentRequest): Pro
     prompt: request.prompt,
     abortSignal: request.abortSignal,
     timeoutMs: request.timeoutMs,
-    onLine: (line) => consumeClaudeStreamLine(state, line, request.onText),
+    onLine: (line) => consumeClaudeStreamLine(state, line, request),
   });
 
   if (state.errorMessage) throw new Error(state.errorMessage);

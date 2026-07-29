@@ -112,7 +112,6 @@ export async function saveAgentRole(input: AgentRoleSaveInput): Promise<AgentRol
   const name = sanitizeAgentRoleName(input.name ?? '');
   if (!name) throw new Error('Role name is required');
   const prompt = (input.prompt ?? '').trim().slice(0, AGENT_ROLE_PROMPT_MAX_LENGTH);
-  if (!prompt) throw new Error('Role prompt is required');
 
   const roles = await readRoles();
   const targetId = input.id?.trim();
@@ -137,6 +136,11 @@ export async function saveAgentRole(input: AgentRoleSaveInput): Promise<AgentRol
     external = normalizeAgentRoleExternal(input.external);
     if (!external) throw new Error('Invalid external driver: family must be claude-code or codex');
   }
+
+  // A persona role IS its prompt; an externally-driven one brings its own
+  // instructions (CLAUDE.md / AGENTS.md in its working directory), so the
+  // prompt there is an optional extra hat.
+  if (!prompt && !external) throw new Error('Role prompt is required');
 
   if (existing) {
     existing.name = name;

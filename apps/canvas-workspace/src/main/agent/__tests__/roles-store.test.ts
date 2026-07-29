@@ -73,6 +73,16 @@ describe('roles-store', () => {
     expect(second.color).not.toBe(first.color);
   });
 
+  it('persona prompt is optional for external roles, still required for persona roles', async () => {
+    const external = await saveAgentRole({ name: '随行 Claude', prompt: '', external: { family: 'claude-code' } });
+    expect(external.prompt).toBe('');
+    await expect(saveAgentRole({ name: '空人设', prompt: '  ' })).rejects.toThrow(/prompt/i);
+    // Clearing the driver on a promptless role must not leave an empty persona behind.
+    await expect(saveAgentRole({ id: external.id, name: '随行 Claude', prompt: '', external: null }))
+      .rejects.toThrow(/prompt/i);
+    await deleteAgentRole(external.id);
+  });
+
   it('saves an external driver with NO cwd — the default, resolved at conversation time', async () => {
     const created = await saveAgentRole({ name: '随行工程师', prompt: 'p', external: { family: 'claude-code' } });
     expect(created.external).toEqual({ family: 'claude-code' });

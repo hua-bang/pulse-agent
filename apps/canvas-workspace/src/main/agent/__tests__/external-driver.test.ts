@@ -61,13 +61,13 @@ describe('claude stream-json parser', () => {
   it('streams token partials, ignores duplicate full texts, prefers the result text', () => {
     const state = createClaudeStreamState();
     const deltas: string[] = [];
-    const feed = (obj: unknown) => consumeClaudeStreamLine(state, JSON.stringify(obj), d => deltas.push(d));
+    const feed = (obj: unknown) => consumeClaudeStreamLine(state, JSON.stringify(obj), { onText: d => deltas.push(d) });
 
     feed({ type: 'system', subtype: 'init', session_id: 'sess-1' });
     feed({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'A' } } });
     feed({ type: 'assistant', message: { content: [{ type: 'text', text: 'AB-full' }] } });
     feed({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'B' } } });
-    consumeClaudeStreamLine(state, 'not json at all', d => deltas.push(d));
+    consumeClaudeStreamLine(state, 'not json at all', { onText: d => deltas.push(d) });
     feed({ type: 'result', subtype: 'success', result: 'AB', session_id: 'sess-1' });
 
     expect(deltas).toEqual(['A', 'B']);
@@ -79,13 +79,97 @@ describe('claude stream-json parser', () => {
   it('falls back to full assistant texts when no partials arrive, and surfaces error results', () => {
     const state = createClaudeStreamState();
     const deltas: string[] = [];
-    const feed = (obj: unknown) => consumeClaudeStreamLine(state, JSON.stringify(obj), d => deltas.push(d));
+    const feed = (obj: unknown) => consumeClaudeStreamLine(state, JSON.stringify(obj), { onText: d => deltas.push(d) });
 
     feed({ type: 'assistant', message: { content: [{ type: 'text', text: '第一段' }] } });
     feed({ type: 'result', subtype: 'error_during_execution', is_error: true, session_id: 'sess-2' });
 
     expect(deltas).toEqual(['第一段']);
     expect(state.errorMessage).toMatch(/error_during_execution/);
+  });
+});
+
+describe('tool activity surfaces as chips (the silent-run fix)', () => {
+  it('claude: tool_use → call, tool_result → named result, unknown result back-fills a call', () => {
+    const state = createClaudeStreamState();
+    const calls: any[] = [];
+    const results: any[] = [];
+    const handlers = { onText: () => {}, onToolCall: (e: any) => calls.push(e), onToolResult: (e: any) => results.push(e) };
+    const feed = (obj: unknown) => consumeClaudeStreamLine(state, JSON.stringify(obj), handlers);
+
+    feed({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_1', name: 'Read', input: { file_path: 'README.md' } }] } });
+    feed({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: '# standup-notes' }] }] } });
+    // A result whose call we never saw still shows up rather than vanishing.
+    feed({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_ghost', content: 'done' }] } });
+
+    expect(calls[0]).toMatchObject({ name: 'Read', toolCallId: 'toolu_1', args: { file_path: 'README.md' } });
+    expect(results[0]).toMatchObject({ name: 'Read', toolCallId: 'toolu_1', result: '# standup-notes' });
+    expect(calls[1]).toMatchObject({ toolCallId: 'toolu_ghost' });
+    expect(results[1]).toMatchObject({ toolCallId: 'toolu_ghost', result: 'done' });
+  });
+
+  it('claude: text still streams alongside tool blocks in the same assistant message', () => {
+    const state = createClaudeStreamState();
+    const deltas: string[] = [];
+    consumeClaudeStreamLine(state, JSON.stringify({
+      type: 'assistant',
+      message: { content: [{ type: 'text', text: '先看看 README。' }, { type: 'tool_use', id: 't1', name: 'Read', input: {} }] },
+    }), { onText: d => deltas.push(d) });
+    expect(deltas).toEqual(['先看看 README。']);
+  });
+
+  it('codex: exec/patch events (dialect A) and item events (dialect B) both emit chips', () => {
+    const calls: any[] = [];
+    const results: any[] = [];
+    const handlers = { onText: () => {}, onToolCall: (e: any) => calls.push(e), onToolResult: (e: any) => results.push(e) };
+
+    const a = createCodexStreamState();
+    const feedA = (obj: unknown) => consumeCodexStreamLine(a, JSON.stringify(obj), handlers);
+    feedA({ id: '1', msg: { type: 'exec_command_begin', call_id: 'c1', command: ['ls', '-la'], cwd: '/p' } });
+    feedA({ id: '1', msg: { type: 'exec_command_end', call_id: 'c1', exit_code: 0, aggregated_output: 'README.md' } });
+    expect(calls[0]).toMatchObject({ name: 'Bash', toolCallId: 'c1', args: { command: 'ls -la', cwd: '/p' } });
+    expect(results[0]).toMatchObject({ name: 'Bash', result: 'README.md' });
+
+    const b = createCodexStreamState();
+    consumeCodexStreamLine(b, JSON.stringify({
+      type: 'item.completed',
+      item: { id: 'i1', item_type: 'command_execution', command: 'npm test', aggregated_output: '5 passed' },
+    }), handlers);
+    expect(calls[1]).toMatchObject({ name: 'Bash', toolCallId: 'i1' });
+    expect(results[1]).toMatchObject({ name: 'Bash', toolCallId: 'i1', result: '5 passed' });
+  });
+
+  it('collects tool calls for persistence so a reloaded session keeps its chips', async () => {
+    const path = join(dir, 'tool-claude');
+    writeFileSync(path, [
+      '#!/usr/bin/env node',
+      "process.stdin.on('data', () => {});",
+      "process.stdin.on('end', () => {",
+      "  const out = (o) => process.stdout.write(JSON.stringify(o) + '\\n');",
+      "  out({ type: 'system', session_id: 's1' });",
+      "  out({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tu1', name: 'Read', input: { file_path: 'README.md' } }] } });",
+      "  out({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tu1', content: '# demo' }] } });",
+      "  out({ type: 'result', subtype: 'success', result: '看完了。', session_id: 's1' });",
+      '});',
+    ].join('\n'));
+    chmodSync(path, 0o755);
+    process.env.PULSE_CANVAS_CLAUDE_CODE_CMD = path;
+    const r = role({ external: { family: 'claude-code', cwd: dir } });
+
+    const live: string[] = [];
+    const { text, toolCalls } = await runExternalRoleSegment({
+      role: r, external: r.external!, chatSessionId: 'chat-tools',
+      history: [], currentAsk: '看看 README', handoffNames: [],
+      abortSignal: new AbortController().signal, onText: () => {},
+      onToolCall: e => live.push(`call:${e.name}`),
+      onToolResult: e => live.push(`result:${e.name}`),
+    });
+
+    expect(text).toBe('看完了。');
+    expect(live).toEqual(['call:Read', 'result:Read']);
+    expect(toolCalls).toEqual([
+      { id: 1, name: 'Read', toolCallId: 'tu1', status: 'done', args: { file_path: 'README.md' }, result: '# demo' },
+    ]);
   });
 });
 
@@ -125,6 +209,20 @@ describe('external segment prompt', () => {
     expect(prompt).toContain('可能与你会话里已知的内容有重叠');
     expect(prompt).toContain('把评审员挑的问题修掉');
   });
+
+  it('omits the persona block entirely when an external role has no prompt', () => {
+    const prompt = renderExternalSegmentPrompt({
+      role: role({ prompt: '' }),
+      cwd: '/tmp/project',
+      history: [],
+      currentAsk: '看看代码',
+      handoffNames: [],
+      resumed: false,
+    });
+    expect(prompt).not.toContain('<role_persona>');
+    expect(prompt).toContain('你是群聊「AI Chat」中的角色「Claude工程师」');
+    expect(prompt).toContain('看看代码');
+  });
 });
 
 describe('claude-code adapter + segment orchestration (fake CLI)', () => {
@@ -147,7 +245,7 @@ describe('claude-code adapter + segment orchestration (fake CLI)', () => {
     process.env.PULSE_CANVAS_EXTERNAL_AGENT_HOME = join(dir, 'homes');
     const r = role({ external: { family: 'claude-code' } });
 
-    const text = await runExternalRoleSegment({
+    const { text } = await runExternalRoleSegment({
       role: r, external: r.external!, chatSessionId: 'chat-1',
       history: [], currentAsk: '聊聊看法', handoffNames: [],
       abortSignal: new AbortController().signal, onText: () => {},
@@ -163,7 +261,7 @@ describe('claude-code adapter + segment orchestration (fake CLI)', () => {
     const resolved = { id: r.id, external: { family: 'claude-code' as const, cwd: dir } };
     await saveExternalSessionId('chat-1', resolved, 'sess-old');
 
-    const text = await runExternalRoleSegment({
+    const { text } = await runExternalRoleSegment({
       role: r, external: r.external!, chatSessionId: 'chat-1',
       history: [], currentAsk: '修一下', handoffNames: [],
       abortSignal: new AbortController().signal, onText: () => {},
@@ -221,7 +319,7 @@ describe('codex stream parser (both JSONL dialects)', () => {
   it('dialect A: protocol events — deltas, duplicate full message skipped, task_complete result', () => {
     const state = createCodexStreamState();
     const deltas: string[] = [];
-    const feed = (obj: unknown) => consumeCodexStreamLine(state, JSON.stringify(obj), d => deltas.push(d));
+    const feed = (obj: unknown) => consumeCodexStreamLine(state, JSON.stringify(obj), { onText: d => deltas.push(d) });
 
     feed({ id: '0', msg: { type: 'session_configured', session_id: 'codex-sess-1' } });
     feed({ id: '1', msg: { type: 'agent_message_delta', delta: '改' } });
@@ -238,7 +336,7 @@ describe('codex stream parser (both JSONL dialects)', () => {
   it('dialect B: thread events — thread id, item text, turn.failed error', () => {
     const state = createCodexStreamState();
     const deltas: string[] = [];
-    const feed = (obj: unknown) => consumeCodexStreamLine(state, JSON.stringify(obj), d => deltas.push(d));
+    const feed = (obj: unknown) => consumeCodexStreamLine(state, JSON.stringify(obj), { onText: d => deltas.push(d) });
 
     feed({ type: 'thread.started', thread_id: 'thread-9' });
     feed({ type: 'item.completed', item: { item_type: 'agent_message', text: '两个风险已修复。' } });
@@ -248,7 +346,7 @@ describe('codex stream parser (both JSONL dialects)', () => {
     expect(state.sessionId).toBe('thread-9');
 
     const failing = createCodexStreamState();
-    consumeCodexStreamLine(failing, JSON.stringify({ type: 'turn.failed', error: { message: 'sandbox denied' } }), () => {});
+    consumeCodexStreamLine(failing, JSON.stringify({ type: 'turn.failed', error: { message: 'sandbox denied' } }), { onText: () => {} });
     expect(failing.errorMessage).toBe('sandbox denied');
   });
 

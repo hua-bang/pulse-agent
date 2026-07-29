@@ -34,12 +34,12 @@ export function renderExternalSegmentPrompt(opts: {
 
   const otherNames = handoffNames.filter(name => name && name !== role.name);
 
+  const persona = role.prompt.trim();
   return [
     `你是群聊「AI Chat」中的角色「${role.name}」,由本地编码 Agent 驱动,工作目录是 ${cwd}(可以读写其中的代码来完成请求)。`,
-    '',
-    '<role_persona>',
-    role.prompt,
-    '</role_persona>',
+    // Optional for external roles: without one, the agent keeps its own
+    // instructions (CLAUDE.md / AGENTS.md) as its only persona.
+    ...(persona ? ['', '<role_persona>', persona, '</role_persona>'] : []),
     '',
     '群聊协议:',
     '- 历史里 【名字】: 开头的是其他角色的发言,「助手」: 是默认助手,用户: 是用户本人。',

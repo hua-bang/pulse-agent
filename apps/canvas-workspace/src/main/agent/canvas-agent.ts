@@ -21,7 +21,12 @@ import { createCanvasAgentToolPolicy } from './tool-policy';
 import { SessionStore } from './session-store';
 import { sessionPreview } from './session-preview';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
-import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
+import {
+  formatWorkspaceContextSection,
+  readWorkspaceDoc,
+  readWorkspaceMeta,
+  WORKSPACE_DOC_FILENAME,
+} from './workspace-meta';
 import { buildMemoryPromptSection } from './memory-store';
 import {
   attachTraceModel,
@@ -36,6 +41,7 @@ import type {
   CanvasAgentConfig,
   CanvasAgentImageAttachment,
   CanvasAgentMessage,
+  CanvasAgentToolCall,
   WorkspaceSummary,
 } from './types';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
@@ -368,39 +374,6 @@ Use these alongside canvas_* tools for full workspace control.
 - For code-related tasks, use the filesystem tools (read, write, edit, grep, bash)
 
 `;
-
-function formatWorkspaceContextSection(rootFolder: string | undefined, workspaceDoc: string | null): string {
-  if (!rootFolder && !workspaceDoc) return '';
-
-  const parts: string[] = [];
-
-  if (rootFolder) {
-    parts.push(
-      '\n## Workspace Environment',
-      `- Root folder: \`${rootFolder}\``,
-      '- When creating agent or terminal nodes, use `canvas_create_agent_node` / `canvas_create_terminal_node`; search for a tool first if it is not already available. Omit the `cwd` argument to use the workspace root automatically. Only pass an explicit `cwd` when the work needs to happen outside the root (e.g. a sibling repo or a specific subdirectory).',
-      '- File-system tools (`read`, `write`, `edit`, `grep`, `ls`, `bash`) should resolve relative paths against the workspace root.',
-      '',
-    );
-  }
-
-  if (workspaceDoc) {
-    const docPath = rootFolder ? `${rootFolder}/${WORKSPACE_DOC_FILENAME}` : WORKSPACE_DOC_FILENAME;
-    parts.push(
-      `## Workspace Context (${docPath})`,
-      'The following document is authored jointly by the user and you. ' +
-        'It captures the goal, current status, and any decisions for this workspace. ' +
-        'Treat it as authoritative context — refer back to it when planning your next steps. ' +
-        'When you make meaningful progress, change direction, or resolve a blocker, ' +
-        'use the `edit` tool to update the relevant section so the user sees fresh state next time.',
-      '',
-      workspaceDoc.trim(),
-      '',
-    );
-  }
-
-  return parts.join('\n');
-}
 
 function formatMentionedCanvasesSection(
   mentionedCanvases: Array<{ id: string; name: string }> = [],
@@ -857,13 +830,13 @@ export class CanvasAgent {
         onRoleTurnStart?.({ index, total: segments.length, speakerRole: roleTurnRef(role), queue });
 
         const responseMessages: ModelMessage[] = [];
+        let externalToolCalls: CanvasAgentToolCall[] | undefined;
         let resultText: string;
         if (role?.external) {
-          // Externally-driven role: the segment comes from a local coding-agent
-          // CLI. Its reply is appended to the shared model history by hand
-          // (the engine's onResponse does this for built-in segments), so the
-          // downstream label/persist/handoff pipeline stays identical.
-          resultText = await runExternalRoleSegment({
+          // Local coding-agent CLI segment. Its reply is appended to the shared
+          // model history by hand (engine segments get that from onResponse),
+          // so the label/persist/handoff tail downstream stays identical.
+          const external = await runExternalRoleSegment({
             role,
             external: role.external,
             chatSessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
@@ -873,7 +846,10 @@ export class CanvasAgent {
             handoffNames: handoffEnabled ? handoffLibrary.map(entry => entry.name) : [],
             abortSignal: abortController.signal,
             onText: onText ?? (() => {}),
+            onToolCall,
+            onToolResult,
           });
+          ({ text: resultText, toolCalls: externalToolCalls } = external);
           const externalMessage = { role: 'assistant', content: resultText } as ModelMessage;
           this.messages.push(externalMessage);
           responseMessages.push(externalMessage);
@@ -914,12 +890,11 @@ export class CanvasAgent {
           : rawText;
         recordTraceMessageSnapshot(debugTrace, { systemPrompt: segmentPrompt, messages: context.messages });
 
-        // Persist the segment with its tool-call frames so restored sessions
-        // render tool chips, inline visuals, and artifacts after reload.
-        const toolCalls = modelMessagesToToolCalls(responseMessages);
-        // Live-push speaker label on the model history — MUST mirror the
-        // session-reload path in `sessionMessageToModelMessage`. This is also
-        // what lets segment N+1 read segment N's reply with attribution.
+        // Tool frames persist so a reloaded session keeps its chips, inline
+        // visuals, and artifacts (external segments collect their own).
+        const toolCalls = externalToolCalls ?? modelMessagesToToolCalls(responseMessages);
+        // Live-push speaker label — MUST mirror `sessionMessageToModelMessage`;
+        // it is what lets segment N+1 read segment N's reply with attribution.
         if (role) {
           // Trimmed? sync the live history or the next speaker reads the cut part.
           if (responseText !== rawText) replaceFinalAssistantText(responseMessages, responseText);
@@ -937,9 +912,8 @@ export class CanvasAgent {
           speakerRoleColor: role?.color,
         });
 
-        // Notify subscribed plugins (devtools persists the trace to its own
-        // store). Awaited so plugin storage is flushed before the segment
-        // completes and the renderer can fetch the trace by runId.
+        // Notify subscribed plugins (devtools persists the trace). Awaited so
+        // plugin storage is flushed before the renderer fetches it by runId.
         if (finalizedTrace) {
           await agentBus.emitTurnAsync('turnEnd', {
             runId: finalizedTrace.runId,

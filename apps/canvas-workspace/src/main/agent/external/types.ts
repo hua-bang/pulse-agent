@@ -1,7 +1,8 @@
 import type { AgentRoleExternalFamily } from '../../../shared/agent-roles';
+import type { ExternalStreamHandlers } from './tool-events';
 
 /** One segment of a turn, produced by a local coding-agent CLI. */
-export interface ExternalSegmentRequest {
+export interface ExternalSegmentRequest extends ExternalStreamHandlers {
   family: AgentRoleExternalFamily;
   /** Working directory the agent runs in — also the safety boundary. */
   cwd: string;
@@ -10,8 +11,6 @@ export interface ExternalSegmentRequest {
   /** CLI session to resume; absent → fresh session. */
   sessionId?: string;
   abortSignal: AbortSignal;
-  /** Streaming text as the agent produces it (may arrive in coarse chunks). */
-  onText: (delta: string) => void;
   timeoutMs?: number;
 }
 
