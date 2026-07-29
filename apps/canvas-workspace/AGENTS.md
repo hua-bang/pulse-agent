@@ -146,6 +146,17 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   explicit user intent because it can mutate real Pulse Canvas data.
   Reopening `demo` without `--reset` preserves its existing manifest and
   imported workspaces; fixture reseeding is a reset operation.
+- Canvas Agent scope activation must stay single-flight in
+  `src/main/agent/service.ts`: chat entry concurrently requests history and
+  session lists, so an unguarded check-then-initialize creates duplicate
+  engines for one scope and makes session switching visibly stall. Guard:
+  `src/main/agent/__tests__/service-history.test.ts`.
+- The full-screen chat rail is one stable cross-scope projection. Do not swap
+  per-scope list caches into it or fetch a list while `loadSession` is
+  promoting an archive: either path can duplicate/reorder rows under the
+  pointer and move the scroll position. Commit current/other lists together
+  after promotion; guards live in `useChatSessions.test.tsx` and
+  `ChatSessionsRail.test.tsx`.
 - The app owns v2 canvas storage migration, PTY sessions, runtime-control
   endpoints, plugin activation, and UI-visible data recovery. The CLI adapts to
   those contracts but does not own them.

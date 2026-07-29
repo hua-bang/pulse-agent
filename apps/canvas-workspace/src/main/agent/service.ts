@@ -15,6 +15,8 @@ import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore 
 import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
 import { scheduledTaskTitles } from './scheduled-session-names';
 import { searchSessionTitles } from './session-title-search';
+import { appendActiveSessionGroups } from './active-session-groups';
+import { ScopeActivationGate } from './scope-activation-gate';
 import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../shared/agent-roles';
 import type {
   AgentRequestContext,
@@ -41,21 +43,24 @@ const scopeKey = (scope: AgentScope): string => {
 };
 export class CanvasAgentService {
   private agents = new Map<string, CanvasAgent>();
+  private agentActivations = new ScopeActivationGate();
 
   private async activateScope(scope: AgentScope): Promise<void> {
     const key = scopeKey(scope);
     if (this.agents.has(key)) return;
+    await this.agentActivations.run(key, async () => {
+      if (this.agents.has(key)) return;
+      const workspaceId = scope.kind === 'workspace' ? scope.workspaceId : undefined;
+      const agent = new CanvasAgent({
+        scope,
+        sessionStoreId: scopeSessionStoreId(scope),
+        workspaceId,
+        workspaceDir: workspaceId ? join(STORE_DIR, workspaceId) : undefined,
+      });
 
-    const workspaceId = scope.kind === 'workspace' ? scope.workspaceId : undefined;
-    const agent = new CanvasAgent({
-      scope,
-      sessionStoreId: scopeSessionStoreId(scope),
-      workspaceId,
-      workspaceDir: workspaceId ? join(STORE_DIR, workspaceId) : undefined,
+      await agent.initialize();
+      this.agents.set(key, agent);
     });
-
-    await agent.initialize();
-    this.agents.set(key, agent);
   }
 
   private getAgent(scope: AgentScope): CanvasAgent | undefined {
@@ -318,8 +323,10 @@ export class CanvasAgentService {
     const diskGroups = await SessionStore.listAllWorkspaceSessions();
     const groups: CrossWorkspaceSessionGroup[] = [];
     const scheduledTitles = await scheduledTaskTitles();
+    const includedStoreIds = new Set<string>();
 
     for (const g of diskGroups) {
+      includedStoreIds.add(g.workspaceId);
       const scheduledTaskId = scheduledTaskIdFromStoreId(g.workspaceId);
       // If this scope has an active in-memory agent, use its live session list
       const scope: AgentScope = scheduledTaskId
@@ -342,6 +349,14 @@ export class CanvasAgentService {
         sessions,
       });
     }
+
+    await appendActiveSessionGroups({
+      agents: this.agents,
+      groups,
+      includedStoreIds,
+      scheduledTitles,
+      workspaceNames,
+    });
 
     // Sort: ensure workspaces with more recent sessions come first
     groups.sort((a, b) => {

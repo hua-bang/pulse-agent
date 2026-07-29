@@ -29,11 +29,9 @@ interface ChatPageProps {
  *
  * Structure:
  *   - Outer ChatPage: owns currentWorkspaceId + pendingSessionId state.
- *     Remounts the inner body (React key) when the workspace changes so the
- *     hook subscriptions are rebuilt cleanly against the new workspace.
- *   - Inner ChatPageBody: owns the streaming / session / mention hooks. On
- *     mount, loads `initialPendingSessionId` if provided (used when the
- *     user picked a cross-workspace session in the rail).
+ *   - Inner ChatPageBody: stays mounted across scope changes. Its hooks switch
+ *     subscriptions and cached state in place, so selecting another workspace
+ *     does not recreate the whole chat surface.
  *
  * Mutual exclusion with ChatPanel is enforced at the App level.
  */
@@ -50,6 +48,7 @@ export const ChatPage = ({
 }: ChatPageProps) => {
   const [agentScope, setAgentScope] = useState<AgentScope>({ kind: 'global' });
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  const [selectedSessionKey, setSelectedSessionKey] = useState<string | null>(null);
   const [newSessionRequest, setNewSessionRequest] = useState(0);
   const [railCollapsed, setRailCollapsed] = useState(true);
   const scopeKey = agentScope.kind === 'workspace'
@@ -66,15 +65,14 @@ export const ChatPage = ({
     setPendingSessionId(null);
   }, [openScheduledTaskId]);
 
-  // Jump trail for session-ref chip navigation. Owned here (not in the body)
-  // so it survives the body remount a cross-workspace jump triggers.
+  // Jump trail for session-ref chip navigation. Owned here so scope changes
+  // and thread replacement cannot disturb it.
   const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
 
-  // Same-workspace session click → just bump pendingSessionId without
-  // remounting the body. Cross-workspace click → change workspaceId which
-  // triggers the body remount, and the new body mount effect will pick up
-  // initialPendingSessionId.
+  // Every session click keeps the body mounted. Cross-scope picks update the
+  // scope and pending session together; the body swaps thread data in place.
   const navigateToSession = useCallback((session: { sessionId: string; workspaceId: string }) => {
+    setSelectedSessionKey(`${session.workspaceId}:${session.sessionId}`);
     // The rail's `workspaceId` is really a session-STORE id, so the two
     // sentinel stores (global chat, one per scheduled task) must map back to
     // their own scope kinds — treating them as workspace ids would activate
@@ -122,6 +120,7 @@ export const ChatPage = ({
 
   const handleNewGlobalSession = useCallback(() => {
     setSessionBackStack([]);
+    setSelectedSessionKey(null);
     setAgentScope({ kind: 'global' });
     setPendingSessionId(null);
     setNewSessionRequest((value) => value + 1);
@@ -141,10 +140,10 @@ export const ChatPage = ({
 
   return (
     <ChatPageBody
-      key={scopeKey}
       agentScope={agentScope}
       initialPendingSessionId={pendingSessionId}
       pendingSessionId={pendingSessionId}
+      selectedSessionKey={selectedSessionKey}
       onSessionConsumed={handleSessionConsumed}
       onSelectSession={handleSelectSession}
       onJumpToSession={navigateToSession}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { AgentChatMessage, AgentSessionInfo } from '../../../types';
 import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
 import { useClickOutside } from '../../../hooks/useClickOutside';
@@ -35,12 +35,11 @@ interface CachedSessions {
 
 /**
  * Cross-mount, per-scope cache of the last-known session list. ChatPageBody
- * remounts this hook on every cross-workspace rail switch (React `key`), which
- * would otherwise reset sessions/otherSessions to empty and flash the rail's
- * empty state until loadSessions() re-fetches. Seeding initial state from here
- * repaints the last-known list instantly; loadSessions() still refreshes it in
- * the background. Module-scoped by design: shared by every useChatSessions()
- * instance (ChatPage's rail and ChatPanel's header dropdown alike).
+ * stays mounted across cross-workspace rail switches, but this hook still
+ * swaps its state to the selected scope. Seeding from here keeps a revisited
+ * scope's list available while loadSessions() refreshes it in the background.
+ * Module-scoped by design: shared by every useChatSessions() instance
+ * (ChatPage's rail and ChatPanel's header dropdown alike).
  *
  * Bounded to the most recently touched scopes (Map insertion order doubles as
  * recency) so a long-running renderer visiting many workspaces/scheduled
@@ -119,7 +118,28 @@ export function useChatSessions({
   // is deliberately exempt: it activates and reads, never promotes, so a pick
   // may overlap the mount history fetch harmlessly.
   const switchInFlightRef = useRef(false);
+  const sessionListRequestRef = useRef(0);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
+  const previousScopeKeyRef = useRef(scopeKey);
+  const historyHandledScopeRef = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (previousScopeKeyRef.current === scopeKey) return;
+    sessionListRequestRef.current += 1;
+    setSessionsLoading(eagerLoad);
+    // The scope-specific history or selected session fetch starts directly
+    // after this layout pass. Mark it busy before paint so the composer cannot
+    // submit into the scope while the main-side pointer is switching.
+    setSessionLoading(true);
+    setSessionMenuOpen(false);
+    previousScopeKeyRef.current = scopeKey;
+  }, [eagerLoad, scopeKey]);
+
+  useLayoutEffect(() => {
+    if (!skipInitialHistory) return;
+    sessionListRequestRef.current += 1;
+    setSessionsLoading(true);
+  }, [skipInitialHistory]);
 
   // Always read the latest scope inside the effect without making the effect
   // depend on the object's identity (see below).
@@ -158,7 +178,15 @@ export function useChatSessions({
     // The caller is about to run its own handleLoadSession; leave
     // sessionLoading seeded true so the thread stays in its loading state
     // continuously instead of flashing empty between the two.
-    if (skipInitialHistory) return;
+    if (skipInitialHistory) {
+      historyHandledScopeRef.current = scopeKey;
+      return;
+    }
+    // An explicit session load already initialized this scope. When the
+    // parent clears pendingSessionId after that load, skipInitialHistory flips
+    // back to false; do not immediately fetch the same history a second time.
+    if (historyHandledScopeRef.current === scopeKey) return;
+    historyHandledScopeRef.current = scopeKey;
     void runThreadFetch(() => window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current }));
   }, [runThreadFetch, skipInitialHistory, scopeKey]);
 
@@ -166,22 +194,31 @@ export function useChatSessions({
   const closeSessionMenu = useCallback(() => setSessionMenuOpen(false), []);
 
   const loadSessions = useCallback(async () => {
+      const token = ++sessionListRequestRef.current;
       setSessionsLoading(true);
       try {
-      const result = await window.canvasWorkspace.agent.listSessions({ scope: agentScope });
+      const workspaceNameMap: Record<string, string> = {};
+      for (const workspace of allWorkspaces ?? []) {
+        workspaceNameMap[workspace.id] = workspace.name;
+      }
+      const [result, allResult] = await Promise.all([
+        window.canvasWorkspace.agent.listSessions({ scope: agentScope }),
+        allWorkspaces
+          ? window.canvasWorkspace.agent.listAllSessions(workspaceNameMap)
+          : Promise.resolve(null),
+      ]);
+      if (token !== sessionListRequestRef.current) return;
+      let nextSessions: AgentSessionInfo[] | undefined;
+      let nextOtherSessions: OtherWorkspaceSession[] | undefined;
+      let nextCurrentScopeName: string | null | undefined;
+
       if (result.ok && result.sessions) {
-        setSessions(result.sessions);
-        patchSessionsCache(scopeKey, { sessions: result.sessions });
+        nextSessions = result.sessions;
       }
 
-      if (allWorkspaces && (agentScope.kind === 'global' || allWorkspaces.length > 1)) {
-        const workspaceNameMap: Record<string, string> = {};
-        for (const workspace of allWorkspaces) {
-          workspaceNameMap[workspace.id] = workspace.name;
-        }
-
-        const allResult = await window.canvasWorkspace.agent.listAllSessions(workspaceNameMap);
+      if (allResult) {
         if (allResult.ok && allResult.groups) {
+          nextCurrentScopeName = null;
           // Groups are keyed by session-STORE id, which is the workspace id
           // only for workspace scopes; global chat and each scheduled task
           // have their own sentinel store. Dedupe on the store id so the
@@ -190,7 +227,7 @@ export function useChatSessions({
           const flattened: OtherWorkspaceSession[] = [];
           for (const group of allResult.groups) {
             if (group.workspaceId === currentStoreId) {
-              setCurrentScopeName(group.workspaceName);
+              nextCurrentScopeName = group.workspaceName;
               continue;
             }
             for (const session of group.sessions) {
@@ -203,22 +240,41 @@ export function useChatSessions({
           }
 
           flattened.sort((left, right) => right.date.localeCompare(left.date));
-          setOtherSessions(flattened);
-          patchSessionsCache(scopeKey, { otherSessions: flattened });
+          nextOtherSessions = flattened;
         }
       } else {
-        setOtherSessions([]);
-        patchSessionsCache(scopeKey, { otherSessions: [] });
+        nextOtherSessions = [];
+      }
+
+      // Commit the two halves together. Updating `sessions` before
+      // `otherSessions` briefly duplicated the promoted session and rebuilt
+      // the folder tree around the pointer.
+      if (nextSessions) setSessions(nextSessions);
+      if (nextOtherSessions) setOtherSessions(nextOtherSessions);
+      if (nextCurrentScopeName !== undefined) {
+        setCurrentScopeName(nextCurrentScopeName);
+      }
+      if (nextSessions || nextOtherSessions) {
+        patchSessionsCache(scopeKey, {
+          ...(nextSessions ? { sessions: nextSessions } : {}),
+          ...(nextOtherSessions ? { otherSessions: nextOtherSessions } : {}),
+        });
       }
     } finally {
-      setSessionsLoading(false);
+      if (token === sessionListRequestRef.current) {
+        setSessionsLoading(false);
+      }
     }
   }, [agentScope, allWorkspaces, scopeKey, workspaceId]);
 
   useEffect(() => {
-    if (!eagerLoad) return;
+    // A selected session changes the main-side current pointer. Fetching the
+    // list in parallel can observe the promotion halfway through and return
+    // both its current and archived copies. Refresh only after that load has
+    // settled and the caller clears skipInitialHistory.
+    if (!eagerLoad || skipInitialHistory) return;
     void loadSessions();
-  }, [eagerLoad, loadSessions]);
+  }, [eagerLoad, loadSessions, skipInitialHistory]);
 
   const openSessionMenu = useCallback(async () => {
     if (sessionMenuOpen) {
