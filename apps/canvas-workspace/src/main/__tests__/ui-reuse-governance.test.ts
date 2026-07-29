@@ -347,7 +347,13 @@ const RATCHET_BASELINE: Record<string, number> = {
   // states (-4), and node-header focus uses the existing accent token (-1).
   // 1827→1824 (chat rail cleanup): grouped source labels remove the repeated
   // per-row metadata colors and reuse shared surface/text tokens.
-  hardcodedColorLiterals: 1824,
+  // 1824→1804 (spatial-theme accent pass): ui/{Button,Select,TextField,
+  // Drawer} swap their exact-value accent/ink/surface literals for
+  // var(--accent/--accent-border/--accent-light/--text/--surface) plus the
+  // two tokens minted verbatim for this (--accent-hover, --drawer-bg), so
+  // data-theme overlays restate the whole family; classic pixels unchanged
+  // (ui-showcase baselines green).
+  hardcodedColorLiterals: 1804,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

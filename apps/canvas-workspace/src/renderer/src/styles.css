@@ -54,6 +54,10 @@
   --accent: #2383e2;
   --accent-light: rgba(35, 131, 226, 0.08);
   --accent-border: rgba(35, 131, 226, 0.45);
+  /* Exact-value tokenization (2026-07-29, spatial-theme accent pass):
+     ui/Button's primary hover literal, minted verbatim so themes can
+     restate the whole accent family. */
+  --accent-hover: #1f76cc;
   --accent-file: #d9730d;
   --accent-term: #0f7b6c;
   --accent-frame: #a594e0;
@@ -66,6 +70,9 @@
   --error: #c0392b;
   --text-warning: #b45309;
   --overlay-backdrop: rgba(32, 34, 37, 0.22);
+  /* ui/Drawer's warm-cream sheet, minted verbatim (same pass): themes
+     with a cool ground restate it; classic keeps the cream. */
+  --drawer-bg: #fdfcfb;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 5px 14px rgba(0, 0, 0, 0.07);
   --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.07), 0 9px 24px rgba(0, 0, 0, 0.09);
@@ -151,6 +158,7 @@
   --accent-muted: rgba(61, 79, 242, 0.16);
   --accent-soft: rgba(61, 79, 242, 0.1);
   --accent-soft-strong: rgba(61, 79, 242, 0.22);
+  --accent-hover: #2c3cd9;
   --accent-file: #f2603d;
   --accent-term: #12876d;
   --accent-frame: #3fbfae;
@@ -168,6 +176,7 @@
   --success: #18915d;
   --error: #d8402e;
   --overlay-backdrop: rgba(14, 16, 20, 0.32);
+  --drawer-bg: #ffffff;
   --shadow-sm: 0 1px 3px rgba(16, 18, 22, 0.05);
   --shadow-card: 0 1px 3px rgba(16, 18, 22, 0.05), 0 8px 20px rgba(16, 18, 22, 0.07);
   --shadow-card-hover: 0 2px 6px rgba(16, 18, 22, 0.06), 0 12px 30px rgba(16, 18, 22, 0.1);

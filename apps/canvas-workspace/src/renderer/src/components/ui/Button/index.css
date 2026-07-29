@@ -76,8 +76,8 @@
 
 .ui-btn--secondary {
   border: 1px solid rgba(55, 53, 47, 0.12);
-  background: #fff;
-  color: #37352f;
+  background: var(--surface);
+  color: var(--text);
 }
 
 .ui-btn--secondary:hover:not(:disabled) {
@@ -85,19 +85,19 @@
 }
 
 .ui-btn--primary {
-  border: 1px solid #2383e2;
-  background: #2383e2;
+  border: 1px solid var(--accent);
+  background: var(--accent);
   color: #fff;
 }
 
 .ui-btn--primary:hover:not(:disabled) {
-  background: #1f76cc;
-  border-color: #1f76cc;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .ui-btn--danger {
   border: 1px solid rgba(55, 53, 47, 0.12);
-  background: #fff;
+  background: var(--surface);
   color: rgba(180, 47, 47, 0.85);
 }
 

@@ -23,8 +23,8 @@
   padding: 0 10px;
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: var(--radius);
-  background: #fff;
-  color: #37352f;
+  background: var(--surface);
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   outline: none;
@@ -41,7 +41,7 @@ textarea.ui-textfield__control {
 }
 
 .ui-textfield__control:focus-visible {
-  border-color: rgba(35, 131, 226, 0.45);
+  border-color: var(--accent-border);
   box-shadow: var(--shadow-focus);
   outline: none;
 }

@@ -21,8 +21,8 @@
   padding: 0 10px;
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: var(--radius);
-  background: #fff;
-  color: #37352f;
+  background: var(--surface);
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   text-align: left;
@@ -37,7 +37,7 @@
 
 .ui-select--open .ui-select__trigger,
 .ui-select__trigger:focus-visible {
-  border-color: rgba(35, 131, 226, 0.45);
+  border-color: var(--accent-border);
   box-shadow: var(--shadow-focus);
   outline: none;
 }
@@ -92,7 +92,7 @@
   padding: 4px;
   border: 1px solid rgba(55, 53, 47, 0.1);
   border-radius: var(--radius-lg);
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 10px 28px rgba(15, 15, 15, 0.12), 0 0 0 1px rgba(15, 15, 15, 0.02);
 }
 
@@ -111,7 +111,7 @@
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: #37352f;
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   text-align: left;
@@ -125,7 +125,7 @@
 }
 
 .ui-select__option--active {
-  background: rgba(35, 131, 226, 0.08);
+  background: var(--accent-light);
 }
 
 .ui-select__option:disabled {
@@ -156,5 +156,5 @@
 .ui-select__check {
   display: inline-flex;
   flex: 0 0 auto;
-  color: #2383e2;
+  color: var(--accent);
 }
