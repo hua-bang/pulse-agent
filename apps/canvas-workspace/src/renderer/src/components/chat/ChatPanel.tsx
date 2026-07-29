@@ -117,6 +117,7 @@ export const ChatPanel = ({
     sessionMenuRef,
     sessions,
     sessionsLoading,
+    sessionLoading,
     setClarifyInput,
     setMentionIndex,
     streamingTools,
@@ -432,6 +433,7 @@ export const ChatPanel = ({
       pendingLabel={pendingLabel}
       messages={messages}
       loading={loading}
+      sessionLoading={sessionLoading}
       workspaceId={anchorScopeId}
       rootFolder={rootFolder}
       streamingTools={streamingTools}

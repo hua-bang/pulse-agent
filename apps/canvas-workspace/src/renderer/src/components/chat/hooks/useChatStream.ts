@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { AgentChatMessage, AgentRequestContext, ChatImageAttachment } from '../../../types';
 import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
@@ -12,6 +12,7 @@ import {
   type RelayProgress,
 } from './relayTurnHandlers';
 import { count } from '../../../perf/counters';
+import { cacheThread, getCachedThread } from './chatThreadCache';
 
 interface UseChatStreamOptions {
   agentScope: AgentScope;
@@ -23,7 +24,10 @@ const agentScopeKey = (scope: AgentScope): string =>
     : scope.kind === 'scheduled' ? `scheduled:${scope.taskId}` : 'global';
 
 export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOptions) {
-  const [messages, setMessages] = useState<AgentChatMessage[]>([]);
+  const scopeKey = agentScopeKey(agentScope);
+  const [messages, setMessages] = useState<AgentChatMessage[]>(
+    () => getCachedThread(scopeKey),
+  );
   const [loading, setLoading] = useState(false);
   const [streamingTools, setStreamingTools] = useState<ToolCallStatus[]>([]);
   const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
@@ -36,6 +40,8 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
   const toolIdCounter = useRef(0);
   const activeUnsubsRef = useRef<(() => void)[]>([]);
   const streamingMsgIdx = useRef(-1);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   const cleanupSubscriptions = useCallback(() => {
     for (const unsubscribe of activeUnsubsRef.current) {
@@ -44,8 +50,22 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
     activeUnsubsRef.current = [];
   }, []);
 
-  const scopeKey = agentScopeKey(agentScope);
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+  const previousScopeKeyRef = useRef(scopeKey);
+
+  useLayoutEffect(() => {
+    if (previousScopeKeyRef.current === scopeKey) return;
+    cacheThread(previousScopeKeyRef.current, messagesRef.current);
+    // Keep the currently rendered thread intact until the next scope's
+    // history arrives. Clearing or swapping to a per-scope cache here makes
+    // a scope switch look like a page refresh even though the component
+    // itself stays mounted.
+    previousScopeKeyRef.current = scopeKey;
+  }, [scopeKey]);
+
+  useEffect(() => () => {
+    cacheThread(previousScopeKeyRef.current, messagesRef.current);
+  }, []);
 
   useEffect(() => {
     setActiveSessionId(null);
@@ -64,6 +84,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
   }, [cleanupSubscriptions, scopeKey]);
 
   const replaceMessages = useCallback((nextMessages: AgentChatMessage[]) => {
+    cacheThread(scopeKey, nextMessages);
     setMessages(nextMessages);
     setMessageTools(new Map(
       nextMessages.flatMap((message, index) => (
@@ -82,7 +103,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
     // the set grow (and avoid stale chips from a superseded stream).
     setExpandedTools(new Set());
     setStreamingTools([]);
-  }, []);
+  }, [scopeKey]);
 
   const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
     const text = rawText.trim();

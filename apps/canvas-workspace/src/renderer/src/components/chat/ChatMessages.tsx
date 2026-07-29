@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { BotAvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
+import { ChatThreadSkeleton } from './ChatThreadSkeleton';
 import type { PendingClarification, ToolCallStatus } from './types';
 import { buildAnchorElementId } from './utils/anchors';
 import { useI18n } from '../../i18n';
@@ -12,6 +13,8 @@ import { isVSCodeLink } from './utils/externalLinks';
  *  this band the view keeps following the stream; beyond it the user has
  *  scrolled up to read and auto-scroll must not yank them back. */
 const PIN_THRESHOLD_PX = 80;
+const SKELETON_DELAY_MS = 180;
+const SKELETON_MIN_VISIBLE_MS = 320;
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -35,6 +38,12 @@ interface ChatMessagesProps {
   onRegenerate?: (index: number) => Promise<boolean> | void;
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
   pendingLabel?: string;
+  /**
+   * True while THIS conversation's messages are being fetched. Existing
+   * content remains as a quiet transition surface; an empty thread only shows
+   * its skeleton after a short delay, avoiding a one-frame flash on fast IPC.
+   */
+  sessionLoading?: boolean;
 }
 
 const LoadingPlaceholder = ({ label }: { label?: string }) => (
@@ -150,6 +159,7 @@ export const ChatMessages = ({
   onRegenerate,
   onSessionJump,
   pendingLabel,
+  sessionLoading = false,
 }: ChatMessagesProps) => {
   const { t } = useI18n();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -159,11 +169,34 @@ export const ChatMessages = ({
   // "jump to latest" affordance.
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
+  const [skeletonVisible, setSkeletonVisible] = useState(false);
+  const skeletonShownAtRef = useRef(0);
   const prevCountRef = useRef(0);
   // While a smooth programmatic scroll glides down, intermediate scroll
   // events report "not at bottom" — ignore them briefly so the jump button
   // doesn't flash mid-animation.
   const autoScrollUntilRef = useRef(0);
+
+  useEffect(() => {
+    let timer: number | undefined;
+    if (sessionLoading && messages.length === 0 && !skeletonVisible) {
+      timer = window.setTimeout(() => {
+        skeletonShownAtRef.current = Date.now();
+        setSkeletonVisible(true);
+      }, SKELETON_DELAY_MS);
+    } else if (!sessionLoading && skeletonVisible) {
+      const elapsed = Date.now() - skeletonShownAtRef.current;
+      timer = window.setTimeout(
+        () => setSkeletonVisible(false),
+        Math.max(0, SKELETON_MIN_VISIBLE_MS - elapsed),
+      );
+    } else if (messages.length > 0) {
+      setSkeletonVisible(false);
+    }
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [messages.length, sessionLoading, skeletonVisible]);
 
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
@@ -289,7 +322,9 @@ export const ChatMessages = ({
         className={`chat-messages${loading ? ' chat-messages--loading' : ''}`}
         onClick={handleMessageClick}
         onScroll={handleScroll}
+        aria-busy={sessionLoading || undefined}
       >
+        {skeletonVisible ? <ChatThreadSkeleton /> : <>
         {messages.map((message, index) => {
           const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
           const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
@@ -327,9 +362,10 @@ export const ChatMessages = ({
             onAnswerClarification={onAnswerClarification}
           />
         )}
+        </>}
         <div ref={messagesEndRef} />
       </div>
-      {!atBottom && messages.length > 0 && (
+      {!atBottom && messages.length > 0 && !sessionLoading && (
         <button
           type="button"
           className="chat-jump-latest"

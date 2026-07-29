@@ -34,6 +34,13 @@ interface UseMentionsOptions {
   collectStructuredContext?: boolean;
   onSubmit: (text: string, requestContext?: AgentRequestContext, attachments?: ChatImageAttachment[]) => Promise<boolean>;
   getRequestContext?: () => AgentRequestContext | undefined;
+  /**
+   * Veto checked immediately before a send, keeping the draft intact. Lives
+   * here rather than in each caller's submit handler because the composer has
+   * TWO submit paths — the send button and handleKeyDown's Enter, which calls
+   * submitCurrentInput directly — and a guard in only one of them is a hole.
+   */
+  isSubmitBlocked?: () => boolean;
 }
 
 export function useMentions({
@@ -47,6 +54,7 @@ export function useMentions({
   collectStructuredContext,
   onSubmit,
   getRequestContext,
+  isSubmitBlocked,
 }: UseMentionsOptions) {
   const [input, setInput] = useState('');
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -354,6 +362,7 @@ export function useMentions({
   }, [nodes]);
 
   const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {
+    if (isSubmitBlocked?.()) return false;
     let ctx = requestContext ?? getRequestContext?.();
     // Tab mentions are collected for both hosts (see withCollectedTabs).
     if (editableRef.current) ctx = withCollectedTabs(editableRef.current, ctx);
@@ -376,7 +385,7 @@ export function useMentions({
       clearInput();
     }
     return ok;
-  }, [attachments, clearInput, collectStructuredContext, getRequestContext, input, onSubmit]);
+  }, [attachments, clearInput, collectStructuredContext, getRequestContext, input, isSubmitBlocked, onSubmit]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     // While an IME composition is active (Chinese/Japanese/Korean input),

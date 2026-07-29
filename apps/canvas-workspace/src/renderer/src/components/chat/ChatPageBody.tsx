@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type KeyboardEventHandler, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, type KeyboardEventHandler, type ReactNode } from 'react';
 import type { CanvasNode } from '../../types';
 import { CloseIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
 import type { SettingsSection } from '../Settings';
@@ -17,14 +17,16 @@ import type { AgentScope, WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
-import { scopeSessionStoreId } from '../../../../shared/agent-chat';
+import { useStableSessionRail } from './hooks/useStableSessionRail';
 
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
-  /** Initial session to load on mount (only read at mount time, via ref). */
+  /** Session selected while entering a different scope. */
   initialPendingSessionId: string | null;
   /** Reactive pendingSessionId for same-workspace clicks after mount. */
   pendingSessionId: string | null;
+  /** Session chosen by the user, updated synchronously before its thread loads. */
+  selectedSessionKey?: string | null;
   onSessionConsumed: () => void;
   onSelectSession: (session: UnifiedSession) => void;
   /** Like onSelectSession but for chip jumps — does NOT reset the back stack. */
@@ -59,6 +61,7 @@ export const ChatPageBody = ({
   agentScope,
   initialPendingSessionId,
   pendingSessionId,
+  selectedSessionKey = null,
   onSessionConsumed,
   onSelectSession,
   onJumpToSession,
@@ -94,11 +97,6 @@ export const ChatPageBody = ({
     }
     onOpenAppSettings('models');
   }, [onOpenAppSettings, onOpenWorkspaceSettings, workspaceId]);
-  // Snapshot at mount: the caller might change pendingSessionId later (e.g.
-  // for a same-workspace click), but on mount we only care about the value
-  // we saw when this body was constructed (after a workspace switch).
-  const initialPendingRef = useRef(initialPendingSessionId);
-
   const {
     abort,
     addImageToCanvas,
@@ -134,7 +132,7 @@ export const ChatPageBody = ({
     removeAttachment,
     selectMention,
     sendMessage,
-    sessions, sessionsLoading,
+    sessions, sessionsLoading, sessionLoading,
     setClarifyInput,
     setMentionIndex,
     streamingTools,
@@ -147,10 +145,10 @@ export const ChatPageBody = ({
     nodes,
     rootFolder,
     eagerLoad: true,
-    // If we're about to load a specific session on mount, don't also fetch
-    // the current active-session history — it would race with the pending
-    // load and potentially overwrite it.
-    skipInitialHistory: initialPendingRef.current !== null,
+    // If a specific session is being selected, don't also fetch the scope's
+    // current active history. ChatPageBody now stays mounted across scopes,
+    // so this must follow the prop rather than a mount-time snapshot.
+    skipInitialHistory: initialPendingSessionId !== null || pendingSessionId !== null,
   });
 
   useEffect(() => {
@@ -164,12 +162,9 @@ export const ChatPageBody = ({
     void handleNewSession();
   }, [agentScope.kind, handleNewSession, newSessionRequest]);
 
-  // Load the pending session whenever it's set. This uniformly handles both
-  // cases:
-  //   - Cross-workspace mount: body was just created with a non-null
-  //     pendingSessionId from the parent, so the effect fires on first run.
-  //   - Same-workspace click after mount: parent bumps pendingSessionId from
-  //     null to something, so the effect fires on the subsequent render.
+  // Load the pending session whenever it changes. The body no longer remounts
+  // for cross-workspace picks, so both same- and cross-scope navigation follow
+  // this single path.
   useEffect(() => {
     if (pendingSessionId === null) return;
     void handleLoadSession(pendingSessionId).then(() => {
@@ -328,37 +323,15 @@ export const ChatPageBody = ({
     [regenerateAssistantMessage],
   );
 
-  // Merge the current scope's sessions with every other store's into one
-  // list, newest first. Keyed by STORE id — a scheduled scope is not global.
-  const allSessions: UnifiedSession[] = useMemo(() => {
-    const currentSessionWorkspaceId = scopeSessionStoreId(agentScope);
-    const currentWorkspaceName = currentScopeName
-      ?? (workspaceId ? allWorkspaces.find((w) => w.id === workspaceId)?.name ?? workspaceId : 'Global Chat');
-
-    const unified: UnifiedSession[] = [
-      ...sessions.map((s) => ({
-        sessionId: s.sessionId,
-        workspaceId: currentSessionWorkspaceId,
-        workspaceName: currentWorkspaceName,
-        date: s.date,
-        messageCount: s.messageCount,
-        preview: s.preview,
-        isCurrent: s.isCurrent,
-      })),
-      ...otherSessions.map((os) => ({
-        sessionId: os.sessionId,
-        workspaceId: os.sourceWorkspaceId,
-        workspaceName: os.workspaceName,
-        date: os.date,
-        messageCount: os.messageCount,
-        preview: os.preview,
-        isCurrent: false,
-      })),
-    ];
-
-    unified.sort((a, b) => b.date.localeCompare(a.date));
-    return unified;
-  }, [sessions, otherSessions, workspaceId, allWorkspaces, agentScope, currentScopeName]);
+  const allSessions = useStableSessionRail({
+    agentScope,
+    allWorkspaces,
+    currentScopeName,
+    loading: sessionsLoading,
+    otherSessions,
+    selectedSessionKey,
+    sessions,
+  });
 
   // Session switches are blocked while a turn is streaming — swapping the
   // message list mid-generation would let the in-flight stream write into
@@ -448,7 +421,7 @@ export const ChatPageBody = ({
             <SessionBackBar entry={backEntry} disabled={loading} onBack={onBackToSession} />
           ) : undefined)}
           messages={messages}
-          loading={loading}
+          loading={loading} sessionLoading={sessionLoading}
           workspaceId={anchorScopeId}
           rootFolder={rootFolder}
           streamingTools={streamingTools}
