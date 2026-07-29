@@ -354,7 +354,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1822→1814 (Spatial object states): Note / Text / Web now share one
   // selection token and neutral selected surfaces instead of eight
   // node-local blue literals.
-  hardcodedColorLiterals: 1814,
+  hardcodedColorLiterals: 1812,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

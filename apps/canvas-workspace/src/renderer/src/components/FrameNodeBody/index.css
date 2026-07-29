@@ -7,12 +7,12 @@
  * swatch identity; CanvasNodeView/utils.ts parses the hue/chroma out of
  * `data.color` and exposes them as CSS custom props.
  *
- *   pillBg        -> L 0.955  Cx0.42  (pale tinted label, NOT a solid chip)
- *   pillText      -> L 0.52   Cx2.4   (colored label text + icon strokes)
- *   countBg       -> L 0.90   Cx0.75  (tinted badge, colored text)
- *   bodyTint      -> L 0.979  Cx0.17  (barely-there wash)
- *   bodyTintFocus -> L 0.972  Cx0.20
- *   border        -> L 0.925  Cx0.45
+ *   pillBg        -> L 0.955  Cx0.30  (pale tinted label, NOT a solid chip)
+ *   pillText      -> L 0.52   Cx2.0   (colored label text + icon strokes)
+ *   countBg       -> L 0.90   Cx0.55  (tinted badge, colored text)
+ *   bodyTint      -> L 0.979  Cx0.07  (cool-grey surface with a hue whisper)
+ *   bodyTintFocus -> L 0.972  Cx0.12
+ *   border        -> L 0.925  Cx0.24
  *   borderHover   -> L 0.87   Cx0.70
  *   borderFocus   -> L 0.80   Cx0.38
  *   identity      -> L 0.62   Cx0.95  (selection ring, focus mode border)
@@ -44,9 +44,9 @@
    * keeping this as a variable lets focus/experiments still tune it. */
   --_a: var(--frame-bg-alpha, 0.96);
 
-  background: oklch(0.979 calc(var(--_c) * 0.17) var(--_h) / var(--_a));
-  border: 1px solid oklch(0.925 calc(var(--_c) * 0.45) var(--_h));
-  border-radius: var(--radius-md);
+  background: oklch(0.979 calc(var(--_c) * 0.07) var(--_h) / var(--_a));
+  border: 1px solid oklch(0.925 calc(var(--_c) * 0.24) var(--_h));
+  border-radius: var(--radius-xl);
   box-shadow: none;
   /* Header pill floats above the body, so we mustn't clip it. */
   overflow: visible;
@@ -89,7 +89,7 @@
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: oklch(0.972 calc(var(--_c) * 0.20) var(--_h) / 0.97);
+  background: oklch(0.972 calc(var(--_c) * 0.12) var(--_h) / 0.97);
   border-style: solid;
   border-color: oklch(0.80 calc(var(--_c) * 0.38) var(--_h));
   box-shadow: 0 0 0 2px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.28);
@@ -143,11 +143,11 @@
    * saturation lives in the type, not in a solid block. Still legible as a
    * section anchor at overview zoom via the counter-scaled transform; the
    * graphite preset degrades to a gray label. */
-  background: oklch(0.955 calc(var(--_c) * 0.42) var(--_h));
+  background: oklch(0.955 calc(var(--_c) * 0.30) var(--_h));
   border: none;
   border-radius: var(--radius-md);
-  color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
-  box-shadow: none;
+  color: oklch(0.52 calc(var(--_c) * 2.0) var(--_h));
+  box-shadow: var(--shadow-sm);
 
   /* Header lives inside .canvas-transform; same scale-clamping logic as
    * before so the pill stays readable at deep zoom-out without going
@@ -158,14 +158,14 @@
 }
 
 .canvas-node--frame .node-header .node-type-badge--frame {
-  color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
+  color: oklch(0.52 calc(var(--_c) * 2.0) var(--_h));
   width: 15px;
   height: 15px;
 }
 
 .canvas-node--frame .node-header .node-title {
   flex: 0 1 auto;
-  color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
+  color: oklch(0.52 calc(var(--_c) * 2.0) var(--_h));
   font-weight: 700;
   font-size: 14px;
   line-height: 1.2;
@@ -197,8 +197,8 @@
   padding: 0 6px;
   border: 0;
   border-radius: 7px;
-  background: oklch(0.90 calc(var(--_c) * 0.75) var(--_h));
-  color: oklch(0.52 calc(var(--_c) * 2.4) var(--_h));
+  background: oklch(0.90 calc(var(--_c) * 0.55) var(--_h));
+  color: oklch(0.52 calc(var(--_c) * 2.0) var(--_h));
   cursor: pointer;
   transition:
     background 0.14s ease,

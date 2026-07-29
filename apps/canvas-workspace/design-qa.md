@@ -45,6 +45,89 @@ final result: passed
 
 ---
 
+# Spatial-inspired workspace shell — design QA
+
+## Visual sources
+
+- Source visual truth:
+  `/Users/jasperhu/project/pulse-agent/apps/canvas-workspace/.harness/spatial-reference.png`
+  - 1223 × 768 pixels.
+  - Current Spatial desktop app, captured through the macOS app surface.
+- Implementation:
+  `/Users/jasperhu/project/pulse-agent/apps/canvas-workspace/.harness/spatial-mono-light-toolbar-final.png`
+  - 2400 × 1544 pixels.
+  - Pulse Canvas production build at a 1200 × 772 CSS viewport and device
+    scale factor 2.
+- State: Spatial shows a freeform personal board; Pulse Canvas shows the
+  harness demo workspace with the product sidebar and one Frame. Content and
+  navigation differences are intentional. The comparison targets the shared
+  visual grammar: canvas temperature, paper-object contrast, typography,
+  elevation, frame saturation, and floating controls.
+
+## Findings
+
+No actionable P0, P1, or P2 differences remain for the intended adaptation.
+
+- Fonts and typography: app chrome keeps Pulse's monospaced identity rather
+  than copying Spatial's system-sans treatment. Reading surfaces retain the
+  quieter humanist sans stack, so node content remains legible at overview
+  scale.
+- Spacing and layout rhythm: Pulse keeps its denser sidebar and creation rail
+  because Coding, Terminal, and Agent tools need persistent discoverability.
+  Cards remain generously separated and the bottom controls now read as
+  independent floating objects rather than a fixed application footer.
+- Colors and visual tokens: the former warm canvas is replaced by a cool
+  neutral grey. Borders and ink are neutral rather than brown-grey, Frames use
+  a whisper tint instead of a large saturated wash, and sidebar selection is
+  neutral. Pulse blue remains limited to meaningful state and identity.
+- Image quality and asset fidelity: no new raster or vector assets were needed.
+  Existing product icons remain sharp at 2× density, and no placeholder,
+  handcrafted SVG, or CSS illustration was introduced.
+- Copy and content: product copy and node content are unchanged. The redesign
+  changes presentation only.
+
+The final full-view capture keeps the palette, cards, toolbar, and type
+hierarchy legible, so a separate focused crop was not needed.
+
+## Comparison history
+
+1. Baseline Pulse Canvas used a warm grey canvas, brown-grey ink, monospaced
+   app chrome, visibly colored Frame washes, and a white creation toolbar.
+2. First pass introduced the cool neutral palette, system-sans chrome, softer
+   Frame color, neutral sidebar selection, translucent white zoom controls, and
+   cooler elevation.
+3. Side-by-side review showed that the white creation rail still made the shell
+   read primarily as the previous Pulse design.
+4. A charcoal creation rail was tested, but it competed too strongly with the
+   workspace content. User review also confirmed that Mono is part of Pulse's
+   visual identity.
+5. The final pass restores Mono app chrome and uses a translucent white
+   creation rail. Spatial's cool-grey work surface, white-paper objects, softer
+   Frames, and restrained elevation remain.
+
+## Primary interactions checked
+
+- Launched the production Electron build in the disposable demo profile.
+- Confirmed the live WebView remained registered and rendered after the global
+  palette and typography changes.
+- Switched the floating toolbar from Select to Pan and confirmed the active
+  treatment moved to the selected tool.
+- Inspected the renderer screenshot at the production 1200 × 772 viewport.
+- Checked Electron logs; no renderer or WebView errors were emitted.
+- TypeScript, UI-reuse governance, file-size governance, and Canvas contract
+  checks passed.
+
+## Follow-up polish
+
+- P3: review one dense real workspace at Fit and close zoom before deciding
+  whether the cool canvas should move one step darker.
+- P3: review the light creation rail over very pale node content to confirm the
+  separation remains sufficient at every zoom level.
+
+final result: passed
+
+---
+
 # Scheduled run feedback and dock-responsive rows — design QA
 
 - Source visual truth: the annotated follow-up screenshot `codex-clipboard-54a8…png`.

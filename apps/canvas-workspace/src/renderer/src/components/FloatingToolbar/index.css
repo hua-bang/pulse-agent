@@ -6,12 +6,14 @@
   max-width: calc(100% - 32px);
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  gap: 3px;
+  padding: 5px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-float);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
   z-index: var(--layer-canvas-chrome);
 }
 
@@ -38,8 +40,8 @@
 .toolbar-divider {
   width: 1px;
   height: 20px;
-  background: var(--border);
-  margin: 0 4px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  margin: 0 5px;
   flex: 0 0 auto;
 }
 
@@ -49,7 +51,7 @@
   min-width: 32px;
   border: none;
   background: transparent;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -80,7 +82,7 @@
 .toolbar-btn:hover,
 .toolbar-btn:focus-visible {
   outline: none;
-  background: rgba(0, 0, 0, 0.04);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   color: var(--text);
 }
 

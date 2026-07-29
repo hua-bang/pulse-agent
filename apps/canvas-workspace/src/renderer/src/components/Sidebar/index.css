@@ -2,8 +2,8 @@
 
 .sidebar {
   width: var(--sidebar-width);
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 96%, var(--bg-canvas));
+  border-right: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -89,12 +89,12 @@
 }
 
 .sidebar-nav-item--active {
-  background: var(--accent-light);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
 }
 
 .sidebar-nav-item--active:hover {
-  background: var(--accent-light);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
 }
 
 .sidebar-nav-icon {
@@ -108,7 +108,7 @@
 }
 
 .sidebar-nav-item--active .sidebar-nav-icon {
-  color: var(--accent);
+  color: var(--text);
 }
 
 .sidebar-nav-label {
@@ -205,12 +205,12 @@
 }
 
 .sidebar-item--active {
-  background: var(--accent-light);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
 }
 
 .sidebar-item--active:hover {
-  background: var(--accent-light);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
 }
 
 .sidebar-item--muted {
