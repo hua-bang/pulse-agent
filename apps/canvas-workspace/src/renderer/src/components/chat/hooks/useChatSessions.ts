@@ -107,6 +107,18 @@ export function useChatSessions({
   // while the mount history fetch is still open) would otherwise let the
   // slower response overwrite the session the user actually asked for.
   const threadRequestRef = useRef(0);
+  // The token alone is NOT enough for session SWITCHES. loadSession /
+  // loadCrossWorkspaceSession / newSession are state-changing main-side —
+  // SessionStore archives the current session and promotes the requested one
+  // — so two overlapping switches leave the main-side pointer at whichever
+  // call finishes last, while the token paints whichever was clicked last.
+  // Those two can disagree, and then the next turn persists into a
+  // conversation the user is not looking at. Refusing an overlapping switch
+  // is what keeps the pointer and the thread in agreement; the token stays as
+  // the renderer-side arbiter for the one overlap still allowed. getHistory
+  // is deliberately exempt: it activates and reads, never promotes, so a pick
+  // may overlap the mount history fetch harmlessly.
+  const switchInFlightRef = useRef(false);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
 
   // Always read the latest scope inside the effect without making the effect
@@ -224,24 +236,35 @@ export function useChatSessions({
 
   const handleNewSession = useCallback(async () => {
     setSessionMenuOpen(false);
-    const result = await window.canvasWorkspace.agent.newSession({ scope: agentScope });
-    if (!result.ok) return result;
-    // Retire any in-flight thread fetch: its messages belong to the session
-    // we just navigated away from, and a blank new chat is not "loading".
-    threadRequestRef.current += 1;
-    setSessionLoading(false);
-    onMessagesLoaded([]);
-    return result;
+    if (switchInFlightRef.current) return { ok: false };
+    switchInFlightRef.current = true;
+    try {
+      const result = await window.canvasWorkspace.agent.newSession({ scope: agentScope });
+      if (!result.ok) return result;
+      // Retire any in-flight thread fetch: its messages belong to the session
+      // we just navigated away from, and a blank new chat is not "loading".
+      threadRequestRef.current += 1;
+      setSessionLoading(false);
+      onMessagesLoaded([]);
+      return result;
+    } finally {
+      switchInFlightRef.current = false;
+    }
   }, [agentScope, onMessagesLoaded]);
 
   const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
     setSessionMenuOpen(false);
-
-    await runThreadFetch(() => (
-      sourceWorkspaceId && workspaceId && sourceWorkspaceId !== workspaceId
-        ? window.canvasWorkspace.agent.loadCrossWorkspaceSession(workspaceId, sourceWorkspaceId, sessionId)
-        : window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId)
-    ));
+    if (switchInFlightRef.current) return;
+    switchInFlightRef.current = true;
+    try {
+      await runThreadFetch(() => (
+        sourceWorkspaceId && workspaceId && sourceWorkspaceId !== workspaceId
+          ? window.canvasWorkspace.agent.loadCrossWorkspaceSession(workspaceId, sourceWorkspaceId, sessionId)
+          : window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId)
+      ));
+    } finally {
+      switchInFlightRef.current = false;
+    }
   }, [agentScope, runThreadFetch, workspaceId]);
 
   return {

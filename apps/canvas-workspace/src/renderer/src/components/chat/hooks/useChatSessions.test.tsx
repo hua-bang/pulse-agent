@@ -122,54 +122,98 @@ describe('useChatSessions — session detail loading', () => {
     expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('session a')]);
   });
 
-  it('drops a superseded load instead of overwriting the newer session', async () => {
+  it('refuses a second switch while one is in flight', async () => {
     await mount();
-    const slowFirst = deferred<ThreadResult>();
-    const fastSecond = deferred<ThreadResult>();
-    agent.loadSession
-      .mockReturnValueOnce(slowFirst.promise)
-      .mockReturnValueOnce(fastSecond.promise);
+    const first = deferred<ThreadResult>();
+    agent.loadSession.mockReturnValueOnce(first.promise);
 
-    let first!: Promise<void>;
-    let second!: Promise<void>;
-    await act(async () => { first = latest!.handleLoadSession('session-a'); });
-    await act(async () => { second = latest!.handleLoadSession('session-b'); });
+    let pending!: Promise<void>;
+    await act(async () => { pending = latest!.handleLoadSession('session-a'); });
+    await act(async () => { await latest!.handleLoadSession('session-b'); });
+
+    // loadSession archives the current session and promotes the requested one
+    // main-side, so overlapping calls leave the agent pointing at whichever
+    // finished last while the renderer paints whichever was clicked last.
+    // Only ONE switch may be in flight, or the two can disagree.
+    expect(agent.loadSession).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      fastSecond.resolve({ ok: true, messages: [message('session b')] });
-      await second;
+      first.resolve({ ok: true, messages: [message('session a')] });
+      await pending;
+    });
+
+    // ...and the surface is switchable again once it settles.
+    await act(async () => { await latest!.handleLoadSession('session-b'); });
+    expect(agent.loadSession).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses a new chat while a switch is in flight', async () => {
+    await mount();
+    const first = deferred<ThreadResult>();
+    agent.loadSession.mockReturnValueOnce(first.promise);
+
+    let pending!: Promise<void>;
+    await act(async () => { pending = latest!.handleLoadSession('session-a'); });
+    let result: { ok: boolean } | undefined;
+    await act(async () => { result = await latest!.handleNewSession(); });
+
+    // newSession promotes a session too — same divergence, same rule.
+    expect(agent.newSession).not.toHaveBeenCalled();
+    expect(result?.ok).toBe(false);
+
+    await act(async () => {
+      first.resolve({ ok: true, messages: [message('session a')] });
+      await pending;
+    });
+  });
+
+  it('drops a superseded history fetch instead of overwriting the picked session', async () => {
+    // The one overlap still allowed: getHistory only activates and reads (it
+    // never promotes a session), so a pick may overlap the mount fetch. The
+    // token is what decides who paints.
+    const slowHistory = deferred<ThreadResult>();
+    agent.getHistory.mockReturnValue(slowHistory.promise);
+    await mount();
+
+    const pick = deferred<ThreadResult>();
+    agent.loadSession.mockReturnValue(pick.promise);
+
+    let pending!: Promise<void>;
+    await act(async () => { pending = latest!.handleLoadSession('session-b'); });
+    await act(async () => {
+      pick.resolve({ ok: true, messages: [message('session b')] });
+      await pending;
     });
     expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('session b')]);
-    expect(latest?.sessionLoading).toBe(false);
 
-    // The first pick lands late — it must neither repaint the thread nor
+    // The mount fetch lands late — it must neither repaint the thread nor
     // re-open the loading state over the session now on screen.
     await act(async () => {
-      slowFirst.resolve({ ok: true, messages: [message('session a')] });
-      await first;
+      slowHistory.resolve({ ok: true, messages: [message('stale history')] });
+      await slowHistory.promise;
     });
 
     expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('session b')]);
     expect(latest?.sessionLoading).toBe(false);
   });
 
-  it('retires an in-flight load when a new chat is started', async () => {
+  it('retires an in-flight history fetch when a new chat is started', async () => {
+    // A new chat during the mount fetch IS allowed (getHistory promotes
+    // nothing), so the token has to retire it — otherwise the old session's
+    // messages land in the blank chat the user is now looking at.
+    const slowHistory = deferred<ThreadResult>();
+    agent.getHistory.mockReturnValue(slowHistory.promise);
     await mount();
-    const load = deferred<ThreadResult>();
-    agent.loadSession.mockReturnValue(load.promise);
 
-    let pending!: Promise<void>;
-    await act(async () => { pending = latest!.handleLoadSession('session-a'); });
     await act(async () => { await latest!.handleNewSession(); });
 
-    // A blank new chat is not "loading", and the abandoned session's
-    // messages must not land in it.
+    expect(agent.newSession).toHaveBeenCalledTimes(1);
     expect(latest?.sessionLoading).toBe(false);
     expect(onMessagesLoaded).toHaveBeenLastCalledWith([]);
 
     await act(async () => {
-      load.resolve({ ok: true, messages: [message('session a')] });
-      await pending;
+      slowHistory.resolve({ ok: true, messages: [message('previous session')] });
+      await slowHistory.promise;
     });
 
     expect(onMessagesLoaded).toHaveBeenLastCalledWith([]);
