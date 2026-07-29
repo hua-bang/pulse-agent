@@ -21,7 +21,12 @@ import { createCanvasAgentToolPolicy } from './tool-policy';
 import { SessionStore } from './session-store';
 import { sessionPreview } from './session-preview';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
-import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
+import {
+  formatWorkspaceContextSection,
+  readWorkspaceDoc,
+  readWorkspaceMeta,
+  WORKSPACE_DOC_FILENAME,
+} from './workspace-meta';
 import { buildMemoryPromptSection } from './memory-store';
 import {
   attachTraceModel,
@@ -36,6 +41,7 @@ import type {
   CanvasAgentConfig,
   CanvasAgentImageAttachment,
   CanvasAgentMessage,
+  CanvasAgentToolCall,
   WorkspaceSummary,
 } from './types';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
@@ -52,13 +58,17 @@ import {
   applySpeakerLabelToResponseMessages,
   formatActiveRoleSection,
   formatRoleHistoryNote,
+  handoffTargetRoles,
+  replaceFinalAssistantText,
   resolveActiveRoles,
   resolveHandoffRoles,
   roleTurnRef,
+  sanitizeRoleSegmentText,
   sessionMessageToModelMessage,
   shouldRunRelaySegment,
 } from './role-turn';
 import { getAgentRoleSettings, listAgentRoles } from './roles-store';
+import { runExternalRoleSegment } from './external/segment';
 import { buildEngineStreamCallbacks, modelMessagesToToolCalls } from './engine-stream-callbacks';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const CANVAS_AGENT_MAX_STEPS = 200;
@@ -365,39 +375,6 @@ Use these alongside canvas_* tools for full workspace control.
 
 `;
 
-function formatWorkspaceContextSection(rootFolder: string | undefined, workspaceDoc: string | null): string {
-  if (!rootFolder && !workspaceDoc) return '';
-
-  const parts: string[] = [];
-
-  if (rootFolder) {
-    parts.push(
-      '\n## Workspace Environment',
-      `- Root folder: \`${rootFolder}\``,
-      '- When creating agent or terminal nodes, use `canvas_create_agent_node` / `canvas_create_terminal_node`; search for a tool first if it is not already available. Omit the `cwd` argument to use the workspace root automatically. Only pass an explicit `cwd` when the work needs to happen outside the root (e.g. a sibling repo or a specific subdirectory).',
-      '- File-system tools (`read`, `write`, `edit`, `grep`, `ls`, `bash`) should resolve relative paths against the workspace root.',
-      '',
-    );
-  }
-
-  if (workspaceDoc) {
-    const docPath = rootFolder ? `${rootFolder}/${WORKSPACE_DOC_FILENAME}` : WORKSPACE_DOC_FILENAME;
-    parts.push(
-      `## Workspace Context (${docPath})`,
-      'The following document is authored jointly by the user and you. ' +
-        'It captures the goal, current status, and any decisions for this workspace. ' +
-        'Treat it as authoritative context — refer back to it when planning your next steps. ' +
-        'When you make meaningful progress, change direction, or resolve a blocker, ' +
-        'use the `edit` tool to update the relevant section so the user sees fresh state next time.',
-      '',
-      workspaceDoc.trim(),
-      '',
-    );
-  }
-
-  return parts.join('\n');
-}
-
 function formatMentionedCanvasesSection(
   mentionedCanvases: Array<{ id: string; name: string }> = [],
 ): string {
@@ -695,9 +672,11 @@ export class CanvasAgent {
     }
 
     let workspaceDocSection = '';
+    let workspaceRootFolder: string | undefined;
     if (workspaceId) {
       try {
         const meta = await readWorkspaceMeta(workspaceId);
+        workspaceRootFolder = meta.rootFolder;
         const workspaceDoc = await readWorkspaceDoc(meta.rootFolder);
         workspaceDocSection = formatWorkspaceContextSection(meta.rootFolder, workspaceDoc);
       } catch (err) {
@@ -721,17 +700,25 @@ export class CanvasAgent {
     // role's reply may @-mention other roles by NAME to append them to this
     // very turn's queue. Only role segments hand off — default-assistant
     // turns never grow a queue. Failure degrades to handoff-off.
+    // Externally-driven roles are excluded as TARGETS (and from the advertised
+    // names): a coding agent with real side effects only ever speaks when the
+    // USER @-mentions it directly. They may still hand off TO persona roles.
     let handoffLibrary: AgentRoleDefinition[] = [];
     if (activeRoles.length > 0) {
       try {
         if ((await getAgentRoleSettings()).allowRoleHandoff) {
-          handoffLibrary = await listAgentRoles();
+          handoffLibrary = handoffTargetRoles(await listAgentRoles());
         }
       } catch (err) {
         console.warn('[canvas-agent] failed to read role-handoff settings, handoff off this turn:', err);
       }
     }
-    const handoffEnabled = handoffLibrary.length > 1;
+    // >0 (not >1): the speaker may be an external role that is itself
+    // filtered out of the target library; per-segment self-filtering already
+    // collapses the empty case (no note, nothing to scan into).
+    const handoffEnabled = handoffLibrary.length > 0;
+    // Speaker labels the impersonation guard recognizes; other 【...】 is text.
+    const knownRoleNames = new Set([...activeRoles, ...handoffLibrary].map(entry => entry.name));
 
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
     const basePrompt = workspaceId
@@ -822,7 +809,8 @@ export class CanvasAgent {
               handoffEnabled ? { otherNames: handoffLibrary.map(entry => entry.name) } : undefined,
             )
           : hasLabeledRoleHistory ? formatRoleHistoryNote() : '');
-        const debugTrace = isCanvasAgentDebugTraceEnabled()
+        // External segments produce no engine trace (no model config of ours).
+        const debugTrace = !role?.external && isCanvasAgentDebugTraceEnabled()
           ? createCanvasAgentDebugTrace({
               sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
               userPrompt: message,
@@ -842,43 +830,74 @@ export class CanvasAgent {
         onRoleTurnStart?.({ index, total: segments.length, speakerRole: roleTurnRef(role), queue });
 
         const responseMessages: ModelMessage[] = [];
-        const resultText = await this.engine.run(context, {
-          provider: modelConfig.provider,
-          model: this.config.model ?? modelConfig.model,
-          modelType: modelConfig.modelType,
-          systemPrompt: segmentPrompt,
-          maxSteps: CANVAS_AGENT_MAX_STEPS,
-          abortSignal: abortController.signal,
-          runContext: {
-            executionMode: requestContext?.executionMode ?? 'auto',
-          },
-          onClarificationRequest: engineClarificationHandler,
-          ...buildEngineStreamCallbacks(
-            { onText, onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd },
-            debugTrace,
-          ),
-          onResponse: (msgs: ModelMessage[]) => {
-            for (const msg of msgs) {
-              this.messages.push(msg);
-              responseMessages.push(msg);
-            }
-          },
-          onCompacted: (newMessages: ModelMessage[]) => {
-            this.messages = newMessages;
-            context.messages = newMessages;
-          },
-        });
+        let externalToolCalls: CanvasAgentToolCall[] | undefined;
+        let resultText: string;
+        if (role?.external) {
+          // Local coding-agent CLI segment. Its reply is appended to the shared
+          // model history by hand (engine segments get that from onResponse),
+          // so the label/persist/handoff tail downstream stays identical.
+          const external = await runExternalRoleSegment({
+            role,
+            external: role.external,
+            chatSessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
+            workspaceRootFolder,
+            history: this.sessionStore.getCurrentSession()?.messages ?? [],
+            currentAsk: modelUserText,
+            handoffNames: handoffEnabled ? handoffLibrary.map(entry => entry.name) : [],
+            abortSignal: abortController.signal,
+            onText: onText ?? (() => {}),
+            onToolCall,
+            onToolResult,
+          });
+          ({ text: resultText, toolCalls: externalToolCalls } = external);
+          const externalMessage = { role: 'assistant', content: resultText } as ModelMessage;
+          this.messages.push(externalMessage);
+          responseMessages.push(externalMessage);
+        } else {
+          resultText = await this.engine.run(context, {
+            provider: modelConfig.provider,
+            model: this.config.model ?? modelConfig.model,
+            modelType: modelConfig.modelType,
+            systemPrompt: segmentPrompt,
+            maxSteps: CANVAS_AGENT_MAX_STEPS,
+            abortSignal: abortController.signal,
+            runContext: {
+              executionMode: requestContext?.executionMode ?? 'auto',
+            },
+            onClarificationRequest: engineClarificationHandler,
+            ...buildEngineStreamCallbacks(
+              { onText, onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd },
+              debugTrace,
+            ),
+            onResponse: (msgs: ModelMessage[]) => {
+              for (const msg of msgs) {
+                this.messages.push(msg);
+                responseMessages.push(msg);
+              }
+            },
+            onCompacted: (newMessages: ModelMessage[]) => {
+              this.messages = newMessages;
+              context.messages = newMessages;
+            },
+          });
+        }
 
-        const responseText = resultText || '(no response)';
+        // Impersonation guard (sanitizeRoleSegmentText) runs BEFORE persisting,
+        // labeling, and the handoff scan — all consumers see one speaker.
+        const rawText = resultText || '(no response)';
+        const responseText = role
+          ? sanitizeRoleSegmentText(rawText, role.name, knownRoleNames) || '(no response)'
+          : rawText;
         recordTraceMessageSnapshot(debugTrace, { systemPrompt: segmentPrompt, messages: context.messages });
 
-        // Persist the segment with its tool-call frames so restored sessions
-        // render tool chips, inline visuals, and artifacts after reload.
-        const toolCalls = modelMessagesToToolCalls(responseMessages);
-        // Live-push speaker label on the model history — MUST mirror the
-        // session-reload path in `sessionMessageToModelMessage`. This is also
-        // what lets segment N+1 read segment N's reply with attribution.
+        // Tool frames persist so a reloaded session keeps its chips, inline
+        // visuals, and artifacts (external segments collect their own).
+        const toolCalls = externalToolCalls ?? modelMessagesToToolCalls(responseMessages);
+        // Live-push speaker label — MUST mirror `sessionMessageToModelMessage`;
+        // it is what lets segment N+1 read segment N's reply with attribution.
         if (role) {
+          // Trimmed? sync the live history or the next speaker reads the cut part.
+          if (responseText !== rawText) replaceFinalAssistantText(responseMessages, responseText);
           applySpeakerLabelToResponseMessages(responseMessages, role.name);
         }
         const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace);
@@ -893,9 +912,8 @@ export class CanvasAgent {
           speakerRoleColor: role?.color,
         });
 
-        // Notify subscribed plugins (devtools persists the trace to its own
-        // store). Awaited so plugin storage is flushed before the segment
-        // completes and the renderer can fetch the trace by runId.
+        // Notify subscribed plugins (devtools persists the trace). Awaited so
+        // plugin storage is flushed before the renderer fetches it by runId.
         if (finalizedTrace) {
           await agentBus.emitTurnAsync('turnEnd', {
             runId: finalizedTrace.runId,

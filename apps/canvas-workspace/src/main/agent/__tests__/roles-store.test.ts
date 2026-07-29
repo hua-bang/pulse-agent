@@ -73,6 +73,44 @@ describe('roles-store', () => {
     expect(second.color).not.toBe(first.color);
   });
 
+  it('persona prompt is optional for external roles, still required for persona roles', async () => {
+    const external = await saveAgentRole({ name: '随行 Claude', prompt: '', external: { family: 'claude-code' } });
+    expect(external.prompt).toBe('');
+    await expect(saveAgentRole({ name: '空人设', prompt: '  ' })).rejects.toThrow(/prompt/i);
+    // Clearing the driver on a promptless role must not leave an empty persona behind.
+    await expect(saveAgentRole({ id: external.id, name: '随行 Claude', prompt: '', external: null }))
+      .rejects.toThrow(/prompt/i);
+    await deleteAgentRole(external.id);
+  });
+
+  it('saves an external driver with NO cwd — the default, resolved at conversation time', async () => {
+    const created = await saveAgentRole({ name: '随行工程师', prompt: 'p', external: { family: 'claude-code' } });
+    expect(created.external).toEqual({ family: 'claude-code' });
+    expect((await listAgentRoles())[0].external?.cwd).toBeUndefined();
+    await deleteAgentRole(created.id);
+  });
+
+  it('stores, updates, and clears the external driver with validation', async () => {
+    const created = await saveAgentRole({
+      name: 'Claude工程师', prompt: '写代码。',
+      external: { family: 'claude-code', cwd: '/tmp/project' },
+    });
+    expect(created.external).toEqual({ family: 'claude-code', cwd: '/tmp/project' });
+
+    // Absent → keep; null → clear; invalid → reject.
+    const kept = await saveAgentRole({ id: created.id, name: 'Claude工程师', prompt: '写代码。' });
+    expect(kept.external).toEqual({ family: 'claude-code', cwd: '/tmp/project' });
+
+    await expect(saveAgentRole({
+      id: created.id, name: 'Claude工程师', prompt: '写代码。',
+      external: { family: 'vim' as never, cwd: '/tmp' },
+    })).rejects.toThrow(/external driver/i);
+
+    const cleared = await saveAgentRole({ id: created.id, name: 'Claude工程师', prompt: '写代码。', external: null });
+    expect(cleared.external).toBeUndefined();
+    expect((await listAgentRoles())[0].external).toBeUndefined();
+  });
+
   it('defaults library settings to handoff OFF (legacy files included)', async () => {
     expect(await getAgentRoleSettings()).toEqual({ allowRoleHandoff: false });
     await saveAgentRole({ name: 'A', prompt: 'p' });

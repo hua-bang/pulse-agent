@@ -3,11 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getRoleColors,
   invalidateRoleMentionItems,
+  isExternalOnlyRoleMessage,
   loadRoleMentionItems,
   subscribeRoleColors,
 } from './roleMentionItems';
 
-type RoleRow = { id: string; name: string; color: string; prompt: string };
+type RoleRow = {
+  id: string; name: string; color: string; prompt: string;
+  external?: { family: 'claude-code' | 'codex'; cwd: string };
+};
 
 const stubRoles = (roles: RoleRow[]) => {
   const list = vi.fn(async () => ({ ok: true as const, roles }));
@@ -52,6 +56,20 @@ describe('role mention cache', () => {
     await invalidateRoleMentionItems();
     expect(seen).toEqual(['#0f7b6c']);
     unsubscribe();
+  });
+
+  it('lets external-only turns through the no-provider guard, and nothing else', async () => {
+    stubRoles([
+      { id: 'r-ext', name: 'Claude工程师', color: '#2383e2', prompt: 'p', external: { family: 'claude-code', cwd: '/tmp/x' } },
+      { id: 'r-p', name: '评审员', color: '#0f7b6c', prompt: 'p' },
+    ]);
+    await invalidateRoleMentionItems();
+
+    expect(isExternalOnlyRoleMessage('@[role:r-ext|Claude工程师] 修一下')).toBe(true);
+    expect(isExternalOnlyRoleMessage('@[role:r-p|评审员] 看看')).toBe(false);
+    expect(isExternalOnlyRoleMessage('@[role:r-ext|Claude工程师] @[role:r-p|评审员] 一起')).toBe(false);
+    expect(isExternalOnlyRoleMessage('没有点名任何人')).toBe(false);
+    expect(isExternalOnlyRoleMessage('@[role:r-unknown|谁] hi')).toBe(false);
   });
 
   it('clears the color map when the library read fails, so chips fall back to violet', async () => {

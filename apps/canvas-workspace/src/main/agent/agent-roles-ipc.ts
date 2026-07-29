@@ -7,10 +7,17 @@
  *   agent-roles:delete         — remove one role by id
  *   agent-roles:settings-get   — library behavior settings (agent@agent handoff switch)
  *   agent-roles:settings-save  — replace the library behavior settings
+ *   agent-roles:external-probe — health check: is a driver family's CLI on PATH (+ version)
  */
 
 import { ipcMain } from 'electron';
-import type { AgentRoleLibrarySettings, AgentRoleSaveInput } from '../../shared/agent-roles';
+import {
+  AGENT_ROLE_EXTERNAL_FAMILIES,
+  type AgentRoleExternalFamily,
+  type AgentRoleLibrarySettings,
+  type AgentRoleSaveInput,
+} from '../../shared/agent-roles';
+import { probeExternalCli } from './external/runner';
 import {
   deleteAgentRole,
   getAgentRoleSettings,
@@ -57,6 +64,18 @@ export function setupAgentRolesIpc(): void {
       return { ok: true, settings: await saveAgentRoleSettings(payload?.settings) };
     } catch (err) {
       return { ok: false, error: String(err) };
+    }
+  });
+
+  ipcMain.handle('agent-roles:external-probe', async (_event, payload: { family: AgentRoleExternalFamily }) => {
+    try {
+      const family = payload?.family;
+      if (!AGENT_ROLE_EXTERNAL_FAMILIES.includes(family)) {
+        return { ok: false, error: `Unknown driver family: ${String(family)}` };
+      }
+      return { ok: true, ...(await probeExternalCli(family)) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
 }

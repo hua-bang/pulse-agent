@@ -10,5 +10,7 @@ export const createAgentRolesApi = (ipcRenderer: IpcRenderer): AgentRolesApi => 
 
   getSettings: () => ipcRenderer.invoke("agent-roles:settings-get"),
 
-  saveSettings: (settings) => ipcRenderer.invoke("agent-roles:settings-save", { settings })
+  saveSettings: (settings) => ipcRenderer.invoke("agent-roles:settings-save", { settings }),
+
+  externalProbe: (family) => ipcRenderer.invoke("agent-roles:external-probe", { family })
 });

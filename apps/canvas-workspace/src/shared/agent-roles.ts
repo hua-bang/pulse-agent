@@ -20,6 +20,8 @@ export interface AgentRoleDefinition {
   color: string;
   /** Persona system-prompt fragment injected when this role speaks. */
   prompt: string;
+  /** Present → segments come from a local coding-agent CLI instead of the built-in engine. */
+  external?: AgentRoleExternalDriver;
   createdAt: number;
   updatedAt: number;
 }
@@ -30,7 +32,41 @@ export interface AgentRoleSaveInput {
   name: string;
   color?: string;
   prompt: string;
+  /** Object → set the driver; `null` → clear it; absent → keep as-is. */
+  external?: AgentRoleExternalDriver | null;
 }
+
+// ─── External driver (local coding-agent CLI) ───────────────────────
+
+export type AgentRoleExternalFamily = 'claude-code' | 'codex';
+
+export const AGENT_ROLE_EXTERNAL_FAMILIES: readonly AgentRoleExternalFamily[] = ['claude-code', 'codex'];
+
+/**
+ * Driver config for an externally-driven role: its segments are produced by a
+ * LOCAL coding-agent CLI spawned headless per turn (with per-chat-session
+ * continuity), not by the built-in engine. `cwd` is OPTIONAL and pins the
+ * role to one directory; when absent (the default) the directory is resolved
+ * at conversation time — the chat's workspace root folder, else a per-role
+ * scratch dir — so a role needs zero folder preparation. External roles only
+ * ever speak when the USER @-mentions them directly (agent@agent handoff
+ * never targets them).
+ */
+export interface AgentRoleExternalDriver {
+  family: AgentRoleExternalFamily;
+  cwd?: string;
+}
+
+export const normalizeAgentRoleExternal = (value: unknown): AgentRoleExternalDriver | undefined => {
+  const raw = value as Partial<AgentRoleExternalDriver> | null | undefined;
+  if (!raw || typeof raw !== 'object') return undefined;
+  const family = AGENT_ROLE_EXTERNAL_FAMILIES.includes(raw.family as AgentRoleExternalFamily)
+    ? (raw.family as AgentRoleExternalFamily)
+    : undefined;
+  if (!family) return undefined;
+  const cwd = typeof raw.cwd === 'string' ? raw.cwd.trim() : '';
+  return cwd ? { family, cwd } : { family };
+};
 
 export type AgentRolesResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -58,7 +94,7 @@ export const normalizeAgentRoleSettings = (value: unknown): AgentRoleLibrarySett
  * the cap bounds AUTO-GROWTH — handoffs stop appending once the queue holds
  * this many segments, so two roles can never ping-pong a turn forever.
  */
-export const ROLE_RELAY_MAX_SEGMENTS = 6;
+export const ROLE_RELAY_MAX_SEGMENTS = 30;
 
 /** Preload surface: `window.canvasWorkspace.agentRoles`. */
 export interface AgentRolesApi {
@@ -67,6 +103,8 @@ export interface AgentRolesApi {
   remove: (id: string) => Promise<AgentRolesResult<{ removed: boolean }>>;
   getSettings: () => Promise<AgentRolesResult<{ settings: AgentRoleLibrarySettings }>>;
   saveSettings: (settings: AgentRoleLibrarySettings) => Promise<AgentRolesResult<{ settings: AgentRoleLibrarySettings }>>;
+  /** Health check for a driver family: is its CLI on PATH, and which version. */
+  externalProbe: (family: AgentRoleExternalFamily) => Promise<AgentRolesResult<{ version: string }>>;
 }
 
 // ─── Validation limits (shared so UI and store agree) ───────────────

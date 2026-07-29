@@ -11,6 +11,7 @@ import { sessionTitleText } from './utils/sessionTitle';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
+import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useAppShell } from '../AppShellProvider';
 import type { AgentScope, WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
@@ -216,18 +217,19 @@ export const ChatPageBody = ({
   }, [clearInput, focusInput, notConfigured, openModelSettingsWithHint, sendMessage]);
 
   const handleSubmit = useCallback(async () => {
-    if (notConfigured) {
+    if (notConfigured && !isExternalOnlyRoleMessage(input)) {
       openModelSettingsWithHint();
       return false;
     }
     return await submitCurrentInput();
-  }, [notConfigured, openModelSettingsWithHint, submitCurrentInput]);
+  }, [input, notConfigured, openModelSettingsWithHint, submitCurrentInput]);
 
   const handleComposerKeyDown = useCallback<KeyboardEventHandler<HTMLDivElement>>((event) => {
     const mentionSelecting = mentionOpen && mentionItems.length > 0;
     const hasDraft = Boolean(input.trim() || attachments.length > 0);
     if (
       notConfigured
+      && !isExternalOnlyRoleMessage(input)
       && hasDraft
       && !mentionSelecting
       && event.key === 'Enter'

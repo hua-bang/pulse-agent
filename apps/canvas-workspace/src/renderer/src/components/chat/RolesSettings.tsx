@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AgentRoleDefinition } from '../../types';
-import { AGENT_ROLE_COLORS, AGENT_ROLE_NAME_MAX_LENGTH, AGENT_ROLE_PROMPT_MAX_LENGTH } from '../../../../shared/agent-roles';
+import {
+  AGENT_ROLE_COLORS,
+  AGENT_ROLE_NAME_MAX_LENGTH,
+  AGENT_ROLE_PROMPT_MAX_LENGTH,
+  type AgentRoleExternalFamily,
+  type AgentRoleSaveInput,
+} from '../../../../shared/agent-roles';
 import { useI18n } from '../../i18n';
 import { Button, SegmentedControl, SwatchRow, TextField } from '../ui';
 import { invalidateRoleMentionItems } from './hooks/roleMentionItems';
@@ -8,12 +14,15 @@ import { roleColorSoft } from './utils/roleColors';
 import './ModelSettings.css';
 import './RolesSettings.css';
 
+const familyLabel = (family: AgentRoleExternalFamily): string =>
+  family === 'claude-code' ? 'Claude Code' : 'Codex';
+
 interface UseAgentRolesResult {
   roles: AgentRoleDefinition[];
   loading: boolean;
   error?: string;
   refresh: () => Promise<void>;
-  save: (input: { id?: string; name: string; color?: string; prompt: string }) => Promise<AgentRoleDefinition | null>;
+  save: (input: AgentRoleSaveInput) => Promise<AgentRoleDefinition | null>;
   remove: (id: string) => Promise<boolean>;
 }
 
@@ -40,7 +49,7 @@ export function useAgentRoles(): UseAgentRolesResult {
     void refresh();
   }, [refresh]);
 
-  const save = useCallback(async (input: { id?: string; name: string; color?: string; prompt: string }) => {
+  const save = useCallback(async (input: AgentRoleSaveInput) => {
     const result = await window.canvasWorkspace.agentRoles.save(input);
     if (!result.ok) {
       setError(result.error);
@@ -74,12 +83,30 @@ interface RolesSectionProps {
 }
 
 /** `undefined` selection = composing a brand-new role. */
-type Draft = { id?: string; name: string; color: string; prompt: string };
+type Draft = {
+  id?: string;
+  name: string;
+  color: string;
+  prompt: string;
+  driver: 'persona' | AgentRoleExternalFamily;
+  cwd: string;
+};
 
 const emptyDraft = (roles: AgentRoleDefinition[]): Draft => ({
   name: '',
   color: AGENT_ROLE_COLORS.find(color => !roles.some(role => role.color === color)) ?? AGENT_ROLE_COLORS[0],
   prompt: '',
+  driver: 'persona',
+  cwd: '',
+});
+
+const draftOf = (role: AgentRoleDefinition): Draft => ({
+  id: role.id,
+  name: role.name,
+  color: role.color,
+  prompt: role.prompt,
+  driver: role.external?.family ?? 'persona',
+  cwd: role.external?.cwd ?? '',
 });
 
 export const RolesSection = ({ onClose }: RolesSectionProps) => {
@@ -112,17 +139,31 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
   useEffect(() => {
     setDraft(prev => {
       if (prev?.id && roles.some(role => role.id === prev.id)) return prev;
-      if (prev && !prev.id && (prev.name.trim() || prev.prompt.trim())) return prev;
+      if (prev && !prev.id && (prev.name.trim() || prev.prompt.trim() || prev.cwd.trim())) return prev;
       const first = roles[0];
-      return first
-        ? { id: first.id, name: first.name, color: first.color, prompt: first.prompt }
-        : emptyDraft(roles);
+      return first ? draftOf(first) : emptyDraft(roles);
     });
   }, [roles]);
 
   const selectRole = useCallback((role: AgentRoleDefinition) => {
-    setDraft({ id: role.id, name: role.name, color: role.color, prompt: role.prompt });
+    setDraft(draftOf(role));
   }, []);
+
+  // Health probe per driver family, cached for the drawer's lifetime.
+  const [probe, setProbe] = useState<Record<string, { status: 'checking' | 'ok' | 'fail'; detail: string }>>({});
+  const draftFamily = draft && draft.driver !== 'persona' ? draft.driver : null;
+  useEffect(() => {
+    if (!draftFamily || probe[draftFamily]) return;
+    setProbe(prev => ({ ...prev, [draftFamily]: { status: 'checking', detail: '' } }));
+    void window.canvasWorkspace.agentRoles.externalProbe(draftFamily).then(result => {
+      setProbe(prev => ({
+        ...prev,
+        [draftFamily]: result.ok
+          ? { status: 'ok', detail: result.version }
+          : { status: 'fail', detail: result.error },
+      }));
+    });
+  }, [draftFamily, probe]);
 
   const startNewRole = useCallback(() => {
     setDraft(emptyDraft(roles));
@@ -131,10 +172,18 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
   const handleSave = useCallback(async () => {
     if (!draft) return;
     setSaving(true);
-    const saved = await save({ id: draft.id, name: draft.name, color: draft.color, prompt: draft.prompt });
+    const saved = await save({
+      id: draft.id,
+      name: draft.name,
+      color: draft.color,
+      prompt: draft.prompt,
+      external: draft.driver === 'persona'
+        ? null
+        : { family: draft.driver, ...(draft.cwd.trim() ? { cwd: draft.cwd.trim() } : {}) },
+    });
     setSaving(false);
     if (saved) {
-      setDraft({ id: saved.id, name: saved.name, color: saved.color, prompt: saved.prompt });
+      setDraft(draftOf(saved));
       setSavedHint(true);
       window.setTimeout(() => setSavedHint(false), 1800);
     }
@@ -148,7 +197,10 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
     setDraft(null);
   }, [draft, remove]);
 
-  const canSave = !!draft && !!draft.name.trim() && !!draft.prompt.trim() && !saving;
+  // External roles bring their own instructions, so the persona prompt is
+  // optional for them; a persona role IS its prompt.
+  const canSave = !!draft && !!draft.name.trim() && !saving
+    && (draft.driver !== 'persona' || !!draft.prompt.trim());
 
   return (
     <>
@@ -195,7 +247,12 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
                 {role.name.slice(0, 1)}
               </span>
               <span className="chat-roles-row-meta">
-                <span className="chat-roles-row-name">{role.name}</span>
+                <span className="chat-roles-row-name">
+                  {role.name}
+                  {role.external && (
+                    <span className="chat-roles-row-driver">{familyLabel(role.external.family)}</span>
+                  )}
+                </span>
                 <span className="chat-roles-row-preview">{role.prompt}</span>
               </span>
             </button>
@@ -227,9 +284,38 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
                 ariaLabel={t('roles.color')}
               />
             </div>
+            <div className="chat-model-field">
+              <span>{t('roles.driver')}</span>
+              <SegmentedControl
+                options={[
+                  { id: 'persona', label: t('roles.driverPersona') },
+                  { id: 'claude-code', label: 'Claude Code' },
+                  { id: 'codex', label: 'Codex' },
+                ]}
+                value={draft.driver}
+                onChange={id => setDraft({ ...draft, driver: id as Draft['driver'] })}
+                ariaLabel={t('roles.driver')}
+              />
+            </div>
+            {draft.driver !== 'persona' && (
+              <>
+                <TextField
+                  label={t('roles.driverCwd')}
+                  placeholder={t('roles.driverCwdPlaceholder')}
+                  value={draft.cwd}
+                  onChange={event => setDraft({ ...draft, cwd: event.target.value })}
+                />
+                <p className="chat-roles-driver-status" role="status">
+                  {probe[draft.driver]?.status === 'checking' && t('roles.driverProbing')}
+                  {probe[draft.driver]?.status === 'ok' && `✓ ${probe[draft.driver].detail}`}
+                  {probe[draft.driver]?.status === 'fail' && `✕ ${probe[draft.driver].detail}`}
+                </p>
+                <p className="chat-roles-driver-hint">{t('roles.driverHint')}</p>
+              </>
+            )}
             <TextField
               multiline
-              label={t('roles.prompt')}
+              label={draft.driver === 'persona' ? t('roles.prompt') : t('roles.promptOptional')}
               hint={t('prompt.customHint', { count: draft.prompt.trim().length, max: AGENT_ROLE_PROMPT_MAX_LENGTH })}
               className="chat-prompt-custom-textarea"
               placeholder={t('roles.promptPlaceholder')}
