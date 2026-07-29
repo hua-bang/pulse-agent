@@ -68,10 +68,11 @@
 .chat-page-rail-scroll {
   flex: 1;
   min-height: 0;
+  max-height: calc(100vh - 104px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   padding-right: 2px;
 }
 
@@ -81,13 +82,57 @@
   gap: 2px;
 }
 
-.chat-page-rail-label {
-  font-size: 10px;
+.ui-btn.chat-page-rail-folder {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  height: auto;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.ui-btn.chat-page-rail-folder:hover,
+.ui-btn.chat-page-rail-folder:focus-visible {
+  background: var(--surface-alt);
+}
+
+.ui-btn.chat-page-rail-folder:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: -2px;
+}
+
+.chat-page-rail-folder-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.chat-page-rail-folder-chevron--expanded {
+  transform: rotate(90deg);
+}
+
+.chat-page-rail-folder-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
   font-weight: 600;
-  color: #9b9a97;
-  padding: 6px 10px 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-page-rail-folder-count {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 .chat-page-rail-list {
@@ -100,7 +145,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 6px 10px 6px 24px;
   border: none;
   background: transparent;
   border-radius: var(--radius-xs);
@@ -136,20 +181,6 @@
   font-size: 11px;
   color: #b4b4b0;
   flex-shrink: 0;
-}
-
-.chat-page-rail-item-ws {
-  font-size: 10px;
-  color: #9b9a97;
-  flex-shrink: 0;
-  white-space: nowrap;
-  max-width: 90px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chat-page-rail-item--other .chat-page-rail-item-text {
-  color: #6b6b68;
 }
 
 .chat-page-rail-empty,

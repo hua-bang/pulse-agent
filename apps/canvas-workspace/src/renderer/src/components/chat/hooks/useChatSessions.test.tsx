@@ -20,6 +20,8 @@ function makeAgentMocks() {
       async () => ({ ok: true, messages: [] }),
     ),
     newSession: vi.fn<[unknown], Promise<{ ok: boolean }>>(async () => ({ ok: true })),
+    listSessions: vi.fn(async () => ({ ok: true, sessions: [] })),
+    listAllSessions: vi.fn(async () => ({ ok: true, groups: [] })),
   };
 }
 
@@ -57,6 +59,12 @@ async function mount(skipInitialHistory?: boolean): Promise<void> {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
+  await act(async () => {
+    root?.render(<Probe skipInitialHistory={skipInitialHistory} />);
+  });
+}
+
+async function rerender(skipInitialHistory?: boolean): Promise<void> {
   await act(async () => {
     root?.render(<Probe skipInitialHistory={skipInitialHistory} />);
   });
@@ -102,6 +110,19 @@ describe('useChatSessions — session detail loading', () => {
     expect(agent.getHistory).not.toHaveBeenCalled();
     // No empty-state gap between mount and the caller's handleLoadSession.
     expect(latest?.sessionLoading).toBe(true);
+  });
+
+  it('does not refetch history when an explicit session load clears its pending flag', async () => {
+    await mount(true);
+    await act(async () => {
+      await latest!.handleLoadSession('session-a');
+    });
+
+    await rerender(false);
+
+    expect(agent.getHistory).not.toHaveBeenCalled();
+    expect(agent.loadSession).toHaveBeenCalledTimes(1);
+    expect(latest?.sessionLoading).toBe(false);
   });
 
   it('covers an explicit session load and clears when it settles', async () => {
@@ -174,5 +195,64 @@ describe('useChatSessions — session detail loading', () => {
 
     expect(onMessagesLoaded).toHaveBeenLastCalledWith([]);
     expect(latest?.sessionLoading).toBe(false);
+  });
+
+  it('commits the current and cross-workspace session lists atomically', async () => {
+    const currentList = deferred<any>();
+    const allList = deferred<any>();
+    const listWorkspaces = [{ id: 'workspace-a', name: 'Workspace A' }];
+    const listScope = { kind: 'global' } as const;
+    agent.listSessions.mockReturnValue(currentList.promise);
+    agent.listAllSessions.mockReturnValue(allList.promise);
+    const ListProbe = () => {
+      latest = useChatSessions({
+        agentScope: listScope,
+        allWorkspaces: listWorkspaces,
+        onMessagesLoaded,
+        eagerLoad: true,
+      });
+      return null;
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => {
+      root?.render(<ListProbe />);
+    });
+
+    currentList.resolve({
+      ok: true,
+      sessions: [{
+        sessionId: 'global-a',
+        date: '2026-07-29',
+        messageCount: 1,
+        preview: 'Global A',
+        isCurrent: true,
+      }],
+    });
+    await Promise.resolve();
+    expect(latest?.sessions).toEqual([]);
+    expect(latest?.otherSessions).toEqual([]);
+
+    await act(async () => {
+      allList.resolve({
+        ok: true,
+        groups: [{
+          workspaceId: 'workspace-a',
+          workspaceName: 'Workspace A',
+          sessions: [{
+            sessionId: 'workspace-a-1',
+            date: '2026-07-29',
+            messageCount: 1,
+            preview: 'Workspace A session',
+          }],
+        }],
+      });
+      await Promise.all([currentList.promise, allList.promise]);
+    });
+
+    expect(latest?.sessions).toHaveLength(1);
+    expect(latest?.otherSessions).toHaveLength(1);
+    expect(latest?.sessionsLoading).toBe(false);
   });
 });

@@ -345,7 +345,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // collapsed into hue-derived oklch formulas.
   // 1832→1827 (editor polish): NoteLinkPrompt now inherits shared ui/Button
   // states (-4), and node-header focus uses the existing accent token (-1).
-  hardcodedColorLiterals: 1827,
+  // 1827→1824 (chat rail cleanup): grouped source labels remove the repeated
+  // per-row metadata colors and reuse shared surface/text tokens.
+  hardcodedColorLiterals: 1824,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

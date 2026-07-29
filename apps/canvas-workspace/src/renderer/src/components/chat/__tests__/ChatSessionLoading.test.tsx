@@ -67,15 +67,14 @@ async function render(ui: React.ReactNode): Promise<HTMLDivElement> {
 }
 
 describe('session-detail loading state', () => {
-  it('replaces the previous session\'s messages with the skeleton while fetching', async () => {
+  it('keeps the previous thread unchanged while the next session is fetched', async () => {
     const el = await render(
       <ChatMessages {...messagesProps} messages={PRIOR_SESSION} loading={false} sessionLoading />,
     );
 
-    expect(el.querySelector('.chat-thread-skeleton')).not.toBeNull();
-    expect(el.querySelectorAll('.chat-skeleton-line').length).toBeGreaterThan(0);
-    // The old session's content must not linger behind the skeleton.
-    expect(el.textContent).not.toContain('from the session we are leaving');
+    expect(el.querySelector('.chat-thread-skeleton')).toBeNull();
+    expect(el.textContent).toContain('from the session we are leaving');
+    expect(el.querySelector('.chat-messages')?.className).toBe('chat-messages');
     expect(el.querySelector('.chat-messages')?.getAttribute('aria-busy')).toBe('true');
   });
 
@@ -89,7 +88,8 @@ describe('session-detail loading state', () => {
     expect(el.querySelector('.chat-messages')?.getAttribute('aria-busy')).toBeNull();
   });
 
-  it('keeps the empty state out of the way while a scope switch loads', async () => {
+  it('delays the skeleton so fast scope switches do not flash', async () => {
+    vi.useFakeTimers();
     // A cross-scope switch remounts with an empty thread; without
     // sessionLoading in the seam, ChatView fell through to the empty state
     // for the whole IPC round trip.
@@ -97,8 +97,14 @@ describe('session-detail loading state', () => {
       <ChatView {...viewProps} messages={[]} loading={false} sessionLoading />,
     );
 
-    expect(el.querySelector('.chat-thread-skeleton')).not.toBeNull();
+    expect(el.querySelector('.chat-thread-skeleton')).toBeNull();
     expect(el.querySelector('.chat-empty-state')).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(180);
+    });
+    expect(el.querySelector('.chat-thread-skeleton')).not.toBeNull();
+    vi.useRealTimers();
   });
 
   it('falls back to the empty state for a genuinely empty session', async () => {
