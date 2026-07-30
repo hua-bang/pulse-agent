@@ -21,6 +21,12 @@ const loadMermaid = (): Promise<MermaidApi> => {
         securityLevel: 'strict',
         theme: 'neutral',
         fontFamily: 'inherit',
+        // Without this, mermaid swallows parse errors internally and
+        // resolves render() with its own "bomb icon" error SVG instead of
+        // rejecting — bypassing the chat-mermaid-error / inline-visual
+        // error UI below entirely. Suppressing it makes render() reject on
+        // invalid syntax so our own catch blocks handle it.
+        suppressErrorRendering: true,
       });
       return m;
     });
