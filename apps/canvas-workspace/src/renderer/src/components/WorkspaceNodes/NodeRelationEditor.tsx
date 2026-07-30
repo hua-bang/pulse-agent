@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'r
 import type { WorkspaceNodeLink, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
 import { useI18n } from '../../i18n';
 import { Button, TextField } from '../ui';
+import { CloseIcon } from '../icons';
 import { getNodeTitle } from './utils';
 import { dispatchOpenNode } from '../../utils/openNodeBridge';
 import { isImeComposing } from '../../utils/ime';
@@ -185,7 +186,7 @@ export const NodeRelationEditor = ({
                     disabled={saving}
                     onClick={() => { void removeRelation(index); }}
                   >
-                    ×
+                    <CloseIcon size={11} />
                   </Button>
                 )}
               </div>

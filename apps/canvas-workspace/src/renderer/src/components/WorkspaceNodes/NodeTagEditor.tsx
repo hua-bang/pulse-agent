@@ -10,6 +10,7 @@ import {
 import type { KnowledgeTagDefinition, WorkspaceNodeRecord } from '../../types';
 import { tagName } from './utils';
 import { useI18n } from '../../i18n';
+import { CloseIcon } from '../icons';
 import { isImeComposing } from '../../utils/ime';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
@@ -236,7 +237,7 @@ export const NodeTagEditor = ({
                   disabled={saving}
                   onClick={() => { void removeTag(tag); }}
                 >
-                  x
+                  <CloseIcon size={10} />
                 </button>
               )}
             </span>

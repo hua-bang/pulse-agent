@@ -155,8 +155,15 @@
 
 .node-detail-panel__back {
   align-self: flex-start;
+  gap: 5px;
   margin-bottom: 20px;
   color: var(--nodes-muted);
+}
+
+/* The disclosure chevron, turned around — one glyph for "there is more this
+ * way" in both directions, instead of a hardcoded ← next to drawn icons. */
+.node-detail-panel__back-chevron {
+  transform: rotate(180deg);
 }
 
 .node-detail-panel__title-row {
@@ -436,8 +443,7 @@
   padding: 0 2px 14px 18px;
 }
 
-.node-detail-panel__disclosure-body .node-detail-panel__property-row,
-.node-detail-panel__disclosure-body .node-detail-panel__link-row {
+.node-detail-panel__disclosure-body .node-detail-panel__property-row {
   min-height: 32px;
   grid-template-columns: minmax(72px, 100px) 1fr;
   gap: 14px;
@@ -446,13 +452,11 @@
 }
 
 .node-detail-panel__disclosure-body .node-detail-panel__property-row>span,
-.node-detail-panel__disclosure-body .node-detail-panel__link-row>span,
 .node-detail-panel__disclosure-empty {
   color: var(--nodes-faint);
 }
 
-.node-detail-panel__disclosure-body .node-detail-panel__property-row strong,
-.node-detail-panel__disclosure-body .node-detail-panel__link-row strong {
+.node-detail-panel__disclosure-body .node-detail-panel__property-row strong {
   color: var(--nodes-muted);
   font-weight: 550;
 }
@@ -467,48 +471,31 @@
   gap: 5px;
 }
 
+/* One presentation in both hosts. The dock rendered the predicate as a filled
+ * chip while the page rail rendered the same string as a quiet label — two
+ * looks for one list, and the chip competed with the target it labels. The
+ * target is the link now, so the relation word stays a label and the row
+ * keeps the Info rows' label/value rhythm. */
 .node-relation-editor__row {
   min-height: 30px;
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) auto;
+  grid-template-columns: minmax(54px, max-content) minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
 }
 
 .node-relation-editor__predicate {
-  max-width: 126px;
+  max-width: 96px;
   overflow: hidden;
-  padding: 3px 6px;
-  border-radius: var(--radius-xs);
-  background: var(--nodes-surface-soft);
-  color: var(--nodes-muted);
+  color: var(--nodes-faint);
   font-size: 10px;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.node-relation-editor__row strong {
-  overflow: hidden;
-  color: var(--nodes-text);
-  font-weight: 550;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .node-relation-editor__row .ui-btn {
   opacity: 0;
-}
-
-.node-detail-panel__context-rail .node-relation-editor__row {
-  grid-template-columns: minmax(54px, max-content) minmax(0, 1fr) auto;
-}
-
-.node-detail-panel__context-rail .node-relation-editor__predicate {
-  max-width: 82px;
-  padding: 0;
-  background: transparent;
-  color: var(--nodes-faint);
 }
 
 .node-relation-editor__row:hover .ui-btn,

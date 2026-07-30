@@ -174,7 +174,7 @@ export const NodeDetailPanel = ({
             <article className="node-detail-panel__document">
               {mode === 'page' && onBack && (
                 <Button size="xs" className="node-detail-panel__back" onClick={onBack}>
-                  <span aria-hidden="true">←</span>
+                  <ChevronRightIcon className="node-detail-panel__back-chevron" />
                   {t('workspaceNodes.back')}
                 </Button>
               )}
@@ -266,7 +266,7 @@ export const NodeDetailPanel = ({
                       <span>{t('workspaceNodes.relations.title')}</span>
                       <span className="node-detail-panel__disclosure-count">{links.length}</span>
                     </summary>
-                    <div className="node-detail-panel__disclosure-body node-detail-panel__links">
+                    <div className="node-detail-panel__disclosure-body">
                       <NodeRelationEditor
                         node={node}
                         workspaceId={workspaceId}
