@@ -1,6 +1,12 @@
 import type { CanvasNode } from '../types';
-import type { ShortcutSection } from '../types/ui-interaction';
 import type { I18nKey } from '../i18n';
+import {
+  SECTION_ORDER,
+  SECTION_TITLE_KEY,
+  formatAllBindings,
+  shortcutsFor,
+  type ShortcutDefinition,
+} from '../shortcuts/registry';
 
 type EmptyCanvasNodeType = Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file' | 'iframe'>;
 
@@ -71,58 +77,33 @@ export const EMPTY_CANVAS_ACTIONS: Array<{
   },
 ];
 
+/**
+ * Rows for the `?` help overlay, DERIVED from `shortcuts/registry.ts` rather
+ * than hand-listed. The old hardcoded table is exactly where the drift lived:
+ * it advertised `Cmd+Shift+A` with no handler behind it and printed `Cmd+…`
+ * on Windows. Every combo here is now generated for the host platform, and a
+ * row can only exist if the registry declares it.
+ */
 export const SHORTCUT_SECTIONS: Array<{
   titleKey: I18nKey;
-  items: Array<ShortcutSection['items'][number] & { descriptionKey: I18nKey }>;
-}> = [
-  {
-    titleKey: 'shortcuts.canvas.title',
-    items: [
-      { combo: 'Right-click / Double-click', description: '', descriptionKey: 'shortcuts.canvas.createMenu' },
-      { combo: 'Scroll', description: '', descriptionKey: 'shortcuts.canvas.pan' },
-      { combo: 'Space + Drag', description: '', descriptionKey: 'shortcuts.canvas.spacePan' },
-      { combo: 'Ctrl/Cmd + Scroll', description: '', descriptionKey: 'shortcuts.canvas.zoom' },
-      { combo: 'Drag on blank canvas', description: '', descriptionKey: 'shortcuts.canvas.marquee' },
-      { combo: 'Ctrl/Cmd + K', description: '', descriptionKey: 'shortcuts.canvas.commandPalette' },
-      { combo: 'Ctrl/Cmd + H', description: '', descriptionKey: 'shortcuts.canvas.togglePalette' },
-      { combo: 'Ctrl/Cmd + F', description: '', descriptionKey: 'shortcuts.canvas.find' },
-      { combo: 'F3 / Shift + F3', description: '', descriptionKey: 'shortcuts.canvas.findNext' },
-      { combo: 'Ctrl/Cmd + Tab', description: '', descriptionKey: 'shortcuts.canvas.cycleNodes' },
-      { combo: 'F', description: '', descriptionKey: 'shortcuts.canvas.focusMode' },
-    ],
-  },
-  {
-    titleKey: 'shortcuts.selection.title',
-    items: [
-      { combo: 'Click', description: '', descriptionKey: 'shortcuts.selection.selectOne' },
-      { combo: 'Shift / Ctrl/Cmd + click', description: '', descriptionKey: 'shortcuts.selection.toggle' },
-      { combo: 'Shift + drag on blank canvas', description: '', descriptionKey: 'shortcuts.selection.extend' },
-      { combo: 'Arrow keys', description: '', descriptionKey: 'shortcuts.selection.nudgeOne' },
-      { combo: 'Shift + Arrow keys', description: '', descriptionKey: 'shortcuts.selection.nudgeTen' },
-      { combo: 'Ctrl/Cmd while dragging', description: '', descriptionKey: 'shortcuts.selection.disableSnap' },
-    ],
-  },
-  {
-    titleKey: 'shortcuts.edit.title',
-    items: [
-      { combo: 'Ctrl/Cmd + A', description: '', descriptionKey: 'shortcuts.edit.selectAll' },
-      { combo: 'Ctrl/Cmd + D', description: '', descriptionKey: 'shortcuts.edit.duplicate' },
-      { combo: 'Ctrl/Cmd + C / V', description: '', descriptionKey: 'shortcuts.edit.copyPaste' },
-      { combo: 'Ctrl/Cmd + G', description: '', descriptionKey: 'shortcuts.edit.group' },
-      { combo: 'Ctrl/Cmd + Shift + G', description: '', descriptionKey: 'shortcuts.edit.ungroup' },
-      { combo: 'Delete / Backspace', description: '', descriptionKey: 'shortcuts.edit.delete' },
-      { combo: 'Ctrl/Cmd + Z', description: '', descriptionKey: 'shortcuts.edit.undo' },
-      { combo: 'Ctrl/Cmd + Shift + Z', description: '', descriptionKey: 'shortcuts.edit.redo' },
-      { combo: 'Ctrl/Cmd + Y', description: '', descriptionKey: 'shortcuts.edit.redoAlt' },
-    ],
-  },
-  {
-    titleKey: 'shortcuts.panels.title',
-    items: [
-      { combo: 'Ctrl/Cmd + Shift + A', description: '', descriptionKey: 'shortcuts.panels.sideChat' },
-      { combo: 'Ctrl/Cmd + Shift + L', description: '', descriptionKey: 'shortcuts.panels.chatPage' },
-      { combo: '?', description: '', descriptionKey: 'shortcuts.panels.shortcuts' },
-      { combo: 'Esc', description: '', descriptionKey: 'shortcuts.panels.escape' },
-    ],
-  },
-];
+  items: Array<{ combo: string; descriptionKey: I18nKey }>;
+}> = (() => {
+  const all: ShortcutDefinition[] = [
+    ...shortcutsFor('gesture'),
+    ...shortcutsFor('canvas'),
+    ...shortcutsFor('document'),
+    ...shortcutsFor('app'),
+  ];
+  return SECTION_ORDER.map((section) => ({
+    titleKey: SECTION_TITLE_KEY[section],
+    items: all
+      .filter((definition) => definition.section === section)
+      .map((definition) => ({
+        combo: formatAllBindings(definition),
+        descriptionKey: definition.descriptionKey,
+      }))
+      // Definitions whose bindings are all hidden are declared for the
+      // handler tables, not for this panel.
+      .filter((item) => item.combo.length > 0),
+  })).filter((section) => section.items.length > 0);
+})();

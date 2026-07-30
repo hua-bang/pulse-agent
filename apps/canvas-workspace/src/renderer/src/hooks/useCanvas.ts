@@ -318,6 +318,29 @@ export const useCanvas = (
     setTransformSafe({ x: 0, y: 0, scale: 1 });
   }, [setTransformSafe]);
 
+  /**
+   * Discrete keyboard zoom (Cmd/Ctrl +/-), anchored on the viewport centre
+   * rather than the pointer. It goes through `setTransformSafe` instead of
+   * the wheel path's coalesced `commitTransform`: a keypress is a one-shot
+   * update, not a gesture, so there is no rAF stream to ride and no reason
+   * to enter the `moving` state.
+   */
+  const zoomByStep = useCallback((factor: number, container: HTMLElement | null) => {
+    setTransformSafe((prev) => {
+      const newScale = clampScale(prev.scale * factor);
+      if (newScale === prev.scale) return prev;
+      const rect = container?.getBoundingClientRect();
+      const cx = rect ? rect.width / 2 : 0;
+      const cy = rect ? rect.height / 2 : 0;
+      const ratio = newScale / prev.scale;
+      return {
+        x: safeNum(cx - (cx - prev.x) * ratio),
+        y: safeNum(cy - (cy - prev.y) * ratio),
+        scale: newScale,
+      };
+    });
+  }, [setTransformSafe]);
+
   const renderTransform = moving ? transformRef.current : transform;
 
   return {
@@ -331,6 +354,7 @@ export const useCanvas = (
     handleMouseMove,
     handleMouseUp,
     screenToCanvas,
-    resetTransform
+    resetTransform,
+    zoomByStep
   };
 };

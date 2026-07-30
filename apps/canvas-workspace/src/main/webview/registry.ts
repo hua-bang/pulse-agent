@@ -29,6 +29,7 @@ import {
 import { forgetFreezeSnapshot, rememberFreezeSnapshot } from './discard-monitor';
 import { captureBoundedSnapshot } from './snapshot';
 import { buildFreezeRecord, probeFreezeState } from './freeze-probe';
+import { attachShortcutForwarding } from './shortcut-forwarding';
 
 interface RegistryKey {
   workspaceId: string;
@@ -60,6 +61,8 @@ function register(k: RegistryKey, webContentsId: number, ready = false): void {
     // evicting a newer webContents that reused the node key.
     const wc = allWebContents.fromId(webContentsId);
     wc?.once('destroyed', () => unregister(k, webContentsId));
+    // Give the guest a keyboard escape hatch back to the host window.
+    attachShortcutForwarding(wc);
   }
   if (ready) recordWelcomeReadyForPerf(k);
 }

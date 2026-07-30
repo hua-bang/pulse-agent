@@ -49,6 +49,21 @@ export interface IframeApi {
     state: WebviewLifecycleState,
   ) => Promise<SetWebviewLifecycleResult>;
   /**
+   * A shortcut keystroke a webview guest swallowed and main forwarded back
+   * to this window. Guests are separate renderer processes, so without this
+   * bridge every embedded page is a keyboard black hole — see
+   * `shared/webview-shortcuts.ts`.
+   */
+  onShortcut: (
+    callback: (payload: {
+      key: string;
+      control: boolean;
+      meta: boolean;
+      alt: boolean;
+      shift: boolean;
+    }) => void,
+  ) => () => void;
+  /**
    * Fired by main's L3 discard monitor (Memory Saver style) when total
    * guest memory exceeds budget and this node's long-frozen webview was
    * chosen for discard. The renderer unmounts the `<webview>` (killing the

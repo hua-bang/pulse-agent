@@ -24,6 +24,9 @@ export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
   onDiscarded: (callback) =>
     subscribe(ipcRenderer, "iframe:discarded", callback),
 
+  onShortcut: (callback) =>
+    subscribe(ipcRenderer, "iframe:shortcut", callback),
+
   pickDomElement: (workspaceId, nodeId) =>
     ipcRenderer.invoke("iframe:pick-dom-element", { workspaceId, nodeId }),
 

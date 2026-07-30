@@ -33,16 +33,6 @@ export interface ConfirmOptions {
   intent?: ConfirmIntent;
 }
 
-export interface ShortcutItem {
-  combo: string;
-  description: string;
-}
-
-export interface ShortcutSection {
-  title: string;
-  items: ShortcutItem[];
-}
-
 export interface CanvasNodeRenameRequest {
   workspaceId: string;
   nodeId: string;
@@ -59,4 +49,13 @@ export interface CanvasNodePatchRequest {
 export interface CanvasClipboard {
   sourceWorkspaceId: string;
   nodes: CanvasNode[];
+  /**
+   * Exactly what the canvas copy wrote into the SYSTEM clipboard. The paste
+   * path compares it against the incoming clipboard text to decide which
+   * clipboard is newer: still equal → the node copy is the most recent thing
+   * the user copied and wins; changed → they copied something elsewhere
+   * since, and that content wins. Optional because a copy can fail to reach
+   * the system clipboard (permissions), in which case the nodes still paste.
+   */
+  systemText?: string;
 }

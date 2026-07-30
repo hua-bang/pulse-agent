@@ -14,6 +14,8 @@ interface FakeWebContents {
   destroyedHooks: Array<() => void>;
   isDestroyed: () => boolean;
   once: (event: string, cb: () => void) => void;
+  /** register() also hooks `before-input-event` for shortcut forwarding. */
+  on: (event: string, cb: (...args: unknown[]) => void) => void;
   emitDestroyed: () => void;
 }
 
@@ -46,6 +48,7 @@ const makeWc = (id: number): FakeWebContents => {
     once: (event, cb) => {
       if (event === 'destroyed') wc.destroyedHooks.push(cb);
     },
+    on: () => undefined,
     emitDestroyed: () => {
       wc.destroyed = true;
       for (const cb of wc.destroyedHooks) cb();

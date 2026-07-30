@@ -16,6 +16,8 @@ import { useKnowledgeAiContext } from './components/WorkspaceNodes/knowledgeAiCo
 import { NodesRouteViews } from './components/WorkspaceNodes/NodesRouteViews';
 import { useOpenNodePageBridge } from './components/WorkspaceNodes/useOpenNodePageBridge';
 import { useWorkspaces } from './hooks/useWorkspaces';
+import { useAppShortcuts } from './hooks/useAppShortcuts';
+import { useWebviewShortcutBridge } from './hooks/useWebviewShortcutBridge';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
@@ -435,41 +437,22 @@ const AppContent = () => {
     });
   }, [folders, confirm, deleteFolder, notify, t]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isEditable = Boolean(target) && (
-        target?.tagName === 'INPUT' ||
-        target?.tagName === 'TEXTAREA' ||
-        target?.isContentEditable
-      );
+  // Keystrokes a focused webview guest swallowed arrive here as ordinary
+  // keydowns, so the layers below need no webview-specific branch.
+  useWebviewShortcutBridge();
 
-      if (isOverlayOpen) return;
-
-      if (!isEditable && (e.key === '?' || (e.shiftKey && e.key === '/'))) {
-        e.preventDefault();
-        openShortcuts();
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') {
-        e.preventDefault();
-        if (activeView === 'chat') {
-          setLocation(ROUTE_CANVAS);
-        } else {
-          setLocation(ROUTE_CHAT);
-        }
-        return;
-      }
-
-      if (e.key === 'Escape' && activeView === 'chat' && !isEditable) {
-        setLocation(ROUTE_CANVAS);
-      }
-    };
-
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [activeView, isOverlayOpen, openShortcuts, setLocation]);
+  useAppShortcuts({
+    activeView,
+    isOverlayOpen,
+    openShortcuts,
+    toggleChatPage: () => setLocation(activeView === 'chat' ? ROUTE_CANVAS : ROUTE_CHAT),
+    toggleSidebar: handleSidebarToggle,
+    selectWorkspaceByIndex: (index) => {
+      const workspace = workspaces[index - 1];
+      if (workspace) handleSelectWorkspace(workspace.id);
+    },
+    leaveChatPage: () => setLocation(ROUTE_CANVAS),
+  });
 
   const getWorkspaceRootFolder = useCallback((workspaceId: string) => {
     return workspaces.find((ws) => ws.id === workspaceId)?.rootFolder;

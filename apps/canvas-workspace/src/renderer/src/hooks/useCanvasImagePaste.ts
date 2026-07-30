@@ -19,6 +19,19 @@ interface Options {
   onCreated?: (node: CanvasNode) => void;
   /** Create a web node when the clipboard carries a URL instead of plain notes. */
   onPasteUrl?: (url: string) => CanvasNode | null;
+  /**
+   * Paste the canvas-local node clipboard. Receives the system clipboard's
+   * plain text so it can decide which clipboard is newer, and returns true
+   * when it consumed the paste.
+   *
+   * This lives on the `paste` event rather than on Cmd+V in
+   * `useCanvasKeyboard` for a reason: the keydown handler could only ever
+   * see the keystroke, never the clipboard contents, so it unconditionally
+   * called `preventDefault` whenever the canvas clipboard was non-empty —
+   * and a canvas copy from an hour ago then permanently shadowed anything
+   * the user copied in another app.
+   */
+  pasteCanvasNodes?: (systemText: string) => boolean;
 }
 
 /** Clamp the pasted image to a reasonable default on-canvas size while
@@ -130,6 +143,7 @@ export const useCanvasImagePaste = ({
   updateNode,
   onCreated,
   onPasteUrl,
+  pasteCanvasNodes,
 }: Options) => {
   useEffect(() => {
     if (!active) return;
@@ -143,6 +157,12 @@ export const useCanvasImagePaste = ({
         // Non-image clipboard → text / url node, but never hijack real typing.
         if (isPasteFromTypingContext(e)) return;
         const text = getClipboardText(e).trim();
+        // Canvas nodes first, but only while the system clipboard has not
+        // moved on since the copy.
+        if (pasteCanvasNodes?.(text)) {
+          e.preventDefault();
+          return;
+        }
         if (!text) return;
         const normalizedUrl = normalizeReferenceUrl(text);
         if (normalizedUrl && onPasteUrl) {
@@ -214,5 +234,5 @@ export const useCanvasImagePaste = ({
 
     document.addEventListener('paste', handler);
     return () => document.removeEventListener('paste', handler);
-  }, [active, canvasId, containerRef, screenToCanvas, addNode, updateNode, onCreated, onPasteUrl]);
+  }, [active, canvasId, containerRef, screenToCanvas, addNode, updateNode, onCreated, onPasteUrl, pasteCanvasNodes]);
 };
