@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, type KeyboardEventHandler, type ReactNode } from 'react';
 import type { CanvasNode } from '../../types';
-import { CloseIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
+import { ColumnsPlusRight } from '@phosphor-icons/react';
+import { PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
+import { useRightDock } from '../RightDock/context';
 import type { SettingsSection } from '../Settings';
 import './ChatPage.css';
 import './ChatPanel.css';
@@ -17,6 +19,7 @@ import type { AgentScope, WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
+import { resolveDockChatHandoff } from './dockChatHandoff';
 import { useStableSessionRail } from './hooks/useStableSessionRail';
 
 export interface ChatPageBodyProps {
@@ -85,6 +88,7 @@ export const ChatPageBody = ({
 }: ChatPageBodyProps) => {
   const { t } = useI18n();
   const { notify } = useAppShell();
+  const dock = useRightDock();
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const anchorScopeId = workspaceId ?? 'global';
   const settingsButtonLabel = workspaceId && onOpenWorkspaceSettings
@@ -97,6 +101,15 @@ export const ChatPageBody = ({
     }
     onOpenAppSettings('models');
   }, [onOpenAppSettings, onOpenWorkspaceSettings, workspaceId]);
+  // Replaces the old close button: leaving the full-page chat is only worth a
+  // click if the conversation survives it, so the exit and the dock open ship
+  // together (see resolveDockChatHandoff for why the scope matters).
+  const handleOpenInDockTab = useCallback(() => {
+    const handoff = resolveDockChatHandoff(agentScope);
+    if (handoff.kind === 'scheduled') dock.openScheduledChat(handoff.taskId);
+    else dock.openChat();
+    onExit();
+  }, [agentScope, dock, onExit]);
   const {
     abort,
     addImageToCanvas,
@@ -407,11 +420,11 @@ export const ChatPageBody = ({
           )}
           <button
             className="chat-panel-action-btn"
-            onClick={onExit}
-            title={t('chat.backToCanvasEsc')}
-            aria-label={t('chat.backToCanvas')}
+            onClick={handleOpenInDockTab}
+            title={t('chat.openInDockTab')}
+            aria-label={t('chat.openInDockTab')}
           >
-            <CloseIcon size={16} strokeWidth={1.3} />
+            <ColumnsPlusRight size={16} />
           </button>
         </div>
 

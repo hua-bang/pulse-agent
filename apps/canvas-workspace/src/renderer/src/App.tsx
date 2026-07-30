@@ -4,7 +4,7 @@ import './App.css';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { DeferredSettings } from './components/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
-import { isDockChatTabEnabled, RightDock, RightDockProvider, useRightDock } from './components/RightDock';
+import { isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useRightDock } from './components/RightDock';
 import { GlobalChatLauncher } from './components/RightDock/GlobalChatLauncher';
 import type { SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
@@ -584,7 +584,7 @@ const AppContent = () => {
           })}
         </PulseRouter>
       </div>
-      <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat' && activeView !== 'scheduled' && activeView !== 'scheduled-task'} />
+      <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
       <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} reserveSpace={activeView !== 'skills'} onOpenNodePage={openNodePage} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings

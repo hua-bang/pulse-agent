@@ -8,3 +8,15 @@
  * was available would silently swallow the open (no tab, no navigation). */
 export const isDockChatTabEnabled = (activeView: string): boolean =>
   activeView !== 'chat' && activeView !== 'scheduled-task';
+
+/** Whether the route-level Pulse launcher (the floating logo button) renders.
+ *
+ * Canvas owns its own bottom chrome and toggles chat from the floating
+ * toolbar, so the launcher stays out of its way there. Every other route has
+ * no chat affordance of its own — the launcher IS the way in, which is why it
+ * derives from `isDockChatTabEnabled` instead of an ad-hoc route list: a
+ * launcher on a view whose dock has no chat tab would toggle a surface that
+ * cannot render, and a missing launcher (what the Scheduled list used to have)
+ * leaves the route with no way to reach the agent at all. */
+export const isGlobalChatLauncherVisible = (activeView: string): boolean =>
+  activeView !== 'canvas' && isDockChatTabEnabled(activeView);
