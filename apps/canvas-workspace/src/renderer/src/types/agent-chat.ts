@@ -31,6 +31,7 @@ export interface AgentApi {
       runId?: string;
       error?: string;
       speakerRole?: { id: string; name: string; color: string };
+      aborted?: boolean;
     }) => void,
   ) => () => void;
   onToolCall: (

@@ -123,7 +123,14 @@ export function createRelayTurnHandlers(deps: SegmentDeps) {
  * error message when the failure happened between segments.
  */
 export function applyTurnCompletion(opts: {
-  completeResult: { ok: boolean; response?: string; runId?: string; error?: string; speakerRole?: RoleTurnRoleRef };
+  completeResult: {
+    ok: boolean;
+    response?: string;
+    runId?: string;
+    error?: string;
+    speakerRole?: RoleTurnRoleRef;
+    aborted?: boolean;
+  };
   segment: SegmentState;
   toolSnapshot?: ToolCallStatus[];
   setMessages: Dispatch<SetStateAction<AgentChatMessage[]>>;
@@ -133,6 +140,7 @@ export function applyTurnCompletion(opts: {
     ...message,
     toolCalls: toolSnapshot ?? message.toolCalls,
     runId: completeResult.runId ?? message.runId,
+    aborted: completeResult.aborted,
     // Authoritative speaker snapshot; undefined intentionally clears a
     // streaming-time badge whose role mention turned out stale or errored.
     speakerRoleId: completeResult.speakerRole?.id,
@@ -158,7 +166,14 @@ export function applyTurnCompletion(opts: {
     const index = segment.msgIndex;
     if (index >= 0 && index < prev.length) {
       const next = [...prev];
-      next[index] = merge({ ...next[index], content: completeResult.response ?? next[index].content });
+      // An aborted turn's engine-side response is at best a partial echo of
+      // what already streamed, at worst the generic "Request aborted."
+      // filler — never an improvement over the bubble the user already saw.
+      // Keep it and just flag the turn stopped instead of clobbering it.
+      const content = completeResult.aborted
+        ? (next[index].content || completeResult.response || '')
+        : (completeResult.response ?? next[index].content);
+      next[index] = merge({ ...next[index], content });
       return next;
     }
     if (segment.finalized === 0 && completeResult.response) {

@@ -149,6 +149,8 @@ export interface CanvasAgentMessage {
   speakerRoleId?: string;
   speakerRoleName?: string;
   speakerRoleColor?: string;
+  /** True when this turn was interrupted (hard stop) rather than finishing normally. */
+  aborted?: boolean;
 }
 
 // ─── Session persistence ────────────────────────────────────────────
@@ -284,6 +286,8 @@ export interface ChatResponse {
   error?: string;
   /** Multi-role chat: the role that spoke this turn (absent → default assistant). */
   speakerRole?: { id: string; name: string; color: string };
+  /** True when the turn was interrupted (hard stop) rather than finishing normally. */
+  aborted?: boolean;
 }
 
 export interface AgentStatusResponse {

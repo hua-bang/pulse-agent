@@ -597,4 +597,36 @@ describe('loop', () => {
     await expect(runPromise).resolves.toBe('Request aborted.');
     expect(llmAbortSignal?.aborted).toBe(true);
   });
+
+  it('keeps the generated text when the LLM call resolves just as the caller aborts', async () => {
+    const context: Context = {
+      messages: [{ role: 'user', content: 'abort right at the finish line' }],
+    };
+    // A plain mutable stand-in for AbortSignal: flipping `.aborted` here does
+    // NOT dispatch a real 'abort' event, so the loop's own abort-listener
+    // path (which rejects the race and lands in the catch block) never
+    // fires — isolating the OTHER path, where the call already resolved and
+    // the loop notices the abort only on its post-call check.
+    const fakeSignal = {
+      aborted: false,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    } as unknown as AbortSignal;
+
+    streamTextAIMock.mockImplementation(() => {
+      // Flip the flag as the call "finishes", before the loop gets a chance
+      // to check it — mirrors a user clicking Stop the instant the model's
+      // response completes.
+      (fakeSignal as any).aborted = true;
+      return {
+        text: Promise.resolve('here is what I found before being stopped'),
+        steps: Promise.resolve([]),
+        finishReason: Promise.resolve('stop'),
+      };
+    });
+
+    const result = await loop(context, { abortSignal: fakeSignal });
+
+    expect(result).toBe('here is what I found before being stopped');
+  });
 });

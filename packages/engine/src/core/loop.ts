@@ -688,7 +688,12 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       }
 
       if (options?.abortSignal?.aborted) {
-        return 'Request aborted.';
+        // The LLM call itself already resolved by the time we noticed the
+        // abort (a race, not a mid-stream cutoff) — `text` is a complete,
+        // valid response, so keep it instead of discarding it for the
+        // generic message. Sibling exit branches below follow the same
+        // `text || fallback` pattern; this one previously didn't.
+        return text || 'Request aborted.';
       }
 
       if (finishReason === 'stop') {

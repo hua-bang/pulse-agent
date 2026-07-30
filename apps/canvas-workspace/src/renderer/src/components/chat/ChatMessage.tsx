@@ -3,6 +3,7 @@ import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
 import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
+import { useI18n } from '../../i18n';
 import { useRoleColors, useRoleNameColors } from './hooks/roleMentionItems';
 import { renderMdWithMentions } from './utils/mentions';
 import { roleColorSoft } from './utils/roleColors';
@@ -96,6 +97,7 @@ export const ChatMessage = ({
   onRegenerate,
   onSessionJump,
 }: ChatMessageProps) => {
+  const { t } = useI18n();
   // Live role accents so `@角色` chips in the transcript match each role's
   // color (falls back to the violet tokens for deleted/unknown roles).
   const roleColors = useRoleColors();
@@ -393,13 +395,13 @@ export const ChatMessage = ({
           ) : (!tools || tools.length === 0) ? (
             <LoadingDots />
           ) : null
-        ) : (
+        ) : message.content ? (
           <div
             ref={bodyRef}
             className="chat-message-content chat-md"
             dangerouslySetInnerHTML={{ __html: assistantHtml }}
           />
-        )
+        ) : null
       ) : isEditing ? (
         <div className="chat-message-edit">
           <textarea
@@ -435,6 +437,13 @@ export const ChatMessage = ({
           className="chat-message-content chat-md"
           dangerouslySetInnerHTML={{ __html: userHtml }}
         />
+      )}
+      {message.role === 'assistant' && !isStreaming && message.aborted && (
+        <div className="chat-message-stopped chat-tool-calls-summary">
+          {/* Same glyph as the composer's "Stop generating" button (ChatInput.tsx). */}
+          <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor" /></svg>
+          <span>{t('chat.message.stopped')}</span>
+        </div>
       )}
       <PluginChatCardForMessage message={message} />
       {!isEditing && (showCopyToolbar || canEdit || canRegenerate || relativeTime) && (

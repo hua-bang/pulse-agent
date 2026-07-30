@@ -506,6 +506,22 @@
   padding: 2px 0;
 }
 
+/* Interrupted-turn marker — deliberately muted/system-note styling so it
+   never reads as a normal reply (or as a second, contradictory verdict next
+   to the tool-calls section's "Completed" summary above it). Reuses
+   `.chat-tool-calls-summary`'s existing muted color/size instead of a new
+   literal — the svg's `currentColor` fill picks it up too. */
+.chat-message-stopped {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0;
+}
+
+.chat-message-stopped svg {
+  flex-shrink: 0;
+}
+
 /* Blinking cursor while streaming */
 .chat-md--streaming > *:last-child::after {
   content: '▍';

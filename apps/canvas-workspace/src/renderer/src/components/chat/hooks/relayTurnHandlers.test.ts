@@ -170,4 +170,48 @@ describe('applyTurnCompletion', () => {
     });
     expect(h.messages.value.at(-1)).toMatchObject({ role: 'assistant', content: '普通回复' });
   });
+
+  it('keeps streamed content and flags the turn stopped when aborted mid-stream', () => {
+    const h = harness();
+    h.handlers.handleRoleTurnStart({ index: 0, total: 1, speakerRole: null, queue: [null] });
+    h.messages.set(prev => {
+      const next = [...prev];
+      next[1] = { ...next[1], content: '这是已经生成的一部分内容' };
+      return next;
+    });
+    // The engine-side response is just the generic filler — the bubble
+    // already holds the real (partial) text, which must win.
+    applyTurnCompletion({
+      completeResult: { ok: true, response: 'Request aborted.', aborted: true },
+      segment: h.segment,
+      setMessages: h.messages.set,
+    });
+    expect(h.messages.value[1].content).toBe('这是已经生成的一部分内容');
+    expect(h.messages.value[1].aborted).toBe(true);
+    expect(h.messages.value).toHaveLength(2);
+  });
+
+  it('falls back to the engine response when aborted before any text streamed', () => {
+    const h = harness();
+    h.handlers.handleRoleTurnStart({ index: 0, total: 1, speakerRole: null, queue: [null] });
+    applyTurnCompletion({
+      completeResult: { ok: true, response: 'Request aborted.', aborted: true },
+      segment: h.segment,
+      setMessages: h.messages.set,
+    });
+    expect(h.messages.value[1].content).toBe('Request aborted.');
+    expect(h.messages.value[1].aborted).toBe(true);
+  });
+
+  it('does not flag a normal completion as aborted', () => {
+    const h = harness();
+    h.handlers.handleRoleTurnStart({ index: 0, total: 1, speakerRole: null, queue: [null] });
+    applyTurnCompletion({
+      completeResult: { ok: true, response: '正常完成的回复' },
+      segment: h.segment,
+      setMessages: h.messages.set,
+    });
+    expect(h.messages.value[1].content).toBe('正常完成的回复');
+    expect(h.messages.value[1].aborted).toBeFalsy();
+  });
 });

@@ -645,7 +645,7 @@ export class CanvasAgent {
     onToolInputEnd?: (data: { id: string }) => void,
     onRoleTurnStart?: (event: RoleTurnStartEvent) => void,
     onRoleTurnEnd?: (event: RoleTurnEndEvent) => void,
-  ): Promise<{ response: string; runId?: string; speakerRole?: { id: string; name: string; color: string } }> {
+  ): Promise<{ response: string; runId?: string; speakerRole?: { id: string; name: string; color: string }; aborted?: boolean }> {
     const workspaceId = this.config.scope.kind === 'workspace'
       ? this.config.scope.workspaceId
       : undefined;
@@ -910,6 +910,7 @@ export class CanvasAgent {
           speakerRoleId: role?.id,
           speakerRoleName: role?.name,
           speakerRoleColor: role?.color,
+          aborted: abortController.signal.aborted || undefined,
         });
 
         // Notify subscribed plugins (devtools persists the trace). Awaited so
@@ -958,6 +959,7 @@ export class CanvasAgent {
         response: last?.response ?? '(no response)',
         runId: last?.runId,
         speakerRole: roleTurnRef(last?.role ?? null) ?? undefined,
+        aborted: abortController.signal.aborted || undefined,
       };
     } finally {
       if (this.currentAbortController === abortController) {

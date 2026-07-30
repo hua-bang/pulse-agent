@@ -189,6 +189,8 @@ export interface AgentChatMessage {
   speakerRoleName?: string;
   /** Snapshot of the role's accent color at the time of the turn. */
   speakerRoleColor?: string;
+  /** True when this turn was interrupted (hard stop) rather than finishing normally. */
+  aborted?: boolean;
 }
 
 export interface AgentContextNodeRef {
