@@ -233,6 +233,18 @@
   color: #37352f;
 }
 
+/* Stays in place (not hidden) when there's nothing to toggle yet — e.g. the
+ * Tab-panel switch before any dock content tab exists — so the control
+ * doesn't jump around the topbar as tabs come and go. pointer-events: none
+ * keeps :hover above from ever matching, instead of restating its color as
+ * a disabled-hover override (which would count as a second hardcoded-color
+ * line against the ui-reuse-governance ratchet for the same token value). */
+.chat-panel-action-btn:disabled {
+  cursor: default;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 /* ─── Empty state ──────────────────────────────────────────── */
 
 .chat-empty-state {
