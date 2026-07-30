@@ -4,7 +4,7 @@ import './App.css';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { DeferredSettings } from './components/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
-import { RightDock, RightDockProvider, useRightDock } from './components/RightDock';
+import { isDockChatTabEnabled, RightDock, RightDockProvider, useRightDock } from './components/RightDock';
 import { GlobalChatLauncher } from './components/RightDock/GlobalChatLauncher';
 import type { SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
@@ -22,7 +22,7 @@ import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } 
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
 import { ScheduledRouteViews, SkillsRouteView } from './components/RouteViews';
-import { useScheduledRunToasts } from './components/Scheduled/useScheduledRunToasts';
+import { useScheduledRunChatOpener } from './components/Scheduled/useScheduledRunChatOpener';
 const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
@@ -221,7 +221,7 @@ const AppContent = () => {
     setLocation(path);
   }, [setLocation]);
 
-  useScheduledRunToasts((taskId) => setLocation(`${ROUTE_CHAT}?scheduledTask=${encodeURIComponent(taskId)}`));
+  useScheduledRunChatOpener({ activeView, chatRoute: ROUTE_CHAT });
 
   const handleSelectWorkspace = useCallback((id: string) => {
     ensureWorkspaceNodesLoaded(id);
@@ -585,7 +585,7 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat' && activeView !== 'scheduled' && activeView !== 'scheduled-task'} />
-      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={activeView !== 'chat' && activeView !== 'scheduled-task'} reserveSpace={activeView !== 'skills'} onOpenNodePage={openNodePage} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} reserveSpace={activeView !== 'skills'} onOpenNodePage={openNodePage} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         appLoaded={appSettingsLoaded}
