@@ -28,7 +28,11 @@ vi.mock('./DockCreationControls', () => ({
 let root: Root | null = null;
 let mount: HTMLDivElement | null = null;
 
-const SeededDock = ({ reserveSpace = true, chatTabEnabled = true }: { reserveSpace?: boolean; chatTabEnabled?: boolean }) => {
+const SeededDock = ({ reserveSpace = true, chatTabEnabled = true, capWidth = false }: {
+  reserveSpace?: boolean;
+  chatTabEnabled?: boolean;
+  capWidth?: boolean;
+}) => {
   const { store } = useDockContext();
   const seededRef = useRef(false);
   if (!seededRef.current) {
@@ -43,13 +47,14 @@ const SeededDock = ({ reserveSpace = true, chatTabEnabled = true }: { reserveSpa
       activeIdReady
       chatTabEnabled={chatTabEnabled}
       reserveSpace={reserveSpace}
+      capWidth={capWidth}
       workspaces={[]}
       onOpenNodePage={() => undefined}
     />
   );
 };
 
-const renderDock = async (reserveSpace = true, chatTabEnabled = true) => {
+const renderDock = async (reserveSpace = true, chatTabEnabled = true, capWidth = false) => {
   mount = document.createElement('div');
   document.body.appendChild(mount);
   root = createRoot(mount);
@@ -57,7 +62,7 @@ const renderDock = async (reserveSpace = true, chatTabEnabled = true) => {
     root?.render(
       <I18nProvider>
         <RightDockProvider>
-          <SeededDock reserveSpace={reserveSpace} chatTabEnabled={chatTabEnabled} />
+          <SeededDock reserveSpace={reserveSpace} chatTabEnabled={chatTabEnabled} capWidth={capWidth} />
         </RightDockProvider>
       </I18nProvider>,
     );
@@ -181,6 +186,18 @@ describe('RightDock page layout', () => {
 
     expect(host.querySelector('.right-dock')?.getAttribute('data-expanded')).toBe('true');
     expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('480px');
+  });
+
+  it('renders a stored canvas width capped on a page route, without rewriting the preference', async () => {
+    window.localStorage.setItem('canvas-workspace:right-dock-width', '1100');
+    const host = await renderDock(true, true, true);
+    const separator = host.querySelector<HTMLElement>('.right-dock__resize-handle')!;
+
+    // 1200px viewport → page cap 600.
+    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('600px');
+    expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('600px');
+    expect(separator.getAttribute('aria-valuemax')).toBe('600');
+    expect(window.localStorage.getItem('canvas-workspace:right-dock-width')).toBe('1100');
   });
 });
 

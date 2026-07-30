@@ -127,6 +127,9 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
       }
       requestAnimationFrame(() => {
         fitTerminalWithCanvasScale(term, fitAddon, containerRef.current);
+        // Restored output is written before the geometry settles, so land the
+        // viewport on the newest line rather than mid-history.
+        try { term.scrollToBottom(); } catch { /* ignore */ }
       });
       return;
     }
@@ -161,6 +164,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
 
     requestAnimationFrame(() => {
       fitTerminalWithCanvasScale(term, fitAddon, containerRef.current);
+      try { term.scrollToBottom(); } catch { /* ignore */ }
     });
 
     const api = window.canvasWorkspace?.pty;

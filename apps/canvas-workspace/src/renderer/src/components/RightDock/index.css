@@ -26,8 +26,14 @@
   transform: translateX(102%);
   visibility: hidden;
   pointer-events: none;
+  /* `width` animates because the route can change the effective width (the
+   * page-route cap in dock-width.ts): it must travel with .app-body's
+   * margin-right, on the same duration/easing, or the page and the dock edge
+   * separate for a frame-long gap on every navigation. Drag-resize opts out
+   * through .right-dock-resizing below. */
   transition:
     transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.26s cubic-bezier(0.22, 1, 0.36, 1),
     visibility 0s linear 0.26s;
 }
 
@@ -35,7 +41,9 @@
   transform: none;
   visibility: visible;
   pointer-events: auto;
-  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* While dragging the resize handle the canvas must track the handle

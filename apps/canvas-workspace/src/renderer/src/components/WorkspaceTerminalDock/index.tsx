@@ -22,6 +22,7 @@ import {
   detectCodingAgentExit,
   hasLikelyReturnedToShellPrompt,
 } from '../../utils/codingAgentCommand';
+import { fitTerminalIfSane } from '../AgentNodeBody/utils/terminal';
 import { scheduleBootOverlayDismiss } from './boot-overlay';
 import './index.css';
 
@@ -120,11 +121,14 @@ export const WorkspaceTerminalDock = ({
     const fitAddon = fitRef.current;
     const api = window.canvasWorkspace?.pty;
     if (!term || !fitAddon || !api || !open) return;
+    // A dock mid-transition (or hidden) measures to a few columns; telling the
+    // shell that makes a coding agent hard-wrap its output permanently, so the
+    // guard skips those passes and a later scheduled fit does the real work.
+    if (!fitTerminalIfSane(term, fitAddon)) return;
     try {
-      fitAddon.fit();
       api.resize(sessionId, term.cols, term.rows);
     } catch {
-      // Fit can fail while the dock is mid-transition or hidden.
+      /* resize IPC is best-effort */
     }
   }, [open, sessionId]);
 
@@ -234,8 +238,9 @@ export const WorkspaceTerminalDock = ({
     fitRef.current = fitAddon;
     // Size to the real container before spawning so the shell starts at the
     // correct cols/rows, rather than the 80×24 default that then reflows on the
-    // first scheduled fit.
-    try { fitAddon.fit(); } catch { /* container may be mid-layout */ }
+    // first scheduled fit. Keeps 80×24 when the container is not measurable
+    // yet — better than committing the shell to a 4-column ribbon.
+    fitTerminalIfSane(term, fitAddon);
     scheduleFit();
 
     term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
