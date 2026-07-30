@@ -225,7 +225,10 @@
   transition: background 0.1s, color 0.1s;
 }
 
-.chat-panel-action-btn:hover {
+/* data-active is the on-state of action buttons that toggle something (the
+ * full-page chat's Tab-panel switch), sharing the hover treatment. */
+.chat-panel-action-btn:hover,
+.chat-panel-action-btn[data-active='true'] {
   background: rgba(55, 53, 47, 0.08);
   color: #37352f;
 }

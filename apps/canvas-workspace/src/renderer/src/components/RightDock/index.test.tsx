@@ -28,7 +28,7 @@ vi.mock('./DockCreationControls', () => ({
 let root: Root | null = null;
 let mount: HTMLDivElement | null = null;
 
-const SeededDock = ({ reserveSpace = true }: { reserveSpace?: boolean }) => {
+const SeededDock = ({ reserveSpace = true, chatTabEnabled = true }: { reserveSpace?: boolean; chatTabEnabled?: boolean }) => {
   const { store } = useDockContext();
   const seededRef = useRef(false);
   if (!seededRef.current) {
@@ -41,7 +41,7 @@ const SeededDock = ({ reserveSpace = true }: { reserveSpace?: boolean }) => {
     <RightDock
       activeWorkspaceId="ws-1"
       activeIdReady
-      chatTabEnabled
+      chatTabEnabled={chatTabEnabled}
       reserveSpace={reserveSpace}
       workspaces={[]}
       onOpenNodePage={() => undefined}
@@ -49,7 +49,7 @@ const SeededDock = ({ reserveSpace = true }: { reserveSpace?: boolean }) => {
   );
 };
 
-const renderDock = async (reserveSpace = true) => {
+const renderDock = async (reserveSpace = true, chatTabEnabled = true) => {
   mount = document.createElement('div');
   document.body.appendChild(mount);
   root = createRoot(mount);
@@ -57,7 +57,7 @@ const renderDock = async (reserveSpace = true) => {
     root?.render(
       <I18nProvider>
         <RightDockProvider>
-          <SeededDock reserveSpace={reserveSpace} />
+          <SeededDock reserveSpace={reserveSpace} chatTabEnabled={chatTabEnabled} />
         </RightDockProvider>
       </I18nProvider>,
     );
@@ -174,6 +174,13 @@ describe('RightDock page layout', () => {
     await renderDock(false);
 
     expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('0px');
+  });
+
+  it('still reserves width on a route with no chat tab, so preview tabs cannot cover the page', async () => {
+    const host = await renderDock(true, false);
+
+    expect(host.querySelector('.right-dock')?.getAttribute('data-expanded')).toBe('true');
+    expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('480px');
   });
 });
 

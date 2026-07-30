@@ -9,6 +9,7 @@ import { applyDockSplitState, getSplitViewToggle } from './dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
 import { openSkillTab } from './dock-skill-tabs';
 import { getOpenChatPatch, getOpenScheduledChatPatch, getRefreshScheduledChatPatch } from './dock-chat-state';
+import { getToggleContentTabsPatch } from './dock-content-tabs';
 import type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
 export { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, nodeDetailTabId, skillTabId, terminalTabId } from './dock-tab-ids';
@@ -276,6 +277,10 @@ export class DockStore {
 
   /** Reload the visible task conversation after its background run persists. */
   refreshScheduledChat(taskId: string): void { const next = getRefreshScheduledChatPatch(this.state, taskId); if (next) this.commit(next); }
+
+  /** Full-page-chat control: show/hide the dock's content tabs. That route
+   *  hides the pinned chat tab, so `toggleChat` cannot serve it. */
+  toggleContentTabs(): void { const next = getToggleContentTabsPatch(this.state); if (next) this.commit(next); }
 
   /** Toolbar chat button: collapse when already looking at chat, else show chat. */
   toggleChat(): void {
