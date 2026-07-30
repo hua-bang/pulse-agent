@@ -69,7 +69,12 @@ import { createWindow } from "./window";
 import { applyLoginShellPath, augmentProcessPath } from "../shell-path";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
-import { setupGoogleAuthCompat } from "./google-auth";
+import { googleAuthIdentityRule } from "./google-auth";
+import { xComIdentityRule } from "./x-com-compat";
+import {
+  setupEmbeddedIdentity,
+  type EmbeddedIdentityRule,
+} from "./embedded-identity";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
 
@@ -131,7 +136,11 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       .catch(() => undefined);
     startLoopDelaySampler(writeLog);
     spoofUserAgentFallback();
-    setupGoogleAuthCompat();
+    setupEmbeddedIdentity(
+      [googleAuthIdentityRule(), xComIdentityRule()].filter(
+        (rule): rule is EmbeddedIdentityRule => rule !== null
+      )
+    );
     registerPulseCanvasProtocol(writeLog);
     configureAppChrome(paths.iconPath, writeLog);
     // Must run before the window opens: the default menu's Undo/Redo
