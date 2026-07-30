@@ -41,6 +41,7 @@ export {
   useRightDockTerminalHost,
 } from './context';
 export { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
+export { isDockChatTabEnabled } from './dock-chat-availability';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const DEFAULT_WIDTH = 480;
