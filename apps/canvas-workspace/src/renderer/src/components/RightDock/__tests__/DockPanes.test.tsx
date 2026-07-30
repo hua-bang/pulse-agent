@@ -144,6 +144,41 @@ describe('DockPanes lazy link-tab webview mount', () => {
     await vi.waitFor(() => expect(latestLinkTabProps.get(tabA.id)?.mountWebview).toBe(true));
     expect(latestLinkTabProps.get(tabB.id)?.mountWebview).toBe(true);
   });
+
+  it('re-arms the lazy gate for tabs that left the dock', async () => {
+    // Switching workspace swaps the whole link session out, unmounting every
+    // guest. If the "has been visible" set kept those ids, coming back would
+    // remount every tab the user ever opened in ONE commit — the cold-start
+    // burst this gate exists to prevent.
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openLink('https://a.example/');
+    store.openLink('https://b.example/');
+    const [tabA, tabB] = store.getSnapshot().tabs;
+    store.activate(tabA.id);
+    store.activate(tabB.id);
+
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    // Both tabs have been visible, so both are mounted.
+    renderPanes(store, tabA.id);
+    renderPanes(store, tabB.id);
+    await vi.waitFor(() => expect(latestLinkTabProps.get(tabA.id)?.mountWebview).toBe(true));
+    expect(latestLinkTabProps.get(tabB.id)?.mountWebview).toBe(true);
+
+    // Away to another workspace, then back: only the tab that becomes active
+    // again may mount.
+    store.setActiveWorkspace('ws2');
+    renderPanes(store, store.getSnapshot().activeTabId);
+    latestLinkTabProps.clear();
+    store.setActiveWorkspace('ws1');
+    renderPanes(store, tabB.id);
+
+    await vi.waitFor(() => expect(latestLinkTabProps.size).toBe(2));
+    expect(latestLinkTabProps.get(tabB.id)?.mountWebview).toBe(true);
+    expect(latestLinkTabProps.get(tabA.id)?.mountWebview).toBe(false);
+  });
 });
 
 describe('DockPanes tabpanel relationships', () => {

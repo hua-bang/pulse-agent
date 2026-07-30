@@ -79,6 +79,9 @@ beforeEach(() => {
       link: {
         onOpen: () => () => undefined,
       },
+      dock: {
+        onShortcut: () => () => undefined,
+      },
     },
   });
   Object.defineProperty(window, 'innerWidth', {
@@ -231,11 +234,76 @@ describe('RightDock Escape ownership', () => {
     })));
     expect(tabCount()).toBe(3);
 
+    // The seeded active tab is a WEB tab: Escape steps out of the dock and
+    // leaves it standing, because a link tab owns browsing state (history,
+    // scroll, sign-in) that a stray keypress must not destroy.
     const activeTab = host.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
     act(() => activeTab?.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Escape',
       bubbles: true,
     })));
+    expect(tabCount()).toBe(3);
+    expect(host.querySelector('.right-dock')?.getAttribute('data-expanded')).toBe('false');
+  });
+
+  it('closes a reconstructible content tab on Escape, but not a web tab', async () => {
+    const host = await renderDock();
+    const tabCount = () => host.querySelectorAll('[role="tab"]').length;
+
+    // Node detail is cheap to rebuild — "Escape dismisses" still applies.
+    const nodeDetailTab = host.querySelector<HTMLButtonElement>(
+      '[data-dock-tab-id^="node-detail:"]',
+    );
+    act(() => nodeDetailTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })));
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+
     expect(tabCount()).toBe(2);
+    expect(host.querySelector('[data-dock-tab-id^="node-detail:"]')).toBeNull();
+  });
+});
+
+describe('RightDock web-tab shortcuts', () => {
+  it('closes the active web tab on Cmd+W and restores it on Cmd+Shift+T', async () => {
+    const host = await renderDock();
+    const linkTabId = () => host.querySelector('[data-dock-tab-id^="link:"]')?.getAttribute('data-dock-tab-id');
+    const openedId = linkTabId();
+    expect(openedId).toBeTruthy();
+
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'w',
+      metaKey: true,
+      bubbles: true,
+    })));
+    expect(linkTabId()).toBeUndefined();
+
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 't',
+      metaKey: true,
+      shiftKey: true,
+      bubbles: true,
+    })));
+    // Same tab id back, in the position it held.
+    expect(linkTabId()).toBe(openedId);
+  });
+
+  it('opens a new web tab on Cmd+T', async () => {
+    const host = await renderDock();
+    const webTabs = () => host.querySelectorAll('[data-dock-tab-id^="link:"]').length;
+    expect(webTabs()).toBe(1);
+
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 't',
+      metaKey: true,
+      bubbles: true,
+    })));
+    expect(webTabs()).toBe(2);
+  });
+
+  it('closes a tab on middle-click', async () => {
+    const host = await renderDock();
+    const linkTab = host.querySelector<HTMLButtonElement>('[data-dock-tab-id^="link:"]');
+    act(() => linkTab?.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 1 })));
+
+    expect(host.querySelector('[data-dock-tab-id^="link:"]')).toBeNull();
   });
 });

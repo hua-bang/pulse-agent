@@ -92,7 +92,17 @@ export const DockPanes = ({
   // split); after that it stays mounted, so switching back never reloads.
   // Agent tools that activate a tab before reading it already poll for the
   // webview registration (main/webview/ensure-operable.ts).
+  // A tab that left the dock took its guest with it — closed, or swapped out
+  // when the workspace changed link sessions. Dropping its id restores the
+  // "mount on first visible" rule for the NEXT time it appears; without this
+  // the set only ever grew, so returning to a workspace remounted every tab
+  // the user had ever looked at, in one commit — the exact cold-start burst
+  // this gate exists to prevent.
   const mountedLinkTabsRef = useRef(new Set<string>());
+  const liveTabIds = new Set(state.tabs.map((tab) => tab.id));
+  for (const id of mountedLinkTabsRef.current) {
+    if (!liveTabIds.has(id)) mountedLinkTabsRef.current.delete(id);
+  }
   if (activePaneId) mountedLinkTabsRef.current.add(activePaneId);
   if (splitTabId) mountedLinkTabsRef.current.add(splitTabId);
   const style = {

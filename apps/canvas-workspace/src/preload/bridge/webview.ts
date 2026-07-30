@@ -2,6 +2,7 @@ import type { IpcRenderer } from "electron";
 import type {
   IframeApi,
   LinkApi,
+  LinkOpenRequest,
   LlmApi,
   ShellApi,
   WebApi
@@ -37,7 +38,7 @@ export const createShellApi = (ipcRenderer: IpcRenderer): ShellApi => ({
 });
 
 export const createLinkApi = (ipcRenderer: IpcRenderer): LinkApi => ({
-  onOpen: (callback) => subscribe<{ url: string }>(ipcRenderer, "link:open", callback)
+  onOpen: (callback) => subscribe<LinkOpenRequest>(ipcRenderer, "link:open", callback)
 });
 
 export const createLlmApi = (ipcRenderer: IpcRenderer): LlmApi => ({

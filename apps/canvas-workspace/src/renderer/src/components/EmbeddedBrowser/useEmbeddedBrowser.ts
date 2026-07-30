@@ -29,6 +29,8 @@ interface Result {
   loadError: BrowserLoadError | null;
   loadState: BrowserLoadState;
   reload: () => void;
+  /** Abort the in-flight navigation (the stop half of reload/stop). */
+  stop: () => void;
   webview: EmbeddedWebviewTag | null;
 }
 
@@ -204,6 +206,18 @@ export const useEmbeddedBrowser = ({
       setReloadKey((key) => key + 1);
     }
   }, [url, webview]);
+  // Abort an in-flight navigation. `did-stop-loading` normally settles the
+  // state, but a guest that never fires it (torn-down frame) would leave the
+  // chrome spinning, so the state is settled here too.
+  const stop = useCallback(() => {
+    if (!webview) return;
+    try {
+      webview.stop();
+    } catch {
+      /* guest already gone — the reload path owns recovery */
+    }
+    setLoadState((state) => (state === 'loading' ? 'ready' : state));
+  }, [webview]);
 
   return {
     canGoBack,
@@ -215,6 +229,7 @@ export const useEmbeddedBrowser = ({
     loadError,
     loadState,
     reload,
+    stop,
     webview,
   };
 };

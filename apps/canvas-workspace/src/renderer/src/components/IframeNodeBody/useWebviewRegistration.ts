@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { EmbeddedWebviewTag } from '../EmbeddedBrowser/types';
 
 /**
@@ -20,12 +20,19 @@ export const useWebviewRegistration = ({
   workspaceId,
   nodeId,
   enabled,
+  onWebContentsId,
 }: {
   webview: EmbeddedWebviewTag | null;
   workspaceId: string | undefined;
   nodeId: string;
   enabled: boolean;
+  /** Also observe the resolved guest id renderer-side (null on teardown).
+   *  Reuses this hook's attach handshake instead of a second listener pair. */
+  onWebContentsId?: (webContentsId: number | null) => void;
 }): void => {
+  const onWebContentsIdRef = useRef(onWebContentsId);
+  onWebContentsIdRef.current = onWebContentsId;
+
   useEffect(() => {
     if (!enabled || !workspaceId || !webview) return;
 
@@ -37,9 +44,11 @@ export const useWebviewRegistration = ({
       try {
         const id = webview.getWebContentsId();
         if (typeof id === 'number') {
+          const isNew = registeredId !== id;
           registeredId = id;
           if (ready) void api.registerWebview(workspaceId, nodeId, id, true);
           else void api.registerWebview(workspaceId, nodeId, id);
+          if (isNew) onWebContentsIdRef.current?.(id);
         }
       } catch {
         // WebContents id is not available until Electron attaches the guest.
@@ -57,6 +66,7 @@ export const useWebviewRegistration = ({
       webview.removeEventListener('dom-ready', handleReady);
       if (registeredId !== null) {
         void api.unregisterWebview(workspaceId, nodeId, registeredId);
+        onWebContentsIdRef.current?.(null);
       }
     };
   }, [webview, workspaceId, nodeId, enabled]);

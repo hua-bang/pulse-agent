@@ -21,12 +21,13 @@ import { SplitViewToggle } from './SplitViewToggle';
 import { useDockSplitView } from './useDockSplitView';
 import { clampDockWidth, DOCK_DEFAULT_WIDTH, DOCK_MIN_WIDTH, resolveDockMaxWidth } from './dock-width';
 import { useDockTabDrag } from './useDockTabDrag';
+import { useDockKeyboard } from './useDockKeyboard';
+import { linkTabIdForWebContents } from './link-tab-webviews';
 import { DockPanes } from './DockPanes';
 import { hasDockSplitContentTab } from './dock-split-state';
 import { useDockTabIndicator } from './useDockTabIndicator';
 import { getDockTabVisualState } from './dock-tab-visual-state';
 import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
-import { isImeComposing } from '../../utils/ime';
 import {
   getRovingDockTabId,
   handleDockResizeKeyDown,
@@ -75,17 +76,6 @@ function persistWidth(value: number): void {
   }
 }
 
-const isEditableEventTarget = (target: EventTarget | null): boolean => (
-  target instanceof HTMLElement
-  && (
-    target.isContentEditable
-    || target instanceof HTMLInputElement
-    || target instanceof HTMLTextAreaElement
-    || target instanceof HTMLSelectElement
-    || Boolean(target.closest('[contenteditable="true"]'))
-  )
-);
-
 interface RightDockProps {
   activeWorkspaceId: string;
   /** False until `activeWorkspaceId` has resolved past its mount-time placeholder. */
@@ -118,7 +108,15 @@ export const RightDock = ({
   }, [activeWorkspaceId, store]);
 
   useEffect(() => {
-    return window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
+    // `background` mirrors the user's gesture (⌘/Ctrl+click, middle-click);
+    // the opener id is resolved from the guest that raised the link so the
+    // new tab lands beside the page it came from.
+    return window.canvasWorkspace.link.onOpen(({ url, background, sourceWebContentsId }) => {
+      store.openLink(url, {
+        background,
+        openerTabId: linkTabIdForWebContents(sourceWebContentsId),
+      });
+    });
   }, [store]);
   useDockAgentBridge(store, state, activeWorkspaceId);
 
@@ -218,27 +216,7 @@ export const RightDock = ({
     };
   }, [visible, reserveSpace, width]);
 
-  useEffect(() => {
-    if (!visible) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (
-        e.key !== 'Escape'
-        || e.defaultPrevented
-        || isImeComposing(e)
-        || isEditableEventTarget(e.target)
-      ) {
-        return;
-      }
-      const { activeTabId, terminalTabs } = store.getSnapshot();
-      if (terminalTabs.some((tab) => tab.id === activeTabId)) {
-        store.closeTerminal(activeTabId);
-        return;
-      }
-      if (activeTabId !== CHAT_TAB_ID) store.close(activeTabId);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [visible, store]);
+  useDockKeyboard({ store, visible, newTabTitle: t('rightDock.newTabTitle') });
 
   // Drag the left edge to resize (shared useDragResize hook). The handle sits
   // on the LEFT edge of the right-anchored dock, so dragging left grows it
@@ -382,7 +360,7 @@ export const RightDock = ({
                   className={`right-dock__tab right-dock__tab--with-close${visual.focused ? ' right-dock__tab--active' : ''}`}
                   data-focused={visual.focused}
                   data-split-visible={visual.splitVisible}
-                  title={tab.title}
+                  title={tab.kind === 'link' && tab.url ? `${tab.title}\n${tab.url}` : tab.title}
                   draggable
                   tabIndex={rovingTabId === tab.id ? 0 : -1}
                   onDragStart={(event) => tabDrag.onDragStart(event, tab.id)}
@@ -393,6 +371,14 @@ export const RightDock = ({
                     // activation reads as "tab didn't respond" after a few px
                     // of pointer slip.
                     if (event.button === 0) store.activate(tab.id);
+                    // Middle-click closes, as everywhere else tabs exist.
+                    // preventDefault stops the auto-scroll cursor.
+                    if (event.button === 1) event.preventDefault();
+                  }}
+                  onAuxClick={(event) => {
+                    if (event.button !== 1) return;
+                    event.preventDefault();
+                    store.close(tab.id);
                   }}
                   onClick={() => store.activate(tab.id)}
                 >

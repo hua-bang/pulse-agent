@@ -28,6 +28,7 @@ function createContents(currentUrl = 'https://www.figma.com/files/recent') {
     send: vi.fn(),
   };
   const contents = {
+    id: 42,
     hostWebContents,
     setWindowOpenHandler: vi.fn(),
     getType: vi.fn(() => 'webview'),
@@ -100,6 +101,42 @@ describe('link policy', () => {
 
     expect(result).toEqual({ action: 'allow' });
     expect(electronMocks.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('marks background-tab opens so the dock does not steal focus', async () => {
+    // ⌘/Ctrl+click and middle-click arrive as `background-tab`. Flattening
+    // that into a plain open pulled the user off the page they were reading
+    // on every queued link.
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents();
+    createdHandler({}, contents);
+
+    const windowOpenHandler = contents.setWindowOpenHandler.mock.calls[0]?.[0] as WindowOpenHandler;
+    const url = 'https://example.com/article';
+    const result = windowOpenHandler({ url, disposition: 'background-tab' });
+
+    expect(result).toEqual({ action: 'deny' });
+    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', {
+      url,
+      background: true,
+      sourceWebContentsId: 42,
+    });
+  });
+
+  it('forwards foreground target=_blank links as foreground opens', async () => {
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents();
+    createdHandler({}, contents);
+
+    const windowOpenHandler = contents.setWindowOpenHandler.mock.calls[0]?.[0] as WindowOpenHandler;
+    const url = 'https://example.com/docs';
+    windowOpenHandler({ url, disposition: 'foreground-tab' });
+
+    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', {
+      url,
+      background: false,
+      sourceWebContentsId: 42,
+    });
   });
 
   it('reroutes in-place Google auth entry navigations into a popup window', async () => {
@@ -184,7 +221,11 @@ describe('link policy', () => {
     navigateHandler({ preventDefault }, url);
 
     expect(preventDefault).toHaveBeenCalledOnce();
-    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', { url });
+    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', {
+      url,
+      background: false,
+      sourceWebContentsId: 42,
+    });
   });
 
   it('keeps Figma SAML callbacks inside the webview', async () => {

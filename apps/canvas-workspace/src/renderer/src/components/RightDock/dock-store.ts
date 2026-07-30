@@ -2,8 +2,16 @@
  * Owns activation, dedupe, workspace sessions, closing order, split pairing,
  * collapse retention, and chat unread policy. React binds with
  * `useSyncExternalStore` in components/RightDock. */
-import { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, nodeDetailTabId, terminalTabId } from './dock-tab-ids';
-import { DockLinkSessionStore, type DockSessionPersistence } from './dock-link-sessions';
+import { CHAT_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, nodeDetailTabId } from './dock-tab-ids';
+import {
+  closeTerminalCommit,
+  newTerminalCommit,
+  openTerminalCommit,
+  renameTerminalCommit,
+  type TerminalCommit,
+} from './dock-terminal-tabs';
+import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from './dock-link-sessions';
+import { ClosedLinkTabStack, blankLinkTabId, insertLinkTab, isSameOrigin, urlLinkTabId } from './dock-link-tabs';
 import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
 import { applyDockSplitState, getSplitViewToggle } from './dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
@@ -30,11 +38,19 @@ const INITIAL: DockState = {
   terminalOpen: false,
   mountedWorkspaceIds: new Set<string>(),
 };
+export interface DockOpenLinkOptions {
+  /** Open without stealing focus (⌘/Ctrl+click, middle-click). */
+  background?: boolean;
+  /** Tab the link was opened from, for placement next to its opener. */
+  openerTabId?: string;
+}
+
 export class DockStore {
   private state: DockState = INITIAL;
   private listeners = new Set<() => void>();
   private nextLinkOrdinal = 1;
   private readonly linkSessions: DockLinkSessionStore;
+  private readonly closedLinkTabs = new ClosedLinkTabStack();
 
   constructor(sessionPersistence?: DockSessionPersistence) {
     this.linkSessions = new DockLinkSessionStore(sessionPersistence);
@@ -174,40 +190,45 @@ export class DockStore {
     return !this.state.mountedWorkspaceIds.has(workspaceId);
   }
 
-  openLink(url: string): void {
+  /**
+   * Open a URL as a web tab. `background` keeps the user where they are —
+   * ⌘/Ctrl+click and middle-click are explicit "queue this for later"
+   * gestures, and foregrounding them steals the page being read. `openerTabId`
+   * places the new tab next to the tab it came from.
+   */
+  openLink(url: string, { background = false, openerTabId }: DockOpenLinkOptions = {}): void {
     const trimmedUrl = url.trim();
     if (!trimmedUrl) return;
     const existing = this.state.tabs.find(
-      (tab): tab is Extract<DockPreviewTab, { kind: 'link' }> =>
-        tab.kind === 'link' && tab.url === trimmedUrl,
+      (tab): tab is DockLinkTab => tab.kind === 'link' && tab.url === trimmedUrl,
     );
     if (existing) {
       // Same page: keep the loaded webview (and its resolved title).
-      this.commit({ expanded: true, activeTabId: existing.id });
+      this.commit({ expanded: true, ...(background ? {} : { activeTabId: existing.id }) });
       this.persistActiveLinkSession();
       return;
     }
 
-    const baseId = linkTabId(trimmedUrl);
-    let id = baseId;
-    let suffix = 2;
-    while (this.state.tabs.some((tab) => tab.id === id)) {
-      id = `${baseId}:${suffix}`;
-      suffix += 1;
-    }
-    const tab: DockPreviewTab = { id, kind: 'link', title: trimmedUrl, url: trimmedUrl };
-    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: tab.id, expanded: true });
+    const id = urlLinkTabId(this.state.tabs, trimmedUrl);
+    const tab: DockPreviewTab = {
+      id,
+      kind: 'link',
+      title: trimmedUrl,
+      url: trimmedUrl,
+      ...(openerTabId ? { openerTabId } : {}),
+    };
+    this.commit({
+      tabs: insertLinkTab(this.state.tabs, tab, openerTabId),
+      ...(background ? {} : { activeTabId: id }),
+      expanded: true,
+    });
     this.persistActiveLinkSession();
   }
 
   /** Create an empty browser tab. Unlike openLink, blank tabs are never deduped. */
   newLink(title = 'New tab'): void {
-    let id = `${LINK_TAB_ID}:new:${this.nextLinkOrdinal}`;
+    const id = blankLinkTabId(this.state.tabs, this.nextLinkOrdinal);
     this.nextLinkOrdinal += 1;
-    while (this.state.tabs.some((tab) => tab.id === id)) {
-      id = `${LINK_TAB_ID}:new:${this.nextLinkOrdinal}`;
-      this.nextLinkOrdinal += 1;
-    }
     const tab: DockPreviewTab = { id, kind: 'link', title, url: '' };
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
     this.persistActiveLinkSession();
@@ -225,14 +246,21 @@ export class DockStore {
     this.persistActiveLinkSession();
   }
 
-  /** Mirror a guest URL without overwriting its resolved page title. */
+  /**
+   * Mirror a guest URL without overwriting its resolved page title. The
+   * favicon survives same-origin navigation: SPA route changes fire this on
+   * every pushState but re-announce `page-favicon-updated` only when the icon
+   * link actually changes, so clearing unconditionally left those tabs stuck
+   * on the generic globe until a full reload.
+   */
   syncLinkUrl(id: string, url: string): void {
     const trimmed = url.trim();
     const tab = this.state.tabs.find((item) => item.id === id);
     if (!trimmed || tab?.kind !== 'link' || tab.url === trimmed) return;
+    const keepFavicon = isSameOrigin(tab.url, trimmed);
     this.commit({
       tabs: this.state.tabs.map((item) => (item.id === id
-        ? { ...item, url: trimmed, faviconUrl: undefined } : item)),
+        ? { ...item, url: trimmed, ...(keepFavicon ? {} : { faviconUrl: undefined }) } : item)),
     });
     this.persistActiveLinkSession();
   }
@@ -321,54 +349,20 @@ export class DockStore {
     });
   }
 
-  private createTerminalTab(workspace: DockTerminalWorkspaceState): DockTerminalTab {
-    const ordinal = workspace.nextOrdinal;
-    return {
-      id: terminalTabId(ordinal),
-      ordinal,
-    };
+  private applyTerminalCommit(commit: TerminalCommit | null, workspaceId: string): void {
+    if (!commit) return;
+    this.commitTerminalWorkspace(workspaceId, commit.workspace, commit.patch);
   }
 
   openTerminal(): void {
     const workspaceId = this.state.activeTerminalWorkspaceId;
     const workspace = this.getTerminalWorkspace(workspaceId);
-    const currentTerminalId = workspace.activeTabId
-      && workspace.tabs.some((tab) => tab.id === workspace.activeTabId)
-      ? workspace.activeTabId
-      : workspace.tabs[0]?.id;
-
-    if (currentTerminalId) {
-      if (this.state.expanded && this.state.activeTabId === currentTerminalId) return;
-      this.commitTerminalWorkspace(workspaceId, { ...workspace, activeTabId: currentTerminalId }, {
-        expanded: true,
-        activeTabId: currentTerminalId,
-      });
-      return;
-    }
-
-    const tab = this.createTerminalTab(workspace);
-    this.commitTerminalWorkspace(workspaceId, {
-      tabs: [tab],
-      activeTabId: tab.id,
-      nextOrdinal: workspace.nextOrdinal + 1,
-    }, {
-      activeTabId: tab.id,
-      expanded: true,
-    });
+    this.applyTerminalCommit(openTerminalCommit(this.state, workspace), workspaceId);
   }
 
   newTerminal(): void {
     const workspaceId = this.state.activeTerminalWorkspaceId;
-    const workspace = this.getTerminalWorkspace(workspaceId);
-    const tab = this.createTerminalTab(workspace);
-    this.commitTerminalWorkspace(workspaceId, {
-      tabs: [...workspace.tabs, tab],
-      activeTabId: tab.id,
-      nextOrdinal: workspace.nextOrdinal + 1,
-    }, {
-      activeTabId: tab.id,
-      expanded: true,
-    });
+    this.applyTerminalCommit(newTerminalCommit(this.getTerminalWorkspace(workspaceId)), workspaceId);
   }
 
   toggleTerminal(): void {
@@ -383,41 +377,13 @@ export class DockStore {
     if (!id) return;
     const workspaceId = this.state.activeTerminalWorkspaceId;
     const workspace = this.getTerminalWorkspace(workspaceId);
-    const index = workspace.tabs.findIndex((tab) => tab.id === id);
-    if (index === -1) return;
-    const terminalTabs = workspace.tabs.filter((tab) => tab.id !== id);
-    const closingActiveTerminal = this.state.activeTabId === id;
-    const activeTerminalTabId = terminalTabs[Math.min(index, terminalTabs.length - 1)]?.id
-      ?? terminalTabs[terminalTabs.length - 1]?.id;
-    const activeTabId = closingActiveTerminal
-      ? (activeTerminalTabId ?? this.state.tabs[0]?.id ?? CHAT_TAB_ID)
-      : this.state.activeTabId;
-    this.commitTerminalWorkspace(workspaceId, {
-      tabs: terminalTabs,
-      activeTabId: activeTerminalTabId,
-      nextOrdinal: workspace.nextOrdinal,
-    }, {
-      activeTabId,
-      ...(this.state.splitTabId === id ? { splitTabId: undefined } : {}),
-      expanded: closingActiveTerminal && terminalTabs.length === 0 && this.state.tabs.length === 0
-        ? false
-        : this.state.expanded,
-      ...(activeTabId === CHAT_TAB_ID ? { chatUnread: false } : {}),
-    });
+    this.applyTerminalCommit(closeTerminalCommit(this.state, workspace, id), workspaceId);
   }
 
   renameTerminal(id: string, title: string): void {
-    const trimmed = title.trim();
-    if (!trimmed) return;
     const workspaceId = this.state.activeTerminalWorkspaceId;
     const workspace = this.getTerminalWorkspace(workspaceId);
-    const tab = workspace.tabs.find((item) => item.id === id);
-    if (!tab || tab.title === trimmed) return;
-    this.commitTerminalWorkspace(workspaceId, {
-      ...workspace,
-      tabs: workspace.tabs.map((item) =>
-        (item.id === id ? { ...item, title: trimmed } : item)),
-    });
+    this.applyTerminalCommit(renameTerminalCommit(workspace, id, title), workspaceId);
   }
 
   setTerminalAgentType(id: string, agentType?: string, workspaceId = this.state.activeTerminalWorkspaceId): void {
@@ -474,7 +440,17 @@ export class DockStore {
   close(id: string): void {
     const index = this.state.tabs.findIndex((tab) => tab.id === id);
     if (index === -1) return;
-    const closingLink = this.state.tabs[index].kind === 'link';
+    const closed = this.state.tabs[index];
+    const closingLink = closed.kind === 'link';
+    // A web tab carries browsing state (history, scroll, sign-in); closing one
+    // is the only destructive tab action, so keep it reopenable.
+    if (closingLink) {
+      this.closedLinkTabs.push({
+        tab: closed as DockLinkTab,
+        index,
+        workspaceId: this.state.activeTerminalWorkspaceId,
+      });
+    }
     const tabs = this.state.tabs.filter((tab) => tab.id !== id);
     let activeTabId = this.state.activeTabId;
     let chatUnread = this.state.chatUnread;
@@ -489,6 +465,22 @@ export class DockStore {
       ...(this.state.splitTabId === id ? { splitTabId: undefined } : {}),
     });
     if (closingLink) this.persistActiveLinkSession();
+  }
+
+  /** Whether `reopenClosedTab` has anything to restore in this workspace. */
+  canReopenClosedTab(): boolean {
+    return this.closedLinkTabs.has(this.state.activeTerminalWorkspaceId);
+  }
+
+  /** Restore the most recently closed web tab of the active workspace at the
+   *  position it held, and focus it. No-op when the stack is empty. */
+  reopenClosedTab(): void {
+    const entry = this.closedLinkTabs.pop(this.state.activeTerminalWorkspaceId);
+    if (!entry) return;
+    const tabs = [...this.state.tabs];
+    tabs.splice(Math.min(entry.index, tabs.length), 0, entry.tab);
+    this.commit({ tabs, activeTabId: entry.tab.id, expanded: true });
+    this.persistActiveLinkSession();
   }
 
   /** A chat turn finished while chat wasn't the visible tab → unread dot. */

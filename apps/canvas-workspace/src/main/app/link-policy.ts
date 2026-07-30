@@ -36,8 +36,11 @@ export function setupLinkPolicy(): void {
       }
 
       // Everything else is a "preview this link" intent, route to the side
-      // drawer.
-      forwardLinkToRenderer(contents, url);
+      // drawer. Chromium reports ⌘/Ctrl+click and middle-click as
+      // `background-tab`; that gesture means "queue this, keep reading", so
+      // the disposition travels with the URL instead of being flattened into
+      // an unconditional foreground open.
+      forwardLinkToRenderer(contents, url, disposition === "background-tab");
       return { action: "deny" };
     });
 
@@ -135,11 +138,19 @@ function openExternal(url: string): void {
   void shell.openExternal(url).catch(() => undefined);
 }
 
-function forwardLinkToRenderer(contents: WebContents, url: string): void {
+function forwardLinkToRenderer(
+  contents: WebContents,
+  url: string,
+  background = false
+): void {
   // For <webview>, the message must reach the embedder (the main renderer
   // hosting the drawer), not the guest itself. hostWebContents is undefined
   // for top-level webContents; there, contents already is the renderer we want.
   const target = contents.hostWebContents ?? contents;
   if (target.isDestroyed()) return;
-  target.send("link:open", { url });
+  // The guest id lets the renderer resolve WHICH dock tab opened this link
+  // (it maps its own mounted webviews by webContentsId), so the new tab can
+  // land beside its opener. Only meaningful when the source is a guest.
+  const sourceWebContentsId = contents.hostWebContents ? contents.id : undefined;
+  target.send("link:open", { url, background, sourceWebContentsId });
 }

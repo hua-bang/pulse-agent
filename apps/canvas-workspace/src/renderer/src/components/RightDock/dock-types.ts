@@ -2,7 +2,16 @@ import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
 
 export type DockPreviewTab =
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
-  | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string }
+  | {
+    id: string;
+    kind: 'link';
+    title: string;
+    url: string;
+    faviconUrl?: string;
+    /** Tab this one was opened from — drives browser-style placement next to
+     *  its opener instead of at the far end of the strip. */
+    openerTabId?: string;
+  }
   | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string }
   | { id: string; kind: 'canvas'; title: string; workspaceId: string }
   | { id: string; kind: 'skill'; title: string; scope: CanvasConfigScope; skill: CanvasSkillEntry };

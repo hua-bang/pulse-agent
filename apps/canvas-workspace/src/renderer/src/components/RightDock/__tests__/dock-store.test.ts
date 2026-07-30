@@ -215,6 +215,96 @@ describe('DockStore', () => {
     expect(tabs.find((t) => t.kind === 'link' && t.url === 'https://a.example')?.title).toBe('Page title');
   });
 
+  it('opens a background link without moving the user off the current tab', () => {
+    // ⌘/Ctrl+click and middle-click mean "queue this"; foregrounding them
+    // yanks the user off the page they were reading.
+    const dock = new DockStore();
+    dock.openLink('https://a.example');
+    const firstId = dock.getSnapshot().activeTabId;
+
+    dock.openLink('https://b.example', { background: true });
+    const { tabs, activeTabId, expanded } = dock.getSnapshot();
+
+    expect(tabs).toHaveLength(2);
+    expect(activeTabId).toBe(firstId);
+    expect(expanded).toBe(true);
+  });
+
+  it('places a link opened from a tab next to its opener, in click order', () => {
+    const dock = new DockStore();
+    dock.openLink('https://source.example');
+    const openerTabId = dock.getSnapshot().activeTabId;
+    dock.openLink('https://unrelated.example');
+
+    dock.openLink('https://child-1.example', { background: true, openerTabId });
+    dock.openLink('https://child-2.example', { background: true, openerTabId });
+
+    expect(dock.getSnapshot().tabs.map((tab) => (tab.kind === 'link' ? tab.url : tab.id))).toEqual([
+      'https://source.example',
+      'https://child-1.example',
+      'https://child-2.example',
+      'https://unrelated.example',
+    ]);
+  });
+
+  it('keeps the favicon across same-origin navigation and drops it across origins', () => {
+    // SPA route changes fire syncLinkUrl on every pushState but re-announce
+    // page-favicon-updated only when the icon link actually changes — so
+    // clearing unconditionally stranded those tabs on the generic globe.
+    const dock = new DockStore();
+    dock.openLink('https://app.example/docs');
+    const id = dock.getSnapshot().activeTabId;
+    dock.setFavicon(id, 'https://app.example/icon.png');
+
+    dock.syncLinkUrl(id, 'https://app.example/docs/page-2?view=grid');
+    expect(dock.getSnapshot().tabs[0]).toMatchObject({
+      url: 'https://app.example/docs/page-2?view=grid',
+      faviconUrl: 'https://app.example/icon.png',
+    });
+
+    dock.syncLinkUrl(id, 'https://other.example/');
+    expect((dock.getSnapshot().tabs[0] as { faviconUrl?: string }).faviconUrl).toBeUndefined();
+  });
+
+  it('restores a closed web tab at its old position, most recent first', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example');
+    dock.openLink('https://b.example');
+    dock.openLink('https://c.example');
+    const middleId = dock.getSnapshot().tabs[1].id;
+
+    expect(dock.canReopenClosedTab()).toBe(false);
+    dock.close(middleId);
+    expect(dock.getSnapshot().tabs).toHaveLength(2);
+    expect(dock.canReopenClosedTab()).toBe(true);
+
+    dock.reopenClosedTab();
+    const { tabs, activeTabId } = dock.getSnapshot();
+    expect(tabs.map((tab) => (tab.kind === 'link' ? tab.url : tab.id))).toEqual([
+      'https://a.example',
+      'https://b.example',
+      'https://c.example',
+    ]);
+    expect(activeTabId).toBe(middleId);
+    expect(dock.canReopenClosedTab()).toBe(false);
+  });
+
+  it('never resurfaces a closed tab in a different workspace', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example');
+    dock.close(dock.getSnapshot().activeTabId);
+
+    dock.setActiveWorkspace('ws2');
+    expect(dock.canReopenClosedTab()).toBe(false);
+    dock.reopenClosedTab();
+    expect(dock.getSnapshot().tabs).toHaveLength(0);
+
+    dock.setActiveWorkspace('ws1');
+    expect(dock.canReopenClosedTab()).toBe(true);
+  });
+
   it('creates independent blank web tabs and navigates one in place', () => {
     const dock = new DockStore();
     dock.newLink('New tab');

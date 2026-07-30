@@ -9,6 +9,7 @@ export interface EmbeddedWebviewTag extends HTMLElement {
   getWebContentsId(): number;
   getTitle(): string;
   reload(): void;
+  stop(): void;
   canGoBack(): boolean;
   canGoForward(): boolean;
   goBack(): void;
