@@ -16,6 +16,15 @@ export const RELOAD_DOCK_TAB_EVENT = 'canvas:reload-dock-tab';
 /** Window event asking the visible web tab to open its find bar. */
 export const FIND_IN_DOCK_TAB_EVENT = 'canvas:find-in-dock-tab';
 
+/**
+ * Window event asking a web tab to move keyboard focus into its page.
+ * Raised ONLY from a user click on the tab: selecting a tab should leave the
+ * user able to scroll and type immediately, but an agent-driven activation
+ * must never pull focus out of whatever the user is doing.
+ * `detail.tabId` names the tab that was clicked.
+ */
+export const FOCUS_DOCK_PAGE_EVENT = 'canvas:focus-dock-page';
+
 const cycle = (ids: readonly string[], currentId: string, delta: number): string | undefined => {
   if (ids.length === 0) return undefined;
   const index = ids.indexOf(currentId);

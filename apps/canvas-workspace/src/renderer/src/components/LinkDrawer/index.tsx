@@ -32,6 +32,7 @@ import { registerLinkTabWebview } from '../RightDock/link-tab-webviews';
 import {
   FIND_IN_DOCK_TAB_EVENT,
   FOCUS_DOCK_ADDRESS_EVENT,
+  FOCUS_DOCK_PAGE_EVENT,
   RELOAD_DOCK_TAB_EVENT,
 } from '../RightDock/dock-browser-commands';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
@@ -189,7 +190,7 @@ export const LinkTabView = ({
   // ⌘/Ctrl+L and ⌘/Ctrl+R target whichever web tab is currently visible; the
   // dock resolves the command and broadcasts, this tab claims it while active.
   const { focusAddress } = addressBar;
-  const { reload } = browser;
+  const { reload, webview } = browser;
   const { openFind } = find;
   useEffect(() => {
     if (!active) return;
@@ -205,6 +206,20 @@ export const LinkTabView = ({
       window.removeEventListener(FIND_IN_DOCK_TAB_EVENT, onFindRequest);
     };
   }, [active, focusAddress, reload, openFind]);
+
+  // A user click on this tab hands keyboard focus to the page, so scrolling
+  // and typing work without a second click. Addressed by tab id rather than
+  // `active` so the click that CREATES the activation is not missed.
+  useEffect(() => {
+    if (!tabId || !webview) return;
+    const onFocusPage = (event: Event) => {
+      if ((event as CustomEvent<{ tabId?: string }>).detail?.tabId !== tabId) return;
+      // After the activation commit, or the pane is still hidden.
+      requestAnimationFrame(() => webview.focus());
+    };
+    window.addEventListener(FOCUS_DOCK_PAGE_EVENT, onFocusPage);
+    return () => window.removeEventListener(FOCUS_DOCK_PAGE_EVENT, onFocusPage);
+  }, [tabId, webview]);
 
   const handleOpenInBrowser = useCallback(() => {
     if (!browser.currentUrl) return;

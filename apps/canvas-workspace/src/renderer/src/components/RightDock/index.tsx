@@ -6,23 +6,30 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react';
-import { Tabs } from '@phosphor-icons/react';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, isTerminalTabId } from './dock-store';
 import { useDockContext, useRightDockState } from './context';
-import { LinkTabIcon } from './LinkTabIcon';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useConsumePendingLinks } from '../../hooks/useConsumePendingLinks';
 import { useDockAgentBridge } from './useDockAgentBridge';
 import { SplitViewToggle } from './SplitViewToggle';
 import { useDockSplitView } from './useDockSplitView';
-import { clampDockWidth, DOCK_DEFAULT_WIDTH, DOCK_MIN_WIDTH, resolveDockMaxWidth } from './dock-width';
+import {
+  clampDockWidth,
+  DOCK_DEFAULT_WIDTH,
+  DOCK_MIN_WIDTH,
+  resolveDockMaxWidth,
+  resolveTabWidth,
+} from './dock-width';
 import { useDockTabDrag } from './useDockTabDrag';
 import { useDockKeyboard } from './useDockKeyboard';
+import { FOCUS_DOCK_PAGE_EVENT } from './dock-browser-commands';
 import { TabContextMenu } from './TabContextMenu';
+import { DockContentTab } from './DockContentTab';
 import { linkTabIdForWebContents } from './link-tab-webviews';
 import { DockPanes } from './DockPanes';
 import { hasDockSplitContentTab } from './dock-split-state';
@@ -172,6 +179,7 @@ export const RightDock = ({
   const [viewportWidth, setViewportWidth] = useState<number>(readViewportWidth);
   const maxWidth = resolveDockMaxWidth(viewportWidth, capWidth);
   const width = clampDockWidth(chosenWidth, viewportWidth, capWidth);
+  const tabWidth = resolveTabWidth(orderedTabIds.length, width);
   // Stable identity with live values: `useDockSplitView` keeps this in an
   // effect dep list, and a clamp that changed identity per route would re-run
   // (and re-clamp `chosenWidth`) on every navigation.
@@ -269,7 +277,11 @@ export const RightDock = ({
         aria-valuemax={maxWidth}
         aria-valuenow={width}
       />
-      <div className="right-dock__tabs" data-visible={tabStripVisible}>
+      <div
+        className="right-dock__tabs"
+        data-visible={tabStripVisible}
+        style={{ '--dock-tab-width': `${tabWidth}px` } as CSSProperties}
+      >
         <div
           ref={tabIndicator.tabsRef}
           className="right-dock__tab-scroll"
@@ -342,83 +354,25 @@ export const RightDock = ({
               })}
             </Suspense>
           )}
-          {state.tabs.map((tab) => {
-            const visual = getDockTabVisualState(tab.id, activePaneId, splitTabId);
-            return (
-              <span
-                key={tab.id}
-                className="right-dock__tab-shell"
-                data-split-visible={visual.splitVisible}
-                data-split-part={visual.splitPart}
-                onDragOver={(event) => tabDrag.onDragOver(event, tab.id)}
-                onDrop={(event) => tabDrag.onDrop(event, tab.id)}
-              >
-                <button
-                  ref={(element) => tabIndicator.registerTab(tab.id, element)}
-                  type="button"
-                  id={dockTabElementId(tab.id)}
-                  data-dock-tab-id={tab.id}
-                  role="tab"
-                  aria-controls={dockPaneElementId(tab.id)}
-                  aria-selected={visual.selected}
-                  aria-expanded={visual.splitActive ? visual.splitVisible : undefined}
-                  className={`right-dock__tab right-dock__tab--with-close${visual.focused ? ' right-dock__tab--active' : ''}`}
-                  data-focused={visual.focused}
-                  data-split-visible={visual.splitVisible}
-                  title={tab.kind === 'link' && tab.url ? `${tab.title}\n${tab.url}` : tab.title}
-                  draggable
-                  tabIndex={rovingTabId === tab.id ? 0 : -1}
-                  onDragStart={(event) => tabDrag.onDragStart(event, tab.id)}
-                  onDragEnd={tabDrag.clear}
-                  onMouseDown={(event) => {
-                    // Activate on mouse-down: once the gesture turns into a
-                    // drag the browser suppresses the click, so click-only
-                    // activation reads as "tab didn't respond" after a few px
-                    // of pointer slip.
-                    if (event.button === 0) store.activate(tab.id);
-                    // Middle-click closes, as everywhere else tabs exist.
-                    // preventDefault stops the auto-scroll cursor.
-                    if (event.button === 1) event.preventDefault();
-                  }}
-                  onAuxClick={(event) => {
-                    if (event.button !== 1) return;
-                    event.preventDefault();
-                    store.close(tab.id);
-                  }}
-                  onClick={() => store.activate(tab.id)}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    setTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
-                  }}
-                >
-                  {tab.kind === 'link' ? (
-                    <span className="right-dock__tab-icon right-dock__tab-icon--link">
-                      <LinkTabIcon faviconUrl={tab.faviconUrl} />
-                    </span>
-                  ) : tab.kind === 'node-detail' ? (
-                    <span className="right-dock__tab-icon right-dock__tab-icon--node-detail">
-                      <Tabs size={14} weight="regular" aria-hidden="true" />
-                    </span>
-                  ) : (
-                    <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
-                  )}
-                  <span className="right-dock__tab-title">{tab.title}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={t('rightDock.closeTab', { title: tab.title })}
-                  title={t('rightDock.closeTab', { title: tab.title })}
-                  className="right-dock__tab-close"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    store.close(tab.id);
-                  }}
-                >
-                  ×
-                </button>
-              </span>
-            );
-          })}
+          {state.tabs.map((tab) => (
+            <DockContentTab
+              key={tab.id}
+              tab={tab}
+              visual={getDockTabVisualState(tab.id, activePaneId, splitTabId)}
+              tabIndex={rovingTabId === tab.id ? 0 : -1}
+              registerTab={tabIndicator.registerTab}
+              onActivate={(id) => store.activate(id)}
+              onFocusPage={(id) => window.dispatchEvent(
+                new CustomEvent(FOCUS_DOCK_PAGE_EVENT, { detail: { tabId: id } }),
+              )}
+              onClose={(id) => store.close(id)}
+              onContextMenu={(tabId, x, y) => setTabMenu({ tabId, x, y })}
+              onDragStart={tabDrag.onDragStart}
+              onDragOver={tabDrag.onDragOver}
+              onDrop={tabDrag.onDrop}
+              onDragEnd={tabDrag.clear}
+            />
+          ))}
         </div>
         {visible && (
           <Suspense fallback={null}>
