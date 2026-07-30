@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveDockBrowserCommand } from './dock-shortcuts';
+import { DOCK_FOCUS_SCOPED_COMMANDS, resolveDockBrowserCommand } from './dock-shortcuts';
 
 describe('resolveDockBrowserCommand', () => {
   it('accepts both platform modifiers for the same chord', () => {
@@ -30,6 +30,16 @@ describe('resolveDockBrowserCommand', () => {
     expect(resolveDockBrowserCommand({ key: 'c', metaKey: true })).toBeNull();
     expect(resolveDockBrowserCommand({ key: 'v', metaKey: true })).toBeNull();
     expect(resolveDockBrowserCommand({ key: 'Enter', metaKey: true })).toBeNull();
+  });
+
+  it('scopes only the chords the canvas also binds', () => {
+    // Cmd+F is find-in-page here and find-on-canvas there, so it may only be
+    // claimed when focus is already in the dock. Cmd+W and friends are not
+    // contested and must work wherever the dock is visible.
+    expect(resolveDockBrowserCommand({ key: 'f', metaKey: true })).toBe('find');
+    expect(DOCK_FOCUS_SCOPED_COMMANDS.has('find')).toBe(true);
+    expect(DOCK_FOCUS_SCOPED_COMMANDS.has('close-tab')).toBe(false);
+    expect(DOCK_FOCUS_SCOPED_COMMANDS.has('new-tab')).toBe(false);
   });
 
   it('cycles tabs with the bracket chords', () => {

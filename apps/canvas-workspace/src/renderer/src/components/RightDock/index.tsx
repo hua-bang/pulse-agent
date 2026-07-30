@@ -22,6 +22,7 @@ import { useDockSplitView } from './useDockSplitView';
 import { clampDockWidth, DOCK_DEFAULT_WIDTH, DOCK_MIN_WIDTH, resolveDockMaxWidth } from './dock-width';
 import { useDockTabDrag } from './useDockTabDrag';
 import { useDockKeyboard } from './useDockKeyboard';
+import { TabContextMenu } from './TabContextMenu';
 import { linkTabIdForWebContents } from './link-tab-webviews';
 import { DockPanes } from './DockPanes';
 import { hasDockSplitContentTab } from './dock-split-state';
@@ -216,7 +217,10 @@ export const RightDock = ({
     };
   }, [visible, reserveSpace, width]);
 
-  useDockKeyboard({ store, visible, newTabTitle: t('rightDock.newTabTitle') });
+  const dockRef = useRef<HTMLElement>(null);
+  const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
+  const tabMenuTab = tabMenu ? state.tabs.find((tab) => tab.id === tabMenu.tabId) : undefined;
+  useDockKeyboard({ store, visible, newTabTitle: t('rightDock.newTabTitle'), dockRef });
 
   // Drag the left edge to resize (shared useDragResize hook). The handle sits
   // on the LEFT edge of the right-anchored dock, so dragging left grows it
@@ -238,6 +242,7 @@ export const RightDock = ({
   });
   return (
     <aside
+      ref={dockRef}
       className="right-dock"
       data-expanded={visible}
       role="complementary"
@@ -381,6 +386,10 @@ export const RightDock = ({
                     store.close(tab.id);
                   }}
                   onClick={() => store.activate(tab.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
+                  }}
                 >
                   {tab.kind === 'link' ? (
                     <span className="right-dock__tab-icon right-dock__tab-icon--link">
@@ -465,6 +474,16 @@ export const RightDock = ({
         onAddDomSelectionToChat={addDomSelectionToChat}
         onStartSkillChat={startSkillChat}
       />
+      {tabMenu && tabMenuTab && (
+        <TabContextMenu
+          tab={tabMenuTab}
+          tabs={state.tabs}
+          store={store}
+          x={tabMenu.x}
+          y={tabMenu.y}
+          onClose={() => setTabMenu(null)}
+        />
+      )}
     </aside>
   );
 };

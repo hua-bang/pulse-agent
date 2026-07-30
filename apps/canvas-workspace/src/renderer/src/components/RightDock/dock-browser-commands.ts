@@ -13,6 +13,9 @@ export const FOCUS_DOCK_ADDRESS_EVENT = 'canvas:focus-dock-address';
 /** Window event asking the visible web tab to reload. */
 export const RELOAD_DOCK_TAB_EVENT = 'canvas:reload-dock-tab';
 
+/** Window event asking the visible web tab to open its find bar. */
+export const FIND_IN_DOCK_TAB_EVENT = 'canvas:find-in-dock-tab';
+
 const cycle = (ids: readonly string[], currentId: string, delta: number): string | undefined => {
   if (ids.length === 0) return undefined;
   const index = ids.indexOf(currentId);
@@ -55,6 +58,10 @@ export function applyDockBrowserCommand(
     case 'reload':
       if (activeTab?.kind !== 'link') return false;
       window.dispatchEvent(new CustomEvent(RELOAD_DOCK_TAB_EVENT));
+      return true;
+    case 'find':
+      if (activeTab?.kind !== 'link') return false;
+      window.dispatchEvent(new CustomEvent(FIND_IN_DOCK_TAB_EVENT));
       return true;
     case 'next-tab':
     case 'previous-tab': {

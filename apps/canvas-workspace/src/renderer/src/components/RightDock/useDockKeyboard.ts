@@ -9,8 +9,11 @@
  * leaves the tab standing. ⌘/Ctrl+W is the deliberate close, and it is
  * undoable via ⌘/Ctrl+Shift+T.
  */
-import { useEffect } from 'react';
-import { resolveDockBrowserCommand } from '../../../../shared/dock-shortcuts';
+import { useEffect, type RefObject } from 'react';
+import {
+  DOCK_FOCUS_SCOPED_COMMANDS,
+  resolveDockBrowserCommand,
+} from '../../../../shared/dock-shortcuts';
 import { isImeComposing } from '../../utils/ime';
 import { applyDockBrowserCommand } from './dock-browser-commands';
 import { CHAT_TAB_ID } from './dock-tab-ids';
@@ -33,15 +36,26 @@ interface Options {
   visible: boolean;
   /** i18n title for ⌘T — the store is framework-free and has no `t`. */
   newTabTitle: string;
+  /** The dock element, for scoping chords the canvas also binds. */
+  dockRef: RefObject<HTMLElement>;
 }
 
-export const useDockKeyboard = ({ store, visible, newTabTitle }: Options): void => {
+export const useDockKeyboard = ({ store, visible, newTabTitle, dockRef }: Options): void => {
   useEffect(() => {
     if (!visible) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || isImeComposing(event)) return;
       const command = resolveDockBrowserCommand(event);
       if (command) {
+        // ⌘F means find-in-page here and find-on-canvas there. Listener order
+        // between the two window handlers is not a contract, so resolve it on
+        // the only unambiguous signal: where focus already is.
+        if (
+          DOCK_FOCUS_SCOPED_COMMANDS.has(command)
+          && !dockRef.current?.contains(document.activeElement)
+        ) {
+          return;
+        }
         if (applyDockBrowserCommand(command, store, store.getSnapshot(), newTabTitle)) {
           event.preventDefault();
         }
@@ -62,7 +76,7 @@ export const useDockKeyboard = ({ store, visible, newTabTitle }: Options): void 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [visible, store, newTabTitle]);
+  }, [visible, store, newTabTitle, dockRef]);
 
   // Keys pressed while an embedded page has focus never reach this window;
   // main resolves them against the same policy and relays the command.

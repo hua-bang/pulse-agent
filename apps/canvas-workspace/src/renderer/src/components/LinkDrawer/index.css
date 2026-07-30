@@ -248,6 +248,37 @@
   font-size: 11px;
 }
 
+/* Find-in-page bar. Sits between the address chrome and the page, so the
+   match counter stays visible while the guest scrolls its highlights. */
+.link-drawer__find {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.link-drawer__find-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.link-drawer__find-count {
+  flex: none;
+  min-width: 4ch;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* No match: lift the counter out of the muted state so "0/0" reads as an
+   answer rather than as a control that has not caught up yet. */
+.link-drawer__find-count[data-empty="true"] {
+  color: var(--text);
+}
+
 /* Load failure. Covers the guest surface because a failed page leaves either
    a blank frame or a partially drawn one — both read as "the app is broken"
    without an explanation on top. */

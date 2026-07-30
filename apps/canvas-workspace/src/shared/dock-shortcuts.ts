@@ -16,8 +16,17 @@ export type DockBrowserCommand =
   | 'reopen-tab'
   | 'focus-address'
   | 'reload'
+  | 'find'
   | 'next-tab'
   | 'previous-tab';
+
+/**
+ * Commands the canvas also binds. The host-window listener claims these only
+ * when focus is already inside the dock, so the canvas keeps its own meaning
+ * everywhere else. The guest relay is exempt: a key pressed inside a page is
+ * unambiguously meant for that page.
+ */
+export const DOCK_FOCUS_SCOPED_COMMANDS: ReadonlySet<DockBrowserCommand> = new Set(['find']);
 
 interface Binding {
   command: DockBrowserCommand;
@@ -33,6 +42,7 @@ const BINDINGS: readonly Binding[] = [
   { command: 'close-tab', key: 'w' },
   { command: 'focus-address', key: 'l' },
   { command: 'reload', key: 'r' },
+  { command: 'find', key: 'f' },
   { command: 'next-tab', key: ']', shift: true },
   { command: 'previous-tab', key: '[', shift: true },
 ];

@@ -18,7 +18,9 @@ import { classifyLoadError, loadErrorDetail } from '../EmbeddedBrowser/load-erro
 import { AddressSuggestionList } from './AddressSuggestions';
 import { LinkTabLoadError } from './LinkTabLoadError';
 import { PageContextMenu } from './PageContextMenu';
+import { FindInPageBar } from './FindInPageBar';
 import { useAddressBar } from './useAddressBar';
+import { useFindInPage } from './useFindInPage';
 import { usePageContextMenu } from './usePageContextMenu';
 import { useWebviewRegistration } from '../IframeNodeBody/useWebviewRegistration';
 import { useWebviewRestore } from '../IframeNodeBody/useWebviewDiscard';
@@ -27,7 +29,11 @@ import {
   useDockWebviewDiscard,
 } from './useDockWebviewLifecycle';
 import { registerLinkTabWebview } from '../RightDock/link-tab-webviews';
-import { FOCUS_DOCK_ADDRESS_EVENT, RELOAD_DOCK_TAB_EVENT } from '../RightDock/dock-browser-commands';
+import {
+  FIND_IN_DOCK_TAB_EVENT,
+  FOCUS_DOCK_ADDRESS_EVENT,
+  RELOAD_DOCK_TAB_EVENT,
+} from '../RightDock/dock-browser-commands';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
 import { useAppShell } from '../AppShellProvider';
 import type { AgentContextDomSelectionRef } from '../../types';
@@ -170,6 +176,7 @@ export const LinkTabView = ({
     }, [tabId]),
   });
   const contextMenu = usePageContextMenu({ guestId, hostRef: webviewHostRef });
+  const find = useFindInPage(browser.webview);
   useDockWebviewBackgroundLifecycle({
     webview: browser.webview,
     workspaceId: activeWorkspaceId,
@@ -183,17 +190,21 @@ export const LinkTabView = ({
   // dock resolves the command and broadcasts, this tab claims it while active.
   const { focusAddress } = addressBar;
   const { reload } = browser;
+  const { openFind } = find;
   useEffect(() => {
     if (!active) return;
     const onFocusRequest = () => focusAddress();
     const onReloadRequest = () => reload();
+    const onFindRequest = () => openFind();
     window.addEventListener(FOCUS_DOCK_ADDRESS_EVENT, onFocusRequest);
     window.addEventListener(RELOAD_DOCK_TAB_EVENT, onReloadRequest);
+    window.addEventListener(FIND_IN_DOCK_TAB_EVENT, onFindRequest);
     return () => {
       window.removeEventListener(FOCUS_DOCK_ADDRESS_EVENT, onFocusRequest);
       window.removeEventListener(RELOAD_DOCK_TAB_EVENT, onReloadRequest);
+      window.removeEventListener(FIND_IN_DOCK_TAB_EVENT, onFindRequest);
     };
-  }, [active, focusAddress, reload]);
+  }, [active, focusAddress, reload, openFind]);
 
   const handleOpenInBrowser = useCallback(() => {
     if (!browser.currentUrl) return;
@@ -365,6 +376,16 @@ export const LinkTabView = ({
           className="link-drawer__loading-bar"
           role="progressbar"
           aria-label={t('linkDrawer.loadingPage')}
+        />
+      )}
+      {find.open && (
+        <FindInPageBar
+          query={find.query}
+          matches={find.matches}
+          barRef={find.barRef}
+          onQueryChange={find.onQueryChange}
+          onStep={find.step}
+          onClose={find.close}
         />
       )}
       {isGoogleAuthUrl(browser.currentUrl) && (
