@@ -7,6 +7,7 @@ import type {
   ShellApi,
   WebApi
 } from "../../renderer/src/types";
+import type { WebviewContextMenuRequest } from "../../shared/webview-context-menu";
 import { subscribe } from "./ipc";
 
 export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
@@ -29,7 +30,10 @@ export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
     ipcRenderer.invoke("iframe:pick-dom-element", { workspaceId, nodeId }),
 
   cancelDomElementPick: (workspaceId, nodeId) =>
-    ipcRenderer.invoke("iframe:cancel-dom-element-pick", { workspaceId, nodeId })
+    ipcRenderer.invoke("iframe:cancel-dom-element-pick", { workspaceId, nodeId }),
+
+  onContextMenu: (callback) =>
+    subscribe<WebviewContextMenuRequest>(ipcRenderer, "webview:context-menu", callback)
 });
 
 export const createShellApi = (ipcRenderer: IpcRenderer): ShellApi => ({

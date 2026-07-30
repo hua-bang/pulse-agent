@@ -225,6 +225,10 @@ export const DockPanes = ({
                 onGuestNavigate={(url) => store.syncLinkUrl(tab.id, url)}
                 onAddToReference={pinUrlReference}
                 onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(activeWorkspaceId, selection)}
+                onOpenLink={(url, options) => store.openLink(url, {
+                  ...options,
+                  openerTabId: tab.id,
+                })}
                 onRequestClose={() => store.close(tab.id)}
               />
             </Suspense>

@@ -18,6 +18,7 @@ import {
 import { resolveAddressInput } from '../EmbeddedBrowser/address-input';
 import { useAddressSuggestions, type AddressSuggestion } from './AddressSuggestions';
 import { useClickOutside } from '../../hooks/useClickOutside';
+import { useGuestInteractionShield } from '../../hooks/useGuestInteractionShield';
 import { clampIndexMove } from '../ui';
 
 const SUGGEST_HOVER_CLOSE_DELAY_MS = 200;
@@ -83,6 +84,10 @@ export const useAddressBar = ({ url, currentUrl, onNavigate }: Options) => {
   useEffect(() => setActiveSuggestion(-1), [address]);
   useClickOutside(formRef, () => setSuggestOpen(false), suggestOpen);
   const suggestionsVisible = suggestOpen && suggestions.length > 0;
+  // The dropdown floats above the page. Without the shield a click into the
+  // page is swallowed by the guest process, `useClickOutside` never fires,
+  // and the list stays stranded on top of whatever the user clicked.
+  useGuestInteractionShield(suggestionsVisible);
 
   /** Hand focus back to the page: the address bar is done with this input. */
   const commit = useCallback((nextUrl: string) => {

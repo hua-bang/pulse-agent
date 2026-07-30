@@ -17,7 +17,9 @@ import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationBu
 import { classifyLoadError, loadErrorDetail } from '../EmbeddedBrowser/load-error';
 import { AddressSuggestionList } from './AddressSuggestions';
 import { LinkTabLoadError } from './LinkTabLoadError';
+import { PageContextMenu } from './PageContextMenu';
 import { useAddressBar } from './useAddressBar';
+import { usePageContextMenu } from './usePageContextMenu';
 import { useWebviewRegistration } from '../IframeNodeBody/useWebviewRegistration';
 import { useWebviewRestore } from '../IframeNodeBody/useWebviewDiscard';
 import {
@@ -70,6 +72,9 @@ interface LinkTabViewProps {
   onGuestNavigate: (url: string) => void;
   onAddToReference: (url: string, title?: string) => void;
   onAddDomSelectionToChat: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
+  /** Open a URL as a SEPARATE tab (right-click → open in new tab), placed
+   *  next to this one. Distinct from `onNavigate`, which moves this tab. */
+  onOpenLink: (url: string, options?: { background?: boolean }) => void;
   activeWorkspaceId: string;
   onRequestClose: () => void;
 }
@@ -87,6 +92,7 @@ export const LinkTabView = ({
   onGuestNavigate,
   onAddToReference,
   onAddDomSelectionToChat,
+  onOpenLink,
   activeWorkspaceId,
   onRequestClose,
 }: LinkTabViewProps) => {
@@ -151,16 +157,19 @@ export const LinkTabView = ({
   // live page (via canvas_read_tab), keyed by the dock tab id. The same
   // handshake feeds the renderer-side guest→tab index, which is how a link
   // opened from this page knows to land next to this tab.
+  const [guestId, setGuestId] = useState<number | null>(null);
   useWebviewRegistration({
     webview: browser.webview,
     workspaceId: activeWorkspaceId,
     nodeId: tabId ?? '',
     enabled: Boolean(tabId && activeWorkspaceId),
     onWebContentsId: useCallback((webContentsId: number | null) => {
+      setGuestId(webContentsId);
       if (webContentsId === null || !tabId) return;
       registerLinkTabWebview(webContentsId, tabId);
     }, [tabId]),
   });
+  const contextMenu = usePageContextMenu({ guestId, hostRef: webviewHostRef });
   useDockWebviewBackgroundLifecycle({
     webview: browser.webview,
     workspaceId: activeWorkspaceId,
@@ -402,6 +411,25 @@ export const LinkTabView = ({
           />
         )}
       </div>
+      {contextMenu.menu && (
+        <PageContextMenu
+          request={contextMenu.menu.request}
+          x={contextMenu.menu.x}
+          y={contextMenu.menu.y}
+          canGoBack={browser.canGoBack}
+          canGoForward={browser.canGoForward}
+          pageUrl={browser.currentUrl || url}
+          onClose={contextMenu.close}
+          actions={{
+            openLink: (target, options) => onOpenLink(target, options),
+            openExternal: (target) => void window.canvasWorkspace.shell.openExternal(target),
+            copyText: (text) => void navigator.clipboard?.writeText(text).catch(() => undefined),
+            goBack: browser.goBack,
+            goForward: browser.goForward,
+            reload: browser.reload,
+          }}
+        />
+      )}
     </>
   );
 };
