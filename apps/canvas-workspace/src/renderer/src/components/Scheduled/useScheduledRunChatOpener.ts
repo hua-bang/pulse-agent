@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useRightDock } from '../RightDock';
 import { resolveScheduledChatTarget } from './scheduledChatTarget';
@@ -22,6 +22,17 @@ interface Options {
 export const useScheduledRunChatOpener = ({ activeView, chatRoute }: Options): void => {
   const dock = useRightDock();
   const [, setLocation] = useLocation();
+
+  // A run that finishes while its conversation is already open used to leave
+  // the panel on a stale "working on this task…" placeholder forever: only
+  // ScheduledPage's Run now bumped the revision, so a timer-driven run's reply
+  // appeared only after the user clicked the toast. `refreshScheduledChat` is a
+  // no-op unless the dock is showing that exact task, so firing it for every
+  // finished run cannot disturb anything else.
+  useEffect(() => window.canvasWorkspace.scheduled.onRunFinished((run) => {
+    dock.refreshScheduledChat(run.taskId);
+  }), [dock]);
+
   useScheduledRunToasts(useCallback((taskId: string) => {
     const target = resolveScheduledChatTarget({ activeView, taskId, chatRoute });
     if (target.kind === 'dock') {

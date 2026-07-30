@@ -31,6 +31,22 @@ pathRules:
       - pnpm --filter canvas-workspace harness verify-webview-input-focus --json
       - pnpm --filter canvas-workspace harness close --cleanup --json
 
+  # Scheduled tasks span main (timer, run execution, live progress fan-out),
+  # preload, and the renderer surface. The default rule only runs the two
+  # governance suites at quick level, so a scheduled change used to trigger
+  # none of its own tests.
+  - name: scheduled-tasks
+    paths:
+      - src/shared/scheduled.ts
+      - src/main/scheduled/**
+      - src/preload/bridge/scheduled.ts
+      - src/renderer/src/components/Scheduled/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/shared/scheduled.test.ts src/main/__tests__/scheduled-task-service.test.ts src/main/__tests__/scheduled-run-notify.test.ts src/main/__tests__/scheduled-run-progress.test.ts src/renderer/src/components/Scheduled
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace test
+
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.
   # The canvas-cli mirror paths are bound by the root validation overlay.

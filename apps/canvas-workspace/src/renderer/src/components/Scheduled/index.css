@@ -228,8 +228,16 @@
 
 .scheduled-chat-status > span {
   display: grid;
+  flex: 1 1 auto;
   min-width: 0;
   gap: 2px;
+}
+
+/* The stop control sits with the status text, not in the composer: the run it
+   stops was started by the scheduler, not by anything the user just sent. */
+.scheduled-chat-status > .ui-btn {
+  flex: 0 0 auto;
+  align-self: center;
 }
 
 .scheduled-chat-status strong,

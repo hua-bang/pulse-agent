@@ -1,4 +1,8 @@
-import type { ScheduledSchedule, ScheduledWeekday } from '../../../../shared/scheduled';
+import type {
+  ScheduledRunProgress,
+  ScheduledSchedule,
+  ScheduledWeekday,
+} from '../../../../shared/scheduled';
 import type { useI18n } from '../../i18n';
 
 type Translate = ReturnType<typeof useI18n>['t'];
@@ -43,6 +47,48 @@ export const scheduleLabel = (
     });
   }
   return intervalLabel(schedule.intervalMinutes, t);
+};
+
+/**
+ * Compact duration for a run that is still going. Unit letters rather than
+ * translated words: this string ticks every second next to a spinner, where a
+ * stable narrow shape matters more than prose.
+ */
+export const formatElapsed = (ms: number): string => {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const seconds = totalSeconds % 60;
+  const minutes = Math.floor(totalSeconds / 60) % 60;
+  const hours = Math.floor(totalSeconds / 3600);
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  return `${seconds}s`;
+};
+
+/**
+ * What the background run is doing right now, for the chat banner and the
+ * pending placeholder. Falls back to the generic "working on this task" line
+ * when no progress has arrived — a run started before this build, or a snapshot
+ * that has not landed yet, must not render a blank status.
+ */
+export const runProgressLabel = (
+  progress: ScheduledRunProgress | undefined,
+  t: Translate,
+): string => {
+  if (!progress) return t('scheduled.runningInline');
+  if (progress.cancelRequested) return t('scheduled.progressStopping');
+  if (progress.phase === 'writing') return t('scheduled.progressWriting');
+  if (progress.phase === 'tool') {
+    const current = [...progress.steps].reverse().find((step) => step.status === 'running');
+    if (current) {
+      return t('scheduled.progressTool', { step: current.index, tool: current.name });
+    }
+  }
+  if (progress.toolCalls > 0) {
+    return t('scheduled.progressThinkingAfter', { steps: progress.toolCalls });
+  }
+  return progress.phase === 'starting'
+    ? t('scheduled.progressStarting')
+    : t('scheduled.progressThinking');
 };
 
 export const timeLabel = (value: number | undefined, fallback: string): string => {

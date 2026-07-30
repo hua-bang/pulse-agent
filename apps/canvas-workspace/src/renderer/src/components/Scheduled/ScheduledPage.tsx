@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CalendarBlank,
   CalendarCheck,
@@ -7,6 +7,7 @@ import {
   Play,
   Plus,
   SpinnerGap,
+  Stop,
   Trash,
 } from '@phosphor-icons/react';
 import type { ScheduledTask, ScheduledTaskInput } from '../../../../shared/scheduled';
@@ -27,6 +28,10 @@ export const ScheduledPage = () => {
   const [runningTaskIds, setRunningTaskIds] = useState<Set<string>>(() => new Set());
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | undefined>();
+  // Tasks the user stopped mid-run. `runNow` rejects on the abort, and without
+  // this the click that stopped the run also raises a "task failed" toast
+  // beside the neutral "stopped" one from the completion push.
+  const stoppedRunIds = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const response = await window.canvasWorkspace.scheduled.list();
@@ -81,6 +86,7 @@ export const ScheduledPage = () => {
       dockStore.openScheduledChat(task.id);
       const response = await window.canvasWorkspace.scheduled.runNow(task.id);
       dockStore.refreshScheduledChat(task.id);
+      if (stoppedRunIds.current.delete(task.id)) return;
       if (!response.ok || response.task?.lastError) {
         notify({
           tone: 'error',
@@ -95,6 +101,20 @@ export const ScheduledPage = () => {
         return next;
       });
     }
+  };
+
+  /**
+   * A run had no stop control at all: the Run-now button just went disabled
+   * for however long the agent took, with no way out short of quitting the
+   * app. The abort path itself already existed in the agent service.
+   */
+  const stopRun = async (task: ScheduledTask) => {
+    const response = await window.canvasWorkspace.scheduled.cancelRun(task.id);
+    if (!response.ok) {
+      notify({ tone: 'error', title: t('scheduled.stopFailed'), description: response.error });
+      return;
+    }
+    stoppedRunIds.current.add(task.id);
   };
 
   const removeTask = async (task: ScheduledTask) => {
@@ -191,6 +211,17 @@ export const ScheduledPage = () => {
                     {running ? <SpinnerGap className="scheduled-spin" size={13} /> : <Play size={13} />}
                     {running ? t('scheduled.runningShort') : t('scheduled.runNow')}
                   </Button>
+                  {task.status === 'running' && (
+                    <Button
+                      size="xs"
+                      aria-label={t('scheduled.stopRun')}
+                      title={t('scheduled.stopRun')}
+                      onClick={() => void stopRun(task)}
+                    >
+                      <Stop size={13} />
+                      {t('scheduled.stopRun')}
+                    </Button>
+                  )}
                   <Button size="xs" title={t('scheduled.editTask')} onClick={() => openEdit(task)}>
                     <PencilSimple size={13} />
                     {t('scheduled.editTask')}

@@ -94,4 +94,26 @@ describe('useScheduledRunToasts', () => {
     expect(toasts()).toHaveLength(1);
     expect(toasts()[0].textContent).toContain('model unavailable');
   });
+
+  /**
+   * A stopped run reaches the renderer through the failure branch (the engine
+   * threw on abort), but blaming the user for their own click in the error tone
+   * — and echoing the raw abort message — is wrong.
+   */
+  it('reports a user-stopped run in the neutral tone, without the abort error', async () => {
+    const emit = await mount(vi.fn());
+
+    emit({
+      taskId: 'daily-brief',
+      title: 'Morning brief',
+      ok: false,
+      error: 'Aborted',
+      cancelled: true,
+    });
+
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0].className).toContain('shell-toast--info');
+    expect(toasts()[0].textContent).toContain('Morning brief');
+    expect(toasts()[0].textContent).not.toContain('Aborted');
+  });
 });

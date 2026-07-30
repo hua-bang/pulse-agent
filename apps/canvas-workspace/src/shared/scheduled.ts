@@ -63,6 +63,40 @@ export interface ScheduledRunFinished {
   title: string;
   ok: boolean;
   error?: string;
+  /** The user stopped this run; it is not a fault worth an error toast. */
+  cancelled?: boolean;
+}
+
+/**
+ * Coarse phase of an in-flight run. `done` is the last event a run emits and
+ * carries no further state — receivers drop the run when they see it.
+ */
+export type ScheduledRunPhase = 'starting' | 'thinking' | 'tool' | 'writing' | 'done';
+
+export interface ScheduledRunToolStep {
+  /** 1-based position of this tool call within the run. */
+  index: number;
+  name: string;
+  status: 'running' | 'done';
+  startedAt: number;
+  endedAt?: number;
+}
+
+/**
+ * Live progress of one in-flight scheduled run. Ephemeral by design — never
+ * persisted; see `main/scheduled/run-progress.ts` for why.
+ */
+export interface ScheduledRunProgress {
+  taskId: string;
+  startedAt: number;
+  updatedAt: number;
+  phase: ScheduledRunPhase;
+  /** Bounded tail of tool steps, oldest first. */
+  steps: ScheduledRunToolStep[];
+  /** Every tool call seen this run — may exceed `steps.length` once trimmed. */
+  toolCalls: number;
+  /** Set once the user asked to stop this run. */
+  cancelRequested?: boolean;
 }
 
 export interface ScheduledApi {
@@ -78,8 +112,19 @@ export interface ScheduledApi {
   runNow: (
     taskId: string,
   ) => Promise<{ ok: boolean; task?: ScheduledTask; error?: string }>;
+  /** Stop the task's in-flight run. Fails when the task is idle. */
+  cancelRun: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Snapshot of the task's in-flight run, for a panel that opens mid-run —
+   * the events below only cover what happens after subscribing, and a
+   * background run starts while nobody is watching.
+   */
+  getRunProgress: (
+    taskId: string,
+  ) => Promise<{ ok: boolean; progress?: ScheduledRunProgress; error?: string }>;
   onChanged: (callback: (tasks: ScheduledTask[]) => void) => () => void;
   onRunFinished: (callback: (run: ScheduledRunFinished) => void) => () => void;
+  onRunProgress: (callback: (progress: ScheduledRunProgress) => void) => () => void;
 }
 
 const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;

@@ -22,10 +22,18 @@ export const useScheduledRunToasts = (onOpenTask: (taskId: string) => void): voi
   openRef.current = onOpenTask;
 
   useEffect(() => window.canvasWorkspace.scheduled.onRunFinished((run) => {
+    // A run the user stopped is announced through the same channel as a
+    // failure (the engine threw), but it is not a fault — reporting it in the
+    // error tone would blame the user for their own click.
+    const tone = run.ok ? 'success' : run.cancelled ? 'info' : 'error';
     notify({
-      tone: run.ok ? 'success' : 'error',
-      title: run.ok ? t('scheduled.runFinished', { title: run.title }) : t('scheduled.runFailed'),
-      description: run.ok ? undefined : run.error,
+      tone,
+      title: run.ok
+        ? t('scheduled.runFinished', { title: run.title })
+        : run.cancelled
+          ? t('scheduled.runStopped', { title: run.title })
+          : t('scheduled.runFailed'),
+      description: run.ok || run.cancelled ? undefined : run.error,
       autoCloseMs: 0,
       action: {
         label: t('scheduled.openChat'),

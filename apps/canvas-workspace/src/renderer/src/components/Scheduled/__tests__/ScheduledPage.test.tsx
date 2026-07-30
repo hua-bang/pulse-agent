@@ -199,4 +199,76 @@ describe('ScheduledPage', () => {
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Run now"]')?.disabled).toBe(false);
     expect(dockState?.scheduledChatRevision).toBe(2);
   });
+
+  /**
+   * A run had no stop control at all — the Run-now button just went disabled
+   * for as long as the agent took. The stop must also not double-report: the
+   * aborted `runNow` rejects, and the completion push already announces the
+   * stop in the neutral tone.
+   */
+  it('stops a run in flight without also reporting it as a failure', async () => {
+    const task = {
+      id: 'daily-brief',
+      title: 'Daily brief',
+      prompt: 'Summarize what needs my attention.',
+      schedule: { kind: 'interval' as const, intervalMinutes: 30 },
+      enabled: true,
+      source: 'user' as const,
+      createdAt: 1,
+      updatedAt: 1,
+      nextRunAt: Date.now() + 60_000,
+      runCount: 0,
+      status: 'idle' as const,
+    };
+    let finishRun: ((value: { ok: boolean; error?: string }) => void) | undefined;
+    let pushTasks: ((tasks: unknown[]) => void) | undefined;
+    const cancelRun = vi.fn(async () => ({ ok: true }));
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: {
+        agent: { newSession: vi.fn(async () => ({ ok: true })) },
+        scheduled: {
+          list: vi.fn(async () => ({ ok: true, tasks: [task] })),
+          onChanged: (callback: (tasks: unknown[]) => void) => {
+            pushTasks = callback;
+            return () => undefined;
+          },
+          runNow: vi.fn(() => new Promise<{ ok: boolean; error?: string }>((resolve) => {
+            finishRun = resolve;
+          })),
+          cancelRun,
+        },
+      },
+    });
+
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(renderPage());
+    });
+
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>('[aria-label="Run now"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // The Stop control follows the MAIN-side run status, not the local
+    // optimistic flag: there is nothing to abort until the run exists.
+    expect(host.querySelector('[aria-label="Stop"]')).toBeNull();
+    await act(async () => { pushTasks?.([{ ...task, status: 'running' }]); });
+
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>('[aria-label="Stop"]')?.click();
+      await Promise.resolve();
+    });
+    expect(cancelRun).toHaveBeenCalledWith('daily-brief');
+
+    await act(async () => {
+      finishRun?.({ ok: false, error: 'Aborted' });
+      await Promise.resolve();
+    });
+    expect(document.querySelectorAll('.shell-toast')).toHaveLength(0);
+  });
 });
