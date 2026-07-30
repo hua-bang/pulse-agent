@@ -91,8 +91,10 @@ export const ChatPageBody = ({
   const dock = useRightDock();
   const dockState = useRightDockState();
   // The dock's Tab strip lives beside this page (its chat tab is hidden here),
-  // so the control is a plain show/hide of the content tabs — no navigation,
-  // and nothing to offer when the user has no tabs open.
+  // so the control is a plain show/hide of the content tabs — no navigation.
+  // Kept visible (disabled, not hidden) even with zero tabs: a tab can land
+  // mid-conversation (agent opens an artifact/preview), and the button's
+  // position shouldn't jump around as that happens.
   const dockTabsToggleable = hasDockContentTabs(dockState);
   const dockTabsVisible = isDockContentTabVisible(dockState);
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
@@ -415,18 +417,17 @@ export const ChatPageBody = ({
               <PlusIcon size={16} strokeWidth={1.3} />
             </button>
           )}
-          {dockTabsToggleable && (
-            <button
-              className="chat-panel-action-btn"
-              data-active={dockTabsVisible}
-              aria-pressed={dockTabsVisible}
-              onClick={dock.toggleContentTabs}
-              title={dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs')}
-              aria-label={dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs')}
-            >
-              <ColumnsPlusRight size={16} />
-            </button>
-          )}
+          <button
+            className="chat-panel-action-btn"
+            data-active={dockTabsVisible}
+            aria-pressed={dockTabsVisible}
+            disabled={!dockTabsToggleable}
+            onClick={dock.toggleContentTabs}
+            title={dockTabsToggleable ? (dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs')) : t('chat.noDockTabs')}
+            aria-label={dockTabsToggleable ? (dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs')) : t('chat.noDockTabs')}
+          >
+            <ColumnsPlusRight size={16} />
+          </button>
         </div>
 
         <ChatView
