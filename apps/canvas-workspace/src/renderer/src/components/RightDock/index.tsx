@@ -1,8 +1,10 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useLayoutEffect,
+  useRef,
   useState,
 } from 'react';
 import { Tabs } from '@phosphor-icons/react';
@@ -17,6 +19,7 @@ import { useConsumePendingLinks } from '../../hooks/useConsumePendingLinks';
 import { useDockAgentBridge } from './useDockAgentBridge';
 import { SplitViewToggle } from './SplitViewToggle';
 import { useDockSplitView } from './useDockSplitView';
+import { clampDockWidth, DOCK_DEFAULT_WIDTH, DOCK_MIN_WIDTH, resolveDockMaxWidth } from './dock-width';
 import { useDockTabDrag } from './useDockTabDrag';
 import { DockPanes } from './DockPanes';
 import { hasDockSplitContentTab } from './dock-split-state';
@@ -44,9 +47,6 @@ export { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
 export { isDockChatTabEnabled, isGlobalChatLauncherVisible } from './dock-chat-availability';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
-const DEFAULT_WIDTH = 480;
-const MIN_WIDTH = 320;
-const MAX_VIEWPORT_RATIO = 0.95;
 const RESIZING_CLASS = 'right-dock-resizing';
 const DockCreationControls = lazy(() => import('./DockCreationControls').then((m) => ({ default: m.DockCreationControls })));
 const TerminalDockTab = lazy(() => import('./TerminalDockTab').then((m) => ({ default: m.TerminalDockTab })));
@@ -63,10 +63,8 @@ function readStoredWidth(): number | null {
   }
 }
 
-function clampWidth(value: number): number {
-  const viewport = typeof window === 'undefined' ? value : window.innerWidth;
-  const max = Math.max(MIN_WIDTH, Math.round(viewport * MAX_VIEWPORT_RATIO));
-  return Math.min(max, Math.max(MIN_WIDTH, value));
+function readViewportWidth(): number {
+  return typeof window === 'undefined' ? 0 : window.innerWidth;
 }
 
 function persistWidth(value: number): void {
@@ -95,6 +93,9 @@ interface RightDockProps {
   chatTabEnabled: boolean;
   /** Canvas reflows around the dock; library-style routes let it overlay. */
   reserveSpace: boolean;
+  /** Cap the rendered width so the route's own content stays usable. Canvas
+   *  opts out — see `dock-width.ts`. */
+  capWidth: boolean;
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
 }
@@ -104,6 +105,7 @@ export const RightDock = ({
   activeIdReady,
   chatTabEnabled,
   reserveSpace,
+  capWidth,
   workspaces,
   onOpenNodePage,
 }: RightDockProps) => {
@@ -161,12 +163,31 @@ export const RightDock = ({
     ...state.tabs.map((tab) => tab.id),
   ];
   const rovingTabId = getRovingDockTabId(orderedTabIds, activePaneId);
-  const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
+  // Two layers on purpose: `chosenWidth` is what the user dragged (persisted),
+  // `width` is what this route renders. Switching canvas → page must not
+  // rewrite the preference, or a wide canvas dock would be silently lost the
+  // first time the user visits the AI Chat page.
+  const [chosenWidth, setChosenWidth] = useState<number>(
+    () => Math.max(DOCK_MIN_WIDTH, readStoredWidth() ?? DOCK_DEFAULT_WIDTH),
+  );
+  const [viewportWidth, setViewportWidth] = useState<number>(readViewportWidth);
+  const maxWidth = resolveDockMaxWidth(viewportWidth, capWidth);
+  const width = clampDockWidth(chosenWidth, viewportWidth, capWidth);
+  // Stable identity with live values: `useDockSplitView` keeps this in an
+  // effect dep list, and a clamp that changed identity per route would re-run
+  // (and re-clamp `chosenWidth`) on every navigation.
+  const widthPolicyRef = useRef({ viewportWidth, capWidth });
+  widthPolicyRef.current = { viewportWidth, capWidth };
+  const clampToPolicy = useCallback((value: number) => clampDockWidth(
+    value,
+    widthPolicyRef.current.viewportWidth,
+    widthPolicyRef.current.capWidth,
+  ), []);
   const splitView = useDockSplitView({
     active: splitViewActive,
     dockWidth: width,
-    setDockWidth: setWidth,
-    clampDockWidth: clampWidth,
+    setDockWidth: setChosenWidth,
+    clampDockWidth: clampToPolicy,
   });
 
   const tabDrag = useDockTabDrag(store);
@@ -180,7 +201,7 @@ export const RightDock = ({
   });
 
   useEffect(() => {
-    const onResize = () => setWidth((prev) => clampWidth(prev));
+    const onResize = () => setViewportWidth(readViewportWidth());
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -224,16 +245,13 @@ export const RightDock = ({
   // (invert). The resizing class disables the width/margin transitions so the
   // canvas tracks the handle without rubber-banding; the hook owns the body
   // cursor + selection lock and the move/up listeners.
-  const maxWidth = typeof window === 'undefined'
-    ? width
-    : Math.max(MIN_WIDTH, Math.round(window.innerWidth * MAX_VIEWPORT_RATIO));
   const resize = useDragResize({
     axis: 'x',
     value: width,
-    min: MIN_WIDTH,
+    min: DOCK_MIN_WIDTH,
     max: maxWidth,
     invert: true,
-    onChange: setWidth,
+    onChange: setChosenWidth,
     onDragStart: () => document.documentElement.classList.add(RESIZING_CLASS),
     onDragEnd: (finalWidth) => {
       document.documentElement.classList.remove(RESIZING_CLASS);
@@ -253,10 +271,10 @@ export const RightDock = ({
         onMouseDown={resize.onMouseDown}
         onKeyDown={(event) => handleDockResizeKeyDown(event, {
           value: width,
-          min: MIN_WIDTH,
+          min: DOCK_MIN_WIDTH,
           max: maxWidth,
           onChange: (nextWidth) => {
-            setWidth(nextWidth);
+            setChosenWidth(nextWidth);
             persistWidth(nextWidth);
           },
         })}
@@ -264,7 +282,7 @@ export const RightDock = ({
         role="separator"
         aria-orientation="vertical"
         aria-label={t('rightDock.resizePanel')}
-        aria-valuemin={MIN_WIDTH}
+        aria-valuemin={DOCK_MIN_WIDTH}
         aria-valuemax={maxWidth}
         aria-valuenow={width}
       />

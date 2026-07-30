@@ -10,7 +10,9 @@ import {
   SCROLLBACK_SAVE_INTERVAL,
   claimTerminalSessionOwner, createDebouncedTerminalRefit, createPtySpawnLifecycle, createTerminalSnapshotPersister,
   finalizeTerminalSnapshotBeforeDispose,
+  fitTerminalIfSane,
   loadRecentCwds,
+  scheduleTerminalFit,
   pushRecentCwd,
   readTerminalSnapshot,
   syncTerminalFontSizeToCanvas,
@@ -75,30 +77,6 @@ const pruneMirrorTerminalCache = (activeKey: string) => {
     disposeMirrorTerminal(entry);
     mirrorTerminalCache.delete(key);
   }
-};
-const fitAndRefreshTerminal = (
-  fitAddon: FitAddon,
-  term: Terminal,
-  containerEl?: HTMLElement | null,
-) => {
-  if (containerEl !== undefined) {
-    syncTerminalFontSizeToCanvas(term, containerEl);
-  }
-  try { fitAddon.fit(); } catch { /* ignore */ }
-  try { term.refresh(0, Math.max(0, term.rows - 1)); } catch { /* ignore */ }
-};
-const scheduleTerminalFit = (
-  fitAddon: FitAddon,
-  term: Terminal,
-  containerEl?: HTMLElement | null,
-) => {
-  fitAndRefreshTerminal(fitAddon, term, containerEl);
-  requestAnimationFrame(() => fitAndRefreshTerminal(fitAddon, term, containerEl));
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => fitAndRefreshTerminal(fitAddon, term, containerEl));
-  });
-  setTimeout(() => fitAndRefreshTerminal(fitAddon, term, containerEl), 80);
-  setTimeout(() => fitAndRefreshTerminal(fitAddon, term, containerEl), 240);
 };
 export const detectAgentView = (data: AgentNodeData): ViewMode => {
   if (data.viewMode === 'setup') return 'setup';
@@ -1097,7 +1075,8 @@ export const useAgentNodeController = ({
       const fit = fitRef.current;
       if (!term || !fit) return;
       syncTerminalFontSizeToCanvas(term, containerRef.current);
-      try { fit.fit(); } catch { /* ignore */ }
+      // Never scroll here: a refit can fire while the user reads history.
+      fitTerminalIfSane(term, fit);
     });
     const observer = new ResizeObserver(refit.schedule);
     if (containerRef.current) observer.observe(containerRef.current);

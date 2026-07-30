@@ -585,7 +585,7 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
-      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} reserveSpace={activeView !== 'skills'} onOpenNodePage={openNodePage} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} reserveSpace={activeView !== 'skills'} capWidth={activeView !== 'canvas'} onOpenNodePage={openNodePage} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         appLoaded={appSettingsLoaded}

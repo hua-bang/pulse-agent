@@ -334,15 +334,83 @@ export const syncTerminalFontSizeToCanvas = (
   return true;
 };
 
+/**
+ * Smallest column count a fit may apply.
+ *
+ * FitAddon floors `availableWidth / cellWidth` and clamps at 2 columns, so a
+ * container measured mid-layout — a node that has not been sized yet, a hidden
+ * or freshly re-parented terminal, a `--canvas-scale` change still in flight —
+ * happily yields a 3–5 column terminal. For a plain shell that is briefly
+ * ugly. For a coding agent it is permanent damage: Claude Code and Codex draw
+ * their own layout to the PTY width, so everything they emit at that moment is
+ * HARD-wrapped into a four-character ribbon that no later re-fit can undo
+ * (xterm reflows only its own soft wraps), and the scrollback is persisted
+ * that way. Refusing a nonsense fit costs nothing — the terminal keeps its
+ * previous geometry and the staged re-fits plus the ResizeObserver apply the
+ * real one a frame or two later.
+ */
+export const MIN_FITTABLE_TERMINAL_COLS = 20;
+
+/** Fit only when the container currently measures to a usable geometry.
+ *  Returns whether the terminal now matches its container. */
+export const fitTerminalIfSane = (term: Terminal | null, fit: FitAddon | null): boolean => {
+  if (!term || !fit) return false;
+  try {
+    const proposed = fit.proposeDimensions();
+    if (!proposed) return false;
+    const { cols, rows } = proposed;
+    if (!Number.isFinite(cols) || !Number.isFinite(rows) || rows < 1) return false;
+    if (cols < MIN_FITTABLE_TERMINAL_COLS) return false;
+    if (cols === term.cols && rows === term.rows) return true;
+    fit.fit();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /** Convenience wrapper: sync font size to canvas scale, then re-fit. */
 export const fitTerminalWithCanvasScale = (
   term: Terminal | null,
   fit: FitAddon | null,
   containerEl: HTMLElement | null | undefined,
-): void => {
+): boolean => {
   count('terminal-fit');
   syncTerminalFontSizeToCanvas(term, containerEl);
-  try { fit?.fit(); } catch { /* ignore */ }
+  return fitTerminalIfSane(term, fit);
+};
+
+/** One fit pass for a canvas-hosted terminal: track the canvas zoom, apply a
+ *  sane fit, repaint. */
+export const fitAndRefreshTerminal = (
+  fitAddon: FitAddon,
+  term: Terminal,
+  containerEl?: HTMLElement | null,
+): void => {
+  if (containerEl !== undefined) syncTerminalFontSizeToCanvas(term, containerEl);
+  fitTerminalIfSane(term, fitAddon);
+  try { term.refresh(0, Math.max(0, term.rows - 1)); } catch { /* ignore */ }
+};
+
+/** Mount/reattach fit ladder. Geometry settles over the next few frames — the
+ *  first passes are usually the ones `fitTerminalIfSane` rejects — and every
+ *  pass re-anchors the viewport on the newest output, because restored
+ *  scrollback and a live agent's first frames are both written while the
+ *  terminal is still sizing and otherwise leave it parked mid-history. */
+export const scheduleTerminalFit = (
+  fitAddon: FitAddon,
+  term: Terminal,
+  containerEl?: HTMLElement | null,
+): void => {
+  const pass = () => {
+    fitAndRefreshTerminal(fitAddon, term, containerEl);
+    try { term.scrollToBottom(); } catch { /* ignore */ }
+  };
+  pass();
+  requestAnimationFrame(pass);
+  requestAnimationFrame(() => requestAnimationFrame(pass));
+  setTimeout(pass, 80);
+  setTimeout(pass, 240);
 };
 
 /** Trailing debounce for ResizeObserver-driven terminal refits (perf
