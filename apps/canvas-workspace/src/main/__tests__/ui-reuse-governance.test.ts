@@ -347,7 +347,14 @@ const RATCHET_BASELINE: Record<string, number> = {
   // states (-4), and node-header focus uses the existing accent token (-1).
   // 1827→1824 (chat rail cleanup): grouped source labels remove the repeated
   // per-row metadata colors and reuse shared surface/text tokens.
-  hardcodedColorLiterals: 1824,
+  // 1824→1823 (content-node polish): the Text floating toolbar now reuses
+  // --shadow-float, removing its repeated rgba shadow color.
+  // 1823→1822 (content-node hierarchy): the Text selection ring moved to
+  // the shared --shadow-content-selection token.
+  // 1822→1814 (Spatial object states): Note / Text / Web now share one
+  // selection token and neutral selected surfaces instead of eight
+  // node-local blue literals.
+  hardcodedColorLiterals: 1812,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -409,7 +416,11 @@ const RATCHET_BASELINE: Record<string, number> = {
   // is gone — flat labels per the reference.
   // 147→146 (editor polish): node-header keyboard focus moved from a literal
   // box-shadow ring to the shared accent outline.
-  shadowLiterals: 146,
+  // 146→144 (content-node polish): the Text selected state and floating
+  // toolbar now reuse shared focus/floating shadow tokens.
+  // 144→141 (Spatial object states): Note / Text / Web reuse the scoped
+  // content-object default, hover, drag, and selection elevation tokens.
+  shadowLiterals: 141,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

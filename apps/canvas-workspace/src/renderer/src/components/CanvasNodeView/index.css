@@ -69,18 +69,27 @@
   container-type: inline-size;
   background: var(--note-paper);
   border-color: var(--note-border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--content-node-radius);
   box-shadow: var(--note-shadow);
+  transition:
+    box-shadow 200ms cubic-bezier(0.2, 0.75, 0.25, 1),
+    border-color 160ms ease;
 }
 
-.canvas-node.canvas-node--file:hover {
+.canvas-node.canvas-node--file:not(.canvas-node--dragging):not(.canvas-node--resizing):hover {
   box-shadow: var(--note-shadow-hover);
   border-color: var(--note-border-hover);
 }
 
 .canvas-node--file.canvas-node--selected {
   border-color: var(--accent-border);
-  box-shadow: var(--note-shadow), var(--shadow-focus);
+  outline: none;
+  box-shadow: var(--note-shadow), var(--shadow-content-selection);
+}
+
+.canvas-node.canvas-node--file.canvas-node--selected:not(.canvas-node--dragging):not(.canvas-node--resizing):hover {
+  border-color: var(--accent-border);
+  box-shadow: var(--note-shadow-hover), var(--shadow-content-selection);
 }
 
 /* Reference nodes reuse the target node's native body rendering. The outer
@@ -175,12 +184,12 @@
 .canvas-node--file>.node-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   background: transparent;
   border-bottom: 1px solid transparent;
   min-height: 0;
-  /* Horizontal inset visually aligns with the editor's 32px text column. */
-  padding: 12px 24px;
+  /* The node title is metadata; the Markdown document owns the main heading. */
+  padding: 18px 40px 4px;
   transition: border-color 0.15s ease;
 }
 
@@ -189,18 +198,15 @@
   display: none;
 }
 
-.canvas-node--file.canvas-node--selected>.node-header {
-  border-bottom-color: var(--border-light);
-}
-
 .canvas-node--file>.node-header .node-title {
   flex: 1 1 auto;
   min-width: 0;
-  font-weight: 700;
-  font-size: 18px;
-  line-height: 1.3;
-  color: var(--text);
-  letter-spacing: -0.015em;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
   padding: 0;
   transition: color 0.12s ease;
 }
@@ -221,7 +227,12 @@
 
 .canvas-node--file>.node-header .node-time-label {
   flex: 0 0 auto;
-  opacity: 0.72;
+  opacity: 0;
+}
+
+.canvas-node--file:hover>.node-header .node-time-label,
+.canvas-node--file.canvas-node--selected>.node-header .node-time-label {
+  opacity: 0.58;
 }
 
 .canvas-node--file>.node-header .node-header__actions {
@@ -254,7 +265,13 @@
 
 .canvas-node--file:hover>.node-header .node-title,
 .canvas-node--file.canvas-node--selected>.node-header .node-title {
-  color: var(--text);
+  color: var(--text-secondary);
+}
+
+@container (max-width: 560px) {
+  .canvas-node--file>.node-header {
+    padding-inline: 32px;
+  }
 }
 
 @container (max-width: 360px) {
@@ -311,32 +328,85 @@
 
 .canvas-node--iframe {
   border-color: rgba(55, 53, 47, 0.1);
+  border-radius: var(--content-node-radius);
+  box-shadow: var(--content-node-shadow);
+  transition:
+    box-shadow 200ms cubic-bezier(0.2, 0.75, 0.25, 1),
+    border-color 160ms ease;
 }
 
-.canvas-node--iframe:hover {
-  border-color: rgba(35, 131, 226, 0.22);
+.canvas-node--iframe:not(.canvas-node--dragging):not(.canvas-node--resizing):hover {
+  border-color: var(--note-border-hover);
+  box-shadow: var(--content-node-shadow-hover);
 }
 
 .canvas-node--iframe.canvas-node--selected {
-  border-color: rgba(35, 131, 226, 0.46);
-  box-shadow:
-    var(--shadow-card-hover),
-    0 0 0 2px rgba(35, 131, 226, 0.14),
-    0 0 0 6px rgba(35, 131, 226, 0.05);
+  border-color: var(--accent-border);
+  outline: none;
+  box-shadow: var(--content-node-shadow), var(--shadow-content-selection);
+}
+
+.canvas-node--iframe.canvas-node--selected:not(.canvas-node--dragging):not(.canvas-node--resizing):hover {
+  border-color: var(--accent-border);
+  box-shadow: var(--content-node-shadow-hover), var(--shadow-content-selection);
 }
 
 .canvas-node--iframe>.node-header {
   position: relative;
+  min-height: 36px;
+  padding: 7px 10px 7px 12px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--border-light) 72%, transparent);
+}
+
+.canvas-node--iframe>.node-header .node-title {
+  padding-inline: 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.canvas-node--iframe:hover>.node-header .node-title,
+.canvas-node--iframe.canvas-node--selected>.node-header .node-title {
+  color: var(--text);
+}
+
+/* A page title or favicon already identifies a Web node. Avoid adding the
+ * generic iframe type glyph when no favicon is available. */
+.canvas-node--iframe>.node-header .node-type-badge--iframe {
+  display: none;
 }
 
 .canvas-node--iframe.canvas-node--selected>.node-header {
-  border-bottom-color: rgba(35, 131, 226, 0.18);
+  border-bottom-color: var(--border-light);
 }
 
 .canvas-node--dragging {
   box-shadow: var(--shadow-drag);
   z-index: 100;
   opacity: 0.97;
+}
+
+.canvas-node--file.canvas-node--dragging,
+.canvas-node--iframe.canvas-node--dragging,
+.canvas-node--text.canvas-node--dragging {
+  border-color: var(--note-border-hover);
+  box-shadow: var(--content-node-shadow-drag);
+  opacity: 1;
+  transition:
+    box-shadow 200ms cubic-bezier(0.2, 0.75, 0.25, 1),
+    border-color 160ms ease;
+  will-change: box-shadow;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-node--file,
+  .canvas-node--iframe,
+  .canvas-node--text {
+    transition: none;
+  }
+
 }
 
 .canvas-node--resizing {
@@ -925,10 +995,10 @@
  * reference) and frames (their tinted wash carries the edge) opt out by not
  * being listed; fullscreen nodes are excluded because the transform is dead
  * there while --canvas-scale still holds the old value. */
-.canvas-transform--small .canvas-node--file:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--file:not(.canvas-node--fullscreen):not(.canvas-node--selected),
 .canvas-transform--small .canvas-node--terminal:not(.canvas-node--fullscreen),
 .canvas-transform--small .canvas-node--agent:not(.canvas-node--fullscreen),
-.canvas-transform--small .canvas-node--iframe:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--iframe:not(.canvas-node--fullscreen):not(.canvas-node--selected),
 .canvas-transform--small .canvas-node--plugin:not(.canvas-node--fullscreen),
 .canvas-transform--small .canvas-node--dynamic-app:not(.canvas-node--fullscreen) {
   outline: calc(1px / var(--canvas-scale, 1)) solid rgba(55, 53, 47, 0.16);

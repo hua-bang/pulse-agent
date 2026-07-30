@@ -32,6 +32,10 @@
   /* Default `.canvas-node` is flex-column; we don't need that structure here
    * because the body owns the full shape. */
   display: block;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 200ms cubic-bezier(0.2, 0.75, 0.25, 1);
 }
 
 /* Height is always content-driven — override the inline height React writes
@@ -47,17 +51,27 @@
   max-width: 600px;
 }
 
-.canvas-node--text:hover {
-  border-color: rgba(0, 0, 0, 0.08);
+.canvas-node--text:not(.canvas-node--dragging):not(.canvas-node--resizing):hover {
+  border-color: rgba(55, 53, 47, 0.08);
+  background: color-mix(in srgb, var(--surface) 42%, transparent);
 }
 
 .canvas-node--text.canvas-node--selected {
   border-color: var(--accent-border);
-  box-shadow: 0 0 0 1.5px rgba(35, 131, 226, 0.35);
+  background: transparent;
+  outline: none;
+  box-shadow: var(--shadow-content-selection);
+}
+
+.canvas-node--text.canvas-node--selected:not(.canvas-node--dragging):not(.canvas-node--resizing):hover {
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--surface) 42%, transparent);
+  box-shadow: var(--content-node-shadow-hover), var(--shadow-content-selection);
 }
 
 .canvas-node--text.canvas-node--dragging {
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  background: color-mix(in srgb, var(--surface) 42%, transparent);
+  box-shadow: var(--content-node-shadow-drag);
 }
 
 /* --- Header: hidden by default, compact toolbar on hover/selected -------- */
@@ -73,8 +87,8 @@
   padding: 4px 6px;
   background: var(--surface, #fff);
   border: 1px solid var(--border-light, rgba(0, 0, 0, 0.08));
-  border-radius: var(--radius-sm);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
   /* Keep toolbar size constant regardless of canvas zoom. */
   transform: scale(calc(1 / var(--canvas-scale, 1)));
   transform-origin: left bottom;
@@ -126,8 +140,8 @@
   height: auto;
   min-width: 32px;
   min-height: 28px;
-  padding: 6px 10px;
-  border-radius: var(--radius-md, 6px);
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
   outline: none;
   word-break: break-word;
   overflow-wrap: anywhere;

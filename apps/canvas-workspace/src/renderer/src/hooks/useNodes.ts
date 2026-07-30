@@ -807,7 +807,12 @@ export const useNodes = (
       const targets = nodesRef.current.filter((n) => idSet.has(n.id));
       if (targets.length === 0) return null;
 
-      const PADDING = { x: 40, top: 72, bottom: 40 };
+      /* Frames need a visible footer at overview zoom. At the common 44%
+       * canvas scale, 40px collapsed to an ~18px strip and the child cards
+       * read as if they were sitting on the frame edge. Keep the side inset
+       * compact, reserve the title zone above, and give the lower edge a
+       * distinct 64px spatial footer. */
+      const PADDING = { x: 40, top: 72, bottom: 64 };
       let minX = Infinity;
       let minY = Infinity;
       let maxX = -Infinity;

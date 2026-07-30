@@ -7,18 +7,18 @@
 
 :root {
   color-scheme: light;
-  --bg: #f8f8f7;
-  /* v4 quiet-label ground (2026-07-24, vision-read from the tinted-label
-   * reference board): cool near-white; the whisper washes and colored
-   * label text carry the structure, so the canvas stays almost paper. */
-  --bg-canvas: #fafafa;
+  --bg: #f6f6f5;
+  /* Spatial-inspired cool-grey work surface. The canvas is deliberately
+   * darker than the app chrome so white content cards read as physical
+   * objects without needing heavy borders or saturated frame fills. */
+  --bg-canvas: #e9eaec;
   --surface: #ffffff;
-  --surface-hover: #fafaf9;
-  --border: #e8e5e0;
-  --border-light: #f0eeea;
-  --text: #37352f;
-  --text-secondary: #787774;
-  --text-muted: #b4b0a8;
+  --surface-hover: #f5f5f4;
+  --border: #e3e4e5;
+  --border-light: #ececee;
+  --text: #28282a;
+  --text-secondary: #717174;
+  --text-muted: #aaa9ad;
   /* Converged 2026-07-07 from phantom-token demand: these names were already
      referenced across the renderer (with fallbacks or, for --text-*, nothing).
      Single-fallback tokens keep their exact fallback value (zero visual
@@ -35,10 +35,25 @@
   /* Pure white per the Heptabase reference — cards pop off the tinted
    * frame washes; the warm cream paper read as one more beige layer. */
   --note-paper: #ffffff;
-  --note-border: rgba(55, 53, 47, 0.12);
-  --note-border-hover: rgba(55, 53, 47, 0.16);
-  --note-shadow: 0 1px 2px rgba(55, 53, 47, 0.04), 0 5px 16px rgba(55, 53, 47, 0.055);
-  --note-shadow-hover: 0 1px 2px rgba(55, 53, 47, 0.045), 0 7px 20px rgba(55, 53, 47, 0.07);
+  /* Spatial object system: content objects float above the neutral canvas.
+   * These are intentionally scoped to Note / Text / Web nodes; app chrome
+   * keeps the denser legacy elevation scale. */
+  --content-node-radius: 18px;
+  --content-node-shadow:
+    0 5px 18px color-mix(in srgb, var(--text) 6%, transparent),
+    0 1px 3px color-mix(in srgb, var(--text) 4%, transparent);
+  --content-node-shadow-hover:
+    0 10px 28px color-mix(in srgb, var(--text) 10%, transparent),
+    0 2px 7px color-mix(in srgb, var(--text) 5%, transparent);
+  --content-node-shadow-drag:
+    0 14px 34px color-mix(in srgb, var(--text) 13%, transparent),
+    0 3px 10px color-mix(in srgb, var(--text) 6%, transparent);
+  --content-node-selection: var(--accent);
+  --shadow-content-selection: 0 0 0 1px var(--accent-soft);
+  --note-border: rgba(35, 35, 38, 0.08);
+  --note-border-hover: rgba(35, 35, 38, 0.14);
+  --note-shadow: var(--content-node-shadow);
+  --note-shadow-hover: var(--content-node-shadow-hover);
   --note-callout-bg: #faf6ef;
   --note-callout-border: #eee8de;
   --note-inline-code-bg: rgba(55, 53, 47, 0.07);
@@ -52,7 +67,7 @@
   --surface-alt: rgba(0, 0, 0, 0.05);
   --surface-subtle: rgba(0, 0, 0, 0.02);
   --accent: #2383e2;
-  --accent-light: rgba(35, 131, 226, 0.08);
+  --accent-light: rgba(35, 131, 226, 0.07);
   --accent-border: rgba(35, 131, 226, 0.45);
   --accent-file: #d9730d;
   --accent-term: #0f7b6c;
@@ -66,11 +81,11 @@
   --error: #c0392b;
   --text-warning: #b45309;
   --overlay-backdrop: rgba(32, 34, 37, 0.22);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 5px 14px rgba(0, 0, 0, 0.07);
-  --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.07), 0 9px 24px rgba(0, 0, 0, 0.09);
+  --shadow-sm: 0 1px 3px rgba(20, 22, 26, 0.04);
+  --shadow-card: 0 1px 3px rgba(20, 22, 26, 0.05), 0 8px 22px rgba(20, 22, 26, 0.07);
+  --shadow-card-hover: 0 2px 6px rgba(20, 22, 26, 0.07), 0 12px 30px rgba(20, 22, 26, 0.09);
   --shadow-drag: 0 8px 28px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-float: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 10px 34px rgba(20, 22, 26, 0.1), 0 0 0 1px rgba(20, 22, 26, 0.05);
   /* C2 exact-value tokenization (2026-07-10): the dominant focus-ring
      cluster, byte-identical across 9 call sites — minted verbatim, no
      value change. Near-variants (2px ring, other opacities) stay literal;
@@ -94,10 +109,8 @@
   --radius-pill: 999px;
   --font: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
   --font-mono: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
-  /* Humanist sans for canvas READING surfaces (node/frame/group titles) —
-   * same stack as the note editor (FileNodeBody). App chrome stays on the
-   * mono --font identity; this token is only for text the user reads as
-   * knowledge-map content, where mono's terminal texture reads as noise. */
+  /* Humanist sans for canvas reading surfaces. App chrome, code, terminal
+   * content, and compact Note metadata keep Pulse's mono identity. */
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
     "Inter", "Helvetica Neue", Arial, sans-serif;
   --sidebar-width: 240px;
