@@ -100,6 +100,7 @@ export function useRightDock(): {
   openChat: () => void;
   openScheduledChat: (taskId: string) => void;
   toggleChat: () => void;
+  toggleContentTabs: () => void;
   openTerminal: () => void;
   newTerminal: () => void;
   toggleTerminal: () => void;
@@ -138,6 +139,7 @@ export function useRightDock(): {
     openChat: () => store.openChat(),
     openScheduledChat: (taskId: string) => store.openScheduledChat(taskId),
     toggleChat: () => store.toggleChat(),
+    toggleContentTabs: () => store.toggleContentTabs(),
     openTerminal: () => store.openTerminal(),
     newTerminal: () => store.newTerminal(),
     toggleTerminal: () => store.toggleTerminal(),

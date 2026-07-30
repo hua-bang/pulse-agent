@@ -186,12 +186,16 @@ export const RightDock = ({
   }, []);
 
   useEffect(() => {
-    const inset = visible && chatTabEnabled && reserveSpace ? `${width}px` : '0px';
+    // Reflow is a per-route policy (`reserveSpace`), NOT a function of the
+    // chat tab: a route without one (the full-page chats) still shows link and
+    // artifact tabs here, and gating the inset on `chatTabEnabled` let that
+    // dock overlay — and cover — the page it was opened beside.
+    const inset = visible && reserveSpace ? `${width}px` : '0px';
     document.documentElement.style.setProperty('--right-dock-inset', inset);
     return () => {
       document.documentElement.style.setProperty('--right-dock-inset', '0px');
     };
-  }, [visible, chatTabEnabled, reserveSpace, width]);
+  }, [visible, reserveSpace, width]);
 
   useEffect(() => {
     if (!visible) return;

@@ -3,9 +3,11 @@
  * not a modal. ESC closes the active preview tab; chat never ESC-closes.
  *
  * The dock stays mounted while collapsed (translated off-screen) so chat
- * and preview tabs keep their state. On the canvas route it reserves its
- * width via --right-dock-inset (consumed by .app-body), behaving like an
- * in-flow column; callers can opt library-style routes into overlay mode.
+ * and preview tabs keep their state. While visible it reserves its width via
+ * --right-dock-inset (consumed by .app-body), behaving like an in-flow
+ * column, on every route that asks for it (`reserveSpace`) — including the
+ * full-page chats, whose preview tabs would otherwise cover the page;
+ * callers opt library-style routes into overlay mode instead.
  *
  * Sits on --layer-dock: above canvas chrome (floating toolbar, zoom
  * indicator, fullscreen chip), below the search bar and modal tiers.

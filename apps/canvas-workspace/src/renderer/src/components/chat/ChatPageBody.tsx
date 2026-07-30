@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, type KeyboardEventHandler, type ReactN
 import type { CanvasNode } from '../../types';
 import { ColumnsPlusRight } from '@phosphor-icons/react';
 import { PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
-import { useRightDock } from '../RightDock/context';
+import { useRightDock, useRightDockState } from '../RightDock/context';
+import { hasDockContentTabs, isDockContentTabVisible } from '../RightDock/dock-content-tabs';
 import type { SettingsSection } from '../Settings';
 import './ChatPage.css';
 import './ChatPanel.css';
@@ -19,7 +20,6 @@ import type { AgentScope, WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
-import { resolveDockChatHandoff } from './dockChatHandoff';
 import { useStableSessionRail } from './hooks/useStableSessionRail';
 
 export interface ChatPageBodyProps {
@@ -89,6 +89,12 @@ export const ChatPageBody = ({
   const { t } = useI18n();
   const { notify } = useAppShell();
   const dock = useRightDock();
+  const dockState = useRightDockState();
+  // The dock's Tab strip lives beside this page (its chat tab is hidden here),
+  // so the control is a plain show/hide of the content tabs — no navigation,
+  // and nothing to offer when the user has no tabs open.
+  const dockTabsToggleable = hasDockContentTabs(dockState);
+  const dockTabsVisible = isDockContentTabVisible(dockState);
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const anchorScopeId = workspaceId ?? 'global';
   const settingsButtonLabel = workspaceId && onOpenWorkspaceSettings
@@ -101,15 +107,6 @@ export const ChatPageBody = ({
     }
     onOpenAppSettings('models');
   }, [onOpenAppSettings, onOpenWorkspaceSettings, workspaceId]);
-  // Replaces the old close button: leaving the full-page chat is only worth a
-  // click if the conversation survives it, so the exit and the dock open ship
-  // together (see resolveDockChatHandoff for why the scope matters).
-  const handleOpenInDockTab = useCallback(() => {
-    const handoff = resolveDockChatHandoff(agentScope);
-    if (handoff.kind === 'scheduled') dock.openScheduledChat(handoff.taskId);
-    else dock.openChat();
-    onExit();
-  }, [agentScope, dock, onExit]);
   const {
     abort,
     addImageToCanvas,
@@ -418,14 +415,18 @@ export const ChatPageBody = ({
               <PlusIcon size={16} strokeWidth={1.3} />
             </button>
           )}
-          <button
-            className="chat-panel-action-btn"
-            onClick={handleOpenInDockTab}
-            title={t('chat.openInDockTab')}
-            aria-label={t('chat.openInDockTab')}
-          >
-            <ColumnsPlusRight size={16} />
-          </button>
+          {dockTabsToggleable && (
+            <button
+              className="chat-panel-action-btn"
+              data-active={dockTabsVisible}
+              aria-pressed={dockTabsVisible}
+              onClick={dock.toggleContentTabs}
+              title={dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs')}
+              aria-label={dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs')}
+            >
+              <ColumnsPlusRight size={16} />
+            </button>
+          )}
         </div>
 
         <ChatView
