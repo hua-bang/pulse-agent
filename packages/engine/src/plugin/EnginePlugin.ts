@@ -1,7 +1,12 @@
 import type { EventEmitter } from 'events';
 import type { ModelMessage } from 'ai';
 
-import type { Context, PulseEngineInstance, SystemPromptOption } from '../shared/types.js';
+import type {
+  Context,
+  PulseEngineInstance,
+  SystemPromptOption,
+  ToolExecutionContext,
+} from '../shared/types.js';
 
 // ---------------------------------------------------------------------------
 // Hook input / result types
@@ -61,10 +66,24 @@ export interface BeforeToolCallInput {
   context?: Context;
   name: string;
   input: any;
+  /**
+   * Per-invocation execution context forwarded to the tool. Host policy hooks
+   * can inspect run metadata and clarification availability at the final tool
+   * boundary, including for tools registered by plugins.
+   */
+  toolContext?: ToolExecutionContext;
 }
 
 export interface BeforeToolCallResult {
   input?: any;
+  /** Replace the context forwarded to the tool (for example, with an approval receipt). */
+  toolContext?: ToolExecutionContext;
+  /**
+   * Short-circuit execution with a synthetic tool result. This lets host
+   * policy hooks fail closed without turning a denied tool call into a failed
+   * model run.
+   */
+  output?: any;
 }
 
 // -- afterToolCall --

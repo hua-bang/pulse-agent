@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { UnifiedSession } from './ChatSessionsRail';
@@ -6,11 +6,18 @@ import { ChatPageBody } from './ChatPageBody';
 import type { SessionBackEntry } from './SessionBackBar';
 import type { AgentScope, WorkspaceOption } from './types';
 import { scheduledTaskIdFromStoreId } from '../../../../shared/agent-chat';
+import type {
+  ChatContextSnapshot,
+  ChatExecutionPolicy,
+  ChatTarget,
+} from './ChatTargetContext';
 
 interface ChatPageProps {
   allWorkspaces: WorkspaceOption[];
   /** Scheduled task whose chat should be opened on entry (route query). */
   openScheduledTaskId?: string | null;
+  /** Visible chat target that opened this full-page surface. */
+  initialTarget?: ChatTarget | null;
   getWorkspaceNodes?: (workspaceId: string) => CanvasNode[];
   getWorkspaceRootFolder?: (workspaceId: string) => string | undefined;
   onWorkspaceContextRequest?: (workspaceId: string) => void;
@@ -38,6 +45,7 @@ interface ChatPageProps {
 export const ChatPage = ({
   allWorkspaces,
   openScheduledTaskId,
+  initialTarget,
   getWorkspaceNodes,
   getWorkspaceRootFolder,
   onWorkspaceContextRequest,
@@ -46,11 +54,40 @@ export const ChatPage = ({
   onOpenAppSettings,
   onOpenWorkspaceSettings,
 }: ChatPageProps) => {
-  const [agentScope, setAgentScope] = useState<AgentScope>({ kind: 'global' });
-  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
-  const [selectedSessionKey, setSelectedSessionKey] = useState<string | null>(null);
-  const [newSessionRequest, setNewSessionRequest] = useState(0);
+  const [agentScope, setAgentScope] = useState<AgentScope>(
+    () => initialTarget?.scope ?? { kind: 'global' },
+  );
+  const [pendingSessionIntent, setPendingSessionIntent] = useState<{
+    id: number;
+    sessionId: string;
+  } | null>(
+    () => initialTarget?.sessionId ? { id: 1, sessionId: initialTarget.sessionId } : null,
+  );
+  const sessionIntentSequenceRef = useRef(initialTarget?.sessionId ? 1 : 0);
+  const pendingSessionIntentRef = useRef<number | null>(initialTarget?.sessionId ? 1 : null);
+  const pendingSessionId = pendingSessionIntent?.sessionId ?? null;
+  const [selectedSessionKey, setSelectedSessionKey] = useState<string | null>(
+    () => initialTarget?.sessionId
+      ? `${initialTarget.scopeId}:${initialTarget.sessionId}`
+      : null,
+  );
+  const [contextSnapshot, setContextSnapshot] = useState<ChatContextSnapshot | undefined>(
+    () => initialTarget?.contextSnapshot,
+  );
+  const [executionPolicy, setExecutionPolicy] = useState<ChatExecutionPolicy>(
+    () => initialTarget?.executionPolicy ?? 'auto',
+  );
+  const scopeRollbackRef = useRef<{
+    agentScope: AgentScope;
+    selectedSessionKey: string | null;
+    contextSnapshot?: ChatContextSnapshot;
+    executionPolicy: ChatExecutionPolicy;
+    sessionBackStack: SessionBackEntry[];
+  } | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(true);
+  // Jump trail for session-ref chip navigation. Owned here so scope changes
+  // and thread replacement cannot disturb it.
+  const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
   const scopeKey = agentScope.kind === 'workspace'
     ? `workspace:${agentScope.workspaceId}`
     : agentScope.kind === 'scheduled'
@@ -61,17 +98,23 @@ export const ChatPage = ({
   // in this page's rail rather than a separate full-page route.
   useEffect(() => {
     if (!openScheduledTaskId) return;
+    scopeRollbackRef.current = null;
+    pendingSessionIntentRef.current = null;
+    sessionIntentSequenceRef.current += 1;
     setAgentScope({ kind: 'scheduled', taskId: openScheduledTaskId });
-    setPendingSessionId(null);
+    setPendingSessionIntent(null);
+    setSelectedSessionKey(null);
+    setContextSnapshot(undefined);
+    setExecutionPolicy('scheduled');
+    setSessionBackStack([]);
   }, [openScheduledTaskId]);
-
-  // Jump trail for session-ref chip navigation. Owned here so scope changes
-  // and thread replacement cannot disturb it.
-  const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
 
   // Every session click keeps the body mounted. Cross-scope picks update the
   // scope and pending session together; the body swaps thread data in place.
   const navigateToSession = useCallback((session: { sessionId: string; workspaceId: string }) => {
+    const intentId = ++sessionIntentSequenceRef.current;
+    pendingSessionIntentRef.current = intentId;
+    setPendingSessionIntent({ id: intentId, sessionId: session.sessionId });
     setSelectedSessionKey(`${session.workspaceId}:${session.sessionId}`);
     // The rail's `workspaceId` is really a session-STORE id, so the two
     // sentinel stores (global chat, one per scheduled task) must map back to
@@ -88,18 +131,23 @@ export const ChatPage = ({
       : nextScope.kind === 'scheduled'
         ? `scheduled:${nextScope.taskId}`
         : `workspace:${nextScope.workspaceId}`;
+    scopeRollbackRef.current ??= {
+      agentScope, selectedSessionKey, contextSnapshot, executionPolicy, sessionBackStack,
+    };
+    setContextSnapshot(undefined);
+    setExecutionPolicy(nextScope.kind === 'scheduled' ? 'scheduled' : 'auto');
     if (nextScopeKey === scopeKey) {
-      setPendingSessionId(session.sessionId);
       return;
     }
     setAgentScope(nextScope);
-    setPendingSessionId(session.sessionId);
-  }, [scopeKey]);
+  }, [agentScope, contextSnapshot, executionPolicy, scopeKey, selectedSessionKey, sessionBackStack]);
 
   // Manual rail pick resets the jump trail; chip jumps (onJumpToSession)
   // keep it so the back bar can walk home.
   const handleSelectSession = useCallback((session: UnifiedSession) => {
     setSessionBackStack([]);
+    setContextSnapshot(undefined);
+    setExecutionPolicy(scheduledTaskIdFromStoreId(session.workspaceId) ? 'scheduled' : 'auto');
     navigateToSession(session);
   }, [navigateToSession]);
 
@@ -118,16 +166,21 @@ export const ChatPage = ({
     setSessionBackStack([]);
   }, []);
 
-  const handleNewGlobalSession = useCallback(() => {
-    setSessionBackStack([]);
-    setSelectedSessionKey(null);
-    setAgentScope({ kind: 'global' });
-    setPendingSessionId(null);
-    setNewSessionRequest((value) => value + 1);
+  const handleSessionConsumed = useCallback((intentId: number, loaded: boolean) => {
+    if (pendingSessionIntentRef.current !== intentId) return;
+    pendingSessionIntentRef.current = null;
+    setPendingSessionIntent(null);
+    const rollback = scopeRollbackRef.current;
+    scopeRollbackRef.current = null;
+    if (loaded || !rollback) return;
+    setAgentScope(rollback.agentScope);
+    setSelectedSessionKey(rollback.selectedSessionKey);
+    setContextSnapshot(rollback.contextSnapshot);
+    setExecutionPolicy(rollback.executionPolicy);
+    setSessionBackStack(rollback.sessionBackStack);
   }, []);
-
-  const handleSessionConsumed = useCallback(() => {
-    setPendingSessionId(null);
+  const handleActiveSessionResolved = useCallback((sessionId: string, workspaceId: string) => {
+    setSelectedSessionKey(`${workspaceId}:${sessionId}`);
   }, []);
 
   const handleToggleRail = useCallback(() => {
@@ -141,18 +194,21 @@ export const ChatPage = ({
   return (
     <ChatPageBody
       agentScope={agentScope}
+      contextSnapshot={contextSnapshot}
+      executionPolicy={executionPolicy}
+      onExecutionPolicyChange={setExecutionPolicy}
       initialPendingSessionId={pendingSessionId}
       pendingSessionId={pendingSessionId}
+      pendingSessionIntentId={pendingSessionIntent?.id ?? null}
       selectedSessionKey={selectedSessionKey}
       onSessionConsumed={handleSessionConsumed}
+      onActiveSessionResolved={handleActiveSessionResolved}
       onSelectSession={handleSelectSession}
       onJumpToSession={navigateToSession}
       backEntry={sessionBackStack[sessionBackStack.length - 1] ?? null}
       onPushBackEntry={handlePushBackEntry}
       onBackToSession={handleBackToSession}
       onClearBackStack={handleClearBackStack}
-      onNewGlobalSession={handleNewGlobalSession}
-      newSessionRequest={newSessionRequest}
       onWorkspaceContextRequest={onWorkspaceContextRequest}
       allWorkspaces={allWorkspaces}
       nodes={nodes}

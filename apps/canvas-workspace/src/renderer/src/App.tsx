@@ -23,6 +23,14 @@ import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
 import { ScheduledRouteViews, SkillsRouteView } from './components/RouteViews';
 import { useScheduledRunChatOpener } from './components/Scheduled/useScheduledRunChatOpener';
+import {
+  ChatTargetProvider,
+  useActiveChatTarget,
+  useChatTargetBroker,
+} from './components/chat/ChatTargetContext';
+import { useChatNavigation } from './components/chat/hooks/useChatNavigation';
+import type { AgentScope } from './components/chat/types';
+import { createChatPageSessionTarget } from './components/chat/utils/sessionScope';
 const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
@@ -87,6 +95,8 @@ const AppContent = () => {
             : 'canvas';
   const routeQuery = routeParams.toString();
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
+  const chatTargetBroker = useChatTargetBroker();
+  const activeChatTarget = useActiveChatTarget();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
@@ -186,9 +196,28 @@ const AppContent = () => {
     }
   }, [routePath, detailNodeMatch, setLocation]);
 
-  const enterChatView = useCallback(() => {
-    setLocation(ROUTE_CHAT);
-  }, [setLocation]);
+  const {
+    enterChatTarget,
+    enterChatView,
+    exitChatView,
+    initialTarget: chatEntryTarget,
+  } = useChatNavigation({
+    activeView,
+    location,
+    setLocation,
+    activeTarget: activeChatTarget,
+    broker: chatTargetBroker,
+    openDockChat: dock.openChat,
+    isOverlayOpen,
+    openShortcuts,
+  });
+  const openSessionInOwningScope = useCallback((
+    scope: AgentScope,
+    sessionId: string,
+    scopeLabel: string,
+  ) => {
+    enterChatTarget(createChatPageSessionTarget(scope, sessionId, scopeLabel));
+  }, [enterChatTarget]);
 
   const enterNodesView = useCallback(() => {
     if (!NODES_ENABLED) return;
@@ -209,10 +238,6 @@ const AppContent = () => {
   const enterGraphView = useCallback(() => {
     if (!GRAPH_ENABLED) return;
     setLocation(ROUTE_GRAPH);
-  }, [setLocation]);
-
-  const exitChatView = useCallback(() => {
-    setLocation(ROUTE_CANVAS);
   }, [setLocation]);
 
   // Plugin nav items declare their own paths; just hand off the URL to
@@ -435,42 +460,6 @@ const AppContent = () => {
     });
   }, [folders, confirm, deleteFolder, notify, t]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isEditable = Boolean(target) && (
-        target?.tagName === 'INPUT' ||
-        target?.tagName === 'TEXTAREA' ||
-        target?.isContentEditable
-      );
-
-      if (isOverlayOpen) return;
-
-      if (!isEditable && (e.key === '?' || (e.shiftKey && e.key === '/'))) {
-        e.preventDefault();
-        openShortcuts();
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') {
-        e.preventDefault();
-        if (activeView === 'chat') {
-          setLocation(ROUTE_CANVAS);
-        } else {
-          setLocation(ROUTE_CHAT);
-        }
-        return;
-      }
-
-      if (e.key === 'Escape' && activeView === 'chat' && !isEditable) {
-        setLocation(ROUTE_CANVAS);
-      }
-    };
-
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [activeView, isOverlayOpen, openShortcuts, setLocation]);
-
   const getWorkspaceRootFolder = useCallback((workspaceId: string) => {
     return workspaces.find((ws) => ws.id === workspaceId)?.rootFolder;
   }, [workspaces]);
@@ -545,6 +534,7 @@ const AppContent = () => {
               onActivateWorkspace={selectWorkspace}
               onOpenAppSettings={openAppSettings}
               onOpenWorkspaceSettings={openWorkspaceSettings}
+              onOpenSessionInScope={openSessionInOwningScope}
               onSetActiveRootFolder={handleSetActiveRootFolder}
             />
           </PulseRouterView>
@@ -552,6 +542,7 @@ const AppContent = () => {
             <ChatPage
               allWorkspaces={workspaces}
               openScheduledTaskId={routeParams.get('scheduledTask')}
+              initialTarget={chatEntryTarget}
               getWorkspaceNodes={getWorkspaceNodes}
               getWorkspaceRootFolder={getWorkspaceRootFolder}
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
@@ -602,6 +593,12 @@ const AppContent = () => {
   );
 };
 const App = () => (
-  <I18nProvider><AppShellProvider><RightDockProvider><AppContent /></RightDockProvider></AppShellProvider></I18nProvider>
+  <I18nProvider>
+    <AppShellProvider>
+      <ChatTargetProvider>
+        <RightDockProvider><AppContent /></RightDockProvider>
+      </ChatTargetProvider>
+    </AppShellProvider>
+  </I18nProvider>
 );
 export default App;

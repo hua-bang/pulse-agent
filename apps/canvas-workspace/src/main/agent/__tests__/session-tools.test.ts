@@ -30,7 +30,7 @@ function msg(role: 'user' | 'assistant', content: string, timestamp: number, too
     content,
     timestamp,
     ...(toolNames.length
-      ? { toolCalls: toolNames.map((name, i) => ({ id: i + 1, name, status: 'done' as const })) }
+      ? { toolCalls: toolNames.map((name, i) => ({ id: i + 1, name, status: 'succeeded' as const })) }
       : {}),
   };
 }

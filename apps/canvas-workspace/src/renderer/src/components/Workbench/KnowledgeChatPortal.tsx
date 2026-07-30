@@ -26,6 +26,7 @@ interface Props {
   onClose: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
   onTurnComplete: () => void;
+  onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }
 
 /** Hosts the knowledge routes' global ChatPanel in the one application RightDock. */
@@ -41,6 +42,7 @@ export const KnowledgeChatPortal = ({
   onClose,
   onOpenAppSettings,
   onTurnComplete,
+  onOpenSessionInScope,
 }: Props) => {
   const { nodes, tags } = useAllWorkspaceNodeList(workspaces);
   const chatContext = useMemo(
@@ -72,6 +74,7 @@ export const KnowledgeChatPortal = ({
         onClose={onClose}
         onOpenAppSettings={onOpenAppSettings}
         onTurnComplete={onTurnComplete}
+        onOpenSessionInScope={onOpenSessionInScope}
       />
     </div>
   );

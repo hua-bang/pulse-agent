@@ -12,6 +12,7 @@ import type { AgentContextDomSelectionRef } from '../../types';
 import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './dock-store';
 import { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
 import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId } from './dock-tab-ids';
+import type { ChatDeliveryReceipt } from '../chat/ChatTargetContext';
 
 const skillWorkspaceName = (
   tab: Extract<DockPreviewTab, { kind: 'skill' }>,
@@ -47,7 +48,7 @@ interface Props {
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
   pinUrlReference: (url: string, title?: string) => void;
-  onAddDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
+  onAddDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onStartSkillChat?: (workspaceId: string, skillName: string) => void;
 }
 

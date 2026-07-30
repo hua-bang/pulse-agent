@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../../../i18n';
 import { useMentions } from './useMentions';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -37,7 +38,13 @@ async function mount(options: {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
-  await act(async () => { root?.render(<Probe />); });
+  await act(async () => {
+    root?.render(
+      <I18nProvider>
+        <Probe />
+      </I18nProvider>,
+    );
+  });
 }
 
 /** Minimal stand-in for the composer's Enter keydown. */

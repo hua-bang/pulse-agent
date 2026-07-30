@@ -28,6 +28,7 @@
 /* ─── Sessions rail (left) ─────────────────────────────────── */
 
 .chat-page-rail {
+  --chat-a11y-secondary: #73726e;
   width: 260px;
   height: 100%;
   flex-shrink: 0;
@@ -269,4 +270,194 @@
   width: 100%;
   margin: 0 auto;
   padding: 8px 24px 20px;
+}
+
+/* ─── AI chat accessibility / responsive overrides ────────── */
+
+/* A collapsed rail must leave both the pointer and keyboard accessibility
+   trees; clipping width alone still leaves its buttons tabbable. */
+.chat-page-rail-wrapper {
+  visibility: visible;
+  transition:
+    width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0s linear;
+}
+
+.chat-page-rail-wrapper--collapsed {
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0s linear 0.2s;
+}
+
+.chat-page-rail > .ui-textfield {
+  flex-shrink: 0;
+}
+
+.chat-page-rail-search {
+  height: 32px;
+  padding-inline: 9px;
+  border-color: var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.chat-page-rail-search::placeholder {
+  color: var(--chat-a11y-secondary);
+}
+
+.chat-page-rail-scroll {
+  max-height: none;
+}
+
+.chat-page-rail-new,
+.ui-btn.chat-page-rail-folder,
+.chat-page-rail-item {
+  min-height: 32px;
+  box-sizing: border-box;
+}
+
+.chat-page-rail-new:focus-visible,
+.chat-page-rail-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.chat-page-rail-folder-count,
+.chat-page-rail-empty,
+.chat-page-rail-loading {
+  color: var(--chat-a11y-secondary);
+}
+
+.chat-page-rail-item-row,
+.chat-page-rail-item-shell {
+  min-width: 0;
+  width: 100%;
+}
+
+.chat-page-rail-item-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.chat-page-rail-item-shell .chat-page-rail-item {
+  min-width: 0;
+  flex: 1;
+}
+
+.chat-page-rail-item-shell--pinned .chat-page-rail-item > svg {
+  color: var(--accent);
+}
+
+.chat-page-rail-item-actions {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-left: 12px;
+  background: linear-gradient(90deg, transparent, var(--surface) 12px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.chat-page-rail-item-shell:hover .chat-page-rail-item-actions,
+.chat-page-rail-item-shell:focus-within .chat-page-rail-item-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-page-rail-item-action {
+  color: var(--chat-a11y-secondary);
+}
+
+.chat-page-rail-item-action--danger {
+  color: var(--error);
+}
+
+.chat-page-rail-item-editor,
+.chat-page-rail-item-confirm {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 3px 3px 20px;
+  box-sizing: border-box;
+}
+
+.chat-page-rail-item-editor > .ui-textfield {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-page-rail-item-editor .ui-textfield__control {
+  height: 28px;
+  padding-inline: 7px;
+  font-size: 12px;
+}
+
+.chat-page-rail-item-confirm {
+  flex-wrap: wrap;
+  padding-block: 5px;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.chat-page-rail-item-confirm > span {
+  width: 100%;
+  color: var(--chat-a11y-secondary);
+}
+
+/* Browser zoom reduces the CSS-pixel viewport. Keep the optional rail useful
+   without squeezing the conversation into a gutter at 200–400% zoom. */
+@media (max-width: 720px) {
+  .chat-page-rail-wrapper,
+  .chat-page-rail {
+    width: min(220px, 42vw);
+  }
+
+  .chat-page-rail-wrapper--collapsed {
+    width: 0;
+  }
+
+  .chat-page-rail {
+    padding-inline: 6px;
+  }
+
+  .chat-page-rail-item {
+    padding-left: 16px;
+  }
+
+  .chat-page-body .chat-messages,
+  .chat-page-body .chat-input-container {
+    padding-inline: 16px;
+  }
+}
+
+@media (hover: none) {
+  .chat-page-rail-item-actions {
+    position: static;
+    flex-shrink: 0;
+    padding-left: 0;
+    background: transparent;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-page-rail-wrapper,
+  .chat-page-rail-wrapper--collapsed,
+  .chat-page-rail-folder-chevron,
+  .chat-page-rail-item,
+  .chat-page-rail-new,
+  .chat-page-rail-item-actions {
+    transition: none;
+  }
 }

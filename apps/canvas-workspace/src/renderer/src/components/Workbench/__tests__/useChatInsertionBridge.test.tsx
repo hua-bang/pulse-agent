@@ -2,7 +2,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentContextDomSelectionRef, CanvasNode } from '../../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../types';
+import type { ChatTargetBroker } from '../../chat/ChatTargetContext';
 import { useChatInsertionBridge } from '../useChatInsertionBridge';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -55,7 +56,7 @@ describe('useChatInsertionBridge', () => {
   it('holds a node mention until a composer registers after the opening frame', () => {
     const insert = vi.fn();
 
-    act(() => bridge.handleAddNodeToChat('workspace-1', node.id));
+    act(() => { void bridge.handleAddNodeToChat('workspace-1', node.id); });
     expect(openChat).toHaveBeenCalledOnce();
 
     act(() => vi.advanceTimersByTime(20));
@@ -72,7 +73,7 @@ describe('useChatInsertionBridge', () => {
   it('holds a cross-workspace preview mention until the active composer registers', () => {
     const insert = vi.fn();
 
-    act(() => bridge.handleAddPreviewNodeToChat('workspace-1', 'workspace-2', node));
+    act(() => { void bridge.handleAddPreviewNodeToChat('workspace-1', 'workspace-2', node); });
     expect(openChat).toHaveBeenCalledOnce();
 
     act(() => vi.advanceTimersByTime(20));
@@ -95,7 +96,7 @@ describe('useChatInsertionBridge', () => {
     };
     const insert = vi.fn();
 
-    act(() => bridge.handleAddDomSelectionToChat('workspace-1', selection));
+    act(() => { void bridge.handleAddDomSelectionToChat('workspace-1', selection); });
     expect(openChat).toHaveBeenCalledOnce();
     expect(insert).not.toHaveBeenCalled();
 
@@ -103,10 +104,41 @@ describe('useChatInsertionBridge', () => {
     expect(insert).toHaveBeenCalledWith({ ...selection, workspaceId: 'workspace-1' });
   });
 
+  it('holds DOM review submission until a cold composer actually registers', async () => {
+    const comments: AgentContextDomReviewComment[] = [{
+      id: 'comment-1',
+      text: 'Increase contrast',
+      selection: {
+        id: 'dom-1',
+        label: 'Primary action',
+        nodeId: 'link-tab-1',
+        selector: '#primary-action',
+      },
+    }];
+    const submit = vi.fn(async () => true);
+    let result: boolean | undefined;
+
+    act(() => {
+      void bridge.handleSubmitDomReviewComments('workspace-1', comments)
+        .then(value => { result = value; });
+    });
+    expect(openChat).toHaveBeenCalledOnce();
+    act(() => vi.advanceTimersByTime(100));
+    expect(result).toBeUndefined();
+    expect(submit).not.toHaveBeenCalled();
+
+    await act(async () => {
+      bridge.registerSubmitDomReviewComments('workspace-1', submit);
+      await Promise.resolve();
+    });
+    expect(submit).toHaveBeenCalledWith(comments);
+    expect(result).toBe(true);
+  });
+
   it('holds a new Skill chat request until the workspace composer registers', async () => {
     const startSkillChat = vi.fn().mockResolvedValue(undefined);
 
-    act(() => bridge.handleStartSkillChat('workspace-1', 'release-canvas'));
+    act(() => { void bridge.handleStartSkillChat('workspace-1', 'release-canvas'); });
     expect(openChat).toHaveBeenCalledOnce();
     expect(startSkillChat).not.toHaveBeenCalled();
 
@@ -119,8 +151,8 @@ describe('useChatInsertionBridge', () => {
     const startSkillChat = vi.fn().mockResolvedValue(undefined);
 
     act(() => {
-      bridge.handleStartSkillChat('workspace-1', 'first-skill');
-      bridge.handleStartSkillChat('workspace-1', 'second-skill');
+      void bridge.handleStartSkillChat('workspace-1', 'first-skill');
+      void bridge.handleStartSkillChat('workspace-1', 'second-skill');
       bridge.registerStartSkillChat('workspace-1', startSkillChat);
     });
     await act(async () => Promise.resolve());
@@ -135,7 +167,7 @@ describe('useChatInsertionBridge', () => {
     }));
 
     act(() => bridge.registerStartSkillChat('workspace-1', startSkillChat));
-    act(() => bridge.handleStartSkillChat('workspace-1', 'memory-review'));
+    act(() => { void bridge.handleStartSkillChat('workspace-1', 'memory-review'); });
     expect(startSkillChat).toHaveBeenCalledWith('memory-review');
     expect(openChat).not.toHaveBeenCalled();
 
@@ -144,5 +176,100 @@ describe('useChatInsertionBridge', () => {
       await Promise.resolve();
     });
     expect(openChat).toHaveBeenCalledOnce();
+  });
+
+  it('delivers a page selection to the visible target instead of mutating a hidden dock composer', async () => {
+    const insertSelection = vi.fn();
+    const deliver: ChatTargetBroker['deliver'] = vi.fn(async (insertion) => {
+      if (insertion.kind === 'dom-selection') insertSelection(insertion.selection);
+      return {
+        status: 'delivered' as const,
+        target: {
+          surface: 'page' as const,
+          scope: { kind: 'global' as const },
+          scopeId: '__global_chat__',
+          sessionId: null,
+          composerId: 'page:global',
+          contextSnapshot: { label: 'Global chat' },
+          executionPolicy: 'auto' as const,
+        },
+      };
+    });
+    act(() => root.unmount());
+    const TargetHarness = () => {
+      bridge = useChatInsertionBridge({
+        allNodes: { 'workspace-1': [node] },
+        openChat,
+        deliverToActiveTarget: deliver,
+      });
+      return null;
+    };
+    root = createRoot(container);
+    act(() => root.render(<TargetHarness />));
+    const selection: AgentContextDomSelectionRef = {
+      id: 'dom-1',
+      label: 'Primary action',
+      nodeId: 'link-tab-1',
+      selector: '#primary-action',
+    };
+
+    let receipt;
+    await act(async () => {
+      receipt = await bridge.handleAddDomSelectionToChat('workspace-1', selection);
+    });
+
+    expect(insertSelection).toHaveBeenCalledWith({
+      ...selection,
+      workspaceId: 'workspace-1',
+    });
+    expect(openChat).not.toHaveBeenCalled();
+    expect(receipt).toMatchObject({
+      status: 'delivered',
+      target: { composerId: 'page:global' },
+    });
+  });
+
+  it('falls back when the visible target does not support that insertion kind', async () => {
+    const deliver: ChatTargetBroker['deliver'] = vi.fn(async () => ({
+      status: 'unavailable' as const,
+      target: {
+        surface: 'page' as const,
+        scope: { kind: 'global' as const },
+        scopeId: '__global_chat__',
+        sessionId: null,
+        composerId: 'page:global',
+        contextSnapshot: { label: 'Global chat' },
+        executionPolicy: 'auto' as const,
+      },
+    }));
+    act(() => root.unmount());
+    const TargetHarness = () => {
+      bridge = useChatInsertionBridge({
+        allNodes: { 'workspace-1': [node] },
+        openChat,
+        deliverToActiveTarget: deliver,
+      });
+      return null;
+    };
+    root = createRoot(container);
+    act(() => root.render(<TargetHarness />));
+    const insert = vi.fn();
+    act(() => bridge.registerInsertMention('workspace-1', insert));
+
+    let receipt;
+    await act(async () => {
+      receipt = await bridge.handleAddNodeToChat('workspace-1', node.id);
+    });
+
+    expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ kind: 'node' }));
+    expect(insert).toHaveBeenCalledWith(node);
+    expect(openChat).toHaveBeenCalledOnce();
+    expect(receipt).toMatchObject({
+      status: 'delivered',
+      target: {
+        composerId: 'dock:workspace-1',
+        scopeId: 'workspace-1',
+      },
+    });
   });
 });

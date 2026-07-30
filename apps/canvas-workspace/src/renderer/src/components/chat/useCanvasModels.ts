@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CanvasModelProviderConfig } from '../../types';
+import { useI18n } from '../../i18n';
 import type { ModelSelection, UseCanvasModelsResult } from './modelSettingsTypes';
 import { shortModelName } from './modelSettingsTypes';
 
@@ -10,6 +11,7 @@ function broadcastModelStatus(status?: UseCanvasModelsResult['status']): void {
 }
 
 export function useCanvasModels(): UseCanvasModelsResult {
+  const { t } = useI18n();
   const [status, setStatus] = useState<UseCanvasModelsResult['status']>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -21,12 +23,12 @@ export function useCanvasModels(): UseCanvasModelsResult {
     const result = await api.status();
     setLoading(false);
     if (!result.ok) {
-      setError(result.error ?? 'Failed to load model settings');
+      setError(result.error ?? t('models.loadSettingsFailed'));
       return;
     }
     setError(undefined);
     setStatus(result.status);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -55,60 +57,62 @@ export function useCanvasModels(): UseCanvasModelsResult {
   }, [status]);
 
   const selectedLabel = useMemo(() => {
-    if (selection.mode === 'auto') return status?.apiKeyPresent ? 'Auto' : 'Auto';
-    return shortModelName(selection.modelId);
-  }, [selection, status?.apiKeyPresent]);
+    if (selection.mode === 'auto') return t('models.auto');
+    return shortModelName(selection.modelId, t('models.auto'));
+  }, [selection, t]);
 
   const selectAuto = useCallback(async () => {
     const result = await window.canvasWorkspace.model.setCurrent(undefined, undefined);
     if (!result.ok) {
-      setError(result.error ?? 'Failed to switch model');
-      return;
+      const message = result.error ?? t('models.switchFailed');
+      setError(message);
+      throw new Error(message);
     }
     setError(undefined);
     setStatus(result.status);
     broadcastModelStatus(result.status);
-  }, []);
+  }, [t]);
 
   const selectModel = useCallback(async (providerId: string, modelId: string) => {
     const result = await window.canvasWorkspace.model.setCurrent(modelId, providerId);
     if (!result.ok) {
-      setError(result.error ?? 'Failed to switch model');
-      return;
+      const message = result.error ?? t('models.switchFailed');
+      setError(message);
+      throw new Error(message);
     }
     setError(undefined);
     setStatus(result.status);
     broadcastModelStatus(result.status);
-  }, []);
+  }, [t]);
 
   const upsertProvider = useCallback(async (provider: CanvasModelProviderConfig) => {
     const result = await window.canvasWorkspace.model.upsertProvider(provider);
     if (!result.ok) {
-      setError(result.error ?? 'Failed to save provider');
+      setError(result.error ?? t('models.saveProviderFailed'));
       return undefined;
     }
     setError(undefined);
     setStatus(result.status);
     broadcastModelStatus(result.status);
     return result.status;
-  }, []);
+  }, [t]);
 
   const removeProvider = useCallback(async (providerId: string) => {
     const result = await window.canvasWorkspace.model.removeProvider(providerId);
     if (!result.ok) {
-      setError(result.error ?? 'Failed to remove provider');
+      setError(result.error ?? t('models.removeProviderFailed'));
       return;
     }
     setError(undefined);
     setStatus(result.status);
     broadcastModelStatus(result.status);
-  }, []);
+  }, [t]);
 
   const fetchModels = useCallback(async (provider: CanvasModelProviderConfig) => {
     const result = await window.canvasWorkspace.model.fetchModels(undefined, provider);
-    if (!result.ok) throw new Error(result.error ?? 'Failed to fetch models');
+    if (!result.ok) throw new Error(result.error ?? t('models.fetchFailed'));
     return result.models ?? [];
-  }, []);
+  }, [t]);
 
   return {
     status,

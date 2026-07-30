@@ -22,13 +22,13 @@ export const useEditableInputControl = ({
   setAttachments,
 }: Options) => {
   const clearInput = useCallback(() => {
+    if (editableRef.current) editableRef.current.innerHTML = '';
     setInput('');
     mentionBuildSeqRef.current++;
     setMentionOpen(false);
     setMentionItems([]);
     setMentionIndex(0);
     setAttachments([]);
-    if (editableRef.current) editableRef.current.innerHTML = '';
   }, [editableRef, mentionBuildSeqRef, setAttachments, setInput, setMentionIndex, setMentionItems, setMentionOpen]);
 
   const focusInput = useCallback(() => {
@@ -40,10 +40,10 @@ export const useEditableInputControl = ({
     setMentionOpen(false);
     setMentionItems([]);
     setMentionIndex(0);
-    setInput(text);
     const element = editableRef.current;
+    if (element) element.textContent = text;
+    setInput(text);
     if (!element) return;
-    element.textContent = text;
     const range = document.createRange();
     range.selectNodeContents(element);
     range.collapse(false);

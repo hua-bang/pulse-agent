@@ -4,6 +4,7 @@ import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 import { SessionTitle } from './SessionTitle';
+import { Button } from '../ui';
 
 interface ChatHeaderProps {
   title: ReactNode;
@@ -11,18 +12,23 @@ interface ChatHeaderProps {
   sessionMenuRef: RefObject<HTMLDivElement>;
   /** True while the session list is being (re)fetched. */
   sessionsLoading?: boolean;
+  /** Prevents session navigation/mutation while the active thread is opening. */
+  disabled?: boolean;
   sessions: Array<{
     sessionId: string;
     date: string;
     messageCount: number;
     isCurrent: boolean;
     preview?: string;
+    title?: string;
   }>;
   otherSessions: OtherWorkspaceSession[];
   onToggleSessionMenu: () => Promise<void>;
   onCloseSessionMenu: () => void;
   onNewSession: () => Promise<void>;
   onLoadSession: (sessionId: string, sourceWorkspaceId?: string) => Promise<void>;
+  onOpenOriginalSession?: (session: OtherWorkspaceSession) => void;
+  onCopyOtherSession?: (session: OtherWorkspaceSession) => Promise<void>;
   onOpenSettings: () => void;
   settingsLabel: string;
   onOpenPromptSettings: () => void;
@@ -38,12 +44,15 @@ export const ChatHeader = ({
   sessionMenuOpen,
   sessionMenuRef,
   sessionsLoading = false,
+  disabled = false,
   sessions,
   otherSessions,
   onToggleSessionMenu,
   onCloseSessionMenu,
   onNewSession,
   onLoadSession,
+  onOpenOriginalSession,
+  onCopyOtherSession,
   onOpenSettings,
   settingsLabel,
   onOpenPromptSettings,
@@ -90,6 +99,7 @@ export const ChatHeader = ({
           className="chat-panel-title-btn"
           onClick={() => void onToggleSessionMenu()}
           onKeyDown={handleTitleButtonKeyDown}
+          disabled={disabled}
           aria-haspopup="menu"
           aria-expanded={sessionMenuOpen}
           aria-controls={sessionMenuOpen ? menuId : undefined}
@@ -117,6 +127,7 @@ export const ChatHeader = ({
               className="chat-session-menu-new"
               role="menuitem"
               onClick={() => void onNewSession()}
+              disabled={disabled}
             >
               <PlusIcon size={14} strokeWidth={1.3} />
               <span>{t('chat.newAiChat')}</span>
@@ -140,6 +151,7 @@ export const ChatHeader = ({
                       role="menuitem"
                       aria-current={session.isCurrent ? 'true' : undefined}
                       data-menu-autofocus={session.isCurrent ? 'true' : undefined}
+                      disabled={disabled}
                       onClick={() => {
                         if (!session.isCurrent) {
                           void onLoadSession(session.sessionId);
@@ -150,8 +162,8 @@ export const ChatHeader = ({
                     >
                       <ListLinesIcon size={14} />
                       <span className="chat-session-menu-item-text">
-                        {session.preview
-                          ? <SessionTitle value={session.preview} />
+                        {session.title || session.preview
+                          ? <SessionTitle value={session.title ?? session.preview ?? ''} />
                           : (session.isCurrent ? t('chat.currentChat') : session.date)}
                       </span>
                       <span className="chat-session-menu-item-count">{session.messageCount}</span>
@@ -160,26 +172,51 @@ export const ChatHeader = ({
                 </div>
               </>
             )}
-            {otherSessions.length > 0 && (
+            {otherSessions.length > 0 && (onOpenOriginalSession || onCopyOtherSession) && (
               <>
                 <div className="chat-session-menu-divider" />
-                <div className="chat-session-menu-label">{t('chat.otherWorkspaces')}</div>
+                <div className="chat-session-menu-label">{t('chat.otherConversations')}</div>
                 <div className="chat-session-menu-list">
                   {otherSessions.map(session => (
-                    <button
+                    <div
                       key={session.sessionId}
-                      type="button"
-                      className="chat-session-menu-item chat-session-menu-item--other-ws"
-                      role="menuitem"
-                      onClick={() => void onLoadSession(session.sessionId, session.sourceWorkspaceId)}
+                      className="chat-session-menu-item chat-session-menu-item--other-ws chat-session-menu-item--actions"
+                      role="group"
+                      aria-label={session.workspaceName}
                     >
                       <ListLinesIcon size={14} />
                       <span className="chat-session-menu-item-text">
-                        {session.preview ? <SessionTitle value={session.preview} /> : session.date}
+                        {session.title || session.preview
+                          ? <SessionTitle value={session.title ?? session.preview ?? ''} />
+                          : session.date}
                       </span>
                       <span className="chat-session-menu-item-ws">{session.workspaceName}</span>
                       <span className="chat-session-menu-item-count">{session.messageCount}</span>
-                    </button>
+                      <span className="chat-session-menu-item-actions">
+                        {onOpenOriginalSession && (
+                          <Button
+                            variant="secondary"
+                            size="xs"
+                            role="menuitem"
+                            disabled={disabled}
+                            onClick={() => onOpenOriginalSession(session)}
+                          >
+                            {t('chat.openOriginal')}
+                          </Button>
+                        )}
+                        {onCopyOtherSession && (
+                          <Button
+                            variant="secondary"
+                            size="xs"
+                            role="menuitem"
+                            disabled={disabled}
+                            onClick={() => void onCopyOtherSession(session)}
+                          >
+                            {t('chat.copyToCurrent')}
+                          </Button>
+                        )}
+                      </span>
+                    </div>
                   ))}
                 </div>
               </>
@@ -215,9 +252,10 @@ export const ChatHeader = ({
         >
           <SettingsIcon size={16} strokeWidth={1.25} />
         </button>
-        <button
-          className="chat-panel-action-btn"
-          onClick={() => void onNewSession()}
+          <button
+            className="chat-panel-action-btn"
+            onClick={() => void onNewSession()}
+            disabled={disabled}
           title={t('chat.newAiChat')}
           aria-label={t('chat.newAiChat')}
         >

@@ -3,6 +3,7 @@ import { SpinnerGap, WarningCircle } from '@phosphor-icons/react';
 import type { ScheduledTask } from '../../../../shared/scheduled';
 import type { SettingsSection } from '../Settings';
 import type { WorkspaceOption } from '../chat/types';
+import type { AgentScope } from '../chat/types';
 import { ChatPanelLazy as ChatPanel } from '../chat/lazy';
 import { useI18n } from '../../i18n';
 import './index.css';
@@ -14,6 +15,7 @@ interface ScheduledChatPanelProps {
   onClose: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
   onTurnComplete: () => void;
+  onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }
 
 export const ScheduledChatPanel = ({
@@ -23,6 +25,7 @@ export const ScheduledChatPanel = ({
   onClose,
   onOpenAppSettings,
   onTurnComplete,
+  onOpenSessionInScope,
 }: ScheduledChatPanelProps) => {
   const { t } = useI18n();
   const [task, setTask] = useState<ScheduledTask>();
@@ -63,14 +66,17 @@ export const ScheduledChatPanel = ({
 
   return (
     <ChatPanel
-      key={`${taskId}:${revision}`}
+      key={taskId}
       agentScope={agentScope}
+      sessionRefreshKey={revision}
       allWorkspaces={allWorkspaces}
       banner={banner}
       pendingLabel={task?.status === 'running' ? t('scheduled.runningInline') : undefined}
+      chatTargetLabel={task?.title}
       onClose={onClose}
       onOpenAppSettings={onOpenAppSettings}
       onTurnComplete={onTurnComplete}
+      onOpenSessionInScope={onOpenSessionInScope}
     />
   );
 };

@@ -78,12 +78,14 @@ export interface CanvasModelStatus {
 }
 
 export interface ResolvedCanvasModel {
+  providerId?: string;
+  providerName?: string;
   providerType: CanvasModelProviderType;
   provider: LLMProviderFactory;
   model: string;
+  modelLabel: string;
   modelType?: ModelType;
 }
-
 export interface FetchCanvasModelsInput {
   providerId?: string;
   provider?: CanvasModelProviderConfig;
@@ -98,7 +100,6 @@ function normalizeStr(value: unknown): string | undefined {
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
 }
-
 function normalizeHeaders(headers: unknown): Record<string, string> | undefined {
   if (!headers || typeof headers !== 'object' || Array.isArray(headers)) {
     return undefined;
@@ -113,14 +114,12 @@ function normalizeHeaders(headers: unknown): Record<string, string> | undefined 
   }
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
-
 function normalizeProviderType(value: unknown): CanvasModelProviderType | undefined {
   const normalized = normalizeStr(value)?.toLowerCase();
   if (!normalized) return undefined;
   if (normalized === 'openai' || normalized === 'claude') return normalized;
   throw new Error(`Unsupported provider_type: ${String(value)}`);
 }
-
 function normalizeProviderId(value: unknown, fallback?: string): string {
   const raw = normalizeStr(value) ?? normalizeStr(fallback);
   if (!raw) throw new Error('Provider id is required');
@@ -131,7 +130,6 @@ function normalizeProviderId(value: unknown, fallback?: string): string {
   if (!normalized) throw new Error('Provider id is required');
   return normalized;
 }
-
 function normalizeModelId(value: unknown): string | undefined {
   return normalizeStr(value);
 }
@@ -585,9 +583,13 @@ export async function resolveCanvasModel(): Promise<ResolvedCanvasModel> {
       });
 
   return {
+    providerId: resolved.provider?.id,
+    providerName: resolved.provider?.name,
     providerType: resolved.providerType,
     provider,
     model: resolved.model,
+    modelLabel: normalizeProviderModels(resolved.provider?.models)
+      .find((entry) => entry.id === resolved.model)?.name ?? resolved.model,
     modelType: resolved.providerType === 'claude' ? 'claude' : 'openai',
   };
 }

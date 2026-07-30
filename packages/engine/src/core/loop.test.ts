@@ -77,7 +77,13 @@ describe('loop', () => {
       runContext,
       hooks: {
         beforeLLMCall: [beforeLLMCall],
-        beforeToolCall: [async ({ input }) => ({ input: { value: `${input.value}-before` } })],
+        beforeToolCall: [async ({ input, toolContext }) => ({
+          input: { value: `${input.value}-before` },
+          toolContext: {
+            ...toolContext,
+            runContext: { ...toolContext?.runContext, approved: true },
+          },
+        })],
         afterToolCall: [async ({ output }) => ({ output: `${output}-after` })],
       },
       onResponse,
@@ -92,9 +98,56 @@ describe('loop', () => {
     );
     expect(echoExecute).toHaveBeenCalledWith(
       expect.objectContaining({ value: 'seed-before' }),
-      expect.objectContaining({ runContext }),
+      expect.objectContaining({ runContext: { ...runContext, approved: true } }),
     );
     expect(onResponse).toHaveBeenCalledWith([{ role: 'assistant', content: 'step response' }]);
+  });
+
+  it('lets a final beforeToolCall policy short-circuit a late-injected tool', async () => {
+    const execute = vi.fn(async () => 'MUTATED');
+    const deny = vi.fn(async ({ name, toolContext }) => {
+      expect(name).toBe('mcp_demo_create_page');
+      expect(toolContext?.runContext).toEqual({ executionMode: 'ask' });
+      return {
+        output: { ok: false, cancelled: true, error: 'approval required' },
+      };
+    });
+    const context: Context = { messages: [{ role: 'user', content: 'create it' }] };
+
+    streamTextAIMock.mockImplementation((_messages, tools, options) => {
+      const output = tools.mcp_demo_create_page.execute(
+        { title: 'unsafe' },
+        { ...options.toolExecutionContext, toolCallId: 'mcp-call-1' },
+      );
+      return {
+        text: output.then((value: unknown) => JSON.stringify(value)),
+        steps: Promise.resolve([]),
+        finishReason: Promise.resolve('stop'),
+      } as any;
+    });
+
+    const result = await loop(context, {
+      tools: {},
+      runContext: { executionMode: 'ask' },
+      hooks: {
+        beforeLLMCall: [async ({ tools }) => ({
+          tools: {
+            ...tools,
+            mcp_demo_create_page: {
+              name: 'create_page',
+              description: 'late plugin tool',
+              inputSchema: {} as any,
+              execute,
+            },
+          },
+        })],
+        beforeToolCall: [deny],
+      },
+    });
+
+    expect(JSON.parse(result)).toMatchObject({ ok: false, cancelled: true });
+    expect(deny).toHaveBeenCalledOnce();
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it('prunes incomplete tool-call parts before calling the LLM without dropping later user turns', async () => {

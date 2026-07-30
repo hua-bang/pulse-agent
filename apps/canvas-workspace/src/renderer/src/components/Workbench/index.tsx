@@ -22,6 +22,8 @@ import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
 import { ScheduledChatPanel } from '../Scheduled/ScheduledChatPanel';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
+import { useOptionalChatTargetBroker } from '../chat/ChatTargetContext';
+import type { AgentScope } from '../chat/types';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
 const ReferenceDrawer = lazy(() => import('../ReferenceDrawer').then((m) => ({ default: m.ReferenceDrawer })));
@@ -38,6 +40,7 @@ interface WorkbenchProps {
   onOpenAppSettings: (section: SettingsSection) => void;
   /** Opens the settings drawer for a specific workspace. */
   onOpenWorkspaceSettings: (workspaceId: string) => void;
+  onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
   onSetActiveRootFolder: () => void;
 }
 export const Workbench: React.FC<WorkbenchProps> = ({
@@ -50,6 +53,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   onActivateWorkspace,
   onOpenAppSettings,
   onOpenWorkspaceSettings,
+  onOpenSessionInScope,
   onSetActiveRootFolder,
 }) => {
   const {
@@ -70,6 +74,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     clearRenameRequest,
   } = controller;
   const dock = useRightDock();
+  const chatTargetBroker = useOptionalChatTargetBroker();
   const dockState = useRightDockState();
   const chatHost = useRightDockChatHost();
   const chatPanelOpen = isDockChatVisible(dockState);
@@ -118,7 +123,11 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     registerInsertMention,
     registerStartSkillChat,
     registerSubmitDomReviewComments,
-  } = useChatInsertionBridge({ allNodes, openChat: dock.openChat });
+  } = useChatInsertionBridge({
+    allNodes,
+    openChat: dock.openChat,
+    deliverToActiveTarget: chatTargetBroker?.deliver,
+  });
 
   useEffect(() => dock.registerPinUrlReference(pinReferenceUrl), [dock, pinReferenceUrl]);
 
@@ -419,6 +428,12 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
                   onRegisterSubmitDomReviewComments={(fn) => registerSubmitDomReviewComments(ws.id, fn)}
                   onTurnComplete={dock.notifyChatActivity}
+                  chatTargetActive={chatPanelOpen
+                    && !scheduledChatTaskId
+                    && !knowledgeChatContext.active
+                    && ws.id === activeWorkspaceId}
+                  chatTargetLabel={ws.name}
+                  onOpenSessionInScope={onOpenSessionInScope}
                 />
               </div>
             ))}
@@ -431,12 +446,13 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onClose={dock.collapse}
                   onOpenAppSettings={onOpenAppSettings}
                   onTurnComplete={dock.notifyChatActivity}
+                  onOpenSessionInScope={onOpenSessionInScope}
                 />
               </div>
             )}
             {!scheduledChatTaskId && knowledgeChatContext.active && (
               <Suspense fallback={null}>
-                <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces} contextNodes={knowledgeChatContext.explicitContext?.nodes} contextTags={knowledgeChatContext.explicitContext?.tags} contextCanvases={knowledgeChatContext.explicitContext?.canvases} composerRequest={knowledgeChatContext.explicitContext?.composerRequest} onComposerRequestHandled={onKnowledgeComposerRequestHandled} onRemoveContext={onRemoveKnowledgeChatContext} onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTurnComplete={dock.notifyChatActivity} />
+                <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces} contextNodes={knowledgeChatContext.explicitContext?.nodes} contextTags={knowledgeChatContext.explicitContext?.tags} contextCanvases={knowledgeChatContext.explicitContext?.canvases} composerRequest={knowledgeChatContext.explicitContext?.composerRequest} onComposerRequestHandled={onKnowledgeComposerRequestHandled} onRemoveContext={onRemoveKnowledgeChatContext} onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTurnComplete={dock.notifyChatActivity} onOpenSessionInScope={onOpenSessionInScope} />
               </Suspense>
             )}</>,
           chatHost,

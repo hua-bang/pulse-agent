@@ -41,6 +41,8 @@ export function useStableSessionRail({
     const unified: UnifiedSession[] = [
       ...sessions.map((session) => ({
         ...session,
+        preview: session.title ?? session.preview,
+        isPinned: session.pinned,
         workspaceId: storeId,
         workspaceName,
         isCurrent: selectedSessionKey
@@ -53,7 +55,8 @@ export function useStableSessionRail({
         workspaceName: session.workspaceName,
         date: session.date,
         messageCount: session.messageCount,
-        preview: session.preview,
+        preview: session.title ?? session.preview,
+        isPinned: session.pinned,
         isCurrent: selectedSessionKey
           === `${session.sourceWorkspaceId}:${session.sessionId}`,
       })),

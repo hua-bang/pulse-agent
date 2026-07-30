@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -8,7 +8,7 @@ import { consumeClaudeStreamLine, createClaudeStreamState, runClaudeCodeSegment 
 import { resolveExternalCwd } from '../external/cwd';
 import { buildCodexArgs, consumeCodexStreamLine, createCodexStreamState, runCodexSegment } from '../external/codex';
 import { renderExternalSegmentPrompt } from '../external/prompt';
-import { runExternalRoleSegment } from '../external/segment';
+import { ExternalRoleApprovalError, runExternalRoleSegment } from '../external/segment';
 import { getExternalSessionId, saveExternalSessionId } from '../external/state-store';
 import { handoffTargetRoles } from '../role-turn';
 
@@ -108,6 +108,63 @@ describe('tool activity surfaces as chips (the silent-run fix)', () => {
     expect(results[1]).toMatchObject({ toolCallId: 'toolu_ghost', result: 'done' });
   });
 
+  it('marks Claude and Codex tool failures as failed instead of successful', () => {
+    const results: any[] = [];
+    const handlers = {
+      onText: () => {},
+      onToolResult: (event: any) => results.push(event),
+    };
+    const claude = createClaudeStreamState();
+    consumeClaudeStreamLine(claude, JSON.stringify({
+      type: 'user',
+      message: {
+        content: [{
+          type: 'tool_result',
+          tool_use_id: 'claude-failed',
+          is_error: true,
+          content: 'permission denied',
+        }],
+      },
+    }), handlers);
+
+    const codex = createCodexStreamState();
+    consumeCodexStreamLine(codex, JSON.stringify({
+      msg: {
+        type: 'exec_command_end',
+        call_id: 'codex-failed',
+        exit_code: 2,
+        aggregated_output: 'tests failed',
+      },
+    }), handlers);
+    consumeCodexStreamLine(codex, JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'patch-failed',
+        item_type: 'file_change',
+        status: 'failed',
+        output: 'patch rejected',
+      },
+    }), handlers);
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        toolCallId: 'claude-failed',
+        status: 'failed',
+        error: 'permission denied',
+      }),
+      expect.objectContaining({
+        toolCallId: 'codex-failed',
+        status: 'failed',
+        error: 'tests failed',
+      }),
+      expect.objectContaining({
+        toolCallId: 'patch-failed',
+        status: 'failed',
+        error: 'patch rejected',
+      }),
+    ]);
+  });
+
   it('claude: text still streams alongside tool blocks in the same assistant message', () => {
     const state = createClaudeStreamState();
     const deltas: string[] = [];
@@ -168,7 +225,7 @@ describe('tool activity surfaces as chips (the silent-run fix)', () => {
     expect(text).toBe('看完了。');
     expect(live).toEqual(['call:Read', 'result:Read']);
     expect(toolCalls).toEqual([
-      { id: 1, name: 'Read', toolCallId: 'tu1', status: 'done', args: { file_path: 'README.md' }, result: '# demo' },
+      { id: 1, name: 'Read', toolCallId: 'tu1', status: 'succeeded', args: { file_path: 'README.md' }, result: '# demo' },
     ]);
   });
 });
@@ -253,6 +310,44 @@ describe('claude-code adapter + segment orchestration (fake CLI)', () => {
 
     expect(text).toContain('改完了');
     expect(existsSync(join(dir, 'homes', r.id))).toBe(true);
+  });
+
+  it('does not start an external role in Ask mode without explicit approval', async () => {
+    const marker = join(dir, 'external-started');
+    const executable = join(dir, 'must-not-start');
+    writeFileSync(executable, [
+      '#!/usr/bin/env node',
+      `require('fs').writeFileSync(${JSON.stringify(marker)}, 'started');`,
+    ].join('\n'));
+    chmodSync(executable, 0o755);
+    process.env.PULSE_CANVAS_CLAUDE_CODE_CMD = executable;
+    const r = role({ external: { family: 'claude-code', cwd: dir } });
+    const onApprovalRequest = vi.fn(async () => 'No');
+
+    await expect(runExternalRoleSegment({
+      role: r, external: r.external!, chatSessionId: 'chat-ask-denied',
+      history: [], currentAsk: '修改代码', handoffNames: [],
+      executionMode: 'ask', onApprovalRequest,
+      abortSignal: new AbortController().signal, onText: () => {},
+    })).rejects.toBeInstanceOf(ExternalRoleApprovalError);
+
+    expect(onApprovalRequest).toHaveBeenCalledWith(expect.objectContaining({
+      question: expect.stringContaining('external_role_claude-code'),
+      defaultAnswer: 'No',
+    }));
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it('fails closed before spawning an external role when Ask approval is unavailable', async () => {
+    process.env.PULSE_CANVAS_CLAUDE_CODE_CMD = installFakeClaude();
+    const r = role({ external: { family: 'claude-code', cwd: dir } });
+
+    await expect(runExternalRoleSegment({
+      role: r, external: r.external!, chatSessionId: 'chat-ask-no-channel',
+      history: [], currentAsk: '修改代码', handoffNames: [],
+      executionMode: 'ask',
+      abortSignal: new AbortController().signal, onText: () => {},
+    })).rejects.toThrow(/Approval unavailable/);
   });
 
   it('retries once on a stale resume and persists the fresh session id', async () => {

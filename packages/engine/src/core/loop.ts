@@ -278,10 +278,24 @@ function wrapToolsWithHooks(
       execute: async (input: any, ctx: any) => {
         // Run all beforeToolCall hooks sequentially
         let finalInput = input;
+        let finalToolContext = ctx;
+        let shortCircuitOutput: { value: any } | undefined;
         for (const hook of beforeHooks) {
-          const result = await hook({ context, name, input: finalInput });
+          const result = await hook({
+            context,
+            name,
+            input: finalInput,
+            toolContext: finalToolContext,
+          });
           if (result && 'input' in result) {
             finalInput = result.input;
+          }
+          if (result && 'toolContext' in result) {
+            finalToolContext = result.toolContext;
+          }
+          if (result && 'output' in result) {
+            shortCircuitOutput = { value: result.output };
+            break;
           }
         }
 
@@ -292,7 +306,9 @@ function wrapToolsWithHooks(
         });
 
         try {
-          const output = await t.execute(finalInput, ctx);
+          const output = shortCircuitOutput
+            ? shortCircuitOutput.value
+            : await t.execute(finalInput, finalToolContext);
 
           // Run all afterToolCall hooks sequentially
           let finalOutput = output;

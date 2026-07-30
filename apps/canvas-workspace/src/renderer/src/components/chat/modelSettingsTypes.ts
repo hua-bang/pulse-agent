@@ -29,8 +29,8 @@ export const providerLabel = (type?: CanvasModelProviderType) => (
   type === 'claude' ? 'Claude' : 'OpenAI Compatible'
 );
 
-export const shortModelName = (model?: string) => {
-  if (!model) return 'Auto';
+export const shortModelName = (model: string | undefined, fallback: string) => {
+  if (!model) return fallback;
   const parts = model.split('/');
   return parts[parts.length - 1] || model;
 };

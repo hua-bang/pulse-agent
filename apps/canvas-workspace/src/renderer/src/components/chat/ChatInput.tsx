@@ -1,12 +1,12 @@
-import { useMemo, useState, type ClipboardEventHandler, type KeyboardEventHandler, type ReactNode, type RefObject } from 'react';
+import { useMemo, type ClipboardEventHandler, type KeyboardEventHandler, type ReactNode, type RefObject } from 'react';
 import type { CanvasModelStatus, ChatImageAttachment } from '../../types';
 import { ImageIcon, PlusIcon } from '../icons';
-import { toFileUrl } from '../../utils/fileUrl';
 import { MentionNodeIcon } from './utils/mentions';
 import { ModelSwitcher } from './ModelSettings';
 import type { SelectedContextChip } from './types';
 import { useI18n } from '../../i18n';
-import { ChatImageLightbox, type LightboxImage } from './ChatImageLightbox';
+import { CHAT_MENTION_LISTBOX_ID, chatMentionOptionId } from './ChatMentionPopup';
+import { ChatInputAttachments } from './ChatInputAttachments';
 
 interface ChatInputProps {
   loading: boolean;
@@ -18,7 +18,11 @@ interface ChatInputProps {
   contextComposer?: boolean;
   knowledgeMode?: boolean;
   placeholder?: string;
-  executionMode?: 'auto' | 'ask';
+  executionMode?: 'auto' | 'ask' | 'scheduled';
+  /** Blocks submitting the current draft, for example while a session opens. */
+  sendDisabled?: boolean;
+  /** Blocks controls that could mutate the conversation while a session opens. */
+  interactionDisabled?: boolean;
   modelStatus?: CanvasModelStatus;
   modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
   modelLabel?: string;
@@ -27,11 +31,14 @@ interface ChatInputProps {
   onOpenModelSettings?: () => void;
   editableRef: RefObject<HTMLDivElement>;
   mentionPopup?: ReactNode;
+  mentionOpen?: boolean;
+  mentionIndex?: number;
   onInput: () => void;
   onKeyDown: KeyboardEventHandler<HTMLDivElement>;
   onPaste: ClipboardEventHandler<HTMLDivElement>;
   onAttachFiles?: (files: FileList | File[]) => void;
   onRemoveAttachment?: (id: string) => void;
+  onRetryAttachment?: (id: string) => void;
   onSend: () => Promise<boolean>;
   onAbort: () => Promise<void>;
   onToggleExecutionMode?: () => void;
@@ -50,19 +57,24 @@ export const ChatInput = ({
   knowledgeMode = false,
   placeholder,
   executionMode = 'auto',
+  sendDisabled = false,
+  interactionDisabled = false,
   modelStatus,
   modelSelection = { mode: 'auto' },
-  modelLabel = 'Auto',
+  modelLabel,
   onSelectAutoModel,
   onSelectModel,
   onOpenModelSettings,
   editableRef,
   mentionPopup,
+  mentionOpen = false,
+  mentionIndex = 0,
   onInput,
   onKeyDown,
   onPaste,
   onAttachFiles,
   onRemoveAttachment,
+  onRetryAttachment,
   onSend,
   onAbort,
   onToggleExecutionMode,
@@ -73,11 +85,20 @@ export const ChatInput = ({
     ? selectedContext
     : [];
   const showContextChips = showContextChipsProp && contextComposer && contextChips.length > 0 && !loading;
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const lightboxImages = useMemo<LightboxImage[]>(() => attachments.map(attachment => ({
-    src: toFileUrl(attachment.path),
-    caption: attachment.fileName,
-  })), [attachments]);
+  const readyAttachments = useMemo(
+    () => attachments.filter(attachment => (attachment.status ?? 'ready') === 'ready' && attachment.path),
+    [attachments],
+  );
+  const attachmentSendBlocked = attachments.some(
+    attachment => attachment.status === 'uploading' || attachment.status === 'failed',
+  );
+  const hasSendableContent = Boolean(input.trim() || readyAttachments.length > 0);
+  const canSend = hasSendableContent && !sendDisabled && !attachmentSendBlocked;
+  const executionLabel = executionMode === 'scheduled'
+    ? t('chat.execution.scheduled')
+    : executionMode === 'ask'
+      ? t('chat.execution.ask')
+      : t('chat.execution.auto');
 
   return (
     <div className="chat-input-container">
@@ -106,8 +127,9 @@ export const ChatInput = ({
                     type="button"
                     className="chat-context-chip-remove"
                     onClick={() => onRemoveContext(chip.key)}
-                    aria-label={t('chat.removeContext')}
-                    title={t('chat.removeContext')}
+                    disabled={interactionDisabled}
+                    aria-label={t('chat.removeContext', { name: chip.label })}
+                    title={t('chat.removeContext', { name: chip.label })}
                   >
                     ×
                   </button>
@@ -116,45 +138,26 @@ export const ChatInput = ({
             ))}
           </div>
         )}
-        {attachments.length > 0 && (
-          <div className="chat-attachment-strip" aria-label={t('chat.pendingImages')}>
-            {attachments.map((attachment, attachmentIndex) => (
-              <div
-                key={attachment.id}
-                className="chat-attachment-chip"
-                role="button"
-                tabIndex={0}
-                title={attachment.fileName ?? t('chat.imageViewer')}
-                onClick={() => setLightboxIndex(attachmentIndex)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    setLightboxIndex(attachmentIndex);
-                  }
-                }}
-              >
-                <img src={toFileUrl(attachment.path)} alt={attachment.fileName ?? t('chat.attachmentAlt')} />
-                <span>{attachment.fileName ?? t('chat.imageFallback')}</span>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onRemoveAttachment?.(attachment.id);
-                  }}
-                  onKeyDown={(event) => event.stopPropagation()}
-                  aria-label={t('chat.removeImage')}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <ChatInputAttachments
+          attachments={attachments}
+          readyAttachments={readyAttachments}
+          interactionDisabled={interactionDisabled}
+          onRemoveAttachment={onRemoveAttachment}
+          onRetryAttachment={onRetryAttachment}
+        />
         <div
           ref={editableRef}
           className="chat-input"
-          contentEditable={true}
-          role="textbox"
+          contentEditable={!interactionDisabled}
+          role="combobox"
+          aria-disabled={interactionDisabled || undefined}
+          aria-label={t('chat.messageInput')}
+          aria-multiline="true"
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
+          aria-expanded={mentionOpen}
+          aria-controls={mentionOpen ? CHAT_MENTION_LISTBOX_ID : undefined}
+          aria-activedescendant={mentionOpen ? chatMentionOptionId(mentionIndex) : undefined}
           data-placeholder={placeholder ?? (knowledgeMode
             ? (contextChips.length === 1 && contextChips[0]?.kind === 'node'
               ? t('chat.askCurrentNode')
@@ -183,6 +186,7 @@ export const ChatInput = ({
                 className="chat-input-icon-btn"
                 title={t('chat.addContext')}
                 aria-label={t('chat.addContext')}
+                disabled={interactionDisabled}
                 onClick={() => {
                   editableRef.current?.focus();
                   document.execCommand('insertText', false, '@');
@@ -191,11 +195,12 @@ export const ChatInput = ({
               >
                 <PlusIcon size={18} strokeWidth={1.35} />
               </button>
-              <button
+              {onAttachFiles && <button
                 type="button"
                 className="chat-input-icon-btn"
                 title={t('chat.addImage')}
                 aria-label={t('chat.addImage')}
+                disabled={interactionDisabled}
                 onClick={() => {
                   const input = document.createElement('input');
                   input.type = 'file';
@@ -208,7 +213,7 @@ export const ChatInput = ({
                 }}
               >
                 <ImageIcon size={18} strokeWidth={1.35} />
-              </button>
+              </button>}
               </>
             ) : loading ? (
               <div className="chat-generating-indicator" aria-live="polite">
@@ -224,15 +229,32 @@ export const ChatInput = ({
               <ModelSwitcher
                 status={modelStatus}
                 selection={modelSelection}
-                label={modelLabel}
+                label={modelLabel ?? t('models.auto')}
+                disabled={interactionDisabled || loading}
                 onSelectAuto={onSelectAutoModel}
                 onSelectModel={onSelectModel}
                 onOpenSettings={onOpenModelSettings}
               />
             )}
-            {/* Auto/Ask execution-mode toggle hidden — onToggleExecutionMode
-                + executionMode state are still wired through so this can be
-                re-enabled by uncommenting once the UX lands. */}
+            {executionMode === 'scheduled' ? (
+              <span
+                className="chat-execution-mode-btn chat-execution-mode-btn--readonly"
+                aria-label={t('chat.executionModeLabel', { mode: executionLabel })}
+              >
+                {executionLabel}
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="chat-execution-mode-btn"
+                aria-label={t('chat.executionModeLabel', { mode: executionLabel })}
+                aria-pressed={executionMode === 'ask'}
+                disabled={interactionDisabled || !onToggleExecutionMode}
+                onClick={onToggleExecutionMode}
+              >
+                {executionLabel}
+              </button>
+            )}
             {loading ? (
               <button
                 className="chat-send-btn chat-send-btn--stop"
@@ -246,10 +268,11 @@ export const ChatInput = ({
               </button>
             ) : (
               <button
-                className={`chat-send-btn${(input.trim() || attachments.length > 0) ? ' chat-send-btn--active' : ''}`}
+                className={`chat-send-btn${canSend ? ' chat-send-btn--active' : ''}`}
                 onClick={() => void onSend()}
-                disabled={!input.trim() && attachments.length === 0}
+                disabled={!canSend}
                 title={t('chat.sendMessage')}
+                aria-label={t('chat.sendMessage')}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M8 13V4.5M8 4.5l-3.5 3.5M8 4.5l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -259,13 +282,6 @@ export const ChatInput = ({
           </div>
         </div>
       </div>
-      {lightboxIndex !== null && lightboxImages[lightboxIndex] && (
-        <ChatImageLightbox
-          images={lightboxImages}
-          startIndex={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
-        />
-      )}
     </div>
   );
 };

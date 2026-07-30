@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type { AgentContextDomSelectionRef, AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment } from '../../../types';
 import { isImeComposing } from '../../../utils/ime';
 import {
@@ -11,11 +18,18 @@ import type { AgentScope } from '../types';
 import { buildTabMentionItems, collectContextRefsFromEditable, createMentionChipElement, serializeEditable, withCollectedTabs } from '../utils/mentions';
 import { appendMentionChipToEditable } from '../utils/editableMentions';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
-import { buildAttachmentFileName } from './attachmentFileName';
 import { flattenEntries } from './fileMentionItems';
 import { loadRoleMentionItems } from './roleMentionItems';
 import { useEditableInputControl } from './useEditableInputControl';
 import { useSkillMentionInsertion } from './useSkillMentionInsertion';
+import { chatScopeId } from '../ChatTargetContext';
+import {
+  getChatComposerDraft,
+  subscribeChatComposerDraft,
+  updateChatComposerDraft,
+} from './chatComposerDraftStore';
+import { useChatAttachments } from './useChatAttachments';
+import { buildStaticMentionItems } from './staticMentionItems';
 interface UseMentionsOptions {
   allWorkspaces?: WorkspaceOption[];
   agentScope: AgentScope;
@@ -56,27 +70,61 @@ export function useMentions({
   getRequestContext,
   isSubmitBlocked,
 }: UseMentionsOptions) {
-  const [input, setInput] = useState('');
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
   const [mentionIndex, setMentionIndex] = useState(0);
-  const [attachments, setAttachments] = useState<ChatImageAttachment[]>([]);
   const editableRef = useRef<HTMLDivElement>(null);
-  const filesCacheRef = useRef<MentionItem[] | null>(null);
-  const skillsCacheRef = useRef<MentionItem[] | null>(null);
+  const filesCacheRef = useRef(new Map<string, MentionItem[]>());
+  const skillsCacheRef = useRef(new Map<string, MentionItem[]>());
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
-  /**
-   * Which trigger char opened the popup — '@' lists workspaces/nodes/files,
-   * '/' lists skills. Captured at popup-open time so selectMention knows
-   * which prefix to strip when it splices the chip in.
-   */
+  const attachmentsEnabled = agentScope.kind === 'workspace';
+  const scopeId = chatScopeId(agentScope);
+  const subscribeDraft = useCallback(
+    (listener: () => void) => subscribeChatComposerDraft(scopeId, listener),
+    [scopeId],
+  );
+  const readDraft = useCallback(() => getChatComposerDraft(scopeId), [scopeId]);
+  const draft = useSyncExternalStore(subscribeDraft, readDraft, readDraft);
+  const input = draft.input;
+  const attachments = draft.attachments;
+  const setInput = useCallback((value: string) => {
+    updateChatComposerDraft(scopeId, previous => ({
+      ...previous,
+      input: value,
+      html: editableRef.current?.innerHTML ?? previous.html,
+    }));
+  }, [scopeId]);
+  const setAttachments = useCallback((
+    value: ChatImageAttachment[] | ((previous: ChatImageAttachment[]) => ChatImageAttachment[]),
+  ) => {
+    updateChatComposerDraft(scopeId, previous => ({
+      ...previous,
+      attachments: typeof value === 'function' ? value(previous.attachments) : value,
+    }));
+  }, [scopeId]);
+  const chatAttachments = useChatAttachments({
+    scopeId,
+    attachments,
+    setAttachments,
+  });
+  const handleAttachFiles = useCallback((files: FileList | File[]) => {
+    if (attachmentsEnabled) chatAttachments.handleAttachFiles(files);
+  }, [attachmentsEnabled, chatAttachments.handleAttachFiles]);
+
+  useLayoutEffect(() => {
+    const element = editableRef.current;
+    if (element && element.innerHTML !== draft.html) element.innerHTML = draft.html;
+  }, [draft.html, scopeId]);
+
+  useEffect(() => {
+    mentionBuildSeqRef.current++;
+    setMentionOpen(false);
+    setMentionItems([]);
+    setMentionIndex(0);
+  }, [scopeId]);
+  /** Trigger whose query selectMention must replace. */
   const mentionTriggerRef = useRef<'@' | '/'>('@');
-  /**
-   * Monotonic id of the latest popup build. buildMentionItems is async (file
-   * listing, session search), so when the user types quickly an older, slower
-   * build can resolve after a newer one — or after the popup was dismissed —
-   * and must not apply its stale items / reopen the popup.
-   */
+  /** Prevents stale async popup builds from repainting or reopening. */
   const mentionBuildSeqRef = useRef(0);
 
   const insertNodeMention = useCallback((node: CanvasNode, sourceWorkspaceId?: string) => {
@@ -126,17 +174,19 @@ export function useMentions({
   });
 
   const loadSkillItems = useCallback(async (): Promise<MentionItem[]> => {
-    if (skillsCacheRef.current) return skillsCacheRef.current;
+    const cached = skillsCacheRef.current.get(scopeId);
+    if (cached) return cached;
     try {
       const result = await window.canvasWorkspace.agent.listSkills({ scope: agentScope });
-      skillsCacheRef.current = result.ok && result.skills
+      const items: MentionItem[] = result.ok && result.skills
         ? result.skills.map(s => ({ type: 'skill', label: s.name, description: s.description }))
         : [];
+      skillsCacheRef.current.set(scopeId, items);
     } catch {
-      skillsCacheRef.current = [];
+      skillsCacheRef.current.set(scopeId, []);
     }
-    return skillsCacheRef.current;
-  }, [agentScope]);
+    return skillsCacheRef.current.get(scopeId) ?? [];
+  }, [agentScope, scopeId]);
 
   const buildMentionItems = useCallback(async (query: string, trigger: '@' | '/') => {
     if (trigger === '/') {
@@ -159,59 +209,28 @@ export function useMentions({
 
     if (dockTabs) items.push(...buildTabMentionItems(dockTabs));
 
-    if (allWorkspaces) {
-      for (const workspace of allWorkspaces) {
-        if (workspace.id === workspaceId) continue;
-        items.push({ type: 'workspace', label: workspace.name, workspaceId: workspace.id });
-      }
-    }
-
-    if (workspaceId && nodes) {
-      for (const node of nodes) {
-        items.push({
-          type: 'node',
-          nodeId: node.id,
-          label: getNodeDisplayLabel(node),
-          nodeType: node.type,
-          path: (node.data as any)?.filePath,
-        });
-      }
-    }
-
-    // Cross-workspace knowledge candidates (global Nodes/detail assistant). Each
-    // node carries its workspaceId; each tag the workspaces it occurs in, so the
-    // structured context collected at send time resolves precisely.
-    if (knowledgeNodes) {
-      for (const node of knowledgeNodes) {
-        const workspaceName = allWorkspaces?.find((workspace) => workspace.id === node.workspaceId)?.name;
-        items.push({
-          type: 'node', nodeId: node.id, label: node.title, nodeType: node.type,
-          workspaceId: node.workspaceId,
-          description: workspaceName,
-        });
-      }
-    }
-    if (knowledgeTags) {
-      for (const tag of knowledgeTags) {
-        items.push({ type: 'tag', label: tag.name, workspaceIds: tag.workspaceIds });
-      }
-    }
+    items.push(...buildStaticMentionItems({
+      allWorkspaces,
+      workspaceId,
+      nodes,
+      knowledgeNodes,
+      knowledgeTags,
+    }));
 
     if (workspaceId && rootFolder) {
-      if (!filesCacheRef.current) {
+      const filesCacheKey = `${scopeId}:${rootFolder}`;
+      if (!filesCacheRef.current.has(filesCacheKey)) {
         try {
           const result = await window.canvasWorkspace.file.listDir(rootFolder, 2);
-          filesCacheRef.current = result.ok && result.entries
+          filesCacheRef.current.set(filesCacheKey, result.ok && result.entries
             ? flattenEntries(result.entries, rootFolder)
-            : [];
+            : []);
         } catch {
-          filesCacheRef.current = [];
+          filesCacheRef.current.set(filesCacheKey, []);
         }
       }
 
-      if (filesCacheRef.current) {
-        items.push(...filesCacheRef.current);
-      }
+      items.push(...(filesCacheRef.current.get(filesCacheKey) ?? []));
     }
 
     const normalizedQuery = query.toLowerCase();
@@ -219,12 +238,7 @@ export function useMentions({
       ? items.filter(item => item.label.toLowerCase().includes(normalizedQuery))
       : items;
 
-    // Past chat sessions, matched by the first user message plus workspace
-    // name — deliberately not message content, to keep the per-keystroke
-    // cost low. Put that distinctive first message in the result title;
-    // workspace and date are supporting metadata. Only surface sessions when
-    // the user typed a query — the default (empty) popup stays
-    // nodes/files/canvases only.
+    // Session search is query-only; the empty popup stays focused on context.
     if (normalizedQuery) {
       try {
         const result = await window.canvasWorkspace.agent.searchSessions(query, 5);
@@ -251,7 +265,7 @@ export function useMentions({
     });
 
     return filtered.slice(0, MENTION_MAX_ITEMS);
-  }, [allWorkspaces, dockTabs, knowledgeNodes, knowledgeTags, loadSkillItems, nodes, rootFolder, workspaceId]);
+  }, [allWorkspaces, dockTabs, knowledgeNodes, knowledgeTags, loadSkillItems, nodes, rootFolder, scopeId, workspaceId]);
 
   const handleInput = useCallback(() => {
     const element = editableRef.current;
@@ -299,9 +313,7 @@ export function useMentions({
     });
   }, [buildMentionItems]);
 
-  // Dismiss the mention popup when the user clicks anywhere outside the
-  // composer or the popup itself — otherwise it lingers until Escape or a
-  // selection, which reads as stuck.
+  // Dismiss when focus moves outside the composer/popup.
   useEffect(() => {
     if (!mentionOpen) return;
     const handleMouseDown = (event: MouseEvent) => {
@@ -363,6 +375,7 @@ export function useMentions({
 
   const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {
     if (isSubmitBlocked?.()) return false;
+    if (attachmentsEnabled && chatAttachments.sendBlocked) return false;
     let ctx = requestContext ?? getRequestContext?.();
     // Tab mentions are collected for both hosts (see withCollectedTabs).
     if (editableRef.current) ctx = withCollectedTabs(editableRef.current, ctx);
@@ -380,12 +393,17 @@ export function useMentions({
         };
       }
     }
-    const ok = await onSubmit(input, ctx, attachments);
+    const readyAttachments = attachmentsEnabled
+      ? attachments.filter(attachment => (
+        attachment.status === undefined || attachment.status === 'ready'
+      ))
+      : [];
+    const ok = await onSubmit(input, ctx, readyAttachments);
     if (ok) {
       clearInput();
     }
     return ok;
-  }, [attachments, clearInput, collectStructuredContext, getRequestContext, input, isSubmitBlocked, onSubmit]);
+  }, [attachments, attachmentsEnabled, chatAttachments.sendBlocked, clearInput, collectStructuredContext, getRequestContext, input, isSubmitBlocked, onSubmit]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     // While an IME composition is active (Chinese/Japanese/Korean input),
@@ -426,43 +444,9 @@ export function useMentions({
     }
   }, [mentionIndex, mentionItems, mentionOpen, selectMention, submitCurrentInput]);
 
-  const attachImageFile = useCallback(async (file: File) => {
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? ''));
-      reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file'));
-      reader.readAsDataURL(file);
-    });
-    const base64 = dataUrl.split(',')[1];
-    if (!base64) return;
-    const ext = file.type.replace('image/', '').split(';')[0] || 'png';
-    const saved = await window.canvasWorkspace.file.saveImage(workspaceId ?? '__global_chat__', base64, ext);
-    if (!saved.ok || !saved.filePath) return;
-    setAttachments(prev => [
-      ...prev,
-      {
-        id: `attachment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        path: saved.filePath!,
-        fileName: buildAttachmentFileName(file, ext),
-        mimeType: file.type || `image/${ext}`,
-      },
-    ]);
-  }, [workspaceId]);
-
-  const removeAttachment = useCallback((id: string) => {
-    setAttachments(prev => prev.filter(item => item.id !== id));
-  }, []);
-
-  const handleAttachFiles = useCallback((files: FileList | File[]) => {
-    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-    for (const file of imageFiles) {
-      void attachImageFile(file);
-    }
-  }, [attachImageFile]);
-
   const handlePaste = useCallback((event: React.ClipboardEvent) => {
     const imageFiles = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'));
-    if (imageFiles.length > 0) {
+    if (attachmentsEnabled && imageFiles.length > 0) {
       event.preventDefault();
       handleAttachFiles(imageFiles);
       return;
@@ -470,11 +454,12 @@ export function useMentions({
     event.preventDefault();
     const text = event.clipboardData.getData('text/plain');
     document.execCommand('insertText', false, text);
-  }, [handleAttachFiles]);
+  }, [attachmentsEnabled, handleAttachFiles]);
 
   return {
     clearInput,
-    attachments,
+    attachments: attachmentsEnabled ? attachments : [],
+    attachmentSendBlocked: attachmentsEnabled && chatAttachments.sendBlocked,
     editableRef,
     focusInput,
     handleAttachFiles,
@@ -488,7 +473,8 @@ export function useMentions({
     mentionIndex,
     mentionItems,
     mentionOpen,
-    removeAttachment,
+    removeAttachment: chatAttachments.removeAttachment,
+    retryAttachment: chatAttachments.retryAttachment,
     replaceInput,
     selectMention,
     setMentionIndex,
