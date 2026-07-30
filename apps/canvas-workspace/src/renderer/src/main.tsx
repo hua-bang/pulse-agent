@@ -1,15 +1,15 @@
-import { createRoot } from "react-dom/client";
-import { Router } from "wouter";
-import { useHashLocation } from "wouter/use-hash-location";
-import App from "./App";
-import "./styles.css";
+import { createRoot } from 'react-dom/client';
+import { Router } from 'wouter';
+import { useHashLocation } from 'wouter/use-hash-location';
+import App from './App';
+import './styles.css';
 import {
   activateConfiguredFederatedRendererPlugins,
   activateCanvasPlugins,
   BUILT_IN_RENDERER_PLUGINS,
-} from "../../plugins/renderer";
-import { installPerfMonitor, markOnce } from "./perf/monitor";
-import { installJankMonitor } from "./perf/jank-monitor";
+} from '../../plugins/renderer';
+import { installPerfMonitor, markOnce } from './perf/monitor';
+import { installJankMonitor } from './perf/jank-monitor';
 
 installPerfMonitor();
 installJankMonitor();

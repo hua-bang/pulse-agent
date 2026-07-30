@@ -1,8 +1,8 @@
-import { useCallback, useMemo } from "react";
-import type { Editor } from "@tiptap/react";
-import { BubbleMenu } from "@tiptap/react/menus";
-import { useI18n } from "../../i18n";
-import { HIGHLIGHT_COLOR_PRESETS, TEXT_COLOR_PRESETS } from "./colorPresets";
+import { useCallback, useMemo } from 'react';
+import type { Editor } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
+import { useI18n } from '../../i18n';
+import { HIGHLIGHT_COLOR_PRESETS, TEXT_COLOR_PRESETS } from './colorPresets';
 
 export const TextSelectionBubble = ({ editor, editing }: { editor: Editor; editing: boolean }) => {
   const { t } = useI18n();

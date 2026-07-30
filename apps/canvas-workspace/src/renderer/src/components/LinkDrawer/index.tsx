@@ -9,8 +9,8 @@
  * `onTitleChange`.
  */
 
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { useI18n } from "../../i18n";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useI18n } from '../../i18n';
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { useInitialWebviewLoadSlot } from '../EmbeddedBrowser/useInitialWebviewLoadSlot';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
@@ -23,13 +23,13 @@ import {
   useDockWebviewDiscard,
 } from './useDockWebviewLifecycle';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import { pickFaviconUrl } from "../IframeNodeBody/utils";
+import { pickFaviconUrl } from '../IframeNodeBody/utils';
 import { useAppShell } from '../AppShellProvider';
 import type { AgentContextDomSelectionRef } from '../../types';
-import { ExternalLinkIcon, PlusIcon } from "../icons";
-import { Button, TextField, clampIndexMove } from "../ui";
-import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../shared/experimental-features";
-import "./index.css";
+import { ExternalLinkIcon, PlusIcon } from '../icons';
+import { Button, TextField, clampIndexMove } from '../ui';
+import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from '../../../../shared/experimental-features';
+import './index.css';
 
 /** Google blocks account sign-in inside embedded browsers (WebView policy);
  *  detect its sign-in host so we can steer the user to the system browser. */
