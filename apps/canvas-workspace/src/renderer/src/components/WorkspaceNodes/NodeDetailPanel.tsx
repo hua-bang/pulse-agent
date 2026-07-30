@@ -1,11 +1,13 @@
+import { useCallback, useEffect, useState } from 'react';
 import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
 import { useI18n } from '../../i18n';
-import { ChevronRightIcon, NodeTypeIcon, SparklesIcon } from '../icons';
+import { ChevronRightIcon, CopyIcon, NodeTypeIcon, SparklesIcon } from '../icons';
 import { NodeCanvasPreview } from './NodeCanvasPreview';
 import { NodeRelationEditor } from './NodeRelationEditor';
 import { NodeTagEditor } from './NodeTagEditor';
 import { NodeTitleEditor } from './NodeTitleEditor';
 import { Button } from '../ui';
+import { dispatchFocusNodeOnCanvas, nodeLinkHref } from '../../utils/openNodeBridge';
 import { formatTime, getNodeAiSummary, getNodeTags, getNodeTypeLabel, isKnowledgeNodeType } from './utils';
 // index.css owns the tag/chip classes and `--nodes-*` tokens this panel's
 // subtree (NodeTagEditor, NodeRelationEditor) relies on. The Nodes pages get
@@ -20,6 +22,8 @@ interface NodeDetailPanelProps {
   workspaceId: string;
   loading?: boolean;
   error?: string | null;
+  /** The record was read successfully and simply is not there any more. */
+  missing?: boolean;
   mode?: 'page' | 'dock';
   tagDefinitions?: KnowledgeTagDefinition[];
   relationCandidates?: WorkspaceNodeListItem[];
@@ -28,7 +32,24 @@ interface NodeDetailPanelProps {
   onTagsChanged?: () => void;
   onOpenPage?: () => void;
   onBack?: () => void;
+  onRetry?: () => void;
+  /** Dismiss the host surface once its node is gone (dock: close the tab). */
+  onClose?: () => void;
 }
+
+/** Crosshair — "show me where this lives on the canvas". Inline by the icons
+ *  module's own scope rule: single-use glyphs stay with their context. */
+const TargetGlyph = () => (
+  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    <circle cx="7" cy="7" r="2.1" stroke="currentColor" strokeWidth="1.3" />
+    <path
+      d="M7 1.6v2.1M7 10.3v2.1M1.6 7h2.1M10.3 7h2.1"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+    />
+  </svg>
+);
 
 const propertyEntries = (node: WorkspaceNodeRecord | null) => {
   if (!node?.properties) return [];
@@ -54,6 +75,7 @@ export const NodeDetailPanel = ({
   workspaceId,
   loading,
   error,
+  missing = false,
   mode = 'dock',
   tagDefinitions = [],
   relationCandidates = [],
@@ -62,6 +84,8 @@ export const NodeDetailPanel = ({
   onTagsChanged,
   onOpenPage,
   onBack,
+  onRetry,
+  onClose,
 }: NodeDetailPanelProps) => {
   const { language, t } = useI18n();
   const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
@@ -74,16 +98,78 @@ export const NodeDetailPanel = ({
     ? properties.filter(([key]) => key !== 'source' && key !== 'aiSummary')
     : properties.filter(([key]) => key !== 'aiSummary');
 
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  useEffect(() => setCopyState('idle'), [node?.id]);
+  useEffect(() => {
+    if (copyState === 'idle') return undefined;
+    const timer = window.setTimeout(() => setCopyState('idle'), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copyState]);
+
+  const copyNodeLink = useCallback(async () => {
+    if (!node) return;
+    try {
+      await navigator.clipboard.writeText(nodeLinkHref(node.id, workspaceId));
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
+  }, [node, workspaceId]);
+
+  const aiInsight = aiSummary ? (
+    <section className="node-detail-panel__ai-insight">
+      <div className="node-detail-panel__ai-insight-label">
+        <SparklesIcon size={13} />
+        <span>{t('workspaceNodes.aiSummary')} · {t('workspaceNodes.aiSummaryConfirmed')}</span>
+      </div>
+      <p>{aiSummary}</p>
+    </section>
+  ) : null;
+
+  const renderPlaceholder = () => {
+    if (loading) {
+      // A skeleton, not a line of text: switching nodes in the dock replaces
+      // a full document, and collapsing that to one centred sentence reads as
+      // the surface breaking rather than loading.
+      return (
+        <div className="node-detail-panel__skeleton" role="status" aria-label={t('workspaceNodes.loadingNode')}>
+          <div className="node-detail-panel__skeleton-line node-detail-panel__skeleton-line--title" />
+          <div className="node-detail-panel__skeleton-line node-detail-panel__skeleton-line--meta" />
+          <div className="node-detail-panel__skeleton-block" />
+        </div>
+      );
+    }
+    if (error) {
+      return (
+        <div className="node-detail-panel__empty node-detail-panel__empty--error">
+          <p>{error}</p>
+          {onRetry && (
+            <Button size="xs" onClick={onRetry}>{t('workspaceNodes.retry')}</Button>
+          )}
+        </div>
+      );
+    }
+    if (missing) {
+      return (
+        <div className="node-detail-panel__empty">
+          <p>{t('workspaceNodes.nodeMissing')}</p>
+          <p className="node-detail-panel__empty-hint">{t('workspaceNodes.nodeMissingHint')}</p>
+          {onClose && (
+            <Button size="xs" onClick={onClose}>{t('workspaceNodes.closeTab')}</Button>
+          )}
+          {!onClose && onBack && (
+            <Button size="xs" onClick={onBack}>{t('workspaceNodes.back')}</Button>
+          )}
+        </div>
+      );
+    }
+    return <div className="node-detail-panel__empty">{t('workspaceNodes.selectNode')}</div>;
+  };
+
   return (
     <section className={`node-detail-panel node-detail-panel--${mode}`}>
       <div className="node-detail-panel__content">
-        {loading ? (
-          <div className="node-detail-panel__empty">{t('workspaceNodes.loadingNode')}</div>
-        ) : error ? (
-          <div className="node-detail-panel__empty node-detail-panel__empty--error">{error}</div>
-        ) : !node ? (
-          <div className="node-detail-panel__empty">{t('workspaceNodes.selectNode')}</div>
-        ) : (
+        {!node || loading || error || missing ? renderPlaceholder() : (
           <div className="node-detail-panel__layout">
             <article className="node-detail-panel__document">
               {mode === 'page' && onBack && (
@@ -127,7 +213,36 @@ export const NodeDetailPanel = ({
                     />
                   </div>
                 </div>
+                {/* The node lives on a canvas and is reachable as a `@` mention
+                  * elsewhere; both are one click from here rather than a trip
+                  * back through the Nodes list. */}
+                <div
+                  className="node-detail-panel__actions"
+                  role="toolbar"
+                  aria-label={t('workspaceNodes.detailActions')}
+                >
+                  <Button
+                    size="xs"
+                    onClick={() => dispatchFocusNodeOnCanvas({ workspaceId, nodeId: node.id })}
+                  >
+                    <TargetGlyph />
+                    {t('workspaceNodes.openOnCanvas')}
+                  </Button>
+                  <Button size="xs" onClick={() => { void copyNodeLink(); }}>
+                    <CopyIcon size={12} />
+                    {copyState === 'copied'
+                      ? t('workspaceNodes.copied')
+                      : copyState === 'failed'
+                        ? t('workspaceNodes.copyLinkFailed')
+                        : t('workspaceNodes.copyLink')}
+                  </Button>
+                </div>
               </header>
+
+              {/* The dock is where most people land (list cards, graph nodes and
+                * note mentions all open a tab), so the reading aid cannot be
+                * page-only — the page just has a rail to spare for it. */}
+              {mode === 'dock' && aiInsight}
 
               <div className="node-detail-panel__preview">
                 <NodeCanvasPreview
@@ -143,7 +258,7 @@ export const NodeDetailPanel = ({
               <div className="node-detail-panel__supplementary">
                 {mode === 'dock' && (
                   <details
-                    key={`${node.id}:backlinks`}
+                    key={`${node.id}:relations`}
                     className="node-detail-panel__disclosure"
                   >
                     <summary>
@@ -176,6 +291,12 @@ export const NodeDetailPanel = ({
                     <span>{t('workspaceNodes.updated')}</span>
                     <strong>{formatTime(node.updatedAt, t('workspaceNodes.noTimestamp'), dateLocale)}</strong>
                   </div>
+                  {node.createdAt !== undefined && (
+                    <div className="node-detail-panel__property-row">
+                      <span>{t('workspaceNodes.created')}</span>
+                      <strong>{formatTime(node.createdAt, t('workspaceNodes.noTimestamp'), dateLocale)}</strong>
+                    </div>
+                  )}
                   {infoProperties.map(([key, value]) => (
                     <div key={key} className="node-detail-panel__property-row">
                       <span>{key}</span>
@@ -208,15 +329,7 @@ export const NodeDetailPanel = ({
                     onNodePatched={onNodePatched}
                   />
                 </section>
-                {aiSummary && (
-                  <section className="node-detail-panel__ai-insight">
-                    <div className="node-detail-panel__ai-insight-label">
-                      <SparklesIcon size={13} />
-                      <span>{t('workspaceNodes.aiSummary')} · {t('workspaceNodes.aiSummaryConfirmed')}</span>
-                    </div>
-                    <p>{aiSummary}</p>
-                  </section>
-                )}
+                {aiInsight}
               </aside>
             )}
           </div>

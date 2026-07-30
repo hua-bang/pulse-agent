@@ -19,7 +19,100 @@
 .node-detail-panel .node-detail-panel__empty {
   margin: auto;
   padding: 32px;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
   text-align: center;
+}
+
+.node-detail-panel .node-detail-panel__empty p {
+  margin: 0;
+}
+
+.node-detail-panel__empty-hint {
+  color: var(--nodes-faint);
+  font-size: 11px;
+}
+
+/* Switching nodes replaces a whole document; a skeleton keeps the shape of
+ * what is arriving instead of collapsing the surface to one line of text. */
+.node-detail-panel__skeleton {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 32px 42px;
+  display: grid;
+  gap: 14px;
+}
+
+.node-detail-panel--dock .node-detail-panel__skeleton {
+  padding: 30px clamp(22px, 6vw, 42px);
+}
+
+.node-detail-panel__skeleton-line,
+.node-detail-panel__skeleton-block {
+  border-radius: var(--radius-xs);
+  background: var(--nodes-surface-soft);
+  animation: node-detail-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.node-detail-panel__skeleton-line--title {
+  height: 34px;
+  width: 62%;
+}
+
+.node-detail-panel__skeleton-line--meta {
+  height: 14px;
+  width: 38%;
+}
+
+.node-detail-panel__skeleton-block {
+  height: 220px;
+  margin-top: 10px;
+}
+
+@keyframes node-detail-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-detail-panel__skeleton-line,
+  .node-detail-panel__skeleton-block {
+    animation: none;
+  }
+}
+
+.node-detail-panel__actions {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-detail-panel__actions .ui-btn {
+  gap: 5px;
+  color: var(--nodes-muted);
+}
+
+.node-detail-panel__actions .ui-btn:hover {
+  color: var(--nodes-text);
+}
+
+/* Sits above the editor it belongs to, inside the preview box, so the failure
+ * is attached to the content that failed rather than floating in the page. */
+.node-canvas-preview__save-error {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--error) 26%, transparent);
+  background: color-mix(in srgb, var(--error) 7%, var(--nodes-surface));
+  color: var(--error);
+  font-size: 11px;
 }
 
 .node-detail-panel__layout {
@@ -246,6 +339,12 @@
   line-height: 1.6;
 }
 
+/* In the dock the insight is part of the document flow (there is no rail),
+ * so it needs its own separation from the header above it. */
+.node-detail-panel--dock .node-detail-panel__ai-insight {
+  margin-top: 18px;
+}
+
 .node-detail-panel .node-detail-panel__preview {
   min-height: 320px;
   margin-top: 24px;
@@ -420,9 +519,16 @@
 .node-relation-editor__form {
   display: grid;
   grid-template-columns: minmax(104px, 0.72fr) minmax(0, 1.3fr) auto;
-  align-items: end;
+  align-items: start;
   gap: 8px;
   padding-top: 2px;
+}
+
+/* The target column grows while its option list is open, so the row is
+ * top-aligned; the action buttons then need the field-label's height to line
+ * up with the inputs beside them instead of floating above them. */
+.node-relation-editor__form>.node-relation-editor__form-actions {
+  padding-top: 15px;
 }
 
 .node-relation-editor__field {
@@ -439,16 +545,81 @@
   text-transform: uppercase;
 }
 
-.node-relation-editor__input.ui-textfield__control,
-.node-relation-editor__target .ui-select__trigger {
+.node-relation-editor__input.ui-textfield__control {
   height: 27px;
   box-sizing: border-box;
   border-radius: var(--radius-xs);
   font-size: 11px;
 }
 
-.node-relation-editor__target .ui-select__trigger {
-  padding-inline: 7px;
+.node-relation-editor__field--target {
+  position: relative;
+}
+
+.node-relation-editor__options {
+  max-height: 168px;
+  margin-top: 4px;
+  overflow-y: auto;
+  display: grid;
+  gap: 1px;
+  padding: 3px;
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-sm);
+  background: var(--nodes-surface);
+  box-shadow: var(--nodes-shadow);
+}
+
+.node-relation-editor__option {
+  min-height: 26px;
+  padding: 0 7px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--nodes-text);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.node-relation-editor__option--active,
+.node-relation-editor__option:hover {
+  background: var(--nodes-surface-hover);
+}
+
+.node-relation-editor__option[aria-selected='true'] {
+  background: var(--nodes-surface-active);
+}
+
+.node-relation-editor__empty {
+  padding: 6px 7px;
+  color: var(--nodes-faint);
+  font-size: 11px;
+}
+
+.node-relation-editor__target-link {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  color: var(--nodes-text);
+  background: transparent;
+  font: inherit;
+  font-weight: 550;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.node-relation-editor__target-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 .node-relation-editor__form-actions {

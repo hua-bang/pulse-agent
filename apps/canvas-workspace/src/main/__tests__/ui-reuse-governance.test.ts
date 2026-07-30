@@ -108,7 +108,14 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 304→303 (multi-role chat): RolesSettings shipped on ui/Button + SwatchRow
   // and PromptSettings' footer migrated to ui/Button, more than offsetting
   // the two new raw buttons (role list rows + the chat-header roles entry).
-  rawButtonTags: 303,
+  // 303→305 (Node Detail relations): the relation target picker replaced
+  // ui/Select (which has no search — unusable past a few dozen nodes) with
+  // the same filtering-combobox shape NodeTagEditor already uses beside it,
+  // so its option rows are raw <button>s for the same reason that picker's
+  // are (+1); and a relation row's target is now an inline text button that
+  // opens the node (+1) — a link inside an ellipsizing grid cell, which
+  // ui/Button's CTA metrics would have to be overridden away wholesale.
+  rawButtonTags: 305,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -278,7 +285,13 @@ const RATCHET_BASELINE: Record<string, number> = {
   // call, so this regex never saw it). GraphPage's Cmd+F+ESC listener is
   // the one survivor of the "2 mixed multi-key" note above; floor is now
   // effectively that single case plus the 2 gesture-cancel listeners.
-  handRolledKeydown: 16,
+  // 16→17 (Node Detail page Escape): the detail route dismisses on Escape
+  // like any drill-down. It cannot use `useEscapeClose` — that primitive is
+  // capture-phase and stops propagation, so a page-level subscriber would
+  // consume the Escape that closes the tag picker or cancels a title edit
+  // inside it. This one is bubble-phase and target-gated instead, i.e. the
+  // "owns more than a plain overlay Escape" case noted above.
+  handRolledKeydown: 17,
   // hardcoded color literals (hex/rgb/oklch) in renderer CSS on lines that do
   // NOT define a custom property — new-code color ratchet (token-definition
   // lines are exempt: defining a token with a literal is the point). Falls as

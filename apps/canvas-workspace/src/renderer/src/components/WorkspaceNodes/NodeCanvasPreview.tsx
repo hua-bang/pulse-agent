@@ -3,6 +3,26 @@ import type { CanvasNode, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../
 import { CanvasNodeView } from '../CanvasNodeView';
 import { isKnowledgeNodeType } from './utils';
 import { useI18n } from '../../i18n';
+import { Button } from '../ui';
+
+type WritablePatch = Pick<WorkspaceNodeRecord, 'title' | 'data' | 'properties' | 'links'>;
+
+/** Fold a newly failed write into the one still awaiting retry, so a retry
+ *  replays every unsaved change rather than only the last keystroke. */
+const mergePatches = (
+  previous: Partial<WritablePatch> | null,
+  next: Partial<WritablePatch>,
+): Partial<WritablePatch> => {
+  if (!previous) return next;
+  return {
+    ...previous,
+    ...next,
+    ...(previous.data || next.data ? { data: { ...previous.data, ...next.data } } : {}),
+    ...(previous.properties || next.properties
+      ? { properties: { ...previous.properties, ...next.properties } }
+      : {}),
+  };
+};
 
 interface NodeCanvasPreviewProps {
   workspaceId: string;
@@ -35,22 +55,31 @@ export const NodeCanvasPreview = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 320, height: minHeight });
   const [displayRecord, setDisplayRecord] = useState(record);
+  const [failedPatch, setFailedPatch] = useState<Partial<WritablePatch> | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const latestRecordRef = useRef(record);
   const updateSeqRef = useRef(0);
   const updatePendingRef = useRef(false);
+  // Read inside the record-sync effect, which must not re-run per render.
+  const failedPatchRef = useRef<Partial<WritablePatch> | null>(null);
+  failedPatchRef.current = failedPatch;
 
   useEffect(() => {
     if (record.id !== latestRecordRef.current.id) {
       updateSeqRef.current += 1;
       updatePendingRef.current = false;
+      failedPatchRef.current = null;
+      setFailedPatch(null);
       latestRecordRef.current = record;
       setDisplayRecord(record);
       return;
     }
     // Workspace change broadcasts can arrive while a newer local keystroke is
     // still saving. Keep the optimistic document until the latest request is
-    // acknowledged, then resume following external record changes.
-    if (updatePendingRef.current) return;
+    // acknowledged, then resume following external record changes. Unsaved
+    // work from a FAILED write is held for the same reason and for longer —
+    // until the user retries or explicitly discards it.
+    if (updatePendingRef.current || failedPatchRef.current) return;
     latestRecordRef.current = record;
     setDisplayRecord(record);
   }, [record]);
@@ -111,17 +140,10 @@ export const NodeCanvasPreview = ({
     return nodes;
   }, [mentionCandidates, previewNode]);
 
-  const handleUpdate = useCallback(
-    async (_id: string, patch: Partial<CanvasNode>) => {
-      if (readOnly) return;
+  const commitPatch = useCallback(
+    async (writable: Partial<WritablePatch>) => {
       const api = window.canvasWorkspace?.workspaceNodes;
       if (!api?.update) return;
-      const writable: Partial<WorkspaceNodeRecord> = {};
-      if (patch.title !== undefined) writable.title = patch.title;
-      if (patch.data !== undefined) writable.data = patch.data as Record<string, unknown>;
-      if (patch.properties !== undefined) writable.properties = patch.properties;
-      if (patch.links !== undefined) writable.links = patch.links;
-      if (Object.keys(writable).length === 0) return;
       const base = latestRecordRef.current;
       const optimistic: WorkspaceNodeRecord = {
         ...base,
@@ -140,10 +162,12 @@ export const NodeCanvasPreview = ({
       setDisplayRecord(optimistic);
 
       try {
-        const result = await api.update(workspaceId, displayRecord.id, writable);
+        const result = await api.update(workspaceId, base.id, writable);
         if (requestId !== updateSeqRef.current) return;
         updatePendingRef.current = false;
         if (result.ok && result.node) {
+          failedPatchRef.current = null;
+          setFailedPatch(null);
           latestRecordRef.current = result.node;
           setDisplayRecord(result.node);
           onPatched?.(result.node);
@@ -153,20 +177,76 @@ export const NodeCanvasPreview = ({
       } catch (error) {
         if (requestId !== updateSeqRef.current) return;
         updatePendingRef.current = false;
-        const latest = await api.read(workspaceId, displayRecord.id).catch(() => null);
-        if (latest?.ok && latest.node && requestId === updateSeqRef.current) {
-          latestRecordRef.current = latest.node;
-          setDisplayRecord(latest.node);
-          onPatched?.(latest.node);
-        }
-        throw error;
+        // Keep the optimistic document on screen. Re-reading the stored record
+        // here — the previous behaviour — discarded exactly the edit that
+        // failed to save, which is the one thing the user cannot retype from
+        // the UI. Hold the patch instead and offer an explicit retry.
+        //
+        // Deliberately NOT rethrown. The canvas's own `onUpdate` never
+        // rejects, so every node body is written against a non-rejecting
+        // contract and calls it fire-and-forget (TextNodeBody,
+        // MindmapNodeBody, IframeNodeBody). Rejecting here reached nobody and
+        // surfaced as an unhandled rejection; the banner below IS the report.
+        // FileNodeBody keeps reporting its own *file* write failures — a
+        // disjoint failure from this *record* write, so neither hides the
+        // other.
+        void error;
+        const pending = mergePatches(failedPatchRef.current, writable);
+        failedPatchRef.current = pending;
+        setFailedPatch(pending);
       }
     },
-    [displayRecord.id, onPatched, readOnly, t, workspaceId],
+    [onPatched, t, workspaceId],
   );
+
+  const handleUpdate = useCallback(
+    async (_id: string, patch: Partial<CanvasNode>) => {
+      if (readOnly) return;
+      const writable: Partial<WritablePatch> = {};
+      if (patch.title !== undefined) writable.title = patch.title;
+      if (patch.data !== undefined) writable.data = patch.data as Record<string, unknown>;
+      if (patch.properties !== undefined) writable.properties = patch.properties;
+      if (patch.links !== undefined) writable.links = patch.links;
+      if (Object.keys(writable).length === 0) return;
+      await commitPatch(writable);
+    },
+    [commitPatch, readOnly],
+  );
+
+  const retryFailedSave = useCallback(async () => {
+    const pending = failedPatchRef.current;
+    if (!pending) return;
+    setRetrying(true);
+    await commitPatch(pending);
+    setRetrying(false);
+  }, [commitPatch]);
+
+  const discardFailedSave = useCallback(async () => {
+    const api = window.canvasWorkspace?.workspaceNodes;
+    failedPatchRef.current = null;
+    setFailedPatch(null);
+    const requestId = ++updateSeqRef.current;
+    updatePendingRef.current = false;
+    const latest = await api?.read(workspaceId, latestRecordRef.current.id).catch(() => null);
+    if (!latest?.ok || !latest.node || requestId !== updateSeqRef.current) return;
+    latestRecordRef.current = latest.node;
+    setDisplayRecord(latest.node);
+    onPatched?.(latest.node);
+  }, [onPatched, workspaceId]);
 
   return (
     <div ref={containerRef} className="node-canvas-preview" style={{ minHeight }}>
+      {failedPatch && (
+        <div className="node-canvas-preview__save-error" role="alert">
+          <span>{t('workspaceNodes.saveFailed')}</span>
+          <Button size="xs" variant="primary" disabled={retrying} onClick={() => { void retryFailedSave(); }}>
+            {t('workspaceNodes.retry')}
+          </Button>
+          <Button size="xs" disabled={retrying} onClick={() => { void discardFailedSave(); }}>
+            {t('workspaceNodes.discardChanges')}
+          </Button>
+        </div>
+      )}
       {previewNode ? (
         <CanvasNodeView
           node={previewNode}

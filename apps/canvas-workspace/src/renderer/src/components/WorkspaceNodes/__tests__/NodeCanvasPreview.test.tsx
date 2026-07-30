@@ -116,4 +116,93 @@ describe('NodeCanvasPreview', () => {
       updatedAt: 3,
     }));
   });
+
+  // Node bodies call onUpdate fire-and-forget (the canvas's own onUpdate never
+  // rejects), so a rejected save reached nobody: the edit was replaced by the
+  // stored record and the rejection surfaced only as an unhandled promise.
+  it('keeps unsaved content on screen when a save fails, and retries it', async () => {
+    const update = vi.fn()
+      .mockResolvedValueOnce({ ok: false, error: 'disk full' })
+      .mockResolvedValueOnce({ ok: true, node: { ...NODE, data: { content: 'one' }, updatedAt: 4 } });
+    const read = vi.fn(async () => ({ ok: true, node: NODE }));
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { workspaceNodes: { update, read } },
+    });
+    const onPatched = vi.fn();
+    const view = render(
+      <NodeCanvasPreview workspaceId="workspace-1" record={NODE} onPatched={onPatched} />,
+    );
+    const sendUpdate = canvasViewState.onUpdate;
+    if (!sendUpdate) throw new Error('Expected the CanvasNodeView update callback');
+
+    await act(async () => {
+      sendUpdate('node-1', { data: textNodeData('one') });
+      await Promise.resolve();
+    });
+
+    expect(view.querySelector('[data-testid="canvas-node"]')?.getAttribute('data-content')).toBe('one');
+    expect(read).not.toHaveBeenCalled();
+    const banner = view.querySelector('.node-canvas-preview__save-error');
+    expect(banner).not.toBeNull();
+
+    const retry = Array.from(banner?.querySelectorAll('button') ?? [])[0];
+    if (!retry) throw new Error('Expected a retry button');
+    await act(async () => {
+      retry.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(update).toHaveBeenLastCalledWith('workspace-1', 'node-1', { data: textNodeData('one') });
+    expect(view.querySelector('.node-canvas-preview__save-error')).toBeNull();
+    expect(onPatched).toHaveBeenLastCalledWith(expect.objectContaining({ updatedAt: 4 }));
+  });
+
+  it('does not let an external record overwrite content that failed to save', async () => {
+    const update = vi.fn(async () => ({ ok: false, error: 'disk full' }));
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { workspaceNodes: { update, read: vi.fn() } },
+    });
+    const view = render(<NodeCanvasPreview workspaceId="workspace-1" record={NODE} />);
+    const sendUpdate = canvasViewState.onUpdate;
+    if (!sendUpdate) throw new Error('Expected the CanvasNodeView update callback');
+
+    await act(async () => {
+      sendUpdate('node-1', { data: textNodeData('local edit') });
+      await Promise.resolve();
+    });
+    // A workspace-node change broadcast lands while the failed edit is held.
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <NodeCanvasPreview
+            workspaceId="workspace-1"
+            record={{ ...NODE, data: { content: 'stored' }, updatedAt: 9 }}
+          />
+        </I18nProvider>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(view.querySelector('[data-testid="canvas-node"]')?.getAttribute('data-content')).toBe('local edit');
+  });
+
+  it('never rejects into the node body that fired the update', async () => {
+    const update = vi.fn(async () => ({ ok: false, error: 'disk full' }));
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { workspaceNodes: { update, read: vi.fn() } },
+    });
+    render(<NodeCanvasPreview workspaceId="workspace-1" record={NODE} />);
+    const sendUpdate = canvasViewState.onUpdate;
+    if (!sendUpdate) throw new Error('Expected the CanvasNodeView update callback');
+
+    // Exactly how TextNodeBody/MindmapNodeBody/IframeNodeBody call it: no
+    // await, no catch. This must not produce an unhandled rejection.
+    await act(async () => {
+      const returned = sendUpdate('node-1', { data: textNodeData('one') }) as unknown;
+      await expect(Promise.resolve(returned)).resolves.toBeUndefined();
+    });
+  });
 });

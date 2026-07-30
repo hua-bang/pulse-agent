@@ -179,6 +179,7 @@ export const DockPanes = ({
                   onOpenNodePage(tab.workspaceId, tab.nodeId);
                   store.close(tab.id);
                 }}
+                onClose={() => store.close(tab.id)}
               />
             </Suspense>
           ) : tab.kind === 'canvas' ? (

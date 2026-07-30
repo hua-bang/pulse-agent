@@ -14,7 +14,7 @@ import { resolveKnowledgeChatRouteContext } from './components/Workbench/knowled
 import { GraphPageLazy as GraphPage } from './components/WorkspaceNodes/GraphPageLazy';
 import { useKnowledgeAiContext } from './components/WorkspaceNodes/knowledgeAiContext';
 import { NodesRouteViews } from './components/WorkspaceNodes/NodesRouteViews';
-import { useOpenNodePageBridge } from './components/WorkspaceNodes/useOpenNodePageBridge';
+import { useNodeDetailBridges } from './components/WorkspaceNodes/useNodeDetailBridges';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
@@ -475,7 +475,7 @@ const AppContent = () => {
     return workspaces.find((ws) => ws.id === workspaceId)?.rootFolder;
   }, [workspaces]);
 
-  const handleNodeFocusFromChatPage = useCallback((workspaceId: string, nodeId: string) => {
+  const focusNodeOnCanvas = useCallback((workspaceId: string, nodeId: string) => {
     if (activeId !== workspaceId) {
       selectWorkspace(workspaceId);
     }
@@ -489,7 +489,7 @@ const AppContent = () => {
     setLocation(`${ROUTE_NODES}/${encodeURIComponent(workspaceId)}/${encodeURIComponent(nodeId)}`);
   }, [location, setLocation]);
 
-  useOpenNodePageBridge({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, openNodePage });
+  useNodeDetailBridges({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, openNodePage, focusNodeOnCanvas });
 
   return (
     <div className="app">
@@ -556,7 +556,7 @@ const AppContent = () => {
               getWorkspaceRootFolder={getWorkspaceRootFolder}
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
               onExit={exitChatView}
-              onNodeFocus={handleNodeFocusFromChatPage}
+              onNodeFocus={focusNodeOnCanvas}
               onOpenAppSettings={openAppSettings}
               onOpenWorkspaceSettings={openWorkspaceSettings}
             />

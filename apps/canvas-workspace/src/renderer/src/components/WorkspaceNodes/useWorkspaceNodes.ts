@@ -71,11 +71,12 @@ export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
   // reload may apply its results.
   const requestSeqRef = useRef(0);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (options?: { background?: boolean }) => {
     const seq = ++requestSeqRef.current;
     const api = window.canvasWorkspace?.workspaceNodes;
     if (!api) return;
-    setLoading(true);
+    const background = options?.background === true;
+    if (!background) setLoading(true);
     setError(null);
     try {
       const results = await Promise.all(
@@ -110,7 +111,7 @@ export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
       setNodes([]);
       setTags([]);
     } finally {
-      if (seq === requestSeqRef.current) setLoading(false);
+      if (!background && seq === requestSeqRef.current) setLoading(false);
     }
   }, [workspaces, t]);
 
@@ -120,14 +121,21 @@ export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
 
   // Live-refresh when the main process reports a workspace-node change (e.g.
   // the agent's canvas_tag_node) so chat-applied tags appear in the graph
-  // without a manual refresh.
+  // without a manual refresh. Two filters keep this cheap: events for
+  // workspaces we don't track are dropped, and the refresh is a BACKGROUND
+  // one — this list is kept alive behind the detail surfaces, and every
+  // keystroke there coalesces into a change event, so a foreground reload
+  // would flash the whole page into its loading state while someone types.
   useEffect(() => {
     const api = window.canvasWorkspace?.workspaceNodes;
     if (!api?.onChange) return undefined;
-    return api.onChange(() => {
-      void reload();
+    const tracked = new Set(workspaces.map((workspace) => workspace.id));
+    return api.onChange((event) => {
+      const ids = event.workspaceIds;
+      if (ids?.length && !ids.some((id) => tracked.has(id))) return;
+      void reload({ background: true });
     });
-  }, [reload]);
+  }, [reload, workspaces]);
 
   return { nodes, tags, loading, error, reload };
 }
@@ -137,6 +145,11 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
   const [node, setNode] = useState<WorkspaceNodeRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // `workspace-node:read` answers "no such node" with ok + an absent record,
+  // which is indistinguishable from "nothing selected" unless we track it.
+  // A detail host that conflates the two tells someone their deleted node is
+  // simply unselected.
+  const [missing, setMissing] = useState(false);
   // Monotonic id of the latest read. Clicking node A then node B fires two
   // overlapping reads; if A's resolves last it must not clobber B's record.
   const requestSeqRef = useRef(0);
@@ -146,6 +159,7 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
     const api = window.canvasWorkspace?.workspaceNodes;
     if (!api || !workspaceId || !nodeId) {
       setNode(null);
+      setMissing(false);
       return;
     }
     const background = options?.background === true;
@@ -157,13 +171,16 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
       if (!result.ok) {
         setError(result.error ?? t('workspaceNodes.loadNodeFailed'));
         setNode(null);
+        setMissing(false);
         return;
       }
       setNode(result.node ?? null);
+      setMissing(!result.node);
     } catch (err) {
       if (seq !== requestSeqRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
       setNode(null);
+      setMissing(false);
     } finally {
       if (!background && seq === requestSeqRef.current) setLoading(false);
     }
@@ -183,7 +200,7 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
     });
   }, [reload, workspaceId]);
 
-  return { node, loading, error, reload, setNode };
+  return { node, loading, error, missing, reload, setNode };
 }
 
 export function useKnowledgeTags() {

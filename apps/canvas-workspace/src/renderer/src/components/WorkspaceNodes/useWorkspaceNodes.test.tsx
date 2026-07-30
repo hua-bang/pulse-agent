@@ -28,8 +28,12 @@ const NODE: WorkspaceNodeRecord = {
 };
 
 const Probe = () => {
-  const { node, loading } = useWorkspaceNode('workspace-1', 'node-1');
-  return <div data-testid="probe" data-loading={loading}>{node?.title ?? 'empty'}</div>;
+  const { node, loading, missing } = useWorkspaceNode('workspace-1', 'node-1');
+  return (
+    <div data-testid="probe" data-loading={loading} data-missing={missing}>
+      {node?.title ?? 'empty'}
+    </div>
+  );
 };
 
 describe('useWorkspaceNode', () => {
@@ -77,5 +81,29 @@ describe('useWorkspaceNode', () => {
     });
     expect(probe()?.textContent).toBe('Refreshed');
     expect(probe()?.dataset.loading).toBe('false');
+  });
+
+  // The read succeeds and simply carries no record. Without `missing`, hosts
+  // cannot tell a deleted node from an unselected one.
+  it('flags a node that no longer exists apart from a failed read', async () => {
+    const read = vi.fn()
+      .mockResolvedValueOnce({ ok: true, node: undefined })
+      .mockResolvedValueOnce({ ok: false, error: 'Disk unavailable' });
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { workspaceNodes: { read } },
+    });
+
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<I18nProvider><Probe /></I18nProvider>);
+      await Promise.resolve();
+    });
+
+    const probe = () => host?.querySelector<HTMLElement>('[data-testid="probe"]');
+    expect(probe()?.dataset.missing).toBe('true');
+    expect(probe()?.textContent).toBe('empty');
   });
 });

@@ -2,8 +2,14 @@
 import { act, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { WorkspaceNodeRecord } from '../../../types';
+import type { WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
 import { I18nProvider } from '../../../i18n';
+import {
+  FOCUS_NODE_ON_CANVAS_EVENT,
+  OPEN_NODE_EVENT,
+  nodeLinkHref,
+  parseNodeLinkHref,
+} from '../../../utils/openNodeBridge';
 
 vi.mock('../NodeCanvasPreview', () => ({
   NodeCanvasPreview: ({ minHeight }: { minHeight?: number }) => (
@@ -48,6 +54,23 @@ const NODE: WorkspaceNodeRecord = {
   }],
   updatedAt: 1_720_000_000_000,
 };
+
+const RELATION_CANDIDATE: WorkspaceNodeListItem = {
+  workspaceId: 'workspace-1',
+  id: 'node-2',
+  type: 'text',
+  title: 'Recommendation System',
+  tags: [],
+  hasData: true,
+  linkCount: 0,
+};
+
+/** React tracks direct `input.value` assignments; go through the native
+ *  setter so a test follows the same event path as a real keystroke. */
+function setInputValue(input: HTMLInputElement, value: string): void {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+  input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+}
 
 function render(node: ReactNode): HTMLDivElement {
   host = document.createElement('div');
@@ -201,31 +224,16 @@ describe('NodeDetailPanel', () => {
       <NodeDetailPanel
         node={{ ...NODE, links: [] }}
         workspaceId="workspace-1"
-        relationCandidates={[{
-          workspaceId: 'workspace-1',
-          id: 'node-2',
-          type: 'text',
-          title: 'Recommendation System',
-          tags: [],
-          hasData: true,
-          linkCount: 0,
-        }]}
+        relationCandidates={[RELATION_CANDIDATE]}
       />,
     );
     const addRelation = Array.from(view.querySelectorAll('button')).find((button) => button.textContent?.includes('Add relation'));
     if (!addRelation) throw new Error('Expected add relation button');
 
     act(() => { addRelation.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
-    const input = view.querySelector<HTMLInputElement>('.node-relation-editor__form input');
-    const targetTrigger = view.querySelector<HTMLButtonElement>('.node-relation-editor__target .ui-select__trigger');
-    if (!input || !targetTrigger) throw new Error('Expected relation form');
-    act(() => {
-      // React tracks direct `input.value` assignments. Use the native setter
-      // so this test follows the same event path as a real keystroke.
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'challenges');
-      input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-      targetTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    const [relationInput] = Array.from(view.querySelectorAll<HTMLInputElement>('.node-relation-editor__form input'));
+    if (!relationInput) throw new Error('Expected relation form');
+    act(() => { setInputValue(relationInput, 'challenges'); });
     const target = Array.from(view.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((option) => option.textContent?.includes('Recommendation System'));
     if (!target) throw new Error('Expected relation target option');
     act(() => { target.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
@@ -284,5 +292,130 @@ describe('NodeDetailPanel', () => {
     });
 
     expect(title.textContent).toBe('Newer local draft');
+  });
+
+  // `workspace-node:read` answers a deleted node with ok + no record, which
+  // used to render as "Select a node" — inside a tab still titled after it.
+  it('reports a deleted node instead of the nothing-selected empty state', () => {
+    const onClose = vi.fn();
+    const view = render(
+      <NodeDetailPanel node={null} workspaceId="workspace-1" mode="dock" missing onClose={onClose} />,
+    );
+
+    const empty = view.querySelector('.node-detail-panel__empty');
+    expect(empty?.textContent).toContain('no longer exists');
+    expect(empty?.textContent).not.toContain('Select a node');
+
+    const close = Array.from(view.querySelectorAll('button')).find((button) => button.textContent === 'Close tab');
+    if (!close) throw new Error('Expected a close action for a node that is gone');
+    act(() => { close.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('shows a document skeleton while a node loads, not a bare line of text', () => {
+    const view = render(<NodeDetailPanel node={null} workspaceId="workspace-1" mode="dock" loading />);
+
+    expect(view.querySelector('.node-detail-panel__skeleton')).not.toBeNull();
+    expect(view.querySelector('.node-detail-panel__empty')).toBeNull();
+  });
+
+  it('offers a retry when the node could not be read', () => {
+    const onRetry = vi.fn();
+    const view = render(
+      <NodeDetailPanel node={null} workspaceId="workspace-1" mode="dock" error="Disk unavailable" onRetry={onRetry} />,
+    );
+
+    const retry = Array.from(view.querySelectorAll('button')).find((button) => button.textContent === 'Retry');
+    if (!retry) throw new Error('Expected a retry button');
+    act(() => { retry.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(onRetry).toHaveBeenCalled();
+  });
+
+  it('asks the canvas to frame the node instead of stranding it in the list', () => {
+    const listener = vi.fn();
+    window.addEventListener(FOCUS_NODE_ON_CANVAS_EVENT, listener);
+    const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="dock" />);
+    const openOnCanvas = Array.from(view.querySelectorAll('button')).find((button) => button.textContent?.includes('Open on canvas'));
+    if (!openOnCanvas) throw new Error('Expected an open-on-canvas action');
+
+    act(() => { openOnCanvas.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    expect((listener.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
+      workspaceId: 'workspace-1',
+      nodeId: 'node-1',
+    });
+    window.removeEventListener(FOCUS_NODE_ON_CANVAS_EVENT, listener);
+  });
+
+  it('copies a mention link that resolves back to this node', async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="dock" />);
+    const copy = Array.from(view.querySelectorAll('button')).find((button) => button.textContent?.includes('Copy node link'));
+    if (!copy) throw new Error('Expected a copy-link action');
+
+    await act(async () => {
+      copy.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const copied = nodeLinkHref('node-1', 'workspace-1');
+    expect(writeText).toHaveBeenCalledWith(copied);
+    expect(parseNodeLinkHref(copied)).toEqual({
+      nodeId: 'node-1',
+      workspaceId: 'workspace-1',
+    });
+  });
+
+  it('keeps the confirmed AI summary readable in the dock, not only on the page', () => {
+    const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="dock" />);
+
+    expect(view.querySelector('.node-detail-panel__ai-insight')?.textContent).toContain('RSS shifts the burden');
+  });
+
+  it('opens a related node from its relation row', () => {
+    const listener = vi.fn();
+    window.addEventListener(OPEN_NODE_EVENT, listener);
+    const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="page" />);
+    const target = view.querySelector<HTMLButtonElement>('.node-relation-editor__target-link');
+    if (!target) throw new Error('Expected the relation target to be reachable');
+
+    act(() => { target.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    expect((listener.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
+      workspaceId: 'workspace-1',
+      nodeId: 'node-2',
+    });
+    window.removeEventListener(OPEN_NODE_EVENT, listener);
+  });
+
+  // ui/Select has no search, so picking out of a large workspace meant
+  // scrolling an unfiltered list of every node.
+  it('filters relation targets by what the user types', () => {
+    const candidates = [
+      RELATION_CANDIDATE,
+      { ...RELATION_CANDIDATE, id: 'node-3', title: 'Search & RSS notes' },
+      { ...RELATION_CANDIDATE, id: 'node-4', title: 'Unrelated ledger' },
+    ];
+    const view = render(
+      <NodeDetailPanel
+        node={{ ...NODE, links: [] }}
+        workspaceId="workspace-1"
+        relationCandidates={candidates}
+      />,
+    );
+    const addRelation = Array.from(view.querySelectorAll('button')).find((button) => button.textContent?.includes('Add relation'));
+    if (!addRelation) throw new Error('Expected add relation button');
+    act(() => { addRelation.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    expect(view.querySelectorAll('.node-relation-editor__option')).toHaveLength(3);
+
+    const targetInput = Array.from(view.querySelectorAll<HTMLInputElement>('.node-relation-editor__form input'))[1];
+    if (!targetInput) throw new Error('Expected the target combobox');
+    act(() => { setInputValue(targetInput, 'ledger'); });
+
+    const options = Array.from(view.querySelectorAll('.node-relation-editor__option'));
+    expect(options).toHaveLength(1);
+    expect(options[0]?.textContent).toBe('Unrelated ledger');
   });
 });
