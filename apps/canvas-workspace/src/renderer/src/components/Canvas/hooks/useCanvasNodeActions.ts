@@ -3,6 +3,7 @@ import type { AgentNodeData, CanvasEdge, CanvasNode, FrameNodeData } from '../..
 import { useI18n } from '../../../i18n';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { exportMindmapNodeToPng } from '../../../utils/mindmapExport';
+import { getNodeDeleteConfirm } from './node-delete-confirm';
 
 interface NotifyArgs {
   tone: 'success' | 'info' | 'error' | 'loading';
@@ -83,15 +84,15 @@ export const useCanvasNodeActions = ({
       const victims = nodesRef.current.filter((node) => idSet.has(node.id));
       if (victims.length === 0) return;
 
-      // Single-node deletes stay instant (they're one undo step away);
-      // multi-node deletes confirm first since one keystroke can wipe a
-      // whole marquee selection.
-      if (victims.length > 1) {
+      // Policy (including why a lone coding-agent node still asks) lives in
+      // `node-delete-confirm.ts`.
+      const request = getNodeDeleteConfirm(victims, getNodeDisplayLabel);
+      if (request) {
         const accepted = await confirm({
           intent: 'danger',
-          title: t('canvas.deleteNodesTitle', { count: victims.length }),
-          description: t('canvas.deleteNodesDescription'),
-          confirmLabel: t('canvas.deleteNodesConfirm'),
+          title: t(request.titleKey, request.params),
+          description: t(request.descriptionKey, request.params),
+          confirmLabel: t(request.confirmKey),
         });
         if (!accepted) return;
       }
