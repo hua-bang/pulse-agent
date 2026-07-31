@@ -95,7 +95,7 @@ export const ChatInput = ({
   const hasSendableContent = Boolean(input.trim() || readyAttachments.length > 0);
   const canSend = hasSendableContent && !sendDisabled && !attachmentSendBlocked;
   const executionLabel = executionMode === 'scheduled'
-    ? t('chat.execution.scheduled')
+    ? t('chat.execution.scheduledAuto')
     : executionMode === 'ask'
       ? t('chat.execution.ask')
       : t('chat.execution.auto');

@@ -688,7 +688,7 @@
   transition: background 0.1s, color 0.1s;
 }
 
-.chat-execution-mode-btn:hover {
+.chat-execution-mode-btn:not(.chat-execution-mode-btn--readonly):hover {
   background: rgba(55, 53, 47, 0.06);
   color: #37352f;
 }
@@ -703,9 +703,13 @@
   opacity: 0.5;
 }
 
+/* Not interactive: the label is two facts joined by a separator, so it must
+   never wrap in a narrow dock composer, and it must not offer a hover
+   affordance the way the auto/ask toggle does. */
 .chat-execution-mode-btn--readonly {
   cursor: default;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .chat-send-btn {
@@ -3074,31 +3078,13 @@
   text-align: left;
 }
 
-.chat-turn-context__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin: 0;
-}
-
-.chat-turn-context__meta > div {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.chat-turn-context__meta dt {
-  font-weight: 650;
-}
-
-.chat-turn-context__meta dd {
-  margin: 0;
-  color: var(--text);
-}
-
 .chat-turn-context__references {
   display: flex;
   align-items: baseline;
   gap: 6px;
+}
+
+.chat-turn-context__references + .chat-turn-context__references {
   margin-top: 5px;
 }
 
