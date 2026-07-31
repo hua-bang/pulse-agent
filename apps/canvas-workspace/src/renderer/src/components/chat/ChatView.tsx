@@ -6,7 +6,7 @@ import type {
   RefObject,
 } from 'react';
 import type { AgentChatMessage, CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
-import { ChatEmptyState } from './ChatEmptyState';
+import { ChatEmptyState, type ChatEmptyStateVariant } from './ChatEmptyState';
 import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
 import { ChatMessages } from './ChatMessages';
@@ -84,6 +84,7 @@ interface ChatViewProps {
   onAbort: () => Promise<void>;
   contextComposer?: boolean;
   knowledgeMode?: boolean;
+  emptyStateVariant?: ChatEmptyStateVariant;
   modelStatus?: CanvasModelStatus;
   modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
   modelLabel?: string;
@@ -166,6 +167,7 @@ export const ChatView = ({
   onAbort,
   contextComposer = false,
   knowledgeMode = false,
+  emptyStateVariant,
   modelStatus,
   modelSelection,
   modelLabel,
@@ -223,9 +225,7 @@ export const ChatView = ({
         <ChatEmptyState
           selectedCount={selectedContext?.length ?? 0}
           onQuickAction={onQuickAction}
-          modelStatus={modelStatus}
-          onConfigureModel={onOpenModelSettings}
-          knowledgeMode={knowledgeMode}
+          variant={emptyStateVariant ?? (knowledgeMode ? 'knowledge' : 'canvas')}
         />
       )}
       {relay && relay.total > 1 && onStopRelay && (

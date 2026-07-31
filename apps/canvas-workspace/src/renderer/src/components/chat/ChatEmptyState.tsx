@@ -1,16 +1,17 @@
-import type { CanvasModelStatus } from '../../types';
 import {
+  GLOBAL_QUICK_ACTIONS,
   KNOWLEDGE_QUICK_ACTIONS,
   QUICK_ACTIONS,
   type EmptyStateQuickAction,
 } from './constants';
 import { AppLogoIcon } from '../icons';
-import { useI18n } from '../../i18n';
+import { useI18n, type I18nKey } from '../../i18n';
 
 function QuickActionIcon({ action }: { action: EmptyStateQuickAction }) {
   switch (action.key) {
     case 'summarize_canvas':
     case 'summarize_knowledge':
+    case 'review_recent_work':
       return (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M2.5 4h11M2.5 8h7.5M2.5 12h9" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
@@ -18,6 +19,7 @@ function QuickActionIcon({ action }: { action: EmptyStateQuickAction }) {
       );
     case 'analyze_relations':
     case 'discover_themes':
+    case 'find_connections':
       return (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <circle cx="4" cy="8" r="1.7" stroke="currentColor" strokeWidth="1.25" />
@@ -51,36 +53,46 @@ function QuickActionIcon({ action }: { action: EmptyStateQuickAction }) {
 interface ChatEmptyStateProps {
   selectedCount?: number;
   onQuickAction: (prompt: string, quickAction?: string) => void;
-  /**
-   * Current model status. When defined and `apiKeyPresent === false` we show
-   * a banner nudging the user to configure a provider. Left undefined while
-   * the status is still loading so the banner doesn't flash on mount.
-   */
-  modelStatus?: CanvasModelStatus;
-  /** Called when the user clicks the "Configure" CTA in the banner. */
-  onConfigureModel?: () => void;
-  knowledgeMode?: boolean;
+  variant?: ChatEmptyStateVariant;
 }
+
+export type ChatEmptyStateVariant = 'canvas' | 'global' | 'knowledge';
+
+const EMPTY_STATE_CONTENT = {
+  canvas: {
+    greetingKey: 'chat.emptyGreeting',
+    quickActions: QUICK_ACTIONS,
+  },
+  global: {
+    greetingKey: 'chat.emptyGlobalGreeting',
+    quickActions: GLOBAL_QUICK_ACTIONS,
+  },
+  knowledge: {
+    greetingKey: 'chat.emptyKnowledgeGreeting',
+    quickActions: KNOWLEDGE_QUICK_ACTIONS,
+  },
+} satisfies Record<
+  ChatEmptyStateVariant,
+  { greetingKey: I18nKey; quickActions: readonly EmptyStateQuickAction[] }
+>;
 
 export const ChatEmptyState = ({
   selectedCount = 0,
   onQuickAction,
-  modelStatus,
-  onConfigureModel,
-  knowledgeMode = false,
+  variant = 'canvas',
 }: ChatEmptyStateProps) => {
   const { t } = useI18n();
-  const showConfigureBanner = modelStatus !== undefined && !modelStatus.apiKeyPresent;
+  const { greetingKey, quickActions } = EMPTY_STATE_CONTENT[variant];
   return (
     <div className="chat-empty-state">
       <div className="chat-empty-icon">
         <AppLogoIcon size={36} />
       </div>
       <div className="chat-empty-greeting">
-        {t(knowledgeMode ? 'chat.emptyKnowledgeGreeting' : 'chat.emptyGreeting')}
+        {t(greetingKey)}
       </div>
       <div className="chat-quick-actions">
-        {(knowledgeMode ? KNOWLEDGE_QUICK_ACTIONS : QUICK_ACTIONS)
+        {quickActions
           .filter(action => !action.requiresSelection || selectedCount > 0).map(action => (
           <button
             key={action.key}
@@ -94,21 +106,6 @@ export const ChatEmptyState = ({
           </button>
         ))}
       </div>
-      {showConfigureBanner && (
-        <button
-          type="button"
-          className="chat-empty-configure-banner"
-          onClick={onConfigureModel}
-          aria-label={t('chat.configureModelAria')}
-        >
-          <span className="chat-empty-configure-icon" aria-hidden="true" />
-          <span className="chat-empty-configure-text">
-            <strong>{t('chat.configureModelTitle')}</strong>
-            <span>{t('chat.configureModelDescription')}</span>
-          </span>
-          <span className="chat-empty-configure-cta">{t('chat.configureModelCta')}</span>
-        </button>
-      )}
     </div>
   );
 };

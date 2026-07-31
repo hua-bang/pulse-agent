@@ -200,6 +200,14 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   pointer and move the scroll position. Commit current/other lists together
   after promotion; guards live in `useChatSessions.test.tsx` and
   `ChatSessionsRail.test.tsx`.
+- Chat-target registration is synchronously observed at the app root. Props
+  that feed a mounted `ChatPanel` target or its registered handlers must use
+  stable empty collection fallbacks; an inline `[]` makes the target unregister
+  and re-register on every broker-driven root render, reaches React's maximum
+  update depth, and clears the renderer. Workbench's node and selection
+  fallbacks are module constants and are covered by
+  `Workbench/__tests__/ChatDockLifecycle.test.tsx`; knowledge chat applies the
+  same stable-fallback rule, but is not exercised by that guard.
 - The app owns v2 canvas storage migration, PTY sessions, runtime-control
   endpoints, plugin activation, and UI-visible data recovery. The CLI adapts to
   those contracts but does not own them.

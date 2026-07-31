@@ -449,6 +449,7 @@ export const ChatPageBody = ({
           onNodeFocus={handleNodeFocus}
           onQuickAction={handleQuickAction}
           emptyState={fixedChat ? <div className="chat-page-empty-spacer" /> : undefined}
+          emptyStateVariant={agentScope.kind === 'global' ? 'global' : 'canvas'}
           inputPlaceholder={agentScope.kind === 'scheduled'
             ? t('scheduled.followUpPlaceholder')
             : agentScope.kind === 'workspace'

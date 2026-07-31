@@ -1,6 +1,8 @@
 /* ─── ChatPage container ──────────────────────────────────── */
 
 .chat-page {
+  --chat-page-topbar-height: 49px;
+  position: relative;
   flex: 1;
   min-width: 0;
   height: 100%;
@@ -214,6 +216,8 @@
 .chat-page-topbar {
   display: flex;
   align-items: center;
+  min-height: var(--chat-page-topbar-height);
+  box-sizing: border-box;
   padding: 10px 16px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   flex-shrink: 0;
@@ -413,6 +417,40 @@
   color: var(--chat-a11y-secondary);
 }
 
+/* Below a laptop-width viewport the optional rail becomes a drawer. Keeping
+   it out of flex sizing preserves a readable conversation column. */
+@media (max-width: 1040px) {
+  .chat-page-rail-wrapper {
+    position: absolute;
+    inset: var(--chat-page-topbar-height) auto 0 0;
+    z-index: 4;
+    width: min(260px, calc(100% - 72px));
+    background: var(--surface);
+    box-shadow: var(--shadow-float);
+    transform: translateX(0);
+    transition:
+      transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      visibility 0s linear;
+  }
+
+  .chat-page-rail-wrapper--collapsed {
+    width: min(260px, calc(100% - 72px));
+    border-right-width: 1px;
+    transform: translateX(-100%);
+    transition:
+      transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      visibility 0s linear 0.2s;
+  }
+
+  .chat-page-rail {
+    width: 100%;
+  }
+
+  .chat-page-main {
+    width: 100%;
+  }
+}
+
 /* Browser zoom reduces the CSS-pixel viewport. Keep the optional rail useful
    without squeezing the conversation into a gutter at 200–400% zoom. */
 @media (max-width: 720px) {
@@ -422,7 +460,7 @@
   }
 
   .chat-page-rail-wrapper--collapsed {
-    width: 0;
+    width: min(220px, 42vw);
   }
 
   .chat-page-rail {

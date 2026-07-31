@@ -13,6 +13,7 @@ import { useAllWorkspaceNodeList } from '../WorkspaceNodes/useWorkspaceNodes';
 import { buildKnowledgeChatContext } from './knowledgeChatContext';
 
 const GLOBAL_AGENT_SCOPE: AgentScope = { kind: 'global' };
+const EMPTY_CONTEXT_NODES: AgentContextNodeRef[] = [];
 
 interface Props {
   selectedNode: KnowledgeNodeSelection | null;
@@ -55,7 +56,9 @@ export const KnowledgeChatPortal = ({
   const hasExplicitContext = contextNodes !== undefined
     || contextTags !== undefined
     || contextCanvases !== undefined;
-  const resolvedContextNodes = hasExplicitContext ? (contextNodes ?? []) : chatContext.contextNodes;
+  const resolvedContextNodes = hasExplicitContext
+    ? (contextNodes ?? EMPTY_CONTEXT_NODES)
+    : chatContext.contextNodes;
 
   return (
     <div className="right-dock__chat-instance">

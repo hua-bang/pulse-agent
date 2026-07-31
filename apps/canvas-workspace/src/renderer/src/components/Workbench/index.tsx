@@ -26,6 +26,8 @@ import { useOptionalChatTargetBroker } from '../chat/ChatTargetContext';
 import type { AgentScope } from '../chat/types';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
+const EMPTY_CHAT_NODES: CanvasNode[] = [];
+const EMPTY_CHAT_SELECTED_NODE_IDS: string[] = [];
 const ReferenceDrawer = lazy(() => import('../ReferenceDrawer').then((m) => ({ default: m.ReferenceDrawer })));
 const KnowledgeChatPortal = lazy(() => import('./KnowledgeChatPortal').then((m) => ({ default: m.KnowledgeChatPortal })));
 interface WorkbenchProps {
@@ -417,9 +419,9 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                 <ChatPanel
                   workspaceId={ws.id}
                   allWorkspaces={workspaces}
-                  nodes={allNodes[ws.id] || []}
+                  nodes={allNodes[ws.id] ?? EMPTY_CHAT_NODES}
                   dockTabs={buildDockTabRefs(dockState, ws.id)}
-                  selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
+                  selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] ?? EMPTY_CHAT_SELECTED_NODE_IDS}
                   rootFolder={ws.rootFolder} onClose={dock.collapse}
                   onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
                   onOpenAppSettings={onOpenAppSettings} onOpenWorkspaceSettings={onOpenWorkspaceSettings}
