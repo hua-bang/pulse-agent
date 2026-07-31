@@ -15,7 +15,6 @@ let host: HTMLDivElement | null = null;
 
 const snapshot: ChatContextSnapshot = {
   label: 'Workspace A',
-  contextLabels: ['Release notes'],
   requestContext: {
     scope: 'selected_nodes',
     selectedNodes: [{
@@ -56,7 +55,6 @@ describe('useChatPageTargetContext', () => {
     act(() => latest?.removeInheritedContext('node:workspace-a:node-1'));
 
     expect(latest?.inheritedContextChips).toEqual([]);
-    expect(latest?.resolvedContextSnapshot.contextLabels).toEqual([]);
     expect(latest?.requestContext.selectedNodes).toEqual([]);
     expect(latest?.requestContext.scope).toBe('current_canvas');
     expect(latest?.requestContext.executionMode).toBe('ask');

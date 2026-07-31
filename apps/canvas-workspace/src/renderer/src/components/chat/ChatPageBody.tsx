@@ -22,7 +22,6 @@ import {
 } from './ChatTargetContext';
 import { chatScopeId } from './chatScope';
 import { useRegisterChatTarget } from './useRegisterChatTarget';
-import { ChatTargetBar } from './ChatTargetBar';
 import { ChatConversationStatus } from './ChatConversationStatus';
 import { useChatPageTargetContext } from './hooks/useChatPageTargetContext';
 import { useChatPageJumpNavigation } from './hooks/useChatPageJumpNavigation';
@@ -404,8 +403,6 @@ export const ChatPageBody = ({
           dockTabsToggleable={dockTabsToggleable}
           onToggleDockTabs={dock.toggleContentTabs}
         />
-        <ChatTargetBar target={target} />
-
         <ChatView
           className="chat-page-body"
           banner={<>

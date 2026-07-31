@@ -49,18 +49,17 @@ vi.mock('../../chat/lazy', async () => {
       selectedNodeIds: string[];
       chatTargetActive?: boolean;
     }) => {
-      // Match ChatPanel's target derivation: selected canvas context is part
-      // of the target snapshot, so a new selection array means a new target.
+      // Match ChatPanel's target derivation: nodes and selection feed the
+      // memo, so a new array identity for either yields a new target object —
+      // which is exactly what an unstable `[]` fallback would produce on every
+      // broker-driven root render.
       const target = useReactMemo<ChatTarget>(() => ({
         surface: 'dock',
         scope: { kind: 'workspace', workspaceId },
         scopeId: workspaceId,
         sessionId: null,
         composerId: `dock:${workspaceId}`,
-        contextSnapshot: {
-          label: workspaceId,
-          contextLabels: [...nodes.map(node => node.id), ...selectedNodeIds],
-        },
+        contextSnapshot: { label: workspaceId },
         executionPolicy: 'auto',
       }), [nodes, selectedNodeIds, workspaceId]);
       useRegister(chatTargetActive ? target : null, {});

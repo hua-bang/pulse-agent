@@ -639,12 +639,10 @@ const en = {
   'chat.askWorkspace': 'Ask about {name}...',
   'chat.generatingPlaceholder': 'Generating... you can type your next message',
   'chat.askAnything': 'Ask anything...',
-  'chat.targetSummary': 'Current AI chat target',
   'chat.scope.global': 'Global chat',
   'chat.scope.scheduled': 'Scheduled task',
   'chat.execution.auto': 'Automatic',
   'chat.execution.ask': 'Ask first',
-  'chat.execution.scheduled': 'Scheduled',
   // The composer pill is the only place the two facts must be read together:
   // the toggle is locked because this is a scheduled task, and the run itself
   // is still `auto`. The compact target bar keeps the short form.
@@ -2326,12 +2324,10 @@ const zh: Record<keyof typeof en, string> = {
   'chat.askWorkspace': '问问 {name}...',
   'chat.generatingPlaceholder': '正在生成...可以输入下一条消息',
   'chat.askAnything': '问任何问题...',
-  'chat.targetSummary': '当前 AI 对话目标',
   'chat.scope.global': '全局对话',
   'chat.scope.scheduled': '定时任务',
   'chat.execution.auto': '自动执行',
   'chat.execution.ask': '执行前询问',
-  'chat.execution.scheduled': '定时任务',
   'chat.execution.scheduledAuto': '定时任务 · 自动执行',
   'chat.executionModeLabel': '执行模式：{mode}',
   'chat.messageInput': '消息',

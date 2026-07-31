@@ -156,10 +156,7 @@ describe('ChatPage scope switching', () => {
       scopeId: 'workspace-a',
       sessionId: 'session-a',
       composerId: 'dock:workspace-a',
-      contextSnapshot: {
-        label: 'Workspace A',
-        contextLabels: ['Release notes'],
-      },
+      contextSnapshot: { label: 'Workspace A' },
       executionPolicy: 'ask',
     };
     host = document.createElement('div');

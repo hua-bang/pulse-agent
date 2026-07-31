@@ -22,7 +22,6 @@ import {
 } from './ChatTargetContext';
 import { chatScopeId } from './chatScope';
 import { useRegisterChatTarget } from './useRegisterChatTarget';
-import { ChatTargetBar } from './ChatTargetBar';
 import { ChatConversationStatus } from './ChatConversationStatus';
 import { useChatPanelContext } from './hooks/useChatPanelContext';
 import { useChatPanelSessionNavigation } from './hooks/useChatPanelSessionNavigation';
@@ -259,11 +258,10 @@ export const ChatPanel = ({
     composerId: `dock:${scopeId}`,
     contextSnapshot: {
       label: scopeLabel,
-      contextLabels: selectedContext.map(context => context.label),
       requestContext,
     },
     executionPolicy: agentScope.kind === 'scheduled' ? 'scheduled' : executionMode,
-  }), [activeSessionId, agentScope, executionMode, requestContext, scopeId, scopeLabel, selectedContext]);
+  }), [activeSessionId, agentScope, executionMode, requestContext, scopeId, scopeLabel]);
 
   useRegisterChatTarget(chatTargetActive ? chatTarget : null, {
     insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,
@@ -414,7 +412,6 @@ export const ChatPanel = ({
           onClose={onClose}
           anchors={<ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />}
         />
-        <ChatTargetBar target={chatTarget} />
         </>
       }
       banner={<>

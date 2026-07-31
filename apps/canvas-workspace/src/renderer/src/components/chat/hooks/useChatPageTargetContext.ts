@@ -102,18 +102,10 @@ export const useChatPageTargetContext = ({
       label: tag.name,
     })),
   ], [requestContext.canvases, requestContext.selectedNodes, requestContext.tags]);
-  const hasStructuredContext = Boolean(
-    contextSource?.selectedNodes?.length
-    || contextSource?.canvases?.length
-    || contextSource?.tags?.length,
-  );
   const resolvedContextSnapshot = useMemo<ChatContextSnapshot>(() => ({
     label: scopeLabel,
-    contextLabels: hasStructuredContext
-      ? inheritedContextChips.map(chip => chip.label)
-      : contextSnapshot?.contextLabels,
     requestContext,
-  }), [contextSnapshot?.contextLabels, hasStructuredContext, inheritedContextChips, requestContext, scopeLabel]);
+  }), [requestContext, scopeLabel]);
 
   return {
     inheritedContextChips,
