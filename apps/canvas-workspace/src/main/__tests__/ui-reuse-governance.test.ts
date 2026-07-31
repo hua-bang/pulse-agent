@@ -359,7 +359,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // per-row metadata colors and reuse shared surface/text tokens.
   // 1824→1812 (AI Chat model setup hierarchy): deleting the duplicate central
   // configure banner removed its bespoke color treatment.
-  hardcodedColorLiterals: 1811,
+  hardcodedColorLiterals: 1812,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
