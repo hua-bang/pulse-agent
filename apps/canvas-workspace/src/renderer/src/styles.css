@@ -72,7 +72,7 @@
      (0.55 / 0.62). Kept deliberately light: the focused card carries its own
      shadow, so the dim only has to break the tie, and a heavier veil made
      the workbench feel modal when it is not. */
-  --canvas-focus-dim: rgba(15, 18, 30, 0.24);
+  --canvas-focus-dim: rgba(15, 18, 30, 0.3);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 5px 14px rgba(0, 0, 0, 0.07);
   --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.07), 0 9px 24px rgba(0, 0, 0, 0.09);
@@ -84,7 +84,8 @@
      they are C3 normalization judgments, not this batch's scope. */
   --shadow-focus: 0 0 0 3px rgba(35, 131, 226, 0.1);
   --radius: 8px;
-  --radius-md: 8px; /* scale midpoint; was referenced 7x while undefined, with divergent fallbacks */
+  --radius-md: 8px;
+  /* scale midpoint; was referenced 7x while undefined, with divergent fallbacks */
   --radius-lg: 10px;
   --radius-sm: 6px;
   /* C2 exact-value tokenization (2026-07-10): --radius-sm/--radius-lg above
@@ -117,23 +118,37 @@
    * Stacking that stays inside one component (node bodies, menus
    * anchored within a panel) keeps local values.
    * See harness/knowledge/renderer-surfaces.md for the surface inventory. */
-  --layer-canvas-chrome: 500;        /* floating toolbar, zoom indicator */
-  --layer-canvas-chrome-raised: 600; /* toolbar flyouts (shape picker) */
-  --layer-status-pill: 950;          /* migration spinner */
-  --layer-fullscreen-node: 1000;     /* fullscreened canvas node */
-  --layer-fullscreen-chrome: 1010;   /* fullscreen chip */
-  --layer-dock: 1100;                /* right dock: artifact / link previews */
-  --layer-dock-menu: 1150;           /* menus anchored INSIDE the dock (page /
+  --layer-canvas-chrome: 500;
+  /* floating toolbar, zoom indicator */
+  --layer-canvas-chrome-raised: 600;
+  /* toolbar flyouts (shape picker) */
+  --layer-status-pill: 950;
+  /* migration spinner */
+  --layer-fullscreen-node: 1000;
+  /* fullscreened canvas node */
+  --layer-fullscreen-chrome: 1010;
+  /* fullscreen chip */
+  --layer-dock: 1100;
+  /* right dock: artifact / link previews */
+  --layer-dock-menu: 1150;
+  /* menus anchored INSIDE the dock (page /
                                       * tab context menus). They portal to
                                       * body, so without this they paint under
                                       * the dock they belong to. */
-  --layer-search: 1500;              /* find-in-canvas bar */
-  --layer-note-popover: 1550;        /* note slash, mention, and bubble menus */
-  --layer-interaction-shield: 1800;  /* drag shield over webviews */
-  --layer-modal: 1900;               /* settings drawers (with backdrop) */
-  --layer-palette: 2000;             /* command palette */
-  --layer-dialog: 2050;              /* app-shell confirm dialogs */
-  --layer-toast: 2100;               /* app-shell toasts */
+  --layer-search: 1500;
+  /* find-in-canvas bar */
+  --layer-note-popover: 1550;
+  /* note slash, mention, and bubble menus */
+  --layer-interaction-shield: 1800;
+  /* drag shield over webviews */
+  --layer-modal: 1900;
+  /* settings drawers (with backdrop) */
+  --layer-palette: 2000;
+  /* command palette */
+  --layer-dialog: 2050;
+  /* app-shell confirm dialogs */
+  --layer-toast: 2100;
+  /* app-shell toasts */
 }
 
 * {
@@ -159,8 +174,13 @@ textarea {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes menuAppear {
@@ -168,6 +188,7 @@ textarea {
     opacity: 0;
     transform: scale(0.97) translateY(-2px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);

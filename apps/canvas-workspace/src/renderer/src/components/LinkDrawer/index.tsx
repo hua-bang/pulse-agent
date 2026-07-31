@@ -176,7 +176,7 @@ export const LinkTabView = ({
       registerLinkTabWebview(webContentsId, tabId);
     }, [tabId]),
   });
-  const contextMenu = usePageContextMenu({ guestId, hostRef: webviewHostRef });
+  const contextMenu = usePageContextMenu({ guestId });
   const find = useFindInPage(browser.webview);
   useDockWebviewBackgroundLifecycle({
     webview: browser.webview,

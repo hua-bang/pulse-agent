@@ -2,11 +2,11 @@
  * Subscription + placement for a web tab's right-click menu.
  *
  * Main relays every guest `context-menu` to this window; a tab claims only
- * the ones raised by its own guest. Coordinates arrive in the GUEST's
- * viewport space, so they are offset by the host element's rect to become
- * host viewport coordinates the popover can use.
+ * the ones raised by its own guest. Electron reports the event coordinates
+ * in the embedder viewport space already, which is exactly the coordinate
+ * space the portaled, fixed-position popover consumes.
  */
-import { useCallback, useEffect, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { WebviewContextMenuRequest } from '../../../../shared/webview-context-menu';
 import { useGuestInteractionShield } from '../../hooks/useGuestInteractionShield';
 
@@ -19,11 +19,9 @@ export interface PageContextMenuState {
 interface Options {
   /** This tab's guest, once Electron has attached it. */
   guestId: number | null;
-  /** Element the guest fills — the origin of the guest's coordinate space. */
-  hostRef: RefObject<HTMLElement>;
 }
 
-export const usePageContextMenu = ({ guestId: webContentsId, hostRef }: Options) => {
+export const usePageContextMenu = ({ guestId: webContentsId }: Options) => {
   const [menu, setMenu] = useState<PageContextMenuState | null>(null);
   const close = useCallback(() => setMenu(null), []);
 
@@ -38,14 +36,13 @@ export const usePageContextMenu = ({ guestId: webContentsId, hostRef }: Options)
     if (typeof onContextMenu !== 'function') return;
     return onContextMenu((request) => {
       if (request.sourceWebContentsId !== webContentsId) return;
-      const rect = hostRef.current?.getBoundingClientRect();
       setMenu({
         request,
-        x: (rect?.left ?? 0) + request.x,
-        y: (rect?.top ?? 0) + request.y,
+        x: request.x,
+        y: request.y,
       });
     });
-  }, [webContentsId, hostRef]);
+  }, [webContentsId]);
 
   // A guest that navigates or goes away must not leave a menu describing a
   // page that is no longer there.

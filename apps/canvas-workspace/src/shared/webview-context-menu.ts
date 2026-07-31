@@ -11,7 +11,7 @@
 export interface WebviewContextMenuRequest {
   /** Guest that raised the menu; the renderer maps it back to its dock tab. */
   sourceWebContentsId: number;
-  /** Click position, in the guest viewport's own coordinates. */
+  /** Click position, in the embedder/host viewport coordinates Electron reports. */
   x: number;
   y: number;
   /** Href when the click landed on a link. */

@@ -305,6 +305,7 @@
   inset: 0;
   background: var(--canvas-focus-dim);
   pointer-events: auto;
+  backdrop-filter: blur(10px);
   z-index: 50;
 }
 

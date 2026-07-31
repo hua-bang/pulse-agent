@@ -4,12 +4,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
 import { PageContextMenu, type PageContextMenuActions } from '../PageContextMenu';
+import { usePageContextMenu } from '../usePageContextMenu';
 import type { WebviewContextMenuRequest } from '../../../../../shared/webview-context-menu';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let root: Root | null = null;
 let mount: HTMLDivElement | null = null;
+let contextMenuListener: ((request: WebviewContextMenuRequest) => void) | null = null;
 
 const actions = (): PageContextMenuActions => ({
   openLink: vi.fn(),
@@ -61,6 +63,18 @@ const clickLabel = (text: string) => {
 };
 
 beforeEach(() => {
+  contextMenuListener = null;
+  Object.defineProperty(window, 'canvasWorkspace', {
+    configurable: true,
+    value: {
+      iframe: {
+        onContextMenu: vi.fn((listener: (request: WebviewContextMenuRequest) => void) => {
+          contextMenuListener = listener;
+          return vi.fn();
+        }),
+      },
+    },
+  });
   mount = document.createElement('div');
   document.body.appendChild(mount);
   root = createRoot(mount);
@@ -71,6 +85,27 @@ afterEach(() => {
   mount?.remove();
   root = null;
   mount = null;
+});
+
+const ContextMenuPlacementHarness = ({ guestId }: { guestId: number }) => {
+  const { menu } = usePageContextMenu({ guestId });
+  return menu ? <output data-x={menu.x} data-y={menu.y} /> : null;
+};
+
+describe('usePageContextMenu', () => {
+  it('keeps Electron context-menu coordinates in the host viewport coordinate space', () => {
+    act(() => root?.render(<ContextMenuPlacementHarness guestId={7} />));
+
+    act(() => contextMenuListener?.(request({
+      sourceWebContentsId: 7,
+      x: 640,
+      y: 320,
+    })));
+
+    const output = document.querySelector('output');
+    expect(output?.dataset.x).toBe('640');
+    expect(output?.dataset.y).toBe('320');
+  });
 });
 
 describe('PageContextMenu', () => {
