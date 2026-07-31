@@ -9,6 +9,15 @@ export interface ConversationBranchRef {
 
 interface ChatConversationStatusProps {
   sessionLoading?: boolean;
+  /**
+   * Whether the thread already has messages on screen. When it doesn't,
+   * `ChatMessages` renders `ChatThreadSkeleton` in its place — which already
+   * announces the wait (its own `role="status"`) — so this banner would be a
+   * second, redundant loading indicator stacked on top of the first. Only
+   * show it when stale messages are still visible and the skeleton can't
+   * cover the same fetch.
+   */
+  hasMessages: boolean;
   busyElsewhere?: boolean;
   sessionError?: { code?: string; message: string } | null;
   onRetrySession?: () => void | Promise<void>;
@@ -20,6 +29,7 @@ interface ChatConversationStatusProps {
 
 export const ChatConversationStatus = ({
   sessionLoading = false,
+  hasMessages,
   busyElsewhere = false,
   sessionError,
   onRetrySession,
@@ -29,11 +39,12 @@ export const ChatConversationStatus = ({
   disabled = false,
 }: ChatConversationStatusProps) => {
   const { t } = useI18n();
-  if (!sessionLoading && !busyElsewhere && !sessionError && !conversationBranch && !branchError) return null;
+  const showOpeningBanner = sessionLoading && hasMessages;
+  if (!showOpeningBanner && !busyElsewhere && !sessionError && !conversationBranch && !branchError) return null;
 
   return (
     <div className="chat-conversation-status-stack">
-      {sessionLoading && (
+      {showOpeningBanner && (
         <div className="chat-conversation-status" role="status" aria-live="polite">
           <span className="chat-conversation-status__pulse" aria-hidden="true" />
           <span>{t('chat.openingConversation')}</span>

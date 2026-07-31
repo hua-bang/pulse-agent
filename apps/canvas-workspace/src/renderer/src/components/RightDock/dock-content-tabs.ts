@@ -36,3 +36,20 @@ export const getToggleContentTabsPatch = (state: DockState): Partial<DockState> 
     activeTabId: activeIsContentTab ? state.activeTabId : state.tabs[0].id,
   };
 };
+
+/**
+ * Whether `workspaceId`'s own canvas could be opened as a fresh content tab
+ * right now, as a read-only preview (`RightDockContext.openCanvasPreview`).
+ * False when there's no workspace to preview (global chat, a scheduled task)
+ * or that canvas is already live in the main Workbench — previewing it
+ * there too would show two copies of the same editable state. Same
+ * constraint `DockCreationControls`' workspace picker enforces.
+ *
+ * A workspace-scoped page with zero content tabs isn't truly "nothing to
+ * show": its own canvas is one click away. Callers use this to keep the
+ * dock-tabs toggle usable instead of dead-ending on an empty tab strip.
+ */
+export const canPreviewWorkspaceCanvas = (
+  state: DockState,
+  workspaceId: string | undefined,
+): boolean => workspaceId != null && !state.mountedWorkspaceIds.has(workspaceId);

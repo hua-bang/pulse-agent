@@ -19,8 +19,6 @@ export type ChatExecutionPolicy = 'auto' | 'ask' | 'scheduled';
 export interface ChatContextSnapshot {
   /** Short user-facing description of the scope that supplied this context. */
   label: string;
-  /** Labels shown in the scope bar; requestContext remains the send-time SSOT. */
-  contextLabels?: string[];
   requestContext?: AgentRequestContext;
 }
 

@@ -6,8 +6,8 @@ describe('dock width policy', () => {
     expect(resolveDockMaxWidth(1600, false)).toBe(1520);
   });
 
-  it('caps page routes at half the viewport', () => {
-    expect(resolveDockMaxWidth(1600, true)).toBe(800);
+  it('caps page routes at 70% of the viewport', () => {
+    expect(resolveDockMaxWidth(1600, true)).toBe(1120);
   });
 
   it('never caps below the minimum width, however narrow the window', () => {
@@ -19,7 +19,7 @@ describe('dock width policy', () => {
     // The stored preference is what round-trips: the cap only shapes the
     // rendered width, so leaving and re-entering the canvas is lossless.
     const chosen = 1400;
-    expect(clampDockWidth(chosen, 1600, true)).toBe(800);
+    expect(clampDockWidth(chosen, 1600, true)).toBe(1120);
     expect(clampDockWidth(chosen, 1600, false)).toBe(1400);
   });
 
