@@ -20,18 +20,28 @@ import { useAddressSuggestions, type AddressSuggestion } from './AddressSuggesti
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { useGuestInteractionShield } from '../../hooks/useGuestInteractionShield';
 import { clampIndexMove } from '../ui';
+import { cancelDockPageFocusRequest } from '../RightDock/dock-browser-commands';
 
 const SUGGEST_HOVER_CLOSE_DELAY_MS = 200;
 
 interface Options {
+  /** Only the visible owner may focus chrome or hold a guest shield. */
+  active: boolean;
   /** The tab's committed URL (guest navigation is mirrored into it). */
   url: string;
   /** The guest's live URL, used to tell "untouched" input from a real query. */
   currentUrl: string;
   onNavigate: (url: string) => void;
+  onRestorePageFocus: () => void;
 }
 
-export const useAddressBar = ({ url, currentUrl, onNavigate }: Options) => {
+export const useAddressBar = ({
+  active,
+  url,
+  currentUrl,
+  onNavigate,
+  onRestorePageFocus,
+}: Options) => {
   const formRef = useRef<HTMLFormElement>(null);
   const [address, setAddress] = useState(url);
   const [editing, setEditing] = useState(false);
@@ -44,10 +54,12 @@ export const useAddressBar = ({ url, currentUrl, onNavigate }: Options) => {
     [],
   );
   const focusAddress = useCallback(() => {
+    if (!active) return;
+    cancelDockPageFocusRequest();
     const input = inputEl();
     input?.focus();
     input?.select();
-  }, [inputEl]);
+  }, [active, inputEl]);
 
   // Keep the editable address synchronized with external tab navigation —
   // but never while the user is typing in it. A page that redirects (or an
@@ -56,8 +68,16 @@ export const useAddressBar = ({ url, currentUrl, onNavigate }: Options) => {
   useEffect(() => {
     if (editing) return;
     setAddress(url);
-    if (!url) requestAnimationFrame(focusAddress);
-  }, [url, editing, focusAddress]);
+  }, [url, editing]);
+
+  // Focus a new blank tab, or a blank tab the user has just activated. This
+  // intentionally does NOT depend on `editing`: blurring the omnibox must let
+  // keyboard focus move elsewhere instead of scheduling an immediate steal.
+  useEffect(() => {
+    if (!active || url) return;
+    const frame = requestAnimationFrame(focusAddress);
+    return () => cancelAnimationFrame(frame);
+  }, [active, focusAddress, url]);
 
   // ── Suggestion dropdown (omnibox history) ─────────────────────────
   const suggestCloseTimerRef = useRef<number | null>(null);
@@ -76,6 +96,16 @@ export const useAddressBar = ({ url, currentUrl, onNavigate }: Options) => {
   }, [cancelScheduledSuggestClose]);
   useEffect(() => cancelScheduledSuggestClose, [cancelScheduledSuggestClose]);
 
+  useEffect(() => {
+    if (active) return;
+    cancelScheduledSuggestClose();
+    setSuggestOpen(false);
+    setEditing(false);
+    setActiveSuggestion(-1);
+    const input = inputEl();
+    if (document.activeElement === input) input?.blur();
+  }, [active, cancelScheduledSuggestClose, inputEl]);
+
   // Untouched input still holding the current page's URL (the just-focused
   // state — focus selects it all) means "show me recent pages", not "filter
   // by this URL"; anything the user actually typed filters.
@@ -83,7 +113,7 @@ export const useAddressBar = ({ url, currentUrl, onNavigate }: Options) => {
   const suggestions = useAddressSuggestions(effectiveQuery, suggestOpen);
   useEffect(() => setActiveSuggestion(-1), [address]);
   useClickOutside(formRef, () => setSuggestOpen(false), suggestOpen);
-  const suggestionsVisible = suggestOpen && suggestions.length > 0;
+  const suggestionsVisible = active && suggestOpen && suggestions.length > 0;
   // The dropdown floats above the page. Without the shield a click into the
   // page is swallowed by the guest process, `useClickOutside` never fires,
   // and the list stays stranded on top of whatever the user clicked.
@@ -95,7 +125,8 @@ export const useAddressBar = ({ url, currentUrl, onNavigate }: Options) => {
     setEditing(false);
     inputEl()?.blur();
     onNavigate(nextUrl);
-  }, [inputEl, onNavigate]);
+    onRestorePageFocus();
+  }, [inputEl, onNavigate, onRestorePageFocus]);
 
   const pickSuggestion = useCallback((suggestion: AddressSuggestion) => {
     commit(suggestion.url);
@@ -120,9 +151,11 @@ export const useAddressBar = ({ url, currentUrl, onNavigate }: Options) => {
         return;
       }
       // Second Escape: abandon the edit and restore the live URL.
+      setSuggestOpen(false);
       setEditing(false);
       setAddress(url);
       inputEl()?.blur();
+      onRestorePageFocus();
       return;
     }
     if (!suggestionsVisible) return;
@@ -138,7 +171,15 @@ export const useAddressBar = ({ url, currentUrl, onNavigate }: Options) => {
       event.preventDefault();
       pickSuggestion(suggestions[activeSuggestion]);
     }
-  }, [activeSuggestion, inputEl, pickSuggestion, suggestions, suggestionsVisible, url]);
+  }, [
+    activeSuggestion,
+    inputEl,
+    onRestorePageFocus,
+    pickSuggestion,
+    suggestions,
+    suggestionsVisible,
+    url,
+  ]);
 
   const onChange = useCallback((value: string) => {
     setAddress(value);
@@ -147,14 +188,22 @@ export const useAddressBar = ({ url, currentUrl, onNavigate }: Options) => {
   }, []);
 
   const onFocus = useCallback((input: HTMLInputElement) => {
+    if (!active) {
+      input.blur();
+      return;
+    }
+    cancelDockPageFocusRequest();
     input.select();
     setEditing(true);
     setSuggestOpen(true);
-  }, []);
+  }, [active]);
 
   // Leaving the field ends the edit; the sync effect then re-adopts whatever
   // the guest navigated to while the user was typing.
-  const onBlur = useCallback(() => setEditing(false), []);
+  const onBlur = useCallback(() => {
+    setEditing(false);
+    setSuggestOpen(false);
+  }, []);
 
   return {
     activeSuggestion,

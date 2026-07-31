@@ -10,6 +10,7 @@
  * back exactly as it does after individual closes.
  */
 import { useI18n, type I18nKey } from '../../i18n';
+import { useGuestInteractionShield } from '../../hooks/useGuestInteractionShield';
 import { Button, Popover } from '../ui';
 import type { DockPreviewTab, DockStore } from './dock-store';
 
@@ -20,10 +21,20 @@ interface Props {
   x: number;
   y: number;
   onClose: () => void;
+  onActionComplete?: () => void;
 }
 
-export const TabContextMenu = ({ tab, tabs, store, x, y, onClose }: Props) => {
+export const TabContextMenu = ({
+  tab,
+  tabs,
+  store,
+  x,
+  y,
+  onClose,
+  onActionComplete = () => undefined,
+}: Props) => {
   const { t } = useI18n();
+  useGuestInteractionShield(true);
   const index = tabs.findIndex((item) => item.id === tab.id);
   const others = tabs.filter((item) => item.id !== tab.id);
   const toTheRight = index === -1 ? [] : tabs.slice(index + 1);
@@ -31,6 +42,7 @@ export const TabContextMenu = ({ tab, tabs, store, x, y, onClose }: Props) => {
   const run = (action: () => void) => () => {
     onClose();
     action();
+    onActionComplete();
   };
 
   const closeAll = (targets: readonly DockPreviewTab[]) => () => {
@@ -51,8 +63,13 @@ export const TabContextMenu = ({ tab, tabs, store, x, y, onClose }: Props) => {
     </Button>
   );
 
+  const closeMenu = (reason?: 'escape' | 'outside') => {
+    onClose();
+    if (reason === 'escape') onActionComplete();
+  };
+
   return (
-    <Popover x={x} y={y} onClose={onClose} className="context-menu context-menu--in-dock">
+    <Popover x={x} y={y} onClose={closeMenu} className="context-menu context-menu--in-dock">
       {tab.kind === 'link' && tab.url && (
         <>
           {item('rightDock.tabMenu.copyAddress', run(

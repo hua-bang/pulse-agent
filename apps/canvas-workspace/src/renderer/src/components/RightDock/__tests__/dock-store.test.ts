@@ -291,6 +291,35 @@ describe('DockStore', () => {
     expect(dock.canReopenClosedTab()).toBe(false);
   });
 
+  it('restores a closed URL with a unique id when that URL was opened again', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example');
+    const closedId = dock.getSnapshot().activeTabId;
+
+    dock.close(closedId);
+    dock.openLink('https://a.example');
+    const replacementId = dock.getSnapshot().activeTabId;
+    dock.reopenClosedTab();
+
+    const restoredTabs = dock.getSnapshot().tabs;
+    expect(restoredTabs).toHaveLength(2);
+    expect(new Set(restoredTabs.map((tab) => tab.id))).toHaveLength(2);
+
+    const restoredId = restoredTabs.find((tab) => tab.id !== replacementId)?.id;
+    if (!restoredId) throw new Error('Expected the restored tab to have a collision-safe id');
+    dock.navigateLink(restoredId, 'https://restored.example');
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { id: restoredId, url: 'https://restored.example' },
+      { id: replacementId, url: 'https://a.example' },
+    ]);
+
+    dock.close(restoredId);
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { id: replacementId, url: 'https://a.example' },
+    ]);
+  });
+
   it('never resurfaces a closed tab in a different workspace', () => {
     const dock = new DockStore();
     dock.setActiveWorkspace('ws1');
@@ -367,6 +396,53 @@ describe('DockStore', () => {
     dock.updateRetainedLinkTab('ws1', tabId, { url: 'https://hijacked.example/' });
 
     expect(dock.getSnapshot()).toBe(before);
+  });
+
+  it('routes a retained guest new tab back to its owning workspace', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws-a');
+    dock.openLink('https://a.example/');
+    const openerId = dock.getSnapshot().activeTabId;
+
+    dock.setActiveWorkspace('ws-b');
+    dock.openLink('https://b.example/');
+    const visibleTabsBefore = dock.getSnapshot().tabs;
+
+    dock.openLinkInWorkspace('ws-a', 'https://popup.example/', { openerTabId: openerId });
+
+    expect(dock.getSnapshot().activeTerminalWorkspaceId).toBe('ws-b');
+    expect(dock.getSnapshot().tabs).toEqual(visibleTabsBefore);
+    expect(dock.getSnapshot().retainedLinkTabs).toMatchObject([{
+      workspaceId: 'ws-a',
+      activeTabId: openerId,
+      tabs: [
+        { id: openerId, url: 'https://a.example/' },
+        { url: 'https://popup.example/' },
+      ],
+    }]);
+
+    dock.setActiveWorkspace('ws-a');
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { id: openerId, url: 'https://a.example/' },
+      { url: 'https://popup.example/' },
+    ]);
+    expect(dock.getSnapshot().activeTabId).toBe(openerId);
+  });
+
+  it('persists a link opened by an inactive workspace even without a retained browser tab', () => {
+    const saved = createSessionPersistence();
+    const dock = new DockStore(saved.persistence);
+    dock.setActiveWorkspace('ws-a');
+    dock.setActiveWorkspace('ws-b');
+
+    dock.openLinkInWorkspace('ws-a', 'https://from-canvas-node.example/');
+
+    expect(dock.getSnapshot().activeTerminalWorkspaceId).toBe('ws-b');
+    expect(dock.getSnapshot().tabs).toHaveLength(0);
+    dock.setActiveWorkspace('ws-a');
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { kind: 'link', url: 'https://from-canvas-node.example/' },
+    ]);
   });
 
   it('creates independent blank web tabs and navigates one in place', () => {

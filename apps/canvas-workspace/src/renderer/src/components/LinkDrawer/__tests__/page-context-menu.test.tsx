@@ -34,7 +34,12 @@ const request = (overrides: Partial<WebviewContextMenuRequest> = {}): WebviewCon
   ...overrides,
 });
 
-const render = (req: WebviewContextMenuRequest, menuActions: PageContextMenuActions, onClose = vi.fn()) => {
+const render = (
+  req: WebviewContextMenuRequest,
+  menuActions: PageContextMenuActions,
+  onClose = vi.fn(),
+  onRestorePageFocus = vi.fn(),
+) => {
   act(() => root?.render(
     <I18nProvider>
       <PageContextMenu
@@ -46,10 +51,11 @@ const render = (req: WebviewContextMenuRequest, menuActions: PageContextMenuActi
         pageUrl="https://example.com/page"
         actions={menuActions}
         onClose={onClose}
+        onRestorePageFocus={onRestorePageFocus}
       />
     </I18nProvider>,
   ));
-  return { onClose };
+  return { onClose, onRestorePageFocus };
 };
 
 const labels = (): string[] => [...document.querySelectorAll('.context-menu-item')]
@@ -98,13 +104,13 @@ describe('usePageContextMenu', () => {
 
     act(() => contextMenuListener?.(request({
       sourceWebContentsId: 7,
-      x: 640,
-      y: 320,
+      x: 809,
+      y: 222,
     })));
 
     const output = document.querySelector('output');
-    expect(output?.dataset.x).toBe('640');
-    expect(output?.dataset.y).toBe('320');
+    expect(output?.dataset.x).toBe('809');
+    expect(output?.dataset.y).toBe('222');
   });
 });
 
@@ -175,10 +181,71 @@ describe('PageContextMenu', () => {
 
   it('closes after any action, so the menu never outlives its click', () => {
     const menuActions = actions();
-    const { onClose } = render(request({ linkURL: 'https://example.com/x' }), menuActions);
+    const copyText = vi.mocked(menuActions.copyText);
+    const { onClose, onRestorePageFocus } = render(
+      request({ linkURL: 'https://example.com/x' }),
+      menuActions,
+    );
 
     clickLabel('Copy link address');
     expect(onClose).toHaveBeenCalledOnce();
-    expect(menuActions.copyText).toHaveBeenCalledWith('https://example.com/x');
+    expect(copyText).toHaveBeenCalledWith('https://example.com/x');
+    expect(onRestorePageFocus).toHaveBeenCalledOnce();
+    expect(copyText.mock.invocationCallOrder[0])
+      .toBeLessThan(onRestorePageFocus.mock.invocationCallOrder[0]);
+  });
+
+  it('restores page focus when Escape deliberately dismisses the menu', () => {
+    const { onClose, onRestorePageFocus } = render(request(), actions());
+
+    act(() => {
+      document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+      }));
+    });
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onRestorePageFocus).toHaveBeenCalledOnce();
+  });
+
+  it('does not steal focus back when an outside press dismisses the menu', () => {
+    const { onClose, onRestorePageFocus } = render(request(), actions());
+
+    act(() => {
+      mount?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onRestorePageFocus).not.toHaveBeenCalled();
+  });
+
+  it('leaves focus ownership to a foreground tab opened from the menu', () => {
+    const menuActions = actions();
+    const { onRestorePageFocus } = render(
+      request({ linkURL: 'https://example.com/next' }),
+      menuActions,
+    );
+
+    clickLabel('Open link in new tab');
+
+    expect(menuActions.openLink).toHaveBeenCalledWith('https://example.com/next');
+    expect(onRestorePageFocus).not.toHaveBeenCalled();
+  });
+
+  it('restores the source page after opening a background tab', () => {
+    const menuActions = actions();
+    const { onRestorePageFocus } = render(
+      request({ linkURL: 'https://example.com/later' }),
+      menuActions,
+    );
+
+    clickLabel('Open link in background tab');
+
+    expect(menuActions.openLink).toHaveBeenCalledWith(
+      'https://example.com/later',
+      { background: true },
+    );
+    expect(onRestorePageFocus).toHaveBeenCalledOnce();
   });
 });

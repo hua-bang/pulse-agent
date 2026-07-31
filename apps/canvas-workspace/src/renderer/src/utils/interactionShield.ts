@@ -25,6 +25,20 @@
 // element's own prior inline pointer-events value.
 let activeUsers = 0;
 let shieldedElements: Array<{ el: HTMLElement; prevPointerEvents: string }> = [];
+const shieldedElementSet = new Set<HTMLElement>();
+let shieldObserver: MutationObserver | null = null;
+
+const shieldElement = (el: HTMLElement): void => {
+  if (shieldedElementSet.has(el)) return;
+  shieldedElementSet.add(el);
+  shieldedElements.push({ el, prevPointerEvents: el.style.pointerEvents });
+  el.style.pointerEvents = 'none';
+};
+
+const shieldGuestsIn = (root: ParentNode): void => {
+  if (root instanceof HTMLElement && root.matches('webview, iframe')) shieldElement(root);
+  for (const el of root.querySelectorAll<HTMLElement>('webview, iframe')) shieldElement(el);
+};
 
 /**
  * Shield every <webview> / <iframe> guest in the document (covers canvas
@@ -33,12 +47,18 @@ let shieldedElements: Array<{ el: HTMLElement; prevPointerEvents: string }> = []
  */
 export const acquireInteractionShield = (): (() => void) => {
   activeUsers += 1;
-  if (shieldedElements.length === 0) {
-    shieldedElements = Array.from(document.querySelectorAll<HTMLElement>('webview, iframe')).map((el) => ({
-      el,
-      prevPointerEvents: el.style.pointerEvents,
-    }));
-    for (const { el } of shieldedElements) el.style.pointerEvents = 'none';
+  if (activeUsers === 1) {
+    shieldGuestsIn(document);
+    if (typeof MutationObserver !== 'undefined') {
+      shieldObserver = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            if (node instanceof HTMLElement) shieldGuestsIn(node);
+          }
+        }
+      });
+      shieldObserver.observe(document.documentElement, { childList: true, subtree: true });
+    }
   }
   let released = false;
   return () => {
@@ -47,8 +67,11 @@ export const acquireInteractionShield = (): (() => void) => {
     activeUsers -= 1;
     if (activeUsers <= 0) {
       activeUsers = 0;
+      shieldObserver?.disconnect();
+      shieldObserver = null;
       for (const { el, prevPointerEvents } of shieldedElements) el.style.pointerEvents = prevPointerEvents;
       shieldedElements = [];
+      shieldedElementSet.clear();
     }
   };
 };

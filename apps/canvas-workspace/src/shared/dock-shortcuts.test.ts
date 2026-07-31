@@ -45,5 +45,17 @@ describe('resolveDockBrowserCommand', () => {
   it('cycles tabs with the bracket chords', () => {
     expect(resolveDockBrowserCommand({ key: ']', metaKey: true, shiftKey: true })).toBe('next-tab');
     expect(resolveDockBrowserCommand({ key: '[', metaKey: true, shiftKey: true })).toBe('previous-tab');
+    expect(resolveDockBrowserCommand({
+      key: '}',
+      code: 'BracketRight',
+      metaKey: true,
+      shiftKey: true,
+    })).toBe('next-tab');
+    expect(resolveDockBrowserCommand({
+      key: '{',
+      code: 'BracketLeft',
+      metaKey: true,
+      shiftKey: true,
+    })).toBe('previous-tab');
   });
 });

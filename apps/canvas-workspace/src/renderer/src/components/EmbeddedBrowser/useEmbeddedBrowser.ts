@@ -11,6 +11,13 @@ interface Options {
   enabled?: boolean;
   hostRef?: RefObject<HTMLDivElement>;
   mountKey?: string | number;
+  /**
+   * When supplied, hold the real URL on `about:blank` until this exact guest
+   * id has completed the main-process identity handshake. This closes the
+   * startup window where an instant redirect could run before navigation
+   * policy knows whether the guest is a dock browser or a canvas preview.
+   */
+  navigationReadyWebContentsId?: number | null;
   onFaviconChange?: (favicons: string[]) => void;
   onFocus?: () => void;
   onInitialLoadSettled?: (reason: Extract<InitialLoadReleaseReason, 'complete' | 'failed'>) => void;
@@ -39,6 +46,7 @@ export const useEmbeddedBrowser = ({
   enabled = true,
   hostRef: providedHostRef,
   mountKey = 0,
+  navigationReadyWebContentsId,
   onFaviconChange,
   onFocus,
   onInitialLoadSettled,
@@ -61,6 +69,8 @@ export const useEmbeddedBrowser = ({
   urlRef.current = url;
   const guestUrlRef = useRef(url);
   const lastReportedUrlRef = useRef(url);
+  const realNavigationStartedRef = useRef(false);
+  const navigationGateEnabled = navigationReadyWebContentsId !== undefined;
 
   useLayoutEffect(() => {
     if (!enabled) {
@@ -74,11 +84,14 @@ export const useEmbeddedBrowser = ({
 
     const element = document.createElement('webview') as EmbeddedWebviewTag;
     element.setAttribute('allowpopups', '');
-    if (urlRef.current) element.setAttribute('src', urlRef.current);
+    const holdForRegistration = navigationGateEnabled && Boolean(urlRef.current);
+    const initialGuestUrl = holdForRegistration ? 'about:blank' : urlRef.current;
+    realNavigationStartedRef.current = !holdForRegistration;
+    if (initialGuestUrl) element.setAttribute('src', initialGuestUrl);
     element.className = className;
     host.appendChild(element);
     setWebview(element);
-    guestUrlRef.current = urlRef.current;
+    guestUrlRef.current = initialGuestUrl;
     setCurrentUrl(urlRef.current);
     setCanGoBack(false);
     setCanGoForward(false);
@@ -90,6 +103,7 @@ export const useEmbeddedBrowser = ({
       setCanGoForward(element.canGoForward());
     };
     const handleNavigate = (event: Event) => {
+      if (!realNavigationStartedRef.current) return;
       const detail = event as Event & { isMainFrame?: boolean; url?: string };
       if (detail.isMainFrame === false) return;
       if (detail.url) {
@@ -108,20 +122,24 @@ export const useEmbeddedBrowser = ({
       syncNavigation();
     };
     const handleTitle = (event: Event) => {
+      if (!realNavigationStartedRef.current) return;
       const title = (event as Event & { title?: string }).title;
       if (title) callbacksRef.current.onTitleChange?.(title);
     };
     const handleFavicon = (event: Event) => {
+      if (!realNavigationStartedRef.current) return;
       callbacksRef.current.onFaviconChange?.(
         (event as Event & { favicons?: string[] }).favicons ?? [],
       );
     };
     const handleFocus = () => callbacksRef.current.onFocus?.();
     const handleStart = () => {
+      if (!realNavigationStartedRef.current) return;
       setLoadState('loading');
       setLoadError(null);
     };
     const handleStop = () => {
+      if (!realNavigationStartedRef.current) return;
       setLoadState((state) => state === 'failed' ? state : 'ready');
       callbacksRef.current.onInitialLoadSettled?.('complete');
       const title = element.getTitle?.().trim();
@@ -129,6 +147,7 @@ export const useEmbeddedBrowser = ({
       syncNavigation();
     };
     const handleFail = (event: Event) => {
+      if (!realNavigationStartedRef.current) return;
       const detail = event as Event & {
         errorCode?: number;
         errorDescription?: string;
@@ -176,19 +195,29 @@ export const useEmbeddedBrowser = ({
       element.remove();
       setWebview((current) => current === element ? null : current);
     };
-  }, [className, enabled, mountKey, reloadKey]);
+  }, [className, enabled, mountKey, navigationGateEnabled, reloadKey]);
 
   useLayoutEffect(() => {
     if (!webview) return;
+    if (navigationGateEnabled) {
+      let webContentsId: number | null = null;
+      try {
+        webContentsId = webview.getWebContentsId();
+      } catch {
+        return;
+      }
+      if (webContentsId !== navigationReadyWebContentsId) return;
+    }
     // Guest navigation is mirrored into persisted tab state. Only a URL that
     // differs from the live guest is an external navigation command.
-    if (url === guestUrlRef.current) return;
+    if (url === guestUrlRef.current && realNavigationStartedRef.current) return;
+    realNavigationStartedRef.current = true;
     guestUrlRef.current = url;
     if (webview.getAttribute('src') !== url) webview.setAttribute('src', url);
     setCurrentUrl(url);
     setLoadState(url ? 'loading' : 'idle');
     setLoadError(null);
-  }, [url, webview]);
+  }, [navigationGateEnabled, navigationReadyWebContentsId, url, webview]);
 
   const goBack = useCallback(() => {
     if (webview?.canGoBack()) webview.goBack();

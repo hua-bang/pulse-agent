@@ -14,6 +14,7 @@ import { linkPaneKey } from './dock-link-tabs';
 import { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
 import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId } from './dock-tab-ids';
 import type { ChatDeliveryReceipt } from '../chat/ChatTargetContext';
+import { focusActiveDockTarget } from './dock-browser-commands';
 
 const skillWorkspaceName = (
   tab: Extract<DockPreviewTab, { kind: 'skill' }>,
@@ -34,6 +35,9 @@ interface Props {
   store: DockStore;
   state: DockState;
   activePaneId: string | null;
+  /** Whether the dock is actually on screen. The selected tab remains in
+   *  state while collapsed, but its guest must be treated as background. */
+  dockVisible: boolean;
   splitTabId?: string;
   chatTabEnabled: boolean;
   splitContentWidth: number;
@@ -51,12 +55,14 @@ interface Props {
   pinUrlReference: (url: string, title?: string) => void;
   onAddDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onStartSkillChat?: (workspaceId: string, skillName: string) => void;
+  onCloseTab?: (tabId: string) => void;
 }
 
 export const DockPanes = ({
   store,
   state,
   activePaneId,
+  dockVisible,
   splitTabId,
   chatTabEnabled,
   splitContentWidth,
@@ -74,6 +80,7 @@ export const DockPanes = ({
   pinUrlReference,
   onAddDomSelectionToChat,
   onStartSkillChat = () => undefined,
+  onCloseTab = (tabId) => store.close(tabId),
 }: Props) => {
   const { t } = useI18n();
   const splitActive = Boolean(splitTabId);
@@ -119,8 +126,12 @@ export const DockPanes = ({
   for (const key of mountedLinkTabsRef.current) {
     if (!liveKeys.has(key)) mountedLinkTabsRef.current.delete(key);
   }
-  if (activePaneId) mountedLinkTabsRef.current.add(linkPaneKey(ownerWorkspaceId, activePaneId));
-  if (splitTabId) mountedLinkTabsRef.current.add(linkPaneKey(ownerWorkspaceId, splitTabId));
+  if (dockVisible && activePaneId) {
+    mountedLinkTabsRef.current.add(linkPaneKey(ownerWorkspaceId, activePaneId));
+  }
+  if (dockVisible && splitTabId) {
+    mountedLinkTabsRef.current.add(linkPaneKey(ownerWorkspaceId, splitTabId));
+  }
   const isMounted = (workspaceId: string, tabId: string): boolean => (
     mountedLinkTabsRef.current.has(linkPaneKey(workspaceId, tabId))
   );
@@ -260,7 +271,9 @@ export const DockPanes = ({
           hidden guest that navigates must not rename a same-id tab in the
           workspace the user is actually looking at. */}
       {linkPanes.map(({ workspaceId, tab, live }) => {
-        const visible = live && (tab.id === activePaneId || tab.id === splitTabId);
+        const visible = dockVisible
+          && live
+          && (tab.id === activePaneId || tab.id === splitTabId);
         return (
           <div
             key={linkPaneKey(workspaceId, tab.id)}
@@ -300,11 +313,15 @@ export const DockPanes = ({
                   : store.updateRetainedLinkTab(workspaceId, tab.id, { url }))}
                 onAddToReference={pinUrlReference}
                 onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(workspaceId, selection)}
-                onOpenLink={(url, options) => store.openLink(url, {
-                  ...options,
-                  ...(live ? { openerTabId: tab.id } : {}),
-                })}
-                onRequestClose={live ? () => store.close(tab.id) : () => undefined}
+                onOpenLink={(url, options) => {
+                  if (!live) {
+                    store.openLinkInWorkspace(workspaceId, url, options);
+                    return;
+                  }
+                  store.openLink(url, { ...options, openerTabId: tab.id });
+                  if (!options?.background) focusActiveDockTarget(store);
+                }}
+                onRequestClose={live ? () => onCloseTab(tab.id) : () => undefined}
               />
             </Suspense>
           </div>

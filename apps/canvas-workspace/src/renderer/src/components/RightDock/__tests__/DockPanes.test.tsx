@@ -60,6 +60,7 @@ describe('DockPanes split focus', () => {
         store={store}
         state={store.getSnapshot()}
         activePaneId={CHAT_TAB_ID}
+        dockVisible
         splitTabId={TERMINAL_TAB_ID}
         chatTabEnabled
         splitContentWidth={320}
@@ -103,12 +104,18 @@ describe('DockPanes split focus', () => {
 });
 
 describe('DockPanes lazy link-tab webview mount', () => {
-  const renderPanes = (store: DockStore, activePaneId: string | null, activeWorkspaceId = 'ws1') => {
+  const renderPanes = (
+    store: DockStore,
+    activePaneId: string | null,
+    activeWorkspaceId = 'ws1',
+    dockVisible = true,
+  ) => {
     flushSync(() => root?.render(
       <I18nProvider><DockPanes
         store={store}
         state={store.getSnapshot()}
         activePaneId={activePaneId}
+        dockVisible={dockVisible}
         chatTabEnabled
         splitContentWidth={320}
         splitDividerWidth={6}
@@ -155,6 +162,30 @@ describe('DockPanes lazy link-tab webview mount', () => {
     renderPanes(store, tabA.id);
     await vi.waitFor(() => expect(propsFor(tabA.id)?.mountWebview).toBe(true));
     expect(propsFor(tabB.id)?.mountWebview).toBe(true);
+  });
+
+  it('does not cold-mount a restored tab while collapsed and backgrounds it after collapse', async () => {
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openLink('https://a.example/');
+    const [tab] = store.getSnapshot().tabs;
+
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+
+    renderPanes(store, tab.id, 'ws1', false);
+    await vi.waitFor(() => expect(propsFor(tab.id)).toBeDefined());
+    expect(propsFor(tab.id)?.mountWebview).toBe(false);
+    expect(propsFor(tab.id)?.active).toBe(false);
+
+    renderPanes(store, tab.id, 'ws1', true);
+    await vi.waitFor(() => expect(propsFor(tab.id)?.mountWebview).toBe(true));
+    expect(propsFor(tab.id)?.active).toBe(true);
+
+    renderPanes(store, tab.id, 'ws1', false);
+    expect(propsFor(tab.id)?.mountWebview).toBe(true);
+    expect(propsFor(tab.id)?.active).toBe(false);
   });
 
   it('keeps a left workspace\'s tabs mounted, so switching back does not reload', async () => {
@@ -273,6 +304,7 @@ describe('DockPanes tabpanel relationships', () => {
         store={store}
         state={store.getSnapshot()}
         activePaneId={CHAT_TAB_ID}
+        dockVisible
         splitTabId={TERMINAL_TAB_ID}
         chatTabEnabled
         splitContentWidth={320}
@@ -319,6 +351,7 @@ describe('DockPanes tabpanel relationships', () => {
         store={store}
         state={store.getSnapshot()}
         activePaneId={second.id}
+        dockVisible
         chatTabEnabled
         splitContentWidth={320}
         splitDividerWidth={6}

@@ -20,12 +20,25 @@ const seedDock = () => {
   return store;
 };
 
-const render = (store: DockStore, tabId: string, onClose = vi.fn()) => {
+const render = (
+  store: DockStore,
+  tabId: string,
+  onClose = vi.fn(),
+  onActionComplete = vi.fn(),
+) => {
   const state = store.getSnapshot();
   const tab = state.tabs.find((item) => item.id === tabId)!;
   act(() => root?.render(
     <I18nProvider>
-      <TabContextMenu tab={tab} tabs={state.tabs} store={store} x={0} y={0} onClose={onClose} />
+      <TabContextMenu
+        tab={tab}
+        tabs={state.tabs}
+        store={store}
+        x={0}
+        y={0}
+        onClose={onClose}
+        onActionComplete={onActionComplete}
+      />
     </I18nProvider>,
   ));
   return onClose;
@@ -125,5 +138,32 @@ describe('TabContextMenu', () => {
 
     expect(onClose).toHaveBeenCalledOnce();
     expect(urls(store)).toEqual(['https://b.example/', 'https://c.example/']);
+  });
+
+  it('shields guest pointer input for the lifetime of the menu', () => {
+    const guest = document.createElement('webview');
+    document.body.appendChild(guest);
+    const store = seedDock();
+    render(store, store.getSnapshot().tabs[0].id);
+
+    expect(guest.style.pointerEvents).toBe('none');
+    act(() => root?.render(null));
+    expect(guest.style.pointerEvents).toBe('');
+    guest.remove();
+  });
+
+  it('restores the active dock target after Escape dismissal', () => {
+    const store = seedDock();
+    const onClose = vi.fn();
+    const onActionComplete = vi.fn();
+    render(store, store.getSnapshot().tabs[0].id, onClose, onActionComplete);
+
+    act(() => rows()[0]?.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+    })));
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onActionComplete).toHaveBeenCalledOnce();
   });
 });

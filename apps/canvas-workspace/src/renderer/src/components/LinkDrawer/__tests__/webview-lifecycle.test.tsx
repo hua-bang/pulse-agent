@@ -18,7 +18,7 @@ const iframeApi = {
     Parameters<IframeApi['setLifecycle']>,
     ReturnType<IframeApi['setLifecycle']>
   >(
-    async (_workspaceId, _tabId, state) => ({ ok: true, state }),
+    async (_workspaceId, _tabId, _webContentsId, state) => ({ ok: true, state }),
   ),
   onDiscarded: vi.fn(),
 };
@@ -26,6 +26,7 @@ const iframeApi = {
 let discardListener: ((payload: {
   workspaceId: string;
   nodeId: string;
+  webContentsId: number;
   restoreUrl?: string;
   scrollX?: number;
   scrollY?: number;
@@ -64,6 +65,7 @@ describe('right-dock webview lifecycle', () => {
     const Harness = ({ active }: { active: boolean }) => {
       useDockWebviewBackgroundLifecycle({
         webview,
+        webContentsId: 42,
         workspaceId: 'ws',
         tabId: 'link:tab',
         enabled: true,
@@ -74,14 +76,14 @@ describe('right-dock webview lifecycle', () => {
     };
 
     await act(async () => root?.render(<Harness active={false} />));
-    expect(iframeApi.setFrameRate).toHaveBeenCalledWith('ws', 'link:tab', 1);
+    expect(iframeApi.setFrameRate).toHaveBeenCalledWith('ws', 'link:tab', 42, 1);
 
     await act(async () => vi.advanceTimersByTimeAsync(5_000));
-    expect(iframeApi.setLifecycle).toHaveBeenCalledWith('ws', 'link:tab', 'frozen');
+    expect(iframeApi.setLifecycle).toHaveBeenCalledWith('ws', 'link:tab', 42, 'frozen');
 
     await act(async () => root?.render(<Harness active />));
-    expect(iframeApi.setLifecycle).toHaveBeenCalledWith('ws', 'link:tab', 'active');
-    expect(iframeApi.setFrameRate).toHaveBeenCalledWith('ws', 'link:tab', 60);
+    expect(iframeApi.setLifecycle).toHaveBeenCalledWith('ws', 'link:tab', 42, 'active');
+    expect(iframeApi.setFrameRate).toHaveBeenCalledWith('ws', 'link:tab', 42, 60);
   });
 
   it('rechecks an always-active guest in case its current URL changes while inactive', async () => {
@@ -94,6 +96,7 @@ describe('right-dock webview lifecycle', () => {
     const Harness = () => {
       useDockWebviewBackgroundLifecycle({
         webview,
+        webContentsId: 42,
         workspaceId: 'ws',
         tabId: 'link:tab',
         enabled: true,
@@ -117,6 +120,7 @@ describe('right-dock webview lifecycle', () => {
       latest = useDockWebviewDiscard({
         workspaceId: 'ws',
         tabId: 'link:tab',
+        webContentsId: 42,
         enabled: true,
         active,
         tabUrl: 'https://example.com/original',
@@ -128,6 +132,15 @@ describe('right-dock webview lifecycle', () => {
     act(() => discardListener?.({
       workspaceId: 'ws',
       nodeId: 'link:tab',
+      webContentsId: 99,
+      restoreUrl: 'https://wrong.example/',
+    }));
+    expect(latest).toMatchObject({ discarded: false });
+
+    act(() => discardListener?.({
+      workspaceId: 'ws',
+      nodeId: 'link:tab',
+      webContentsId: 42,
       restoreUrl: 'https://example.com/live',
       scrollX: 5,
       scrollY: 900,

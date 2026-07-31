@@ -6,6 +6,8 @@
 import { CHAT_TAB_ID, terminalTabId } from './dock-tab-ids';
 import type { DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 
+const EMPTY_TERMINAL_TABS: DockTerminalTab[] = [];
+
 export interface TerminalCommit {
   workspace: DockTerminalWorkspaceState;
   patch: Partial<DockState>;
@@ -22,6 +24,37 @@ const currentTerminalId = (workspace: DockTerminalWorkspaceState): string | unde
     ? workspace.activeTabId
     : workspace.tabs[0]?.id
 );
+
+/** Resolve a workspace record without allocating state into the store. */
+export function terminalWorkspaceFor(
+  workspaces: DockState['terminalTabsByWorkspace'],
+  workspaceId: string,
+): DockTerminalWorkspaceState {
+  return workspaces[workspaceId] ?? {
+    tabs: EMPTY_TERMINAL_TABS,
+    activeTabId: undefined,
+    nextOrdinal: 1,
+  };
+}
+
+/** Project the active workspace's terminal record onto the legacy top-level fields. */
+export function projectTerminalWorkspace(
+  workspaces: DockState['terminalTabsByWorkspace'],
+  workspaceId: string,
+): Pick<DockState, 'terminalTabs' | 'activeTerminalTabId' | 'nextTerminalOrdinal' | 'terminalOpen'> {
+  const workspace = workspaces[workspaceId];
+  const tabs = workspace?.tabs ?? EMPTY_TERMINAL_TABS;
+  const activeTerminalTabId = workspace?.activeTabId
+    && tabs.some((tab) => tab.id === workspace.activeTabId)
+    ? workspace.activeTabId
+    : tabs[0]?.id;
+  return {
+    terminalTabs: tabs,
+    activeTerminalTabId,
+    nextTerminalOrdinal: workspace?.nextOrdinal ?? 1,
+    terminalOpen: tabs.length > 0,
+  };
+}
 
 /** Focus the workspace's terminal, creating the first one if there is none. */
 export function openTerminalCommit(

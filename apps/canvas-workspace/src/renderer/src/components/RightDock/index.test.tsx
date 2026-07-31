@@ -6,6 +6,7 @@ import { I18nProvider } from '../../i18n';
 import { RightDockProvider, useDockContext } from './context';
 import { RightDock } from './index';
 import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
+import { FOCUS_DOCK_PAGE_EVENT } from './dock-browser-commands';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -205,6 +206,46 @@ describe('RightDock page layout', () => {
 });
 
 describe('RightDock Escape ownership', () => {
+  it('restores the last canvas focus owner when the user collapses the dock', async () => {
+    const outside = document.createElement('button');
+    outside.textContent = 'Canvas control';
+    document.body.appendChild(outside);
+    outside.focus();
+    const host = await renderDock();
+    const collapse = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Collapse panel (tabs are kept)"]',
+    )!;
+    collapse.focus();
+
+    act(() => collapse.click());
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+
+    expect(host.querySelector('.right-dock')?.getAttribute('data-expanded')).toBe('false');
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it('falls back to the Pulse AI launcher when no external focus owner exists', async () => {
+    const launcher = document.createElement('button');
+    launcher.setAttribute('aria-label', 'Toggle AI Chat (Cmd/Ctrl+Shift+A)');
+    document.body.appendChild(launcher);
+    const host = await renderDock();
+    const collapse = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Collapse panel (tabs are kept)"]',
+    )!;
+    collapse.focus();
+
+    act(() => collapse.click());
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+
+    expect(document.activeElement).toBe(launcher);
+    launcher.remove();
+  });
+
   it('leaves handled, composing, and editable Escape events to inner editors', async () => {
     const host = await renderDock();
     const tabCount = () => host.querySelectorAll('[role="tab"]').length;
@@ -305,5 +346,30 @@ describe('RightDock web-tab shortcuts', () => {
     act(() => linkTab?.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 1 })));
 
     expect(host.querySelector('[data-dock-tab-id^="link:"]')).toBeNull();
+  });
+
+  it('hands focus to the resulting page after a pointer close', async () => {
+    const host = await renderDock();
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 't',
+      metaKey: true,
+      bubbles: true,
+    })));
+    const webTabs = [...host.querySelectorAll<HTMLButtonElement>(
+      '[data-dock-tab-id^="link:"]',
+    )];
+    expect(webTabs).toHaveLength(2);
+    const expectedTabId = webTabs[0].dataset.dockTabId;
+    const details: Array<{ tabId: string }> = [];
+    const listener = (event: Event) => details.push(
+      (event as CustomEvent<{ tabId: string }>).detail,
+    );
+    window.addEventListener(FOCUS_DOCK_PAGE_EVENT, listener);
+
+    const activeShell = webTabs[1].closest('.right-dock__tab-shell');
+    act(() => activeShell?.querySelector<HTMLButtonElement>('.right-dock__tab-close')?.click());
+
+    expect(details.at(-1)?.tabId).toBe(expectedTabId);
+    window.removeEventListener(FOCUS_DOCK_PAGE_EVENT, listener);
   });
 });

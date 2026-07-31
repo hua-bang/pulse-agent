@@ -2,6 +2,7 @@ import { app, shell, type WebContents } from "electron";
 import { isSafeExternalUrl } from "./shell-ipc";
 import { isGoogleAuthUrl } from "./google-auth";
 import { openGoogleAuthPopup } from "./google-auth-popup";
+import { getWebviewRegistration } from "../webview/registry";
 
 // Centralized popup policy. Fires for every webContents the app ever creates:
 // the main BrowserWindow, sandboxed iframes within it, and every <webview> tag
@@ -35,9 +36,9 @@ export function setupLinkPolicy(): void {
         return { action: "allow" };
       }
 
-      // Everything else is a "preview this link" intent, route to the side
+      // Everything else is a `preview this link` intent, route to the side
       // drawer. Chromium reports ⌘/Ctrl+click and middle-click as
-      // `background-tab`; that gesture means "queue this, keep reading", so
+      // `background-tab`; that gesture means `queue this, keep reading`, so
       // the disposition travels with the URL instead of being flattened into
       // an unconditional foreground open.
       forwardLinkToRenderer(contents, url, disposition === "background-tab");
@@ -76,12 +77,21 @@ export function setupLinkPolicy(): void {
           return;
         }
         if (crossOrigin && isSafeExternalUrl(url)) {
-          event.preventDefault();
           if (isEditorExternalUrl(url)) {
+            event.preventDefault();
             openExternal(url);
-          } else {
-            forwardLinkToRenderer(contents, url);
+            return;
           }
+          // A registered dock browser is a user-controlled browsing surface:
+          // ordinary safe navigation stays in that tab. Canvas-node guests
+          // remain previews, so their cross-origin hops are still intercepted
+          // and opened as dock links.
+          if (
+            getWebviewRegistration(contents.id)?.surfaceKind === "dock-browser"
+            && isWebNavigationUrl(url)
+          ) return;
+          event.preventDefault();
+          forwardLinkToRenderer(contents, url);
         }
       });
 
@@ -134,6 +144,15 @@ function isEditorExternalUrl(raw: string): boolean {
   }
 }
 
+function isWebNavigationUrl(raw: string): boolean {
+  try {
+    const protocol = new URL(raw).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function openExternal(url: string): void {
   void shell.openExternal(url).catch(() => undefined);
 }
@@ -152,5 +171,13 @@ function forwardLinkToRenderer(
   // (it maps its own mounted webviews by webContentsId), so the new tab can
   // land beside its opener. Only meaningful when the source is a guest.
   const sourceWebContentsId = contents.hostWebContents ? contents.id : undefined;
-  target.send("link:open", { url, background, sourceWebContentsId });
+  const source = sourceWebContentsId === undefined
+    ? undefined
+    : getWebviewRegistration(sourceWebContentsId) ?? undefined;
+  target.send("link:open", {
+    url,
+    background,
+    sourceWebContentsId,
+    ...(source ? { source } : {}),
+  });
 }

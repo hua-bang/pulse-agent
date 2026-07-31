@@ -19,20 +19,21 @@ import { AddressSuggestionList } from './AddressSuggestions';
 import { LinkTabLoadError } from './LinkTabLoadError';
 import { PageContextMenu } from './PageContextMenu';
 import { FindInPageBar } from './FindInPageBar';
+import { InspectIcon, ReferenceIcon } from './icons';
 import { useAddressBar } from './useAddressBar';
 import { useFindInPage } from './useFindInPage';
 import { usePageContextMenu } from './usePageContextMenu';
+import { focusDockPageOrRequest, useDockPageFocus } from './useDockPageFocus';
 import { useWebviewRegistration } from '../IframeNodeBody/useWebviewRegistration';
 import { useWebviewRestore } from '../IframeNodeBody/useWebviewDiscard';
 import {
   useDockWebviewBackgroundLifecycle,
   useDockWebviewDiscard,
 } from './useDockWebviewLifecycle';
-import { registerLinkTabWebview } from '../RightDock/link-tab-webviews';
 import {
+  dockPageKeyFromFocusEvent,
   FIND_IN_DOCK_TAB_EVENT,
   FOCUS_DOCK_ADDRESS_EVENT,
-  FOCUS_DOCK_PAGE_EVENT,
   RELOAD_DOCK_TAB_EVENT,
 } from '../RightDock/dock-browser-commands';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
@@ -115,9 +116,11 @@ export const LinkTabView = ({
   // title/favicon events are folded into the same browsing-history visit.
   const lastVisitedUrlRef = useRef('');
   const webviewHostRef = useRef<HTMLDivElement>(null);
+  const [guestId, setGuestId] = useState<number | null>(null);
   const discard = useDockWebviewDiscard({
     workspaceId: activeWorkspaceId,
     tabId,
+    webContentsId: guestId,
     enabled: mountWebview,
     active,
     tabUrl: url,
@@ -131,6 +134,7 @@ export const LinkTabView = ({
     className: 'link-drawer__webview',
     enabled: mountWebview && !discard.discarded && initialLoadSlot.granted,
     hostRef: webviewHostRef,
+    navigationReadyWebContentsId: guestId,
     onFocus: onActivate,
     onFaviconChange: (favicons) => {
       const favicon = pickFaviconUrl(favicons);
@@ -158,28 +162,48 @@ export const LinkTabView = ({
   const loading = loadState === 'loading';
   const errorKind = loadState === 'failed' ? classifyLoadError(browser.loadError) : null;
 
-  const addressBar = useAddressBar({ url, currentUrl: browser.currentUrl, onNavigate });
+  const restorePageFocus = useCallback(() => focusDockPageOrRequest({
+    workspaceId: activeWorkspaceId,
+    tabId,
+    webview: browser.webview,
+  }), [activeWorkspaceId, browser.webview, tabId]);
+  const addressBar = useAddressBar({
+    active,
+    url,
+    currentUrl: browser.currentUrl,
+    onNavigate,
+    onRestorePageFocus: restorePageFocus,
+  });
 
   // Register this tab's <webview> with main so the Canvas Agent can read the
   // live page (via canvas_read_tab), keyed by the dock tab id. The same
   // handshake feeds the renderer-side guest→tab index, which is how a link
   // opened from this page knows to land next to this tab.
-  const [guestId, setGuestId] = useState<number | null>(null);
   useWebviewRegistration({
     webview: browser.webview,
     workspaceId: activeWorkspaceId,
     nodeId: tabId ?? '',
     enabled: Boolean(tabId && activeWorkspaceId),
+    surfaceKind: 'dock-browser',
     onWebContentsId: useCallback((webContentsId: number | null) => {
       setGuestId(webContentsId);
-      if (webContentsId === null || !tabId) return;
-      registerLinkTabWebview(webContentsId, tabId);
-    }, [tabId]),
+    }, []),
   });
-  const contextMenu = usePageContextMenu({ guestId });
-  const find = useFindInPage(browser.webview);
+  const contextMenu = usePageContextMenu({ guestId, active });
+  const restoreFindFocus = useCallback(() => {
+    if (!url) {
+      addressBar.focusAddress();
+      return;
+    }
+    restorePageFocus();
+  }, [addressBar.focusAddress, restorePageFocus, url]);
+  const find = useFindInPage(browser.webview, {
+    active,
+    onRestorePageFocus: restoreFindFocus,
+  });
   useDockWebviewBackgroundLifecycle({
     webview: browser.webview,
+    webContentsId: guestId,
     workspaceId: activeWorkspaceId,
     tabId,
     enabled: mountWebview && !discard.discarded,
@@ -194,9 +218,13 @@ export const LinkTabView = ({
   const { openFind } = find;
   useEffect(() => {
     if (!active) return;
-    const onFocusRequest = () => focusAddress();
-    const onReloadRequest = () => reload();
-    const onFindRequest = () => openFind();
+    const ownsRequest = (event: Event) => {
+      const target = dockPageKeyFromFocusEvent(event);
+      return target?.workspaceId === activeWorkspaceId && target.tabId === tabId;
+    };
+    const onFocusRequest = (event: Event) => { if (ownsRequest(event)) focusAddress(); };
+    const onReloadRequest = (event: Event) => { if (ownsRequest(event)) reload(); };
+    const onFindRequest = (event: Event) => { if (ownsRequest(event)) openFind(); };
     window.addEventListener(FOCUS_DOCK_ADDRESS_EVENT, onFocusRequest);
     window.addEventListener(RELOAD_DOCK_TAB_EVENT, onReloadRequest);
     window.addEventListener(FIND_IN_DOCK_TAB_EVENT, onFindRequest);
@@ -205,21 +233,9 @@ export const LinkTabView = ({
       window.removeEventListener(RELOAD_DOCK_TAB_EVENT, onReloadRequest);
       window.removeEventListener(FIND_IN_DOCK_TAB_EVENT, onFindRequest);
     };
-  }, [active, focusAddress, reload, openFind]);
+  }, [active, activeWorkspaceId, focusAddress, openFind, reload, tabId]);
 
-  // A user click on this tab hands keyboard focus to the page, so scrolling
-  // and typing work without a second click. Addressed by tab id rather than
-  // `active` so the click that CREATES the activation is not missed.
-  useEffect(() => {
-    if (!tabId || !webview) return;
-    const onFocusPage = (event: Event) => {
-      if ((event as CustomEvent<{ tabId?: string }>).detail?.tabId !== tabId) return;
-      // After the activation commit, or the pane is still hidden.
-      requestAnimationFrame(() => webview.focus());
-    };
-    window.addEventListener(FOCUS_DOCK_PAGE_EVENT, onFocusPage);
-    return () => window.removeEventListener(FOCUS_DOCK_PAGE_EVENT, onFocusPage);
-  }, [tabId, webview]);
+  useDockPageFocus({ active, workspaceId: activeWorkspaceId, tabId, webview });
 
   const handleOpenInBrowser = useCallback(() => {
     if (!browser.currentUrl) return;
@@ -456,6 +472,7 @@ export const LinkTabView = ({
           canGoForward={browser.canGoForward}
           pageUrl={browser.currentUrl || url}
           onClose={contextMenu.close}
+          onRestorePageFocus={restorePageFocus}
           actions={{
             openLink: (target, options) => onOpenLink(target, options),
             openExternal: (target) => void window.canvasWorkspace.shell.openExternal(target),
@@ -469,21 +486,3 @@ export const LinkTabView = ({
     </>
   );
 };
-
-const ReferenceIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-    <path d="M3 1.75h6v8.5L6 8.3l-3 1.95v-8.5z" stroke="currentColor" strokeWidth="1.15" strokeLinejoin="round" />
-  </svg>
-);
-
-const InspectIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-    <path
-      d="M2 2.5A.5.5 0 012.5 2h7a.5.5 0 01.5.5v7a.5.5 0 01-.5.5h-7a.5.5 0 01-.5-.5v-7zM4.2 5L3.2 6l1 1M7.8 5l1 1-1 1M5.4 8l1.2-4"
-      stroke="currentColor"
-      strokeWidth="1.1"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);

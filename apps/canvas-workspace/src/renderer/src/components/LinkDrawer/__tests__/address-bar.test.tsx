@@ -1,8 +1,12 @@
 // @vitest-environment happy-dom
-import { act } from 'react';
+import { act, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAddressBar } from '../useAddressBar';
+import {
+  consumeDockPageFocusRequest,
+  requestDockPageFocus,
+} from '../../RightDock/dock-browser-commands';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -10,27 +14,46 @@ let root: Root | null = null;
 let mount: HTMLDivElement | null = null;
 const onNavigate = vi.fn();
 
-const Harness = ({ url, currentUrl }: { url: string; currentUrl: string }) => {
-  const bar = useAddressBar({ url, currentUrl, onNavigate });
+const Harness = ({
+  url,
+  currentUrl,
+  active,
+}: {
+  url: string;
+  currentUrl: string;
+  active: boolean;
+}) => {
+  const pageRef = useRef<HTMLButtonElement>(null);
+  const bar = useAddressBar({
+    active,
+    url,
+    currentUrl,
+    onNavigate,
+    onRestorePageFocus: () => pageRef.current?.focus(),
+  });
   return (
-    <form ref={bar.formRef} onSubmit={bar.onSubmit}>
-      <input
-        value={bar.address}
-        onChange={(event) => bar.onChange(event.target.value)}
-        onFocus={(event) => bar.onFocus(event.currentTarget)}
-        onBlur={bar.onBlur}
-        onKeyDown={bar.onKeyDown}
-      />
-    </form>
+    <>
+      <form ref={bar.formRef} onSubmit={bar.onSubmit}>
+        <input
+          value={bar.address}
+          onChange={(event) => bar.onChange(event.target.value)}
+          onFocus={(event) => bar.onFocus(event.currentTarget)}
+          onBlur={bar.onBlur}
+          onKeyDown={bar.onKeyDown}
+        />
+      </form>
+      <button ref={pageRef} data-page type="button">Page</button>
+    </>
   );
 };
 
-const render = (url: string, currentUrl = url) => {
-  act(() => root?.render(<Harness url={url} currentUrl={currentUrl} />));
+const render = (url: string, currentUrl = url, active = true) => {
+  act(() => root?.render(<Harness url={url} currentUrl={currentUrl} active={active} />));
   return mount?.querySelector('input') as HTMLInputElement;
 };
 
 const input = () => mount?.querySelector('input') as HTMLInputElement;
+const page = () => mount?.querySelector('[data-page]') as HTMLButtonElement;
 
 // React tracks the last value it wrote; assigning `.value` directly makes its
 // tracker believe nothing changed and swallows the synthetic change event.
@@ -70,6 +93,11 @@ beforeEach(() => {
   mount = document.createElement('div');
   document.body.appendChild(mount);
   root = createRoot(mount);
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
 });
 
 afterEach(() => {
@@ -77,6 +105,7 @@ afterEach(() => {
   mount?.remove();
   root = null;
   mount = null;
+  vi.unstubAllGlobals();
 });
 
 describe('useAddressBar', () => {
@@ -113,7 +142,7 @@ describe('useAddressBar', () => {
     });
 
     expect(onNavigate).toHaveBeenCalledWith('https://example.org/docs');
-    expect(document.activeElement).not.toBe(input());
+    expect(document.activeElement).toBe(page());
   });
 
   it('abandons the edit on Escape and restores the live URL', () => {
@@ -128,5 +157,38 @@ describe('useAddressBar', () => {
     // The dock's Escape handler must not also act on this key.
     expect(escape.defaultPrevented).toBe(true);
     expect(onNavigate).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(page());
+  });
+
+  it('only auto-focuses a blank omnibox while its tab is active', () => {
+    const field = render('', '', false);
+    expect(document.activeElement).not.toBe(field);
+
+    render('', '', true);
+    expect(document.activeElement).toBe(input());
+
+    render('', '', false);
+    expect(document.activeElement).not.toBe(input());
+  });
+
+  it('does not steal focus back after the user leaves a blank omnibox', () => {
+    render('', '', true);
+    expect(document.activeElement).toBe(input());
+
+    act(() => {
+      page().focus();
+      input().dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    });
+
+    expect(document.activeElement).toBe(page());
+  });
+
+  it('cancels an older pending page-focus request when the user enters the omnibox', () => {
+    const field = render('https://a.example/');
+    requestDockPageFocus({ workspaceId: 'ws-a', tabId: 'cold-tab' });
+
+    focus(field);
+
+    expect(consumeDockPageFocusRequest({ workspaceId: 'ws-a', tabId: 'cold-tab' })).toBe(false);
   });
 });

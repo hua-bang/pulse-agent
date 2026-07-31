@@ -1,5 +1,5 @@
 import type { AgentContextTabRef } from '../../../shared/agent-chat';
-import type { DockBrowserCommand } from '../../../shared/dock-shortcuts';
+import type { DockShortcutRequest } from '../../../shared/dock-shortcuts';
 
 /**
  * Renderer → main bridge for right-dock state the Canvas Agent needs to see.
@@ -23,6 +23,6 @@ export interface DockApi {
    *  main (`app/webview-shortcuts.ts`) because guest keys never reach this
    *  window. Returns unsubscribe fn. */
   onShortcut: (
-    callback: (payload: { command: DockBrowserCommand }) => void,
+    callback: (payload: DockShortcutRequest) => void,
   ) => () => void;
 }

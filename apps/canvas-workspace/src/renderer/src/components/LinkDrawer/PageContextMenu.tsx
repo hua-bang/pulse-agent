@@ -35,6 +35,7 @@ interface Props {
   pageUrl: string;
   actions: PageContextMenuActions;
   onClose: () => void;
+  onRestorePageFocus: () => void;
 }
 
 const truncate = (text: string): string => {
@@ -53,14 +54,21 @@ export const PageContextMenu = ({
   pageUrl,
   actions,
   onClose,
+  onRestorePageFocus,
 }: Props) => {
   const { t } = useI18n();
   const selection = request.selectionText.trim();
   const isImage = request.mediaType === 'image' && Boolean(request.srcURL);
 
-  const run = (action: () => void) => () => {
+  const run = (action: () => void, restorePageFocus = true) => () => {
     onClose();
     action();
+    if (restorePageFocus) onRestorePageFocus();
+  };
+
+  const closePopover = (reason?: 'escape' | 'outside') => {
+    onClose();
+    if (reason === 'escape') onRestorePageFocus();
   };
 
   // ui/Button + role="menuitem" is the blessed menu-row shape (see
@@ -75,11 +83,14 @@ export const PageContextMenu = ({
   );
 
   return (
-    <Popover x={x} y={y} onClose={onClose} className="context-menu context-menu--in-dock">
+    <Popover x={x} y={y} onClose={closePopover} className="context-menu context-menu--in-dock">
       {request.linkURL && (
         <>
           <div className="context-menu-title">{t('linkDrawer.menu.linkTitle')}</div>
-          {item('linkDrawer.menu.openLinkInNewTab', run(() => actions.openLink(request.linkURL)))}
+          {item('linkDrawer.menu.openLinkInNewTab', run(
+            () => actions.openLink(request.linkURL),
+            false,
+          ))}
           {item('linkDrawer.menu.openLinkInBackground', run(
             () => actions.openLink(request.linkURL, { background: true }),
           ))}
@@ -90,7 +101,10 @@ export const PageContextMenu = ({
       {isImage && (
         <>
           <div className="context-menu-title">{t('linkDrawer.menu.imageTitle')}</div>
-          {item('linkDrawer.menu.openImageInNewTab', run(() => actions.openLink(request.srcURL)))}
+          {item('linkDrawer.menu.openImageInNewTab', run(
+            () => actions.openLink(request.srcURL),
+            false,
+          ))}
           {item('linkDrawer.menu.copyImageAddress', run(() => actions.copyText(request.srcURL)))}
         </>
       )}
@@ -100,7 +114,7 @@ export const PageContextMenu = ({
           {item('linkDrawer.menu.copySelection', run(() => actions.copyText(selection)))}
           {item(
             'linkDrawer.menu.searchSelection',
-            run(() => actions.openLink(resolveAddressInput(selection))),
+            run(() => actions.openLink(resolveAddressInput(selection)), false),
             { query: truncate(selection) },
           )}
         </>

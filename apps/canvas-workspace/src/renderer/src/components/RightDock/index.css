@@ -138,7 +138,7 @@
   overflow-y: hidden;
   scrollbar-width: none;
   scroll-behavior: smooth;
-  scroll-padding: 0 8px;
+  scroll-padding: 0 8px 0 92px;
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent);
   mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent);
 }
@@ -349,6 +349,43 @@
   min-width: 78px;
   max-width: 140px;
   padding-right: 12px;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--surface);
+}
+
+.right-dock__tab--chat.right-dock__tab--active {
+  background: var(--surface-alt);
+}
+
+.right-dock__tab-switcher {
+  flex: 0 0 auto;
+}
+
+.right-dock__tab-switcher-menu {
+  width: min(280px, calc(100vw - 16px));
+  max-height: min(420px, calc(100vh - 24px));
+  overflow-y: auto;
+}
+
+.right-dock__tab-switcher-item.ui-btn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.right-dock__tab-switcher-kind {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: var(--text-muted);
+}
+
+.right-dock__tab-switcher-kind--chat,
+.right-dock__tab-switcher-kind--link {
+  background: var(--accent);
 }
 
 .right-dock__tab-dot {

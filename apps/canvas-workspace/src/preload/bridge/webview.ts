@@ -2,26 +2,32 @@ import type { IpcRenderer } from "electron";
 import type {
   IframeApi,
   LinkApi,
-  LinkOpenRequest,
   LlmApi,
   ShellApi,
   WebApi
 } from "../../renderer/src/types";
+import type { LinkOpenRequest } from "../../shared/link-open";
 import type { WebviewContextMenuRequest } from "../../shared/webview-context-menu";
 import { subscribe } from "./ipc";
 
 export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
-  registerWebview: (workspaceId, nodeId, webContentsId, ready) =>
-    ipcRenderer.invoke("iframe:register-webview", { workspaceId, nodeId, webContentsId, ready }),
+  registerWebview: (workspaceId, nodeId, webContentsId, surfaceKind, ready) =>
+    ipcRenderer.invoke("iframe:register-webview", {
+      workspaceId,
+      nodeId,
+      webContentsId,
+      surfaceKind,
+      ready,
+    }),
 
   unregisterWebview: (workspaceId, nodeId, webContentsId) =>
     ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId, webContentsId }),
 
-  setFrameRate: (workspaceId, nodeId, frameRate) =>
-    ipcRenderer.invoke("iframe:set-frame-rate", { workspaceId, nodeId, frameRate }),
+  setFrameRate: (workspaceId, nodeId, webContentsId, frameRate) =>
+    ipcRenderer.invoke("iframe:set-frame-rate", { workspaceId, nodeId, webContentsId, frameRate }),
 
-  setLifecycle: (workspaceId, nodeId, state) =>
-    ipcRenderer.invoke("iframe:set-lifecycle", { workspaceId, nodeId, state }),
+  setLifecycle: (workspaceId, nodeId, webContentsId, state) =>
+    ipcRenderer.invoke("iframe:set-lifecycle", { workspaceId, nodeId, webContentsId, state }),
 
   onDiscarded: (callback) =>
     subscribe(ipcRenderer, "iframe:discarded", callback),

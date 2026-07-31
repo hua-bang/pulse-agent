@@ -4,12 +4,14 @@ import type {
   WebviewLifecycleState,
 } from '../../../shared/webview-lifecycle';
 import type { WebviewContextMenuRequest } from '../../../shared/webview-context-menu';
+import type { WebviewSurfaceKind } from '../../../shared/webview-registration';
 
 export interface IframeApi {
   registerWebview: (
     workspaceId: string,
     nodeId: string,
     webContentsId: number,
+    surfaceKind: WebviewSurfaceKind,
     ready?: boolean,
   ) => Promise<{ ok: boolean }>;
   /**
@@ -33,6 +35,7 @@ export interface IframeApi {
   setFrameRate: (
     workspaceId: string,
     nodeId: string,
+    webContentsId: number,
     frameRate: number,
   ) => Promise<{ ok: boolean; frameRate?: number }>;
   /**
@@ -47,6 +50,7 @@ export interface IframeApi {
   setLifecycle: (
     workspaceId: string,
     nodeId: string,
+    webContentsId: number,
     state: WebviewLifecycleState,
   ) => Promise<SetWebviewLifecycleResult>;
   /**
@@ -63,6 +67,7 @@ export interface IframeApi {
     callback: (payload: {
       workspaceId: string;
       nodeId: string;
+      webContentsId: number;
       snapshotDataUrl?: string;
       restoreUrl?: string;
       scrollX?: number;

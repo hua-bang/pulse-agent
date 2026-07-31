@@ -9,6 +9,7 @@
  * same chords in `before-input-event` and forwards the resolved command to the
  * renderer, which handles it identically to a locally observed key.
  */
+import type { WebviewRegistrationIdentity } from './webview-registration';
 
 export type DockBrowserCommand =
   | 'new-tab'
@@ -19,6 +20,11 @@ export type DockBrowserCommand =
   | 'find'
   | 'next-tab'
   | 'previous-tab';
+
+export interface DockShortcutRequest {
+  command: DockBrowserCommand;
+  source: WebviewRegistrationIdentity;
+}
 
 /**
  * Commands the canvas also binds. The host-window listener claims these only
@@ -31,6 +37,7 @@ export const DOCK_FOCUS_SCOPED_COMMANDS: ReadonlySet<DockBrowserCommand> = new S
 interface Binding {
   command: DockBrowserCommand;
   key: string;
+  code?: string;
   shift?: boolean;
 }
 
@@ -43,12 +50,13 @@ const BINDINGS: readonly Binding[] = [
   { command: 'focus-address', key: 'l' },
   { command: 'reload', key: 'r' },
   { command: 'find', key: 'f' },
-  { command: 'next-tab', key: ']', shift: true },
-  { command: 'previous-tab', key: '[', shift: true },
+  { command: 'next-tab', key: ']', code: 'BracketRight', shift: true },
+  { command: 'previous-tab', key: '[', code: 'BracketLeft', shift: true },
 ];
 
 export interface DockShortcutInput {
   key: string;
+  code?: string;
   metaKey?: boolean;
   ctrlKey?: boolean;
   shiftKey?: boolean;
@@ -64,9 +72,14 @@ export function resolveDockBrowserCommand(event: DockShortcutInput): DockBrowser
   if (event.altKey) return null;
   if (!event.metaKey && !event.ctrlKey) return null;
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const normalizedKey = event.shiftKey && key === '}'
+    ? ']'
+    : event.shiftKey && key === '{' ? '[' : key;
   const shift = Boolean(event.shiftKey);
   for (const binding of BINDINGS) {
-    if (binding.key === key && Boolean(binding.shift) === shift) return binding.command;
+    const keyMatches = binding.key === normalizedKey
+      || (binding.code !== undefined && binding.code === event.code);
+    if (keyMatches && Boolean(binding.shift) === shift) return binding.command;
   }
   return null;
 }

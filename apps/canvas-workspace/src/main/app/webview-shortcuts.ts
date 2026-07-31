@@ -12,16 +12,23 @@
  * the page untouched, including ⌘C/⌘V and any site-defined shortcut.
  */
 import { app, type WebContents } from "electron";
-import { resolveDockBrowserCommand } from "../../shared/dock-shortcuts";
+import {
+  resolveDockBrowserCommand,
+  type DockShortcutRequest,
+} from "../../shared/dock-shortcuts";
+import { getWebviewRegistration } from "../webview/registry";
 
 export function setupWebviewShortcuts(): void {
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() !== "webview") return;
     contents.on("before-input-event", (event, input) => {
+      const source = getWebviewRegistration(contents.id);
+      if (source?.surfaceKind !== "dock-browser") return;
       // keyUp would double-fire the command for one physical press.
       if (input.type !== "keyDown" || !input.key) return;
       const command = resolveDockBrowserCommand({
         key: input.key,
+        code: input.code,
         metaKey: input.meta,
         ctrlKey: input.control,
         shiftKey: input.shift,
@@ -31,7 +38,8 @@ export function setupWebviewShortcuts(): void {
       const target = embedderOf(contents);
       if (!target) return;
       event.preventDefault();
-      target.send("dock:shortcut", { command });
+      const payload: DockShortcutRequest = { command, source };
+      target.send("dock:shortcut", payload);
     });
   });
 }

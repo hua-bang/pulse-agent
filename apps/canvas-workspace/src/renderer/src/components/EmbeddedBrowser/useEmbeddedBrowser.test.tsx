@@ -18,6 +18,7 @@ beforeEach(() => {
     webview.canGoBack = vi.fn(() => true);
     webview.canGoForward = vi.fn(() => false);
     webview.getTitle = vi.fn(() => 'Example page');
+    webview.getWebContentsId = vi.fn(() => 42);
     webview.goBack = vi.fn();
     webview.goForward = vi.fn();
     webview.reload = vi.fn();
@@ -164,6 +165,18 @@ describe('useEmbeddedBrowser', () => {
 
     expect(onFocus).toHaveBeenCalledOnce();
   });
+
+  it('holds the real URL until the exact guest registration is confirmed', () => {
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    flushSync(() => root?.render(<NavigationGateHarness readyId={null} />));
+
+    expect(webview.getAttribute('src')).toBe('about:blank');
+
+    flushSync(() => root?.render(<NavigationGateHarness readyId={42} />));
+    expect(webview.getAttribute('src')).toBe('https://example.com');
+  });
 });
 
 const Harness = ({ onNavigate }: { onNavigate: (url: string) => void }) => {
@@ -238,6 +251,15 @@ const SettlementHarness = ({
   const browser = useEmbeddedBrowser({
     className: 'test-webview',
     onInitialLoadSettled,
+    url: 'https://example.com',
+  });
+  return <div ref={browser.hostRef} />;
+};
+
+const NavigationGateHarness = ({ readyId }: { readyId: number | null }) => {
+  const browser = useEmbeddedBrowser({
+    className: 'test-webview',
+    navigationReadyWebContentsId: readyId,
     url: 'https://example.com',
   });
   return <div ref={browser.hostRef} />;
