@@ -14,7 +14,7 @@ import { resolveKnowledgeChatRouteContext } from './components/Workbench/knowled
 import { GraphPageLazy as GraphPage } from './components/WorkspaceNodes/GraphPageLazy';
 import { useKnowledgeAiContext } from './components/WorkspaceNodes/knowledgeAiContext';
 import { NodesRouteViews } from './components/WorkspaceNodes/NodesRouteViews';
-import { useOpenNodePageBridge } from './components/WorkspaceNodes/useOpenNodePageBridge';
+import { useNodeDetailBridges } from './components/WorkspaceNodes/useNodeDetailBridges';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { useAppShortcutBindings } from './hooks/useAppShortcuts';
 import { parseCanvasLocation } from './utils/canvasLinks';
@@ -468,7 +468,7 @@ const AppContent = () => {
 
   const getWorkspaceRootFolder = useCallback((workspaceId: string) => workspaces.find((ws) => ws.id === workspaceId)?.rootFolder, [workspaces]);
 
-  const handleNodeFocusFromChatPage = useCallback((workspaceId: string, nodeId: string) => {
+  const focusNodeOnCanvas = useCallback((workspaceId: string, nodeId: string) => {
     if (activeId !== workspaceId) {
       selectWorkspace(workspaceId);
     }
@@ -481,8 +481,7 @@ const AppContent = () => {
     setNodeDetailBackPath(location);
     setLocation(`${ROUTE_NODES}/${encodeURIComponent(workspaceId)}/${encodeURIComponent(nodeId)}`);
   }, [location, setLocation]);
-
-  useOpenNodePageBridge({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, openNodePage });
+  useNodeDetailBridges({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, pageNode: detailNode, enterNodePage: dock.enterNodePage, openNodePage, focusNodeOnCanvas });
 
   return (
     <div className="app">
@@ -551,7 +550,7 @@ const AppContent = () => {
               getWorkspaceRootFolder={getWorkspaceRootFolder}
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
               onExit={exitChatView}
-              onNodeFocus={handleNodeFocusFromChatPage}
+              onNodeFocus={focusNodeOnCanvas}
               onOpenAppSettings={openAppSettings}
               onOpenWorkspaceSettings={openWorkspaceSettings}
             />

@@ -32,7 +32,17 @@ export function getNodeTitle(
     const display = node.displayTitle?.trim();
     if (display) return display;
   }
-  return node.title?.trim() || node.id || fallback;
+  const storedTitle = node.title?.trim();
+  const isMindmapPlaceholder = node.type === 'mindmap' && storedTitle?.toLowerCase() === 'mindmap';
+  if (storedTitle && !isMindmapPlaceholder) return storedTitle;
+  if ('data' in node && node.type === 'mindmap') {
+    const root = node.data?.root;
+    if (root && typeof root === 'object') {
+      const rootText = (root as { text?: unknown }).text;
+      if (typeof rootText === 'string' && rootText.trim()) return rootText.trim();
+    }
+  }
+  return storedTitle || node.id || fallback;
 }
 
 export function getNodeTypeLabel(

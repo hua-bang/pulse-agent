@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import type { WorkspaceNodeLink, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
 import { useI18n } from '../../i18n';
-import { Button, Select, TextField } from '../ui';
+import { Button, TextField } from '../ui';
+import { CloseIcon } from '../icons';
 import { getNodeTitle } from './utils';
+import { dispatchOpenNode } from '../../utils/openNodeBridge';
+import { isImeComposing } from '../../utils/ime';
+import { useIndexNav } from '../ui/hooks/useIndexNav';
 
-interface NodeRelationEditorProps {
+interface Props {
   node: WorkspaceNodeRecord;
   workspaceId: string;
   candidates: WorkspaceNodeListItem[];
@@ -13,11 +17,18 @@ interface NodeRelationEditorProps {
 }
 
 const SUGGESTED_RELATIONS = ['related to', 'supports', 'contradicts', 'derived from'];
+const MAX_TARGET_OPTIONS = 8;
 
 /**
  * A deliberately small relationship editor. Relation strings stay open-ended
  * in the persisted record, while the datalist gives people a useful starting
  * vocabulary without making a migration or ontology decision today.
+ *
+ * The target picker is a filtering combobox rather than a `ui/Select`: that
+ * dropdown has no search, so picking a node out of a workspace with hundreds
+ * of them meant scrolling an unfiltered list. The interaction contract here
+ * matches NodeTagEditor's picker (type to filter, Arrow/Home/End, Enter,
+ * Escape) so both fields in this panel behave the same way.
  */
 export const NodeRelationEditor = ({
   node,
@@ -25,11 +36,20 @@ export const NodeRelationEditor = ({
   candidates,
   readOnly,
   onNodePatched,
-}: NodeRelationEditorProps) => {
+}: Props) => {
   const { t } = useI18n();
   const [adding, setAdding] = useState(false);
   const [relation, setRelation] = useState(SUGGESTED_RELATIONS[0]);
   const [targetId, setTargetId] = useState('');
+  const [targetQuery, setTargetQuery] = useState('');
+  const {
+    index: activeIndex,
+    setIndex: setActiveIndex,
+    move: moveActiveIndex,
+    home: moveActiveHome,
+    end: moveActiveEnd,
+    reset: resetActiveIndex,
+  } = useIndexNav({ wrap: true, initialIndex: -1 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const links = node.links ?? [];
@@ -37,19 +57,30 @@ export const NodeRelationEditor = ({
     () => candidates.filter((candidate) => candidate.id !== node.id),
     [candidates, node.id],
   );
-  const targetOptions = useMemo(
-    () => availableCandidates.map((candidate) => ({
-      value: candidate.id,
-      label: getNodeTitle(candidate, t('workspaceNodes.untitled')),
-    })),
-    [availableCandidates, t],
-  );
+  const targetOptions = useMemo(() => {
+    const query = targetQuery.trim().toLowerCase();
+    return availableCandidates
+      .map((candidate) => ({
+        id: candidate.id,
+        label: getNodeTitle(candidate, t('workspaceNodes.untitled')),
+      }))
+      .filter((option) => !query
+        || option.label.toLowerCase().includes(query)
+        || option.id.toLowerCase().includes(query))
+      .slice(0, MAX_TARGET_OPTIONS);
+  }, [availableCandidates, targetQuery, t]);
 
   useEffect(() => {
     setAdding(false);
     setTargetId('');
+    setTargetQuery('');
     setError(null);
   }, [node.id]);
+
+  useEffect(() => {
+    if (!adding) return;
+    resetActiveIndex(targetOptions.length > 0 ? 0 : -1);
+  }, [adding, resetActiveIndex, targetOptions.length, targetQuery]);
 
   const persist = async (nextLinks: WorkspaceNodeLink[]) => {
     const api = window.canvasWorkspace?.workspaceNodes;
@@ -70,9 +101,9 @@ export const NodeRelationEditor = ({
     }
   };
 
-  const addRelation = async () => {
+  const addRelation = async (selectedId = targetId) => {
     const relationLabel = relation.trim();
-    const target = availableCandidates.find((candidate) => candidate.id === targetId);
+    const target = availableCandidates.find((candidate) => candidate.id === selectedId);
     if (!relationLabel || !target) {
       setError(t('workspaceNodes.relations.required'));
       return;
@@ -87,34 +118,86 @@ export const NodeRelationEditor = ({
     ]);
     setAdding(false);
     setTargetId('');
+    setTargetQuery('');
   };
 
   const removeRelation = async (index: number) => {
     await persist(links.filter((_, itemIndex) => itemIndex !== index));
   };
 
+  // Option rows preventDefault on mousedown, so the combobox input keeps
+  // focus through a pick — no imperative refocus needed.
+  const selectTarget = useCallback((id: string, label: string) => {
+    setTargetId(id);
+    setTargetQuery(label);
+  }, []);
+
+  const handleTargetKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposing(event)) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (targetOptions.length === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      moveActiveIndex(event.key === 'ArrowDown' ? 1 : -1, targetOptions.length);
+      return;
+    }
+    if (event.key === 'Home' || event.key === 'End') {
+      if (targetOptions.length === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === 'Home') moveActiveHome();
+      else moveActiveEnd(targetOptions.length);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      const option = activeIndex >= 0 ? targetOptions[activeIndex] : undefined;
+      if (option && option.id !== targetId) {
+        selectTarget(option.id, option.label);
+        return;
+      }
+      void addRelation(option?.id ?? targetId);
+    }
+  }, [activeIndex, addRelation, moveActiveEnd, moveActiveHome, moveActiveIndex, selectTarget, targetId, targetOptions]);
+
   return (
     <div className="node-relation-editor">
       {links.length > 0 ? (
         <div className="node-relation-editor__list">
-          {links.map((link, index) => (
-            <div key={`${link.relation}:${link.target.workspaceId ?? workspaceId}:${link.target.nodeId}:${index}`} className="node-relation-editor__row">
-              <span className="node-relation-editor__predicate">{link.relation}</span>
-              <strong title={link.title ?? link.target.nodeId}>{link.title ?? link.target.nodeId}</strong>
-              {!readOnly && (
+          {links.map((link, index) => {
+            const title = link.title ?? link.target.nodeId;
+            return (
+              <div key={`${link.relation}:${link.target.workspaceId ?? workspaceId}:${link.target.nodeId}:${index}`} className="node-relation-editor__row">
+                <span className="node-relation-editor__predicate">{link.relation}</span>
+                {/* A relation the user cannot walk is only half a graph — open
+                  * the target the same way a note mention does. */}
                 <Button
-                  variant="icon"
                   size="xs"
-                  aria-label={t('workspaceNodes.relations.remove', { title: link.title ?? link.target.nodeId })}
-                  title={t('workspaceNodes.relations.remove', { title: link.title ?? link.target.nodeId })}
-                  disabled={saving}
-                  onClick={() => { void removeRelation(index); }}
+                  className="node-relation-editor__target-link"
+                  title={t('workspaceNodes.relations.open', { title })}
+                  onClick={() => dispatchOpenNode({
+                    workspaceId: link.target.workspaceId ?? workspaceId,
+                    nodeId: link.target.nodeId,
+                  })}
                 >
-                  ×
+                  {title}
                 </Button>
-              )}
-            </div>
-          ))}
+                {!readOnly && (
+                  <Button
+                    variant="icon"
+                    size="xs"
+                    aria-label={t('workspaceNodes.relations.remove', { title })}
+                    title={t('workspaceNodes.relations.remove', { title })}
+                    disabled={saving}
+                    onClick={() => { void removeRelation(index); }}
+                  >
+                    <CloseIcon size={11} />
+                  </Button>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <p className="node-detail-panel__disclosure-empty">{t('workspaceNodes.relations.empty')}</p>
@@ -133,21 +216,54 @@ export const NodeRelationEditor = ({
               disabled={saving}
             />
           </div>
-          <div className="node-relation-editor__field">
+          <div className="node-relation-editor__field node-relation-editor__field--target">
             <span className="node-relation-editor__field-label">{t('workspaceNodes.relations.target')}</span>
-            <Select
-              className="node-relation-editor__target"
-              value={targetId}
-              options={targetOptions}
-              onChange={setTargetId}
-              ariaLabel={t('workspaceNodes.relations.target')}
-              placeholder={t('workspaceNodes.relations.targetPlaceholder')}
-              menuPlacement="top"
+            <TextField
+              className="node-relation-editor__input"
+              aria-label={t('workspaceNodes.relations.target')}
+              value={targetQuery}
+              onChange={(event) => {
+                setTargetQuery(event.target.value);
+                setTargetId('');
+              }}
+              onKeyDown={handleTargetKeyDown}
+              placeholder={t('workspaceNodes.relations.searchTarget')}
               disabled={saving}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={targetOptions.length > 0}
             />
+            {/* Collapses once a target is confirmed so the form does not sit
+              * permanently taller than the panel it lives in. */}
+            {!targetId && (
+            <div
+              className="node-relation-editor__options"
+              role="listbox"
+              aria-label={t('workspaceNodes.relations.targetOptionsLabel')}
+            >
+              {targetOptions.map((option, index) => (
+                <Button
+                  key={option.id}
+                  size="xs"
+                  className={`node-relation-editor__option${index === activeIndex ? ' node-relation-editor__option--active' : ''}`}
+                  role="option"
+                  aria-selected={option.id === targetId}
+                  disabled={saving}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => selectTarget(option.id, option.label)}
+                >
+                  {option.label}
+                </Button>
+              ))}
+              {targetOptions.length === 0 && (
+                <div className="node-relation-editor__empty">{t('workspaceNodes.relations.noTargets')}</div>
+              )}
+            </div>
+            )}
           </div>
           <div className="node-relation-editor__form-actions">
-            <Button size="xs" variant="primary" disabled={saving || availableCandidates.length === 0} onClick={() => { void addRelation(); }}>
+            <Button size="xs" variant="primary" disabled={saving || !targetId} onClick={() => { void addRelation(); }}>
               {t('workspaceNodes.relations.save')}
             </Button>
             <Button size="xs" disabled={saving} onClick={() => { setAdding(false); setError(null); }}>

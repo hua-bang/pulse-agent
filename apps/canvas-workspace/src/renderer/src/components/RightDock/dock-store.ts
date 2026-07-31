@@ -13,18 +13,10 @@ import {
   type TerminalCommit,
 } from './dock-terminal-tabs';
 import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from './dock-link-sessions';
+import { ClosedLinkTabStack, allocateTabId, updateRetainedLinkTabs } from './dock-link-tabs';
 import {
-  ClosedLinkTabStack,
-  allocateTabId,
-  updateRetainedLinkTabs,
-} from './dock-link-tabs';
-import {
-  getNavigateLinkPatch,
-  getNewLinkPatch,
-  getOpenLinkPatch,
-  getSetFaviconPatch,
-  getSetTitlePatch,
-  getSyncLinkUrlPatch,
+  getNavigateLinkPatch, getNewLinkPatch, getOpenLinkPatch,
+  getSetFaviconPatch, getSetTitlePatch, getSyncLinkUrlPatch,
   type DockOpenLinkOptions,
 } from './dock-link-commands';
 import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
@@ -127,6 +119,16 @@ export class DockStore {
     }
     const tab: DockPreviewTab = { id, kind: 'node-detail', title, workspaceId, nodeId };
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+  }
+
+  /** A node's full page and its dock preview are mutually exclusive. Remove
+   * the duplicate preview, but only yield the dock width when that preview was
+   * the active surface — an unrelated active tab remains visible. */
+  enterNodePage(workspaceId: string, nodeId: string): void {
+    const id = nodeDetailTabId(workspaceId, nodeId);
+    const promotedActivePreview = this.state.expanded && this.state.activeTabId === id;
+    this.close(id);
+    if (promotedActivePreview) this.collapse();
   }
 
   openSkill(scope: CanvasConfigScope, skill: CanvasSkillEntry): void {

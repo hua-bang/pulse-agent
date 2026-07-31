@@ -16,7 +16,7 @@ interface MindmapCanvasNodeProps {
   node: CanvasNode;
   onAutoResize: (id: string, width: number, height: number) => void;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
-  onExportMindmapImage: (id: string) => void;
+  onExportMindmapImage?: (id: string) => void;
   onMergeMindmapTopic?: (request: MergeMindmapTopicRequest) => boolean;
   onSplitMindmapTopic?: (
     sourceNodeId: string,
@@ -61,7 +61,7 @@ export const MindmapCanvasNode = ({
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (readOnly) return;
+        if (readOnly || !onExportMindmapImage) return;
         onSelect(node.id);
         setMindmapMenu({ x: e.clientX, y: e.clientY });
       }}
@@ -89,7 +89,7 @@ export const MindmapCanvasNode = ({
         <FullscreenButton floating isFullscreen={isFullscreen} onClick={handleToggleFullscreen} />
       ) : null}
       {readOnly ? null : <CloseButton floating onClick={handleClose} />}
-      {mindmapMenu && (
+      {mindmapMenu && onExportMindmapImage && (
         <NodeContextMenu
           x={mindmapMenu.x}
           y={mindmapMenu.y}

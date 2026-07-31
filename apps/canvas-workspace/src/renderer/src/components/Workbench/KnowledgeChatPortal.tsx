@@ -46,9 +46,11 @@ export const KnowledgeChatPortal = ({
   onOpenSessionInScope,
 }: Props) => {
   const { nodes, tags } = useAllWorkspaceNodeList(workspaces);
+  const selectedWorkspaceId = selectedNode?.workspaceId;
+  const selectedNodeId = selectedNode?.nodeId;
   const chatContext = useMemo(
     () => buildKnowledgeChatContext(nodes, tags, selectedNode),
-    [nodes, selectedNode, tags],
+    [nodes, selectedNodeId, selectedWorkspaceId, tags],
   );
   // An explicit scope may intentionally contain only a tag or workspace.
   // Presence, rather than a non-empty node list, decides whether to retain

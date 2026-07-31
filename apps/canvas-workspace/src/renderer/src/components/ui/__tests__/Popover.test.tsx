@@ -269,6 +269,36 @@ describe('Popover', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('keyboardNavigation={false} leaves arrow keys alone but still owns Escape dismissal', () => {
+    const onClose = vi.fn();
+    render(
+      <Popover
+        x={0}
+        y={0}
+        onClose={onClose}
+        className="test-popover"
+        autoFocus={false}
+        keyboardNavigation={false}
+      >
+        <button role="menuitem">First</button>
+        <button role="menuitem">Second</button>
+      </Popover>,
+    );
+    const buttons = document.querySelectorAll('[role="menuitem"]');
+    (buttons[0] as HTMLElement).focus();
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    });
+    expect(document.activeElement).toBe(buttons[0]);
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledWith('escape');
+  });
+
   it('renders ariaLabel and panelId when provided, for a trigger to point aria-controls at', () => {
     render(
       <Popover x={0} y={0} onClose={vi.fn()} className="test-popover" ariaLabel="Choose a model" panelId="my-panel">

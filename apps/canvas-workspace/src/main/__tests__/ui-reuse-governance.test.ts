@@ -288,18 +288,25 @@ const RATCHET_BASELINE: Record<string, number> = {
   // call, so this regex never saw it). GraphPage's Cmd+F+ESC listener is
   // the one survivor of the "2 mixed multi-key" note above; floor is now
   // effectively that single case plus the 2 gesture-cancel listeners.
-  // 16→15 (shortcut-registry work): `useCanvasKeyboard` collapsed its two
+  // 16→17 (Node Detail page Escape): the detail route dismisses on Escape
+  // like any drill-down. It cannot use `useEscapeClose` — that primitive is
+  // capture-phase and stops propagation, so a page-level subscriber would
+  // consume the Escape that closes the tag picker or cancels a title edit
+  // inside it. This one is bubble-phase and target-gated instead, i.e. the
+  // "owns more than a plain overlay Escape" case noted above.
+  // 17→16 (shortcut-registry work): `useCanvasKeyboard` collapsed its two
   // window listeners into one registry-driven dispatcher, and App.tsx's
   // inline handler moved wholesale into `useAppShortcuts` (still one
   // listener). Both are now the blessed destination for NEW shortcuts —
   // add a binding to `shortcuts/registry.ts` and a handler to the owning
   // table rather than a fresh listener — but they stay counted so the
   // ratchet keeps measuring the real total.
-  // 15→16 (shortcut-registry + browser-tabs merge): both branches stayed at
-  // 15 independently. Their union contains the app/canvas registry dispatcher
-  // plus the dock-browser dispatcher; both are shared, typed owners rather
-  // than one-off component listeners, so the merged inventory is 16.
-  handRolledKeydown: 16,
+  // 16→17 (Node Detail + shortcut-registry + browser-tabs merge): their
+  // union contains the app/canvas registry dispatcher, the Node Detail page
+  // handler, plus the dock-browser dispatcher; the dispatchers are shared,
+  // typed owners rather than one-off component listeners, so the merged
+  // inventory is 17.
+  handRolledKeydown: 17,
   // hardcoded color literals (hex/rgb/oklch) in renderer CSS on lines that do
   // NOT define a custom property — new-code color ratchet (token-definition
   // lines are exempt: defining a token with a literal is the point). Falls as

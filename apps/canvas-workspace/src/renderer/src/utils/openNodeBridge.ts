@@ -8,6 +8,7 @@
 
 export const OPEN_NODE_EVENT = 'pulse-canvas:open-node';
 export const OPEN_NODE_PAGE_EVENT = 'pulse-canvas:open-node-page';
+export const FOCUS_NODE_ON_CANVAS_EVENT = 'pulse-canvas:focus-node-on-canvas';
 export const PREVIEW_NODE_ACTION_EVENT = 'pulse-canvas:preview-node-action';
 
 /** Prefix of the href used by node-mention links inside notes. */
@@ -38,6 +39,14 @@ export const dispatchOpenNode = (detail: OpenNodeDetail): void => {
 
 export const dispatchOpenNodePage = (detail: OpenNodeDetail): void => {
   window.dispatchEvent(new CustomEvent<OpenNodeDetail>(OPEN_NODE_PAGE_EVENT, { detail }));
+};
+
+/** Leave the knowledge surfaces and show the node in its spatial home: switch
+ *  to the owning workspace, frame the node, and route to the canvas. Same
+ *  bridge pattern as OPEN_NODE_PAGE_EVENT — Node Detail renders inside both
+ *  the dock and a page route, so neither host can own this callback. */
+export const dispatchFocusNodeOnCanvas = (detail: OpenNodeDetail): void => {
+  window.dispatchEvent(new CustomEvent<OpenNodeDetail>(FOCUS_NODE_ON_CANVAS_EVENT, { detail }));
 };
 
 /** Action fired from a read-only canvas preview node's header buttons. The

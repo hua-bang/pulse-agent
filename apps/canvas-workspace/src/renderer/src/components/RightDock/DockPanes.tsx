@@ -228,8 +228,8 @@ export const DockPanes = ({
                 onTitleChange={(title) => store.setTitle(tab.id, title)}
                 onOpenPage={() => {
                   onOpenNodePage(tab.workspaceId, tab.nodeId);
-                  store.close(tab.id);
                 }}
+                onClose={() => store.close(tab.id)}
               />
             </Suspense>
           ) : tab.kind === 'canvas' ? (

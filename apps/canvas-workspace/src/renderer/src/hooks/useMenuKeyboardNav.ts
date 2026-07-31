@@ -5,6 +5,7 @@ import { isImeComposing } from '../utils/ime';
 type MenuKeyboardNavOptions = {
   enabled?: boolean;
   autoFocus?: boolean;
+  escapeClose?: boolean;
   scope?: 'global' | 'within';
 };
 
@@ -26,6 +27,7 @@ export const useMenuKeyboardNav = (
 ) => {
   const enabled = typeof config === 'boolean' ? config : config.enabled ?? true;
   const autoFocus = typeof config === 'boolean' ? true : config.autoFocus ?? true;
+  const escapeClose = typeof config === 'boolean' ? config : config.escapeClose ?? enabled;
   const scope = typeof config === 'boolean' ? 'global' : config.scope ?? 'global';
 
   // Focus the active item once on mount so arrow keys work immediately.
@@ -45,7 +47,7 @@ export const useMenuKeyboardNav = (
     initial?.focus();
   }, [autoFocus, enabled, ref]);
 
-  useEscapeClose(enabled, () => onClose?.());
+  useEscapeClose(escapeClose, () => onClose?.());
 
   useEffect(() => {
     if (!enabled) return undefined;

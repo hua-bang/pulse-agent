@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { WorkspaceNodeRecord } from '../../types';
 import { useI18n } from '../../i18n';
+import { getNodeTitle } from './utils';
 import { isImeComposing } from '../../utils/ime';
 
 interface Props {
@@ -21,7 +22,13 @@ export const NodeTitleEditor = ({
   onNodePatched,
 }: Props) => {
   const { language, t } = useI18n();
-  const persistedTitle = node.title ?? fallbackTitle;
+  const persistedTitle = getNodeTitle(node, fallbackTitle);
+  const mindmapRoot = node.type === 'mindmap' && node.data?.root && typeof node.data.root === 'object'
+    ? node.data.root as Record<string, unknown>
+    : null;
+  const editsMindmapRoot = Boolean(
+    mindmapRoot && (!node.title?.trim() || node.title.trim().toLowerCase() === 'mindmap'),
+  );
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLHeadingElement | null>(null);
   const cancelBlurRef = useRef(false);
@@ -68,13 +75,16 @@ export const NodeTitleEditor = ({
     const api = window.canvasWorkspace?.workspaceNodes;
     if (!api?.update) return;
     const requestId = ++requestSeqRef.current;
-    const result = await api.update(workspaceId, node.id, { title: nextTitle }).catch((updateError) => ({
+    const patch: Partial<WorkspaceNodeRecord> = editsMindmapRoot
+      ? { data: { ...node.data, root: { ...mindmapRoot, text: nextTitle } } }
+      : { title: nextTitle };
+    const result = await api.update(workspaceId, node.id, patch).catch((updateError) => ({
       ok: false as const,
       error: updateError instanceof Error ? updateError.message : String(updateError),
     }));
     if (requestId !== requestSeqRef.current) return;
     if (result.ok && result.node) {
-      persistedTitleRef.current = result.node.title ?? nextTitle;
+      persistedTitleRef.current = getNodeTitle(result.node, nextTitle);
       setError('');
       onNodePatched?.(result.node);
       if (!focusedRef.current || !dirtyRef.current) {
