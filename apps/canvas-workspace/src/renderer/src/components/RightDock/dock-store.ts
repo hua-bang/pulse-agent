@@ -11,7 +11,16 @@ import {
   type TerminalCommit,
 } from './dock-terminal-tabs';
 import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from './dock-link-sessions';
-import { ClosedLinkTabStack, blankLinkTabId, insertLinkTab, isSameOrigin, urlLinkTabId } from './dock-link-tabs';
+import { ClosedLinkTabStack, applyRetainedTabPatch, updateRetainedLinkTabs } from './dock-link-tabs';
+import {
+  getNavigateLinkPatch,
+  getNewLinkPatch,
+  getOpenLinkPatch,
+  getSetFaviconPatch,
+  getSetTitlePatch,
+  getSyncLinkUrlPatch,
+  type DockOpenLinkOptions,
+} from './dock-link-commands';
 import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
 import { applyDockSplitState, getSplitViewToggle } from './dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
@@ -22,11 +31,13 @@ import type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceS
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
 export { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, nodeDetailTabId, skillTabId, terminalTabId } from './dock-tab-ids';
 export type { DockLinkSession, DockLinkSessions, DockLinkTab, DockSessionPersistence } from './dock-link-sessions';
-export type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
+export type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState, RetainedLinkWorkspace } from './dock-types';
+export type { DockOpenLinkOptions } from './dock-link-commands';
 const DEFAULT_TERMINAL_WORKSPACE_ID = '__default__';
 const EMPTY_TERMINAL_TABS: DockTerminalTab[] = [];
 const INITIAL: DockState = {
   tabs: [],
+  retainedLinkTabs: [],
   activeTabId: CHAT_TAB_ID,
   expanded: false,
   chatUnread: false,
@@ -38,13 +49,6 @@ const INITIAL: DockState = {
   terminalOpen: false,
   mountedWorkspaceIds: new Set<string>(),
 };
-export interface DockOpenLinkOptions {
-  /** Open without stealing focus (⌘/Ctrl+click, middle-click). */
-  background?: boolean;
-  /** Tab the link was opened from, for placement next to its opener. */
-  openerTabId?: string;
-}
-
 export class DockStore {
   private state: DockState = INITIAL;
   private listeners = new Set<() => void>();
@@ -190,78 +194,33 @@ export class DockStore {
     return !this.state.mountedWorkspaceIds.has(workspaceId);
   }
 
-  /**
-   * Open a URL as a web tab. `background` keeps the user where they are —
-   * ⌘/Ctrl+click and middle-click are explicit "queue this for later"
-   * gestures, and foregrounding them steals the page being read. `openerTabId`
-   * places the new tab next to the tab it came from.
-   */
-  openLink(url: string, { background = false, openerTabId }: DockOpenLinkOptions = {}): void {
-    const trimmedUrl = url.trim();
-    if (!trimmedUrl) return;
-    const existing = this.state.tabs.find(
-      (tab): tab is DockLinkTab => tab.kind === 'link' && tab.url === trimmedUrl,
-    );
-    if (existing) {
-      // Same page: keep the loaded webview (and its resolved title).
-      this.commit({ expanded: true, ...(background ? {} : { activeTabId: existing.id }) });
-      this.persistActiveLinkSession();
-      return;
-    }
-
-    const id = urlLinkTabId(this.state.tabs, trimmedUrl);
-    const tab: DockPreviewTab = {
-      id,
-      kind: 'link',
-      title: trimmedUrl,
-      url: trimmedUrl,
-      ...(openerTabId ? { openerTabId } : {}),
-    };
-    this.commit({
-      tabs: insertLinkTab(this.state.tabs, tab, openerTabId),
-      ...(background ? {} : { activeTabId: id }),
-      expanded: true,
-    });
+  /** Open a URL as a web tab; see `dock-link-commands.ts` for the rules. */
+  openLink(url: string, options: DockOpenLinkOptions = {}): void {
+    const next = getOpenLinkPatch(this.state, url, options);
+    if (!next) return;
+    this.commit(next);
     this.persistActiveLinkSession();
   }
 
-  /** Create an empty browser tab. Unlike openLink, blank tabs are never deduped. */
+  /** Create an empty browser tab. */
   newLink(title = 'New tab'): void {
-    const id = blankLinkTabId(this.state.tabs, this.nextLinkOrdinal);
+    this.commit(getNewLinkPatch(this.state, title, this.nextLinkOrdinal));
     this.nextLinkOrdinal += 1;
-    const tab: DockPreviewTab = { id, kind: 'link', title, url: '' };
-    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
     this.persistActiveLinkSession();
   }
 
   navigateLink(id: string, url: string): void {
-    const trimmed = url.trim();
-    const tab = this.state.tabs.find((item) => item.id === id);
-    if (!trimmed || tab?.kind !== 'link') return;
-    this.commit({
-      tabs: this.state.tabs.map((item) => (
-        item.id === id ? { ...item, url: trimmed, title: trimmed, faviconUrl: undefined } : item
-      )),
-    });
+    const next = getNavigateLinkPatch(this.state, id, url);
+    if (!next) return;
+    this.commit(next);
     this.persistActiveLinkSession();
   }
 
-  /**
-   * Mirror a guest URL without overwriting its resolved page title. The
-   * favicon survives same-origin navigation: SPA route changes fire this on
-   * every pushState but re-announce `page-favicon-updated` only when the icon
-   * link actually changes, so clearing unconditionally left those tabs stuck
-   * on the generic globe until a full reload.
-   */
+  /** Mirror a guest URL without overwriting its resolved page title. */
   syncLinkUrl(id: string, url: string): void {
-    const trimmed = url.trim();
-    const tab = this.state.tabs.find((item) => item.id === id);
-    if (!trimmed || tab?.kind !== 'link' || tab.url === trimmed) return;
-    const keepFavicon = isSameOrigin(tab.url, trimmed);
-    this.commit({
-      tabs: this.state.tabs.map((item) => (item.id === id
-        ? { ...item, url: trimmed, ...(keepFavicon ? {} : { faviconUrl: undefined }) } : item)),
-    });
+    const next = getSyncLinkUrlPatch(this.state, id, url);
+    if (!next) return;
+    this.commit(next);
     this.persistActiveLinkSession();
   }
 
@@ -322,8 +281,27 @@ export class DockStore {
   setActiveWorkspace(workspaceId: string): void {
     if (!workspaceId || workspaceId === this.state.activeTerminalWorkspaceId) return;
     this.persistActiveLinkSession();
+    const leavingId = this.state.activeTerminalWorkspaceId;
     const nonLinkTabs = this.state.tabs.filter((tab) => tab.kind !== 'link');
-    const restoredSession = this.linkSessions.get(workspaceId);
+    // The workspace being left keeps its web tabs MOUNTED (hidden) instead of
+    // unmounting them, so coming back does not reload every page and lose its
+    // scroll position, form state and sign-in. `DockPanes` renders these; the
+    // tab strip never does.
+    const retainedLinkTabs = updateRetainedLinkTabs(
+      this.state.retainedLinkTabs,
+      {
+        workspaceId: leavingId,
+        tabs: this.state.tabs.filter((tab): tab is DockLinkTab => tab.kind === 'link'),
+        activeTabId: this.state.activeTabId,
+      },
+      workspaceId,
+    );
+    // Prefer the retained copy over the persisted one: a hidden guest may have
+    // navigated since the switch, and the retained entry is what tracked it.
+    const retainedEntry = this.state.retainedLinkTabs.find(
+      (entry) => entry.workspaceId === workspaceId,
+    );
+    const restoredSession = retainedEntry ?? this.linkSessions.get(workspaceId);
     const restoredLinkTabs = restoredSession?.tabs ?? [];
     const tabs = [...nonLinkTabs, ...restoredLinkTabs];
     const projection = this.projectTerminalWorkspace(workspaceId);
@@ -342,11 +320,38 @@ export class DockStore {
     this.commit({
       activeTerminalWorkspaceId: workspaceId,
       tabs,
+      retainedLinkTabs,
       ...projection,
       activeTabId,
       expanded: this.state.expanded,
       ...(activeTabId === CHAT_TAB_ID ? { chatUnread: false } : {}),
     });
+  }
+
+  /**
+   * A hidden (retained) tab's guest reported a navigation, title or icon.
+   *
+   * Not bookkeeping for its own sake: the stored URL is what the tab is
+   * restored to on the way back, and `useEmbeddedBrowser` treats a stored URL
+   * that differs from the live guest as a navigation COMMAND — so letting the
+   * two drift would yank a background-navigated page back to where it was.
+   */
+  updateRetainedLinkTab(
+    workspaceId: string,
+    tabId: string,
+    patch: Partial<Pick<DockLinkTab, 'url' | 'title' | 'faviconUrl'>>,
+  ): void {
+    const retainedLinkTabs = applyRetainedTabPatch(
+      this.state.retainedLinkTabs,
+      workspaceId,
+      tabId,
+      patch,
+    );
+    if (!retainedLinkTabs) return;
+    this.commit({ retainedLinkTabs });
+    const entry = retainedLinkTabs.find((item) => item.workspaceId === workspaceId);
+    // Write through, or a restart would restore the pre-switch URL.
+    if (entry) this.linkSessions.capture(workspaceId, entry.tabs, entry.activeTabId ?? '');
   }
 
   private applyTerminalCommit(commit: TerminalCommit | null, workspaceId: string): void {
@@ -413,27 +418,18 @@ export class DockStore {
 
   /** Live label update (artifact loaded, webview resolved a page title). */
   setTitle(id: string, title: string): void {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    const tab = this.state.tabs.find((t) => t.id === id);
-    if (!tab || tab.title === trimmed) return;
-    this.commit({
-      tabs: this.state.tabs.map((t) => (t.id === id ? { ...t, title: trimmed } : t)),
-    });
-    if (tab.kind === 'link') this.persistActiveLinkSession();
+    const next = getSetTitlePatch(this.state, id, title);
+    if (!next) return;
+    const wasLink = this.state.tabs.find((tab) => tab.id === id)?.kind === 'link';
+    this.commit(next);
+    if (wasLink) this.persistActiveLinkSession();
   }
 
-  /** Live favicon update once a link's webview reports the page icon, so the
-   *  tab tracks the site instead of the generic globe. */
+  /** Live favicon update once a link's webview reports the page icon. */
   setFavicon(id: string, faviconUrl: string): void {
-    const trimmed = faviconUrl.trim();
-    if (!trimmed) return;
-    const tab = this.state.tabs.find((t) => t.id === id);
-    if (!tab || tab.kind !== 'link' || tab.faviconUrl === trimmed) return;
-    this.commit({
-      tabs: this.state.tabs.map((t) =>
-        (t.id === id && t.kind === 'link' ? { ...t, faviconUrl: trimmed } : t)),
-    });
+    const next = getSetFaviconPatch(this.state, id, faviconUrl);
+    if (!next) return;
+    this.commit(next);
     this.persistActiveLinkSession();
   }
 

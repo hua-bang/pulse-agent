@@ -11,14 +11,25 @@ import { I18nProvider } from '../../../i18n';
 // live <webview>, which has no place in a happy-dom test).
 const latestLinkTabProps = vi.hoisted(() => new Map<string, { mountWebview?: boolean; active?: boolean }>());
 vi.mock('../../LinkDrawer', () => ({
-  LinkTabView: (props: { tabId?: string; mountWebview?: boolean; active?: boolean }) => {
-    if (props.tabId) latestLinkTabProps.set(props.tabId, {
+  LinkTabView: (props: {
+    tabId?: string;
+    mountWebview?: boolean;
+    active?: boolean;
+    activeWorkspaceId?: string;
+  }) => {
+    // Keyed by workspace too: the same tab id can exist in two workspaces, and
+    // retained panes render alongside the live ones.
+    if (props.tabId) latestLinkTabProps.set(`${props.activeWorkspaceId}::${props.tabId}`, {
       mountWebview: props.mountWebview,
       active: props.active,
     });
     return null;
   },
 }));
+
+/** Props the LinkTabView for `tabId` last rendered with, in `workspaceId`. */
+const propsFor = (tabId: string, workspaceId = 'ws1') =>
+  latestLinkTabProps.get(`${workspaceId}::${tabId}`);
 
 let root: Root | null = null;
 let mount: HTMLDivElement | null = null;
@@ -92,7 +103,7 @@ describe('DockPanes split focus', () => {
 });
 
 describe('DockPanes lazy link-tab webview mount', () => {
-  const renderPanes = (store: DockStore, activePaneId: string | null) => {
+  const renderPanes = (store: DockStore, activePaneId: string | null, activeWorkspaceId = 'ws1') => {
     flushSync(() => root?.render(
       <I18nProvider><DockPanes
         store={store}
@@ -105,7 +116,7 @@ describe('DockPanes lazy link-tab webview mount', () => {
         setChatHost={() => undefined}
         setTerminalHost={() => undefined}
         terminalHostMounted={false}
-        activeWorkspaceId="ws1"
+        activeWorkspaceId={activeWorkspaceId}
         workspaces={[]}
         onOpenNodePage={() => undefined}
         pinUrlReference={() => undefined}
@@ -116,6 +127,7 @@ describe('DockPanes lazy link-tab webview mount', () => {
 
   it('mounts the webview only for tabs that have been active, and never unmounts', async () => {
     const store = new DockStore();
+    store.setActiveWorkspace('ws1');
     store.openLink('https://a.example/');
     store.openLink('https://b.example/');
     const [tabA, tabB] = store.getSnapshot().tabs;
@@ -128,28 +140,86 @@ describe('DockPanes lazy link-tab webview mount', () => {
     renderPanes(store, tabA.id);
 
     await vi.waitFor(() => expect(latestLinkTabProps.size).toBe(2));
-    expect(latestLinkTabProps.get(tabA.id)?.mountWebview).toBe(true);
-    expect(latestLinkTabProps.get(tabA.id)?.active).toBe(true);
-    expect(latestLinkTabProps.get(tabB.id)?.mountWebview).toBe(false);
-    expect(latestLinkTabProps.get(tabB.id)?.active).toBe(false);
+    expect(propsFor(tabA.id)?.mountWebview).toBe(true);
+    expect(propsFor(tabA.id)?.active).toBe(true);
+    expect(propsFor(tabB.id)?.mountWebview).toBe(false);
+    expect(propsFor(tabB.id)?.active).toBe(false);
 
     // Activating the second tab mounts its webview...
     renderPanes(store, tabB.id);
-    await vi.waitFor(() => expect(latestLinkTabProps.get(tabB.id)?.mountWebview).toBe(true));
-    expect(latestLinkTabProps.get(tabA.id)?.active).toBe(false);
-    expect(latestLinkTabProps.get(tabB.id)?.active).toBe(true);
+    await vi.waitFor(() => expect(propsFor(tabB.id)?.mountWebview).toBe(true));
+    expect(propsFor(tabA.id)?.active).toBe(false);
+    expect(propsFor(tabB.id)?.active).toBe(true);
 
     // ...and switching away keeps it mounted (no reload on return).
     renderPanes(store, tabA.id);
-    await vi.waitFor(() => expect(latestLinkTabProps.get(tabA.id)?.mountWebview).toBe(true));
-    expect(latestLinkTabProps.get(tabB.id)?.mountWebview).toBe(true);
+    await vi.waitFor(() => expect(propsFor(tabA.id)?.mountWebview).toBe(true));
+    expect(propsFor(tabB.id)?.mountWebview).toBe(true);
   });
 
-  it('re-arms the lazy gate for tabs that left the dock', async () => {
-    // Switching workspace swaps the whole link session out, unmounting every
-    // guest. If the "has been visible" set kept those ids, coming back would
-    // remount every tab the user ever opened in ONE commit — the cold-start
-    // burst this gate exists to prevent.
+  it('keeps a left workspace\'s tabs mounted, so switching back does not reload', async () => {
+    // The point of retention: a canvas switch used to unmount every guest, so
+    // returning reloaded each page and lost its scroll, form state and login.
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openLink('https://a.example/');
+    const [tabA] = store.getSnapshot().tabs;
+
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    renderPanes(store, tabA.id);
+    await vi.waitFor(() => expect(propsFor(tabA.id)?.mountWebview).toBe(true));
+
+    store.setActiveWorkspace('ws2');
+    renderPanes(store, store.getSnapshot().activeTabId, 'ws2');
+
+    // Still rendered, still mounted — but hidden and inactive, so the
+    // lifecycle ladder throttles it like any background tab.
+    expect(propsFor(tabA.id)?.mountWebview).toBe(true);
+    expect(propsFor(tabA.id)?.active).toBe(false);
+    expect(mount.querySelectorAll('.right-dock__pane--retained')).toHaveLength(1);
+
+    // And coming back needs no remount.
+    store.setActiveWorkspace('ws1');
+    renderPanes(store, tabA.id);
+    expect(propsFor(tabA.id)?.mountWebview).toBe(true);
+    expect(mount.querySelectorAll('.right-dock__pane--retained')).toHaveLength(0);
+  });
+
+  it('survives the render where the prop has switched but the store has not', async () => {
+    // `RightDock` calls setActiveWorkspace from a LAYOUT EFFECT, so React
+    // commits one render with the new `activeWorkspaceId` prop against the old
+    // store state. Keying the mounted-pane set off the prop there prunes every
+    // real key as "not live", and the retained panes arrive unmounted — the
+    // guests die and retention silently does nothing. Reproduced on a real
+    // workspace switch; the fix is to key off the store's own snapshot.
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openLink('https://a.example/');
+    const [tabA] = store.getSnapshot().tabs;
+
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    renderPanes(store, tabA.id, 'ws1');
+    await vi.waitFor(() => expect(propsFor(tabA.id)?.mountWebview).toBe(true));
+
+    // The transient frame: prop already on ws2, store still on ws1.
+    renderPanes(store, tabA.id, 'ws2');
+    // …then the layout effect lands and the store switches.
+    store.setActiveWorkspace('ws2');
+    renderPanes(store, store.getSnapshot().activeTabId, 'ws2');
+
+    expect(propsFor(tabA.id)?.mountWebview).toBe(true);
+  });
+
+  it('re-arms the lazy gate for tabs evicted past the retention limit', async () => {
+    // Retention is bounded (RETAINED_WORKSPACE_LIMIT). Once a workspace falls
+    // off the tail its guests DO unmount, and its keys must leave the
+    // "has been visible" set — otherwise returning remounts every tab the
+    // user ever opened there in one commit, the cold-start burst the lazy
+    // gate exists to prevent.
     const store = new DockStore();
     store.setActiveWorkspace('ws1');
     store.openLink('https://a.example/');
@@ -161,23 +231,30 @@ describe('DockPanes lazy link-tab webview mount', () => {
     mount = document.createElement('div');
     document.body.appendChild(mount);
     root = createRoot(mount);
-    // Both tabs have been visible, so both are mounted.
     renderPanes(store, tabA.id);
     renderPanes(store, tabB.id);
-    await vi.waitFor(() => expect(latestLinkTabProps.get(tabA.id)?.mountWebview).toBe(true));
-    expect(latestLinkTabProps.get(tabB.id)?.mountWebview).toBe(true);
+    await vi.waitFor(() => expect(propsFor(tabA.id)?.mountWebview).toBe(true));
+    expect(propsFor(tabB.id)?.mountWebview).toBe(true);
 
-    // Away to another workspace, then back: only the tab that becomes active
-    // again may mount.
-    store.setActiveWorkspace('ws2');
-    renderPanes(store, store.getSnapshot().activeTabId);
+    // Three further workspaces, each with a tab of its own, push ws1 off the
+    // retention tail. (A workspace with no web tabs retains nothing, so it
+    // cannot evict one that has them.)
+    for (const id of ['ws2', 'ws3', 'ws4']) {
+      store.setActiveWorkspace(id);
+      store.openLink(`https://${id}.example/`);
+      renderPanes(store, store.getSnapshot().activeTabId, id);
+    }
+    expect(store.getSnapshot().retainedLinkTabs.map((entry) => entry.workspaceId))
+      .not.toContain('ws1');
+
     latestLinkTabProps.clear();
     store.setActiveWorkspace('ws1');
     renderPanes(store, tabB.id);
 
-    await vi.waitFor(() => expect(latestLinkTabProps.size).toBe(2));
-    expect(latestLinkTabProps.get(tabB.id)?.mountWebview).toBe(true);
-    expect(latestLinkTabProps.get(tabA.id)?.mountWebview).toBe(false);
+    // ws3 and ws4 are still retained alongside ws1's own tabs, so assert on
+    // the tabs themselves rather than a total count.
+    await vi.waitFor(() => expect(propsFor(tabB.id)?.mountWebview).toBe(true));
+    expect(propsFor(tabA.id)?.mountWebview).toBe(false);
   });
 });
 

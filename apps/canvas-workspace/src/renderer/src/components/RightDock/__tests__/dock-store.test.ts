@@ -32,6 +32,7 @@ describe('DockStore', () => {
     const dock = new DockStore();
     expect(dock.getSnapshot()).toEqual({
       tabs: [],
+      retainedLinkTabs: [],
       activeTabId: CHAT_TAB_ID,
       expanded: false,
       chatUnread: false,
@@ -303,6 +304,69 @@ describe('DockStore', () => {
 
     dock.setActiveWorkspace('ws1');
     expect(dock.canReopenClosedTab()).toBe(true);
+  });
+
+  it('retains the left workspace\'s web tabs, and hands them back on return', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example/');
+    dock.openLink('https://b.example/');
+
+    dock.setActiveWorkspace('ws2');
+    const away = dock.getSnapshot();
+    // Out of the strip, but still held so their guests stay mounted.
+    expect(away.tabs.filter((tab) => tab.kind === 'link')).toHaveLength(0);
+    expect(away.retainedLinkTabs).toHaveLength(1);
+    expect(away.retainedLinkTabs[0].workspaceId).toBe('ws1');
+    expect(away.retainedLinkTabs[0].tabs.map((tab) => tab.url)).toEqual([
+      'https://a.example/',
+      'https://b.example/',
+    ]);
+
+    dock.setActiveWorkspace('ws1');
+    const back = dock.getSnapshot();
+    expect(back.tabs.map((tab) => (tab.kind === 'link' ? tab.url : tab.id))).toEqual([
+      'https://a.example/',
+      'https://b.example/',
+    ]);
+    // No longer retained — it is live again.
+    expect(back.retainedLinkTabs).toHaveLength(0);
+  });
+
+  it('restores a hidden tab at the URL it navigated to, not the one it left at', () => {
+    // `useEmbeddedBrowser` treats a stored URL that differs from the live
+    // guest as a navigation COMMAND, so a stale record would yank a
+    // background-navigated page back — the state loss retention exists to
+    // prevent.
+    const { persistence, read } = createSessionPersistence();
+    const dock = new DockStore(persistence);
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://app.example/inbox');
+    const tabId = dock.getSnapshot().activeTabId;
+
+    dock.setActiveWorkspace('ws2');
+    dock.updateRetainedLinkTab('ws1', tabId, { url: 'https://app.example/thread/42' });
+
+    dock.setActiveWorkspace('ws1');
+    expect(dock.getSnapshot().tabs[0]).toMatchObject({
+      id: tabId,
+      url: 'https://app.example/thread/42',
+    });
+    // …and it survives a restart, not just the switch back.
+    expect(read().ws1.tabs[0].url).toBe('https://app.example/thread/42');
+  });
+
+  it('ignores a retained update aimed at a workspace that is not retained', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example/');
+    const tabId = dock.getSnapshot().activeTabId;
+    const before = dock.getSnapshot();
+
+    // ws1 is LIVE, not retained — this must not touch the visible tab.
+    dock.updateRetainedLinkTab('ws1', tabId, { url: 'https://hijacked.example/' });
+
+    expect(dock.getSnapshot()).toBe(before);
   });
 
   it('creates independent blank web tabs and navigates one in place', () => {
