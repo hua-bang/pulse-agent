@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, type RefObject } from 'react';
 import { useEscapeClose } from './useEscapeClose';
 import { isImeComposing } from '../utils/ime';
 
@@ -31,7 +31,7 @@ export const useMenuKeyboardNav = (
   // Focus the active item once on mount so arrow keys work immediately.
   // kept separate from the keydown effect so identity changes in
   // `onClose` don't yank focus back to the top mid-navigation.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!enabled || !autoFocus) return;
     // Two-step lookup, NOT a single comma-selector: querySelector on
     // 'a, b' returns the first DOM-order match of EITHER clause, so a

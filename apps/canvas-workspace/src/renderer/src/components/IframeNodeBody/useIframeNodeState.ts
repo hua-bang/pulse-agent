@@ -69,6 +69,7 @@ export const useIframeNodeState = ({
   }, [data]);
 
   const webviewHostRef = useRef<HTMLDivElement>(null);
+  const [registeredWebContentsId, setRegisteredWebContentsId] = useState<number | null>(null);
   const shouldMountWebview = useDeferredVisibleMount(webviewHostRef);
 
   // L3 discard (Memory Saver style): main tells us when this node's frozen
@@ -83,6 +84,7 @@ export const useIframeNodeState = ({
   } = useWebviewDiscard({
     workspaceId,
     nodeId: node.id,
+    webContentsId: registeredWebContentsId,
     enabled: mode === 'url',
     hostRef: webviewHostRef,
     nodeUrl: url,
@@ -134,6 +136,7 @@ export const useIframeNodeState = ({
     enabled: mode === 'url' && shouldMountWebview && !webviewDiscarded && initialLoadSlot.granted,
     hostRef: webviewHostRef,
     mountKey: webviewKey,
+    navigationReadyWebContentsId: registeredWebContentsId,
     onFaviconChange: handleBrowserFaviconChange,
     onInitialLoadSettled: initialLoadSlot.release,
     onTitleChange: handleBrowserTitleChange,
@@ -208,6 +211,7 @@ export const useIframeNodeState = ({
     workspaceId,
     nodeId: node.id,
     enabled: !editing && mode === 'url',
+    onWebContentsId: setRegisteredWebContentsId,
   });
 
   // Drop the webview's paint frame rate when the node is parked outside the
@@ -219,6 +223,7 @@ export const useIframeNodeState = ({
     hostRef: browser.hostRef,
     workspaceId,
     nodeId: node.id,
+    webContentsId: registeredWebContentsId,
     disabled: editing || mode !== 'url' || webviewDiscarded,
   });
 

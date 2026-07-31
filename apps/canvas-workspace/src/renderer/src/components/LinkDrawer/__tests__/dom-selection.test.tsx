@@ -91,6 +91,7 @@ describe('LinkTabView DOM selection', () => {
             onGuestNavigate={() => undefined}
             onAddToReference={() => undefined}
             onAddDomSelectionToChat={onAddDomSelectionToChat}
+            onOpenLink={() => undefined}
             onRequestClose={() => undefined}
           />
         </AppShellProvider>

@@ -16,6 +16,7 @@ const REGISTRATION_RETRIES = 4;
 interface DiscardOptions {
   workspaceId: string;
   tabId: string | undefined;
+  webContentsId: number | null;
   enabled: boolean;
   active: boolean;
   tabUrl: string;
@@ -30,6 +31,7 @@ interface DiscardOptions {
 export const useDockWebviewDiscard = ({
   workspaceId,
   tabId,
+  webContentsId,
   enabled,
   active,
   tabUrl,
@@ -38,11 +40,15 @@ export const useDockWebviewDiscard = ({
   const [restore, setRestore] = useState<WebviewRestoreTarget | null>(null);
 
   useEffect(() => {
-    if (!enabled || !workspaceId || !tabId) return;
+    if (!enabled || !workspaceId || !tabId || webContentsId === null) return;
     const onDiscarded = window.canvasWorkspace?.iframe?.onDiscarded;
     if (typeof onDiscarded !== 'function') return;
     return onDiscarded((payload) => {
-      if (payload.workspaceId !== workspaceId || payload.nodeId !== tabId) return;
+      if (
+        payload.workspaceId !== workspaceId
+        || payload.nodeId !== tabId
+        || payload.webContentsId !== webContentsId
+      ) return;
       setRestore({
         url: payload.restoreUrl || undefined,
         scrollX: typeof payload.scrollX === 'number' ? payload.scrollX : 0,
@@ -50,7 +56,7 @@ export const useDockWebviewDiscard = ({
       });
       setDiscarded(true);
     });
-  }, [enabled, workspaceId, tabId]);
+  }, [enabled, workspaceId, tabId, webContentsId]);
 
   // Activating a discarded dock tab is the explicit wake gesture. Keep the
   // restore target across the remount so the guest loads its freeze-time URL
@@ -71,6 +77,7 @@ export const useDockWebviewDiscard = ({
 
 interface BackgroundOptions {
   webview: EmbeddedWebviewTag | null;
+  webContentsId: number | null;
   workspaceId: string;
   tabId: string | undefined;
   enabled: boolean;
@@ -86,6 +93,7 @@ interface BackgroundOptions {
  */
 export const useDockWebviewBackgroundLifecycle = ({
   webview,
+  webContentsId,
   workspaceId,
   tabId,
   enabled,
@@ -93,7 +101,7 @@ export const useDockWebviewBackgroundLifecycle = ({
   freezeDelayMs = DEFAULT_FREEZE_DELAY_MS,
 }: BackgroundOptions): void => {
   useEffect(() => {
-    if (!enabled || !workspaceId || !tabId || !webview) return;
+    if (!enabled || !workspaceId || !tabId || !webview || webContentsId === null) return;
     const api = window.canvasWorkspace.iframe;
     let cancelled = false;
     let frozen = false;
@@ -101,7 +109,7 @@ export const useDockWebviewBackgroundLifecycle = ({
     const retryTimers = new Set<ReturnType<typeof setTimeout>>();
 
     const setFrameRate = (frameRate: number, retries = REGISTRATION_RETRIES): void => {
-      void api.setFrameRate(workspaceId, tabId, frameRate).then((result) => {
+      void api.setFrameRate(workspaceId, tabId, webContentsId, frameRate).then((result) => {
         if (cancelled || result.ok || retries <= 0) return;
         const timer = setTimeout(() => {
           retryTimers.delete(timer);
@@ -112,7 +120,7 @@ export const useDockWebviewBackgroundLifecycle = ({
     };
 
     const setActive = (retries = REGISTRATION_RETRIES): void => {
-      void api.setLifecycle(workspaceId, tabId, 'active').then((result) => {
+      void api.setLifecycle(workspaceId, tabId, webContentsId, 'active').then((result) => {
         if (cancelled || result.ok || retries <= 0) return;
         const timer = setTimeout(() => {
           retryTimers.delete(timer);
@@ -125,10 +133,10 @@ export const useDockWebviewBackgroundLifecycle = ({
     const freeze = (): void => {
       freezeTimer = null;
       if (cancelled) return;
-      void api.setLifecycle(workspaceId, tabId, 'frozen').then((result) => {
+      void api.setLifecycle(workspaceId, tabId, webContentsId, 'frozen').then((result) => {
         if (result.ok) {
           if (cancelled) {
-            void api.setLifecycle(workspaceId, tabId, 'active').catch(() => {});
+            void api.setLifecycle(workspaceId, tabId, webContentsId, 'active').catch(() => {});
           } else {
             frozen = true;
           }
@@ -162,7 +170,7 @@ export const useDockWebviewBackgroundLifecycle = ({
       // A workspace-key change can keep the same webview element alive. Thaw
       // under the old key before registration moves to the new one, otherwise
       // the new key would inherit a frozen WebContents without a freeze record.
-      if (frozen) void api.setLifecycle(workspaceId, tabId, 'active').catch(() => {});
+      if (frozen) void api.setLifecycle(workspaceId, tabId, webContentsId, 'active').catch(() => {});
     };
-  }, [webview, workspaceId, tabId, enabled, active, freezeDelayMs]);
+  }, [webview, webContentsId, workspaceId, tabId, enabled, active, freezeDelayMs]);
 };

@@ -69,6 +69,8 @@ import { createWindow } from "./window";
 import { applyLoginShellPath, augmentProcessPath } from "../shell-path";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
+import { setupWebviewShortcuts } from "./webview-shortcuts";
+import { setupWebviewContextMenu } from "./webview-context-menu";
 import { setupGoogleAuthCompat } from "./google-auth";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
@@ -105,6 +107,10 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
 
   registerPulseCanvasSchemesAsPrivileged();
   setupLinkPolicy();
+  // Same `web-contents-created` timing requirement as the link policy: the
+  // hook must be installed before any guest can take focus.
+  setupWebviewShortcuts();
+  setupWebviewContextMenu();
 
   // Default-browser support (single-instance lock + OS deep-link listeners)
   // is opt-in behind the "Set as default browser" experimental flag, and MUST

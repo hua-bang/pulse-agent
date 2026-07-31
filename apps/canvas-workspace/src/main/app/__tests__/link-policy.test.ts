@@ -5,6 +5,9 @@ const electronMocks = vi.hoisted(() => ({
   openExternal: vi.fn(),
   openGoogleAuthPopup: vi.fn(),
 }));
+const registryMocks = vi.hoisted(() => ({
+  surfaceKinds: new Map<number, 'canvas-node' | 'dock-browser'>(),
+}));
 
 vi.mock('electron', () => ({
   app: {
@@ -19,6 +22,19 @@ vi.mock('../google-auth-popup', () => ({
   openGoogleAuthPopup: electronMocks.openGoogleAuthPopup,
 }));
 
+vi.mock('../../webview/registry', () => ({
+  getWebviewRegistration: (webContentsId: number) => {
+    const surfaceKind = registryMocks.surfaceKinds.get(webContentsId);
+    return surfaceKind ? {
+      workspaceId: 'ws-1',
+      nodeId: 'dock-tab-1',
+      webContentsId,
+      surfaceKind,
+    } : null;
+  },
+  getWebviewSurfaceKind: (webContentsId: number) => registryMocks.surfaceKinds.get(webContentsId) ?? null,
+}));
+
 type WindowOpenHandler = (details: { url: string; disposition: string }) => { action: string };
 type NavigateHandler = (event: { preventDefault(): void }, url: string) => void;
 
@@ -28,6 +44,7 @@ function createContents(currentUrl = 'https://www.figma.com/files/recent') {
     send: vi.fn(),
   };
   const contents = {
+    id: 42,
     hostWebContents,
     setWindowOpenHandler: vi.fn(),
     getType: vi.fn(() => 'webview'),
@@ -52,6 +69,7 @@ describe('link policy', () => {
     electronMocks.openExternal.mockReset();
     electronMocks.openExternal.mockResolvedValue(undefined);
     electronMocks.openGoogleAuthPopup.mockReset();
+    registryMocks.surfaceKinds.clear();
   });
 
   it('opens Google auth popups in an in-app window so the session flows back', async () => {
@@ -102,12 +120,111 @@ describe('link policy', () => {
     expect(electronMocks.openExternal).not.toHaveBeenCalled();
   });
 
+  it('marks background-tab opens so the dock does not steal focus', async () => {
+    // ⌘/Ctrl+click and middle-click arrive as `background-tab`. Flattening
+    // that into a plain open pulled the user off the page they were reading
+    // on every queued link.
+    registryMocks.surfaceKinds.set(42, 'dock-browser');
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents();
+    createdHandler({}, contents);
+
+    const windowOpenHandler = contents.setWindowOpenHandler.mock.calls[0]?.[0] as WindowOpenHandler;
+    const url = 'https://example.com/article';
+    const result = windowOpenHandler({ url, disposition: 'background-tab' });
+
+    expect(result).toEqual({ action: 'deny' });
+    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', {
+      url,
+      background: true,
+      sourceWebContentsId: 42,
+      source: {
+        workspaceId: 'ws-1',
+        nodeId: 'dock-tab-1',
+        webContentsId: 42,
+        surfaceKind: 'dock-browser',
+      },
+    });
+  });
+
+  it('keeps ordinary safe cross-origin navigation inside a registered dock browser', async () => {
+    registryMocks.surfaceKinds.set(42, 'dock-browser');
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents('https://github.com/pulse');
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    navigateHandler({ preventDefault }, 'https://example.com/docs');
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(hostWebContents.send).not.toHaveBeenCalled();
+  });
+
+  it('still routes editor protocols to the OS from a registered dock browser', async () => {
+    registryMocks.surfaceKinds.set(42, 'dock-browser');
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents('https://github.com/pulse');
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    const url = 'vscode://file/root/project/src/App.tsx:12:3';
+    navigateHandler({ preventDefault }, url);
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(electronMocks.openExternal).toHaveBeenCalledWith(url);
+    expect(hostWebContents.send).not.toHaveBeenCalled();
+  });
+
+  it('does not treat non-web protocols as ordinary dock-browser navigation', async () => {
+    registryMocks.surfaceKinds.set(42, 'dock-browser');
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents('https://github.com/pulse');
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    const url = 'mailto:hello@example.com';
+    navigateHandler({ preventDefault }, url);
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', {
+      url,
+      background: false,
+      sourceWebContentsId: 42,
+      source: {
+        workspaceId: 'ws-1',
+        nodeId: 'dock-tab-1',
+        webContentsId: 42,
+        surfaceKind: 'dock-browser',
+      },
+    });
+  });
+
+  it('forwards foreground target=_blank links as foreground opens', async () => {
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents();
+    createdHandler({}, contents);
+
+    const windowOpenHandler = contents.setWindowOpenHandler.mock.calls[0]?.[0] as WindowOpenHandler;
+    const url = 'https://example.com/docs';
+    windowOpenHandler({ url, disposition: 'foreground-tab' });
+
+    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', {
+      url,
+      background: false,
+      sourceWebContentsId: 42,
+    });
+  });
+
   it('reroutes in-place Google auth entry navigations into a popup window', async () => {
     // Redirect-mode "Sign in with Google" navigates the webview itself to
     // accounts.google.com, where Google's strict full-page flow rejects
     // embedded surfaces. The entry leg must leave the webview for a real
     // top-level popup on the same session — never the system browser (that
     // would strand the login cookie).
+    registryMocks.surfaceKinds.set(42, 'dock-browser');
     const createdHandler = await installPolicy();
     const { contents, hostWebContents } = createContents('https://github.com/login');
     createdHandler({}, contents);
@@ -173,7 +290,8 @@ describe('link policy', () => {
     expect(hostWebContents.send).not.toHaveBeenCalled();
   });
 
-  it('does not treat lookalike Google auth hosts as auth navigations', async () => {
+  it('keeps canvas-node cross-origin preview policy for lookalike Google auth hosts', async () => {
+    registryMocks.surfaceKinds.set(42, 'canvas-node');
     const createdHandler = await installPolicy();
     const { contents, hostWebContents } = createContents();
     createdHandler({}, contents);
@@ -184,7 +302,17 @@ describe('link policy', () => {
     navigateHandler({ preventDefault }, url);
 
     expect(preventDefault).toHaveBeenCalledOnce();
-    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', { url });
+    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', {
+      url,
+      background: false,
+      sourceWebContentsId: 42,
+      source: {
+        workspaceId: 'ws-1',
+        nodeId: 'dock-tab-1',
+        webContentsId: 42,
+        surfaceKind: 'canvas-node',
+      },
+    });
   });
 
   it('keeps Figma SAML callbacks inside the webview', async () => {

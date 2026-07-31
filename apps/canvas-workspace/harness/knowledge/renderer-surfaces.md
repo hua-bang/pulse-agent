@@ -51,20 +51,25 @@ The workbench has exactly two side regions plus a modal tier:
     chat tab, cleared on activation;
   - artifact tabs are deduped by `(workspaceId, artifactId)` — opening
     an already-open artifact re-activates its tab;
-  - link tabs are deduped by exact URL within the active workspace.
+  - link tabs are deduped by exact URL within their owning workspace.
     They persist their URL, title, favicon, and last active tab in renderer
     local storage, so reopening the app restores that workspace's browser
     session; terminal and other transient preview tabs do not persist;
-  - closing the active preview activates its right neighbour, falling
-    back to chat; `ESC` closes the active preview tab and never touches
-    chat;
+  - closing the active preview activates its right neighbour, falling back to
+    chat. From dock chrome, Escape collapses an active web tab, closes a
+    reconstructible content/terminal tab, and leaves pinned chat alone;
+    Escape inside a web page remains page-owned;
   - web and terminal tabs can enter split view with the pinned chat: content
     stays on the left, Pulse AI stays on the right, clicking or focusing either
     pane moves the active-view focus without unmounting the other, and closing
     the paired content exits split view;
-  - tab contents stay mounted and hide via `visibility` (never
-    `display: none` — Electron detaches a `<webview>`'s guest when its
-    layout collapses; artifacts keep scroll/render state).
+  - browser tabs mount lazily on first visibility, so restored hidden tabs and
+    a collapsed dock do not create cold guests. Resident tab contents stay
+    mounted in the background and hide via `visibility` (never `display: none`
+    — Electron detaches a `<webview>` guest when its layout collapses). L3
+    Memory Saver may explicitly discard a clean, reloadable frozen guest and
+    later restore its URL/scroll; see `dock-browser.md` for that lifecycle plus
+    navigation, identity, retention, focus, shortcut, and overflow contracts.
 
   Layout: the dock is a fixed element on `--layer-dock` that stays
   mounted while collapsed. On workbench routes it reserves its width via

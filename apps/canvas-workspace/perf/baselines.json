@@ -149,8 +149,8 @@
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "185 基线(2026-07-13)已被后续渐增吃满:master 实测即等于 +3% 上限 190.55,任何渲染层新增都会红。定时任务墙钟排期 + 定时会话并入 AI Chat 会话列表后实测 191.5KB。提基线前已先瘦身:星期名改用 Intl 取代 14 条 catalogue 字符串、缩短 timeOfDayHint 与 agent 工具描述(合计约 -0.1KB gzip);剩余增量是功能代码本身。保留 target 185 作为瘦身压力,后续渲染层新增仍应先瘦身。", "asOf": "2026-07-27",
-      "gate": { "kind": "ratchet", "baseline": 191.5, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "master 实测 196KB；浏览器式 Dock 标签交互最初将入口推至 205KB。提基线前已把全部标签菜单、右键菜单、键盘控制器与 agent 品牌 SVG 恢复到按需边界，入口降至 201KB，raw 694KB 仍低于原 698KB Gate，总 JS 仅增 0.5%。剩余 gzip 增量来自跨 webview 焦点与可恢复标签状态等常驻交互逻辑。保留 target 185 作为后续瘦身压力。", "asOf": "2026-07-31",
+      "gate": { "kind": "ratchet", "baseline": 195, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,

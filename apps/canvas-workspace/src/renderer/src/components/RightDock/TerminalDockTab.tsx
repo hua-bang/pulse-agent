@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useI18n } from '../../i18n';
-import { AgentIcon } from '../AgentNodeBody/AgentIcon';
-import { NodeTypeIcon } from '../icons';
+import { DockAgentTabIcon } from './DockAgentTabIcon';
+import { DockTabIcon } from './DockTabIcon';
 import type { DockTerminalTab } from './dock-store';
 import type { DockTabVisualState } from './dock-tab-visual-state';
 import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
@@ -41,9 +41,6 @@ export const TerminalDockTab = ({
       : undefined;
   const defaultTitle = agentDefaultTitle ?? t('rightDock.terminalNumber', { number: tab.ordinal });
   const title = tab.title ?? defaultTitle;
-  const agentIconModifier = tab.agentType === 'claude-code' || tab.agentType === 'codex'
-    ? ` right-dock__tab-icon--agent-${tab.agentType}`
-    : '';
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -133,14 +130,9 @@ export const TerminalDockTab = ({
           }
         }}
       >
-        <span
-          className={`right-dock__tab-icon right-dock__tab-icon--terminal${
-            tab.agentType ? ` right-dock__tab-icon--agent${agentIconModifier}` : ''
-          }`}
-          aria-hidden="true"
-        >
-          {tab.agentType ? <AgentIcon id={tab.agentType} size={14} /> : <NodeTypeIcon type="terminal" size={14} />}
-        </span>
+        {tab.agentType
+          ? <DockAgentTabIcon agentType={tab.agentType} />
+          : <DockTabIcon kind="terminal" />}
         <span className={`right-dock__tab-title${editing ? ' right-dock__tab-title--editing' : ''}`}>
           {title}
         </span>

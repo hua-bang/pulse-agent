@@ -6,28 +6,41 @@
  *
  * Tab chrome and switching live in components/RightDock; link actions live
  * beside the address bar, and the resolved page title is reported up via
- * `onTitleChange`.
+ * `onTitleChange`. Address-bar editing rules live in `useAddressBar`.
  */
 
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n";
 import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { useInitialWebviewLoadSlot } from '../EmbeddedBrowser/useInitialWebviewLoadSlot';
 import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
-import { resolveAddressInput } from '../EmbeddedBrowser/address-input';
-import { AddressSuggestionList, useAddressSuggestions, type AddressSuggestion } from './AddressSuggestions';
+import { classifyLoadError, loadErrorDetail } from '../EmbeddedBrowser/load-error';
+import { AddressSuggestionList } from './AddressSuggestions';
+import { LinkTabLoadError } from './LinkTabLoadError';
+import { PageContextMenu } from './PageContextMenu';
+import { FindInPageBar } from './FindInPageBar';
+import { InspectIcon, ReferenceIcon } from './icons';
+import { useAddressBar } from './useAddressBar';
+import { useFindInPage } from './useFindInPage';
+import { usePageContextMenu } from './usePageContextMenu';
+import { focusDockPageOrRequest, useDockPageFocus } from './useDockPageFocus';
 import { useWebviewRegistration } from '../IframeNodeBody/useWebviewRegistration';
 import { useWebviewRestore } from '../IframeNodeBody/useWebviewDiscard';
 import {
   useDockWebviewBackgroundLifecycle,
   useDockWebviewDiscard,
 } from './useDockWebviewLifecycle';
-import { useClickOutside } from '../../hooks/useClickOutside';
+import {
+  dockPageKeyFromFocusEvent,
+  FIND_IN_DOCK_TAB_EVENT,
+  FOCUS_DOCK_ADDRESS_EVENT,
+  RELOAD_DOCK_TAB_EVENT,
+} from '../RightDock/dock-browser-commands';
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
 import { useAppShell } from '../AppShellProvider';
 import type { AgentContextDomSelectionRef } from '../../types';
 import { ExternalLinkIcon, PlusIcon } from "../icons";
-import { Button, TextField, clampIndexMove } from "../ui";
+import { Button, TextField } from "../ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../shared/experimental-features";
 import type { ChatDeliveryReceipt } from '../chat/ChatTargetContext';
 import "./index.css";
@@ -67,6 +80,9 @@ interface LinkTabViewProps {
   onGuestNavigate: (url: string) => void;
   onAddToReference: (url: string, title?: string) => void;
   onAddDomSelectionToChat: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
+  /** Open a URL as a SEPARATE tab (right-click → open in new tab), placed
+   *  next to this one. Distinct from `onNavigate`, which moves this tab. */
+  onOpenLink: (url: string, options?: { background?: boolean }) => void;
   activeWorkspaceId: string;
   onRequestClose: () => void;
 }
@@ -84,13 +100,12 @@ export const LinkTabView = ({
   onGuestNavigate,
   onAddToReference,
   onAddDomSelectionToChat,
+  onOpenLink,
   activeWorkspaceId,
   onRequestClose,
 }: LinkTabViewProps) => {
   const { t } = useI18n();
   const { notify } = useAppShell();
-  const addressFormRef = useRef<HTMLFormElement>(null);
-  const [address, setAddress] = useState(url);
   const [domPickerActive, setDomPickerActive] = useState(false);
   // When Pulse Canvas is itself the default browser, the "open in system
   // browser" escape hatch loops back into this app — so steer the user to
@@ -101,9 +116,11 @@ export const LinkTabView = ({
   // title/favicon events are folded into the same browsing-history visit.
   const lastVisitedUrlRef = useRef('');
   const webviewHostRef = useRef<HTMLDivElement>(null);
+  const [guestId, setGuestId] = useState<number | null>(null);
   const discard = useDockWebviewDiscard({
     workspaceId: activeWorkspaceId,
     tabId,
+    webContentsId: guestId,
     enabled: mountWebview,
     active,
     tabUrl: url,
@@ -117,6 +134,7 @@ export const LinkTabView = ({
     className: 'link-drawer__webview',
     enabled: mountWebview && !discard.discarded && initialLoadSlot.granted,
     hostRef: webviewHostRef,
+    navigationReadyWebContentsId: guestId,
     onFocus: onActivate,
     onFaviconChange: (favicons) => {
       const favicon = pickFaviconUrl(favicons);
@@ -127,33 +145,65 @@ export const LinkTabView = ({
       }
     },
     onNavigate: (nextUrl) => {
-      setAddress(nextUrl);
       lastVisitedUrlRef.current = nextUrl;
       onGuestNavigate(nextUrl);
       window.canvasWorkspace.history.record({ url: nextUrl });
     },
     onInitialLoadSettled: initialLoadSlot.release,
-    onTitleChange: (title) => {
-      onTitleChange?.(title);
+    onTitleChange: (pageTitle) => {
+      onTitleChange?.(pageTitle);
       if (lastVisitedUrlRef.current) {
-        window.canvasWorkspace.history.record({ url: lastVisitedUrlRef.current, title });
+        window.canvasWorkspace.history.record({ url: lastVisitedUrlRef.current, title: pageTitle });
       }
     },
     url: discard.restore?.url ?? url,
   });
   const loadState = initialLoadSlot.queued ? 'queued' : browser.loadState;
+  const loading = loadState === 'loading';
+  const errorKind = loadState === 'failed' ? classifyLoadError(browser.loadError) : null;
+
+  const restorePageFocus = useCallback(() => focusDockPageOrRequest({
+    workspaceId: activeWorkspaceId,
+    tabId,
+    webview: browser.webview,
+  }), [activeWorkspaceId, browser.webview, tabId]);
+  const addressBar = useAddressBar({
+    active,
+    url,
+    currentUrl: browser.currentUrl,
+    onNavigate,
+    onRestorePageFocus: restorePageFocus,
+  });
 
   // Register this tab's <webview> with main so the Canvas Agent can read the
-  // live page (via canvas_read_tab), keyed by the dock tab id. Reuses the same
-  // registry + lifecycle plumbing as iframe canvas nodes.
+  // live page (via canvas_read_tab), keyed by the dock tab id. The same
+  // handshake feeds the renderer-side guest→tab index, which is how a link
+  // opened from this page knows to land next to this tab.
   useWebviewRegistration({
     webview: browser.webview,
     workspaceId: activeWorkspaceId,
     nodeId: tabId ?? '',
     enabled: Boolean(tabId && activeWorkspaceId),
+    surfaceKind: 'dock-browser',
+    onWebContentsId: useCallback((webContentsId: number | null) => {
+      setGuestId(webContentsId);
+    }, []),
+  });
+  const contextMenu = usePageContextMenu({ guestId, active });
+  const restoreFindFocus = useCallback(() => {
+    if (!url) {
+      addressBar.focusAddress();
+      return;
+    }
+    restorePageFocus();
+  }, [addressBar.focusAddress, restorePageFocus, url]);
+  const find = useFindInPage(browser.webview, {
+    active,
+    onRestorePageFocus: restoreFindFocus,
   });
   useDockWebviewBackgroundLifecycle({
     webview: browser.webview,
+    webContentsId: guestId,
     workspaceId: activeWorkspaceId,
     tabId,
     enabled: mountWebview && !discard.discarded,
@@ -161,81 +211,31 @@ export const LinkTabView = ({
   });
   useWebviewRestore(browser.webview, discard.restore);
 
-  // Keep the editable address synchronized with external tab navigation;
-  // EmbeddedBrowser owns the Electron guest lifecycle and in-page updates.
+  // ⌘/Ctrl+L and ⌘/Ctrl+R target whichever web tab is currently visible; the
+  // dock resolves the command and broadcasts, this tab claims it while active.
+  const { focusAddress } = addressBar;
+  const { reload, webview } = browser;
+  const { openFind } = find;
   useEffect(() => {
-    setAddress(url);
-    if (!url) requestAnimationFrame(() => addressFormRef.current?.querySelector('input')?.focus());
-  }, [url]);
+    if (!active) return;
+    const ownsRequest = (event: Event) => {
+      const target = dockPageKeyFromFocusEvent(event);
+      return target?.workspaceId === activeWorkspaceId && target.tabId === tabId;
+    };
+    const onFocusRequest = (event: Event) => { if (ownsRequest(event)) focusAddress(); };
+    const onReloadRequest = (event: Event) => { if (ownsRequest(event)) reload(); };
+    const onFindRequest = (event: Event) => { if (ownsRequest(event)) openFind(); };
+    window.addEventListener(FOCUS_DOCK_ADDRESS_EVENT, onFocusRequest);
+    window.addEventListener(RELOAD_DOCK_TAB_EVENT, onReloadRequest);
+    window.addEventListener(FIND_IN_DOCK_TAB_EVENT, onFindRequest);
+    return () => {
+      window.removeEventListener(FOCUS_DOCK_ADDRESS_EVENT, onFocusRequest);
+      window.removeEventListener(RELOAD_DOCK_TAB_EVENT, onReloadRequest);
+      window.removeEventListener(FIND_IN_DOCK_TAB_EVENT, onFindRequest);
+    };
+  }, [active, activeWorkspaceId, focusAddress, openFind, reload, tabId]);
 
-  // ── Address-bar history suggestions (omnibox dropdown) ────────────
-  // Open while the input is focused/edited; -1 = no row selected (Enter
-  // resolves the typed text as usual). ArrowDown/Up move through rows and
-  // back up to the raw input; Escape and outside presses dismiss.
-  const [suggestOpen, setSuggestOpen] = useState(false);
-  const [activeSuggestion, setActiveSuggestion] = useState(-1);
-  const SUGGEST_HOVER_CLOSE_DELAY_MS = 200;
-  const suggestCloseTimerRef = useRef<number | null>(null);
-  const cancelScheduledSuggestClose = useCallback(() => {
-    if (suggestCloseTimerRef.current !== null) {
-      window.clearTimeout(suggestCloseTimerRef.current);
-      suggestCloseTimerRef.current = null;
-    }
-  }, []);
-  const scheduleSuggestClose = useCallback(() => {
-    cancelScheduledSuggestClose();
-    suggestCloseTimerRef.current = window.setTimeout(() => {
-      suggestCloseTimerRef.current = null;
-      setSuggestOpen(false);
-    }, SUGGEST_HOVER_CLOSE_DELAY_MS);
-  }, [cancelScheduledSuggestClose]);
-  useEffect(() => cancelScheduledSuggestClose, [cancelScheduledSuggestClose]);
-  // Untouched input still holding the current page's URL (the just-focused
-  // state — onFocus selects it all) means "show me recent pages", not
-  // "filter by this URL"; anything the user actually typed filters.
-  const effectiveQuery = address.trim() === (browser.currentUrl || url).trim() ? '' : address;
-  const suggestions = useAddressSuggestions(effectiveQuery, suggestOpen);
-  const suggestionsId = useId();
-  useEffect(() => setActiveSuggestion(-1), [address]);
-  useClickOutside(addressFormRef, () => setSuggestOpen(false), suggestOpen);
-  const suggestionsVisible = suggestOpen && suggestions.length > 0;
-
-  const pickSuggestion = useCallback((suggestion: AddressSuggestion) => {
-    setSuggestOpen(false);
-    onNavigate(suggestion.url);
-  }, [onNavigate]);
-
-  const handleAddressKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
-    if (!suggestionsVisible) return;
-    // Shift the [-1, n-1] selection domain (with -1 = the typed input) onto
-    // clampIndexMove's [0, n] so the shared clamp semantics apply.
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      const delta = event.key === 'ArrowDown' ? 1 : -1;
-      setActiveSuggestion((current) => clampIndexMove(current + 1, delta, suggestions.length + 1) - 1);
-      return;
-    }
-    if (event.key === 'Escape') {
-      // Swallow it — the RightDock window listener closes the tab on Escape.
-      event.preventDefault();
-      event.stopPropagation();
-      setSuggestOpen(false);
-      return;
-    }
-    if (event.key === 'Enter' && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
-      event.preventDefault();
-      pickSuggestion(suggestions[activeSuggestion]);
-    }
-  }, [suggestionsVisible, suggestions, activeSuggestion, pickSuggestion]);
-
-  const handleNavigate = useCallback((event: FormEvent) => {
-    event.preventDefault();
-    setSuggestOpen(false);
-    // Omnibox behavior: URL-ish input navigates, anything else searches on
-    // the configured engine (Google by default) — see address-input.ts.
-    const nextUrl = resolveAddressInput(address);
-    if (nextUrl) onNavigate(nextUrl);
-  }, [address, onNavigate]);
+  useDockPageFocus({ active, workspaceId: activeWorkspaceId, tabId, webview });
 
   const handleOpenInBrowser = useCallback(() => {
     if (!browser.currentUrl) return;
@@ -313,49 +313,45 @@ export const LinkTabView = ({
           canGoForward={browser.canGoForward}
           onBack={browser.goBack}
           onForward={browser.goForward}
-          onReload={browser.reload}
-          loading={loadState === 'loading'}
+          onReload={loading ? browser.stop : browser.reload}
+          loading={loading}
+          canStop
         />
         <form
-          ref={addressFormRef}
+          ref={addressBar.formRef}
           className="link-drawer__address-form"
           onFocus={onActivate}
-          onSubmit={handleNavigate}
-          onMouseEnter={cancelScheduledSuggestClose}
-          onMouseLeave={scheduleSuggestClose}
+          onSubmit={addressBar.onSubmit}
+          onMouseEnter={addressBar.cancelScheduledSuggestClose}
+          onMouseLeave={addressBar.scheduleSuggestClose}
         >
           <TextField
             className="link-drawer__url"
-            value={address}
-            onChange={(event) => {
-              setAddress(event.target.value);
-              setSuggestOpen(true);
-            }}
-            onFocus={(event) => {
-              event.currentTarget.select();
-              setSuggestOpen(true);
-            }}
-            onKeyDown={handleAddressKeyDown}
+            value={addressBar.address}
+            onChange={(event) => addressBar.onChange(event.target.value)}
+            onFocus={(event) => addressBar.onFocus(event.currentTarget)}
+            onBlur={addressBar.onBlur}
+            onKeyDown={addressBar.onKeyDown}
             placeholder={t('linkDrawer.addressPlaceholder')}
             aria-label={t('linkDrawer.addressLabel')}
             spellCheck={false}
             role="combobox"
             aria-autocomplete="list"
-            aria-expanded={suggestionsVisible}
-            aria-controls={suggestionsVisible ? suggestionsId : undefined}
+            aria-expanded={addressBar.suggestionsVisible}
+            aria-controls={addressBar.suggestionsVisible ? addressBar.suggestionsId : undefined}
             aria-activedescendant={
-              suggestionsVisible && activeSuggestion >= 0
-                ? `${suggestionsId}-option-${activeSuggestion}`
+              addressBar.suggestionsVisible && addressBar.activeSuggestion >= 0
+                ? `${addressBar.suggestionsId}-option-${addressBar.activeSuggestion}`
                 : undefined
             }
           />
-          {suggestionsVisible && (
+          {addressBar.suggestionsVisible && (
             <AddressSuggestionList
-              suggestions={suggestions}
-              activeIndex={activeSuggestion}
-              listId={suggestionsId}
-              onPick={pickSuggestion}
-              onHover={setActiveSuggestion}
+              suggestions={addressBar.suggestions}
+              activeIndex={addressBar.activeSuggestion}
+              listId={addressBar.suggestionsId}
+              onPick={addressBar.pickSuggestion}
+              onHover={addressBar.setActiveSuggestion}
             />
           )}
         </form>
@@ -406,11 +402,21 @@ export const LinkTabView = ({
           </Button>
         </div>
       </header>
-      {loadState === 'loading' && (
+      {loading && (
         <div
           className="link-drawer__loading-bar"
           role="progressbar"
           aria-label={t('linkDrawer.loadingPage')}
+        />
+      )}
+      {find.open && (
+        <FindInPageBar
+          query={find.query}
+          matches={find.matches}
+          barRef={find.barRef}
+          onQueryChange={find.onQueryChange}
+          onStep={find.step}
+          onClose={find.close}
         />
       )}
       {isGoogleAuthUrl(browser.currentUrl) && (
@@ -447,25 +453,36 @@ export const LinkTabView = ({
             <span>{t('linkDrawer.waitingToLoad')}</span>
           </div>
         )}
+        {errorKind && (
+          <LinkTabLoadError
+            kind={errorKind}
+            detail={loadErrorDetail(browser.loadError)}
+            url={browser.currentUrl || url}
+            onRetry={browser.reload}
+            onOpenExternal={handleOpenInBrowser}
+          />
+        )}
       </div>
+      {contextMenu.menu && (
+        <PageContextMenu
+          request={contextMenu.menu.request}
+          x={contextMenu.menu.x}
+          y={contextMenu.menu.y}
+          canGoBack={browser.canGoBack}
+          canGoForward={browser.canGoForward}
+          pageUrl={browser.currentUrl || url}
+          onClose={contextMenu.close}
+          onRestorePageFocus={restorePageFocus}
+          actions={{
+            openLink: (target, options) => onOpenLink(target, options),
+            openExternal: (target) => void window.canvasWorkspace.shell.openExternal(target),
+            copyText: (text) => void navigator.clipboard?.writeText(text).catch(() => undefined),
+            goBack: browser.goBack,
+            goForward: browser.goForward,
+            reload: browser.reload,
+          }}
+        />
+      )}
     </>
   );
 };
-
-const ReferenceIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-    <path d="M3 1.75h6v8.5L6 8.3l-3 1.95v-8.5z" stroke="currentColor" strokeWidth="1.15" strokeLinejoin="round" />
-  </svg>
-);
-
-const InspectIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-    <path
-      d="M2 2.5A.5.5 0 012.5 2h7a.5.5 0 01.5.5v7a.5.5 0 01-.5.5h-7a.5.5 0 01-.5-.5v-7zM4.2 5L3.2 6l1 1M7.8 5l1 1-1 1M5.4 8l1.2-4"
-      stroke="currentColor"
-      strokeWidth="1.1"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
