@@ -339,10 +339,18 @@ const ShortcutsDialog = ({ onClose }: { onClose: () => void }) => {
               <div className="shell-shortcuts__section-title">{t(section.titleKey)}</div>
               <div className="shell-shortcuts__list">
                 {section.items.map((item) => (
-                  <div key={`${section.titleKey}-${item.combo}`} className="shell-shortcuts__item">
-                    <div className="shell-shortcuts__combo" aria-label={item.combo}>
-                      {item.combo.split(/\s*\+\s*/).map((part) => (
-                        <span key={`${item.combo}-${part}`} className="shell-shortcuts__key">{part}</span>
+                  <div key={`${section.titleKey}-${item.combos.join('/')}`} className="shell-shortcuts__item">
+                    {/* One chip group per binding, "or"-separated. Splitting a
+                        single joined string on "+" chipped an alternative
+                        binding as if it were one more modifier. */}
+                    <div className="shell-shortcuts__combo" aria-label={item.combos.join(' or ')}>
+                      {item.combos.map((combo, index) => (
+                        <span key={combo} className="shell-shortcuts__combo-group">
+                          {index > 0 && <span className="shell-shortcuts__or">/</span>}
+                          {combo.split(/\s*\+\s*/).map((part) => (
+                            <span key={`${combo}-${part}`} className="shell-shortcuts__key">{part}</span>
+                          ))}
+                        </span>
                       ))}
                     </div>
                     <div className="shell-shortcuts__item-description">{t(item.descriptionKey)}</div>

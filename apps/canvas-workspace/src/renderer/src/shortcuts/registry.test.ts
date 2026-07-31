@@ -117,12 +117,25 @@ describe('shortcut registry', () => {
   });
 
   describe('help overlay derivation', () => {
-    it('renders a combo for every row', () => {
+    it('renders at least one non-empty combo for every row', () => {
       for (const section of SHORTCUT_SECTIONS) {
         for (const item of section.items) {
-          expect(item.combo.length, `${section.titleKey} has an empty combo`).toBeGreaterThan(0);
+          expect(item.combos.length, `${section.titleKey} has a row with no combo`).toBeGreaterThan(0);
+          for (const combo of item.combos) {
+            expect(combo.length, `${section.titleKey} has an empty combo`).toBeGreaterThan(0);
+          }
         }
       }
+    });
+
+    // Each alternative binding is its own chip group: joining them into one
+    // string made the panel split on "+" and render "Ctrl+Tab /
+    // Ctrl+Shift+Tab" as the four chips Ctrl | Tab / Ctrl | Shift | Tab.
+    it('keeps alternative bindings separate', () => {
+      const cycle = SHORTCUT_SECTIONS
+        .flatMap((section) => section.items)
+        .find((item) => item.descriptionKey === 'shortcuts.canvas.cycleNodes');
+      expect(cycle?.combos).toEqual(['Ctrl+Tab', 'Ctrl+Shift+Tab']);
     });
 
     // The whole point of the registry: a row can only exist if a definition

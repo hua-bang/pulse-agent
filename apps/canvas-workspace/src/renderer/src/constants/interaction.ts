@@ -86,7 +86,7 @@ export const EMPTY_CANVAS_ACTIONS: Array<{
  */
 export const SHORTCUT_SECTIONS: Array<{
   titleKey: I18nKey;
-  items: Array<{ combo: string; descriptionKey: I18nKey }>;
+  items: Array<{ combos: string[]; descriptionKey: I18nKey }>;
 }> = (() => {
   const all: ShortcutDefinition[] = [
     ...shortcutsFor('gesture'),
@@ -99,11 +99,11 @@ export const SHORTCUT_SECTIONS: Array<{
     items: all
       .filter((definition) => definition.section === section)
       .map((definition) => ({
-        combo: formatAllBindings(definition),
+        combos: formatAllBindings(definition),
         descriptionKey: definition.descriptionKey,
       }))
       // Definitions whose bindings are all hidden are declared for the
       // handler tables, not for this panel.
-      .filter((item) => item.combo.length > 0),
+      .filter((item) => item.combos.length > 0),
   })).filter((section) => section.items.length > 0);
 })();

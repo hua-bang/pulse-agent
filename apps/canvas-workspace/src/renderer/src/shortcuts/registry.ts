@@ -78,12 +78,15 @@ export const formatShortcutId = (id: ShortcutId): string => {
   return formatBinding(visible[0] ?? definition.bindings[0]);
 };
 
-/** Every visible binding of a definition, joined for the help overlay. */
-export const formatAllBindings = (definition: ShortcutDefinition): string =>
+/**
+ * One label per visible binding. The help overlay renders each as its own
+ * chip group — joining them into a single string made it split on `+` and
+ * chip `Ctrl+Tab / Ctrl+Shift+Tab` as `Ctrl | Tab / Ctrl | Shift | Tab`.
+ */
+export const formatAllBindings = (definition: ShortcutDefinition): string[] =>
   definition.bindings
-    .filter((b) => !b.hidden)
-    .map(formatBinding)
-    .join(' / ');
+    .filter((binding) => !binding.hidden)
+    .map(formatBinding);
 
 /**
  * Exact-modifier match. Unlisted modifiers must be UP — the old hand-written
