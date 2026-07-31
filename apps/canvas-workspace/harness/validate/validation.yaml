@@ -32,7 +32,7 @@ pathRules:
       - pnpm --filter canvas-workspace harness close --cleanup --json
 
   # Keyboard shortcuts are a cross-layer contract: bindings in
-  # shortcuts/registry, canvas + app handler tables, the help overlay and
+  # shortcuts/registry, canvas + app handler tables, the lazy help overlay and
   # palette labels derived from them, the webview forwarding whitelist in
   # shared/, and the terminal key arbitration. Typecheck already catches a
   # documented-but-unimplemented shortcut (the handler tables are exhaustive
@@ -45,7 +45,7 @@ pathRules:
       - src/renderer/src/hooks/useAppShortcuts.ts
       - src/renderer/src/hooks/useWebviewShortcutBridge.ts
       - src/renderer/src/utils/keyboardShortcut.ts
-      - src/renderer/src/constants/interaction.ts
+      - src/renderer/src/components/AppShellProvider/ShortcutsDialog.tsx
       - src/shared/webview-shortcuts.ts
       - src/main/webview/shortcut-forwarding.ts
       - src/main/app/menu.ts

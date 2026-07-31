@@ -389,7 +389,7 @@ export const useCanvasKeyboard = ({
       const active = document.activeElement;
       if (match.definition.editable !== 'allow' && isEditableElement(active)) return;
 
-      handlersRef.current[match.definition.id as CanvasShortcutId](e, match.binding);
+      handlersRef.current[match.id as CanvasShortcutId](e, match.binding);
     };
 
     window.addEventListener('keydown', handleKeyDown);

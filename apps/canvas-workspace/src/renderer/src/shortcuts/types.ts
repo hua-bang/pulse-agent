@@ -3,8 +3,6 @@
  * declaration table (`definitions.ts`) and the matching/formatting helpers
  * can each stay a readable size.
  */
-import type { I18nKey } from '../i18n';
-
 /** Which layer owns the handler for a shortcut. */
 export type ShortcutOwner =
   /** `useCanvasKeyboard` — only fires on the visible, unlocked canvas. */
@@ -17,9 +15,7 @@ export type ShortcutOwner =
    * arbitrate is what allows the system clipboard to beat a stale canvas
    * clipboard, which a keydown `preventDefault` made impossible.
    */
-  | 'document'
-  /** Documentation-only rows (mouse gestures). No handler, by design. */
-  | 'gesture';
+  | 'document';
 
 export type ShortcutSectionId = 'canvas' | 'view' | 'selection' | 'edit' | 'panels';
 
@@ -54,10 +50,7 @@ export interface KeyBinding {
 }
 
 export interface ShortcutDefinition {
-  id: string;
   owner: ShortcutOwner;
-  section: ShortcutSectionId;
-  descriptionKey: I18nKey;
   bindings: KeyBinding[];
   editable?: EditablePolicy;
   /**

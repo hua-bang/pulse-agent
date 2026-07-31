@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SHORTCUT_SECTIONS } from '../constants/interaction';
+import { SHORTCUT_HELP, SHORTCUT_SECTIONS } from '../components/AppShellProvider/ShortcutsDialog';
 import { usesAppleShortcuts } from '../utils/keyboardShortcut';
 import { WEBVIEW_FORWARDED_CHORDS } from '../../../shared/webview-shortcuts';
 import {
@@ -8,10 +8,11 @@ import {
   matchShortcut,
   matchesBinding,
   type KeyBinding,
+  type ShortcutId,
   type ShortcutDefinition,
 } from './registry';
 
-const definitions = Object.values(SHORTCUTS) as ShortcutDefinition[];
+const definitions = Object.entries(SHORTCUTS) as Array<[ShortcutId, ShortcutDefinition]>;
 
 const event = (overrides: Partial<KeyboardEvent> & { key: string }) => ({
   metaKey: false,
@@ -31,26 +32,19 @@ const bindingSignature = (binding: KeyBinding): string =>
   ].join('|');
 
 describe('shortcut registry', () => {
-  it('keys every definition by its own id', () => {
-    for (const [key, definition] of Object.entries(SHORTCUTS)) {
-      expect((definition as ShortcutDefinition).id).toBe(key);
-    }
-  });
-
   // Two handlers for one chord means the second is dead code, and which one
   // wins depends on declaration order — exactly the class of bug that let
   // Cmd+Shift+A fall into Cmd+A.
   it('has no colliding chords within a dispatch owner', () => {
     const seen = new Map<string, string>();
-    for (const definition of definitions) {
-      if (definition.owner === 'gesture') continue;
+    for (const [id, definition] of definitions) {
       for (const binding of definition.bindings) {
         if (!binding.key) continue;
         const signature = `${definition.owner}::${bindingSignature(binding)}`;
         const existing = seen.get(signature);
-        expect(existing, `${signature} is bound by both ${existing} and ${definition.id}`)
+        expect(existing, `${signature} is bound by both ${existing} and ${id}`)
           .toBeUndefined();
-        seen.set(signature, definition.id);
+        seen.set(signature, id);
       }
     }
   });
@@ -59,11 +53,11 @@ describe('shortcut registry', () => {
   // to the renderer. Both used to be documented shortcuts that did nothing
   // there; the registry must keep them on literal Ctrl.
   it('keeps macOS-reserved chords off the mod modifier', () => {
-    for (const definition of definitions) {
+    for (const [id, definition] of definitions) {
       for (const binding of definition.bindings) {
         const reserved = binding.key.toLowerCase() === 'h' || binding.key === 'Tab';
         if (!reserved) continue;
-        expect(binding.mod, `${definition.id} must not bind Cmd+${binding.key}`).not.toBe(true);
+        expect(binding.mod, `${id} must not bind Cmd+${binding.key}`).not.toBe(true);
       }
     }
   });
@@ -83,20 +77,11 @@ describe('shortcut registry', () => {
   });
 
   it('routes a chord to the owner that declares it', () => {
-    expect(matchShortcut(event({ key: 'a', metaKey: true, shiftKey: true }), 'canvas')?.definition.id)
+    expect(matchShortcut(event({ key: 'a', metaKey: true, shiftKey: true }), 'canvas')?.id)
       .toBe('canvas.toggleChatPanel');
     expect(matchShortcut(event({ key: 'a', metaKey: true, shiftKey: true }), 'app')).toBeNull();
-    expect(matchShortcut(event({ key: 'l', metaKey: true, shiftKey: true }), 'app')?.definition.id)
+    expect(matchShortcut(event({ key: 'l', metaKey: true, shiftKey: true }), 'app')?.id)
       .toBe('app.toggleChatPage');
-  });
-
-  it('never matches a documentation-only gesture row', () => {
-    for (const definition of definitions) {
-      if (definition.owner !== 'gesture') continue;
-      for (const binding of definition.bindings) {
-        expect(binding.key).toBe('');
-      }
-    }
   });
 
   // Main cannot import this registry, so the webview forwarding whitelist
@@ -144,13 +129,8 @@ describe('shortcut registry', () => {
     // The whole point of the registry: a row can only exist if a definition
     // backs it, so the panel can no longer advertise a shortcut nobody
     // implemented.
-    it('only lists combos the registry declares', () => {
-      const declared = new Set(definitions.map((definition) => definition.descriptionKey));
-      for (const section of SHORTCUT_SECTIONS) {
-        for (const item of section.items) {
-          expect(declared.has(item.descriptionKey)).toBe(true);
-        }
-      }
+    it('keeps help metadata exhaustive over the runtime registry', () => {
+      expect(Object.keys(SHORTCUT_HELP).sort()).toEqual(Object.keys(SHORTCUTS).sort());
     });
 
     it('labels bindings for the host platform', () => {

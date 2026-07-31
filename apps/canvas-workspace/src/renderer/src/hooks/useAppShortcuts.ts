@@ -88,7 +88,7 @@ export const useAppShortcuts = ({
       if (!match) return;
       if (match.definition.editable !== 'allow' && isEditableTarget(event.target)) return;
 
-      handlersRef.current[match.definition.id as AppShortcutId](event);
+      handlersRef.current[match.id as AppShortcutId](event);
     };
 
     window.addEventListener('keydown', handler);

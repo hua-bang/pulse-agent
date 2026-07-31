@@ -1,12 +1,5 @@
 import type { CanvasNode } from '../types';
 import type { I18nKey } from '../i18n';
-import {
-  SECTION_ORDER,
-  SECTION_TITLE_KEY,
-  formatAllBindings,
-  shortcutsFor,
-  type ShortcutDefinition,
-} from '../shortcuts/registry';
 
 type EmptyCanvasNodeType = Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file' | 'iframe'>;
 
@@ -76,34 +69,3 @@ export const EMPTY_CANVAS_ACTIONS: Array<{
     nodeType: 'iframe',
   },
 ];
-
-/**
- * Rows for the `?` help overlay, DERIVED from `shortcuts/registry.ts` rather
- * than hand-listed. The old hardcoded table is exactly where the drift lived:
- * it advertised `Cmd+Shift+A` with no handler behind it and printed `Cmd+…`
- * on Windows. Every combo here is now generated for the host platform, and a
- * row can only exist if the registry declares it.
- */
-export const SHORTCUT_SECTIONS: Array<{
-  titleKey: I18nKey;
-  items: Array<{ combos: string[]; descriptionKey: I18nKey }>;
-}> = (() => {
-  const all: ShortcutDefinition[] = [
-    ...shortcutsFor('gesture'),
-    ...shortcutsFor('canvas'),
-    ...shortcutsFor('document'),
-    ...shortcutsFor('app'),
-  ];
-  return SECTION_ORDER.map((section) => ({
-    titleKey: SECTION_TITLE_KEY[section],
-    items: all
-      .filter((definition) => definition.section === section)
-      .map((definition) => ({
-        combos: formatAllBindings(definition),
-        descriptionKey: definition.descriptionKey,
-      }))
-      // Definitions whose bindings are all hidden are declared for the
-      // handler tables, not for this panel.
-      .filter((item) => item.combos.length > 0),
-  })).filter((section) => section.items.length > 0);
-})();

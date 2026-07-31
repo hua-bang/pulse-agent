@@ -144,18 +144,18 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "AI Chat P0-P2 交互与可靠性完善后从 master 663KB 增至 678KB；依赖归因确认 React/Phosphor/wouter 字节不变且 6 个重依赖继续保持 lazy。先将 Chat 注册、scope 映射与 session target 移回按需边界，入口由 694738B 降至 694159B；剩余增量为全局 broker/navigation、跨 surface 插入桥与双语状态反馈等应用功能载荷，仍低于 680 target。", "asOf": "2026-07-31",
-      "gate": { "kind": "ratchet", "baseline": 678, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "快捷键 SSOT 增加跨 Canvas/App 的常驻匹配与 handler contract。提基线前已将帮助面板、手势说明、section/description 展示元数据移入 5.9KB 按需 chunk，入口从 706KB 降至 699KB；剩余增量是启动即生效的键盘匹配与 webview 逃生通道，不复制 binding 数据。保留 680 target 作为后续瘦身压力。", "asOf": "2026-07-31",
+      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "master 实测 196KB；浏览器式 Dock 标签交互最初将入口推至 205KB。提基线前已把全部标签菜单、右键菜单、键盘控制器与 agent 品牌 SVG 恢复到按需边界，入口降至 201KB，raw 694KB 仍低于原 698KB Gate，总 JS 仅增 0.5%。剩余 gzip 增量来自跨 webview 焦点与可恢复标签状态等常驻交互逻辑。保留 target 185 作为后续瘦身压力。", "asOf": "2026-07-31",
-      "gate": { "kind": "ratchet", "baseline": 195, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "快捷键 SSOT 与浏览器式 Dock 合并后实测 202KB。帮助面板及展示元数据已恢复按需边界，入口 raw 降至 699KB；剩余 gzip 增量来自启动即生效的跨 surface shortcut matcher 与 webview 转发。保留 target 185 作为后续瘦身压力。", "asOf": "2026-07-31",
+      "gate": { "kind": "ratchet", "baseline": 202, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,
-      "confidence": "high", "basis": "当前启动静态 JS 闭包仍只有单一 renderer entry，AI Chat P0-P2 后实测 678KB；已先恢复 Chat 专属 registration/scope/session lazy 边界并确认重依赖 watchlist 0/6，保留 650 target 作为后续 catalogue 与全局 chat controller 瘦身压力。", "asOf": "2026-07-31",
-      "gate": { "kind": "ratchet", "baseline": 678, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "当前启动静态 JS 闭包仍只有单一 renderer entry，快捷键 SSOT 合并后实测 699KB；已先将帮助面板和展示元数据拆为 5.9KB 按需 chunk，并确认重依赖 watchlist 0/6。保留 650 target 作为后续启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-07-31",
+      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,

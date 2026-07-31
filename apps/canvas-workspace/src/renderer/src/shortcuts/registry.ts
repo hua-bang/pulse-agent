@@ -1,5 +1,5 @@
 /**
- * Single source of truth for every keyboard shortcut in the workbench.
+ * Runtime source of truth for every keyboard shortcut in the workbench.
  *
  * Before this file the same binding was written three times — the behavior
  * in `useCanvasKeyboard`, the row in the help overlay's `SHORTCUT_SECTIONS`,
@@ -10,19 +10,18 @@
  * `Cmd+…`/`Ctrl/Cmd+…` string that lied on one platform or the other.
  *
  * The fix is mechanical, not documentary:
- *   - Every binding is declared once, here.
+ *   - Every binding is declared once in `definitions.ts`.
  *   - `owner` names the layer that must implement it. The owning hook
  *     declares its handler table as `Record<ShortcutIdFor<'canvas'>, …>`, so
  *     documenting a shortcut without implementing it is a TYPE ERROR, and
  *     deleting a handler while leaving the help row is too.
- *   - The help overlay and the palette derive their labels from
+ *   - The lazy help overlay and the palette derive their labels from
  *     `formatBinding()`, so combos are always right for the host platform.
  *
  * Match semantics are EXACT on modifiers: a definition without `shift` does
  * not fire when Shift is held. That exactness is what stops `Cmd+Shift+A`
  * from falling into `Cmd+A`.
  */
-import type { I18nKey } from '../i18n';
 import { formatShortcut } from '../utils/keyboardShortcut';
 import { SHORTCUTS, type ShortcutId } from './definitions';
 import type {
@@ -30,7 +29,6 @@ import type {
   KeyEventLike,
   ShortcutDefinition,
   ShortcutOwner,
-  ShortcutSectionId,
 } from './types';
 
 export * from './types';
@@ -106,12 +104,10 @@ export const matchesBinding = (event: KeyEventLike, binding: KeyBinding): boolea
   return true;
 };
 
-const ALL_DEFINITIONS: ShortcutDefinition[] = Object.values(SHORTCUTS);
-
-export const shortcutsFor = (owner: ShortcutOwner): ShortcutDefinition[] =>
-  ALL_DEFINITIONS.filter((definition) => definition.owner === owner);
+const ALL_DEFINITIONS = Object.entries(SHORTCUTS) as Array<[ShortcutId, ShortcutDefinition]>;
 
 export interface ShortcutMatch {
+  id: ShortcutId;
   definition: ShortcutDefinition;
   binding: KeyBinding;
 }
@@ -124,27 +120,11 @@ export const matchShortcut = (
   event: KeyEventLike,
   owner: ShortcutOwner,
 ): ShortcutMatch | null => {
-  for (const definition of ALL_DEFINITIONS) {
+  for (const [id, definition] of ALL_DEFINITIONS) {
     if (definition.owner !== owner) continue;
     for (const binding of definition.bindings) {
-      if (binding.key && matchesBinding(event, binding)) return { definition, binding };
+      if (binding.key && matchesBinding(event, binding)) return { id, definition, binding };
     }
   }
   return null;
 };
-
-export const SECTION_TITLE_KEY: Record<ShortcutSectionId, I18nKey> = {
-  canvas: 'shortcuts.canvas.title',
-  view: 'shortcuts.view.title',
-  selection: 'shortcuts.selection.title',
-  edit: 'shortcuts.edit.title',
-  panels: 'shortcuts.panels.title',
-};
-
-export const SECTION_ORDER: ShortcutSectionId[] = [
-  'canvas',
-  'view',
-  'selection',
-  'edit',
-  'panels',
-];
