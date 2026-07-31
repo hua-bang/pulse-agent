@@ -27,17 +27,14 @@ import {
   resolveTabWidth,
 } from './dock-width';
 import { useDockTabDrag } from './useDockTabDrag';
-import { useDockKeyboard } from './useDockKeyboard';
 import {
   cancelDockPageFocusRequestUnless,
   focusActiveDockTarget,
   focusDockLinkTarget,
 } from './dock-browser-commands';
 import { useDockExternalFocus } from './useDockExternalFocus';
-import { TabContextMenu } from './TabContextMenu';
 import { DockContentTab } from './DockContentTab';
 import { DockTabIcon } from './DockTabIcon';
-import { DockTabSwitcher } from './DockTabSwitcher';
 import { getDockTabSwitcherItems } from './dock-tab-items';
 import { DockPanes } from './DockPanes';
 import { hasDockSplitContentTab } from './dock-split-state';
@@ -66,7 +63,10 @@ export { isDockChatTabEnabled, isGlobalChatLauncherVisible } from './dock-chat-a
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const RESIZING_CLASS = 'right-dock-resizing';
 const DockCreationControls = lazy(() => import('./DockCreationControls').then((m) => ({ default: m.DockCreationControls })));
+const DockKeyboardController = lazy(() => import('./DockKeyboardController').then((m) => ({ default: m.DockKeyboardController })));
 const TerminalDockTab = lazy(() => import('./TerminalDockTab').then((m) => ({ default: m.TerminalDockTab })));
+const DockTabSwitcher = lazy(() => import('./DockTabSwitcher').then((m) => ({ default: m.DockTabSwitcher })));
+const TabContextMenu = lazy(() => import('./TabContextMenu').then((m) => ({ default: m.TabContextMenu })));
 
 function readStoredWidth(): number | null {
   if (typeof window === 'undefined') return null;
@@ -241,15 +241,6 @@ export const RightDock = ({
     store.close(tabId);
     focusActiveDockTarget(store);
   }, [store]);
-  useDockKeyboard({
-    store,
-    visible,
-    newTabTitle: t('rightDock.newTabTitle'),
-    dockRef,
-    orderedTabIds,
-    onCollapse: collapseFromUser,
-  });
-
   useEffect(() => {
     const activeLink = state.tabs.find(
       (tab) => tab.id === activePaneId && tab.kind === 'link',
@@ -287,6 +278,18 @@ export const RightDock = ({
       aria-label={t('rightDock.ariaLabel')}
       style={{ width }}
     >
+      {visible && (
+        <Suspense fallback={null}>
+          <DockKeyboardController
+            store={store}
+            visible={visible}
+            newTabTitle={t('rightDock.newTabTitle')}
+            dockRef={dockRef}
+            orderedTabIds={orderedTabIds}
+            onCollapse={collapseFromUser}
+          />
+        </Suspense>
+      )}
       <div
         className="right-dock__resize-handle"
         onMouseDown={resize.onMouseDown}
@@ -408,11 +411,13 @@ export const RightDock = ({
           ))}
         </div>
         {allTabItems.length > 1 && (
-          <DockTabSwitcher
-            items={allTabItems}
-            activeTabId={activePaneId}
-            onActivate={activateFromUser}
-          />
+          <Suspense fallback={null}>
+            <DockTabSwitcher
+              items={allTabItems}
+              activeTabId={activePaneId}
+              onActivate={activateFromUser}
+            />
+          </Suspense>
         )}
         {visible && (
           <Suspense fallback={null}>
@@ -471,15 +476,17 @@ export const RightDock = ({
         onCloseTab={closeFromUser}
       />
       {tabMenu && tabMenuTab && (
-        <TabContextMenu
-          tab={tabMenuTab}
-          tabs={state.tabs}
-          store={store}
-          x={tabMenu.x}
-          y={tabMenu.y}
-          onClose={() => setTabMenu(null)}
-          onActionComplete={focusActiveTarget}
-        />
+        <Suspense fallback={null}>
+          <TabContextMenu
+            tab={tabMenuTab}
+            tabs={state.tabs}
+            store={store}
+            x={tabMenu.x}
+            y={tabMenu.y}
+            onClose={() => setTabMenu(null)}
+            onActionComplete={focusActiveTarget}
+          />
+        </Suspense>
       )}
     </aside>
   );

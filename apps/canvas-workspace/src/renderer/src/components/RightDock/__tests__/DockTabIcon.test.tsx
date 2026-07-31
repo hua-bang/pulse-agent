@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
+import { DockAgentTabIcon } from '../DockAgentTabIcon';
 import { DockTabIcon } from '../DockTabIcon';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -26,7 +27,7 @@ describe('DockTabIcon', () => {
       <>
         <DockTabIcon kind="chat" />
         <DockTabIcon kind="link" faviconUrl="https://example.com/favicon.ico" />
-        <DockTabIcon kind="terminal" agentType="codex" />
+        <DockAgentTabIcon agentType="codex" />
         <DockTabIcon kind="node-detail" />
         <DockTabIcon kind="canvas" />
       </>,

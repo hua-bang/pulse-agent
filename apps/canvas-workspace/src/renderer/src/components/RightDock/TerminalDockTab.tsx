@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useI18n } from '../../i18n';
+import { DockAgentTabIcon } from './DockAgentTabIcon';
 import { DockTabIcon } from './DockTabIcon';
 import type { DockTerminalTab } from './dock-store';
 import type { DockTabVisualState } from './dock-tab-visual-state';
@@ -129,7 +130,9 @@ export const TerminalDockTab = ({
           }
         }}
       >
-        <DockTabIcon kind="terminal" agentType={tab.agentType} />
+        {tab.agentType
+          ? <DockAgentTabIcon agentType={tab.agentType} />
+          : <DockTabIcon kind="terminal" />}
         <span className={`right-dock__tab-title${editing ? ' right-dock__tab-title--editing' : ''}`}>
           {title}
         </span>

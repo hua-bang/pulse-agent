@@ -40,7 +40,7 @@ const isDockFocusOwner = (dockRef: RefObject<HTMLElement>): boolean => {
   );
 };
 
-interface Options {
+export interface DockKeyboardOptions {
   store: DockStore;
   /** Only bind while the dock is actually on screen. */
   visible: boolean;
@@ -61,7 +61,7 @@ export const useDockKeyboard = ({
   dockRef,
   orderedTabIds,
   onCollapse,
-}: Options): void => {
+}: DockKeyboardOptions): void => {
   useEffect(() => {
     if (!visible) return;
     const onKey = (event: KeyboardEvent) => {

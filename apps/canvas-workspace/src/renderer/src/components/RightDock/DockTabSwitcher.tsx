@@ -7,6 +7,7 @@ import { useRef, useState } from 'react';
 import { useGuestInteractionShield } from '../../hooks/useGuestInteractionShield';
 import { useI18n } from '../../i18n';
 import { Button, Popover } from '../ui';
+import { DockAgentTabIcon } from './DockAgentTabIcon';
 import { DockTabIcon } from './DockTabIcon';
 import type { DockTabSwitcherItem } from './dock-tab-items';
 
@@ -66,11 +67,9 @@ export const DockTabSwitcher = ({ items, activeTabId, onActivate }: Props) => {
                 onActivate(item.id);
               }}
             >
-              <DockTabIcon
-                kind={item.kind}
-                faviconUrl={item.faviconUrl}
-                agentType={item.agentType}
-              />
+              {item.kind === 'terminal' && item.agentType
+                ? <DockAgentTabIcon agentType={item.agentType} />
+                : <DockTabIcon kind={item.kind} faviconUrl={item.faviconUrl} />}
               <span className="context-menu-label">
                 <strong>{item.title}</strong>
               </span>
