@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, type KeyboardEventHandler, type ReactNode } from 'react';
 import type { CanvasNode } from '../../types';
 import { useRightDock, useRightDockState } from '../RightDock/context';
-import { hasDockContentTabs, isDockContentTabVisible } from '../RightDock/dock-content-tabs';
+import { canPreviewWorkspaceCanvas, hasDockContentTabs, isDockContentTabVisible } from '../RightDock/dock-content-tabs';
 import { buildDockTabRefs } from '../RightDock/tabRefs';
 import type { SettingsSection } from '../Settings';
 import './ChatPage.css';
@@ -107,13 +107,22 @@ export const ChatPageBody = ({
   const dock = useRightDock();
   const dockState = useRightDockState();
   // The dock's Tab strip lives beside this page (its chat tab is hidden here),
-  // so the control is a plain show/hide of the content tabs — no navigation.
-  // Kept visible (disabled, not hidden) even with zero tabs: a tab can land
-  // mid-conversation (agent opens an artifact/preview), and the button's
-  // position shouldn't jump around as that happens.
-  const dockTabsToggleable = hasDockContentTabs(dockState);
-  const dockTabsVisible = isDockContentTabVisible(dockState);
+  // so the control is a plain show/hide — no navigation. Kept visible
+  // (disabled, not hidden) even with nothing to show: a tab can land
+  // mid-conversation, and its position shouldn't jump as that happens.
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+  const canOpenDefaultDockTab = canPreviewWorkspaceCanvas(dockState, workspaceId);
+  const dockTabsToggleable = hasDockContentTabs(dockState) || canOpenDefaultDockTab;
+  const dockTabsVisible = isDockContentTabVisible(dockState);
+  // Zero content tabs yet: default to opening this page's own canvas as a
+  // read-only preview instead of leaving the click a no-op.
+  const handleToggleDockTabs = useCallback(() => {
+    if (!hasDockContentTabs(dockState) && workspaceId) {
+      dock.openCanvasPreview(workspaceId, allWorkspaces.find(w => w.id === workspaceId)?.name ?? workspaceId);
+      return;
+    }
+    dock.toggleContentTabs();
+  }, [allWorkspaces, dock, dockState, workspaceId]);
   const scopeId = chatScopeId(agentScope);
   const sessionStoreId = scopeSessionStoreId(agentScope);
   const {
@@ -401,7 +410,7 @@ export const ChatPageBody = ({
           newSessionDisabled={sessionInteractionDisabled}
           dockTabsVisible={dockTabsVisible}
           dockTabsToggleable={dockTabsToggleable}
-          onToggleDockTabs={dock.toggleContentTabs}
+          onToggleDockTabs={handleToggleDockTabs}
         />
         <ChatView
           className="chat-page-body"

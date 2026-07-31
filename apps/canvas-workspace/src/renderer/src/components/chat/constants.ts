@@ -171,3 +171,39 @@ export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
       return 'file';
   }
 }
+
+/** Per-group cap applied by `sortAndCapMentionItems`. */
+export const MENTION_GROUP_MAX_ITEMS = 6;
+
+/**
+ * Groups items by `MENTION_GROUP_ORDER`, keeps at most
+ * `MENTION_GROUP_MAX_ITEMS` per group (order-preserving within each group),
+ * then concatenates in group order. No further overall cap is applied: with
+ * `MENTION_GROUP_ORDER.length` groups this already bounds the result at
+ * `MENTION_GROUP_ORDER.length * MENTION_GROUP_MAX_ITEMS` items, small enough
+ * for the popup's own scroll to handle.
+ *
+ * This replaced a plain `sort` by group followed by a flat
+ * `slice(0, MENTION_MAX_ITEMS)`, which looked safe but silently dropped
+ * entire late-sorting groups whenever earlier groups alone already exceeded
+ * the cap. `canvas` (one entry per workspace) sorts after every node-type
+ * group, so on a canvas with many mindmap/text/agent nodes those alone could
+ * fill the whole cap and the popup ended up with no Canvas entries at all —
+ * capping per group first is what guarantees every non-empty group gets a
+ * chance to show something.
+ */
+export function sortAndCapMentionItems(items: MentionItem[]): MentionItem[] {
+  const byGroup = new Map<MentionGroupKey, MentionItem[]>();
+  for (const item of items) {
+    const key = getMentionGroupKey(item);
+    const bucket = byGroup.get(key);
+    if (bucket) bucket.push(item);
+    else byGroup.set(key, [item]);
+  }
+  const capped: MentionItem[] = [];
+  for (const key of MENTION_GROUP_ORDER) {
+    const bucket = byGroup.get(key);
+    if (bucket) capped.push(...bucket.slice(0, MENTION_GROUP_MAX_ITEMS));
+  }
+  return capped;
+}

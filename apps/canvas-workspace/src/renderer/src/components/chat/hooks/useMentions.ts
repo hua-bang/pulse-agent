@@ -9,9 +9,8 @@ import {
 import type { AgentContextDomSelectionRef, AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment } from '../../../types';
 import { isImeComposing } from '../../../utils/ime';
 import {
-  MENTION_GROUP_ORDER,
   MENTION_MAX_ITEMS,
-  getMentionGroupKey,
+  sortAndCapMentionItems,
 } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
 import type { AgentScope } from '../types';
@@ -258,13 +257,7 @@ export function useMentions({
       }
     }
 
-    filtered.sort((left, right) => {
-      const leftOrder = MENTION_GROUP_ORDER.indexOf(getMentionGroupKey(left));
-      const rightOrder = MENTION_GROUP_ORDER.indexOf(getMentionGroupKey(right));
-      return leftOrder - rightOrder;
-    });
-
-    return filtered.slice(0, MENTION_MAX_ITEMS);
+    return sortAndCapMentionItems(filtered);
   }, [allWorkspaces, dockTabs, knowledgeNodes, knowledgeTags, loadSkillItems, nodes, rootFolder, scopeId, workspaceId]);
 
   const handleInput = useCallback(() => {
