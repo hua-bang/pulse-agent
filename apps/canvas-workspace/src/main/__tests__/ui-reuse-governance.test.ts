@@ -113,7 +113,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 299→298 (chat header chrome cleanup): removed the standalone new-chat
   // icon button from the dock header actions — it duplicated the title
   // dropdown's own "+ New AI chat" entry one click away.
-  rawButtonTags: 298,
+  // 298→297 (composer chrome): hid the Auto/Ask execution-mode toggle —
+  // ask mode isn't ready to expose yet, execution stays on its 'auto'
+  // default.
+  rawButtonTags: 297,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

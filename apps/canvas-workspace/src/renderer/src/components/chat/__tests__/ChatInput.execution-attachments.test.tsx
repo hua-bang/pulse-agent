@@ -44,53 +44,26 @@ describe('ChatInput execution and attachment states', () => {
     act(() => root.unmount());
   });
 
-  it('exposes Auto/Ask as an accessible composer control', () => {
+  it('hides the Auto/Ask toggle regardless of executionMode — ask mode is not exposed yet', () => {
     const toggle = vi.fn();
-    const host = document.createElement('div');
-    document.body.appendChild(host);
-    const root = createRoot(host);
-    act(() => root.render(
-      <I18nProvider>
-        <ChatInput
-          {...baseProps}
-          executionMode="ask"
-          onToggleExecutionMode={toggle}
-        />
-      </I18nProvider>,
-    ));
+    for (const executionMode of ['auto', 'ask', 'scheduled'] as const) {
+      const host = document.createElement('div');
+      const root = createRoot(host);
+      act(() => root.render(
+        <I18nProvider>
+          <ChatInput
+            {...baseProps}
+            executionMode={executionMode}
+            onToggleExecutionMode={toggle}
+          />
+        </I18nProvider>,
+      ));
 
-    const button = host.querySelector<HTMLButtonElement>('[aria-label="Execution mode: Ask first"]');
-    expect(button).not.toBeNull();
-    expect(button?.getAttribute('aria-pressed')).toBe('true');
-    act(() => button?.click());
-    expect(toggle).toHaveBeenCalledOnce();
+      expect(host.querySelector('.chat-execution-mode-btn')).toBeNull();
 
-    act(() => root.unmount());
-    host.remove();
-  });
-
-  it('renders scheduled execution as a read-only policy', () => {
-    const toggle = vi.fn();
-    const host = document.createElement('div');
-    const root = createRoot(host);
-    act(() => root.render(
-      <I18nProvider>
-        <ChatInput
-          {...baseProps}
-          executionMode="scheduled"
-          onToggleExecutionMode={toggle}
-        />
-      </I18nProvider>,
-    ));
-
-    // The locked pill must name the run mode too: "Scheduled" alone reads as a
-    // third execution mode, which it is not — the run is still `auto`.
-    const policy = host.querySelector('[aria-label="Execution mode: Scheduled · Automatic"]');
-    expect(policy?.tagName).toBe('SPAN');
-    expect(policy?.textContent).toBe('Scheduled · Automatic');
+      act(() => root.unmount());
+    }
     expect(toggle).not.toHaveBeenCalled();
-
-    act(() => root.unmount());
   });
 
   it('shows upload failure with retry and prevents sending until every image is ready', () => {
@@ -222,7 +195,6 @@ describe('ChatInput execution and attachment states', () => {
     expect(editor?.getAttribute('aria-disabled')).toBe('true');
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Add context"]')?.disabled).toBe(true);
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Add image"]')?.disabled).toBe(true);
-    expect(host.querySelector<HTMLButtonElement>('[aria-label="Execution mode: Automatic"]')?.disabled).toBe(true);
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Choose model"]')?.disabled).toBe(true);
     act(() => root.unmount());
   });

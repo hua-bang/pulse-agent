@@ -236,25 +236,10 @@ export const ChatInput = ({
                 onOpenSettings={onOpenModelSettings}
               />
             )}
-            {executionMode === 'scheduled' ? (
-              <span
-                className="chat-execution-mode-btn chat-execution-mode-btn--readonly"
-                aria-label={t('chat.executionModeLabel', { mode: executionLabel })}
-              >
-                {executionLabel}
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="chat-execution-mode-btn"
-                aria-label={t('chat.executionModeLabel', { mode: executionLabel })}
-                aria-pressed={executionMode === 'ask'}
-                disabled={interactionDisabled || !onToggleExecutionMode}
-                onClick={onToggleExecutionMode}
-              >
-                {executionLabel}
-              </button>
-            )}
+            {/* Auto/Ask toggle hidden for now — ask mode isn't ready to expose
+                yet. Execution stays on its 'auto' default with no UI path to
+                flip it; the prop plumbing (executionMode/onToggleExecutionMode)
+                is left in place so this is a one-block revert once it is. */}
             {loading ? (
               <button
                 className="chat-send-btn chat-send-btn--stop"
