@@ -481,8 +481,7 @@ const AppContent = () => {
     setNodeDetailBackPath(location);
     setLocation(`${ROUTE_NODES}/${encodeURIComponent(workspaceId)}/${encodeURIComponent(nodeId)}`);
   }, [location, setLocation]);
-
-  useNodeDetailBridges({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, openNodePage, focusNodeOnCanvas });
+  useNodeDetailBridges({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, pageNode: detailNode, enterNodePage: dock.enterNodePage, openNodePage, focusNodeOnCanvas });
 
   return (
     <div className="app">

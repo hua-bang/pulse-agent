@@ -40,29 +40,34 @@ vi.mock('../../chat/lazy', async () => {
   return {
     ChatPanelLazy: ({
       workspaceId,
+      agentScope,
       nodes,
       selectedNodeIds,
+      contextNodes,
       chatTargetActive,
     }: {
-      workspaceId: string;
-      nodes: Array<{ id: string }>;
-      selectedNodeIds: string[];
+      workspaceId?: string;
+      agentScope?: { kind: 'global' };
+      nodes?: Array<{ id: string }>;
+      selectedNodeIds?: string[];
+      contextNodes?: Array<unknown>;
       chatTargetActive?: boolean;
     }) => {
       // Match ChatPanel's target derivation: nodes and selection feed the
       // memo, so a new array identity for either yields a new target object —
       // which is exactly what an unstable `[]` fallback would produce on every
       // broker-driven root render.
+      const scopeId = workspaceId ?? agentScope?.kind ?? 'unknown';
       const target = useReactMemo<ChatTarget>(() => ({
         surface: 'dock',
-        scope: { kind: 'workspace', workspaceId },
-        scopeId: workspaceId,
+        scope: agentScope ?? { kind: 'workspace', workspaceId: workspaceId ?? '' },
+        scopeId,
         sessionId: null,
-        composerId: `dock:${workspaceId}`,
-        contextSnapshot: { label: workspaceId },
+        composerId: `dock:${scopeId}`,
+        contextSnapshot: { label: scopeId },
         executionPolicy: 'auto',
-      }), [nodes, selectedNodeIds, workspaceId]);
-      useRegister(chatTargetActive ? target : null, {});
+      }), [agentScope, contextNodes, nodes, scopeId, selectedNodeIds, workspaceId]);
+      useRegister(chatTargetActive !== false ? target : null, {});
       return <div data-testid="chat-panel-fixture" />;
     },
   };
@@ -123,6 +128,41 @@ const LifecycleHarness = () => {
         workspaces={[workspace]}
         controller={controller}
         knowledgeChatContext={knowledgeChatContext}
+        onSelectWorkspace={noOp}
+        onActivateWorkspace={noOp}
+        onOpenAppSettings={noOp}
+        onOpenWorkspaceSettings={noOp}
+        onSetActiveRootFolder={noOp}
+      />
+      <RightDock
+        activeWorkspaceId={workspace.id}
+        activeIdReady
+        chatTabEnabled
+        reserveSpace
+        capWidth={false}
+        workspaces={[workspace]}
+        onOpenNodePage={noOp}
+      />
+    </>
+  );
+};
+
+const KnowledgeDetailLifecycleHarness = () => {
+  const activeTarget = useActiveChatTarget();
+
+  return (
+    <>
+      <output data-testid="active-chat-target">
+        {activeTarget?.composerId ?? 'none'}
+      </output>
+      <Workbench
+        activeWorkspaceId={workspace.id}
+        workspaces={[workspace]}
+        controller={controller}
+        knowledgeChatContext={{
+          active: true,
+          selectedNode: { workspaceId: workspace.id, nodeId: 'node-1' },
+        }}
         onSelectWorkspace={noOp}
         onActivateWorkspace={noOp}
         onOpenAppSettings={noOp}
@@ -228,5 +268,32 @@ describe('Workbench chat dock lifecycle', () => {
     expect(host.querySelector('.right-dock')?.getAttribute('data-expanded')).toBe('true');
     expect(host.querySelector('[data-testid="active-chat-target"]')?.textContent)
       .toBe('dock:workspace-a');
+  });
+
+  it('keeps the knowledge-detail chat target stable across broker renders', async () => {
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <ChatTargetProvider>
+            <RightDockProvider>
+              <TestErrorBoundary>
+                <KnowledgeDetailLifecycleHarness />
+              </TestErrorBoundary>
+            </RightDockProvider>
+          </ChatTargetProvider>
+        </I18nProvider>,
+      );
+    });
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('[data-testid="canvas-chat-toggle"]')?.click();
+    });
+    await act(async () => {
+      await import('../KnowledgeChatPortal');
+    });
+
+    expect(host.querySelector('[data-testid="render-error"]')).toBeNull();
+    expect(host.querySelector('[data-testid="chat-panel-fixture"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="active-chat-target"]')?.textContent)
+      .toBe('dock:global');
   });
 });

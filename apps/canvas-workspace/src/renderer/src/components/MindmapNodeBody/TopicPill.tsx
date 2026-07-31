@@ -198,6 +198,8 @@ export const TopicPill = ({
     <div
       ref={pillRef}
       data-topic-id={topic.id}
+      data-mindmap-root={isRoot ? 'true' : undefined}
+      data-detail-pan-block
       className={[
         'mindmap-topic',
         isRoot && 'mindmap-topic--root',

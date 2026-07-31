@@ -12,8 +12,8 @@ import {
 } from '../../../utils/openNodeBridge';
 
 vi.mock('../NodeCanvasPreview', () => ({
-  NodeCanvasPreview: ({ minHeight }: { minHeight?: number }) => (
-    <div data-testid="node-canvas-preview" data-min-height={minHeight} />
+  NodeCanvasPreview: ({ minHeight, record }: { minHeight?: number; record: WorkspaceNodeRecord }) => (
+    <div data-testid="node-canvas-preview" data-min-height={minHeight} data-node-type={record.type} />
   ),
 }));
 
@@ -129,6 +129,14 @@ describe('NodeDetailPanel', () => {
     expect(view.querySelector('[data-testid="node-canvas-preview"]')).not.toBeNull();
   });
 
+  it('keeps a legitimate title that happens to match a non-mindmap node type', () => {
+    const view = render(
+      <NodeDetailPanel node={{ ...NODE, title: 'File' }} workspaceId="workspace-1" mode="dock" />,
+    );
+
+    expect(view.querySelector('.node-detail-panel__document-title')?.textContent).toBe('File');
+  });
+
   it('shows source, relations, and confirmed AI insight in the page context rail', () => {
     const view = render(
       <NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="page" />,
@@ -153,6 +161,97 @@ describe('NodeDetailPanel', () => {
     expect(disclosures.every((item) => !item.open)).toBe(true);
     expect(disclosures[0]?.querySelector('summary')?.textContent).toContain('Relations');
     expect(disclosures[1]?.querySelector('summary')?.textContent).toContain('Info');
+  });
+
+  it.each(['iframe', 'mindmap'] as const)('gives %s nodes an immersive detail surface without document supplements', (type) => {
+    const view = render(
+      <NodeDetailPanel node={{ ...NODE, type }} workspaceId="workspace-1" mode="page" />,
+    );
+
+    expect(view.querySelector('.node-detail-panel--rich')).not.toBeNull();
+    expect(view.querySelector('[data-testid="node-canvas-preview"]')?.getAttribute('data-node-type')).toBe(type);
+    expect(view.querySelector('.node-detail-panel__supplementary')).toBeNull();
+    expect(view.querySelector('.node-detail-panel__context-rail')).toBeNull();
+  });
+
+  it('uses the mindmap root as its detail identity when the stored title is only a type placeholder', () => {
+    const view = render(
+      <NodeDetailPanel
+        node={{
+          ...NODE,
+          type: 'mindmap',
+          title: 'Mindmap',
+          data: { root: { id: 'root', text: 'Growth strategy', children: [] }, layout: 'right' },
+        }}
+        workspaceId="workspace-1"
+        mode="dock"
+      />,
+    );
+
+    expect(view.querySelector('.node-detail-panel__document-title')?.textContent).toBe('Growth strategy');
+  });
+
+  it('writes an edited mindmap identity back to the root topic that supplies it', async () => {
+    const mindmap = {
+      ...NODE,
+      type: 'mindmap',
+      title: 'Mindmap',
+      data: { root: { id: 'root', text: 'Growth strategy', children: [] }, layout: 'right' },
+    } satisfies WorkspaceNodeRecord;
+    const update = vi.fn(async (_workspaceId: string, _nodeId: string, patch: Partial<WorkspaceNodeRecord>) => ({
+      ok: true,
+      node: { ...mindmap, ...patch, data: { ...mindmap.data, ...patch.data } },
+    }));
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { workspaceNodes: { update } },
+    });
+    const view = render(
+      <NodeDetailPanel node={mindmap} workspaceId="workspace-1" mode="dock" />,
+    );
+    const title = view.querySelector<HTMLElement>('.node-detail-panel__document-title[contenteditable="true"]');
+    if (!title) throw new Error('Expected an editable mindmap title');
+
+    await act(async () => {
+      title.textContent = 'Market strategy';
+      title.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(update).toHaveBeenCalledWith('workspace-1', 'node-1', {
+      data: {
+        ...mindmap.data,
+        root: { id: 'root', text: 'Market strategy', children: [] },
+      },
+    });
+  });
+
+  it('keeps rich-node metadata available from a compact inspector instead of appending it to the surface', () => {
+    const view = render(
+      <NodeDetailPanel node={{ ...NODE, type: 'iframe' }} workspaceId="workspace-1" mode="dock" />,
+    );
+    const info = view.querySelector<HTMLButtonElement>('[aria-label="Info"]');
+    if (!info) throw new Error('Expected an Info inspector action');
+
+    info.focus();
+    act(() => { info.click(); });
+
+    const inspector = document.querySelector('.node-detail-panel__inspector');
+    expect(inspector?.textContent).toContain('research.md');
+    expect(inspector?.textContent).toContain('Recommendation System');
+    expect(view.querySelector('.node-detail-panel__supplementary')).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(info);
+
+    const close = inspector?.querySelector<HTMLButtonElement>('[aria-label="Close"]');
+    close?.focus();
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(document.querySelector('.node-detail-panel__inspector')).toBeNull();
   });
 
   it('edits the document title in place and writes it to the same node record', async () => {
@@ -335,7 +434,7 @@ describe('NodeDetailPanel', () => {
     const listener = vi.fn();
     window.addEventListener(FOCUS_NODE_ON_CANVAS_EVENT, listener);
     const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="dock" />);
-    const openOnCanvas = Array.from(view.querySelectorAll('button')).find((button) => button.textContent?.includes('Open on canvas'));
+    const openOnCanvas = view.querySelector<HTMLButtonElement>('[aria-label="Open on canvas"]');
     if (!openOnCanvas) throw new Error('Expected an open-on-canvas action');
 
     act(() => { openOnCanvas.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
@@ -351,7 +450,7 @@ describe('NodeDetailPanel', () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="dock" />);
-    const copy = Array.from(view.querySelectorAll('button')).find((button) => button.textContent?.includes('Copy node link'));
+    const copy = view.querySelector<HTMLButtonElement>('[aria-label="Copy node link"]');
     if (!copy) throw new Error('Expected a copy-link action');
 
     await act(async () => {

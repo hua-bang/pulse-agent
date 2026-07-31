@@ -4,6 +4,9 @@ import { CanvasNodeView } from '../CanvasNodeView';
 import { isKnowledgeNodeType } from './utils';
 import { useI18n } from '../../i18n';
 import { Button } from '../ui';
+import { getNodeDetailDescriptor } from './nodeDetailDescriptor';
+import { useMindmapDetailPan } from './useMindmapDetailPan';
+import { NodeCanvasSaveError } from './NodeCanvasSaveError';
 
 type WritablePatch = Pick<WorkspaceNodeRecord, 'title' | 'data' | 'properties' | 'links'>;
 
@@ -52,6 +55,7 @@ export const NodeCanvasPreview = ({
   onPatched,
 }: NodeCanvasPreviewProps) => {
   const { t } = useI18n();
+  const detail = getNodeDetailDescriptor(record.type);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 320, height: minHeight });
   const [displayRecord, setDisplayRecord] = useState(record);
@@ -63,6 +67,7 @@ export const NodeCanvasPreview = ({
   // Read inside the record-sync effect, which must not re-run per render.
   const failedPatchRef = useRef<Partial<WritablePatch> | null>(null);
   failedPatchRef.current = failedPatch;
+  const mindmapPan = useMindmapDetailPan(detail.backgroundPan, containerRef);
 
   useEffect(() => {
     if (record.id !== latestRecordRef.current.id) {
@@ -235,17 +240,33 @@ export const NodeCanvasPreview = ({
   }, [onPatched, workspaceId]);
 
   return (
-    <div ref={containerRef} className="node-canvas-preview" style={{ minHeight }}>
-      {failedPatch && (
-        <div className="node-canvas-preview__save-error" role="alert">
-          <span>{t('workspaceNodes.saveFailed')}</span>
-          <Button size="xs" variant="primary" disabled={retrying} onClick={() => { void retryFailedSave(); }}>
-            {t('workspaceNodes.retry')}
-          </Button>
-          <Button size="xs" disabled={retrying} onClick={() => { void discardFailedSave(); }}>
-            {t('workspaceNodes.discardChanges')}
+    <div
+      ref={containerRef}
+      className={`node-canvas-preview node-canvas-preview--${detail.surface}${mindmapPan.isPanning ? ' is-panning' : ''}`}
+      style={{ minHeight }}
+      tabIndex={detail.backgroundPan ? 0 : undefined}
+      role={detail.backgroundPan ? 'region' : undefined}
+      aria-label={detail.backgroundPan ? t('workspaceNodes.mindmapPanHint') : undefined}
+      onPointerDown={mindmapPan.onPointerDown}
+      onPointerMove={mindmapPan.onPointerMove}
+      onPointerUp={mindmapPan.onPointerUp}
+      onPointerCancel={mindmapPan.onPointerCancel}
+      onLostPointerCapture={mindmapPan.onLostPointerCapture}
+      onKeyDown={mindmapPan.onKeyDown}
+    >
+      {detail.surface === 'mindmap' && (
+        <div className="node-canvas-preview__mindmap-controls" data-detail-pan-block>
+          <Button size="xs" onClick={mindmapPan.center} aria-label={t('workspaceNodes.mindmapCenter')}>
+            {t('workspaceNodes.mindmapCenter')}
           </Button>
         </div>
+      )}
+      {failedPatch && (
+        <NodeCanvasSaveError
+          retrying={retrying}
+          onRetry={() => { void retryFailedSave(); }}
+          onDiscard={() => { void discardFailedSave(); }}
+        />
       )}
       {previewNode ? (
         <CanvasNodeView
@@ -254,14 +275,13 @@ export const NodeCanvasPreview = ({
           workspaceId={workspaceId}
           isDragging={false}
           isResizing={false}
-          isSelected={false}
+          isSelected={detail.selectEmbeddedNode}
           isHighlighted={false}
           onDragStart={() => undefined}
           onResizeStart={() => undefined}
           onUpdate={handleUpdate}
           onAutoResize={() => undefined}
           onRemove={() => undefined}
-          onExportMindmapImage={() => undefined}
           onSelect={() => undefined}
           onFocus={() => undefined}
           readOnly={readOnly}

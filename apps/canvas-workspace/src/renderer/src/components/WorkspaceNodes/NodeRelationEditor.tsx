@@ -6,8 +6,9 @@ import { CloseIcon } from '../icons';
 import { getNodeTitle } from './utils';
 import { dispatchOpenNode } from '../../utils/openNodeBridge';
 import { isImeComposing } from '../../utils/ime';
+import { useIndexNav } from '../ui/hooks/useIndexNav';
 
-interface NodeRelationEditorProps {
+interface Props {
   node: WorkspaceNodeRecord;
   workspaceId: string;
   candidates: WorkspaceNodeListItem[];
@@ -35,13 +36,20 @@ export const NodeRelationEditor = ({
   candidates,
   readOnly,
   onNodePatched,
-}: NodeRelationEditorProps) => {
+}: Props) => {
   const { t } = useI18n();
   const [adding, setAdding] = useState(false);
   const [relation, setRelation] = useState(SUGGESTED_RELATIONS[0]);
   const [targetId, setTargetId] = useState('');
   const [targetQuery, setTargetQuery] = useState('');
-  const [activeIndex, setActiveIndex] = useState(-1);
+  const {
+    index: activeIndex,
+    setIndex: setActiveIndex,
+    move: moveActiveIndex,
+    home: moveActiveHome,
+    end: moveActiveEnd,
+    reset: resetActiveIndex,
+  } = useIndexNav({ wrap: true, initialIndex: -1 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const links = node.links ?? [];
@@ -71,8 +79,8 @@ export const NodeRelationEditor = ({
 
   useEffect(() => {
     if (!adding) return;
-    setActiveIndex(targetOptions.length > 0 ? 0 : -1);
-  }, [adding, targetOptions.length, targetQuery]);
+    resetActiveIndex(targetOptions.length > 0 ? 0 : -1);
+  }, [adding, resetActiveIndex, targetOptions.length, targetQuery]);
 
   const persist = async (nextLinks: WorkspaceNodeLink[]) => {
     const api = window.canvasWorkspace?.workspaceNodes;
@@ -130,17 +138,15 @@ export const NodeRelationEditor = ({
       if (targetOptions.length === 0) return;
       event.preventDefault();
       event.stopPropagation();
-      setActiveIndex((current) => {
-        if (event.key === 'ArrowDown') return current < 0 ? 0 : (current + 1) % targetOptions.length;
-        return current <= 0 ? targetOptions.length - 1 : current - 1;
-      });
+      moveActiveIndex(event.key === 'ArrowDown' ? 1 : -1, targetOptions.length);
       return;
     }
     if (event.key === 'Home' || event.key === 'End') {
       if (targetOptions.length === 0) return;
       event.preventDefault();
       event.stopPropagation();
-      setActiveIndex(event.key === 'Home' ? 0 : targetOptions.length - 1);
+      if (event.key === 'Home') moveActiveHome();
+      else moveActiveEnd(targetOptions.length);
       return;
     }
     if (event.key === 'Enter') {
@@ -153,7 +159,7 @@ export const NodeRelationEditor = ({
       }
       void addRelation(option?.id ?? targetId);
     }
-  }, [activeIndex, addRelation, selectTarget, targetId, targetOptions]);
+  }, [activeIndex, addRelation, moveActiveEnd, moveActiveHome, moveActiveIndex, selectTarget, targetId, targetOptions]);
 
   return (
     <div className="node-relation-editor">
@@ -166,8 +172,8 @@ export const NodeRelationEditor = ({
                 <span className="node-relation-editor__predicate">{link.relation}</span>
                 {/* A relation the user cannot walk is only half a graph — open
                   * the target the same way a note mention does. */}
-                <button
-                  type="button"
+                <Button
+                  size="xs"
                   className="node-relation-editor__target-link"
                   title={t('workspaceNodes.relations.open', { title })}
                   onClick={() => dispatchOpenNode({
@@ -176,7 +182,7 @@ export const NodeRelationEditor = ({
                   })}
                 >
                   {title}
-                </button>
+                </Button>
                 {!readOnly && (
                   <Button
                     variant="icon"
@@ -236,9 +242,9 @@ export const NodeRelationEditor = ({
               aria-label={t('workspaceNodes.relations.targetOptionsLabel')}
             >
               {targetOptions.map((option, index) => (
-                <button
+                <Button
                   key={option.id}
-                  type="button"
+                  size="xs"
                   className={`node-relation-editor__option${index === activeIndex ? ' node-relation-editor__option--active' : ''}`}
                   role="option"
                   aria-selected={option.id === targetId}
@@ -248,7 +254,7 @@ export const NodeRelationEditor = ({
                   onClick={() => selectTarget(option.id, option.label)}
                 >
                   {option.label}
-                </button>
+                </Button>
               ))}
               {targetOptions.length === 0 && (
                 <div className="node-relation-editor__empty">{t('workspaceNodes.relations.noTargets')}</div>

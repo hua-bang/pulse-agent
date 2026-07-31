@@ -85,11 +85,11 @@
 }
 
 .node-detail-panel__actions {
-  margin-top: 14px;
+  margin-top: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .node-detail-panel__actions .ui-btn {
@@ -99,6 +99,55 @@
 
 .node-detail-panel__actions .ui-btn:hover {
   color: var(--nodes-text);
+}
+
+.node-detail-panel__inspector {
+  position: fixed;
+  z-index: var(--layer-dock-menu);
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(640px, calc(100vh - 24px));
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-lg);
+  /* Popover portals this element to document.body, outside the Nodes token
+   * scope. Use the global surface token so the inspector remains opaque. */
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.node-detail-panel__inspector-header {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--nodes-text);
+  font-size: 12px;
+}
+
+.node-detail-panel__inspector-section {
+  display: grid;
+  gap: 9px;
+  padding: 12px 2px;
+  border-top: 1px solid var(--nodes-border);
+}
+
+.node-detail-panel__inspector-section h2 {
+  margin: 0;
+  color: var(--nodes-faint);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.node-detail-panel__inspector .node-detail-panel__property-row {
+  min-height: 30px;
+  grid-template-columns: minmax(72px, 96px) 1fr;
+  border: 0;
+  font-size: 11px;
 }
 
 /* Floats over the editor it belongs to, in the same visual language as the
@@ -166,7 +215,85 @@
 
 .node-detail-panel--dock .node-detail-panel__document {
   width: 100%;
-  padding: 30px clamp(22px, 6vw, 42px) 52px;
+  padding: 18px clamp(16px, 4vw, 28px) 32px;
+}
+
+/* Web pages and mindmaps are working surfaces, not long-form documents.
+ * Keep their identity/actions in a compact bar and give the real node body
+ * every remaining pixel; generic Relations/Info live on document nodes. */
+.node-detail-panel--rich .node-detail-panel__content {
+  overflow: hidden;
+}
+
+.node-detail-panel--rich .node-detail-panel__layout,
+.node-detail-panel--rich .node-detail-panel__document {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.node-detail-panel--rich .node-detail-panel__layout {
+  max-width: none;
+  padding: 18px;
+  display: block;
+}
+
+.node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__layout {
+  padding: 0;
+}
+
+.node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__document {
+  padding: 12px;
+}
+
+/* A Web detail is a browser surface, not a card inside a document. Keep the
+ * compact identity bar, then let the browser own the remaining edges. */
+.node-detail-panel--web .node-detail-panel__layout,
+.node-detail-panel--web.node-detail-panel--dock .node-detail-panel__document {
+  padding: 0;
+}
+
+.node-detail-panel--web .node-detail-panel__document-header {
+  padding: 14px 18px 0;
+}
+
+.node-detail-panel--web.node-detail-panel--dock .node-detail-panel__document-header {
+  padding: 12px 12px 0;
+}
+
+.node-detail-panel--web .node-detail-panel__back {
+  margin: 14px 18px 8px;
+}
+
+.node-detail-panel--rich .node-detail-panel__document-title,
+.node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__document-title {
+  font-size: clamp(18px, 2.4vw, 22px);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.node-detail-panel--rich .node-detail-panel__document-meta {
+  min-height: 24px;
+  margin-top: 7px;
+}
+
+.node-detail-panel--rich .node-detail-panel__actions {
+  margin-top: 0;
+}
+
+.node-detail-panel.node-detail-panel--rich .node-detail-panel__preview,
+.node-detail-panel--rich.node-detail-panel--page .node-detail-panel__preview {
+  min-height: 0;
+  margin-top: 10px;
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-sm);
+  background: var(--nodes-surface);
+}
+
+.node-detail-panel.node-detail-panel--web .node-detail-panel__preview {
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
 }
 
 .node-detail-panel__document-header {
@@ -188,7 +315,7 @@
 
 .node-detail-panel__title-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 }
 
@@ -197,9 +324,11 @@
   flex: 1;
 }
 
-.node-detail-panel__title-row>.ui-btn {
+.node-detail-panel__title-actions {
   flex-shrink: 0;
-  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .node-detail-panel__document-title {
@@ -244,7 +373,7 @@
 }
 
 .node-detail-panel--dock .node-detail-panel__document-title {
-  font-size: clamp(26px, 6vw, 32px);
+  font-size: clamp(20px, 4vw, 24px);
 }
 
 .node-detail-panel__document-meta {
@@ -336,6 +465,7 @@
 
 .node-detail-panel__source {
   font-family: var(--font-mono);
+  word-break: break-all;
 }
 
 .node-detail-panel__rail-empty {
@@ -403,7 +533,29 @@
 
 .node-detail-panel .node-canvas-preview .note-tiptap-editor .ProseMirror,
 .node-detail-panel .node-canvas-preview .file-preview {
-  padding: 16px 16px 52px 52px;
+  padding: 16px 16px 44px 36px;
+}
+
+.node-detail-panel--dock .node-canvas-preview .note-tiptap-editor .ProseMirror,
+.node-detail-panel--dock .node-canvas-preview .file-preview {
+  padding: 12px 12px 32px 24px;
+}
+
+.node-detail-panel--dock:not(.node-detail-panel--rich) .node-detail-panel__preview {
+  height: clamp(300px, 46vh, 440px);
+  flex: 0 0 auto;
+  margin-top: 10px;
+}
+
+.node-detail-panel--dock:not(.node-detail-panel--rich) .node-detail-panel__document-title {
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.node-detail-panel--dock:not(.node-detail-panel--rich) .node-detail-panel__document-meta {
+  min-height: 24px;
+  margin-top: 6px;
 }
 
 .node-detail-panel__supplementary {
@@ -576,7 +728,7 @@
   box-shadow: var(--nodes-shadow);
 }
 
-.node-relation-editor__option {
+.node-relation-editor__option.ui-btn {
   min-height: 26px;
   padding: 0 7px;
   overflow: hidden;
@@ -594,12 +746,12 @@
   cursor: pointer;
 }
 
-.node-relation-editor__option--active,
-.node-relation-editor__option:hover {
+.node-relation-editor__option--active.ui-btn,
+.node-relation-editor__option.ui-btn:hover {
   background: var(--nodes-surface-hover);
 }
 
-.node-relation-editor__option[aria-selected='true'] {
+.node-relation-editor__option.ui-btn[aria-selected='true'] {
   background: var(--nodes-surface-active);
 }
 
@@ -609,7 +761,7 @@
   font-size: 11px;
 }
 
-.node-relation-editor__target-link {
+.node-relation-editor__target-link.ui-btn {
   min-width: 0;
   padding: 0;
   overflow: hidden;
@@ -624,7 +776,7 @@
   cursor: pointer;
 }
 
-.node-relation-editor__target-link:hover {
+.node-relation-editor__target-link.ui-btn:hover {
   color: var(--accent);
   text-decoration: underline;
 }
@@ -740,11 +892,11 @@
 
 @container (max-width: 560px) {
   .node-detail-panel--dock .node-detail-panel__document {
-    padding: 26px 20px 44px;
+    padding: 16px 18px 32px;
   }
 
   .node-detail-panel--dock .node-detail-panel__document-title {
-    font-size: 28px;
+    font-size: 22px;
   }
 
   .node-detail-panel--dock .node-detail-panel__document-meta {
@@ -763,7 +915,7 @@
 
 @container (max-width: 400px) {
   .node-detail-panel--dock .node-detail-panel__document {
-    padding: 22px 16px 40px;
+    padding: 14px 14px 28px;
   }
 
   .node-detail-panel--dock .node-detail-panel__title-row {
@@ -771,7 +923,7 @@
   }
 
   .node-detail-panel--dock .node-detail-panel__document-title {
-    font-size: 26px;
+    font-size: 20px;
   }
 
   .node-detail-panel--dock .node-detail-panel__document-tags {

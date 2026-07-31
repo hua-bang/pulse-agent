@@ -45,10 +45,9 @@ interface SharedProps {
    */
   autoFocus?: boolean;
   /**
-   * Whether Popover owns Escape and arrow-key menu navigation. Keep enabled
-   * for ordinary menus. Combobox-like surfaces whose live owner already
-   * handles IME-aware keyboard selection can disable it without giving up
-   * Popover's positioning and outside-press behavior.
+   * Whether Popover owns arrow-key menu navigation. Keep enabled for ordinary
+   * menus. Combobox-like surfaces whose live owner already handles IME-aware
+   * selection can disable it; Escape dismissal remains owned by Popover.
    */
   keyboardNavigation?: boolean;
   /** Accessible name for the panel, rendered as `aria-label`. A bare
@@ -210,6 +209,7 @@ export const Popover = (props: Props) => {
     // only when positioning makes the panel visible.
     autoFocus: autoFocus && (!rectAnchored || rectAnchor.pos !== null),
     enabled: keyboardNavigation,
+    escapeClose: true,
   });
   // In rect-anchor mode, the anchor is structurally the caller's TRIGGER
   // (that's the whole point of anchoring to it) and stays mounted outside

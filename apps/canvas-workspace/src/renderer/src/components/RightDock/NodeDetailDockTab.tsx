@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { NodeDetailPanel } from '../WorkspaceNodes/NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from '../WorkspaceNodes/useWorkspaceNodes';
+import { getNodeTitle } from '../WorkspaceNodes/utils';
 import { useI18n } from '../../i18n';
 
 interface NodeDetailDockTabProps {
@@ -28,7 +29,7 @@ export const NodeDetailDockTab = ({
   } = useWorkspaceNodeList(workspaceId);
 
   useEffect(() => {
-    const title = node?.title?.trim();
+    const title = node ? getNodeTitle(node, t('workspaceNodes.untitled')) : '';
     if (title) {
       onTitleChange(title);
       return;

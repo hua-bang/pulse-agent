@@ -7,6 +7,7 @@ import { I18nProvider } from '../../../i18n';
 
 const canvasViewState = vi.hoisted(() => ({
   hideHeader: false,
+  isSelected: false,
   node: null as CanvasNode | null,
   onUpdate: null as ((id: string, patch: Partial<CanvasNode>) => void) | null,
 }));
@@ -16,12 +17,15 @@ vi.mock('../../CanvasNodeView', () => ({
     node,
     onUpdate,
     hideHeader,
+    isSelected,
   }: {
     node: CanvasNode;
     onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
     hideHeader?: boolean;
+    isSelected?: boolean;
   }) => {
     canvasViewState.hideHeader = Boolean(hideHeader);
+    canvasViewState.isSelected = Boolean(isSelected);
     canvasViewState.node = node;
     canvasViewState.onUpdate = onUpdate;
     return <div data-testid="canvas-node" data-content={(node.data as { content?: string }).content ?? ''} />;
@@ -58,6 +62,7 @@ afterEach(() => {
   canvasViewState.node = null;
   canvasViewState.onUpdate = null;
   canvasViewState.hideHeader = false;
+  canvasViewState.isSelected = false;
   Reflect.deleteProperty(window, 'canvasWorkspace');
 });
 
@@ -76,6 +81,81 @@ describe('NodeCanvasPreview', () => {
     render(<NodeCanvasPreview workspaceId="workspace-1" record={NODE} />);
 
     expect(canvasViewState.hideHeader).toBe(true);
+  });
+
+  it('restores the web chrome through a semantic presentation class', () => {
+    const view = render(
+      <NodeCanvasPreview
+        workspaceId="workspace-1"
+        record={{ ...NODE, type: 'iframe', data: { mode: 'url', url: 'https://example.com' } }}
+      />,
+    );
+
+    expect(view.querySelector('.node-canvas-preview--web')).not.toBeNull();
+    expect(canvasViewState.isSelected).toBe(false);
+  });
+
+  it('selects mindmaps so their original topic interactions remain available', () => {
+    const view = render(
+      <NodeCanvasPreview workspaceId="workspace-1" record={{ ...NODE, type: 'mindmap', data: {} }} />,
+    );
+
+    expect(view.querySelector('.node-canvas-preview--mindmap')).not.toBeNull();
+    expect(canvasViewState.isSelected).toBe(true);
+  });
+
+  it('pans a mindmap by dragging its non-interactive background with a pointer', () => {
+    const view = render(
+      <NodeCanvasPreview workspaceId="workspace-1" record={{ ...NODE, type: 'mindmap', data: {} }} />,
+    );
+    const preview = view.querySelector<HTMLElement>('.node-canvas-preview--mindmap');
+    if (!preview) throw new Error('Expected mindmap presentation');
+    preview.scrollLeft = 100;
+    preview.scrollTop = 80;
+
+    act(() => {
+      preview.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        pointerId: 7,
+        clientX: 60,
+        clientY: 50,
+      }));
+      preview.dispatchEvent(new PointerEvent('pointermove', {
+        bubbles: true,
+        pointerId: 7,
+        clientX: 20,
+        clientY: 10,
+      }));
+    });
+
+    expect(preview.scrollLeft).toBe(140);
+    expect(preview.scrollTop).toBe(120);
+    expect(preview.classList.contains('is-panning')).toBe(true);
+
+    act(() => { preview.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 7 })); });
+    expect(preview.classList.contains('is-panning')).toBe(false);
+  });
+
+  it('exposes a focusable mindmap viewport that pans with the arrow keys', () => {
+    const view = render(
+      <NodeCanvasPreview workspaceId="workspace-1" record={{ ...NODE, type: 'mindmap', data: {} }} />,
+    );
+    const preview = view.querySelector<HTMLElement>('.node-canvas-preview--mindmap');
+    if (!preview) throw new Error('Expected mindmap presentation');
+    preview.scrollLeft = 100;
+    preview.scrollTop = 80;
+
+    act(() => {
+      preview.focus();
+      preview.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
+      preview.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }));
+    });
+
+    expect(preview.tabIndex).toBe(0);
+    expect(preview.scrollLeft).toBe(140);
+    expect(preview.scrollTop).toBe(120);
+    expect(view.querySelector<HTMLButtonElement>('[aria-label="Center mindmap"]')).not.toBeNull();
   });
 
   it('keeps the latest local draft when an older update acknowledgement arrives', async () => {

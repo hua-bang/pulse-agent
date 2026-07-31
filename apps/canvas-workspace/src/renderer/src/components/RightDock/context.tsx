@@ -94,6 +94,7 @@ export const useDockContext = (): RightDockContextValue => {
 export function useRightDock(): {
   openArtifact: (workspaceId: string, artifactId: string) => void;
   openNodeDetail: (workspaceId: string, nodeId: string, title: string) => void;
+  enterNodePage: (workspaceId: string, nodeId: string) => void;
   openSkill: (scope: CanvasConfigScope, skill: CanvasSkillEntry) => void;
   closeSkill: (scope: CanvasConfigScope, skillName: string) => void;
   openCanvasPreview: (workspaceId: string, title: string) => boolean;
@@ -130,6 +131,7 @@ export function useRightDock(): {
   return useMemo(() => ({
     openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
     openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
+    enterNodePage: (workspaceId: string, nodeId: string) => store.enterNodePage(workspaceId, nodeId),
     openSkill: (scope: CanvasConfigScope, skill: CanvasSkillEntry) => store.openSkill(scope, skill),
     closeSkill: (scope: CanvasConfigScope, skillName: string) => store.close(skillTabId(
       scope.level === 'workspace' ? scope.workspaceId : 'global',

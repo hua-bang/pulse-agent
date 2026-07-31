@@ -21,8 +21,14 @@ const read = (relativePath: string): string =>
 const STYLESHEETS = ['../index.css', '../NodeDetailDocument.css'];
 const MARKUP = [
   '../NodeDetailPanel.tsx',
+  '../NodeDetailHeader.tsx',
+  '../NodeDetailInspector.tsx',
+  '../NodeDetailContextRail.tsx',
+  '../NodeDetailPropertyRows.tsx',
+  '../NodeDetailSupplementary.tsx',
   '../NodeDetailPage.tsx',
   '../NodeCanvasPreview.tsx',
+  '../NodeCanvasSaveError.tsx',
   '../NodeRelationEditor.tsx',
   '../NodeTagEditor.tsx',
   '../NodeTitleEditor.tsx',
@@ -40,6 +46,18 @@ const classesIn = (source: string, pattern: RegExp): string[] =>
   Array.from(new Set(source.match(pattern) ?? [])).sort();
 
 describe('Node Detail styles', () => {
+  it('uses a global surface token for the body-portaled inspector', () => {
+    expect(css).toMatch(
+      /\.node-detail-panel__inspector\s*\{[^}]*background:\s*var\(--surface\)/s,
+    );
+  });
+
+  it('extends the Nodes token scope to the body-portaled inspector', () => {
+    expect(css).toMatch(
+      /\.node-detail-panel__inspector,\s*\.node-detail-panel\s*\{[^}]*--nodes-border:/s,
+    );
+  });
+
   it('has no rule for a class the markup never renders', () => {
     // A `.cls` that is never followed by another class-name character, so
     // `.node-detail-panel__title` does not count as used by `__title-row`.

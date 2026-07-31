@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import {
   FOCUS_NODE_ON_CANVAS_EVENT,
   OPEN_NODE_PAGE_EVENT,
@@ -8,6 +8,8 @@ import {
 interface Options {
   activeWorkspaceId: string;
   enabled: boolean;
+  pageNode: OpenNodeDetail | null;
+  enterNodePage: (workspaceId: string, nodeId: string) => void;
   /** Drill into the node's own page route. */
   openNodePage: (workspaceId: string, nodeId: string) => void;
   /** Leave the knowledge surfaces and frame the node on its canvas. */
@@ -23,9 +25,18 @@ interface Options {
 export const useNodeDetailBridges = ({
   activeWorkspaceId,
   enabled,
+  pageNode,
+  enterNodePage,
   openNodePage,
   focusNodeOnCanvas,
 }: Options) => {
+  const pageWorkspaceId = pageNode?.workspaceId;
+  const pageNodeId = pageNode?.nodeId;
+  useLayoutEffect(() => {
+    if (!enabled || !pageWorkspaceId || !pageNodeId) return;
+    enterNodePage(pageWorkspaceId, pageNodeId);
+  }, [enabled, enterNodePage, pageNodeId, pageWorkspaceId]);
+
   useEffect(() => {
     if (!enabled) return;
     const route = (

@@ -41,7 +41,7 @@ export interface CanvasNodeViewProps {
   onAutoResize: (id: string, width: number, height: number) => void;
   onRemove: (id: string) => void;
   onRemoveNodes?: (ids: string[]) => void;
-  onExportMindmapImage: (id: string) => void;
+  onExportMindmapImage?: (id: string) => void;
   onMergeMindmapTopic?: (request: MergeMindmapTopicRequest) => boolean;
   onSplitMindmapTopic?: (
     sourceNodeId: string,

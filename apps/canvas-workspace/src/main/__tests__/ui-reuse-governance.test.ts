@@ -108,15 +108,6 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 304→303 (multi-role chat): RolesSettings shipped on ui/Button + SwatchRow
   // and PromptSettings' footer migrated to ui/Button, more than offsetting
   // the two new raw buttons (role list rows + the chat-header roles entry).
-  // 303→305 (Node Detail relations): the relation target picker replaced
-  // ui/Select (which has no search — unusable past a few dozen nodes) with
-  // the same filtering-combobox shape NodeTagEditor already uses beside it,
-  // so its option rows are raw <button>s for the same reason that picker's
-  // are (+1); and a relation row's target is now an inline text button that
-  // opens the node (+1) — a link inside an ellipsizing grid cell, which
-  // ui/Button's CTA metrics would have to be overridden away wholesale.
-  // On master, the AI Chat interaction work independently removed six raw
-  // buttons; combined with Node Detail's +2, the merged inventory is 299.
   // 300→299 (AI Chat model setup hierarchy): removed the duplicate central
   // empty-state configure button; the composer model switcher is the SSOT.
   // 299→298 (chat header chrome cleanup): removed the standalone new-chat
@@ -125,7 +116,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 298→297 (composer chrome): hid the Auto/Ask execution-mode toggle —
   // ask mode isn't ready to expose yet, execution stays on its 'auto'
   // default.
-  rawButtonTags: 299,
+  rawButtonTags: 297,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

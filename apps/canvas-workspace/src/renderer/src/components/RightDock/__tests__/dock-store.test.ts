@@ -156,6 +156,38 @@ describe('DockStore', () => {
     ]);
   });
 
+  it('yields the dock to a full-page node detail without discarding other tabs', () => {
+    const dock = new DockStore();
+    dock.openArtifact('ws1', 'a1');
+    dock.openNodeDetail('ws1', 'node1', 'Search & RSS');
+
+    dock.enterNodePage('ws1', 'node1');
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: artifactTabId('ws1', 'a1'),
+      expanded: false,
+    });
+    expect(dock.getSnapshot().tabs).toEqual([
+      expect.objectContaining({ id: artifactTabId('ws1', 'a1') }),
+    ]);
+  });
+
+  it('keeps an unrelated active dock tab visible when a node page opens directly', () => {
+    const dock = new DockStore();
+    dock.openNodeDetail('ws1', 'node1', 'Search & RSS');
+    dock.openArtifact('ws1', 'a1');
+
+    dock.enterNodePage('ws1', 'node1');
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: artifactTabId('ws1', 'a1'),
+      expanded: true,
+    });
+    expect(dock.getSnapshot().tabs).toEqual([
+      expect.objectContaining({ id: artifactTabId('ws1', 'a1') }),
+    ]);
+  });
+
   it('opens and refreshes one Skill detail tab per scope', () => {
     const dock = new DockStore();
     const scope = { level: 'workspace', workspaceId: 'ws1' } as const;

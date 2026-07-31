@@ -1,10 +1,10 @@
-/* Design tokens for the Nodes surfaces. `.node-detail-panel` is included
- * because NodeDetailPanel is shared between the Nodes full page and the
- * right-dock Node tab — the dock context has no page wrapper to supply
- * these variables. */
+/* Design tokens for the Nodes surfaces. The detail panel is shared between
+ * the full page and dock; its inspector is portaled to document.body, so both
+ * hosts must establish the same local token scope themselves. */
 .workspace-nodes-page,
 .workspace-node-detail-page,
 .workspace-graph-page,
+.node-detail-panel__inspector,
 .node-detail-panel {
   --nodes-bg: #fbfbfa;
   --nodes-surface: #ffffff;
@@ -535,8 +535,38 @@
 }
 
 .node-canvas-preview .node-header,
-.node-canvas-preview .iframe-bar {
+.node-canvas-preview:not(.node-canvas-preview--web) .iframe-bar {
   display: none !important;
+}
+
+.node-canvas-preview--mindmap {
+  display: block;
+  overflow: auto;
+  cursor: grab;
+  overscroll-behavior: contain;
+}
+
+.node-canvas-preview--mindmap.is-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.node-canvas-preview__mindmap-controls {
+  position: sticky;
+  top: 8px;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 0;
+  padding-right: 8px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.node-canvas-preview__mindmap-controls > * {
+  pointer-events: auto;
 }
 
 .node-detail-panel__property-row {
