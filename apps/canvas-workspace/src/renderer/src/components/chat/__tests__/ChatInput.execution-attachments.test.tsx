@@ -83,9 +83,11 @@ describe('ChatInput execution and attachment states', () => {
       </I18nProvider>,
     ));
 
-    const policy = host.querySelector('[aria-label="Execution mode: Scheduled"]');
+    // The locked pill must name the run mode too: "Scheduled" alone reads as a
+    // third execution mode, which it is not — the run is still `auto`.
+    const policy = host.querySelector('[aria-label="Execution mode: Scheduled · Automatic"]');
     expect(policy?.tagName).toBe('SPAN');
-    expect(policy?.textContent).toBe('Scheduled');
+    expect(policy?.textContent).toBe('Scheduled · Automatic');
     expect(toggle).not.toHaveBeenCalled();
 
     act(() => root.unmount());

@@ -78,15 +78,25 @@ const ContextReferences = ({
   );
 };
 
+// Scope / model / execution are deliberately NOT shown here: all three restate
+// what the composer already displays for the live turn, so every user message
+// carried a row of redundant labels. Only the references — which the composer
+// clears after sending and nothing else records — survive on the turn.
 export const ChatTurnContext = ({
   snapshot,
 }: {
   snapshot: AgentTurnContextSnapshot;
 }) => {
   const { t } = useI18n();
-  const executionLabel = snapshot.executionMode === 'auto'
-    ? t('chat.execution.auto')
-    : t('chat.execution.ask');
+  const references = [
+    { key: 'nodes', label: t('chat.turn.nodes'), values: (snapshot.selectedNodes ?? []).map(node => node.title) },
+    { key: 'tags', label: t('chat.turn.tags'), values: (snapshot.tags ?? []).map(tag => `#${tag.name}`) },
+    { key: 'canvases', label: t('chat.turn.canvases'), values: (snapshot.canvases ?? []).map(canvas => canvas.name) },
+    { key: 'elements', label: t('chat.turn.elements'), values: (snapshot.domSelections ?? []).map(selection => selection.label) },
+    { key: 'tabs', label: t('chat.turn.tabs'), values: (snapshot.tabs ?? []).map(tab => tab.title) },
+  ].filter(entry => entry.values.length > 0);
+
+  if (references.length === 0) return null;
 
   return (
     <div
@@ -94,40 +104,9 @@ export const ChatTurnContext = ({
       role="group"
       aria-label={t('chat.turn.context')}
     >
-      <dl className="chat-turn-context__meta">
-        <div>
-          <dt>{t('chat.turn.scope')}</dt>
-          <dd>{snapshot.scopeLabel}</dd>
-        </div>
-        <div>
-          <dt>{t('chat.turn.model')}</dt>
-          <dd>{snapshot.modelLabel}</dd>
-        </div>
-        <div>
-          <dt>{t('chat.turn.execution')}</dt>
-          <dd>{executionLabel}</dd>
-        </div>
-      </dl>
-      <ContextReferences
-        label={t('chat.turn.nodes')}
-        values={(snapshot.selectedNodes ?? []).map(node => node.title)}
-      />
-      <ContextReferences
-        label={t('chat.turn.tags')}
-        values={(snapshot.tags ?? []).map(tag => `#${tag.name}`)}
-      />
-      <ContextReferences
-        label={t('chat.turn.canvases')}
-        values={(snapshot.canvases ?? []).map(canvas => canvas.name)}
-      />
-      <ContextReferences
-        label={t('chat.turn.elements')}
-        values={(snapshot.domSelections ?? []).map(selection => selection.label)}
-      />
-      <ContextReferences
-        label={t('chat.turn.tabs')}
-        values={(snapshot.tabs ?? []).map(tab => tab.title)}
-      />
+      {references.map(entry => (
+        <ContextReferences key={entry.key} label={entry.label} values={entry.values} />
+      ))}
     </div>
   );
 };

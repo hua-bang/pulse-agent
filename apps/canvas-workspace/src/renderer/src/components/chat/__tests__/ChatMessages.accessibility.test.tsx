@@ -387,13 +387,30 @@ describe('ChatMessages accessibility', () => {
 
     const snapshot = el.querySelector<HTMLElement>('.chat-turn-context');
     expect(snapshot?.getAttribute('aria-label')).toBe('Turn context');
-    expect(snapshot?.textContent).toContain('Scope');
-    expect(snapshot?.textContent).toContain('Product canvas');
-    expect(snapshot?.textContent).toContain('Model');
-    expect(snapshot?.textContent).toContain('GPT-5.6');
-    expect(snapshot?.textContent).toContain('Ask first');
     expect(snapshot?.textContent).toContain('Roadmap');
     expect(snapshot?.textContent).toContain('#launch');
     expect(snapshot?.textContent).toContain('Research canvas');
+    // Scope / model / execution restate the composer, so they are deliberately
+    // absent — every user turn used to carry that redundant row.
+    expect(snapshot?.textContent).not.toContain('Product canvas');
+    expect(snapshot?.textContent).not.toContain('GPT-5.6');
+    expect(snapshot?.textContent).not.toContain('Ask first');
+  });
+
+  it('renders no turn context when the snapshot carries no references', async () => {
+    const el = await renderMessages([{
+      role: 'user',
+      content: 'Just a question.',
+      timestamp: 1,
+      contextSnapshot: {
+        scope: { kind: 'workspace', workspaceId: 'workspace-1' },
+        scopeLabel: 'Product canvas',
+        executionMode: 'auto',
+        modelLabel: 'GPT-5.6',
+        capturedAt: 1,
+      },
+    }]);
+
+    expect(el.querySelector('.chat-turn-context')).toBeNull();
   });
 });

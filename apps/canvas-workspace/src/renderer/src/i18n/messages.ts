@@ -645,6 +645,10 @@ const en = {
   'chat.execution.auto': 'Automatic',
   'chat.execution.ask': 'Ask first',
   'chat.execution.scheduled': 'Scheduled',
+  // The composer pill is the only place the two facts must be read together:
+  // the toggle is locked because this is a scheduled task, and the run itself
+  // is still `auto`. The compact target bar keeps the short form.
+  'chat.execution.scheduledAuto': 'Scheduled · Automatic',
   'chat.executionModeLabel': 'Execution mode: {mode}',
   'chat.messageInput': 'Message',
   'chat.openingConversation': 'Opening conversation…',
@@ -693,9 +697,6 @@ const en = {
   'chat.addImageFailed': 'Could not add the image to the canvas: {error}',
   'chat.unknownError': 'Unknown error',
   'chat.turn.context': 'Turn context',
-  'chat.turn.scope': 'Scope',
-  'chat.turn.model': 'Model',
-  'chat.turn.execution': 'Execution',
   'chat.turn.nodes': 'Nodes',
   'chat.turn.tags': 'Tags',
   'chat.turn.canvases': 'Canvases',
@@ -2331,6 +2332,7 @@ const zh: Record<keyof typeof en, string> = {
   'chat.execution.auto': '自动执行',
   'chat.execution.ask': '执行前询问',
   'chat.execution.scheduled': '定时任务',
+  'chat.execution.scheduledAuto': '定时任务 · 自动执行',
   'chat.executionModeLabel': '执行模式：{mode}',
   'chat.messageInput': '消息',
   'chat.openingConversation': '正在打开对话…',
@@ -2379,9 +2381,6 @@ const zh: Record<keyof typeof en, string> = {
   'chat.addImageFailed': '无法将图片添加到画布：{error}',
   'chat.unknownError': '未知错误',
   'chat.turn.context': '本轮上下文',
-  'chat.turn.scope': '范围',
-  'chat.turn.model': '模型',
-  'chat.turn.execution': '执行方式',
   'chat.turn.nodes': '节点',
   'chat.turn.tags': '标签',
   'chat.turn.canvases': '画布',
