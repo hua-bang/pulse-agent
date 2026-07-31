@@ -34,13 +34,16 @@ export const clampDockWidth = (value: number, viewportWidth: number, capped: boo
 /** Roomy width for a tab when the strip is not crowded (CSS `max-width`). */
 export const TAB_MAX_WIDTH = 220;
 /**
- * Floor for a shrunken tab. Below this a favicon plus a few characters stops
- * being a label at all, so past this point the strip scrolls instead —
- * shrinking further would trade one unusable state for another.
+ * Floor for a shrunken tab. Measured, not guessed: below this the icon and
+ * padding eat the row and the title truncates to a character or two, which
+ * is not a label. Past the floor the strip scrolls instead — shrinking
+ * further would trade one unusable state for another.
  */
-export const TAB_MIN_WIDTH = 76;
+export const TAB_MIN_WIDTH = 120;
 /** Reserve for the strip's trailing controls (new tab, split, collapse). */
 const TAB_STRIP_CONTROLS_WIDTH = 96;
+/** Close button + shell spacing, which sit OUTSIDE the width this returns. */
+const TAB_OVERHEAD = 26;
 
 /**
  * Per-tab width for a strip holding `tabCount` tabs.
@@ -48,11 +51,12 @@ const TAB_STRIP_CONTROLS_WIDTH = 96;
  * Tabs used to be a fixed 108–220px, so the strip ran off the edge as soon as
  * a handful were open and the only way back to an off-screen tab was a
  * horizontal scroll with no scrollbar to hint at it. Browsers shrink instead,
- * which keeps every tab clickable; this is that policy, with a floor.
+ * which keeps more tabs directly clickable; this is that policy, bounded at
+ * both ends.
  */
 export const resolveTabWidth = (tabCount: number, dockWidth: number): number => {
   if (tabCount <= 0) return TAB_MAX_WIDTH;
   const available = Math.max(0, dockWidth - TAB_STRIP_CONTROLS_WIDTH);
-  const share = Math.floor(available / tabCount);
+  const share = Math.floor(available / tabCount) - TAB_OVERHEAD;
   return Math.max(TAB_MIN_WIDTH, Math.min(TAB_MAX_WIDTH, share));
 };

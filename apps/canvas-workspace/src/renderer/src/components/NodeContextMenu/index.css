@@ -21,6 +21,10 @@
   width: 100%;
   display: flex;
   align-items: center;
+  /* Explicit because menu rows built on ui/Button inherit its centred
+     content; a menu whose labels float in the middle of the row reads as a
+     dialog, not a menu. No-op for the raw-button menus. */
+  justify-content: flex-start;
   gap: 10px;
   padding: 7px 10px;
   border: none;

@@ -41,6 +41,12 @@ describe('tab width policy', () => {
     expect(resolveTabWidth(2, 640)).toBe(TAB_MAX_WIDTH);
   });
 
+  it('leaves room for the close button, which sits outside this width', () => {
+    // The returned width styles the tab BUTTON; the shell also carries a
+    // close affordance, so an even split of the strip overflows.
+    expect(resolveTabWidth(2, 480)).toBeLessThan(Math.floor((480 - 96) / 2));
+  });
+
   it('shrinks tabs as the strip fills, instead of running off the edge', () => {
     const roomy = resolveTabWidth(2, 480);
     const crowded = resolveTabWidth(5, 480);
@@ -49,14 +55,14 @@ describe('tab width policy', () => {
   });
 
   it('stops shrinking at the floor and lets the strip scroll instead', () => {
-    // Past this point a favicon plus two characters is not a label, so
-    // shrinking further would trade one unusable state for another.
-    expect(resolveTabWidth(40, 480)).toBe(TAB_MIN_WIDTH);
+    // Verified against a render: below this the icon and padding eat the row
+    // and the title truncates to a character or two, which is not a label.
+    expect(resolveTabWidth(8, 480)).toBe(TAB_MIN_WIDTH);
     expect(resolveTabWidth(400, 480)).toBe(TAB_MIN_WIDTH);
   });
 
   it('gives wider docks wider tabs for the same tab count', () => {
-    expect(resolveTabWidth(6, 900)).toBeGreaterThan(resolveTabWidth(6, 480));
+    expect(resolveTabWidth(3, 900)).toBeGreaterThan(resolveTabWidth(3, 480));
   });
 
   it('is defined for an empty strip', () => {
