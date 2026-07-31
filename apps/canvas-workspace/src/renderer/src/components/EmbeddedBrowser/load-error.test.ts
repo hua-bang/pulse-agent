@@ -18,6 +18,17 @@ describe('classifyLoadError', () => {
     expect(classifyLoadError({ code: -7, description: '' })).toBe('network');
   });
 
+  it('recognises proxy and tunnel failures', () => {
+    // What a filtered network actually reports, and the case that exposed
+    // this gap on a real run: ERR_TUNNEL_CONNECTION_FAILED does not contain
+    // the substring "ERR_CONNECTION", so the generic marker never matched it.
+    expect(classifyLoadError({ code: -111, description: 'ERR_TUNNEL_CONNECTION_FAILED' }))
+      .toBe('network');
+    expect(classifyLoadError({ code: -130, description: 'ERR_PROXY_CONNECTION_FAILED' }))
+      .toBe('network');
+    expect(classifyLoadError({ code: -111, description: '' })).toBe('network');
+  });
+
   it('recognises guest process death, which arrives as an exit reason', () => {
     // render-process-gone reports `reason` in the description slot; the exit
     // code there is NOT a net error and must not be read as one.

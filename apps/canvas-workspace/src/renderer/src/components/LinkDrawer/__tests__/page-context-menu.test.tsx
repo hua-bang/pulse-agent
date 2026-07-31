@@ -87,6 +87,14 @@ describe('PageContextMenu', () => {
     expect(text).toContain('Back');
   });
 
+  it('marks itself as dock-anchored so it is not painted behind the dock', () => {
+    // It portals to body, which is a LOWER stacking context than the dock
+    // (--layer-dock). Found on a real run: the menu was in the DOM, correctly
+    // positioned, and invisible.
+    render(request(), actions());
+    expect(document.querySelector('.context-menu--in-dock')).not.toBeNull();
+  });
+
   it('opens a link in a foreground or background tab as chosen', () => {
     const menuActions = actions();
     render(request({ linkURL: 'https://example.com/target' }), menuActions);

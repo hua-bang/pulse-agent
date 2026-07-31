@@ -10,6 +10,14 @@
   animation: menuAppear 0.12s ease;
 }
 
+/* A menu anchored inside the right dock portals to body, so it lands in a
+   lower stacking context than the dock itself (--layer-dock) and is painted
+   behind the very panel it describes. Confirmed on a real run: the page
+   context menu was in the DOM, correctly positioned, and invisible. */
+.context-menu--in-dock {
+  z-index: var(--layer-dock-menu);
+}
+
 .context-menu-title {
   font-size: 11px;
   font-weight: 500;

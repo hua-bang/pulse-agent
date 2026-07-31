@@ -116,6 +116,10 @@
   --layer-fullscreen-node: 1000;     /* fullscreened canvas node */
   --layer-fullscreen-chrome: 1010;   /* fullscreen chip */
   --layer-dock: 1100;                /* right dock: artifact / link previews */
+  --layer-dock-menu: 1150;           /* menus anchored INSIDE the dock (page /
+                                      * tab context menus). They portal to
+                                      * body, so without this they paint under
+                                      * the dock they belong to. */
   --layer-search: 1500;              /* find-in-canvas bar */
   --layer-note-popover: 1550;        /* note slash, mention, and bubble menus */
   --layer-interaction-shield: 1800;  /* drag shield over webviews */

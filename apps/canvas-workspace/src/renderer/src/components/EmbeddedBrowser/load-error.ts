@@ -36,13 +36,18 @@ const NETWORK_MARKERS = [
   'ERR_CONNECTION',
   'ERR_TIMED_OUT',
   'ERR_ADDRESS_UNREACHABLE',
+  // Proxy/tunnel failures are what a corporate network or a filtered
+  // container actually reports; `ERR_CONNECTION` does not cover them
+  // (ERR_TUNNEL_CONNECTION_FAILED does not contain that substring), which
+  // left the most common real-world failure classified as "unknown".
   'ERR_PROXY_CONNECTION_FAILED',
+  'ERR_TUNNEL_CONNECTION_FAILED',
 ];
 
 // net_error_list.h. Kept alongside the string markers because a guest that
 // dies mid-navigation can report a code with an empty description.
 const BLOCKED_CODES = new Set([-27, -30]);
-const NETWORK_CODES = new Set([-7, -21, -105, -106, -109, -118, -137]);
+const NETWORK_CODES = new Set([-7, -21, -105, -106, -109, -111, -118, -130, -137]);
 
 export function classifyLoadError(error: BrowserLoadError | null): LoadErrorKind | null {
   if (!error) return null;

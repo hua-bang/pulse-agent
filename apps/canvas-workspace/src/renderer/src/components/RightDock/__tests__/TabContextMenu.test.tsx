@@ -110,6 +110,12 @@ describe('TabContextMenu', () => {
     expect(reopenRow?.disabled).toBe(true);
   });
 
+  it('marks itself as dock-anchored so it is not painted behind the dock', () => {
+    const store = seedDock();
+    render(store, store.getSnapshot().tabs[0].id);
+    expect(document.querySelector('.context-menu--in-dock')).not.toBeNull();
+  });
+
   it('closes the menu after acting', () => {
     const store = seedDock();
     const [first] = store.getSnapshot().tabs;

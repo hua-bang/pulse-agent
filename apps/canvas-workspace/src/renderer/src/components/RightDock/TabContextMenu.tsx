@@ -52,7 +52,7 @@ export const TabContextMenu = ({ tab, tabs, store, x, y, onClose }: Props) => {
   );
 
   return (
-    <Popover x={x} y={y} onClose={onClose} className="context-menu">
+    <Popover x={x} y={y} onClose={onClose} className="context-menu context-menu--in-dock">
       {tab.kind === 'link' && tab.url && (
         <>
           {item('rightDock.tabMenu.copyAddress', run(

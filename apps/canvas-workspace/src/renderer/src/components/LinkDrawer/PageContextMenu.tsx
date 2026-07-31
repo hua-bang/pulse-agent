@@ -75,7 +75,7 @@ export const PageContextMenu = ({
   );
 
   return (
-    <Popover x={x} y={y} onClose={onClose} className="context-menu">
+    <Popover x={x} y={y} onClose={onClose} className="context-menu context-menu--in-dock">
       {request.linkURL && (
         <>
           <div className="context-menu-title">{t('linkDrawer.menu.linkTitle')}</div>
