@@ -111,6 +111,11 @@ excluded consistently. Overflow is discoverable through the accessible All
 Tabs menu, and the pinned Pulse AI tab remains reachable at the start of the
 strip rather than scrolling away with page tabs.
 
+The strip and All Tabs menu share one fixed 16px icon slot and the same Pulse,
+terminal/agent, page-favicon, node-detail, or content mark. Keep favicon and
+agent metadata in the projection rather than replacing every row with a
+generic kind dot.
+
 Closed web tabs enter the bounded, workspace-scoped reopen stack. Reopen must
 allocate a fresh id if the original id already exists; duplicate React keys or
 guest identities are never permitted.

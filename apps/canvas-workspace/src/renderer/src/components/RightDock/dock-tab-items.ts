@@ -1,10 +1,12 @@
-import type { DockState } from './dock-types';
+import type { DockPreviewTab, DockState } from './dock-types';
 import { CHAT_TAB_ID } from './dock-tab-ids';
 
 export interface DockTabSwitcherItem {
   id: string;
   title: string;
-  kind: 'chat' | 'terminal' | 'link' | 'content';
+  kind: 'chat' | 'terminal' | DockPreviewTab['kind'];
+  faviconUrl?: string;
+  agentType?: string;
 }
 
 interface Labels {
@@ -26,11 +28,13 @@ export function getDockTabSwitcherItems(
       id: tab.id,
       title: tab.title ?? `${terminalTitle} ${tab.ordinal}`,
       kind: 'terminal' as const,
+      ...(tab.agentType ? { agentType: tab.agentType } : {}),
     })),
     ...state.tabs.map((tab) => ({
       id: tab.id,
       title: tab.title,
-      kind: tab.kind === 'link' ? 'link' as const : 'content' as const,
+      kind: tab.kind,
+      ...(tab.kind === 'link' && tab.faviconUrl ? { faviconUrl: tab.faviconUrl } : {}),
     })),
   ];
 }

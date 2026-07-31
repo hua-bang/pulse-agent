@@ -5,10 +5,9 @@
  * Split out of `RightDock` so the strip's markup stays readable; the dock
  * still owns activation, drag state and the tab menu.
  */
-import { Tabs } from '@phosphor-icons/react';
 import type { DragEvent, MouseEvent } from 'react';
 import { useI18n } from '../../i18n';
-import { LinkTabIcon } from './LinkTabIcon';
+import { DockTabIcon } from './DockTabIcon';
 import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
 import type { DockPreviewTab } from './dock-types';
 import type { DockTabVisualState } from './dock-tab-visual-state';
@@ -99,17 +98,10 @@ export const DockContentTab = ({
           onContextMenu(tab.id, event.clientX, event.clientY);
         }}
       >
-        {tab.kind === 'link' ? (
-          <span className="right-dock__tab-icon right-dock__tab-icon--link">
-            <LinkTabIcon faviconUrl={tab.faviconUrl} />
-          </span>
-        ) : tab.kind === 'node-detail' ? (
-          <span className="right-dock__tab-icon right-dock__tab-icon--node-detail">
-            <Tabs size={14} weight="regular" aria-hidden="true" />
-          </span>
-        ) : (
-          <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
-        )}
+        <DockTabIcon
+          kind={tab.kind}
+          faviconUrl={tab.kind === 'link' ? tab.faviconUrl : undefined}
+        />
         <span className="right-dock__tab-title">{tab.title}</span>
       </button>
       <button

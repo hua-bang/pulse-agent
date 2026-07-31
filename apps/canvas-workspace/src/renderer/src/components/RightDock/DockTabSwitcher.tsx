@@ -7,6 +7,7 @@ import { useRef, useState } from 'react';
 import { useGuestInteractionShield } from '../../hooks/useGuestInteractionShield';
 import { useI18n } from '../../i18n';
 import { Button, Popover } from '../ui';
+import { DockTabIcon } from './DockTabIcon';
 import type { DockTabSwitcherItem } from './dock-tab-items';
 
 interface Props {
@@ -65,9 +66,10 @@ export const DockTabSwitcher = ({ items, activeTabId, onActivate }: Props) => {
                 onActivate(item.id);
               }}
             >
-              <span
-                className={`right-dock__tab-switcher-kind right-dock__tab-switcher-kind--${item.kind}`}
-                aria-hidden="true"
+              <DockTabIcon
+                kind={item.kind}
+                faviconUrl={item.faviconUrl}
+                agentType={item.agentType}
               />
               <span className="context-menu-label">
                 <strong>{item.title}</strong>

@@ -46,7 +46,12 @@ describe('DockTabSwitcher', () => {
           activeTabId="web-b"
           items={[
             { id: 'chat', title: 'Pulse AI', kind: 'chat' },
-            { id: 'web-a', title: 'Example A', kind: 'link' },
+            {
+              id: 'web-a',
+              title: 'Example A',
+              kind: 'link',
+              faviconUrl: 'https://example.com/favicon.ico',
+            },
             { id: 'web-b', title: 'Example B', kind: 'link' },
           ]}
           onActivate={onActivate}
@@ -63,8 +68,14 @@ describe('DockTabSwitcher', () => {
 
     const menu = document.querySelector<HTMLElement>('.right-dock__tab-switcher-menu')!;
     expect(menu.getAttribute('aria-label')).toBe('All tabs');
-    expect([...menu.querySelectorAll('[role="menuitemradio"]')].map((item) => item.textContent))
+    const rows = [...menu.querySelectorAll<HTMLElement>('[role="menuitemradio"]')];
+    expect(rows.map((item) => item.textContent))
       .toEqual(['Pulse AI', 'Example A', 'Example B']);
+    expect(rows.every((item) => item.querySelector('.right-dock__tab-icon'))).toBe(true);
+    expect(rows[0]?.querySelector('.right-dock__tab-icon--chat img')).toBeTruthy();
+    expect(rows[1]?.querySelector<HTMLImageElement>('.right-dock__tab-favicon')?.src)
+      .toBe('https://example.com/favicon.ico');
+    expect(rows[2]?.querySelector('.right-dock__tab-icon--link svg')).toBeTruthy();
     expect(menu.querySelector('[aria-checked="true"]')?.textContent).toBe('Example B');
     expect(document.activeElement?.textContent).toBe('Example B');
 

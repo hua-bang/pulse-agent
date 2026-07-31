@@ -11,7 +11,6 @@ import {
 } from 'react';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
-import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, isTerminalTabId } from './dock-store';
 import { useDockContext, useRightDockState } from './context';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
@@ -37,6 +36,7 @@ import {
 import { useDockExternalFocus } from './useDockExternalFocus';
 import { TabContextMenu } from './TabContextMenu';
 import { DockContentTab } from './DockContentTab';
+import { DockTabIcon } from './DockTabIcon';
 import { DockTabSwitcher } from './DockTabSwitcher';
 import { getDockTabSwitcherItems } from './dock-tab-items';
 import { DockPanes } from './DockPanes';
@@ -354,9 +354,7 @@ export const RightDock = ({
               tabIndex={rovingTabId === CHAT_TAB_ID ? 0 : -1}
               onClick={() => store.activate(CHAT_TAB_ID)}
             >
-              <span className="right-dock__tab-icon right-dock__tab-icon--chat">
-                <AppLogoIcon size={14} />
-              </span>
+              <DockTabIcon kind="chat" />
               <span className="right-dock__tab-title">{t('rightDock.chat')}</span>
               <span className="right-dock__tab-unread" aria-hidden="true" />
             </button>
