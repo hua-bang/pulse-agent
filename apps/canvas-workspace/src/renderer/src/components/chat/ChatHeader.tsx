@@ -1,5 +1,5 @@
 import { useCallback, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { AvatarIcon, CloseIcon, CopyIcon, ExternalLinkIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
+import { AvatarIcon, CopyIcon, ExternalLinkIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
@@ -256,9 +256,20 @@ export const ChatHeader = ({
         >
           <SettingsIcon size={16} strokeWidth={1.25} />
         </button>
-        <button className="chat-panel-action-btn" onClick={onClose} title={t('chat.closePanel')} aria-label={t('chat.closePanel')}>
-          <CloseIcon size={16} strokeWidth={1.3} />
+        <button
+          className="chat-panel-action-btn"
+          onClick={() => void onNewSession()}
+          disabled={disabled}
+          title={t('chat.newAiChat')}
+          aria-label={t('chat.newAiChat')}
+        >
+          <PlusIcon size={16} strokeWidth={1.3} />
         </button>
+        {/* Close hidden — this panel is now a persistent dock tab, and the
+            dock's own collapse control (⇥) already closes it; a second,
+            panel-local close button was redundant. `onClose` is left wired
+            so this is a one-line revert if the tab strip ever stops
+            covering that case. */}
       </div>
     </div>
   );
