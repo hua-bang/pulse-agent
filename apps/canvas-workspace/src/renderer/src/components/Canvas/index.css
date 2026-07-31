@@ -289,7 +289,17 @@
   width: 100%;
   height: 100%;
   z-index: var(--layer-fullscreen-node);
-  --canvas-fullscreen-inset: 12px;
+}
+
+/* Declared on the CONTAINER, not on `.canvas-transform`: the fullscreen chip
+   is a sibling of the transform layer, so anchoring it to the same inset
+   only works if both inherit from a common ancestor.
+   Wide enough that the dim backdrop reads as matting around a focused card —
+   12px sat in the uncanny middle (too small to look intentional, too large
+   to look full-bleed) and left the backdrop as a sliver the user cannot
+   reliably hit to exit. */
+.canvas-container[data-fullscreen="on"] {
+  --canvas-fullscreen-inset: 24px;
 }
 
 .canvas-container[data-fullscreen="on"] .canvas-grid {
@@ -312,8 +322,11 @@
  * separate top chrome lane. */
 .canvas-fullscreen-chip {
   position: absolute;
-  top: 8px;
-  right: 18px;
+  /* Anchored to the node's own inset so it sits just inside the card's
+     top-right corner, instead of floating at a fixed offset that drifts
+     onto the backdrop (or over the content) as the inset changes. */
+  top: calc(var(--canvas-fullscreen-inset, 12px) + 8px);
+  right: calc(var(--canvas-fullscreen-inset, 12px) + 8px);
   display: flex;
   align-items: center;
   gap: 2px;
