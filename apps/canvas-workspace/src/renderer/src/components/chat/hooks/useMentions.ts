@@ -22,7 +22,7 @@ import { flattenEntries } from './fileMentionItems';
 import { loadRoleMentionItems } from './roleMentionItems';
 import { useEditableInputControl } from './useEditableInputControl';
 import { useSkillMentionInsertion } from './useSkillMentionInsertion';
-import { chatScopeId } from '../ChatTargetContext';
+import { chatScopeId } from '../chatScope';
 import {
   getChatComposerDraft,
   subscribeChatComposerDraft,

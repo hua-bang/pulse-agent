@@ -6,6 +6,7 @@ const BUNDLE_METRICS = [
   ['startupJsRawKB', 'bundle.startup_js_raw_kb', 'ratchet'],
   ['startupCssRawKB', 'bundle.startup_css_raw_kb', 'ratchet'],
   ['totalJsKB', 'bundle.total_js_kb', 'ratchet'],
+  ['mainRawKB', 'bundle.main_raw_kb', 'ratchet'],
   ['lazyBoundaryWatchlist', 'bundle.lazy_boundary_watchlist', 'true'],
 ];
 

@@ -1,7 +1,6 @@
 import {
   createContext,
   useContext,
-  useLayoutEffect,
   useRef,
   useSyncExternalStore,
   type ReactNode,
@@ -13,7 +12,6 @@ import type {
   CanvasNode,
 } from '../../types';
 import type { AgentScope } from './types';
-import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 
 export type ChatTargetSurface = 'dock' | 'page';
 export type ChatExecutionPolicy = 'auto' | 'ask' | 'scheduled';
@@ -78,8 +76,6 @@ interface RegisteredTarget {
 const targetPriority = (target: ChatTarget): number => (
   target.surface === 'page' ? 2 : 1
 );
-
-export const chatScopeId = (scope: AgentScope): string => scopeSessionStoreId(scope);
 
 export const createChatTargetBroker = (): ChatTargetBroker => {
   const registrations = new Map<string, RegisteredTarget>();
@@ -196,30 +192,4 @@ export const useActiveChatTarget = (): ChatTarget | null => {
     broker.getActiveTarget,
     broker.getActiveTarget,
   );
-};
-
-export const useRegisterChatTarget = (
-  target: ChatTarget | null,
-  handlers: ChatTargetHandlers,
-): void => {
-  const broker = useContext(ChatTargetContext);
-  const { insertNode, insertDomSelection, startSkillChat, submitDomReview, focus } = handlers;
-  useLayoutEffect(() => {
-    if (!broker || !target) return;
-    return broker.register(target, {
-      insertNode,
-      insertDomSelection,
-      startSkillChat,
-      submitDomReview,
-      focus,
-    });
-  }, [
-    broker,
-    focus,
-    insertDomSelection,
-    insertNode,
-    startSkillChat,
-    submitDomReview,
-    target,
-  ]);
 };

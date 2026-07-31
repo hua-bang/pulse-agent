@@ -6,7 +6,6 @@ import type {
   ChatTarget,
   ChatTargetBroker,
 } from '../chat/ChatTargetContext';
-import { chatScopeId } from '../chat/ChatTargetContext';
 
 interface UseChatInsertionBridgeOptions {
   allNodes: Record<string, CanvasNode[]>;
@@ -72,7 +71,8 @@ export function useChatInsertionBridge({
   const dockTarget = useCallback((workspaceId: string): ChatTarget => ({
     surface: 'dock',
     scope: { kind: 'workspace', workspaceId },
-    scopeId: chatScopeId({ kind: 'workspace', workspaceId }),
+    // A workspace chat's session-store id is the workspace id itself.
+    scopeId: workspaceId,
     sessionId: null,
     composerId: `dock:${workspaceId}`,
     contextSnapshot: { label: workspaceId },

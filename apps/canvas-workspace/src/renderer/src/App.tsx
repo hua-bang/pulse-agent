@@ -30,7 +30,6 @@ import {
 } from './components/chat/ChatTargetContext';
 import { useChatNavigation } from './components/chat/hooks/useChatNavigation';
 import type { AgentScope } from './components/chat/types';
-import { createChatPageSessionTarget } from './components/chat/utils/sessionScope';
 const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
@@ -211,11 +210,12 @@ const AppContent = () => {
     isOverlayOpen,
     openShortcuts,
   });
-  const openSessionInOwningScope = useCallback((
+  const openSessionInOwningScope = useCallback(async (
     scope: AgentScope,
     sessionId: string,
     scopeLabel: string,
   ) => {
+    const { createChatPageSessionTarget } = await import('./components/chat/utils/sessionScope');
     enterChatTarget(createChatPageSessionTarget(scope, sessionId, scopeLabel));
   }, [enterChatTarget]);
 

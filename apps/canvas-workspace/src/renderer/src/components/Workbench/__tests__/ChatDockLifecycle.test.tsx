@@ -35,7 +35,7 @@ vi.mock('../../Canvas', () => ({
 
 vi.mock('../../chat/lazy', async () => {
   const { useMemo: useReactMemo } = await import('react');
-  const { useRegisterChatTarget: useRegister } = await import('../../chat/ChatTargetContext');
+  const { useRegisterChatTarget: useRegister } = await import('../../chat/useRegisterChatTarget');
 
   return {
     ChatPanelLazy: ({

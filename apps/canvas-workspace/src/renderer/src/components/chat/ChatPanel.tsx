@@ -18,10 +18,10 @@ import { isImeComposing } from '../../utils/ime';
 import { useStartSkillChat } from './hooks/useStartSkillChat';
 import { buildDomReviewPrompt } from './utils/domReviewPrompt';
 import {
-  chatScopeId,
   type ChatTarget,
-  useRegisterChatTarget,
 } from './ChatTargetContext';
+import { chatScopeId } from './chatScope';
+import { useRegisterChatTarget } from './useRegisterChatTarget';
 import { ChatTargetBar } from './ChatTargetBar';
 import { ChatConversationStatus } from './ChatConversationStatus';
 import { useChatPanelContext } from './hooks/useChatPanelContext';

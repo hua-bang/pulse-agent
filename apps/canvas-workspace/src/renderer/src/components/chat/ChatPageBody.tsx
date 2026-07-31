@@ -16,12 +16,12 @@ import type { AgentScope, WorkspaceOption } from './types';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import {
-  chatScopeId,
   type ChatContextSnapshot,
   type ChatExecutionPolicy,
   type ChatTarget,
-  useRegisterChatTarget,
 } from './ChatTargetContext';
+import { chatScopeId } from './chatScope';
+import { useRegisterChatTarget } from './useRegisterChatTarget';
 import { ChatTargetBar } from './ChatTargetBar';
 import { ChatConversationStatus } from './ChatConversationStatus';
 import { useChatPageTargetContext } from './hooks/useChatPageTargetContext';
