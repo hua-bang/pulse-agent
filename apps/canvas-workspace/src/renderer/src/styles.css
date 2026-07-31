@@ -66,6 +66,13 @@
   --error: #c0392b;
   --text-warning: #b45309;
   --overlay-backdrop: rgba(32, 34, 37, 0.22);
+  /* Canvas dim for focus mode and node fullscreen. One token because both
+     do the same job — push the rest of the canvas back so the focused node
+     reads as the subject — and they were drifting apart as two literals
+     (0.55 / 0.62). Kept deliberately light: the focused card carries its own
+     shadow, so the dim only has to break the tie, and a heavier veil made
+     the workbench feel modal when it is not. */
+  --canvas-focus-dim: rgba(15, 18, 30, 0.24);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 5px 14px rgba(0, 0, 0, 0.07);
   --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.07), 0 9px 24px rgba(0, 0, 0, 0.09);
