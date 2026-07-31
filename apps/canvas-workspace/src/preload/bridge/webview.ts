@@ -6,20 +6,28 @@ import type {
   ShellApi,
   WebApi
 } from "../../renderer/src/types";
+import type { LinkOpenRequest } from "../../shared/link-open";
+import type { WebviewContextMenuRequest } from "../../shared/webview-context-menu";
 import { subscribe } from "./ipc";
 
 export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
-  registerWebview: (workspaceId, nodeId, webContentsId, ready) =>
-    ipcRenderer.invoke("iframe:register-webview", { workspaceId, nodeId, webContentsId, ready }),
+  registerWebview: (workspaceId, nodeId, webContentsId, surfaceKind, ready) =>
+    ipcRenderer.invoke("iframe:register-webview", {
+      workspaceId,
+      nodeId,
+      webContentsId,
+      surfaceKind,
+      ready,
+    }),
 
   unregisterWebview: (workspaceId, nodeId, webContentsId) =>
     ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId, webContentsId }),
 
-  setFrameRate: (workspaceId, nodeId, frameRate) =>
-    ipcRenderer.invoke("iframe:set-frame-rate", { workspaceId, nodeId, frameRate }),
+  setFrameRate: (workspaceId, nodeId, webContentsId, frameRate) =>
+    ipcRenderer.invoke("iframe:set-frame-rate", { workspaceId, nodeId, webContentsId, frameRate }),
 
-  setLifecycle: (workspaceId, nodeId, state) =>
-    ipcRenderer.invoke("iframe:set-lifecycle", { workspaceId, nodeId, state }),
+  setLifecycle: (workspaceId, nodeId, webContentsId, state) =>
+    ipcRenderer.invoke("iframe:set-lifecycle", { workspaceId, nodeId, webContentsId, state }),
 
   onDiscarded: (callback) =>
     subscribe(ipcRenderer, "iframe:discarded", callback),
@@ -31,7 +39,10 @@ export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
     ipcRenderer.invoke("iframe:pick-dom-element", { workspaceId, nodeId }),
 
   cancelDomElementPick: (workspaceId, nodeId) =>
-    ipcRenderer.invoke("iframe:cancel-dom-element-pick", { workspaceId, nodeId })
+    ipcRenderer.invoke("iframe:cancel-dom-element-pick", { workspaceId, nodeId }),
+
+  onContextMenu: (callback) =>
+    subscribe<WebviewContextMenuRequest>(ipcRenderer, "webview:context-menu", callback)
 });
 
 export const createShellApi = (ipcRenderer: IpcRenderer): ShellApi => ({
@@ -40,7 +51,7 @@ export const createShellApi = (ipcRenderer: IpcRenderer): ShellApi => ({
 });
 
 export const createLinkApi = (ipcRenderer: IpcRenderer): LinkApi => ({
-  onOpen: (callback) => subscribe<{ url: string }>(ipcRenderer, "link:open", callback)
+  onOpen: (callback) => subscribe<LinkOpenRequest>(ipcRenderer, "link:open", callback)
 });
 
 export const createLlmApi = (ipcRenderer: IpcRenderer): LlmApi => ({

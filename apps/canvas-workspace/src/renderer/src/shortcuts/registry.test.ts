@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SHORTCUT_SECTIONS } from '../constants/interaction';
+import { usesAppleShortcuts } from '../utils/keyboardShortcut';
 import { WEBVIEW_FORWARDED_CHORDS } from '../../../shared/webview-shortcuts';
 import {
   SHORTCUTS,
@@ -135,7 +136,9 @@ describe('shortcut registry', () => {
       const cycle = SHORTCUT_SECTIONS
         .flatMap((section) => section.items)
         .find((item) => item.descriptionKey === 'shortcuts.canvas.cycleNodes');
-      expect(cycle?.combos).toEqual(['Ctrl+Tab', 'Ctrl+Shift+Tab']);
+      expect(cycle?.combos).toEqual(usesAppleShortcuts()
+        ? ['⌃Tab', '⌃⇧Tab']
+        : ['Ctrl+Tab', 'Ctrl+Shift+Tab']);
     });
 
     // The whole point of the registry: a row can only exist if a definition
@@ -151,9 +154,10 @@ describe('shortcut registry', () => {
     });
 
     it('labels bindings for the host platform', () => {
-      // happy-dom reports a non-Apple platform, so the Ctrl spelling wins.
-      expect(formatBinding({ key: 'k', mod: true })).toBe('Ctrl+K');
-      expect(formatBinding({ key: 'ArrowUp', shift: true })).toBe('Shift+↑');
+      expect(formatBinding({ key: 'k', mod: true }))
+        .toBe(usesAppleShortcuts() ? '⌘K' : 'Ctrl+K');
+      expect(formatBinding({ key: 'ArrowUp', shift: true }))
+        .toBe(usesAppleShortcuts() ? '⇧↑' : 'Shift+↑');
       expect(formatBinding({ key: '', display: 'Scroll' })).toBe('Scroll');
     });
   });

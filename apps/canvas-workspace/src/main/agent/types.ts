@@ -6,7 +6,11 @@
  * can perform canvas operations, file I/O, and coding tasks directly.
  */
 
-export type { AgentRequestContext } from '../../shared/agent-chat';
+export type {
+  AgentClarificationRequest,
+  AgentRequestContext,
+  AgentTurnContextSnapshot,
+} from '../../shared/agent-chat';
 import type { AgentScope as SharedAgentScope } from '../../shared/agent-chat';
 
 // ─── Configuration ──────────────────────────────────────────────────
@@ -41,8 +45,9 @@ export interface CanvasAgentToolCall {
   id: number;
   name: string;
   args?: unknown;
-  status: 'running' | 'done';
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
   result?: string;
+  error?: string;
   toolCallId?: string;
   partialInput?: string;
   inputStreaming?: boolean;
@@ -149,6 +154,11 @@ export interface CanvasAgentMessage {
   speakerRoleId?: string;
   speakerRoleName?: string;
   speakerRoleColor?: string;
+  turnStatus?: 'stopped' | 'failed';
+  errorDetails?: string;
+  failureKind?: 'auth' | 'busy' | 'context' | 'network' | 'request' | 'unknown';
+  retryable?: boolean;
+  contextSnapshot?: import('../../shared/agent-chat').AgentTurnContextSnapshot;
 }
 
 // ─── Session persistence ────────────────────────────────────────────
@@ -279,9 +289,13 @@ export interface ChatRequest {
 
 export interface ChatResponse {
   ok: boolean;
+  code?: string;
+  activeSessionId?: string | null;
   response?: string;
   runId?: string;
   error?: string;
+  /** The user intentionally stopped this turn; partial output remains valid. */
+  stopped?: boolean;
   /** Multi-role chat: the role that spoke this turn (absent → default assistant). */
   speakerRole?: { id: string; name: string; color: string };
 }

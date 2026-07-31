@@ -1,5 +1,6 @@
 import type {
   AgentChatMessage,
+  AgentClarificationRequest,
   AgentRequestContext,
   AgentScopeRef,
   AgentSessionInfo,
@@ -12,13 +13,42 @@ import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../../shared/agent
 export type * from '../../../shared/agent-chat';
 
 export interface AgentApi {
+  prepareChat: (
+    scopeRef: AgentScopeRef,
+    message: string,
+    mentionedWorkspaceIds?: string[],
+    requestContext?: AgentRequestContext,
+    attachments?: ChatImageAttachment[],
+  ) => Promise<{ ok: boolean; sessionId?: string; code?: string; error?: string }>;
+  /** Start a prepared turn only after run-scoped listeners are installed. */
+  startChat: (sessionId: string) => Promise<{
+    ok: boolean;
+    modelProvider?: string;
+    modelId?: string;
+    modelLabel?: string;
+    error?: string;
+  }>;
+  /** Release a prepared turn when its originating surface changes scope. */
+  cancelPreparedChat: (sessionId: string) => Promise<{ ok: boolean }>;
+  /** Check whether main still owns a prepared run when completion was not observed. */
+  getRunStatus: (sessionId: string) => Promise<{ ok: boolean; active: boolean }>;
+  /** Detect a run started from another chat surface or renderer window. */
+  getScopeRunStatus: (
+    scopeRef: AgentScopeRef,
+  ) => Promise<{
+    ok: boolean;
+    active: boolean;
+    sessionId?: string;
+    pendingClarification?: AgentClarificationRequest;
+  }>;
+  /** @deprecated Compatibility path; new code must use prepareChat/startChat. */
   chat: (
     scopeRef: AgentScopeRef,
     message: string,
     mentionedWorkspaceIds?: string[],
     requestContext?: AgentRequestContext,
     attachments?: ChatImageAttachment[],
-  ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
+  ) => Promise<{ ok: boolean; sessionId?: string; code?: string; error?: string }>;
   onTextDelta: (
     sessionId: string,
     callback: (delta: string) => void,
@@ -27,9 +57,12 @@ export interface AgentApi {
     sessionId: string,
     callback: (result: {
       ok: boolean;
+      code?: string;
+      activeSessionId?: string | null;
       response?: string;
       runId?: string;
       error?: string;
+      stopped?: boolean;
       speakerRole?: { id: string; name: string; color: string };
     }) => void,
   ) => () => void;
@@ -39,7 +72,13 @@ export interface AgentApi {
   ) => () => void;
   onToolResult: (
     sessionId: string,
-    callback: (data: { name: string; result: string; toolCallId?: string }) => void,
+    callback: (data: {
+      name: string;
+      result: string;
+      toolCallId?: string;
+      status: 'succeeded' | 'failed' | 'cancelled';
+      error?: string;
+    }) => void,
   ) => () => void;
   /** Tool-input streaming: fired when LLM starts emitting tool arguments. */
   onToolInputStart: (
@@ -70,7 +109,7 @@ export interface AgentApi {
   ) => () => void;
   onClarifyRequest: (
     sessionId: string,
-    callback: (data: { id: string; question: string; context?: string }) => void,
+    callback: (data: AgentClarificationRequest) => void,
   ) => () => void;
   /** Multi-role relay: fired before each segment (single-speaker turns emit one with total=1). */
   onRoleTurnStart: (
@@ -98,13 +137,33 @@ export interface AgentApi {
   ) => Promise<{ ok: boolean; skills?: Array<{ name: string; description: string }>; error?: string }>;
   getHistory: (
     scopeRef: AgentScopeRef,
-  ) => Promise<{ ok: boolean; messages?: AgentChatMessage[] }>;
+  ) => Promise<{
+    ok: boolean;
+    messages?: AgentChatMessage[];
+    activeSessionId?: string | null;
+  }>;
   listSessions: (
     scopeRef: AgentScopeRef,
   ) => Promise<{ ok: boolean; sessions?: AgentSessionInfo[]; error?: string }>;
   newSession: (
     scopeRef: AgentScopeRef,
-  ) => Promise<{ ok: boolean; error?: string }>;
+  ) => Promise<{
+    ok: boolean;
+    activeSessionId?: string | null;
+    code?: string;
+    error?: string;
+  }>;
+  branchSession: (
+    scopeRef: AgentScopeRef,
+    fromIndex: number,
+  ) => Promise<{
+    ok: boolean;
+    sourceSessionId?: string;
+    activeSessionId?: string | null;
+    messages?: AgentChatMessage[];
+    code?: string;
+    error?: string;
+  }>;
   rewindMessages: (
     scopeRef: AgentScopeRef,
     fromIndex: number,
@@ -112,7 +171,33 @@ export interface AgentApi {
   loadSession: (
     scopeRef: AgentScopeRef,
     sessionId: string,
-  ) => Promise<{ ok: boolean; messages?: AgentChatMessage[]; error?: string }>;
+  ) => Promise<{
+    ok: boolean;
+    messages?: AgentChatMessage[];
+    activeSessionId?: string | null;
+    code?: string;
+    error?: string;
+  }>;
+  renameSession: (
+    scopeRef: AgentScopeRef,
+    sessionId: string,
+    title: string,
+  ) => Promise<{ ok: boolean; activeSessionId?: string | null; code?: string; error?: string }>;
+  setSessionPinned: (
+    scopeRef: AgentScopeRef,
+    sessionId: string,
+    pinned: boolean,
+  ) => Promise<{ ok: boolean; activeSessionId?: string | null; code?: string; error?: string }>;
+  deleteSession: (
+    scopeRef: AgentScopeRef,
+    sessionId: string,
+  ) => Promise<{
+    ok: boolean;
+    activeSessionId?: string | null;
+    messages?: AgentChatMessage[];
+    code?: string;
+    error?: string;
+  }>;
   listAllSessions: (
     workspaceNames: Record<string, string>,
   ) => Promise<{ ok: boolean; groups?: CrossWorkspaceSessionGroup[]; error?: string }>;

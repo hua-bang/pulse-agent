@@ -8,6 +8,7 @@ import { useMentions } from './useMentions';
 
 interface UseChatComposerStateOptions {
   agentScope: AgentScope;
+  scopeLabel?: string;
   allWorkspaces?: WorkspaceOption[];
   nodes?: CanvasNode[];
   rootFolder?: string;
@@ -38,6 +39,7 @@ interface UseChatComposerStateOptions {
  */
 export function useChatComposerState({
   agentScope,
+  scopeLabel,
   allWorkspaces,
   nodes,
   rootFolder,
@@ -50,8 +52,20 @@ export function useChatComposerState({
   getRequestContext,
 }: UseChatComposerStateOptions) {
   const canvasModels = useCanvasModels();
+  const activeSessionChangeRef = useRef<((sessionId: string) => void) | null>(null);
+  const conversationSessionIdRef = useRef<string | null>(null);
+  const handleActiveSessionChange = useCallback((sessionId: string) => {
+    activeSessionChangeRef.current?.(sessionId);
+  }, []);
 
-  const chatStream = useChatStream({ agentScope, allWorkspaces });
+  const chatStream = useChatStream({
+    agentScope,
+    allWorkspaces,
+    modelLabel: canvasModels.selectedLabel,
+    scopeLabel,
+    onActiveSessionChange: handleActiveSessionChange,
+    conversationSessionIdRef,
+  });
 
   const chatSessions = useChatSessions({
     agentScope,
@@ -60,6 +74,8 @@ export function useChatComposerState({
     eagerLoad,
     skipInitialHistory,
   });
+  activeSessionChangeRef.current = chatSessions.adoptActiveSession;
+  conversationSessionIdRef.current = chatSessions.activeSessionId;
 
   // A turn must not be sent into a conversation that is still being fetched:
   // the thread on screen is a skeleton and the main-side session pointer is
@@ -69,7 +85,12 @@ export function useChatComposerState({
   // callbacks stay stable while the flag flips.
   const sessionLoadingRef = useRef(false);
   sessionLoadingRef.current = chatSessions.sessionLoading;
-  const isSubmitBlocked = useCallback(() => sessionLoadingRef.current, []);
+  const sessionErrorRef = useRef(false);
+  sessionErrorRef.current = chatSessions.sessionError !== null;
+  const isSubmitBlocked = useCallback(
+    () => sessionLoadingRef.current || sessionErrorRef.current,
+    [],
+  );
 
   const mentions = useMentions({
     allWorkspaces,

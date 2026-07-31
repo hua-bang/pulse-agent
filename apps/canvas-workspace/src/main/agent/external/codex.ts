@@ -13,7 +13,13 @@
 
 import type { ExternalSegmentRequest, ExternalSegmentResult } from './types';
 import { runJsonlCli } from './spawn-jsonl';
-import { finishTool, startTool, type ExternalStreamHandlers, type ToolNameMap } from './tool-events';
+import {
+  finishTool,
+  startTool,
+  type ExternalStreamHandlers,
+  type ExternalToolOutcome,
+  type ToolNameMap,
+} from './tool-events';
 
 /** Codex tool vocabulary → (chip name, args) / result text, per dialect-A msg type. */
 const TOOL_BEGIN: Record<string, (msg: any) => { name: string; args: unknown }> = {
@@ -29,11 +35,36 @@ const TOOL_BEGIN: Record<string, (msg: any) => { name: string; args: unknown }> 
   web_search_begin: msg => ({ name: 'WebSearch', args: { query: msg.query } }),
 };
 
-const TOOL_END: Record<string, (msg: any) => string> = {
-  exec_command_end: msg => String(msg.aggregated_output ?? msg.stdout ?? msg.stderr ?? `exit ${msg.exit_code}`),
-  patch_apply_end: msg => (msg.success ? 'applied' : String(msg.stderr ?? 'failed')),
-  mcp_tool_call_end: msg => JSON.stringify(msg.result ?? {}),
-  web_search_end: msg => String(msg.query ?? 'done'),
+interface ToolEnd {
+  result: string;
+  outcome?: ExternalToolOutcome;
+}
+
+const failedOutcome = (result: string): ExternalToolOutcome => ({
+  status: 'failed',
+  error: result || 'Tool execution failed',
+});
+
+const TOOL_END: Record<string, (msg: any) => ToolEnd> = {
+  exec_command_end: (msg) => {
+    const result = String(msg.aggregated_output ?? msg.stdout ?? msg.stderr ?? `exit ${msg.exit_code}`);
+    return {
+      result,
+      outcome: typeof msg.exit_code === 'number' && msg.exit_code !== 0
+        ? failedOutcome(result)
+        : undefined,
+    };
+  },
+  patch_apply_end: (msg) => {
+    const result = msg.success === false ? String(msg.stderr ?? 'Patch failed') : 'applied';
+    return { result, outcome: msg.success === false ? failedOutcome(result) : undefined };
+  },
+  mcp_tool_call_end: (msg) => {
+    const result = JSON.stringify(msg.result ?? msg.error ?? {});
+    const failed = Boolean(msg.error || msg.is_error || msg.result?.is_error);
+    return { result, outcome: failed ? failedOutcome(result) : undefined };
+  },
+  web_search_end: msg => ({ result: String(msg.query ?? 'done') }),
 };
 
 /** Dialect-B item kinds that represent tool activity rather than speech. */
@@ -46,6 +77,23 @@ const ITEM_TOOL_NAMES: Record<string, string> = {
 
 const itemResultText = (item: any): string =>
   String(item?.aggregated_output ?? item?.output ?? item?.result ?? item?.status ?? 'done');
+
+const itemOutcome = (item: any, result: string): ExternalToolOutcome | undefined => {
+  const status = String(item?.status ?? '').toLowerCase();
+  if (status === 'cancelled' || status === 'canceled') {
+    return { status: 'cancelled', error: result || 'Tool execution cancelled' };
+  }
+  if (
+    item?.success === false
+    || item?.is_error === true
+    || item?.error
+    || (typeof item?.exit_code === 'number' && item.exit_code !== 0)
+    || ['failed', 'error'].includes(status)
+  ) {
+    return failedOutcome(result);
+  }
+  return undefined;
+};
 
 export const codexCommand = (): string =>
   process.env.PULSE_CANVAS_CODEX_CMD?.trim() || 'codex';
@@ -105,7 +153,15 @@ export function consumeCodexStreamLine(
     }
     const end = TOOL_END[msg.type];
     if (end) {
-      finishTool(state.toolNames, handlers, msg.call_id ?? event.id, end(msg));
+      const finished = end(msg);
+      finishTool(
+        state.toolNames,
+        handlers,
+        msg.call_id ?? event.id,
+        finished.result,
+        'tool',
+        finished.outcome,
+      );
       return;
     }
     switch (msg.type) {
@@ -150,7 +206,10 @@ export function consumeCodexStreamLine(
     if (!toolName) return;
     if (event.type === 'item.started') startTool(state.toolNames, handlers, item?.id, toolName, item);
     // completed without a started still surfaces (finishTool back-fills the call).
-    else finishTool(state.toolNames, handlers, item?.id, itemResultText(item), toolName);
+    else {
+      const result = itemResultText(item);
+      finishTool(state.toolNames, handlers, item?.id, result, toolName, itemOutcome(item, result));
+    }
     return;
   }
   if (event.type === 'turn.failed' || event.type === 'error') {

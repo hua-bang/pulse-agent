@@ -9,7 +9,7 @@ import { Engine } from 'pulse-coder-engine';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { join } from 'path';
-import { resolveCanvasModel } from './model/config';
+import { resolveCanvasModel, type ResolvedCanvasModel } from './model/config';
 import { createCanvasEnginePlugins } from './engine-plugins';
 import { agentBus } from '../../plugins/main';
 import {
@@ -17,9 +17,11 @@ import {
   formatSummaryForPrompt,
   resolveWorkspaceNames,
 } from './context-builder';
-import { createCanvasAgentToolPolicy } from './tool-policy';
+import {
+  createCanvasAgentToolPolicy,
+  createCanvasAskModeToolPolicyPlugin,
+} from './tool-policy';
 import { SessionStore } from './session-store';
-import { sessionPreview } from './session-preview';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import {
   formatWorkspaceContextSection,
@@ -28,6 +30,7 @@ import {
   WORKSPACE_DOC_FILENAME,
 } from './workspace-meta';
 import { buildMemoryPromptSection } from './memory-store';
+import { linkRunAbortSignal, persistStoppedBeforeSegment, resolveSegmentOutcome, settleStoppedToolCalls } from './chat-stop';
 import {
   attachTraceModel,
   createCanvasAgentDebugTrace,
@@ -36,14 +39,16 @@ import {
   recordTraceMessageSnapshot,
 } from './debug-trace';
 import type {
+  AgentClarificationRequest,
   AgentScope,
   AgentRequestContext,
   CanvasAgentConfig,
   CanvasAgentImageAttachment,
   CanvasAgentMessage,
-  CanvasAgentToolCall,
+  CanvasAgentSession,
   WorkspaceSummary,
 } from './types';
+import { createFailedTurnToolTracker, failedAssistantMessage } from './chat-failure-persistence';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
 import { formatSelectionFocusBlock } from './selection-focus-context';
 import { formatReferencedTabsBlock } from './referenced-tabs-context';
@@ -68,10 +73,13 @@ import {
   shouldRunRelaySegment,
 } from './role-turn';
 import { getAgentRoleSettings, listAgentRoles } from './roles-store';
-import { runExternalRoleSegment } from './external/segment';
-import { buildEngineStreamCallbacks, modelMessagesToToolCalls } from './engine-stream-callbacks';
+import {
+  modelMessagesToToolCalls,
+  type CanvasToolResultEvent,
+} from './engine-stream-callbacks';
+import { executeCanvasAgentSegment } from './segment-execution';
+import { ClarificationRegistry, type PendingClarificationRequest } from './clarification-registry';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
-const CANVAS_AGENT_MAX_STEPS = 200;
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
 
 This is a global chat, not bound to any specific canvas workspace.
@@ -500,11 +508,7 @@ function buildSystemPrompt(
 // ─── Canvas Agent ──────────────────────────────────────────────────
 
 /** Request payload emitted when the agent wants to ask the user a question. */
-export interface CanvasClarificationRequest {
-  id: string;
-  question: string;
-  context?: string;
-}
+export type CanvasClarificationRequest = AgentClarificationRequest;
 
 export class CanvasAgent {
   private engine: any; // Engine type from pulse-coder-engine (no .d.ts yet)
@@ -516,8 +520,7 @@ export class CanvasAgent {
   private currentAbortController: AbortController | null = null;
   /** Graceful relay-stop flag for the currently-running turn, if any. */
   private currentRelayStop: { stopped: boolean } | null = null;
-  /** Pending clarification resolvers keyed by request id. */
-  private pendingClarifications = new Map<string, (answer: string) => void>();
+  private pendingClarifications = new ClarificationRegistry();
 
   constructor(config: CanvasAgentConfig) {
     this.config = config;
@@ -545,7 +548,10 @@ export class CanvasAgent {
     return new Engine({
       disableBuiltInPlugins: true,
       enginePlugins: {
-        plugins: createCanvasEnginePlugins(this.config.scope) as never,
+        plugins: [
+          ...createCanvasEnginePlugins(this.config.scope),
+          createCanvasAskModeToolPolicyPlugin(),
+        ] as never,
       },
       model: this.config.model,
       builtInTools: toolPolicy.builtInTools,
@@ -635,7 +641,7 @@ export class CanvasAgent {
     message: string,
     onText?: (delta: string) => void,
     onToolCall?: (data: { name: string; args: any; toolCallId?: string }) => void,
-    onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void,
+    onToolResult?: (data: CanvasToolResultEvent) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
     requestContext?: CanvasAgentRequestContext,
@@ -645,7 +651,9 @@ export class CanvasAgent {
     onToolInputEnd?: (data: { id: string }) => void,
     onRoleTurnStart?: (event: RoleTurnStartEvent) => void,
     onRoleTurnEnd?: (event: RoleTurnEndEvent) => void,
-  ): Promise<{ response: string; runId?: string; speakerRole?: { id: string; name: string; color: string } }> {
+    runAbortSignal?: AbortSignal,
+    modelConfigOverride?: ResolvedCanvasModel,
+  ): Promise<{ response: string; runId?: string; stopped?: boolean; speakerRole?: { id: string; name: string; color: string } }> {
     const workspaceId = this.config.scope.kind === 'workspace'
       ? this.config.scope.workspaceId
       : undefined;
@@ -761,6 +769,7 @@ export class CanvasAgent {
       content: message,
       timestamp: Date.now(),
       attachments: attachments.length > 0 ? attachments : undefined,
+      contextSnapshot: requestContext?.contextSnapshot,
     });
 
     // Build the context — pass a mutable reference so onResponse/onCompacted can update it
@@ -770,6 +779,7 @@ export class CanvasAgent {
     // relayStop is the graceful boundary stop exposed via stopRelay().
     const abortController = new AbortController();
     this.currentAbortController = abortController;
+    const unlinkRunAbort = linkRunAbortSignal(runAbortSignal, abortController);
     const relayStop = { stopped: false };
     this.currentRelayStop = relayStop;
 
@@ -778,29 +788,26 @@ export class CanvasAgent {
     // caller (IPC handler) dispatches the request to the renderer and calls
     // `answerClarification(id, answer)` when the user replies.
     const engineClarificationHandler = onClarificationRequest
-      ? async (req: { id: string; question: string; context?: string }) => {
-          return await new Promise<string>((resolve) => {
-            this.pendingClarifications.set(req.id, resolve);
-            onClarificationRequest({
-              id: req.id,
-              question: req.question,
-              context: req.context,
-            });
-          });
-        }
+      ? (req: PendingClarificationRequest) =>
+          this.pendingClarifications.wait(req, onClarificationRequest, abortController.signal)
       : undefined;
+    const failedTurnTools = createFailedTurnToolTracker({
+      onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd,
+    });
 
     const segments: Array<AgentRoleDefinition | null> = activeRoles.length > 0 ? activeRoles : [null];
     const queue = segments.map(roleTurnRef);
-    let last: { response: string; runId?: string; role: AgentRoleDefinition | null } | null = null;
+    let last: { response: string; runId?: string; role: AgentRoleDefinition | null; stopped?: boolean } | null = null;
+    const finishStoppedBeforeSegment = () => persistStoppedBeforeSegment(this.sessionStore);
 
     try {
-      const modelConfig = await resolveCanvasModel();
+      if (abortController.signal.aborted) return finishStoppedBeforeSegment();
+      const modelConfig = modelConfigOverride ?? await resolveCanvasModel();
       for (let index = 0; index < segments.length; index++) {
-        if (!shouldRunRelaySegment(index, {
-          aborted: abortController.signal.aborted,
-          stopRequested: relayStop.stopped,
-        })) break;
+        if (!shouldRunRelaySegment(index, { aborted: abortController.signal.aborted, stopRequested: relayStop.stopped })) {
+          if (abortController.signal.aborted) return finishStoppedBeforeSegment();
+          break;
+        }
         const role = segments[index];
         const segmentPrompt = basePrompt + (role
           ? formatActiveRoleSection(
@@ -827,72 +834,68 @@ export class CanvasAgent {
           model: this.config.model ?? modelConfig.model,
           modelType: modelConfig.modelType,
         });
+        failedTurnTools.reset();
         onRoleTurnStart?.({ index, total: segments.length, speakerRole: roleTurnRef(role), queue });
 
-        const responseMessages: ModelMessage[] = [];
-        let externalToolCalls: CanvasAgentToolCall[] | undefined;
-        let resultText: string;
-        if (role?.external) {
-          // Local coding-agent CLI segment. Its reply is appended to the shared
-          // model history by hand (engine segments get that from onResponse),
-          // so the label/persist/handoff tail downstream stays identical.
-          const external = await runExternalRoleSegment({
-            role,
-            external: role.external,
-            chatSessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
-            workspaceRootFolder,
-            history: this.sessionStore.getCurrentSession()?.messages ?? [],
-            currentAsk: modelUserText,
-            handoffNames: handoffEnabled ? handoffLibrary.map(entry => entry.name) : [],
-            abortSignal: abortController.signal,
-            onText: onText ?? (() => {}),
-            onToolCall,
-            onToolResult,
-          });
-          ({ text: resultText, toolCalls: externalToolCalls } = external);
-          const externalMessage = { role: 'assistant', content: resultText } as ModelMessage;
-          this.messages.push(externalMessage);
-          responseMessages.push(externalMessage);
-        } else {
-          resultText = await this.engine.run(context, {
-            provider: modelConfig.provider,
-            model: this.config.model ?? modelConfig.model,
-            modelType: modelConfig.modelType,
-            systemPrompt: segmentPrompt,
-            maxSteps: CANVAS_AGENT_MAX_STEPS,
-            abortSignal: abortController.signal,
-            runContext: {
-              executionMode: requestContext?.executionMode ?? 'auto',
-            },
-            onClarificationRequest: engineClarificationHandler,
-            ...buildEngineStreamCallbacks(
-              { onText, onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd },
-              debugTrace,
-            ),
-            onResponse: (msgs: ModelMessage[]) => {
-              for (const msg of msgs) {
-                this.messages.push(msg);
-                responseMessages.push(msg);
-              }
-            },
-            onCompacted: (newMessages: ModelMessage[]) => {
-              this.messages = newMessages;
-              context.messages = newMessages;
-            },
-          });
-        }
+        const {
+          responseMessages,
+          externalToolCalls,
+          resultText,
+          streamedText,
+        } = await executeCanvasAgentSegment({
+          engine: this.engine,
+          context,
+          role,
+          chatSessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
+          workspaceRootFolder,
+          history: this.sessionStore.getCurrentSession()?.messages ?? [],
+          currentAsk: modelUserText,
+          handoffNames: handoffEnabled ? handoffLibrary.map(entry => entry.name) : [],
+          abortSignal: abortController.signal,
+          executionMode: requestContext?.executionMode ?? 'auto',
+          onClarificationRequest: engineClarificationHandler,
+          onText,
+          ...failedTurnTools.callbacks,
+          modelConfig,
+          configuredModel: this.config.model,
+          systemPrompt: segmentPrompt,
+          debugTrace,
+          appendMessages: messages => this.messages.push(...messages),
+          replaceMessages: messages => {
+            this.messages = messages;
+          },
+        });
 
         // Impersonation guard (sanitizeRoleSegmentText) runs BEFORE persisting,
         // labeling, and the handoff scan — all consumers see one speaker.
-        const rawText = resultText || '(no response)';
+        const { stopped, rawText } = resolveSegmentOutcome({
+          signalAborted: abortController.signal.aborted,
+          resultText,
+          streamedText,
+        });
         const responseText = role
-          ? sanitizeRoleSegmentText(rawText, role.name, knownRoleNames) || '(no response)'
+          ? sanitizeRoleSegmentText(rawText, role.name, knownRoleNames) || (stopped ? '' : '(no response)')
           : rawText;
         recordTraceMessageSnapshot(debugTrace, { systemPrompt: segmentPrompt, messages: context.messages });
 
         // Tool frames persist so a reloaded session keeps its chips, inline
         // visuals, and artifacts (external segments collect their own).
         const toolCalls = externalToolCalls ?? modelMessagesToToolCalls(responseMessages);
+        if (stopped) {
+          settleStoppedToolCalls(toolCalls, failedTurnTools.snapshot());
+          // The engine deliberately returns a sentinel on abort and may not
+          // emit an onResponse frame for the in-flight partial. Preserve the
+          // exact text the renderer already saw in model history instead of
+          // ever inserting the sentinel.
+          if (responseText && !responseMessages.some(messageEntry => (
+            messageEntry.role === 'assistant'
+            && messageEntry.content === responseText
+          ))) {
+            const partialMessage = { role: 'assistant', content: responseText } as ModelMessage;
+            this.messages.push(partialMessage);
+            responseMessages.push(partialMessage);
+          }
+        }
         // Live-push speaker label — MUST mirror `sessionMessageToModelMessage`;
         // it is what lets segment N+1 read segment N's reply with attribution.
         if (role) {
@@ -910,6 +913,8 @@ export class CanvasAgent {
           speakerRoleId: role?.id,
           speakerRoleName: role?.name,
           speakerRoleColor: role?.color,
+          turnStatus: stopped ? 'stopped' : undefined,
+          retryable: stopped ? true : undefined,
         });
 
         // Notify subscribed plugins (devtools persists the trace). Awaited so
@@ -931,7 +936,7 @@ export class CanvasAgent {
         // queue in place (policy + cap in resolveHandoffRoles). Done BEFORE
         // the end event so its `total` already announces the new speakers.
         // Skipped once a stop is pending — the queue is frozen at that point.
-        if (handoffEnabled && role && !relayStop.stopped && !abortController.signal.aborted) {
+        if (handoffEnabled && role && !relayStop.stopped && !stopped) {
           const handoffs = resolveHandoffRoles(responseText, {
             speaker: role,
             libraryRoles: handoffLibrary,
@@ -944,7 +949,13 @@ export class CanvasAgent {
           }
         }
 
-        last = { response: responseText, runId: finalizedTrace?.runId, role };
+        last = {
+          response: responseText,
+          runId: finalizedTrace?.runId,
+          role,
+          stopped,
+        };
+        if (stopped) break;
         onRoleTurnEnd?.({
           index,
           total: segments.length,
@@ -957,16 +968,21 @@ export class CanvasAgent {
       return {
         response: last?.response ?? '(no response)',
         runId: last?.runId,
+        stopped: last?.stopped,
         speakerRole: roleTurnRef(last?.role ?? null) ?? undefined,
       };
+    } catch (error) {
+      this.sessionStore.addMessage(failedAssistantMessage(error, failedTurnTools.snapshot()));
+      throw error;
     } finally {
+      unlinkRunAbort();
       if (this.currentAbortController === abortController) {
         this.currentAbortController = null;
       }
       if (this.currentRelayStop === relayStop) {
         this.currentRelayStop = null;
       }
-      this.pendingClarifications.clear();
+      this.pendingClarifications.cancelAll();
     }
   }
 
@@ -994,11 +1010,11 @@ export class CanvasAgent {
    * true if the answer matched a pending request, false otherwise.
    */
   answerClarification(requestId: string, answer: string): boolean {
-    const resolver = this.pendingClarifications.get(requestId);
-    if (!resolver) return false;
-    this.pendingClarifications.delete(requestId);
-    resolver(answer);
-    return true;
+    return this.pendingClarifications.answer(requestId, answer);
+  }
+
+  getPendingClarification(): CanvasClarificationRequest | null {
+    return this.pendingClarifications.latest();
   }
 
   /**
@@ -1038,29 +1054,8 @@ export class CanvasAgent {
   /**
    * List all sessions (current + archived).
    */
-  async listSessions(): Promise<Array<{ sessionId: string; date: string; messageCount: number; isCurrent: boolean; preview: string }>> {
-    const archived = await this.sessionStore.listArchivedSessions();
-    const result: Array<{ sessionId: string; date: string; messageCount: number; isCurrent: boolean; preview: string }> = [];
-
-    // Add current session first if it exists
-    const current = this.sessionStore.getCurrentSession();
-    if (current) {
-      const firstUserMsg = current.messages.find(m => m.role === 'user');
-      result.push({
-        sessionId: current.sessionId,
-        date: current.startedAt.slice(0, 10),
-        messageCount: current.messages.length,
-        isCurrent: true,
-        preview: firstUserMsg ? sessionPreview(firstUserMsg.content) : '',
-      });
-    }
-
-    // Add archived sessions
-    for (const s of archived) {
-      result.push({ ...s, isCurrent: false });
-    }
-
-    return result;
+  async listSessions() {
+    return this.sessionStore.listSessions();
   }
 
   /**
@@ -1071,18 +1066,42 @@ export class CanvasAgent {
     this.messages = [];
   }
 
+  async branchSession(
+    fromIndex: number,
+  ): Promise<{ sourceSessionId: string; session: CanvasAgentSession } | null> {
+    const branch = await this.sessionStore.branchSession(fromIndex);
+    if (!branch) return null;
+    this.messages = branch.session.messages.map(sessionMessageToModelMessage);
+    return branch;
+  }
+
+  renameSession(sessionId: string, title: string): Promise<boolean> {
+    return this.sessionStore.renameSession(sessionId, title);
+  }
+
+  setSessionPinned(sessionId: string, pinned: boolean): Promise<boolean> {
+    return this.sessionStore.setSessionPinned(sessionId, pinned);
+  }
+
+  async deleteSession(sessionId: string) {
+    const deleted = await this.sessionStore.deleteSession(sessionId);
+    if (!deleted) return null;
+    this.messages = deleted.activeSession.messages.map(sessionMessageToModelMessage);
+    return deleted;
+  }
+
   /**
    * Load a specific archived session by sessionId.
    */
-  async loadSession(sessionId: string): Promise<CanvasAgentMessage[]> {
+  async loadSession(sessionId: string): Promise<CanvasAgentSession | null> {
     const session = await this.sessionStore.loadSession(sessionId);
-    if (!session) return [];
+    if (!session) return null;
     // Rebuild in-memory model context from loaded session. Stored UI
     // tool-call metadata is intentionally excluded here; the AI SDK response
     // messages already carry tool frames while a run is active, but persisted
     // sessions only need text turns for follow-up context.
     this.messages = session.messages.map(sessionMessageToModelMessage);
-    return session.messages;
+    return session;
   }
 
   /**

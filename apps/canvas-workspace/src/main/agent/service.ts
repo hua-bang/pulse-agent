@@ -1,22 +1,23 @@
-/**
- * CanvasAgentService — manages one Canvas Agent per workspace.
- *
- * Lifecycle:
- *   activate(workspaceId)  → creates + initializes agent
- *   chat(workspaceId, msg) → runs a turn
- *   deactivate(workspaceId) → archives session + destroys agent
- */
-
 import { join } from 'path';
 import { homedir } from 'os';
 import { CanvasAgent, type CanvasClarificationRequest } from './canvas-agent';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
-import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './session-store';
+import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore, type AgentSessionListEntry } from './session-store';
 import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
 import { scheduledTaskTitles } from './scheduled-session-names';
 import { searchSessionTitles } from './session-title-search';
 import { appendActiveSessionGroups } from './active-session-groups';
 import { ScopeActivationGate } from './scope-activation-gate';
+import type { CanvasToolResultEvent } from './engine-stream-callbacks';
+import type { ResolvedCanvasModel } from './model/config';
+import {
+  SessionMutationCoordinator,
+  type BranchSessionResult,
+  type DeleteSessionResult,
+  type LoadSessionResult,
+  type NewSessionResult,
+  type SessionActionResult,
+} from './session-mutation-coordinator';
 import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../shared/agent-roles';
 import type {
   AgentRequestContext,
@@ -31,11 +32,10 @@ import type {
   CrossWorkspaceSessionGroup,
   SessionSearchHit,
 } from './types';
+import { rejectChangedChatSession } from './chat-session-cas';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
-
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
-
 const scopeKey = (scope: AgentScope): string => {
   if (scope.kind === 'workspace') return `workspace:${scope.workspaceId}`;
   if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
@@ -44,6 +44,10 @@ const scopeKey = (scope: AgentScope): string => {
 export class CanvasAgentService {
   private agents = new Map<string, CanvasAgent>();
   private agentActivations = new ScopeActivationGate();
+  private sessionMutations = new SessionMutationCoordinator(
+    (scope) => this.activateScope(scope),
+    (scope) => this.getAgent(scope),
+  );
 
   private async activateScope(scope: AgentScope): Promise<void> {
     const key = scopeKey(scope);
@@ -88,7 +92,7 @@ export class CanvasAgentService {
     message: string,
     onText?: (delta: string) => void,
     onToolCall?: (data: { name: string; args: any; toolCallId?: string }) => void,
-    onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void,
+    onToolResult?: (data: CanvasToolResultEvent) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
     requestContext?: AgentRequestContext,
@@ -122,7 +126,7 @@ export class CanvasAgentService {
     message: string,
     onText?: (delta: string) => void,
     onToolCall?: (data: { name: string; args: any; toolCallId?: string }) => void,
-    onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void,
+    onToolResult?: (data: CanvasToolResultEvent) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
     requestContext?: AgentRequestContext,
@@ -132,30 +136,41 @@ export class CanvasAgentService {
     onToolInputEnd?: (data: { id: string }) => void,
     onRoleTurnStart?: (event: RoleTurnStartEvent) => void,
     onRoleTurnEnd?: (event: RoleTurnEndEvent) => void,
+    runAbortSignal?: AbortSignal,
+    modelConfig?: ResolvedCanvasModel,
   ): Promise<ChatResponse> {
-    try {
-      await this.activateScope(scope);
-      const agent = this.getAgent(scope)!;
-      const result = await agent.chat(
-        message,
-        onText,
-        onToolCall,
-        onToolResult,
-        mentionedWorkspaceIds,
-        onClarificationRequest,
-        requestContext,
-        attachments,
-        onToolInputStart,
-        onToolInputDelta,
-        onToolInputEnd,
-        onRoleTurnStart,
-        onRoleTurnEnd,
-      );
-      return { ok: true, response: result.response, runId: result.runId, speakerRole: result.speakerRole };
-    } catch (err) {
-      console.error(`[canvas-agent-service] chat error for ${scopeKey(scope)}:`, err);
-      return { ok: false, error: String(err) };
-    }
+    const result = await this.sessionMutations.runChat(scope, async () => {
+      try {
+        await this.activateScope(scope);
+        const agent = this.getAgent(scope)!;
+        const sessionChanged = rejectChangedChatSession(
+          requestContext?.expectedConversationSessionId,
+          agent.getCurrentSessionId(),
+        );
+        if (sessionChanged) return sessionChanged;
+        const turn = await agent.chat(
+          message, onText, onToolCall, onToolResult, mentionedWorkspaceIds,
+          onClarificationRequest, requestContext, attachments, onToolInputStart,
+          onToolInputDelta, onToolInputEnd, onRoleTurnStart, onRoleTurnEnd,
+          runAbortSignal, modelConfig,
+        );
+        return {
+          ok: true,
+          response: turn.response,
+          runId: turn.runId,
+          stopped: turn.stopped,
+          speakerRole: turn.speakerRole,
+        };
+      } catch (err) {
+        console.error(`[canvas-agent-service] chat error for ${scopeKey(scope)}:`, err);
+        return { ok: false, error: String(err) };
+      }
+    });
+    return result ?? {
+      ok: false,
+      code: 'CHAT_SCOPE_BUSY',
+      error: 'Another reply is already running for this chat scope.',
+    };
   }
 
   /**
@@ -187,6 +202,10 @@ export class CanvasAgentService {
     const agent = this.getAgent(scope);
     if (!agent) return false;
     return agent.answerClarification(requestId, answer);
+  }
+
+  getPendingClarificationForScope(scope: AgentScope) {
+    return this.getAgent(scope)?.getPendingClarification() ?? null;
   }
 
   /**
@@ -247,11 +266,11 @@ export class CanvasAgentService {
   /**
    * List all sessions (current + archived) for a workspace.
    */
-  async listSessions(workspaceId: string): Promise<Array<{ sessionId: string; date: string; messageCount: number; isCurrent: boolean }>> {
+  async listSessions(workspaceId: string): Promise<AgentSessionListEntry[]> {
     return this.listSessionsForScope(workspaceScope(workspaceId));
   }
 
-  async listSessionsForScope(scope: AgentScope): Promise<Array<{ sessionId: string; date: string; messageCount: number; isCurrent: boolean }>> {
+  async listSessionsForScope(scope: AgentScope): Promise<AgentSessionListEntry[]> {
     await this.activateScope(scope);
     const agent = this.getAgent(scope)!;
     return agent.listSessions();
@@ -267,50 +286,34 @@ export class CanvasAgentService {
   }
 
   async rewindMessagesForScope(scope: AgentScope, fromIndex: number): Promise<{ ok: boolean; error?: string }> {
-    try {
-      await this.activateScope(scope);
-      const agent = this.getAgent(scope)!;
-      agent.rewindTo(fromIndex);
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: String(err) };
-    }
+    return this.sessionMutations.rewindSession(scope, fromIndex);
   }
 
   /**
    * Start a new session for a workspace.
    */
-  async newSession(workspaceId: string): Promise<{ ok: boolean; error?: string }> {
+  async newSession(workspaceId: string): Promise<NewSessionResult> {
     return this.newSessionForScope(workspaceScope(workspaceId));
   }
 
-  async newSessionForScope(scope: AgentScope): Promise<{ ok: boolean; error?: string }> {
-    try {
-      await this.activateScope(scope);
-      const agent = this.getAgent(scope)!;
-      await agent.newSession();
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: String(err) };
-    }
+  async newSessionForScope(scope: AgentScope): Promise<NewSessionResult> {
+    return this.sessionMutations.newSession(scope);
   }
+
+  async branchSessionForScope(scope: AgentScope, fromIndex: number): Promise<BranchSessionResult> { return this.sessionMutations.branchSession(scope, fromIndex); }
+  renameSessionForScope(scope: AgentScope, sessionId: string, title: string): Promise<SessionActionResult> { return this.sessionMutations.renameSession(scope, sessionId, title); }
+  setSessionPinnedForScope(scope: AgentScope, sessionId: string, pinned: boolean): Promise<SessionActionResult> { return this.sessionMutations.setSessionPinned(scope, sessionId, pinned); }
+  deleteSessionForScope(scope: AgentScope, sessionId: string): Promise<DeleteSessionResult> { return this.sessionMutations.deleteSession(scope, sessionId); }
 
   /**
    * Load a specific session by sessionId.
    */
-  async loadSession(workspaceId: string, sessionId: string): Promise<{ ok: boolean; messages?: CanvasAgentMessage[]; error?: string }> {
+  async loadSession(workspaceId: string, sessionId: string): Promise<LoadSessionResult> {
     return this.loadSessionForScope(workspaceScope(workspaceId), sessionId);
   }
 
-  async loadSessionForScope(scope: AgentScope, sessionId: string): Promise<{ ok: boolean; messages?: CanvasAgentMessage[]; error?: string }> {
-    try {
-      await this.activateScope(scope);
-      const agent = this.getAgent(scope)!;
-      const messages = await agent.loadSession(sessionId);
-      return { ok: true, messages };
-    } catch (err) {
-      return { ok: false, error: String(err) };
-    }
+  async loadSessionForScope(scope: AgentScope, sessionId: string): Promise<LoadSessionResult> {
+    return this.sessionMutations.loadSession(scope, sessionId);
   }
 
   /**
@@ -398,14 +401,10 @@ export class CanvasAgentService {
       const session = await SessionStore.readSessionFromWorkspace(sourceWorkspaceId, sessionId);
       if (!session) return { ok: false, error: 'Session not found in source workspace' };
 
-      // Activate target workspace agent
-      await this.activate(targetWorkspaceId);
-      const agent = this.getAgent(workspaceScope(targetWorkspaceId))!;
-
-      // Archive current session, then set loaded messages as current view
-      await agent.loadCrossWorkspaceSession(session.messages);
-
-      return { ok: true, messages: session.messages };
+      return this.sessionMutations.importSession(
+        workspaceScope(targetWorkspaceId),
+        session.messages,
+      );
     } catch (err) {
       return { ok: false, error: String(err) };
     }
@@ -426,15 +425,14 @@ export class CanvasAgentService {
         return { ok: true, messageCount: 0 };
       }
 
-      await this.activateScope(targetScope);
-      const agent = this.getAgent(targetScope)!;
-      await agent.loadCrossWorkspaceSession(session.messages);
-
-      return {
-        ok: true,
-        sessionId: agent.getCurrentSessionId() ?? undefined,
-        messageCount: session.messages.length,
-      };
+      const imported = await this.sessionMutations.importSession(targetScope, session.messages);
+      return imported.ok
+        ? {
+            ok: true,
+            sessionId: imported.activeSessionId,
+            messageCount: session.messages.length,
+          }
+        : imported;
     } catch (err) {
       return { ok: false, error: String(err) };
     }

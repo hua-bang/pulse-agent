@@ -30,6 +30,8 @@ export interface WebviewRestoreTarget {
 interface Options {
   workspaceId: string | undefined;
   nodeId: string;
+  /** Exact registered guest presentation; null until main confirms it. */
+  webContentsId: number | null;
   /** False outside url mode — the subscription stays off entirely. */
   enabled: boolean;
   /** Observed for the dwell-to-wake check. The webview host stays rendered
@@ -40,7 +42,14 @@ interface Options {
   nodeUrl: string;
 }
 
-export const useWebviewDiscard = ({ workspaceId, nodeId, enabled, hostRef, nodeUrl }: Options) => {
+export const useWebviewDiscard = ({
+  workspaceId,
+  nodeId,
+  webContentsId,
+  enabled,
+  hostRef,
+  nodeUrl,
+}: Options) => {
   // null = live; string = discarded ('' when the snapshot capture failed
   // and the placeholder falls back to the title/favicon card).
   const [snapshot, setSnapshot] = useState<string | null>(null);
@@ -52,11 +61,15 @@ export const useWebviewDiscard = ({ workspaceId, nodeId, enabled, hostRef, nodeU
   const discarded = snapshot !== null;
 
   useEffect(() => {
-    if (!enabled || !workspaceId) return;
+    if (!enabled || !workspaceId || webContentsId === null) return;
     const api = window.canvasWorkspace?.iframe;
     if (!api?.onDiscarded) return;
     return api.onDiscarded((payload) => {
-      if (payload.workspaceId !== workspaceId || payload.nodeId !== nodeId) return;
+      if (
+        payload.workspaceId !== workspaceId
+        || payload.nodeId !== nodeId
+        || payload.webContentsId !== webContentsId
+      ) return;
       setSnapshot(payload.snapshotDataUrl ?? '');
       setRestore({
         url: payload.restoreUrl || undefined,
@@ -64,7 +77,7 @@ export const useWebviewDiscard = ({ workspaceId, nodeId, enabled, hostRef, nodeU
         scrollY: typeof payload.scrollY === 'number' ? payload.scrollY : 0,
       });
     });
-  }, [enabled, workspaceId, nodeId]);
+  }, [enabled, workspaceId, nodeId, webContentsId]);
 
   const lastNodeUrlRef = useRef(nodeUrl);
   useEffect(() => {

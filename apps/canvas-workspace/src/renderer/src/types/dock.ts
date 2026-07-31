@@ -1,4 +1,5 @@
 import type { AgentContextTabRef } from '../../../shared/agent-chat';
+import type { DockShortcutRequest } from '../../../shared/dock-shortcuts';
 
 /**
  * Renderer → main bridge for right-dock state the Canvas Agent needs to see.
@@ -17,5 +18,11 @@ export interface DockApi {
    *  artifact's storage scope, e.g. `__global_chat__`). Returns unsubscribe fn. */
   onOpenArtifact: (
     callback: (payload: { workspaceId: string; artifactId: string }) => void,
+  ) => () => void;
+  /** A browsing shortcut pressed while an embedded page had focus, relayed by
+   *  main (`app/webview-shortcuts.ts`) because guest keys never reach this
+   *  window. Returns unsubscribe fn. */
+  onShortcut: (
+    callback: (payload: DockShortcutRequest) => void,
   ) => () => void;
 }

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { BotAvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
@@ -6,8 +14,8 @@ import { ChatThreadSkeleton } from './ChatThreadSkeleton';
 import type { PendingClarification, ToolCallStatus } from './types';
 import { buildAnchorElementId } from './utils/anchors';
 import { useI18n } from '../../i18n';
-import { isImeComposing } from '../../utils/ime';
 import { isVSCodeLink } from './utils/externalLinks';
+import { ChatClarificationCard } from './ChatClarificationCard';
 
 /** How close (px) to the bottom still counts as "reading the tail" — within
  *  this band the view keeps following the stream; beyond it the user has
@@ -15,6 +23,20 @@ import { isVSCodeLink } from './utils/externalLinks';
 const PIN_THRESHOLD_PX = 80;
 const SKELETON_DELAY_MS = 180;
 const SKELETON_MIN_VISIBLE_MS = 320;
+const CONVERSATION_SCROLL_CACHE_LIMIT = 50;
+
+// Session switches remount the transcript content, not the scroll container.
+// Keep a small LRU-like cache so returning to a conversation restores the
+// reader's place without retaining an unbounded session history.
+const conversationScrollPositions = new Map<string, number>();
+
+const rememberConversationScroll = (key: string, scrollTop: number): void => {
+  conversationScrollPositions.delete(key);
+  conversationScrollPositions.set(key, scrollTop);
+  if (conversationScrollPositions.size <= CONVERSATION_SCROLL_CACHE_LIMIT) return;
+  const oldestKey = conversationScrollPositions.keys().next().value;
+  if (oldestKey) conversationScrollPositions.delete(oldestKey);
+};
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -28,8 +50,11 @@ interface ChatMessagesProps {
   expandedTools: Set<number>;
   pendingClarify: PendingClarification | null;
   clarifyInput: string;
+  clarificationAnswering?: boolean;
+  interactionDisabled?: boolean;
+  clarificationError?: string | null;
   onClarifyInputChange: (value: string) => void;
-  onAnswerClarification: () => Promise<void>;
+  onAnswerClarification: (answerOverride?: string) => Promise<void>;
   onToggleSection: (messageIndex: number) => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
@@ -44,10 +69,12 @@ interface ChatMessagesProps {
    * its skeleton after a short delay, avoiding a one-frame flash on fast IPC.
    */
   sessionLoading?: boolean;
+  /** Stable session identity used to retain this conversation's reading position. */
+  conversationKey?: string;
 }
 
 const LoadingPlaceholder = ({ label }: { label?: string }) => (
-  <div className="chat-message chat-message-assistant">
+  <div className="chat-message chat-message-assistant" aria-hidden="true">
     <div className="chat-message-avatar">
       <BotAvatarIcon size={18} />
     </div>
@@ -62,81 +89,6 @@ const LoadingPlaceholder = ({ label }: { label?: string }) => (
   </div>
 );
 
-const ClarificationCard = ({
-  pendingClarify,
-  clarifyInput,
-  onClarifyInputChange,
-  onAnswerClarification,
-}: {
-  pendingClarify: PendingClarification;
-  clarifyInput: string;
-  onClarifyInputChange: (value: string) => void;
-  onAnswerClarification: () => Promise<void>;
-}) => (
-  <div className="chat-message chat-message-assistant">
-    <div className="chat-message-avatar">
-      <BotAvatarIcon size={18} />
-    </div>
-    <div className="chat-message-body">
-      <div className="chat-clarify-card">
-        <ClarificationContent
-          pendingClarify={pendingClarify}
-          clarifyInput={clarifyInput}
-          onClarifyInputChange={onClarifyInputChange}
-          onAnswerClarification={onAnswerClarification}
-        />
-      </div>
-    </div>
-  </div>
-);
-
-const ClarificationContent = ({
-  pendingClarify,
-  clarifyInput,
-  onClarifyInputChange,
-  onAnswerClarification,
-}: {
-  pendingClarify: PendingClarification;
-  clarifyInput: string;
-  onClarifyInputChange: (value: string) => void;
-  onAnswerClarification: () => Promise<void>;
-}) => {
-  const { t } = useI18n();
-
-  return (
-    <>
-      <div className="chat-clarify-label">{t('chat.needsClarification')}</div>
-      <div className="chat-clarify-question">{pendingClarify.question}</div>
-      {pendingClarify.context && (
-        <div className="chat-clarify-context">{pendingClarify.context}</div>
-      )}
-      <div className="chat-clarify-form">
-        <input
-          type="text"
-          className="chat-clarify-input"
-          value={clarifyInput}
-          onChange={(event) => onClarifyInputChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !isImeComposing(event)) {
-              event.preventDefault();
-              void onAnswerClarification();
-            }
-          }}
-          placeholder={t('chat.typeAnswer')}
-          autoFocus
-        />
-        <button
-          className="chat-clarify-submit"
-          onClick={() => void onAnswerClarification()}
-          disabled={!clarifyInput.trim()}
-        >
-          {t('chat.reply')}
-        </button>
-      </div>
-    </>
-  );
-};
-
 export const ChatMessages = ({
   messages,
   loading,
@@ -149,6 +101,9 @@ export const ChatMessages = ({
   expandedTools,
   pendingClarify,
   clarifyInput,
+  clarificationAnswering = false,
+  interactionDisabled = false,
+  clarificationError = null,
   onClarifyInputChange,
   onAnswerClarification,
   onToggleSection,
@@ -160,6 +115,7 @@ export const ChatMessages = ({
   onSessionJump,
   pendingLabel,
   sessionLoading = false,
+  conversationKey,
 }: ChatMessagesProps) => {
   const { t } = useI18n();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -170,8 +126,14 @@ export const ChatMessages = ({
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
   const [skeletonVisible, setSkeletonVisible] = useState(false);
+  const [turnAnnouncement, setTurnAnnouncement] = useState('');
   const skeletonShownAtRef = useRef(0);
   const prevCountRef = useRef(0);
+  const prevSessionLoadingRef = useRef(sessionLoading);
+  const prevTurnLoadingRef = useRef(false);
+  const previousConversationKeyRef = useRef(conversationKey);
+  const restoredConversationKeyRef = useRef<string>();
+  const skipNextFollowEffectRef = useRef(false);
   // While a smooth programmatic scroll glides down, intermediate scroll
   // events report "not at bottom" — ignore them briefly so the jump button
   // doesn't flash mid-animation.
@@ -198,40 +160,98 @@ export const ChatMessages = ({
     };
   }, [messages.length, sessionLoading, skeletonVisible]);
 
+  useEffect(() => {
+    const turnJustFinished = prevTurnLoadingRef.current && !loading;
+    prevTurnLoadingRef.current = loading;
+    if (pendingLabel) {
+      setTurnAnnouncement(pendingLabel);
+    } else if (loading) {
+      setTurnAnnouncement(t('chat.generating'));
+    } else if (turnJustFinished) {
+      setTurnAnnouncement(t('chat.responseComplete'));
+    } else {
+      setTurnAnnouncement('');
+    }
+  }, [loading, pendingLabel, t]);
+
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
+    if (conversationKey) rememberConversationScroll(conversationKey, el.scrollTop);
     const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
     const pinned = distance < PIN_THRESHOLD_PX;
     if (!pinned && performance.now() < autoScrollUntilRef.current) return;
     pinnedRef.current = pinned;
     setAtBottom(pinned);
-  }, []);
+  }, [conversationKey]);
 
   const scrollToLatest = useCallback((behavior: ScrollBehavior) => {
-    autoScrollUntilRef.current = behavior === 'smooth' ? performance.now() + 600 : 0;
+    const reducedMotionQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : undefined;
+    const reducedMotion = reducedMotionQuery?.matches ?? false;
+    const effectiveBehavior = behavior === 'smooth' && reducedMotion ? 'auto' : behavior;
+    autoScrollUntilRef.current = effectiveBehavior === 'smooth' ? performance.now() + 600 : 0;
     pinnedRef.current = true;
     setAtBottom(true);
-    messagesEndRef.current?.scrollIntoView({ behavior });
+    messagesEndRef.current?.scrollIntoView({ behavior: effectiveBehavior });
   }, []);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    const previousKey = previousConversationKeyRef.current;
+    if (previousKey !== conversationKey) {
+      if (previousKey && el) rememberConversationScroll(previousKey, el.scrollTop);
+      previousConversationKeyRef.current = conversationKey;
+      restoredConversationKeyRef.current = undefined;
+      skipNextFollowEffectRef.current = true;
+    }
+    if (
+      !conversationKey
+      || sessionLoading
+      || restoredConversationKeyRef.current === conversationKey
+      || !el
+    ) {
+      return;
+    }
+
+    const savedScrollTop = conversationScrollPositions.get(conversationKey);
+    if (savedScrollTop === undefined) {
+      scrollToLatest('auto');
+    } else {
+      el.scrollTop = savedScrollTop;
+      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const pinned = distance < PIN_THRESHOLD_PX;
+      pinnedRef.current = pinned;
+      setAtBottom(pinned);
+    }
+    restoredConversationKeyRef.current = conversationKey;
+    skipNextFollowEffectRef.current = true;
+  }, [conversationKey, scrollToLatest, sessionLoading]);
 
   useEffect(() => {
     const prevCount = prevCountRef.current;
     prevCountRef.current = messages.length;
+    const sessionJustLoaded = prevSessionLoadingRef.current && !sessionLoading;
+    prevSessionLoadingRef.current = sessionLoading;
     // A message the user just sent — or a fresh session load — always snaps
     // the view to the bottom. Otherwise only follow the stream while the
     // user is already reading the tail; never yank them back up-thread.
     const lastIsUser = messages.length > 0 && messages[messages.length - 1].role === 'user';
     const userJustSent = messages.length > prevCount && lastIsUser;
     const sessionReset = messages.length < prevCount;
-    if (userJustSent || sessionReset) {
+    if (skipNextFollowEffectRef.current) {
+      skipNextFollowEffectRef.current = false;
+      return;
+    }
+    if (userJustSent || sessionReset || sessionJustLoaded) {
       scrollToLatest(userJustSent ? 'smooth' : 'auto');
       return;
     }
     if (pinnedRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }
-  }, [messages, pendingClarify, pendingLabel, streamingTools, scrollToLatest]);
+  }, [messages, pendingClarify, pendingLabel, sessionLoading, streamingTools, scrollToLatest]);
 
   const handleMessageClick = useCallback(async (event: MouseEvent) => {
     const target = event.target as HTMLElement | null;
@@ -273,7 +293,7 @@ export const ChatMessages = ({
     // would clobber the in-flight assistant message.
     const sessionChip = target.closest<HTMLElement>('[data-action="session-jump"]');
     if (sessionChip) {
-      if (loading || !onSessionJump) return;
+      if (loading || sessionLoading || interactionDisabled || !onSessionJump) return;
       const sid = sessionChip.dataset.sessionId;
       const wid = sessionChip.dataset.workspaceId;
       const mi = sessionChip.dataset.messageIndex;
@@ -309,7 +329,16 @@ export const ChatMessages = ({
     if (nodeId) {
       onNodeFocus(nodeId);
     }
-  }, [loading, onNodeFocus, onSessionJump, t]);
+  }, [interactionDisabled, loading, onNodeFocus, onSessionJump, sessionLoading, t]);
+
+  const handleMessageKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target as HTMLElement | null;
+    const chip = target?.closest<HTMLElement>('.chat-mention-chip--clickable');
+    if (!chip) return;
+    event.preventDefault();
+    chip.click();
+  }, []);
 
   const hasStreamingAssistantMessage = loading
     && messages.length > 0
@@ -317,11 +346,24 @@ export const ChatMessages = ({
 
   return (
     <div className="chat-messages-wrap">
+      <span
+        className="chat-turn-status"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {turnAnnouncement}
+      </span>
       <div
         ref={containerRef}
         className={`chat-messages${loading ? ' chat-messages--loading' : ''}`}
         onClick={handleMessageClick}
+        onKeyDown={handleMessageKeyDown}
         onScroll={handleScroll}
+        role="log"
+        aria-label={t('chat.conversationMessages')}
+        aria-live="polite"
+        aria-relevant="additions"
         aria-busy={sessionLoading || undefined}
       >
         {skeletonVisible ? <ChatThreadSkeleton /> : <>
@@ -334,7 +376,7 @@ export const ChatMessages = ({
               index={index}
               message={message}
               isStreaming={isStreaming}
-              loading={loading}
+              loading={loading || sessionLoading || interactionDisabled}
               tools={tools}
               collapsed={collapsedSections.has(index)}
               expandedTools={expandedTools}
@@ -355,11 +397,14 @@ export const ChatMessages = ({
           <LoadingPlaceholder label={pendingLabel} />
         )}
         {pendingClarify && (
-          <ClarificationCard
+          <ChatClarificationCard
             pendingClarify={pendingClarify}
             clarifyInput={clarifyInput}
-            onClarifyInputChange={onClarifyInputChange}
-            onAnswerClarification={onAnswerClarification}
+            answering={clarificationAnswering}
+            disabled={sessionLoading}
+            error={clarificationError}
+            onInputChange={onClarifyInputChange}
+            onAnswer={onAnswerClarification}
           />
         )}
         </>}

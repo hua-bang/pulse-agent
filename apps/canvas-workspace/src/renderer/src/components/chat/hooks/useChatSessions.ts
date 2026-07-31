@@ -3,6 +3,7 @@ import type { AgentChatMessage, AgentSessionInfo } from '../../../types';
 import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
 import { useClickOutside } from '../../../hooks/useClickOutside';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
+import { useI18n } from '../../../i18n';
 
 interface UseChatSessionsOptions {
   agentScope: AgentScope;
@@ -26,6 +27,9 @@ interface UseChatSessionsOptions {
 interface ThreadFetchResult {
   ok: boolean;
   messages?: AgentChatMessage[];
+  activeSessionId?: string | null;
+  code?: string;
+  error?: string;
 }
 
 interface CachedSessions {
@@ -33,20 +37,14 @@ interface CachedSessions {
   otherSessions: OtherWorkspaceSession[];
 }
 
-/**
- * Cross-mount, per-scope cache of the last-known session list. ChatPageBody
- * stays mounted across cross-workspace rail switches, but this hook still
- * swaps its state to the selected scope. Seeding from here keeps a revisited
- * scope's list available while loadSessions() refreshes it in the background.
- * Module-scoped by design: shared by every useChatSessions() instance
- * (ChatPage's rail and ChatPanel's header dropdown alike).
- *
- * Bounded to the most recently touched scopes (Map insertion order doubles as
- * recency) so a long-running renderer visiting many workspaces/scheduled
- * tasks can't grow this unboundedly.
- */
+/** Cross-mount per-scope session-list cache, bounded by Map insertion recency. */
 const SESSIONS_CACHE_LIMIT = 20;
 const sessionsCache = new Map<string, CachedSessions>();
+
+/** Test-only reset; production sessions intentionally survive surface remounts. */
+export const resetChatSessionsCacheForTests = (): void => {
+  sessionsCache.clear();
+};
 
 function patchSessionsCache(key: string, patch: Partial<CachedSessions>): void {
   const prev = sessionsCache.get(key) ?? { sessions: [], otherSessions: [] };
@@ -67,6 +65,7 @@ export function useChatSessions({
   eagerLoad = false,
   skipInitialHistory = false,
 }: UseChatSessionsOptions) {
+  const { t } = useI18n();
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const scopeKey = agentScope.kind === 'workspace'
     ? `workspace:${agentScope.workspaceId}`
@@ -75,8 +74,7 @@ export function useChatSessions({
       : 'global';
 
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
-  // Lazy initializers only run once, at mount — a cache hit (revisiting an
-  // already-loaded scope) repaints immediately instead of starting empty.
+  // Revisited scopes repaint their cached rail immediately.
   const [sessions, setSessions] = useState<AgentSessionInfo[]>(
     () => sessionsCache.get(scopeKey)?.sessions ?? [],
   );
@@ -84,28 +82,24 @@ export function useChatSessions({
     () => sessionsCache.get(scopeKey)?.otherSessions ?? [],
   );
   const [currentScopeName, setCurrentScopeName] = useState<string | null>(null);
-  // A cache miss on an eager-load mount is about to trigger loadSessions()
-  // in an effect below, which runs after the first paint — starting this
-  // false would let that first paint fall through to the empty-state branch
-  // (allSessions is [] until the fetch resolves) and briefly show "No
-  // previous chats yet." on every scope's true first visit.
+  // Avoid an empty-state flash before an eager first list fetch.
   const [sessionsLoading, setSessionsLoading] = useState(
     () => eagerLoad && !sessionsCache.has(scopeKey),
   );
-  // Detail counterpart of sessionsLoading: true while THIS session's messages
-  // are in flight. Both thread fetches — the mount/scope-change getHistory
-  // below and handleLoadSession — used to run with no pending state at all,
-  // so for the whole IPC round trip the view either kept the previous
-  // session's messages on screen or (after a scope remount, where the thread
-  // starts empty) fell through to the empty state. Seeded true because a
-  // fetch is always imminent at mount: either the history effect runs, or
-  // skipInitialHistory promised a handleLoadSession call.
+  // Seed true: mount always starts history or an explicit session fetch.
   const [sessionLoading, setSessionLoading] = useState(true);
-  // Monotonic token for thread fetches. Only the newest fetch may write to
-  // the thread or clear the flag — two quick session picks (or a pick landing
-  // while the mount history fetch is still open) would otherwise let the
-  // slower response overwrite the session the user actually asked for.
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState<{
+    code?: string;
+    message: string;
+  } | null>(null);
+  // Only the newest thread request may paint or clear its busy flag.
   const threadRequestRef = useRef(0);
+  const threadRetryRef = useRef<{
+    scopeKey: string;
+    fetchThread: () => Promise<ThreadFetchResult>;
+    expectedSessionId?: string;
+  } | null>(null);
   const sessionListRequestRef = useRef(0);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
   const previousScopeKeyRef = useRef(scopeKey);
@@ -114,14 +108,18 @@ export function useChatSessions({
   useLayoutEffect(() => {
     if (previousScopeKeyRef.current === scopeKey) return;
     sessionListRequestRef.current += 1;
+    threadRequestRef.current += 1;
+    onMessagesLoaded([]);
     setSessionsLoading(eagerLoad);
     // The scope-specific history or selected session fetch starts directly
     // after this layout pass. Mark it busy before paint so the composer cannot
     // submit into the scope while the main-side pointer is switching.
     setSessionLoading(true);
+    setSessionError(null);
+    setActiveSessionId(null);
     setSessionMenuOpen(false);
     previousScopeKeyRef.current = scopeKey;
-  }, [eagerLoad, scopeKey]);
+  }, [eagerLoad, onMessagesLoaded, scopeKey]);
 
   useLayoutEffect(() => {
     if (!skipInitialHistory) return;
@@ -129,8 +127,7 @@ export function useChatSessions({
     setSessionsLoading(true);
   }, [skipInitialHistory]);
 
-  // Always read the latest scope inside the effect without making the effect
-  // depend on the object's identity (see below).
+  // Read the latest scope without depending on object identity.
   const agentScopeRef = useRef(agentScope);
   agentScopeRef.current = agentScope;
 
@@ -140,27 +137,62 @@ export function useChatSessions({
   // effect on each streaming setState, and `onMessagesLoaded` (replaceMessages)
   // would clobber the in-flight assistant message — making intermediate tool
   // calls / streamed text disappear and the view flicker mid-turn.
-  /**
-   * Runs a thread-replacing fetch behind `sessionLoading`, dropping the result
-   * of any fetch that a newer one has already superseded.
-   */
-  const runThreadFetch = useCallback(async (fetchThread: () => Promise<ThreadFetchResult>) => {
+  /** Runs a latest-wins thread replacement behind `sessionLoading`. */
+  const runThreadFetch = useCallback(async (
+    fetchThread: () => Promise<ThreadFetchResult>,
+    expectedSessionId?: string,
+  ) => {
+    sessionListRequestRef.current += 1;
+    setSessionsLoading(false);
+    threadRetryRef.current = { scopeKey, fetchThread, expectedSessionId };
     const token = ++threadRequestRef.current;
     setSessionLoading(true);
+    setSessionError(null);
     try {
       const result = await fetchThread();
       // A newer fetch (or a new-session reset) took over while this one was
       // open: neither its messages nor its "done" belong to what's on screen.
-      if (token !== threadRequestRef.current) return;
+      if (token !== threadRequestRef.current) return undefined;
+      if (result.activeSessionId !== undefined) {
+        setActiveSessionId(result.activeSessionId);
+      }
+      if (!result.ok) {
+        setSessionError({
+          code: result.code,
+          message: result.error ?? t('chat.sessionOpenFailed'),
+        });
+        return false;
+      }
+      if (
+        expectedSessionId
+        && result.activeSessionId !== undefined
+        && result.activeSessionId !== expectedSessionId
+      ) {
+        setSessionError({
+          code: 'SESSION_ACK_MISMATCH',
+          message: t('chat.sessionAckMismatch'),
+        });
+        return false;
+      }
       if (result.ok && result.messages) {
         onMessagesLoaded(result.messages);
       }
+      return true;
+    } catch (error) {
+      if (token === threadRequestRef.current) {
+        setSessionError({
+          code: 'SESSION_LOAD_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        });
+        return false;
+      }
+      return undefined;
     } finally {
       if (token === threadRequestRef.current) {
         setSessionLoading(false);
       }
     }
-  }, [onMessagesLoaded]);
+  }, [onMessagesLoaded, scopeKey, t]);
 
   useEffect(() => {
     // The caller is about to run its own handleLoadSession; leave
@@ -202,6 +234,7 @@ export function useChatSessions({
 
       if (result.ok && result.sessions) {
         nextSessions = result.sessions;
+        setActiveSessionId(result.sessions.find(session => session.isCurrent)?.sessionId ?? null);
       }
 
       if (allResult) {
@@ -279,39 +312,188 @@ export function useChatSessions({
   }, [loadSessions, sessionMenuOpen]);
 
   const handleNewSession = useCallback(async () => {
+    sessionListRequestRef.current += 1;
+    setSessionsLoading(false);
     setSessionMenuOpen(false);
-    const result = await window.canvasWorkspace.agent.newSession({ scope: agentScope });
-    if (!result.ok) return result;
-    // Retire any in-flight thread fetch: its messages belong to the session
-    // we just navigated away from, and a blank new chat is not "loading".
-    threadRequestRef.current += 1;
-    setSessionLoading(false);
-    onMessagesLoaded([]);
-    return result;
-  }, [agentScope, onMessagesLoaded]);
+    setSessionError(null);
+    // New-session is also a thread-pointer transition. Publish the busy state
+    // before awaiting main so neither send nor another rail action can target
+    // the old session while the durable pointer is moving.
+    const token = ++threadRequestRef.current;
+    setSessionLoading(true);
+    try {
+      const result = await window.canvasWorkspace.agent.newSession({ scope: agentScope });
+      if (token !== threadRequestRef.current) return result;
+      if (!result.ok) {
+        setActiveSessionId(result.activeSessionId ?? null);
+        setSessionError({
+          code: result.code,
+          message: result.error ?? t('chat.sessionNewFailed'),
+        });
+        return result;
+      }
+      setActiveSessionId(result.activeSessionId ?? null);
+      onMessagesLoaded([]);
+      return result;
+    } catch (error) {
+      const result = {
+        ok: false,
+        code: 'SESSION_MUTATION_FAILED',
+        error: error instanceof Error ? error.message : String(error),
+      };
+      if (token === threadRequestRef.current) {
+        setSessionError({ code: result.code, message: result.error });
+      }
+      return result;
+    } finally {
+      if (token === threadRequestRef.current) setSessionLoading(false);
+    }
+  }, [agentScope, onMessagesLoaded, t]);
 
   const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
     setSessionMenuOpen(false);
 
-    await runThreadFetch(() => (
-      sourceWorkspaceId && workspaceId && sourceWorkspaceId !== workspaceId
-        ? window.canvasWorkspace.agent.loadCrossWorkspaceSession(workspaceId, sourceWorkspaceId, sessionId)
-        : window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId)
-    ));
+    const crossWorkspace = !!(
+      sourceWorkspaceId
+      && workspaceId
+      && sourceWorkspaceId !== workspaceId
+    );
+    return await runThreadFetch(
+      () => (
+        crossWorkspace
+          ? window.canvasWorkspace.agent.loadCrossWorkspaceSession(workspaceId!, sourceWorkspaceId!, sessionId)
+          : window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId)
+      ),
+      crossWorkspace ? undefined : sessionId,
+    );
   }, [agentScope, runThreadFetch, workspaceId]);
 
+  /**
+   * Adopt a session that was created by another authoritative main-process
+   * mutation (for example edit/regenerate branching). This keeps the
+   * renderer's pointer and cached rail metadata aligned without issuing a
+   * second competing load request.
+   */
+  const adoptActiveSession = useCallback((sessionId: string) => {
+    sessionListRequestRef.current += 1;
+    setSessionsLoading(false);
+    threadRequestRef.current += 1;
+    setSessionLoading(false);
+    setActiveSessionId(sessionId);
+    setSessions(previous => {
+      const next = previous.map(session => ({
+        ...session,
+        isCurrent: session.sessionId === sessionId,
+      }));
+      patchSessionsCache(scopeKey, { sessions: next });
+      return next;
+    });
+  }, [scopeKey]);
+
+  const retrySession = useCallback(async () => {
+    const retry = threadRetryRef.current;
+    if (retry?.scopeKey === scopeKey) {
+      await runThreadFetch(retry.fetchThread, retry.expectedSessionId);
+      return;
+    }
+    await runThreadFetch(
+      () => window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current }),
+    );
+  }, [runThreadFetch, scopeKey]);
+
+  const failSessionMutation = useCallback((result: {
+    code?: string;
+    error?: string;
+  }, fallback: string): never => {
+    const message = result.error ?? fallback;
+    setSessionError({ code: result.code, message });
+    throw new Error(message);
+  }, []);
+
+  const renameSession = useCallback(async (
+    sessionId: string,
+    title: string,
+    scope: AgentScope = agentScope,
+  ) => {
+    setSessionError(null);
+    const result = await window.canvasWorkspace.agent.renameSession(
+      { scope },
+      sessionId,
+      title,
+    );
+    if (!result.ok) failSessionMutation(result, t('chat.sessionRenameFailed'));
+    await loadSessions();
+    return result;
+  }, [agentScope, failSessionMutation, loadSessions, t]);
+
+  const toggleSessionPinned = useCallback(async (
+    sessionId: string,
+    pinned: boolean,
+    scope: AgentScope = agentScope,
+  ) => {
+    setSessionError(null);
+    const result = await window.canvasWorkspace.agent.setSessionPinned(
+      { scope },
+      sessionId,
+      pinned,
+    );
+    if (!result.ok) failSessionMutation(result, t('chat.sessionUpdateFailed'));
+    await loadSessions();
+    return result;
+  }, [agentScope, failSessionMutation, loadSessions, t]);
+
+  const deleteSession = useCallback(async (
+    sessionId: string,
+    scope: AgentScope = agentScope,
+  ) => {
+    setSessionError(null);
+    const changesVisibleScope = (
+      scopeSessionStoreId(scope) === scopeSessionStoreId(agentScope)
+    );
+    if (changesVisibleScope) sessionListRequestRef.current += 1;
+    if (changesVisibleScope) setSessionsLoading(false);
+    const token = changesVisibleScope ? ++threadRequestRef.current : null;
+    if (changesVisibleScope) setSessionLoading(true);
+    try {
+      const result = await window.canvasWorkspace.agent.deleteSession({ scope }, sessionId);
+      if (!result.ok) failSessionMutation(result, t('chat.sessionDeleteFailed'));
+
+      if (
+        changesVisibleScope
+        && result.activeSessionId
+        && result.messages
+      ) {
+        setActiveSessionId(result.activeSessionId);
+        onMessagesLoaded(result.messages);
+      }
+      await loadSessions();
+      return result;
+    } finally {
+      if (token !== null && token === threadRequestRef.current) {
+        setSessionLoading(false);
+      }
+    }
+  }, [agentScope, failSessionMutation, loadSessions, onMessagesLoaded, t]);
+
   return {
+    adoptActiveSession,
     otherSessions,
+    activeSessionId,
     currentScopeName,
+    deleteSession,
     handleLoadSession,
     handleNewSession,
     loadSessions,
     closeSessionMenu,
     openSessionMenu,
+    renameSession,
+    retrySession,
     sessionMenuOpen,
     sessionMenuRef,
     sessions,
     sessionsLoading,
     sessionLoading,
+    sessionError,
+    toggleSessionPinned,
   };
 }

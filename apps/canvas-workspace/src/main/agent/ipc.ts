@@ -2,7 +2,12 @@
  * IPC handlers for the Canvas Agent.
  *
  * Channels:
- *   canvas-agent:chat              — send a message, stream text deltas, get final response
+ *   canvas-agent:prepare-chat      — allocate one run id before listeners subscribe
+ *   canvas-agent:start-chat        — start that prepared run
+ *   canvas-agent:cancel-prepared-chat — release an abandoned prepared run
+ *   canvas-agent:run-status        — report whether main still owns the run
+ *   canvas-agent:scope-run-status  — reconnect to a scope run and pending clarification
+ *   canvas-agent:chat              — backwards-compatible prepare + start
  *   canvas-agent:abort             — interrupt the currently-running chat turn (hard stop)
  *   canvas-agent:stop-relay        — graceful multi-role relay stop: current segment
  *                                    finishes, queued segments are skipped
@@ -12,12 +17,17 @@
  *   canvas-agent:history           — get current session messages
  *   canvas-agent:sessions          — list all sessions (current + archived)
  *   canvas-agent:new-session       — start a new session
+ *   canvas-agent:branch-session    — create and activate a durable history branch
+ *   canvas-agent:rename-session    — update a session title
+ *   canvas-agent:set-session-pinned — pin or unpin a session
+ *   canvas-agent:delete-session    — delete a session with safe pointer replacement
  *   canvas-agent:load-session      — load an archived session
  *   canvas-agent:activate          — explicitly start the agent
  *   canvas-agent:deactivate        — stop the agent and archive session
  *
  * Streaming:
- *   canvas-agent:chat returns { ok, sessionId } immediately.
+ *   prepare-chat returns { ok, sessionId }; start-chat begins only after the
+ *   renderer installs every run-scoped listener.
  *   Text deltas arrive on         `canvas-agent:text-delta:{sessionId}`.
  *   Tool call starts arrive on    `canvas-agent:tool-call:{sessionId}`.
  *   Tool results arrive on        `canvas-agent:tool-result:{sessionId}`.
@@ -31,26 +41,23 @@
  *   Completion arrives on         `canvas-agent:chat-complete:{sessionId}`.
  */
 
-import { ipcMain } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { randomUUID } from 'crypto';
 import { CanvasAgentService } from './service';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
 import { generateScheduledPrompt } from './scheduled-prompt-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
-import type { AgentRequestContext, AgentScope, AgentScopeRef } from './types';
-import { isPerfChatReplayRequest, replayPerfChatStream } from './perf-chat-replay';
-import { GLOBAL_CHAT_SESSION_STORE_ID, SessionStore } from './session-store';
-
+import type { AgentScope, AgentScopeRef } from './types';
+import {
+  PreparedChatRegistry,
+  type PreparedChatPayload,
+} from './prepared-chat';
+import { ActiveChatRegistry } from './active-chat-registry';
+import { prepareChatTurn, startChatTurn } from './chat-protocol';
 let service: CanvasAgentService | null = null;
 
-/**
- * Track which agent scope each in-flight sessionId belongs to, so that
- * aborts and clarification answers from the renderer can be routed back to
- * the right agent instance. Entries are cleared when the corresponding chat
- * turn completes or is aborted.
- */
-const sessionScopeMap = new Map<string, AgentScope>();
-
+const activeChats = new ActiveChatRegistry();
+const preparedChats = new PreparedChatRegistry();
 function resolveAgentScope(payload: AgentScopeRef): AgentScope {
   if (payload.scope?.kind === 'global') return { kind: 'global' };
   if (payload.scope?.kind === 'scheduled' && payload.scope.taskId) {
@@ -62,7 +69,15 @@ function resolveAgentScope(payload: AgentScopeRef): AgentScope {
   if (payload.workspaceId) return { kind: 'workspace', workspaceId: payload.workspaceId };
   return { kind: 'global' };
 }
-
+function rejectActiveScopeMutation(scope: AgentScope) {
+  return activeChats.hasScope(scope)
+    ? {
+        ok: false,
+        code: 'CHAT_SCOPE_BUSY',
+        error: 'Another reply is already running for this chat scope.',
+      }
+    : null;
+}
 export function getCanvasAgentService(): CanvasAgentService {
   if (!service) {
     service = new CanvasAgentService();
@@ -89,133 +104,51 @@ export function setupCanvasAgentIpc(): void {
     },
   );
 
+  const prepare = async (
+    event: IpcMainInvokeEvent,
+    payload: PreparedChatPayload & AgentScopeRef,
+  ) => prepareChatTurn({
+    sender: event.sender,
+    scope: resolveAgentScope(payload),
+    payload,
+    activeChats,
+    preparedChats,
+  });
+
+  const start = (event: IpcMainInvokeEvent, sessionId: string) => startChatTurn({
+    sender: event.sender,
+    sessionId,
+    service: svc,
+    activeChats,
+    preparedChats,
+  });
+
+  ipcMain.handle('canvas-agent:prepare-chat', (event, payload) => prepare(event, payload));
   ipcMain.handle(
-    'canvas-agent:chat',
-    async (
-      event,
-      payload: {
-        scope?: AgentScope;
-        workspaceId?: string;
-        message: string;
-        mentionedWorkspaceIds?: string[];
-        requestContext?: AgentRequestContext;
-        attachments?: Array<{ id: string; path: string; fileName?: string; mimeType?: string }>;
-      },
-    ) => {
-      const sessionId = randomUUID();
-      const sender = event.sender;
-      const scope = resolveAgentScope(payload);
-      if (isPerfChatReplayRequest(payload.message, process.env.PULSE_CANVAS_PERF === '1')) {
-        void replayPerfChatStream(sender, sessionId, {
-          onComplete: async (content) => {
-            const storeId = scope.kind === 'workspace'
-              ? scope.workspaceId
-              : scope.kind === 'scheduled'
-                ? `__scheduled__-${scope.taskId}`
-                : GLOBAL_CHAT_SESSION_STORE_ID;
-            const store = new SessionStore(storeId, scope);
-            await store.startSession();
-            const timestamp = Date.now();
-            store.setMessages([
-              { role: 'user', content: payload.message, timestamp },
-              {
-                role: 'assistant',
-                content,
-                timestamp,
-                runId: `perf-replay-${sessionId}`,
-              },
-            ]);
-            // archiveSession waits for the persist queue, ensuring the
-            // perf log is present before the completion event reaches the UI.
-            await store.archiveSession();
-          },
-        });
-        return { ok: true, sessionId };
-      }
-      sessionScopeMap.set(sessionId, scope);
-
-      // Fire-and-forget: run the agent asynchronously, streaming text deltas
-      void (async () => {
-        try {
-          const result = await svc.chatWithScope(
-            scope,
-            payload.message,
-            (delta) => {
-              if (!sender.isDestroyed()) {
-                sender.send(`canvas-agent:text-delta:${sessionId}`, delta);
-              }
-            },
-            (toolCall) => {
-              if (!sender.isDestroyed()) {
-                sender.send(`canvas-agent:tool-call:${sessionId}`, toolCall);
-              }
-            },
-            (toolResult) => {
-              if (!sender.isDestroyed()) {
-                sender.send(`canvas-agent:tool-result:${sessionId}`, toolResult);
-              }
-            },
-            payload.mentionedWorkspaceIds,
-            (req) => {
-              if (!sender.isDestroyed()) {
-                sender.send(`canvas-agent:clarify-request:${sessionId}`, req);
-              }
-            },
-            payload.requestContext,
-            payload.attachments,
-            (data) => {
-              if (!sender.isDestroyed()) {
-                sender.send(`canvas-agent:tool-input-start:${sessionId}`, data);
-              }
-            },
-            (data) => {
-              if (!sender.isDestroyed()) {
-                sender.send(`canvas-agent:tool-input-delta:${sessionId}`, data);
-              }
-            },
-            (data) => {
-              if (!sender.isDestroyed()) {
-                sender.send(`canvas-agent:tool-input-end:${sessionId}`, data);
-              }
-            },
-            (event) => {
-              if (!sender.isDestroyed()) {
-                sender.send(`canvas-agent:role-turn-start:${sessionId}`, event);
-              }
-            },
-            (event) => {
-              if (!sender.isDestroyed()) {
-                sender.send(`canvas-agent:role-turn-end:${sessionId}`, event);
-              }
-            },
-          );
-          if (!sender.isDestroyed()) {
-            sender.send(`canvas-agent:chat-complete:${sessionId}`, result);
-          }
-        } catch (err) {
-          if (!sender.isDestroyed()) {
-            sender.send(`canvas-agent:chat-complete:${sessionId}`, {
-              ok: false,
-              error: String(err),
-            });
-          }
-        } finally {
-          sessionScopeMap.delete(sessionId);
-        }
-      })();
-
-      // Return immediately with the sessionId for the renderer to subscribe
-      return { ok: true, sessionId };
-    },
+    'canvas-agent:start-chat',
+    (event, payload: { sessionId: string }) => start(event, payload.sessionId),
   );
+  ipcMain.handle(
+    'canvas-agent:cancel-prepared-chat',
+    (event, payload: { sessionId: string }) => ({
+      ok: preparedChats.discard(payload.sessionId, event.sender),
+    }),
+  );
+
+  // Backwards-compatible one-step entry for older renderer bundles. Current
+  // clients use prepare → subscribe → start and therefore have no event-loss
+  // window.
+  ipcMain.handle('canvas-agent:chat', async (event, payload) => {
+    const result = await prepare(event, payload);
+    if (!result.ok || !result.sessionId) return result;
+    const started = await start(event, result.sessionId);
+    return started.ok ? result : { ...started, sessionId: result.sessionId };
+  });
 
   ipcMain.handle(
     'canvas-agent:abort',
     (_event, payload: { sessionId?: string; workspaceId?: string }) => {
-      const scope =
-        payload.sessionId ? sessionScopeMap.get(payload.sessionId) : undefined;
-      if (scope) {
-        svc.abortScope(scope);
+      if (payload.sessionId && activeChats.abort(payload.sessionId)) {
         return { ok: true };
       }
       const workspaceId = payload.workspaceId;
@@ -226,9 +159,33 @@ export function setupCanvasAgentIpc(): void {
   );
 
   ipcMain.handle(
+    'canvas-agent:run-status',
+    (_event, payload: { sessionId: string }) => ({
+      ok: true,
+      active: activeChats.has(payload.sessionId),
+    }),
+  );
+
+  ipcMain.handle(
+    'canvas-agent:scope-run-status',
+    (_event, payload: AgentScopeRef) => {
+      const scope = resolveAgentScope(payload);
+      const sessionId = activeChats.sessionIdForScope(scope);
+      return {
+        ok: true,
+        active: Boolean(sessionId),
+        sessionId,
+        pendingClarification: sessionId
+          ? svc.getPendingClarificationForScope(scope) ?? undefined
+          : undefined,
+      };
+    },
+  );
+
+  ipcMain.handle(
     'canvas-agent:stop-relay',
     (_event, payload: { sessionId: string }) => {
-      const scope = payload.sessionId ? sessionScopeMap.get(payload.sessionId) : undefined;
+      const scope = payload.sessionId ? activeChats.scopeOf(payload.sessionId) : undefined;
       if (!scope) return { ok: false, error: 'No active run for sessionId' };
       const stopped = svc.stopRelayForScope(scope);
       return { ok: stopped, error: stopped ? undefined : 'No relay in flight' };
@@ -241,7 +198,7 @@ export function setupCanvasAgentIpc(): void {
       _event,
       payload: { sessionId: string; requestId: string; answer: string },
     ) => {
-      const scope = sessionScopeMap.get(payload.sessionId);
+      const scope = activeChats.scopeOf(payload.sessionId);
       if (!scope) return { ok: false, error: 'No active run for sessionId' };
       const matched = svc.answerClarificationForScope(scope, payload.requestId, payload.answer);
       return { ok: matched, error: matched ? undefined : 'No pending clarification matched' };
@@ -284,8 +241,10 @@ export function setupCanvasAgentIpc(): void {
     'canvas-agent:history',
     async (_event, payload: AgentScopeRef) => {
       try {
-        const messages = await svc.getHistoryForScope(resolveAgentScope(payload));
-        return { ok: true, messages };
+        const scope = resolveAgentScope(payload);
+        const messages = await svc.getHistoryForScope(scope);
+        const activeSessionId = svc.getCurrentSessionIdForScope(scope);
+        return { ok: true, messages, activeSessionId };
       } catch (err) {
         return { ok: false, error: String(err) };
       }
@@ -308,7 +267,52 @@ export function setupCanvasAgentIpc(): void {
     'canvas-agent:new-session',
     async (_event, payload: AgentScopeRef) => {
       try {
-        return await svc.newSessionForScope(resolveAgentScope(payload));
+        const scope = resolveAgentScope(payload);
+        return rejectActiveScopeMutation(scope) ?? await svc.newSessionForScope(scope);
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-agent:branch-session',
+    async (_event, payload: AgentScopeRef & { fromIndex: number }) => {
+      const scope = resolveAgentScope(payload);
+      return rejectActiveScopeMutation(scope)
+        ?? svc.branchSessionForScope(scope, payload.fromIndex);
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-agent:rename-session',
+    async (_event, payload: AgentScopeRef & { sessionId: string; title: string }) => {
+      const scope = resolveAgentScope(payload);
+      return rejectActiveScopeMutation(scope)
+        ?? svc.renameSessionForScope(scope, payload.sessionId, payload.title);
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-agent:set-session-pinned',
+    async (_event, payload: AgentScopeRef & { sessionId: string; pinned: boolean }) => {
+      const scope = resolveAgentScope(payload);
+      return rejectActiveScopeMutation(scope)
+        ?? svc.setSessionPinnedForScope(scope, payload.sessionId, payload.pinned);
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-agent:delete-session',
+    async (_event, payload: AgentScopeRef & { sessionId: string }) => {
+      try {
+        const scope = resolveAgentScope(payload);
+        const busy = rejectActiveScopeMutation(scope);
+        if (busy) return busy;
+        return await svc.deleteSessionForScope(
+          scope,
+          payload.sessionId,
+        );
       } catch (err) {
         return { ok: false, error: String(err) };
       }
@@ -319,7 +323,9 @@ export function setupCanvasAgentIpc(): void {
     'canvas-agent:rewind-messages',
     async (_event, payload: AgentScopeRef & { fromIndex: number }) => {
       try {
-        return await svc.rewindMessagesForScope(resolveAgentScope(payload), payload.fromIndex);
+        const scope = resolveAgentScope(payload);
+        return rejectActiveScopeMutation(scope)
+          ?? await svc.rewindMessagesForScope(scope, payload.fromIndex);
       } catch (err) {
         return { ok: false, error: String(err) };
       }
@@ -330,7 +336,9 @@ export function setupCanvasAgentIpc(): void {
     'canvas-agent:load-session',
     async (_event, payload: AgentScopeRef & { sessionId: string }) => {
       try {
-        return await svc.loadSessionForScope(resolveAgentScope(payload), payload.sessionId);
+        const scope = resolveAgentScope(payload);
+        return rejectActiveScopeMutation(scope)
+          ?? await svc.loadSessionForScope(scope, payload.sessionId);
       } catch (err) {
         return { ok: false, error: String(err) };
       }
@@ -377,6 +385,12 @@ export function setupCanvasAgentIpc(): void {
     'canvas-agent:load-cross-workspace-session',
     async (_event, payload: { targetWorkspaceId: string; sourceWorkspaceId: string; sessionId: string }) => {
       try {
+        const targetScope: AgentScope = {
+          kind: 'workspace',
+          workspaceId: payload.targetWorkspaceId,
+        };
+        const busy = rejectActiveScopeMutation(targetScope);
+        if (busy) return busy;
         return await svc.loadCrossWorkspaceSession(
           payload.targetWorkspaceId,
           payload.sourceWorkspaceId,
@@ -404,6 +418,11 @@ export function setupCanvasAgentIpc(): void {
     'canvas-agent:deactivate',
     async (_event, payload: { workspaceId: string }) => {
       try {
+        const busy = rejectActiveScopeMutation({
+          kind: 'workspace',
+          workspaceId: payload.workspaceId,
+        });
+        if (busy) return busy;
         await svc.deactivate(payload.workspaceId);
         return { ok: true };
       } catch (err) {
@@ -459,6 +478,8 @@ export function setupCanvasAgentIpc(): void {
 }
 
 export function teardownCanvasAgent(): void {
+  preparedChats.clear();
+  activeChats.clear();
   if (service) {
     void service.deactivateAll();
     service = null;

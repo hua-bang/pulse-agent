@@ -1,4 +1,5 @@
 import type { RefObject } from 'react';
+import { useGuestInteractionShield } from '../../hooks/useGuestInteractionShield';
 import { useI18n } from '../../i18n';
 import { NodeTypeIcon } from '../icons';
 import { Button, Popover } from '../ui';
@@ -21,6 +22,7 @@ interface Props {
 
 export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOpenNode, onOpenCanvas, onNewWebTab, onNewTerminalTab, onHoverEnter, onHoverLeave }: Props) => {
   const { t } = useI18n();
+  useGuestInteractionShield(true);
 
   return (
         <Popover

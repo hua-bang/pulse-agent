@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { CanvasModelStatus } from '../../types';
 import { CheckIcon } from '../icons';
 import type { ModelSelection } from './modelSettingsTypes';
@@ -10,6 +10,7 @@ interface ModelSwitcherProps {
   status?: CanvasModelStatus;
   selection: ModelSelection;
   label: string;
+  disabled?: boolean;
   onSelectAuto: () => Promise<void>;
   onSelectModel: (providerId: string, modelId: string) => Promise<void>;
   onOpenSettings: () => void;
@@ -22,6 +23,7 @@ export const ModelSwitcher = ({
   status,
   selection,
   label,
+  disabled = false,
   onSelectAuto,
   onSelectModel,
   onOpenSettings,
@@ -29,7 +31,11 @@ export const ModelSwitcher = ({
   const { t } = useI18n();
   const menuId = useId();
   const [open, setOpen] = useState(false);
+  const [selectionError, setSelectionError] = useState<string>();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
 
   // 'escape' restores focus to the trigger (a deliberate dismiss); 'outside'
   // (and the plain setOpen(false) each menu item's own onClick already
@@ -53,17 +59,30 @@ export const ModelSwitcher = ({
     // bubble-phase trigger handler would ever see them — same dead-code
     // drop the API-extension batch made for chat/ChatAnchors migrating onto
     // DropdownShell. This handler now only needs to OPEN a closed menu.
-    if (notConfigured || open) return;
+    if (disabled || notConfigured || open) return;
     event.preventDefault();
     event.stopPropagation();
     setOpen(true);
-  }, [notConfigured, open]);
+  }, [disabled, notConfigured, open]);
+
+  const runSelection = useCallback(async (select: () => Promise<void>) => {
+    setSelectionError(undefined);
+    try {
+      await select();
+    } catch (error) {
+      setSelectionError(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
 
   return (
     <div className="chat-model-switcher">
+      {selectionError && (
+        <div className="chat-model-switcher-error" role="alert">{selectionError}</div>
+      )}
       <button
         ref={triggerRef}
         type="button"
+        disabled={disabled}
         className={`chat-model-switcher-btn${notConfigured ? ' chat-model-switcher-btn--warning' : ''}`}
         onClick={() => {
           if (notConfigured) {
@@ -89,7 +108,7 @@ export const ModelSwitcher = ({
           </span>
         )}
       </button>
-      {open && (
+      {open && !disabled && (
         <Popover
           anchorRef={triggerRef}
           onClose={handlePopoverClose}
@@ -110,7 +129,7 @@ export const ModelSwitcher = ({
             data-menu-autofocus={selection.mode === 'auto' ? 'true' : undefined}
             onClick={() => {
               setOpen(false);
-              void onSelectAuto();
+              void runSelection(onSelectAuto);
             }}
           >
             <span className="chat-model-menu-check">{selection.mode === 'auto' ? <CheckIcon /> : null}</span>
@@ -138,7 +157,7 @@ export const ModelSwitcher = ({
                     data-menu-autofocus={active ? 'true' : undefined}
                     onClick={() => {
                       setOpen(false);
-                      void onSelectModel(provider.id, model.id);
+                      void runSelection(() => onSelectModel(provider.id, model.id));
                     }}
                   >
                     <span className="chat-model-menu-check">{active ? <CheckIcon /> : null}</span>

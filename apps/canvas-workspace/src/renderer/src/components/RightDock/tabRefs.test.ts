@@ -4,6 +4,7 @@ import type { DockState } from './dock-store';
 
 const baseState = (overrides: Partial<DockState>): DockState => ({
   tabs: [],
+  retainedLinkTabs: [],
   activeTabId: 'chat',
   expanded: true,
   chatUnread: false,

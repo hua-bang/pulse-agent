@@ -13,6 +13,7 @@ import { createDockSessionPersistence } from './dock-session-persistence';
 import type { AgentContextDomSelectionRef } from '../../types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
 import { skillTabId } from './dock-tab-ids';
+import type { ChatDeliveryReceipt } from '../chat/ChatTargetContext';
 
 interface RightDockContextValue {
   store: DockStore;
@@ -22,8 +23,8 @@ interface RightDockContextValue {
   setTerminalHost: (el: HTMLDivElement | null) => void;
   pinUrlReference: (url: string, title?: string) => void;
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
-  addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
-  registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => () => void;
+  addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
+  registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>) => () => void;
   startSkillChat: (workspaceId: string, skillName: string) => void;
   registerStartSkillChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
 }
@@ -37,7 +38,7 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const [chatHost, setChatHost] = useState<HTMLDivElement | null>(null);
   const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
   const pinUrlReferenceRef = useRef<((url: string, title?: string) => void) | null>(null);
-  const addDomSelectionToChatRef = useRef<((workspaceId: string, selection: AgentContextDomSelectionRef) => void) | null>(null);
+  const addDomSelectionToChatRef = useRef<((workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>) | null>(null);
   const startSkillChatRef = useRef<((workspaceId: string, skillName: string) => void) | null>(null);
   const pinUrlReference = useCallback((url: string, title?: string) => {
     pinUrlReferenceRef.current?.(url, title);
@@ -48,10 +49,11 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
       if (pinUrlReferenceRef.current === handler) pinUrlReferenceRef.current = null;
     };
   }, []);
-  const addDomSelectionToChat = useCallback((workspaceId: string, selection: AgentContextDomSelectionRef) => {
-    addDomSelectionToChatRef.current?.(workspaceId, selection);
+  const addDomSelectionToChat = useCallback(async (workspaceId: string, selection: AgentContextDomSelectionRef) => {
+    return await addDomSelectionToChatRef.current?.(workspaceId, selection)
+      ?? { status: 'unavailable', target: null };
   }, []);
-  const registerAddDomSelectionToChat = useCallback((handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => {
+  const registerAddDomSelectionToChat = useCallback((handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>) => {
     addDomSelectionToChatRef.current = handler;
     return () => {
       if (addDomSelectionToChatRef.current === handler) addDomSelectionToChatRef.current = null;
@@ -111,8 +113,8 @@ export function useRightDock(): {
   notifyChatActivity: () => void;
   pinUrlReference: (url: string, title?: string) => void;
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
-  addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => void;
-  registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => void) => () => void;
+  addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
+  registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>) => () => void;
   startSkillChat: (workspaceId: string, skillName: string) => void;
   registerStartSkillChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
 } {

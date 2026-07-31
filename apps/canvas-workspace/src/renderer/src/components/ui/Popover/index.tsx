@@ -205,7 +205,10 @@ export const Popover = (props: Props) => {
   const closeFromOutside = () => onClose('outside');
 
   useMenuKeyboardNav(ref, closeFromEscape, {
-    autoFocus,
+    // A rect-anchored panel mounts hidden until its first measurement.
+    // Chromium rejects focus inside that hidden commit, so arm autofocus
+    // only when positioning makes the panel visible.
+    autoFocus: autoFocus && (!rectAnchored || rectAnchor.pos !== null),
     enabled: keyboardNavigation,
   });
   // In rect-anchor mode, the anchor is structurally the caller's TRIGGER

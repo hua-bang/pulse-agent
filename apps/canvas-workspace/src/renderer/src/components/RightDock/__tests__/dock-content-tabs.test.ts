@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DockStore } from '../dock-store';
-import { hasDockContentTabs, isDockContentTabVisible } from '../dock-content-tabs';
+import { canPreviewWorkspaceCanvas, hasDockContentTabs, isDockContentTabVisible } from '../dock-content-tabs';
 
 const seeded = (): DockStore => {
   const store = new DockStore();
@@ -43,5 +43,25 @@ describe('dock content tabs', () => {
     store.toggleContentTabs();
     expect(store.getSnapshot().activeTabId).toBe(tabId);
     expect(isDockContentTabVisible(store.getSnapshot())).toBe(true);
+  });
+});
+
+describe('canPreviewWorkspaceCanvas', () => {
+  it('allows previewing a workspace canvas that is not live in the Workbench', () => {
+    const store = new DockStore();
+    expect(canPreviewWorkspaceCanvas(store.getSnapshot(), 'ws-1')).toBe(true);
+  });
+
+  it('refuses when the same canvas is already mounted live', () => {
+    const store = new DockStore();
+    store.setMountedWorkspaces(['ws-1']);
+    expect(canPreviewWorkspaceCanvas(store.getSnapshot(), 'ws-1')).toBe(false);
+    // A different workspace is unaffected.
+    expect(canPreviewWorkspaceCanvas(store.getSnapshot(), 'ws-2')).toBe(true);
+  });
+
+  it('refuses when there is no workspace to preview (global/scheduled chat)', () => {
+    const store = new DockStore();
+    expect(canPreviewWorkspaceCanvas(store.getSnapshot(), undefined)).toBe(false);
   });
 });

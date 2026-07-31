@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { isImeComposing } from '../utils/ime';
 import { matchShortcut, type AppShortcutId } from '../shortcuts/registry';
+import { useWebviewShortcutBridge } from './useWebviewShortcutBridge';
 
 interface Options {
   /** Current route bucket — only 'chat' reacts to the chat-page Escape. */
@@ -93,4 +94,41 @@ export const useAppShortcuts = ({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+};
+
+interface AppShortcutBindingsOptions {
+  activeView: string;
+  isOverlayOpen: boolean;
+  openShortcuts: () => void;
+  toggleSidebar: () => void;
+  workspaces: Array<{ id: string }>;
+  selectWorkspace: (id: string) => void;
+  setLocation: (path: string) => void;
+  routes: { canvas: string; chat: string };
+}
+
+/** Connect app-level shortcuts, including chords forwarded from webview guests. */
+export const useAppShortcutBindings = ({
+  activeView,
+  isOverlayOpen,
+  openShortcuts,
+  toggleSidebar,
+  workspaces,
+  selectWorkspace,
+  setLocation,
+  routes,
+}: AppShortcutBindingsOptions): void => {
+  useWebviewShortcutBridge();
+  useAppShortcuts({
+    activeView,
+    isOverlayOpen,
+    openShortcuts,
+    toggleChatPage: () => setLocation(activeView === 'chat' ? routes.canvas : routes.chat),
+    toggleSidebar,
+    selectWorkspaceByIndex: (index) => {
+      const workspace = workspaces[index - 1];
+      if (workspace) selectWorkspace(workspace.id);
+    },
+    leaveChatPage: () => setLocation(routes.canvas),
+  });
 };

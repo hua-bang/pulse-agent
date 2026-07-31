@@ -25,6 +25,9 @@ async function confirmTerminalExecution(
   ctx?: CanvasToolExecutionContext,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (ctx?.runContext?.executionMode !== 'ask') return { ok: true };
+  // The host-wide ask-mode gate already collected approval for this exact
+  // tool invocation. Do not ask twice inside the specialized terminal tool.
+  if (ctx.runContext.approvalGrantedFor) return { ok: true };
   const ask = ctx.onClarificationRequest;
   if (!ask) {
     return { ok: false, error: 'Terminal command requires confirmation in ask mode, but confirmation is unavailable.' };

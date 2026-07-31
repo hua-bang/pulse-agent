@@ -102,7 +102,15 @@ export function consumeClaudeStreamLine(
     if (Array.isArray(content)) {
       for (const block of content) {
         if (block?.type === 'tool_result') {
-          finishTool(state.toolNames, handlers, block.tool_use_id, flattenResultContent(block.content));
+          const result = flattenResultContent(block.content);
+          finishTool(
+            state.toolNames,
+            handlers,
+            block.tool_use_id,
+            result,
+            'tool',
+            block.is_error ? { status: 'failed', error: result } : undefined,
+          );
         }
       }
     }

@@ -13,8 +13,16 @@ import { resolveExternalCwd } from './cwd';
 import { renderExternalSegmentPrompt } from './prompt';
 import { runExternalSegment } from './runner';
 import { clearExternalSessionId, getExternalSessionId, saveExternalSessionId } from './state-store';
+import { requestAskModeApproval } from '../tool-policy';
 
 const RESUME_FAILURE_RE = /session|conversation|resume/i;
+
+export class ExternalRoleApprovalError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ExternalRoleApprovalError';
+  }
+}
 
 export async function runExternalRoleSegment(opts: ExternalStreamHandlers & {
   role: AgentRoleDefinition;
@@ -26,8 +34,38 @@ export async function runExternalRoleSegment(opts: ExternalStreamHandlers & {
   currentAsk: string;
   handoffNames: string[];
   abortSignal: AbortSignal;
+  executionMode?: 'auto' | 'ask';
+  onApprovalRequest?: (request: {
+    id: string;
+    question: string;
+    context?: string;
+    defaultAnswer?: string;
+    timeout: number;
+  }) => Promise<string>;
 }): Promise<{ text: string; toolCalls: CanvasAgentToolCall[] }> {
   const { role, external, chatSessionId } = opts;
+  const approval = await requestAskModeApproval({
+    name: `external_role_${external.family}`,
+    operation: 'execute',
+    input: {
+      role: role.name,
+      family: external.family,
+      configuredCwd: external.cwd,
+      currentAsk: opts.currentAsk,
+    },
+    context: {
+      runContext: { executionMode: opts.executionMode ?? 'auto' },
+      onClarificationRequest: opts.onApprovalRequest,
+      abortSignal: opts.abortSignal,
+      toolCallId: `external-role:${chatSessionId}:${role.id}`,
+    },
+  });
+  if (!approval.approved) {
+    throw new ExternalRoleApprovalError(
+      approval.error ?? `External role ${role.name} was not approved and did not run.`,
+    );
+  }
+
   // Session continuity keys on the RESOLVED directory: @ the same role from
   // another workspace and it starts a fresh CLI session there.
   const cwd = await resolveExternalCwd({
@@ -74,10 +112,11 @@ export async function runExternalRoleSegment(opts: ExternalStreamHandlers & {
         opts.onToolCall?.(event);
       },
       onToolResult: (event) => {
-        const tool = byId.get(event.toolCallId);
+        const tool = event.toolCallId ? byId.get(event.toolCallId) : undefined;
         if (tool) {
-          tool.status = 'done';
+          tool.status = event.status;
           tool.result = event.result;
+          tool.error = event.error;
         }
         opts.onToolResult?.(event);
       },

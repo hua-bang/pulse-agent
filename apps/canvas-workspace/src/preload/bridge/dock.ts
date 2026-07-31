@@ -1,5 +1,6 @@
 import type { IpcRenderer } from "electron";
 import type { AgentContextTabRef } from "../../shared/agent-chat";
+import type { DockShortcutRequest } from "../../shared/dock-shortcuts";
 import { subscribe, type Unsubscribe } from "./ipc";
 
 export const createDockApi = (ipcRenderer: IpcRenderer) => ({
@@ -15,4 +16,8 @@ export const createDockApi = (ipcRenderer: IpcRenderer) => ({
   onOpenArtifact: (
     callback: (payload: { workspaceId: string; artifactId: string }) => void,
   ): Unsubscribe => subscribe(ipcRenderer, "dock:open-artifact", callback),
+
+  onShortcut: (
+    callback: (payload: DockShortcutRequest) => void,
+  ): Unsubscribe => subscribe(ipcRenderer, "dock:shortcut", callback),
 });

@@ -142,7 +142,14 @@ export function renderTabMentionNode(rawLabel: string, key: number): ReactNode {
       key,
       className: `chat-mention-chip chat-mention-chip--tab${clickable ? ' chat-mention-chip--clickable' : ''}`,
       'data-node-type': nodeType,
-      ...(clickable ? { 'data-action': 'tab-jump', 'data-tab-id': tabRef!.id } : {}),
+      ...(clickable
+        ? {
+            role: 'button',
+            tabIndex: 0,
+            'data-action': 'tab-jump',
+            'data-tab-id': tabRef!.id,
+          }
+        : {}),
     } as Record<string, unknown>,
     createElement(
       'span',
@@ -159,8 +166,9 @@ export function renderTabMentionHtml(rawLabel: string): string {
   const tabRef = parseTabMention(rawLabel);
   const nodeType = tabMentionIconType(tabRef?.kind);
   const label = tabRef?.label ?? 'Tab';
+  const clickableClass = tabRef?.id ? ' chat-mention-chip--clickable' : '';
   const jumpAttrs = tabRef?.id
-    ? ` chat-mention-chip--clickable" data-action="tab-jump" data-tab-id="${escapeHtml(tabRef.id)}`
+    ? ` role="button" tabindex="0" data-action="tab-jump" data-tab-id="${escapeHtml(tabRef.id)}"`
     : '';
-  return `<span class="chat-mention-chip chat-mention-chip--tab${jumpAttrs}" data-node-type="${escapeHtml(nodeType)}"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(label)}</span></span>`;
+  return `<span class="chat-mention-chip chat-mention-chip--tab${clickableClass}" data-node-type="${escapeHtml(nodeType)}"${jumpAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(label)}</span></span>`;
 }

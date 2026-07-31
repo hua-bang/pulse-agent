@@ -94,6 +94,14 @@ export interface ChatPanelProps {
   onRegisterSubmitDomReviewComments?: (fn: (comments: AgentContextDomReviewComment[]) => Promise<boolean>) => () => void;
   /** Fires when a streaming turn finishes — hosts use it for unread badges. */
   onTurnComplete?: () => void;
+  /** Registers this composer as the visible destination for cross-surface actions. */
+  chatTargetActive?: boolean;
+  /** User-facing scope name used by the persistent target bar. */
+  chatTargetLabel?: string;
+  /** Explicit host signal to refresh history without remounting the composer. */
+  sessionRefreshKey?: string | number;
+  /** Opens a historical conversation in its owning scope on the full-page surface. */
+  onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }
 
 export interface OtherWorkspaceSession extends AgentSessionInfo {
@@ -135,6 +143,8 @@ export interface PendingClarification {
   id: string;
   question: string;
   context?: string;
+  kind?: 'clarification' | 'approval';
+  defaultAnswer?: string;
 }
 
 export interface QuickAction {

@@ -43,6 +43,7 @@ const iframeNode: CanvasNode = {
 type DiscardPayload = {
   workspaceId: string;
   nodeId: string;
+  webContentsId: number;
   snapshotDataUrl?: string;
   restoreUrl?: string;
   scrollX?: number;
@@ -136,10 +137,16 @@ describe('useIframeNodeState', () => {
     });
     await flushEffects();
 
-    expect(registerWebview).toHaveBeenCalledWith('workspace-1', 'node-1', 123);
+    expect(registerWebview).toHaveBeenCalledWith('workspace-1', 'node-1', 123, 'canvas-node');
 
     mockWebview?.dispatchEvent(new Event('dom-ready'));
-    expect(registerWebview).toHaveBeenLastCalledWith('workspace-1', 'node-1', 123, true);
+    expect(registerWebview).toHaveBeenLastCalledWith(
+      'workspace-1',
+      'node-1',
+      123,
+      'canvas-node',
+      true,
+    );
   });
 
   it('discard unregisters with the webContentsId; wake remounts on the restore url and scrolls back', async () => {
@@ -156,6 +163,7 @@ describe('useIframeNodeState', () => {
       discardCallback?.({
         workspaceId: 'workspace-1',
         nodeId: 'node-1',
+        webContentsId: 123,
         snapshotDataUrl: 'data:image/png;snap',
         restoreUrl: 'https://example.com/deep/page',
         scrollX: 0,
@@ -187,7 +195,12 @@ describe('useIframeNodeState', () => {
     await flushEffects();
 
     flushSync(() => {
-      discardCallback?.({ workspaceId: 'workspace-1', nodeId: 'other-node', snapshotDataUrl: 'x' });
+      discardCallback?.({
+        workspaceId: 'workspace-1',
+        nodeId: 'other-node',
+        webContentsId: 123,
+        snapshotDataUrl: 'x',
+      });
     });
     await flushEffects();
     expect(hookState?.webviewDiscarded).toBe(false);
@@ -241,6 +254,10 @@ function IframeHookHarness() {
   return <div ref={state.webviewHostRef} />;
 }
 
-function flushEffects(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+async function flushEffects(): Promise<void> {
+  // Registration resolves through an IPC Promise and then schedules a React
+  // commit that releases the about:blank navigation gate. Two turns cover
+  // both boundaries without coupling the test to React's act environment.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }

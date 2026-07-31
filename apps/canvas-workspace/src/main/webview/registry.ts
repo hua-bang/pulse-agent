@@ -20,6 +20,15 @@ import type {
   SetWebviewLifecycleResult,
   WebviewLifecycleState,
 } from '../../shared/webview-lifecycle';
+import {
+  DEFAULT_WEBVIEW_SURFACE_KIND,
+  isWebviewSurfaceKind,
+  webviewInstanceKey,
+  type WebviewInstanceIdentity,
+  type WebviewRegistrationIdentity,
+  type WebviewRegistrationRequest,
+  type WebviewSurfaceKind,
+} from '../../shared/webview-registration';
 import { createDomPickerScript } from './dom-snapshot-script';
 import {
   getFrozenSince,
@@ -30,37 +39,42 @@ import { forgetFreezeSnapshot, rememberFreezeSnapshot } from './discard-monitor'
 import { captureBoundedSnapshot } from './snapshot';
 import { buildFreezeRecord, probeFreezeState } from './freeze-probe';
 import { attachShortcutForwarding } from './shortcut-forwarding';
+import {
+  beginLifecycleRequest,
+  serializeLifecycleTransition,
+} from './lifecycle-request-guard';
+import {
+  WebviewRegistrationStore,
+  type WebviewRegistrationKey,
+} from './registration-store';
+import { withTemporarilyActiveWebview } from './temporary-active-read';
 
-interface RegistryKey {
-  workspaceId: string;
-  nodeId: string;
-}
-
-function keyOf(k: RegistryKey): string {
-  return `${k.workspaceId}::${k.nodeId}`;
-}
-
-const registry = new Map<string, number>();
+const registry = new WebviewRegistrationStore();
 let welcomePerfRecorded = false;
-
-const recordWelcomeReadyForPerf = (k: RegistryKey): void => {
+const recordWelcomeReadyForPerf = (k: WebviewRegistrationKey): void => {
   if (!process.env.PULSE_CANVAS_PERF || welcomePerfRecorded) return;
   if (k.nodeId !== 'node-welcome-download') return;
   welcomePerfRecorded = true;
   console.log(`[perf] welcome-webview ${JSON.stringify({ at: Math.round(performance.now()) })}`);
 };
 
-function register(k: RegistryKey, webContentsId: number, ready = false): void {
-  const registryKey = keyOf(k);
-  const previousId = registry.get(registryKey);
-  registry.set(registryKey, webContentsId);
-  if (previousId !== webContentsId) {
+function register(
+  k: WebviewRegistrationKey,
+  webContentsId: number,
+  surfaceKind: WebviewSurfaceKind,
+  ready = false,
+): void {
+  const isNewGuest = registry.register(k, webContentsId, surfaceKind);
+  if (isNewGuest) {
     // Self-cleaning entry: a guest that dies without a renderer unregister
     // (crash, discard, silent teardown) must not linger in the registry.
     // The compare-and-delete below keeps THIS generation's hook from
     // evicting a newer webContents that reused the node key.
     const wc = allWebContents.fromId(webContentsId);
-    wc?.once('destroyed', () => unregister(k, webContentsId));
+    wc?.once('destroyed', () => {
+      const identity = registry.getByWebContentsId(webContentsId);
+      if (identity) unregister(identity, webContentsId);
+    });
     // Give the guest a keyboard escape hatch back to the host window.
     attachShortcutForwarding(wc);
   }
@@ -73,17 +87,43 @@ function register(k: RegistryKey, webContentsId: number, ready = false): void {
  * (or a destroyed-hook from an old guest) can never evict a newer
  * generation's registration.
  */
-function unregister(k: RegistryKey, expectedWebContentsId?: number): boolean {
-  const registryKey = keyOf(k);
-  if (
-    expectedWebContentsId !== undefined
-    && registry.get(registryKey) !== expectedWebContentsId
-  ) return false;
-  return registry.delete(registryKey);
+function unregister(k: WebviewRegistrationKey, expectedWebContentsId?: number): boolean {
+  const identity = expectedWebContentsId === undefined
+    ? registry.getByNode(k)
+    : registry.getByWebContentsId(expectedWebContentsId);
+  const removed = registry.unregister(k, expectedWebContentsId);
+  if (removed && identity) forgetFreezeSnapshot(webviewInstanceKey(identity));
+  return removed;
 }
 
-function lookup(k: RegistryKey): number | undefined {
-  return registry.get(keyOf(k));
+function lookup(k: WebviewRegistrationKey): number | undefined {
+  return registry.getByNode(k)?.webContentsId;
+}
+
+/** Full renderer-declared identity for a guest, queried in O(1) by Electron id. */
+export function getWebviewRegistration(
+  webContentsId: number,
+): WebviewRegistrationIdentity | null {
+  return registry.getByWebContentsId(webContentsId) ?? null;
+}
+
+/** Surface policy for a guest id, or null when it has not registered. */
+export function getWebviewSurfaceKind(webContentsId: number): WebviewSurfaceKind | null {
+  return getWebviewRegistration(webContentsId)?.surfaceKind ?? null;
+}
+
+/** Resolve one exact mounted presentation. A node key alone is ambiguous
+ * when the canvas card and dock detail are both alive. */
+export function getWebContentsForInstance(
+  identity: WebviewInstanceIdentity,
+): ReturnType<typeof allWebContents.fromId> | null {
+  const registered = registry.getByWebContentsId(identity.webContentsId);
+  if (!registered || registered.workspaceId !== identity.workspaceId
+    || registered.nodeId !== identity.nodeId) return null;
+  const wc = allWebContents.fromId(identity.webContentsId);
+  if (wc && !wc.isDestroyed()) return wc;
+  unregister(registered, identity.webContentsId);
+  return null;
 }
 
 /**
@@ -97,12 +137,10 @@ export function getWebContentsForNode(
   const id = lookup({ workspaceId, nodeId });
   if (id === undefined) return null;
   const wc = allWebContents.fromId(id);
-  if (!wc || wc.isDestroyed()) {
-    // Self-heal: drop the dead entry so the key is clean for re-registration.
-    unregister({ workspaceId, nodeId }, id);
-    return null;
-  }
-  return wc;
+  if (wc && !wc.isDestroyed()) return wc;
+  return unregister({ workspaceId, nodeId }, id)
+    ? getWebContentsForNode(workspaceId, nodeId)
+    : null;
 }
 
 /**
@@ -114,21 +152,22 @@ export function getWebContentsForNode(
 export function listRegisteredWebviews(): Array<{
   workspaceId: string;
   nodeId: string;
+  webContentsId: number;
   wc: NonNullable<ReturnType<typeof allWebContents.fromId>>;
 }> {
   const out: Array<{
     workspaceId: string;
     nodeId: string;
+    webContentsId: number;
     wc: NonNullable<ReturnType<typeof allWebContents.fromId>>;
   }> = [];
-  for (const [key, webContentsId] of registry) {
-    const separator = key.indexOf('::');
-    if (separator < 0) continue;
-    const wc = allWebContents.fromId(webContentsId);
+  for (const entry of registry.values()) {
+    const wc = allWebContents.fromId(entry.webContentsId);
     if (!wc || wc.isDestroyed()) continue;
     out.push({
-      workspaceId: key.slice(0, separator),
-      nodeId: key.slice(separator + 2),
+      workspaceId: entry.workspaceId,
+      nodeId: entry.nodeId,
+      webContentsId: entry.webContentsId,
       wc,
     });
   }
@@ -255,26 +294,21 @@ export async function getNodeRenderedText(
 
   let result: { ok: boolean; title?: string; text?: string; url?: string; error?: string } | null = null;
 
-  // A frozen guest (L2) has script execution disabled — executeJavaScript
-  // would only hit the timeout and the agent would see a diagnostic instead
-  // of the rendered page. Thaw for the read, then re-freeze; the freeze-time
-  // snapshot survives because only the iframe:set-lifecycle handler clears
-  // it, and if re-freezing fails the renderer's resume path still sends
-  // 'active' when the node re-enters the viewport.
-  const wasFrozen = getFrozenSince(wc) !== undefined;
-  if (wasFrozen) await setWebviewLifecycle(wc, 'active');
   let threw = false;
   try {
-    result = await Promise.race([
-      wc.executeJavaScript(script, /* userGesture */ false),
-      new Promise<null>((resolve) =>
-        setTimeout(() => resolve(null), EXTRACT_TIMEOUT_MS),
-      ),
-    ]);
+    result = await withTemporarilyActiveWebview(
+      wc,
+      id,
+      () => getWebContentsForInstance({ workspaceId, nodeId, webContentsId: id }) === wc,
+      () => Promise.race([
+        wc.executeJavaScript(script, /* userGesture */ false),
+        new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), EXTRACT_TIMEOUT_MS),
+        ),
+      ]),
+    );
   } catch {
     threw = true;
-  } finally {
-    if (wasFrozen && !wc.isDestroyed()) void setWebviewLifecycle(wc, 'frozen');
   }
   if (threw) return null;
 
@@ -298,14 +332,20 @@ export async function getNodeRenderedText(
 export function setupWebviewRegistryIpc(): void {
   ipcMain.handle(
     'iframe:register-webview',
-    (_event, payload: { workspaceId: string; nodeId: string; webContentsId: number; ready?: boolean }) => {
-      if (!payload?.workspaceId || !payload?.nodeId || typeof payload.webContentsId !== 'number') {
+    (_event, payload: WebviewRegistrationRequest) => {
+      if (
+        !payload?.workspaceId
+        || !payload?.nodeId
+        || typeof payload.webContentsId !== 'number'
+        || (payload.surfaceKind !== undefined && !isWebviewSurfaceKind(payload.surfaceKind))
+      ) {
         console.warn('[webview-registry] rejected register:', payload);
         return { ok: false };
       }
       register(
         { workspaceId: payload.workspaceId, nodeId: payload.nodeId },
         payload.webContentsId,
+        payload.surfaceKind ?? DEFAULT_WEBVIEW_SURFACE_KIND,
         payload.ready === true,
       );
       console.log(
@@ -374,16 +414,17 @@ export function setupWebviewRegistryIpc(): void {
     'iframe:set-frame-rate',
     (
       _event,
-      payload: { workspaceId: string; nodeId: string; frameRate: number },
+      payload: WebviewInstanceIdentity & { frameRate: number },
     ) => {
       if (
         !payload?.workspaceId ||
         !payload?.nodeId ||
+        typeof payload.webContentsId !== 'number' ||
         typeof payload.frameRate !== 'number'
       ) {
         return { ok: false };
       }
-      const wc = getWebContentsForNode(payload.workspaceId, payload.nodeId);
+      const wc = getWebContentsForInstance(payload);
       if (!wc) return { ok: false };
       const clamped = Math.max(1, Math.min(240, Math.round(payload.frameRate)));
       try {
@@ -398,65 +439,62 @@ export function setupWebviewRegistryIpc(): void {
     },
   );
 
-  /**
-   * Chrome-style freeze/resume for long-offscreen webviews (see
-   * ./lifecycle.ts for the mechanism and exemptions). Renderer escalates a
-   * node from the 1fps frame-rate throttle to 'frozen' after it has been
-   * offscreen for minutes (useWebviewBackgroundThrottle), and resumes it
-   * the moment it re-enters the viewport. Unknown nodes resolve to
-   * {ok:false, skipped:'destroyed'} — normal during teardown races.
-   */
   ipcMain.handle(
     'iframe:set-lifecycle',
     async (
       _event,
-      payload: { workspaceId: string; nodeId: string; state: WebviewLifecycleState },
+      payload: WebviewInstanceIdentity & { state: WebviewLifecycleState },
     ): Promise<SetWebviewLifecycleResult> => {
       if (
         !payload?.workspaceId ||
         !payload?.nodeId ||
+        typeof payload.webContentsId !== 'number' ||
         (payload.state !== 'active' && payload.state !== 'frozen')
       ) {
-        return {
-          ok: false,
-          retryable: false,
-          error: 'invalid lifecycle payload',
-        };
+        return { ok: false, retryable: false, error: 'invalid lifecycle payload' };
       }
-      const wc = getWebContentsForNode(payload.workspaceId, payload.nodeId);
+      const wc = getWebContentsForInstance(payload);
+      const key = webviewInstanceKey(payload);
+      const request = beginLifecycleRequest(payload.webContentsId);
       if (payload.state === 'frozen') {
         const exemption = getWebviewFreezeExemption(wc ?? null);
-        if (exemption) return exemption;
+        if (exemption) {
+          request.finish();
+          return exemption;
+        }
       }
-      const key = `${payload.workspaceId}::${payload.nodeId}`;
       if (payload.state === 'frozen' && wc && getFrozenSince(wc) === undefined) {
-        // (Guarded against duplicate 'frozen' requests: an already-frozen
-        // guest has scripts disabled, so the probe below would time out and
-        // replace a good record with a fail-closed dirty one.)
-        // Last chance to see the live guest: after freezing the renderer
-        // hides the element (frozen guests stop painting) and script
-        // execution is disabled, so neither a capture nor a probe would
-        // work later. Everything a safe L3 discard + restore needs is
-        // captured NOW — snapshot image, dirty-state, real URL, scroll —
-        // and stays valid for as long as the page is frozen (scripts are
-        // off; no new dirty state can appear). Both calls are time-bounded:
-        // capturePage never settles on an already-hidden guest, and a
-        // wedged executeJavaScript must not stall the renderer's freeze
-        // path (observed in CI); a failed probe yields a dirty record,
-        // which simply blocks discard (fail closed).
         const [imageDataUrl, probe] = await Promise.all([
           captureBoundedSnapshot(wc),
           probeFreezeState(wc),
         ]);
+        if (!request.isCurrent() || getWebContentsForInstance(payload) !== wc) {
+          request.finish();
+          return { ok: false, retryable: false, skipped: 'destroyed' };
+        }
         let url = '';
         try {
           url = wc.getURL();
         } catch {
-          // destroyed mid-freeze — setWebviewLifecycle below reports it
+          // setWebviewLifecycle reports teardown below
         }
         rememberFreezeSnapshot(key, buildFreezeRecord(url, imageDataUrl, probe));
       }
-      const result = await setWebviewLifecycle(wc ?? null, payload.state);
+      const result = await serializeLifecycleTransition<SetWebviewLifecycleResult>(payload.webContentsId, async () => {
+        if (!request.isCurrent() || getWebContentsForInstance(payload) !== wc) {
+          return { ok: false, retryable: false, skipped: 'destroyed' } as const;
+        }
+        const transitioned = await setWebviewLifecycle(wc ?? null, payload.state);
+        if (
+          payload.state === 'frozen'
+          && transitioned.ok
+          && (!request.isCurrent() || getWebContentsForInstance(payload) !== wc)
+        ) {
+          await setWebviewLifecycle(wc ?? null, 'active');
+          return { ok: false, retryable: false, skipped: 'destroyed' } as const;
+        }
+        return transitioned;
+      });
       if (payload.state === 'active' || (payload.state === 'frozen' && !result.ok)) {
         forgetFreezeSnapshot(key);
       }
@@ -465,6 +503,7 @@ export function setupWebviewRegistryIpc(): void {
           `[webview-registry] setLifecycle(${payload.state}) failed for ${payload.workspaceId}::${payload.nodeId}: ${result.error}`,
         );
       }
+      request.finish();
       return result;
     },
   );

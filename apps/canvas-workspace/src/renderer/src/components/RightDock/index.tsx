@@ -4,29 +4,43 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react';
-import { Tabs } from '@phosphor-icons/react';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
-import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, isTerminalTabId } from './dock-store';
 import { useDockContext, useRightDockState } from './context';
-import { LinkTabIcon } from './LinkTabIcon';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { useConsumePendingLinks } from '../../hooks/useConsumePendingLinks';
+import { useDockLinkOpens } from './useDockLinkOpens';
 import { useDockAgentBridge } from './useDockAgentBridge';
 import { SplitViewToggle } from './SplitViewToggle';
 import { useDockSplitView } from './useDockSplitView';
-import { clampDockWidth, DOCK_DEFAULT_WIDTH, DOCK_MIN_WIDTH, resolveDockMaxWidth } from './dock-width';
+import {
+  clampDockWidth,
+  DOCK_DEFAULT_WIDTH,
+  DOCK_MIN_WIDTH,
+  resolveDockMaxWidth,
+  resolveTabWidth,
+} from './dock-width';
 import { useDockTabDrag } from './useDockTabDrag';
+import {
+  cancelDockPageFocusRequestUnless,
+  focusActiveDockTarget,
+  focusDockLinkTarget,
+} from './dock-browser-commands';
+import { useDockExternalFocus } from './useDockExternalFocus';
+import { DockContentTab } from './DockContentTab';
+import { DockTabIcon } from './DockTabIcon';
+import { getDockTabSwitcherItems } from './dock-tab-items';
 import { DockPanes } from './DockPanes';
 import { hasDockSplitContentTab } from './dock-split-state';
 import { useDockTabIndicator } from './useDockTabIndicator';
 import { getDockTabVisualState } from './dock-tab-visual-state';
 import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
-import { isImeComposing } from '../../utils/ime';
 import {
   getRovingDockTabId,
   handleDockResizeKeyDown,
@@ -49,7 +63,10 @@ export { isDockChatTabEnabled, isGlobalChatLauncherVisible } from './dock-chat-a
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const RESIZING_CLASS = 'right-dock-resizing';
 const DockCreationControls = lazy(() => import('./DockCreationControls').then((m) => ({ default: m.DockCreationControls })));
+const DockKeyboardController = lazy(() => import('./DockKeyboardController').then((m) => ({ default: m.DockKeyboardController })));
 const TerminalDockTab = lazy(() => import('./TerminalDockTab').then((m) => ({ default: m.TerminalDockTab })));
+const DockTabSwitcher = lazy(() => import('./DockTabSwitcher').then((m) => ({ default: m.DockTabSwitcher })));
+const TabContextMenu = lazy(() => import('./TabContextMenu').then((m) => ({ default: m.TabContextMenu })));
 
 function readStoredWidth(): number | null {
   if (typeof window === 'undefined') return null;
@@ -74,17 +91,6 @@ function persistWidth(value: number): void {
     /* localStorage may be unavailable; preference simply won't persist. */
   }
 }
-
-const isEditableEventTarget = (target: EventTarget | null): boolean => (
-  target instanceof HTMLElement
-  && (
-    target.isContentEditable
-    || target instanceof HTMLInputElement
-    || target instanceof HTMLTextAreaElement
-    || target instanceof HTMLSelectElement
-    || Boolean(target.closest('[contenteditable="true"]'))
-  )
-);
 
 interface RightDockProps {
   activeWorkspaceId: string;
@@ -117,9 +123,7 @@ export const RightDock = ({
     store.setActiveWorkspace(activeWorkspaceId);
   }, [activeWorkspaceId, store]);
 
-  useEffect(() => {
-    return window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
-  }, [store]);
+  useDockLinkOpens(store);
   useDockAgentBridge(store, state, activeWorkspaceId);
 
   // Cold start: drain URLs the OS queued before this dock could subscribe.
@@ -157,11 +161,12 @@ export const RightDock = ({
   const splitTabId = chatTabEnabled ? state.splitTabId : undefined;
   const splitViewActive = Boolean(splitTabId);
   const chatVisual = getDockTabVisualState(CHAT_TAB_ID, activePaneId, splitTabId);
-  const orderedTabIds = [
-    ...(chatTabEnabled ? [CHAT_TAB_ID] : []),
-    ...(terminalTabsVisible ? state.terminalTabs.map((tab) => tab.id) : []),
-    ...state.tabs.map((tab) => tab.id),
-  ];
+  const allTabItems = useMemo(() => getDockTabSwitcherItems(state, {
+    chatTabEnabled,
+    chatTitle: t('rightDock.chat'),
+    terminalTitle: t('workspaceTerminal.title'),
+  }), [chatTabEnabled, state.tabs, state.terminalTabs, t]);
+  const orderedTabIds = allTabItems.map((tab) => tab.id);
   const rovingTabId = getRovingDockTabId(orderedTabIds, activePaneId);
   // Two layers on purpose: `chosenWidth` is what the user dragged (persisted),
   // `width` is what this route renders. Switching canvas → page must not
@@ -173,6 +178,7 @@ export const RightDock = ({
   const [viewportWidth, setViewportWidth] = useState<number>(readViewportWidth);
   const maxWidth = resolveDockMaxWidth(viewportWidth, capWidth);
   const width = clampDockWidth(chosenWidth, viewportWidth, capWidth);
+  const tabWidth = resolveTabWidth(orderedTabIds.length, width);
   // Stable identity with live values: `useDockSplitView` keeps this in an
   // effect dep list, and a clamp that changed identity per route would re-run
   // (and re-clamp `chosenWidth`) on every navigation.
@@ -218,27 +224,32 @@ export const RightDock = ({
     };
   }, [visible, reserveSpace, width]);
 
+  const dockRef = useRef<HTMLElement>(null);
+  const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
+  const tabMenuTab = tabMenu ? state.tabs.find((tab) => tab.id === tabMenu.tabId) : undefined;
+  const focusActiveTarget = useCallback(() => focusActiveDockTarget(store), [store]);
+  useDockExternalFocus(dockRef, t('canvas.toolbar.toggleChat'));
+  const collapseFromUser = useCallback(() => {
+    store.collapse();
+    focusActiveDockTarget(store);
+  }, [store]);
+  const activateFromUser = useCallback((tabId: string) => {
+    store.activate(tabId);
+    focusActiveDockTarget(store);
+  }, [store]);
+  const closeFromUser = useCallback((tabId: string) => {
+    store.close(tabId);
+    focusActiveDockTarget(store);
+  }, [store]);
   useEffect(() => {
-    if (!visible) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (
-        e.key !== 'Escape'
-        || e.defaultPrevented
-        || isImeComposing(e)
-        || isEditableEventTarget(e.target)
-      ) {
-        return;
-      }
-      const { activeTabId, terminalTabs } = store.getSnapshot();
-      if (terminalTabs.some((tab) => tab.id === activeTabId)) {
-        store.closeTerminal(activeTabId);
-        return;
-      }
-      if (activeTabId !== CHAT_TAB_ID) store.close(activeTabId);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [visible, store]);
+    const activeLink = state.tabs.find(
+      (tab) => tab.id === activePaneId && tab.kind === 'link',
+    );
+    cancelDockPageFocusRequestUnless(visible && activeLink ? {
+      workspaceId: state.activeTerminalWorkspaceId,
+      tabId: activeLink.id,
+    } : null);
+  }, [activePaneId, state.activeTerminalWorkspaceId, state.tabs, visible]);
 
   // Drag the left edge to resize (shared useDragResize hook). The handle sits
   // on the LEFT edge of the right-anchored dock, so dragging left grows it
@@ -260,12 +271,25 @@ export const RightDock = ({
   });
   return (
     <aside
+      ref={dockRef}
       className="right-dock"
       data-expanded={visible}
       role="complementary"
       aria-label={t('rightDock.ariaLabel')}
       style={{ width }}
     >
+      {visible && (
+        <Suspense fallback={null}>
+          <DockKeyboardController
+            store={store}
+            visible={visible}
+            newTabTitle={t('rightDock.newTabTitle')}
+            dockRef={dockRef}
+            orderedTabIds={orderedTabIds}
+            onCollapse={collapseFromUser}
+          />
+        </Suspense>
+      )}
       <div
         className="right-dock__resize-handle"
         onMouseDown={resize.onMouseDown}
@@ -286,7 +310,11 @@ export const RightDock = ({
         aria-valuemax={maxWidth}
         aria-valuenow={width}
       />
-      <div className="right-dock__tabs" data-visible={tabStripVisible}>
+      <div
+        className="right-dock__tabs"
+        data-visible={tabStripVisible}
+        style={{ '--dock-tab-width': `${tabWidth}px` } as CSSProperties}
+      >
         <div
           ref={tabIndicator.tabsRef}
           className="right-dock__tab-scroll"
@@ -329,9 +357,7 @@ export const RightDock = ({
               tabIndex={rovingTabId === CHAT_TAB_ID ? 0 : -1}
               onClick={() => store.activate(CHAT_TAB_ID)}
             >
-              <span className="right-dock__tab-icon right-dock__tab-icon--chat">
-                <AppLogoIcon size={14} />
-              </span>
+              <DockTabIcon kind="chat" />
               <span className="right-dock__tab-title">{t('rightDock.chat')}</span>
               <span className="right-dock__tab-unread" aria-hidden="true" />
             </button>
@@ -348,7 +374,10 @@ export const RightDock = ({
                     tabIndex={rovingTabId === tab.id ? 0 : -1}
                     registerTab={tabIndicator.registerTab}
                     onActivate={(id) => store.activate(id)}
-                    onClose={(id) => store.closeTerminal(id)}
+                    onClose={(id) => {
+                      store.closeTerminal(id);
+                      focusActiveDockTarget(store);
+                    }}
                     onRename={(id, title) => store.renameTerminal(id, title)}
                     onDragStart={tabDrag.onDragStart}
                     onDragOver={tabDrag.onDragOver}
@@ -359,72 +388,37 @@ export const RightDock = ({
               })}
             </Suspense>
           )}
-          {state.tabs.map((tab) => {
-            const visual = getDockTabVisualState(tab.id, activePaneId, splitTabId);
-            return (
-              <span
-                key={tab.id}
-                className="right-dock__tab-shell"
-                data-split-visible={visual.splitVisible}
-                data-split-part={visual.splitPart}
-                onDragOver={(event) => tabDrag.onDragOver(event, tab.id)}
-                onDrop={(event) => tabDrag.onDrop(event, tab.id)}
-              >
-                <button
-                  ref={(element) => tabIndicator.registerTab(tab.id, element)}
-                  type="button"
-                  id={dockTabElementId(tab.id)}
-                  data-dock-tab-id={tab.id}
-                  role="tab"
-                  aria-controls={dockPaneElementId(tab.id)}
-                  aria-selected={visual.selected}
-                  aria-expanded={visual.splitActive ? visual.splitVisible : undefined}
-                  className={`right-dock__tab right-dock__tab--with-close${visual.focused ? ' right-dock__tab--active' : ''}`}
-                  data-focused={visual.focused}
-                  data-split-visible={visual.splitVisible}
-                  title={tab.title}
-                  draggable
-                  tabIndex={rovingTabId === tab.id ? 0 : -1}
-                  onDragStart={(event) => tabDrag.onDragStart(event, tab.id)}
-                  onDragEnd={tabDrag.clear}
-                  onMouseDown={(event) => {
-                    // Activate on mouse-down: once the gesture turns into a
-                    // drag the browser suppresses the click, so click-only
-                    // activation reads as "tab didn't respond" after a few px
-                    // of pointer slip.
-                    if (event.button === 0) store.activate(tab.id);
-                  }}
-                  onClick={() => store.activate(tab.id)}
-                >
-                  {tab.kind === 'link' ? (
-                    <span className="right-dock__tab-icon right-dock__tab-icon--link">
-                      <LinkTabIcon faviconUrl={tab.faviconUrl} />
-                    </span>
-                  ) : tab.kind === 'node-detail' ? (
-                    <span className="right-dock__tab-icon right-dock__tab-icon--node-detail">
-                      <Tabs size={14} weight="regular" aria-hidden="true" />
-                    </span>
-                  ) : (
-                    <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
-                  )}
-                  <span className="right-dock__tab-title">{tab.title}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={t('rightDock.closeTab', { title: tab.title })}
-                  title={t('rightDock.closeTab', { title: tab.title })}
-                  className="right-dock__tab-close"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    store.close(tab.id);
-                  }}
-                >
-                  ×
-                </button>
-              </span>
-            );
-          })}
+          {state.tabs.map((tab) => (
+            <DockContentTab
+              key={tab.id}
+              tab={tab}
+              visual={getDockTabVisualState(tab.id, activePaneId, splitTabId)}
+              tabIndex={rovingTabId === tab.id ? 0 : -1}
+              registerTab={tabIndicator.registerTab}
+              onActivate={(id) => store.activate(id)}
+              onFocusPage={(id) => focusDockLinkTarget({
+                workspaceId: state.activeTerminalWorkspaceId,
+                tabId: id,
+                url: tab.kind === 'link' ? tab.url : '',
+              })}
+              onClose={closeFromUser}
+              onContextMenu={(tabId, x, y) => setTabMenu({ tabId, x, y })}
+              onDragStart={tabDrag.onDragStart}
+              onDragOver={tabDrag.onDragOver}
+              onDrop={tabDrag.onDrop}
+              onDragEnd={tabDrag.clear}
+            />
+          ))}
         </div>
+        {allTabItems.length > 1 && (
+          <Suspense fallback={null}>
+            <DockTabSwitcher
+              items={allTabItems}
+              activeTabId={activePaneId}
+              onActivate={activateFromUser}
+            />
+          </Suspense>
+        )}
         {visible && (
           <Suspense fallback={null}>
             <DockCreationControls
@@ -451,7 +445,7 @@ export const RightDock = ({
             className="right-dock__collapse"
             aria-label={t('rightDock.collapseTitle')}
             title={t('rightDock.collapse')}
-            onClick={() => store.collapse()}
+            onClick={collapseFromUser}
           >
             ⇥
           </button>
@@ -461,6 +455,7 @@ export const RightDock = ({
         store={store}
         state={state}
         activePaneId={activePaneId}
+        dockVisible={visible}
         splitTabId={splitTabId}
         chatTabEnabled={chatTabEnabled}
         splitContentWidth={splitView.contentWidth}
@@ -478,7 +473,21 @@ export const RightDock = ({
         pinUrlReference={pinUrlReference}
         onAddDomSelectionToChat={addDomSelectionToChat}
         onStartSkillChat={startSkillChat}
+        onCloseTab={closeFromUser}
       />
+      {tabMenu && tabMenuTab && (
+        <Suspense fallback={null}>
+          <TabContextMenu
+            tab={tabMenuTab}
+            tabs={state.tabs}
+            store={store}
+            x={tabMenu.x}
+            y={tabMenu.y}
+            onClose={() => setTabMenu(null)}
+            onActionComplete={focusActiveTarget}
+          />
+        </Suspense>
+      )}
     </aside>
   );
 };

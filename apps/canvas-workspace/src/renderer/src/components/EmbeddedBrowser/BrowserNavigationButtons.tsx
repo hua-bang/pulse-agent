@@ -11,6 +11,10 @@ interface Props {
   onForward: () => void;
   onReload: () => void;
   showHistory?: boolean;
+  /** The caller routes `onReload` to stop() while loading, so the control is
+   *  labelled for what it will actually do. Surfaces without a stop path
+   *  (canvas iframe nodes) leave this off and keep the reload label. */
+  canStop?: boolean;
 }
 
 export const BrowserNavigationButtons = ({
@@ -22,8 +26,10 @@ export const BrowserNavigationButtons = ({
   onForward,
   onReload,
   showHistory = true,
+  canStop = false,
 }: Props) => {
   const { t } = useI18n();
+  const reloadLabel = loading && canStop ? t('linkDrawer.stopLoading') : t('linkDrawer.reload');
   return (
     <>
       {showHistory && (
@@ -55,8 +61,8 @@ export const BrowserNavigationButtons = ({
         size="xs"
         onClick={onReload}
         disabled={disabled}
-        title={t('linkDrawer.reload')}
-        aria-label={t('linkDrawer.reload')}
+        title={reloadLabel}
+        aria-label={reloadLabel}
       >
         {loading ? <SpinnerIcon size={12} className="browser-navigation__loading-icon" /> : <ReloadIcon />}
       </Button>

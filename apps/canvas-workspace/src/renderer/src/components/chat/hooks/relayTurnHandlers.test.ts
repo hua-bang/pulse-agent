@@ -33,6 +33,7 @@ function harness() {
   let flushes = 0;
   const handlers = createRelayTurnHandlers({
     segment,
+    unresolvedToolError: 'No result received',
     streamingMsgIdx,
     flushDeltas: () => { flushes++; },
     setMessages: messages.set,
@@ -64,9 +65,13 @@ describe('relay segment lifecycle', () => {
     expect(h.messages.value[1]).toMatchObject({
       content: '值得做。', runId: 'run-1', speakerRoleId: 'r1', speakerRoleColor: '#d9730d',
     });
-    expect(h.messages.value[1].toolCalls?.[0]).toMatchObject({ name: 'canvas_read_node', status: 'done' });
+    expect(h.messages.value[1].toolCalls?.[0]).toMatchObject({
+      name: 'canvas_read_node',
+      status: 'failed',
+      error: 'No result received',
+    });
     expect(h.messageTools.value.get(1)).toHaveLength(1);
-    expect(h.collapsed.value.has(1)).toBe(true);
+    expect(h.collapsed.value.has(1)).toBe(false);
     // Segment reset: stray deltas can no longer target the frozen bubble.
     expect(h.segment.msgIndex).toBe(-1);
     expect(h.segment.finalized).toBe(1);
@@ -140,7 +145,11 @@ describe('applyTurnCompletion', () => {
       setMessages: h.messages.set,
     });
     const last = h.messages.value.at(-1)!;
-    expect(last.content).toContain('model unavailable');
+    expect(last.content).toBe('');
+    expect(last.failureKind).toBe('unknown');
+    expect(last.turnStatus).toBe('failed');
+    expect(last.errorDetails).toContain('model unavailable');
+    expect(last.retryable).toBe(true);
     expect(h.messages.value[1].content).toBe('A 段');
   });
 
@@ -158,7 +167,54 @@ describe('applyTurnCompletion', () => {
       setMessages: h.messages.set,
     });
     expect(h.messages.value[1].content).toBe('写到一半');
+    expect(h.messages.value[1]).toMatchObject({
+      turnStatus: 'failed',
+      errorDetails: 'aborted',
+      failureKind: 'unknown',
+    });
     expect(h.messages.value).toHaveLength(2);
+  });
+
+  it('preserves partial output as a stopped turn without appending Request aborted', () => {
+    const h = harness();
+    h.handlers.handleRoleTurnStart({ index: 0, total: 1, speakerRole: null, queue: [null] });
+    h.messages.set(prev => {
+      const next = [...prev];
+      next[1] = { ...next[1], content: '已经生成的部分' };
+      return next;
+    });
+
+    applyTurnCompletion({
+      completeResult: { ok: true, stopped: true, response: 'Request aborted.' },
+      segment: h.segment,
+      setMessages: h.messages.set,
+    });
+
+    expect(h.messages.value).toHaveLength(2);
+    expect(h.messages.value[1]).toMatchObject({
+      content: '已经生成的部分',
+      turnStatus: 'stopped',
+      retryable: true,
+    });
+    expect(h.messages.value[1].content).not.toContain('Request aborted');
+  });
+
+  it('appends a stopped status bubble when abort wins before role-start', () => {
+    const h = harness();
+
+    applyTurnCompletion({
+      completeResult: { ok: true, stopped: true, response: '' },
+      segment: h.segment,
+      setMessages: h.messages.set,
+    });
+
+    expect(h.messages.value).toHaveLength(2);
+    expect(h.messages.value[1]).toMatchObject({
+      role: 'assistant',
+      content: '',
+      turnStatus: 'stopped',
+      retryable: true,
+    });
   });
 
   it('falls back to appending the final response when no segment events arrived', () => {

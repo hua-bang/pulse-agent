@@ -34,6 +34,8 @@ interface Options {
   /** Identifies the registered webview in main's registry. */
   workspaceId: string | undefined;
   nodeId: string;
+  /** Exact registered presentation; node identity is not unique. */
+  webContentsId: number | null;
   /**
    * When true the hook stays inactive — used to skip throttling while the
    * node is in editing mode or has no live webview to control.
@@ -87,6 +89,7 @@ export const useWebviewBackgroundThrottle = ({
   hostRef,
   workspaceId,
   nodeId,
+  webContentsId,
   disabled = false,
   rootMargin = DEFAULT_ROOT_MARGIN,
   offscreenDelayMs = DEFAULT_OFFSCREEN_DELAY_MS,
@@ -102,7 +105,7 @@ export const useWebviewBackgroundThrottle = ({
   const frozenRef = useRef(false);
 
   useEffect(() => {
-    if (disabled || !workspaceId) return;
+    if (disabled || !workspaceId || webContentsId === null) return;
     const el = hostRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') return;
 
@@ -117,7 +120,7 @@ export const useWebviewBackgroundThrottle = ({
       // setFrameRate calls for unknown nodes resolve to {ok:false} — main
       // logs and we ignore. This is normal during webview boot before
       // registerWebview has completed.
-      void api.setFrameRate(workspaceId, nodeId, rate).catch(() => {
+      void api.setFrameRate(workspaceId, nodeId, webContentsId, rate).catch(() => {
         appliedRateRef.current = null; // let next state change retry
       });
     };
@@ -143,7 +146,7 @@ export const useWebviewBackgroundThrottle = ({
       freezeTimer = null;
       if (!offscreen || frozenRef.current) return;
       void api
-        .setLifecycle(workspaceId, nodeId, 'frozen')
+        .setLifecycle(workspaceId, nodeId, webContentsId, 'frozen')
         .then((result) => {
           if (result.ok) {
             // The freeze IPC can take a couple of seconds (bounded snapshot
@@ -152,7 +155,7 @@ export const useWebviewBackgroundThrottle = ({
             // 'active' — undo immediately instead of leaving a VISIBLE
             // guest with scripts disabled.
             if (!offscreen) {
-              void api.setLifecycle(workspaceId, nodeId, 'active').catch(() => {});
+              void api.setLifecycle(workspaceId, nodeId, webContentsId, 'active').catch(() => {});
               return;
             }
             frozenRef.current = true;
@@ -172,7 +175,7 @@ export const useWebviewBackgroundThrottle = ({
       el.classList.remove(FROZEN_HIDDEN_CLASS);
       if (!frozenRef.current) return;
       frozenRef.current = false;
-      void api.setLifecycle(workspaceId, nodeId, 'active').catch(() => {});
+      void api.setLifecycle(workspaceId, nodeId, webContentsId, 'active').catch(() => {});
     };
 
     // Frame-rate is the LOWEST of three independent throttles (P3): the
@@ -267,7 +270,7 @@ export const useWebviewBackgroundThrottle = ({
       // the webview is gone, which we silently swallow.
       resume();
       if (appliedRateRef.current === throttledFrameRate) {
-        void api.setFrameRate(workspaceId, nodeId, defaultFrameRate).catch(() => {});
+        void api.setFrameRate(workspaceId, nodeId, webContentsId, defaultFrameRate).catch(() => {});
       }
       appliedRateRef.current = null;
     };
@@ -275,6 +278,7 @@ export const useWebviewBackgroundThrottle = ({
     hostRef,
     workspaceId,
     nodeId,
+    webContentsId,
     disabled,
     rootMargin,
     offscreenDelayMs,

@@ -23,6 +23,11 @@ Engine code should stay host-agnostic. Prefer an extension point before changing
 - Built-in plugin order is defined by `src/built-in/index.ts`; changing it can change runtime behavior.
 - `src/core/loop.ts` owns streaming events, tool-call/result events, LLM hooks, tool hooks, run hooks, retry/backoff, abort handling, timeout handling, and context compaction.
 - Hook behavior should remain composable across hosts. Do not assume a single CLI, server, or canvas caller.
+- `beforeToolCall` runs against the final per-run tool table (including tools
+  registered or injected by plugins), receives that invocation's
+  `ToolExecutionContext`, and may replace the context or short-circuit with an
+  `output`. Host safety policies should use this boundary when a denied call
+  must become a normal tool result without executing the underlying tool.
 - Tools should keep explicit schemas where possible and preserve `ToolExecutionContext` propagation, including `runContext`, clarification callbacks, abort signal, and `toolCallId`.
 - Preserve `.pulse-coder/*` as the preferred runtime config root and `.coder/*` compatibility unless there is an explicit migration plan.
 

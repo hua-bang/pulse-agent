@@ -14,6 +14,9 @@ interface ChatMentionPopupProps {
   onMentionIndexChange: (index: number) => void;
 }
 
+export const CHAT_MENTION_LISTBOX_ID = 'chat-mention-listbox';
+export const chatMentionOptionId = (index: number): string => `chat-mention-option-${index}`;
+
 export const ChatMentionPopup = ({
   mentionItems,
   mentionIndex,
@@ -31,7 +34,13 @@ export const ChatMentionPopup = ({
   }, [mentionIndex]);
 
   return (
-    <div className="chat-mention-popup" ref={popupRef}>
+    <div
+      className="chat-mention-popup"
+      id={CHAT_MENTION_LISTBOX_ID}
+      ref={popupRef}
+      role="listbox"
+      aria-label={t('chat.mention.suggestions')}
+    >
       {mentionItems.map((item, index) => {
         const groupKey = getMentionGroupKey(item);
         const previousGroupKey = index > 0 ? getMentionGroupKey(mentionItems[index - 1]) : null;
@@ -53,11 +62,21 @@ export const ChatMentionPopup = ({
                       : 'file';
 
         return (
-          <div key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}>
+          <div
+            key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}
+            role="presentation"
+          >
             {showHeader && (
-              <div className="chat-mention-group-header">{t(MENTION_GROUP_LABEL_KEY[groupKey])}</div>
+              <div className="chat-mention-group-header" role="presentation">
+                {t(MENTION_GROUP_LABEL_KEY[groupKey])}
+              </div>
             )}
             <button
+              type="button"
+              id={chatMentionOptionId(index)}
+              role="option"
+              aria-selected={index === mentionIndex}
+              tabIndex={-1}
               className={`chat-mention-item${item.type === 'session' ? ' chat-mention-item--session' : ''}${index === mentionIndex ? ' chat-mention-item--active' : ''}`}
               title={item.type === 'session' && item.description ? `${sessionTitleText(item.label)} · ${item.description}` : undefined}
               onMouseDown={(event) => {
