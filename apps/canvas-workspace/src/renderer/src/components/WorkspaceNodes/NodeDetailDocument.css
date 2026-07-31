@@ -51,7 +51,9 @@
 .node-detail-panel__skeleton-line,
 .node-detail-panel__skeleton-block {
   border-radius: var(--radius-xs);
-  background: var(--nodes-surface-soft);
+  /* --nodes-surface-soft (4%) disappears against the panel once the pulse
+   * dips; this reads as a placeholder at both ends of the animation. */
+  background: color-mix(in srgb, var(--nodes-text) 9%, transparent);
   animation: node-detail-skeleton-pulse 1.4s ease-in-out infinite;
 }
 
@@ -72,7 +74,7 @@
 
 @keyframes node-detail-skeleton-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+  50% { opacity: 0.6; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -99,20 +101,38 @@
   color: var(--nodes-text);
 }
 
-/* Sits above the editor it belongs to, inside the preview box, so the failure
- * is attached to the content that failed rather than floating in the page. */
+/* Floats over the editor it belongs to, in the same visual language as the
+ * note's own `.note-save-status` pill — `.node-canvas-preview` is an
+ * absolutely-positioned flex row whose single child is the canvas node, so an
+ * in-flow banner would become a second flex ITEM and squeeze the editor into
+ * a ribbon. Pinned to the TOP because the note's status sits bottom-right;
+ * the two report different failures and must never overlap. */
+.node-detail-panel .node-canvas-preview {
+  /* Local stacking only — this overlay competes with one editor, not with
+   * app surfaces, so it stays off the global --layer-* scale exactly the way
+   * `.note-card` keeps its own `--note-layer-panel`. */
+  --node-preview-layer-alert: 50;
+}
+
 .node-canvas-preview__save-error {
-  margin-bottom: 10px;
-  padding: 8px 10px;
+  position: absolute;
+  z-index: var(--node-preview-layer-alert);
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  min-height: 26px;
+  padding: 5px 8px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, var(--error) 26%, transparent);
-  background: color-mix(in srgb, var(--error) 7%, var(--nodes-surface));
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+  background: color-mix(in srgb, var(--error) 8%, var(--nodes-surface));
+  box-shadow: var(--shadow-float);
   color: var(--error);
   font-size: 11px;
+  backdrop-filter: blur(8px);
 }
 
 .node-detail-panel__layout {
