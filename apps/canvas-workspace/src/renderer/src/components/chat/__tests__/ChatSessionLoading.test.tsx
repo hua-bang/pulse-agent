@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
 import { ChatMessages } from '../ChatMessages';
 import { ChatView } from '../ChatView';
-import type { AgentChatMessage } from '../../../types';
+import type { AgentChatMessage, CanvasModelStatus } from '../../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -55,6 +55,17 @@ const PRIOR_SESSION: AgentChatMessage[] = [
   { role: 'user', content: 'from the session we are leaving', timestamp: 1 },
   { role: 'assistant', content: 'stale reply', timestamp: 2 },
 ];
+
+const UNCONFIGURED_MODEL: CanvasModelStatus = {
+  path: '/config',
+  currentProvider: '',
+  currentModel: '',
+  providerType: 'openai',
+  resolvedModel: '',
+  apiKeyPresent: false,
+  options: [],
+  providers: [],
+};
 
 async function render(ui: React.ReactNode): Promise<HTMLDivElement> {
   host = document.createElement('div');
@@ -114,5 +125,31 @@ describe('session-detail loading state', () => {
 
     expect(el.querySelector('.chat-thread-skeleton')).toBeNull();
     expect(el.querySelector('.chat-empty-state')).not.toBeNull();
+  });
+
+  it('keeps model setup in the composer as the single empty-chat entry', async () => {
+    const onOpenModelSettings = vi.fn();
+    const el = await render(
+      <ChatView
+        {...viewProps}
+        messages={[]}
+        loading={false}
+        contextComposer
+        modelStatus={UNCONFIGURED_MODEL}
+        modelSelection={{ mode: 'auto' }}
+        modelLabel="Auto"
+        onSelectAutoModel={vi.fn(async () => undefined)}
+        onSelectModel={vi.fn(async () => undefined)}
+        onOpenModelSettings={onOpenModelSettings}
+      />,
+    );
+
+    expect(el.querySelectorAll('.chat-model-switcher-btn--warning')).toHaveLength(1);
+    expect(el.querySelector('.chat-empty-configure-banner')).toBeNull();
+
+    act(() => {
+      el.querySelector<HTMLButtonElement>('.chat-model-switcher-btn--warning')?.click();
+    });
+    expect(onOpenModelSettings).toHaveBeenCalledTimes(1);
   });
 });

@@ -154,12 +154,60 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   session lists, so an unguarded check-then-initialize creates duplicate
   engines for one scope and makes session switching visibly stall. Guard:
   `src/main/agent/__tests__/service-history.test.ts`.
+- One chat scope has one authoritative run and one session-mutation lane.
+  `ActiveChatRegistry` owns IPC-visible run identity/abort/reconnect, while
+  `SessionMutationCoordinator` serializes chat against new/load/branch/delete/
+  rename/pin/import mutations; renderer scope activity is only a UX mirror.
+  Current senders must use prepare → subscribe → start: prepare reserves the
+  scope before returning, start upgrades that reservation and freezes the
+  main-resolved model into the persisted turn snapshot. A reservation owns the
+  run's AbortController so hard Stop latches even before start. The renderer
+  also sends its visible conversation-session id; after the mutation lane is
+  idle, main must compare-and-swap that pointer before calling the agent and
+  return the authoritative history on mismatch. Guards: `active-chat-registry.test.ts`,
+  `prepared-chat.test.ts`, `chat-protocol.test.ts`, `chat-session-cas.test.ts`,
+  and `__tests__/service-session-mutation.test.ts`.
+- The renderer has one visible approval card, so main must serialize concurrent
+  clarification requests and start each timeout only when that request becomes
+  visible. Answering one request must reveal, not clear, the next queued
+  request. Guard: `clarification-registry.test.ts`.
+- Conversation pointer changes are fail-closed. Archive publication and the
+  replacement current-session write must complete before the in-memory pointer
+  advances; queued persistence failures must remain observable through
+  `flush()`, while the serialization tail stays usable for repair. Archive
+  filenames must remain collision-safe even when timestamps and titles match.
+  Once a promoted session is durably current, cleanup of its stale archive
+  copies is best-effort: a cleanup failure must not report that the already
+  committed pointer change failed. Deleting the current session reverses that
+  order: stale data copies are removed before publishing the replacement
+  pointer, while post-commit metadata cleanup is best-effort.
+  Guard: `src/main/agent/__tests__/session-store.test.ts`.
+- Chat image uploads are bounded again in main before a prepared run is
+  accepted. Explicitly removing a ready draft attachment deletes its saved
+  file; clearing a successfully sent draft must retain the file because
+  session history references it. A failed turn must persist the live tool-call
+  snapshot and settle unfinished tools so reload matches the streamed UI.
+  Guards: `useChatAttachments.test.tsx`, `chat-protocol.test.ts`, and
+  `chat-failure-persistence.test.ts`.
+- An external-role driver rejection after its AbortSignal fires is a stopped
+  turn, never a failed turn. Preserve streamed partial text, merge live tool
+  events that the rejected driver could not return, and settle unfinished
+  tools as cancelled. Guards: `segment-execution.test.ts` and
+  `chat-stop.test.ts`.
 - The full-screen chat rail is one stable cross-scope projection. Do not swap
   per-scope list caches into it or fetch a list while `loadSession` is
   promoting an archive: either path can duplicate/reorder rows under the
   pointer and move the scroll position. Commit current/other lists together
   after promotion; guards live in `useChatSessions.test.tsx` and
   `ChatSessionsRail.test.tsx`.
+- Chat-target registration is synchronously observed at the app root. Props
+  that feed a mounted `ChatPanel` target or its registered handlers must use
+  stable empty collection fallbacks; an inline `[]` makes the target unregister
+  and re-register on every broker-driven root render, reaches React's maximum
+  update depth, and clears the renderer. Workbench's node and selection
+  fallbacks are module constants and are covered by
+  `Workbench/__tests__/ChatDockLifecycle.test.tsx`; knowledge chat applies the
+  same stable-fallback rule, but is not exercised by that guard.
 - The app owns v2 canvas storage migration, PTY sessions, runtime-control
   endpoints, plugin activation, and UI-visible data recovery. The CLI adapts to
   those contracts but does not own them.

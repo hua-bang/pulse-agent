@@ -28,6 +28,74 @@ export function unwrapToolOutput(raw: unknown): string {
   return JSON.stringify(raw) ?? String(raw);
 }
 
+export interface CanvasToolResultEvent {
+  name: string;
+  result: string;
+  toolCallId?: string;
+  status: 'succeeded' | 'failed' | 'cancelled';
+  error?: string;
+}
+
+/**
+ * Preserve the AI SDK's error result variants and common structured tool
+ * failures. The previous string-only bridge erased this distinction and the
+ * renderer consequently showed every terminal tool as a successful checkmark.
+ */
+export function normalizeToolResult(
+  raw: unknown,
+  meta: { name: string; toolCallId?: string },
+): CanvasToolResultEvent {
+  const result = unwrapToolOutput(raw);
+  let failed = false;
+  let cancelled = false;
+  let error: string | undefined;
+
+  if (raw && typeof raw === 'object') {
+    const wrapper = raw as {
+      type?: unknown;
+      value?: unknown;
+      error?: unknown;
+      ok?: unknown;
+      cancelled?: unknown;
+      exitCode?: unknown;
+    };
+    failed = typeof wrapper.type === 'string' && wrapper.type.startsWith('error-');
+    const value = (
+      typeof wrapper.type === 'string' && 'value' in wrapper
+        ? wrapper.value
+        : raw
+    ) as { ok?: unknown; cancelled?: unknown; error?: unknown; exitCode?: unknown } | unknown;
+    if (value && typeof value === 'object') {
+      const record = value as { ok?: unknown; cancelled?: unknown; error?: unknown; exitCode?: unknown };
+      cancelled = record.cancelled === true;
+      failed ||= record.ok === false;
+      failed ||= typeof record.exitCode === 'number' && record.exitCode !== 0;
+      if (typeof record.error === 'string' && record.error.trim()) {
+        error = record.error.trim();
+        failed = true;
+      }
+    }
+    if (!error && typeof wrapper.error === 'string' && wrapper.error.trim()) {
+      error = wrapper.error.trim();
+      failed = true;
+    }
+  }
+
+  if (!failed && /^\s*(?:error|failed|failure)\s*:/i.test(result)) {
+    failed = true;
+  }
+  if ((failed || cancelled) && !error) {
+    error = result || (cancelled ? 'Tool execution cancelled' : 'Tool execution failed');
+  }
+
+  return {
+    ...meta,
+    result,
+    status: cancelled ? 'cancelled' : failed ? 'failed' : 'succeeded',
+    error,
+  };
+}
+
 export function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentToolCall[] {
   const toolCalls: CanvasAgentToolCall[] = [];
   const byToolCallId = new Map<string, CanvasAgentToolCall>();
@@ -65,9 +133,11 @@ export function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentT
         const name = typeof part.toolName === 'string' ? part.toolName : '';
         if (!toolCallId || !name) continue;
         const tool = findOrCreate(toolCallId, name);
+        const outcome = normalizeToolResult(part.output ?? part.result, { name, toolCallId });
         tool.name = name;
-        tool.status = 'done';
-        tool.result = unwrapToolOutput(part.output ?? part.result);
+        tool.status = outcome.status;
+        tool.result = outcome.result;
+        tool.error = outcome.error;
       }
     }
   }
@@ -77,7 +147,7 @@ export function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentT
 export interface EngineStreamCallbacks {
   onText?: (delta: string) => void;
   onToolCall?: (data: { name: string; args: any; toolCallId?: string }) => void;
-  onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void;
+  onToolResult?: (data: CanvasToolResultEvent) => void;
   onToolInputStart?: (data: { id: string; toolName: string }) => void;
   onToolInputDelta?: (data: { id: string; delta: string }) => void;
   onToolInputEnd?: (data: { id: string }) => void;
@@ -106,13 +176,13 @@ export function buildEngineStreamCallbacks(
     onToolResult: (onToolResult || debugTrace)
       ? (chunk: any) => {
           const raw = chunk.output ?? chunk.result;
-          console.info('[canvas-agent] tool-result chunk keys:', Object.keys(chunk), 'output:', typeof chunk.output, 'result:', typeof chunk.result);
-          recordTraceToolResult(debugTrace, { name: chunk.toolName, rawResult: raw, toolCallId: chunk.toolCallId });
-          onToolResult?.({
+          const outcome = normalizeToolResult(raw, {
             name: chunk.toolName,
-            result: unwrapToolOutput(raw),
             toolCallId: chunk.toolCallId,
           });
+          console.info('[canvas-agent] tool-result chunk keys:', Object.keys(chunk), 'output:', typeof chunk.output, 'result:', typeof chunk.result);
+          recordTraceToolResult(debugTrace, { name: chunk.toolName, rawResult: raw, toolCallId: chunk.toolCallId });
+          onToolResult?.(outcome);
         }
       : undefined,
     onToolInputStart: onToolInputStart

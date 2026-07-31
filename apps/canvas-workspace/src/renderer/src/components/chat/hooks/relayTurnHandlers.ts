@@ -3,6 +3,7 @@ import type { AgentChatMessage } from '../../../types';
 import type { RoleTurnEndEvent, RoleTurnRoleRef, RoleTurnStartEvent } from '../../../../../shared/agent-roles';
 import type { ToolCallStatus } from '../types';
 import { settleRunningTools } from './toolStreamState';
+import { friendlyChatFailure } from './chatTurnOutcome';
 
 /** Relay progress for the bar above the composer (only shown when total > 1). */
 export interface RelayProgress {
@@ -32,6 +33,7 @@ export const createSegmentState = (): SegmentState => ({ msgIndex: -1, tools: []
 
 interface SegmentDeps {
   segment: SegmentState;
+  unresolvedToolError: string;
   streamingMsgIdx: MutableRefObject<number>;
   flushDeltas: () => void;
   setMessages: Dispatch<SetStateAction<AgentChatMessage[]>>;
@@ -50,7 +52,7 @@ interface SegmentDeps {
  */
 export function createRelayTurnHandlers(deps: SegmentDeps) {
   const {
-    segment, streamingMsgIdx, flushDeltas,
+    segment, unresolvedToolError, streamingMsgIdx, flushDeltas,
     setMessages, setMessageTools, setCollapsedSections, setStreamingTools, setRelay,
   } = deps;
 
@@ -82,7 +84,7 @@ export function createRelayTurnHandlers(deps: SegmentDeps) {
 
   const handleRoleTurnEnd = (event: RoleTurnEndEvent): void => {
     flushDeltas();
-    settleRunningTools(segment.tools);
+    settleRunningTools(segment.tools, 'failed', unresolvedToolError);
     const toolSnapshot = segment.tools.length > 0 ? segment.tools.map(tool => ({ ...tool })) : undefined;
     const index = segment.msgIndex;
     if (index >= 0) {
@@ -102,7 +104,15 @@ export function createRelayTurnHandlers(deps: SegmentDeps) {
       });
       if (toolSnapshot) {
         setMessageTools(prev => new Map(prev).set(index, toolSnapshot));
-        setCollapsedSections(prev => new Set(prev).add(index));
+        setCollapsedSections(prev => {
+          const next = new Set(prev);
+          if (toolSnapshot.some(tool => tool.status === 'failed' || tool.status === 'cancelled')) {
+            next.delete(index);
+          } else {
+            next.add(index);
+          }
+          return next;
+        });
       }
     }
     segment.finalized += 1;
@@ -123,9 +133,17 @@ export function createRelayTurnHandlers(deps: SegmentDeps) {
  * error message when the failure happened between segments.
  */
 export function applyTurnCompletion(opts: {
-  completeResult: { ok: boolean; response?: string; runId?: string; error?: string; speakerRole?: RoleTurnRoleRef };
+  completeResult: {
+    ok: boolean;
+    response?: string;
+    runId?: string;
+    error?: string;
+    stopped?: boolean;
+    speakerRole?: RoleTurnRoleRef;
+  };
   segment: SegmentState;
   toolSnapshot?: ToolCallStatus[];
+  failureFallback?: string;
   setMessages: Dispatch<SetStateAction<AgentChatMessage[]>>;
 }): void {
   const { completeResult, segment, toolSnapshot, setMessages } = opts;
@@ -140,15 +158,52 @@ export function applyTurnCompletion(opts: {
     speakerRoleColor: completeResult.speakerRole?.color,
   });
 
-  if (!completeResult.ok) {
-    const errorText = `Error: ${completeResult.error ?? 'Unknown error'}`;
+  if (completeResult.stopped) {
     setMessages(prev => {
       const index = segment.msgIndex;
       if (index < 0 || index >= prev.length) {
-        return [...prev, merge({ role: 'assistant', content: errorText, timestamp: Date.now() })];
+        return [...prev, merge({
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+          turnStatus: 'stopped',
+          retryable: true,
+        })];
       }
       const next = [...prev];
-      next[index] = merge({ ...next[index], content: next[index].content || errorText });
+      next[index] = merge({
+        ...next[index],
+        turnStatus: 'stopped',
+        retryable: true,
+      });
+      return next;
+    });
+    return;
+  }
+
+  if (!completeResult.ok) {
+    const failure = friendlyChatFailure(completeResult.error ?? opts.failureFallback ?? '');
+    setMessages(prev => {
+      const index = segment.msgIndex;
+      if (index < 0 || index >= prev.length) {
+        return [...prev, merge({
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+          turnStatus: 'failed',
+          errorDetails: failure.details,
+          failureKind: failure.kind,
+          retryable: failure.retryable,
+        })];
+      }
+      const next = [...prev];
+      next[index] = merge({
+        ...next[index],
+        turnStatus: 'failed',
+        errorDetails: failure.details,
+        failureKind: failure.kind,
+        retryable: failure.retryable,
+      });
       return next;
     });
     return;

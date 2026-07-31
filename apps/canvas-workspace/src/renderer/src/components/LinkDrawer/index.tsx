@@ -29,6 +29,7 @@ import type { AgentContextDomSelectionRef } from '../../types';
 import { ExternalLinkIcon, PlusIcon } from "../icons";
 import { Button, TextField, clampIndexMove } from "../ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../shared/experimental-features";
+import type { ChatDeliveryReceipt } from '../chat/ChatTargetContext';
 import "./index.css";
 
 /** Google blocks account sign-in inside embedded browsers (WebView policy);
@@ -65,7 +66,7 @@ interface LinkTabViewProps {
   /** Mirror a guest navigation without resetting a resolved page title. */
   onGuestNavigate: (url: string) => void;
   onAddToReference: (url: string, title?: string) => void;
-  onAddDomSelectionToChat: (selection: AgentContextDomSelectionRef) => void;
+  onAddDomSelectionToChat: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   activeWorkspaceId: string;
   onRequestClose: () => void;
 }
@@ -262,7 +263,7 @@ export const LinkTabView = ({
     try {
       const result = await window.canvasWorkspace.iframe.pickDomElement(activeWorkspaceId, tabId);
       if (result.ok && result.selection) {
-        onAddDomSelectionToChat({
+        const receipt = await onAddDomSelectionToChat({
           ...result.selection,
           workspaceId: activeWorkspaceId,
           nodeId: tabId,
@@ -270,9 +271,18 @@ export const LinkTabView = ({
           url: browser.currentUrl,
         });
         notify({
-          tone: 'success',
-          title: t('linkDrawer.domSelectionAdded'),
-          description: result.selection.label,
+          tone: receipt.status === 'delivered' || receipt.status === 'queued' ? 'success' : 'error',
+          title: receipt.status === 'delivered' || receipt.status === 'queued'
+            ? t('linkDrawer.domSelectionAdded')
+            : t('linkDrawer.domSelectionFailed'),
+          description: receipt.target
+            ? t('linkDrawer.domSelectionTarget', {
+              selection: result.selection.label,
+              target: receipt.target.contextSnapshot.label,
+            })
+            : receipt.status === 'failed' && receipt.error
+              ? receipt.error
+              : t('linkDrawer.domSelectionMissing'),
           autoCloseMs: 1800,
         });
       } else if (!result.cancelled) {

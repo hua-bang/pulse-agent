@@ -9,6 +9,8 @@ interface ToolResult {
   name: string;
   result: string;
   toolCallId?: string;
+  status?: 'succeeded' | 'failed' | 'cancelled';
+  error?: string;
 }
 
 const findTool = (tools: ToolCallStatus[], toolCallId: string | undefined, name?: string) => {
@@ -55,18 +57,24 @@ export function markToolResult(tools: ToolCallStatus[], data: ToolResult): void 
   const tool = findRunningTool(tools, data.toolCallId, data.name) ?? findTool(tools, data.toolCallId, data.name);
   if (!tool) return;
 
-  tool.status = 'done';
+  tool.status = data.status ?? 'succeeded';
   tool.result = data.result;
+  tool.error = data.error;
   tool.inputStreaming = false;
   if (tool.streamedContent != null) {
     tool.streamedDone = true;
   }
 }
 
-export function settleRunningTools(tools: ToolCallStatus[]): void {
+export function settleRunningTools(
+  tools: ToolCallStatus[],
+  status: 'failed' | 'cancelled',
+  error: string,
+): void {
   for (const tool of tools) {
-    if (tool.status !== 'running') continue;
-    tool.status = 'done';
+    if (tool.status !== 'running' && tool.status !== 'queued') continue;
+    tool.status = status;
+    tool.error = error;
     tool.inputStreaming = false;
     if (tool.streamedContent != null) {
       tool.streamedDone = true;

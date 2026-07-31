@@ -1,8 +1,13 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { createCanvasAgentToolPolicy } from '../tool-policy';
+import {
+  classifyCanvasToolOperation,
+  createCanvasAgentToolPolicy,
+  createCanvasAskModeToolPolicyPlugin,
+  enforceCanvasAskModeToolPolicy,
+} from '../tool-policy';
 
 describe('Canvas Agent tool policy', () => {
   it('gives global chat the reviewed built-in allowlist and canvas readers', () => {
@@ -47,9 +52,121 @@ describe('Canvas Agent tool policy', () => {
   it('keeps the full engine built-ins and direct canvas tools in workspace chat', () => {
     const policy = createCanvasAgentToolPolicy({ kind: 'workspace', workspaceId: 'ws-1' });
 
-    expect(policy.builtInTools).toBeUndefined();
+    expect(Object.keys(policy.builtInTools ?? {}).sort()).toEqual(
+      expect.arrayContaining(['read', 'write', 'edit', 'bash']),
+    );
     expect(policy.canvasTools.canvas_tag_node).toBeDefined();
     expect(policy.canvasTools.canvas_create_terminal_node).toBeDefined();
+  });
+
+  it('mechanically requires approval before an ask-mode write executes', async () => {
+    const onClarificationRequest = vi.fn(async () => 'No');
+
+    const result = await enforceCanvasAskModeToolPolicy({
+      name: 'write',
+      input: { file_path: '/tmp/do-not-write', content: 'blocked' },
+      toolContext: {
+        runContext: { executionMode: 'ask' },
+        toolCallId: 'tool-write-1',
+        onClarificationRequest,
+      },
+    });
+
+    expect(onClarificationRequest).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'tool-approval:tool-write-1',
+      question: expect.stringContaining('write'),
+      defaultAnswer: 'No',
+    }));
+    expect(result).toMatchObject({
+      output: {
+        ok: false,
+        cancelled: true,
+        error: expect.stringContaining('did not run'),
+      },
+    });
+  });
+
+  it('fails closed when ask mode has no approval channel', async () => {
+    const result = await enforceCanvasAskModeToolPolicy({
+      name: 'bash',
+      input: { command: 'echo should-not-run' },
+      toolContext: { runContext: { executionMode: 'ask' } },
+    });
+
+    expect(result).toMatchObject({
+      output: {
+        ok: false,
+        cancelled: true,
+        error: expect.stringContaining('Approval unavailable'),
+      },
+    });
+  });
+
+  it('does not gate read-only tools in ask mode', async () => {
+    const onClarificationRequest = vi.fn(async () => 'No');
+
+    const result = await enforceCanvasAskModeToolPolicy({
+      name: 'read',
+      input: { filePath: join(__dirname, '../../../../package.json') },
+      toolContext: { runContext: { executionMode: 'ask' }, onClarificationRequest },
+    });
+
+    expect(result).toBeUndefined();
+    expect(onClarificationRequest).not.toHaveBeenCalled();
+  });
+
+  it('gates an MCP mutation registered after the initial host tool policy', async () => {
+    let hook: typeof enforceCanvasAskModeToolPolicy | undefined;
+    createCanvasAskModeToolPolicyPlugin().initialize({
+      registerHook: (_name, handler) => {
+        hook = handler;
+      },
+    });
+    const onClarificationRequest = vi.fn(async () => 'Yes');
+
+    const result = await hook!({
+      name: 'mcp_notion_create_page',
+      input: { title: 'Launch plan' },
+      toolContext: {
+        runContext: { executionMode: 'ask' },
+        toolCallId: 'mcp-write-1',
+        onClarificationRequest,
+      },
+    });
+
+    expect(onClarificationRequest).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'tool-approval:mcp-write-1',
+      question: expect.stringContaining('mcp_notion_create_page'),
+    }));
+    expect(result).toMatchObject({
+      toolContext: {
+        runContext: {
+          executionMode: 'ask',
+          approvalGrantedFor: 'mcp-write-1',
+        },
+      },
+    });
+  });
+
+  it('lets a namespaced MCP reader pass without approval', async () => {
+    const onClarificationRequest = vi.fn(async () => 'No');
+    const result = await enforceCanvasAskModeToolPolicy({
+      name: 'mcp_drive_file_search',
+      input: { query: 'launch' },
+      toolContext: {
+        runContext: { executionMode: 'ask' },
+        onClarificationRequest,
+      },
+    });
+
+    expect(result).toBeUndefined();
+    expect(onClarificationRequest).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when an MCP mutation also contains a reader-like word', () => {
+    expect(classifyCanvasToolOperation('mcp_pages_get_or_create')).toBe('write');
+    expect(classifyCanvasToolOperation('mcp_drive_search_and_delete')).toBe('destructive');
+    expect(classifyCanvasToolOperation('mcp_drive_search')).toBe('read');
   });
 
   /**

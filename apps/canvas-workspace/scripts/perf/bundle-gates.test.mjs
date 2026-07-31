@@ -80,4 +80,25 @@ describe('buildBundleGates', () => {
       pass: false,
     }]);
   });
+
+  it('includes the main-process bundle policy in perf:bundle', () => {
+    const baselines = {
+      policies: {
+        'bundle.main_raw_kb': {
+          gate: { kind: 'ratchet', baseline: 603, tolerancePct: 3, scope: 'bundle' },
+        },
+      },
+    };
+
+    expect(buildBundleGates(baselines, { mainRawKB: 651 })).toEqual([{
+      metric: 'mainRawKB',
+      metricId: 'bundle.main_raw_kb',
+      baseline: 603,
+      tolerancePct: 3,
+      limit: 621,
+      current: 651,
+      deltaPct: 8,
+      pass: false,
+    }]);
+  });
 });

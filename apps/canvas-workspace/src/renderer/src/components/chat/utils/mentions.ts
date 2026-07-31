@@ -347,7 +347,8 @@ export function renderMdWithMentions(
         ? ` data-file-path="${escapeHtml(filePath)}" title="Open in VS Code"`
         : '';
       const clickableClass = filePath ? ' chat-mention-chip--clickable' : '';
-      return `<span class="chat-mention-chip chat-mention-chip--folder${clickableClass}" data-node-type="folder"${filePathAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('folder')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(folderLabel)}/</span></span>`;
+      const interactiveAttrs = filePath ? ' role="button" tabindex="0"' : '';
+      return `<span class="chat-mention-chip chat-mention-chip--folder${clickableClass}" data-node-type="folder"${filePathAttrs}${interactiveAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('folder')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(folderLabel)}/</span></span>`;
     }
 
     if (rawLabel.startsWith(TAG_MENTION_PREFIX)) {
@@ -379,7 +380,7 @@ export function renderMdWithMentions(
         const indexAttr = sessionRef.messageIndex !== undefined
           ? ` data-message-index="${sessionRef.messageIndex}"`
           : '';
-        return `<span class="chat-mention-chip chat-mention-chip--session chat-mention-chip--clickable" data-action="session-jump" data-session-id="${escapeHtml(sessionRef.sessionId)}" data-workspace-id="${escapeHtml(sessionRef.workspaceId)}"${indexAttr}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('session')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(sessionRef.label)}</span></span>`;
+        return `<span class="chat-mention-chip chat-mention-chip--session chat-mention-chip--clickable" role="button" tabindex="0" data-action="session-jump" data-session-id="${escapeHtml(sessionRef.sessionId)}" data-workspace-id="${escapeHtml(sessionRef.workspaceId)}"${indexAttr}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('session')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(sessionRef.label)}</span></span>`;
       }
       // Malformed marker — fall through to render as a plain (non-clickable) chip.
       return `<span class="chat-mention-chip chat-mention-chip--session"><span class="chat-mention-chip-label">${escapeHtml(rawLabel.slice(SESSION_MENTION_PREFIX.length))}</span></span>`;
@@ -393,7 +394,8 @@ export function renderMdWithMentions(
       ? ` data-file-path="${escapeHtml(filePath)}" title="Open in VS Code"`
       : '';
     const clickableClass = nodeId || filePath ? ' chat-mention-chip--clickable' : '';
-    return `<span class="chat-mention-chip${clickableClass}" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"${filePathAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(rawLabel)}</span></span>`;
+    const interactiveAttrs = nodeId || filePath ? ' role="button" tabindex="0"' : '';
+    return `<span class="chat-mention-chip${clickableClass}" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"${filePathAttrs}${interactiveAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(rawLabel)}</span></span>`;
   });
 
   return options?.roleNames ? renderRoleNameMentions(withMarkers, options.roleNames) : withMarkers;

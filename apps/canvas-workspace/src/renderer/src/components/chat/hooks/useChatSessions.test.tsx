@@ -2,15 +2,23 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentChatMessage } from '../../../types';
-import { useChatSessions } from './useChatSessions';
+import type { AgentChatMessage, AgentSessionInfo } from '../../../types';
+import type { AgentScope } from '../types';
+import { I18nProvider } from '../../../i18n';
+import { resetChatSessionsCacheForTests, useChatSessions } from './useChatSessions';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type Hook = ReturnType<typeof useChatSessions>;
 
 /** Shared shape of the three IPC calls that replace the message thread. */
-type ThreadResult = { ok: boolean; messages?: AgentChatMessage[] };
+type ThreadResult = {
+  ok: boolean;
+  messages?: AgentChatMessage[];
+  activeSessionId?: string | null;
+  code?: string;
+  error?: string;
+};
 
 function makeAgentMocks() {
   return {
@@ -20,7 +28,16 @@ function makeAgentMocks() {
       async () => ({ ok: true, messages: [] }),
     ),
     newSession: vi.fn<[unknown], Promise<{ ok: boolean }>>(async () => ({ ok: true })),
-    listSessions: vi.fn(async () => ({ ok: true, sessions: [] })),
+    renameSession: vi.fn(async () => ({ ok: true, activeSessionId: 'session-current' })),
+    setSessionPinned: vi.fn(async () => ({ ok: true, activeSessionId: 'session-current' })),
+    deleteSession: vi.fn(async () => ({
+      ok: true,
+      activeSessionId: 'session-next',
+      messages: [],
+    })),
+    listSessions: vi.fn<[], Promise<{ ok: boolean; sessions: AgentSessionInfo[] }>>(
+      async () => ({ ok: true, sessions: [] }),
+    ),
     listAllSessions: vi.fn(async () => ({ ok: true, groups: [] })),
   };
 }
@@ -46,9 +63,15 @@ let latest: Hook | null = null;
 let onMessagesLoaded: ReturnType<typeof vi.fn>;
 let agent: ReturnType<typeof makeAgentMocks>;
 
-const Probe = ({ skipInitialHistory }: { skipInitialHistory?: boolean }) => {
+const Probe = ({
+  skipInitialHistory,
+  agentScope = { kind: 'global' },
+}: {
+  skipInitialHistory?: boolean;
+  agentScope?: AgentScope;
+}) => {
   latest = useChatSessions({
-    agentScope: { kind: 'global' },
+    agentScope,
     onMessagesLoaded,
     skipInitialHistory,
   });
@@ -60,17 +83,25 @@ async function mount(skipInitialHistory?: boolean): Promise<void> {
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
-    root?.render(<Probe skipInitialHistory={skipInitialHistory} />);
+    root?.render(<I18nProvider><Probe skipInitialHistory={skipInitialHistory} /></I18nProvider>);
   });
 }
 
-async function rerender(skipInitialHistory?: boolean): Promise<void> {
+async function rerender(
+  skipInitialHistory?: boolean,
+  agentScope: AgentScope = { kind: 'global' },
+): Promise<void> {
   await act(async () => {
-    root?.render(<Probe skipInitialHistory={skipInitialHistory} />);
+    root?.render(
+      <I18nProvider>
+        <Probe skipInitialHistory={skipInitialHistory} agentScope={agentScope} />
+      </I18nProvider>,
+    );
   });
 }
 
 beforeEach(() => {
+  resetChatSessionsCacheForTests();
   onMessagesLoaded = vi.fn();
   agent = makeAgentMocks();
   (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent };
@@ -130,17 +161,193 @@ describe('useChatSessions — session detail loading', () => {
     const load = deferred<ThreadResult>();
     agent.loadSession.mockReturnValue(load.promise);
 
-    let pending!: Promise<void>;
+    let pending!: Promise<boolean | undefined>;
     await act(async () => { pending = latest!.handleLoadSession('session-a'); });
     expect(latest?.sessionLoading).toBe(true);
 
     await act(async () => {
-      load.resolve({ ok: true, messages: [message('session a')] });
+      load.resolve({
+        ok: true,
+        activeSessionId: 'session-a',
+        messages: [message('session a')],
+      });
       await pending;
     });
 
     expect(latest?.sessionLoading).toBe(false);
     expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('session a')]);
+  });
+
+  it('keeps the current thread and exposes a typed error when a session no longer exists', async () => {
+    await mount();
+    agent.loadSession.mockResolvedValue({
+      ok: false,
+      code: 'SESSION_NOT_FOUND',
+      error: 'Session not found',
+      activeSessionId: 'session-current',
+    });
+    onMessagesLoaded.mockClear();
+
+    await act(async () => {
+      await latest!.handleLoadSession('missing-session');
+    });
+
+    expect(onMessagesLoaded).not.toHaveBeenCalled();
+    expect(latest?.sessionError).toEqual({
+      code: 'SESSION_NOT_FOUND',
+      message: 'Session not found',
+    });
+    expect(latest?.activeSessionId).toBe('session-current');
+  });
+
+  it('clears the previous transcript before a cross-scope load can fail', async () => {
+    agent.getHistory.mockResolvedValue({
+      ok: true,
+      activeSessionId: 'global-current',
+      messages: [message('global transcript')],
+    });
+    await mount();
+    onMessagesLoaded.mockClear();
+
+    await rerender(true, { kind: 'workspace', workspaceId: 'workspace-b' });
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([]);
+
+    agent.loadSession.mockResolvedValue({
+      ok: false,
+      code: 'SESSION_NOT_FOUND',
+      error: 'Session not found',
+    });
+    let loaded: boolean | undefined;
+    await act(async () => {
+      loaded = await latest!.handleLoadSession('missing-session');
+    });
+
+    expect(loaded).toBe(false);
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([]);
+    expect(latest?.sessionError?.code).toBe('SESSION_NOT_FOUND');
+  });
+
+  it('drops old-scope history that resolves during a scope transition', async () => {
+    const oldHistory = deferred<ThreadResult>();
+    const nextHistory = deferred<ThreadResult>();
+    agent.getHistory
+      .mockReturnValueOnce(oldHistory.promise)
+      .mockReturnValueOnce(nextHistory.promise);
+    await mount();
+
+    onMessagesLoaded.mockClear();
+    await rerender(false, { kind: 'workspace', workspaceId: 'workspace-b' });
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([]);
+
+    await act(async () => {
+      oldHistory.resolve({
+        ok: true,
+        activeSessionId: 'global-current',
+        messages: [message('stale global transcript')],
+      });
+      await oldHistory.promise;
+    });
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([]);
+
+    await act(async () => {
+      nextHistory.resolve({
+        ok: true,
+        activeSessionId: 'workspace-current',
+        messages: [message('workspace transcript')],
+      });
+      await nextHistory.promise;
+    });
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('workspace transcript')]);
+  });
+
+  it('retries the latest thread intent after a recoverable history failure', async () => {
+    agent.getHistory.mockResolvedValueOnce({
+      ok: false,
+      code: 'SESSION_LOAD_FAILED',
+      error: 'Storage temporarily unavailable',
+    });
+    await mount();
+
+    expect(latest?.sessionError?.message).toBe('Storage temporarily unavailable');
+    agent.getHistory.mockResolvedValueOnce({
+      ok: true,
+      activeSessionId: 'session-current',
+      messages: [message('recovered')],
+    });
+
+    await act(async () => {
+      await latest!.retrySession();
+    });
+
+    expect(agent.getHistory).toHaveBeenCalledTimes(2);
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('recovered')]);
+    expect(latest?.sessionError).toBeNull();
+  });
+
+  it('persists rail metadata mutations and refreshes the session list', async () => {
+    await mount();
+
+    await act(async () => {
+      await latest!.renameSession('session-a', 'Decision log');
+      await latest!.toggleSessionPinned('session-a', true);
+    });
+
+    expect(agent.renameSession).toHaveBeenCalledWith(
+      { scope: { kind: 'global' } },
+      'session-a',
+      'Decision log',
+    );
+    expect(agent.setSessionPinned).toHaveBeenCalledWith(
+      { scope: { kind: 'global' } },
+      'session-a',
+      true,
+    );
+    expect(agent.listSessions).toHaveBeenCalledTimes(2);
+  });
+
+  it('adopts the replacement thread after deleting the active session', async () => {
+    await mount();
+    onMessagesLoaded.mockClear();
+    agent.listSessions.mockResolvedValue({
+      ok: true,
+      sessions: [{
+        sessionId: 'session-next',
+        date: '2026-07-31',
+        messageCount: 0,
+        isCurrent: true,
+      }],
+    });
+
+    await act(async () => {
+      await latest!.deleteSession('session-current');
+    });
+
+    expect(agent.deleteSession).toHaveBeenCalledWith(
+      { scope: { kind: 'global' } },
+      'session-current',
+    );
+    expect(latest?.activeSessionId).toBe('session-next');
+    expect(onMessagesLoaded).toHaveBeenCalledWith([]);
+  });
+
+  it('rejects a load whose active-session acknowledgement does not match the intent', async () => {
+    await mount();
+    agent.loadSession.mockResolvedValue({
+      ok: true,
+      activeSessionId: 'session-a',
+      messages: [message('wrong thread')],
+    });
+    onMessagesLoaded.mockClear();
+
+    await act(async () => {
+      await latest!.handleLoadSession('session-b');
+    });
+
+    expect(onMessagesLoaded).not.toHaveBeenCalled();
+    expect(latest?.sessionError).toEqual({
+      code: 'SESSION_ACK_MISMATCH',
+      message: 'The requested conversation did not become active.',
+    });
   });
 
   it('drops a superseded load instead of overwriting the newer session', async () => {
@@ -151,8 +358,8 @@ describe('useChatSessions — session detail loading', () => {
       .mockReturnValueOnce(slowFirst.promise)
       .mockReturnValueOnce(fastSecond.promise);
 
-    let first!: Promise<void>;
-    let second!: Promise<void>;
+    let first!: Promise<boolean | undefined>;
+    let second!: Promise<boolean | undefined>;
     await act(async () => { first = latest!.handleLoadSession('session-a'); });
     await act(async () => { second = latest!.handleLoadSession('session-b'); });
 
@@ -174,12 +381,48 @@ describe('useChatSessions — session detail loading', () => {
     expect(latest?.sessionLoading).toBe(false);
   });
 
+  it('invalidates an older session-list response when the thread pointer moves', async () => {
+    await mount();
+    const staleList = deferred<{ ok: boolean; sessions: AgentSessionInfo[] }>();
+    agent.listSessions.mockReturnValue(staleList.promise);
+    let pendingList!: Promise<void>;
+    act(() => { pendingList = latest!.loadSessions(); });
+    expect(latest?.sessionsLoading).toBe(true);
+
+    agent.loadSession.mockResolvedValue({
+      ok: true,
+      activeSessionId: 'session-newer',
+      messages: [message('newer thread')],
+    });
+    await act(async () => {
+      await latest!.handleLoadSession('session-newer');
+    });
+    expect(latest?.activeSessionId).toBe('session-newer');
+    expect(latest?.sessionsLoading).toBe(false);
+
+    await act(async () => {
+      staleList.resolve({
+        ok: true,
+        sessions: [{
+          sessionId: 'session-stale',
+          date: '2026-07-30',
+          messageCount: 1,
+          isCurrent: true,
+        }],
+      });
+      await pendingList;
+    });
+
+    expect(latest?.activeSessionId).toBe('session-newer');
+    expect(latest?.sessions).toEqual([]);
+  });
+
   it('retires an in-flight load when a new chat is started', async () => {
     await mount();
     const load = deferred<ThreadResult>();
     agent.loadSession.mockReturnValue(load.promise);
 
-    let pending!: Promise<void>;
+    let pending!: Promise<boolean | undefined>;
     await act(async () => { pending = latest!.handleLoadSession('session-a'); });
     await act(async () => { await latest!.handleNewSession(); });
 
@@ -195,6 +438,30 @@ describe('useChatSessions — session detail loading', () => {
 
     expect(onMessagesLoaded).toHaveBeenLastCalledWith([]);
     expect(latest?.sessionLoading).toBe(false);
+  });
+
+  it('blocks the thread until main acknowledges a new conversation', async () => {
+    await mount();
+    const transition = deferred<{ ok: boolean; activeSessionId?: string }>();
+    agent.newSession.mockReturnValue(transition.promise);
+    onMessagesLoaded.mockClear();
+
+    let pending!: Promise<{ ok: boolean }>;
+    await act(async () => {
+      pending = latest!.handleNewSession();
+    });
+
+    expect(latest?.sessionLoading).toBe(true);
+    expect(onMessagesLoaded).not.toHaveBeenCalled();
+
+    await act(async () => {
+      transition.resolve({ ok: true, activeSessionId: 'session-new' });
+      await pending;
+    });
+
+    expect(latest?.sessionLoading).toBe(false);
+    expect(latest?.activeSessionId).toBe('session-new');
+    expect(onMessagesLoaded).toHaveBeenCalledWith([]);
   });
 
   it('commits the current and cross-workspace session lists atomically', async () => {
@@ -217,7 +484,7 @@ describe('useChatSessions — session detail loading', () => {
     document.body.appendChild(host);
     root = createRoot(host);
     act(() => {
-      root?.render(<ListProbe />);
+      root?.render(<I18nProvider><ListProbe /></I18nProvider>);
     });
 
     currentList.resolve({

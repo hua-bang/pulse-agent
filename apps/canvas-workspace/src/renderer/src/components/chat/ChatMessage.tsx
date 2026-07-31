@@ -1,7 +1,7 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
-import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
+import { BotAvatarIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { useRoleColors, useRoleNameColors } from './hooks/roleMentionItems';
 import { renderMdWithMentions } from './utils/mentions';
@@ -18,31 +18,9 @@ import {
   parseVisualToolResult,
 } from '../artifacts';
 import { CopyGeneratedImageButton, parseGeneratedImage } from './GeneratedImageActions';
-
-const CopyMessageButton = memo(({ content }: { content: string }) => {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch {
-      /* clipboard unavailable — ignore */
-    }
-  }, [content]);
-  return (
-    <button
-      type="button"
-      className={`chat-message-toolbar-btn chat-message-toolbar-btn--icon${copied ? ' chat-message-toolbar-btn--copied' : ''}`}
-      title={copied ? 'Copied!' : 'Copy message (markdown source)'}
-      aria-label="Copy message"
-      onClick={handleCopy}
-    >
-      {copied ? <CheckIcon size={12} strokeWidth={1.8} /> : <CopyIcon size={12} />}
-    </button>
-  );
-});
-CopyMessageButton.displayName = 'CopyMessageButton';
+import { useI18n } from '../../i18n';
+import { ChatTurnContext, ChatTurnOutcome } from './ChatTurnMeta';
+import { ChatLoadingDots, CopyMessageButton } from './ChatMessageActions';
 
 interface ChatMessageProps {
   message: AgentChatMessage;
@@ -69,14 +47,6 @@ interface ChatMessageProps {
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
 }
 
-const LoadingDots = () => (
-  <div className="chat-loading">
-    <div className="chat-loading-dot" />
-    <div className="chat-loading-dot" />
-    <div className="chat-loading-dot" />
-  </div>
-);
-
 export const ChatMessage = ({
   message,
   index,
@@ -96,6 +66,7 @@ export const ChatMessage = ({
   onRegenerate,
   onSessionJump,
 }: ChatMessageProps) => {
+  const { t } = useI18n();
   // Live role accents so `@角色` chips in the transcript match each role's
   // color (falls back to the violet tokens for deleted/unknown roles).
   const roleColors = useRoleColors();
@@ -117,6 +88,8 @@ export const ChatMessage = ({
   const showCopyToolbar = !isStreaming && !!message.content;
   const relativeTime = formatRelativeTime(message.timestamp);
   const absoluteTime = formatAbsoluteTime(message.timestamp);
+  const speakerLabel = message.speakerRoleName
+    ?? (message.role === 'assistant' ? t('chat.assistantSpeaker') : t('chat.userSpeaker'));
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -128,7 +101,9 @@ export const ChatMessage = ({
   const canRegenerate = message.role === 'assistant'
     && !!onRegenerate
     && !loading
-    && !isStreaming;
+    && !isStreaming
+    && !message.turnStatus;
+  const canRecoverTurn = !!onRegenerate && !loading && !isStreaming;
 
   const handleStartEdit = useCallback(() => {
     setEditValue(message.content);
@@ -232,7 +207,13 @@ export const ChatMessage = ({
   }, [assistantHtml, userHtml, isStreaming]);
 
   return (
-    <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
+    <div
+      className={`chat-message chat-message-${message.role}`}
+      id={anchorId}
+      role="article"
+      aria-label={speakerLabel}
+      aria-live={isStreaming ? 'off' : undefined}
+    >
     {message.role === 'assistant' && (
       <div
         className={`chat-message-avatar${message.speakerRoleName ? ' chat-message-avatar--role' : ''}`}
@@ -391,7 +372,7 @@ export const ChatMessage = ({
               dangerouslySetInnerHTML={{ __html: assistantHtml }}
             />
           ) : (!tools || tools.length === 0) ? (
-            <LoadingDots />
+            <ChatLoadingDots />
           ) : null
         ) : (
           <div
@@ -434,6 +415,18 @@ export const ChatMessage = ({
           ref={bodyRef}
           className="chat-message-content chat-md"
           dangerouslySetInnerHTML={{ __html: userHtml }}
+        />
+      )}
+      {message.role === 'user' && !isEditing && message.contextSnapshot && (
+        <ChatTurnContext snapshot={message.contextSnapshot} />
+      )}
+      {message.role === 'assistant' && (
+        <ChatTurnOutcome
+          status={message.turnStatus}
+          errorDetails={message.errorDetails}
+          failureKind={message.failureKind}
+          retryable={message.retryable}
+          onRetry={canRecoverTurn ? handleRegenerate : undefined}
         />
       )}
       <PluginChatCardForMessage message={message} />

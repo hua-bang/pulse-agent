@@ -64,7 +64,7 @@ describe('DockPanes split focus', () => {
         workspaces={[]}
         onOpenNodePage={() => undefined}
         pinUrlReference={() => undefined}
-        onAddDomSelectionToChat={() => undefined}
+        onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
       /></I18nProvider>,
     ));
 
@@ -109,7 +109,7 @@ describe('DockPanes lazy link-tab webview mount', () => {
         workspaces={[]}
         onOpenNodePage={() => undefined}
         pinUrlReference={() => undefined}
-        onAddDomSelectionToChat={() => undefined}
+        onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
       /></I18nProvider>,
     ));
   };
@@ -173,7 +173,7 @@ describe('DockPanes tabpanel relationships', () => {
         workspaces={[]}
         onOpenNodePage={() => undefined}
         pinUrlReference={() => undefined}
-        onAddDomSelectionToChat={() => undefined}
+        onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
       /></I18nProvider>,
     ));
 
@@ -218,7 +218,7 @@ describe('DockPanes tabpanel relationships', () => {
         workspaces={[]}
         onOpenNodePage={() => undefined}
         pinUrlReference={() => undefined}
-        onAddDomSelectionToChat={() => undefined}
+        onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
       /></I18nProvider>,
     ));
 

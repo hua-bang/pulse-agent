@@ -119,6 +119,23 @@ describe('ModelSwitcher', () => {
     expect(document.querySelector('.chat-model-menu')).toBeNull();
   });
 
+  it('surfaces a model switch failure next to the control', async () => {
+    renderSwitcher({
+      onSelectModel: vi.fn().mockRejectedValue(new Error('Provider is offline')),
+    });
+    const trigger = host!.querySelector('.chat-model-switcher-btn') as HTMLButtonElement;
+    act(() => {
+      trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    const modelItem = document.querySelector('.chat-model-menu-item--model') as HTMLElement;
+    await act(async () => {
+      modelItem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    const alert = host!.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('Provider is offline');
+  });
+
   it('closes on Escape and restores focus to the trigger', () => {
     renderSwitcher();
     const trigger = host!.querySelector('.chat-model-switcher-btn') as HTMLButtonElement;

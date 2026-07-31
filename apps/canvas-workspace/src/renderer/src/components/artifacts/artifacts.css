@@ -583,3 +583,43 @@
   color: #6b6b68;
   margin-left: 4px;
 }
+
+/* ─── AI chat accessibility / responsive overrides ────────── */
+
+.chat-inline-visual__btn,
+.chat-inline-visual__action,
+.chat-artifact-card__action,
+.artifact-drawer__action {
+  min-height: 24px;
+  box-sizing: border-box;
+}
+
+.chat-inline-visual__btn:focus-visible,
+.chat-inline-visual__action:focus-visible,
+.chat-artifact-card__action:focus-visible,
+.artifact-drawer__action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-inline-visual--ready,
+  .chat-inline-visual__loading-label::after,
+  .chat-inline-visual__stream-edge,
+  .chat-inline-visual__cursor {
+    animation: none;
+  }
+
+  .chat-inline-visual__loading-label::after {
+    content: '…';
+  }
+
+  .chat-inline-visual__toolbar,
+  .chat-inline-visual__btn,
+  .chat-inline-visual__action,
+  .chat-artifact-card,
+  .chat-artifact-card__action,
+  .artifact-drawer__action {
+    transition: none;
+  }
+}

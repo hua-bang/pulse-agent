@@ -44,6 +44,10 @@ export interface FileApi {
     data: string,
     ext?: string,
   ) => Promise<{ ok: boolean; filePath?: string; fileName?: string; error?: string }>;
+  deleteSavedImage: (
+    workspaceId: string | undefined,
+    filePath: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
   getImagePreview: (
     filePath: string,
     maxDimension?: number,

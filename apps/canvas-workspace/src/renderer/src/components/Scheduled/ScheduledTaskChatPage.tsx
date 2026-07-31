@@ -43,14 +43,13 @@ export const ScheduledTaskChatPage = ({ taskId, onExit, onOpenAppSettings }: Pro
 
   return (
     <ChatPageBody
-      key={`${task.id}:${task.lastAttemptAt ?? 0}:${task.lastSuccessAt ?? 0}:${task.lastError ?? ''}`}
+      key={task.id}
       agentScope={{ kind: 'scheduled', taskId: task.id }}
       initialPendingSessionId={null}
       pendingSessionId={null}
+      pendingSessionIntentId={null}
       onSessionConsumed={() => undefined}
       onSelectSession={() => undefined}
-      onNewGlobalSession={() => undefined}
-      newSessionRequest={0}
       allWorkspaces={[]}
       onExit={onExit}
       railCollapsed

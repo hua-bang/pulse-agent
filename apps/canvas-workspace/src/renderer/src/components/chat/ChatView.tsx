@@ -6,7 +6,7 @@ import type {
   RefObject,
 } from 'react';
 import type { AgentChatMessage, CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
-import { ChatEmptyState } from './ChatEmptyState';
+import { ChatEmptyState, type ChatEmptyStateVariant } from './ChatEmptyState';
 import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
 import { ChatMessages } from './ChatMessages';
@@ -40,8 +40,10 @@ interface ChatViewProps {
   expandedTools: Set<number>;
   pendingClarify: PendingClarification | null;
   clarifyInput: string;
+  clarificationAnswering?: boolean;
+  clarificationError?: string | null;
   onClarifyInputChange: (value: string) => void;
-  onAnswerClarification: () => Promise<void>;
+  onAnswerClarification: (answerOverride?: string) => Promise<void>;
   /** Multi-role relay progress (only rendered while a relay turn runs). */
   relay?: RelayProgress | null;
   onStopRelay?: () => void;
@@ -75,18 +77,24 @@ interface ChatViewProps {
   onPaste: ClipboardEventHandler<HTMLDivElement>;
   onAttachFiles?: (files: FileList | File[]) => void;
   onRemoveAttachment?: (id: string) => void;
+  onRetryAttachment?: (id: string) => void;
+  sendDisabled?: boolean;
+  interactionDisabled?: boolean;
   onSubmit: () => Promise<boolean>;
   onAbort: () => Promise<void>;
   contextComposer?: boolean;
   knowledgeMode?: boolean;
+  emptyStateVariant?: ChatEmptyStateVariant;
   modelStatus?: CanvasModelStatus;
   modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
   modelLabel?: string;
   onSelectAutoModel?: () => Promise<void>;
   onSelectModel?: (providerId: string, modelId: string) => Promise<void>;
   onOpenModelSettings?: () => void;
-  executionMode?: 'auto' | 'ask';
+  executionMode?: 'auto' | 'ask' | 'scheduled';
   onToggleExecutionMode?: () => void;
+  /** Stable identity for retaining per-conversation scroll position. */
+  conversationKey?: string;
 
   // Edit / regenerate hooks — wired from ChatPanel into the per-message
   // hover toolbar inside ChatMessage.
@@ -122,6 +130,8 @@ export const ChatView = ({
   expandedTools,
   pendingClarify,
   clarifyInput,
+  clarificationAnswering = false,
+  clarificationError = null,
   onClarifyInputChange,
   onAnswerClarification,
   relay,
@@ -150,10 +160,14 @@ export const ChatView = ({
   onPaste,
   onAttachFiles,
   onRemoveAttachment,
+  onRetryAttachment,
+  sendDisabled = false,
+  interactionDisabled = false,
   onSubmit,
   onAbort,
   contextComposer = false,
   knowledgeMode = false,
+  emptyStateVariant,
   modelStatus,
   modelSelection,
   modelLabel,
@@ -162,6 +176,7 @@ export const ChatView = ({
   onOpenModelSettings,
   executionMode = 'auto',
   onToggleExecutionMode,
+  conversationKey,
   onEditUserMessage,
   onRegenerate,
   onSessionJump,
@@ -191,6 +206,9 @@ export const ChatView = ({
           expandedTools={expandedTools}
           pendingClarify={pendingClarify}
           clarifyInput={clarifyInput}
+          clarificationAnswering={clarificationAnswering}
+          interactionDisabled={interactionDisabled || sessionLoading}
+          clarificationError={clarificationError}
           onClarifyInputChange={onClarifyInputChange}
           onAnswerClarification={onAnswerClarification}
           onToggleSection={onToggleSection}
@@ -201,14 +219,13 @@ export const ChatView = ({
           onRegenerate={onRegenerate}
           onSessionJump={onSessionJump}
           pendingLabel={pendingLabel}
+          conversationKey={conversationKey}
         />
       ) : emptyState !== undefined ? emptyState : (
         <ChatEmptyState
           selectedCount={selectedContext?.length ?? 0}
           onQuickAction={onQuickAction}
-          modelStatus={modelStatus}
-          onConfigureModel={onOpenModelSettings}
-          knowledgeMode={knowledgeMode}
+          variant={emptyStateVariant ?? (knowledgeMode ? 'knowledge' : 'canvas')}
         />
       )}
       {relay && relay.total > 1 && onStopRelay && (
@@ -241,6 +258,8 @@ export const ChatView = ({
           if (nodeId) onNodeFocus?.(nodeId);
         }}
         editableRef={editableRef}
+        mentionOpen={mentionOpen && mentionItems.length > 0}
+        mentionIndex={mentionIndex}
         mentionPopup={mentionOpen && mentionItems.length > 0 ? (
           <ChatMentionPopup
             mentionItems={mentionItems}
@@ -254,6 +273,9 @@ export const ChatView = ({
         onPaste={onPaste}
         onAttachFiles={onAttachFiles}
         onRemoveAttachment={onRemoveAttachment}
+        onRetryAttachment={onRetryAttachment}
+        sendDisabled={sendDisabled || sessionLoading}
+        interactionDisabled={interactionDisabled || sessionLoading}
         onSend={onSubmit}
         onAbort={onAbort}
         onToggleExecutionMode={onToggleExecutionMode}

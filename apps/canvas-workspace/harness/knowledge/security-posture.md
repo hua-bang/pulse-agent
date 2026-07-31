@@ -5,7 +5,7 @@ which containment actually exists. Engine's own posture doc
 (`packages/engine/harness/knowledge/security-posture.md`) ends with "the host
 owns all sandboxing" — **this app is that host**, so this doc records what the
 host actually does and does not gate. Facts verified against source
-2026-07-07; `file:line` cites are the anchors.
+2026-07-31; `file:line` cites are the anchors.
 
 ## Execution reach of the Canvas Agent
 
@@ -34,9 +34,17 @@ host actually does and does not gate. Facts verified against source
   PTYs are real shells (`pty-manager.ts` spawns `powershell.exe`/`$SHELL`);
   output is forwarded only to the renderer webContents that spawned the
   session (`src/main/terminal/pty-manager.ts:15`).
-- **No human-in-the-loop approval gate** — the engine has no approval hook
-  and this app does not wrap tools with one. Every tool call is
-  LLM-triggered.
+- **Approval exists only in interactive Ask mode; Auto and Scheduled remain
+  ungated.** Ask mode installs `createCanvasAskModeToolPolicyPlugin` at the
+  engine's final `beforeToolCall` boundary, after MCP, deferred, and other
+  plugin tools have joined the run. Classified reads proceed; every write,
+  execute, destructive, or unknown operation pauses for an explicit
+  Allow/Reject request. Missing renderer delivery, abort, and the five-minute
+  timeout resolve to `No`, and externally-driven Claude/Codex roles require
+  approval before their process starts. This is a consent prompt, not a
+  sandbox: an approved call still has main-process privilege. Auto mode does
+  not prompt, and Scheduled maps deliberately to Auto because no user may be
+  present; the unattended `bash` risk above therefore remains.
 
 ## Auto-loaded disk surfaces (evaluated when an agent is built)
 

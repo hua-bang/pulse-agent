@@ -80,6 +80,7 @@ export interface CanvasToolExecutionContext {
     id: string;
     question: string;
     context?: string;
+    kind?: 'clarification' | 'approval';
     defaultAnswer?: string;
     timeout: number;
   }) => Promise<string>;

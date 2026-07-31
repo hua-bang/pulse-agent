@@ -13,6 +13,7 @@ import { useAllWorkspaceNodeList } from '../WorkspaceNodes/useWorkspaceNodes';
 import { buildKnowledgeChatContext } from './knowledgeChatContext';
 
 const GLOBAL_AGENT_SCOPE: AgentScope = { kind: 'global' };
+const EMPTY_CONTEXT_NODES: AgentContextNodeRef[] = [];
 
 interface Props {
   selectedNode: KnowledgeNodeSelection | null;
@@ -26,6 +27,7 @@ interface Props {
   onClose: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
   onTurnComplete: () => void;
+  onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }
 
 /** Hosts the knowledge routes' global ChatPanel in the one application RightDock. */
@@ -41,6 +43,7 @@ export const KnowledgeChatPortal = ({
   onClose,
   onOpenAppSettings,
   onTurnComplete,
+  onOpenSessionInScope,
 }: Props) => {
   const { nodes, tags } = useAllWorkspaceNodeList(workspaces);
   const chatContext = useMemo(
@@ -53,7 +56,9 @@ export const KnowledgeChatPortal = ({
   const hasExplicitContext = contextNodes !== undefined
     || contextTags !== undefined
     || contextCanvases !== undefined;
-  const resolvedContextNodes = hasExplicitContext ? (contextNodes ?? []) : chatContext.contextNodes;
+  const resolvedContextNodes = hasExplicitContext
+    ? (contextNodes ?? EMPTY_CONTEXT_NODES)
+    : chatContext.contextNodes;
 
   return (
     <div className="right-dock__chat-instance">
@@ -72,6 +77,7 @@ export const KnowledgeChatPortal = ({
         onClose={onClose}
         onOpenAppSettings={onOpenAppSettings}
         onTurnComplete={onTurnComplete}
+        onOpenSessionInScope={onOpenSessionInScope}
       />
     </div>
   );
