@@ -83,6 +83,69 @@ describe('ScheduledPage', () => {
       .toEqual(['Create task', 'Pause', 'Run now', 'Edit task', 'Delete task']);
   });
 
+  /**
+   * The editor always submits the whole form, and `update` re-anchors the next
+   * run whenever a schedule arrives — so sending the untouched cadence back
+   * pushed the pending run a full period out. Fixing a typo must cost nothing.
+   */
+  it('sends only the fields an edit actually changed', async () => {
+    const update = vi.fn(async () => ({ ok: true, task: { id: 'daily-brief' } }));
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: {
+        agent: { polishScheduledPrompt: vi.fn() },
+        scheduled: {
+          list: vi.fn(async () => ({
+            ok: true,
+            tasks: [{
+              id: 'daily-brief',
+              title: 'Daily brief',
+              prompt: 'Summarize what needs my attention.',
+              schedule: { kind: 'daily', timeOfDay: '09:00' },
+              enabled: true,
+              source: 'user',
+              createdAt: 1,
+              updatedAt: 1,
+              nextRunAt: Date.now() + 60_000,
+              runCount: 0,
+              status: 'idle',
+            }],
+          })),
+          onChanged: vi.fn(() => () => undefined),
+          update,
+        },
+      },
+    });
+
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => { root?.render(renderPage()); });
+
+    const click = async (label: string) => {
+      const button = [...document.querySelectorAll<HTMLButtonElement>('button')]
+        .find((candidate) => candidate.textContent?.trim() === label);
+      await act(async () => {
+        button?.click();
+        await Promise.resolve();
+      });
+    };
+
+    await click('Edit task');
+    const titleInput = document.querySelector<HTMLInputElement>('input');
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      setter?.call(titleInput, 'Daily brief (mail)');
+      titleInput?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await click('Save task');
+
+    expect(update).toHaveBeenCalledWith('daily-brief', { title: 'Daily brief (mail)' });
+  });
+
   it('starts a fresh scheduled session and opens it in Pulse AI', async () => {
     const runNow = vi.fn(async () => ({ ok: true }));
     const newSession = vi.fn(async () => ({ ok: true }));

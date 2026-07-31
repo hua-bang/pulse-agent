@@ -3,13 +3,14 @@ import { randomUUID } from 'crypto';
 import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type {
+  ScheduledRunTrigger,
   ScheduledSchedule,
   ScheduledTask,
   ScheduledTaskExecutionResult,
   ScheduledTaskInput,
   ScheduledTaskPatch,
 } from '../../shared/scheduled';
-import { computeNextRunAt, normalizeSchedule } from '../../shared/scheduled';
+import { computeNextRunAt, isSameSchedule, normalizeSchedule } from '../../shared/scheduled';
 
 interface ScheduledTaskState {
   version: 1;
@@ -28,7 +29,10 @@ export const SCHEDULED_CHECK_EVERY_MS = 30 * 60_000;
 export interface ScheduledTaskServiceOptions {
   statePath?: string;
   now?: () => number;
-  execute: (task: ScheduledTask) => Promise<ScheduledTaskExecutionResult | void>;
+  execute: (
+    task: ScheduledTask,
+    context: { trigger: ScheduledRunTrigger },
+  ) => Promise<ScheduledTaskExecutionResult | void>;
   onChange?: (tasks: ScheduledTask[]) => void;
 }
 
@@ -166,13 +170,24 @@ export class ScheduledTaskService {
       if (!task) throw new Error('Scheduled task not found');
       if (patch.title !== undefined) task.title = normalizeRequiredText(patch.title, 'Task title');
       if (patch.prompt !== undefined) task.prompt = normalizeRequiredText(patch.prompt, 'Task prompt');
+      // Re-anchoring is reserved for real changes. A caller that resubmits the
+      // cadence it was already showing — an editor save after a title typo fix
+      // — must not push the next run a whole period out, and must not swallow
+      // a catch-up run whose overdue `nextRunAt` is still waiting to fire.
       if (patch.schedule !== undefined) {
-        task.schedule = normalizeSchedule(patch.schedule);
-        task.nextRunAt = computeNextRunAt(task.schedule, this.now());
+        const schedule = normalizeSchedule(patch.schedule);
+        if (!isSameSchedule(schedule, task.schedule)) {
+          task.schedule = schedule;
+          task.nextRunAt = computeNextRunAt(schedule, this.now());
+        }
       }
       if (patch.enabled !== undefined) {
+        // Resuming re-anchors (the paused clock is meaningless); re-asserting
+        // an already-enabled task leaves the pending run where it is.
+        if (patch.enabled && !task.enabled) {
+          task.nextRunAt = computeNextRunAt(task.schedule, this.now());
+        }
         task.enabled = patch.enabled;
-        if (patch.enabled) task.nextRunAt = computeNextRunAt(task.schedule, this.now());
       }
       task.updatedAt = this.now();
       updated = { ...task };
@@ -192,7 +207,7 @@ export class ScheduledTaskService {
   async runTaskNow(taskId: string): Promise<ScheduledTask> {
     const task = await this.getTask(taskId);
     if (!task) throw new Error('Scheduled task not found');
-    await this.runTask(task, false, this.now());
+    await this.runTask(task, 'manual', this.now());
     return (await this.getTask(taskId))!;
   }
 
@@ -200,11 +215,22 @@ export class ScheduledTaskService {
     const tasks = await this.listTasks();
     for (const task of tasks) {
       if (!task.enabled || task.nextRunAt > now || this.running.has(task.id)) continue;
-      await this.runTask(task, true, now);
+      await this.runTask(task, 'schedule', now);
     }
   }
 
-  private async runTask(task: ScheduledTask, advanceSchedule: boolean, attemptedAt: number): Promise<void> {
+  /**
+   * `trigger` is the single fact behind two behaviours, so it replaces the
+   * former `advanceSchedule` flag: only a scheduled run consumes its slot (an
+   * on-demand run must not move the recurring clock), and only a scheduled run
+   * needs the completion toast — the manual path already puts the user in the
+   * conversation.
+   */
+  private async runTask(
+    task: ScheduledTask,
+    trigger: ScheduledRunTrigger,
+    attemptedAt: number,
+  ): Promise<void> {
     if (this.running.has(task.id)) return;
     this.running.add(task.id);
     await this.mutate((state) => {
@@ -213,10 +239,10 @@ export class ScheduledTaskService {
       current.lastAttemptAt = attemptedAt;
       current.runCount += 1;
       current.lastError = undefined;
-      if (advanceSchedule) current.nextRunAt = computeNextRunAt(current.schedule, attemptedAt);
+      if (trigger === 'schedule') current.nextRunAt = computeNextRunAt(current.schedule, attemptedAt);
     });
     try {
-      const result = await this.execute({ ...task, status: 'running' });
+      const result = await this.execute({ ...task, status: 'running' }, { trigger });
       await this.mutate((state) => {
         const current = state.tasks.find((candidate) => candidate.id === task.id);
         if (!current) return;

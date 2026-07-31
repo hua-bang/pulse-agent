@@ -21,6 +21,14 @@ export type ScheduledSchedule =
 export type ScheduledTaskSource = 'user' | 'memory-report';
 export type ScheduledTaskRunStatus = 'idle' | 'running';
 
+/**
+ * What started a run. `manual` is the Scheduled list's `Run now`, which also
+ * opens the task's conversation — so the user is already looking at the
+ * result and does not need to be told a second time. `schedule` is the
+ * unattended path the sticky completion toast exists for.
+ */
+export type ScheduledRunTrigger = 'manual' | 'schedule';
+
 export interface ScheduledTask {
   id: string;
   title: string;
@@ -63,6 +71,7 @@ export interface ScheduledRunFinished {
   title: string;
   ok: boolean;
   error?: string;
+  trigger: ScheduledRunTrigger;
 }
 
 export interface ScheduledApi {
@@ -116,6 +125,21 @@ export const normalizeSchedule = (schedule: ScheduledSchedule): ScheduledSchedul
     return { kind: 'weekly', weekday, timeOfDay: formatTimeOfDay(hour, minute) };
   }
   throw new Error(`Unsupported scheduled task cadence: ${String((schedule as { kind?: unknown }).kind)}`);
+};
+
+/**
+ * Structural equality for two canonical schedules.
+ *
+ * The next-run clock is re-anchored whenever a schedule is written, so every
+ * writer needs to tell "the user picked a new cadence" apart from "the form
+ * resubmitted the cadence it was already showing". Compare both sides AFTER
+ * `normalizeSchedule` — an off-canonical stored value (`9:00`) really is a
+ * change and must re-anchor.
+ */
+export const isSameSchedule = (a: ScheduledSchedule, b: ScheduledSchedule): boolean => {
+  if (a.kind === 'interval') return b.kind === 'interval' && a.intervalMinutes === b.intervalMinutes;
+  if (a.kind === 'daily') return b.kind === 'daily' && a.timeOfDay === b.timeOfDay;
+  return b.kind === 'weekly' && a.weekday === b.weekday && a.timeOfDay === b.timeOfDay;
 };
 
 const WEEKDAY_NAMES = [

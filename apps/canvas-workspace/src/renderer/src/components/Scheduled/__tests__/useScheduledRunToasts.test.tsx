@@ -12,13 +12,22 @@ import { useScheduledRunToasts } from '../useScheduledRunToasts';
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
-const Harness = ({ onOpenTask }: { onOpenTask: (taskId: string) => void }) => {
-  useScheduledRunToasts(onOpenTask);
+const Harness = ({
+  onOpenTask,
+  isRunAlreadyVisible,
+}: {
+  onOpenTask: (taskId: string) => void;
+  isRunAlreadyVisible?: (run: ScheduledRunFinished) => boolean;
+}) => {
+  useScheduledRunToasts(onOpenTask, isRunAlreadyVisible);
   return null;
 };
 
 /** Mounts the hook and hands back the main-process push it subscribed with. */
-const mount = async (onOpenTask: (taskId: string) => void) => {
+const mount = async (
+  onOpenTask: (taskId: string) => void,
+  isRunAlreadyVisible?: (run: ScheduledRunFinished) => boolean,
+) => {
   let emit: ((run: ScheduledRunFinished) => void) | undefined;
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,
@@ -39,7 +48,7 @@ const mount = async (onOpenTask: (taskId: string) => void) => {
     root?.render(
       <I18nProvider>
         <AppShellProvider>
-          <Harness onOpenTask={onOpenTask} />
+          <Harness onOpenTask={onOpenTask} isRunAlreadyVisible={isRunAlreadyVisible} />
         </AppShellProvider>
       </I18nProvider>,
     );
@@ -64,7 +73,7 @@ describe('useScheduledRunToasts', () => {
     const onOpenTask = vi.fn();
     const emit = await mount(onOpenTask);
 
-    emit({ taskId: 'daily-brief', title: 'Morning brief', ok: true });
+    emit({ taskId: 'daily-brief', title: 'Morning brief', ok: true, trigger: 'schedule' });
     expect(toasts()).toHaveLength(1);
     expect(toasts()[0].textContent).toContain('Morning brief');
 
@@ -89,9 +98,45 @@ describe('useScheduledRunToasts', () => {
       title: 'Morning brief',
       ok: false,
       error: 'model unavailable',
+      trigger: 'schedule',
     });
 
     expect(toasts()).toHaveLength(1);
     expect(toasts()[0].textContent).toContain('model unavailable');
+  });
+
+  /**
+   * `Run now` opens the task's conversation and holds the user there for the
+   * whole run, so the completion toast landed on top of the panel already
+   * showing the answer, with an action pointing at it.
+   */
+  it('stays quiet for a manual run whose conversation is already on screen', async () => {
+    const emit = await mount(vi.fn(), (run) => run.taskId === 'daily-brief');
+
+    emit({ taskId: 'daily-brief', title: 'Morning brief', ok: true, trigger: 'manual' });
+    expect(toasts()).toHaveLength(0);
+
+    // Only that exact combination is silenced. An unattended run is the case
+    // the sticky toast exists for...
+    emit({ taskId: 'daily-brief', title: 'Morning brief', ok: true, trigger: 'schedule' });
+    expect(toasts()).toHaveLength(1);
+
+    // ...and a failure always speaks up, watched or not: the in-panel error
+    // banner is easy to miss.
+    emit({
+      taskId: 'daily-brief',
+      title: 'Morning brief',
+      ok: false,
+      error: 'model unavailable',
+      trigger: 'manual',
+    });
+    expect(toasts()).toHaveLength(2);
+  });
+
+  it('still announces a manual run once the user has looked away', async () => {
+    const emit = await mount(vi.fn(), () => false);
+
+    emit({ taskId: 'daily-brief', title: 'Morning brief', ok: true, trigger: 'manual' });
+    expect(toasts()).toHaveLength(1);
   });
 });

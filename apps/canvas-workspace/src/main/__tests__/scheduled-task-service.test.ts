@@ -81,7 +81,10 @@ describe('ScheduledTaskService', () => {
     await service.runDueTasks(now);
 
     expect(execute).toHaveBeenCalledTimes(1);
-    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ id: created.id }));
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ id: created.id }),
+      { trigger: 'schedule' },
+    );
     expect(await service.getTask(created.id)).toMatchObject({
       lastAttemptAt: now,
       lastSuccessAt: now,
@@ -119,6 +122,65 @@ describe('ScheduledTaskService', () => {
       nextRunAt: now + 30 * 60_000,
       runCount: 1,
     });
+  });
+
+  /**
+   * The editor submits the whole form, so a title typo fix used to arrive as a
+   * schedule write and push the next run a full period out — on a 6-hourly
+   * task edited at 08:55, the 09:00 run the user was waiting for vanished.
+   * Worse, an overdue absolute slot waiting for catch-up was pushed into the
+   * future and never ran at all.
+   */
+  it('keeps the pending run when an edit resubmits the schedule it already had', async () => {
+    const start = Date.UTC(2026, 6, 26, 9, 0);
+    let now = start;
+    const service = new ScheduledTaskService({ statePath, now: () => now, execute: vi.fn() });
+    const task = await service.createTask({
+      title: 'Inbox sweep',
+      prompt: 'Summarize new mail.',
+      schedule: { kind: 'interval', intervalMinutes: 360 },
+    });
+    const pendingRunAt = task.nextRunAt;
+
+    now = start + 355 * 60_000;
+    await service.updateTask(task.id, {
+      title: 'Inbox sweep (mail)',
+      prompt: 'Summarize new mail.',
+      schedule: { kind: 'interval', intervalMinutes: 360 },
+      enabled: true,
+    });
+
+    const edited = await service.getTask(task.id);
+    expect(edited).toMatchObject({ title: 'Inbox sweep (mail)', nextRunAt: pendingRunAt });
+
+    // An overdue slot must survive an edit too, or catch-up never fires.
+    now = pendingRunAt + 60_000;
+    await service.updateTask(task.id, { title: 'Inbox sweep (email)' });
+    expect((await service.getTask(task.id))?.nextRunAt).toBe(pendingRunAt);
+
+    // A real cadence change still re-anchors.
+    await service.updateTask(task.id, { schedule: { kind: 'interval', intervalMinutes: 30 } });
+    expect((await service.getTask(task.id))?.nextRunAt).toBe(now + 30 * 60_000);
+  });
+
+  it('re-anchors when resuming a paused task but not when re-asserting an enabled one', async () => {
+    const start = Date.UTC(2026, 6, 26, 9, 0);
+    let now = start;
+    const service = new ScheduledTaskService({ statePath, now: () => now, execute: vi.fn() });
+    const task = await service.createTask({
+      title: 'Inbox sweep',
+      prompt: 'Summarize new mail.',
+      schedule: { kind: 'interval', intervalMinutes: 360 },
+    });
+
+    now = start + 60_000;
+    await service.updateTask(task.id, { enabled: true });
+    expect((await service.getTask(task.id))?.nextRunAt).toBe(task.nextRunAt);
+
+    await service.updateTask(task.id, { enabled: false });
+    now = start + 120_000;
+    await service.updateTask(task.id, { enabled: true });
+    expect((await service.getTask(task.id))?.nextRunAt).toBe(now + 360 * 60_000);
   });
 
   it('runs on demand without moving the recurring next-run time', async () => {
@@ -249,10 +311,15 @@ describe('ScheduledTaskService', () => {
 
     expect(task.nextRunAt).toBe(new Date(2026, 6, 27, 9, 0).getTime());
 
+    // Re-anchoring is driven off the CURRENT wall clock, not a fixed offset
+    // from the old slot: at 08:00 a 09:30 daily lands later the same day. The
+    // new time has to differ from the stored one — resubmitting an unchanged
+    // cadence deliberately leaves the pending run alone (see the edit tests
+    // above), so an identical schedule would prove nothing about the maths.
     const beforeToday = new Date(2026, 6, 26, 8, 0).getTime();
     const early = new ScheduledTaskService({ statePath, now: () => beforeToday, execute: vi.fn() });
-    await early.updateTask(task.id, { schedule: { kind: 'daily', timeOfDay: '09:00' } });
-    expect((await early.getTask(task.id))?.nextRunAt).toBe(new Date(2026, 6, 26, 9, 0).getTime());
+    await early.updateTask(task.id, { schedule: { kind: 'daily', timeOfDay: '09:30' } });
+    expect((await early.getTask(task.id))?.nextRunAt).toBe(new Date(2026, 6, 26, 9, 30).getTime());
   });
 
   it('pins a weekly task to the next matching local weekday', async () => {

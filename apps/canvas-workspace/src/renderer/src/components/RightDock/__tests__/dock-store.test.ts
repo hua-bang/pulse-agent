@@ -12,6 +12,7 @@ import {
   type DockLinkSessions,
   type DockSessionPersistence,
 } from '../dock-store';
+import { isScheduledChatVisible } from '../dock-chat-state';
 
 const createSessionPersistence = (initial: DockLinkSessions = {}): {
   persistence: DockSessionPersistence;
@@ -62,6 +63,29 @@ describe('DockStore', () => {
 
     dock.openChat();
     expect(dock.getSnapshot().scheduledChatTaskId).toBeUndefined();
+  });
+
+  /**
+   * Drives whether a finished manual run stays quiet: `Run now` opens this
+   * exact surface and waits out the run, so a toast raised on top of it points
+   * at what the user is already reading. Being merely POINTED at the task is
+   * not the same as showing it — a collapsed dock, or one switched to another
+   * tab, keeps `scheduledChatTaskId` set while the conversation is invisible.
+   */
+  it('reports a scheduled conversation visible only while it is actually on screen', () => {
+    const dock = new DockStore();
+    expect(isScheduledChatVisible(dock.getSnapshot(), 'daily-brief')).toBe(false);
+
+    dock.openScheduledChat('daily-brief');
+    expect(isScheduledChatVisible(dock.getSnapshot(), 'daily-brief')).toBe(true);
+    expect(isScheduledChatVisible(dock.getSnapshot(), 'weekly-report')).toBe(false);
+
+    dock.collapse();
+    expect(isScheduledChatVisible(dock.getSnapshot(), 'daily-brief')).toBe(false);
+
+    dock.openScheduledChat('daily-brief');
+    dock.openTerminal();
+    expect(isScheduledChatVisible(dock.getSnapshot(), 'daily-brief')).toBe(false);
   });
 
   it('refuses to preview a workspace that is already mounted in the main canvas', () => {

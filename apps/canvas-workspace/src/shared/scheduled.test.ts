@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeNextRunAt,
+  isSameSchedule,
   normalizeSchedule,
   parseTimeOfDay,
   type ScheduledSchedule,
@@ -74,5 +75,40 @@ describe('computeNextRunAt', () => {
     expect(next.getHours()).toBe(9);
     expect(next.getMinutes()).toBe(0);
     expect(next.getDate()).toBe(27);
+  });
+
+  /** Writing a schedule re-anchors the next run, so every writer needs to
+   *  tell a real cadence change apart from a resubmitted one. */
+  it('recognizes a resubmitted schedule and every kind of real change', () => {
+    expect(isSameSchedule(
+      { kind: 'interval', intervalMinutes: 360 },
+      { kind: 'interval', intervalMinutes: 360 },
+    )).toBe(true);
+    expect(isSameSchedule(
+      { kind: 'weekly', weekday: 1, timeOfDay: '09:00' },
+      { kind: 'weekly', weekday: 1, timeOfDay: '09:00' },
+    )).toBe(true);
+
+    expect(isSameSchedule(
+      { kind: 'interval', intervalMinutes: 360 },
+      { kind: 'interval', intervalMinutes: 30 },
+    )).toBe(false);
+    expect(isSameSchedule(
+      { kind: 'daily', timeOfDay: '09:00' },
+      { kind: 'daily', timeOfDay: '09:30' },
+    )).toBe(false);
+    expect(isSameSchedule(
+      { kind: 'weekly', weekday: 1, timeOfDay: '09:00' },
+      { kind: 'weekly', weekday: 2, timeOfDay: '09:00' },
+    )).toBe(false);
+    // Same wall clock, different kind: 'Every 24 hours' is not 'Daily at 09:00'.
+    expect(isSameSchedule(
+      { kind: 'daily', timeOfDay: '09:00' },
+      { kind: 'weekly', weekday: 1, timeOfDay: '09:00' },
+    )).toBe(false);
+    expect(isSameSchedule(
+      { kind: 'interval', intervalMinutes: 1440 },
+      { kind: 'daily', timeOfDay: '09:00' },
+    )).toBe(false);
   });
 });

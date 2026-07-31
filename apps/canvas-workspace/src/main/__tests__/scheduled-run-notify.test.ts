@@ -96,7 +96,7 @@ describe('scheduled run completion signal', () => {
     expect(runFinishedPushes()).toEqual([
       {
         channel: 'scheduled:run-finished',
-        payload: { taskId: 'daily-brief', title: 'Morning brief', ok: true },
+        payload: { taskId: 'daily-brief', title: 'Morning brief', ok: true, trigger: 'schedule' },
       },
     ]);
   });
@@ -112,6 +112,7 @@ describe('scheduled run completion signal', () => {
       title: 'Morning brief',
       ok: false,
       error: 'model unavailable',
+      trigger: 'schedule',
     });
   });
 
@@ -120,5 +121,21 @@ describe('scheduled run completion signal', () => {
 
     await expect(__testing.executeScheduledTask(task)).rejects.toThrow('engine exploded');
     expect(runFinishedPushes()[0].payload).toMatchObject({ ok: false, error: 'engine exploded' });
+  });
+
+  /**
+   * The renderer silences a manual completion when the user is already looking
+   * at the conversation `Run now` opened, so the announcement has to say which
+   * kind of run it was — success and failure alike.
+   */
+  it('carries the trigger so the renderer can tell a watched run from an unattended one', async () => {
+    await __testing.executeScheduledTask(task, { trigger: 'manual' });
+    expect(runFinishedPushes()[0].payload).toMatchObject({ trigger: 'manual' });
+
+    h.sent.length = 0;
+    h.chatThrows = new Error('engine exploded');
+    await expect(__testing.executeScheduledTask(task, { trigger: 'manual' }))
+      .rejects.toThrow('engine exploded');
+    expect(runFinishedPushes()[0].payload).toMatchObject({ ok: false, trigger: 'manual' });
   });
 });

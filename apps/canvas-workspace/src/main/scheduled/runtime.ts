@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
 import { getCanvasAgentService } from '../agent/ipc';
-import type { ScheduledRunFinished, ScheduledTask } from '../../shared/scheduled';
+import type { ScheduledRunFinished, ScheduledRunTrigger, ScheduledTask } from '../../shared/scheduled';
 import { describeSchedule } from '../../shared/scheduled';
 import { ScheduledTaskService } from './scheduled-task-service';
 
@@ -34,14 +34,17 @@ function announceRunFinished(outcome: ScheduledRunFinished): void {
   }
 }
 
-async function executeScheduledTask(task: ScheduledTask): Promise<{ sessionId?: string }> {
+async function executeScheduledTask(
+  task: ScheduledTask,
+  { trigger }: { trigger: ScheduledRunTrigger } = { trigger: 'schedule' },
+): Promise<{ sessionId?: string }> {
   const agentService = getCanvasAgentService();
   const scope = { kind: 'scheduled' as const, taskId: task.id };
   try {
     const result = await agentService.chatWithScope(scope, taskRunPrompt(task));
     if (!result.ok) throw new Error(result.error ?? 'Scheduled task failed');
     const sessionId = await agentService.resolveCurrentSessionId(scope);
-    announceRunFinished({ taskId: task.id, title: task.title, ok: true });
+    announceRunFinished({ taskId: task.id, title: task.title, ok: true, trigger });
     return { sessionId: sessionId ?? undefined };
   } catch (error) {
     // A failed run used to be announced nowhere: the throw happened before
@@ -51,6 +54,7 @@ async function executeScheduledTask(task: ScheduledTask): Promise<{ sessionId?: 
       title: task.title,
       ok: false,
       error: error instanceof Error ? error.message : String(error),
+      trigger,
     });
     throw error;
   }

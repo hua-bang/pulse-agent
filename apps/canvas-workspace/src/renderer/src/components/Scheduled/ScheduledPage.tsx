@@ -9,7 +9,12 @@ import {
   SpinnerGap,
   Trash,
 } from '@phosphor-icons/react';
-import type { ScheduledTask, ScheduledTaskInput } from '../../../../shared/scheduled';
+import type {
+  ScheduledTask,
+  ScheduledTaskInput,
+  ScheduledTaskPatch,
+} from '../../../../shared/scheduled';
+import { isSameSchedule } from '../../../../shared/scheduled';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
 import { useDockContext } from '../RightDock/context';
@@ -17,6 +22,25 @@ import { Button, EmptyState } from '../ui';
 import { scheduleLabel, timeLabel } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
 import './index.css';
+
+/**
+ * Only what the user actually changed.
+ *
+ * The editor always submits the whole form, but `update` re-anchors the next
+ * run whenever a schedule arrives — so resubmitting an unchanged cadence
+ * pushed the next run a full period out, and fixing a typo at 08:55 on a
+ * 6-hourly task silently ate the 09:00 run it was waiting for. The chat tools
+ * already build a minimal patch (`agent/tools/scheduled.ts`); this keeps the
+ * editor on the same contract.
+ */
+const changedFields = (task: ScheduledTask, input: ScheduledTaskInput): ScheduledTaskPatch => ({
+  ...(input.title !== task.title ? { title: input.title } : {}),
+  ...(input.prompt !== task.prompt ? { prompt: input.prompt } : {}),
+  ...(isSameSchedule(input.schedule, task.schedule) ? {} : { schedule: input.schedule }),
+  ...(input.enabled !== undefined && input.enabled !== task.enabled
+    ? { enabled: input.enabled }
+    : {}),
+});
 
 export const ScheduledPage = () => {
   const { t, language } = useI18n();
@@ -45,7 +69,7 @@ export const ScheduledPage = () => {
 
   const saveTask = async (input: ScheduledTaskInput): Promise<boolean> => {
     const response = editingTask
-      ? await window.canvasWorkspace.scheduled.update(editingTask.id, input)
+      ? await window.canvasWorkspace.scheduled.update(editingTask.id, changedFields(editingTask, input))
       : await window.canvasWorkspace.scheduled.create(input);
     if (!response.ok || !response.task) {
       notify({ tone: 'error', title: t('scheduled.saveFailed'), description: response.error });
@@ -81,11 +105,17 @@ export const ScheduledPage = () => {
       dockStore.openScheduledChat(task.id);
       const response = await window.canvasWorkspace.scheduled.runNow(task.id);
       dockStore.refreshScheduledChat(task.id);
-      if (!response.ok || response.task?.lastError) {
+      // Every finished attempt — success AND failure — is already announced by
+      // `announceRunFinished`, so reporting a failed run here too raised two
+      // toasts with the same title and the same `lastError` description. What
+      // is left to report is the invoke that failed BEFORE the run started
+      // (the outer catch in `scheduled/ipc.ts`, e.g. a task removed underneath
+      // us): no attempt, no push, and otherwise no feedback at all.
+      if (!response.ok && !response.task) {
         notify({
           tone: 'error',
           title: t('scheduled.runFailed'),
-          description: response.error ?? response.task?.lastError,
+          description: response.error,
         });
       }
     } finally {
