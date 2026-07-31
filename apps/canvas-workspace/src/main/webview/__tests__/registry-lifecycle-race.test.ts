@@ -48,6 +48,7 @@ vi.mock('../lifecycle', () => ({
   getWebviewFreezeExemption: vi.fn(() => null),
   setWebviewLifecycle: mocks.setLifecycle,
 }));
+vi.mock('../shortcut-forwarding', () => ({ attachShortcutForwarding: vi.fn() }));
 
 import { getNodeRenderedText, setupWebviewRegistryIpc } from '../registry';
 

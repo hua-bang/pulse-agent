@@ -67,6 +67,7 @@ export const useCanvasNodeViewModel = ({
   isHighlighted,
   isResizing,
   isSelected,
+  renameToken,
   node,
   onDragStart,
   onFocus,
@@ -96,6 +97,7 @@ export const useCanvasNodeViewModel = ({
   | 'isHighlighted'
   | 'isResizing'
   | 'isSelected'
+  | 'renameToken'
   | 'node'
   | 'onDragStart'
   | 'onFocus'
@@ -245,6 +247,14 @@ export const useCanvasNodeViewModel = ({
       selection?.addRange(range);
     });
   }, [readOnly]);
+
+  // Canvas-level rename (Enter / F2 on the selection). Selection and DOM
+  // focus are separate in a canvas — a mouse-selected node holds no focus —
+  // so the shortcut cannot simply rely on the title span's own key handling.
+  useEffect(() => {
+    if (!renameToken) return;
+    beginTitleEditing();
+  }, [renameToken, beginTitleEditing]);
 
   const handleTitleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLSpanElement>) => {

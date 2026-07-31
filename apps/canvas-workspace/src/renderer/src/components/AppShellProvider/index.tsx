@@ -1,5 +1,7 @@
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -8,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { DEFAULT_TOAST_DURATION_MS, SHORTCUT_SECTIONS } from '../../constants/interaction';
+import { DEFAULT_TOAST_DURATION_MS } from '../../constants/interaction';
 import type { ConfirmOptions, ToastInput, ToastRecord } from '../../types/ui-interaction';
 import { useI18n } from '../../i18n';
 import { Modal } from '../ui';
@@ -26,6 +28,9 @@ interface AppShellContextValue {
 }
 
 const AppShellContext = createContext<AppShellContextValue | null>(null);
+const ShortcutsDialog = lazy(() =>
+  import('./ShortcutsDialog').then((module) => ({ default: module.ShortcutsDialog })),
+);
 
 export const AppShellProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useI18n();
@@ -160,7 +165,9 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
         />
       )}
       {shortcutsOpen && (
-        <ShortcutsDialog onClose={closeShortcuts} />
+        <Suspense fallback={null}>
+          <ShortcutsDialog onClose={closeShortcuts} />
+        </Suspense>
       )}
     </AppShellContext.Provider>
   );
@@ -314,48 +321,6 @@ const ConfirmDialog = ({
           onClick={onConfirm}
         >
           {options.confirmLabel ?? t('shell.continue')}
-        </button>
-      </div>
-    </Modal>
-  );
-};
-
-const ShortcutsDialog = ({ onClose }: { onClose: () => void }) => {
-  const { t } = useI18n();
-
-  return (
-    <Modal open onClose={onClose} width={820} className="ui-modal--tall" labelledBy="shell-shortcuts-title">
-      <div className="shell-dialog__header">
-        <div className="shell-dialog__eyebrow">{t('shell.shortcutsKicker')}</div>
-        <h2 className="shell-dialog__title" id="shell-shortcuts-title">{t('shell.shortcutsTitle')}</h2>
-      </div>
-      <div className="shell-shortcuts__intro">
-        {t('shell.shortcutsIntro')}
-      </div>
-      <div className="shell-shortcuts">
-        <div className="shell-shortcuts__grid">
-          {SHORTCUT_SECTIONS.map((section) => (
-            <section key={section.titleKey} className="shell-shortcuts__section">
-              <div className="shell-shortcuts__section-title">{t(section.titleKey)}</div>
-              <div className="shell-shortcuts__list">
-                {section.items.map((item) => (
-                  <div key={`${section.titleKey}-${item.combo}`} className="shell-shortcuts__item">
-                    <div className="shell-shortcuts__combo" aria-label={item.combo}>
-                      {item.combo.split(/\s*\+\s*/).map((part) => (
-                        <span key={`${item.combo}-${part}`} className="shell-shortcuts__key">{part}</span>
-                      ))}
-                    </div>
-                    <div className="shell-shortcuts__item-description">{t(item.descriptionKey)}</div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </div>
-      <div className="shell-dialog__footer">
-        <button type="button" className="shell-dialog__button shell-dialog__button--primary" onClick={onClose}>
-          {t('shell.close')}
         </button>
       </div>
     </Modal>

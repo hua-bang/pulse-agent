@@ -80,9 +80,7 @@ describe('useCanvasKeyboard', () => {
       setSelectedEdgeId: vi.fn(),
       removeEdge: vi.fn(),
       duplicateNode: vi.fn(),
-      clipboard: null,
       setClipboard: vi.fn(),
-      pasteNodes: vi.fn(() => []),
       groupSelectedNodes: vi.fn(),
       ungroupSelectedNodes: vi.fn(),
       removeNodes: vi.fn(),
@@ -102,6 +100,10 @@ describe('useCanvasKeyboard', () => {
       handleFocusNode: vi.fn(),
       activeTool: 'select',
       setActiveTool: vi.fn(),
+      zoomBy: vi.fn(),
+      resetZoom: vi.fn(),
+      fitNodes: vi.fn(),
+      renameNode: vi.fn(),
       ...overrides,
     };
     const Harness = () => {
@@ -115,19 +117,19 @@ describe('useCanvasKeyboard', () => {
     act(() => root?.render(createElement(Harness)));
   };
 
+  const press = (init: KeyboardEventInit & { key: string }): KeyboardEvent => {
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+    act(() => { window.dispatchEvent(event); });
+    return event;
+  };
+
   it.each(['connect', 'shape-rect'])(
     'returns an idle %s tool to select when Escape is pressed',
     (activeTool) => {
       const setActiveTool = vi.fn();
       mountKeyboard({ activeTool, setActiveTool });
 
-      act(() => {
-        window.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'Escape',
-          bubbles: true,
-          cancelable: true,
-        }));
-      });
+      press({ key: 'Escape' });
 
       expect(setActiveTool).toHaveBeenCalledWith('select');
     },
@@ -143,20 +145,13 @@ describe('useCanvasKeyboard', () => {
       setSelectedEdgeId,
     });
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'a',
-        metaKey: true,
-        bubbles: true,
-        cancelable: true,
-      }));
-    });
+    press({ key: 'a', metaKey: true });
 
     expect(setSelectedNodeIds).toHaveBeenCalledWith(['node-1', 'node-2']);
     expect(setSelectedEdgeId).toHaveBeenCalledWith(null);
   });
 
-  it('clears an edge selection when Cmd/Ctrl+Tab focuses another node', () => {
+  it('clears an edge selection when Ctrl+Tab focuses another node', () => {
     const setSelectedNodeIds = vi.fn();
     const setSelectedEdgeId = vi.fn();
     mountKeyboard({
@@ -167,16 +162,178 @@ describe('useCanvasKeyboard', () => {
       setSelectedEdgeId,
     });
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'Tab',
-        metaKey: true,
-        bubbles: true,
-        cancelable: true,
-      }));
-    });
+    press({ key: 'Tab', ctrlKey: true });
 
     expect(setSelectedNodeIds).toHaveBeenCalledWith(['node-2']);
     expect(setSelectedEdgeId).toHaveBeenCalledWith(null);
+  });
+
+  // Regression: the old matcher tested `isMod && e.key === 'a'` without
+  // looking at Shift, so the combo the UI advertised as "toggle side chat"
+  // silently ran select-all instead — and nothing toggled the chat panel.
+  it('routes Cmd/Ctrl+Shift+A to the chat panel and never to select-all', () => {
+    const setSelectedNodeIds = vi.fn();
+    const onToggleChatPanel = vi.fn();
+    mountKeyboard({
+      nodes: [node('node-1')],
+      setSelectedNodeIds,
+      onToggleChatPanel,
+    });
+
+    press({ key: 'a', metaKey: true, shiftKey: true });
+
+    expect(onToggleChatPanel).toHaveBeenCalledTimes(1);
+    expect(setSelectedNodeIds).not.toHaveBeenCalled();
+  });
+
+  // Regression: every keydown pushed a history entry, so HOLDING an arrow
+  // key filled the undo stack with one entry per OS repeat tick.
+  it('ignores auto-repeat so a held arrow key is a single undo step', () => {
+    const moveNodes = vi.fn();
+    const commitHistory = vi.fn();
+    mountKeyboard({
+      nodes: [node('node-1')],
+      selectedNodeIds: ['node-1'],
+      moveNodes,
+      commitHistory,
+    });
+
+    press({ key: 'ArrowRight' });
+    press({ key: 'ArrowRight', repeat: true });
+    press({ key: 'ArrowRight', repeat: true });
+
+    expect(moveNodes).toHaveBeenCalledTimes(1);
+    expect(commitHistory).toHaveBeenCalledTimes(1);
+    expect(moveNodes).toHaveBeenCalledWith([{ id: 'node-1', x: 1, y: 0 }]);
+  });
+
+  it('nudges by 10 with Shift held', () => {
+    const moveNodes = vi.fn();
+    mountKeyboard({
+      nodes: [node('node-1')],
+      selectedNodeIds: ['node-1'],
+      moveNodes,
+    });
+
+    press({ key: 'ArrowDown', shiftKey: true });
+
+    expect(moveNodes).toHaveBeenCalledWith([{ id: 'node-1', x: 0, y: 10 }]);
+  });
+
+  // Regression: Escape used to be consumed unconditionally, so one press
+  // closed the find bar AND whatever the app shell / right dock had open.
+  describe('Escape', () => {
+    it('consumes the event when it actually closed something', () => {
+      const closeFindBar = vi.fn();
+      mountKeyboard({ findOpen: true, closeFindBar });
+
+      const event = press({ key: 'Escape' });
+
+      expect(closeFindBar).toHaveBeenCalledTimes(1);
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('leaves the event for other layers when nothing was open or selected', () => {
+      mountKeyboard({});
+
+      const event = press({ key: 'Escape' });
+
+      expect(event.defaultPrevented).toBe(false);
+    });
+  });
+
+  it('skips every shortcut while an IME candidate window is open', () => {
+    const setSearchOpen = vi.fn();
+    mountKeyboard({ setSearchOpen });
+
+    press({ key: 'k', metaKey: true, isComposing: true });
+
+    expect(setSearchOpen).not.toHaveBeenCalled();
+  });
+
+  it('mirrors a canvas copy into the system clipboard so paste can compare', () => {
+    const setClipboard = vi.fn();
+    mountKeyboard({
+      nodes: [node('node-1')],
+      selectedNodeIds: ['node-1'],
+      setClipboard,
+    });
+
+    press({ key: 'c', metaKey: true });
+
+    expect(setClipboard).toHaveBeenCalledWith(expect.objectContaining({
+      sourceWorkspaceId: 'canvas-1',
+      systemText: 'node-1',
+    }));
+  });
+
+  describe('view shortcuts', () => {
+    it('zooms, resets, and fits from the keyboard', () => {
+      const zoomBy = vi.fn();
+      const resetZoom = vi.fn();
+      const fitNodes = vi.fn();
+      const nodes = [node('node-1'), node('node-2')];
+      mountKeyboard({ nodes, selectedNodeIds: ['node-2'], zoomBy, resetZoom, fitNodes });
+
+      press({ key: '=', metaKey: true });
+      press({ key: '-', metaKey: true });
+      press({ key: '0', metaKey: true });
+      press({ key: '1', shiftKey: true });
+      press({ key: '2', shiftKey: true });
+
+      expect(zoomBy).toHaveBeenNthCalledWith(1, expect.any(Number));
+      expect(zoomBy.mock.calls[0][0]).toBeGreaterThan(1);
+      expect(zoomBy.mock.calls[1][0]).toBeLessThan(1);
+      expect(resetZoom).toHaveBeenCalledTimes(1);
+      expect(fitNodes).toHaveBeenNthCalledWith(1, nodes);
+      expect(fitNodes).toHaveBeenNthCalledWith(2, [nodes[1]]);
+    });
+
+    it.each([
+      ['v', 'select'],
+      ['h', 'hand'],
+      ['c', 'connect'],
+      ['r', 'shape-rect'],
+    ])('binds %s to the %s tool', (key, tool) => {
+      const setActiveTool = vi.fn();
+      mountKeyboard({ setActiveTool });
+
+      press({ key });
+
+      expect(setActiveTool).toHaveBeenCalledWith(tool);
+    });
+  });
+
+  it('renames the single selected node on Enter and F2', () => {
+    const renameNode = vi.fn();
+    mountKeyboard({ nodes: [node('node-1')], selectedNodeIds: ['node-1'], renameNode });
+
+    press({ key: 'Enter' });
+    press({ key: 'F2' });
+
+    expect(renameNode).toHaveBeenCalledTimes(2);
+    expect(renameNode).toHaveBeenCalledWith('node-1');
+  });
+
+  it('does not rename when the selection is not exactly one node', () => {
+    const renameNode = vi.fn();
+    mountKeyboard({
+      nodes: [node('node-1'), node('node-2')],
+      selectedNodeIds: ['node-1', 'node-2'],
+      renameNode,
+    });
+
+    press({ key: 'Enter' });
+
+    expect(renameNode).not.toHaveBeenCalled();
+  });
+
+  it('stays inert while the canvas keyboard is locked', () => {
+    const setSearchOpen = vi.fn();
+    mountKeyboard({ keyboardLocked: true, setSearchOpen });
+
+    press({ key: 'k', metaKey: true });
+
+    expect(setSearchOpen).not.toHaveBeenCalled();
   });
 });

@@ -288,6 +288,17 @@ const RATCHET_BASELINE: Record<string, number> = {
   // call, so this regex never saw it). GraphPage's Cmd+F+ESC listener is
   // the one survivor of the "2 mixed multi-key" note above; floor is now
   // effectively that single case plus the 2 gesture-cancel listeners.
+  // 16→15 (shortcut-registry work): `useCanvasKeyboard` collapsed its two
+  // window listeners into one registry-driven dispatcher, and App.tsx's
+  // inline handler moved wholesale into `useAppShortcuts` (still one
+  // listener). Both are now the blessed destination for NEW shortcuts —
+  // add a binding to `shortcuts/registry.ts` and a handler to the owning
+  // table rather than a fresh listener — but they stay counted so the
+  // ratchet keeps measuring the real total.
+  // 15→16 (shortcut-registry + browser-tabs merge): both branches stayed at
+  // 15 independently. Their union contains the app/canvas registry dispatcher
+  // plus the dock-browser dispatcher; both are shared, typed owners rather
+  // than one-off component listeners, so the merged inventory is 16.
   handRolledKeydown: 16,
   // hardcoded color literals (hex/rgb/oklch) in renderer CSS on lines that do
   // NOT define a custom property — new-code color ratchet (token-definition

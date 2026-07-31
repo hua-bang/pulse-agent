@@ -16,6 +16,7 @@ import { useKnowledgeAiContext } from './components/WorkspaceNodes/knowledgeAiCo
 import { NodesRouteViews } from './components/WorkspaceNodes/NodesRouteViews';
 import { useOpenNodePageBridge } from './components/WorkspaceNodes/useOpenNodePageBridge';
 import { useWorkspaces } from './hooks/useWorkspaces';
+import { useAppShortcutBindings } from './hooks/useAppShortcuts';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
@@ -460,9 +461,12 @@ const AppContent = () => {
     });
   }, [folders, confirm, deleteFolder, notify, t]);
 
-  const getWorkspaceRootFolder = useCallback((workspaceId: string) => {
-    return workspaces.find((ws) => ws.id === workspaceId)?.rootFolder;
-  }, [workspaces]);
+  useAppShortcutBindings({
+    activeView, isOverlayOpen, openShortcuts, toggleSidebar: handleSidebarToggle,
+    workspaces, selectWorkspace: handleSelectWorkspace, setLocation, routes: { canvas: ROUTE_CANVAS, chat: ROUTE_CHAT },
+  });
+
+  const getWorkspaceRootFolder = useCallback((workspaceId: string) => workspaces.find((ws) => ws.id === workspaceId)?.rootFolder, [workspaces]);
 
   const handleNodeFocusFromChatPage = useCallback((workspaceId: string, nodeId: string) => {
     if (activeId !== workspaceId) {

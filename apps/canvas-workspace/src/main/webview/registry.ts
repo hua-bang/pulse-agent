@@ -38,6 +38,7 @@ import {
 import { forgetFreezeSnapshot, rememberFreezeSnapshot } from './discard-monitor';
 import { captureBoundedSnapshot } from './snapshot';
 import { buildFreezeRecord, probeFreezeState } from './freeze-probe';
+import { attachShortcutForwarding } from './shortcut-forwarding';
 import {
   beginLifecycleRequest,
   serializeLifecycleTransition,
@@ -74,6 +75,8 @@ function register(
       const identity = registry.getByWebContentsId(webContentsId);
       if (identity) unregister(identity, webContentsId);
     });
+    // Give the guest a keyboard escape hatch back to the host window.
+    attachShortcutForwarding(wc);
   }
   if (ready) recordWelcomeReadyForPerf(k);
 }

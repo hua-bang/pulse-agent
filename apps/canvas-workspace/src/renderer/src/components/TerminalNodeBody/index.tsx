@@ -13,6 +13,7 @@ import {
   createPtySpawnLifecycle,
   createDebouncedTerminalRefit,
   createTerminalSnapshotPersister,
+  decideTerminalKey,
   finalizeTerminalSnapshotBeforeDispose,
   fitTerminalWithCanvasScale,
   readTerminalSnapshot,
@@ -42,6 +43,8 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mentionHintVisible, setMentionHintVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  /** Timestamp of the last bare Escape — see decideTerminalKey. */
+  const lastEscapeAtRef = useRef(0);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -159,7 +162,20 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
         setPickerOpen(true);
         return false;
       }
-      return true;
+      const decision = decideTerminalKey(e, lastEscapeAtRef.current, performance.now());
+      if (e.key === 'Escape') {
+        lastEscapeAtRef.current = decision === 'release-focus' ? 0 : performance.now();
+      }
+      if (decision === 'release-focus') {
+        // Hand focus back to the canvas so the shortcut layer's editable
+        // guard stops treating xterm's helper textarea as "the user is
+        // typing". Without this there is no keyboard way out of a terminal.
+        term.blur();
+        containerRef.current?.blur();
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        return false;
+      }
+      return decision === 'terminal';
     });
 
     requestAnimationFrame(() => {

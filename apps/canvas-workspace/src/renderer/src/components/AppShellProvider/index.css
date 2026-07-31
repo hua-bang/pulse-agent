@@ -267,6 +267,18 @@
   gap: 6px;
 }
 
+.shell-shortcuts__combo-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.shell-shortcuts__or {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .shell-shortcuts__key {
   display: inline-flex;
   align-items: center;

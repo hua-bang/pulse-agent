@@ -17,6 +17,13 @@ export interface CanvasNodeViewProps {
   dragOffset?: NodeDragOffset | null;
   isResizing: boolean;
   isSelected: boolean;
+  /**
+   * Bumped by the canvas when Enter / F2 targets THIS node, which starts
+   * inline title editing. A monotonic token rather than a boolean so the
+   * canvas never has to clear a flag: a repeat rename of the same node is a
+   * new token, and every other node sees 0.
+   */
+  renameToken?: number;
   isHighlighted: boolean;
   isAgentEdited?: boolean;
   focusState?: 'focused' | 'context' | 'dimmed' | 'neutral';

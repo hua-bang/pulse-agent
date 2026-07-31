@@ -442,3 +442,46 @@ export const createDebouncedTerminalRefit = (
     },
   };
 };
+
+/**
+ * Window either side of the double-Escape that releases terminal focus.
+ * Long enough to be reachable, short enough that two deliberate Escapes in
+ * vim (already-normal-mode taps) are unlikely to collide.
+ */
+export const TERMINAL_ESCAPE_HATCH_MS = 400;
+
+export type TerminalKeyDecision =
+  /** Let xterm handle it — the terminal owns this key. */
+  | 'terminal'
+  /** Don't let xterm consume it; the app's shortcut layer handles it. */
+  | 'app'
+  /** Release focus back to the canvas. */
+  | 'release-focus';
+
+/**
+ * Decides who owns a keystroke while a terminal has focus.
+ *
+ * A focused terminal is otherwise a keyboard black hole: xterm's helper
+ * textarea is a `<textarea>`, so the canvas dispatcher's editable guard
+ * silently drops every shortcut, and there is no keyboard route back out.
+ *
+ * The split is asymmetric on purpose. Cmd-chords are safe to steal — a TTY
+ * never sees Cmd — but Ctrl-chords are the terminal's own language (Ctrl+C,
+ * Ctrl+K kill-line, Ctrl+H backspace, Ctrl+\ SIGQUIT), so those stay with
+ * the terminal exactly as they do in a real terminal emulator. That leaves
+ * Windows/Linux users needing a modifier-free way out, which is what the
+ * double-Escape is: a single Escape still belongs to the shell (vim depends
+ * on it), two in quick succession blur the terminal.
+ */
+export const decideTerminalKey = (
+  event: { type: string; key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean },
+  lastEscapeAt: number,
+  now: number,
+): TerminalKeyDecision => {
+  if (event.type !== 'keydown') return 'terminal';
+  if (event.key === 'Escape' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    return now - lastEscapeAt <= TERMINAL_ESCAPE_HATCH_MS ? 'release-focus' : 'terminal';
+  }
+  if (event.metaKey && !event.ctrlKey) return 'app';
+  return 'terminal';
+};
