@@ -6,7 +6,10 @@
  * On the page routes (AI Chat, Nodes, Skills, Scheduled, plugin pages) the
  * page itself is the content — letting the dock eat 95% of the viewport
  * squeezes a chat thread or a task list into an unusable gutter, which is why
- * those routes cap it.
+ * those routes cap it. The cap still leaves the page a working strip (30% of
+ * a 1600px viewport is ~480px, the dock's own default width) rather than
+ * letting a wide docked link tab (a Feishu doc, a code diff) push it to a
+ * sliver.
  *
  * The cap applies to the RENDERED width only. `RightDock` keeps the user's
  * chosen width untouched and derives the effective width per route, so
@@ -17,7 +20,7 @@ export const DOCK_MIN_WIDTH = 320;
 export const DOCK_DEFAULT_WIDTH = 480;
 
 const CANVAS_MAX_VIEWPORT_RATIO = 0.95;
-const PAGE_MAX_VIEWPORT_RATIO = 0.5;
+const PAGE_MAX_VIEWPORT_RATIO = 0.7;
 
 export const resolveDockMaxWidth = (viewportWidth: number, capped: boolean): number => {
   const ratio = capped ? PAGE_MAX_VIEWPORT_RATIO : CANVAS_MAX_VIEWPORT_RATIO;

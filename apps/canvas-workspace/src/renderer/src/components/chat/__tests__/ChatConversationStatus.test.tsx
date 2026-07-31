@@ -8,7 +8,7 @@ import { ChatConversationStatus } from '../ChatConversationStatus';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe('ChatConversationStatus', () => {
-  it('announces thread opening and exposes a failed load retry', () => {
+  it('announces thread opening while stale messages are still on screen, and exposes a failed load retry', () => {
     const retry = vi.fn();
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -16,6 +16,7 @@ describe('ChatConversationStatus', () => {
       <I18nProvider>
         <ChatConversationStatus
           sessionLoading
+          hasMessages
           sessionError={{ message: 'Session unavailable' }}
           onRetrySession={retry}
         />
@@ -32,6 +33,21 @@ describe('ChatConversationStatus', () => {
     act(() => root.unmount());
   });
 
+  it('suppresses the opening banner when the thread is empty, since ChatThreadSkeleton already covers that wait', () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    act(() => root.render(
+      <I18nProvider>
+        <ChatConversationStatus sessionLoading hasMessages={false} />
+      </I18nProvider>,
+    ));
+
+    expect(host.querySelector('[role="status"]')).toBeNull();
+    expect(host.textContent).toBe('');
+
+    act(() => root.unmount());
+  });
+
   it('names a branch and opens the original conversation', () => {
     const openOriginal = vi.fn();
     const host = document.createElement('div');
@@ -39,6 +55,7 @@ describe('ChatConversationStatus', () => {
     act(() => root.render(
       <I18nProvider>
         <ChatConversationStatus
+          hasMessages
           conversationBranch={{ sourceSessionId: 'source', activeSessionId: 'branch' }}
           branchError="Unable to restore"
           onOpenOriginal={openOriginal}
@@ -61,7 +78,7 @@ describe('ChatConversationStatus', () => {
     const root = createRoot(host);
     act(() => root.render(
       <I18nProvider>
-        <ChatConversationStatus busyElsewhere />
+        <ChatConversationStatus hasMessages busyElsewhere />
       </I18nProvider>,
     ));
 

@@ -408,6 +408,7 @@ export const ChatPageBody = ({
           banner={<>
             <ChatConversationStatus
               sessionLoading={sessionLoading}
+              hasMessages={messages.length > 0}
               busyElsewhere={busyElsewhere}
               sessionError={sessionError}
               onRetrySession={retrySessionTransition}

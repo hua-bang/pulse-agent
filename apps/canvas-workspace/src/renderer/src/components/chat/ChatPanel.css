@@ -1959,18 +1959,21 @@
   white-space: nowrap;
 }
 
+/* flex-shrink: 0 — a reference chip's label is the whole point of the chip;
+   `chat-session-title-text` is what gives way when the row runs out of room.
+   Still capped at max-width (and internally ellipsized) so one long label
+   can't dominate the row on its own. */
 .chat-session-title-reference {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  min-width: 0;
   max-width: 132px;
   padding: 1px 5px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   color: var(--text-secondary);
   background: var(--surface-subtle);
-  flex-shrink: 1;
+  flex-shrink: 0;
   overflow: hidden;
 }
 
@@ -1981,6 +1984,14 @@
 .chat-session-title-reference span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.chat-session-title-text {
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── @ Mention chips (inline in messages) ──────────────── */

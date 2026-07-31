@@ -1,5 +1,5 @@
 import { useCallback, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { AvatarIcon, CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
+import { AvatarIcon, CloseIcon, CopyIcon, ExternalLinkIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
@@ -195,24 +195,28 @@ export const ChatHeader = ({
                       <span className="chat-session-menu-item-actions">
                         {onOpenOriginalSession && (
                           <Button
-                            variant="secondary"
+                            variant="icon"
                             size="xs"
                             role="menuitem"
+                            title={t('chat.openOriginal')}
+                            aria-label={t('chat.openOriginal')}
                             disabled={disabled}
                             onClick={() => onOpenOriginalSession(session)}
                           >
-                            {t('chat.openOriginal')}
+                            <ExternalLinkIcon size={13} />
                           </Button>
                         )}
                         {onCopyOtherSession && (
                           <Button
-                            variant="secondary"
+                            variant="icon"
                             size="xs"
                             role="menuitem"
+                            title={t('chat.copyToCurrent')}
+                            aria-label={t('chat.copyToCurrent')}
                             disabled={disabled}
                             onClick={() => void onCopyOtherSession(session)}
                           >
-                            {t('chat.copyToCurrent')}
+                            <CopyIcon size={13} />
                           </Button>
                         )}
                       </span>
@@ -251,15 +255,6 @@ export const ChatHeader = ({
           aria-label={settingsLabel}
         >
           <SettingsIcon size={16} strokeWidth={1.25} />
-        </button>
-          <button
-            className="chat-panel-action-btn"
-            onClick={() => void onNewSession()}
-            disabled={disabled}
-          title={t('chat.newAiChat')}
-          aria-label={t('chat.newAiChat')}
-        >
-          <PlusIcon size={16} strokeWidth={1.3} />
         </button>
         <button className="chat-panel-action-btn" onClick={onClose} title={t('chat.closePanel')} aria-label={t('chat.closePanel')}>
           <CloseIcon size={16} strokeWidth={1.3} />

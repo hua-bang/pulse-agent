@@ -417,6 +417,7 @@ export const ChatPanel = ({
       banner={<>
         <ChatConversationStatus
           sessionLoading={sessionLoading}
+          hasMessages={messages.length > 0}
           busyElsewhere={busyElsewhere}
           sessionError={sessionError}
           onRetrySession={retrySession}
