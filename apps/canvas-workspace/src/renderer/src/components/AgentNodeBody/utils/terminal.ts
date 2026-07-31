@@ -1,6 +1,9 @@
-import { Terminal } from '@xterm/xterm';
-import type { FitAddon } from '@xterm/addon-fit';
-import { BASE_TERMINAL_FONT_SIZE } from '../../../config/terminalTheme';
+import { useCallback, useContext } from 'react';
+import { Terminal, type ITerminalOptions } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { BASE_TERMINAL_FONT_SIZE, TERMINAL_OPTIONS } from '../../../config/terminalTheme';
+import { RightDockContext } from '../../RightDock/context';
 import { count } from '../../../perf/counters';
 
 export const SCROLLBACK_SAVE_INTERVAL = 2000;
@@ -441,4 +444,33 @@ export const createDebouncedTerminalRefit = (
       }
     },
   };
+};
+
+/**
+ * URL opener for terminal web links. Prefers a right-dock link tab (same
+ * surface as note/webview link clicks); falls back to the system browser when
+ * mounted outside <RightDockProvider> (bare test renders).
+ */
+export const useOpenTerminalLink = (): ((url: string) => void) => {
+  const dock = useContext(RightDockContext);
+  return useCallback((url: string) => {
+    if (dock) dock.store.openLink(url);
+    else void window.canvasWorkspace.shell.openExternal(url);
+  }, [dock]);
+};
+
+/**
+ * Create a terminal with the shared Fit + WebLinks addons. Each call builds a
+ * fresh WebLinksAddon — an addon instance binds to a single terminal on
+ * activate, so it cannot be shared across terminals.
+ */
+export const createTerminalWithAddons = (
+  openLink: (url: string) => void,
+  options: ITerminalOptions = {},
+): { term: Terminal; fitAddon: FitAddon } => {
+  const term = new Terminal({ ...TERMINAL_OPTIONS, ...options });
+  const fitAddon = new FitAddon();
+  term.loadAddon(fitAddon);
+  term.loadAddon(new WebLinksAddon((_event, uri) => openLink(uri)));
+  return { term, fitAddon };
 };

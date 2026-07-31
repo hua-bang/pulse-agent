@@ -3,12 +3,12 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import type { AgentNodeData, CanvasNode } from '../../types';
 import { getAgentCommand } from '../../config/agentRegistry';
-import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
 import type { AgentNodeBodyProps, ViewMode } from './types';
 import {
   SCROLLBACK_SAVE_INTERVAL,
   claimTerminalSessionOwner, createDebouncedTerminalRefit, createPtySpawnLifecycle, createTerminalSnapshotPersister,
+  createTerminalWithAddons,
   finalizeTerminalSnapshotBeforeDispose,
   fitTerminalIfSane,
   loadRecentCwds,
@@ -16,6 +16,7 @@ import {
   pushRecentCwd,
   readTerminalSnapshot,
   syncTerminalFontSizeToCanvas,
+  useOpenTerminalLink,
   writeTerminalOutput,
 } from './utils/terminal';
 
@@ -227,6 +228,7 @@ export const useAgentNodeController = ({
   onUpdateRef.current = onUpdate;
   const getAllNodesRef = useRef(getAllNodes);
   getAllNodesRef.current = getAllNodes;
+  const openTerminalLink = useOpenTerminalLink();
 
   useEffect(() => {
     if (readOnly || isMirrorTerminal || !isTeamManagedAgent) return;
@@ -318,9 +320,7 @@ export const useAgentNodeController = ({
           return;
         }
 
-        const term = new Terminal(TERMINAL_OPTIONS);
-        const fitAddon = new FitAddon();
-        term.loadAddon(fitAddon);
+        const { term, fitAddon } = createTerminalWithAddons(openTerminalLink);
         containerRef.current.replaceChildren();
         term.open(containerRef.current);
         termRef.current = term;
@@ -465,9 +465,7 @@ export const useAgentNodeController = ({
 
       if (readOnly) {
         spawnedRef.current = true;
-        const term = new Terminal(TERMINAL_OPTIONS);
-        const fitAddon = new FitAddon();
-        term.loadAddon(fitAddon);
+        const { term, fitAddon } = createTerminalWithAddons(openTerminalLink);
         containerRef.current.replaceChildren();
         term.open(containerRef.current);
         termRef.current = term;
@@ -486,9 +484,7 @@ export const useAgentNodeController = ({
       spawnedRef.current = true;
       setLoading(true);
 
-      const term = new Terminal(TERMINAL_OPTIONS);
-      const fitAddon = new FitAddon();
-      term.loadAddon(fitAddon);
+      const { term, fitAddon } = createTerminalWithAddons(openTerminalLink);
       containerRef.current.replaceChildren();
       term.open(containerRef.current);
       termRef.current = term;
@@ -887,7 +883,7 @@ export const useAgentNodeController = ({
 
       saveTimerRef.current = setInterval(() => void snapshotPersister.flush().catch(() => undefined), SCROLLBACK_SAVE_INTERVAL);
     },
-    [isMirrorTerminal, rootFolder, workspaceId, readOnly],
+    [isMirrorTerminal, openTerminalLink, rootFolder, workspaceId, readOnly],
   );
 
   useEffect(() => {

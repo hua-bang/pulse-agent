@@ -5,7 +5,6 @@ import '@xterm/xterm/css/xterm.css';
 import {
   BASE_TERMINAL_FONT_SIZE,
   TERMINAL_FONT_SIZE_STEP,
-  TERMINAL_OPTIONS,
   clampTerminalFontSize,
   readStoredTerminalFontSize,
   storeTerminalFontSize,
@@ -16,6 +15,7 @@ import { NodeMentionPicker } from '../NodeMentionPicker';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { TERMINAL_TAB_ID } from '../RightDock/dock-store';
+import { createTerminalWithAddons, useOpenTerminalLink } from '../AgentNodeBody/utils/terminal';
 import {
   appendTerminalOutputTail,
   detectCodingAgentCommand,
@@ -108,6 +108,7 @@ export const WorkspaceTerminalDock = ({
   nodesRef.current = nodes;
   rootFolderRef.current = rootFolder;
   heightRef.current = height;
+  const openTerminalLink = useOpenTerminalLink();
 
   const sessionId = useMemo(
     () => terminalId === TERMINAL_TAB_ID
@@ -230,9 +231,7 @@ export const WorkspaceTerminalDock = ({
     if (!containerRef.current || termRef.current || spawnedRef.current) return;
     spawnedRef.current = true;
 
-    const term = new Terminal({ ...TERMINAL_OPTIONS, fontSize: fontSizeRef.current });
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
+    const { term, fitAddon } = createTerminalWithAddons(openTerminalLink, { fontSize: fontSizeRef.current });
     term.open(containerRef.current);
     termRef.current = term;
     fitRef.current = fitAddon;
@@ -314,7 +313,7 @@ export const WorkspaceTerminalDock = ({
       resizeDisposable.dispose();
       api.kill(sessionId);
     };
-  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, dismissBooting, refreshCwd, scheduleFit, sessionId, workspaceId]);
+  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, dismissBooting, openTerminalLink, refreshCwd, scheduleFit, sessionId, workspaceId]);
 
   useEffect(() => {
     if (!open) return;

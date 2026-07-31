@@ -29,7 +29,7 @@ interface RightDockContextValue {
   registerStartSkillChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
 }
 
-const RightDockContext = createContext<RightDockContextValue | null>(null);
+export const RightDockContext = createContext<RightDockContextValue | null>(null);
 
 export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const store = useMemo(() => new DockStore(

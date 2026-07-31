@@ -4,7 +4,6 @@ import './index.css';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import type { CanvasNode, TerminalNodeData } from '../../types';
-import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 import {
@@ -13,11 +12,13 @@ import {
   createPtySpawnLifecycle,
   createDebouncedTerminalRefit,
   createTerminalSnapshotPersister,
+  createTerminalWithAddons,
   finalizeTerminalSnapshotBeforeDispose,
   fitTerminalWithCanvasScale,
   readTerminalSnapshot,
   serializeBuffer,
   syncTerminalFontSizeToCanvas,
+  useOpenTerminalLink,
   writeTerminalOutput,
 } from '../AgentNodeBody/utils/terminal';
 import { useI18n } from '../../i18n';
@@ -64,6 +65,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
   getAllNodesRef.current = getAllNodes;
   const workspaceIdRef = useRef(workspaceId);
   workspaceIdRef.current = workspaceId;
+  const openTerminalLink = useOpenTerminalLink();
   const initialScrollback = useRef(data.scrollback ?? '');
   const initialCwd = useRef(data.cwd ?? '');
   const initialCommand = useRef(data.initialCommand ?? '');
@@ -113,9 +115,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
     if (!containerRef.current || termRef.current || spawnedRef.current) return;
     if (readOnly) {
       spawnedRef.current = true;
-      const term = new Terminal(TERMINAL_OPTIONS);
-      const fitAddon = new FitAddon();
-      term.loadAddon(fitAddon);
+      const { term, fitAddon } = createTerminalWithAddons(openTerminalLink);
       term.open(containerRef.current);
       termRef.current = term;
       fitRef.current = fitAddon;
@@ -135,9 +135,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
     }
     spawnedRef.current = true;
 
-    const term = new Terminal(TERMINAL_OPTIONS);
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
+    const { term, fitAddon } = createTerminalWithAddons(openTerminalLink);
     term.open(containerRef.current);
     termRef.current = term;
     fitRef.current = fitAddon;
@@ -277,7 +275,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
     killSessionRef.current = () => {
       try { api.kill(sessionId, result.leaseId); } finally { sessionOwner.finishFinalization(); }
     };
-  }, [sessionId, rootFolder, readOnly, captureTerminalInput, captureTerminalOutput, startCodingAgentHint]);
+  }, [sessionId, rootFolder, readOnly, openTerminalLink, captureTerminalInput, captureTerminalOutput, startCodingAgentHint]);
 
   useEffect(() => {
     void initTerminal();
