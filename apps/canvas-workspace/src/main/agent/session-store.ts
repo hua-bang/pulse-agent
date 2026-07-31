@@ -1,14 +1,3 @@
-/**
- * Session persistence for the Canvas Agent.
- *
- * Storage layout:
- *   ~/.pulse-coder/canvas/<workspace-id>/agent-sessions/
- *   ├── current.json          ← active session
- *   └── archive/
- *       ├── 2026-04-08.json   ← archived sessions by date
- *       └── 2026-04-07.json
- */
-
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
@@ -22,13 +11,23 @@ import type {
 } from './types';
 import { sessionPreview } from './session-preview';
 import { isListableSessionStore } from '../../shared/agent-chat';
-// Read lazily (not a module-level const derived at import time) so tests can
-// point it at an isolated tmpdir via the env var without needing vi.mock.
+import {
+  listedSessionMetadata,
+  patchSessionMetadata,
+  readSessionMetadata,
+  removeSessionMetadata,
+} from './session-metadata';
+import {
+  archiveSortKey,
+  scanAllWorkspaceSessions,
+  type AgentSessionListEntry,
+} from './session-store-scan';
+export type { AgentSessionListEntry } from './session-store-scan';
+// Lazy so tests can redirect storage through the environment.
 const storeDir = (): string =>
   process.env.PULSE_CANVAS_SESSION_STORE_DIR || join(homedir(), '.pulse-coder', 'canvas');
 export const GLOBAL_CHAT_SESSION_STORE_ID = '__global_chat__';
 export const GLOBAL_CHAT_WORKSPACE_NAME = 'Global Chat';
-
 
 interface WorkspaceManifest {
   workspaces: Array<{ id: string; name: string }>;
@@ -42,35 +41,19 @@ export interface SessionWithMeta {
   sortKey: number;
 }
 
-function archiveFileTimestamp(file: string): number {
-  const match = file.match(/-(\d+)\.json$/);
-  return match ? Number(match[1]) : 0;
-}
-
-async function archiveSortKey(filePath: string, fileName: string): Promise<number> {
-  try {
-    const stat = await fs.stat(filePath);
-    return stat.mtimeMs;
-  } catch {
-    return archiveFileTimestamp(fileName);
-  }
-}
-
 export class SessionStore {
   private workspaceId: string;
   private sessionsDir: string;
   private currentPath: string;
   private archiveDir: string;
+  private metadataPath: string;
   private scope: AgentScope;
 
   private session: CanvasAgentSession | null = null;
-  // Serializes all writes to current.json (mirrors agent-teams/store.ts's
-  // persistQueue): addMessage() is fire-and-forget, and
-  // loadCrossWorkspaceSession used to call it once per loaded message —
-  // without a queue, concurrent writeFile calls to the same path race and
-  // the file's final content depends on whichever call's open+truncate+
-  // write happens to land last, not which call was issued last.
+  // Serializes current.json writes; fire-and-forget mutations still retain
+  // their latest failure for the next pointer-changing operation.
   private persistQueue: Promise<void> = Promise.resolve();
+  private persistenceError: unknown;
 
   constructor(workspaceId: string, scope: AgentScope = { kind: 'workspace', workspaceId }) {
     this.workspaceId = workspaceId;
@@ -78,11 +61,10 @@ export class SessionStore {
     this.sessionsDir = join(storeDir(), workspaceId, 'agent-sessions');
     this.currentPath = join(this.sessionsDir, 'current.json');
     this.archiveDir = join(this.sessionsDir, 'archive');
+    this.metadataPath = join(this.sessionsDir, 'metadata.json');
   }
 
-  /**
-   * Start a new session. If a current session exists, archive it first.
-   */
+  /** Start a new session, archiving a useful current session first. */
   async startSession(): Promise<void> {
     await fs.mkdir(this.sessionsDir, { recursive: true });
     await fs.mkdir(this.archiveDir, { recursive: true });
@@ -90,39 +72,22 @@ export class SessionStore {
     // Archive any existing current session
     await this.archiveCurrentIfExists();
 
-    const sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    this.session = {
-      sessionId,
-      workspaceId: this.workspaceId,
-      scope: this.scope,
-      startedAt: new Date().toISOString(),
-      messages: [],
-    };
+    const nextSession = this.createSession();
 
-    await this.persist();
+    await this.persist(nextSession);
+    this.session = nextSession;
   }
 
-  /**
-   * Restore the persisted current session without archiving it. Used when a
-   * workspace agent is activated so reopening chat resumes the last thread.
-   */
+  /** Restore current.json without archiving it. */
   async restoreCurrentSession(): Promise<CanvasAgentSession | null> {
-    await this.persistQueue.catch(() => undefined);
-    try {
-      const raw = await fs.readFile(this.currentPath, 'utf-8');
-      const session = JSON.parse(raw) as CanvasAgentSession;
-      if (!session.sessionId || !Array.isArray(session.messages)) return null;
-      this.session = session;
-      return session;
-    } catch {
-      return null;
-    }
+    await this.flushPersistence();
+    const current = await this.readCurrentSessionFile();
+    if (!current) return null;
+    this.session = current.session;
+    return current.session;
   }
 
-  /**
-   * Restore the last useful chat thread. If current.json is an empty session
-   * left by a prior auto-start, promote the newest archived session instead.
-   */
+  /** Prefer useful current history, otherwise promote the newest archive. */
   async restoreLastSession(): Promise<CanvasAgentSession | null> {
     const current = await this.restoreCurrentSession();
     if (current && current.messages.length > 0) return current;
@@ -133,9 +98,7 @@ export class SessionStore {
     return this.loadSession(latestArchived.sessionId);
   }
 
-  /**
-   * Add a message to the current session and persist.
-   */
+  /** Add a message and enqueue persistence. */
   addMessage(message: CanvasAgentMessage): void {
     if (!this.session) return;
     this.session.messages.push(message);
@@ -143,31 +106,19 @@ export class SessionStore {
     void this.persist();
   }
 
-  /**
-   * Replace all messages in the current session and persist once. Use this
-   * instead of calling `addMessage` in a loop for batch operations (e.g.
-   * loading a cross-workspace session) — one `addMessage` per message means
-   * one full-session-rewrite `persist()` per message, growing O(N) writes
-   * for N loaded messages instead of one.
-   */
+  /** Replace all messages and enqueue one full-session write. */
   setMessages(messages: CanvasAgentMessage[]): void {
     if (!this.session) return;
     this.session.messages = messages;
     void this.persist();
   }
 
-  /**
-   * Get all messages from the current session.
-   */
+  /** Return the live current message list. */
   getMessages(): CanvasAgentMessage[] {
     return this.session?.messages ?? [];
   }
 
-  /**
-   * Drop messages at and after `fromIndex` from the current session.
-   * Used by edit / regenerate flows so the next agent turn doesn't see
-   * the abandoned tail.
-   */
+  /** Drop the abandoned tail used by edit/regenerate flows. */
   truncateMessages(fromIndex: number): void {
     if (!this.session) return;
     if (fromIndex < 0) return;
@@ -176,22 +127,94 @@ export class SessionStore {
     void this.persist();
   }
 
-  /**
-   * Archive the current session and clear it.
-   */
+  /** Durably archive the current session before clearing its pointer. */
   async archiveSession(): Promise<void> {
-    await this.archiveCurrentIfExists();
+    await this.archiveCurrentIfExists(false, true);
     this.session = null;
   }
 
-  /**
-   * List archived sessions (date + message count).
-   */
-  async listArchivedSessions(): Promise<Array<{ sessionId: string; date: string; messageCount: number; preview: string }>> {
+  /** Branch from a prefix while preserving the source conversation intact. */
+  async branchSession(
+    fromIndex: number,
+  ): Promise<{ sourceSessionId: string; session: CanvasAgentSession } | null> {
+    if (!this.session) return null;
+    const sourceSessionId = this.session.sessionId;
+    const endIndex = Number.isFinite(fromIndex)
+      ? Math.max(0, Math.min(Math.trunc(fromIndex), this.session.messages.length))
+      : this.session.messages.length;
+    const messages = this.session.messages.slice(0, endIndex);
+
+    await this.archiveCurrentIfExists(true);
+    const nextSession = this.createSession(messages);
+    await this.persist(nextSession);
+    this.session = nextSession;
+    return { sourceSessionId, session: nextSession };
+  }
+
+  async renameSession(sessionId: string, title: string): Promise<boolean> {
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle || !await this.hasSession(sessionId)) return false;
+    await patchSessionMetadata(this.metadataPath, sessionId, { title: normalizedTitle });
+    return true;
+  }
+
+  async setSessionPinned(sessionId: string, pinned: boolean): Promise<boolean> {
+    if (!await this.hasSession(sessionId)) return false;
+    await patchSessionMetadata(this.metadataPath, sessionId, { pinned });
+    return true;
+  }
+
+  async listSessions(): Promise<AgentSessionListEntry[]> {
+    const archived = await this.listArchivedSessions();
+    const current = this.session;
+    if (!current) return archived.map((session) => ({ ...session, isCurrent: false }));
+    const metadata = await readSessionMetadata(this.metadataPath);
+    const firstUserMessage = current.messages.find((message) => message.role === 'user');
+    return [{
+      sessionId: current.sessionId,
+      date: current.startedAt.slice(0, 10),
+      messageCount: current.messages.length,
+      preview: firstUserMessage ? sessionPreview(firstUserMessage.content) : '',
+      ...listedSessionMetadata(metadata, current.sessionId),
+      isCurrent: true,
+    }, ...archived.map((session) => ({ ...session, isCurrent: false }))];
+  }
+
+  async deleteSession(sessionId: string): Promise<{
+    deletedCurrent: boolean;
+    activeSession: CanvasAgentSession;
+  } | null> {
+    await this.flushPersistence();
+    if (!this.session) await this.restoreCurrentSession();
+    if (!this.session && !await this.hasSession(sessionId)) return null;
+    if (!this.session) await this.startSession();
+    const deletedCurrent = this.session?.sessionId === sessionId;
+    if (deletedCurrent) {
+      await this.removeArchivedSessionsById(sessionId);
+      const nextSession = this.createSession();
+      await this.persist(nextSession);
+      this.session = nextSession;
+    } else if (!await this.removeArchivedSessionsById(sessionId)) return null;
+    await removeSessionMetadata(this.metadataPath, sessionId)
+      .catch(error => console.warn('[session-store] Could not clean deleted session metadata:', error));
+    return { deletedCurrent, activeSession: this.session! };
+  }
+
+  /** List archived sessions with persisted display metadata. */
+  async listArchivedSessions(): Promise<Array<Omit<AgentSessionListEntry, 'isCurrent'>>> {
     try {
       const files = await fs.readdir(this.archiveDir);
+      const metadata = await readSessionMetadata(this.metadataPath);
       const currentSessionId = this.session?.sessionId;
-      const sessionsById = new Map<string, { sessionId: string; date: string; messageCount: number; preview: string; sortKey: number }>();
+      const sessionsById = new Map<string, {
+        sessionId: string;
+        date: string;
+        messageCount: number;
+        preview: string;
+        title?: string;
+        pinned: boolean;
+        sortKey: number;
+      }>();
 
       for (const file of files) {
         if (!file.endsWith('.json')) continue;
@@ -212,6 +235,7 @@ export class SessionStore {
             date: data.startedAt?.slice(0, 10) || file.replace('.json', '').slice(0, 10),
             messageCount: data.messages.length,
             preview: firstUserMsg ? sessionPreview(firstUserMsg.content) : '',
+            ...listedSessionMetadata(metadata, data.sessionId),
             sortKey,
           };
           const existing = sessionsById.get(data.sessionId);
@@ -231,9 +255,7 @@ export class SessionStore {
     }
   }
 
-  /**
-   * Read a specific archived session by date.
-   */
+  /** Read a legacy date-named archive. */
   async readArchivedSession(date: string): Promise<CanvasAgentSession | null> {
     try {
       const raw = await fs.readFile(join(this.archiveDir, `${date}.json`), 'utf-8');
@@ -243,36 +265,27 @@ export class SessionStore {
     }
   }
 
-  /**
-   * Get the current session metadata (for listing alongside archived ones).
-   */
+  /** Return the in-memory current session. */
   getCurrentSession(): CanvasAgentSession | null {
     return this.session;
   }
 
-  /**
-   * Load an archived session as the current session (for viewing/resuming).
-   * Archives the current session first if it has messages.
-   */
+  /** Promote an archived session after durably archiving current history. */
   async loadSession(sessionId: string): Promise<CanvasAgentSession | null> {
+    await this.flushPersistence();
+    const cleanup = () => this.removeArchivedSessionsById(sessionId).catch(error => console.warn('[session-store] Could not clean promoted archive:', error));
     // If the requested session is already current, do not create another copy.
     if (this.session?.sessionId === sessionId) {
-      await this.removeArchivedSessionsById(sessionId);
+      await cleanup();
       return this.session;
     }
 
-    try {
-      const raw = await fs.readFile(this.currentPath, 'utf-8');
-      const current = JSON.parse(raw) as CanvasAgentSession;
-      if (current.sessionId === sessionId) {
-        this.session = current;
-        await this.removeArchivedSessionsById(sessionId);
-        return current;
-      }
-    } catch {
-      // No current session on disk or it is unreadable.
+    const current = await this.readCurrentSessionFile();
+    if (current?.session.sessionId === sessionId) {
+      this.session = current.session;
+      await cleanup();
+      return current.session;
     }
-
     let matched: CanvasAgentSession | null = null;
     let matchedSortKey = -1;
 
@@ -304,121 +317,20 @@ export class SessionStore {
     // current and remove archived copies of the same sessionId. Without this
     // cleanup, continuing an old conversation appears as a duplicate/new row.
     await this.archiveCurrentIfExists();
+    await this.persist(matched);
     this.session = matched;
-    await this.persist();
-    await this.removeArchivedSessionsById(sessionId);
+    await cleanup();
     return matched;
   }
 
   // ─── Cross-workspace scanning ────────────────────────────────
 
-  /**
-   * Scan all workspace directories and return sessions grouped by workspace.
-   * Reads current.json + archive/ for each workspace found under STORE_DIR.
-   */
-  static async listAllWorkspaceSessions(): Promise<
-    Array<{
-      workspaceId: string;
-      sessions: Array<{ sessionId: string; date: string; messageCount: number; preview: string; isCurrent: boolean }>;
-    }>
-  > {
-    const results: Array<{
-      workspaceId: string;
-      sessions: Array<{ sessionId: string; date: string; messageCount: number; preview: string; isCurrent: boolean }>;
-    }> = [];
-
-    let dirs: string[];
-    try {
-      dirs = await fs.readdir(storeDir());
-    } catch {
-      return results;
-    }
-
-    for (const dir of dirs) {
-      if (!isListableSessionStore(dir)) continue;
-      const sessionsDir = join(storeDir(), dir, 'agent-sessions');
-      const archiveDir = join(sessionsDir, 'archive');
-      const currentPath = join(sessionsDir, 'current.json');
-
-      const sessions: Array<{ sessionId: string; date: string; messageCount: number; preview: string; isCurrent: boolean }> = [];
-
-      // Read current session
-      try {
-        const raw = await fs.readFile(currentPath, 'utf-8');
-        const data = JSON.parse(raw) as CanvasAgentSession;
-        if (data.messages && data.messages.length > 0) {
-          const firstUserMsg = data.messages.find(m => m.role === 'user');
-          sessions.push({
-            sessionId: data.sessionId,
-            date: data.startedAt?.slice(0, 10) || '',
-            messageCount: data.messages.length,
-            preview: firstUserMsg ? sessionPreview(firstUserMsg.content) : '',
-            isCurrent: true,
-          });
-        }
-      } catch {
-        // No current session
-      }
-
-      // Read archived sessions
-      try {
-        const files = await fs.readdir(archiveDir);
-        const currentSessionIds = new Set(sessions.filter(s => s.isCurrent).map(s => s.sessionId));
-        const archivedById = new Map<string, { sessionId: string; date: string; messageCount: number; preview: string; isCurrent: boolean; sortKey: number }>();
-
-        for (const file of files) {
-          if (!file.endsWith('.json')) continue;
-          try {
-            const archivePath = join(archiveDir, file);
-            const raw = await fs.readFile(archivePath, 'utf-8');
-            const data = JSON.parse(raw) as CanvasAgentSession;
-
-            // Avoid showing the same session twice when a restored archived
-            // session is also present as current.json.
-            if (currentSessionIds.has(data.sessionId)) continue;
-
-            const firstUserMsg = data.messages.find(m => m.role === 'user');
-            const sortKey = await archiveSortKey(archivePath, file);
-            const session = {
-              sessionId: data.sessionId,
-              date: data.startedAt?.slice(0, 10) || file.replace('.json', '').slice(0, 10),
-              messageCount: data.messages.length,
-              preview: firstUserMsg ? sessionPreview(firstUserMsg.content) : '',
-              isCurrent: false,
-              sortKey,
-            };
-            const existing = archivedById.get(data.sessionId);
-            if (!existing || sortKey > existing.sortKey) {
-              archivedById.set(data.sessionId, session);
-            }
-          } catch {
-            // skip corrupted files
-          }
-        }
-
-        sessions.push(...Array.from(archivedById.values()).map(({ sortKey: _sortKey, ...session }) => session));
-      } catch {
-        // No archive dir
-      }
-
-      if (sessions.length > 0) {
-        sessions.sort((a, b) => {
-          if (a.isCurrent && !b.isCurrent) return -1;
-          if (!a.isCurrent && b.isCurrent) return 1;
-          return b.date.localeCompare(a.date);
-        });
-        results.push({ workspaceId: dir, sessions });
-      }
-    }
-
-    return results;
+  /** Scan all listable session stores. */
+  static listAllWorkspaceSessions() {
+    return scanAllWorkspaceSessions(storeDir());
   }
 
-  /**
-   * Read the current (on-disk) session id for a session store without
-   * activating an agent. Used by the renderer's session back-navigation to
-   * record where a jump started from.
-   */
+  /** Read a store's on-disk current id without activating an agent. */
   static async readCurrentSessionId(storeId: string): Promise<string | null> {
     try {
       const raw = await fs.readFile(join(storeDir(), storeId, 'agent-sessions', 'current.json'), 'utf-8');
@@ -429,9 +341,7 @@ export class SessionStore {
     }
   }
 
-  /**
-   * Load a session by ID from another workspace's archive (read-only).
-   */
+  /** Read a current or archived session from another workspace. */
   static async readSessionFromWorkspace(
     sourceWorkspaceId: string,
     sessionId: string,
@@ -474,12 +384,7 @@ export class SessionStore {
     return matched;
   }
 
-  /**
-   * Read every stored session (current + archive) across all workspaces and
-   * global chat, with workspace names resolved from the manifest. Sorted by
-   * recency (current sessions first). Read-only; used by the session-history
-   * tools (`session_search` / `session_summary`).
-   */
+  /** Read all sessions for the cross-workspace history tools. */
   static async readAllSessionsWithMeta(): Promise<SessionWithMeta[]> {
     const manifest = await loadManifest();
     const workspaceNames = new Map(manifest.workspaces.map(workspace => [workspace.id, workspace.name] as const));
@@ -542,41 +447,88 @@ export class SessionStore {
 
   // ─── Internal ────────────────────────────────────────────────
 
-  private async removeArchivedSessionsById(sessionId: string): Promise<void> {
-    try {
-      const files = await fs.readdir(this.archiveDir);
-      await Promise.all(files.map(async (file) => {
-        if (!file.endsWith('.json')) return;
-        const archivePath = join(this.archiveDir, file);
-        try {
-          const raw = await fs.readFile(archivePath, 'utf-8');
-          const data = JSON.parse(raw) as CanvasAgentSession;
-          if (data.sessionId === sessionId) {
-            await fs.unlink(archivePath).catch(() => undefined);
-          }
-        } catch {
-          // skip corrupted files
-        }
-      }));
-    } catch {
-      // No archive dir
-    }
+  private createSession(messages: CanvasAgentMessage[] = []): CanvasAgentSession {
+    return {
+      sessionId: `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      workspaceId: this.workspaceId,
+      scope: this.scope,
+      startedAt: new Date().toISOString(),
+      messages,
+    };
   }
 
-  // Chain every write onto the previous one so temp-file renames never
-  // overlap (see the persistQueue field comment). Each write flushes the
-  // latest in-memory session (a superset of earlier pending mutations), so
-  // serializing is safe and the last write always wins consistently.
-  private persist(): Promise<void> {
-    const run = this.persistQueue.then(() => this.writeSessionFile());
+  private async hasSession(sessionId: string): Promise<boolean> {
+    await this.flushPersistence();
+    if (this.session?.sessionId === sessionId) return true;
+    return Boolean(await SessionStore.readSessionFromWorkspace(this.workspaceId, sessionId));
+  }
+
+  private async removeArchivedSessionsById(sessionId: string): Promise<boolean> {
+    let removed = false;
+    const files = await fs.readdir(this.archiveDir).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return [];
+      throw error;
+    });
+    await Promise.all(files.map(async (file) => {
+      if (!file.endsWith('.json')) return;
+      const archivePath = join(this.archiveDir, file);
+      let data: CanvasAgentSession;
+      try {
+        data = JSON.parse(await fs.readFile(archivePath, 'utf-8')) as CanvasAgentSession;
+      } catch {
+        return; // skip missing or corrupted files
+      }
+      if (data.sessionId !== sessionId) return;
+      try {
+        await fs.unlink(archivePath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      removed = true;
+    }));
+    return removed;
+  }
+
+  // Chain captured snapshots so temp-file renames never overlap; the last
+  // queued snapshot wins and a failed write cannot poison the queue tail.
+  private persist(session: CanvasAgentSession | null = this.session): Promise<void> {
+    if (!session) return Promise.resolve();
+    const serialized = JSON.stringify(session, null, 2);
+    const run = this.persistQueue.then(async () => {
+      try {
+        await this.writeSessionFile(serialized);
+      } catch (error) {
+        // Retain the first failure until a synchronization boundary observes
+        // it; a later successful snapshot must not erase a lost write.
+        this.persistenceError ??= error;
+        throw error;
+      }
+    });
     // Keep the chain alive even if one write rejects, so later persists run.
     this.persistQueue = run.catch(() => {});
+    // Fire-and-forget callers intentionally do not await persist(). Attach a
+    // rejection handler without changing the promise returned to callers that
+    // do need the failure.
+    void run.catch(() => undefined);
     return run;
   }
 
-  private async writeSessionFile(): Promise<void> {
-    if (!this.session) return;
-    const serialized = JSON.stringify(this.session, null, 2);
+  private async flushPersistence(): Promise<void> {
+    await this.persistQueue;
+    const failure = this.persistenceError;
+    if (!failure) return;
+    this.persistenceError = undefined;
+    // The caller must still observe the failed queued write, but repair the
+    // durable pointer from the unchanged in-memory session first. This keeps
+    // the operation fail-closed while allowing an explicit second attempt
+    // after a transient filesystem error.
+    if (this.session) {
+      await this.persist(this.session).catch(() => undefined);
+    }
+    throw failure;
+  }
+
+  private async writeSessionFile(serialized: string): Promise<void> {
     // Unique per-write temp name (pid + random) so two SessionStore
     // instances for the same workspace never collide on one temp file.
     const tmp = `${this.currentPath}.${process.pid}.${randomUUID()}.tmp`;
@@ -589,31 +541,79 @@ export class SessionStore {
     } catch (err) {
       await fs.unlink(tmp).catch(() => undefined);
       console.error('[session-store] Failed to persist session:', err);
+      throw err;
     }
   }
 
-  private async archiveCurrentIfExists(): Promise<void> {
-    // Wait for any in-flight write to land before reading/removing
-    // current.json — otherwise a still-queued write from the outgoing
-    // session could recreate the file right after we archive-and-delete it.
-    await this.persistQueue.catch(() => undefined);
+  private async readCurrentSessionFile(): Promise<{
+    raw: string;
+    session: CanvasAgentSession;
+  } | null> {
+    let raw: string;
     try {
-      const raw = await fs.readFile(this.currentPath, 'utf-8');
-      const existing = JSON.parse(raw) as CanvasAgentSession;
-
-      if (existing.messages.length > 0) {
-        // Archive with date-based filename; append timestamp to avoid collisions
-        const date = existing.startedAt.slice(0, 10); // YYYY-MM-DD
-        const ts = Date.now();
-        const archivePath = join(this.archiveDir, `${date}-${ts}.json`);
-        await fs.writeFile(archivePath, raw, 'utf-8');
-      }
-
-      // Remove current
-      await fs.unlink(this.currentPath).catch(() => undefined);
-    } catch {
-      // No current session or corrupted — nothing to archive
+      raw = await fs.readFile(this.currentPath, 'utf-8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw error;
     }
+
+    let session: CanvasAgentSession;
+    try {
+      session = JSON.parse(raw) as CanvasAgentSession;
+    } catch (error) {
+      throw new Error(
+        `Current session is corrupted at ${this.currentPath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    if (!session.sessionId || !Array.isArray(session.messages)) {
+      throw new Error(`Current session is corrupted at ${this.currentPath}: invalid session shape`);
+    }
+    return { raw, session };
+  }
+
+  private async writeArchiveFile(session: CanvasAgentSession, raw: string): Promise<void> {
+    await fs.mkdir(this.archiveDir, { recursive: true });
+    const date = session.startedAt.slice(0, 10);
+    const sessionId = session.sessionId
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 120) || 'session';
+    const archivePath = join(this.archiveDir, `${date}-${sessionId}-${randomUUID()}.json`);
+    const tmp = `${archivePath}.${process.pid}.${randomUUID()}.tmp`;
+    let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+    try {
+      handle = await fs.open(tmp, 'wx');
+      await handle.writeFile(raw, 'utf-8');
+      await handle.sync();
+      await handle.close();
+      handle = undefined;
+      await fs.rename(tmp, archivePath);
+    } catch (error) {
+      await handle?.close().catch(() => undefined);
+      await fs.unlink(tmp).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private async archiveCurrentIfExists(
+    preserveEmpty = false,
+    removeCurrent = false,
+  ): Promise<CanvasAgentSession | null> {
+    // Settle queued writes before moving the durable pointer.
+    await this.flushPersistence();
+    const current = await this.readCurrentSessionFile();
+    if (!current) return null;
+
+    if (preserveEmpty || current.session.messages.length > 0) {
+      await this.writeArchiveFile(current.session, current.raw);
+    }
+    if (removeCurrent) {
+      try {
+        await fs.unlink(this.currentPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+    return current.session;
   }
 }
 

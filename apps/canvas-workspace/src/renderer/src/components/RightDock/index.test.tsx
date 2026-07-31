@@ -6,6 +6,7 @@ import { I18nProvider } from '../../i18n';
 import { RightDockProvider, useDockContext } from './context';
 import { RightDock } from './index';
 import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
+import { FOCUS_DOCK_PAGE_EVENT } from './dock-browser-commands';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -78,6 +79,9 @@ beforeEach(() => {
     value: {
       link: {
         onOpen: () => () => undefined,
+      },
+      dock: {
+        onShortcut: () => () => undefined,
       },
     },
   });
@@ -193,15 +197,55 @@ describe('RightDock page layout', () => {
     const host = await renderDock(true, true, true);
     const separator = host.querySelector<HTMLElement>('.right-dock__resize-handle')!;
 
-    // 1200px viewport → page cap 600.
-    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('600px');
-    expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('600px');
-    expect(separator.getAttribute('aria-valuemax')).toBe('600');
+    // 1200px viewport → page cap 840 (70%).
+    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('840px');
+    expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('840px');
+    expect(separator.getAttribute('aria-valuemax')).toBe('840');
     expect(window.localStorage.getItem('canvas-workspace:right-dock-width')).toBe('1100');
   });
 });
 
 describe('RightDock Escape ownership', () => {
+  it('restores the last canvas focus owner when the user collapses the dock', async () => {
+    const outside = document.createElement('button');
+    outside.textContent = 'Canvas control';
+    document.body.appendChild(outside);
+    outside.focus();
+    const host = await renderDock();
+    const collapse = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Collapse panel (tabs are kept)"]',
+    )!;
+    collapse.focus();
+
+    act(() => collapse.click());
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+
+    expect(host.querySelector('.right-dock')?.getAttribute('data-expanded')).toBe('false');
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it('falls back to the Pulse AI launcher when no external focus owner exists', async () => {
+    const launcher = document.createElement('button');
+    launcher.setAttribute('aria-label', 'Toggle AI Chat (Cmd/Ctrl+Shift+A)');
+    document.body.appendChild(launcher);
+    const host = await renderDock();
+    const collapse = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Collapse panel (tabs are kept)"]',
+    )!;
+    collapse.focus();
+
+    act(() => collapse.click());
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+
+    expect(document.activeElement).toBe(launcher);
+    launcher.remove();
+  });
+
   it('leaves handled, composing, and editable Escape events to inner editors', async () => {
     const host = await renderDock();
     const tabCount = () => host.querySelectorAll('[role="tab"]').length;
@@ -231,11 +275,101 @@ describe('RightDock Escape ownership', () => {
     })));
     expect(tabCount()).toBe(3);
 
+    // The seeded active tab is a WEB tab: Escape steps out of the dock and
+    // leaves it standing, because a link tab owns browsing state (history,
+    // scroll, sign-in) that a stray keypress must not destroy.
     const activeTab = host.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
     act(() => activeTab?.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Escape',
       bubbles: true,
     })));
+    expect(tabCount()).toBe(3);
+    expect(host.querySelector('.right-dock')?.getAttribute('data-expanded')).toBe('false');
+  });
+
+  it('closes a reconstructible content tab on Escape, but not a web tab', async () => {
+    const host = await renderDock();
+    const tabCount = () => host.querySelectorAll('[role="tab"]').length;
+
+    // Node detail is cheap to rebuild — "Escape dismisses" still applies.
+    const nodeDetailTab = host.querySelector<HTMLButtonElement>(
+      '[data-dock-tab-id^="node-detail:"]',
+    );
+    act(() => nodeDetailTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })));
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+
     expect(tabCount()).toBe(2);
+    expect(host.querySelector('[data-dock-tab-id^="node-detail:"]')).toBeNull();
+  });
+});
+
+describe('RightDock web-tab shortcuts', () => {
+  it('closes the active web tab on Cmd+W and restores it on Cmd+Shift+T', async () => {
+    const host = await renderDock();
+    const linkTabId = () => host.querySelector('[data-dock-tab-id^="link:"]')?.getAttribute('data-dock-tab-id');
+    const openedId = linkTabId();
+    expect(openedId).toBeTruthy();
+
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'w',
+      metaKey: true,
+      bubbles: true,
+    })));
+    expect(linkTabId()).toBeUndefined();
+
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 't',
+      metaKey: true,
+      shiftKey: true,
+      bubbles: true,
+    })));
+    // Same tab id back, in the position it held.
+    expect(linkTabId()).toBe(openedId);
+  });
+
+  it('opens a new web tab on Cmd+T', async () => {
+    const host = await renderDock();
+    const webTabs = () => host.querySelectorAll('[data-dock-tab-id^="link:"]').length;
+    expect(webTabs()).toBe(1);
+
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 't',
+      metaKey: true,
+      bubbles: true,
+    })));
+    expect(webTabs()).toBe(2);
+  });
+
+  it('closes a tab on middle-click', async () => {
+    const host = await renderDock();
+    const linkTab = host.querySelector<HTMLButtonElement>('[data-dock-tab-id^="link:"]');
+    act(() => linkTab?.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 1 })));
+
+    expect(host.querySelector('[data-dock-tab-id^="link:"]')).toBeNull();
+  });
+
+  it('hands focus to the resulting page after a pointer close', async () => {
+    const host = await renderDock();
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 't',
+      metaKey: true,
+      bubbles: true,
+    })));
+    const webTabs = [...host.querySelectorAll<HTMLButtonElement>(
+      '[data-dock-tab-id^="link:"]',
+    )];
+    expect(webTabs).toHaveLength(2);
+    const expectedTabId = webTabs[0].dataset.dockTabId;
+    const details: Array<{ tabId: string }> = [];
+    const listener = (event: Event) => details.push(
+      (event as CustomEvent<{ tabId: string }>).detail,
+    );
+    window.addEventListener(FOCUS_DOCK_PAGE_EVENT, listener);
+
+    const activeShell = webTabs[1].closest('.right-dock__tab-shell');
+    act(() => activeShell?.querySelector<HTMLButtonElement>('.right-dock__tab-close')?.click());
+
+    expect(details.at(-1)?.tabId).toBe(expectedTabId);
+    window.removeEventListener(FOCUS_DOCK_PAGE_EVENT, listener);
   });
 });

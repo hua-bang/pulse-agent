@@ -54,7 +54,18 @@ afterEach(async () => {
 
 describe('LinkTabView DOM selection', () => {
   it('lets the user select a page element and adds it to the active workspace chat', async () => {
-    const onAddDomSelectionToChat = vi.fn();
+    const onAddDomSelectionToChat = vi.fn(async () => ({
+      status: 'delivered' as const,
+      target: {
+        surface: 'page' as const,
+        scope: { kind: 'global' as const },
+        scopeId: '__global_chat__',
+        sessionId: null,
+        composerId: 'page:global',
+        contextSnapshot: { label: 'Global chat' },
+        executionPolicy: 'auto' as const,
+      },
+    }));
     pickDomElement.mockResolvedValue({
       ok: true,
       selection: {
@@ -80,6 +91,7 @@ describe('LinkTabView DOM selection', () => {
             onGuestNavigate={() => undefined}
             onAddToReference={() => undefined}
             onAddDomSelectionToChat={onAddDomSelectionToChat}
+            onOpenLink={() => undefined}
             onRequestClose={() => undefined}
           />
         </AppShellProvider>
@@ -99,5 +111,6 @@ describe('LinkTabView DOM selection', () => {
       url: 'https://example.com/page',
       selector: '#primary-action',
     }));
+    expect(document.body.textContent).toContain('Global chat');
   });
 });

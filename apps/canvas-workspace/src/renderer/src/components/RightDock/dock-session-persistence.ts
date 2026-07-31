@@ -30,6 +30,7 @@ const parseLinkTab = (value: unknown): DockLinkTab | null => {
     title: value.title,
     url: value.url,
     ...(typeof value.faviconUrl === 'string' ? { faviconUrl: value.faviconUrl } : {}),
+    ...(typeof value.openerTabId === 'string' ? { openerTabId: value.openerTabId } : {}),
   };
 };
 

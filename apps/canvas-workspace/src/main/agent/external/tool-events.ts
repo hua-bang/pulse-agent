@@ -15,11 +15,16 @@ const TOOL_RESULT_MAX_CHARS = 4000;
 export interface ExternalStreamHandlers {
   onText: (delta: string) => void;
   onToolCall?: (event: { name: string; args: unknown; toolCallId: string }) => void;
-  onToolResult?: (event: { name: string; result: string; toolCallId: string }) => void;
+  onToolResult?: (event: CanvasToolResultEvent) => void;
 }
 
 /** id → tool name, so a result event can carry the name its begin event had. */
 export type ToolNameMap = Map<string, string>;
+
+export interface ExternalToolOutcome {
+  status?: CanvasToolResultEvent['status'];
+  error?: string;
+}
 
 export function startTool(
   names: ToolNameMap,
@@ -39,13 +44,24 @@ export function finishTool(
   id: string | undefined,
   result: string,
   fallbackName = 'tool',
+  outcome: ExternalToolOutcome = {},
 ): void {
   if (!id) return;
   startTool(names, handlers, id, fallbackName, undefined);
+  const normalizedResult = truncateToolResult(result);
+  const status = outcome.status ?? 'succeeded';
   handlers.onToolResult?.({
     name: names.get(id) ?? fallbackName,
-    result: truncateToolResult(result),
+    result: normalizedResult,
     toolCallId: id,
+    status,
+    error: outcome.error
+      ? truncateToolResult(outcome.error)
+      : status === 'failed'
+        ? normalizedResult || 'Tool execution failed'
+        : status === 'cancelled'
+          ? normalizedResult || 'Tool execution cancelled'
+          : undefined,
   });
 }
 
@@ -68,3 +84,4 @@ export function flattenResultContent(content: unknown): string {
   }
   return content === undefined || content === null ? '' : JSON.stringify(content);
 }
+import type { CanvasToolResultEvent } from '../engine-stream-callbacks';

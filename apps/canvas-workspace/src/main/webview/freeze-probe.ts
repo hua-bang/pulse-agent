@@ -31,8 +31,8 @@ export interface FreezeProbeResult {
 }
 
 /**
- * The per-node record the L3 discard monitor stores at freeze time, keyed
- * by `${workspaceId}::${nodeId}` (see discard-monitor.ts).
+ * The per-guest record the L3 discard monitor stores at freeze time, keyed
+ * by workspace + node + WebContents identity (see discard-monitor.ts).
  */
 export interface FreezeRecord {
   /** Last-frame capture for the sleeping placeholder (may be absent). */

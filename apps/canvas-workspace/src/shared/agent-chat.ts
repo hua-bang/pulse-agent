@@ -2,9 +2,14 @@ import type { CanvasNode } from './canvas';
 
 export interface ChatImageAttachment {
   id: string;
+  /** Empty until a renderer-side upload has produced a durable local path. */
   path: string;
   fileName?: string;
   mimeType?: string;
+  sizeBytes?: number;
+  status?: 'uploading' | 'ready' | 'failed';
+  error?: string;
+  retryable?: boolean;
 }
 
 export type AgentScope =
@@ -14,6 +19,15 @@ export type AgentScope =
 
 export interface AgentScopeRef {
   scope: AgentScope;
+}
+
+export interface AgentClarificationRequest {
+  id: string;
+  question: string;
+  context?: string;
+  kind?: 'clarification' | 'approval';
+  defaultAnswer?: string;
+  timeout?: number;
 }
 
 /**
@@ -61,8 +75,13 @@ export interface AgentChatToolCall {
   id: number;
   name: string;
   args?: unknown;
-  status: 'running' | 'done';
+  /**
+   * User-facing execution truth. Persist the terminal outcome so a reloaded
+   * conversation never turns a failed or cancelled operation into a success.
+   */
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
   result?: string;
+  error?: string;
   toolCallId?: string;
   partialInput?: string;
   inputStreaming?: boolean;
@@ -189,6 +208,16 @@ export interface AgentChatMessage {
   speakerRoleName?: string;
   /** Snapshot of the role's accent color at the time of the turn. */
   speakerRoleColor?: string;
+  /** Terminal turn outcome rendered separately from the assistant prose. */
+  turnStatus?: 'stopped' | 'failed';
+  /** Raw diagnostic kept behind an explicit details disclosure. */
+  errorDetails?: string;
+  /** Stable renderer-localized category for a failed turn. */
+  failureKind?: 'auth' | 'busy' | 'context' | 'network' | 'request' | 'unknown';
+  /** Whether retry/regenerate is a meaningful recovery action. */
+  retryable?: boolean;
+  /** Exact lightweight context used for this user turn. */
+  contextSnapshot?: AgentTurnContextSnapshot;
 }
 
 export interface AgentContextNodeRef {
@@ -331,6 +360,8 @@ export interface AgentContextTabRef {
 
 export interface AgentRequestContext {
   executionMode?: 'auto' | 'ask';
+  /** Renderer-visible conversation pointer used as a main-process CAS. */
+  expectedConversationSessionId?: string | null;
   scope?: 'current_canvas' | 'selected_nodes';
   selectedNodes?: AgentContextNodeRef[];
   /** Tags the user scoped the turn to (global Nodes/Graph assistant). */
@@ -342,6 +373,25 @@ export interface AgentRequestContext {
   /** Right-dock tabs the user `@`-mentioned in the composer. */
   tabs?: AgentContextTabRef[];
   quickAction?: string;
+  /** Renderer-authored turn snapshot persisted with the user message. */
+  contextSnapshot?: AgentTurnContextSnapshot;
+}
+
+export interface AgentTurnContextSnapshot {
+  scope: AgentScope;
+  scopeLabel: string;
+  executionMode: 'auto' | 'ask';
+  /** Main-resolved provider identity frozen immediately before the run starts. */
+  modelProvider?: string;
+  /** Main-resolved model id frozen immediately before the run starts. */
+  modelId?: string;
+  modelLabel: string;
+  capturedAt: number;
+  selectedNodes?: AgentContextNodeRef[];
+  tags?: AgentContextTagRef[];
+  canvases?: AgentContextCanvasRef[];
+  domSelections?: AgentContextDomSelectionRef[];
+  tabs?: AgentContextTabRef[];
 }
 
 export interface AgentSessionInfo {
@@ -350,6 +400,8 @@ export interface AgentSessionInfo {
   messageCount: number;
   isCurrent: boolean;
   preview?: string;
+  title?: string;
+  pinned?: boolean;
 }
 
 export interface CrossWorkspaceSessionGroup {

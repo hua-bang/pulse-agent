@@ -32,6 +32,7 @@ describe('DockStore', () => {
     const dock = new DockStore();
     expect(dock.getSnapshot()).toEqual({
       tabs: [],
+      retainedLinkTabs: [],
       activeTabId: CHAT_TAB_ID,
       expanded: false,
       chatUnread: false,
@@ -213,6 +214,235 @@ describe('DockStore', () => {
     expect(tabs).toHaveLength(2);
     expect(activeTabId).toBe(id);
     expect(tabs.find((t) => t.kind === 'link' && t.url === 'https://a.example')?.title).toBe('Page title');
+  });
+
+  it('opens a background link without moving the user off the current tab', () => {
+    // ⌘/Ctrl+click and middle-click mean "queue this"; foregrounding them
+    // yanks the user off the page they were reading.
+    const dock = new DockStore();
+    dock.openLink('https://a.example');
+    const firstId = dock.getSnapshot().activeTabId;
+
+    dock.openLink('https://b.example', { background: true });
+    const { tabs, activeTabId, expanded } = dock.getSnapshot();
+
+    expect(tabs).toHaveLength(2);
+    expect(activeTabId).toBe(firstId);
+    expect(expanded).toBe(true);
+  });
+
+  it('places a link opened from a tab next to its opener, in click order', () => {
+    const dock = new DockStore();
+    dock.openLink('https://source.example');
+    const openerTabId = dock.getSnapshot().activeTabId;
+    dock.openLink('https://unrelated.example');
+
+    dock.openLink('https://child-1.example', { background: true, openerTabId });
+    dock.openLink('https://child-2.example', { background: true, openerTabId });
+
+    expect(dock.getSnapshot().tabs.map((tab) => (tab.kind === 'link' ? tab.url : tab.id))).toEqual([
+      'https://source.example',
+      'https://child-1.example',
+      'https://child-2.example',
+      'https://unrelated.example',
+    ]);
+  });
+
+  it('keeps the favicon across same-origin navigation and drops it across origins', () => {
+    // SPA route changes fire syncLinkUrl on every pushState but re-announce
+    // page-favicon-updated only when the icon link actually changes — so
+    // clearing unconditionally stranded those tabs on the generic globe.
+    const dock = new DockStore();
+    dock.openLink('https://app.example/docs');
+    const id = dock.getSnapshot().activeTabId;
+    dock.setFavicon(id, 'https://app.example/icon.png');
+
+    dock.syncLinkUrl(id, 'https://app.example/docs/page-2?view=grid');
+    expect(dock.getSnapshot().tabs[0]).toMatchObject({
+      url: 'https://app.example/docs/page-2?view=grid',
+      faviconUrl: 'https://app.example/icon.png',
+    });
+
+    dock.syncLinkUrl(id, 'https://other.example/');
+    expect((dock.getSnapshot().tabs[0] as { faviconUrl?: string }).faviconUrl).toBeUndefined();
+  });
+
+  it('restores a closed web tab at its old position, most recent first', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example');
+    dock.openLink('https://b.example');
+    dock.openLink('https://c.example');
+    const middleId = dock.getSnapshot().tabs[1].id;
+
+    expect(dock.canReopenClosedTab()).toBe(false);
+    dock.close(middleId);
+    expect(dock.getSnapshot().tabs).toHaveLength(2);
+    expect(dock.canReopenClosedTab()).toBe(true);
+
+    dock.reopenClosedTab();
+    const { tabs, activeTabId } = dock.getSnapshot();
+    expect(tabs.map((tab) => (tab.kind === 'link' ? tab.url : tab.id))).toEqual([
+      'https://a.example',
+      'https://b.example',
+      'https://c.example',
+    ]);
+    expect(activeTabId).toBe(middleId);
+    expect(dock.canReopenClosedTab()).toBe(false);
+  });
+
+  it('restores a closed URL with a unique id when that URL was opened again', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example');
+    const closedId = dock.getSnapshot().activeTabId;
+
+    dock.close(closedId);
+    dock.openLink('https://a.example');
+    const replacementId = dock.getSnapshot().activeTabId;
+    dock.reopenClosedTab();
+
+    const restoredTabs = dock.getSnapshot().tabs;
+    expect(restoredTabs).toHaveLength(2);
+    expect(new Set(restoredTabs.map((tab) => tab.id))).toHaveLength(2);
+
+    const restoredId = restoredTabs.find((tab) => tab.id !== replacementId)?.id;
+    if (!restoredId) throw new Error('Expected the restored tab to have a collision-safe id');
+    dock.navigateLink(restoredId, 'https://restored.example');
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { id: restoredId, url: 'https://restored.example' },
+      { id: replacementId, url: 'https://a.example' },
+    ]);
+
+    dock.close(restoredId);
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { id: replacementId, url: 'https://a.example' },
+    ]);
+  });
+
+  it('never resurfaces a closed tab in a different workspace', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example');
+    dock.close(dock.getSnapshot().activeTabId);
+
+    dock.setActiveWorkspace('ws2');
+    expect(dock.canReopenClosedTab()).toBe(false);
+    dock.reopenClosedTab();
+    expect(dock.getSnapshot().tabs).toHaveLength(0);
+
+    dock.setActiveWorkspace('ws1');
+    expect(dock.canReopenClosedTab()).toBe(true);
+  });
+
+  it('retains the left workspace\'s web tabs, and hands them back on return', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example/');
+    dock.openLink('https://b.example/');
+
+    dock.setActiveWorkspace('ws2');
+    const away = dock.getSnapshot();
+    // Out of the strip, but still held so their guests stay mounted.
+    expect(away.tabs.filter((tab) => tab.kind === 'link')).toHaveLength(0);
+    expect(away.retainedLinkTabs).toHaveLength(1);
+    expect(away.retainedLinkTabs[0].workspaceId).toBe('ws1');
+    expect(away.retainedLinkTabs[0].tabs.map((tab) => tab.url)).toEqual([
+      'https://a.example/',
+      'https://b.example/',
+    ]);
+
+    dock.setActiveWorkspace('ws1');
+    const back = dock.getSnapshot();
+    expect(back.tabs.map((tab) => (tab.kind === 'link' ? tab.url : tab.id))).toEqual([
+      'https://a.example/',
+      'https://b.example/',
+    ]);
+    // No longer retained — it is live again.
+    expect(back.retainedLinkTabs).toHaveLength(0);
+  });
+
+  it('restores a hidden tab at the URL it navigated to, not the one it left at', () => {
+    // `useEmbeddedBrowser` treats a stored URL that differs from the live
+    // guest as a navigation COMMAND, so a stale record would yank a
+    // background-navigated page back — the state loss retention exists to
+    // prevent.
+    const { persistence, read } = createSessionPersistence();
+    const dock = new DockStore(persistence);
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://app.example/inbox');
+    const tabId = dock.getSnapshot().activeTabId;
+
+    dock.setActiveWorkspace('ws2');
+    dock.updateRetainedLinkTab('ws1', tabId, { url: 'https://app.example/thread/42' });
+
+    dock.setActiveWorkspace('ws1');
+    expect(dock.getSnapshot().tabs[0]).toMatchObject({
+      id: tabId,
+      url: 'https://app.example/thread/42',
+    });
+    // …and it survives a restart, not just the switch back.
+    expect(read().ws1.tabs[0].url).toBe('https://app.example/thread/42');
+  });
+
+  it('ignores a retained update aimed at a workspace that is not retained', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example/');
+    const tabId = dock.getSnapshot().activeTabId;
+    const before = dock.getSnapshot();
+
+    // ws1 is LIVE, not retained — this must not touch the visible tab.
+    dock.updateRetainedLinkTab('ws1', tabId, { url: 'https://hijacked.example/' });
+
+    expect(dock.getSnapshot()).toBe(before);
+  });
+
+  it('routes a retained guest new tab back to its owning workspace', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws-a');
+    dock.openLink('https://a.example/');
+    const openerId = dock.getSnapshot().activeTabId;
+
+    dock.setActiveWorkspace('ws-b');
+    dock.openLink('https://b.example/');
+    const visibleTabsBefore = dock.getSnapshot().tabs;
+
+    dock.openLinkInWorkspace('ws-a', 'https://popup.example/', { openerTabId: openerId });
+
+    expect(dock.getSnapshot().activeTerminalWorkspaceId).toBe('ws-b');
+    expect(dock.getSnapshot().tabs).toEqual(visibleTabsBefore);
+    expect(dock.getSnapshot().retainedLinkTabs).toMatchObject([{
+      workspaceId: 'ws-a',
+      activeTabId: openerId,
+      tabs: [
+        { id: openerId, url: 'https://a.example/' },
+        { url: 'https://popup.example/' },
+      ],
+    }]);
+
+    dock.setActiveWorkspace('ws-a');
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { id: openerId, url: 'https://a.example/' },
+      { url: 'https://popup.example/' },
+    ]);
+    expect(dock.getSnapshot().activeTabId).toBe(openerId);
+  });
+
+  it('persists a link opened by an inactive workspace even without a retained browser tab', () => {
+    const saved = createSessionPersistence();
+    const dock = new DockStore(saved.persistence);
+    dock.setActiveWorkspace('ws-a');
+    dock.setActiveWorkspace('ws-b');
+
+    dock.openLinkInWorkspace('ws-a', 'https://from-canvas-node.example/');
+
+    expect(dock.getSnapshot().activeTerminalWorkspaceId).toBe('ws-b');
+    expect(dock.getSnapshot().tabs).toHaveLength(0);
+    dock.setActiveWorkspace('ws-a');
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { kind: 'link', url: 'https://from-canvas-node.example/' },
+    ]);
   });
 
   it('creates independent blank web tabs and navigates one in place', () => {

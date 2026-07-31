@@ -1,6 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CanvasNode, FileNodeData } from '../types';
 import type { CanvasClipboard } from '../types/ui-interaction';
+import { isImeComposing } from '../utils/ime';
+import {
+  matchShortcut,
+  type CanvasShortcutId,
+  type KeyBinding,
+} from '../shortcuts/registry';
 
 interface KeyboardShortcutLike {
   ctrlKey: boolean;
@@ -36,6 +42,9 @@ export const shouldHandleCanvasFindShortcut = (
   return !isInsideNoteCard(active);
 };
 
+/** Zoom multiplier per Cmd/Ctrl +/- press. */
+const KEYBOARD_ZOOM_STEP = 1.2;
+
 interface Options {
   canvasId: string;
   undo: () => void;
@@ -49,10 +58,7 @@ interface Options {
   setSelectedEdgeId: (id: string | null) => void;
   removeEdge: (id: string) => void | Promise<void>;
   duplicateNode: (id: string) => CanvasNode | null;
-  clipboard: CanvasClipboard | null;
   setClipboard: (clipboard: CanvasClipboard | null) => void;
-  pasteNodes: (nodes: CanvasNode[]) => CanvasNode[];
-  pasteReferencedNodes?: (clipboard: CanvasClipboard) => CanvasNode[];
   /** Group the current node selection in a lightweight container. */
   groupSelectedNodes: () => void;
   /** Dissolve selected group nodes while keeping their children on canvas. */
@@ -60,8 +66,8 @@ interface Options {
   removeNodes: (ids: string[]) => void | Promise<void>;
   /** Batch-move nodes by deltas in canvas coordinates. Used by arrow-
    *  key nudging so a single keypress moves the whole selection in one
-   *  history step. Skips history (the trailing commitHistory call from
-   *  the keyup batch is what records it as a discrete undo entry). */
+   *  history step. Skips history (the explicit commitHistory call below
+   *  is what records it as a discrete undo entry). */
   moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void;
   /** Push the current node state onto the undo stack. Called once per
    *  arrow-key press so each nudge is an independent undo step. */
@@ -84,238 +90,309 @@ interface Options {
   handleFocusNode: (node: CanvasNode) => void;
   activeTool: string;
   setActiveTool: (tool: string) => void;
+  /** Canvas zoom, viewport-centre anchored. */
+  zoomBy: (factor: number) => void;
+  resetZoom: () => void;
+  fitNodes: (nodes: CanvasNode[]) => void;
+  /** Start inline title editing on a node (Enter / F2 on the selection). */
+  renameNode: (nodeId: string) => void;
   focusModeEnabled?: boolean;
   canToggleFocusMode?: boolean;
   onToggleFocusMode?: () => void;
   onExitFocusMode?: () => void;
+  onToggleChatPanel?: () => void;
+  onToggleReferenceDrawer?: () => void;
   fullscreenActive?: boolean;
   onExitFullscreen?: () => void;
   keyboardLocked?: boolean;
 }
 
+/**
+ * Canvas keyboard layer.
+ *
+ * Bindings are NOT written here — they live in `shortcuts/registry.ts`, and
+ * this hook only supplies the behavior. The handler table is typed
+ * `Record<CanvasShortcutId, …>`, so the registry and the implementation
+ * cannot drift: documenting a canvas shortcut without writing its handler
+ * fails to compile, and so does deleting a handler that the help overlay
+ * still advertises.
+ *
+ * One `keydown` listener serves the whole canvas (it used to be two, which
+ * meant two independent chances to disagree about IME / lock state).
+ */
 export const useCanvasKeyboard = ({
   canvasId,
   undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
   selectedEdgeId, setSelectedEdgeId, removeEdge,
-  duplicateNode, clipboard, setClipboard, pasteNodes, pasteReferencedNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
+  duplicateNode, setClipboard, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
   moveNodes, commitHistory,
   searchOpen, setSearchOpen,
   findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches,
   contextMenu, setContextMenu,
   setHighlightedId, handleFocusNode,
   activeTool, setActiveTool,
+  zoomBy, resetZoom, fitNodes, renameNode,
   focusModeEnabled = false,
   canToggleFocusMode = false,
   onToggleFocusMode,
   onExitFocusMode,
+  onToggleChatPanel,
+  onToggleReferenceDrawer,
   fullscreenActive = false,
   onExitFullscreen,
   keyboardLocked = false,
 }: Options) => {
+  // The handler table is rebuilt on every render (it closes over live
+  // state), but the listener is registered once and reads through this ref.
+  // Without it, every node edit would tear down and re-add the listener.
+  const handlersRef = useRef<Record<CanvasShortcutId, (event: KeyboardEvent, binding: KeyBinding) => void>>(
+    null as never,
+  );
+  const lockedRef = useRef(keyboardLocked);
+  lockedRef.current = keyboardLocked;
+
+  const cycleSelection = (backwards: boolean) => {
+    if (nodes.length === 0) return;
+    const currentIndex = nodes.findIndex((n) => n.id === selectedNodeIds[0]);
+    const nextIndex = backwards
+      ? (currentIndex <= 0 ? nodes.length - 1 : currentIndex - 1)
+      : (currentIndex >= nodes.length - 1 ? 0 : currentIndex + 1);
+    const nextNode = nodes[nextIndex];
+    setSelectedNodeIds([nextNode.id]);
+    setSelectedEdgeId(null);
+    setHighlightedId(nextNode.id);
+    // In focus mode the dedicated reframe effect handles the zoom with
+    // tighter padding/maxScale; calling handleFocusNode here too would
+    // produce a double reframe at different scales.
+    if (!focusModeEnabled) handleFocusNode(nextNode);
+  };
+
+  const nudge = (event: KeyboardEvent, step: number) => {
+    if (selectedNodeIds.length === 0) return;
+    event.preventDefault();
+    const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
+    const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
+    const idSet = new Set(selectedNodeIds);
+    const moves = nodes
+      .filter((n) => idSet.has(n.id))
+      .map((n) => ({ id: n.id, x: n.x + dx, y: n.y + dy }));
+    if (moves.length === 0) return;
+    moveNodes(moves);
+    commitHistory();
+  };
+
+  /**
+   * Escape unwinds the deepest open thing first. It only calls
+   * `preventDefault` when it actually consumed something: the app shell and
+   * the right dock listen for Escape too, and an unconditional consume made
+   * one keypress close two unrelated surfaces at once.
+   */
+  const handleEscape = (event: KeyboardEvent) => {
+    const consume = () => event.preventDefault();
+    if (findOpen) { closeFindBar(); consume(); return; }
+    if (searchOpen) { setSearchOpen(false); consume(); return; }
+    if (contextMenu) { setContextMenu(null); consume(); return; }
+    // Fullscreen takes priority over focus-mode so Esc reliably shrinks the
+    // overlay back to its canvas slot before doing anything else with
+    // selection state.
+    if (fullscreenActive) { onExitFullscreen?.(); consume(); return; }
+    if (focusModeEnabled) { onExitFocusMode?.(); consume(); return; }
+    if (activeTool === 'connect' || activeTool.startsWith('shape-')) {
+      setActiveTool('select');
+      consume();
+      return;
+    }
+    if (selectedEdgeId) { setSelectedEdgeId(null); consume(); return; }
+    if (selectedNodeIds.length > 0) { setSelectedNodeIds([]); consume(); }
+    // Nothing was open or selected — leave Escape to the app shell (return
+    // from the chat page) and the dock.
+  };
+
+  handlersRef.current = {
+    'canvas.commandPalette': (event) => {
+      event.preventDefault();
+      setSearchOpen((prev) => !prev);
+    },
+    'canvas.commandPaletteAlt': (event) => {
+      event.preventDefault();
+      setSearchOpen((prev) => !prev);
+    },
+    'canvas.find': (event) => {
+      // Note cards own their own find flow, so don't let the canvas-level
+      // search steal focus from note editing, note panels, or note toolbar
+      // controls.
+      if (!shouldHandleCanvasFindShortcut(event, document.activeElement)) return;
+      event.preventDefault();
+      toggleFindBar();
+    },
+    'canvas.findNext': (event) => {
+      // Only meaningful while results exist; otherwise let the key fall
+      // through (F3 is a browser/OS find key elsewhere).
+      if (!findHasMatches) return;
+      event.preventDefault();
+      if (event.shiftKey) findPrev();
+      else findNext();
+    },
+    'canvas.cycleNodes': (event) => {
+      event.preventDefault();
+      cycleSelection(event.shiftKey);
+    },
+    'canvas.focusMode': (event) => {
+      if (!focusModeEnabled && !canToggleFocusMode) return;
+      event.preventDefault();
+      onToggleFocusMode?.();
+    },
+
+    'canvas.zoomIn': (event) => {
+      event.preventDefault();
+      zoomBy(KEYBOARD_ZOOM_STEP);
+    },
+    'canvas.zoomOut': (event) => {
+      event.preventDefault();
+      zoomBy(1 / KEYBOARD_ZOOM_STEP);
+    },
+    'canvas.zoomReset': (event) => {
+      event.preventDefault();
+      resetZoom();
+    },
+    'canvas.fitAll': (event) => {
+      event.preventDefault();
+      fitNodes(nodes);
+    },
+    'canvas.fitSelection': (event) => {
+      const idSet = new Set(selectedNodeIds);
+      const selected = nodes.filter((n) => idSet.has(n.id));
+      if (selected.length === 0) return;
+      event.preventDefault();
+      fitNodes(selected);
+    },
+    'canvas.toolSelect': (event) => { event.preventDefault(); setActiveTool('select'); },
+    'canvas.toolHand': (event) => { event.preventDefault(); setActiveTool('hand'); },
+    'canvas.toolConnect': (event) => { event.preventDefault(); setActiveTool('connect'); },
+    'canvas.toolShape': (event) => { event.preventDefault(); setActiveTool('shape-rect'); },
+
+    // Each press is its own undo step, so a chain of nudges can be reversed
+    // one at a time. Auto-repeat is filtered upstream — holding an arrow key
+    // used to push one history entry per repeat and drown the undo stack.
+    'canvas.nudge': (event) => nudge(event, 1),
+    'canvas.nudgeCoarse': (event) => nudge(event, 10),
+    'canvas.renameSelection': (event) => {
+      if (selectedNodeIds.length !== 1) return;
+      event.preventDefault();
+      renameNode(selectedNodeIds[0]);
+    },
+
+    'canvas.selectAll': (event) => {
+      event.preventDefault();
+      setSelectedNodeIds(nodes.map((n) => n.id));
+      setSelectedEdgeId(null);
+    },
+    'canvas.duplicate': (event) => {
+      event.preventDefault();
+      if (selectedNodeIds.length === 0) return;
+      // Duplicate every selected node and keep the new copies as the active
+      // selection — matches paste's behavior so the user can chain Cmd+D to
+      // spawn a row of copies.
+      const created: string[] = [];
+      for (const id of selectedNodeIds) {
+        const copy = duplicateNode(id);
+        if (copy) created.push(copy.id);
+      }
+      if (created.length > 0) setSelectedNodeIds(created);
+    },
+    'canvas.copy': () => {
+      const selected = nodes.filter((n) => selectedNodeIds.includes(n.id));
+      if (selected.length === 0) return;
+      // Mirror the copy into the system clipboard and remember exactly what
+      // we wrote. The paste path compares the two: if the system clipboard
+      // still holds this mirror, the node copy is the newest thing the user
+      // copied and wins; if it changed, they copied elsewhere since and that
+      // content wins instead. Without the mirror a stale canvas clipboard
+      // silently beat every later system copy, forever.
+      const markdownNodes = selected.filter((n): n is CanvasNode & { data: FileNodeData } => (
+        n.type === 'file' && typeof (n.data as FileNodeData).content === 'string'
+      ));
+      const systemText = markdownNodes.length === selected.length
+        ? markdownNodes
+          .map((node) => markdownNodes.length === 1
+            ? node.data.content
+            : `# ${node.title}\n\n${node.data.content}`)
+          .join('\n\n---\n\n')
+        : selected.map((node) => node.title).join('\n');
+      setClipboard({ sourceWorkspaceId: canvasId, nodes: selected, systemText });
+      if (navigator.clipboard?.writeText) {
+        void navigator.clipboard.writeText(systemText).catch(() => {
+          // The mirror never reached the system clipboard, so comparing
+          // against it would refuse every later paste. Drop it: without a
+          // mirror the canvas clipboard simply wins, which is the old
+          // behavior and the right fallback.
+          setClipboard({ sourceWorkspaceId: canvasId, nodes: selected });
+        });
+      }
+    },
+    'canvas.group': (event) => {
+      event.preventDefault();
+      if (selectedNodeIds.length > 0) groupSelectedNodes();
+    },
+    'canvas.ungroup': (event) => {
+      event.preventDefault();
+      if (selectedNodeIds.length > 0) ungroupSelectedNodes();
+    },
+    'canvas.delete': (event) => {
+      if (selectedEdgeId) {
+        event.preventDefault();
+        void removeEdge(selectedEdgeId);
+        return;
+      }
+      if (selectedNodeIds.length > 0) {
+        event.preventDefault();
+        void removeNodes(selectedNodeIds);
+      }
+    },
+    'canvas.undo': (event) => { event.preventDefault(); undo(); },
+    'canvas.redo': (event) => { event.preventDefault(); redo(); },
+    'canvas.redoAlt': (event) => { event.preventDefault(); redo(); },
+
+    'canvas.toggleChatPanel': (event) => {
+      if (!onToggleChatPanel) return;
+      event.preventDefault();
+      onToggleChatPanel();
+    },
+    'canvas.toggleReferenceDrawer': (event) => {
+      if (!onToggleReferenceDrawer) return;
+      event.preventDefault();
+      onToggleReferenceDrawer();
+    },
+    'canvas.escape': handleEscape,
+  };
+
+  // NOTE: Cmd+V deliberately has NO keydown handler. The native `paste`
+  // event (useCanvasImagePaste) is the single arbiter between the canvas
+  // clipboard and the system clipboard — see `canvas.copy` above.
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (keyboardLocked) return;
+      if (lockedRef.current) return;
       if (e.defaultPrevented) return;
+      // Mid-composition keystrokes belong to the IME candidate window; every
+      // other keyboard surface in the app already guards this.
+      if (isImeComposing(e)) return;
+
+      const match = matchShortcut(e, 'canvas');
+      if (!match) return;
+
+      // Auto-repeat fires this handler once per OS repeat tick. Actions that
+      // mutate the document (nudge, duplicate, delete) would stack one undo
+      // entry per tick, so a held key is treated as a single press.
+      if (e.repeat && match.definition.editable !== 'allow') return;
 
       const active = document.activeElement;
-      const isEditable = isEditableElement(active);
-      const isMod = e.metaKey || e.ctrlKey;
+      if (match.definition.editable !== 'allow' && isEditableElement(active)) return;
 
-      // Ctrl/Cmd+F — find in canvas. Note cards own their own local find
-      // flow, so don't let the canvas-level search steal focus from note
-      // editing, note panels, or note toolbar controls.
-      if (shouldHandleCanvasFindShortcut(e, active)) {
-        e.preventDefault();
-        toggleFindBar();
-        return;
-      }
-
-      // F3 / Shift+F3 — page through matches without re-opening the
-      // bar. Only meaningful while results exist; otherwise let the
-      // key fall through.
-      if (e.key === 'F3' && findHasMatches) {
-        e.preventDefault();
-        if (e.shiftKey) findPrev();
-        else findNext();
-        return;
-      }
-
-      if (isMod && (e.key === 'k' || e.key === 'h') && !isEditable) {
-        e.preventDefault();
-        setSearchOpen((prev) => !prev);
-        return;
-      }
-      // Normalize the key: with Shift held, e.key is 'Z', so a strict
-      // === 'z' comparison silently broke Cmd/Ctrl+Shift+Z redo.
-      if (isMod && e.key.toLowerCase() === 'z' && !isEditable) {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-        return;
-      }
-      // Ctrl+Y — conventional redo on Windows/Linux.
-      if (isMod && !e.shiftKey && e.key.toLowerCase() === 'y' && !isEditable) {
-        e.preventDefault();
-        redo();
-        return;
-      }
-      if (isMod && e.key === 'a' && !isEditable) {
-        e.preventDefault();
-        setSelectedNodeIds(nodes.map((n) => n.id));
-        setSelectedEdgeId(null);
-        return;
-      }
-      if (isMod && e.key === 'd' && !isEditable) {
-        e.preventDefault();
-        if (selectedNodeIds.length === 0) return;
-        // Duplicate every selected node and keep the new copies as the
-        // active selection — matches Cmd+V's behavior so the user can
-        // chain Cmd+D to spawn a row of copies.
-        const created: string[] = [];
-        for (const id of selectedNodeIds) {
-          const copy = duplicateNode(id);
-          if (copy) created.push(copy.id);
-        }
-        if (created.length > 0) setSelectedNodeIds(created);
-        return;
-      }
-      if (isMod && e.key === 'c' && !isEditable) {
-        const selected = nodes.filter((n) => selectedNodeIds.includes(n.id));
-        if (selected.length > 0) {
-          setClipboard({ sourceWorkspaceId: canvasId, nodes: selected });
-          const markdownNodes = selected.filter((n): n is CanvasNode & { data: FileNodeData } => (
-            n.type === 'file' && typeof (n.data as FileNodeData).content === 'string'
-          ));
-          if (markdownNodes.length === selected.length && navigator.clipboard?.writeText) {
-            const markdown = markdownNodes
-              .map((node) => markdownNodes.length === 1
-                ? node.data.content
-                : `# ${node.title}\n\n${node.data.content}`)
-              .join('\n\n---\n\n');
-            void navigator.clipboard.writeText(markdown).catch(() => {
-              // Canvas-local clipboard still works even if the system clipboard is unavailable.
-            });
-          }
-        }
-        return;
-      }
-      if (isMod && (e.key === 'g' || e.key === 'G') && e.shiftKey && !isEditable) {
-        e.preventDefault();
-        if (selectedNodeIds.length > 0) ungroupSelectedNodes();
-        return;
-      }
-      if (isMod && (e.key === 'g' || e.key === 'G') && !e.shiftKey && !isEditable) {
-        e.preventDefault();
-        if (selectedNodeIds.length > 0) groupSelectedNodes();
-        return;
-      }
-      if (isMod && e.key === 'v' && !isEditable) {
-        if (clipboard && clipboard.nodes.length > 0) {
-          e.preventDefault();
-          const created = clipboard.sourceWorkspaceId === canvasId
-            ? pasteNodes(clipboard.nodes)
-            : pasteReferencedNodes?.(clipboard) ?? [];
-          setSelectedNodeIds(created.map((n) => n.id));
-        }
-        return;
-      }
-      if (!isEditable && !isMod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'f') {
-        if (!focusModeEnabled && !canToggleFocusMode) return;
-        e.preventDefault();
-        onToggleFocusMode?.();
-        return;
-      }
-      // Arrow-key nudging — moves the whole selection by 1px (or 10px
-      // with shift) per keypress. Each press is its own undo step, so
-      // a chain of nudges can be reversed one at a time. The arrow
-      // keys still scroll the page in editable contexts, so we bail
-      // out when an input has focus.
-      if (
-        !isEditable &&
-        !isMod &&
-        (e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
-         e.key === 'ArrowLeft' || e.key === 'ArrowRight')
-      ) {
-        if (selectedNodeIds.length === 0) return;
-        e.preventDefault();
-        const step = e.shiftKey ? 10 : 1;
-        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
-        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
-        const idSet = new Set(selectedNodeIds);
-        const moves = nodes
-          .filter((n) => idSet.has(n.id))
-          .map((n) => ({ id: n.id, x: n.x + dx, y: n.y + dy }));
-        if (moves.length > 0) {
-          moveNodes(moves);
-          commitHistory();
-        }
-        return;
-      }
-      if (e.key === 'Escape') {
-        if (findOpen) { closeFindBar(); return; }
-        if (searchOpen) { setSearchOpen(false); return; }
-        if (contextMenu) { setContextMenu(null); return; }
-        // Fullscreen takes priority over focus-mode so Esc reliably
-        // shrinks the overlay back to its canvas slot before doing
-        // anything else with selection state.
-        if (fullscreenActive) { onExitFullscreen?.(); return; }
-        if (focusModeEnabled) { onExitFocusMode?.(); return; }
-        if (activeTool === 'connect' || activeTool.startsWith('shape-')) {
-          setActiveTool('select');
-          return;
-        }
-        if (selectedEdgeId) { setSelectedEdgeId(null); return; }
-        setSelectedNodeIds([]);
-        return;
-      }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && !isEditable) {
-        if (selectedEdgeId) {
-          e.preventDefault();
-          void removeEdge(selectedEdgeId);
-          return;
-        }
-        if (selectedNodeIds.length > 0) {
-          e.preventDefault();
-          void removeNodes(selectedNodeIds);
-        }
-        return;
-      }
+      handlersRef.current[match.id as CanvasShortcutId](e, match.binding);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canvasId, undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboard, setClipboard, pasteNodes, pasteReferencedNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches, contextMenu, setContextMenu, activeTool, setActiveTool, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, fullscreenActive, onExitFullscreen, keyboardLocked]);
-
-  // Cmd/Ctrl+Tab to cycle through nodes (Shift reverses direction)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (keyboardLocked) return;
-      if (e.defaultPrevented) return;
-
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Tab') {
-        const activeEl = document.activeElement;
-        const isEditable = isEditableElement(activeEl);
-        if (!isEditable && nodes.length > 0) {
-          e.preventDefault();
-          const currentIndex = nodes.findIndex((n) => n.id === selectedNodeIds[0]);
-          let nextIndex: number;
-          if (e.shiftKey) {
-            nextIndex = currentIndex <= 0 ? nodes.length - 1 : currentIndex - 1;
-          } else {
-            nextIndex = currentIndex >= nodes.length - 1 ? 0 : currentIndex + 1;
-          }
-          const nextNode = nodes[nextIndex];
-          setSelectedNodeIds([nextNode.id]);
-          setSelectedEdgeId(null);
-          setHighlightedId(nextNode.id);
-          // In focus mode the dedicated reframe effect handles the zoom
-          // with tighter padding/maxScale; calling handleFocusNode here
-          // too would produce a double reframe at different scales.
-          if (!focusModeEnabled) handleFocusNode(nextNode);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nodes, selectedNodeIds, setSelectedNodeIds, setSelectedEdgeId, setHighlightedId, handleFocusNode, keyboardLocked, focusModeEnabled]);
+  }, []);
 };

@@ -5,6 +5,7 @@ import { join, basename, resolve } from "path";
 import { homedir } from "os";
 import { promisify } from "util";
 import { ensureImagePreview } from './image-preview';
+import { deleteSavedImage, saveBase64Image } from './image-save';
 
 const IGNORED_DIRS = new Set([
   'node_modules', '.git', '.DS_Store', 'dist', '.next', '.nuxt', '__pycache__', '.venv',
@@ -58,17 +59,6 @@ const formatError = (err: unknown): string => err instanceof Error ? err.message
 const vscodeUrlForPath = (filePath: string): string => {
   const normalized = filePath.replace(/\\/g, '/');
   return `vscode://file/${encodeURI(normalized)}`;
-};
-
-const sanitizeImageExtension = (value?: string): string => {
-  const normalized = (value ?? "png")
-    .toLowerCase()
-    .replace(/^image\//, "")
-    .replace(/[^a-z0-9]/g, "");
-
-  if (!normalized) return "png";
-  if (normalized === "jpeg") return "jpg";
-  return normalized;
 };
 
 export const setupFileManagerIpc = () => {
@@ -214,18 +204,32 @@ export const setupFileManagerIpc = () => {
     async (_event, payload: { workspaceId?: string; data: string; ext?: string }) => {
       try {
         const wsId = payload.workspaceId ?? "default";
-        const imagesDir = join(STORE_DIR, wsId, "images");
-        await fs.mkdir(imagesDir, { recursive: true });
-        const ext = sanitizeImageExtension(payload.ext);
-        const fileName = `img-${Date.now()}.${ext}`;
-        const filePath = join(imagesDir, fileName);
-        const buffer = Buffer.from(payload.data, "base64");
-        await fs.writeFile(filePath, buffer);
+        const { filePath, fileName } = await saveBase64Image({
+          storeDir: STORE_DIR,
+          workspaceId: wsId,
+          data: payload.data,
+          ext: payload.ext,
+        });
         return { ok: true, filePath, fileName };
       } catch (err) {
         return { ok: false, error: String(err) };
       }
     }
+  );
+  ipcMain.handle(
+    'file:delete-saved-image',
+    async (_event, payload: { workspaceId?: string; filePath: string }) => {
+      try {
+        await deleteSavedImage({
+          storeDir: STORE_DIR,
+          workspaceId: payload.workspaceId ?? 'default',
+          filePath: payload.filePath,
+        });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
   );
 
   ipcMain.handle(

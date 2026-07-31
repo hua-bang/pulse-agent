@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { AgentChatMessage, AgentRequestContext, ChatImageAttachment } from '../../../types';
 import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
 import { markToolResult, settleRunningTools, upsertToolInputStart } from './toolStreamState';
-import { createTextDeltaBatcher } from './textDeltaBatcher';
 import { subscribeVisualStream } from './visualStreamSubscription';
 import {
   applyTurnCompletion,
@@ -13,17 +12,39 @@ import {
 } from './relayTurnHandlers';
 import { count } from '../../../perf/counters';
 import { cacheThread, getCachedThread } from './chatThreadCache';
+import { createTurnContextSnapshot } from './turnContextSnapshot';
+import { useConversationBranching } from './useConversationBranching';
+import { startChatRunWatchdog } from './chatRunWatchdog';
+import { useChatScopeActivity } from './useChatScopeActivity';
+import { useChatMessageActions } from './useChatMessageActions';
+import { useChatRunControls } from './useChatRunControls';
+import { createChatTurnEpochGuard } from './chatTurnEpoch';
+import { createMessageDeltaBatcher } from './createMessageDeltaBatcher';
+import { recoverChangedChatSession } from './recoverChangedChatSession';
+import { useI18n } from '../../../i18n';
 
 interface UseChatStreamOptions {
   agentScope: AgentScope;
   allWorkspaces?: WorkspaceOption[];
+  modelLabel?: string;
+  scopeLabel?: string;
+  onActiveSessionChange?: (sessionId: string) => void;
+  conversationSessionIdRef?: MutableRefObject<string | null>;
 }
 
 const agentScopeKey = (scope: AgentScope): string =>
   scope.kind === 'workspace' ? `workspace:${scope.workspaceId}`
     : scope.kind === 'scheduled' ? `scheduled:${scope.taskId}` : 'global';
 
-export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOptions) {
+export function useChatStream({
+  agentScope,
+  allWorkspaces,
+  modelLabel,
+  scopeLabel,
+  onActiveSessionChange,
+  conversationSessionIdRef,
+}: UseChatStreamOptions) {
+  const { t } = useI18n();
   const scopeKey = agentScopeKey(agentScope);
   const [messages, setMessages] = useState<AgentChatMessage[]>(
     () => getCachedThread(scopeKey),
@@ -37,11 +58,26 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
   const [relay, setRelay] = useState<RelayProgress | null>(null);
   const [pendingClarify, setPendingClarify] = useState<PendingClarification | null>(null);
   const [clarifyInput, setClarifyInput] = useState('');
+  const [clarificationAnswering, setClarificationAnswering] = useState(false);
+  const [clarificationError, setClarificationError] = useState<string | null>(null);
   const toolIdCounter = useRef(0);
   const activeUnsubsRef = useRef<(() => void)[]>([]);
   const streamingMsgIdx = useRef(-1);
   const messagesRef = useRef(messages);
+  const scopeEpochRef = useRef(0);
   messagesRef.current = messages;
+  const resetTurnState = useCallback(() => {
+    setLoading(false);
+    setStreamingTools([]);
+    setExpandedTools(new Set());
+    setRelay(null);
+    streamingMsgIdx.current = -1;
+    setActiveSessionId(null);
+    setPendingClarify(null);
+    setClarifyInput('');
+    setClarificationAnswering(false);
+    setClarificationError(null);
+  }, []);
 
   const cleanupSubscriptions = useCallback(() => {
     for (const unsubscribe of activeUnsubsRef.current) {
@@ -55,33 +91,20 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
 
   useLayoutEffect(() => {
     if (previousScopeKeyRef.current === scopeKey) return;
+    scopeEpochRef.current += 1;
     cacheThread(previousScopeKeyRef.current, messagesRef.current);
-    // Keep the currently rendered thread intact until the next scope's
-    // history arrives. Clearing or swapping to a per-scope cache here makes
-    // a scope switch look like a page refresh even though the component
-    // itself stays mounted.
     previousScopeKeyRef.current = scopeKey;
   }, [scopeKey]);
 
   useEffect(() => () => {
+    scopeEpochRef.current += 1;
     cacheThread(previousScopeKeyRef.current, messagesRef.current);
   }, []);
 
   useEffect(() => {
-    setActiveSessionId(null);
-    setPendingClarify(null);
-    setClarifyInput('');
-    // A scope switch mid-turn unsubscribes the stream events below, so the
-    // completion event that would normally reset these never arrives —
-    // without this the new scope starts with a permanently spinning
-    // composer and stale tool chips.
-    setLoading(false);
-    setStreamingTools([]);
-    setRelay(null);
-    streamingMsgIdx.current = -1;
-
+    resetTurnState();
     return cleanupSubscriptions;
-  }, [cleanupSubscriptions, scopeKey]);
+  }, [cleanupSubscriptions, resetTurnState, scopeKey]);
 
   const replaceMessages = useCallback((nextMessages: AgentChatMessage[]) => {
     cacheThread(scopeKey, nextMessages);
@@ -98,22 +121,62 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         message.role === 'assistant' && message.toolCalls?.length ? [index] : []
       )),
     ));
-    // Tool ids are minted per turn; after a wholesale message swap the old
-    // ids never come back, so drop their expansion state instead of letting
-    // the set grow (and avoid stale chips from a superseded stream).
     setExpandedTools(new Set());
     setStreamingTools([]);
   }, [scopeKey]);
 
-  const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
-    const text = rawText.trim();
-    if ((!text && attachments.length === 0) || loading) return false;
+  const handleRemoteRunState = useCallback((state: {
+    active: boolean;
+    sessionId?: string;
+    pendingClarification?: PendingClarification;
+  }) => {
+    setLoading(state.active);
+    setActiveSessionId(state.active ? state.sessionId ?? null : null);
+    setPendingClarify(state.active ? state.pendingClarification ?? null : null);
+    if (!state.active || !state.pendingClarification) {
+      setClarifyInput('');
+      setClarificationAnswering(false);
+      setClarificationError(null);
+    }
+  }, []);
 
+  const { busyElsewhere, claimScope, releaseScope, trackScopeRun } = useChatScopeActivity({
+    scope: agentScope,
+    scopeKey,
+    onExternalRunComplete: replaceMessages,
+    onRemoteRunState: handleRemoteRunState,
+  });
+  const { addImageToCanvas, appendTurnFailure, applyResolvedModel } = useChatMessageActions(
+    workspaceId,
+    setMessages,
+  );
+
+  const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
+    const turnEpoch = scopeEpochRef.current;
+    const { isCurrent, guard } = createChatTurnEpochGuard(scopeEpochRef, turnEpoch);
+    const text = rawText.trim();
+    if (
+      (!text && attachments.length === 0)
+      || loading
+      || busyElsewhere
+      || !claimScope()
+    ) return false;
+
+    const contextSnapshot = createTurnContextSnapshot(agentScope, requestContext, {
+      modelLabel: modelLabel ?? t('models.auto'),
+      scopeLabel: scopeLabel ?? (agentScope.kind === 'global' ? t('chat.scope.global') : agentScope.kind === 'scheduled' ? t('chat.scope.scheduled') : agentScope.workspaceId),
+    });
+    const persistedRequestContext: AgentRequestContext = {
+      ...requestContext,
+      expectedConversationSessionId: conversationSessionIdRef?.current,
+      contextSnapshot,
+    };
     const userMessage: AgentChatMessage = {
       role: 'user',
       content: text,
       timestamp: Date.now(),
       attachments: attachments.length > 0 ? attachments : undefined,
+      contextSnapshot,
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -123,32 +186,33 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       const mentionedWorkspaceIds = workspaceId
         ? extractMentionedWorkspaceIds(text, allWorkspaces, workspaceId)
         : extractMentionedWorkspaceIds(text, allWorkspaces, '');
-      const result = await window.canvasWorkspace.agent.chat(
+      const result = await window.canvasWorkspace.agent.prepareChat(
         { scope: agentScope },
         text,
         mentionedWorkspaceIds.length > 0 ? mentionedWorkspaceIds : undefined,
-        requestContext,
+        persistedRequestContext,
         attachments.length > 0 ? attachments : undefined,
       );
 
       if (!result.ok || !result.sessionId) {
-        setMessages(prev => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: `Error: ${result.error ?? 'Failed to start chat'}`,
-            timestamp: Date.now(),
-          },
-        ]);
-        setLoading(false);
+        releaseScope();
+        if (!isCurrent()) return false;
+        appendTurnFailure(result.error ?? t('chat.turn.startFailed'));
+        resetTurnState();
         return false;
       }
 
       const sessionId = result.sessionId;
-      // One turn = 1..N segments (a multi-role relay); each segment owns its
-      // own bubble + tool list. Lifecycle lives in relayTurnHandlers.ts.
+      if (!isCurrent()) {
+        await window.canvasWorkspace.agent.cancelPreparedChat(sessionId).catch(() => undefined);
+        releaseScope();
+        return false;
+      }
       const segment = createSegmentState();
       setActiveSessionId(sessionId);
+      let turnClosed = false;
+      let cancelWatchdog: () => void = () => undefined;
+      let turnUnsubs: Array<() => void> = [];
 
       const ensureAssistantMessage = () => {
         if (segment.msgIndex >= 0) return;
@@ -161,18 +225,13 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       };
 
       const cleanupTurn = () => {
-        unsubscribeDelta();
-        unsubscribeComplete();
-        unsubscribeToolCall();
-        unsubscribeToolResult();
-        unsubscribeToolInputStart();
-        unsubscribeToolInputDelta();
-        unsubscribeToolInputEnd();
-        unsubscribeVisualStream();
-        unsubscribeClarify();
-        unsubscribeRoleTurnStart();
-        unsubscribeRoleTurnEnd();
-        activeUnsubsRef.current = [];
+        turnClosed = true;
+        cancelWatchdog();
+        releaseScope();
+        for (const unsubscribe of turnUnsubs) unsubscribe();
+        activeUnsubsRef.current = activeUnsubsRef.current.filter(
+          unsubscribe => !turnUnsubs.includes(unsubscribe),
+        );
       };
 
       const publishTools = () => {
@@ -183,23 +242,10 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         }
       };
 
-      const textDeltaBatcher = createTextDeltaBatcher({
-        // A fixed visual cadence avoids turning 120Hz+ displays back into
-        // hundreds of whole-message Markdown parses per response. 32ms is
-        // still perceptually continuous for generated text while leaving
-        // most frames free for input, scrolling, and canvas work.
-        schedule: callback => window.setTimeout(callback, 32),
-        cancelScheduled: handle => window.clearTimeout(handle),
-        onFlush: (delta) => {
-          count('chat-stream-commit');
-          setMessages(prev => {
-            const index = segment.msgIndex;
-            if (index < 0 || index >= prev.length) return prev;
-            const next = [...prev];
-            next[index] = { ...next[index], content: next[index].content + delta };
-            return next;
-          });
-        },
+      const textDeltaBatcher = createMessageDeltaBatcher({
+        segment,
+        setMessages,
+        isCurrent,
       });
 
       const findTool = (toolCallId: string | undefined, name?: string) => {
@@ -213,38 +259,34 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         return undefined;
       };
 
-      // Input streaming: starts BEFORE the LLM has finished emitting tool args.
-      // We create the ToolCallStatus here so the chat UI can render a
-      // progressive preview (e.g. a streaming inline visual) keyed off the
-      // toolCallId before the final tool-call chunk arrives.
-      const unsubscribeToolInputStart = window.canvasWorkspace.agent.onToolInputStart(sessionId, data => {
+      const unsubscribeToolInputStart = window.canvasWorkspace.agent.onToolInputStart(sessionId, guard(data => {
         ensureAssistantMessage();
         upsertToolInputStart(segment.tools, data, () => ++toolIdCounter.current);
         publishTools();
-      });
+      }));
 
-      const unsubscribeToolInputDelta = window.canvasWorkspace.agent.onToolInputDelta(sessionId, data => {
+      const unsubscribeToolInputDelta = window.canvasWorkspace.agent.onToolInputDelta(sessionId, guard(data => {
         const tool = findTool(data.id);
         if (!tool) return;
         tool.partialInput = (tool.partialInput ?? '') + data.delta;
         publishTools();
-      });
+      }));
 
-      const unsubscribeToolInputEnd = window.canvasWorkspace.agent.onToolInputEnd(sessionId, data => {
+      const unsubscribeToolInputEnd = window.canvasWorkspace.agent.onToolInputEnd(sessionId, guard(data => {
         const tool = findTool(data.id);
         if (!tool) return;
         tool.inputStreaming = false;
         publishTools();
+      }));
+
+      const unsubscribeVisualStream = subscribeVisualStream({
+        workspaceId,
+        findTool: (...args) => isCurrent() ? findTool(...args) : undefined,
+        publishTools: guard(publishTools),
       });
 
-      // Side-channel visual_render chunks (see visualStreamSubscription.ts).
-      const unsubscribeVisualStream = subscribeVisualStream({ workspaceId, findTool, publishTools });
-
-      const unsubscribeToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, data => {
+      const unsubscribeToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, guard(data => {
         ensureAssistantMessage();
-        // If we already created a ToolCallStatus for this id during input
-        // streaming, merge the fully-parsed args in. Otherwise (e.g. a model
-        // that doesn't stream tool input), create one now.
         const existing = findTool(data.toolCallId, data.name);
         if (existing) {
           existing.args = data.args;
@@ -259,27 +301,28 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
           });
         }
         publishTools();
-      });
+      }));
 
-      const unsubscribeToolResult = window.canvasWorkspace.agent.onToolResult(sessionId, data => {
+      const unsubscribeToolResult = window.canvasWorkspace.agent.onToolResult(sessionId, guard(data => {
         markToolResult(segment.tools, data);
         publishTools();
-      });
+      }));
 
-      const unsubscribeDelta = window.canvasWorkspace.agent.onTextDelta(sessionId, delta => {
+      const unsubscribeDelta = window.canvasWorkspace.agent.onTextDelta(sessionId, guard(delta => {
         ensureAssistantMessage();
         count('chat-stream-delta');
         textDeltaBatcher.push(delta);
-      });
+      }));
 
-      const unsubscribeClarify = window.canvasWorkspace.agent.onClarifyRequest(sessionId, request => {
+      const unsubscribeClarify = window.canvasWorkspace.agent.onClarifyRequest(sessionId, guard(request => {
         ensureAssistantMessage();
-        setPendingClarify({ id: request.id, question: request.question, context: request.context });
+        setPendingClarify(request);
         setClarifyInput('');
-      });
+        setClarificationError(null);
+      }));
 
       const segmentHandlers = createRelayTurnHandlers({
-        segment,
+        segment, unresolvedToolError: t('chat.toolCalls.noResult'),
         streamingMsgIdx,
         flushDeltas: () => textDeltaBatcher.flush(),
         setMessages,
@@ -289,36 +332,50 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         setRelay,
       });
       const unsubscribeRoleTurnStart = window.canvasWorkspace.agent.onRoleTurnStart(
-        sessionId, segmentHandlers.handleRoleTurnStart,
+        sessionId, guard(segmentHandlers.handleRoleTurnStart),
       );
       const unsubscribeRoleTurnEnd = window.canvasWorkspace.agent.onRoleTurnEnd(
-        sessionId, segmentHandlers.handleRoleTurnEnd,
+        sessionId, guard(segmentHandlers.handleRoleTurnEnd),
       );
 
-      const unsubscribeComplete = window.canvasWorkspace.agent.onChatComplete(sessionId, completeResult => {
+      const unsubscribeComplete = window.canvasWorkspace.agent.onChatComplete(sessionId, guard(completeResult => {
+        if (turnClosed) return;
         textDeltaBatcher.flush();
         cleanupTurn();
-        settleRunningTools(segment.tools);
+        if (completeResult.code === 'CHAT_SESSION_CHANGED') {
+          void recoverChangedChatSession({
+            scope: agentScope, isCurrent, replaceMessages,
+            adoptSession: onActiveSessionChange,
+            appendFailure: appendTurnFailure,
+            reset: resetTurnState,
+            error: completeResult.error ?? t('chat.sessionChanged'),
+          });
+          return;
+        }
+        settleRunningTools(
+          segment.tools,
+          completeResult.stopped ? 'cancelled' : 'failed',
+          completeResult.stopped ? t('chat.toolCalls.cancelled') : t('chat.toolCalls.noResult'),
+        );
         const toolSnapshot = segment.tools.length > 0 ? segment.tools.map(tool => ({ ...tool })) : undefined;
         if (segment.msgIndex >= 0 && toolSnapshot) {
-          setCollapsedSections(prev => new Set(prev).add(segment.msgIndex));
+          setCollapsedSections(prev => {
+            const next = new Set(prev);
+            if (toolSnapshot.some(tool => tool.status === 'failed' || tool.status === 'cancelled')) {
+              next.delete(segment.msgIndex);
+            } else {
+              next.add(segment.msgIndex);
+            }
+            return next;
+          });
         }
 
-        // Frozen segments (role-turn-end) are final; this only settles a
-        // still-in-flight bubble or appends an error message.
-        applyTurnCompletion({ completeResult, segment, toolSnapshot, setMessages });
+        applyTurnCompletion({ completeResult, segment, toolSnapshot, setMessages, failureFallback: t('chat.turn.failure.unknown') });
 
-        setStreamingTools([]);
-        setExpandedTools(new Set());
-        setRelay(null);
-        streamingMsgIdx.current = -1;
-        setActiveSessionId(null);
-        setPendingClarify(null);
-        setClarifyInput('');
-        setLoading(false);
-      });
+        resetTurnState();
+      }));
 
-      activeUnsubsRef.current.push(
+      turnUnsubs = [
         unsubscribeToolCall,
         unsubscribeToolResult,
         unsubscribeToolInputStart,
@@ -331,158 +388,110 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         unsubscribeRoleTurnStart,
         unsubscribeRoleTurnEnd,
         textDeltaBatcher.cancel,
-      );
+        () => cancelWatchdog(),
+      ];
+      activeUnsubsRef.current.push(...turnUnsubs);
+
+      const startResult = await window.canvasWorkspace.agent.startChat(sessionId);
+      if (!isCurrent()) {
+        cleanupTurn();
+        return false;
+      }
+      if (!startResult.ok) {
+        cleanupTurn();
+        appendTurnFailure(startResult.error ?? t('chat.turn.startFailed'));
+        resetTurnState();
+        return false;
+      }
+      applyResolvedModel(userMessage.timestamp, {
+        modelProvider: startResult.modelProvider,
+        modelId: startResult.modelId,
+        modelLabel: startResult.modelLabel ?? contextSnapshot.modelLabel,
+      });
+      trackScopeRun(sessionId);
+      if (!turnClosed) {
+        cancelWatchdog = startChatRunWatchdog({
+          getRunStatus: () => window.canvasWorkspace.agent.getRunStatus(sessionId),
+          recoverHistory: () => window.canvasWorkspace.agent.getHistory({ scope: agentScope }),
+          onRecovered: guard((historyMessages) => {
+            cleanupTurn();
+            replaceMessages(historyMessages);
+            resetTurnState();
+          }),
+          onRecoveryFailed: guard((error) => {
+            cleanupTurn();
+            appendTurnFailure(error);
+            resetTurnState();
+          }),
+        });
+      }
 
       return true;
     } catch (error) {
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `Error: ${String(error)}`,
-          timestamp: Date.now(),
-        },
-      ]);
-      setLoading(false);
-      setActiveSessionId(null);
-      setRelay(null);
-      setPendingClarify(null);
-      setClarifyInput('');
+      releaseScope();
+      if (!isCurrent()) return false;
+      appendTurnFailure(error);
+      resetTurnState();
       return false;
     }
-  }, [agentScope, allWorkspaces, loading, workspaceId]);
+  }, [
+    agentScope,
+    allWorkspaces,
+    applyResolvedModel,
+    appendTurnFailure,
+    busyElsewhere,
+    claimScope,
+    conversationSessionIdRef,
+    loading,
+    modelLabel,
+    onActiveSessionChange,
+    replaceMessages,
+    releaseScope,
+    resetTurnState,
+    scopeLabel, t,
+    trackScopeRun,
+    workspaceId,
+  ]);
+  const { abort, stopRelay } = useChatRunControls({
+    activeSessionId,
+    setRelay,
+    setPendingClarify,
+    setClarifyInput,
+  });
 
-
-  const addImageToCanvas = useCallback(async (imagePath: string, title?: string) => {
-    if (!workspaceId) return;
-    const result = await window.canvasWorkspace.agent.addImageToCanvas(workspaceId, imagePath, title);
-    if (!result.ok) {
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `Error adding image to canvas: ${result.error ?? 'Unknown error'}`,
-          timestamp: Date.now(),
-        },
-      ]);
-    }
-  }, [workspaceId]);
-
-  /** Graceful relay stop: current speaker finishes, queued speakers are skipped. */
-  const stopRelay = useCallback(async () => {
-    const sessionId = activeSessionId;
-    if (!sessionId) return;
-    setRelay(prev => (prev ? { ...prev, stopping: true } : prev));
-    try {
-      await window.canvasWorkspace.agent.stopRelay(sessionId);
-    } catch (error) {
-      console.error('[chat-panel] stop-relay failed:', error);
-    }
-  }, [activeSessionId]);
-
-  const abort = useCallback(async () => {
-    const sessionId = activeSessionId;
-    if (!sessionId) return;
-
-    setPendingClarify(null);
-    setClarifyInput('');
-
-    try {
-      await window.canvasWorkspace.agent.abort(sessionId);
-    } catch (error) {
-      console.error('[chat-panel] abort failed:', error);
-    }
-  }, [activeSessionId]);
-
-  const answerClarification = useCallback(async () => {
+  const answerClarification = useCallback(async (answerOverride?: string) => {
     const pending = pendingClarify;
     const sessionId = activeSessionId;
     if (!pending || !sessionId) return;
 
-    const answer = clarifyInput.trim();
+    const answer = (answerOverride ?? clarifyInput).trim();
     if (!answer) return;
 
-    setPendingClarify(null);
-    setClarifyInput('');
-
+    setClarificationError(null);
+    setClarificationAnswering(true);
     try {
-      await window.canvasWorkspace.agent.answerClarification(sessionId, pending.id, answer);
+      const result = await window.canvasWorkspace.agent.answerClarification(sessionId, pending.id, answer);
+      if (!result.ok) {
+        setClarificationError(result.error ?? t('chat.clarificationDeliveryFailed'));
+        return;
+      }
+      setPendingClarify(current => current?.id === pending.id ? null : current);
+      setClarifyInput('');
     } catch (error) {
-      console.error('[chat-panel] clarification answer failed:', error);
+      setClarificationError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setClarificationAnswering(false);
     }
-  }, [activeSessionId, clarifyInput, pendingClarify]);
+  }, [activeSessionId, clarifyInput, pendingClarify, t]);
 
-  /**
-   * Drop the conversation tail at and after `fromIndex` in both the
-   * renderer's local state and the main-process session, so the next
-   * `sendMessage` starts from a clean prefix. Used by edit / regenerate.
-   */
-  const rewindTo = useCallback(async (fromIndex: number): Promise<boolean> => {
-    if (loading) return false;
-    if (fromIndex < 0) return false;
-    setMessages(prev => (fromIndex < prev.length ? prev.slice(0, fromIndex) : prev));
-    setMessageTools(prev => {
-      const next = new Map<number, ToolCallStatus[]>();
-      prev.forEach((tools, idx) => {
-        if (idx < fromIndex) next.set(idx, tools);
-      });
-      return next;
-    });
-    setCollapsedSections(prev => {
-      const next = new Set<number>();
-      prev.forEach(idx => {
-        if (idx < fromIndex) next.add(idx);
-      });
-      return next;
-    });
-    try {
-      const result = await window.canvasWorkspace.agent.rewindMessages({ scope: agentScope }, fromIndex);
-      return !!result?.ok;
-    } catch (error) {
-      console.error('[chat-panel] rewind failed:', error);
-      return false;
-    }
-  }, [agentScope, loading]);
-
-  /**
-   * Replace the user message at `userIndex` with `newContent` and
-   * re-run the turn. Drops every message at and after `userIndex` first.
-   */
-  const editUserMessage = useCallback(async (
-    userIndex: number,
-    newContent: string,
-    requestContext?: AgentRequestContext,
-  ): Promise<boolean> => {
-    const trimmed = newContent.trim();
-    if (!trimmed || loading) return false;
-    const original = messages[userIndex];
-    if (!original || original.role !== 'user') return false;
-    const ok = await rewindTo(userIndex);
-    if (!ok) return false;
-    return await sendMessage(trimmed, requestContext, original.attachments ?? []);
-  }, [loading, messages, rewindTo, sendMessage]);
-
-  /**
-   * Regenerate the assistant reply at `assistantIndex` by replaying the
-   * preceding user turn. Drops both messages (and everything after)
-   * before re-sending.
-   */
-  const regenerateAssistantMessage = useCallback(async (
-    assistantIndex: number,
-    requestContext?: AgentRequestContext,
-  ): Promise<boolean> => {
-    if (loading) return false;
-    const assistant = messages[assistantIndex];
-    if (!assistant || assistant.role !== 'assistant') return false;
-    // Walk back to the most recent user turn that triggered this reply.
-    let userIndex = assistantIndex - 1;
-    while (userIndex >= 0 && messages[userIndex].role !== 'user') userIndex--;
-    if (userIndex < 0) return false;
-    const userMessage = messages[userIndex];
-    const ok = await rewindTo(userIndex);
-    if (!ok) return false;
-    return await sendMessage(userMessage.content, requestContext, userMessage.attachments ?? []);
-  }, [loading, messages, rewindTo, sendMessage]);
+  const branching = useConversationBranching({
+    agentScope,
+    loading,
+    messages,
+    replaceMessages,
+    sendMessage,
+    onActiveSessionChange,
+  });
 
   const toggleSection = useCallback((messageIndex: number) => {
     setCollapsedSections(prev => {
@@ -508,20 +517,26 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
     stopRelay,
     addImageToCanvas,
     answerClarification,
+    busyElsewhere,
     clarifyInput,
+    clarificationAnswering,
+    clarificationError,
+    branchError: branching.branchError,
     collapsedSections,
-    editUserMessage,
+    conversationBranch: branching.conversationBranch,
+    editUserMessage: branching.editUserMessage,
     expandedTools,
     loading,
     messageTools,
     messages,
     pendingClarify,
-    regenerateAssistantMessage,
+    regenerateAssistantMessage: branching.regenerateAssistantMessage,
     replaceMessages,
     sendMessage,
     setClarifyInput,
     streamingTools,
     toggleSection,
     toggleToolExpand,
+    undoConversationBranch: branching.undoConversationBranch,
   };
 }

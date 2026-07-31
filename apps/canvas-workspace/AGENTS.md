@@ -79,6 +79,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | PATH for anything the app spawns | `src/main/shell-path.ts` — a GUI launch inherits a stripped PATH, and every child (agent `bash`, which the engine spawns with NO `env`, MCP stdio servers, the bundled CLI) takes `process.env` verbatim, so a missing binary surfaces as a bare "command not found". Repaired once in `bootstrap.ts` before any spawn: `augmentProcessPath()` (sync, well-known per-user bin dirs incl. `~/.pulse-coder/bin`) then a best-effort `applyLoginShellPath()` (async, timeout-bounded `$SHELL -ilc`, only ever widens). PTY env shares the same bin-dir list — do not fork a second copy. Tests: `src/main/__tests__/shell-path.test.ts` |
 | Main domain map | `harness/knowledge/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
 | Renderer routes and full-app surfaces | `harness/knowledge/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
+| Keyboard shortcuts | `src/renderer/src/shortcuts/` is the runtime SSOT — `definitions.ts` (the binding table), `types.ts`, `registry.ts` (matching + platform-correct labels). Behavior lives in the owner's handler table: `hooks/useCanvasKeyboard.ts` (owner `canvas`, gated on the visible unlocked canvas) and `hooks/useAppShortcuts.ts` (owner `app`, every route); both are `Record<ShortcutIdFor<'…'>, Handler>`, so a documented-but-unimplemented shortcut is a TYPE ERROR — that is what previously let `Cmd+Shift+A` ship in the help overlay and the palette with no handler while silently running select-all. Never hand-write a chord condition or a `'Cmd+D'` label again: the lazy `?` overlay (`components/AppShellProvider/ShortcutsDialog.tsx`) exhaustively maps runtime IDs to display metadata and derives combo labels from the registry; palette hints (`Canvas/hooks/useCanvasPaletteCommands.ts`) also derive from the registry. Keep help-only descriptions and gestures behind that lazy boundary instead of adding them to the startup matcher. Matching is EXACT on modifiers. macOS eats `Cmd+H`/`Cmd+Tab` before the renderer — use literal `ctrl: true` there. `editable: 'allow'` is what keeps a chord alive inside a text field or terminal (only for chords with no typing meaning). Menu accelerators in `src/main/app/menu.ts` outrank ALL of this: the Undo/Redo and zoom roles are deliberately gone so the canvas can own `Cmd+Z` and `Cmd+0/±`. Focus black holes are closed at the edges — webview guests forward a narrow whitelist (`src/shared/webview-shortcuts.ts` → `src/main/webview/shortcut-forwarding.ts` → `hooks/useWebviewShortcutBridge.ts`), and a focused terminal keeps Ctrl-chords but yields Cmd-chords and releases focus on double-Escape (`decideTerminalKey` in `AgentNodeBody/utils/terminal.ts`). Bound checks: the `keyboard-shortcuts` rule in `harness/validate/validation.yaml` |
 | Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
 | Add a capability spanning main + preload + renderer | `harness/skills/add-ipc-surface/SKILL.md` (ordered procedure — contract placement, streaming pattern, bootstrap wire, lockstep rule) |
 | Canvas node/edge schema | `src/shared/canvas.ts` |
@@ -98,6 +99,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Artifact pin lifecycle + Library drawer | `src/main/artifacts/ipc.ts` — pin refuses sentinel (`__*`) scopes, dedupes against a live mirror, list/get lazily clear a stale `pinnedNodeId`, delete removes the canvas mirror node; `artifact:list-all` (metadata-only summaries) skips `__*` dirs EXCEPT `__global_chat__` (session-store sentinel rule — a blanket skip silently hides global artifacts). Library drawer = renamed ReferenceDrawer: Pinned entries persist per workspace via the `references` IPC domain (`src/main/references/`, `src/shared/references.ts`, hydrate/save in `Workbench/useReferenceEntries.ts`); Artifacts source tab is `ReferenceDrawer/ArtifactsPicker.tsx` (cross-scope pin disabled by design). Tests: `src/main/artifacts/__tests__/pin-lifecycle.test.ts` |
 | Headless (background) agent runs | `src/main/agent/headless-run.ts` (one-shot bounded Engine run: no session store, `builtInTools:{}` = structurally read-only, wall-clock timeout, never throws), `src/main/agent/memory-report.ts` (first consumer — cross-workspace memory report as self-contained HTML; adoption stays interactive-only; scheduled entry archives to `<memory>/reports/` with rolling retention AND publishes a `__global_chat__`-scoped artifact, surfaced by an OS notification whose click pushes `dock:open-artifact`). Tests: `src/main/agent/__tests__/headless-run.test.ts` |
 | Scheduled tasks | `src/main/scheduled/` — stable top-level Scheduled surface with persisted user-defined tasks, an exact next-due main-process timer backed by a 30-minute heartbeat, startup/resume catch-up, manual run-now, and one isolated durable Agent chat scope per task. Cadence is the `ScheduledSchedule` union in `src/shared/scheduled.ts`: `interval` (relative, minimum 30 minutes, anchored at create/enable/last-attempt) or `daily`/`weekly` at a LOCAL wall-clock `HH:mm`. `computeNextRunAt` is the single next-run authority for all three kinds — use local `Date` field arithmetic there, never fixed millisecond offsets, so absolute slots survive DST. A slot missed while the app was closed runs ONCE on catch-up and then realigns to the next slot (never one run per missed slot); failed attempts consume the current slot rather than hot-looping. Pre-`schedule` records carrying `intervalMinutes` are lifted into the union on read (`migratePersistedTask`); the field is gone from the live contract. The built-in weekly memory-report prompt is seeded idempotently as a disabled Scheduled task on `weekly` Monday 09:00 local; it is no longer an Experimental entry. Seeding is one-shot by design — an install that already carries the task keeps its stored schedule, so the Monday default reaches new installs only. A finished attempt — success AND failure — is announced by `announceRunFinished` (`scheduled/runtime.ts`) as a `scheduled:run-finished` push that `useScheduledRunToasts` turns into a STICKY toast (`autoCloseMs: 0`); its action opens the task's conversation in the DOCK's Pulse AI tab (`useScheduledRunChatOpener` → `dock.openScheduledChat`), the same surface `Run now` uses — acting on a finished run must never navigate the whole app onto the AI Chat page and lose what the user was looking at. Routing to `/chat?scheduledTask=<id>` survives only as the fallback for views that hide the dock chat tab; `isDockChatTabEnabled` (`components/RightDock/dock-chat-availability.ts`) is the single predicate behind BOTH that fallback and the dock's `chatTabEnabled` prop, because a caller that assumes a dock chat tab where there is none swallows the open silently. The same module derives `isGlobalChatLauncherVisible` — the floating Pulse-logo launcher (`RightDock/GlobalChatLauncher.tsx`) shows on every route that has a dock chat tab and no chat chrome of its own, canvas being the one exception; deriving it stopped the Scheduled page from being hand-excluded with no way to reach the agent (`__tests__/dock-chat-availability.test.ts`). Each task's chat is a session STORE (`__scheduled__-<taskId>`), listed in that rail beside workspaces and global chat — `src/shared/agent-chat.ts` owns the store-id vocabulary (`scopeSessionStoreId`, `scheduledTaskIdFromStoreId`, `isListableSessionStore`), and every consumer that maps a listed session back to a scope MUST go through it: a sentinel store id treated as a workspace id activates an agent against a workspace that does not exist. `__`-prefixed stores are allowlisted, never blanket-skipped (that is what hid scheduled chats from the rail). Deliberately in-app only: OS `Notification` was tried and removed (Focus modes, missing notification daemons, unsigned dev builds, and Windows-without-AppUserModelID all drop it silently, and it needed a retained-reference dance to survive GC), so do not reintroduce a second channel — `scheduled-run-notify.test.ts` asserts none is raised. A run finishes while nobody is watching, so the toast must never expire on a timer. IPC contract: `src/shared/scheduled.ts` → `src/preload/bridge/scheduled.ts` → renderer `components/Scheduled/`; list rows are presentational — every action is an explicit button, and the time picker is hour/minute `ui/Select`s, never a native `<input type="time">`. Chat entry: `scheduled_task_list`/`_create`/`_update` in `src/main/agent/tools/scheduled.ts` — app-level, so registered UNWRAPPED on both tool factories, all `defer_loading`, no delete (see `harness/knowledge/security-posture.md` for why); it dynamic-imports `scheduled/runtime` to avoid the tools→runtime→agent-service module cycle. Tests: `src/shared/scheduled.test.ts` (schedule validation + next-run math), `src/main/__tests__/scheduled-task-service.test.ts`, `src/main/__tests__/scheduled-run-notify.test.ts` (completion push, success AND failure, and no OS notification), `components/Scheduled/__tests__/useScheduledRunToasts.test.tsx` (sticky toast), `components/Scheduled/__tests__/scheduledChatTarget.test.ts` (dock-by-default vs route fallback), `src/main/agent/__tests__/scheduled-tools.test.ts`, `components/Scheduled/__tests__/TaskEditorModal.test.tsx` + `ScheduledPage.test.tsx`, plus scheduled-scope coverage in `src/main/agent/__tests__/service-history.test.ts`. |
+| Dock web tabs (the embedded browser) | Read `harness/knowledge/dock-browser.md` before changing guest navigation, identity/routing, retention, focus, shortcuts, or tab overflow. Key contracts: `src/shared/webview-registration.ts`, `src/shared/link-open.ts`, `src/shared/dock-shortcuts.ts`; main policy/registry under `src/main/app/` + `src/main/webview/`; renderer ownership under `IframeNodeBody/webview-identities.ts`, `RightDock/`, and `LinkDrawer/`. |
 | Add a capability shared by Tool + CLI | `../../harness/skills/add-canvas-capability/SKILL.md`; use `harness/skills/add-agent-tool/SKILL.md` for the optional task-specific Canvas Agent adapter |
 | Agent teams | `src/main/agent-teams/`, `src/renderer/src/components/AgentTeamFrame/` |
 | Runtime-control server | `src/main/runtime/control-server.ts` |
@@ -155,12 +157,60 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   session lists, so an unguarded check-then-initialize creates duplicate
   engines for one scope and makes session switching visibly stall. Guard:
   `src/main/agent/__tests__/service-history.test.ts`.
+- One chat scope has one authoritative run and one session-mutation lane.
+  `ActiveChatRegistry` owns IPC-visible run identity/abort/reconnect, while
+  `SessionMutationCoordinator` serializes chat against new/load/branch/delete/
+  rename/pin/import mutations; renderer scope activity is only a UX mirror.
+  Current senders must use prepare → subscribe → start: prepare reserves the
+  scope before returning, start upgrades that reservation and freezes the
+  main-resolved model into the persisted turn snapshot. A reservation owns the
+  run's AbortController so hard Stop latches even before start. The renderer
+  also sends its visible conversation-session id; after the mutation lane is
+  idle, main must compare-and-swap that pointer before calling the agent and
+  return the authoritative history on mismatch. Guards: `active-chat-registry.test.ts`,
+  `prepared-chat.test.ts`, `chat-protocol.test.ts`, `chat-session-cas.test.ts`,
+  and `__tests__/service-session-mutation.test.ts`.
+- The renderer has one visible approval card, so main must serialize concurrent
+  clarification requests and start each timeout only when that request becomes
+  visible. Answering one request must reveal, not clear, the next queued
+  request. Guard: `clarification-registry.test.ts`.
+- Conversation pointer changes are fail-closed. Archive publication and the
+  replacement current-session write must complete before the in-memory pointer
+  advances; queued persistence failures must remain observable through
+  `flush()`, while the serialization tail stays usable for repair. Archive
+  filenames must remain collision-safe even when timestamps and titles match.
+  Once a promoted session is durably current, cleanup of its stale archive
+  copies is best-effort: a cleanup failure must not report that the already
+  committed pointer change failed. Deleting the current session reverses that
+  order: stale data copies are removed before publishing the replacement
+  pointer, while post-commit metadata cleanup is best-effort.
+  Guard: `src/main/agent/__tests__/session-store.test.ts`.
+- Chat image uploads are bounded again in main before a prepared run is
+  accepted. Explicitly removing a ready draft attachment deletes its saved
+  file; clearing a successfully sent draft must retain the file because
+  session history references it. A failed turn must persist the live tool-call
+  snapshot and settle unfinished tools so reload matches the streamed UI.
+  Guards: `useChatAttachments.test.tsx`, `chat-protocol.test.ts`, and
+  `chat-failure-persistence.test.ts`.
+- An external-role driver rejection after its AbortSignal fires is a stopped
+  turn, never a failed turn. Preserve streamed partial text, merge live tool
+  events that the rejected driver could not return, and settle unfinished
+  tools as cancelled. Guards: `segment-execution.test.ts` and
+  `chat-stop.test.ts`.
 - The full-screen chat rail is one stable cross-scope projection. Do not swap
   per-scope list caches into it or fetch a list while `loadSession` is
   promoting an archive: either path can duplicate/reorder rows under the
   pointer and move the scroll position. Commit current/other lists together
   after promotion; guards live in `useChatSessions.test.tsx` and
   `ChatSessionsRail.test.tsx`.
+- Chat-target registration is synchronously observed at the app root. Props
+  that feed a mounted `ChatPanel` target or its registered handlers must use
+  stable empty collection fallbacks; an inline `[]` makes the target unregister
+  and re-register on every broker-driven root render, reaches React's maximum
+  update depth, and clears the renderer. Workbench's node and selection
+  fallbacks are module constants and are covered by
+  `Workbench/__tests__/ChatDockLifecycle.test.tsx`; knowledge chat applies the
+  same stable-fallback rule, but is not exercised by that guard.
 - The app owns v2 canvas storage migration, PTY sessions, runtime-control
   endpoints, plugin activation, and UI-visible data recovery. The CLI adapts to
   those contracts but does not own them.
@@ -255,9 +305,9 @@ pnpm --filter canvas-workspace package:linux
   previews. Link tabs register their live webviews under the stable dock tab id;
   a link tab's webview mounts lazily on first activation (DockPanes gates
   `LinkTabView`'s `mountWebview`) so restored docks don't spawn one guest
-  process per tab on the cold-start path — once mounted it stays mounted, and
-  agent tools that activate a tab before reading it poll for the registration
-  via `main/webview/ensure-operable.ts`.
+  process per tab on the cold-start path — once mounted it stays resident until
+  an explicit eligible L3 Memory Saver discard, and agent tools that activate a
+  tab before reading it poll for registration via `main/webview/ensure-operable.ts`.
   page-element selection must reuse the shared iframe DOM picker/selection
   context and route the result through Workbench's active-workspace chat bridge.
   That bridge must queue selections until the target composer registers; opening

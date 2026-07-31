@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 const canvasAgentState = vi.hoisted(() => ({
   initialize: vi.fn(async () => undefined),
+  chat: vi.fn(),
+  getCurrentSessionId: vi.fn(() => 'session-current'),
   getHistory: vi.fn(() => [{ role: 'user', content: 'previous chat', timestamp: 1 }]),
   listSessions: vi.fn(async () => [{
     sessionId: 'session-current',
@@ -13,6 +15,8 @@ const canvasAgentState = vi.hoisted(() => ({
   configs: [] as unknown[],
   instances: [] as Array<{
     initialize: () => Promise<void>;
+    chat: (...args: unknown[]) => Promise<unknown>;
+    getCurrentSessionId: () => string;
     getHistory: () => unknown[];
     listSessions: () => Promise<unknown[]>;
   }>,
@@ -22,6 +26,8 @@ vi.mock('../canvas-agent', () => ({
   CanvasAgent: vi.fn().mockImplementation((config) => {
     const instance = {
       initialize: canvasAgentState.initialize,
+      chat: canvasAgentState.chat,
+      getCurrentSessionId: canvasAgentState.getCurrentSessionId,
       getHistory: canvasAgentState.getHistory,
       listSessions: canvasAgentState.listSessions,
     };
@@ -97,5 +103,48 @@ describe('CanvasAgentService history', () => {
         preview: '',
       }],
     }]);
+  });
+
+  it('forwards an abort that arrives while scope activation is still pending', async () => {
+    let finishInitialization: (() => void) | undefined;
+    const initializationGate = new Promise<undefined>((resolve) => {
+      finishInitialization = () => resolve(undefined);
+    });
+    let receivedSignal: AbortSignal | undefined;
+    canvasAgentState.initialize.mockImplementationOnce(() => initializationGate);
+    canvasAgentState.chat.mockImplementationOnce(async (...args: unknown[]) => {
+      receivedSignal = args.find((arg): arg is AbortSignal => arg instanceof AbortSignal);
+      return { response: '', stopped: receivedSignal?.aborted };
+    });
+    const service = new CanvasAgentService();
+    const scope = { kind: 'workspace', workspaceId: 'ws-abort-during-activation' } as const;
+    const controller = new AbortController();
+
+    const responsePromise = service.chatWithScope(
+      scope,
+      'stop before activation finishes',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      controller.signal,
+    );
+    await vi.waitFor(() => {
+      expect(canvasAgentState.configs.at(-1)).toMatchObject({ scope });
+    });
+
+    controller.abort();
+    finishInitialization?.();
+
+    await expect(responsePromise).resolves.toMatchObject({ ok: true, stopped: true });
+    expect(receivedSignal?.aborted).toBe(true);
   });
 });

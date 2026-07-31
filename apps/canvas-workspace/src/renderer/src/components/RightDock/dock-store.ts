@@ -2,23 +2,48 @@
  * Owns activation, dedupe, workspace sessions, closing order, split pairing,
  * collapse retention, and chat unread policy. React binds with
  * `useSyncExternalStore` in components/RightDock. */
-import { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, nodeDetailTabId, terminalTabId } from './dock-tab-ids';
-import { DockLinkSessionStore, type DockSessionPersistence } from './dock-link-sessions';
+import { CHAT_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, nodeDetailTabId } from './dock-tab-ids';
+import {
+  closeTerminalCommit,
+  newTerminalCommit,
+  openTerminalCommit,
+  projectTerminalWorkspace,
+  renameTerminalCommit,
+  terminalWorkspaceFor,
+  type TerminalCommit,
+} from './dock-terminal-tabs';
+import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from './dock-link-sessions';
+import {
+  ClosedLinkTabStack,
+  allocateTabId,
+  updateRetainedLinkTabs,
+} from './dock-link-tabs';
+import {
+  getNavigateLinkPatch,
+  getNewLinkPatch,
+  getOpenLinkPatch,
+  getSetFaviconPatch,
+  getSetTitlePatch,
+  getSyncLinkUrlPatch,
+  type DockOpenLinkOptions,
+} from './dock-link-commands';
 import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
 import { applyDockSplitState, getSplitViewToggle } from './dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
 import { openSkillTab } from './dock-skill-tabs';
 import { getOpenChatPatch, getOpenScheduledChatPatch, getRefreshScheduledChatPatch } from './dock-chat-state';
 import { getToggleContentTabsPatch } from './dock-content-tabs';
+import { getOpenWorkspaceLinkMutation, getRetainedLinkTabMutation } from './dock-retained-links';
 import type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
 export { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, nodeDetailTabId, skillTabId, terminalTabId } from './dock-tab-ids';
 export type { DockLinkSession, DockLinkSessions, DockLinkTab, DockSessionPersistence } from './dock-link-sessions';
-export type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
+export type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState, RetainedLinkWorkspace } from './dock-types';
+export type { DockOpenLinkOptions } from './dock-link-commands';
 const DEFAULT_TERMINAL_WORKSPACE_ID = '__default__';
-const EMPTY_TERMINAL_TABS: DockTerminalTab[] = [];
 const INITIAL: DockState = {
   tabs: [],
+  retainedLinkTabs: [],
   activeTabId: CHAT_TAB_ID,
   expanded: false,
   chatUnread: false,
@@ -35,6 +60,7 @@ export class DockStore {
   private listeners = new Set<() => void>();
   private nextLinkOrdinal = 1;
   private readonly linkSessions: DockLinkSessionStore;
+  private readonly closedLinkTabs = new ClosedLinkTabStack();
 
   constructor(sessionPersistence?: DockSessionPersistence) {
     this.linkSessions = new DockLinkSessionStore(sessionPersistence);
@@ -61,31 +87,6 @@ export class DockStore {
     );
   }
 
-  private getTerminalWorkspace(workspaceId = this.state.activeTerminalWorkspaceId): DockTerminalWorkspaceState {
-    return this.state.terminalTabsByWorkspace[workspaceId] ?? {
-      tabs: EMPTY_TERMINAL_TABS,
-      activeTabId: undefined,
-      nextOrdinal: 1,
-    };
-  }
-
-  private projectTerminalWorkspace(
-    workspaceId = this.state.activeTerminalWorkspaceId,
-    workspaces = this.state.terminalTabsByWorkspace,
-  ): Pick<DockState, 'terminalTabs' | 'activeTerminalTabId' | 'nextTerminalOrdinal' | 'terminalOpen'> {
-    const workspace = workspaces[workspaceId];
-    const tabs = workspace?.tabs ?? EMPTY_TERMINAL_TABS;
-    const activeTerminalTabId = workspace?.activeTabId && tabs.some((tab) => tab.id === workspace.activeTabId)
-      ? workspace.activeTabId
-      : tabs[0]?.id;
-    return {
-      terminalTabs: tabs,
-      activeTerminalTabId,
-      nextTerminalOrdinal: workspace?.nextOrdinal ?? 1,
-      terminalOpen: tabs.length > 0,
-    };
-  }
-
   private commitTerminalWorkspace(
     workspaceId: string,
     workspace: DockTerminalWorkspaceState,
@@ -98,7 +99,7 @@ export class DockStore {
       delete terminalTabsByWorkspace[workspaceId];
     }
     const projection = workspaceId === this.state.activeTerminalWorkspaceId
-      ? this.projectTerminalWorkspace(workspaceId, terminalTabsByWorkspace)
+      ? projectTerminalWorkspace(terminalTabsByWorkspace, workspaceId)
       : {};
     this.commit({ terminalTabsByWorkspace, ...projection, ...next });
   }
@@ -174,66 +175,55 @@ export class DockStore {
     return !this.state.mountedWorkspaceIds.has(workspaceId);
   }
 
-  openLink(url: string): void {
-    const trimmedUrl = url.trim();
-    if (!trimmedUrl) return;
-    const existing = this.state.tabs.find(
-      (tab): tab is Extract<DockPreviewTab, { kind: 'link' }> =>
-        tab.kind === 'link' && tab.url === trimmedUrl,
-    );
-    if (existing) {
-      // Same page: keep the loaded webview (and its resolved title).
-      this.commit({ expanded: true, activeTabId: existing.id });
-      this.persistActiveLinkSession();
-      return;
-    }
-
-    const baseId = linkTabId(trimmedUrl);
-    let id = baseId;
-    let suffix = 2;
-    while (this.state.tabs.some((tab) => tab.id === id)) {
-      id = `${baseId}:${suffix}`;
-      suffix += 1;
-    }
-    const tab: DockPreviewTab = { id, kind: 'link', title: trimmedUrl, url: trimmedUrl };
-    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: tab.id, expanded: true });
+  /** Open a URL as a web tab; see `dock-link-commands.ts` for the rules. */
+  openLink(url: string, options: DockOpenLinkOptions = {}): void {
+    const next = getOpenLinkPatch(this.state, url, options);
+    if (!next) return;
+    this.commit(next);
     this.persistActiveLinkSession();
   }
 
-  /** Create an empty browser tab. Unlike openLink, blank tabs are never deduped. */
-  newLink(title = 'New tab'): void {
-    let id = `${LINK_TAB_ID}:new:${this.nextLinkOrdinal}`;
-    this.nextLinkOrdinal += 1;
-    while (this.state.tabs.some((tab) => tab.id === id)) {
-      id = `${LINK_TAB_ID}:new:${this.nextLinkOrdinal}`;
-      this.nextLinkOrdinal += 1;
+  /** Open a link on behalf of a specific workspace's mounted browser guest.
+   *  A retained page can finish an async window.open after the user switches
+   *  canvases; that tab belongs beside its opener, never in the workspace now
+   *  on screen. Retained opens are always background so they cannot steal the
+   *  current workspace's focus. */
+  openLinkInWorkspace(
+    workspaceId: string,
+    url: string,
+    options: DockOpenLinkOptions = {},
+  ): void {
+    if (workspaceId === this.state.activeTerminalWorkspaceId) {
+      this.openLink(url, options);
+      return;
     }
-    const tab: DockPreviewTab = { id, kind: 'link', title, url: '' };
-    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+    const next = getOpenWorkspaceLinkMutation(
+      this.state, workspaceId, url, options, this.linkSessions.get(workspaceId),
+    );
+    if (!next) return;
+    if (next.retainedLinkTabs) this.commit({ retainedLinkTabs: next.retainedLinkTabs });
+    this.linkSessions.capture(workspaceId, next.session.tabs, next.session.activeTabId ?? '');
+  }
+
+  /** Create an empty browser tab. */
+  newLink(title = 'New tab'): void {
+    this.commit(getNewLinkPatch(this.state, title, this.nextLinkOrdinal));
+    this.nextLinkOrdinal += 1;
     this.persistActiveLinkSession();
   }
 
   navigateLink(id: string, url: string): void {
-    const trimmed = url.trim();
-    const tab = this.state.tabs.find((item) => item.id === id);
-    if (!trimmed || tab?.kind !== 'link') return;
-    this.commit({
-      tabs: this.state.tabs.map((item) => (
-        item.id === id ? { ...item, url: trimmed, title: trimmed, faviconUrl: undefined } : item
-      )),
-    });
+    const next = getNavigateLinkPatch(this.state, id, url);
+    if (!next) return;
+    this.commit(next);
     this.persistActiveLinkSession();
   }
 
   /** Mirror a guest URL without overwriting its resolved page title. */
   syncLinkUrl(id: string, url: string): void {
-    const trimmed = url.trim();
-    const tab = this.state.tabs.find((item) => item.id === id);
-    if (!trimmed || tab?.kind !== 'link' || tab.url === trimmed) return;
-    this.commit({
-      tabs: this.state.tabs.map((item) => (item.id === id
-        ? { ...item, url: trimmed, faviconUrl: undefined } : item)),
-    });
+    const next = getSyncLinkUrlPatch(this.state, id, url);
+    if (!next) return;
+    this.commit(next);
     this.persistActiveLinkSession();
   }
 
@@ -250,7 +240,7 @@ export class DockStore {
     if (this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) return;
     if (activatingTerminal) {
       const workspaceId = this.state.activeTerminalWorkspaceId;
-      const workspace = this.getTerminalWorkspace(workspaceId);
+      const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
       this.commitTerminalWorkspace(workspaceId, { ...workspace, activeTabId: id }, {
         expanded: true,
         activeTabId: id,
@@ -294,11 +284,30 @@ export class DockStore {
   setActiveWorkspace(workspaceId: string): void {
     if (!workspaceId || workspaceId === this.state.activeTerminalWorkspaceId) return;
     this.persistActiveLinkSession();
+    const leavingId = this.state.activeTerminalWorkspaceId;
     const nonLinkTabs = this.state.tabs.filter((tab) => tab.kind !== 'link');
-    const restoredSession = this.linkSessions.get(workspaceId);
+    // The workspace being left keeps its web tabs MOUNTED (hidden) instead of
+    // unmounting them, so coming back does not reload every page and lose its
+    // scroll position, form state and sign-in. `DockPanes` renders these; the
+    // tab strip never does.
+    const retainedLinkTabs = updateRetainedLinkTabs(
+      this.state.retainedLinkTabs,
+      {
+        workspaceId: leavingId,
+        tabs: this.state.tabs.filter((tab): tab is DockLinkTab => tab.kind === 'link'),
+        activeTabId: this.state.activeTabId,
+      },
+      workspaceId,
+    );
+    // Prefer the retained copy over the persisted one: a hidden guest may have
+    // navigated since the switch, and the retained entry is what tracked it.
+    const retainedEntry = this.state.retainedLinkTabs.find(
+      (entry) => entry.workspaceId === workspaceId,
+    );
+    const restoredSession = retainedEntry ?? this.linkSessions.get(workspaceId);
     const restoredLinkTabs = restoredSession?.tabs ?? [];
     const tabs = [...nonLinkTabs, ...restoredLinkTabs];
-    const projection = this.projectTerminalWorkspace(workspaceId);
+    const projection = projectTerminalWorkspace(this.state.terminalTabsByWorkspace, workspaceId);
     const switchingFromTerminal = isTerminalTabId(this.state.activeTabId);
     const restoredLinkId = restoredSession?.activeTabId
       && restoredLinkTabs.some((tab) => tab.id === restoredSession.activeTabId)
@@ -314,6 +323,7 @@ export class DockStore {
     this.commit({
       activeTerminalWorkspaceId: workspaceId,
       tabs,
+      retainedLinkTabs,
       ...projection,
       activeTabId,
       expanded: this.state.expanded,
@@ -321,54 +331,48 @@ export class DockStore {
     });
   }
 
-  private createTerminalTab(workspace: DockTerminalWorkspaceState): DockTerminalTab {
-    const ordinal = workspace.nextOrdinal;
-    return {
-      id: terminalTabId(ordinal),
-      ordinal,
-    };
+  /**
+   * A hidden (retained) tab's guest reported a navigation, title or icon.
+   *
+   * Not bookkeeping for its own sake: the stored URL is what the tab is
+   * restored to on the way back, and `useEmbeddedBrowser` treats a stored URL
+   * that differs from the live guest as a navigation COMMAND — so letting the
+   * two drift would yank a background-navigated page back to where it was.
+   */
+  updateRetainedLinkTab(
+    workspaceId: string,
+    tabId: string,
+    patch: Partial<Pick<DockLinkTab, 'url' | 'title' | 'faviconUrl'>>,
+  ): void {
+    const next = getRetainedLinkTabMutation(
+      this.state.retainedLinkTabs,
+      workspaceId,
+      tabId,
+      patch,
+    );
+    if (!next) return;
+    this.commit({ retainedLinkTabs: next.retainedLinkTabs });
+    // Write through, or a restart would restore the pre-switch URL.
+    this.linkSessions.capture(workspaceId, next.session.tabs, next.session.activeTabId ?? '');
+  }
+
+  private applyTerminalCommit(commit: TerminalCommit | null, workspaceId: string): void {
+    if (!commit) return;
+    this.commitTerminalWorkspace(workspaceId, commit.workspace, commit.patch);
   }
 
   openTerminal(): void {
     const workspaceId = this.state.activeTerminalWorkspaceId;
-    const workspace = this.getTerminalWorkspace(workspaceId);
-    const currentTerminalId = workspace.activeTabId
-      && workspace.tabs.some((tab) => tab.id === workspace.activeTabId)
-      ? workspace.activeTabId
-      : workspace.tabs[0]?.id;
-
-    if (currentTerminalId) {
-      if (this.state.expanded && this.state.activeTabId === currentTerminalId) return;
-      this.commitTerminalWorkspace(workspaceId, { ...workspace, activeTabId: currentTerminalId }, {
-        expanded: true,
-        activeTabId: currentTerminalId,
-      });
-      return;
-    }
-
-    const tab = this.createTerminalTab(workspace);
-    this.commitTerminalWorkspace(workspaceId, {
-      tabs: [tab],
-      activeTabId: tab.id,
-      nextOrdinal: workspace.nextOrdinal + 1,
-    }, {
-      activeTabId: tab.id,
-      expanded: true,
-    });
+    const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
+    this.applyTerminalCommit(openTerminalCommit(this.state, workspace), workspaceId);
   }
 
   newTerminal(): void {
     const workspaceId = this.state.activeTerminalWorkspaceId;
-    const workspace = this.getTerminalWorkspace(workspaceId);
-    const tab = this.createTerminalTab(workspace);
-    this.commitTerminalWorkspace(workspaceId, {
-      tabs: [...workspace.tabs, tab],
-      activeTabId: tab.id,
-      nextOrdinal: workspace.nextOrdinal + 1,
-    }, {
-      activeTabId: tab.id,
-      expanded: true,
-    });
+    this.applyTerminalCommit(
+      newTerminalCommit(terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId)),
+      workspaceId,
+    );
   }
 
   toggleTerminal(): void {
@@ -382,46 +386,19 @@ export class DockStore {
   closeTerminal(id = this.state.activeTerminalTabId): void {
     if (!id) return;
     const workspaceId = this.state.activeTerminalWorkspaceId;
-    const workspace = this.getTerminalWorkspace(workspaceId);
-    const index = workspace.tabs.findIndex((tab) => tab.id === id);
-    if (index === -1) return;
-    const terminalTabs = workspace.tabs.filter((tab) => tab.id !== id);
-    const closingActiveTerminal = this.state.activeTabId === id;
-    const activeTerminalTabId = terminalTabs[Math.min(index, terminalTabs.length - 1)]?.id
-      ?? terminalTabs[terminalTabs.length - 1]?.id;
-    const activeTabId = closingActiveTerminal
-      ? (activeTerminalTabId ?? this.state.tabs[0]?.id ?? CHAT_TAB_ID)
-      : this.state.activeTabId;
-    this.commitTerminalWorkspace(workspaceId, {
-      tabs: terminalTabs,
-      activeTabId: activeTerminalTabId,
-      nextOrdinal: workspace.nextOrdinal,
-    }, {
-      activeTabId,
-      ...(this.state.splitTabId === id ? { splitTabId: undefined } : {}),
-      expanded: closingActiveTerminal && terminalTabs.length === 0 && this.state.tabs.length === 0
-        ? false
-        : this.state.expanded,
-      ...(activeTabId === CHAT_TAB_ID ? { chatUnread: false } : {}),
-    });
+    const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
+    this.applyTerminalCommit(closeTerminalCommit(this.state, workspace, id), workspaceId);
   }
 
   renameTerminal(id: string, title: string): void {
-    const trimmed = title.trim();
-    if (!trimmed) return;
     const workspaceId = this.state.activeTerminalWorkspaceId;
-    const workspace = this.getTerminalWorkspace(workspaceId);
-    const tab = workspace.tabs.find((item) => item.id === id);
-    if (!tab || tab.title === trimmed) return;
-    this.commitTerminalWorkspace(workspaceId, {
-      ...workspace,
-      tabs: workspace.tabs.map((item) =>
-        (item.id === id ? { ...item, title: trimmed } : item)),
-    });
+    const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
+    this.applyTerminalCommit(renameTerminalCommit(workspace, id, title), workspaceId);
   }
 
   setTerminalAgentType(id: string, agentType?: string, workspaceId = this.state.activeTerminalWorkspaceId): void {
-    const next = updateTerminalAgentType(this.getTerminalWorkspace(workspaceId), id, agentType);
+    const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
+    const next = updateTerminalAgentType(workspace, id, agentType);
     if (next) this.commitTerminalWorkspace(workspaceId, next);
   }
 
@@ -433,7 +410,7 @@ export class DockStore {
       return;
     }
     const workspaceId = this.state.activeTerminalWorkspaceId;
-    const workspace = this.getTerminalWorkspace(workspaceId);
+    const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
     const terminalTabs = reorderTabs(workspace.tabs, sourceId, targetId, position);
     if (!terminalTabs) return;
     this.commitTerminalWorkspace(workspaceId, { ...workspace, tabs: terminalTabs });
@@ -447,34 +424,35 @@ export class DockStore {
 
   /** Live label update (artifact loaded, webview resolved a page title). */
   setTitle(id: string, title: string): void {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    const tab = this.state.tabs.find((t) => t.id === id);
-    if (!tab || tab.title === trimmed) return;
-    this.commit({
-      tabs: this.state.tabs.map((t) => (t.id === id ? { ...t, title: trimmed } : t)),
-    });
-    if (tab.kind === 'link') this.persistActiveLinkSession();
+    const next = getSetTitlePatch(this.state, id, title);
+    if (!next) return;
+    const wasLink = this.state.tabs.find((tab) => tab.id === id)?.kind === 'link';
+    this.commit(next);
+    if (wasLink) this.persistActiveLinkSession();
   }
 
-  /** Live favicon update once a link's webview reports the page icon, so the
-   *  tab tracks the site instead of the generic globe. */
+  /** Live favicon update once a link's webview reports the page icon. */
   setFavicon(id: string, faviconUrl: string): void {
-    const trimmed = faviconUrl.trim();
-    if (!trimmed) return;
-    const tab = this.state.tabs.find((t) => t.id === id);
-    if (!tab || tab.kind !== 'link' || tab.faviconUrl === trimmed) return;
-    this.commit({
-      tabs: this.state.tabs.map((t) =>
-        (t.id === id && t.kind === 'link' ? { ...t, faviconUrl: trimmed } : t)),
-    });
+    const next = getSetFaviconPatch(this.state, id, faviconUrl);
+    if (!next) return;
+    this.commit(next);
     this.persistActiveLinkSession();
   }
 
   close(id: string): void {
     const index = this.state.tabs.findIndex((tab) => tab.id === id);
     if (index === -1) return;
-    const closingLink = this.state.tabs[index].kind === 'link';
+    const closed = this.state.tabs[index];
+    const closingLink = closed.kind === 'link';
+    // A web tab carries browsing state (history, scroll, sign-in); closing one
+    // is the only destructive tab action, so keep it reopenable.
+    if (closingLink) {
+      this.closedLinkTabs.push({
+        tab: closed as DockLinkTab,
+        index,
+        workspaceId: this.state.activeTerminalWorkspaceId,
+      });
+    }
     const tabs = this.state.tabs.filter((tab) => tab.id !== id);
     let activeTabId = this.state.activeTabId;
     let chatUnread = this.state.chatUnread;
@@ -489,6 +467,26 @@ export class DockStore {
       ...(this.state.splitTabId === id ? { splitTabId: undefined } : {}),
     });
     if (closingLink) this.persistActiveLinkSession();
+  }
+
+  /** Whether `reopenClosedTab` has anything to restore in this workspace. */
+  canReopenClosedTab(): boolean {
+    return this.closedLinkTabs.has(this.state.activeTerminalWorkspaceId);
+  }
+
+  /** Restore the most recently closed web tab of the active workspace at the
+   *  position it held, and focus it. No-op when the stack is empty. */
+  reopenClosedTab(): void {
+    const entry = this.closedLinkTabs.pop(this.state.activeTerminalWorkspaceId);
+    if (!entry) return;
+    const tabs = [...this.state.tabs];
+    const restoredId = allocateTabId(tabs, entry.tab.id);
+    const restoredTab = restoredId === entry.tab.id
+      ? entry.tab
+      : { ...entry.tab, id: restoredId };
+    tabs.splice(Math.min(entry.index, tabs.length), 0, restoredTab);
+    this.commit({ tabs, activeTabId: restoredId, expanded: true });
+    this.persistActiveLinkSession();
   }
 
   /** A chat turn finished while chat wasn't the visible tab → unread dot. */

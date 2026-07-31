@@ -9,6 +9,9 @@ export interface EmbeddedWebviewTag extends HTMLElement {
   getWebContentsId(): number;
   getTitle(): string;
   reload(): void;
+  stop(): void;
+  findInPage(text: string, options?: { findNext?: boolean; forward?: boolean }): number;
+  stopFindInPage(action: 'clearSelection' | 'keepSelection' | 'activateSelection'): void;
   canGoBack(): boolean;
   canGoForward(): boolean;
   goBack(): void;

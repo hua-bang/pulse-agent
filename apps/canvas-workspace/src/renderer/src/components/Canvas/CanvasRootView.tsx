@@ -57,6 +57,7 @@ type CanvasRootViewProps = Pick<
   handleShapeOverlayMouseDown: (event: React.MouseEvent) => void;
   handleWheel: (event: React.WheelEvent) => void;
   highlightedId: string | null;
+  renameSignal?: { nodeId: string; token: number } | null;
   loaded: boolean;
   marquee: any;
   mouse: any;
@@ -137,6 +138,7 @@ export const CanvasRootView = ({
   handleShapeOverlayMouseDown,
   handleWheel,
   highlightedId,
+  renameSignal,
   loaded,
   marquee,
   mouse,
@@ -251,6 +253,7 @@ export const CanvasRootView = ({
         selectedNodeIdSet={selectedNodeIdSet}
         selectedEdgeId={selectedEdgeId}
         highlightedId={highlightedId}
+        renameSignal={renameSignal}
         externallyEditedIds={externallyEditedIds}
         edgeInteractionState={edgeInteractionState}
         edgePreviewEndpoints={getPreviewEndpoints()}

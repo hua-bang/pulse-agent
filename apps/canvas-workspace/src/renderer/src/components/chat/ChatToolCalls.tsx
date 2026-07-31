@@ -3,6 +3,7 @@ import { useI18n } from '../../i18n';
 import { SpinnerIcon } from '../icons';
 import type { I18nKey } from '../../i18n/messages';
 import type { ToolCallStatus } from './types';
+import { ChatToolCallDetails } from './ChatToolCallDetails';
 
 interface ChatToolCallsProps {
   tools: ToolCallStatus[];
@@ -69,6 +70,9 @@ const TOOL_LABEL_SLUGS: Record<string, string> = {
 };
 
 function formatToolLabel(name: string, status: ToolCallStatus['status'], t: (key: I18nKey) => string): string {
+  if (status === 'failed') return t('chat.toolCalls.failed');
+  if (status === 'cancelled') return t('chat.toolCalls.cancelled');
+  if (status === 'queued') return t('chat.toolCalls.queued');
   const slug = TOOL_LABEL_SLUGS[name];
   const state = status === 'running' ? 'running' : 'done';
   if (slug) {
@@ -76,82 +80,6 @@ function formatToolLabel(name: string, status: ToolCallStatus['status'], t: (key
   }
   return t(`toolCall.default.${state}`);
 }
-
-function formatArgs(args: unknown): string {
-  if (args === undefined || args === null) return '';
-  if (typeof args === 'string') return args;
-  try {
-    return JSON.stringify(args, null, 2);
-  } catch {
-    return String(args);
-  }
-}
-
-// ─── Session references from session_search / session_summary ──────
-
-interface SessionRef {
-  sessionId: string;
-  workspaceId: string;
-  workspaceName: string;
-  date: string;
-  messageCount: number;
-  preview?: string;
-  /** First matched message index — used for scroll-to on jump. */
-  firstMatchIndex?: number;
-}
-
-const SESSION_TOOL_NAMES = new Set(['session_search', 'session_summary']);
-
-function parseSessionRefs(tool: ToolCallStatus): SessionRef[] | null {
-  if (!SESSION_TOOL_NAMES.has(tool.name) || !tool.result) return null;
-  try {
-    const parsed = JSON.parse(tool.result) as { ok?: boolean; sessions?: Array<Record<string, unknown>> };
-    if (!parsed?.ok || !Array.isArray(parsed.sessions) || parsed.sessions.length === 0) return null;
-    return parsed.sessions.map((s) => {
-      // For session_search, snippets[0].messageIndex gives the first hit.
-      const snippets = Array.isArray(s.snippets) ? s.snippets as Array<{ messageIndex?: number }> : [];
-      const firstMatchIndex = snippets[0]?.messageIndex;
-      return {
-        sessionId: String(s.sessionId ?? ''),
-        workspaceId: String(s.workspaceId ?? ''),
-        workspaceName: String(s.workspaceName ?? ''),
-        date: String(s.date ?? ''),
-        messageCount: typeof s.messageCount === 'number' ? s.messageCount : 0,
-        preview: typeof s.preview === 'string' ? s.preview : undefined,
-        firstMatchIndex: typeof firstMatchIndex === 'number' ? firstMatchIndex : undefined,
-      };
-    }).filter((r) => r.sessionId && r.workspaceId);
-  } catch {
-    return null;
-  }
-}
-
-const SessionRefChips = ({ refs }: { refs: SessionRef[] }) => (
-  <div className="chat-session-refs">
-    {refs.map((ref) => (
-      <button
-        key={`${ref.workspaceId}:${ref.sessionId}`}
-        type="button"
-        className="chat-session-ref-chip"
-        data-action="session-jump"
-        data-session-id={ref.sessionId}
-        data-workspace-id={ref.workspaceId}
-        data-message-index={ref.firstMatchIndex}
-        title={ref.preview || ref.sessionId}
-      >
-        <span className="chat-session-ref-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M4 2.5h5M4 6h5M4 9.5h5M2 2.5h.01M2 6h.01M2 9.5h.01" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
-        </span>
-        <span className="chat-session-ref-name">{ref.workspaceName}</span>
-        <span className="chat-session-ref-date">{ref.date}</span>
-        <span className="chat-session-ref-count">{ref.messageCount} msgs</span>
-        {ref.preview && <span className="chat-session-ref-preview">{ref.preview.length > 40 ? `${ref.preview.slice(0, 38)}…` : ref.preview}</span>}
-      </button>
-    ))}
-  </div>
-);
 
 export const ChatToolCalls = ({
   tools,
@@ -163,17 +91,22 @@ export const ChatToolCalls = ({
   onSessionJump,
 }: ChatToolCallsProps) => {
   const { t } = useI18n();
-  const sessionRefsByToolId = useMemo(() => {
-    const map = new Map<number, SessionRef[]>();
-    for (const tool of tools) {
-      if (tool.status !== 'done') continue;
-      const refs = parseSessionRefs(tool);
-      if (refs) map.set(tool.id, refs);
-    }
-    return map;
-  }, [tools]);
-
-  const completedLabel = t('chat.toolCalls.completed', { count: tools.length });
+  const counts = useMemo(() => ({
+    queued: tools.filter(tool => tool.status === 'queued').length,
+    running: tools.filter(tool => tool.status === 'running').length,
+    succeeded: tools.filter(tool => tool.status === 'succeeded').length,
+    failed: tools.filter(tool => tool.status === 'failed').length,
+    cancelled: tools.filter(tool => tool.status === 'cancelled').length,
+  }), [tools]);
+  const completedLabel = counts.running > 0 || counts.queued > 0
+    ? t('chat.toolCalls.runningSummary', {
+        running: counts.running + counts.queued,
+        succeeded: counts.succeeded,
+        failed: counts.failed,
+      })
+    : counts.failed > 0 || counts.cancelled > 0
+      ? t('chat.toolCalls.summary', counts)
+      : t('chat.toolCalls.completed', { count: counts.succeeded });
 
   if (collapsed) {
     return (
@@ -218,13 +151,19 @@ export const ChatToolCalls = ({
         </button>
       )}
       {tools.map(tool => {
-        const canToggle = tool.status === 'done' && !!tool.result;
-        const expanded = expandedTools.has(tool.id);
+        const canToggle = tool.status !== 'running'
+          && tool.status !== 'queued'
+          && !!(tool.result || tool.error || tool.args !== undefined);
+        const expanded = tool.status === 'failed' || expandedTools.has(tool.id);
         const headerContent = (
           <>
             <span className="chat-tool-call-icon">
-              {tool.status === 'running' ? (
+              {tool.status === 'running' || tool.status === 'queued' ? (
                 <SpinnerIcon size={12} className="chat-tool-call-spinner" />
+              ) : tool.status === 'failed' ? (
+                <span aria-hidden="true">!</span>
+              ) : tool.status === 'cancelled' ? (
+                <span aria-hidden="true">×</span>
               ) : (
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
@@ -247,43 +186,25 @@ export const ChatToolCalls = ({
 
         return (
           <div key={tool.id} className={`chat-tool-call chat-tool-call--${tool.status}`}>
-          {canToggle ? (
-            <button
-              type="button"
-              className="chat-tool-call-header chat-tool-call-header--expandable"
-              aria-expanded={expanded}
-              aria-label={expanded
-                ? t('chat.toolCalls.collapseResult', { name: tool.name })
-                : t('chat.toolCalls.expandResult', { name: tool.name })}
-              onClick={() => onToggleToolExpand(tool.id)}
-            >
-              {headerContent}
-            </button>
-          ) : (
-            <div className="chat-tool-call-header">
-              {headerContent}
-            </div>
-          )}
-          {sessionRefsByToolId.has(tool.id) && (
-            <SessionRefChips refs={sessionRefsByToolId.get(tool.id)!} />
-          )}
-          {expandedTools.has(tool.id) && (tool.result || tool.args !== undefined) && (
-            <div className="chat-tool-call-result">
-              {tool.args !== undefined && (
-                <div className="chat-tool-call-section">
-                  <div className="chat-tool-call-section-label">{tool.name} · input</div>
-                  <pre>{formatArgs(tool.args)}</pre>
-                </div>
-              )}
-              {tool.result && (
-                <div className="chat-tool-call-section">
-                  <div className="chat-tool-call-section-label">output</div>
-                  <pre>{tool.result.length > 2000 ? `${tool.result.slice(0, 2000)}\n...(truncated)` : tool.result}</pre>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+            {canToggle ? (
+              <button
+                type="button"
+                className="chat-tool-call-header chat-tool-call-header--expandable"
+                aria-expanded={expanded}
+                aria-label={expanded
+                  ? t('chat.toolCalls.collapseResult', { name: tool.name })
+                  : t('chat.toolCalls.expandResult', { name: tool.name })}
+                onClick={() => onToggleToolExpand(tool.id)}
+              >
+                {headerContent}
+              </button>
+            ) : (
+              <div className="chat-tool-call-header">
+                {headerContent}
+              </div>
+            )}
+            <ChatToolCallDetails tool={tool} expanded={expanded} />
+          </div>
         );
       })}
     </div>

@@ -43,6 +43,40 @@ Example (real): `Sidebar/` is split into `SidebarHeader.tsx`, `WorkspaceList.tsx
   (`useAgentNodeController.ts`, `Canvas/hooks/`, `chat/hooks/`).
 - Hooks return typed values; keep them framework-pure (no Electron/Node imports).
 
+## Keyboard shortcuts (registry-owned)
+
+- **`src/renderer/src/shortcuts/` is the single source of truth.** Declare
+  the binding in `definitions.ts` (`types.ts` for the shapes, `registry.ts`
+  for matching/formatting). Never write a chord condition inline again —
+  three surfaces used to hand-write the same binding (behavior, the `?` help
+  overlay, the Cmd+K palette hint) and they drifted: `Cmd+Shift+A` shipped
+  documented-but-unimplemented while silently running select-all.
+- **`owner` picks the handler table**, and the table is exhaustive by type:
+  `useCanvasKeyboard` (owner `canvas`) and `useAppShortcuts` (owner `app`)
+  declare `Record<ShortcutIdFor<'…'>, Handler>`, so a documented shortcut
+  with no handler — or a deleted handler with a live help row — fails
+  typecheck. `gesture` = mouse rows for the help panel; `document` = handled
+  by a native document event (paste).
+- **Labels are generated**, never typed: `formatShortcutId(id)` for a
+  palette hint, `formatAllBindings(definition)` for a help row. Hardcoding
+  `'Cmd+D'` lies on Windows.
+- **Matching is exact on modifiers.** A definition without `shift` must not
+  fire while Shift is held; that exactness is what keeps neighbouring chords
+  apart.
+- **macOS reserves `Cmd+H` and `Cmd+Tab`** — the OS eats them before the
+  renderer. Use literal `ctrl: true` for those, and prefer it for anything
+  else the platform claims.
+- **`editable: 'allow'`** is how a chord keeps working inside a text field,
+  terminal, or embedded page. Only for chords with no text-editing meaning
+  (`Cmd+K`, `Cmd+\`, `Cmd+1..9`, zoom). Never for bare or Shift+digit keys.
+- **Menu accelerators outrank everything.** A `role` in `main/app/menu.ts`
+  consumes the key in main before the renderer sees it, so adding a shortcut
+  may mean removing a role (Undo/Redo and the zoom roles are already gone
+  for exactly this reason).
+- Adding a chord that must survive focus inside a `<webview>`? Add it to
+  `shared/webview-shortcuts.ts` too; `shortcuts/registry.test.ts` asserts
+  every forwarded chord still matches a real binding.
+
 ## Talking to the main process
 
 The renderer **never** imports `main`/`preload`/Electron/Node. All privileged

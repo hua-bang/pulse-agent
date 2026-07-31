@@ -188,4 +188,147 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(host.textContent).toContain('Global conversation');
     expect(host.textContent).not.toContain('First conversation');
   });
+
+  it('labels the session tree, exposes the current chat, and filters locally', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={sessions.map((session) => ({
+              ...session,
+              isCurrent: session.sessionId === 'session-b',
+            }))}
+            onNewSession={vi.fn()}
+            onSelectSession={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(host.querySelector('aside')?.getAttribute('aria-label')).toBe('Chat sessions');
+    expect(host.querySelector('.chat-page-rail-item--active')?.getAttribute('aria-current')).toBe('page');
+    for (const folder of host.querySelectorAll<HTMLButtonElement>('.chat-page-rail-folder')) {
+      const listId = folder.getAttribute('aria-controls');
+      expect(listId).toBeTruthy();
+      expect(host.querySelector(`#${CSS.escape(listId!)}`)).not.toBeNull();
+    }
+
+    const search = host.querySelector<HTMLInputElement>('input[type="search"]');
+    expect(search?.getAttribute('aria-label')).toBe('Search chats');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(search, 'third');
+      search!.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    });
+
+    expect(host.textContent).toContain('Third conversation');
+    expect(host.textContent).not.toContain('First conversation');
+    expect(host.textContent).not.toContain('Second conversation');
+  });
+
+  it('offers pin, rename, and confirmed delete only when callbacks are provided', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const onTogglePinSession = vi.fn(async () => undefined);
+    const onRenameSession = vi.fn(async () => undefined);
+    const onDeleteSession = vi.fn(async () => undefined);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={[sessions[0]]}
+            onNewSession={vi.fn()}
+            onSelectSession={vi.fn()}
+            onTogglePinSession={onTogglePinSession}
+            onRenameSession={onRenameSession}
+            onDeleteSession={onDeleteSession}
+          />
+        </I18nProvider>,
+      );
+    });
+    const testHost = host;
+    if (!testHost) throw new Error('Expected rail host');
+
+    const pin = testHost.querySelector<HTMLButtonElement>('[aria-label="Pin First conversation"]');
+    const rename = testHost.querySelector<HTMLButtonElement>('[aria-label="Rename First conversation"]');
+    const remove = testHost.querySelector<HTMLButtonElement>('[aria-label="Delete First conversation"]');
+    expect(pin).not.toBeNull();
+    expect(rename).not.toBeNull();
+    expect(remove).not.toBeNull();
+
+    await act(async () => {
+      pin?.click();
+      await Promise.resolve();
+    });
+    expect(onTogglePinSession).toHaveBeenCalledWith(sessions[0]);
+
+    await act(async () => {
+      rename?.click();
+    });
+    const renameInput = testHost.querySelector<HTMLInputElement>('[aria-label="Rename First conversation"]');
+    expect(renameInput).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(renameInput, 'Decision log');
+      renameInput?.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    });
+    await act(async () => {
+      testHost.querySelector<HTMLButtonElement>('[aria-label="Save rename"]')?.click();
+      await Promise.resolve();
+    });
+    expect(onRenameSession).toHaveBeenCalledWith(sessions[0], 'Decision log');
+
+    await act(async () => {
+      testHost.querySelector<HTMLButtonElement>('[aria-label="Delete First conversation"]')?.click();
+    });
+    expect(onDeleteSession).not.toHaveBeenCalled();
+    await act(async () => {
+      testHost.querySelector<HTMLButtonElement>('[aria-label="Confirm delete First conversation"]')?.click();
+      await Promise.resolve();
+    });
+    expect(onDeleteSession).toHaveBeenCalledWith(sessions[0]);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={[sessions[0]]}
+            onNewSession={vi.fn()}
+            onSelectSession={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+    expect(testHost.querySelector('.chat-page-rail-item-actions')).toBeNull();
+  });
+
+  it('disables new, search, folder, and session controls while a thread is opening', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const onNewSession = vi.fn();
+    const onSelectSession = vi.fn();
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={sessions}
+            disabled
+            onNewSession={onNewSession}
+            onSelectSession={onSelectSession}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-new')?.disabled).toBe(true);
+    expect(host.querySelector<HTMLInputElement>('.chat-page-rail-search')?.disabled).toBe(true);
+    expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-folder')?.disabled).toBe(true);
+    expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-item')?.disabled).toBe(true);
+  });
 });

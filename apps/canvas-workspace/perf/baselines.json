@@ -144,18 +144,18 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "635 基线后渐增已贴满 +3% 上限(654),dock open-artifact 桥接(+~1KB)后实测 655;仍低于 target 680,但后续渲染层增长应先瘦身再提基线", "asOf": "2026-07-20",
-      "gate": { "kind": "ratchet", "baseline": 655, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "快捷键 SSOT 增加跨 Canvas/App 的常驻匹配与 handler contract。提基线前已将帮助面板、手势说明、section/description 展示元数据移入 5.9KB 按需 chunk，入口从 706KB 降至 699KB；剩余增量是启动即生效的键盘匹配与 webview 逃生通道，不复制 binding 数据。保留 680 target 作为后续瘦身压力。", "asOf": "2026-07-31",
+      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "185 基线(2026-07-13)已被后续渐增吃满:master 实测即等于 +3% 上限 190.55,任何渲染层新增都会红。定时任务墙钟排期 + 定时会话并入 AI Chat 会话列表后实测 191.5KB。提基线前已先瘦身:星期名改用 Intl 取代 14 条 catalogue 字符串、缩短 timeOfDayHint 与 agent 工具描述(合计约 -0.1KB gzip);剩余增量是功能代码本身。保留 target 185 作为瘦身压力,后续渲染层新增仍应先瘦身。", "asOf": "2026-07-27",
-      "gate": { "kind": "ratchet", "baseline": 191.5, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "快捷键 SSOT 与浏览器式 Dock 合并后实测 202KB。帮助面板及展示元数据已恢复按需边界，入口 raw 降至 699KB；剩余 gzip 增量来自启动即生效的跨 surface shortcut matcher 与 webview 转发。保留 target 185 作为后续瘦身压力。", "asOf": "2026-07-31",
+      "gate": { "kind": "ratchet", "baseline": 202, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,
-      "confidence": "high", "basis": "与 entry_raw_kb 同步:贴线后 dock open-artifact 桥接落地实测 655(超 target 650,保留 target 作为瘦身压力)", "asOf": "2026-07-20",
-      "gate": { "kind": "ratchet", "baseline": 655, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "当前启动静态 JS 闭包仍只有单一 renderer entry，快捷键 SSOT 合并后实测 699KB；已先将帮助面板和展示元数据拆为 5.9KB 按需 chunk，并确认重依赖 watchlist 0/6。保留 650 target 作为后续启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-07-31",
+      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,
@@ -164,13 +164,13 @@
     },
     "bundle.total_js_kb": {
       "profile": "global-deterministic", "target": 5565, "warning": 5850,
-      "confidence": "high", "basis": "Heptabase/Notion 风格笔记编辑器（Slash、气泡格式、块级操作、提及、搜索与 Dock 无障碍）落地后实测 5565KB；启动入口仍低于原基线，增长位于按需编辑器能力，保留 3% ratchet 约束后续新增。", "asOf": "2026-07-26",
-      "gate": { "kind": "ratchet", "baseline": 5565, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "AI Chat P0-P2 新增会话 rail、分支/恢复、附件生命周期、目标上下文、失败恢复、可访问状态与跨 surface 导航后，master 5679KB 到当前 5737KB；其中 Chat 首次加载约 465KB、较 master 增约 38KB，入口应用代码增约 15KB，未发现第三方依赖膨胀。保留 5565 target 与 5850 warning，ratchet 重新落锚到已验证功能载荷。", "asOf": "2026-07-31",
+      "gate": { "kind": "ratchet", "baseline": 5737, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
-      "profile": "global-deterministic", "target": 550, "warning": 620,
-      "confidence": "high", "basis": "572 基线被 0.1.32 发布线渐增吃满:master 实测 589.1,恰在 +3% 上限 589.2 之内,任何主进程新增都会红。多角色群聊主进程部分(角色库存取/IPC、人设注入与两处署名投影、接龙循环 + agent@agent 接话策略、chat_role_* 工具)落地后实测 602.8KB,增量约 13.7KB;提示词与工具描述为功能载荷、注释经 esbuild minify 不计入,复核无可免费瘦身项。提基线至 603,保留 target 550 作为瘦身压力,warning 同步移至 620。", "asOf": "2026-07-28",
-      "gate": { "kind": "ratchet", "baseline": 603, "tolerancePct": 3, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 550, "warning": 670,
+      "confidence": "high", "basis": "AI Chat P0-P2 将 main 从 master 621KB 增至 651KB；单文件 minify 对比可归因约 27KB，主要是 SessionMutationCoordinator、prepare/subscribe/start 所有权协议、ActiveChatRegistry、session 扫描/元数据、停止与失败持久化。这些模块共同保证同 scope 单 run、会话 mutation 串行、stop-before-start 与失败后可恢复；局部文案/去重不足以覆盖 30KB，真正移出启动入口需单独实施 Agent runtime 首次调用 lazy 重构。保留 550 target，warning 调至 670，ratchet 按当前已验证可靠性载荷落锚。", "asOf": "2026-07-31",
+      "gate": { "kind": "ratchet", "baseline": 651, "tolerancePct": 3, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,

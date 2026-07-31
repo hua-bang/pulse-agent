@@ -31,6 +31,31 @@ pathRules:
       - pnpm --filter canvas-workspace harness verify-webview-input-focus --json
       - pnpm --filter canvas-workspace harness close --cleanup --json
 
+  # Keyboard shortcuts are a cross-layer contract: bindings in
+  # shortcuts/registry, canvas + app handler tables, the lazy help overlay and
+  # palette labels derived from them, the webview forwarding whitelist in
+  # shared/, and the terminal key arbitration. Typecheck already catches a
+  # documented-but-unimplemented shortcut (the handler tables are exhaustive
+  # by type); these suites cover the runtime halves — exact-modifier
+  # matching, auto-repeat, Escape ownership, and clipboard recency.
+  - name: keyboard-shortcuts
+    paths:
+      - src/renderer/src/shortcuts/**
+      - src/renderer/src/hooks/useCanvasKeyboard.ts
+      - src/renderer/src/hooks/useAppShortcuts.ts
+      - src/renderer/src/hooks/useWebviewShortcutBridge.ts
+      - src/renderer/src/utils/keyboardShortcut.ts
+      - src/renderer/src/components/AppShellProvider/ShortcutsDialog.tsx
+      - src/shared/webview-shortcuts.ts
+      - src/main/webview/shortcut-forwarding.ts
+      - src/main/app/menu.ts
+      - src/renderer/src/components/AgentNodeBody/utils/terminal.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts
+
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.
   # The canvas-cli mirror paths are bound by the root validation overlay.

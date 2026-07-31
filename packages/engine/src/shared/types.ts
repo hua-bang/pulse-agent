@@ -66,6 +66,7 @@ export interface ClarificationRequest {
   id: string;
   question: string;
   context?: string;
+  kind?: 'clarification' | 'approval';
   defaultAnswer?: string;
   timeout: number;
 }

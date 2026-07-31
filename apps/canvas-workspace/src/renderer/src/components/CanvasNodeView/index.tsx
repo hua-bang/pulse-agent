@@ -21,6 +21,7 @@ const CanvasNodeViewComponent = ({
   dragOffset,
   isResizing,
   isSelected,
+  renameToken,
   isHighlighted,
   isAgentEdited,
   focusState = 'neutral',
@@ -64,6 +65,7 @@ const CanvasNodeViewComponent = ({
     isHighlighted,
     isResizing,
     isSelected,
+    renameToken,
     node,
     onDragStart,
     onFocus,
@@ -245,6 +247,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.dragOffset === next.dragOffset &&
   prev.isResizing === next.isResizing &&
   prev.isSelected === next.isSelected &&
+  prev.renameToken === next.renameToken &&
   prev.isHighlighted === next.isHighlighted &&
   prev.isAgentEdited === next.isAgentEdited &&
   prev.focusState === next.focusState &&

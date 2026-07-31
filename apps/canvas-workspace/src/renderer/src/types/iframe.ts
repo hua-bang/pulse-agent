@@ -3,12 +3,15 @@ import type {
   SetWebviewLifecycleResult,
   WebviewLifecycleState,
 } from '../../../shared/webview-lifecycle';
+import type { WebviewContextMenuRequest } from '../../../shared/webview-context-menu';
+import type { WebviewSurfaceKind } from '../../../shared/webview-registration';
 
 export interface IframeApi {
   registerWebview: (
     workspaceId: string,
     nodeId: string,
     webContentsId: number,
+    surfaceKind: WebviewSurfaceKind,
     ready?: boolean,
   ) => Promise<{ ok: boolean }>;
   /**
@@ -32,6 +35,7 @@ export interface IframeApi {
   setFrameRate: (
     workspaceId: string,
     nodeId: string,
+    webContentsId: number,
     frameRate: number,
   ) => Promise<{ ok: boolean; frameRate?: number }>;
   /**
@@ -46,8 +50,24 @@ export interface IframeApi {
   setLifecycle: (
     workspaceId: string,
     nodeId: string,
+    webContentsId: number,
     state: WebviewLifecycleState,
   ) => Promise<SetWebviewLifecycleResult>;
+  /**
+   * A shortcut keystroke a webview guest swallowed and main forwarded back
+   * to this window. Guests are separate renderer processes, so without this
+   * bridge every embedded page is a keyboard black hole — see
+   * `shared/webview-shortcuts.ts`.
+   */
+  onShortcut: (
+    callback: (payload: {
+      key: string;
+      control: boolean;
+      meta: boolean;
+      alt: boolean;
+      shift: boolean;
+    }) => void,
+  ) => () => void;
   /**
    * Fired by main's L3 discard monitor (Memory Saver style) when total
    * guest memory exceeds budget and this node's long-frozen webview was
@@ -62,6 +82,7 @@ export interface IframeApi {
     callback: (payload: {
       workspaceId: string;
       nodeId: string;
+      webContentsId: number;
       snapshotDataUrl?: string;
       restoreUrl?: string;
       scrollX?: number;
@@ -84,4 +105,10 @@ export interface IframeApi {
     ok: boolean;
     error?: string;
   }>;
+  /**
+   * A right-click inside an embedded page, relayed by main because the
+   * guest's `context-menu` event never reaches this window. The tab owning
+   * `sourceWebContentsId` draws the menu. Returns unsubscribe fn.
+   */
+  onContextMenu: (callback: (request: WebviewContextMenuRequest) => void) => () => void;
 }

@@ -115,7 +115,17 @@ const RATCHET_BASELINE: Record<string, number> = {
   // are (+1); and a relation row's target is now an inline text button that
   // opens the node (+1) — a link inside an ellipsizing grid cell, which
   // ui/Button's CTA metrics would have to be overridden away wholesale.
-  rawButtonTags: 305,
+  // On master, the AI Chat interaction work independently removed six raw
+  // buttons; combined with Node Detail's +2, the merged inventory is 299.
+  // 300→299 (AI Chat model setup hierarchy): removed the duplicate central
+  // empty-state configure button; the composer model switcher is the SSOT.
+  // 299→298 (chat header chrome cleanup): removed the standalone new-chat
+  // icon button from the dock header actions — it duplicated the title
+  // dropdown's own "+ New AI chat" entry one click away.
+  // 298→297 (composer chrome): hid the Auto/Ask execution-mode toggle —
+  // ask mode isn't ready to expose yet, execution stays on its 'auto'
+  // default.
+  rawButtonTags: 299,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -191,7 +201,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // `.iframe-review-mini-btn { border-radius: 5px; }` literal is gone; the
   // migrated buttons use ui/Button's existing `var(--radius)`, already
   // untokenized-exempt.
-  borderRadiusLiterals: 117,
+  // 117→116 (AI Chat model setup hierarchy): deleting the duplicate central
+  // configure banner removed its bespoke radius literal.
+  borderRadiusLiterals: 116,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -291,6 +303,18 @@ const RATCHET_BASELINE: Record<string, number> = {
   // consume the Escape that closes the tag picker or cancels a title edit
   // inside it. This one is bubble-phase and target-gated instead, i.e. the
   // "owns more than a plain overlay Escape" case noted above.
+  // 17→16 (shortcut-registry work): `useCanvasKeyboard` collapsed its two
+  // window listeners into one registry-driven dispatcher, and App.tsx's
+  // inline handler moved wholesale into `useAppShortcuts` (still one
+  // listener). Both are now the blessed destination for NEW shortcuts —
+  // add a binding to `shortcuts/registry.ts` and a handler to the owning
+  // table rather than a fresh listener — but they stay counted so the
+  // ratchet keeps measuring the real total.
+  // 16→17 (Node Detail + shortcut-registry + browser-tabs merge): their
+  // union contains the app/canvas registry dispatcher, the Node Detail page
+  // handler, plus the dock-browser dispatcher; the dispatchers are shared,
+  // typed owners rather than one-off component listeners, so the merged
+  // inventory is 17.
   handRolledKeydown: 17,
   // hardcoded color literals (hex/rgb/oklch) in renderer CSS on lines that do
   // NOT define a custom property — new-code color ratchet (token-definition
@@ -360,7 +384,11 @@ const RATCHET_BASELINE: Record<string, number> = {
   // states (-4), and node-header focus uses the existing accent token (-1).
   // 1827→1824 (chat rail cleanup): grouped source labels remove the repeated
   // per-row metadata colors and reuse shared surface/text tokens.
-  hardcodedColorLiterals: 1824,
+  // 1824→1812 (AI Chat model setup hierarchy): deleting the duplicate central
+  // configure banner removed its bespoke color treatment.
+  // 1812→1810 (canvas dim): the focus-mode and fullscreen backdrops were two
+  // separate literals doing one job; both now read --canvas-focus-dim.
+  hardcodedColorLiterals: 1810,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -422,7 +450,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // is gone — flat labels per the reference.
   // 147→146 (editor polish): node-header keyboard focus moved from a literal
   // box-shadow ring to the shared accent outline.
-  shadowLiterals: 146,
+  // 146→143 (AI Chat model setup hierarchy): deleting the duplicate central
+  // configure banner removed its base, hover, and status-dot shadows.
+  shadowLiterals: 143,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

@@ -5,6 +5,7 @@ import type { PaletteCommand } from '../../CommandPalette';
 import type { AddNodeOptions } from '../../../hooks/useNodes';
 import { useI18n } from '../../../i18n';
 import { useRightDock } from '../../RightDock';
+import { formatShortcutId } from '../../../shortcuts/registry';
 
 interface Options {
   selectedNodeIds: string[];
@@ -76,7 +77,7 @@ export const useCanvasPaletteCommands = ({
         title: selectionCount > 1
           ? t('canvas.palette.command.duplicateMany', { count: selectionCount })
           : t('canvas.palette.command.duplicateOne'),
-        shortcut: 'Cmd+D',
+        shortcut: formatShortcutId('canvas.duplicate'),
         enabled: selectionCount > 0,
         run: () => {
           const created: string[] = [];
@@ -93,7 +94,7 @@ export const useCanvasPaletteCommands = ({
         title: selectionCount > 1
           ? t('canvas.palette.command.deleteMany', { count: selectionCount })
           : t('canvas.palette.command.deleteOne'),
-        shortcut: 'Del',
+        shortcut: formatShortcutId('canvas.delete'),
         enabled: selectionCount > 0,
         run: () => {
           void requestRemoveNodes(selectedNodeIds);
@@ -105,7 +106,7 @@ export const useCanvasPaletteCommands = ({
         title: selectionCount > 1
           ? t('canvas.palette.command.groupMany', { count: selectionCount })
           : t('canvas.palette.command.groupOne'),
-        shortcut: 'Cmd+G',
+        shortcut: formatShortcutId('canvas.group'),
         aliases: ['group', 'bundle'],
         enabled: selectionCount > 0,
         run: () => {
@@ -116,7 +117,7 @@ export const useCanvasPaletteCommands = ({
         id: 'ungroup-selection',
         group: 'edit',
         title: t('canvas.palette.command.ungroup'),
-        shortcut: 'Cmd+Shift+G',
+        shortcut: formatShortcutId('canvas.ungroup'),
         aliases: ['ungroup', 'dissolve group', 'release group'],
         enabled: selectedNodeIds.some((id) =>
           nodesRef.current.some((node) => node.id === id && node.type === 'group'),
@@ -156,7 +157,7 @@ export const useCanvasPaletteCommands = ({
         title: focusModeActive
           ? t('canvas.palette.command.exitFocus')
           : t('canvas.palette.command.focusSelected'),
-        shortcut: 'F',
+        shortcut: formatShortcutId('canvas.focusMode'),
         aliases: ['focus', 'spotlight', 'dim'],
         enabled: focusModeActive || focusModeAvailable,
         run: toggleFocusMode,
@@ -217,6 +218,7 @@ export const useCanvasPaletteCommands = ({
       },
       {
         id: 'fit-all',
+        shortcut: formatShortcutId('canvas.fitAll'),
         group: 'navigate',
         title: t('canvas.palette.command.fitAll'),
         hint: t('canvas.palette.command.fitAllHint'),
@@ -226,6 +228,7 @@ export const useCanvasPaletteCommands = ({
       },
       {
         id: 'reset-zoom',
+        shortcut: formatShortcutId('canvas.zoomReset'),
         group: 'navigate',
         title: t('canvas.palette.command.resetZoom'),
         aliases: ['1:1', 'actual size'],
@@ -233,6 +236,7 @@ export const useCanvasPaletteCommands = ({
       },
       {
         id: 'toggle-reference',
+        shortcut: formatShortcutId('canvas.toggleReferenceDrawer'),
         group: 'view',
         title: referenceDrawerOpen
           ? t('canvas.palette.command.hideReference')
@@ -247,7 +251,7 @@ export const useCanvasPaletteCommands = ({
         title: chatPanelOpen
           ? t('canvas.palette.command.hideChat')
           : t('canvas.palette.command.showChat'),
-        shortcut: 'Cmd+Shift+A',
+        shortcut: formatShortcutId('canvas.toggleChatPanel'),
         aliases: ['ai', 'sidebar', 'assistant'],
         enabled: !!onChatToggle,
         run: () => onChatToggle?.(),
@@ -256,7 +260,7 @@ export const useCanvasPaletteCommands = ({
         id: 'shortcuts',
         group: 'help',
         title: t('canvas.palette.command.shortcuts'),
-        shortcut: '?',
+        shortcut: formatShortcutId('app.shortcutsHelp'),
         aliases: ['keys', 'bindings', 'cheatsheet'],
         run: () => openShortcuts(),
       },

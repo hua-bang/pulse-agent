@@ -1,36 +1,51 @@
 import { useCallback, useEffect, useMemo, type KeyboardEventHandler, type ReactNode } from 'react';
 import type { CanvasNode } from '../../types';
-import { ColumnsPlusRight } from '@phosphor-icons/react';
-import { PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
 import { useRightDock, useRightDockState } from '../RightDock/context';
-import { hasDockContentTabs, isDockContentTabVisible } from '../RightDock/dock-content-tabs';
+import { canPreviewWorkspaceCanvas, hasDockContentTabs, isDockContentTabVisible } from '../RightDock/dock-content-tabs';
+import { buildDockTabRefs } from '../RightDock/tabRefs';
 import type { SettingsSection } from '../Settings';
 import './ChatPage.css';
 import './ChatPanel.css';
-import { ChatAnchors } from './ChatAnchors';
-import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
-import { RailToggleIcon } from './RailToggleIcon';
-import { sessionTitleText } from './utils/sessionTitle';
+import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useAppShell } from '../AppShellProvider';
 import type { AgentScope, WorkspaceOption } from './types';
-import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
-import { useStableSessionRail } from './hooks/useStableSessionRail';
+import {
+  type ChatContextSnapshot,
+  type ChatExecutionPolicy,
+  type ChatTarget,
+} from './ChatTargetContext';
+import { chatScopeId } from './chatScope';
+import { useRegisterChatTarget } from './useRegisterChatTarget';
+import { ChatConversationStatus } from './ChatConversationStatus';
+import { useChatPageTargetContext } from './hooks/useChatPageTargetContext';
+import { useChatPageJumpNavigation } from './hooks/useChatPageJumpNavigation';
+import { useChatPageSessionRail } from './hooks/useChatPageSessionRail';
+import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
+import { submitQuickAction } from './hooks/submitQuickAction';
+import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
+import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
+  /** Context inherited from the visible target that opened this page. */
+  contextSnapshot?: ChatContextSnapshot;
+  executionPolicy?: ChatExecutionPolicy;
+  onExecutionPolicyChange?: (policy: Exclude<ChatExecutionPolicy, 'scheduled'>) => void;
   /** Session selected while entering a different scope. */
   initialPendingSessionId: string | null;
   /** Reactive pendingSessionId for same-workspace clicks after mount. */
   pendingSessionId: string | null;
+  pendingSessionIntentId: number | null;
   /** Session chosen by the user, updated synchronously before its thread loads. */
   selectedSessionKey?: string | null;
-  onSessionConsumed: () => void;
+  onSessionConsumed: (intentId: number, loaded: boolean) => void;
+  onActiveSessionResolved?: (sessionId: string, workspaceId: string) => void;
   onSelectSession: (session: UnifiedSession) => void;
   /** Like onSelectSession but for chip jumps — does NOT reset the back stack. */
   onJumpToSession?: (session: { sessionId: string; workspaceId: string }) => void;
@@ -39,8 +54,6 @@ export interface ChatPageBodyProps {
   onPushBackEntry?: (entry: SessionBackEntry) => void;
   onBackToSession?: () => void;
   onClearBackStack?: () => void;
-  onNewGlobalSession: () => void;
-  newSessionRequest: number;
   onWorkspaceContextRequest?: (workspaceId: string) => void;
   allWorkspaces: WorkspaceOption[];
   nodes?: CanvasNode[];
@@ -62,18 +75,21 @@ export interface ChatPageBodyProps {
 
 export const ChatPageBody = ({
   agentScope,
+  contextSnapshot,
+  executionPolicy = agentScope.kind === 'scheduled' ? 'scheduled' : 'auto',
+  onExecutionPolicyChange,
   initialPendingSessionId,
   pendingSessionId,
+  pendingSessionIntentId,
   selectedSessionKey = null,
   onSessionConsumed,
+  onActiveSessionResolved,
   onSelectSession,
   onJumpToSession,
   backEntry,
   onPushBackEntry,
   onBackToSession,
   onClearBackStack,
-  onNewGlobalSession,
-  newSessionRequest,
   onWorkspaceContextRequest,
   allWorkspaces,
   nodes,
@@ -91,14 +107,37 @@ export const ChatPageBody = ({
   const dock = useRightDock();
   const dockState = useRightDockState();
   // The dock's Tab strip lives beside this page (its chat tab is hidden here),
-  // so the control is a plain show/hide of the content tabs — no navigation.
-  // Kept visible (disabled, not hidden) even with zero tabs: a tab can land
-  // mid-conversation (agent opens an artifact/preview), and the button's
-  // position shouldn't jump around as that happens.
-  const dockTabsToggleable = hasDockContentTabs(dockState);
-  const dockTabsVisible = isDockContentTabVisible(dockState);
+  // so the control is a plain show/hide — no navigation. Kept visible
+  // (disabled, not hidden) even with nothing to show: a tab can land
+  // mid-conversation, and its position shouldn't jump as that happens.
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
-  const anchorScopeId = workspaceId ?? 'global';
+  const canOpenDefaultDockTab = canPreviewWorkspaceCanvas(dockState, workspaceId);
+  const dockTabsToggleable = hasDockContentTabs(dockState) || canOpenDefaultDockTab;
+  const dockTabsVisible = isDockContentTabVisible(dockState);
+  // Zero content tabs yet: default to opening this page's own canvas as a
+  // read-only preview instead of leaving the click a no-op.
+  const handleToggleDockTabs = useCallback(() => {
+    if (!hasDockContentTabs(dockState) && workspaceId) {
+      dock.openCanvasPreview(workspaceId, allWorkspaces.find(w => w.id === workspaceId)?.name ?? workspaceId);
+      return;
+    }
+    dock.toggleContentTabs();
+  }, [allWorkspaces, dock, dockState, workspaceId]);
+  const scopeId = chatScopeId(agentScope);
+  const sessionStoreId = scopeSessionStoreId(agentScope);
+  const {
+    inheritedContextChips,
+    removeInheritedContext,
+    requestContext,
+    resolvedContextSnapshot,
+    scopeLabel,
+  } = useChatPageTargetContext({
+    agentScope,
+    allWorkspaces,
+    contextSnapshot,
+    executionPolicy,
+    fixedTitle: fixedChat?.title,
+  });
   const settingsButtonLabel = workspaceId && onOpenWorkspaceSettings
     ? t('workspaceSettings.ariaLabel')
     : t('chat.modelSettings');
@@ -111,13 +150,21 @@ export const ChatPageBody = ({
   }, [onOpenAppSettings, onOpenWorkspaceSettings, workspaceId]);
   const {
     abort,
+    activeSessionId,
     addImageToCanvas,
     answerClarification,
+    attachmentSendBlocked,
     attachments,
+    branchError,
+    busyElsewhere,
     canvasModels,
     clarifyInput,
+    clarificationAnswering,
+    clarificationError,
     clearInput,
     collapsedSections,
+    conversationBranch,
+    deleteSession,
     editableRef,
     editUserMessage,
     expandedTools,
@@ -129,6 +176,9 @@ export const ChatPageBody = ({
     handleNewSession,
     handlePaste,
     input,
+    insertDomSelectionMention,
+    insertNodeMention,
+    insertSkillMention,
     loading,
     mentionIndex,
     mentionItems,
@@ -142,25 +192,61 @@ export const ChatPageBody = ({
     relay,
     stopRelay,
     removeAttachment,
+    renameSession,
+    retryAttachment,
+    retrySession,
     selectMention,
     sendMessage,
     sessions, sessionsLoading, sessionLoading,
+    sessionError,
     setClarifyInput,
     setMentionIndex,
     streamingTools,
     submitCurrentInput,
     toggleSection,
+    toggleSessionPinned,
     toggleToolExpand,
+    undoConversationBranch,
   } = useChatComposerState({
     agentScope,
+    scopeLabel,
     allWorkspaces,
     nodes,
     rootFolder,
+    dockTabs: workspaceId ? buildDockTabRefs(dockState, workspaceId) : undefined,
+    collectStructuredContext: true,
     eagerLoad: true,
+    getRequestContext: () => requestContext,
     // If a specific session is being selected, don't also fetch the scope's
     // current active history. ChatPageBody now stays mounted across scopes,
     // so this must follow the prop rather than a mount-time snapshot.
     skipInitialHistory: initialPendingSessionId !== null || pendingSessionId !== null,
+  });
+
+  const handleTargetSkillChat = useCallback(async (skillName: string) => {
+    if (loading || sessionLoading || busyElsewhere) throw new Error(t('chat.generating'));
+    const created = await handleNewSession();
+    if (!created.ok) throw new Error(created.error ?? t('chat.sessionNewFailed'));
+    onClearBackStack?.();
+    clearInput();
+    insertSkillMention(skillName);
+  }, [busyElsewhere, clearInput, handleNewSession, insertSkillMention, loading, onClearBackStack, sessionLoading, t]);
+
+  const target = useMemo<ChatTarget>(() => ({
+    surface: 'page',
+    scope: agentScope,
+    scopeId,
+    sessionId: activeSessionId,
+    composerId: `page:${scopeId}`,
+    contextSnapshot: resolvedContextSnapshot,
+    executionPolicy,
+  }), [activeSessionId, agentScope, executionPolicy, resolvedContextSnapshot, scopeId]);
+
+  useRegisterChatTarget(target, {
+    insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,
+    insertDomSelection: busyElsewhere || sessionLoading ? undefined : insertDomSelectionMention,
+    startSkillChat: handleTargetSkillChat,
+    focus: focusInput,
   });
 
   useEffect(() => {
@@ -169,21 +255,15 @@ export const ChatPageBody = ({
   }, [onWorkspaceContextRequest, workspaceId]);
 
   useEffect(() => {
-    if (agentScope.kind !== 'global') return;
-    if (newSessionRequest <= 0) return;
-    void handleNewSession();
-  }, [agentScope.kind, handleNewSession, newSessionRequest]);
+    if (!sessionLoading && activeSessionId) {
+      onActiveSessionResolved?.(activeSessionId, scopeId);
+    }
+  }, [activeSessionId, onActiveSessionResolved, scopeId, sessionLoading]);
 
-  // Load the pending session whenever it changes. The body no longer remounts
-  // for cross-workspace picks, so both same- and cross-scope navigation follow
-  // this single path.
-  useEffect(() => {
-    if (pendingSessionId === null) return;
-    void handleLoadSession(pendingSessionId).then(() => {
-      onSessionConsumed();
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingSessionId]);
+  const retrySessionTransition = useChatPagePendingSession({
+    busyElsewhere, handleLoadSession, onJumpToSession, onSessionConsumed,
+    pendingSessionId, pendingSessionIntentId, retrySession, sessionStoreId,
+  });
 
   // See ChatPanel for the rationale; treat loading state as configured to
   // avoid bouncing the user to Settings before status loads.
@@ -208,6 +288,7 @@ export const ChatPageBody = ({
   }, [notConfigured, onOpenAppSettings, openModelSettingsWithHint]);
 
   const handleQuickAction = useCallback(async (prompt: string) => {
+    if (loading || sessionLoading || busyElsewhere || attachmentSendBlocked || sessionError) return;
     if (notConfigured) {
       openModelSettingsWithHint();
       return;
@@ -217,11 +298,10 @@ export const ChatPageBody = ({
       return;
     }
 
-    const ok = await sendMessage(prompt);
-    if (ok) {
-      clearInput();
-    }
-  }, [clearInput, focusInput, notConfigured, openModelSettingsWithHint, sendMessage]);
+    await submitQuickAction({
+      prompt, requestContext, attachments, sendMessage, clearInput,
+    });
+  }, [attachmentSendBlocked, attachments, busyElsewhere, clearInput, focusInput, loading, notConfigured, openModelSettingsWithHint, requestContext, sendMessage, sessionError, sessionLoading]);
 
   const handleSubmit = useCallback(async () => {
     if (notConfigured && !isExternalOnlyRoleMessage(input)) {
@@ -257,193 +337,110 @@ export const ChatPageBody = ({
     onExit();
   }, [onExit, onNodeFocus, workspaceId]);
 
-  // Short label for the conversation currently on screen — recorded into the
-  // back stack when a chip jump navigates away from it.
-  const currentSessionLabel = useMemo(() => {
-    const firstUser = messages.find((m) => m.role === 'user')?.content.trim();
-    if (!firstUser) return '';
-    const cleaned = sessionTitleText(firstUser);
-    return cleaned.length > 24 ? `${cleaned.slice(0, 23)}…` : cleaned;
-  }, [messages]);
-
-  const handleSessionJump = useCallback(async (sessionId: string, jumpWorkspaceId: string, messageIndex?: number) => {
-    // Record where the jump started so the back bar can return here.
-    try {
-      const current = await window.canvasWorkspace.agent.getCurrentSession({ scope: agentScope });
-      if (current.ok && current.sessionId && current.sessionId !== sessionId) {
-        onPushBackEntry?.({
-          sessionId: current.sessionId,
-          workspaceId: workspaceId ?? '__global_chat__',
-          label: currentSessionLabel,
-        });
-      }
-    } catch {
-      // Back entry is best-effort; the jump itself still proceeds.
-    }
-
-    // Cross-workspace switches remount the body with the correct workspace
-    // scope (routed by the parent WITHOUT resetting the back stack). For
-    // same-workspace sessions we can load in-place.
-    const isSameScope = jumpWorkspaceId === (workspaceId ?? '__global_chat__');
-    if (isSameScope) {
-      await handleLoadSession(sessionId);
-    } else if (onJumpToSession) {
-      onJumpToSession({ sessionId, workspaceId: jumpWorkspaceId });
-    } else {
-      onSelectSession({
-        sessionId,
-        workspaceId: jumpWorkspaceId,
-        workspaceName: allWorkspaces.find(w => w.id === jumpWorkspaceId)?.name ?? jumpWorkspaceId,
-        date: '',
-        messageCount: 0,
-        preview: '',
-        isCurrent: false,
-      });
-    }
-    if (messageIndex !== undefined && messageIndex >= 0) {
-      window.setTimeout(() => {
-        const id = buildAnchorElementId(anchorScopeId, messageIndex);
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        el.classList.add('chat-message--anchor-flash');
-        window.setTimeout(() => el.classList.remove('chat-message--anchor-flash'), 1200);
-      }, 200);
-    }
-  }, [agentScope, allWorkspaces, anchorScopeId, currentSessionLabel, handleLoadSession, onJumpToSession, onPushBackEntry, onSelectSession, workspaceId]);
-
-  const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
-
-  const handleJumpAnchor = useCallback((messageIndex: number) => {
-    const id = buildAnchorElementId(anchorScopeId, messageIndex);
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    el.classList.add('chat-message--anchor-flash');
-    window.setTimeout(() => {
-      el.classList.remove('chat-message--anchor-flash');
-    }, 1200);
-  }, [anchorScopeId]);
+  const {
+    anchors,
+    onJumpAnchor: handleJumpAnchor,
+    onSessionJump: handleSessionJump,
+  } = useChatPageJumpNavigation({
+    agentScope,
+    allWorkspaces,
+    messages,
+    scopeId,
+    handleLoadSession,
+    onJumpToSession,
+    onPushBackEntry,
+    onSelectSession,
+  });
 
   const handleEditUserMessage = useCallback(
-    (messageIndex: number, newContent: string) => editUserMessage(messageIndex, newContent),
-    [editUserMessage],
+    (messageIndex: number, newContent: string) => (
+      sessionError ? Promise.resolve(false) : editUserMessage(messageIndex, newContent)
+    ),
+    [editUserMessage, sessionError],
   );
 
   const handleRegenerate = useCallback(
-    (messageIndex: number) => regenerateAssistantMessage(messageIndex),
-    [regenerateAssistantMessage],
+    (messageIndex: number) => (
+      sessionError ? Promise.resolve(false) : regenerateAssistantMessage(messageIndex)
+    ),
+    [regenerateAssistantMessage, sessionError],
   );
 
-  const allSessions = useStableSessionRail({
+  const handleToggleExecutionPolicy = useCallback(() => {
+    if (executionPolicy === 'scheduled') return;
+    onExecutionPolicyChange?.(executionPolicy === 'ask' ? 'auto' : 'ask');
+  }, [executionPolicy, onExecutionPolicyChange]);
+
+  const sessionInteractionDisabled = loading || sessionLoading || busyElsewhere;
+  const sessionRail = useChatPageSessionRail({
     agentScope,
     allWorkspaces,
     currentScopeName,
-    loading: sessionsLoading,
+    sessionsLoading,
     otherSessions,
     selectedSessionKey,
     sessions,
+    disabled: sessionInteractionDisabled,
+    focusInput,
+    handleNewSession,
+    onClearBackStack,
+    onSelectSession,
+    renameSession,
+    deleteSession,
+    toggleSessionPinned,
   });
-
-  // Session switches are blocked while a turn is streaming — swapping the
-  // message list mid-generation would let the in-flight stream write into
-  // the newly loaded session. Same rule as the session-ref chips.
-  const handleRailNewSession = useCallback(async () => {
-    if (loading) return;
-    onClearBackStack?.();
-    if (agentScope.kind !== 'global') {
-      onNewGlobalSession();
-      return;
-    }
-    await handleNewSession();
-  }, [agentScope.kind, handleNewSession, loading, onClearBackStack, onNewGlobalSession]);
-
-  const handleRailSelectSession = useCallback((session: UnifiedSession) => {
-    if (loading) return;
-    onSelectSession(session);
-  }, [loading, onSelectSession]);
 
   return (
     <div className="chat-page">
       {!fixedChat && (
-        <div className={`chat-page-rail-wrapper${railCollapsed ? ' chat-page-rail-wrapper--collapsed' : ''}`}>
-          <ChatSessionsRail
-            allSessions={allSessions} loading={sessionsLoading}
-            onNewSession={handleRailNewSession}
-            onSelectSession={handleRailSelectSession}
-          />
-        </div>
+        <ChatPageRail collapsed={railCollapsed} rail={sessionRail} />
       )}
 
       <div className="chat-page-main">
-        <div className="chat-page-topbar">
-          {fixedChat ? (
-            <strong className="chat-page-topbar-title">{fixedChat.title}</strong>
-          ) : (
-            <button
-              className="chat-panel-action-btn"
-              onClick={onToggleRail}
-              title={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
-              aria-label={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
-            >
-              <RailToggleIcon size={16} />
-            </button>
-          )}
-          <div className="chat-page-topbar-spacer" />
-          <ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />
-          <button
-            className="chat-panel-action-btn"
-            onClick={() => onOpenAppSettings('reply-style')}
-            title={t('chat.replyStyleSettings')}
-            aria-label={t('chat.replyStyleSettings')}
-          >
-            <SparklesIcon size={16} strokeWidth={1.25} />
-          </button>
-          <button
-            className="chat-panel-action-btn"
-            onClick={handleOpenScopeSettings}
-            title={settingsButtonLabel}
-            aria-label={settingsButtonLabel}
-          >
-            <SettingsIcon size={16} strokeWidth={1.25} />
-          </button>
-          {!fixedChat && (
-            <button
-              className="chat-panel-action-btn"
-              onClick={() => void handleRailNewSession()}
-              title={t('chat.newAiChat')}
-              aria-label={t('chat.newAiChat')}
-            >
-              <PlusIcon size={16} strokeWidth={1.3} />
-            </button>
-          )}
-          <button
-            className="chat-panel-action-btn"
-            data-active={dockTabsVisible}
-            aria-pressed={dockTabsVisible}
-            disabled={!dockTabsToggleable}
-            onClick={dock.toggleContentTabs}
-            title={dockTabsToggleable ? (dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs')) : t('chat.noDockTabs')}
-            aria-label={dockTabsToggleable ? (dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs')) : t('chat.noDockTabs')}
-          >
-            <ColumnsPlusRight size={16} />
-          </button>
-        </div>
-
+        <ChatPageTopbar
+          fixedTitle={fixedChat?.title}
+          railCollapsed={railCollapsed}
+          onToggleRail={onToggleRail}
+          anchors={anchors}
+          onJumpAnchor={handleJumpAnchor}
+          onOpenReplyStyle={() => onOpenAppSettings('reply-style')}
+          onOpenScopeSettings={handleOpenScopeSettings}
+          settingsLabel={settingsButtonLabel}
+          onNewSession={() => void sessionRail.onNewSession()}
+          newSessionDisabled={sessionInteractionDisabled}
+          dockTabsVisible={dockTabsVisible}
+          dockTabsToggleable={dockTabsToggleable}
+          onToggleDockTabs={handleToggleDockTabs}
+        />
         <ChatView
           className="chat-page-body"
-          banner={fixedChat?.banner ?? (backEntry && onBackToSession ? (
-            <SessionBackBar entry={backEntry} disabled={loading} onBack={onBackToSession} />
-          ) : undefined)}
+          banner={<>
+            <ChatConversationStatus
+              sessionLoading={sessionLoading}
+              hasMessages={messages.length > 0}
+              busyElsewhere={busyElsewhere}
+              sessionError={sessionError}
+              onRetrySession={retrySessionTransition}
+              conversationBranch={conversationBranch}
+              branchError={branchError}
+              onOpenOriginal={async () => { await undoConversationBranch(); }}
+              disabled={sessionInteractionDisabled}
+            />
+            {fixedChat?.banner ?? (backEntry && onBackToSession ? (
+              <SessionBackBar entry={backEntry} disabled={sessionInteractionDisabled} onBack={onBackToSession} />
+            ) : undefined)}
+          </>}
           messages={messages}
           loading={loading} sessionLoading={sessionLoading}
-          workspaceId={anchorScopeId}
+          workspaceId={scopeId}
           rootFolder={rootFolder}
           streamingTools={streamingTools}
           messageTools={messageTools}
           collapsedSections={collapsedSections}
           expandedTools={expandedTools}
           pendingClarify={pendingClarify}
+          clarificationAnswering={clarificationAnswering}
+          clarificationError={clarificationError}
           relay={relay}
           onStopRelay={stopRelay}
           clarifyInput={clarifyInput}
@@ -453,9 +450,18 @@ export const ChatPageBody = ({
           onToggleToolExpand={toggleToolExpand}
           onAddImageToCanvas={addImageToCanvas}
           nodes={nodes}
+          selectedContext={inheritedContextChips}
+          showContextChips
+          onRemoveContext={removeInheritedContext}
           onNodeFocus={handleNodeFocus}
           onQuickAction={handleQuickAction}
-          emptyState={fixedChat ? <div className="chat-page-empty-spacer" /> : undefined} inputPlaceholder={fixedChat ? t('scheduled.followUpPlaceholder') : undefined}
+          emptyState={fixedChat ? <div className="chat-page-empty-spacer" /> : undefined}
+          emptyStateVariant={agentScope.kind === 'global' ? 'global' : 'canvas'}
+          inputPlaceholder={agentScope.kind === 'scheduled'
+            ? t('scheduled.followUpPlaceholder')
+            : agentScope.kind === 'workspace'
+              ? t('chat.askWorkspace', { name: scopeLabel })
+              : t('chat.askAnything')}
           input={input}
           attachments={attachments}
           editableRef={editableRef}
@@ -467,8 +473,11 @@ export const ChatPageBody = ({
           onInput={handleInput}
           onKeyDown={handleComposerKeyDown}
           onPaste={handlePaste}
-          onAttachFiles={handleAttachFiles}
+          onAttachFiles={agentScope.kind === 'workspace' ? handleAttachFiles : undefined}
           onRemoveAttachment={removeAttachment}
+          onRetryAttachment={retryAttachment}
+          sendDisabled={attachmentSendBlocked || busyElsewhere || Boolean(sessionError)}
+          interactionDisabled={busyElsewhere}
           onSubmit={handleSubmit}
           onAbort={abort}
           modelStatus={canvasModels.status}
@@ -478,6 +487,9 @@ export const ChatPageBody = ({
           onSelectModel={canvasModels.selectModel}
           onOpenModelSettings={openModelSettingsFromSwitcher}
           contextComposer
+          executionMode={executionPolicy}
+          onToggleExecutionMode={executionPolicy === 'scheduled' ? undefined : handleToggleExecutionPolicy}
+          conversationKey={activeSessionId ?? scopeId}
           onEditUserMessage={handleEditUserMessage}
           onRegenerate={handleRegenerate}
           onSessionJump={handleSessionJump}

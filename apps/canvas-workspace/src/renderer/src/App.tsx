@@ -16,6 +16,7 @@ import { useKnowledgeAiContext } from './components/WorkspaceNodes/knowledgeAiCo
 import { NodesRouteViews } from './components/WorkspaceNodes/NodesRouteViews';
 import { useNodeDetailBridges } from './components/WorkspaceNodes/useNodeDetailBridges';
 import { useWorkspaces } from './hooks/useWorkspaces';
+import { useAppShortcutBindings } from './hooks/useAppShortcuts';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
@@ -23,6 +24,13 @@ import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
 import { ScheduledRouteViews, SkillsRouteView } from './components/RouteViews';
 import { useScheduledRunChatOpener } from './components/Scheduled/useScheduledRunChatOpener';
+import {
+  ChatTargetProvider,
+  useActiveChatTarget,
+  useChatTargetBroker,
+} from './components/chat/ChatTargetContext';
+import { useChatNavigation } from './components/chat/hooks/useChatNavigation';
+import type { AgentScope } from './components/chat/types';
 const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
@@ -87,6 +95,8 @@ const AppContent = () => {
             : 'canvas';
   const routeQuery = routeParams.toString();
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
+  const chatTargetBroker = useChatTargetBroker();
+  const activeChatTarget = useActiveChatTarget();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
@@ -186,9 +196,29 @@ const AppContent = () => {
     }
   }, [routePath, detailNodeMatch, setLocation]);
 
-  const enterChatView = useCallback(() => {
-    setLocation(ROUTE_CHAT);
-  }, [setLocation]);
+  const {
+    enterChatTarget,
+    enterChatView,
+    exitChatView,
+    initialTarget: chatEntryTarget,
+  } = useChatNavigation({
+    activeView,
+    location,
+    setLocation,
+    activeTarget: activeChatTarget,
+    broker: chatTargetBroker,
+    openDockChat: dock.openChat,
+    isOverlayOpen,
+    openShortcuts,
+  });
+  const openSessionInOwningScope = useCallback(async (
+    scope: AgentScope,
+    sessionId: string,
+    scopeLabel: string,
+  ) => {
+    const { createChatPageSessionTarget } = await import('./components/chat/utils/sessionScope');
+    enterChatTarget(createChatPageSessionTarget(scope, sessionId, scopeLabel));
+  }, [enterChatTarget]);
 
   const enterNodesView = useCallback(() => {
     if (!NODES_ENABLED) return;
@@ -209,10 +239,6 @@ const AppContent = () => {
   const enterGraphView = useCallback(() => {
     if (!GRAPH_ENABLED) return;
     setLocation(ROUTE_GRAPH);
-  }, [setLocation]);
-
-  const exitChatView = useCallback(() => {
-    setLocation(ROUTE_CANVAS);
   }, [setLocation]);
 
   // Plugin nav items declare their own paths; just hand off the URL to
@@ -435,45 +461,12 @@ const AppContent = () => {
     });
   }, [folders, confirm, deleteFolder, notify, t]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isEditable = Boolean(target) && (
-        target?.tagName === 'INPUT' ||
-        target?.tagName === 'TEXTAREA' ||
-        target?.isContentEditable
-      );
+  useAppShortcutBindings({
+    activeView, isOverlayOpen, openShortcuts, toggleSidebar: handleSidebarToggle,
+    workspaces, selectWorkspace: handleSelectWorkspace, setLocation, routes: { canvas: ROUTE_CANVAS, chat: ROUTE_CHAT },
+  });
 
-      if (isOverlayOpen) return;
-
-      if (!isEditable && (e.key === '?' || (e.shiftKey && e.key === '/'))) {
-        e.preventDefault();
-        openShortcuts();
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') {
-        e.preventDefault();
-        if (activeView === 'chat') {
-          setLocation(ROUTE_CANVAS);
-        } else {
-          setLocation(ROUTE_CHAT);
-        }
-        return;
-      }
-
-      if (e.key === 'Escape' && activeView === 'chat' && !isEditable) {
-        setLocation(ROUTE_CANVAS);
-      }
-    };
-
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [activeView, isOverlayOpen, openShortcuts, setLocation]);
-
-  const getWorkspaceRootFolder = useCallback((workspaceId: string) => {
-    return workspaces.find((ws) => ws.id === workspaceId)?.rootFolder;
-  }, [workspaces]);
+  const getWorkspaceRootFolder = useCallback((workspaceId: string) => workspaces.find((ws) => ws.id === workspaceId)?.rootFolder, [workspaces]);
 
   const focusNodeOnCanvas = useCallback((workspaceId: string, nodeId: string) => {
     if (activeId !== workspaceId) {
@@ -545,6 +538,7 @@ const AppContent = () => {
               onActivateWorkspace={selectWorkspace}
               onOpenAppSettings={openAppSettings}
               onOpenWorkspaceSettings={openWorkspaceSettings}
+              onOpenSessionInScope={openSessionInOwningScope}
               onSetActiveRootFolder={handleSetActiveRootFolder}
             />
           </PulseRouterView>
@@ -552,6 +546,7 @@ const AppContent = () => {
             <ChatPage
               allWorkspaces={workspaces}
               openScheduledTaskId={routeParams.get('scheduledTask')}
+              initialTarget={chatEntryTarget}
               getWorkspaceNodes={getWorkspaceNodes}
               getWorkspaceRootFolder={getWorkspaceRootFolder}
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
@@ -602,6 +597,12 @@ const AppContent = () => {
   );
 };
 const App = () => (
-  <I18nProvider><AppShellProvider><RightDockProvider><AppContent /></RightDockProvider></AppShellProvider></I18nProvider>
+  <I18nProvider>
+    <AppShellProvider>
+      <ChatTargetProvider>
+        <RightDockProvider><AppContent /></RightDockProvider>
+      </ChatTargetProvider>
+    </AppShellProvider>
+  </I18nProvider>
 );
 export default App;

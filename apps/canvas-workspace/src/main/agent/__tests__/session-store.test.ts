@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -21,6 +21,7 @@ describe('SessionStore', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     delete process.env.PULSE_CANVAS_SESSION_STORE_DIR;
     await fs.rm(root, { recursive: true, force: true });
   });
@@ -49,6 +50,163 @@ describe('SessionStore', () => {
     const sessionsDir = join(root, 'ws-1', 'agent-sessions');
     const entries = await fs.readdir(sessionsDir);
     expect(entries.filter((name) => name.includes('.tmp'))).toEqual([]);
+  });
+
+  it('rejects a pointer change after a queued current write fails, then lets a later write recover', async () => {
+    const store = new SessionStore('ws-queued-write-failure');
+    await store.startSession();
+    const sourceSessionId = store.getCurrentSession()!.sessionId;
+    const rename = vi.spyOn(fs, 'rename');
+    rename.mockRejectedValueOnce(new Error('queued current write failed'));
+
+    store.addMessage(makeMessage(0));
+
+    await expect(store.startSession()).rejects.toThrow('queued current write failed');
+    expect(store.getCurrentSession()?.sessionId).toBe(sourceSessionId);
+
+    // The failed write must not poison the serialization tail. The rejected
+    // pointer action repairs the old current snapshot before returning, so a
+    // deliberate retry can proceed without requiring another message edit.
+    await store.startSession();
+
+    expect(store.getCurrentSession()?.sessionId).not.toBe(sourceSessionId);
+    const source = await SessionStore.readSessionFromWorkspace(
+      'ws-queued-write-failure',
+      sourceSessionId,
+    );
+    expect(source?.messages.map(message => message.content)).toEqual(['message 0']);
+  });
+
+  it('reports an unobserved queued failure even when a later snapshot succeeds', async () => {
+    const store = new SessionStore('ws-sticky-write-failure');
+    await store.startSession();
+    const sourceSessionId = store.getCurrentSession()!.sessionId;
+    vi.spyOn(fs, 'rename').mockRejectedValueOnce(new Error('first queued write failed'));
+
+    store.addMessage(makeMessage(0));
+    store.addMessage(makeMessage(1));
+
+    await expect(store.startSession()).rejects.toThrow('first queued write failed');
+    expect(store.getCurrentSession()?.sessionId).toBe(sourceSessionId);
+
+    await store.startSession();
+    const source = await SessionStore.readSessionFromWorkspace(
+      'ws-sticky-write-failure',
+      sourceSessionId,
+    );
+    expect(source?.messages.map(message => message.content))
+      .toEqual(['message 0', 'message 1']);
+  });
+
+  it('keeps the current pointer intact when publishing its archive fails', async () => {
+    const workspaceId = 'ws-archive-failure';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sourceSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.renameSession(sourceSessionId, 'Source session');
+
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    const realRename = fs.rename.bind(fs);
+    vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+      if (String(to).startsWith(archiveDir)) {
+        throw new Error('archive publish failed');
+      }
+      return realRename(from, to);
+    });
+
+    await expect(store.startSession()).rejects.toThrow('archive publish failed');
+    expect(store.getCurrentSession()?.sessionId).toBe(sourceSessionId);
+
+    const reloaded = new SessionStore(workspaceId);
+    const current = await reloaded.restoreCurrentSession();
+    expect(current?.sessionId).toBe(sourceSessionId);
+    expect(current?.messages.map(message => message.content)).toEqual(['message 0']);
+    expect((await fs.readdir(archiveDir)).filter(file => file.includes('.tmp'))).toEqual([]);
+  });
+
+  it('keeps the source current when persisting a replacement pointer fails', async () => {
+    const workspaceId = 'ws-replacement-failure';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sourceSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.renameSession(sourceSessionId, 'Source session');
+
+    const currentPath = join(root, workspaceId, 'agent-sessions', 'current.json');
+    const realRename = fs.rename.bind(fs);
+    vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+      if (String(to) === currentPath) {
+        throw new Error('replacement current publish failed');
+      }
+      return realRename(from, to);
+    });
+
+    await expect(store.branchSession(1)).rejects.toThrow('replacement current publish failed');
+    expect(store.getCurrentSession()?.sessionId).toBe(sourceSessionId);
+
+    const reloaded = new SessionStore(workspaceId);
+    const current = await reloaded.restoreCurrentSession();
+    expect(current?.sessionId).toBe(sourceSessionId);
+    expect(current?.messages.map(message => message.content)).toEqual(['message 0']);
+  });
+
+  it('treats a corrupted current file as an error instead of no current session', async () => {
+    const workspaceId = 'ws-corrupt-current';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sourceSessionId = store.getCurrentSession()!.sessionId;
+    const currentPath = join(root, workspaceId, 'agent-sessions', 'current.json');
+    await fs.writeFile(currentPath, '{invalid json', 'utf-8');
+
+    const reloaded = new SessionStore(workspaceId);
+    await expect(reloaded.restoreCurrentSession()).rejects.toThrow('Current session is corrupted');
+    expect(reloaded.getCurrentSession()).toBeNull();
+
+    await expect(store.startSession()).rejects.toThrow('Current session is corrupted');
+    expect(store.getCurrentSession()?.sessionId).toBe(sourceSessionId);
+    expect(await fs.readFile(currentPath, 'utf-8')).toBe('{invalid json');
+  });
+
+  it('preserves every archived session when pointer changes share one timestamp', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    const workspaceId = 'ws-archive-collision';
+    const store = new SessionStore(workspaceId);
+
+    await store.startSession();
+    const firstSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+
+    const secondSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(2));
+    await store.startSession();
+
+    const archivedIds = (await store.listArchivedSessions())
+      .map(session => session.sessionId)
+      .sort();
+    expect(archivedIds).toEqual([firstSessionId, secondSessionId].sort());
+  });
+
+  it('keeps a promoted session active when old archive cleanup fails', async () => {
+    const workspaceId = 'ws-promotion-cleanup-failure';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const promotedSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    const realUnlink = fs.unlink.bind(fs);
+    vi.spyOn(fs, 'unlink').mockImplementation(async (path) => {
+      if (String(path).startsWith(archiveDir)) throw new Error('cleanup denied');
+      return realUnlink(path);
+    });
+
+    await expect(store.loadSession(promotedSessionId))
+      .resolves.toMatchObject({ sessionId: promotedSessionId });
+    expect(store.getCurrentSession()?.sessionId).toBe(promotedSessionId);
+    const reloaded = new SessionStore(workspaceId);
+    expect((await reloaded.restoreCurrentSession())?.sessionId).toBe(promotedSessionId);
   });
 
   it('setMessages persists once instead of once per message', async () => {
@@ -125,6 +283,224 @@ describe('SessionStore', () => {
 
     const archived = await reloaded.listArchivedSessions();
     expect(archived.some((s) => s.sessionId === firstSessionId)).toBe(true);
+  });
+
+  it('branches the current session without changing the source conversation', async () => {
+    const store = new SessionStore('ws-branch');
+    await store.startSession();
+    const sourceSessionId = store.getCurrentSession()!.sessionId;
+    const sourceMessages = Array.from({ length: 4 }, (_, index) => makeMessage(index));
+    store.setMessages(sourceMessages);
+
+    const branch = await store.branchSession(2);
+
+    expect(branch?.sourceSessionId).toBe(sourceSessionId);
+    expect(branch?.session.sessionId).not.toBe(sourceSessionId);
+    expect(branch?.session.messages.map((message) => message.content))
+      .toEqual(['message 0', 'message 1']);
+
+    const preservedSource = await SessionStore.readSessionFromWorkspace(
+      'ws-branch',
+      sourceSessionId,
+    );
+    expect(preservedSource?.messages.map((message) => message.content))
+      .toEqual(['message 0', 'message 1', 'message 2', 'message 3']);
+  });
+
+  it('persists a renamed session and includes its metadata in later listings', async () => {
+    const store = new SessionStore('ws-rename');
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+
+    expect(await store.renameSession(sessionId, 'Decision log')).toBe(true);
+    await store.startSession();
+
+    const reloaded = new SessionStore('ws-rename');
+    const listed = (await reloaded.listArchivedSessions())
+      .find((session) => session.sessionId === sessionId);
+    expect(listed).toMatchObject({
+      title: 'Decision log',
+      pinned: false,
+    });
+  });
+
+  it('persists pin and unpin state for an archived session', async () => {
+    const store = new SessionStore('ws-pin');
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+
+    expect(await store.setSessionPinned(sessionId, true)).toBe(true);
+    const pinned = (await new SessionStore('ws-pin').listArchivedSessions())
+      .find((session) => session.sessionId === sessionId);
+    expect(pinned?.pinned).toBe(true);
+
+    expect(await store.setSessionPinned(sessionId, false)).toBe(true);
+    const unpinned = (await new SessionStore('ws-pin').listArchivedSessions())
+      .find((session) => session.sessionId === sessionId);
+    expect(unpinned?.pinned).toBe(false);
+  });
+
+  it('deleting the current session creates a safe new active session', async () => {
+    const store = new SessionStore('ws-delete-current');
+    await store.startSession();
+    const deletedSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+
+    const result = await store.deleteSession(deletedSessionId);
+
+    expect(result?.deletedCurrent).toBe(true);
+    expect(result?.activeSession.sessionId).not.toBe(deletedSessionId);
+    expect(result?.activeSession.messages).toEqual([]);
+    expect(await SessionStore.readSessionFromWorkspace(
+      'ws-delete-current',
+      deletedSessionId,
+    )).toBeNull();
+
+    const reloaded = new SessionStore('ws-delete-current');
+    expect((await reloaded.restoreCurrentSession())?.sessionId)
+      .toBe(result?.activeSession.sessionId);
+  });
+
+  it('does not delete the current pointer when its replacement cannot be persisted', async () => {
+    const workspaceId = 'ws-delete-current-failure';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sourceSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.renameSession(sourceSessionId, 'Source session');
+
+    const currentPath = join(root, workspaceId, 'agent-sessions', 'current.json');
+    vi.spyOn(fs, 'rename').mockRejectedValueOnce(new Error('delete replacement publish failed'));
+
+    await expect(store.deleteSession(sourceSessionId))
+      .rejects.toThrow('delete replacement publish failed');
+    expect(store.getCurrentSession()?.sessionId).toBe(sourceSessionId);
+
+    const reloaded = new SessionStore(workspaceId);
+    expect((await reloaded.restoreCurrentSession())?.sessionId).toBe(sourceSessionId);
+    expect(await fs.readFile(currentPath, 'utf-8')).toContain(sourceSessionId);
+  });
+
+  it('does not advance the current pointer when stale archive cleanup blocks deletion', async () => {
+    const workspaceId = 'ws-delete-current-stale-archive';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sourceSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(fs, 'unlink').mockImplementation(async (path) => {
+      if (String(path).startsWith(archiveDir)) throw new Error('cleanup denied');
+    });
+
+    expect((await store.loadSession(sourceSessionId))?.sessionId).toBe(sourceSessionId);
+    await expect(store.deleteSession(sourceSessionId)).rejects.toThrow('cleanup denied');
+    expect(store.getCurrentSession()?.sessionId).toBe(sourceSessionId);
+
+    const reloaded = new SessionStore(workspaceId);
+    expect((await reloaded.restoreCurrentSession())?.sessionId).toBe(sourceSessionId);
+  });
+
+  it('acknowledges a committed current deletion when metadata cleanup fails', async () => {
+    const workspaceId = 'ws-delete-current-metadata-failure';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sourceSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.renameSession(sourceSessionId, 'Old title');
+    const metadataPath = join(root, workspaceId, 'agent-sessions', 'metadata.json');
+    const realRename = fs.rename.bind(fs);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+      if (String(to) === metadataPath) throw new Error('metadata cleanup denied');
+      return realRename(from, to);
+    });
+
+    const result = await store.deleteSession(sourceSessionId);
+
+    expect(result?.deletedCurrent).toBe(true);
+    expect(result?.activeSession.sessionId).not.toBe(sourceSessionId);
+    const reloaded = new SessionStore(workspaceId);
+    expect((await reloaded.restoreCurrentSession())?.sessionId)
+      .toBe(result?.activeSession.sessionId);
+  });
+
+  it('deletes an archived session without changing the current session', async () => {
+    const store = new SessionStore('ws-delete-archive');
+    await store.startSession();
+    const archivedSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    const currentSessionId = store.getCurrentSession()!.sessionId;
+
+    const result = await store.deleteSession(archivedSessionId);
+
+    expect(result).toMatchObject({
+      deletedCurrent: false,
+      activeSession: { sessionId: currentSessionId },
+    });
+    expect(await SessionStore.readSessionFromWorkspace(
+      'ws-delete-archive',
+      archivedSessionId,
+    )).toBeNull();
+    expect(await store.deleteSession('missing-session')).toBeNull();
+    expect(store.getCurrentSession()?.sessionId).toBe(currentSessionId);
+  });
+
+  it('does not create a current pointer while rejecting a missing deletion', async () => {
+    const store = new SessionStore('ws-delete-missing-empty');
+
+    expect(await store.deleteSession('missing-session')).toBeNull();
+    expect(store.getCurrentSession()).toBeNull();
+    expect(await store.restoreCurrentSession()).toBeNull();
+  });
+
+  it('does not report success when deleting an archived session fails', async () => {
+    const workspaceId = 'ws-delete-archive-failure';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const archivedSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.renameSession(archivedSessionId, 'Keep metadata');
+    await store.startSession();
+    const currentSessionId = store.getCurrentSession()!.sessionId;
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    const realUnlink = fs.unlink.bind(fs);
+    vi.spyOn(fs, 'unlink').mockImplementation(async (path) => {
+      if (String(path).startsWith(archiveDir)) throw new Error('archive is read-only');
+      return realUnlink(path);
+    });
+
+    await expect(store.deleteSession(archivedSessionId))
+      .rejects.toThrow('archive is read-only');
+    expect(store.getCurrentSession()?.sessionId).toBe(currentSessionId);
+    expect((await store.listArchivedSessions()).find(
+      session => session.sessionId === archivedSessionId,
+    )?.title).toBe('Keep metadata');
+  });
+
+  it('includes persisted title and pin state in cross-workspace listings', async () => {
+    const store = new SessionStore('ws-list-metadata');
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.renameSession(sessionId, 'Pinned decision');
+    await store.setSessionPinned(sessionId, true);
+
+    const groups = await SessionStore.listAllWorkspaceSessions();
+    const listed = groups
+      .find((group) => group.workspaceId === 'ws-list-metadata')
+      ?.sessions.find((session) => session.sessionId === sessionId);
+
+    expect(listed).toMatchObject({
+      title: 'Pinned decision',
+      pinned: true,
+      isCurrent: true,
+    });
   });
 
   it('lists scheduled task stores alongside workspaces but still hides internals', async () => {

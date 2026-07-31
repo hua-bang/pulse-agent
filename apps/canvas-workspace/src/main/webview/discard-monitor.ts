@@ -24,7 +24,7 @@
  * Renderer-bound channel (main→renderer send; invisible to
  * describe-canvas's handle↔invoke parity, documented here per the
  * add-ipc-surface skill):
- *   'iframe:discarded'  { workspaceId, nodeId, snapshotDataUrl?,
+ *   'iframe:discarded'  { workspaceId, nodeId, webContentsId, snapshotDataUrl?,
  *                         restoreUrl?, scrollX, scrollY }
  *
  * Budget defaults to 1.5GB and can be overridden with
@@ -39,13 +39,17 @@ import { listRegisteredWebviews } from './registry';
 import { selectWebviewsToDiscard, type DiscardCandidate } from './discard-policy';
 import { captureBoundedSnapshot } from './snapshot';
 import type { FreezeRecord } from './freeze-probe';
+import { webviewInstanceKey } from '../../shared/webview-registration';
 
 const DEFAULT_BUDGET_MB = 1_500;
 const SWEEP_INTERVAL_MS = 30_000;
 
 /**
  * Freeze-time records (snapshot + safety/restore state) captured by the
- * iframe:set-lifecycle handler, keyed by `${workspaceId}::${nodeId}`. Once
+ * iframe:set-lifecycle handler, keyed by the full guest instance identity.
+ * A node may have multiple simultaneous presentations, so a node-only key
+ * would let one frozen guest's clean probe authorize discarding another
+ * active guest with unsaved state. Once
  * a page is frozen its element is hidden, paint stops, and scripts are
  * disabled, so nothing here could be re-captured at discard time — the
  * freeze-time record is remembered instead. Cleared on resume and consumed
@@ -99,7 +103,7 @@ export function startWebviewDiscardMonitor(): () => void {
           return [];
         }
         const candidate: DiscardCandidate = {
-          key: `${entry.workspaceId}::${entry.nodeId}`,
+          key: webviewInstanceKey(entry),
           rssMB: rssByPid.get(pid) ?? 0,
           frozenSinceMs: getFrozenSince(entry.wc),
         };
@@ -130,9 +134,10 @@ export function startWebviewDiscardMonitor(): () => void {
       );
       if (selected.size === 0) return;
 
-      for (const { workspaceId, nodeId, wc, candidate } of guarded) {
+      for (const { workspaceId, nodeId, webContentsId, wc, candidate } of guarded) {
         if (!selected.has(candidate.key) || wc.isDestroyed()) continue;
         const record = freezeRecords.get(candidate.key);
+        if (!record || getFrozenSince(wc) === undefined) continue;
         // Prefer the freeze-time snapshot (a frozen page's element is hidden
         // and no longer paints); the live-capture fallback is time-bounded —
         // an unbounded capturePage on a hidden guest would never settle and
@@ -142,6 +147,14 @@ export function startWebviewDiscardMonitor(): () => void {
         if (!snapshotDataUrl) {
           snapshotDataUrl = await captureBoundedSnapshot(wc);
         }
+        // Capture yields to the event loop. The user may have resumed (and
+        // edited) this exact guest, or it may have been rebound/re-frozen,
+        // while the frame was pending. Never discard from a stale record.
+        if (
+          wc.isDestroyed()
+          || getFrozenSince(wc) === undefined
+          || freezeRecords.get(candidate.key) !== record
+        ) continue;
         freezeRecords.delete(candidate.key);
         console.log(
           `[webview-discard] discarding ${candidate.key} (${Math.round(candidate.rssMB)}MB, ` +
@@ -152,6 +165,7 @@ export function startWebviewDiscardMonitor(): () => void {
           win.webContents.send('iframe:discarded', {
             workspaceId,
             nodeId,
+            webContentsId,
             snapshotDataUrl,
             restoreUrl: record?.url || undefined,
             scrollX: record?.scrollX ?? 0,

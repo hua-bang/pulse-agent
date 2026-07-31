@@ -26,6 +26,7 @@ import { useCanvasReferenceActions } from './hooks/useCanvasReferenceActions';
 import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents';
 import { useCanvasVisibility } from './hooks/useCanvasVisibility';
 import { useCanvasDemoCanvas } from './hooks/useCanvasDemoCanvas';
+import { useCanvasClipboardPaste } from './hooks/useCanvasClipboardPaste';
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
@@ -109,6 +110,13 @@ export const Canvas = ({
   }, [dismissToast, notify, t]);
   const [activeTool, setActiveTool] = useState('select');
   const [searchOpen, setSearchOpen] = useState(false);
+  // Enter / F2 renames the selection. Selection lives here while inline
+  // title editing lives in the node component, so the bridge is a bump
+  // token the target node watches (see CanvasNodeView.renameToken).
+  const [renameSignal, setRenameSignal] = useState<{ nodeId: string; token: number } | null>(null);
+  const renameNode = useCallback((nodeId: string) => {
+    setRenameSignal((prev) => ({ nodeId, token: (prev?.token ?? 0) + 1 }));
+  }, []);
   const keyboardLocked = !isActive || isOverlayOpen;
   const temporaryHandTool = useTemporaryHandTool(!keyboardLocked);
   const effectiveActiveTool = temporaryHandTool ? 'hand' : activeTool;
@@ -125,7 +133,7 @@ export const Canvas = ({
     handleMouseDown: canvasMouseDown,
     handleMouseMove: canvasMouseMove,
     handleMouseUp: canvasMouseUp,
-    screenToCanvas, resetTransform,
+    screenToCanvas, resetTransform, zoomByStep,
   } = useCanvas(effectiveActiveTool === 'hand', transformLayerRef);
 
   const { animating, handleFocusNode, fitAllNodes } = useCanvasFit(containerRef, setTransform);
@@ -406,6 +414,11 @@ export const Canvas = ({
     return created;
   }, [pasteReferenceNodes, notify, t]);
 
+  /** Keyboard zoom, anchored on the canvas viewport centre. */
+  const zoomCanvasBy = useCallback((factor: number) => {
+    zoomByStep(factor, containerRef.current);
+  }, [zoomByStep]);
+
   const getViewportCenter = useCallback(() => {
     const container = containerRef.current;
     if (!container) return null;
@@ -559,10 +572,7 @@ export const Canvas = ({
     nodes: visibleNodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
     duplicateNode,
-    clipboard,
     setClipboard: onClipboardChange ?? (() => undefined),
-    pasteNodes,
-    pasteReferencedNodes: pasteReferenceNodesWithFeedback,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
     removeNodes: actions.requestRemoveNodes,
@@ -577,10 +587,16 @@ export const Canvas = ({
     contextMenu: ctxMenu.contextMenu,
     setContextMenu: ctxMenu.setContextMenu,
     setHighlightedId, handleFocusNode, activeTool, setActiveTool,
+    zoomBy: zoomCanvasBy,
+    resetZoom: resetTransform,
+    fitNodes: fitAllNodes,
+    renameNode,
     focusModeEnabled: focus.focusModeActive,
     canToggleFocusMode: focus.focusModeAvailable,
     onToggleFocusMode: focus.toggleFocusMode,
     onExitFocusMode: focus.exitFocusMode,
+    onToggleChatPanel: onChatToggle,
+    onToggleReferenceDrawer: onReferenceToggle,
     fullscreenActive: focus.fullscreenNodeId != null,
     onExitFullscreen: focus.exitFullscreen,
     // Hidden canvases stay mounted to preserve their UI state across
@@ -589,11 +605,18 @@ export const Canvas = ({
     keyboardLocked,
   });
 
+  const pasteClipboardNodes = useCanvasClipboardPaste({
+    canvasId, clipboard, pasteNodes,
+    pasteReferenceNodes: pasteReferenceNodesWithFeedback,
+    setSelectedNodeIds,
+  });
+
   useCanvasImagePaste({
     canvasId, active: isActive, containerRef, screenToCanvas,
     addNode, updateNode,
     onCreated: (node) => setSelectedNodeIds([node.id]),
     onPasteUrl: handleCreateUrlNode,
+    pasteCanvasNodes: pasteClipboardNodes,
   });
 
   useCanvasExternalNodeEvents({
@@ -688,6 +711,7 @@ export const Canvas = ({
       handleShapeOverlayMouseDown={handleShapeOverlayMouseDown}
       handleWheel={handleWheel}
       highlightedId={highlightedId}
+      renameSignal={renameSignal}
       loaded={loaded}
       marquee={marquee}
       mouse={mouse}
