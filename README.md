@@ -16,28 +16,20 @@ This repo is a `pnpm` workspace monorepo (`packages/*`, `apps/*`).
 | --- | --- | --- |
 | `packages/engine` | `pulse-coder-engine` | Core runtime: loop, hooks, built-in tools, plugin manager |
 | `packages/cli` | `pulse-coder-cli` | Interactive terminal app built on top of the engine |
-| `packages/pulse-sandbox` | `pulse-sandbox` | Sandboxed JavaScript executor and `run_js` tool adapter |
-| `packages/memory-plugin` | `pulse-coder-memory-plugin` | Host-side memory plugin and integration helpers |
-| `packages/plugin-kit` | `pulse-coder-plugin-kit` | Shared utilities for plugins (worktree helpers, vault, devtools) |
-| `packages/orchestrator` | `pulse-coder-orchestrator` | Multi-agent orchestration (TaskGraph, planner, scheduler, runner, aggregator) |
-| `packages/agent-teams` | `pulse-coder-agent-teams` | Agent teams coordination built on the orchestrator |
+| `packages/plugin-kit` | `pulse-coder-plugin-kit` | Plugin umbrella: worktree, vault, devtools, memory, and Langfuse modules behind subpath exports |
+| `packages/agent-teams` | `pulse-coder-agent-teams` | Agent teams coordination built on the engine's orchestrator module |
 | `packages/acp` | `pulse-coder-acp` | Agent Context Protocol — typed client, runner, and state store |
-| `packages/langfuse-plugin` | `pulse-coder-langfuse-plugin` | Optional Langfuse tracing plugin |
 | `packages/canvas-cli` | `@pulse-coder/canvas-cli` | Canvas-related CLI helpers |
-| `packages/canvas-nodes` | `@pulse-canvas/nodes` | External Pulse Canvas node plugins (runtime-loadable plugin directories) |
 
 ### Apps
 
 | Path | Purpose |
 | --- | --- |
 | `apps/remote-server` | HTTP service wrapping the engine (Feishu/Discord/Telegram adapters) |
-| `apps/teams-cli` | CLI for multi-agent teams workflows |
 | `apps/canvas-workspace` | Canvas-based workspace app (Electron) |
-| `apps/coder-demo` | Legacy experimental app |
-| `apps/devtools-web` | Experimental devtools web UI |
-| `apps/canvas-plugin-react-mf-note-demo` | Experimental Pulse Canvas note-plugin demo |
+| `apps/devtools-web` | Devtools web UI — outside the workspace set, but `apps/remote-server` serves its `dist/` at runtime; do not delete |
 
-> Experimental apps (`apps/coder-demo`, `apps/devtools-web`, `apps/canvas-plugin-react-mf-note-demo`) live in the repo but are excluded from the default workspace install/build. The active workspace set is defined in `pnpm-workspace.yaml` (SSOT).
+> `apps/devtools-web` lives in the repo but is excluded from the default workspace install/build. The active workspace set is defined in `pnpm-workspace.yaml` (SSOT).
 
 Other notable folders: `docs/`, `architecture/`, `examples/`, `scripts/`.
 
@@ -99,9 +91,9 @@ Registered from `packages/engine/src/built-in/index.ts` (in load order):
 - one-shot skill command transformation (`/skills ...`),
 - `Esc` abort for in-flight responses,
 - clarification flow via the `clarify` tool,
-- built-in `run_js` tool from `pulse-sandbox`.
+- built-in `run_js` tool (sandboxed JS executor in `src/sandbox/`).
 
-### 6) Orchestrator (`packages/orchestrator`)
+### 6) Orchestrator (`packages/engine/src/orchestrator`, subpath export `pulse-coder-engine/orchestrator`)
 Runs a **TaskGraph** — a DAG of `TaskNode` objects with `{ id, role, deps[], input?, agent?, instruction? }`.
 
 Routing strategies (`OrchestrationInput.route`):
@@ -120,7 +112,7 @@ Key components:
 - Agent runs: `apps/remote-server/src/core/agent-runner.ts` — builds run context, resolves model overrides, persists sessions, records daily memory logs.
 - Clarification: `apps/remote-server/src/core/clarification-queue.ts` — routes clarification prompts/answers for webhook and gateway flows.
 - Sessions: stored in `~/.pulse-coder/remote-sessions` (`index.json` + `sessions/*.json`).
-- Memory: `pulse-coder-memory-plugin` writes daily logs to `~/.pulse-coder/remote-memory`.
+- Memory: `pulse-coder-plugin-kit/memory` writes daily logs to `~/.pulse-coder/remote-memory`.
 - Worktrees: binding state in `~/.pulse-coder/worktree-state`; default code checkouts in `~/.pulse-coder/worktrees/<project>/wt-<id>`.
 - Worktree command runner: `POST /internal/worktrees/:id/run` runs commands in a managed worktree with `backend: "host"` or `backend: "docker"` (default Docker image: `node:22-bookworm`, override with `PULSE_CODER_DOCKER_IMAGE`).
 - Conversational coding: remote agent runs can call `worktree_prepare` and `worktree_run`, so requests like “help me implement X” can create/bind a worktree, edit there, validate with host package-level commands first, and escalate to Docker for risky or clean-environment validation.
@@ -182,7 +174,7 @@ OPENAI_MODEL=novita/deepseek/deepseek_v3
 
 ### 3) Build
 ```bash
-pnpm run build       # core workspace (packages/* + remote-server + teams-cli)
+pnpm run build       # core workspace (packages/* + remote-server)
 pnpm run build:all   # full workspace
 ```
 
@@ -197,14 +189,7 @@ pnpm start:debug     # with debug logging
 pnpm --filter @pulse-coder/remote-server dev
 ```
 
-### 6) Multi-agent teams preview (optional)
-```bash
-pnpm preview:teams        # build orchestrator/engine/agent-teams + run teams-cli preview
-pnpm preview:teams:run    # preview "run" mode
-pnpm preview:teams:plan   # preview "plan" mode
-```
-
-### 7) Canvas workspace (optional, Electron)
+### 6) Canvas workspace (optional, Electron)
 ```bash
 pnpm --filter canvas-workspace dev        # electron-vite dev (hot reload)
 pnpm --filter canvas-workspace build      # production build
@@ -331,16 +316,16 @@ Remote server:
 ### Workspace-level
 ```bash
 pnpm install
-pnpm run build         # core workspace (packages/* + remote-server + teams-cli, SKIP_DTS=1)
+pnpm run build         # core workspace (packages/* + remote-server, SKIP_DTS=1)
 pnpm run build:all     # full workspace
 pnpm run dev           # core workspace
 pnpm run dev:all       # full workspace
 pnpm start             # pulse-coder-cli
 pnpm start:debug       # CLI with debug logging
 pnpm test              # alias for test:core
-pnpm run test:core     # packages/* + remote-server + teams-cli
+pnpm run test:core     # packages/* + remote-server
 pnpm run test:packages # packages/* only
-pnpm run test:apps     # apps/* workspace members (canvas-workspace, remote-server, teams-cli)
+pnpm run test:apps     # apps/* workspace members (canvas-workspace, remote-server)
 pnpm run test:all      # all packages and apps
 ```
 
@@ -349,19 +334,16 @@ pnpm run test:all      # all packages and apps
 pnpm --filter pulse-coder-engine test
 pnpm --filter pulse-coder-engine typecheck
 pnpm --filter pulse-coder-cli test
-pnpm --filter pulse-sandbox test
-pnpm --filter pulse-coder-memory-plugin test
 pnpm --filter pulse-coder-plugin-kit test
-pnpm --filter pulse-coder-orchestrator test
 pnpm --filter pulse-coder-agent-teams test
 pnpm --filter @pulse-coder/remote-server build
 pnpm --filter @pulse-coder/remote-server dev
 ```
 
-Packages use **vitest** (`vitest run`) for tests and `tsc --noEmit` for typechecking where those scripts exist. Notable gaps: `apps/remote-server` has no `test` or `typecheck` script (runtime app — manual testing via `curl` against `/internal/agent/run`); `packages/cli` has no `typecheck` script.
+Packages use **vitest** (`vitest run`) for tests and `tsc --noEmit` for typechecking where those scripts exist. Notable gaps: `apps/remote-server` has no `typecheck` script (its Vitest helper suites run via `test`); `packages/cli` has no `typecheck` script.
 
 Notes:
-- `pnpm-workspace.yaml` only includes the core set: all `packages/*`, `apps/remote-server`, `apps/teams-cli`, `apps/canvas-workspace`. Experimental apps (`apps/coder-demo`, `apps/devtools-web`, `apps/canvas-plugin-react-mf-note-demo`) stay in the repo but are excluded from default install/build.
+- `pnpm-workspace.yaml` only includes the core set: all `packages/*`, `apps/remote-server`, `apps/canvas-workspace`. `apps/devtools-web` stays in the repo but is excluded from default install/build (remote-server serves its `dist/` at runtime).
 - Use `build:all` / `dev:all` / `test:all` for full-workspace runs.
 
 ---

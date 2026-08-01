@@ -41,6 +41,24 @@
     "./src/devtools": {
       "types": "./src/devtools/index.ts",
       "import": "./src/devtools/index.ts"
+    },
+    "./memory": {
+      "types": "./dist/memory.d.ts",
+      "import": "./dist/memory.js",
+      "require": "./dist/memory.cjs"
+    },
+    "./langfuse": {
+      "types": "./dist/langfuse.d.ts",
+      "import": "./dist/langfuse.js",
+      "require": "./dist/langfuse.cjs"
+    },
+    "./src/memory": {
+      "types": "./src/memory/index.ts",
+      "import": "./src/memory/index.ts"
+    },
+    "./src/langfuse": {
+      "types": "./src/langfuse/index.ts",
+      "import": "./src/langfuse/index.ts"
     }
   },
   "publishConfig": {
@@ -52,7 +70,7 @@
     "build:types": "tsc -p tsconfig.types.json",
     "build:types:maybe": "if [ \"$SKIP_DTS\" = \"1\" ] || [ \"$TSUP_SKIP_DTS\" = \"1\" ]; then echo 'Skipping plugin-kit DTS build'; else pnpm run build:types; fi",
     "dev": "tsup --watch",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "files": [
@@ -60,12 +78,15 @@
   ],
   "dependencies": {
     "pulse-coder-engine": "workspace:*",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "better-sqlite3": "^11.10.0",
+    "langfuse": "^3.37.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.10",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
-    "vitest": "^1.0.0"
+    "vitest": "^1.0.0",
+    "@types/better-sqlite3": "^7.6.12"
   }
 }

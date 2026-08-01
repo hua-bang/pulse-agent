@@ -7,7 +7,7 @@
 
 `pulse-coder-cli` owns the interactive terminal host on top of `pulse-coder-engine`. It handles the default Ink UI, the readline fallback UI, session persistence, slash commands, clarification input, ACP mode, teams commands, memory integration, task-list binding, and host tool registration (`run_js` plus the experimental Pulse Canvas capability adapter).
 
-CLI behavior should remain a host layer over the engine. Engine runtime behavior belongs in `packages/engine`; ACP protocol behavior belongs in `packages/acp`; team coordination behavior belongs in `packages/agent-teams`; sandbox execution behavior belongs in `packages/pulse-sandbox`.
+CLI behavior should remain a host layer over the engine. Engine runtime behavior belongs in `packages/engine`; ACP protocol behavior belongs in `packages/acp`; team coordination behavior belongs in `packages/agent-teams`; sandbox execution behavior lives locally in `src/sandbox/` (executor + forked `runner` — built as `dist/runner.cjs`).
 
 ## Knowledge Navigation
 
@@ -23,7 +23,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 | Team commands and teams mode | `src/team-commands.ts`, `../agent-teams/AGENTS.md` |
 | ACP commands and routing | `src/acp-commands.ts`, `../acp/AGENTS.md` |
 | Memory integration | `src/memory-integration.ts` |
-| Host tool registration | `src/runtime-tools.ts`, `src/canvas-runtime-tools.ts`, `../pulse-sandbox/AGENTS.md`, `../canvas-cli/AGENTS.md` |
+| Host tool registration | `src/runtime-tools.ts`, `src/canvas-runtime-tools.ts`, `src/sandbox/`, `../canvas-cli/AGENTS.md` |
 | Focused behavior tests | `src/*.test.ts` |
 
 ## Local Constraints
@@ -43,8 +43,8 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
   bundled Pulse Canvas skill must route the agent to native tools first;
   `pulse-canvas runtime` is the fallback for hosts without those tools. Both
   entries share `@pulse-coder/canvas-cli/core`; do not fork transport policy.
-- Current `run_js` registration imports `pulse-sandbox/src`; `src/sandbox-runner.ts` is not imported by the active CLI paths.
-- Contract changes with engine, ACP, teams, sandbox, or memory packages should use the affected workspace contracts/validation plus the root impact overlay.
+- `run_js` registration imports `src/sandbox/index.js`; `src/sandbox/runner.ts` is never imported — it is the fork target `resolveRunnerPath()` locates next to the built bundle (`dist/runner.cjs`), so keep the tsup `runner` entry in sync.
+- Contract changes with engine, ACP, teams, or plugin-kit (memory module) should use the affected workspace contracts/validation plus the root impact overlay.
 
 ## Common Commands
 

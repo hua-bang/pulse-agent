@@ -104,7 +104,7 @@ packages/
 ## 风险与回滚
 
 ### 回滚策略
-1. 保留 `coder-demo` 原项目
+1. 保留 `coder-demo` 原项目（历史决策；2026-08 瘦身时已删除，源码见 tag `pre-slim-archive`）
 2. 使用 git 分支管理
 3. 每阶段完成后打 tag
 

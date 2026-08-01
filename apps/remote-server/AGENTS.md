@@ -76,7 +76,7 @@ For docs-only changes, no build is required; check referenced paths and command 
 
 - Default code checks: `pnpm --filter @pulse-coder/remote-server test`, then `pnpm --filter @pulse-coder/remote-server build`.
 - Runtime smoke, when changing routes/dispatcher/runner/adapters and credentials are available: start `dev`, then call `/health`; for internal automation, also smoke `/internal/agent/run` from loopback with `INTERNAL_API_SECRET`.
-- Escalate to engine, memory-plugin, plugin-kit, ACP, or langfuse checks when changes cross those integration boundaries.
+- Escalate to engine, plugin-kit (its memory/langfuse modules included), or ACP checks when changes cross those integration boundaries.
 
 ## Key Files
 

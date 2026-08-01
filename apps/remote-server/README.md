@@ -7,7 +7,7 @@ HTTP server that wraps `pulse-coder-engine` and exposes it to messaging platform
 - **Hono** + **@hono/node-server** — HTTP framework
 - **tsup** — bundles to `dist/index.cjs`
 - **tsx** — TypeScript watch mode for development
-- `pulse-coder-engine`, `pulse-coder-memory-plugin`, `pulse-coder-plugin-kit`, `pulse-coder-acp`, `pulse-coder-langfuse-plugin` — workspace deps
+- `pulse-coder-engine`, `pulse-coder-plugin-kit` (memory/langfuse/vault/worktree/devtools modules), `pulse-coder-acp` — workspace deps
 
 ## Endpoints
 

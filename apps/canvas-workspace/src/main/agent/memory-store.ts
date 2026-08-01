@@ -7,7 +7,8 @@
  *   └── workspaces/<id>.json      ← per-workspace memory
  *
  * Design intent (decided 2026-07-19, replacing a planned reuse of
- * packages/memory-plugin): memory volume in this product is small — a
+ * the memory plugin, since folded into pulse-coder-plugin-kit/memory):
+ * memory volume in this product is small — a
  * handful of stable user preferences plus per-workspace decisions — so the
  * whole scope is injected into the system prompt verbatim (recency-ordered,
  * char-budgeted) instead of score-ranked recall, and writes happen only

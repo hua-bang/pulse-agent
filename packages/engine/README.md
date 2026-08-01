@@ -67,7 +67,7 @@ Registered automatically from `src/built-in/index.ts`:
 | Sub-agent | Loads agent definitions from `.pulse-coder/agents/*.md` |
 | Tool search | Deferred tool discovery via `tool_search_tool_bm25` (natural language) and `tool_search_tool_regex` (regex) |
 | Role/Soul | Injects persona prompts from `.pulse-coder/souls/**/SOUL.md` (legacy `.agents/souls/`, `.coder/souls/`) |
-| Agent teams | Multi-agent coordination via `pulse-coder-orchestrator` |
+| Agent teams | Multi-agent coordination via the engine's `src/orchestrator/` module (`pulse-coder-engine/orchestrator`) |
 | PTC | PTC workflow integration with `allowed_callers` filtering |
 
 ### Built-in Tools

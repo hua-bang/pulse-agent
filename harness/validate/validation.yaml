@@ -58,8 +58,6 @@ escalationRules:
       - pnpm --filter pulse-coder-agent-teams typecheck
       - pnpm --filter pulse-coder-acp typecheck
       - pnpm --filter pulse-coder-plugin-kit build
-      - pnpm --filter pulse-coder-memory-plugin build
-      - pnpm --filter pulse-coder-langfuse-plugin build
       - pnpm --filter @pulse-coder/remote-server build
       - pnpm --filter canvas-workspace typecheck
 
@@ -69,8 +67,6 @@ escalationRules:
       - pnpm --filter @pulse-coder/remote-server build
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter pulse-coder-plugin-kit build
-      - pnpm --filter pulse-coder-memory-plugin build
-      - pnpm --filter pulse-coder-langfuse-plugin build
 
   engineCoreLoopChange:
     required:
@@ -79,19 +75,19 @@ escalationRules:
       - pnpm --filter pulse-coder-agent-teams test
       - pnpm --filter @pulse-coder/remote-server test
       - pnpm --filter canvas-workspace test
-      - pnpm --filter pulse-coder-memory-plugin test
+      - pnpm --filter pulse-coder-plugin-kit test
 
   engineToolSchemaChange:
     required:
       - pnpm --filter pulse-coder-engine test
       - pnpm --filter pulse-coder-plugin-kit build
-      - pnpm --filter pulse-coder-memory-plugin test
+      - pnpm --filter pulse-coder-plugin-kit test
       - pnpm --filter @pulse-coder/remote-server build
       - pnpm --filter canvas-workspace test
 
   agentTeamsRuntimeProtocolChange:
     required:
-      - pnpm --filter @pulse-coder/teams-cli build
+      - pnpm --filter pulse-coder-cli build
       - pnpm --filter canvas-workspace typecheck
 
   pluginKitPublicApiChange:

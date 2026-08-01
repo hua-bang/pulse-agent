@@ -9,7 +9,7 @@
 │   ├── skills/           # 技能系统实现
 │   └── cli/              # CLI应用入口
 ├── apps/
-│   └── coder-demo/       # 原始项目（保留）
+│   └── coder-demo/       # 原始项目（当时保留；2026-08 瘦身时删除，见 tag pre-slim-archive）
 └── docs/
     └── refactor-plan/    # 迁移文档
 ```

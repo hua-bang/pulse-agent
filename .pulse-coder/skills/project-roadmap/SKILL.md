@@ -69,16 +69,14 @@ When operating in this repository, treat the project as a TypeScript `pnpm` mono
 |---|---|
 | `packages/engine` | Core agent engine: loop, tools, context, plugins, built-in skill/task/tool-search systems. |
 | `packages/cli` | Interactive terminal CLI built on `pulse-coder-engine`. |
-| `packages/pulse-sandbox` | Sandboxed JavaScript runtime and `run_js` tool adapter. |
-| `packages/memory-plugin` | Memory integration/service package. |
+| `packages/cli` (src/sandbox) | Sandboxed JavaScript runtime backing the `run_js` tool. |
+| `packages/plugin-kit` (src/memory) | Memory integration/service module (`pulse-coder-plugin-kit/memory`). |
 | `packages/plugin-kit` | Runtime plugin toolkit, including worktree/vault/devtools helpers. |
 | `packages/acp` | ACP client/runner integration. |
-| `packages/orchestrator` | Multi-agent orchestration layer. |
+| `packages/engine` (src/orchestrator) | Multi-agent orchestration module (subpath export `pulse-coder-engine/orchestrator`). |
 | `packages/agent-teams` | Multi-session collaborative agent coordination. |
 | `packages/canvas-cli` | Pulse Canvas CLI and bundled canvas skills. |
-| `packages/langfuse-plugin` | Observability plugin. |
 | `apps/remote-server` | HTTP/webhook runtime for Feishu/Discord and internal agent API. |
-| `apps/teams-cli` | CLI for agent teams. |
 | `apps/canvas-workspace` | Electron canvas workbench. |
 
 ### Important Runtime Notes
@@ -93,8 +91,6 @@ When operating in this repository, treat the project as a TypeScript `pnpm` mono
   - `pnpm --filter pulse-coder-engine typecheck`
   - `pnpm --filter pulse-coder-engine test`
   - `pnpm --filter pulse-coder-cli test`
-  - `pnpm --filter pulse-sandbox test`
-  - `pnpm --filter pulse-coder-memory-plugin test`
   - `pnpm --filter @pulse-coder/remote-server build`
 - `apps/remote-server` is the webhook/server runtime. Its key files include:
   - `src/index.ts`
@@ -118,7 +114,7 @@ When operating in this repository, treat the project as a TypeScript `pnpm` mono
 | CLI UX | `packages/cli/src/` |
 | Remote Discord/Feishu runtime | `apps/remote-server/src/core/`, `apps/remote-server/src/platforms/`, `apps/remote-server/src/routes/` |
 | Internal scheduled runs | `apps/remote-server/src/routes/internal.ts`, cron-related tools/routes |
-| Memory | `packages/memory-plugin/`, `apps/remote-server/src/core/memory-integration.ts` |
+| Memory | `packages/plugin-kit/src/memory/`, `apps/remote-server/src/core/memory-integration.ts` |
 | Worktree/vault binding | `packages/plugin-kit/`, `apps/remote-server/src/core/worktree/` |
 | Canvas workbench | `apps/canvas-workspace/`, `docs/canvas-workspace-product/`, `docs/06-harness-engineering-roadmap.md` |
 
@@ -330,8 +326,8 @@ For this repo, prefer targeted checks:
 |---|---|
 | Engine loop/tools/plugins | `pnpm --filter pulse-coder-engine test`; `pnpm --filter pulse-coder-engine typecheck` |
 | CLI | `pnpm --filter pulse-coder-cli test`; `pnpm --filter pulse-coder-cli build` |
-| Sandbox | `pnpm --filter pulse-sandbox test`; `pnpm --filter pulse-sandbox typecheck` |
-| Memory | `pnpm --filter pulse-coder-memory-plugin test`; `pnpm --filter pulse-coder-memory-plugin typecheck` |
+| Sandbox | `pnpm --filter pulse-coder-cli test` (sandbox specs live in src/sandbox) |
+| Memory | `pnpm --filter pulse-coder-plugin-kit test`; `pnpm --filter pulse-coder-plugin-kit build` |
 | Remote server | `pnpm --filter @pulse-coder/remote-server build` |
 | Cross-package change | `pnpm run build`; targeted tests first, full build last |
 | Docs/skill-only change | parse/read file, check frontmatter has `name` and `description`; no build required unless loader changed |

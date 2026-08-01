@@ -1,6 +1,6 @@
 # Memory Plugin Docs
 
-Design documents for the host-side memory system. Engine SDK itself stays memory-agnostic; memory ships as a host-side plugin in `packages/memory-plugin/`.
+Design documents for the host-side memory system. Engine SDK itself stays memory-agnostic; memory ships as plugin-kit's memory module (`packages/plugin-kit/src/memory/`, subpath export `pulse-coder-plugin-kit/memory`; formerly the standalone `packages/memory-plugin`).
 
 > **Status caveat.** `product-design.md` and `technical-design.md` are `Status: draft` (dated 2026-02-19); `memory-production-v1.md` is `Status: proposed` (dated 2026-02-22). They predate the shipped implementation and have diverged from it. Treat them as background design intent, not a description of current code.
 >
@@ -10,9 +10,9 @@ Design documents for the host-side memory system. Engine SDK itself stays memory
 
 ## Implementation
 
-The shipped memory system lives in [`packages/memory-plugin/`](../../packages/memory-plugin/). Its [`AGENTS.md`](../../packages/memory-plugin/AGENTS.md) is the SSOT for current code, interfaces, and constraints (memory scopes, tools, hooks, layered state store, embeddings, daily-log policy, compaction writes). The package [`README.md`](../../packages/memory-plugin/README.md) gives a package-level overview.
+The shipped memory system lives in [`packages/plugin-kit/src/memory/`](../../packages/plugin-kit/src/memory/). Plugin-kit's [`harness/knowledge/memory.md`](../../packages/plugin-kit/harness/knowledge/memory.md) is the SSOT for current code, interfaces, and constraints (memory scopes, tools, hooks, layered state store, embeddings, daily-log policy, compaction writes).
 
-Features the design docs predate and that `packages/memory-plugin/AGENTS.md` documents as implemented: soul memory (`recordSoul` / `recallSoul` / `listSoul`), daily-log quality gates / quotas / dedupe / day keys / shadow mode, compaction write policy via the `onCompacted` hook, layered state store under `baseDir/{platformKey}/{user,soul,daily}`, and OpenAI + hash embedding providers backed by a SQLite vector store.
+Features the design docs predate and that `packages/plugin-kit/harness/knowledge/memory.md` documents as implemented: soul memory (`recordSoul` / `recallSoul` / `listSoul`), daily-log quality gates / quotas / dedupe / day keys / shadow mode, compaction write policy via the `onCompacted` hook, layered state store under `baseDir/{platformKey}/{user,soul,daily}`, and OpenAI + hash embedding providers backed by a SQLite vector store.
 
 ## Documents
 

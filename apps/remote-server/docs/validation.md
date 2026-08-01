@@ -27,7 +27,6 @@ If engine integration, model config, memory integration, or worktree binding cha
 
 ```bash
 pnpm --filter pulse-coder-engine test
-pnpm --filter pulse-coder-memory-plugin test
 pnpm --filter pulse-coder-plugin-kit test
 ```
 

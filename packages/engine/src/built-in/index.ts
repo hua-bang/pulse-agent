@@ -63,7 +63,7 @@ export { builtInRoleSoulPlugin } from './role-soul-plugin';
 export { builtInPtcPlugin } from './ptc-plugin';
 export { builtInToolOffloadPlugin, createToolOffloadPlugin } from './tool-offload-plugin';
 export type { OffloadStore, OffloadResult, OffloadOptions, ToolOffloadPluginOptions } from './tool-offload-plugin';
-export type { TeamRole, TaskGraph, TaskNode, NodeResult, OrchestrationInput as TeamRunInput, OrchestrationResult as TeamRunOutput } from 'pulse-coder-orchestrator';
+export type { TeamRole, TaskGraph, TaskNode, NodeResult, OrchestrationInput as TeamRunInput, OrchestrationResult as TeamRunOutput } from '../orchestrator';
 export type {
   PlanMode,
   PlanIntentLabel,

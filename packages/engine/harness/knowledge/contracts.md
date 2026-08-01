@@ -48,12 +48,9 @@ Use these before editing the loop:
 | `packages/cli` | `PulseAgent`, `Context`, `TaskListService` (via `getService`), `ClarificationRequest`, `generateTextAI` | src (root paths alias); no typecheck script |
 | `packages/agent-teams` | `Engine` (own instance per teammate), `Context`, `ILogger`, `LoopOptions`, `generateTextAI`; derives `EngineOptions` from the constructor signature | **dist** — clears `paths` to `{}`; the only dist canary |
 | `packages/acp` | `ClarificationRequest` (type-only) | src |
-| `packages/plugin-kit` | `EnginePlugin`, `EnginePluginContext`, `SystemPromptOption`, `Tool`, `ToolExecutionContext`, `OnCompactedEvent` | src |
-| `packages/memory-plugin` | `EnginePlugin`, `OnCompactedInput`, `SystemPromptOption`, `Tool` | src |
-| `packages/langfuse-plugin` | `EnginePlugin`, `EnginePluginContext`, `Context`; tsup marks engine `external` | src |
+| `packages/plugin-kit` | `EnginePlugin`, `EnginePluginContext`, `SystemPromptOption`, `Tool`, `ToolExecutionContext`, `OnCompactedEvent`; its `src/memory` module adds `OnCompactedInput`, its `src/langfuse` module adds `Context` | src |
 | `apps/remote-server` | `Engine`, `Context`, `ClarificationRequest`, `Tool`, `ToolExecutionContext`, `buildProvider`, `CompactionEvent`, `LLMProviderFactory`; `./built-in`: all built-in plugins + `SubAgentPlugin`, hand-assembled with `disableBuiltInPlugins: true` | package exports (dist); no typecheck script |
 | `apps/canvas-workspace` | `Engine`, `GenerateImageTool`, `buildProvider`, `LLMProviderFactory`, `ModelType`; `./built-in`: `createSkillsPlugin`, `createMcpPlugin`, `mcpAuth`, OAuth types (hand-assembled, skills+MCP only) | hand-written shim `src/main/agent/engine.d.ts` for the base module (loose `any` types); `./built-in` relies on real dist types |
-| `apps/teams-cli` | transitive only, via `pulse-coder-agent-teams` | — |
 
 Consumer hazards:
 

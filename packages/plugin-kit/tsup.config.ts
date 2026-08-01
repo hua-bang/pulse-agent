@@ -6,6 +6,8 @@ export default defineConfig({
     worktree: 'src/worktree/index.ts',
     vault: 'src/vault/index.ts',
     devtools: 'src/devtools/index.ts',
+    memory: 'src/memory/index.ts',
+    langfuse: 'src/langfuse/index.ts',
   },
   format: ['esm', 'cjs'],
   dts: false,

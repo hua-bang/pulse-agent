@@ -15,7 +15,7 @@ hand-verified 2026-07-11; invariants cite the enforcing line.
 | Review gate | none — completion is prompt-trust | `needs_review`, lead-accepted (see below) |
 | Scope / rounds / human gates | none | all present |
 | Host must supply | nothing (package owns Engines + loop) | a `TeamRuntimeStore` + an `AgentSessionAdapter` (`runtime/types.ts:215-228`) |
-| Consumers | `apps/teams-cli`, `packages/cli` | `apps/canvas-workspace` |
+| Consumers | `packages/cli` | `apps/canvas-workspace` |
 
 The two surfaces share NO code — they independently reimplement task
 records, dependency readiness, mailbox, and event unions with **same-named,
