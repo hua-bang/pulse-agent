@@ -258,7 +258,7 @@ src/
 - `pulse-coder-acp` - ACP 模式状态与路由
 - `pulse-coder-agent-teams` - Teams 多智能体协作
 - `pulse-coder-engine/orchestrator` - `/team` DAG 编排（engine 子路径导出）
-- `pulse-coder-memory-plugin` - 记忆插件
+- `pulse-coder-plugin-kit/memory` - 记忆插件（plugin-kit 子路径导出）
 - `ink` / `react` - 默认 Ink UI 宿主
 
 更多导航见本包 `AGENTS.md`。

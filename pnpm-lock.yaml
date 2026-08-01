@@ -213,12 +213,6 @@ importers:
       pulse-coder-engine:
         specifier: workspace:*
         version: link:../../packages/engine
-      pulse-coder-langfuse-plugin:
-        specifier: workspace:*
-        version: link:../../packages/langfuse-plugin
-      pulse-coder-memory-plugin:
-        specifier: workspace:*
-        version: link:../../packages/memory-plugin
       pulse-coder-plugin-kit:
         specifier: workspace:*
         version: link:../../packages/plugin-kit
@@ -322,9 +316,9 @@ importers:
       pulse-coder-engine:
         specifier: workspace:*
         version: link:../engine
-      pulse-coder-memory-plugin:
+      pulse-coder-plugin-kit:
         specifier: workspace:*
-        version: link:../memory-plugin
+        version: link:../plugin-kit
       react:
         specifier: ^19.2.5
         version: 19.2.5
@@ -394,33 +388,14 @@ importers:
         specifier: ^1.0.0
         version: 1.6.1(@types/node@25.0.10)(happy-dom@20.10.6)(sass@1.51.0)(terser@5.49.0)
 
-  packages/langfuse-plugin:
-    dependencies:
-      langfuse:
-        specifier: ^3.37.0
-        version: 3.38.20
-      pulse-coder-engine:
-        specifier: workspace:*
-        version: link:../engine
-    devDependencies:
-      '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.33
-      tsup:
-        specifier: ^8.0.0
-        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
-      typescript:
-        specifier: ^5.0.0
-        version: 5.9.3
-      vitest:
-        specifier: ^1.0.0
-        version: 1.6.1(@types/node@20.19.33)(happy-dom@20.10.6)(sass@1.51.0)(terser@5.49.0)
-
-  packages/memory-plugin:
+  packages/plugin-kit:
     dependencies:
       better-sqlite3:
         specifier: ^11.10.0
         version: 11.10.0
+      langfuse:
+        specifier: ^3.37.0
+        version: 3.38.20
       pulse-coder-engine:
         specifier: workspace:*
         version: link:../engine
@@ -431,28 +406,6 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.12
         version: 7.6.13
-      '@types/node':
-        specifier: ^25.0.10
-        version: 25.0.10
-      tsup:
-        specifier: ^8.0.0
-        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
-      typescript:
-        specifier: ^5.0.0
-        version: 5.9.3
-      vitest:
-        specifier: ^1.0.0
-        version: 1.6.1(@types/node@25.0.10)(happy-dom@20.10.6)(sass@1.51.0)(terser@5.49.0)
-
-  packages/plugin-kit:
-    dependencies:
-      pulse-coder-engine:
-        specifier: workspace:*
-        version: link:../engine
-      zod:
-        specifier: ^4.3.6
-        version: 4.3.6
-    devDependencies:
       '@types/node':
         specifier: ^25.0.10
         version: 25.0.10

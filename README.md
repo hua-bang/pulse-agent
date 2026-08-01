@@ -16,11 +16,9 @@ This repo is a `pnpm` workspace monorepo (`packages/*`, `apps/*`).
 | --- | --- | --- |
 | `packages/engine` | `pulse-coder-engine` | Core runtime: loop, hooks, built-in tools, plugin manager |
 | `packages/cli` | `pulse-coder-cli` | Interactive terminal app built on top of the engine |
-| `packages/memory-plugin` | `pulse-coder-memory-plugin` | Host-side memory plugin and integration helpers |
-| `packages/plugin-kit` | `pulse-coder-plugin-kit` | Shared utilities for plugins (worktree helpers, vault, devtools) |
+| `packages/plugin-kit` | `pulse-coder-plugin-kit` | Plugin umbrella: worktree, vault, devtools, memory, and Langfuse modules behind subpath exports |
 | `packages/agent-teams` | `pulse-coder-agent-teams` | Agent teams coordination built on the engine's orchestrator module |
 | `packages/acp` | `pulse-coder-acp` | Agent Context Protocol — typed client, runner, and state store |
-| `packages/langfuse-plugin` | `pulse-coder-langfuse-plugin` | Optional Langfuse tracing plugin |
 | `packages/canvas-cli` | `@pulse-coder/canvas-cli` | Canvas-related CLI helpers |
 
 ### Apps
@@ -114,7 +112,7 @@ Key components:
 - Agent runs: `apps/remote-server/src/core/agent-runner.ts` — builds run context, resolves model overrides, persists sessions, records daily memory logs.
 - Clarification: `apps/remote-server/src/core/clarification-queue.ts` — routes clarification prompts/answers for webhook and gateway flows.
 - Sessions: stored in `~/.pulse-coder/remote-sessions` (`index.json` + `sessions/*.json`).
-- Memory: `pulse-coder-memory-plugin` writes daily logs to `~/.pulse-coder/remote-memory`.
+- Memory: `pulse-coder-plugin-kit/memory` writes daily logs to `~/.pulse-coder/remote-memory`.
 - Worktrees: binding state in `~/.pulse-coder/worktree-state`; default code checkouts in `~/.pulse-coder/worktrees/<project>/wt-<id>`.
 - Worktree command runner: `POST /internal/worktrees/:id/run` runs commands in a managed worktree with `backend: "host"` or `backend: "docker"` (default Docker image: `node:22-bookworm`, override with `PULSE_CODER_DOCKER_IMAGE`).
 - Conversational coding: remote agent runs can call `worktree_prepare` and `worktree_run`, so requests like “help me implement X” can create/bind a worktree, edit there, validate with host package-level commands first, and escalate to Docker for risky or clean-environment validation.
@@ -336,7 +334,6 @@ pnpm run test:all      # all packages and apps
 pnpm --filter pulse-coder-engine test
 pnpm --filter pulse-coder-engine typecheck
 pnpm --filter pulse-coder-cli test
-pnpm --filter pulse-coder-memory-plugin test
 pnpm --filter pulse-coder-plugin-kit test
 pnpm --filter pulse-coder-agent-teams test
 pnpm --filter @pulse-coder/remote-server build

@@ -22,7 +22,7 @@ export default defineConfig((options) => {
     platform: 'node',
     external: [
       'ink',
-      ...(isDebugBuild ? ['pulse-coder-acp', 'pulse-coder-engine', 'pulse-coder-memory-plugin'] : []),
+      ...(isDebugBuild ? ['pulse-coder-acp', 'pulse-coder-engine', 'pulse-coder-plugin-kit'] : []),
     ],
     outExtension: () => ({ js: '.cjs' })
   };

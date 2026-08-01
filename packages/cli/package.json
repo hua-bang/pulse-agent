@@ -23,9 +23,9 @@
     "pulse-coder-acp": "workspace:*",
     "pulse-coder-agent-teams": "workspace:*",
     "pulse-coder-engine": "workspace:*",
-    "pulse-coder-memory-plugin": "workspace:*",
     "react": "^19.2.5",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "pulse-coder-plugin-kit": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.0.10",

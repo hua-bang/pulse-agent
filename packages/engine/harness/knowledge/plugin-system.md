@@ -47,7 +47,7 @@ export const myPlugin: EnginePlugin = {
 };
 ```
 
-External example: `packages/memory-plugin` wraps its service in a factory returning `{ name, version, initialize }`.
+External example: plugin-kit's memory module (`packages/plugin-kit/src/memory`) wraps its service in a factory returning `{ name, version, initialize }`.
 
 Pitfalls (all evidenced):
 - Misspelled dependency name: silent at sort, hard throw at init — and only in loading combinations that omit the intended plugin.

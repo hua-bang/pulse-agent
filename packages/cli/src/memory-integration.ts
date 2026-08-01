@@ -1,6 +1,6 @@
 import { homedir } from 'os';
 import { join } from 'path';
-import { createMemoryIntegrationFromEnv } from 'pulse-coder-memory-plugin';
+import { createMemoryIntegrationFromEnv } from 'pulse-coder-plugin-kit/memory';
 
 const DEFAULT_MEMORY_USER = 'local';
 

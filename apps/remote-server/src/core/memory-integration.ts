@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { homedir } from 'os';
-import { createMemoryIntegrationFromEnv } from 'pulse-coder-memory-plugin';
+import { createMemoryIntegrationFromEnv } from 'pulse-coder-plugin-kit/memory';
 
 export const memoryIntegration = createMemoryIntegrationFromEnv({
   env: process.env,

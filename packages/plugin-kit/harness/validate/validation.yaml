@@ -9,4 +9,5 @@ pathRules:
       - tsconfig.types.json
       - tsup.config.ts
     required:
+      - pnpm --filter pulse-coder-plugin-kit test
       - pnpm --filter pulse-coder-plugin-kit build:js

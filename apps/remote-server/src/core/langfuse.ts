@@ -1,4 +1,4 @@
-import { createLangfusePlugin } from 'pulse-coder-langfuse-plugin';
+import { createLangfusePlugin } from 'pulse-coder-plugin-kit/langfuse';
 
 /**
  * Langfuse observability plugin.

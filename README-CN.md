@@ -16,11 +16,9 @@
 | --- | --- | --- |
 | `packages/engine` | `pulse-coder-engine` | 核心运行时：循环、hooks、内置工具、插件管理 |
 | `packages/cli` | `pulse-coder-cli` | 终端交互应用，构建于引擎之上 |
-| `packages/memory-plugin` | `pulse-coder-memory-plugin` | host 侧 memory 插件与集成辅助 |
-| `packages/plugin-kit` | `pulse-coder-plugin-kit` | 插件公共工具（worktree 辅助、vault、devtools） |
+| `packages/plugin-kit` | `pulse-coder-plugin-kit` | 插件伞包：worktree、vault、devtools、memory、Langfuse 五个模块，各自走子路径导出 |
 | `packages/agent-teams` | `pulse-coder-agent-teams` | 基于 engine 内置 orchestrator 模块的多 Agent 协作层 |
 | `packages/acp` | `pulse-coder-acp` | Agent Context Protocol：typed client、runner、state store |
-| `packages/langfuse-plugin` | `pulse-coder-langfuse-plugin` | 可选的 Langfuse 链路追踪插件 |
 | `packages/canvas-cli` | `@pulse-coder/canvas-cli` | canvas 相关 CLI 辅助 |
 
 ### Apps
@@ -114,7 +112,7 @@ Run 级 hooks（`beforeRun` / `afterRun`）在 `Engine.run()`（`packages/engine
 - Agent 执行：`apps/remote-server/src/core/agent-runner.ts` —— 构建上下文、解析模型 override、持久化会话、写入每日 memory
 - Clarification：`apps/remote-server/src/core/clarification-queue.ts` —— webhook / gateway 的追问路由
 - Sessions：`~/.pulse-coder/remote-sessions`（`index.json` + `sessions/*.json`）
-- Memory：`pulse-coder-memory-plugin` 写入 `~/.pulse-coder/remote-memory`
+- Memory：`pulse-coder-plugin-kit/memory` 写入 `~/.pulse-coder/remote-memory`
 - Worktrees：绑定状态在 `~/.pulse-coder/worktree-state`；默认代码检出在 `~/.pulse-coder/worktrees/<project>/wt-<id>`
 - Worktree 命令执行：`POST /internal/worktrees/:id/run` 在受管 worktree 中执行命令，支持 `backend: "host"` 或 `backend: "docker"`（默认 Docker 镜像 `node:22-bookworm`，可用 `PULSE_CODER_DOCKER_IMAGE` 覆盖）
 - 对话式编程：远程 agent 运行可调用 `worktree_prepare` 与 `worktree_run`，因此“帮我实现 X”类请求可以创建 / 绑定 worktree、在其中编辑，先用 host 的包级命令校验，再升级到 Docker 做风险或干净环境的校验
@@ -336,7 +334,6 @@ pnpm run test:all      # 全量
 pnpm --filter pulse-coder-engine test
 pnpm --filter pulse-coder-engine typecheck
 pnpm --filter pulse-coder-cli test
-pnpm --filter pulse-coder-memory-plugin test
 pnpm --filter pulse-coder-plugin-kit test
 pnpm --filter pulse-coder-agent-teams test
 pnpm --filter @pulse-coder/remote-server build
