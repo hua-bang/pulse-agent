@@ -137,7 +137,17 @@ counter may shrink but never grow):
   copy, illustrations, and per-surface border/background/alignment stay
   with the caller via `className`) — plus `AppShellProvider.notify`
   for toasts and the canonical hooks `useEscapeClose` / `useMenuKeyboardNav`
-  / `useClickOutside`. Do NOT hand-roll a new overlay ESC listener, backdrop,
+  / `useClickOutside`. `useEscapeClose` keeps ONE shared capture-phase
+  listener dispatching to the top of a LIFO stack of active subscribers, so
+  the innermost overlay answers Escape. Per-subscriber listeners cannot:
+  same-node listeners run in registration order and `stopPropagation` never
+  reaches siblings, so whichever overlay opened FIRST answered — a `Select`
+  inside a `Modal` tore down the whole unsaved form. `stopImmediatePropagation`
+  is not a fix either (the outer listener is already registered). Keep new
+  Escape owners on this hook; the exceptions that must use bubble phase
+  (`NodeDetailPage`, text fields) rely on the top subscriber consuming the
+  press only while something is actually open. Guard:
+  `hooks/useEscapeClose.test.tsx`. Do NOT hand-roll a new overlay ESC listener, backdrop,
   portal call site, point-anchored popover shell, trigger-anchored dropdown
   (local `open` state + click-outside + arrow-nav wired by hand), dropdown
   popover, labelled form field, section title/description CSS cluster

@@ -446,6 +446,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   revision={dockState.scheduledChatRevision ?? 0}
                   allWorkspaces={workspaces}
                   onClose={dock.collapse}
+                  onExitTaskChat={dock.openChat}
                   onOpenAppSettings={onOpenAppSettings}
                   onTurnComplete={dock.notifyChatActivity}
                   onOpenSessionInScope={onOpenSessionInScope}

@@ -244,6 +244,56 @@
   animation: spin 0.8s linear infinite;
 }
 
+/* Identity + exit for the dock's task conversation. The pinned Pulse AI tab
+   is generically labelled and stays overridden until something calls
+   `openChat`, so this strip is the only thing naming the conversation and the
+   only one-press way back. */
+.scheduled-chat-banner {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+}
+
+.scheduled-chat-identity {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px 8px 18px;
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+}
+
+.scheduled-chat-identity > svg {
+  flex: 0 0 auto;
+}
+
+.scheduled-chat-identity__text {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 1px;
+}
+
+.scheduled-chat-identity__text strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduled-chat-identity__text small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+/* The status row sits under the identity row, so it drops the shared edge. */
+.scheduled-chat-banner .scheduled-chat-status {
+  border-bottom: 0;
+  border-top: 1px solid var(--border);
+}
+
 .scheduled-chat-status {
   display: flex;
   flex: 0 0 auto;
