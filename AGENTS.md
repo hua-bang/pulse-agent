@@ -49,6 +49,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 | Inspect harness coverage | `node scripts/harness/check-harness.mjs` |
 | Run bound checks for a change | `node scripts/harness/run-harness-check.mjs` |
 | Visualize root/package/app harness | `harness/skills/visualize-harness/SKILL.md` |
+| Slim an overweight AGENTS.md / extract inline knowledge | `harness/skills/slim-agents-md/SKILL.md` |
 
 ## 2. Hard boundaries (real values)
 
@@ -115,12 +116,14 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 - **Unbounded `capturePage` hangs on hidden webview guests**: canvas-workspace's freeze IPC awaited `wc.capturePage()` on a hidden guest — a guest producing no frames never settles the promise, wedging the IPC reply (and the discard sweep's identical fallback would have latched its re-entrancy flag forever, killing all future sweeps). Guard: captures go through the 2s-bounded `captureBoundedSnapshot` (`apps/canvas-workspace/src/main/webview/snapshot.ts`) with a never-settling-capture regression test. Rule: never await Electron `capturePage` unbounded on possibly-hidden/occluded webContents.
 - **Parallel canvas-cli writes destroyed each other's nodes**: every mutation did an unlocked full-canvas read-modify-write; concurrent writers hit tmp-rename ENOENT (per-node writer used a FIXED `<path>.tmp` name), lost updates, and — worst — the v2 orphan sweep deleted per-node files the other writer had just created. Guard: unique tmp names, `withWorkspaceLock` around `commitNode/EdgeMutation`, orphan pruning now opt-in (`pruneUnknownNodeFiles`, restore/repair only), regression suite `packages/canvas-cli/src/core/__tests__/storage-race.test.ts`. Rule: any new canvas write path in the CLI must run inside the workspace lock and must not full-sync-sweep per-node files; app↔CLI concurrency is NOT covered by this lock (per-node `updatedAt` arbitration only) until a shared storage package lands.
 
-- **Menu accelerators silently ate renderer shortcuts**: Electron `role` menu items consume a keystroke in MAIN before any renderer listener sees it. The default `viewMenu` roles took `Cmd+0`/`Cmd+±` for webFrame zoom, so the canvas could not own zoom at all, and the same class had already forced Undo/Redo out of the Edit menu. Guard: `apps/canvas-workspace/src/main/app/menu.ts` builds an explicit View menu without the zoom roles and documents why. Rule: before adding any renderer shortcut, check `menu.ts` for a role that claims the chord — and never add a `role` whose accelerator collides with a registry binding.
-- **Documented-but-unimplemented shortcuts**: three surfaces hand-wrote the same binding (behavior, help overlay, command palette), so `Cmd+Shift+A` shipped advertised-with-no-handler and — because the matcher ignored unlisted modifiers — actually ran select-all. Guard: `apps/canvas-workspace/src/renderer/src/shortcuts/` is the single declaration site and the owning hooks type their handler tables as `Record<ShortcutIdFor<owner>, Handler>`, making the gap a TYPE ERROR; runtime halves are pinned by the `keyboard-shortcuts` rule in that workspace's `harness/validate/validation.yaml`. Rule: a UI surface must never hardcode a chord or its label — derive both from the registry.
+- **Menu accelerators silently ate renderer shortcuts**: Electron `role` menu items win a keystroke in MAIN before any renderer listener sees it — check `menu.ts` for a role claiming the chord before adding any renderer shortcut, and never add a `role` whose accelerator collides with a registry binding.
+  Detail + guards: apps/canvas-workspace/harness/knowledge/keyboard-shortcuts.md.
+- **Documented-but-unimplemented shortcuts**: a UI surface must never hardcode a chord or its label — derive both from the registry; `Cmd+Shift+A` once shipped advertised-with-no-handler and silently ran select-all instead.
+  Detail + guards: apps/canvas-workspace/harness/knowledge/keyboard-shortcuts.md.
 
 Failures are captured in fix commits + regression tests — debug via `git log -- <file>` and focused tests, not by grepping for TODOs.
 
-**Task-end write-back**: before finishing a task, route what it taught you — new fact → the nearest owning doc or workspace `AGENTS.md`; new check → the affected workspace's `harness/validate/validation.yaml`; a cross-module rule that cannot become a check → one line appended to this section. No separate feedback store.
+**Task-end write-back**: before finishing a task, route what it taught you — new fact → the nearest owning doc or workspace `AGENTS.md` — but never inline multi-sentence knowledge into a router table row or constraint bullet: put it in that workspace's `harness/knowledge/` file (create one if missing) and leave a pointer row; new check → the affected workspace's `harness/validate/validation.yaml`; a cross-module rule that cannot become a check → one line appended to this section. No separate feedback store.
 
 ## 7. Security / secrets
 

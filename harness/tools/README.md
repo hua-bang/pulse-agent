@@ -9,7 +9,7 @@ A tool should have stable inputs and outputs, but it does not own final decision
 | Tool | Purpose |
 |---|---|
 | `run-harness-check` (`scripts/harness/run-harness-check.mjs`) | Resolve changed paths to bound validation commands and execute them with a pass/fail report. |
-| `check-harness` (`scripts/harness/check-harness.mjs`) | Drift check: entry/validation coverage per workspace, validation file shape, `--filter` names reference real packages, routing links in harness docs resolve on disk. |
+| `check-harness` (`scripts/harness/check-harness.mjs`) | Drift check: entry/validation coverage per workspace, validation file shape, `--filter` names reference real packages, routing links in harness docs resolve on disk, router-weight (no root/workspace `AGENTS.md` line over threshold — catches inline knowledge that should have moved to `harness/knowledge/`). |
 
 ## Candidate Tool Ideas
 

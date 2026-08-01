@@ -82,6 +82,12 @@ parent; either operation can cause Chromium to recreate the guest. Hidden
 guest navigations must write through to retained state so restore does not
 navigate back to a stale URL.
 
+`DockPanes` gates `LinkTabView`'s `mountWebview` prop on that same visibility
+check — the concrete mechanism behind first-mount laziness, so a restored
+dock does not spawn one guest process per tab on the cold-start path. Agent
+tools that activate a tab before reading it must poll for registration via
+`main/webview/ensure-operable.ts` rather than assume the guest already exists.
+
 ## Focus and keyboard ownership
 
 `RightDock/dock-browser-commands.ts` owns workspace-and-tab-qualified focus
@@ -102,6 +108,14 @@ web tab without destroying its browsing state, closes a reconstructible
 content/terminal tab, and leaves the pinned chat alone. Escape inside a web
 page stays page-owned so sites can close their own dialogs or exit modes.
 Dock-owned portals count as dock focus for scoped commands such as Find.
+
+## Page-element selection bridge
+
+Page-element selection in a dock browser tab must reuse the shared iframe
+DOM picker/selection context, then route the result through Workbench's
+active-workspace chat bridge. That bridge must queue selections until the
+target composer registers — opening chat and retrying on the next animation
+frame is not a reliable mount barrier.
 
 ## Tabs and discoverability
 
@@ -131,6 +145,23 @@ embedder boundary and are host viewport coordinates, even though Chromium's
 internal context-menu data begins guest-local. Pass those values directly to
 the fixed host portal; adding the webview host rect again double-offsets the
 menu and can make viewport clamping push it far away from the click.
+
+## Main-process tab registry and cross-surface pushes
+
+`src/main/dock/` is the main-process side of right-dock tab support:
+
+- `tab-store.ts` is the renderer tab mirror behind `canvas_list_tabs`.
+- `tab-actions.ts` sends the main→renderer workspace-scoped `dock:activate-tab`
+  push behind `canvas_activate_tab` and the page_* tools' tab targeting, the
+  app-level `dock:open-tab` push behind `canvas_open_tab`, and the app-level
+  `dock:open-artifact` push used by the scheduled memory report — artifact
+  `workspaceId` is a storage scope and may be the `__global_chat__` sentinel.
+- `history-store.ts` holds web-tab browsing history behind
+  `canvas_search_history`.
+
+`RightDock/tabRefs.ts` is the renderer-side tab-discovery SSOT: it covers
+link, artifact, node-detail, canvas-preview, and terminal tabs plus
+active/visible/split state. Terminal commands use `canvas_execute_terminal_tab`.
 
 ## Evidence
 

@@ -128,6 +128,52 @@ These make on-disk files an execution or injection surface:
   referrer); the post-login continuation is handed back to the opener
   webview so the one-shot URL is consumed there.
 
+## Runtime-control capability tiers and registry
+
+This elaborates the runtime-control server entry above with the capability
+registry's own contract: file location, access tiers, current contents, and
+the two `unsafe` capabilities in full. The network/bearer-auth boundary
+described there (loopback, ephemeral port, mode-`0600` per-run secret,
+`/capabilities/*` hidden unless `agent-runtime-control` is enabled) applies
+to everything below.
+
+- **Where capabilities live**: `src/main/runtime/capabilities/` (registry,
+  runtime, and per-domain capability modules). Stable Canvas Agent tools may
+  adapt to these capabilities without changing their own public names or
+  payloads — the tool surface the agent sees can stay stable even as the
+  underlying capability registry changes.
+- **Discovery and policy are filtered together**: capability discovery
+  includes each capability's input JSON schema, and the runtime policy must
+  filter discovery and execution through the same check — a capability an
+  actor cannot execute must not be discoverable either.
+- **Access tiers**: every capability is tagged `read`, `operate`, or
+  `unsafe`. Pulse CLI may access `read`/`operate`, never `unsafe`, by
+  default.
+- **Current registry contents**: the shared registry currently exposes
+  browser-tab discovery, live page reads, and Canvas node read/search/update
+  (all `read`/`operate`), plus — only when the `webview-page-control`
+  experimental flag is also enabled — selector-based page click/fill.
+- **`browser.page.eval`** is the `unsafe` capability for arbitrary page
+  JavaScript. It sits behind the stable, deferred `page_eval` Canvas Agent
+  tool, and requires BOTH experimental flags for external (Pulse CLI)
+  access: `agent-runtime-control` to reach `/capabilities/*` externally at
+  all, and `webview-page-control` for the capability's own policy check.
+- **`host.renderer.eval`** is the separate `unsafe` capability for arbitrary
+  host-renderer JavaScript, behind the deferred `canvas_host_eval` Canvas
+  Agent tool and the `pulse-canvas runtime host-eval` CLI command. It
+  requires `agent-runtime-control`, checks the selected workspace route
+  before executing, and runs in the host page's main world — see the
+  containment note above for why the lack of a direct Node `require` still
+  makes it `unsafe` (the `canvasWorkspace` preload bridge reaches privileged
+  main actions).
+- **`browser.page.eval` and `host.renderer.eval` are the ONLY Pulse CLI
+  `unsafe` exceptions.** Every other capability stays within `read`/
+  `operate` for CLI callers.
+- **Canvas node writes stay scoped even for CLI callers**: external
+  (Pulse CLI) node updates through the Canvas node capability are limited to
+  title/content; arbitrary internal `data` patches remain
+  Canvas-Agent-only.
+
 ## Containment that DOES exist
 
 - `contextIsolation: true`; renderer reaches privileged behavior only through
