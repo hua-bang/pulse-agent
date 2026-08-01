@@ -2,7 +2,7 @@
 
 > Local entry for `apps/remote-server`.
 > Repository harness entry: `../../harness/README.md`.
-> Claude Code specific local guidance also exists in `CLAUDE.md`.
+> `CLAUDE.md` is a thin import shell of this file — edit here, never both.
 
 ## Module Positioning
 
@@ -30,7 +30,7 @@ Default mounted surface is defined in `src/server.ts`: `/health`, Feishu and Dis
 | Task | Read |
 |---|---|
 | Repository and harness context | `../../AGENTS.md`, `../../harness/README.md`, `../../harness/validate/validation.yaml` |
-| Local runtime overview | `README.md`, `CLAUDE.md`, `docs/runbook.md`, `docs/validation.md`, `harness/validate/validation.yaml` |
+| Local runtime overview | `README.md`, `docs/runbook.md`, `docs/validation.md`, `harness/validate/validation.yaml` |
 | Security posture / what an agent run can reach / trust boundaries | `harness/knowledge/security-posture.md` |
 | Webhook lifecycle invariants (active-run guard, cancellation, clarification) | `harness/knowledge/core-lifecycle.md` |
 | Confirmed-but-unfixed defects | `harness/knowledge/known-defects.md` |
@@ -43,7 +43,7 @@ Default mounted surface is defined in `src/server.ts`: `/health`, Feishu and Dis
 | Persistence and integrations | `src/core/session-store.ts`, `src/core/memory-integration.ts`, `src/core/worktree/integration.ts`, `src/core/vault/integration.ts`, `src/core/devtools.ts` |
 | Slash commands | `src/core/chat-commands.ts`, `src/core/chat-commands/command-defs.ts`, `src/core/chat-commands/handlers/*` |
 | Internal automation | `src/routes/internal.ts` |
-| Platform behavior | `src/adapters/feishu/*`, `src/adapters/discord/*`, `src/routes/feishu.ts`, `src/routes/discord.ts` |
+| Platform behavior | Adapter contract is the four methods `verifyRequest`/`parseIncoming`/`ackRequest`/`createStreamHandle` (`src/core/types.ts`); `src/adapters/feishu/*`, `src/adapters/discord/*`, `src/routes/feishu.ts`, `src/routes/discord.ts` |
 | Devtools API | `src/routes/devtools.ts`; static UI is built outside this workspace in `../devtools-web` |
 | Focused helper tests | `src/core/model-config.test.ts`, `src/core/attachments.test.ts`, `src/core/tools/analyze-image.test.ts` |
 
