@@ -76,6 +76,15 @@ Agent DOM extraction uses the same lane when it temporarily resumes a frozen
 guest and re-freezes only while its lease is still current; a user activation
 during the read always wins.
 
+Snapshot captures are time-bounded by design. The freeze IPC once awaited a
+bare `wc.capturePage()` on a hidden guest — a guest producing no frames never
+settles that promise, which wedged the IPC reply, and the discard sweep's
+identical fallback would have latched its re-entrancy flag forever, killing
+all future sweeps. Every capture now goes through the 2 s-bounded
+`captureBoundedSnapshot` (`src/main/webview/snapshot.ts`), pinned by a
+never-settling-capture regression test. Never await Electron `capturePage`
+unbounded on a possibly-hidden or occluded webContents.
+
 `DockPanes` renders live and retained pages from one stable, key-sorted list.
 Do not split them into separate sibling lists or move a `<webview>` within its
 parent; either operation can cause Chromium to recreate the guest. Hidden

@@ -22,9 +22,9 @@ or operating runbook needs a durable source of truth.
 
 **Local harness layout** — `harness/` is this workspace's repo-harness
 container, aligned with `packages/engine/harness/`:
-- `harness/knowledge/` — conventions, main domain map, renderer surfaces,
-  plugin node contract, security posture, known defects (moved from `docs/`;
-  `docs/` now keeps only project records like perf analyses and roadmaps).
+- `harness/knowledge/` — per-topic knowledge files, routed in the Knowledge
+  Navigation table below (`docs/` keeps only project records like perf
+  analyses and roadmaps).
 - `harness/tools/driver/` — the headless-Electron driver (launch profiles,
   CDP, screenshots, logs). It is BOTH the repo-harness Tool face and a
   product-operation CLI; `pnpm --filter canvas-workspace harness <cmd>`
