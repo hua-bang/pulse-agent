@@ -24,6 +24,11 @@
       "types": "./dist/built-in/index.d.ts",
       "import": "./dist/built-in/index.js",
       "require": "./dist/built-in/index.cjs"
+    },
+    "./orchestrator": {
+      "types": "./dist/orchestrator/index.d.ts",
+      "import": "./dist/orchestrator/index.js",
+      "require": "./dist/orchestrator/index.cjs"
     }
   },
   "publishConfig": {
@@ -49,7 +54,6 @@
     "glob": "^11.0.0",
     "gray-matter": "^4.0.3",
     "yaml": "^2.8.2",
-    "pulse-coder-orchestrator": "workspace:*",
     "undici": "^6.23.0",
     "zod": "^4.3.6"
   },

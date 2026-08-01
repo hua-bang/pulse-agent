@@ -33,10 +33,10 @@ Known consumers include (verified by cross-package import — kept honest by
 - `apps/canvas-workspace` — runtime surface (`pulse-coder-agent-teams/runtime`)
 
 NOTE: `packages/engine`'s built-in "agent-teams plugin" is NOT a consumer of
-this package — it is an orchestrator-based DAG/role-routing tool
-(`pulse-coder-orchestrator`) that merely shares the name. The real blast
-radius of a protocol change is the two classic hosts + the one runtime host
-above, not the engine.
+this package — it is an orchestrator-based DAG/role-routing tool (engine's
+`src/orchestrator/` module) that merely shares the name. The real blast
+radius of a protocol change is the classic host + the runtime host above,
+not the engine.
 
 ## Validation
 

@@ -18,8 +18,7 @@
 | `packages/cli` | `pulse-coder-cli` | 终端交互应用，构建于引擎之上 |
 | `packages/memory-plugin` | `pulse-coder-memory-plugin` | host 侧 memory 插件与集成辅助 |
 | `packages/plugin-kit` | `pulse-coder-plugin-kit` | 插件公共工具（worktree 辅助、vault、devtools） |
-| `packages/orchestrator` | `pulse-coder-orchestrator` | 多 Agent 编排（TaskGraph、planner、scheduler、runner、aggregator） |
-| `packages/agent-teams` | `pulse-coder-agent-teams` | 基于 orchestrator 的多 Agent 协作层 |
+| `packages/agent-teams` | `pulse-coder-agent-teams` | 基于 engine 内置 orchestrator 模块的多 Agent 协作层 |
 | `packages/acp` | `pulse-coder-acp` | Agent Context Protocol：typed client、runner、state store |
 | `packages/langfuse-plugin` | `pulse-coder-langfuse-plugin` | 可选的 Langfuse 链路追踪插件 |
 | `packages/canvas-cli` | `@pulse-coder/canvas-cli` | canvas 相关 CLI 辅助 |
@@ -96,7 +95,7 @@ Run 级 hooks（`beforeRun` / `afterRun`）在 `Engine.run()`（`packages/engine
 - `clarify` 追问交互
 - 内置 `run_js` 工具（沙箱 JS 执行器位于 `src/sandbox/`）
 
-### 6）Orchestrator（`packages/orchestrator`）
+### 6）Orchestrator（`packages/engine/src/orchestrator`，子路径导出 `pulse-coder-engine/orchestrator`）
 执行 **TaskGraph** —— `TaskNode` 组成的 DAG：`{ id, role, deps[], input?, agent?, instruction? }`。
 
 路由策略（`OrchestrationInput.route`）：
@@ -339,7 +338,6 @@ pnpm --filter pulse-coder-engine typecheck
 pnpm --filter pulse-coder-cli test
 pnpm --filter pulse-coder-memory-plugin test
 pnpm --filter pulse-coder-plugin-kit test
-pnpm --filter pulse-coder-orchestrator test
 pnpm --filter pulse-coder-agent-teams test
 pnpm --filter @pulse-coder/remote-server build
 pnpm --filter @pulse-coder/remote-server dev

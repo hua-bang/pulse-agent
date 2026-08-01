@@ -7,8 +7,8 @@ import { generateTextAI } from '../../ai';
 import {
   Orchestrator,
   EngineAgentRunner,
-} from 'pulse-coder-orchestrator';
-import type { OrchestrationInput, OrchestrationResult } from 'pulse-coder-orchestrator';
+} from '../../orchestrator';
+import type { OrchestrationInput, OrchestrationResult } from '../../orchestrator';
 
 import { RoleRegistry } from './registry';
 

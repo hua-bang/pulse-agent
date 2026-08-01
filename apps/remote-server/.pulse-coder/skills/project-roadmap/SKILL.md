@@ -73,7 +73,7 @@ When operating in this repository, treat the project as a TypeScript `pnpm` mono
 | `packages/memory-plugin` | Memory integration/service package. |
 | `packages/plugin-kit` | Runtime plugin toolkit, including worktree/vault/devtools helpers. |
 | `packages/acp` | ACP client/runner integration. |
-| `packages/orchestrator` | Multi-agent orchestration layer. |
+| `packages/engine` (src/orchestrator) | Multi-agent orchestration module (subpath export `pulse-coder-engine/orchestrator`). |
 | `packages/agent-teams` | Multi-session collaborative agent coordination. |
 | `packages/canvas-cli` | Pulse Canvas CLI and bundled canvas skills. |
 | `packages/langfuse-plugin` | Observability plugin. |

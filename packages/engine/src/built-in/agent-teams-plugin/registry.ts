@@ -1,4 +1,4 @@
-import type { TeamRole } from 'pulse-coder-orchestrator';
+import type { TeamRole } from '../../orchestrator';
 
 export interface RoleRegistryConfig {
   roleTools?: Record<string, string>;

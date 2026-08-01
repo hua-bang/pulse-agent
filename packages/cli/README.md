@@ -257,7 +257,7 @@ src/
 - `pulse-coder-engine` - 核心引擎（内置 MCP、Skills 等插件）
 - `pulse-coder-acp` - ACP 模式状态与路由
 - `pulse-coder-agent-teams` - Teams 多智能体协作
-- `pulse-coder-orchestrator` - `/team` DAG 编排
+- `pulse-coder-engine/orchestrator` - `/team` DAG 编排（engine 子路径导出）
 - `pulse-coder-memory-plugin` - 记忆插件
 - `ink` / `react` - 默认 Ink UI 宿主
 

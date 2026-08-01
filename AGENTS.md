@@ -39,7 +39,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 | Offload oversized tool results to disk | `packages/engine/src/built-in/tool-offload-plugin/` + env (`TOOL_OFFLOAD_THRESHOLD`, `TOOL_OFFLOAD_DIR`) |
 | Add a runtime skill | `.pulse-coder/skills/<name>/SKILL.md` |
 | Add a sub-agent | `.pulse-coder/agents/*.md` |
-| Change an orchestration role | `packages/orchestrator/` |
+| Change an orchestration role | `packages/engine/src/orchestrator/` (subpath export `pulse-coder-engine/orchestrator`) |
 | Change a remote-server adapter | `apps/remote-server/src/adapters/` + `core/dispatcher.ts` |
 | Add/change a keyboard shortcut | `apps/canvas-workspace/src/renderer/src/shortcuts/definitions.ts` (SSOT) + the owning handler table; check `apps/canvas-workspace/src/main/app/menu.ts` for an accelerator that would eat the key first |
 | Add/remove a workspace | `pnpm-workspace.yaml` + workspace `AGENTS.md` + workspace `harness/validate/validation.yaml` + root overlay if cross-workspace impact changes |
@@ -54,11 +54,11 @@ This file orients agents working in the Coder repository. It is a thin routing +
 
 - **Package manager**: `pnpm@10.28.0` (`packageManager`). Never npm/yarn.
 - **Node**: unpinned (no `.nvmrc`/`engines`). Do not assume a version; adding a pin is an open gap.
-- **TypeScript**: `strict:true` from root `tsconfig.json`. Keep strict ON. `apps/canvas-workspace` uses a standalone tsconfig — root changes do not reach it. `plugin-kit`/`memory-plugin`/`langfuse-plugin` typecheck hits TS6059 rootDir errors locally — default to `build` as the JS smoke check there. (`engine` had the same class from its agent-teams plugin importing orchestrator source; fixed by dropping `rootDir` from its tsconfig — `rootDir` is emit-layout config that `tsc --noEmit` and tsup do not need. Same fix likely applies to the rest.)
+- **TypeScript**: `strict:true` from root `tsconfig.json`. Keep strict ON. `apps/canvas-workspace` uses a standalone tsconfig — root changes do not reach it. `plugin-kit`/`memory-plugin`/`langfuse-plugin` typecheck hits TS6059 rootDir errors locally — default to `build` as the JS smoke check there. (`engine` had the same class from cross-package source imports via a root alias; fixed by dropping `rootDir` from its tsconfig — `rootDir` is emit-layout config that `tsc --noEmit` and tsup do not need. Same fix likely applies to the rest.)
 - **Module format**: ESM repo-wide (`"type":"module"`). CommonJS holdouts: `packages/cli`, `packages/canvas-cli` — match each package's `"type"`.
-- **Tests**: `vitest run` (sole runner, no config file — defaults apply). Honest test reality: `plugin-kit`/`langfuse-plugin`/`orchestrator` use `--passWithNoTests` with ZERO real specs → green ≠ coverage. `remote-server` has NO typecheck (runtime app; its Vitest helper suites run via `test`, with `pretest` building plugin-kit). `cli` has NO typecheck.
+- **Tests**: `vitest run` (sole runner, no config file — defaults apply). Honest test reality: `plugin-kit`/`langfuse-plugin` use `--passWithNoTests` with ZERO real specs, and engine's `src/orchestrator/` module has no specs of its own → green ≠ coverage there. `remote-server` has NO typecheck (runtime app; its Vitest helper suites run via `test`, with `pretest` building plugin-kit). `cli` has NO typecheck.
 - **Build**: `tsup`; root `build` uses `SKIP_DTS=1`.
-- **Path aliases**: only `pulse-coder-engine`, `pulse-coder-orchestrator`, `pulse-coder-plugin-kit`, `pulse-coder-acp`, `pulse-coder-agent-teams` (root `tsconfig.json`). Use `workspace:*` deps for the rest; do not invent aliases.
+- **Path aliases**: only `pulse-coder-engine`, `pulse-coder-plugin-kit`, `pulse-coder-acp`, `pulse-coder-agent-teams` (root `tsconfig.json`). Use `workspace:*` deps for the rest; do not invent aliases.
 - **Lint/format**: ABSENT (no eslint/prettier/biome). Self-enforce; match surrounding files (2 spaces, semicolons, single quotes).
 
 ## 3. Auxiliary-workspace boundary
@@ -101,7 +101,7 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 - `canvas-workspace` is in `test:all`/`build:all` but NOT `build:core`/`test:core` — include it explicitly when you touch it.
 - Harness data change → `node scripts/harness/check-harness.mjs` must report `harnessGaps: 0` (the runner triggers it automatically for harness paths).
 
-**Green ≠ proof:** a green `pnpm test` is not coverage evidence for `plugin-kit`/`langfuse-plugin`/`orchestrator` (`--passWithNoTests`, no real specs).
+**Green ≠ proof:** a green `pnpm test` is not coverage evidence for `plugin-kit`/`langfuse-plugin` (`--passWithNoTests`, no real specs) or engine's `src/orchestrator/` module (no specs yet).
 
 ## 6. Failure capture (named failure → guard)
 

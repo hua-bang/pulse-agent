@@ -18,8 +18,7 @@ This repo is a `pnpm` workspace monorepo (`packages/*`, `apps/*`).
 | `packages/cli` | `pulse-coder-cli` | Interactive terminal app built on top of the engine |
 | `packages/memory-plugin` | `pulse-coder-memory-plugin` | Host-side memory plugin and integration helpers |
 | `packages/plugin-kit` | `pulse-coder-plugin-kit` | Shared utilities for plugins (worktree helpers, vault, devtools) |
-| `packages/orchestrator` | `pulse-coder-orchestrator` | Multi-agent orchestration (TaskGraph, planner, scheduler, runner, aggregator) |
-| `packages/agent-teams` | `pulse-coder-agent-teams` | Agent teams coordination built on the orchestrator |
+| `packages/agent-teams` | `pulse-coder-agent-teams` | Agent teams coordination built on the engine's orchestrator module |
 | `packages/acp` | `pulse-coder-acp` | Agent Context Protocol — typed client, runner, and state store |
 | `packages/langfuse-plugin` | `pulse-coder-langfuse-plugin` | Optional Langfuse tracing plugin |
 | `packages/canvas-cli` | `@pulse-coder/canvas-cli` | Canvas-related CLI helpers |
@@ -96,7 +95,7 @@ Registered from `packages/engine/src/built-in/index.ts` (in load order):
 - clarification flow via the `clarify` tool,
 - built-in `run_js` tool (sandboxed JS executor in `src/sandbox/`).
 
-### 6) Orchestrator (`packages/orchestrator`)
+### 6) Orchestrator (`packages/engine/src/orchestrator`, subpath export `pulse-coder-engine/orchestrator`)
 Runs a **TaskGraph** — a DAG of `TaskNode` objects with `{ id, role, deps[], input?, agent?, instruction? }`.
 
 Routing strategies (`OrchestrationInput.route`):
@@ -339,7 +338,6 @@ pnpm --filter pulse-coder-engine typecheck
 pnpm --filter pulse-coder-cli test
 pnpm --filter pulse-coder-memory-plugin test
 pnpm --filter pulse-coder-plugin-kit test
-pnpm --filter pulse-coder-orchestrator test
 pnpm --filter pulse-coder-agent-teams test
 pnpm --filter @pulse-coder/remote-server build
 pnpm --filter @pulse-coder/remote-server dev

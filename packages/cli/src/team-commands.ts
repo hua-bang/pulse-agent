@@ -1,8 +1,8 @@
 import { generateTextAI } from 'pulse-coder-engine';
-import { Orchestrator, EngineAgentRunner } from 'pulse-coder-orchestrator';
+import { Orchestrator, EngineAgentRunner } from 'pulse-coder-engine/orchestrator';
 import { TeamLead, InProcessDisplay } from 'pulse-coder-agent-teams';
 import type { TeamPlan } from 'pulse-coder-agent-teams';
-import type { OrchestrationInput, OrchestratorLogger, TaskGraph, TeamRole } from 'pulse-coder-orchestrator';
+import type { OrchestrationInput, OrchestratorLogger, TaskGraph, TeamRole } from 'pulse-coder-engine/orchestrator';
 import type { PulseAgent } from 'pulse-coder-engine';
 
 const cyan = '\x1b[36m';

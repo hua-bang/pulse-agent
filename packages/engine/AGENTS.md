@@ -19,6 +19,7 @@ It should stay host-agnostic. CLI, remote server, canvas, ACP, and teams-specifi
 | Plugin mechanism and authoring | `harness/knowledge/plugin-system.md` |
 | Loop lifecycle, timeouts, retries | `harness/knowledge/loop-lifecycle.md` |
 | Built-in tools reference | `harness/knowledge/tools-reference.md` |
+| Orchestration module (task graph, scheduler, `/orchestrator` subpath) | `harness/knowledge/orchestrator.md` |
 | Embedding the engine in a host | `harness/knowledge/host-integration.md` |
 | Env knobs, defaults, precedence chains | `harness/knowledge/config-reference.md` |
 | Security posture, sandboxing, threat surfaces | `harness/knowledge/security-posture.md` |
