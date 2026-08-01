@@ -107,12 +107,12 @@ function checkFilterNames(cmd, label) {
 // lines with multi-byte characters (em dashes, arrows) that are common here.
 //
 // Floor is 800 (round, far under the old fat rows this was written to catch:
-// 1500-5006 chars). Root AGENTS.md's oldest "Failure capture" bullets (see
-// AGENTS.md §6) still run to ~803 chars today, so the bare floor would not
-// pass the current repo. RATCHET: nudged to 810 (just above today's real
-// max) until those bullets move to harness/knowledge/ — tighten back to 800
-// once they do; do not raise it further to silence a new violation.
-const ROUTER_WEIGHT_THRESHOLD = 810;
+// 1500-5006 chars). RATCHET history: started at 810 because root AGENTS.md
+// §6's oldest "Failure capture" bullets ran to ~803 chars; those bullets now
+// live in their owning workspaces' harness/knowledge/, so the gate sits at
+// the 800 floor. Do not raise it to silence a new violation — slim the line
+// instead (harness/skills/slim-agents-md/SKILL.md).
+const ROUTER_WEIGHT_THRESHOLD = 800;
 
 function checkRouterWeight(rel) {
   if (!exists(rel)) return;

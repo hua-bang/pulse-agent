@@ -94,7 +94,10 @@ Telegram is currently unmounted.
 ## Test coverage reality
 
 Six Vitest files, all pure-helper unit tests (`model-config`, `attachments`,
-`analyze-image`, three Feishu parsers). **Zero** automated coverage for the
+`analyze-image`, three Feishu parsers). They originally shipped
+declared-but-unwired — no `test` script, no vitest dep — which is what let
+the ProxyAgent bug above stay hidden; the suite is now bound in
+`harness/validate/validation.yaml` and `pretest` builds plugin-kit first. **Zero** automated coverage for the
 `core-lifecycle.md` invariants: the active-run guard, cancellation,
 clarification timeout/consume, session fork/link/`canAccessSession`,
 internal-route auth, and every `verifyRequest` (so the Feishu no-op in

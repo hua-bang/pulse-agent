@@ -24,7 +24,7 @@ One `Engine.run()` → `loop()` turn, end to end. Verified against `src/core/loo
 
 ## Host-Visible Context Mutations & Step Accounting
 
-- The loop silently rewrites the host's `context.messages` in TWO places, not just compaction: before every LLM call `pruneIncompleteToolExchanges` strips dangling tool-call parts and reassigns `context.messages` in place; and the compaction path replaces it. A host persisting `Context` must expect both.
+- The loop silently rewrites the host's `context.messages` in TWO places, not just compaction: before every LLM call `pruneIncompleteToolExchanges` strips dangling tool-call parts and reassigns `context.messages` in place; and the compaction path replaces it. A host persisting `Context` must expect both. History: the first cleanup implementation sliced `messages` at the first incomplete tool-call and dropped legitimate later user turns; `pruneIncompleteToolExchanges` now filters only the incomplete exchange, and `src/core/loop.test.ts` pins that later user turns survive. Any new message-history cleanup in `loop.ts` must ship a parallel regression test.
 - `onResponse` is dispatched fire-and-forget inside the step loop (not awaited). If your handler persists-then-mutates asynchronously, the next turn can start before it lands — do not rely on ordering.
 - `MAX_STEPS` (500) counts AI-SDK internal sub-steps (`totalSteps += steps.length`), and the engine passes no `stopWhen` to `streamText`, so the cap is NOT 1:1 with LLM turns — budget accordingly when tuning it.
 

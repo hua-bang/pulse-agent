@@ -39,13 +39,16 @@ in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
 | Atomic batch mutation from a plan file | `src/commands/apply.ts`, `src/core/apply.ts` |
 | Public core exports | `src/core/index.ts` |
 | Store safety and schema compatibility | `src/core/store.ts`, `src/core/storage-v2.ts`, `src/core/types.ts`, `src/core/constants.ts` |
+| Store-concurrency incident + lock rationale | `harness/knowledge/storage-concurrency.md` |
 | Node and edge behavior | `src/core/nodes.ts`, `src/core/edges.ts` |
 | Bundled agent skills | `skills/`, `src/commands/install-skills.ts` |
 | Tests | `src/core/__tests__/`, `src/commands/__tests__/` |
 | Local validation | `harness/validate/validation.yaml` |
 
-There is no package-local documentation beyond the local validation file. Use
-the root harness files above, then the package source/tests.
+Package-local documentation: `harness/knowledge/storage-concurrency.md` (the
+store-concurrency incident behind the locking constraints) and
+`harness/validate/validation.yaml`. Beyond those, use the root harness files
+above, then the package source/tests.
 
 ## Local Constraints
 
