@@ -84,6 +84,101 @@ describe('ScheduledPage', () => {
   });
 
   /**
+   * The completion toast is dismissible and does not survive a restart, so the
+   * list is the only lasting record that a run failed — and it rendered the
+   * failure in the same muted grey as a success, with `lastError` never read
+   * at all. The reason was reachable only by opening the conversation.
+   */
+  it('names the failure and its reason in the row', async () => {
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: {
+        scheduled: {
+          list: vi.fn(async () => ({
+            ok: true,
+            tasks: [{
+              id: 'daily-brief',
+              title: 'Daily brief',
+              prompt: 'Summarize what needs my attention.',
+              schedule: { kind: 'daily', timeOfDay: '09:00' },
+              enabled: true,
+              source: 'user',
+              createdAt: 1,
+              updatedAt: 1,
+              nextRunAt: Date.now() + 60_000,
+              lastAttemptAt: Date.now() - 60_000,
+              lastError: 'model unavailable',
+              runCount: 1,
+              status: 'idle',
+            }],
+          })),
+          onChanged: vi.fn(() => () => undefined),
+        },
+      },
+    });
+
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => { root?.render(renderPage()); });
+
+    const outcome = host?.querySelector<HTMLElement>('.scheduled-page__last-run');
+    expect(outcome?.className).toContain('scheduled-page__last-run--error');
+    expect(outcome?.textContent).toContain('Failed');
+    expect(outcome?.textContent).toContain('model unavailable');
+
+    // The dot is the only status left once the dock squeezes the columns out,
+    // so it has to carry the failure too.
+    const status = host?.querySelector<HTMLElement>('.scheduled-page__status');
+    expect(status?.className).toContain('scheduled-page__status--failed');
+    expect(status?.getAttribute('title')).toContain('Failed');
+  });
+
+  /**
+   * `lastSuccessAt` stores the attempt's START (`attemptedAt` is captured
+   * before the run), so "Completed 09:00" was falsifiable by anyone who
+   * watched a run take twelve minutes.
+   */
+  it('does not claim a run completed at the minute it started', async () => {
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: {
+        scheduled: {
+          list: vi.fn(async () => ({
+            ok: true,
+            tasks: [{
+              id: 'daily-brief',
+              title: 'Daily brief',
+              prompt: 'Summarize what needs my attention.',
+              schedule: { kind: 'daily', timeOfDay: '09:00' },
+              enabled: true,
+              source: 'user',
+              createdAt: 1,
+              updatedAt: 1,
+              nextRunAt: Date.now() + 60_000,
+              lastAttemptAt: Date.now() - 60_000,
+              lastSuccessAt: Date.now() - 60_000,
+              runCount: 1,
+              status: 'idle',
+            }],
+          })),
+          onChanged: vi.fn(() => () => undefined),
+        },
+      },
+    });
+
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => { root?.render(renderPage()); });
+
+    const outcome = host?.querySelector<HTMLElement>('.scheduled-page__last-run');
+    expect(outcome?.textContent).toContain('Last run');
+    expect(outcome?.textContent).not.toContain('Completed');
+    expect(outcome?.className).not.toContain('--error');
+  });
+
+  /**
    * The editor always submits the whole form, and `update` re-anchors the next
    * run whenever a schedule arrives — so sending the untouched cadence back
    * pushed the pending run a full period out. Fixing a typo must cost nothing.

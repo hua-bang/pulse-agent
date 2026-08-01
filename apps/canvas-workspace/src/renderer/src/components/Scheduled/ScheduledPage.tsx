@@ -8,6 +8,7 @@ import {
   Plus,
   SpinnerGap,
   Trash,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import type {
   ScheduledTask,
@@ -181,10 +182,27 @@ export const ScheduledPage = () => {
                     every stray click on the title or the cadence text opened a
                     chat; actions now live exclusively in the button group. */}
                 <div className="scheduled-page__row-main">
-                  <span className={`scheduled-page__status${task.enabled ? ' scheduled-page__status--enabled' : ''}`} />
+                  {/* The dot is the only status left once the dock squeezes the
+                      meta columns out, so a failing task must not look like a
+                      healthy one there. `title` is the whole signal at that
+                      width; the row text below carries it at full width. */}
+                  <span
+                    className={`scheduled-page__status${
+                      task.lastError
+                        ? ' scheduled-page__status--failed'
+                        : task.enabled ? ' scheduled-page__status--enabled' : ''
+                    }`}
+                    title={task.lastError
+                      ? t('scheduled.lastFailed', { time: timeLabel(task.lastAttemptAt, t('scheduled.never')) })
+                      : task.enabled ? t('scheduled.nextRun', {
+                        time: timeLabel(task.nextRunAt, t('scheduled.never')),
+                      }) : t('scheduled.paused')}
+                  />
                   <span className="scheduled-page__row-copy">
                     <strong>{task.title}</strong>
-                    <small>{task.prompt}</small>
+                    {/* The prompt is one ellipsized line, and a task that has
+                        never run has no other place to read it. */}
+                    <small title={task.prompt}>{task.prompt}</small>
                   </span>
                   <span className="scheduled-page__meta">
                     <span>{scheduleLabel(task.schedule, t, language)}</span>
@@ -194,12 +212,26 @@ export const ScheduledPage = () => {
                         : t('scheduled.paused')}
                     </small>
                   </span>
-                  <span className="scheduled-page__last-run">
-                    {task.lastError
-                      ? t('scheduled.lastFailed', { time: timeLabel(task.lastAttemptAt, t('scheduled.never')) })
-                      : task.lastSuccessAt
-                        ? t('scheduled.lastSuccess', { time: timeLabel(task.lastSuccessAt, t('scheduled.never')) })
-                        : t('scheduled.neverRun')}
+                  {/* Once the completion toast is dismissed the list is the
+                      only lasting record of a failure, so it has to say WHY.
+                      `lastError` was never read on this page — the reason was
+                      reachable only by opening the conversation. */}
+                  <span
+                    className={`scheduled-page__last-run${task.lastError ? ' scheduled-page__last-run--error' : ''}`}
+                  >
+                    {task.lastError ? (
+                      <>
+                        <span className="scheduled-page__last-run-headline">
+                          <WarningCircle size={12} weight="fill" />
+                          {t('scheduled.lastFailed', {
+                            time: timeLabel(task.lastAttemptAt, t('scheduled.never')),
+                          })}
+                        </span>
+                        <small title={task.lastError}>{task.lastError}</small>
+                      </>
+                    ) : task.lastSuccessAt
+                      ? t('scheduled.lastSuccess', { time: timeLabel(task.lastSuccessAt, t('scheduled.never')) })
+                      : t('scheduled.neverRun')}
                   </span>
                 </div>
                 <div className="scheduled-page__row-actions">

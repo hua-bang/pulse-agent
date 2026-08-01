@@ -79,6 +79,13 @@
   background: var(--success);
 }
 
+/* The dot is the last status standing at narrow widths, so a failed run has to
+   reach it — otherwise a broken task and a healthy one render identically
+   exactly when the outcome column is gone. */
+.scheduled-page__status--failed {
+  background: var(--error);
+}
+
 .scheduled-page__row-copy {
   display: grid;
   min-width: 0;
@@ -112,6 +119,33 @@
 
 .scheduled-page__last-run {
   color: var(--text-muted);
+}
+
+/* Failure used to render in the same muted grey as success, so scanning a
+   dozen rows surfaced nothing. Matches the in-panel error banner's tone. */
+.scheduled-page__last-run--error {
+  color: var(--error);
+}
+
+.scheduled-page__last-run-headline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.scheduled-page__last-run-headline > svg {
+  flex: 0 0 auto;
+}
+
+/* Two lines of reason, then ellipsis; the full text is on `title`. */
+.scheduled-page__last-run--error small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .scheduled-page__row-actions {
@@ -260,8 +294,18 @@
   grid-template-columns: 8px minmax(0, 1fr) minmax(110px, auto);
 }
 
-.app:has(.right-dock[data-expanded='true']) .scheduled-page__last-run {
+/* Dropping the outcome column is how the row survives a narrow shell, but a
+   FAILURE is the one outcome that must not be dropped — and the dock being
+   open is the normal state right after the user opened a task's chat, which
+   is exactly when they are checking whether it worked. A failed cell wraps
+   onto its own line under the title instead; a successful or never-run one
+   still yields its space. */
+.app:has(.right-dock[data-expanded='true']) .scheduled-page__last-run:not(.scheduled-page__last-run--error) {
   display: none;
+}
+
+.app:has(.right-dock[data-expanded='true']) .scheduled-page__last-run--error {
+  grid-column: 2 / -1;
 }
 
 .app:has(.right-dock[data-expanded='true']) .scheduled-page__row-actions {
@@ -279,8 +323,12 @@
   }
 
   .scheduled-page__meta,
-  .scheduled-page__last-run {
+  .scheduled-page__last-run:not(.scheduled-page__last-run--error) {
     display: none;
+  }
+
+  .scheduled-page__last-run--error {
+    grid-column: 2 / -1;
   }
 
   .scheduled-page__row-actions {

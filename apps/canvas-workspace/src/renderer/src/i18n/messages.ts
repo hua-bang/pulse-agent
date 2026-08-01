@@ -1489,7 +1489,12 @@ const en = {
   'scheduled.never': 'Never',
   'scheduled.paused': 'Paused',
   'scheduled.lastFailed': 'Failed {time}',
-  'scheduled.lastSuccess': 'Completed {time}',
+  // Both timestamps are when the attempt STARTED (`lastAttemptAt` is captured
+  // before the run and `lastSuccessAt` is set to it), so "Completed" was
+  // directly falsifiable: watch a run take twelve minutes and the row still
+  // claims it completed at the minute it began. "Last run" is true of the
+  // stored value and keeps the slot alignment with "Next …" beside it.
+  'scheduled.lastSuccess': 'Last run {time}',
   'scheduled.neverRun': 'Not run yet',
   'scheduled.pause': 'Pause',
   'scheduled.resume': 'Resume',
@@ -3238,7 +3243,7 @@ const zh: Record<keyof typeof en, string> = {
   'scheduled.never': '从未',
   'scheduled.paused': '已暂停',
   'scheduled.lastFailed': '{time} 执行失败',
-  'scheduled.lastSuccess': '{time} 已完成',
+  'scheduled.lastSuccess': '上次执行 {time}',
   'scheduled.neverRun': '尚未执行',
   'scheduled.pause': '暂停',
   'scheduled.resume': '继续',

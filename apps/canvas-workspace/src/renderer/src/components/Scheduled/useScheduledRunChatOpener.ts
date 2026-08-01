@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { ScheduledRunFinished } from '../../../../shared/scheduled';
 import { navigateCanvasRoute } from '../../utils/canvasLinks';
 import { useRightDock, useRightDockState } from '../RightDock';
@@ -26,6 +26,22 @@ interface Options {
 export const useScheduledRunChatOpener = ({ activeView, chatRoute }: Options): void => {
   const dock = useRightDock();
   const dockState = useRightDockState();
+
+  /**
+   * A background run's output has to reach a panel that is already open.
+   * `ScheduledChatPanel`'s running banner tells the user "the result will
+   * appear here", but the only thing that ever refetched the thread was the
+   * manual `Run now` path — so an unattended run ended with the banner simply
+   * vanishing and not one new message. `refreshScheduledChat` no-ops unless
+   * the dock is pointed at that task, and it now bumps `sessionRefreshKey`
+   * rather than the panel's `key`, so this reloads history in place instead
+   * of remounting a composer the user may be typing into.
+   */
+  const dockRef = useRef(dock);
+  dockRef.current = dock;
+  useEffect(() => window.canvasWorkspace.scheduled.onRunFinished(
+    (run) => dockRef.current.refreshScheduledChat(run.taskId),
+  ), []);
 
   useScheduledRunToasts(
     useCallback((taskId: string) => {
