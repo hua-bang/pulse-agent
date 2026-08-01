@@ -91,7 +91,7 @@ escalationRules:
 
   agentTeamsRuntimeProtocolChange:
     required:
-      - pnpm --filter @pulse-coder/teams-cli build
+      - pnpm --filter pulse-coder-cli build
       - pnpm --filter canvas-workspace typecheck
 
   pluginKitPublicApiChange:

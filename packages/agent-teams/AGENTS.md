@@ -5,7 +5,7 @@
 
 ## Module Positioning
 
-`pulse-coder-agent-teams` owns multi-session team coordination above the engine and below host experiences such as `apps/teams-cli` and `apps/canvas-workspace`.
+`pulse-coder-agent-teams` owns multi-session team coordination above the engine and below host experiences such as `apps/canvas-workspace` and `packages/cli`.
 
 The package currently exposes two surfaces:
 

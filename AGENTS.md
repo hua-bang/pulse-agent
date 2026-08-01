@@ -42,7 +42,6 @@ This file orients agents working in the Coder repository. It is a thin routing +
 | Change an orchestration role | `packages/orchestrator/` |
 | Change a remote-server adapter | `apps/remote-server/src/adapters/` + `core/dispatcher.ts` |
 | Add/change a keyboard shortcut | `apps/canvas-workspace/src/renderer/src/shortcuts/definitions.ts` (SSOT) + the owning handler table; check `apps/canvas-workspace/src/main/app/menu.ts` for an accelerator that would eat the key first |
-| Add a canvas node plugin | `packages/canvas-nodes/` |
 | Add/remove a workspace | `pnpm-workspace.yaml` + workspace `AGENTS.md` + workspace `harness/validate/validation.yaml` + root overlay if cross-workspace impact changes |
 | Update what to run for a workspace path | affected workspace `harness/validate/validation.yaml` |
 | Review changes (repo-aware) | affected workspace `AGENTS.md` + `node scripts/harness/run-harness-check.mjs` |
@@ -55,16 +54,16 @@ This file orients agents working in the Coder repository. It is a thin routing +
 
 - **Package manager**: `pnpm@10.28.0` (`packageManager`). Never npm/yarn.
 - **Node**: unpinned (no `.nvmrc`/`engines`). Do not assume a version; adding a pin is an open gap.
-- **TypeScript**: `strict:true` from root `tsconfig.json`. Keep strict ON. `apps/teams-cli` + `apps/canvas-workspace` use standalone tsconfigs — root changes do not reach them. `plugin-kit`/`memory-plugin`/`langfuse-plugin`/`teams-cli` typecheck hits TS6059 rootDir errors locally — default to `build` as the JS smoke check there. (`engine` had the same class from its agent-teams plugin importing orchestrator source; fixed by dropping `rootDir` from its tsconfig — `rootDir` is emit-layout config that `tsc --noEmit` and tsup do not need. Same fix likely applies to the four.)
-- **Module format**: ESM repo-wide (`"type":"module"`). CommonJS holdouts: `packages/cli`, `packages/canvas-cli`, `apps/teams-cli` — match each package's `"type"`.
-- **Tests**: `vitest run` (sole runner, no config file — defaults apply). Honest test reality: `plugin-kit`/`langfuse-plugin`/`orchestrator`/`teams-cli` use `--passWithNoTests` with ZERO real specs → green ≠ coverage. `remote-server` has NO typecheck (runtime app; its Vitest helper suites run via `test`, with `pretest` building plugin-kit). `cli` has NO typecheck.
+- **TypeScript**: `strict:true` from root `tsconfig.json`. Keep strict ON. `apps/canvas-workspace` uses a standalone tsconfig — root changes do not reach it. `plugin-kit`/`memory-plugin`/`langfuse-plugin` typecheck hits TS6059 rootDir errors locally — default to `build` as the JS smoke check there. (`engine` had the same class from its agent-teams plugin importing orchestrator source; fixed by dropping `rootDir` from its tsconfig — `rootDir` is emit-layout config that `tsc --noEmit` and tsup do not need. Same fix likely applies to the rest.)
+- **Module format**: ESM repo-wide (`"type":"module"`). CommonJS holdouts: `packages/cli`, `packages/canvas-cli` — match each package's `"type"`.
+- **Tests**: `vitest run` (sole runner, no config file — defaults apply). Honest test reality: `plugin-kit`/`langfuse-plugin`/`orchestrator` use `--passWithNoTests` with ZERO real specs → green ≠ coverage. `remote-server` has NO typecheck (runtime app; its Vitest helper suites run via `test`, with `pretest` building plugin-kit). `cli` has NO typecheck.
 - **Build**: `tsup`; root `build` uses `SKIP_DTS=1`.
 - **Path aliases**: only `pulse-coder-engine`, `pulse-coder-orchestrator`, `pulse-coder-plugin-kit`, `pulse-coder-acp`, `pulse-coder-agent-teams` (root `tsconfig.json`). Use `workspace:*` deps for the rest; do not invent aliases.
 - **Lint/format**: ABSENT (no eslint/prettier/biome). Self-enforce; match surrounding files (2 spaces, semicolons, single quotes).
 
 ## 3. Auxiliary-workspace boundary
 
-Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/teams-cli` + `apps/canvas-workspace`. `apps/coder-demo`, `apps/devtools-web`, `apps/canvas-plugin-react-mf-note-demo` are real but excluded (no AGENTS.md — excluded by policy). `apps/EXPERIMENTAL.md` is stale (claims `canvas-workspace` excluded) — trust `pnpm-workspace.yaml`, not that file.
+Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/canvas-workspace`. `apps/devtools-web` is real but excluded from the workspace set (no AGENTS.md — excluded by policy). Do NOT delete it: `apps/remote-server/src/server.ts` serves `../devtools-web/dist` at runtime as its devtools UI (`DEVTOOLS_DIST_PATH` overrides).
 
 ## 4. Prerequisite gates (honest: none are mechanical)
 
@@ -102,7 +101,7 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 - `canvas-workspace` is in `test:all`/`build:all` but NOT `build:core`/`test:core` — include it explicitly when you touch it.
 - Harness data change → `node scripts/harness/check-harness.mjs` must report `harnessGaps: 0` (the runner triggers it automatically for harness paths).
 
-**Red command — do not promote:** `pnpm run test:apps` can exit 1 because `apps/coder-demo`'s test script is `echo Error && exit 1`. Use targeted `pnpm --filter <pkg> test`; do not treat a bare `test:apps` failure as a regression unless you've filtered out excluded apps. Likewise a green `pnpm test` is not proof for `plugin-kit`/`langfuse-plugin`/`orchestrator`/`teams-cli` (no real specs).
+**Green ≠ proof:** a green `pnpm test` is not coverage evidence for `plugin-kit`/`langfuse-plugin`/`orchestrator` (`--passWithNoTests`, no real specs).
 
 ## 6. Failure capture (named failure → guard)
 
@@ -114,7 +113,7 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 - **grep shell injection + blocking I/O**: tool arguments go to async `execFile` as an array — never build a shell string; `packages/engine/src/tools/grep.test.ts` asserts an injecting pattern does not execute.
   Detail: packages/engine/harness/knowledge/tools-reference.md (grep card).
 - **MCP reload stale/empty state**: reload didn't activate the target scope first. Guard: `activateScope` before reload, force fresh probe.
-- **Stale doc claimed canvas-workspace excluded**: `apps/EXPERIMENTAL.md` contradicts `pnpm-workspace.yaml:5`. Guard: `pnpm-workspace.yaml` owns workspace membership; run `check-harness.mjs` to detect coverage drift; do not trust prose workspace lists.
+- **Stale doc claimed canvas-workspace excluded**: a prose workspace list (`apps/EXPERIMENTAL.md`, since deleted) contradicted `pnpm-workspace.yaml`. Guard: `pnpm-workspace.yaml` owns workspace membership; run `check-harness.mjs` to detect coverage drift; do not trust prose workspace lists.
 - **Declared-but-unwired tests masked a real bug**: when bootstrapping any workspace, cross-check test files × test script before trusting "no tests here" — remote-server's six unwired Vitest suites hid a ProxyAgent cache-key bug.
   Detail: apps/remote-server/harness/knowledge/known-defects.md (§Resolved, §Test coverage reality).
 - **Unbounded `capturePage` hangs on hidden webview guests**: never await Electron `capturePage` unbounded on possibly-hidden/occluded webContents — captures go through the 2s-bounded `captureBoundedSnapshot` (`apps/canvas-workspace/src/main/webview/snapshot.ts`).

@@ -24,20 +24,16 @@
 | `packages/acp` | `pulse-coder-acp` | Agent Context Protocol：typed client、runner、state store |
 | `packages/langfuse-plugin` | `pulse-coder-langfuse-plugin` | 可选的 Langfuse 链路追踪插件 |
 | `packages/canvas-cli` | `@pulse-coder/canvas-cli` | canvas 相关 CLI 辅助 |
-| `packages/canvas-nodes` | `@pulse-canvas/nodes` | 外部 Pulse Canvas 节点插件（运行时可加载的插件目录） |
 
 ### Apps
 
 | 路径 | 作用 |
 | --- | --- |
 | `apps/remote-server` | 引擎的 HTTP 封装（飞书 / Discord / Telegram 适配器） |
-| `apps/teams-cli` | 多 Agent 团队工作流 CLI |
 | `apps/canvas-workspace` | canvas 工作区应用（Electron） |
-| `apps/coder-demo` | 早期实验 app |
-| `apps/devtools-web` | 实验性 devtools Web UI |
-| `apps/canvas-plugin-react-mf-note-demo` | 实验性 Pulse Canvas note 插件 demo |
+| `apps/devtools-web` | devtools Web UI —— 不在 workspace 集合内，但 `apps/remote-server` 运行时会静态服务它的 `dist/`，不要删除 |
 
-> 实验 app（`apps/coder-demo`、`apps/devtools-web`、`apps/canvas-plugin-react-mf-note-demo`）保留在仓库中，但默认不参与 workspace 安装 / 构建。生效的 workspace 集合以 `pnpm-workspace.yaml` 为准（SSOT）。
+> `apps/devtools-web` 保留在仓库中，但默认不参与 workspace 安装 / 构建。生效的 workspace 集合以 `pnpm-workspace.yaml` 为准（SSOT）。
 
 其他目录：`docs/`、`architecture/`、`examples/`、`scripts/`。
 
@@ -182,7 +178,7 @@ OPENAI_MODEL=novita/deepseek/deepseek_v3
 
 ### 3）构建
 ```bash
-pnpm run build       # 核心工作区（packages/* + remote-server + teams-cli）
+pnpm run build       # 核心工作区（packages/* + remote-server）
 pnpm run build:all   # 全量工作区
 ```
 
@@ -197,14 +193,7 @@ pnpm start:debug     # 带 debug 日志
 pnpm --filter @pulse-coder/remote-server dev
 ```
 
-### 6）多 Agent Teams 预览（可选）
-```bash
-pnpm preview:teams        # 构建 orchestrator/engine/agent-teams 后启动 teams-cli 预览
-pnpm preview:teams:run    # run 模式预览
-pnpm preview:teams:plan   # plan 模式预览
-```
-
-### 7）Canvas 工作区（可选，Electron）
+### 6）Canvas 工作区（可选，Electron）
 ```bash
 pnpm --filter canvas-workspace dev        # electron-vite dev（热重载）
 pnpm --filter canvas-workspace build      # 生产构建
@@ -331,16 +320,16 @@ Remote Server：
 ### 工作区级别
 ```bash
 pnpm install
-pnpm run build         # 核心工作区（packages/* + remote-server + teams-cli，SKIP_DTS=1）
+pnpm run build         # 核心工作区（packages/* + remote-server，SKIP_DTS=1）
 pnpm run build:all     # 全量工作区
 pnpm run dev           # 核心工作区
 pnpm run dev:all       # 全量工作区
 pnpm start             # pulse-coder-cli
 pnpm start:debug       # 带 debug 日志的 CLI
 pnpm test              # 等价于 test:core
-pnpm run test:core     # packages/* + remote-server + teams-cli
+pnpm run test:core     # packages/* + remote-server
 pnpm run test:packages # 仅 packages/*
-pnpm run test:apps     # apps/* workspace 成员（canvas-workspace、remote-server、teams-cli）
+pnpm run test:apps     # apps/* workspace 成员（canvas-workspace、remote-server）
 pnpm run test:all      # 全量
 ```
 
@@ -361,7 +350,7 @@ pnpm --filter @pulse-coder/remote-server dev
 所有包使用 **vitest**（`vitest run`）跑测试，`tsc --noEmit` 做类型检查（仅存在于有该脚本的包）。已知缺口：`apps/remote-server` 没有 `test` / `typecheck` 脚本（运行时 app —— 通过 `curl` 打 `/internal/agent/run` 手测）；`packages/cli` 没有 `typecheck` 脚本。
 
 说明：
-- `pnpm-workspace.yaml` 当前仅纳入核心集合：`packages/*`、`apps/remote-server`、`apps/teams-cli`、`apps/canvas-workspace`。实验 app（`apps/coder-demo`、`apps/devtools-web`、`apps/canvas-plugin-react-mf-note-demo`）保留在仓库但默认不参与安装 / 构建。
+- `pnpm-workspace.yaml` 当前仅纳入核心集合：`packages/*`、`apps/remote-server`、`apps/canvas-workspace`。`apps/devtools-web` 保留在仓库但默认不参与安装 / 构建（remote-server 运行时会静态服务它的 `dist/`）。
 - 需要全量执行时使用 `build:all` / `dev:all` / `test:all`。
 
 ---

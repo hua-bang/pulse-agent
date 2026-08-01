@@ -17,9 +17,8 @@ and call its loopback runtime-control server using the bearer secret advertised
 in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`.
 
 Keep this package a thin bridge over store files and runtime endpoints. The
-Electron UI, active PTY lifecycle, storage migration, and runtime server belong
-in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
-`packages/canvas-nodes`.
+Electron UI, active PTY lifecycle, storage migration, runtime server, and
+runtime-loadable plugin node behavior all belong in `apps/canvas-workspace`.
 
 ## Knowledge Navigation
 

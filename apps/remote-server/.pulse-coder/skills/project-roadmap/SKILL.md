@@ -78,7 +78,6 @@ When operating in this repository, treat the project as a TypeScript `pnpm` mono
 | `packages/canvas-cli` | Pulse Canvas CLI and bundled canvas skills. |
 | `packages/langfuse-plugin` | Observability plugin. |
 | `apps/remote-server` | HTTP/webhook runtime for Feishu/Discord and internal agent API. |
-| `apps/teams-cli` | CLI for agent teams. |
 | `apps/canvas-workspace` | Electron canvas workbench. |
 
 ### Important Runtime Notes

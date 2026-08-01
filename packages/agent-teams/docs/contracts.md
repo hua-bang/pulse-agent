@@ -9,7 +9,7 @@
 - Team lifecycle state must be observable and recoverable enough for hosts to display progress and resume work.
 - Task dispatch, completion, review, failure, and dependency blocking are protocol states, not just text conventions.
 - Verification commands and handoff artifacts are part of task quality evidence.
-- Runtime APIs exported through package entrypoints are public to consumers such as `apps/teams-cli` and `apps/canvas-workspace`.
+- Runtime APIs exported through package entrypoints are public to consumers such as `packages/cli` and `apps/canvas-workspace`.
 
 ## Invariants
 
@@ -29,7 +29,6 @@
 Known consumers include (verified by cross-package import — kept honest by
 `harness/tools/describe-agent-teams.mjs`):
 
-- `apps/teams-cli` — classic surface (`Team`, `TeamLead`, `InProcessDisplay`)
 - `packages/cli` — classic surface (`TeamLead`, `InProcessDisplay`, `TeamPlan`)
 - `apps/canvas-workspace` — runtime surface (`pulse-coder-agent-teams/runtime`)
 
