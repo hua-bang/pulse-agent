@@ -39,7 +39,7 @@
     "clean": "pnpm -r clean",
     "cleanup:worktrees": "node ./scripts/cleanup-worktree-deps.mjs",
     "release": "node ./scripts/release-packages.mjs",
-    "release:core": "node ./scripts/release-packages.mjs --packages=engine,cli"
+    "release:core": "node ./scripts/release-packages.mjs --packages=engine,plugin-kit,cli"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

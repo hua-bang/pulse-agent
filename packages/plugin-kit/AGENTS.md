@@ -20,7 +20,7 @@ This package should expose reusable infrastructure primitives and engine plugins
 | Task | Read |
 |---|---|
 | Package overview | `README.md` |
-| Public exports | `src/index.ts`, `src/worktree.ts`, `src/vault.ts`, `src/devtools.ts` (+ subpath entries `src/memory/index.ts`, `src/langfuse/index.ts`) |
+| Public exports | `src/index.ts` + flattening shims `src/worktree.ts`, `src/vault.ts`, `src/devtools.ts`, `src/memory.ts`, `src/langfuse.ts` |
 | Worktree contracts | `src/worktree/types.ts`, `src/worktree/service.ts`, `src/worktree/integration.ts` |
 | Vault contracts | `src/vault/types.ts`, `src/vault/service.ts`, `src/vault/integration.ts`, `src/vault/tools.ts` |
 | Devtools contracts | `src/devtools/index.ts` |
@@ -33,6 +33,7 @@ This package should expose reusable infrastructure primitives and engine plugins
 - Keep utilities host-neutral and reusable.
 - Do not commit secrets, vault contents, worktree state, prompt snapshots, or host-local runtime data from `~/.pulse-coder/*`.
 - Export path changes are public contract changes; coordinate with consumers.
+- Every `./<domain>` subpath needs a top-level `src/<domain>.ts` shim (`export * from './<domain>/index.js';`): tsup emits `dist/<domain>.js` from the entry, but `build:types` (tsc, src-mirroring) only emits the flattened `dist/<domain>.d.ts` the export map points at when the shim exists. New subpath ⇒ new shim ⇒ verify the emitted `.d.ts` file. (`/memory` + `/langfuse` shipped without shims once — broken types for published consumers, invisible in-repo because no consumer typechecks.)
 - Worktree behavior should be conservative around user changes and branch state.
 - Vault paths are for artifacts/config/logs, not a substitute for git worktree paths.
 - Devtools may capture user text, prompts, tool inputs/outputs, and generated text. Keep redaction and `saveUserText`/prompt capture options intact when changing diagnostics.

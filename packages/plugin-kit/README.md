@@ -1,16 +1,18 @@
 # pulse-coder-plugin-kit
 
-Shared toolkit for building Engine plugins. Provides three subsystems — **Worktree**, **Vault**, and **Devtools** — each with a file-backed service/store, an integration factory that bundles an `enginePlugin`, and per-run context wiring. Worktree and Vault carry an `AsyncLocalStorage`-based run context; Devtools tracks run identity via a `WeakMap<Context, string>` instead (see [Shared shape and divergences](#shared-shape-and-divergences)).
+Shared toolkit for building Engine plugins, plus the in-house plugin modules. The kit provides three subsystems — **Worktree**, **Vault**, and **Devtools** — each with a file-backed service/store, an integration factory that bundles an `enginePlugin`, and per-run context wiring. Worktree and Vault carry an `AsyncLocalStorage`-based run context; Devtools tracks run identity via a `WeakMap<Context, string>` instead (see [Shared shape and divergences](#shared-shape-and-divergences)). Two plugin modules ship as isolated subpaths: **Memory** (`/memory`, formerly `packages/memory-plugin`, carries the `better-sqlite3` native dep) and **Langfuse** (`/langfuse`, formerly `packages/langfuse-plugin`). Neither is re-exported from the root entry, so importing the kit alone never loads SQLite or the Langfuse SDK.
 
 > For repo-local constraints, key-file map, and the honest command reality, see [`AGENTS.md`](./AGENTS.md). This README is a package-level overview; it does not duplicate rule bodies that live there or in `harness/`.
 
 ## Subpath Exports
 
 ```typescript
-import { ... } from 'pulse-coder-plugin-kit';            // everything
+import { ... } from 'pulse-coder-plugin-kit';            // kit (worktree + vault + devtools)
 import { ... } from 'pulse-coder-plugin-kit/worktree';   // worktree only
 import { ... } from 'pulse-coder-plugin-kit/vault';      // vault only
 import { ... } from 'pulse-coder-plugin-kit/devtools';   // devtools only
+import { ... } from 'pulse-coder-plugin-kit/memory';     // memory plugin (pulls better-sqlite3)
+import { ... } from 'pulse-coder-plugin-kit/langfuse';   // langfuse plugin (pulls langfuse SDK)
 ```
 
 ## Worktree
@@ -128,4 +130,4 @@ pnpm --filter pulse-coder-plugin-kit build               # also generates .d.ts 
 
 The build is two-step: `tsup` for JS and a separate `tsc -p tsconfig.types.json` for declarations. Set `SKIP_DTS=1` (or `TSUP_SKIP_DTS=1`) to skip declaration generation.
 
-> **Honest command reality** (see `AGENTS.md`): `test` (`vitest run`) is **not** a routine green command here — there are zero `*.test.ts`/`*.spec.ts` files and no `--passWithNoTests`, so it exits non-zero. `typecheck` (`tsc --noEmit`) currently fails locally with TS6059 `rootDir` errors from engine/orchestrator source imports plus deep Zod type-instantiation errors in `src/devtools/index.ts` and `src/vault/tools.ts`. Use the skipped-DTS build above as the JS smoke check until the TypeScript boundary is fixed.
+> **Honest command reality** (see `AGENTS.md`): `test` (`vitest run`) runs the real memory suite (`src/memory/service.test.ts`, `src/memory/integration.test.ts`) — but coverage is memory-only; worktree/vault/devtools/langfuse have no specs, so green ≠ coverage there. `typecheck` (`tsc --noEmit`) currently fails locally with TS6059 `rootDir` errors from engine source imports plus deep Zod type-instantiation errors in `src/devtools/index.ts` and `src/vault/tools.ts`. Use the skipped-DTS build above as the JS smoke check until the TypeScript boundary is fixed.
