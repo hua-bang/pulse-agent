@@ -14,7 +14,9 @@ artifacts, settings, local runtime-control server, and app-specific harness.
 This is an active pnpm app workspace. It consumes `pulse-coder-engine` and
 `pulse-coder-agent-teams`, interoperates with `@pulse-coder/canvas-cli` through
 the canvas store and runtime-control server, and hosts external node plugins
-such as `@pulse-canvas/nodes` through manifests and plugin registries.
+through manifests and plugin registries (runtime-loadable plugin dirs; the
+former in-repo example `packages/canvas-nodes` was removed in the 2026-08
+slim-down — see tag `pre-slim-archive` for a reference implementation).
 
 Keep this file as the local router. Put durable implementation detail in
 existing workspace docs or tests. Add new workspace docs only when a behavior

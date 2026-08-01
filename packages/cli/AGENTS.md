@@ -44,7 +44,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
   `pulse-canvas runtime` is the fallback for hosts without those tools. Both
   entries share `@pulse-coder/canvas-cli/core`; do not fork transport policy.
 - `run_js` registration imports `src/sandbox/index.js`; `src/sandbox/runner.ts` is never imported — it is the fork target `resolveRunnerPath()` locates next to the built bundle (`dist/runner.cjs`), so keep the tsup `runner` entry in sync.
-- Contract changes with engine, ACP, teams, or memory packages should use the affected workspace contracts/validation plus the root impact overlay.
+- Contract changes with engine, ACP, teams, or plugin-kit (memory module) should use the affected workspace contracts/validation plus the root impact overlay.
 
 ## Common Commands
 

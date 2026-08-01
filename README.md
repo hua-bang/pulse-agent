@@ -340,7 +340,7 @@ pnpm --filter @pulse-coder/remote-server build
 pnpm --filter @pulse-coder/remote-server dev
 ```
 
-Packages use **vitest** (`vitest run`) for tests and `tsc --noEmit` for typechecking where those scripts exist. Notable gaps: `apps/remote-server` has no `test` or `typecheck` script (runtime app — manual testing via `curl` against `/internal/agent/run`); `packages/cli` has no `typecheck` script.
+Packages use **vitest** (`vitest run`) for tests and `tsc --noEmit` for typechecking where those scripts exist. Notable gaps: `apps/remote-server` has no `typecheck` script (its Vitest helper suites run via `test`); `packages/cli` has no `typecheck` script.
 
 Notes:
 - `pnpm-workspace.yaml` only includes the core set: all `packages/*`, `apps/remote-server`, `apps/canvas-workspace`. `apps/devtools-web` stays in the repo but is excluded from default install/build (remote-server serves its `dist/` at runtime).

@@ -1,5 +1,7 @@
 # Orchestrator 编排层计划
 
+> **历史文档**：本计划中的 `packages/orchestrator` 已于 2026-08 瘦身中并入 engine（`packages/engine/src/orchestrator/`，子路径导出 `pulse-coder-engine/orchestrator`）。现状见 `packages/engine/harness/knowledge/orchestrator.md`。
+
 ## 背景
 
 当前 `agent-teams-plugin` 作为 engine 内置插件实现了基础的多 agent 协作能力，但存在以下限制：

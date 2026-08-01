@@ -447,7 +447,7 @@ describe('PluginManager', () => {
 ## 部署与分发
 
 - 仓库包管理器是 **pnpm**（`pnpm@10.28.0`），不要用 `npm publish`。
-- 不存在 `coder-plugin` CLI（`create` / `validate` / `dev` 子命令均未实现）。仓库仅提供 `pulse-coder`（`packages/cli`）、`pulse-canvas`（`packages/canvas-cli`）、`pulse-teams`（`apps/teams-cli`）三个 bin。
+- 不存在 `coder-plugin` CLI（`create` / `validate` / `dev` 子命令均未实现）。仓库仅提供 `pulse-coder`（`packages/cli`）、`pulse-canvas`（`packages/canvas-cli`）两个 bin。
 - 不存在 `.coder/templates/` 或 `.pulse-coder/templates/` 目录。
 - 分发引擎插件的方式：通过 `EngineOptions.enginePlugins.plugins` 直接传入，或放入扫描目录 `.pulse-coder/engine-plugins/`（优先）。
 - 分发用户配置的方式：通过 `userConfigPlugins.configs` 传入，或放入 `.pulse-coder/config/`（优先）。

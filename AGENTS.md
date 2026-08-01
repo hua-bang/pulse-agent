@@ -24,7 +24,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 **Doc taxonomy:**
 - **L0 root entries**: `AGENTS.md` (this file), `CLAUDE.md`, `README.md` — routing, harness pilot, project intro.
 - **L1 mid-level index**: `harness/README.md`, `harness/validate/validation.yaml` (root validation overlay), root `docs/` topic dirs (`harness/`, `mcp-plugin/`, `memory-plugin/`, `plan-mode/`, `plugin-system/`).
-- **L2 module entries**: each workspace's `AGENTS.md` (14 active) plus optional workspace-local `harness/knowledge/`, `harness/validate/`, `harness/tools/`, and `harness/skills/`.
+- **L2 module entries**: each workspace's `AGENTS.md` (8 active) plus optional workspace-local `harness/knowledge/`, `harness/validate/`, `harness/tools/`, and `harness/skills/`.
 
 **Intent navigation** (find the entry point; then read the workspace's own `AGENTS.md`):
 
@@ -54,9 +54,9 @@ This file orients agents working in the Coder repository. It is a thin routing +
 
 - **Package manager**: `pnpm@10.28.0` (`packageManager`). Never npm/yarn.
 - **Node**: unpinned (no `.nvmrc`/`engines`). Do not assume a version; adding a pin is an open gap.
-- **TypeScript**: `strict:true` from root `tsconfig.json`. Keep strict ON. `apps/canvas-workspace` uses a standalone tsconfig — root changes do not reach it. `plugin-kit`/`memory-plugin`/`langfuse-plugin` typecheck hits TS6059 rootDir errors locally — default to `build` as the JS smoke check there. (`engine` had the same class from cross-package source imports via a root alias; fixed by dropping `rootDir` from its tsconfig — `rootDir` is emit-layout config that `tsc --noEmit` and tsup do not need. Same fix likely applies to the rest.)
+- **TypeScript**: `strict:true` from root `tsconfig.json`. Keep strict ON. `apps/canvas-workspace` uses a standalone tsconfig — root changes do not reach it. `plugin-kit` typecheck hits TS6059 rootDir errors locally — default to `build` as the JS smoke check there. (`engine` had the same class from cross-package source imports via a root alias; fixed by dropping `rootDir` from its tsconfig — `rootDir` is emit-layout config that `tsc --noEmit` and tsup do not need. Same fix likely applies here.)
 - **Module format**: ESM repo-wide (`"type":"module"`). CommonJS holdouts: `packages/cli`, `packages/canvas-cli` — match each package's `"type"`.
-- **Tests**: `vitest run` (sole runner, no config file — defaults apply). Honest test reality: `plugin-kit`/`langfuse-plugin` use `--passWithNoTests` with ZERO real specs, and engine's `src/orchestrator/` module has no specs of its own → green ≠ coverage there. `remote-server` has NO typecheck (runtime app; its Vitest helper suites run via `test`, with `pretest` building plugin-kit). `cli` has NO typecheck.
+- **Tests**: `vitest run` (sole runner, no config file — defaults apply). Honest test reality: `plugin-kit`'s suite covers ONLY its memory module (worktree/vault/devtools/langfuse modules and engine's `src/orchestrator/` module have zero specs) → green ≠ coverage there. `remote-server` has NO typecheck (runtime app; its Vitest helper suites run via `test`, with `pretest` building plugin-kit). `cli` has NO typecheck.
 - **Build**: `tsup`; root `build` uses `SKIP_DTS=1`.
 - **Path aliases**: only `pulse-coder-engine`, `pulse-coder-plugin-kit`, `pulse-coder-acp`, `pulse-coder-agent-teams` (root `tsconfig.json`). Use `workspace:*` deps for the rest; do not invent aliases.
 - **Lint/format**: ABSENT (no eslint/prettier/biome). Self-enforce; match surrounding files (2 spaces, semicolons, single quotes).
@@ -101,7 +101,7 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 - `canvas-workspace` is in `test:all`/`build:all` but NOT `build:core`/`test:core` — include it explicitly when you touch it.
 - Harness data change → `node scripts/harness/check-harness.mjs` must report `harnessGaps: 0` (the runner triggers it automatically for harness paths).
 
-**Green ≠ proof:** a green `pnpm test` is not coverage evidence for `plugin-kit`/`langfuse-plugin` (`--passWithNoTests`, no real specs) or engine's `src/orchestrator/` module (no specs yet).
+**Green ≠ proof:** a green `pnpm test` is not coverage evidence for plugin-kit's worktree/vault/devtools/langfuse modules or engine's `src/orchestrator/` module (no specs there yet — plugin-kit's suite is memory-only).
 
 ## 6. Failure capture (named failure → guard)
 

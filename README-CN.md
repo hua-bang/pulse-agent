@@ -340,7 +340,7 @@ pnpm --filter @pulse-coder/remote-server build
 pnpm --filter @pulse-coder/remote-server dev
 ```
 
-所有包使用 **vitest**（`vitest run`）跑测试，`tsc --noEmit` 做类型检查（仅存在于有该脚本的包）。已知缺口：`apps/remote-server` 没有 `test` / `typecheck` 脚本（运行时 app —— 通过 `curl` 打 `/internal/agent/run` 手测）；`packages/cli` 没有 `typecheck` 脚本。
+所有包使用 **vitest**（`vitest run`）跑测试，`tsc --noEmit` 做类型检查（仅存在于有该脚本的包）。已知缺口：`apps/remote-server` 没有 `typecheck` 脚本（其 Vitest 辅助测试通过 `test` 运行）；`packages/cli` 没有 `typecheck` 脚本。
 
 说明：
 - `pnpm-workspace.yaml` 当前仅纳入核心集合：`packages/*`、`apps/remote-server`、`apps/canvas-workspace`。`apps/devtools-web` 保留在仓库但默认不参与安装 / 构建（remote-server 运行时会静态服务它的 `dist/`）。
