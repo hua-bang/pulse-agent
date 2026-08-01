@@ -203,8 +203,8 @@
     },
     "package.asar_mib": {
       "profile": "darwin-arm64-package", "target": 50, "warning": 60,
-      "confidence": "high", "basis": "Terser + 完整 36 种共享 grammar 后 app.asar 实测 43.5MiB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 43.5, "tolerancePct": 5, "scope": "bundle" }
+      "confidence": "high", "basis": "monorepo 瘦身后 CI 实测 46.2MiB：orchestrator 并入 engine 后 built-in 与 orchestrator 两个 entry 在 splitting:false 下各内联一份该模块（含 sourcemap），原独立 orchestrator 包单份 dist 从 ASAR 消失；叠加 7-11 以来 master 功能载荷漂移（见 bundle_kb 7-31 落锚），第三方依赖无膨胀。", "asOf": "2026-08-01",
+      "gate": { "kind": "ratchet", "baseline": 46.2, "tolerancePct": 5, "scope": "bundle" }
     },
     "package.native_unpacked_mib": {
       "profile": "darwin-arm64-package", "target": 5, "warning": 8,
