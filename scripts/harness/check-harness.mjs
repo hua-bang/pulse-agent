@@ -13,6 +13,10 @@
 //   - routing links:       backticked concrete repo paths in root AGENTS.md,
 //                          harness/*.md, and workspace AGENTS.md files exist
 //                          on disk (placeholders and globs are skipped)
+//   - router-weight:       no line in root or workspace AGENTS.md exceeds
+//                          ROUTER_WEIGHT_THRESHOLD chars — an over-long line
+//                          is inline knowledge that belongs in
+//                          harness/knowledge/ plus a short pointer row
 // Plus the root overlay file, same shape rules.
 //
 // Prints a summary and exits non-zero when gaps exist. The runner
@@ -94,16 +98,46 @@ function checkFilterNames(cmd, label) {
   }
 }
 
+// router-weight: AGENTS.md is a router — knowledge that accumulates inline
+// (instead of living in harness/knowledge/ with a pointer row) makes it
+// unreadable and hard to keep honest. A line length cap is a cheap, mechanical
+// proxy for "this bullet stopped being a pointer and became the knowledge
+// itself." Measured in JS string length (UTF-16 code units), same as the
+// comparison below; byte-counting tools (e.g. `awk`) read slightly higher on
+// lines with multi-byte characters (em dashes, arrows) that are common here.
+//
+// Floor is 800 (round, far under the old fat rows this was written to catch:
+// 1500-5006 chars). Root AGENTS.md's oldest "Failure capture" bullets (see
+// AGENTS.md §6) still run to ~803 chars today, so the bare floor would not
+// pass the current repo. RATCHET: nudged to 810 (just above today's real
+// max) until those bullets move to harness/knowledge/ — tighten back to 800
+// once they do; do not raise it further to silence a new violation.
+const ROUTER_WEIGHT_THRESHOLD = 810;
+
+function checkRouterWeight(rel) {
+  if (!exists(rel)) return;
+  const lines = read(rel).split(/\r?\n/);
+  lines.forEach((line, index) => {
+    if (line.length <= ROUTER_WEIGHT_THRESHOLD) return;
+    gaps.push(
+      `${rel}:${index + 1}: router-weight ${line.length} chars (>${ROUTER_WEIGHT_THRESHOLD}) — move this knowledge into harness/knowledge/ and leave a short pointer row in its place`,
+    );
+  });
+}
+
 let entryCoverage = 0;
 let validationCoverage = 0;
 for (const ws of workspaces) {
-  if (exists(path.posix.join(ws, 'AGENTS.md'))) entryCoverage += 1;
+  const agentsPath = path.posix.join(ws, 'AGENTS.md');
+  if (exists(agentsPath)) entryCoverage += 1;
   else gaps.push(`${ws}: missing AGENTS.md entry`);
+  checkRouterWeight(agentsPath);
   const validationPath = path.posix.join(ws, 'harness/validate/validation.yaml');
   if (exists(validationPath)) validationCoverage += 1;
   checkValidationFile(validationPath, { requireRules: true });
 }
 checkValidationFile('harness/validate/validation.yaml', { requireRules: true });
+checkRouterWeight('AGENTS.md');
 
 // routing-links: a doc that points at a deleted/renamed file is worse than no
 // doc. Only tokens that look like concrete repo paths are checked. Docs also
@@ -138,6 +172,7 @@ console.log(JSON.stringify({
   workspaces: workspaces.length,
   entryCoverage,
   validationCoverage,
+  routerWeightThreshold: ROUTER_WEIGHT_THRESHOLD,
   harnessGaps: gaps.length,
 }, null, 2));
 
