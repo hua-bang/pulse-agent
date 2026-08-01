@@ -16,7 +16,6 @@ This repo is a `pnpm` workspace monorepo (`packages/*`, `apps/*`).
 | --- | --- | --- |
 | `packages/engine` | `pulse-coder-engine` | Core runtime: loop, hooks, built-in tools, plugin manager |
 | `packages/cli` | `pulse-coder-cli` | Interactive terminal app built on top of the engine |
-| `packages/pulse-sandbox` | `pulse-sandbox` | Sandboxed JavaScript executor and `run_js` tool adapter |
 | `packages/memory-plugin` | `pulse-coder-memory-plugin` | Host-side memory plugin and integration helpers |
 | `packages/plugin-kit` | `pulse-coder-plugin-kit` | Shared utilities for plugins (worktree helpers, vault, devtools) |
 | `packages/orchestrator` | `pulse-coder-orchestrator` | Multi-agent orchestration (TaskGraph, planner, scheduler, runner, aggregator) |
@@ -95,7 +94,7 @@ Registered from `packages/engine/src/built-in/index.ts` (in load order):
 - one-shot skill command transformation (`/skills ...`),
 - `Esc` abort for in-flight responses,
 - clarification flow via the `clarify` tool,
-- built-in `run_js` tool from `pulse-sandbox`.
+- built-in `run_js` tool (sandboxed JS executor in `src/sandbox/`).
 
 ### 6) Orchestrator (`packages/orchestrator`)
 Runs a **TaskGraph** — a DAG of `TaskNode` objects with `{ id, role, deps[], input?, agent?, instruction? }`.
@@ -338,7 +337,6 @@ pnpm run test:all      # all packages and apps
 pnpm --filter pulse-coder-engine test
 pnpm --filter pulse-coder-engine typecheck
 pnpm --filter pulse-coder-cli test
-pnpm --filter pulse-sandbox test
 pnpm --filter pulse-coder-memory-plugin test
 pnpm --filter pulse-coder-plugin-kit test
 pnpm --filter pulse-coder-orchestrator test

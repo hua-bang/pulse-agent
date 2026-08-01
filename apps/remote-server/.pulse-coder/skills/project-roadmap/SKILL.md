@@ -69,7 +69,7 @@ When operating in this repository, treat the project as a TypeScript `pnpm` mono
 |---|---|
 | `packages/engine` | Core agent engine: loop, tools, context, plugins, built-in skill/task/tool-search systems. |
 | `packages/cli` | Interactive terminal CLI built on `pulse-coder-engine`. |
-| `packages/pulse-sandbox` | Sandboxed JavaScript runtime and `run_js` tool adapter. |
+| `packages/cli` (src/sandbox) | Sandboxed JavaScript runtime backing the `run_js` tool. |
 | `packages/memory-plugin` | Memory integration/service package. |
 | `packages/plugin-kit` | Runtime plugin toolkit, including worktree/vault/devtools helpers. |
 | `packages/acp` | ACP client/runner integration. |
@@ -92,7 +92,6 @@ When operating in this repository, treat the project as a TypeScript `pnpm` mono
   - `pnpm --filter pulse-coder-engine typecheck`
   - `pnpm --filter pulse-coder-engine test`
   - `pnpm --filter pulse-coder-cli test`
-  - `pnpm --filter pulse-sandbox test`
   - `pnpm --filter pulse-coder-memory-plugin test`
   - `pnpm --filter @pulse-coder/remote-server build`
 - `apps/remote-server` is the webhook/server runtime. Its key files include:
@@ -329,7 +328,7 @@ For this repo, prefer targeted checks:
 |---|---|
 | Engine loop/tools/plugins | `pnpm --filter pulse-coder-engine test`; `pnpm --filter pulse-coder-engine typecheck` |
 | CLI | `pnpm --filter pulse-coder-cli test`; `pnpm --filter pulse-coder-cli build` |
-| Sandbox | `pnpm --filter pulse-sandbox test`; `pnpm --filter pulse-sandbox typecheck` |
+| Sandbox | `pnpm --filter pulse-coder-cli test` (sandbox specs live in src/sandbox) |
 | Memory | `pnpm --filter pulse-coder-memory-plugin test`; `pnpm --filter pulse-coder-memory-plugin typecheck` |
 | Remote server | `pnpm --filter @pulse-coder/remote-server build` |
 | Cross-package change | `pnpm run build`; targeted tests first, full build last |

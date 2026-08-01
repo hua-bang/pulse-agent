@@ -1,6 +1,5 @@
 import { fork, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -116,7 +115,6 @@ function createErrorResult(
 }
 
 function resolveRunnerPath(): string {
-  const requireForResolve = createRequire(import.meta.url);
   const localDir = path.dirname(fileURLToPath(import.meta.url));
   const localCandidates = [path.join(localDir, 'runner.js'), path.join(localDir, 'runner.cjs')];
 
@@ -124,20 +122,6 @@ function resolveRunnerPath(): string {
     if (existsSync(candidate)) {
       return candidate;
     }
-  }
-
-  try {
-    const packageEntryPath = requireForResolve.resolve('pulse-sandbox');
-    const packageDir = path.dirname(packageEntryPath);
-    const packageCandidates = [path.join(packageDir, 'runner.js'), path.join(packageDir, 'runner.cjs')];
-
-    for (const candidate of packageCandidates) {
-      if (existsSync(candidate)) {
-        return candidate;
-      }
-    }
-  } catch {
-    // Ignore and fall through to final fallback.
   }
 
   return localCandidates[0];

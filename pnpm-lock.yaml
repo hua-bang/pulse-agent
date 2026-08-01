@@ -328,9 +328,6 @@ importers:
       pulse-coder-orchestrator:
         specifier: workspace:*
         version: link:../orchestrator
-      pulse-sandbox:
-        specifier: workspace:*
-        version: link:../pulse-sandbox
       react:
         specifier: ^19.2.5
         version: 19.2.5
@@ -477,25 +474,6 @@ importers:
       pulse-coder-engine:
         specifier: workspace:*
         version: link:../engine
-      zod:
-        specifier: ^4.3.6
-        version: 4.3.6
-    devDependencies:
-      '@types/node':
-        specifier: ^25.0.10
-        version: 25.0.10
-      tsup:
-        specifier: ^8.0.0
-        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
-      typescript:
-        specifier: ^5.0.0
-        version: 5.9.3
-      vitest:
-        specifier: ^1.0.0
-        version: 1.6.1(@types/node@25.0.10)(happy-dom@20.10.6)(sass@1.51.0)(terser@5.49.0)
-
-  packages/pulse-sandbox:
-    dependencies:
       zod:
         specifier: ^4.3.6
         version: 4.3.6

@@ -1,5 +1,5 @@
 import type { Tool } from 'pulse-coder-engine';
-import { createJsExecutor, createRunJsTool } from 'pulse-sandbox/src';
+import { createJsExecutor, createRunJsTool } from './sandbox/index.js';
 
 import { createCanvasRuntimeTools } from './canvas-runtime-tools.js';
 

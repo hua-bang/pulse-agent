@@ -16,7 +16,6 @@
 | --- | --- | --- |
 | `packages/engine` | `pulse-coder-engine` | 核心运行时：循环、hooks、内置工具、插件管理 |
 | `packages/cli` | `pulse-coder-cli` | 终端交互应用，构建于引擎之上 |
-| `packages/pulse-sandbox` | `pulse-sandbox` | 沙箱 JavaScript 执行器与 `run_js` 工具适配 |
 | `packages/memory-plugin` | `pulse-coder-memory-plugin` | host 侧 memory 插件与集成辅助 |
 | `packages/plugin-kit` | `pulse-coder-plugin-kit` | 插件公共工具（worktree 辅助、vault、devtools） |
 | `packages/orchestrator` | `pulse-coder-orchestrator` | 多 Agent 编排（TaskGraph、planner、scheduler、runner、aggregator） |
@@ -95,7 +94,7 @@ Run 级 hooks（`beforeRun` / `afterRun`）在 `Engine.run()`（`packages/engine
 - `/skills` 单次技能消息转换
 - `Esc` 中断当前响应
 - `clarify` 追问交互
-- 注入来自 `pulse-sandbox` 的 `run_js` 工具
+- 内置 `run_js` 工具（沙箱 JS 执行器位于 `src/sandbox/`）
 
 ### 6）Orchestrator（`packages/orchestrator`）
 执行 **TaskGraph** —— `TaskNode` 组成的 DAG：`{ id, role, deps[], input?, agent?, instruction? }`。
@@ -338,7 +337,6 @@ pnpm run test:all      # 全量
 pnpm --filter pulse-coder-engine test
 pnpm --filter pulse-coder-engine typecheck
 pnpm --filter pulse-coder-cli test
-pnpm --filter pulse-sandbox test
 pnpm --filter pulse-coder-memory-plugin test
 pnpm --filter pulse-coder-plugin-kit test
 pnpm --filter pulse-coder-orchestrator test

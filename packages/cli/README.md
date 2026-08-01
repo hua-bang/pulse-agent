@@ -189,7 +189,7 @@ const agent = new PulseAgent({
     scan: true
   },
   tools: {
-    [runJsTool.name]: runJsTool // 来自 pulse-sandbox
+    [runJsTool.name]: runJsTool // 来自 src/sandbox
   }
 });
 ```
@@ -259,7 +259,6 @@ src/
 - `pulse-coder-agent-teams` - Teams 多智能体协作
 - `pulse-coder-orchestrator` - `/team` DAG 编排
 - `pulse-coder-memory-plugin` - 记忆插件
-- `pulse-sandbox` - `run_js` 工具执行器
 - `ink` / `react` - 默认 Ink UI 宿主
 
 更多导航见本包 `AGENTS.md`。

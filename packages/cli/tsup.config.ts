@@ -8,7 +8,7 @@ export default defineConfig((options) => {
   return {
     entry: {
       index: 'src/index.ts',
-      runner: 'src/sandbox-runner.ts'
+      runner: 'src/sandbox/runner.ts'
     },
     format: ['cjs'],
     dts: false,
@@ -24,7 +24,6 @@ export default defineConfig((options) => {
       'ink',
       ...(isDebugBuild ? ['pulse-coder-acp', 'pulse-coder-engine', 'pulse-coder-memory-plugin'] : []),
     ],
-    noExternal: ['pulse-sandbox'],
     outExtension: () => ({ js: '.cjs' })
   };
 });

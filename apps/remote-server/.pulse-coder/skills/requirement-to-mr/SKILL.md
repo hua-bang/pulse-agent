@@ -86,7 +86,7 @@ Treat the repository as a TypeScript `pnpm` monorepo:
 |---|---|---|
 | Engine loop/tools/plugins | `packages/engine/src/` | `pnpm --filter pulse-coder-engine test`; `pnpm --filter pulse-coder-engine typecheck` |
 | CLI | `packages/cli/src/` | `pnpm --filter pulse-coder-cli test`; `pnpm --filter pulse-coder-cli build` |
-| Sandbox | `packages/pulse-sandbox/src/` | `pnpm --filter pulse-sandbox test` |
+| Sandbox | `packages/cli/src/sandbox/` | `pnpm --filter pulse-coder-cli test` |
 | Memory | `packages/memory-plugin/src/` | `pnpm --filter pulse-coder-memory-plugin test` |
 | Remote server | `apps/remote-server/src/` | `pnpm --filter @pulse-coder/remote-server build` |
 | Skills only | `.pulse-coder/skills/<name>/SKILL.md` | Check frontmatter and read generated file |
