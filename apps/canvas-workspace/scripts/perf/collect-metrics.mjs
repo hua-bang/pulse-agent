@@ -165,13 +165,6 @@ export const collectChatStreamMetrics = (scenarios) => {
   return entries;
 };
 
-export const collectWelcomeContentMetric = (scenarios) => {
-  const value = scenarios?.scenarios?.startup?.welcomeLocalContentMs;
-  return typeof value === 'number'
-    ? { id: 'startup.welcome_local_content_ms', value, runs: 1 }
-    : null;
-};
-
 export const collectPtyStreamMetric = (scenarios) => {
   const ptyStream = scenarios?.scenarios?.['pty-stream'];
   if (!ptyStream || typeof ptyStream.ipcPerSec !== 'number') return null;
@@ -451,8 +444,6 @@ export const collectMetrics = () => {
   if (rendererMarks?.['canvas:first-render'] != null) {
     push('startup.renderer.first_canvas_ms', Math.round(rendererMarks['canvas:first-render']));
   }
-  const welcomeContentMetric = collectWelcomeContentMetric(scenarios);
-  if (welcomeContentMetric) metrics.push(welcomeContentMetric);
   metrics.push(...collectRendererTraceMetrics(scenarios));
 
   const mainProc = scenarios?.scenarios?.main;
