@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, type PropsWithChildren } from 'react';
+import { act, type PropsWithChildren, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../i18n';
@@ -8,6 +8,31 @@ import { Settings } from './index';
 vi.mock('../ui', () => ({
   Drawer: ({ open, children }: PropsWithChildren<{ open: boolean }>) => (
     open ? <div>{children}</div> : null
+  ),
+  SegmentedControl: ({
+    options,
+    value,
+    onChange,
+    ariaLabel,
+  }: {
+    options: Array<{ id: string; label: ReactNode }>;
+    value: string;
+    onChange: (id: string) => void;
+    ariaLabel?: string;
+  }) => (
+    <div role="tablist" aria-label={ariaLabel}>
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          role="tab"
+          aria-selected={option.id === value}
+          onClick={() => onChange(option.id)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   ),
 }));
 
@@ -79,21 +104,16 @@ describe('Settings navigation', () => {
       .map((element) => element.textContent?.trim());
     expect(itemLabels).toEqual([
       'Models',
-      'Reply Style',
-      'Chat Roles',
+      'Chat',
       'Agent',
-      'Tools',
-      'MCP Servers',
-      'Plugins',
-      'Browser',
-      'Language',
-      'Updates',
+      'Tools & Integrations',
+      'General',
       'Experimental',
     ]);
     expect(host?.querySelector('.settings-rail-desc')).toBeNull();
   });
 
-  it('keeps direct navigation to a grouped section', () => {
+  it('keeps direct navigation to a merged settings tab', () => {
     act(() => {
       root?.render(
         <I18nProvider>
@@ -103,7 +123,40 @@ describe('Settings navigation', () => {
     });
 
     const activeItem = host?.querySelector('.settings-rail-item[aria-current="page"]');
-    expect(activeItem?.textContent?.trim()).toBe('MCP Servers');
+    expect(activeItem?.textContent?.trim()).toBe('Tools & Integrations');
+    expect(host?.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('MCP Servers');
     expect(host?.textContent).toContain('MCP content');
+  });
+
+  it('switches the merged Chat page between reply style and roles', () => {
+    act(() => {
+      root?.render(
+        <I18nProvider>
+          <Settings open initialSection="reply-style" onClose={vi.fn()} />
+        </I18nProvider>,
+      );
+    });
+
+    expect(host?.textContent).toContain('Reply style content');
+    const rolesTab = Array.from(host?.querySelectorAll('[role="tab"]') ?? [])
+      .find((element) => element.textContent === 'Chat Roles') as HTMLButtonElement | undefined;
+    act(() => rolesTab?.click());
+    expect(host?.textContent).toContain('Roles content');
+    expect(host?.textContent).not.toContain('Reply style content');
+  });
+
+  it('shows lightweight app preferences together on General', () => {
+    act(() => {
+      root?.render(
+        <I18nProvider>
+          <Settings open initialSection="browser" onClose={vi.fn()} />
+        </I18nProvider>,
+      );
+    });
+
+    expect(host?.querySelector('.settings-rail-item[aria-current="page"]')?.textContent?.trim()).toBe('General');
+    expect(host?.textContent).toContain('Browser content');
+    expect(host?.textContent).toContain('Language content');
+    expect(host?.textContent).toContain('Updates content');
   });
 });

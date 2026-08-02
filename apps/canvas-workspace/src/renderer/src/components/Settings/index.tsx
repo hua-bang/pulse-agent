@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Drawer } from '../ui';
+import { Drawer, SegmentedControl } from '../ui';
 import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
 import { RolesSection } from '../chat/RolesSettings';
@@ -30,12 +30,16 @@ import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'chat-roles' | 'agent' | 'mcp' | 'plugins' | 'browser' | 'experimental' | 'updates' | 'language';
+type SettingsPage = 'models' | 'chat' | 'agent' | 'tools-integrations' | 'general' | 'experimental';
+type ChatSettingsTab = 'reply-style' | 'chat-roles';
+type ToolsSettingsTab = 'built-in-tools' | 'mcp' | 'plugins';
+
+export type SettingsSection = SettingsPage | ChatSettingsTab | ToolsSettingsTab | 'browser' | 'updates' | 'language';
 
 const GLOBAL_SCOPE = { level: 'global' } as const;
 
 interface SectionDef {
-  id: SettingsSection;
+  id: SettingsPage;
   labelKey: I18nKey;
   descriptionKey: I18nKey;
   titleKey: I18nKey;
@@ -59,16 +63,10 @@ const SECTION_GROUPS: SectionGroup[] = [
         titleKey: 'settings.models.title',
       },
       {
-        id: 'reply-style',
-        labelKey: 'settings.replyStyle.label',
-        descriptionKey: 'settings.replyStyle.description',
-        titleKey: 'settings.replyStyle.title',
-      },
-      {
-        id: 'chat-roles',
-        labelKey: 'settings.roles.label',
-        descriptionKey: 'settings.roles.description',
-        titleKey: 'settings.roles.title',
+        id: 'chat',
+        labelKey: 'settings.chat.label',
+        descriptionKey: 'settings.chat.description',
+        titleKey: 'settings.chat.title',
       },
     ],
   },
@@ -83,22 +81,10 @@ const SECTION_GROUPS: SectionGroup[] = [
         titleKey: 'settings.agent.title',
       },
       {
-        id: 'built-in-tools',
-        labelKey: 'settings.builtInTools.label',
-        descriptionKey: 'settings.builtInTools.description',
-        titleKey: 'settings.builtInTools.title',
-      },
-      {
-        id: 'mcp',
-        labelKey: 'settings.mcp.label',
-        descriptionKey: 'settings.mcp.description',
-        titleKey: 'settings.mcp.title',
-      },
-      {
-        id: 'plugins',
-        labelKey: 'settings.plugins.label',
-        descriptionKey: 'settings.plugins.description',
-        titleKey: 'settings.plugins.title',
+        id: 'tools-integrations',
+        labelKey: 'settings.toolsIntegrations.label',
+        descriptionKey: 'settings.toolsIntegrations.description',
+        titleKey: 'settings.toolsIntegrations.title',
       },
     ],
   },
@@ -107,22 +93,10 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: 'settings.group.app',
     sections: [
       {
-        id: 'browser',
-        labelKey: 'settings.browser.label',
-        descriptionKey: 'settings.browser.description',
-        titleKey: 'settings.browser.title',
-      },
-      {
-        id: 'language',
-        labelKey: 'settings.language.label',
-        descriptionKey: 'settings.language.description',
-        titleKey: 'settings.language.title',
-      },
-      {
-        id: 'updates',
-        labelKey: 'settings.updates.label',
-        descriptionKey: 'settings.updates.description',
-        titleKey: 'settings.updates.title',
+        id: 'general',
+        labelKey: 'settings.general.label',
+        descriptionKey: 'settings.general.description',
+        titleKey: 'settings.general.title',
       },
       {
         id: 'experimental',
@@ -136,6 +110,25 @@ const SECTION_GROUPS: SectionGroup[] = [
 
 const SECTIONS = SECTION_GROUPS.flatMap((group) => group.sections);
 
+interface SettingsTarget {
+  page: SettingsPage;
+  chatTab?: ChatSettingsTab;
+  toolsTab?: ToolsSettingsTab;
+}
+
+const resolveSettingsTarget = (section: SettingsSection): SettingsTarget => {
+  if (section === 'reply-style' || section === 'chat-roles') {
+    return { page: 'chat', chatTab: section };
+  }
+  if (section === 'built-in-tools' || section === 'mcp' || section === 'plugins') {
+    return { page: 'tools-integrations', toolsTab: section };
+  }
+  if (section === 'browser' || section === 'language' || section === 'updates') {
+    return { page: 'general' };
+  }
+  return { page: section };
+};
+
 interface SettingsProps {
   open: boolean;
   initialSection: SettingsSection;
@@ -144,7 +137,10 @@ interface SettingsProps {
 
 export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
   const { t } = useI18n();
-  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
+  const initialTarget = resolveSettingsTarget(initialSection);
+  const [activePage, setActivePage] = useState<SettingsPage>(initialTarget.page);
+  const [chatTab, setChatTab] = useState<ChatSettingsTab>(initialTarget.chatTab ?? 'reply-style');
+  const [toolsTab, setToolsTab] = useState<ToolsSettingsTab>(initialTarget.toolsTab ?? 'built-in-tools');
   const canvasModels = useCanvasModels();
   const promptProfile = usePromptProfile();
 
@@ -152,10 +148,14 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
   // (potentially different) target. While open, the user drives section
   // changes via the rail.
   useEffect(() => {
-    if (open) setActiveSection(initialSection);
+    if (!open) return;
+    const target = resolveSettingsTarget(initialSection);
+    setActivePage(target.page);
+    if (target.chatTab) setChatTab(target.chatTab);
+    if (target.toolsTab) setToolsTab(target.toolsTab);
   }, [open, initialSection]);
 
-  const activeDef = SECTIONS.find((s) => s.id === activeSection) ?? SECTIONS[0];
+  const activeDef = SECTIONS.find((s) => s.id === activePage) ?? SECTIONS[0];
 
   return (
     <Drawer
@@ -182,7 +182,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
                 </div>
                 <div className="settings-rail-group-items">
                   {group.sections.map((section) => {
-                    const active = section.id === activeSection;
+                    const active = section.id === activePage;
                     return (
                       <button
                         key={section.id}
@@ -190,7 +190,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
                         className={`settings-rail-item${active ? ' settings-rail-item--active' : ''}`}
                         aria-current={active ? 'page' : undefined}
                         title={t(section.descriptionKey)}
-                        onClick={() => setActiveSection(section.id)}
+                        onClick={() => setActivePage(section.id)}
                       >
                         <span className="settings-rail-label">{t(section.labelKey)}</span>
                       </button>
@@ -202,7 +202,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
           })}
         </nav>
         <div className="settings-content">
-          {activeSection === 'models' && (
+          {activePage === 'models' && (
             <ModelsSection
               status={canvasModels.status}
               error={canvasModels.error}
@@ -212,32 +212,74 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
               onFetchModels={canvasModels.fetchModels}
             />
           )}
-          {activeSection === 'reply-style' && (
-            <ReplyStyleSection
-              profile={promptProfile.profile}
-              error={promptProfile.error}
-              onClose={onClose}
-              onSave={promptProfile.save}
-              onReset={promptProfile.reset}
-            />
-          )}
-          {activeSection === 'chat-roles' && <RolesSection onClose={onClose} />}
-          {activeSection === 'built-in-tools' && <BuiltInToolsSection onClose={onClose} />}
-          {activeSection === 'agent' && <AgentSection onClose={onClose} />}
-          {activeSection === 'mcp' && (
-            <div className="cfg-pane">
-              <McpManager scope={GLOBAL_SCOPE} />
+          {activePage === 'chat' && (
+            <div className="settings-merged-page">
+              <div className="settings-merged-tabs">
+                <SegmentedControl
+                  options={[
+                    { id: 'reply-style', label: t('settings.replyStyle.label') },
+                    { id: 'chat-roles', label: t('settings.roles.label') },
+                  ]}
+                  value={chatTab}
+                  onChange={(id) => setChatTab(id as ChatSettingsTab)}
+                  ariaPattern="tab"
+                  ariaLabel={t('settings.chat.tabsAria')}
+                />
+              </div>
+              <div className="settings-merged-content">
+                {chatTab === 'reply-style' ? (
+                  <ReplyStyleSection
+                    profile={promptProfile.profile}
+                    error={promptProfile.error}
+                    onClose={onClose}
+                    onSave={promptProfile.save}
+                    onReset={promptProfile.reset}
+                  />
+                ) : (
+                  <RolesSection onClose={onClose} />
+                )}
+              </div>
             </div>
           )}
-          {activeSection === 'plugins' && (
-            <div className="cfg-pane">
-              <PluginsManager />
+          {activePage === 'agent' && <AgentSection onClose={onClose} />}
+          {activePage === 'tools-integrations' && (
+            <div className="settings-merged-page">
+              <div className="settings-merged-tabs">
+                <SegmentedControl
+                  options={[
+                    { id: 'built-in-tools', label: t('settings.builtInTools.label') },
+                    { id: 'mcp', label: t('settings.mcp.label') },
+                    { id: 'plugins', label: t('settings.plugins.label') },
+                  ]}
+                  value={toolsTab}
+                  onChange={(id) => setToolsTab(id as ToolsSettingsTab)}
+                  ariaPattern="tab"
+                  ariaLabel={t('settings.toolsIntegrations.tabsAria')}
+                />
+              </div>
+              <div className="settings-merged-content">
+                {toolsTab === 'built-in-tools' && <BuiltInToolsSection onClose={onClose} />}
+                {toolsTab === 'mcp' && (
+                  <div className="cfg-pane">
+                    <McpManager scope={GLOBAL_SCOPE} />
+                  </div>
+                )}
+                {toolsTab === 'plugins' && (
+                  <div className="cfg-pane">
+                    <PluginsManager />
+                  </div>
+                )}
+              </div>
             </div>
           )}
-          {activeSection === 'browser' && <BrowserSection />}
-          {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}
-          {activeSection === 'updates' && <UpdateSection />}
-          {activeSection === 'language' && <LanguageSection />}
+          {activePage === 'general' && (
+            <div className="settings-general-page">
+              <BrowserSection />
+              <LanguageSection />
+              <UpdateSection />
+            </div>
+          )}
+          {activePage === 'experimental' && <ExperimentalSection onClose={onClose} />}
         </div>
       </div>
     </Drawer>
