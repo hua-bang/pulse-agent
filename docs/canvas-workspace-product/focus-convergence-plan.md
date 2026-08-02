@@ -120,9 +120,11 @@ candidates when tripped: default-browser (~250 LOC), Feishu channel
 - **P1 — resume & flow**: reopening a workspace restores terminals, agent
   sessions, and viewport; deepen focus mode (a frame as a focus context,
   silencing scheduled toasts/dock noise inside it).
-- **Engine**: demand-driven by canvas-workspace needs, not self-growing.
-  First engine investment is a test baseline for the untested
-  orchestrator module before new capability lands on top of it.
+- **Engine**: demand-driven by canvas-workspace needs, not self-growing —
+  and every demand lands as a host-agnostic mechanism (hook/tool/provider),
+  never as canvas awareness inside the engine. First engine investment is a
+  test baseline for the untested orchestrator module before new capability
+  lands on top of it.
 
 ## Positioning: where the standout ("亮眼") lives
 
@@ -143,11 +145,18 @@ Canvas all shipped or gained traction this year. Two consequences:
      a frame IS the agent's working set (spatial prompting); agent outputs
      land as nodes with provenance edges to their sources; reopening restores
      everything.
-   - **engine**: the first agent engine with a structured workspace-context
-     contract — context packs assembled from the node/edge/frame map with
-     budgets and priorities, compaction that respects spatial structure,
-     memory anchored to nodes. The engine's public story is "context
-     engine", not "another agent loop".
+   - **engine**: stays a general-purpose agent core — no canvas concepts
+     ever enter it. Its contribution is a general structured-context
+     contract: named context providers with priorities and token budgets,
+     compaction that respects provider boundaries, memory anchors keyed by
+     host-supplied ids. Today hosts inject context as prompt strings
+     (canvas-workspace's `context-builder.ts` does exactly this); the
+     contract upgrade is host-agnostic mechanism, per the root rule
+     "extend plugin/hook/tool boundaries over hardcoding into loop.ts".
+     canvas-workspace then maps frames/nodes/edges onto that contract,
+     keeping all spatial semantics host-side. The engine's story is
+     "the general agent core whose contract is proven by a heavyweight
+     flagship host" (the VS Code pattern), not "canvas engine".
 
 ## North-star demo (acceptance bar for "亮眼")
 
