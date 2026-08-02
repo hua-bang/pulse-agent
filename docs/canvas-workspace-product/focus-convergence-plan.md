@@ -1,7 +1,41 @@
 # Focus Convergence Plan
 
 Date: 2026-08-02
-Status: agreed direction; implementation pending as small PRs
+Status: direction agreed; surface convergence largely SHIPPED in v0.1.37
+(#901) — see "Shipped vs remaining" below. Flag-lifecycle demotions and the
+P0 core-loop work are the open items.
+
+## Shipped vs remaining (v0.1.37, #901)
+
+Shipped — all three layers landed in one PR, with new tests
+(FloatingToolbar, Settings, SidebarHeader, CanvasEmptyHint):
+
+- **Navigation**: Nodes AND Graph sidebar entries hidden via
+  `NODES_NAV_VISIBLE / GRAPH_NAV_VISIBLE = false` in `App.tsx` — routes stay
+  alive (node-detail flows still route through them), only the nav
+  advertisement is gone. Goes further than this plan (which kept Nodes) in
+  the same spirit.
+- **Creation**: `TOOLBAR_SECONDARY_VISIBLE` hides shapes, plugin nodes, and
+  agent teams ("kept implemented for a future More menu"); the hand/pan
+  tool is hidden; a node type was hidden from creation. Mindmap KEPT on the
+  toolbar — a deliberate deviation from this plan's 5-button target.
+- **Settings**: consolidated into 3 rail groups — AI Chat / Agents &
+  Extensions / App (this plan proposed 4; 3 achieves the same collapse).
+- **First-run**: welcome workspace slimmed (~240 lines of seeded content
+  removed), empty-canvas hint reworked; perf CI re-covered via
+  `seed-fixture.mjs` since welcome content no longer seeds scenarios.
+
+Still open:
+
+1. Flag-lifecycle demotions (§4): `workspace-graph-page` / `dynamic-app` /
+   `chat-channels` / `default-browser` exposures are unchanged in
+   `experimental-features.ts`; nav hiding made the Graph flag's UI moot but
+   the Settings toggles still advertise the frozen subsystems.
+2. Skills page fold into Settings (§1) — skills kept its route and got a
+   loading polish instead; revisit or drop this line item.
+3. Everything under "What the freed capacity buys": P0 file-watcher fix,
+   frame-as-context, outputs-to-canvas; P1 resume; engine context-provider
+   contract.
 
 ## Decision
 
