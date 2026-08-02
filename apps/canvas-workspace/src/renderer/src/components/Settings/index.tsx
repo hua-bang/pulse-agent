@@ -41,74 +41,100 @@ interface SectionDef {
   titleKey: I18nKey;
 }
 
-const SECTIONS: SectionDef[] = [
+interface SectionGroup {
+  id: string;
+  labelKey: I18nKey;
+  sections: SectionDef[];
+}
+
+const SECTION_GROUPS: SectionGroup[] = [
   {
-    id: 'models',
-    labelKey: 'settings.models.label',
-    descriptionKey: 'settings.models.description',
-    titleKey: 'settings.models.title',
+    id: 'ai-chat',
+    labelKey: 'settings.group.aiChat',
+    sections: [
+      {
+        id: 'models',
+        labelKey: 'settings.models.label',
+        descriptionKey: 'settings.models.description',
+        titleKey: 'settings.models.title',
+      },
+      {
+        id: 'reply-style',
+        labelKey: 'settings.replyStyle.label',
+        descriptionKey: 'settings.replyStyle.description',
+        titleKey: 'settings.replyStyle.title',
+      },
+      {
+        id: 'chat-roles',
+        labelKey: 'settings.roles.label',
+        descriptionKey: 'settings.roles.description',
+        titleKey: 'settings.roles.title',
+      },
+    ],
   },
   {
-    id: 'built-in-tools',
-    labelKey: 'settings.builtInTools.label',
-    descriptionKey: 'settings.builtInTools.description',
-    titleKey: 'settings.builtInTools.title',
+    id: 'agents-extensions',
+    labelKey: 'settings.group.agentsExtensions',
+    sections: [
+      {
+        id: 'agent',
+        labelKey: 'settings.agent.label',
+        descriptionKey: 'settings.agent.description',
+        titleKey: 'settings.agent.title',
+      },
+      {
+        id: 'built-in-tools',
+        labelKey: 'settings.builtInTools.label',
+        descriptionKey: 'settings.builtInTools.description',
+        titleKey: 'settings.builtInTools.title',
+      },
+      {
+        id: 'mcp',
+        labelKey: 'settings.mcp.label',
+        descriptionKey: 'settings.mcp.description',
+        titleKey: 'settings.mcp.title',
+      },
+      {
+        id: 'plugins',
+        labelKey: 'settings.plugins.label',
+        descriptionKey: 'settings.plugins.description',
+        titleKey: 'settings.plugins.title',
+      },
+    ],
   },
   {
-    id: 'reply-style',
-    labelKey: 'settings.replyStyle.label',
-    descriptionKey: 'settings.replyStyle.description',
-    titleKey: 'settings.replyStyle.title',
-  },
-  {
-    id: 'chat-roles',
-    labelKey: 'settings.roles.label',
-    descriptionKey: 'settings.roles.description',
-    titleKey: 'settings.roles.title',
-  },
-  {
-    id: 'agent',
-    labelKey: 'settings.agent.label',
-    descriptionKey: 'settings.agent.description',
-    titleKey: 'settings.agent.title',
-  },
-  {
-    id: 'mcp',
-    labelKey: 'settings.mcp.label',
-    descriptionKey: 'settings.mcp.description',
-    titleKey: 'settings.mcp.title',
-  },
-  {
-    id: 'plugins',
-    labelKey: 'settings.plugins.label',
-    descriptionKey: 'settings.plugins.description',
-    titleKey: 'settings.plugins.title',
-  },
-  {
-    id: 'browser',
-    labelKey: 'settings.browser.label',
-    descriptionKey: 'settings.browser.description',
-    titleKey: 'settings.browser.title',
-  },
-  {
-    id: 'experimental',
-    labelKey: 'settings.experimental.label',
-    descriptionKey: 'settings.experimental.description',
-    titleKey: 'settings.experimental.title',
-  },
-  {
-    id: 'updates',
-    labelKey: 'settings.updates.label',
-    descriptionKey: 'settings.updates.description',
-    titleKey: 'settings.updates.title',
-  },
-  {
-    id: 'language',
-    labelKey: 'settings.language.label',
-    descriptionKey: 'settings.language.description',
-    titleKey: 'settings.language.title',
+    id: 'app',
+    labelKey: 'settings.group.app',
+    sections: [
+      {
+        id: 'browser',
+        labelKey: 'settings.browser.label',
+        descriptionKey: 'settings.browser.description',
+        titleKey: 'settings.browser.title',
+      },
+      {
+        id: 'language',
+        labelKey: 'settings.language.label',
+        descriptionKey: 'settings.language.description',
+        titleKey: 'settings.language.title',
+      },
+      {
+        id: 'updates',
+        labelKey: 'settings.updates.label',
+        descriptionKey: 'settings.updates.description',
+        titleKey: 'settings.updates.title',
+      },
+      {
+        id: 'experimental',
+        labelKey: 'settings.experimental.label',
+        descriptionKey: 'settings.experimental.description',
+        titleKey: 'settings.experimental.title',
+      },
+    ],
   },
 ];
+
+const SECTIONS = SECTION_GROUPS.flatMap((group) => group.sections);
 
 interface SettingsProps {
   open: boolean;
@@ -142,19 +168,36 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
     >
       <div className="settings-body">
         <nav className="settings-rail" aria-label={t('settings.sectionsAria')}>
-          {SECTIONS.map((section) => {
-            const active = section.id === activeSection;
+          {SECTION_GROUPS.map((group) => {
+            const groupTitleId = `settings-group-${group.id}`;
             return (
-              <button
-                key={section.id}
-                type="button"
-                className={`settings-rail-item${active ? ' settings-rail-item--active' : ''}`}
-                aria-current={active ? 'page' : undefined}
-                onClick={() => setActiveSection(section.id)}
+              <div
+                key={group.id}
+                className="settings-rail-group"
+                role="group"
+                aria-labelledby={groupTitleId}
               >
-                <span className="settings-rail-label">{t(section.labelKey)}</span>
-                <span className="settings-rail-desc">{t(section.descriptionKey)}</span>
-              </button>
+                <div id={groupTitleId} className="settings-rail-group-title">
+                  {t(group.labelKey)}
+                </div>
+                <div className="settings-rail-group-items">
+                  {group.sections.map((section) => {
+                    const active = section.id === activeSection;
+                    return (
+                      <button
+                        key={section.id}
+                        type="button"
+                        className={`settings-rail-item${active ? ' settings-rail-item--active' : ''}`}
+                        aria-current={active ? 'page' : undefined}
+                        title={t(section.descriptionKey)}
+                        onClick={() => setActiveSection(section.id)}
+                      >
+                        <span className="settings-rail-label">{t(section.labelKey)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>
