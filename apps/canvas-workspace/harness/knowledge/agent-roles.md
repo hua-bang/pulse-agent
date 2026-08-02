@@ -266,10 +266,25 @@ tokens instead of erroring.
 Setting `AgentRoleDefinition.external = { family: 'claude-code' | 'codex',
 cwd? }` (`AgentRoleExternalDriver`, families enumerated in
 `AGENT_ROLE_EXTERNAL_FAMILIES`) routes that role's segments to
-`src/main/agent/external/` instead of the built-in engine:
-`executeCanvasAgentSegment` (`src/main/agent/segment-execution.ts`)
-branches on `options.role?.external` and calls `runExternalRoleSegment`
-(`src/main/agent/external/segment.ts`) instead of `engine.run(...)`.
+`src/main/agent/external/` instead of the built-in engine, via the turn
+backend boundary (`src/main/agent/backends/`): `executeCanvasAgentSegment`
+(`src/main/agent/segment-execution.ts`) resolves `resolveTurnBackend(role)`
+— a role with an external driver runs on `externalCliTurnBackend`, which
+calls `runExternalRoleSegment` (`src/main/agent/external/segment.ts`);
+everything else runs on `engineTurnBackend` (`engine.run(...)`). The
+executor keeps the backend-AGNOSTIC policies for every backend: it
+pre-wraps `onText` so streamed deltas accumulate into `streamedText` on
+BOTH paths (a hard-stopped engine segment preserves its partial text the
+same way an external one does), collects response messages through one
+`recordResponseMessages` recorder, and applies the stopped-vs-failed abort
+normalization below. Each backend declares a capability matrix
+(`nativeCanvasTools`, `clarifications`, `historyFidelity`,
+`sessionResume`) for future per-backend UI degradation; additional native
+backends (e.g. a pi-backed default assistant — see
+`docs/09-agent-backend-boundary.md`) plug in at `resolveTurnBackend`
+without touching the chat pipeline. Guards:
+`src/main/agent/segment-execution.test.ts`,
+`src/main/agent/backends/registry.test.ts`.
 
 - Headless CLI spawn: Claude Code runs as `claude -p --output-format
   stream-json --verbose --include-partial-messages` (`buildClaudeCodeArgs`
