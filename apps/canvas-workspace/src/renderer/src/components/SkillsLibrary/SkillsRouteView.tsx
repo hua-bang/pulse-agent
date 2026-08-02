@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { PulseRouterView } from '../router';
+import { SkillsRouteLoading } from './SkillsLibraryLoading';
+import './index.css';
 
 const SkillsLibrary = lazy(() => import('.').then((module) => ({ default: module.SkillsLibrary })));
 
@@ -16,7 +18,7 @@ export const SkillsRouteView = ({
   onSelectWorkspace,
 }: Props) => (
   <PulseRouterView name="skills">
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkillsRouteLoading />}>
       <SkillsLibrary
         activeWorkspaceId={activeWorkspaceId}
         workspaces={workspaces}

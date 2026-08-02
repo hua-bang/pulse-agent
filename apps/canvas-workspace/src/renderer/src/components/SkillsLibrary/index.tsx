@@ -19,6 +19,7 @@ import { SegmentedControl, TextField } from '../ui';
 import { SkillEditorModal } from './SkillEditorModal';
 import { LibraryContextSelect } from './LibraryContextSelect';
 import { SkillList } from './SkillList';
+import { SkillsLibraryLoading } from './SkillsLibraryLoading';
 import { SkillsLibraryHeader } from './SkillsLibraryHeader';
 import type { DisplaySkill, LibraryContext, ScopeView } from './types';
 import './index.css';
@@ -39,6 +40,7 @@ export const SkillsLibrary = ({
   const [scopeView, setScopeView] = useState<ScopeView>('effective');
   const [workspaceSkills, setWorkspaceSkills] = useState<CanvasSkillEntry[]>([]);
   const [globalSkills, setGlobalSkills] = useState<CanvasSkillEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [libraryContext, setLibraryContext] = useState<LibraryContext>({
@@ -62,34 +64,50 @@ export const SkillsLibrary = ({
 
   const load = useCallback(async () => {
     const sequence = ++loadSequenceRef.current;
-    const globalRequest = window.canvasWorkspace.canvasSkills.list({ level: 'global' });
-    const workspaceRequest = globalPerspective
-      ? Promise.resolve(null)
-      : window.canvasWorkspace.canvasSkills.list({
-        level: 'workspace',
-        workspaceId: workspaceContextId,
-      });
-    const [workspaceResult, globalResult] = await Promise.all([workspaceRequest, globalRequest]);
-    if (sequence !== loadSequenceRef.current) return;
-    if (
-      !globalResult.ok
-      || !globalResult.status
-      || (!globalPerspective && (!workspaceResult?.ok || !workspaceResult.status))
-    ) {
+    try {
+      const globalRequest = window.canvasWorkspace.canvasSkills.list({ level: 'global' });
+      const workspaceRequest = globalPerspective
+        ? Promise.resolve(null)
+        : window.canvasWorkspace.canvasSkills.list({
+          level: 'workspace',
+          workspaceId: workspaceContextId,
+        });
+      const [workspaceResult, globalResult] = await Promise.all([workspaceRequest, globalRequest]);
+      if (sequence !== loadSequenceRef.current) return;
+      if (
+        !globalResult.ok
+        || !globalResult.status
+        || (!globalPerspective && (!workspaceResult?.ok || !workspaceResult.status))
+      ) {
+        notify({
+          tone: 'error',
+          title: t('skillsLibrary.loadFailed'),
+          description: workspaceResult?.error ?? globalResult.error,
+        });
+        return;
+      }
+      setWorkspaceSkills(workspaceResult?.status?.skills ?? []);
+      setGlobalSkills(globalResult.status.skills);
+    } catch (error) {
+      if (sequence !== loadSequenceRef.current) return;
       notify({
         tone: 'error',
         title: t('skillsLibrary.loadFailed'),
-        description: workspaceResult?.error ?? globalResult.error,
+        description: error instanceof Error ? error.message : String(error),
       });
-      return;
+    } finally {
+      if (sequence === loadSequenceRef.current) setLoading(false);
     }
-    setWorkspaceSkills(workspaceResult?.status?.skills ?? []);
-    setGlobalSkills(globalResult.status.skills);
   }, [globalPerspective, notify, t, workspaceContextId]);
 
   useEffect(() => {
+    setLoading(true);
     void load();
-    return subscribeCanvasSkillsChanged(() => void load());
+    const unsubscribe = subscribeCanvasSkillsChanged(() => void load());
+    return () => {
+      loadSequenceRef.current += 1;
+      unsubscribe();
+    };
   }, [load]);
 
   const displaySkills = useMemo<DisplaySkill[]>(() => {
@@ -239,6 +257,10 @@ export const SkillsLibrary = ({
         onAdd={() => setEditorOpen(true)}
       />
 
+      {loading ? (
+        <SkillsLibraryLoading />
+      ) : (
+        <>
       <div className="skills-library__scope-bar">
         <LibraryContextSelect
           value={libraryContext}
@@ -284,6 +306,8 @@ export const SkillsLibrary = ({
         onPromote={(skill) => void promote(skill)}
         onRemove={(skill) => void removeSkill(skill)}
       />
+        </>
+      )}
 
       <SkillEditorModal
         open={editorOpen}
