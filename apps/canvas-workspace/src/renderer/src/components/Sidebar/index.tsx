@@ -439,7 +439,7 @@ export const Sidebar = ({
           </Button>
           <button
             type="button"
-            className="sidebar-collapsed-btn"
+            className="sidebar-collapsed-btn sidebar-collapsed-btn--settings"
             onClick={onOpenAppSettings}
             title={t('sidebar.settings')}
             aria-label={t('sidebar.openSettings')}
