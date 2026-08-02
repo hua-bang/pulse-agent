@@ -17,7 +17,7 @@
    * brand colors still live in `.agent-loading-overlay--<agent>` for
    * the loading mark, which is the one place the agent's own identity
    * is meaningful. */
-  --agent-accent: #2383e2;
+  --agent-accent: var(--accent);
   --agent-accent-hover: #1c6dbf;
   --agent-accent-soft: rgba(35, 131, 226, 0.1);
   --agent-accent-border: rgba(35, 131, 226, 0.45);
