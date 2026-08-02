@@ -44,6 +44,7 @@ const tools: Array<{
   id: string;
   labelKey: I18nKey;
   icon: JSX.Element;
+  hidden?: Boolean;
 }> = [
     {
       id: "select",
@@ -62,6 +63,7 @@ const tools: Array<{
     {
       id: "hand",
       labelKey: 'canvas.toolbar.pan',
+      hidden: true,
       icon: (
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path
@@ -282,6 +284,11 @@ export const FloatingToolbar = ({
 
       <div className="toolbar-group">
         {tools.map((tool) => {
+
+          if (tool.hidden) {
+            return null;
+          }
+
           const label = tool.id === 'hand' ? t('canvas.toolbar.panHint') : t(tool.labelKey);
           return (
             <button
@@ -369,6 +376,15 @@ export const FloatingToolbar = ({
           </svg>
           <span className="toolbar-btn-label">{t('canvas.toolbar.web')}</span>
         </button>
+        <button
+          className="toolbar-btn toolbar-btn--create"
+          onClick={() => onAddNode("agent")}
+          aria-label={t('canvas.toolbar.addCodingAgent')}
+          data-tooltip={t('canvas.toolbar.coding')}
+        >
+          <CodingAgentIcon size={18} />
+          <span className="toolbar-btn-label">{t('canvas.toolbar.coding')}</span>
+        </button>
         <TerminalToolSplitButton
           open={terminalDockOpen}
           showAdd={dockState.terminalTabs.length > 0}
@@ -392,15 +408,6 @@ export const FloatingToolbar = ({
             />
           </svg>
           <span className="toolbar-btn-label">{t('canvas.toolbar.mindmap')}</span>
-        </button>
-        <button
-          className="toolbar-btn toolbar-btn--create"
-          onClick={() => onAddNode("agent")}
-          aria-label={t('canvas.toolbar.addCodingAgent')}
-          data-tooltip={t('canvas.toolbar.coding')}
-        >
-          <CodingAgentIcon size={18} />
-          <span className="toolbar-btn-label">{t('canvas.toolbar.coding')}</span>
         </button>
         {TOOLBAR_SECONDARY_VISIBLE.agentTeams && onCreateAgentTeam && (
           <button
