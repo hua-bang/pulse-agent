@@ -269,7 +269,6 @@ export const useCanvasKeyboard = ({
     'canvas.toolSelect': (event) => { event.preventDefault(); setActiveTool('select'); },
     'canvas.toolHand': (event) => { event.preventDefault(); setActiveTool('hand'); },
     'canvas.toolConnect': (event) => { event.preventDefault(); setActiveTool('connect'); },
-    'canvas.toolShape': (event) => { event.preventDefault(); setActiveTool('shape-rect'); },
 
     // Each press is its own undo step, so a chain of nudges can be reversed
     // one at a time. Auto-repeat is filtered upstream — holding an arrow key

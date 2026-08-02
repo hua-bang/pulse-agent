@@ -32,7 +32,6 @@ export const SHORTCUT_HELP = {
   'canvas.toolSelect': { section: 'view', descriptionKey: 'shortcuts.view.toolSelect' },
   'canvas.toolHand': { section: 'view', descriptionKey: 'shortcuts.view.toolHand' },
   'canvas.toolConnect': { section: 'view', descriptionKey: 'shortcuts.view.toolConnect' },
-  'canvas.toolShape': { section: 'view', descriptionKey: 'shortcuts.view.toolShape' },
   'canvas.nudge': { section: 'selection', descriptionKey: 'shortcuts.selection.nudgeOne' },
   'canvas.nudgeCoarse': { section: 'selection', descriptionKey: 'shortcuts.selection.nudgeTen' },
   'canvas.renameSelection': { section: 'selection', descriptionKey: 'shortcuts.selection.rename' },

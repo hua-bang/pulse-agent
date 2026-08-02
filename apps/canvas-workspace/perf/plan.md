@@ -163,7 +163,7 @@
 ### B5 · 修 D1:welcome webview 占首屏 〔S-M〕★首发
 - **背景**:D1(high)。`main/canvas/welcome-workspace.ts:205` 首启画布挂外部 URL live webview(沙箱截图可见其错误卡)。
 - **做法**:默认渲染占位卡片,IntersectionObserver 进视口或 idle 后再挂真 webview。
-- **验收**:`startup.welcome_local_content_ms` 使用本地 HTML，移除 Guest WebContents 与远程导航启动依赖。
+- **验收**:首屏移除 Welcome Guest WebContents 与远程导航依赖；空白工作区上线后，对应启动指标已随产品表面一并退役。
 
 ### B6 · C 维第一批:重依赖出 entry 〔M-L,依赖 A5〕
 - **背景**:C1-C6(入口 4,618KB,目标 ≤1,500)。全仓唯一懒边界是 mermaid,模式可复制(`chat/utils/mermaid.ts`)。

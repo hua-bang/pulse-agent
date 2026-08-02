@@ -293,7 +293,6 @@ describe('useCanvasKeyboard', () => {
       ['v', 'select'],
       ['h', 'hand'],
       ['c', 'connect'],
-      ['r', 'shape-rect'],
     ])('binds %s to the %s tool', (key, tool) => {
       const setActiveTool = vi.fn();
       mountKeyboard({ setActiveTool });
@@ -301,6 +300,15 @@ describe('useCanvasKeyboard', () => {
       press({ key });
 
       expect(setActiveTool).toHaveBeenCalledWith(tool);
+    });
+
+    it('keeps the hidden shape tool unreachable from its former shortcut', () => {
+      const setActiveTool = vi.fn();
+      mountKeyboard({ setActiveTool });
+
+      press({ key: 'r' });
+
+      expect(setActiveTool).not.toHaveBeenCalled();
     });
   });
 

@@ -50,6 +50,11 @@ import { sampleRetainedHeapMB } from './heap-sampling.mjs';
 import { captureRendererReloadTrace } from './renderer-trace.mjs';
 import { compareCounterGates } from './runtime-gates.mjs';
 import { aggregateReports } from './scenario-metrics.mjs';
+import {
+  PERF_SEED_NOTE_ID,
+  PERF_SEED_TRANSFORM,
+  buildPerfSeedNodes,
+} from './seed-fixture.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const baselinesPath = join(appRoot, 'perf/baselines.json');
@@ -247,7 +252,6 @@ const startupScenario = async (cdp, session) => {
     mainPhases,
     rendererMarks: probe.marks,
     paint: probe.paint,
-    welcomeLocalContentMs: probe.marks['welcome:local-content-ready'],
   };
 };
 
@@ -794,43 +798,41 @@ const PERF_WEBPAGE_HTML = [
 // widens to fit the larger default iframe size (520x400 vs 200x120) so
 // nothing overlaps regardless of mix.
 const seedExtraNodes = async (cdp, count, webpageCount = 0) => {
-  const nodeCount = await evaluate(cdp, `document.querySelectorAll('.canvas-node').length`);
-  if (nodeCount >= count) {
-    const webpages = await evaluate(cdp, `document.querySelectorAll('.canvas-node--iframe').length`).catch(() => 0);
-    return { total: nodeCount, webpages };
-  }
-  const webpageStride = webpageCount > 0 ? Math.max(1, Math.floor(count / webpageCount)) : 0;
-  const strideX = webpageCount > 0 ? 560 : 240;
-  const strideY = webpageCount > 0 ? 420 : 160;
   await evaluate(cdp, `(async () => {
     const store = window.canvasWorkspace.store;
     const list = await store.list();
     const wsId = list.ids[0];
     const loaded = await store.load(wsId);
     const data = loaded.data ?? {};
-    const nodes = Array.isArray(data.nodes) ? data.nodes : [];
-    const existing = new Set(nodes.map((n) => n.id));
+    const existingNodes = Array.isArray(data.nodes) ? data.nodes : [];
+    let note = existingNodes.find((node) => node.id === ${JSON.stringify(PERF_SEED_NOTE_ID)});
+    if (!note) {
+      const created = await window.canvasWorkspace.file.createNote(wsId, 'perf-benchmark');
+      if (!created.ok || !created.filePath) {
+        throw new Error(created.error || 'failed to create perf benchmark note');
+      }
+      const content = 'Pulse Canvas deterministic performance fixture.\\n';
+      const written = await window.canvasWorkspace.file.write(created.filePath, content);
+      if (!written.ok) throw new Error(written.error || 'failed to write perf benchmark note');
+      note = { data: { filePath: created.filePath }, title: created.fileName || 'perf-benchmark.md' };
+    }
     const now = Date.now();
     const webpageHtml = ${JSON.stringify(PERF_WEBPAGE_HTML)};
-    for (let i = 0; nodes.length < ${count}; i++) {
-      const id = 'perf-seed-' + i;
-      if (existing.has(id)) continue;
-      const x = 1400 + (i % 10) * ${strideX}, y = -600 + Math.floor(i / 10) * ${strideY};
-      if (${webpageStride} > 0 && i % ${webpageStride} === 0) {
-        nodes.push({
-          id, type: 'iframe', title: 'perf web ' + i,
-          x, y, width: 520, height: 400, updatedAt: now,
-          data: { url: '', mode: 'html', html: webpageHtml, prompt: '' },
-        });
-      } else {
-        nodes.push({
-          id, type: 'text', title: 'perf ' + i,
-          x, y, width: 200, height: 120, updatedAt: now,
-          data: { text: 'perf seed node ' + i },
-        });
-      }
-    }
-    await store.save(wsId, { ...data, nodes });
+    const nodes = (${buildPerfSeedNodes.toString()})({
+      existingNodes,
+      count: ${count},
+      webpageCount: ${webpageCount},
+      webpageHtml,
+      noteFilePath: note.data.filePath,
+      noteFileName: note.title,
+      noteId: ${JSON.stringify(PERF_SEED_NOTE_ID)},
+      now,
+    });
+    await store.save(wsId, {
+      ...data,
+      nodes,
+      transform: ${JSON.stringify(PERF_SEED_TRANSFORM)},
+    });
   })()`);
   await evaluate(cdp, 'location.reload()').catch(() => {});
   await cdp.reconnect();
@@ -987,14 +989,6 @@ const main = async () => {
   const loopDelays = [...stdout.matchAll(/\[perf\] loop-delay (\{.*\})/g)].map((m) => JSON.parse(m[1]));
   const canvasSaves = [...stdout.matchAll(/\[perf\] canvas-save (\{.*\})/g)].map((m) => JSON.parse(m[1]));
   const sessionPersists = [...stdout.matchAll(/\[perf\] session-persist (\{.*\})/g)].map((m) => JSON.parse(m[1]));
-  const welcomeWebviews = [...stdout.matchAll(/\[perf\] welcome-webview (\{.*\})/g)].map((m) => JSON.parse(m[1]));
-  if (scenarios.startup?.mainPhases && welcomeWebviews.length > 0) {
-    const firstLoad = welcomeWebviews[0];
-    const openWindowAt = scenarios.startup.mainPhases.openWindow;
-    if (typeof firstLoad.at === 'number' && typeof openWindowAt === 'number' && firstLoad.at >= openWindowAt) {
-      scenarios.startup.welcomeWebviewMs = firstLoad.at - openWindowAt;
-    }
-  }
   if (loopDelays.length || canvasSaves.length || sessionPersists.length) {
     const main = { windows: loopDelays.length };
     if (loopDelays.length) {

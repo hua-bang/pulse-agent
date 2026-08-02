@@ -38,10 +38,13 @@ Expect `alive: true`, `cdpReady: true`, and a `Pulse Canvas` page target.
 4. Read the renderer text before judging the screenshot:
 
 ```bash
-pnpm --filter canvas-workspace harness eval-renderer "(() => { const text = document.body.innerText || ''; return { title: document.title, hasWelcome: text.includes('Welcome to Pulse Canvas'), hasOverview: text.includes('Overview'), hasExamples: text.includes('Examples'), hasHowToBegin: text.includes('How to Begin'), sample: text.slice(0, 800) }; })()" --json
+pnpm --filter canvas-workspace harness eval-renderer "(() => { const text = document.body.innerText || ''; return { title: document.title, hasPersistentWorkspace: text.includes('Persistent workspace'), actions: [...document.querySelectorAll('.canvas-empty-action')].map((node) => node.textContent?.trim()), layerCount: document.querySelectorAll('[data-node-id]').length, sample: text.slice(0, 800) }; })()" --json
 ```
 
-Adjust the text probes to the expected onboarding for the current branch. For example, older seed code may show `Welcome to Pulse Canvas`, while a product-intro workspace may show `Overview`, `Examples`, `Concept`, and `How to Begin`.
+The current first-run contract is an empty `Pulse Canvas` workspace with zero
+seeded nodes and three ordered actions: connect a project, write the brief,
+and start a coding agent. Older branches may still seed tutorial nodes; treat
+that as legacy behavior rather than the current expected state.
 
 5. Capture screenshot evidence through CDP:
 
@@ -69,7 +72,7 @@ pnpm --filter canvas-workspace harness close --cleanup
 
 - If CDP is not ready, inspect `status --json` and `logs --lines 120`.
 - If screenshot succeeds but content is old, verify the branch and rebuild. A successful harness can reveal that the product code was reverted or not present in the current checkout.
-- If the onboard target opens a non-empty welcome workspace, that can be correct for branches that still seed welcome content.
+- If the onboard target opens a non-empty welcome workspace on the current branch, rebuild and confirm that the disposable profile is fresh. Non-empty tutorial seeding is only expected on older branches.
 - If the expected first-run workspace does not appear, check the current `HOME` and use a fresh `temp` profile; do not reuse an old seeded home.
 - If the user asks to test real user data, use `clone` first. Use `real --allow-real-writes` only after explicit confirmation.
 
