@@ -263,8 +263,8 @@ tokens instead of erroring.
 
 ## Externally-driven roles (local coding-agent CLIs)
 
-Setting `AgentRoleDefinition.external = { family: 'claude-code' | 'codex',
-cwd? }` (`AgentRoleExternalDriver`, families enumerated in
+Setting `AgentRoleDefinition.external = { family: 'claude-code' | 'codex'
+| 'pi', cwd? }` (`AgentRoleExternalDriver`, families enumerated in
 `AGENT_ROLE_EXTERNAL_FAMILIES`) routes that role's segments to
 `src/main/agent/external/` instead of the built-in engine, via the turn
 backend boundary (`src/main/agent/backends/`): `executeCanvasAgentSegment`
@@ -389,6 +389,30 @@ accepts BOTH JSONL dialects Codex has shipped: dialect-A protocol events
 | 'item.completed' | 'thread.started' | ... }`) — `--json` remains marked
 experimental upstream, hence tolerating both.
 
+### pi adapter specifics
+
+`src/main/agent/external/pi.ts` drives the pi coding agent
+(`@earendil-works/pi-coding-agent`, ~0.83): `buildPiArgs` produces
+`pi --mode json -p` (fresh) or `pi --mode json -p --session <id>`
+(resumed), the prompt piped through STDIN like the Claude adapter. The
+JSONL vocabulary is pi's `AgentSessionEvent` stream (`docs/json.md` inside
+the pi package): the FIRST line `{"type":"session","id":…}` carries the
+resumable session id; `message_update` events stream
+`assistantMessageEvent.type === 'text_delta'` deltas (thinking deltas are
+deliberately not streamed into chat); the segment reply is the LAST
+assistant `message_end`'s joined text blocks; an assistant `message_end`
+with `stopReason: 'error'` surfaces its `errorMessage` as the run error.
+`tool_execution_start/end` map onto the shared `startTool`/`finishTool`
+chip helpers (`isError` → failed). A stale `--session` resume prints
+`No session found matching '<id>'` (verified against the real 0.83.0
+binary), which matches segment.ts's `RESUME_FAILURE_RE`, so the shared
+fresh-retry covers pi with zero adapter code. Unmodeled events
+(queue_update, compaction_*, auto_retry_*) are ignored by design — same
+tolerant-parser rule as the other adapters. pi ships no permission system
+(containment is the environment's job in its philosophy); like the other
+adapters we pass no permission flags, so a run obeys the user's own pi
+settings/extensions/project-trust for that cwd.
+
 ### Env overrides and probe
 
 - Probe IPC: `agent-roles:external-probe` → `probeExternalCli(family)` in
@@ -398,6 +422,8 @@ experimental upstream, hence tolerating both.
   (`claudeCodeCommand()` in `claude-code.ts`, default `claude`).
 - `PULSE_CANVAS_CODEX_CMD` — overrides the Codex binary (`codexCommand()`
   in `codex.ts`, default `codex`).
+- `PULSE_CANVAS_PI_CMD` — overrides the pi binary (`piCommand()` in
+  `pi.ts`, default `pi`).
 - `PULSE_CANVAS_EXTERNAL_AGENT_STATE` — overrides the resume-state file
   path (`state-store.ts`, default
   `~/.pulse-coder/canvas/external-agent-state.json`).
@@ -503,6 +529,10 @@ Primary regression suites live in:
   the Ask-mode approval gate), `resolveExternalCwd`'s chain, the Codex
   stream parser for both dialects and its argv building, and the handoff
   target policy.
+- `src/main/agent/__tests__/pi-driver.test.ts` — the pi json-event parser
+  (session header, deltas vs message_end fallback, error stop, tool chip
+  translation, drift tolerance), argv/env-override wiring, and fake-CLI
+  segment orchestration incl. the stale-resume retry.
 - `src/main/agent/segment-execution.test.ts` — abort-after-reject
   normalization for external-role segments.
 - `src/main/agent/chat-stop.test.ts` — the stop/abort helper functions in

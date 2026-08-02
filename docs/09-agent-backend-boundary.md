@@ -37,18 +37,26 @@ documented rule), one `recordResponseMessages` recorder, and abort
 normalization. Guards: `segment-execution.test.ts` (3 cases),
 `backends/registry.test.ts` (5 cases).
 
-## Phase 2 — pi as an external role family (cheap, optional but useful)
+## Phase 2 — pi as an external role family (SHIPPED)
 
-Add `family: 'pi'` to `AGENT_ROLE_EXTERNAL_FAMILIES` with a `pi.ts` adapter
+`family: 'pi'` in `AGENT_ROLE_EXTERNAL_FAMILIES` + `external/pi.ts`
 beside `claude-code.ts`/`codex.ts`:
 
-- Spawn: `pi --mode json -p <prompt via stdin>` (LDJSON events), or RPC
-  mode if session flags require it.
-- Events: map pi's `message_update` deltas → `onText`;
-  `tool_execution_start/end` → the shared `startTool`/`finishTool` helpers.
-- Resume: pi session id per (chat-session × role) in the existing
-  external-agent-state store.
-- Env override `PULSE_CANVAS_PI_CMD`; probe via `pi --version`.
+- Spawn: `pi --mode json -p`, prompt via stdin; resume via
+  `--session <id>` (the id arrives in the stream's FIRST line —
+  `{"type":"session","id":…}`).
+- Events: `message_update` `text_delta` → `onText` (thinking deltas
+  ignored); last assistant `message_end` = authoritative reply;
+  `stopReason:'error'` → run error; `tool_execution_start/end` → shared
+  `startTool`/`finishTool` chip helpers.
+- Stale resume prints `No session found matching '<id>'` (verified
+  against the real 0.83.0 binary) — matches the shared
+  `RESUME_FAILURE_RE` retry with zero adapter code.
+- Env override `PULSE_CANVAS_PI_CMD`; probe via `pi --version`; Settings →
+  Chat Roles driver picker offers pi.
+- Guards: `src/main/agent/__tests__/pi-driver.test.ts` (8 cases: parser
+  fixtures captured from the real CLI, argv/env wiring, fake-CLI
+  orchestration incl. stale-resume retry).
 
 Value: @pi vs @engine in ONE group chat = immediate harness feel
 comparison (persona-window fidelity), zero new surfaces. Measures raw

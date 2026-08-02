@@ -15,7 +15,7 @@ import './ModelSettings.css';
 import './RolesSettings.css';
 
 const familyLabel = (family: AgentRoleExternalFamily): string =>
-  family === 'claude-code' ? 'Claude Code' : 'Codex';
+  family === 'claude-code' ? 'Claude Code' : family === 'codex' ? 'Codex' : 'pi';
 
 interface UseAgentRolesResult {
   roles: AgentRoleDefinition[];
@@ -291,6 +291,7 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
                   { id: 'persona', label: t('roles.driverPersona') },
                   { id: 'claude-code', label: 'Claude Code' },
                   { id: 'codex', label: 'Codex' },
+                  { id: 'pi', label: 'pi' },
                 ]}
                 value={draft.driver}
                 onChange={id => setDraft({ ...draft, driver: id as Draft['driver'] })}

@@ -8,14 +8,23 @@ import { spawn } from 'child_process';
 import type { AgentRoleExternalFamily } from '../../../shared/agent-roles';
 import { claudeCodeCommand, runClaudeCodeSegment } from './claude-code';
 import { codexCommand, runCodexSegment } from './codex';
+import { piCommand, runPiSegment } from './pi';
 import type { ExternalSegmentRequest, ExternalSegmentResult } from './types';
 
 export function externalCliCommand(family: AgentRoleExternalFamily): string {
-  return family === 'claude-code' ? claudeCodeCommand() : codexCommand();
+  switch (family) {
+    case 'claude-code': return claudeCodeCommand();
+    case 'codex': return codexCommand();
+    case 'pi': return piCommand();
+  }
 }
 
 export async function runExternalSegment(request: ExternalSegmentRequest): Promise<ExternalSegmentResult> {
-  return request.family === 'claude-code' ? runClaudeCodeSegment(request) : runCodexSegment(request);
+  switch (request.family) {
+    case 'claude-code': return runClaudeCodeSegment(request);
+    case 'codex': return runCodexSegment(request);
+    case 'pi': return runPiSegment(request);
+  }
 }
 
 /** `<cli> --version` with a short timeout; ok → first stdout line. */
