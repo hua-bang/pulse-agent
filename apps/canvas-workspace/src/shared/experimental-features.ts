@@ -56,6 +56,7 @@ export interface ToolingInstallStatus {
 }
 
 export const EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE = 'canvas-agent-debug-trace';
+export const EXPERIMENTAL_FLAG_PI_NATIVE_CHAT = 'pi-native-chat';
 export const EXPERIMENTAL_FLAG_WORKSPACE_NODES = 'workspace-nodes-page';
 export const EXPERIMENTAL_FLAG_WORKSPACE_GRAPH = 'workspace-graph-page';
 export const EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL = 'webview-page-control';
@@ -73,6 +74,14 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
       'Lets authenticated local developer tools discover and call an allowlisted set of live application capabilities.',
     defaultEnabled: true,
     exposure: 'stable',
+  },
+  {
+    id: EXPERIMENTAL_FLAG_PI_NATIVE_CHAT,
+    label: 'pi-backed AI Chat (A/B instrument)',
+    description:
+      'Runs the DEFAULT AI Chat assistant on the local pi coding agent (pi.dev CLI, `pi` on PATH) instead of the built-in engine, for side-by-side harness comparison. Persona and external roles are unaffected. pi runs headless in the workspace root folder with its own tools and session continuity; canvas tools, memory injection, and clarification cards are not available on this backend yet. A measurement instrument, not a product mode — leave off unless comparing backends.',
+    defaultEnabled: false,
+    exposure: 'experimental',
   },
   {
     id: EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,

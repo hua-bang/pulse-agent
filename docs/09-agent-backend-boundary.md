@@ -65,12 +65,23 @@ are shown.
 
 ## Phase 3 — pi as a native default backend
 
-`piTurnBackend` implementing `TurnBackend`, selected for the DEFAULT
-assistant (null role) by per-scope config behind an experimental flag
-(dev instrument, not a product feature — per the focus plan's
-no-orchestration-platform stance).
+**v1 SHIPPED (subprocess variant):** `piNativeTurnBackend`
+(`backends/pi-native-backend.ts`) runs the DEFAULT assistant (null role)
+on the local pi CLI behind the `pi-native-chat` experimental flag
+(default off; `PULSE_CANVAS_PI_NATIVE_CHAT` env escape hatch, read per
+turn). It reuses the proven external-segment primitives — cwd resolution
+into the workspace root, per-chat-session pi continuity in the external
+state store (sentinel id `__pi_native_chat__`), stale-resume retry, and
+the ask-mode approval gate — but renders a NATIVE assistant prompt (no
+group-chat role protocol). Persona and external roles are unaffected;
+`resolveTurnBackend` diverts only the null-role segment. Honest
+capability matrix: no canvas tools yet, window fidelity, CLI-owned
+sessions. Guards: `backends/pi-native-backend.test.ts` (default-assistant
+e2e on a fake pi incl. chips, reply append, and stale-resume retry),
+`backends/registry.test.ts` (flag routing).
 
-Two integration options, decided at implementation time:
+**v2 (open): deepen toward full-fidelity.** Two integration options,
+decided at that point:
 
 1. **SDK embed (preferred for depth)** — `@earendil-works/pi-agent-core`
    in the Electron main process: `new Agent({ initialState: {

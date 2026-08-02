@@ -279,12 +279,16 @@ same way an external one does), collects response messages through one
 `recordResponseMessages` recorder, and applies the stopped-vs-failed abort
 normalization below. Each backend declares a capability matrix
 (`nativeCanvasTools`, `clarifications`, `historyFidelity`,
-`sessionResume`) for future per-backend UI degradation; additional native
-backends (e.g. a pi-backed default assistant — see
-`docs/09-agent-backend-boundary.md`) plug in at `resolveTurnBackend`
-without touching the chat pipeline. Guards:
-`src/main/agent/segment-execution.test.ts`,
-`src/main/agent/backends/registry.test.ts`.
+`sessionResume`) for future per-backend UI degradation. The first
+additional native backend is live: `piNativeTurnBackend`
+(`backends/pi-native-backend.ts`) diverts the DEFAULT assistant (null
+role only — persona/external roles unaffected) to the local pi CLI when
+the `pi-native-chat` experimental flag (or the
+`PULSE_CANVAS_PI_NATIVE_CHAT` env escape hatch) is on — an A/B
+measurement instrument per `docs/09-agent-backend-boundary.md`, default
+off. Guards: `src/main/agent/segment-execution.test.ts`,
+`src/main/agent/backends/registry.test.ts`,
+`src/main/agent/backends/pi-native-backend.test.ts`.
 
 - Headless CLI spawn: Claude Code runs as `claude -p --output-format
   stream-json --verbose --include-partial-messages` (`buildClaudeCodeArgs`
