@@ -116,7 +116,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 298→297 (composer chrome): hid the Auto/Ask execution-mode toggle —
   // ask mode isn't ready to expose yet, execution stays on its 'auto'
   // default.
-  rawButtonTags: 297,
+  rawButtonTags: 294,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -129,7 +129,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // ui-reuse-burndown.md.
   // 40→39 (Nodes interaction rebuild): the bespoke Nodes search input moved
   // onto ui/TextField inside the consolidated filter toolbar.
-  rawInputTags: 39,
+  rawInputTags: 38,
   // raw <textarea> tags in .tsx — falls as ui/TextField(multiline) absorbs
   // them. Held at the pre-extension 13: ui/TextField's own <textarea> (+1)
   // is offset by PromptSettings' custom-prompt field adopting TextField (-1).
@@ -379,7 +379,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // configure banner removed its bespoke color treatment.
   // 1812→1810 (canvas dim): the focus-mode and fullscreen backdrops were two
   // separate literals doing one job; both now read --canvas-focus-dim.
-  hardcodedColorLiterals: 1810,
+  hardcodedColorLiterals: 1789,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -443,7 +443,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // box-shadow ring to the shared accent outline.
   // 146→143 (AI Chat model setup hierarchy): deleting the duplicate central
   // configure banner removed its base, hover, and status-dot shadows.
-  shadowLiterals: 143,
+  shadowLiterals: 141,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

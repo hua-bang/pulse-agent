@@ -105,11 +105,6 @@ export const SHORTCUTS = {
     owner: 'canvas',
     bindings: [{ key: 'c' }],
   },
-  'canvas.toolShape': {
-    owner: 'canvas',
-    bindings: [{ key: 'r' }],
-  },
-
   // ---- Selection ---------------------------------------------------------
   'canvas.nudge': {
     owner: 'canvas',

@@ -68,12 +68,10 @@ interface CanvasOverlaysProps {
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
   onCreateNode: (type: CreatableCanvasNodeType) => void;
-  onCreateUrl?: (url: string) => void;
   onCreateDemo?: () => void;
   onCreateAgentTeam?: () => void;
   onCloseContextMenu: () => void;
   onOpenShortcuts: () => void;
-  onConfigureAi?: () => void;
   onSetRootFolder?: () => void;
   onToolChange: (tool: string) => void;
   onAddNode: (type: CreatableCanvasNodeType, options?: AddNodeUiOptions) => void;
@@ -153,12 +151,10 @@ export const CanvasOverlays = ({
   referenceDrawerOpen,
   onReferenceToggle,
   onCreateNode,
-  onCreateUrl,
   onCreateDemo,
   onCreateAgentTeam,
   onCloseContextMenu,
   onOpenShortcuts,
-  onConfigureAi,
   onSetRootFolder,
   onToolChange,
   onAddNode,
@@ -207,10 +203,7 @@ export const CanvasOverlays = ({
       {nodes.length === 0 && !contextMenu && (
         <CanvasEmptyHint
           onCreateNode={(type) => onAddNode(type)}
-          onCreateUrl={onCreateUrl}
           onCreateDemo={onCreateDemo}
-          onConfigureAi={onConfigureAi}
-          onOpenChat={onChatToggle}
           onOpenShortcuts={onOpenShortcuts}
           onSetRootFolder={onSetRootFolder}
         />

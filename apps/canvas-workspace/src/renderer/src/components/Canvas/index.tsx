@@ -81,7 +81,6 @@ export const Canvas = ({
   onPasteReferences,
   nodePatchRequest,
   onNodePatchComplete,
-  onOpenAppSettings,
   onSetRootFolder,
 }: CanvasProps) => {
   const { confirm, notify, updateToast, dismissToast, openShortcuts, isOverlayOpen } = useAppShell();
@@ -705,7 +704,6 @@ export const Canvas = ({
       handleNodeViewportFocus={handleNodeViewportFocus}
       handleCreateAgentTeam={AGENT_TEAMS_ENABLED ? handleCreateAgentTeam : undefined}
       handleCreateDemoCanvas={handleCreateDemoCanvas}
-      handleCreateUrlNode={handleCreateUrlNode}
       handleSearchMatchActivate={handleSearchMatchActivate}
       handleSelectNode={handleSelectNode}
       handleShapeOverlayMouseDown={handleShapeOverlayMouseDown}
@@ -757,7 +755,6 @@ export const Canvas = ({
       transformLayerRef={transformLayerRef}
       updateEdge={updateEdge}
       updateNode={updateNode}
-      onOpenAppSettings={onOpenAppSettings}
       onSetRootFolder={onSetRootFolder}
     />
     </WorkspaceActiveProvider>
