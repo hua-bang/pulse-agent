@@ -32,10 +32,19 @@ interface Props {
   onReferenceToggle?: () => void;
 }
 
+// Keep lower-priority creation controls implemented for a future More menu,
+// while keeping the primary canvas toolbar focused for now.
+const TOOLBAR_SECONDARY_VISIBLE = {
+  shapes: false,
+  pluginNodes: false,
+  agentTeams: false,
+} as const;
+
 const tools: Array<{
   id: string;
   labelKey: I18nKey;
   icon: JSX.Element;
+  hidden?: Boolean;
 }> = [
     {
       id: "select",
@@ -54,6 +63,7 @@ const tools: Array<{
     {
       id: "hand",
       labelKey: 'canvas.toolbar.pan',
+      hidden: true,
       icon: (
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path
@@ -176,7 +186,7 @@ export const FloatingToolbar = ({
     () => optionsFromPluginStatus(pluginStatus),
     [pluginStatus],
   );
-  const showPluginTool = pluginOptions.length > 0;
+  const showPluginTool = TOOLBAR_SECONDARY_VISIBLE.pluginNodes && pluginOptions.length > 0;
 
   const loadPluginNodes = useCallback(async () => {
     const api = window.canvasWorkspace?.canvasPlugins;
@@ -194,10 +204,12 @@ export const FloatingToolbar = ({
   }, []);
 
   useEffect(() => {
+    if (!TOOLBAR_SECONDARY_VISIBLE.pluginNodes) return;
     void loadPluginNodes();
   }, [loadPluginNodes]);
 
   useEffect(() => {
+    if (!TOOLBAR_SECONDARY_VISIBLE.pluginNodes) return;
     const handleFocus = () => {
       void loadPluginNodes();
     };
@@ -272,6 +284,11 @@ export const FloatingToolbar = ({
 
       <div className="toolbar-group">
         {tools.map((tool) => {
+
+          if (tool.hidden) {
+            return null;
+          }
+
           const label = tool.id === 'hand' ? t('canvas.toolbar.panHint') : t(tool.labelKey);
           return (
             <button
@@ -286,7 +303,9 @@ export const FloatingToolbar = ({
             </button>
           );
         })}
-        <ShapeToolButton activeTool={activeTool} onToolChange={onToolChange} />
+        {TOOLBAR_SECONDARY_VISIBLE.shapes && (
+          <ShapeToolButton activeTool={activeTool} onToolChange={onToolChange} />
+        )}
       </div>
 
       <div className="toolbar-divider" />
@@ -357,6 +376,15 @@ export const FloatingToolbar = ({
           </svg>
           <span className="toolbar-btn-label">{t('canvas.toolbar.web')}</span>
         </button>
+        <button
+          className="toolbar-btn toolbar-btn--create"
+          onClick={() => onAddNode("agent")}
+          aria-label={t('canvas.toolbar.addCodingAgent')}
+          data-tooltip={t('canvas.toolbar.coding')}
+        >
+          <CodingAgentIcon size={18} />
+          <span className="toolbar-btn-label">{t('canvas.toolbar.coding')}</span>
+        </button>
         <TerminalToolSplitButton
           open={terminalDockOpen}
           showAdd={dockState.terminalTabs.length > 0}
@@ -381,16 +409,7 @@ export const FloatingToolbar = ({
           </svg>
           <span className="toolbar-btn-label">{t('canvas.toolbar.mindmap')}</span>
         </button>
-        <button
-          className="toolbar-btn toolbar-btn--create"
-          onClick={() => onAddNode("agent")}
-          aria-label={t('canvas.toolbar.addCodingAgent')}
-          data-tooltip={t('canvas.toolbar.coding')}
-        >
-          <CodingAgentIcon size={18} />
-          <span className="toolbar-btn-label">{t('canvas.toolbar.coding')}</span>
-        </button>
-        {onCreateAgentTeam && (
+        {TOOLBAR_SECONDARY_VISIBLE.agentTeams && onCreateAgentTeam && (
           <button
             className="toolbar-btn toolbar-btn--create"
             onClick={onCreateAgentTeam}

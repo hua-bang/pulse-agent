@@ -220,6 +220,58 @@
   border-top: 1px solid var(--border);
 }
 
+.skills-library__loading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.skills-library__skeleton {
+  display: block;
+  max-width: 100%;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    100deg,
+    var(--surface-alt) 18%,
+    var(--surface-subtle) 42%,
+    var(--surface-alt) 66%
+  );
+  background-size: 240% 100%;
+  animation: skills-library-skeleton-sweep 1.7s ease-in-out infinite;
+}
+
+.skills-library__loading-row {
+  display: grid;
+  gap: 9px;
+  min-height: 64px;
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.skills-library__loading-header > div:first-child {
+  display: grid;
+  gap: 9px;
+}
+
+@keyframes skills-library-skeleton-sweep {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skills-library__skeleton {
+    animation: none;
+    background: var(--surface-alt);
+  }
+}
+
 .skills-library__modal {
   padding: 0;
 }

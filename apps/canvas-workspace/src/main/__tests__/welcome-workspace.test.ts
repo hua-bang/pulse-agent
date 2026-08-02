@@ -27,7 +27,7 @@ async function writeManifest(payload: unknown): Promise<void> {
 }
 
 describe('welcome workspace seed', () => {
-  it('seeds a first-run workspace with welcome notes and a local download card', async () => {
+  it('seeds a focused empty first-run workspace', async () => {
     const result = await ensureWelcomeWorkspaceSeeded(root, 'zh');
 
     expect(result).toEqual({ seeded: true, workspaceId: WELCOME_WORKSPACE_ID });
@@ -39,63 +39,25 @@ describe('welcome workspace seed', () => {
     ]);
 
     const canvas = await readCanvasFull(WELCOME_WORKSPACE_ID, root);
-    expect(canvas.data?.nodes).toHaveLength(3);
-    expect(canvas.data?.transform).toEqual({
-      x: 86.65451428822593,
-      y: 15.931529823069752,
-      scale: 0.5567047770115934,
-    });
-
-    const note = canvas.data?.nodes?.find((node) => node.type === 'file');
-    const iframe = canvas.data?.nodes?.find((node) => node.type === 'iframe');
-    const detail = canvas.data?.nodes?.find((node) => node.title === 'Pulse Canvas 使用详细');
-
-    expect(note?.title).toBe('欢迎使用 Pulse Canvas');
-    expect(note).toMatchObject({ x: 56, y: 80, width: 503, height: 453 });
-    expect(note?.data?.content).toContain('Pulse Canvas 是一个本地优先的可视化工作区');
-    expect(typeof note?.data?.filePath).toBe('string');
-    expect(await fs.readFile(String(note?.data?.filePath), 'utf-8')).toContain('欢迎使用 Pulse Canvas');
-
-    expect(iframe?.title).toBe('Pulse Canvas Download');
-    expect(iframe).toMatchObject({ x: 648, y: 80, width: 1191, height: 1369 });
-    expect(iframe?.data).toMatchObject({
-      mode: 'html',
-      url: '',
-      html: '',
-    });
-    expect(iframe?.data?.localUrl).toContain('pulse-canvas://app/download-site/index.html?');
-    expect(iframe?.data?.localUrl).toContain('lang=zh');
-    expect(iframe?.data?.localUrl).toContain('manifest=https%3A%2F%2Fpulse-canvas-download.pages.dev%2Flatest.json');
-
-    expect(detail).toMatchObject({ x: 56, y: 584.5, width: 502, height: 853 });
-    expect(detail?.data?.content).toContain('## 1. 先把工作区连到项目');
-    expect(detail?.data?.content).toContain('Cmd/Ctrl+Shift+A');
-    expect(await fs.readFile(String(detail?.data?.filePath), 'utf-8')).toBe(detail?.data?.content);
-  });
-
-  it('seeds English welcome content when language is "en"', async () => {
-    const result = await ensureWelcomeWorkspaceSeeded(root, 'en');
-
-    expect(result).toEqual({ seeded: true, workspaceId: WELCOME_WORKSPACE_ID });
-
-    const canvas = await readCanvasFull(WELCOME_WORKSPACE_ID, root);
-    const note = canvas.data?.nodes?.find((node) => node.type === 'file' && node.id !== 'node-welcome-detail');
-    const detail = canvas.data?.nodes?.find((node) => node.id === 'node-welcome-detail');
-    const download = canvas.data?.nodes?.find((node) => node.id === 'node-welcome-download');
-
-    expect(note?.title).toBe('Welcome to Pulse Canvas');
-    expect(note?.data?.content).toContain('Pulse Canvas is a local-first visual workspace');
-    expect(detail?.title).toBe('Pulse Canvas — Detailed Usage');
-    expect(detail?.data?.content).toContain('## 1. Connect the workspace to your project');
-    expect(download?.data?.localUrl).toContain('lang=en');
+    expect(canvas.data?.nodes).toEqual([]);
+    expect(canvas.data?.edges).toEqual([]);
+    expect(canvas.data?.transform).toEqual({ x: 0, y: 0, scale: 1 });
   });
 
   it('migrates the untouched remote Welcome download node to local HTML', async () => {
     await ensureWelcomeWorkspaceSeeded(root, 'zh');
     const before = await readCanvasFull(WELCOME_WORKSPACE_ID, root);
-    const nodes = (before.data?.nodes ?? []).map((node) => node.id === 'node-welcome-download'
-      ? { ...node, data: { ...node.data, mode: 'url', url: 'https://pulse-canvas-download.pages.dev/', html: '' } }
-      : node);
+    const nodes = [{
+      id: 'node-welcome-download',
+      type: 'iframe' as const,
+      title: 'Pulse Canvas Download',
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+      data: { mode: 'url', url: 'https://pulse-canvas-download.pages.dev/', html: '' },
+      updatedAt: Date.now(),
+    }];
     await saveCanvas(WELCOME_WORKSPACE_ID, { ...before.data!, nodes }, { root });
 
     await expect(ensureWelcomeWorkspaceSeeded(root, 'zh')).resolves.toEqual({ seeded: false });

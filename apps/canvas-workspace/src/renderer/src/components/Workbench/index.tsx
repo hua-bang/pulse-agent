@@ -400,7 +400,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                     onNodePatchComplete={(requestId) => {
                       if (nodePatchRequest?.requestId === requestId) setNodePatchRequest(undefined);
                     }}
-                    onOpenAppSettings={onOpenAppSettings}
                     onSetRootFolder={onSetActiveRootFolder}
                   />
                 </div>
