@@ -52,10 +52,13 @@
   --surface-alt: rgba(0, 0, 0, 0.05);
   --surface-subtle: rgba(0, 0, 0, 0.02);
   --accent: #2383e2;
+  --accent-subtle: rgba(35, 131, 226, 0.04);
   --accent-light: rgba(35, 131, 226, 0.08);
+  --accent-hover: rgba(35, 131, 226, 0.12);
   --accent-border: rgba(35, 131, 226, 0.45);
   --accent-file: #d9730d;
   --accent-term: #0f7b6c;
+  --accent-term-light: rgba(15, 123, 108, 0.08);
   --accent-frame: #a594e0;
   /* Multi-role chat: fixed chip family + neutral speaker-badge fallbacks
      (per-role colors come inline from each message's stored snapshot). */
@@ -64,6 +67,7 @@
   --role-accent-soft: rgba(165, 148, 224, 0.18);
   --success: #1f7a4d;
   --error: #c0392b;
+  --error-light: rgba(192, 57, 43, 0.08);
   --text-warning: #b45309;
   --overlay-backdrop: rgba(32, 34, 37, 0.22);
   /* Canvas dim for focus mode and node fullscreen. One token because both
