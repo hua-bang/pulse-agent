@@ -32,6 +32,14 @@ interface Props {
   onReferenceToggle?: () => void;
 }
 
+// Keep lower-priority creation controls implemented for a future More menu,
+// while keeping the primary canvas toolbar focused for now.
+const TOOLBAR_SECONDARY_VISIBLE = {
+  shapes: false,
+  pluginNodes: false,
+  agentTeams: false,
+} as const;
+
 const tools: Array<{
   id: string;
   labelKey: I18nKey;
@@ -176,7 +184,7 @@ export const FloatingToolbar = ({
     () => optionsFromPluginStatus(pluginStatus),
     [pluginStatus],
   );
-  const showPluginTool = pluginOptions.length > 0;
+  const showPluginTool = TOOLBAR_SECONDARY_VISIBLE.pluginNodes && pluginOptions.length > 0;
 
   const loadPluginNodes = useCallback(async () => {
     const api = window.canvasWorkspace?.canvasPlugins;
@@ -194,10 +202,12 @@ export const FloatingToolbar = ({
   }, []);
 
   useEffect(() => {
+    if (!TOOLBAR_SECONDARY_VISIBLE.pluginNodes) return;
     void loadPluginNodes();
   }, [loadPluginNodes]);
 
   useEffect(() => {
+    if (!TOOLBAR_SECONDARY_VISIBLE.pluginNodes) return;
     const handleFocus = () => {
       void loadPluginNodes();
     };
@@ -286,7 +296,9 @@ export const FloatingToolbar = ({
             </button>
           );
         })}
-        <ShapeToolButton activeTool={activeTool} onToolChange={onToolChange} />
+        {TOOLBAR_SECONDARY_VISIBLE.shapes && (
+          <ShapeToolButton activeTool={activeTool} onToolChange={onToolChange} />
+        )}
       </div>
 
       <div className="toolbar-divider" />
@@ -390,7 +402,7 @@ export const FloatingToolbar = ({
           <CodingAgentIcon size={18} />
           <span className="toolbar-btn-label">{t('canvas.toolbar.coding')}</span>
         </button>
-        {onCreateAgentTeam && (
+        {TOOLBAR_SECONDARY_VISIBLE.agentTeams && onCreateAgentTeam && (
           <button
             className="toolbar-btn toolbar-btn--create"
             onClick={onCreateAgentTeam}
