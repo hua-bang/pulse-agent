@@ -124,6 +124,48 @@ candidates when tripped: default-browser (~250 LOC), Feishu channel
   First engine investment is a test baseline for the untested
   orchestrator module before new capability lands on top of it.
 
+## Positioning: where the standout ("亮眼") lives
+
+Competitive check (2026-08): the "infinite canvas + AI agents" category is
+being validated fast. Slashspace (local-first spatial multi-model canvas),
+Maestri (macOS orchestration canvas for coding agents), TermCanvas (parallel
+Claude Code/Codex/Gemini terminals on a canvas), QuantaCanvas, and MindPal
+Canvas all shipped or gained traction this year. Two consequences:
+
+1. **"Agents on a canvas" is becoming commodity.** Parallel-terminal and
+   orchestration canvases are already taken as demos. Do not compete there —
+   which independently confirms freezing agent-teams/multi-role investment.
+2. **"Canvas as the agent's context" is still open.** Competitors put agents
+   ON a canvas; none makes the canvas BE the shared, persistent context the
+   agent reads and writes, with provenance and resume. That is the standout
+   position, and it spans both focal points as one capability:
+   - **canvas-workspace**: spatial context is visible and manipulable —
+     a frame IS the agent's working set (spatial prompting); agent outputs
+     land as nodes with provenance edges to their sources; reopening restores
+     everything.
+   - **engine**: the first agent engine with a structured workspace-context
+     contract — context packs assembled from the node/edge/frame map with
+     budgets and priorities, compaction that respects spatial structure,
+     memory anchored to nodes. The engine's public story is "context
+     engine", not "another agent loop".
+
+## North-star demo (acceptance bar for "亮眼")
+
+Thirty seconds, no cuts:
+
+1. Drag a project folder, two web pages, and a note onto the canvas.
+2. Frame them; name the frame.
+3. Tell the frame's agent: "调研这些材料,出方案,跑通测试。"
+4. Watch the work happen spatially — a plan doc node appears, a terminal
+   node runs tests live, the result artifact pins itself, every produced
+   node wired by edges back to its sources.
+5. Quit the app. Reopen: everything is exactly there, sessions alive.
+6. Ask "上次做到哪了" — instant, correct resume from the map.
+
+Every P0/P1 item above is a prerequisite of this demo; anything that does
+not serve it should justify itself. Chat apps can't do steps 1–2, IDE agents
+can't do step 4's spatial provenance, orchestration canvases can't do 5–6.
+
 ## Non-goals (unchanged from product-design.md, plus)
 
 No browser, no IM platform, no generic app platform, no further multi-agent
