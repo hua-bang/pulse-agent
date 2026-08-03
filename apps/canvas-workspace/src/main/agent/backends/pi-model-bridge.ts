@@ -67,6 +67,13 @@ export async function preparePiModelBridge(
           baseUrl,
           api: isClaude ? 'anthropic-messages' : 'openai-completions',
           apiKey,
+          // Conservative compat mirrors the engine's actual request shape
+          // (plain `system` role, no reasoning_effort) AND survives the
+          // third-party OpenAI-compatible servers that reject either —
+          // pi's own docs recommend exactly this for such proxies.
+          ...(isClaude ? {} : {
+            compat: { supportsDeveloperRole: false, supportsReasoningEffort: false },
+          }),
           models: [{ id: model }],
         },
       },

@@ -53,6 +53,8 @@ describe('preparePiModelBridge', () => {
       baseUrl: 'https://api.deepseek.com/v1',
       api: 'openai-completions',
       apiKey: 'sk-third-party',
+      // Mirrors the engine's request shape and survives strict-ish proxies.
+      compat: { supportsDeveloperRole: false, supportsReasoningEffort: false },
       models: [{ id: 'deepseek-chat' }],
     });
     // Key material on disk stays user-only, matching the runtime-file trust model.
@@ -80,6 +82,7 @@ describe('preparePiModelBridge', () => {
     expect(written.providers.canvas.api).toBe('anthropic-messages');
     expect(written.providers.canvas.baseUrl).toBe('https://api.anthropic.com/v1');
     expect(written.providers.canvas.models).toEqual([{ id: 'claude-opus-4-6' }]);
+    expect(written.providers.canvas.compat).toBeUndefined();
     expect(bridge!.extraArgs).toEqual(['--provider', 'canvas', '--model', 'claude-opus-4-6']);
   });
 

@@ -104,9 +104,18 @@ export function consumePiStreamLine(
     const message = event.message;
     if (message?.role !== 'assistant') return;
     if (message.stopReason === 'error') {
-      state.errorMessage = typeof message.errorMessage === 'string' && message.errorMessage
+      const raw = typeof message.errorMessage === 'string' && message.errorMessage
         ? message.errorMessage
         : 'pi run failed';
+      // Abnormal stream endings usually mean a third-party OpenAI-compatible
+      // upstream whose SSE framing pi's client rejects — say so instead of
+      // leaving a bare protocol complaint in the failed-turn card.
+      state.errorMessage = /finish_reason|stream ended/i.test(raw)
+        ? `${raw} — the upstream's OpenAI-compatible stream ended abnormally; `
+          + 'this is usually a third-party proxy quirk. The canvas model bridge '
+          + 'already sends conservative compat flags; if it persists, try a '
+          + 'different model on that provider.'
+        : raw;
       return;
     }
     const text = assistantMessageText(message);

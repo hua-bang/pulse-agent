@@ -105,6 +105,16 @@ describe('pi json event parser', () => {
     expect(state.finalText).toBeUndefined();
   });
 
+  it('explains abnormal stream endings instead of surfacing the bare protocol complaint', () => {
+    const state = createPiStreamState();
+    consumePiStreamLine(state, JSON.stringify({
+      type: 'message_end',
+      message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'Stream ended without finish_reason' },
+    }), { onText: () => {} });
+    expect(state.errorMessage).toMatch(/third-party proxy quirk/);
+    expect(state.errorMessage).toContain('Stream ended without finish_reason');
+  });
+
   it('translates tool_execution events into chips, tolerating end-without-start', () => {
     const state = createPiStreamState();
     const calls: any[] = [];
