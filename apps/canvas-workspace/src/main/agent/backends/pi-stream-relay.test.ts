@@ -8,7 +8,7 @@ type UpstreamBehavior = (chunks: string[]) => string[];
 let upstream: Server | null = null;
 let lastAuth: string | undefined;
 
-async function startUpstream(events: string[]): Promise<string> {
+async function startUpstream(events: string[], separator = '\n\n'): Promise<string> {
   upstream = createServer((req, res) => {
     lastAuth = req.headers.authorization as string | undefined;
     if (req.url?.endsWith('/json-error')) {
@@ -17,7 +17,7 @@ async function startUpstream(events: string[]): Promise<string> {
       return;
     }
     res.writeHead(200, { 'content-type': 'text/event-stream' });
-    for (const event of events) res.write(`${event}\n\n`);
+    for (const event of events) res.write(`${event}${separator}`);
     res.end();
   });
   const port = await new Promise<number>((resolve) => {
@@ -77,6 +77,16 @@ describe('pi stream relay', () => {
     const events = await callThroughRelay(base);
     expect(finishReasons(events).filter(reason => reason === 'stop')).toHaveLength(1);
     expect(events.at(-1)).toBe('[DONE]');
+  });
+
+  it('normalizes CRLF-framed streams too (common proxy framing)', async () => {
+    const base = await startUpstream(
+      [chunk('你好', null), chunk(',世界', null), 'data: [DONE]'],
+      '\r\n\r\n',
+    );
+    const events = await callThroughRelay(base);
+    expect(events.at(-1)).toBe('[DONE]');
+    expect(finishReasons(events)).toContain('stop');
   });
 
   it('passes non-SSE responses through untouched', async () => {

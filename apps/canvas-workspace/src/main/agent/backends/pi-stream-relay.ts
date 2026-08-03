@@ -101,16 +101,19 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   };
 
   const reader = upstream.body.getReader();
+  // SSE event separator: LF-LF per spec, but many proxies emit CRLF framing —
+  // accept both, or a CRLF upstream would defeat the whole normalization.
+  const SEPARATOR = /\r?\n\r?\n/;
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      let split = buffer.indexOf('\n\n');
-      while (split >= 0) {
-        handleEvent(buffer.slice(0, split));
-        buffer = buffer.slice(split + 2);
-        split = buffer.indexOf('\n\n');
+      let match = SEPARATOR.exec(buffer);
+      while (match) {
+        handleEvent(buffer.slice(0, match.index));
+        buffer = buffer.slice(match.index + match[0].length);
+        match = SEPARATOR.exec(buffer);
       }
     }
     if (buffer.trim()) handleEvent(buffer.trimEnd());
