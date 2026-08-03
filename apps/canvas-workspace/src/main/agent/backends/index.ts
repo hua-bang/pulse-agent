@@ -3,8 +3,7 @@ import { EXPERIMENTAL_FLAG_PI_AGENT_HARNESS } from '../../../shared/experimental
 import { getExperimentalFlagSync } from '../../settings/experimental-ipc';
 import { engineTurnBackend } from './engine-backend';
 import { externalCliTurnBackend } from './external-cli-backend';
-import { piAgentHarnessTurnBackend } from './pi-agent-harness-backend';
-import type { AgentRuntime } from './types';
+import type { AgentRuntime, TurnSegmentRequest } from './types';
 
 export type {
   TurnBackend,
@@ -16,7 +15,35 @@ export type {
 } from './types';
 export { engineTurnBackend } from './engine-backend';
 export { externalCliTurnBackend } from './external-cli-backend';
-export { piAgentHarnessTurnBackend } from './pi-agent-harness-backend';
+
+let piBackendPromise: Promise<AgentRuntime> | undefined;
+const loadPiAgentHarnessTurnBackend = (): Promise<AgentRuntime> => {
+  piBackendPromise ??= import('./pi-agent-harness-backend')
+    .then(({ piAgentHarnessTurnBackend }) => piAgentHarnessTurnBackend);
+  return piBackendPromise;
+};
+
+/** Keep the experimental Pi runtime out of the default Engine startup chunk. */
+export const piAgentHarnessTurnBackend: AgentRuntime = {
+  id: 'pi-agent-harness',
+  capabilities: {
+    nativeCanvasTools: true,
+    clarifications: 'native',
+    historyFidelity: 'full',
+    sessionResume: 'host',
+    steering: 'native',
+    compaction: 'host',
+  },
+  async runSegment(request: TurnSegmentRequest) {
+    return (await loadPiAgentHarnessTurnBackend()).runSegment(request);
+  },
+  async steer(sessionId, text) {
+    return (await loadPiAgentHarnessTurnBackend()).steer?.(sessionId, text) ?? false;
+  },
+  async followUp(sessionId, text) {
+    return (await loadPiAgentHarnessTurnBackend()).followUp?.(sessionId, text) ?? false;
+  },
+};
 
 /**
  * Pick the backend for one segment. Roles with an external driver run on

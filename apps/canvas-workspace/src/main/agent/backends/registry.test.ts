@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRoleDefinition } from '../../../shared/agent-roles';
+import type { TurnSegmentRequest } from './types';
 import {
   engineTurnBackend,
   externalCliTurnBackend,
@@ -43,6 +44,12 @@ describe('resolveAgentRuntime', () => {
     expect(resolveAgentRuntime(null, { piEnabled: true })).toBe(piAgentHarnessTurnBackend);
     expect(resolveAgentRuntime(personaRole, { piEnabled: true })).toBe(engineTurnBackend);
     expect(resolveTurnBackend(null, { piEnabled: true })).toBe(piAgentHarnessTurnBackend);
+  });
+
+  it('loads the Pi implementation on the first Pi segment', async () => {
+    await expect(piAgentHarnessTurnBackend.runSegment({
+      abortSignal: AbortSignal.abort(),
+    } as TurnSegmentRequest)).rejects.toThrow('Pi AgentHarness run aborted');
   });
 });
 
