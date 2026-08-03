@@ -14,6 +14,8 @@ export interface ExternalSegmentRequest extends ExternalStreamHandlers {
   timeoutMs?: number;
   /** Extension files for CLIs that support them (pi `-e <path>`). */
   extensionPaths?: string[];
+  /** Extra argv appended after the family's base args (e.g. model pinning). */
+  extraArgs?: string[];
   /** Extra environment for the spawned CLI (e.g. workspace binding). */
   env?: Record<string, string>;
 }

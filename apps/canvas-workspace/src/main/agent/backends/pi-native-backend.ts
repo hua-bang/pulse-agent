@@ -10,6 +10,7 @@ import {
   saveExternalSessionId,
 } from '../external/state-store';
 import { requestAskModeApproval } from '../tool-policy';
+import { preparePiModelBridge } from './pi-model-bridge';
 import type { TurnBackend, TurnSegmentRequest, TurnSegmentResult } from './types';
 
 /**
@@ -117,8 +118,21 @@ export const piNativeTurnBackend: TurnBackend = {
     // workspace-scoped chats. Global/scheduled scopes have no workspace to
     // bind, so they run bare rather than shipping tools that can only error.
     const extensionPath = request.workspaceId ? resolvePiExtensionPath() : undefined;
-    const bridgeEnv = request.workspaceId && extensionPath
-      ? { PULSE_CANVAS_WORKSPACE_ID: request.workspaceId }
+
+    // Model parity: mirror the canvas model config into a pi custom provider
+    // so both backends call the SAME upstream (incl. third-party compatible
+    // APIs). Absent a usable key, fall back to the user's own pi config.
+    const modelBridge = await preparePiModelBridge(
+      request.configuredModel ?? request.modelConfig.model,
+    );
+
+    const bridgeEnv = (request.workspaceId && extensionPath) || modelBridge
+      ? {
+          ...(request.workspaceId && extensionPath
+            ? { PULSE_CANVAS_WORKSPACE_ID: request.workspaceId }
+            : {}),
+          ...(modelBridge?.env ?? {}),
+        }
       : undefined;
 
     const runOnce = async (resumeId: string | undefined) => {
@@ -135,6 +149,7 @@ export const piNativeTurnBackend: TurnBackend = {
         }),
         sessionId: resumeId,
         extensionPaths: extensionPath ? [extensionPath] : undefined,
+        extraArgs: modelBridge?.extraArgs,
         env: bridgeEnv,
         abortSignal: request.abortSignal,
         onText: request.onText,

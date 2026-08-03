@@ -231,7 +231,7 @@ function getConfigPath(): string {
   return envPath ?? join(homedir(), '.pulse-coder', 'canvas', 'model-config.json');
 }
 
-async function readConfig(): Promise<CanvasModelConfig> {
+export async function readConfig(): Promise<CanvasModelConfig> {
   const path = getConfigPath();
   try {
     const raw = await fs.readFile(path, 'utf8');
@@ -287,7 +287,7 @@ function flattenProviderOptions(config: CanvasModelConfig): CanvasModelOption[] 
   return [...(config.options ?? []), ...options];
 }
 
-function resolveEffectiveFields(config: CanvasModelConfig) {
+export function resolveEffectiveFields(config: CanvasModelConfig) {
   const provider = findCurrentProvider(config);
   const providerType = normalizeProviderType(provider?.provider_type ?? config.provider_type) ?? 'openai';
   const option = provider ? undefined : findCurrentOption(config);
@@ -315,7 +315,7 @@ function resolveEffectiveFields(config: CanvasModelConfig) {
   return { providerType, model, baseURL, apiKeyEnv, apiKey, headers, provider };
 }
 
-function sanitizeConfig(config: CanvasModelConfig): CanvasModelConfig {
+export function sanitizeConfig(config: CanvasModelConfig): CanvasModelConfig {
   const sanitized: CanvasModelConfig = {};
   const currentProvider = normalizeStr(config.current_provider);
   if (currentProvider) sanitized.current_provider = normalizeProviderId(currentProvider);

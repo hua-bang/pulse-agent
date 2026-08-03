@@ -125,9 +125,18 @@ decided at that point:
 
 Open items tracked for Phase 3: ModelMessage↔AgentMessage mapping
 (tool-call frames especially), clarify/approval story (pi has no native
-clarification — capability matrix drives UI degradation), model parity
-config (pin the SAME provider+model on both backends or comparisons are
-meaningless), and compaction ownership (pi-internal vs host).
+clarification — capability matrix drives UI degradation), and compaction
+ownership (pi-internal vs host). Model parity is SHIPPED: the pi-native
+backend mirrors the canvas model config (provider type, base URL, key,
+model id — third-party compatible APIs included) into a canvas-owned pi
+config dir (`~/.pulse-coder/canvas/pi-agent/models.json`, 0600, override
+`PULSE_CANVAS_PI_BRIDGE_DIR`) and pins it via `PI_CODING_AGENT_DIR` +
+`--provider canvas --model <id>`, so both backends call the SAME
+upstream; without a usable key it falls back to the user's own pi config.
+This also makes canvas-run pi hermetic (its sessions live under our dir,
+the user's personal `~/.pi` is untouched). Guard:
+`backends/pi-model-bridge.test.ts` + the provider/dir echo cases in
+`backends/pi-native-backend.test.ts`.
 
 ## Benchmark lane (parallel, headless — no UI coupling)
 

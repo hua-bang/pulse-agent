@@ -24,7 +24,8 @@ function installFakePi(): string {
     "  out({ type: 'message_update', message: { role: 'assistant', content: [] }, assistantMessageEvent: { type: 'text_delta', delta: '好的,' } });",
     "  out({ type: 'tool_execution_start', toolCallId: 'tc1', toolName: 'bash', args: { command: 'ls' } });",
     "  out({ type: 'tool_execution_end', toolCallId: 'tc1', toolName: 'bash', result: 'README.md', isError: false });",
-    "  const bridge = 'ws=' + (process.env.PULSE_CANVAS_WORKSPACE_ID || 'none') + ' ext=' + process.argv.includes('-e');",
+    "  const provider = process.argv.includes('--provider') ? process.argv[process.argv.indexOf('--provider') + 1] : 'own';",
+    "  const bridge = 'ws=' + (process.env.PULSE_CANVAS_WORKSPACE_ID || 'none') + ' ext=' + process.argv.includes('-e') + ' provider=' + provider + ' dir=' + Boolean(process.env.PI_CODING_AGENT_DIR);",
     "  out({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop', content: [{ type: 'text', text: '好的,已完成。' + bridge }] } });",
     '});',
   ].join('\n'));
@@ -37,12 +38,21 @@ beforeEach(() => {
   process.env.PULSE_CANVAS_EXTERNAL_AGENT_STATE = join(dir, 'state.json');
   process.env.PULSE_CANVAS_PI_NATIVE_CHAT = '1';
   process.env.PULSE_CANVAS_PI_CMD = installFakePi();
+  process.env.PULSE_CANVAS_PI_BRIDGE_DIR = join(dir, 'pi-agent');
+  // Pin the model-config source so the bridge never sees the test machine's
+  // real config or ambient provider keys: default = keyless (bridge off).
+  writeFileSync(join(dir, 'no-bridge-config.json'), JSON.stringify({
+    api_key_env: 'PULSE_TEST_UNSET_KEY',
+  }));
+  process.env.PULSE_CANVAS_MODEL_CONFIG = join(dir, 'no-bridge-config.json');
 });
 
 afterEach(() => {
   delete process.env.PULSE_CANVAS_EXTERNAL_AGENT_STATE;
   delete process.env.PULSE_CANVAS_PI_NATIVE_CHAT;
   delete process.env.PULSE_CANVAS_PI_CMD;
+  delete process.env.PULSE_CANVAS_PI_BRIDGE_DIR;
+  delete process.env.PULSE_CANVAS_MODEL_CONFIG;
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -84,20 +94,41 @@ describe('pi native backend (default assistant on pi)', () => {
       onToolResult: (e: { name: string }) => live.push(`result:${e.name}`),
     }) as never);
 
-    // The fake pi echoes its workspace binding and whether -e was passed —
-    // proving the bridge env + extension args actually reach the spawn.
-    expect(result.resultText).toBe('好的,已完成。ws=ws-test ext=true');
+    // The fake pi echoes its workspace binding, -e presence, and model
+    // pinning — proving env + extension + model-bridge args reach the spawn.
+    expect(result.resultText).toBe('好的,已完成。ws=ws-test ext=true provider=own dir=false');
     expect(result.streamedText).toBe('好的,');
     expect(live).toEqual(['call:bash', 'result:bash']);
     expect(result.externalToolCalls).toEqual([
       { id: 1, name: 'bash', toolCallId: 'tc1', status: 'succeeded', args: { command: 'ls' }, result: 'README.md' },
     ]);
-    expect(appended).toEqual([{ role: 'assistant', content: '好的,已完成。ws=ws-test ext=true' }]);
+    expect(appended).toEqual([
+      { role: 'assistant', content: '好的,已完成。ws=ws-test ext=true provider=own dir=false' },
+    ]);
+  });
+
+  it('pins the canvas model onto pi when the config carries a key (model-parity bridge)', async () => {
+    writeFileSync(join(dir, 'bridge-config.json'), JSON.stringify({
+      current_provider: 'deepseek',
+      current_model: 'deepseek-chat',
+      providers: [{
+        id: 'deepseek',
+        name: 'DeepSeek',
+        provider_type: 'openai',
+        base_url: 'https://api.deepseek.com/v1',
+        encrypted_api_key: `plain:${Buffer.from('sk-third-party', 'utf8').toString('base64')}`,
+        models: [{ id: 'deepseek-chat' }],
+      }],
+    }));
+    process.env.PULSE_CANVAS_MODEL_CONFIG = join(dir, 'bridge-config.json');
+
+    const result = await executeCanvasAgentSegment(segmentOptions({ workspaceId: 'ws-test' }) as never);
+    expect(result.resultText).toBe('好的,已完成。ws=ws-test ext=true provider=canvas dir=true');
   });
 
   it('runs a workspace-less (global/scheduled) chat bare — no bridge, no env', async () => {
     const result = await executeCanvasAgentSegment(segmentOptions() as never);
-    expect(result.resultText).toBe('好的,已完成。ws=none ext=false');
+    expect(result.resultText).toBe('好的,已完成。ws=none ext=false provider=own dir=false');
   });
 
   it('persists the announced session id and survives a stale resume via the shared retry', async () => {
@@ -105,7 +136,7 @@ describe('pi native backend (default assistant on pi)', () => {
     // Second turn resumes with the stored id; the fake fails resumes with a
     // stale-session error, so the retry runs once fresh and still succeeds.
     const second = await executeCanvasAgentSegment(segmentOptions({ currentAsk: '再来一次' }) as never);
-    expect(second.resultText).toBe('好的,已完成。ws=none ext=false');
+    expect(second.resultText).toBe('好的,已完成。ws=none ext=false provider=own dir=false');
   });
 });
 

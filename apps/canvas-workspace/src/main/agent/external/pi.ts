@@ -27,10 +27,15 @@ import {
 export const piCommand = (): string =>
   process.env.PULSE_CANVAS_PI_CMD?.trim() || 'pi';
 
-export function buildPiArgs(opts: { sessionId?: string; extensionPaths?: string[] }): string[] {
+export function buildPiArgs(opts: {
+  sessionId?: string;
+  extensionPaths?: string[];
+  extraArgs?: string[];
+}): string[] {
   const args = ['--mode', 'json', '-p'];
   if (opts.sessionId) args.push('--session', opts.sessionId);
   for (const path of opts.extensionPaths ?? []) args.push('-e', path);
+  args.push(...(opts.extraArgs ?? []));
   return args;
 }
 
@@ -152,7 +157,11 @@ export async function runPiSegment(request: ExternalSegmentRequest): Promise<Ext
   try {
     exit = await runJsonlCli({
       command,
-      args: buildPiArgs({ sessionId: request.sessionId, extensionPaths: request.extensionPaths }),
+      args: buildPiArgs({
+        sessionId: request.sessionId,
+        extensionPaths: request.extensionPaths,
+        extraArgs: request.extraArgs,
+      }),
       cwd: request.cwd,
       prompt: request.prompt,
       abortSignal: request.abortSignal,
