@@ -23,6 +23,8 @@ interface ExecuteCanvasAgentSegmentOptions {
   context: { messages: ModelMessage[] };
   role: AgentRoleDefinition | null;
   chatSessionId: string;
+  /** Present for workspace-scoped chats; global/scheduled scopes omit it. */
+  workspaceId?: string;
   workspaceRootFolder?: string;
   history: CanvasAgentMessage[];
   currentAsk: string;

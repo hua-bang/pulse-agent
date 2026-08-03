@@ -19,6 +19,8 @@ export interface JsonlCliRun {
   abortSignal: AbortSignal;
   timeoutMs?: number;
   onLine: (line: string) => void;
+  /** Extra environment merged over process.env for this run. */
+  env?: Record<string, string>;
 }
 
 export interface JsonlCliExit {
@@ -38,7 +40,7 @@ export async function runJsonlCli(run: JsonlCliRun): Promise<JsonlCliExit> {
     const child = spawn(run.command, run.args, {
       cwd: run.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: process.env,
+      env: run.env ? { ...process.env, ...run.env } : process.env,
     });
 
     let stdoutRest = '';

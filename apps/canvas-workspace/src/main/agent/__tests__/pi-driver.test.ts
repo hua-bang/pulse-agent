@@ -28,9 +28,11 @@ afterEach(() => {
 });
 
 describe('pi CLI wiring', () => {
-  it('builds headless json args, adding --session only on resume', () => {
+  it('builds headless json args, adding --session only on resume and -e per extension', () => {
     expect(buildPiArgs({})).toEqual(['--mode', 'json', '-p']);
     expect(buildPiArgs({ sessionId: 'abc-123' })).toEqual(['--mode', 'json', '-p', '--session', 'abc-123']);
+    expect(buildPiArgs({ extensionPaths: ['/opt/ext/pulse-canvas.ts'] }))
+      .toEqual(['--mode', 'json', '-p', '-e', '/opt/ext/pulse-canvas.ts']);
   });
 
   it('honors the PULSE_CANVAS_PI_CMD override through the family dispatch', () => {

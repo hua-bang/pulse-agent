@@ -79,7 +79,7 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     id: EXPERIMENTAL_FLAG_PI_NATIVE_CHAT,
     label: 'pi-backed AI Chat (A/B instrument)',
     description:
-      'Runs the DEFAULT AI Chat assistant on the local pi coding agent (pi.dev CLI, `pi` on PATH) instead of the built-in engine, for side-by-side harness comparison. Persona and external roles are unaffected. pi runs headless in the workspace root folder with its own tools and session continuity; canvas tools, memory injection, and clarification cards are not available on this backend yet. A measurement instrument, not a product mode — leave off unless comparing backends.',
+      'Runs the DEFAULT AI Chat assistant on the local pi coding agent (pi.dev CLI, `pi` on PATH) instead of the built-in engine, for side-by-side harness comparison. Persona and external roles are unaffected. pi runs headless in the workspace root folder with its own tools and session continuity; workspace chats also get a bridged canvas-tool subset (context read, node read/search, title/content update) over the local runtime-control server. Memory injection and clarification cards are not available on this backend. A measurement instrument, not a product mode — leave off unless comparing backends.',
     defaultEnabled: false,
     exposure: 'experimental',
   },

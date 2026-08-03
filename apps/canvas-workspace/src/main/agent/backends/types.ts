@@ -35,6 +35,8 @@ export interface TurnSegmentRequest {
   context: { messages: ModelMessage[] };
   role: AgentRoleDefinition | null;
   chatSessionId: string;
+  /** Present for workspace-scoped chats; global/scheduled scopes omit it. */
+  workspaceId?: string;
   workspaceRootFolder?: string;
   history: CanvasAgentMessage[];
   currentAsk: string;
@@ -72,8 +74,12 @@ export interface TurnSegmentResult {
 }
 
 export interface TurnBackendCapabilities {
-  /** Canvas tools (canvas_read_context, node creation, …) run natively. */
-  nativeCanvasTools: boolean;
+  /**
+   * Canvas tool reach: 'full' = the in-process Canvas Agent tool registry;
+   * 'subset' = the runtime-control bridge tools (read/operate tier);
+   * 'none' = file/shell only.
+   */
+  nativeCanvasTools: 'full' | 'subset' | 'none';
   /** How user-in-the-loop questions surface: engine clarification cards,
    *  Ask-mode approval gate, or not at all. */
   clarifications: 'native' | 'approval' | 'none';

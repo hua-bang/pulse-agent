@@ -54,7 +54,7 @@ describe('resolveTurnBackend', () => {
 describe('backend capability matrices', () => {
   it('declares the engine backend as the full-fidelity native backend', () => {
     expect(engineTurnBackend.capabilities).toEqual({
-      nativeCanvasTools: true,
+      nativeCanvasTools: 'full',
       clarifications: 'native',
       historyFidelity: 'full',
       sessionResume: 'host',
@@ -63,16 +63,16 @@ describe('backend capability matrices', () => {
 
   it('declares the external CLI backend as window-fidelity with CLI-owned sessions', () => {
     expect(externalCliTurnBackend.capabilities).toEqual({
-      nativeCanvasTools: false,
+      nativeCanvasTools: 'none',
       clarifications: 'approval',
       historyFidelity: 'window',
       sessionResume: 'cli',
     });
   });
 
-  it('declares the pi native backend honestly: no canvas tools yet, CLI sessions', () => {
+  it('declares the pi native backend with the bridge-tool subset and CLI sessions', () => {
     expect(piNativeTurnBackend.capabilities).toEqual({
-      nativeCanvasTools: false,
+      nativeCanvasTools: 'subset',
       clarifications: 'approval',
       historyFidelity: 'window',
       sessionResume: 'cli',

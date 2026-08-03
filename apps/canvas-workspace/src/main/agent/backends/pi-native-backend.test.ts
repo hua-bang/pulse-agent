@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { executeCanvasAgentSegment } from '../segment-execution';
-import { renderPiNativePrompt } from './pi-native-backend';
+import { renderPiNativePrompt, resolvePiExtensionPath } from './pi-native-backend';
 
 let dir: string;
 
@@ -24,7 +24,8 @@ function installFakePi(): string {
     "  out({ type: 'message_update', message: { role: 'assistant', content: [] }, assistantMessageEvent: { type: 'text_delta', delta: '好的,' } });",
     "  out({ type: 'tool_execution_start', toolCallId: 'tc1', toolName: 'bash', args: { command: 'ls' } });",
     "  out({ type: 'tool_execution_end', toolCallId: 'tc1', toolName: 'bash', result: 'README.md', isError: false });",
-    "  out({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop', content: [{ type: 'text', text: '好的,已完成。' }] } });",
+    "  const bridge = 'ws=' + (process.env.PULSE_CANVAS_WORKSPACE_ID || 'none') + ' ext=' + process.argv.includes('-e');",
+    "  out({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop', content: [{ type: 'text', text: '好的,已完成。' + bridge }] } });",
     '});',
   ].join('\n'));
   chmodSync(path, 0o755);
@@ -73,23 +74,30 @@ const segmentOptions = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('pi native backend (default assistant on pi)', () => {
-  it('runs the null-role segment on pi, collects chips, and appends the reply', async () => {
+  it('runs a workspace chat on pi WITH the canvas bridge attached', async () => {
     const appended: unknown[] = [];
     const live: string[] = [];
     const result = await executeCanvasAgentSegment(segmentOptions({
+      workspaceId: 'ws-test',
       appendMessages: (messages: unknown[]) => appended.push(...messages),
       onToolCall: (e: { name: string }) => live.push(`call:${e.name}`),
       onToolResult: (e: { name: string }) => live.push(`result:${e.name}`),
     }) as never);
 
-    expect(result.resultText).toBe('好的,已完成。');
+    // The fake pi echoes its workspace binding and whether -e was passed —
+    // proving the bridge env + extension args actually reach the spawn.
+    expect(result.resultText).toBe('好的,已完成。ws=ws-test ext=true');
     expect(result.streamedText).toBe('好的,');
     expect(live).toEqual(['call:bash', 'result:bash']);
     expect(result.externalToolCalls).toEqual([
       { id: 1, name: 'bash', toolCallId: 'tc1', status: 'succeeded', args: { command: 'ls' }, result: 'README.md' },
     ]);
-    expect(appended).toEqual([{ role: 'assistant', content: '好的,已完成。' }]);
-    expect(result.responseMessages).toEqual([{ role: 'assistant', content: '好的,已完成。' }]);
+    expect(appended).toEqual([{ role: 'assistant', content: '好的,已完成。ws=ws-test ext=true' }]);
+  });
+
+  it('runs a workspace-less (global/scheduled) chat bare — no bridge, no env', async () => {
+    const result = await executeCanvasAgentSegment(segmentOptions() as never);
+    expect(result.resultText).toBe('好的,已完成。ws=none ext=false');
   });
 
   it('persists the announced session id and survives a stale resume via the shared retry', async () => {
@@ -97,7 +105,17 @@ describe('pi native backend (default assistant on pi)', () => {
     // Second turn resumes with the stored id; the fake fails resumes with a
     // stale-session error, so the retry runs once fresh and still succeeds.
     const second = await executeCanvasAgentSegment(segmentOptions({ currentAsk: '再来一次' }) as never);
-    expect(second.resultText).toBe('好的,已完成。');
+    expect(second.resultText).toBe('好的,已完成。ws=none ext=false');
+  });
+});
+
+describe('resolvePiExtensionPath', () => {
+  it('honors the env override and falls back to the repo resources copy', () => {
+    process.env.PULSE_CANVAS_PI_EXTENSION = '/does/not/exist.ts';
+    expect(resolvePiExtensionPath()).toBeUndefined();
+    delete process.env.PULSE_CANVAS_PI_EXTENSION;
+    // vitest runs with cwd = apps/canvas-workspace, so the shipped file resolves.
+    expect(resolvePiExtensionPath()).toMatch(/resources[/\\]pi-extension[/\\]pulse-canvas\.ts$/);
   });
 });
 

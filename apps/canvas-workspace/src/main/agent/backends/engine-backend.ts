@@ -13,7 +13,7 @@ const CANVAS_AGENT_MAX_STEPS = 200;
 export const engineTurnBackend: TurnBackend = {
   id: 'engine',
   capabilities: {
-    nativeCanvasTools: true,
+    nativeCanvasTools: 'full',
     clarifications: 'native',
     historyFidelity: 'full',
     sessionResume: 'host',

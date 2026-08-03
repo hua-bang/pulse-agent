@@ -80,7 +80,30 @@ sessions. Guards: `backends/pi-native-backend.test.ts` (default-assistant
 e2e on a fake pi incl. chips, reply append, and stale-resume retry),
 `backends/registry.test.ts` (flag routing).
 
-**v2 (open): deepen toward full-fidelity.** Two integration options,
+**v2-B SHIPPED (canvas-tool bridge):** workspace-scoped pi chats now get
+canvas tools through pi's own extension system. The app ships
+`resources/pi-extension/pulse-canvas.ts` (extraResources → `pi-extension/`
+packaged, env override `PULSE_CANVAS_PI_EXTENSION`), attached per run via
+`-e` with `PULSE_CANVAS_WORKSPACE_ID` injected. The extension registers
+`canvas_context_read` / `canvas_node_read` / `canvas_nodes_search` /
+`canvas_node_update` (title/content only — registry-enforced), each
+calling `POST /capabilities/call` on the loopback runtime-control server
+with the bearer secret discovered per call from
+`~/.pulse-coder/canvas-runtime/canvas-workspace.json` — the same channel
+and read/operate tier as the pulse-canvas CLI; the unsafe tier is never
+reachable. Server-side this landed with a new read capability,
+`canvas.context.read` (summary | detailed), reusing the Canvas Agent's
+context-builder. Global/scheduled chats run bare (no workspace to bind).
+Capability matrix: `nativeCanvasTools` is now `'full' | 'subset' | 'none'`
+— engine full, pi-native subset, external CLIs none. The extension also
+works standalone: `pi -e .../pulse-canvas.ts` with
+`PULSE_CANVAS_WORKSPACE_ID` set. Guards:
+`runtime/capabilities/context-capabilities.test.ts`,
+`__tests__/pi-extension.test.ts` (discovery, HTTP client, registration,
+execution), `backends/pi-native-backend.test.ts` (bridge env + `-e`
+reaching the spawn, bare fallback).
+
+**v2-full (open): deepen toward full-fidelity.** Two integration options,
 decided at that point:
 
 1. **SDK embed (preferred for depth)** — `@earendil-works/pi-agent-core`

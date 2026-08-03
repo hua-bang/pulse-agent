@@ -63,6 +63,10 @@
     ],
     "extraResources": [
       {
+        "from": "resources/pi-extension",
+        "to": "pi-extension"
+      },
+      {
         "from": "../../packages/canvas-cli/dist",
         "to": "agent-tooling/canvas-cli",
         "filter": [

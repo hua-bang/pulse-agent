@@ -1,3 +1,6 @@
+import { existsSync } from 'fs';
+import { join } from 'path';
+
 import type { CanvasAgentMessage, CanvasAgentToolCall } from '../types';
 import { resolveExternalCwd } from '../external/cwd';
 import { runPiSegment } from '../external/pi';
@@ -28,6 +31,23 @@ const RESUME_FAILURE_RE = /session|conversation|resume/i;
 const HISTORY_WINDOW = 12;
 const MESSAGE_CHAR_CAP = 2000;
 
+/**
+ * Locate the shipped Pulse Canvas bridge extension (canvas tools over the
+ * runtime-control server). Override with PULSE_CANVAS_PI_EXTENSION; dev runs
+ * read it from the repo, packaged runs from extraResources. Missing file →
+ * undefined, and the run proceeds bare (file/shell tools only).
+ */
+export function resolvePiExtensionPath(): string | undefined {
+  const override = process.env.PULSE_CANVAS_PI_EXTENSION?.trim();
+  if (override) return existsSync(override) ? override : undefined;
+  const candidates: string[] = [];
+  if (process.resourcesPath) {
+    candidates.push(join(process.resourcesPath, 'pi-extension', 'pulse-canvas.ts'));
+  }
+  candidates.push(join(process.cwd(), 'resources', 'pi-extension', 'pulse-canvas.ts'));
+  return candidates.find(candidate => existsSync(candidate));
+}
+
 export function renderPiNativePrompt(opts: {
   cwd: string;
   history: CanvasAgentMessage[];
@@ -56,7 +76,11 @@ export function renderPiNativePrompt(opts: {
 export const piNativeTurnBackend: TurnBackend = {
   id: 'pi-native',
   capabilities: {
-    nativeCanvasTools: false,
+    // 'subset': the bridge extension exposes runtime-control canvas tools
+    // (context read, node read/search, title/content update) — not the full
+    // in-process registry. Workspace-scoped chats only; global/scheduled
+    // scopes run bare (file/shell) because no workspace is bound.
+    nativeCanvasTools: 'subset',
     clarifications: 'approval',
     historyFidelity: 'window',
     sessionResume: 'cli',
@@ -89,6 +113,14 @@ export const piNativeTurnBackend: TurnBackend = {
     let toolCalls: CanvasAgentToolCall[] = [];
     let byId = new Map<string, CanvasAgentToolCall>();
 
+    // Canvas bridge: attach the shipped pi extension + workspace binding for
+    // workspace-scoped chats. Global/scheduled scopes have no workspace to
+    // bind, so they run bare rather than shipping tools that can only error.
+    const extensionPath = request.workspaceId ? resolvePiExtensionPath() : undefined;
+    const bridgeEnv = request.workspaceId && extensionPath
+      ? { PULSE_CANVAS_WORKSPACE_ID: request.workspaceId }
+      : undefined;
+
     const runOnce = async (resumeId: string | undefined) => {
       toolCalls = [];
       byId = new Map();
@@ -102,6 +134,8 @@ export const piNativeTurnBackend: TurnBackend = {
           resumed: !!resumeId,
         }),
         sessionId: resumeId,
+        extensionPaths: extensionPath ? [extensionPath] : undefined,
+        env: bridgeEnv,
         abortSignal: request.abortSignal,
         onText: request.onText,
         onToolCall: (event) => {

@@ -12,7 +12,7 @@ import type { TurnBackend, TurnSegmentRequest, TurnSegmentResult } from './types
 export const externalCliTurnBackend: TurnBackend = {
   id: 'external-cli',
   capabilities: {
-    nativeCanvasTools: false,
+    nativeCanvasTools: 'none',
     clarifications: 'approval',
     historyFidelity: 'window',
     sessionResume: 'cli',

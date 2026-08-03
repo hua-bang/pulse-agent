@@ -286,9 +286,18 @@ role only — persona/external roles unaffected) to the local pi CLI when
 the `pi-native-chat` experimental flag (or the
 `PULSE_CANVAS_PI_NATIVE_CHAT` env escape hatch) is on — an A/B
 measurement instrument per `docs/09-agent-backend-boundary.md`, default
-off. Guards: `src/main/agent/segment-execution.test.ts`,
+off. Workspace-scoped pi chats attach the shipped canvas bridge
+extension (`resources/pi-extension/pulse-canvas.ts`, `-e` per run +
+`PULSE_CANVAS_WORKSPACE_ID`; override `PULSE_CANVAS_PI_EXTENSION`): pi
+gets `canvas_context_read` / `canvas_node_read` / `canvas_nodes_search` /
+`canvas_node_update` over the loopback runtime-control server at the
+pulse-cli read/operate tier (backed by the `canvas.context.read`
+capability). Global/scheduled scopes run bare. `nativeCanvasTools` in the
+matrix is `'full' | 'subset' | 'none'` — engine full, pi-native subset,
+external CLIs none. Guards: `src/main/agent/segment-execution.test.ts`,
 `src/main/agent/backends/registry.test.ts`,
-`src/main/agent/backends/pi-native-backend.test.ts`.
+`src/main/agent/backends/pi-native-backend.test.ts`,
+`src/main/agent/__tests__/pi-extension.test.ts`.
 
 - Headless CLI spawn: Claude Code runs as `claude -p --output-format
   stream-json --verbose --include-partial-messages` (`buildClaudeCodeArgs`
