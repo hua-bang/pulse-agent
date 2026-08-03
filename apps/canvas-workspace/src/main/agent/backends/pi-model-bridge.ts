@@ -2,7 +2,12 @@ import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 
-import { readConfig, resolveEffectiveFields, sanitizeConfig } from '../model/config';
+import {
+  readConfig,
+  resolveEffectiveFields,
+  sanitizeConfig,
+} from '../model/config';
+import { normalizeVersionedAPIBaseURL } from '../model/urls';
 import { ensurePiStreamRelay } from './pi-stream-relay';
 
 /**
@@ -54,8 +59,11 @@ export async function preparePiModelBridge(
   if (!apiKey || !model) return undefined;
 
   const isClaude = resolved.providerType === 'claude';
-  const upstreamBaseUrl = resolved.baseURL?.trim()
+  const configuredBaseUrl = resolved.baseURL?.trim()
     || DEFAULT_BASE_URLS[isClaude ? 'claude' : 'openai'];
+  const upstreamBaseUrl = isClaude
+    ? configuredBaseUrl
+    : normalizeVersionedAPIBaseURL(configuredBaseUrl);
   // OpenAI-compatible upstreams go through the loopback SSE-normalizing
   // relay: pi's client rejects streams that never carry finish_reason
   // (verified against the real CLI), which the engine tolerates — the relay

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs';
+import { createServer } from 'http';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -63,6 +64,49 @@ describe('preparePiModelBridge', () => {
     expect(written.providers.canvas.baseUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
     // Key material on disk stays user-only, matching the runtime-file trust model.
     expect(statSync(join(agentDir, 'models.json')).mode & 0o777).toBe(0o600);
+  });
+
+  it('preserves Canvas root-base semantics by forwarding pi requests through /v1', async () => {
+    let requestedPath: string | undefined;
+    const upstream = createServer((req, res) => {
+      requestedPath = req.url;
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end('data: [DONE]\n\n');
+    });
+    const port = await new Promise<number>((resolve) => {
+      upstream.listen(0, '127.0.0.1', () => {
+        resolve((upstream.address() as { port: number }).port);
+      });
+    });
+
+    try {
+      writeModelConfig({
+        current_provider: 'gateway',
+        current_model: 'gateway-model',
+        providers: [{
+          id: 'gateway',
+          provider_type: 'openai',
+          base_url: `http://127.0.0.1:${port}`,
+          encrypted_api_key: plainKey('sk-gateway'),
+          models: [{ id: 'gateway-model' }],
+        }],
+      });
+
+      const bridge = await preparePiModelBridge();
+      const written = JSON.parse(readFileSync(
+        join(bridge!.env.PI_CODING_AGENT_DIR, 'models.json'),
+        'utf-8',
+      ));
+      await fetch(`${written.providers.canvas.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'gateway-model', stream: true, messages: [] }),
+      });
+
+      expect(requestedPath).toBe('/v1/chat/completions');
+    } finally {
+      await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    }
   });
 
   it('honors the per-scope model override and claude → anthropic-messages mapping', async () => {

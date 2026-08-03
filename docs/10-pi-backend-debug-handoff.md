@@ -2,10 +2,10 @@
 
 Date: 2026-08-03
 Branch: `claude/canvas-workspace-planning-m7ca4o`
-Status: user still reports failure on their machine with a third-party
-OpenAI-compatible provider; container-side evidence says the shipped chain
-works against reproduced quirks. This doc is the complete handoff for a
-local agent to close the gap.
+Status: RESOLVED on the user's machine. The real Canvas UI and standalone pi
+0.83 CLI both complete successfully against the configured third-party
+OpenAI-compatible provider after the root-base normalization fix described
+below.
 
 ## Symptom timeline
 
@@ -28,6 +28,17 @@ local agent to close the gap.
 3. User reports "还是不行" after (2) — NO new error log captured yet.
    Unverified whether the failure is the same message, whether the running
    build includes the relay, or whether the relay engaged.
+4. Local reproduction found two stacked failures. First, pi was absent and
+   Canvas failed with `spawn pi ENOENT`; installing
+   `@earendil-works/pi-coding-agent@0.83.0` removed that blocker. The next run
+   reproduced `Stream ended without finish_reason` even though the relay was
+   engaged. The configured OpenAI-compatible base URL was an unversioned host
+   root. Canvas model discovery interprets that as a root and probes `/v1`,
+   but the pi bridge forwarded `/chat/completions` at the root and received
+   the gateway's HTML frontend. FIXED by normalizing unversioned OpenAI base
+   URLs to `/v1` before configuring the relay. A bridge+relay regression test
+   pins `/v1/chat/completions`. Real Canvas returned `PI_OK`; standalone pi
+   returned `PI_CLI_OK` with `stopReason:"stop"`.
 
 ## Current architecture (all on this branch)
 
@@ -69,36 +80,42 @@ Proven (real pi 0.83, dev container):
 - stale `--session` resume error matches the shared retry regex;
 - 429 tests green across backends/driver/extension/bridge/relay suites.
 
-Assumed (NOT yet verified on the user's machine):
-- the user's proxy's exact SSE framing and finish behavior;
-- that their running dist includes `b6398be`+;
-- that the relay engaged (models.json baseUrl should be loopback);
-- their model id and whether pi's catalog treats it specially.
+Proven on the user's machine:
+- pi 0.83 is installed and the bridge selects the configured Canvas model;
+- the relay engages with a loopback base URL;
+- the upstream emits standard SSE with `finish_reason:"stop"` and `[DONE]`;
+- before the fix, the relay requested the unversioned HTML route; after the
+  fix, real Canvas returned `PI_OK` and standalone pi returned `PI_CLI_OK`
+  with `stopReason:"stop"`.
 
-## Ranked suspects for the remaining failure
+Still unverified: compatibility with other gateways whose unversioned roots
+do not follow Canvas's `/v1` convention.
 
-1. **Stale build**: old dist without bridge/relay. Check first.
-2. ~~CRLF-framed SSE~~ — the relay only split events on `\n\n` until
-   HEAD; CRLF (`\r\n\r\n`) framing is common among proxies and would have
-   bypassed normalization entirely. HARDENED at HEAD (accepts both) but
-   unverified against the user's proxy.
-3. Proxy quirks beyond framing: `event:`-prefixed lines, multi-`data:`
-   events, non-`text/event-stream` content-type despite streaming (relay
-   then passes through un-normalized — check response headers), HTTP/2-only
-   endpoints, gzip with unusual transfer-encoding.
-4. A DIFFERENT error than finish_reason (no log captured for round 3) —
-   e.g. approval gate, cwd resolution, extension load failure, or the
-   engine path erroring before pi is even reached.
+## Resolved local root cause
+
+The provider returned a fully compliant stream, including
+`finish_reason:"stop"` and `[DONE]`, at `/v1/chat/completions`. The relay was
+instead requesting `/chat/completions` because it preserved the configured
+root URL verbatim. That route returned `text/html` with the gateway frontend;
+pi surfaced the misleading finish-reason error after receiving no completion
+events. `normalizeVersionedAPIBaseURL()` now gives model discovery and the pi
+bridge one root-or-versioned URL convention.
 
 ## Debug checklist for the local agent (in order)
 
-1. `git log --oneline -3` → confirm ≥ `b6398be` (relay) or HEAD (CRLF
-   hardening); `pnpm --filter canvas-workspace build`; relaunch.
+1. Confirm the branch contains relay normalization, CRLF handling, and
+   `normalizeVersionedAPIBaseURL`; `pnpm --filter canvas-workspace build`;
+   relaunch.
 2. Reproduce once; capture the EXACT error text + main-process log lines
    around `[canvas-agent-service]`.
-3. `cat ~/.pulse-coder/canvas/pi-agent/models.json` — baseUrl MUST be
-   `http://127.0.0.1:<port>` while the app runs. Real upstream URL there =
-   relay not engaged (stale build or claude-typed provider).
+3. Inspect bridge metadata without printing the plaintext key:
+
+   ```bash
+   node --input-type=module -e 'import fs from "node:fs"; const m=JSON.parse(fs.readFileSync(process.env.HOME+"/.pulse-coder/canvas/pi-agent/models.json","utf8")).providers.canvas; console.log({baseUrl:m.baseUrl,models:m.models?.map(x=>x.id),apiKeyPresent:Boolean(m.apiKey)})'
+   ```
+
+   `baseUrl` MUST be `http://127.0.0.1:<port>` while the app runs. A real
+   upstream URL there means the relay did not engage.
 4. Bypass the app entirely:
    `PI_CODING_AGENT_DIR=~/.pulse-coder/canvas/pi-agent pi --mode json -p --no-session --provider canvas --model <id> "hi"`
    (app must be running for the relay port to be live). Success here =
