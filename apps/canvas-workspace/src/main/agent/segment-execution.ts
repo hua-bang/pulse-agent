@@ -2,6 +2,7 @@ import type { ModelMessage } from 'ai';
 import type { Engine } from 'pulse-coder-engine';
 
 import type { AgentRoleDefinition } from '../../shared/agent-roles';
+import type { AgentClarificationRequest } from '../../shared/agent-chat';
 import type { ResolvedCanvasModel } from './model/config';
 import type {
   CanvasAgentDebugTrace,
@@ -9,14 +10,10 @@ import type {
   CanvasAgentToolCall,
 } from './types';
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
-import { resolveTurnBackend } from './backends';
+import { resolveAgentRuntime } from './backends';
 import { ENGINE_ABORT_SENTINEL } from './chat-stop';
 
-type ClarificationHandler = (request: {
-  id: string;
-  question: string;
-  context?: string;
-}) => Promise<string>;
+type ClarificationHandler = (request: AgentClarificationRequest) => Promise<string>;
 
 interface ExecuteCanvasAgentSegmentOptions {
   engine: Engine;
@@ -46,7 +43,7 @@ interface ExecuteCanvasAgentSegmentOptions {
 
 /**
  * Execute one chat segment on whichever backend the role routes to
- * (`resolveTurnBackend`). This executor owns the backend-AGNOSTIC policies,
+ * (`resolveAgentRuntime`). This executor owns the runtime-agnostic policies,
  * which must behave identically for every backend:
  *
  * - `streamedText` accumulation, independent of what the backend returns or
@@ -78,7 +75,7 @@ export async function executeCanvasAgentSegment(
     responseMessages.push(...messages);
   };
 
-  const backend = resolveTurnBackend(options.role);
+  const backend = resolveAgentRuntime(options.role);
   try {
     const result = await backend.runSegment({
       ...options,

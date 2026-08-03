@@ -21,4 +21,4 @@ pathRules:
       - src/built-in/**
       - src/tools/index.ts
     required:
-      - node harness/tools/describe-engine.mjs --json
+      - node packages/engine/harness/tools/describe-engine.mjs --json

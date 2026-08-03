@@ -16,18 +16,19 @@ normalization) is backend-agnostic already. The only engine-specific seam is
 dispatched two ways (built-in engine vs external CLI drivers). The boundary
 formalizes that dispatch; nothing above it changes.
 
-## Phase 1 — TurnBackend boundary (SHIPPED with this doc)
+## Unified AgentRuntime boundary
 
 `src/main/agent/backends/`:
 
-- `types.ts` — `TurnBackend { id, capabilities, runSegment(request) }`,
-  `TurnSegmentRequest/Result`, and `TurnBackendCapabilities`
+- `types.ts` — `AgentRuntime { id, capabilities, runSegment(request) }`,
+  `TurnSegmentRequest/Result`, and `AgentRuntimeCapabilities`
   (`nativeCanvasTools`, `clarifications: native|approval|none`,
   `historyFidelity: full|window`, `sessionResume: host|cli`).
 - `engine-backend.ts` — the engine.run branch, verbatim.
 - `external-cli-backend.ts` — the external CLI branch, verbatim.
-- `index.ts` — `resolveTurnBackend(role)`: external driver → CLI backend,
-  else engine. The single extension point for new backends.
+- `index.ts` — `resolveAgentRuntime(role)`: external driver → CLI runtime;
+  default assistant → Engine or Pi; persona roles → Engine. Deprecated
+  `TurnBackend` / `resolveTurnBackend` aliases keep the first seam compatible.
 
 The executor keeps the backend-agnostic policies: `streamedText`
 accumulation (now on BOTH paths — previously the engine path skipped the
@@ -35,57 +36,61 @@ accumulator, so a hard-stopped engine segment lost its partial text from
 the persisted session, contradicting agent-roles.md; code now matches the
 documented rule), one `recordResponseMessages` recorder, and abort
 normalization. Guards: `segment-execution.test.ts` (3 cases),
-`backends/registry.test.ts` (5 cases).
+`backends/registry.test.ts`.
 
-## Phase 2 — pi as an external role family (cheap, optional but useful)
+## Embedded Pi AgentHarness runtime (shipped)
 
-Add `family: 'pi'` to `AGENT_ROLE_EXTERNAL_FAMILIES` with a `pi.ts` adapter
-beside `claude-code.ts`/`codex.ts`:
+The default assistant can run on embedded
+`@earendil-works/pi-agent-core@0.83.0`; this intentionally does not depend on
+`pi-coding-agent`, spawn a CLI, write Pi config files, or run an HTTP/SSE tool
+bridge. Enable **Pi AgentHarness runtime** in Settings → Experimental. For
+automation, `PULSE_CANVAS_AGENT_RUNTIME=pi|engine` overrides the persisted
+choice.
 
-- Spawn: `pi --mode json -p <prompt via stdin>` (LDJSON events), or RPC
-  mode if session flags require it.
-- Events: map pi's `message_update` deltas → `onText`;
-  `tool_execution_start/end` → the shared `startTool`/`finishTool` helpers.
-- Resume: pi session id per (chat-session × role) in the existing
-  external-agent-state store.
-- Env override `PULSE_CANVAS_PI_CMD`; probe via `pi --version`.
+- Canvas model configuration remains the credential/model SSOT. The adapter
+  creates an in-memory Pi provider with the same model, base URL, headers, and
+  API key. OpenAI providers use `openai-responses`, matching
+  `@ai-sdk/openai` v3's callable-provider default; Anthropic providers use
+  `anthropic-messages`. A real request against the configured custom gateway
+  caught and pinned this distinction.
+- Canvas/Engine remains the tool registry and policy SSOT. All tools are
+  registered with Pi, but initial visibility comes from
+  `Engine.createToolSession()`. Every execution returns through that session,
+  preserving schema validation, before/after tool hooks, ask-mode/PTC,
+  dynamic policy prompts, skills, MCP tools, and deferred-tool loading.
+- Canvas's full host history is supplied rather than a rendered discussion
+  window. Text, reasoning, assistant tool-call frames, structured tool
+  results, and image tool results map back to Canvas. Historical user image
+  and file parts are not yet rehydrated into Pi, so `historyFidelity: full`
+  describes host-history ownership, not byte-for-byte multimodal fidelity.
+  Canvas owns cross-turn persistence and compaction; Pi owns its within-turn
+  model/tool loop. This avoids two competing durable session stores.
+- Pi text/tool events feed the existing Canvas stream and persistence path.
+  Abort is linked to `AgentHarness.abort()`. Active runs expose native
+  `steer()` / `followUp()` on the runtime contract for host integrations;
+  the current Canvas UI has no steering control yet.
+- Provider failures are raised as failed Canvas turns rather than persisted as
+  empty successes.
 
-Value: @pi vs @engine in ONE group chat = immediate harness feel
-comparison (persona-window fidelity), zero new surfaces. Measures raw
-harness quality, NOT native integration depth — say so wherever results
-are shown.
+The current capability matrix is:
 
-## Phase 3 — pi as a native default backend
+| Runtime | Native Canvas tools | Clarification | History | Compaction | Steering |
+|---|---:|---|---|---|---|
+| Engine | yes | native | full / host | native | none |
+| Pi AgentHarness | yes | native through Engine tools | full / host | host | native |
+| External CLI role | no | approval | window / CLI | CLI | none |
 
-`piTurnBackend` implementing `TurnBackend`, selected for the DEFAULT
-assistant (null role) by per-scope config behind an experimental flag
-(dev instrument, not a product feature — per the focus plan's
-no-orchestration-platform stance).
+## Compatibility evidence
 
-Two integration options, decided at implementation time:
+Upstream Pi packages declare Node `>=22.19.0`, while Electron 30.5.1 embeds
+Node 20.16.0. The production Canvas bundle builds, and
+`pnpm --filter canvas-workspace smoke:pi-electron` launches a real Electron
+main process, constructs `AgentHarness + InMemorySessionRepo + fauxProvider`,
+and must print `ELECTRON_PI_OK`. The smoke is bound in the Canvas harness
+validation because package metadata alone cannot answer runtime compatibility.
 
-1. **SDK embed (preferred for depth)** — `@earendil-works/pi-agent-core`
-   in the Electron main process: `new Agent({ initialState: {
-   systemPrompt, model, tools, messages } })`. Canvas tools
-   (`createCanvasTools(workspaceId)`) adapt to pi `AgentTool`s (same
-   process, same functions). Pi events (`message_update`,
-   `tool_execution_*`) map onto the request's `onText`/`onToolCall`/
-   `onToolResult`. `agent.abort()` wires to the segment's AbortSignal.
-   System prompt and injected workspace context carry over unchanged
-   (they're strings we already assemble). Capability matrix:
-   `nativeCanvasTools: true, clarifications: 'none' (first cut),
-   historyFidelity: 'full' (map ModelMessage ↔ AgentMessage),
-   sessionResume: 'host'`.
-2. **RPC subprocess (preferred for isolation)** — pi's RPC mode with
-   JSONL framing; keeps pi's dependency tree out of the app bundle;
-   costs message mapping over a process boundary and per-turn spawn/
-   session management.
-
-Open items tracked for Phase 3: ModelMessage↔AgentMessage mapping
-(tool-call frames especially), clarify/approval story (pi has no native
-clarification — capability matrix drives UI degradation), model parity
-config (pin the SAME provider+model on both backends or comparisons are
-meaningless), and compaction ownership (pi-internal vs host).
+This proves the paths Canvas uses today; it does not erase the upstream engine
+range. Re-run the smoke whenever Pi or Electron is upgraded.
 
 ## Benchmark lane (parallel, headless — no UI coupling)
 

@@ -1,7 +1,7 @@
 import type { ModelMessage } from 'ai';
 
 import { buildEngineStreamCallbacks } from '../engine-stream-callbacks';
-import type { TurnBackend, TurnSegmentRequest, TurnSegmentResult } from './types';
+import type { AgentRuntime, TurnSegmentRequest, TurnSegmentResult } from './types';
 
 const CANVAS_AGENT_MAX_STEPS = 200;
 
@@ -10,13 +10,15 @@ const CANVAS_AGENT_MAX_STEPS = 200;
  * model history, with canvas tools, native clarifications, and compaction
  * write-back through `replaceMessages`.
  */
-export const engineTurnBackend: TurnBackend = {
+export const engineTurnBackend: AgentRuntime = {
   id: 'engine',
   capabilities: {
     nativeCanvasTools: true,
     clarifications: 'native',
     historyFidelity: 'full',
     sessionResume: 'host',
+    steering: 'none',
+    compaction: 'native',
   },
   async runSegment(request: TurnSegmentRequest): Promise<TurnSegmentResult> {
     const resultText = await request.engine.run(request.context, {

@@ -1,7 +1,7 @@
 import type { ModelMessage } from 'ai';
 
 import { runExternalRoleSegment } from '../external/segment';
-import type { TurnBackend, TurnSegmentRequest, TurnSegmentResult } from './types';
+import type { AgentRuntime, TurnSegmentRequest, TurnSegmentResult } from './types';
 
 /**
  * The external coding-agent CLI backend (Claude Code / Codex families).
@@ -9,13 +9,15 @@ import type { TurnBackend, TurnSegmentRequest, TurnSegmentResult } from './types
  * shared model history by hand because an external CLI never calls the
  * engine's onResponse.
  */
-export const externalCliTurnBackend: TurnBackend = {
+export const externalCliTurnBackend: AgentRuntime = {
   id: 'external-cli',
   capabilities: {
     nativeCanvasTools: false,
     clarifications: 'approval',
     historyFidelity: 'window',
     sessionResume: 'cli',
+    steering: 'none',
+    compaction: 'cli',
   },
   async runSegment(request: TurnSegmentRequest): Promise<TurnSegmentResult> {
     const role = request.role;

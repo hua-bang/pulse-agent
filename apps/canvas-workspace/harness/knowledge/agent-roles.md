@@ -268,7 +268,7 @@ cwd? }` (`AgentRoleExternalDriver`, families enumerated in
 `AGENT_ROLE_EXTERNAL_FAMILIES`) routes that role's segments to
 `src/main/agent/external/` instead of the built-in engine, via the turn
 backend boundary (`src/main/agent/backends/`): `executeCanvasAgentSegment`
-(`src/main/agent/segment-execution.ts`) resolves `resolveTurnBackend(role)`
+(`src/main/agent/segment-execution.ts`) resolves `resolveAgentRuntime(role)`
 — a role with an external driver runs on `externalCliTurnBackend`, which
 calls `runExternalRoleSegment` (`src/main/agent/external/segment.ts`);
 everything else runs on `engineTurnBackend` (`engine.run(...)`). The
@@ -278,11 +278,11 @@ BOTH paths (a hard-stopped engine segment preserves its partial text the
 same way an external one does), collects response messages through one
 `recordResponseMessages` recorder, and applies the stopped-vs-failed abort
 normalization below. Each backend declares a capability matrix
-(`nativeCanvasTools`, `clarifications`, `historyFidelity`,
-`sessionResume`) for future per-backend UI degradation; additional native
-backends (e.g. a pi-backed default assistant — see
-`docs/09-agent-backend-boundary.md`) plug in at `resolveTurnBackend`
-without touching the chat pipeline. Guards:
+(`nativeCanvasTools`, `clarifications`, `historyFidelity`, `sessionResume`,
+`steering`, `compaction`). The default assistant can switch to the embedded
+Pi AgentHarness runtime through Settings → Experimental while persona roles
+continue on Engine; see `docs/09-agent-backend-boundary.md`. Deprecated
+`TurnBackend` / `resolveTurnBackend` aliases remain for compatibility. Guards:
 `src/main/agent/segment-execution.test.ts`,
 `src/main/agent/backends/registry.test.ts`.
 

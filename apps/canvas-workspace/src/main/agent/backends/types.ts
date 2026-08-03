@@ -2,6 +2,7 @@ import type { ModelMessage } from 'ai';
 import type { Engine } from 'pulse-coder-engine';
 
 import type { AgentRoleDefinition } from '../../../shared/agent-roles';
+import type { AgentClarificationRequest } from '../../../shared/agent-chat';
 import type { ResolvedCanvasModel } from '../model/config';
 import type {
   CanvasAgentDebugTrace,
@@ -18,16 +19,12 @@ import type { CanvasToolResultEvent } from '../engine-stream-callbacks';
  * collection, and stopped-vs-failed abort normalization — so a backend only
  * runs the model turn and reports what it produced.
  *
- * Implementations today: the built-in engine (`engine-backend.ts`) and the
- * external coding-agent CLIs (`external-cli-backend.ts`). A future native
- * backend (e.g. pi) plugs in here without touching the chat pipeline.
+ * Implementations today: the built-in Engine, embedded Pi AgentHarness, and
+ * external coding-agent CLIs. New runtimes plug in here without touching the
+ * chat pipeline.
  */
 
-type ClarificationHandler = (request: {
-  id: string;
-  question: string;
-  context?: string;
-}) => Promise<string>;
+type ClarificationHandler = (request: AgentClarificationRequest) => Promise<string>;
 
 export interface TurnSegmentRequest {
   /** Engine instance for the built-in backend; unused by CLI backends. */
@@ -71,7 +68,7 @@ export interface TurnSegmentResult {
   toolCalls?: CanvasAgentToolCall[];
 }
 
-export interface TurnBackendCapabilities {
+export interface AgentRuntimeCapabilities {
   /** Canvas tools (canvas_read_context, node creation, …) run natively. */
   nativeCanvasTools: boolean;
   /** How user-in-the-loop questions surface: engine clarification cards,
@@ -82,10 +79,23 @@ export interface TurnBackendCapabilities {
   historyFidelity: 'full' | 'window';
   /** Who owns resumable conversation state across segments. */
   sessionResume: 'host' | 'cli';
+  /** Whether an in-flight run accepts pi-style steer/follow-up input. */
+  steering: 'native' | 'none';
+  /** Which layer owns context compaction. */
+  compaction: 'native' | 'host' | 'cli';
 }
 
-export interface TurnBackend {
+export interface AgentRuntime {
   id: 'engine' | 'external-cli' | (string & {});
-  capabilities: TurnBackendCapabilities;
+  capabilities: AgentRuntimeCapabilities;
   runSegment(request: TurnSegmentRequest): Promise<TurnSegmentResult>;
+  /** Queue an instruction at the next safe boundary of an active run. */
+  steer?(sessionId: string, text: string): Promise<boolean>;
+  /** Queue a new turn after the current active run settles. */
+  followUp?(sessionId: string, text: string): Promise<boolean>;
 }
+
+/** @deprecated Use AgentRuntime; retained while callers migrate names. */
+export type TurnBackend = AgentRuntime;
+/** @deprecated Use AgentRuntimeCapabilities. */
+export type TurnBackendCapabilities = AgentRuntimeCapabilities;

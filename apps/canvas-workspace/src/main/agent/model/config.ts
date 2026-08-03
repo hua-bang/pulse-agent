@@ -85,6 +85,8 @@ export interface ResolvedCanvasModel {
   model: string;
   modelLabel: string;
   modelType?: ModelType;
+  /** Main-memory only; never expose through status IPC or debug traces. */
+  connection?: { baseURL?: string; apiKey?: string; headers?: Record<string, string> };
 }
 export interface FetchCanvasModelsInput {
   providerId?: string;
@@ -92,8 +94,8 @@ export interface FetchCanvasModelsInput {
 }
 
 const DEFAULT_CANVAS_MODEL = 'gpt-4o';
-const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
-const DEFAULT_CLAUDE_BASE_URL = 'https://api.anthropic.com';
+export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
+export const DEFAULT_CLAUDE_BASE_URL = 'https://api.anthropic.com';
 
 function normalizeStr(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
@@ -571,16 +573,8 @@ export async function resolveCanvasModel(): Promise<ResolvedCanvasModel> {
   const config = sanitizeConfig(await readConfig());
   const resolved = resolveEffectiveFields(config);
   const provider = resolved.providerType === 'claude'
-    ? buildProvider('claude', {
-        apiKey: resolved.apiKey,
-        baseURL: resolved.baseURL,
-        headers: resolved.headers,
-      })
-    : createOpenAI({
-        apiKey: resolved.apiKey,
-        baseURL: resolved.baseURL,
-        headers: resolved.headers,
-      });
+    ? buildProvider('claude', { apiKey: resolved.apiKey, baseURL: resolved.baseURL, headers: resolved.headers })
+    : createOpenAI({ apiKey: resolved.apiKey, baseURL: resolved.baseURL, headers: resolved.headers });
 
   return {
     providerId: resolved.provider?.id,
@@ -591,6 +585,7 @@ export async function resolveCanvasModel(): Promise<ResolvedCanvasModel> {
     modelLabel: normalizeProviderModels(resolved.provider?.models)
       .find((entry) => entry.id === resolved.model)?.name ?? resolved.model,
     modelType: resolved.providerType === 'claude' ? 'claude' : 'openai',
+    connection: { baseURL: resolved.baseURL, apiKey: resolved.apiKey, headers: resolved.headers },
   };
 }
 
