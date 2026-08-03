@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { AgentRoleDefinition } from '../../../shared/agent-roles';
-import { buildPiArgs, consumePiStreamLine, createPiStreamState, piCommand } from '../external/pi';
+import { buildPiArgs, consumePiStreamLine, createPiStreamState, piCommand, runPiSegment } from '../external/pi';
 import { externalCliCommand } from '../external/runner';
 import { runExternalRoleSegment } from '../external/segment';
 
@@ -40,6 +40,17 @@ describe('pi CLI wiring', () => {
     process.env.PULSE_CANVAS_PI_CMD = '/opt/custom/pi';
     expect(piCommand()).toBe('/opt/custom/pi');
     expect(externalCliCommand('pi')).toBe('/opt/custom/pi');
+  });
+
+  it('turns a missing binary into an actionable install hint', async () => {
+    process.env.PULSE_CANVAS_PI_CMD = join(dir, 'definitely-not-installed');
+    await expect(runPiSegment({
+      family: 'pi',
+      cwd: dir,
+      prompt: 'hi',
+      abortSignal: new AbortController().signal,
+      onText: () => {},
+    })).rejects.toThrow(/npm install -g @earendil-works\/pi-coding-agent/);
   });
 });
 

@@ -17,6 +17,13 @@ import './RolesSettings.css';
 const familyLabel = (family: AgentRoleExternalFamily): string =>
   family === 'claude-code' ? 'Claude Code' : family === 'codex' ? 'Codex' : 'pi';
 
+/** Shown when the CLI probe fails — mirrors AgentPicker's install guides. */
+const FAMILY_INSTALL_COMMANDS: Record<AgentRoleExternalFamily, string> = {
+  'claude-code': 'curl -fsSL https://claude.ai/install.sh | bash',
+  codex: 'npm install -g @openai/codex',
+  pi: 'npm install -g @earendil-works/pi-coding-agent',
+};
+
 interface UseAgentRolesResult {
   roles: AgentRoleDefinition[];
   loading: boolean;
@@ -311,6 +318,13 @@ export const RolesSection = ({ onClose }: RolesSectionProps) => {
                   {probe[draft.driver]?.status === 'ok' && `✓ ${probe[draft.driver].detail}`}
                   {probe[draft.driver]?.status === 'fail' && `✕ ${probe[draft.driver].detail}`}
                 </p>
+                {probe[draft.driver]?.status === 'fail' && (
+                  <p className="chat-roles-driver-hint">
+                    {t('roles.driverInstallHint')}
+                    {' '}
+                    <code>{FAMILY_INSTALL_COMMANDS[draft.driver]}</code>
+                  </p>
+                )}
                 <p className="chat-roles-driver-hint">{t('roles.driverHint')}</p>
               </>
             )}

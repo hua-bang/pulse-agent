@@ -140,20 +140,35 @@ export function consumePiStreamLine(
   }
 }
 
+export const PI_INSTALL_HINT =
+  'install pi with: npm install -g @earendil-works/pi-coding-agent '
+  + '(or point PULSE_CANVAS_PI_CMD at the binary)';
+
 export async function runPiSegment(request: ExternalSegmentRequest): Promise<ExternalSegmentResult> {
   const command = piCommand();
   const state = createPiStreamState();
 
-  const exit = await runJsonlCli({
-    command,
-    args: buildPiArgs({ sessionId: request.sessionId, extensionPaths: request.extensionPaths }),
-    cwd: request.cwd,
-    prompt: request.prompt,
-    abortSignal: request.abortSignal,
-    timeoutMs: request.timeoutMs,
-    env: request.env,
-    onLine: (line) => consumePiStreamLine(state, line, request),
-  });
+  let exit;
+  try {
+    exit = await runJsonlCli({
+      command,
+      args: buildPiArgs({ sessionId: request.sessionId, extensionPaths: request.extensionPaths }),
+      cwd: request.cwd,
+      prompt: request.prompt,
+      abortSignal: request.abortSignal,
+      timeoutMs: request.timeoutMs,
+      env: request.env,
+      onLine: (line) => consumePiStreamLine(state, line, request),
+    });
+  } catch (error) {
+    // A missing binary is the most common first-run failure — turn the bare
+    // spawn error into an actionable message for the failed-turn card.
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('Failed to launch')) {
+      throw new Error(`${message} — ${PI_INSTALL_HINT}`);
+    }
+    throw error;
+  }
 
   if (state.errorMessage) throw new Error(state.errorMessage);
   const text = state.finalText ?? state.parts.join('');
