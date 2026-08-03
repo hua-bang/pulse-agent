@@ -163,7 +163,7 @@ export const AgentRestart = ({
               type="button"
               className="agent-secondary-btn"
               onClick={onEdit}
-              title="Edit initial parameters"
+              title={t('agent.editParams')}
             >
               <PencilGlyph />
               {t('agent.editParams')}
