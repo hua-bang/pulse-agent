@@ -47,22 +47,28 @@ Flag `pi-native-chat` (Settings → Experimental; env escape hatch
 
 ```
 resolveTurnBackend(null role) → piNativeTurnBackend
-  → ask-mode approval → resolveExternalCwd (workspace root | scratch)
+  → resolveExternalCwd (workspace root | scratch)
   → preparePiModelBridge()
       reads canvas model config (same resolveEffectiveFields chain the
       engine uses) → writes <bridgeDir>/models.json (0600) with provider
       "canvas" (+ conservative compat for openai) → for openai-compatible
       upstreams baseUrl = ensurePiStreamRelay(upstream)  ← loopback relay
       returns env { PI_CODING_AGENT_DIR } + args [--provider canvas --model <id>]
-  → runPiSegment: spawn `pi --mode json -p [--session id] [-e extension] <args>`
+  → preparePiToolBridge(request.engine.createToolSession(...))
+      runs native visibility policy, writes the initial mode-0600 manifest,
+      and binds a short-lived bridge id plus independent 256-bit credential
+      to Engine/context/abort/clarification/execution mode
+  → runPiSegment: spawn `pi --mode json -p --no-builtin-tools [--session id] -e extension <args>`
       prompt via stdin; session id from stream header line; stale-resume retry
-  → workspace chats also attach resources/pi-extension/pulse-canvas.ts
-      (canvas tools over the runtime-control server, PULSE_CANVAS_WORKSPACE_ID)
+  → extension registers the policy-visible manifest and calls POST /pi-tools/call
+      → Engine tool session validates + runs native hooks; tool-search results
+        reconcile the complete policy-visible table for the next pi step
 ```
 
 Key files (`apps/canvas-workspace/src/main/agent/`):
 `backends/pi-native-backend.ts`, `backends/pi-model-bridge.ts`,
-`backends/pi-stream-relay.ts`, `external/pi.ts`, `external/spawn-jsonl.ts`,
+`backends/pi-stream-relay.ts`, `backends/pi-tool-bridge.ts`,
+`runtime/pi-tool-bridge-http.ts`, `external/pi.ts`, `external/spawn-jsonl.ts`,
 `resources/pi-extension/pulse-canvas.ts`; capability
 `runtime/capabilities/context-capabilities.ts`. Design: `docs/09`.
 
@@ -87,6 +93,11 @@ Proven on the user's machine:
 - before the fix, the relay requested the unversioned HTML route; after the
   fix, real Canvas returned `PI_OK` and standalone pi returned `PI_CLI_OK`
   with `stopReason:"stop"`.
+- a fresh real workspace pi turn received 29 immediate tools and successfully
+  executed `canvas_read_context({ detail: "summary" })`; another fresh turn
+  confirmed `scheduled_task_create` was initially hidden, then became callable
+  only after `tool_search_tool_bm25("create scheduled task")`, matching native
+  deferred-tool behavior. No write tool was executed during verification.
 
 Still unverified: compatibility with other gateways whose unversioned roots
 do not follow Canvas's `/v1` convention.
@@ -139,5 +150,5 @@ bridge one root-or-versioned URL convention.
   `pnpm --filter canvas-workspace harness start --headless`) was prepared
   but abandoned when the user moved debugging local; Electron binary +
   build already work in-container if wanted later.
-- Remaining roadmap: docs/09 v2-full (SDK embed) and the benchmark lane;
+- Remaining roadmap: full history fidelity and the benchmark lane;
   engine-side P0s (compaction write-back, session primitives) unstarted.

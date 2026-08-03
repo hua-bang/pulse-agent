@@ -70,9 +70,9 @@ describe('backend capability matrices', () => {
     });
   });
 
-  it('declares the pi native backend with the bridge-tool subset and CLI sessions', () => {
+  it('declares the pi native backend with the full Engine tool table and CLI sessions', () => {
     expect(piNativeTurnBackend.capabilities).toEqual({
-      nativeCanvasTools: 'subset',
+      nativeCanvasTools: 'full',
       clarifications: 'approval',
       historyFidelity: 'window',
       sessionResume: 'cli',

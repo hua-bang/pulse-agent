@@ -9,8 +9,8 @@ import {
   getExternalSessionId,
   saveExternalSessionId,
 } from '../external/state-store';
-import { requestAskModeApproval } from '../tool-policy';
 import { preparePiModelBridge } from './pi-model-bridge';
+import { preparePiToolBridge } from './pi-tool-bridge';
 import type { TurnBackend, TurnSegmentRequest, TurnSegmentResult } from './types';
 
 /**
@@ -77,31 +77,15 @@ export function renderPiNativePrompt(opts: {
 export const piNativeTurnBackend: TurnBackend = {
   id: 'pi-native',
   capabilities: {
-    // 'subset': the bridge extension exposes runtime-control canvas tools
-    // (context read, node read/search, title/content update) — not the full
-    // in-process registry. Workspace-scoped chats only; global/scheduled
-    // scopes run bare (file/shell) because no workspace is bound.
-    nativeCanvasTools: 'subset',
+    // The manifest and execution bridge are both derived from this scope's
+    // initialized Engine, so pi sees the same registered tools and hooks as
+    // the native backend. Built-in pi tools stay disabled to prevent bypass.
+    nativeCanvasTools: 'full',
     clarifications: 'approval',
     historyFidelity: 'window',
     sessionResume: 'cli',
   },
   async runSegment(request: TurnSegmentRequest): Promise<TurnSegmentResult> {
-    const approval = await requestAskModeApproval({
-      name: 'pi_native_chat',
-      operation: 'execute',
-      input: { currentAsk: request.currentAsk },
-      context: {
-        runContext: { executionMode: request.executionMode },
-        onClarificationRequest: request.onClarificationRequest,
-        abortSignal: request.abortSignal,
-        toolCallId: `pi-native:${request.chatSessionId}`,
-      },
-    });
-    if (!approval.approved) {
-      throw new Error(approval.error ?? 'pi-backed chat turn was not approved and did not run.');
-    }
-
     const cwd = await resolveExternalCwd({
       roleId: PI_NATIVE_STATE_ID,
       workspaceRootFolder: request.workspaceRootFolder,
@@ -114,26 +98,37 @@ export const piNativeTurnBackend: TurnBackend = {
     let toolCalls: CanvasAgentToolCall[] = [];
     let byId = new Map<string, CanvasAgentToolCall>();
 
-    // Canvas bridge: attach the shipped pi extension + workspace binding for
-    // workspace-scoped chats. Global/scheduled scopes have no workspace to
-    // bind, so they run bare rather than shipping tools that can only error.
-    const extensionPath = request.workspaceId ? resolvePiExtensionPath() : undefined;
-
+    // Full tool bridge: the extension registers a manifest generated from
+    // this scope's actual Engine tool table. Execution returns to the same
+    // Tool objects through the Engine tool session, preserving validation,
+    // workspace closures, Ask-mode policy, offload, and plugin hooks.
+    const extensionPath = resolvePiExtensionPath();
+    if (!extensionPath) {
+      throw new Error('Pulse Canvas pi tool extension was not found; refusing to run with a partial tool set.');
+    }
     // Model parity: mirror the canvas model config into a pi custom provider
     // so both backends call the SAME upstream (incl. third-party compatible
     // APIs). Absent a usable key, fall back to the user's own pi config.
     const modelBridge = await preparePiModelBridge(
       request.configuredModel ?? request.modelConfig.model,
     );
+    // Create the ephemeral tool bridge only after persistent model setup has
+    // succeeded, so a config error cannot leak an active bridge or manifest.
+    const toolBridge = await preparePiToolBridge({
+      engine: request.engine,
+      context: request.context,
+      workspaceId: request.workspaceId ?? '',
+      executionMode: request.executionMode,
+      abortSignal: request.abortSignal,
+      onClarificationRequest: request.onClarificationRequest,
+      model: request.configuredModel ?? request.modelConfig.model,
+      systemPrompt: request.systemPrompt,
+    });
 
-    const bridgeEnv = (request.workspaceId && extensionPath) || modelBridge
-      ? {
-          ...(request.workspaceId && extensionPath
-            ? { PULSE_CANVAS_WORKSPACE_ID: request.workspaceId }
-            : {}),
-          ...(modelBridge?.env ?? {}),
-        }
-      : undefined;
+    const bridgeEnv = {
+      ...toolBridge.env,
+      ...(modelBridge?.env ?? {}),
+    };
 
     const runOnce = async (resumeId: string | undefined) => {
       toolCalls = [];
@@ -148,8 +143,10 @@ export const piNativeTurnBackend: TurnBackend = {
           resumed: !!resumeId,
         }),
         sessionId: resumeId,
-        extensionPaths: extensionPath ? [extensionPath] : undefined,
-        extraArgs: modelBridge?.extraArgs,
+        extensionPaths: [extensionPath],
+        // Disable pi's own read/bash/edit/write implementations so every
+        // visible tool — including those names — goes through Engine policy.
+        extraArgs: ['--no-builtin-tools', ...(modelBridge?.extraArgs ?? [])],
         env: bridgeEnv,
         abortSignal: request.abortSignal,
         onText: request.onText,
@@ -179,12 +176,16 @@ export const piNativeTurnBackend: TurnBackend = {
 
     let result;
     try {
-      result = await runOnce(sessionId);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (!sessionId || request.abortSignal.aborted || !RESUME_FAILURE_RE.test(message)) throw err;
-      await clearExternalSessionId(request.chatSessionId, PI_NATIVE_STATE_ID);
-      result = await runOnce(undefined);
+      try {
+        result = await runOnce(sessionId);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!sessionId || request.abortSignal.aborted || !RESUME_FAILURE_RE.test(message)) throw err;
+        await clearExternalSessionId(request.chatSessionId, PI_NATIVE_STATE_ID);
+        result = await runOnce(undefined);
+      }
+    } finally {
+      await toolBridge.dispose();
     }
 
     if (result.sessionId) {

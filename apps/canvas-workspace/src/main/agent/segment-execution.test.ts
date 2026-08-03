@@ -1,5 +1,5 @@
 import type { Engine } from 'pulse-coder-engine';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentRoleDefinition } from '../../shared/agent-roles';
 import { createFailedTurnToolTracker } from './chat-failure-persistence';
@@ -10,6 +10,14 @@ const runExternalRoleSegment = vi.hoisted(() => vi.fn());
 vi.mock('./external/segment', () => ({ runExternalRoleSegment }));
 
 import { executeCanvasAgentSegment } from './segment-execution';
+
+beforeEach(() => {
+  process.env.PULSE_CANVAS_PI_NATIVE_CHAT = '0';
+});
+
+afterEach(() => {
+  delete process.env.PULSE_CANVAS_PI_NATIVE_CHAT;
+});
 
 describe('executeCanvasAgentSegment', () => {
   it('normalizes an aborted external driver into stopped text and cancelled live tools', async () => {

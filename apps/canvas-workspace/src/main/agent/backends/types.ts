@@ -75,7 +75,7 @@ export interface TurnSegmentResult {
 
 export interface TurnBackendCapabilities {
   /**
-   * Canvas tool reach: 'full' = the in-process Canvas Agent tool registry;
+   * Canvas tool reach: 'full' = the current scope's initialized Engine tool registry;
    * 'subset' = the runtime-control bridge tools (read/operate tier);
    * 'none' = file/shell only.
    */

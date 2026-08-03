@@ -5,6 +5,11 @@ declare module 'pulse-coder-engine' {
   export const GenerateImageTool: any;
   export type ModelType = 'openai' | 'claude';
   export type LLMProviderFactory = (model: string) => any;
+  export interface EngineToolSession {
+    getTools(): Record<string, any>;
+    executeTool(name: string, input: unknown, toolContext?: any): Promise<unknown>;
+    dispose(result?: string): Promise<void>;
+  }
   export function buildProvider(type: ModelType, options?: any): LLMProviderFactory;
 
   export class Engine {
@@ -12,6 +17,7 @@ declare module 'pulse-coder-engine' {
     initialize(): Promise<void>;
     run(context: any, options?: any): Promise<string>;
     getTools(): Record<string, any>;
+    createToolSession(context: any, options?: any): Promise<EngineToolSession>;
     getService<T>(name: string): T | undefined;
     compactContext(context: any, options?: any): Promise<any>;
   }

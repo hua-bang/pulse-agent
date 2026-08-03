@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { z } from 'zod';
 import { executeCanvasAgentSegment } from '../segment-execution';
 import { renderPiNativePrompt, resolvePiExtensionPath } from './pi-native-backend';
 
@@ -25,7 +26,8 @@ function installFakePi(): string {
     "  out({ type: 'tool_execution_start', toolCallId: 'tc1', toolName: 'bash', args: { command: 'ls' } });",
     "  out({ type: 'tool_execution_end', toolCallId: 'tc1', toolName: 'bash', result: 'README.md', isError: false });",
     "  const provider = process.argv.includes('--provider') ? process.argv[process.argv.indexOf('--provider') + 1] : 'own';",
-    "  const bridge = 'ws=' + (process.env.PULSE_CANVAS_WORKSPACE_ID || 'none') + ' ext=' + process.argv.includes('-e') + ' provider=' + provider + ' dir=' + Boolean(process.env.PI_CODING_AGENT_DIR);",
+    "  const manifest = JSON.parse(require('fs').readFileSync(process.env.PULSE_CANVAS_PI_TOOL_MANIFEST, 'utf8'));",
+    "  const bridge = 'ws=' + (process.env.PULSE_CANVAS_WORKSPACE_ID || 'none') + ' ext=' + process.argv.includes('-e') + ' tools=' + manifest.tools.length + ' nobuiltin=' + process.argv.includes('--no-builtin-tools') + ' provider=' + provider + ' dir=' + Boolean(process.env.PI_CODING_AGENT_DIR);",
     "  out({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop', content: [{ type: 'text', text: '好的,已完成。' + bridge }] } });",
     '});',
   ].join('\n'));
@@ -56,32 +58,54 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const segmentOptions = (over: Record<string, unknown> = {}) => ({
-  engine: {} as never,
-  context: { messages: [] },
-  role: null,
-  chatSessionId: 'chat-native',
-  workspaceRootFolder: dir,
-  history: [
-    { role: 'user' as const, content: '之前的问题' },
-    { role: 'assistant' as const, content: '之前的回答' },
-  ] as never,
-  currentAsk: '看看目录',
-  handoffNames: [],
-  abortSignal: new AbortController().signal,
-  executionMode: 'auto' as const,
-  onText: vi.fn(),
-  modelConfig: {
-    providerType: 'openai' as const,
-    provider: vi.fn(),
-    model: 'test-model',
-    modelLabel: 'Test model',
-  },
-  systemPrompt: 'system',
-  appendMessages: vi.fn(),
-  replaceMessages: vi.fn(),
-  ...over,
-});
+const segmentOptions = (over: Record<string, unknown> = {}) => {
+  const tools = {
+    read: {
+      name: 'read',
+      description: 'Read a file.',
+      inputSchema: z.object({ path: z.string() }),
+      execute: vi.fn(),
+    },
+    canvas_create_node: {
+      name: 'canvas_create_node',
+      description: 'Create a canvas node.',
+      inputSchema: z.object({ title: z.string() }),
+      execute: vi.fn(),
+    },
+  };
+  return {
+    engine: {
+      createToolSession: async () => ({
+      getTools: () => tools,
+      executeTool: vi.fn(),
+      dispose: vi.fn(),
+      }),
+    } as never,
+    context: { messages: [] },
+    role: null,
+    chatSessionId: 'chat-native',
+    workspaceRootFolder: dir,
+    history: [
+      { role: 'user' as const, content: '之前的问题' },
+      { role: 'assistant' as const, content: '之前的回答' },
+    ] as never,
+    currentAsk: '看看目录',
+    handoffNames: [],
+    abortSignal: new AbortController().signal,
+    executionMode: 'auto' as const,
+    onText: vi.fn(),
+    modelConfig: {
+      providerType: 'openai' as const,
+      provider: vi.fn(),
+      model: 'test-model',
+      modelLabel: 'Test model',
+    },
+    systemPrompt: 'system',
+    appendMessages: vi.fn(),
+    replaceMessages: vi.fn(),
+    ...over,
+  };
+};
 
 describe('pi native backend (default assistant on pi)', () => {
   it('runs a workspace chat on pi WITH the canvas bridge attached', async () => {
@@ -96,14 +120,14 @@ describe('pi native backend (default assistant on pi)', () => {
 
     // The fake pi echoes its workspace binding, -e presence, and model
     // pinning — proving env + extension + model-bridge args reach the spawn.
-    expect(result.resultText).toBe('好的,已完成。ws=ws-test ext=true provider=own dir=false');
+    expect(result.resultText).toBe('好的,已完成。ws=ws-test ext=true tools=2 nobuiltin=true provider=own dir=false');
     expect(result.streamedText).toBe('好的,');
     expect(live).toEqual(['call:bash', 'result:bash']);
     expect(result.externalToolCalls).toEqual([
       { id: 1, name: 'bash', toolCallId: 'tc1', status: 'succeeded', args: { command: 'ls' }, result: 'README.md' },
     ]);
     expect(appended).toEqual([
-      { role: 'assistant', content: '好的,已完成。ws=ws-test ext=true provider=own dir=false' },
+      { role: 'assistant', content: '好的,已完成。ws=ws-test ext=true tools=2 nobuiltin=true provider=own dir=false' },
     ]);
   });
 
@@ -123,12 +147,12 @@ describe('pi native backend (default assistant on pi)', () => {
     process.env.PULSE_CANVAS_MODEL_CONFIG = join(dir, 'bridge-config.json');
 
     const result = await executeCanvasAgentSegment(segmentOptions({ workspaceId: 'ws-test' }) as never);
-    expect(result.resultText).toBe('好的,已完成。ws=ws-test ext=true provider=canvas dir=true');
+    expect(result.resultText).toBe('好的,已完成。ws=ws-test ext=true tools=2 nobuiltin=true provider=canvas dir=true');
   });
 
-  it('runs a workspace-less (global/scheduled) chat bare — no bridge, no env', async () => {
+  it('bridges the scope-selected global/scheduled tool table without a workspace env', async () => {
     const result = await executeCanvasAgentSegment(segmentOptions() as never);
-    expect(result.resultText).toBe('好的,已完成。ws=none ext=false provider=own dir=false');
+    expect(result.resultText).toBe('好的,已完成。ws=none ext=true tools=2 nobuiltin=true provider=own dir=false');
   });
 
   it('persists the announced session id and survives a stale resume via the shared retry', async () => {
@@ -136,7 +160,7 @@ describe('pi native backend (default assistant on pi)', () => {
     // Second turn resumes with the stored id; the fake fails resumes with a
     // stale-session error, so the retry runs once fresh and still succeeds.
     const second = await executeCanvasAgentSegment(segmentOptions({ currentAsk: '再来一次' }) as never);
-    expect(second.resultText).toBe('好的,已完成。ws=none ext=false provider=own dir=false');
+    expect(second.resultText).toBe('好的,已完成。ws=none ext=true tools=2 nobuiltin=true provider=own dir=false');
   });
 });
 

@@ -80,53 +80,40 @@ sessions. Guards: `backends/pi-native-backend.test.ts` (default-assistant
 e2e on a fake pi incl. chips, reply append, and stale-resume retry),
 `backends/registry.test.ts` (flag routing).
 
-**v2-B SHIPPED (canvas-tool bridge):** workspace-scoped pi chats now get
-canvas tools through pi's own extension system. The app ships
+**v2-full SHIPPED (Engine tool bridge):** pi chats now get the current
+scope's policy-visible Engine tool table through pi's extension system.
+The app ships
 `resources/pi-extension/pulse-canvas.ts` (extraResources → `pi-extension/`
 packaged, env override `PULSE_CANVAS_PI_EXTENSION`), attached per run via
-`-e` with `PULSE_CANVAS_WORKSPACE_ID` injected. The extension registers
-`canvas_context_read` / `canvas_node_read` / `canvas_nodes_search` /
-`canvas_node_update` (title/content only — registry-enforced), each
-calling `POST /capabilities/call` on the loopback runtime-control server
-with the bearer secret discovered per call from
-`~/.pulse-coder/canvas-runtime/canvas-workspace.json` — the same channel
-and read/operate tier as the pulse-canvas CLI; the unsafe tier is never
-reachable. Server-side this landed with a new read capability,
-`canvas.context.read` (summary | detailed), reusing the Canvas Agent's
-context-builder. Global/scheduled chats run bare (no workspace to bind).
-Capability matrix: `nativeCanvasTools` is now `'full' | 'subset' | 'none'`
-— engine full, pi-native subset, external CLIs none. The extension also
-works standalone: `pi -e .../pulse-canvas.ts` with
-`PULSE_CANVAS_WORKSPACE_ID` set. Guards:
-`runtime/capabilities/context-capabilities.test.ts`,
-`__tests__/pi-extension.test.ts` (discovery, HTTP client, registration,
-execution), `backends/pi-native-backend.test.ts` (bridge env + `-e`
-reaching the spawn, bare fallback).
+`-e`. Before spawning, main creates an Engine tool session that runs the same
+`beforeRun` and `beforeLLMCall` policies as native Canvas Agent, writes its
+initial table to a mode-0600 manifest, and binds a random, short-lived bridge id plus
+an independent 256-bit bridge credential to the
+Engine, workspace context, AbortSignal, clarification callback, and execution
+mode. The extension dynamically registers every manifest tool and calls the
+authenticated loopback `POST /pi-tools/call`; main executes it through the
+Engine tool session, including schema validation and the same before/after
+tool hooks used by native Canvas Agent. Tool-search results advance the native
+policy state and reconcile the complete visible tool table (including newly
+visible deferred tools, removals, and updated definitions) for
+pi's next step. This preserves Ask-mode approval,
+tool-result offload, plugin policy, cancellation, and workspace isolation.
+Pi launches with `--no-builtin-tools`, so its own file/shell tools cannot
+bypass Engine policy. Global chats receive the corresponding policy-filtered
+global Engine tool table; workspace chats receive the workspace table.
+The authenticated pi route accepts bounded 1 MiB inputs for large document and
+artifact patches; other runtime-control routes remain at 64 KiB. Capability matrix:
+engine and pi-native are `full`, external CLIs are `none`.
 
-**v2-full (open): deepen toward full-fidelity.** Two integration options,
-decided at that point:
+SDK embedding was rejected for this release because pi 0.83 requires Node
+22.19 while Electron 30 embeds Node 20. The subprocess boundary preserves
+runtime compatibility without duplicating Canvas tool implementations.
+Guards: `backends/pi-tool-bridge.test.ts`,
+`__tests__/pi-extension.test.ts`, `backends/pi-native-backend.test.ts`, and
+`packages/engine/src/Engine.tools.test.ts`.
 
-1. **SDK embed (preferred for depth)** — `@earendil-works/pi-agent-core`
-   in the Electron main process: `new Agent({ initialState: {
-   systemPrompt, model, tools, messages } })`. Canvas tools
-   (`createCanvasTools(workspaceId)`) adapt to pi `AgentTool`s (same
-   process, same functions). Pi events (`message_update`,
-   `tool_execution_*`) map onto the request's `onText`/`onToolCall`/
-   `onToolResult`. `agent.abort()` wires to the segment's AbortSignal.
-   System prompt and injected workspace context carry over unchanged
-   (they're strings we already assemble). Capability matrix:
-   `nativeCanvasTools: true, clarifications: 'none' (first cut),
-   historyFidelity: 'full' (map ModelMessage ↔ AgentMessage),
-   sessionResume: 'host'`.
-2. **RPC subprocess (preferred for isolation)** — pi's RPC mode with
-   JSONL framing; keeps pi's dependency tree out of the app bundle;
-   costs message mapping over a process boundary and per-turn spawn/
-   session management.
-
-Open items tracked for Phase 3: ModelMessage↔AgentMessage mapping
-(tool-call frames especially), clarify/approval story (pi has no native
-clarification — capability matrix drives UI degradation), and compaction
-ownership (pi-internal vs host). Model parity is SHIPPED: the pi-native
+Open fidelity items remain ModelMessage↔AgentMessage mapping (tool-call frames
+especially) and compaction ownership (pi-internal vs host). Model parity is SHIPPED: the pi-native
 backend mirrors the canvas model config (provider type, base URL, key,
 model id — third-party compatible APIs included) into a canvas-owned pi
 config dir (`~/.pulse-coder/canvas/pi-agent/models.json`, 0600, override

@@ -18,7 +18,9 @@ vi.mock('typebox', () => ({
 
 import piExtension, {
   callCapability,
+  createManifestTools,
   createPulseCanvasTools,
+  readPiToolManifest,
   readRuntimeInfo,
 } from '../../../../resources/pi-extension/pulse-canvas';
 
@@ -35,6 +37,10 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.PULSE_CANVAS_WORKSPACE_ID;
+  delete process.env.PULSE_CANVAS_PI_TOOL_MANIFEST;
+  delete process.env.PULSE_CANVAS_PI_TOOL_BRIDGE_ID;
+  delete process.env.PULSE_CANVAS_PI_TOOL_BRIDGE_SECRET;
+  delete process.env.PULSE_CANVAS_RUNTIME_FILE;
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -106,6 +112,106 @@ describe('tool registration and execution', () => {
       'canvas_nodes_search',
       'canvas_node_update',
     ]);
+  });
+
+  it('registers the engine-generated manifest instead of the fixed subset', () => {
+    const manifestPath = join(dir, 'tools.json');
+    writeFileSync(manifestPath, JSON.stringify({
+      version: 1,
+      tools: [
+        {
+          name: 'canvas_create_node',
+          label: 'Create node',
+          description: 'Create one node.',
+          parameters: { type: 'object', properties: { title: { type: 'string' } } },
+        },
+        {
+          name: 'memory_save',
+          label: 'Save memory',
+          description: 'Save memory.',
+          parameters: { type: 'object', properties: { content: { type: 'string' } } },
+        },
+      ],
+    }));
+    process.env.PULSE_CANVAS_PI_TOOL_MANIFEST = manifestPath;
+    process.env.PULSE_CANVAS_PI_TOOL_BRIDGE_ID = 'bridge-1';
+    process.env.PULSE_CANVAS_PI_TOOL_BRIDGE_SECRET = 'secret-1';
+    const registered: Array<{ name: string }> = [];
+
+    piExtension({ registerTool: (tool) => registered.push(tool as { name: string }) });
+
+    expect(readPiToolManifest(manifestPath).tools).toHaveLength(2);
+    expect(createManifestTools(manifestPath, 'bridge-1').map(tool => tool.name)).toEqual([
+      'canvas_create_node',
+      'memory_save',
+    ]);
+    expect(registered.map(tool => tool.name)).toEqual(['canvas_create_node', 'memory_save']);
+    delete process.env.PULSE_CANVAS_PI_TOOL_MANIFEST;
+    delete process.env.PULSE_CANVAS_PI_TOOL_BRIDGE_ID;
+    delete process.env.PULSE_CANVAS_PI_TOOL_BRIDGE_SECRET;
+  });
+
+  it('rejects malformed or duplicate manifest tool entries', () => {
+    const manifestPath = join(dir, 'bad-tools.json');
+    writeFileSync(manifestPath, JSON.stringify({
+      version: 1,
+      tools: [{ name: 'read' }, { name: 'read', parameters: [] }],
+    }));
+    expect(() => readPiToolManifest(manifestPath)).toThrow(/duplicate|invalid parameters/i);
+  });
+
+  it('registers newly policy-visible tools after tool search', async () => {
+    const manifestPath = join(dir, 'search-tools.json');
+    writeFileSync(manifestPath, JSON.stringify({
+      version: 1,
+      tools: [{
+        name: 'tool_search_tool_bm25',
+        description: 'Search deferred tools.',
+        parameters: { type: 'object', properties: { query: { type: 'string' } } },
+      }],
+    }));
+    process.env.PULSE_CANVAS_PI_TOOL_MANIFEST = manifestPath;
+    process.env.PULSE_CANVAS_PI_TOOL_BRIDGE_ID = 'bridge-search';
+    process.env.PULSE_CANVAS_PI_TOOL_BRIDGE_SECRET = 'secret-search';
+    process.env.PULSE_CANVAS_RUNTIME_FILE = runtimeFile;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      status: 200,
+      json: async () => ({
+        ok: true,
+        value: { tool_references: [{ tool_name: 'artifact_create' }] },
+        tools: [{
+          name: 'artifact_create',
+          description: 'Create an artifact.',
+          parameters: { type: 'object', properties: { title: { type: 'string' } } },
+        }, {
+          name: 'tool_search_tool_bm25',
+          description: 'Search deferred tools.',
+          parameters: { type: 'object', properties: { query: { type: 'string' } } },
+        }],
+        activeToolNames: ['artifact_create'],
+      }),
+    } as Response);
+    const registered: Array<{ name: string; execute: (...args: any[]) => Promise<unknown> }> = [];
+    let runtimeReady = false;
+    const setActiveTools = vi.fn(() => {
+      if (!runtimeReady) throw new Error('Extension runtime not initialized');
+    });
+    piExtension({
+      registerTool: tool => registered.push(tool as typeof registered[number]),
+      setActiveTools,
+    });
+
+    expect(registered.map(tool => tool.name)).toEqual(['tool_search_tool_bm25']);
+    expect(setActiveTools).not.toHaveBeenCalled();
+    runtimeReady = true;
+    await registered[0].execute('search-1', { query: 'artifact' });
+    expect(registered.map(tool => tool.name)).toEqual(['tool_search_tool_bm25', 'artifact_create']);
+    expect(setActiveTools).toHaveBeenLastCalledWith(['artifact_create']);
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toMatchObject({
+      bridgeId: 'bridge-search',
+      bridgeSecret: 'secret-search',
+    });
+    fetchMock.mockRestore();
   });
 
   it('executes a tool through the bridge and returns text content', async () => {

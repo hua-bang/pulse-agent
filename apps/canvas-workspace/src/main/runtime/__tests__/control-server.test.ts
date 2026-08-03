@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
+import { z } from 'zod';
+import type { Engine } from 'pulse-coder-engine';
 
 // Pin os.homedir() to a sandbox BEFORE control-server computes RUNTIME_DIR /
 // RUNTIME_FILE at module load, so the runtime file lands in a temp location.
@@ -40,6 +42,7 @@ import {
 import { readCanvasFull, writeCanvasFull } from '../../canvas/storage';
 import { getCanvasCapabilityRuntime } from '../capabilities';
 import { createHostRendererCapabilities } from '../capabilities/host-renderer-capabilities';
+import { preparePiToolBridge } from '../../agent/backends/pi-tool-bridge';
 
 for (const capability of createHostRendererCapabilities()) {
   getCanvasCapabilityRuntime().register(capability);
@@ -102,6 +105,7 @@ describe('runtime-control server lifecycle', () => {
     await stopRuntimeControlServer();
     await fs.rm(__test.RUNTIME_DIR, { recursive: true, force: true });
     await fs.rm(`${sandboxHome}/.pulse-coder/canvas/ws-runtime`, { recursive: true, force: true });
+    await fs.rm(`${sandboxHome}/.pulse-coder/canvas/pi-agent`, { recursive: true, force: true });
   });
 
   it('writes a runtime file describing the live server', async () => {
@@ -236,6 +240,58 @@ describe('runtime-control server lifecycle', () => {
       status: 400,
       body: { ok: false, error: { code: 'invalid_input' } },
     });
+  });
+
+  it('executes an active pi tool bridge only through the authenticated route', async () => {
+    await startRuntimeControlServer();
+    const runtime = await readRuntimeFile();
+    const executeTool = vi.fn(async () => ({ nodeCount: 3 }));
+    const tools = {
+      canvas_read_context: {
+        description: 'Read canvas context',
+        inputSchema: z.object({ detail: z.literal('summary') }),
+        execute: vi.fn(),
+      },
+    };
+    const engine = {
+      createToolSession: async () => ({ getTools: () => tools, executeTool, dispose: vi.fn() }),
+    } as unknown as Engine;
+    const bridge = await preparePiToolBridge({
+      engine,
+      context: { messages: [] },
+      workspaceId: 'ws-runtime',
+      executionMode: 'auto',
+      abortSignal: new AbortController().signal,
+    });
+
+    const body = {
+      bridgeId: bridge.id,
+      bridgeSecret: bridge.env.PULSE_CANVAS_PI_TOOL_BRIDGE_SECRET,
+      toolCallId: 'pi-call-1',
+      name: 'canvas_read_context',
+      input: { detail: 'summary' },
+    };
+    expect(await postRuntime(runtime, '/pi-tools/call', body, 'wrong')).toMatchObject({ status: 401 });
+    expect(await postRuntime(runtime, '/pi-tools/call', body)).toEqual({
+      status: 200,
+      body: {
+        ok: true,
+        value: { nodeCount: 3 },
+        tools: [expect.objectContaining({ name: 'canvas_read_context' })],
+        activeToolNames: ['canvas_read_context'],
+      },
+    });
+    expect(executeTool).toHaveBeenCalledWith(
+      'canvas_read_context',
+      { detail: 'summary' },
+      expect.objectContaining({ runContext: { executionMode: 'auto' } }),
+    );
+
+    const largeBody = { ...body, toolCallId: 'pi-call-large', input: { text: 'x'.repeat(70_000) } };
+    expect(await postRuntime(runtime, '/pi-tools/call', largeBody)).toMatchObject({ status: 200 });
+
+    await bridge.dispose();
+    expect(await postRuntime(runtime, '/pi-tools/call', body)).toMatchObject({ status: 404 });
   });
 
   it('validates stable page-control calls before executing them', async () => {
