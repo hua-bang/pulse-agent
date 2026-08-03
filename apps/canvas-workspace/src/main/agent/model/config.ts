@@ -3,6 +3,7 @@ import { homedir } from 'os';
 import { dirname, join, resolve } from 'path';
 import { createOpenAI } from '@ai-sdk/openai';
 import { buildProvider, type LLMProviderFactory, type ModelType } from 'pulse-coder-engine';
+import { buildModelsUrl } from './urls';
 
 export type CanvasModelProviderType = 'openai' | 'claude';
 
@@ -231,7 +232,7 @@ function getConfigPath(): string {
   return envPath ?? join(homedir(), '.pulse-coder', 'canvas', 'model-config.json');
 }
 
-async function readConfig(): Promise<CanvasModelConfig> {
+export async function readConfig(): Promise<CanvasModelConfig> {
   const path = getConfigPath();
   try {
     const raw = await fs.readFile(path, 'utf8');
@@ -287,7 +288,7 @@ function flattenProviderOptions(config: CanvasModelConfig): CanvasModelOption[] 
   return [...(config.options ?? []), ...options];
 }
 
-function resolveEffectiveFields(config: CanvasModelConfig) {
+export function resolveEffectiveFields(config: CanvasModelConfig) {
   const provider = findCurrentProvider(config);
   const providerType = normalizeProviderType(provider?.provider_type ?? config.provider_type) ?? 'openai';
   const option = provider ? undefined : findCurrentOption(config);
@@ -315,7 +316,7 @@ function resolveEffectiveFields(config: CanvasModelConfig) {
   return { providerType, model, baseURL, apiKeyEnv, apiKey, headers, provider };
 }
 
-function sanitizeConfig(config: CanvasModelConfig): CanvasModelConfig {
+export function sanitizeConfig(config: CanvasModelConfig): CanvasModelConfig {
   const sanitized: CanvasModelConfig = {};
   const currentProvider = normalizeStr(config.current_provider);
   if (currentProvider) sanitized.current_provider = normalizeProviderId(currentProvider);
@@ -494,24 +495,6 @@ export async function resetCanvasModelConfig(): Promise<CanvasModelStatus> {
   return await getCanvasModelStatus();
 }
 
-function joinUrl(baseURL: string, path: string): string {
-  return `${baseURL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-}
-
-function buildOpenAIModelsUrl(baseURL: string): string {
-  const trimmed = baseURL.replace(/\/+$/, '');
-  if (/\/models$/i.test(trimmed)) return trimmed;
-  if (/\/v\d+$/i.test(trimmed)) return joinUrl(trimmed, '/models');
-  return joinUrl(joinUrl(trimmed, '/v1'), '/models');
-}
-
-function buildClaudeModelsUrl(baseURL: string): string {
-  const trimmed = baseURL.replace(/\/+$/, '');
-  if (/\/models$/i.test(trimmed)) return trimmed;
-  if (/\/v\d+$/i.test(trimmed)) return joinUrl(trimmed, '/models');
-  return joinUrl(joinUrl(trimmed, '/v1'), '/models');
-}
-
 function parseModelsPayload(payload: unknown): CanvasProviderModel[] {
   const data = payload && typeof payload === 'object' ? (payload as any).data : undefined;
   const list = Array.isArray(data) ? data : Array.isArray(payload) ? payload : [];
@@ -555,7 +538,7 @@ export async function fetchCanvasProviderModels(input: FetchCanvasModelsInput): 
     }
   }
 
-  const modelsUrl = providerType === 'claude' ? buildClaudeModelsUrl(baseURL) : buildOpenAIModelsUrl(baseURL);
+  const modelsUrl = buildModelsUrl(baseURL);
   const response = await fetch(modelsUrl, { headers });
   if (!response.ok) {
     const text = await response.text().catch(() => '');

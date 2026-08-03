@@ -263,13 +263,41 @@ tokens instead of erroring.
 
 ## Externally-driven roles (local coding-agent CLIs)
 
-Setting `AgentRoleDefinition.external = { family: 'claude-code' | 'codex',
-cwd? }` (`AgentRoleExternalDriver`, families enumerated in
+Setting `AgentRoleDefinition.external = { family: 'claude-code' | 'codex'
+| 'pi', cwd? }` (`AgentRoleExternalDriver`, families enumerated in
 `AGENT_ROLE_EXTERNAL_FAMILIES`) routes that role's segments to
-`src/main/agent/external/` instead of the built-in engine:
-`executeCanvasAgentSegment` (`src/main/agent/segment-execution.ts`)
-branches on `options.role?.external` and calls `runExternalRoleSegment`
-(`src/main/agent/external/segment.ts`) instead of `engine.run(...)`.
+`src/main/agent/external/` instead of the built-in engine, via the turn
+backend boundary (`src/main/agent/backends/`): `executeCanvasAgentSegment`
+(`src/main/agent/segment-execution.ts`) resolves `resolveTurnBackend(role)`
+— a role with an external driver runs on `externalCliTurnBackend`, which
+calls `runExternalRoleSegment` (`src/main/agent/external/segment.ts`);
+everything else runs on `engineTurnBackend` (`engine.run(...)`). The
+executor keeps the backend-AGNOSTIC policies for every backend: it
+pre-wraps `onText` so streamed deltas accumulate into `streamedText` on
+BOTH paths (a hard-stopped engine segment preserves its partial text the
+same way an external one does), collects response messages through one
+`recordResponseMessages` recorder, and applies the stopped-vs-failed abort
+normalization below. Each backend declares a capability matrix
+(`nativeCanvasTools`, `clarifications`, `historyFidelity`,
+`sessionResume`) for future per-backend UI degradation. The first
+additional native backend is live: `piNativeTurnBackend`
+(`backends/pi-native-backend.ts`) diverts the DEFAULT assistant (null
+role only — persona/external roles unaffected) to the local pi CLI when
+the `pi-native-chat` experimental flag (or the
+`PULSE_CANVAS_PI_NATIVE_CHAT` env escape hatch) is on — an A/B
+measurement instrument per `docs/09-agent-backend-boundary.md`, default
+off. Workspace-scoped pi chats attach the shipped canvas bridge
+extension (`resources/pi-extension/pulse-canvas.ts`, `-e` per run +
+`PULSE_CANVAS_WORKSPACE_ID`; override `PULSE_CANVAS_PI_EXTENSION`): pi
+gets `canvas_context_read` / `canvas_node_read` / `canvas_nodes_search` /
+`canvas_node_update` over the loopback runtime-control server at the
+pulse-cli read/operate tier (backed by the `canvas.context.read`
+capability). Global/scheduled scopes run bare. `nativeCanvasTools` in the
+matrix is `'full' | 'subset' | 'none'` — engine full, pi-native subset,
+external CLIs none. Guards: `src/main/agent/segment-execution.test.ts`,
+`src/main/agent/backends/registry.test.ts`,
+`src/main/agent/backends/pi-native-backend.test.ts`,
+`src/main/agent/__tests__/pi-extension.test.ts`.
 
 - Headless CLI spawn: Claude Code runs as `claude -p --output-format
   stream-json --verbose --include-partial-messages` (`buildClaudeCodeArgs`
@@ -374,6 +402,30 @@ accepts BOTH JSONL dialects Codex has shipped: dialect-A protocol events
 | 'item.completed' | 'thread.started' | ... }`) — `--json` remains marked
 experimental upstream, hence tolerating both.
 
+### pi adapter specifics
+
+`src/main/agent/external/pi.ts` drives the pi coding agent
+(`@earendil-works/pi-coding-agent`, ~0.83): `buildPiArgs` produces
+`pi --mode json -p` (fresh) or `pi --mode json -p --session <id>`
+(resumed), the prompt piped through STDIN like the Claude adapter. The
+JSONL vocabulary is pi's `AgentSessionEvent` stream (`docs/json.md` inside
+the pi package): the FIRST line `{"type":"session","id":…}` carries the
+resumable session id; `message_update` events stream
+`assistantMessageEvent.type === 'text_delta'` deltas (thinking deltas are
+deliberately not streamed into chat); the segment reply is the LAST
+assistant `message_end`'s joined text blocks; an assistant `message_end`
+with `stopReason: 'error'` surfaces its `errorMessage` as the run error.
+`tool_execution_start/end` map onto the shared `startTool`/`finishTool`
+chip helpers (`isError` → failed). A stale `--session` resume prints
+`No session found matching '<id>'` (verified against the real 0.83.0
+binary), which matches segment.ts's `RESUME_FAILURE_RE`, so the shared
+fresh-retry covers pi with zero adapter code. Unmodeled events
+(queue_update, compaction_*, auto_retry_*) are ignored by design — same
+tolerant-parser rule as the other adapters. pi ships no permission system
+(containment is the environment's job in its philosophy); like the other
+adapters we pass no permission flags, so a run obeys the user's own pi
+settings/extensions/project-trust for that cwd.
+
 ### Env overrides and probe
 
 - Probe IPC: `agent-roles:external-probe` → `probeExternalCli(family)` in
@@ -383,6 +435,8 @@ experimental upstream, hence tolerating both.
   (`claudeCodeCommand()` in `claude-code.ts`, default `claude`).
 - `PULSE_CANVAS_CODEX_CMD` — overrides the Codex binary (`codexCommand()`
   in `codex.ts`, default `codex`).
+- `PULSE_CANVAS_PI_CMD` — overrides the pi binary (`piCommand()` in
+  `pi.ts`, default `pi`).
 - `PULSE_CANVAS_EXTERNAL_AGENT_STATE` — overrides the resume-state file
   path (`state-store.ts`, default
   `~/.pulse-coder/canvas/external-agent-state.json`).
@@ -488,6 +542,10 @@ Primary regression suites live in:
   the Ask-mode approval gate), `resolveExternalCwd`'s chain, the Codex
   stream parser for both dialects and its argv building, and the handoff
   target policy.
+- `src/main/agent/__tests__/pi-driver.test.ts` — the pi json-event parser
+  (session header, deltas vs message_end fallback, error stop, tool chip
+  translation, drift tolerance), argv/env-override wiring, and fake-CLI
+  segment orchestration incl. the stale-resume retry.
 - `src/main/agent/segment-execution.test.ts` — abort-after-reject
   normalization for external-role segments.
 - `src/main/agent/chat-stop.test.ts` — the stop/abort helper functions in

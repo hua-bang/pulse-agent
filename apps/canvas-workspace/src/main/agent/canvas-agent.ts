@@ -847,6 +847,7 @@ export class CanvasAgent {
           context,
           role,
           chatSessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
+          workspaceId: this.config.scope.kind === 'workspace' ? this.config.scope.workspaceId : undefined,
           workspaceRootFolder,
           history: this.sessionStore.getCurrentSession()?.messages ?? [],
           currentAsk: modelUserText,

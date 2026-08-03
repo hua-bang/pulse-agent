@@ -38,9 +38,9 @@ export interface AgentRoleSaveInput {
 
 // ─── External driver (local coding-agent CLI) ───────────────────────
 
-export type AgentRoleExternalFamily = 'claude-code' | 'codex';
+export type AgentRoleExternalFamily = 'claude-code' | 'codex' | 'pi';
 
-export const AGENT_ROLE_EXTERNAL_FAMILIES: readonly AgentRoleExternalFamily[] = ['claude-code', 'codex'];
+export const AGENT_ROLE_EXTERNAL_FAMILIES: readonly AgentRoleExternalFamily[] = ['claude-code', 'codex', 'pi'];
 
 /**
  * Driver config for an externally-driven role: its segments are produced by a

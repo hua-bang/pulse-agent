@@ -23,6 +23,7 @@ import { join } from 'path';
 import { randomBytes } from 'crypto';
 import { sendInputToAgentNode } from '../agent/session-send';
 import { handleCapabilityHttpRequest } from './capability-http';
+import { handlePiToolBridgeHttpRequest } from './pi-tool-bridge-http';
 import { readBody, replyJson as reply } from './http-utils';
 const getCanvasAgentTeamsService = async () =>
   (await import('../agent-teams/service')).getCanvasAgentTeamsService();
@@ -30,6 +31,9 @@ const getCanvasAgentTeamsService = async () =>
 const RUNTIME_DIR = join(homedir(), '.pulse-coder', 'canvas-runtime');
 const RUNTIME_FILE = join(RUNTIME_DIR, 'canvas-workspace.json');
 const MAX_BODY_BYTES = 64 * 1024;
+// Tool arguments can legitimately carry large document/artifact patches.
+// Keep the exception bounded and scoped to the authenticated ephemeral bridge.
+const MAX_PI_TOOL_BODY_BYTES = 1024 * 1024;
 
 interface RuntimeInfo {
   pid: number;
@@ -277,7 +281,10 @@ async function handleRequest(
 
   let body: Buffer;
   try {
-    body = await readBody(req, MAX_BODY_BYTES);
+    body = await readBody(
+      req,
+      req.url === '/pi-tools/call' ? MAX_PI_TOOL_BODY_BYTES : MAX_BODY_BYTES,
+    );
   } catch (err) {
     return reply(res, 413, { ok: false, error: (err as Error).message });
   }
@@ -294,6 +301,9 @@ async function handleRequest(
   }
 
   if (await handleCapabilityHttpRequest(req.url, res, parsed as Record<string, unknown>)) {
+    return;
+  }
+  if (await handlePiToolBridgeHttpRequest(req.url, res, parsed as Record<string, unknown>)) {
     return;
   }
 

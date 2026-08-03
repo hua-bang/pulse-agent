@@ -309,6 +309,16 @@ export const builtInToolSearchPlugin: EnginePlugin = {
       };
     });
 
+    // External model harnesses execute the same Tool objects but do not own
+    // Engine's model-message transcript. Load references at the tool boundary
+    // too, where the result is available independent of message framing.
+    context.registerHook('afterToolCall', ({ name, output }) => {
+      if (name !== regexTool.name && name !== bm25Tool.name) return;
+      const references = (output as ToolSearchResultPayload | undefined)?.tool_references;
+      if (!Array.isArray(references)) return;
+      service.addLoadedTools(references.map(reference => reference.tool_name));
+    });
+
     context.registerHook('afterLLMCall', ({ context: runContext, finishReason }) => {
       if (finishReason !== 'tool-calls') {
         return;
