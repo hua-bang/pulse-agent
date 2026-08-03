@@ -10,7 +10,9 @@ import { useI18n } from '../../i18n';
 import { Button, FieldRow, Select } from '../ui';
 import './AgentSection.css';
 
-const AgentShellPathCard = lazy(() => import('./AgentShellPathCard'));
+const AgentShellPathCard = lazy(() =>
+  import('./AgentShellPathCard').then((m) => ({ default: m.AgentShellPathCard })),
+);
 
 interface AgentSectionProps {
   onClose: () => void;
