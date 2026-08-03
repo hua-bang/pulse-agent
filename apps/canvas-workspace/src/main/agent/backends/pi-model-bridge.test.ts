@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 import { preparePiModelBridge } from './pi-model-bridge';
+import { stopPiStreamRelay } from './pi-stream-relay';
 
 let dir: string;
 
@@ -20,10 +21,11 @@ beforeEach(() => {
   process.env.PULSE_CANVAS_PI_BRIDGE_DIR = join(dir, 'pi-agent');
 });
 
-afterEach(() => {
+afterEach(async () => {
   delete process.env.PULSE_CANVAS_PI_BRIDGE_DIR;
   delete process.env.PULSE_CANVAS_MODEL_CONFIG;
   rmSync(dir, { recursive: true, force: true });
+  await stopPiStreamRelay();
 });
 
 describe('preparePiModelBridge', () => {
@@ -48,15 +50,17 @@ describe('preparePiModelBridge', () => {
     expect(agentDir).toBe(join(dir, 'pi-agent'));
 
     const written = JSON.parse(readFileSync(join(agentDir, 'models.json'), 'utf-8'));
-    expect(written.providers.canvas).toEqual({
+    expect(written.providers.canvas).toMatchObject({
       name: 'DeepSeek',
-      baseUrl: 'https://api.deepseek.com/v1',
       api: 'openai-completions',
       apiKey: 'sk-third-party',
       // Mirrors the engine's request shape and survives strict-ish proxies.
       compat: { supportsDeveloperRole: false, supportsReasoningEffort: false },
       models: [{ id: 'deepseek-chat' }],
     });
+    // OpenAI-compatible upstreams are fronted by the loopback SSE-normalizing
+    // relay; the real base URL lives on the relay side.
+    expect(written.providers.canvas.baseUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
     // Key material on disk stays user-only, matching the runtime-file trust model.
     expect(statSync(join(agentDir, 'models.json')).mode & 0o777).toBe(0o600);
   });

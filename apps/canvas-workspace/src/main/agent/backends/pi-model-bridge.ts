@@ -3,6 +3,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 
 import { readConfig, resolveEffectiveFields, sanitizeConfig } from '../model/config';
+import { ensurePiStreamRelay } from './pi-stream-relay';
 
 /**
  * Model-parity bridge for the pi-native backend: mirror the canvas model
@@ -53,8 +54,13 @@ export async function preparePiModelBridge(
   if (!apiKey || !model) return undefined;
 
   const isClaude = resolved.providerType === 'claude';
-  const baseUrl = resolved.baseURL?.trim()
+  const upstreamBaseUrl = resolved.baseURL?.trim()
     || DEFAULT_BASE_URLS[isClaude ? 'claude' : 'openai'];
+  // OpenAI-compatible upstreams go through the loopback SSE-normalizing
+  // relay: pi's client rejects streams that never carry finish_reason
+  // (verified against the real CLI), which the engine tolerates — the relay
+  // heals the ending so both backends accept the same third-party proxies.
+  const baseUrl = isClaude ? upstreamBaseUrl : await ensurePiStreamRelay(upstreamBaseUrl);
 
   const dir = piBridgeDir();
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
