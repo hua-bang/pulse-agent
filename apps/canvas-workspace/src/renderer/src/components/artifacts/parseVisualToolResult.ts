@@ -10,6 +10,7 @@
 import type { ArtifactType } from '../../types';
 import type { InlineVisualPayload } from './ChatInlineVisual';
 import type { ArtifactCardPayload } from './ChatArtifactCard';
+import { parseToolResultPayload } from './parseToolResultPayload';
 
 export type VisualToolResult =
   | { kind: 'visual_render'; payload: InlineVisualPayload }
@@ -27,13 +28,8 @@ interface ParsedShape {
 }
 
 export function parseVisualToolResult(toolName: string, raw?: string): VisualToolResult | null {
-  if (!raw) return null;
-  let parsed: ParsedShape;
-  try {
-    parsed = JSON.parse(raw) as ParsedShape;
-  } catch {
-    return null;
-  }
+  const parsed = parseToolResultPayload<ParsedShape>(raw);
+  if (!parsed) return null;
   if (parsed?.ok === false) return null;
 
   const kind = parsed.kind;

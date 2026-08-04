@@ -1,6 +1,7 @@
 import { memo, useCallback, useState } from 'react';
 import { toFileUrl } from '../../utils/fileUrl';
 import { copyTextToClipboard } from '../../utils/clipboard';
+import { parseToolResultPayload } from '../artifacts/parseToolResultPayload';
 
 export interface GeneratedImagePayload {
   ok?: boolean;
@@ -12,13 +13,8 @@ export interface GeneratedImagePayload {
 }
 
 export const parseGeneratedImage = (result?: string): GeneratedImagePayload | null => {
-  if (!result) return null;
-  try {
-    const parsed = JSON.parse(result) as GeneratedImagePayload;
-    return parsed?.ok && parsed?.type === 'generated_image' && parsed.outputPath ? parsed : null;
-  } catch {
-    return null;
-  }
+  const parsed = parseToolResultPayload<GeneratedImagePayload>(result);
+  return parsed?.ok && parsed.type === 'generated_image' && parsed.outputPath ? parsed : null;
 };
 
 export const CopyGeneratedImageButton = memo(({ imagePath }: { imagePath: string }) => {

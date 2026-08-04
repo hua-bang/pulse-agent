@@ -367,7 +367,13 @@ export function createPiAgentHarnessTurnBackend(
           });
         }
         if (event.type === 'tool_execution_end') {
-          const result = unwrapToolOutput(event.result?.content ?? event.result);
+          // Pi wraps tool output for the model as content blocks, while
+          // `details` retains the Engine tool's original structured result.
+          // Persist the latter so rich chat renderers can parse visuals and
+          // generated-image metadata after streaming and across reloads.
+          const result = unwrapToolOutput(
+            event.result?.details ?? event.result?.content ?? event.result,
+          );
           const tool = byId.get(event.toolCallId);
           if (tool) {
             tool.status = event.isError ? 'failed' : 'succeeded';

@@ -238,6 +238,10 @@ describe('pi AgentHarness turn backend', () => {
       expect.objectContaining({ name: 'tool_search_tool_bm25', status: 'succeeded' }),
       expect.objectContaining({ name: 'canvas_update_node', status: 'succeeded' }),
     ]);
+    expect(JSON.parse(result.toolCalls?.[0]?.result ?? '{}')).toMatchObject({
+      type: 'tool_search_tool_search_result',
+      tool_references: [{ tool_name: 'canvas_update_node' }],
+    });
     expect(onToolCall).toHaveBeenCalledTimes(2);
     expect(onToolResult).toHaveBeenCalledTimes(2);
     const recordedMessages = recordResponseMessages.mock.calls
