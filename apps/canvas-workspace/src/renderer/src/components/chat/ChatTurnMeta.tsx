@@ -82,6 +82,9 @@ const ContextReferences = ({
 // what the composer already displays for the live turn, so every user message
 // carried a row of redundant labels. Only the references — which the composer
 // clears after sending and nothing else records — survive on the turn.
+//
+// Not currently rendered: ChatMessage.tsx no longer calls this — the row saw
+// little user attention, so it's hidden for now without removing the logic.
 export const ChatTurnContext = ({
   snapshot,
 }: {
