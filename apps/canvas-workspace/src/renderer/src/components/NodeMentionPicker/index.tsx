@@ -5,6 +5,7 @@ import { isImeComposing } from '../../utils/ime';
 import { useI18n } from '../../i18n';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { formatShortcutId } from '../../shortcuts/registry';
 import { useIndexNav } from '../ui';
 
 interface Props {
@@ -90,7 +91,7 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
       <div className="node-mention-picker" role="dialog" aria-label={t('nodeMention.title')} onClick={(e) => e.stopPropagation()}>
         <div className="node-mention-header">
           <span className="node-mention-label">{t('nodeMention.title')}</span>
-          <kbd className="node-mention-kbd">Ctrl/⌘+2</kbd>
+          <kbd className="node-mention-kbd">{formatShortcutId('terminal.mentionPicker')}</kbd>
         </div>
         <div className="node-mention-search">
           <input

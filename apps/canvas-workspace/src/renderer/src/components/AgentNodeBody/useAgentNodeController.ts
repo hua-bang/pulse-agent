@@ -5,6 +5,7 @@ import type { AgentNodeData, CanvasNode } from '../../types';
 import { getAgentCommand } from '../../config/agentRegistry';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
+import { handleTerminalShortcut } from '../../shortcuts/terminalShortcuts';
 import type { AgentNodeBodyProps, ViewMode } from './types';
 import {
   SCROLLBACK_SAVE_INTERVAL,
@@ -330,10 +331,9 @@ export const useAgentNodeController = ({
         fitRef.current = fitAddon;
 
         term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-          if (e.type === 'keydown' && e.key === '2' && (e.ctrlKey || e.metaKey) && !e.altKey) {
-            setPickerOpen(true);
-            return false;
-          }
+          if (handleTerminalShortcut(e, {
+            'terminal.mentionPicker': () => setPickerOpen(true),
+          })) return false;
           return true;
         });
 
@@ -498,10 +498,9 @@ export const useAgentNodeController = ({
       fitRef.current = fitAddon;
 
       term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-        if (e.type === 'keydown' && e.key === '2' && (e.ctrlKey || e.metaKey) && !e.altKey) {
-          setPickerOpen(true);
-          return false;
-        }
+        if (handleTerminalShortcut(e, {
+          'terminal.mentionPicker': () => setPickerOpen(true),
+        })) return false;
         return true;
       });
 

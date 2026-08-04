@@ -6,6 +6,8 @@ import { FitAddon } from '@xterm/addon-fit';
 import type { CanvasNode, TerminalNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
+import { formatShortcutId } from '../../shortcuts/registry';
+import { handleTerminalShortcut } from '../../shortcuts/terminalShortcuts';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 import {
   SCROLLBACK_SAVE_INTERVAL,
@@ -158,10 +160,9 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
     }
 
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-      if (e.type === 'keydown' && e.key === '2' && (e.ctrlKey || e.metaKey) && !e.altKey) {
-        setPickerOpen(true);
-        return false;
-      }
+      if (handleTerminalShortcut(e, {
+        'terminal.mentionPicker': () => setPickerOpen(true),
+      })) return false;
       const decision = decideTerminalKey(e, lastEscapeAtRef.current, performance.now());
       if (e.key === 'Escape') {
         lastEscapeAtRef.current = decision === 'release-focus' ? 0 : performance.now();
@@ -369,7 +370,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
       {!readOnly && mentionHintVisible && !pickerOpen && (
         <div className="terminal-mention-hint" role="status">
           <span>{t('terminal.mentionHint.prefix')}</span>
-          <kbd>Ctrl/⌘+2</kbd>
+          <kbd>{formatShortcutId('terminal.mentionPicker')}</kbd>
           <span>{t('terminal.mentionHint.suffix')}</span>
           <button
             type="button"

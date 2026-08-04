@@ -12,6 +12,8 @@ import {
 } from '../../config/terminalTheme';
 import type { CanvasNode } from '../../types';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
+import { formatShortcutId } from '../../shortcuts/registry';
+import { claimTerminalKey, handleTerminalShortcut } from '../../shortcuts/terminalShortcuts';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
@@ -245,24 +247,26 @@ export const WorkspaceTerminalDock = ({
 
     term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
       if (event.type !== 'keydown') return true;
+      if (handleTerminalShortcut(event, {
+        'terminal.mentionPicker': () => setPickerOpen(true),
+      })) return false;
+      // Ctrl/Cmd +/- to zoom the terminal font, Ctrl/Cmd+0 to reset. These
+      // deliberately override canvas.zoomIn/zoomOut/zoomReset while the dock
+      // terminal has focus, so they must CLAIM the key — without that the
+      // canvas zoomed at the same time as the font.
       const withModifier = (event.ctrlKey || event.metaKey) && !event.altKey;
-      if (event.key === '2' && withModifier) {
-        setPickerOpen(true);
-        return false;
-      }
-      // Ctrl/Cmd +/- to zoom the terminal font, Ctrl/Cmd+0 to reset.
       if (withModifier) {
         if (event.key === '=' || event.key === '+') {
           applyFontSize(fontSizeRef.current + TERMINAL_FONT_SIZE_STEP);
-          return false;
+          return claimTerminalKey(event);
         }
         if (event.key === '-' || event.key === '_') {
           applyFontSize(fontSizeRef.current - TERMINAL_FONT_SIZE_STEP);
-          return false;
+          return claimTerminalKey(event);
         }
         if (event.key === '0') {
           applyFontSize(BASE_TERMINAL_FONT_SIZE);
-          return false;
+          return claimTerminalKey(event);
         }
       }
       return true;
@@ -455,7 +459,7 @@ export const WorkspaceTerminalDock = ({
         {mentionHintVisible && !pickerOpen && (
           <div className="workspace-terminal-dock__mention-hint" role="status">
             <span>{t('terminal.mentionHint.prefix')}</span>
-            <kbd>Ctrl/⌘+2</kbd>
+            <kbd>{formatShortcutId('terminal.mentionPicker')}</kbd>
             <span>{t('terminal.mentionHint.suffix')}</span>
             <button
               type="button"

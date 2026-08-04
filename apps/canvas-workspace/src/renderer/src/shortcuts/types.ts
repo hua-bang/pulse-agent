@@ -10,6 +10,16 @@ export type ShortcutOwner =
   /** `useAppShortcuts` in App.tsx — app chrome, works on every route. */
   | 'app'
   /**
+   * `shortcuts/terminalShortcuts.ts`, dispatched from an xterm
+   * `attachCustomKeyEventHandler` — fires ONLY while a terminal or coding-
+   * agent surface owns focus, which is what lets a terminal-owned chord
+   * share a key with a global `canvas`/`app` one. Claiming is not automatic:
+   * the dispatcher calls `preventDefault`, because returning false to xterm
+   * stops xterm alone and the DOM event keeps bubbling to the window
+   * listeners (see that module's header for the incident).
+   */
+  | 'terminal'
+  /**
    * Handled by a native document-level event rather than the keydown
    * dispatcher. Paste is the only one: letting the browser's `paste` event
    * arbitrate is what allows the system clipboard to beat a stale canvas
