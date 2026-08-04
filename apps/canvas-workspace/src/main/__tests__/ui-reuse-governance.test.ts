@@ -116,7 +116,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 298→297 (composer chrome): hid the Auto/Ask execution-mode toggle —
   // ask mode isn't ready to expose yet, execution stays on its 'auto'
   // default.
-  rawButtonTags: 294,
+  // 294→293 (model switcher): dropped the menu's "Auto" entry — every
+  // message now names the provider+model it runs on, so the implicit
+  // default-config row had no selectable meaning left.
+  rawButtonTags: 293,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -384,7 +387,11 @@ const RATCHET_BASELINE: Record<string, number> = {
   // added two more literals; the three colors became --agent-brand-* tokens
   // in styles.css instead, so all six rules now read var() and a fourth agent
   // costs zero literals.
-  hardcodedColorLiterals: 1785,
+  // 1785→1784 (dock sticky-tab overlap fix): the right dock's tab hover wash
+  // was needed a second time, opaquely restated for the sticky chat tab, so
+  // the value became --dock-tab-hover-wash on .right-dock__tabs and both
+  // rules now read var() — the fix itself cost zero literals.
+  hardcodedColorLiterals: 1784,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

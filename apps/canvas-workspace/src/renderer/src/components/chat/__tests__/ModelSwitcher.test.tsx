@@ -54,7 +54,6 @@ const AUTO_SELECTION: ModelSelection = { mode: 'auto' };
 const MODEL_SELECTION: ModelSelection = { mode: 'model', providerId: 'anthropic', modelId: 'claude-sonnet' };
 
 function renderSwitcher(overrides: Partial<Parameters<typeof ModelSwitcher>[0]> = {}) {
-  const onSelectAuto = vi.fn().mockResolvedValue(undefined);
   const onSelectModel = vi.fn().mockResolvedValue(undefined);
   const onOpenSettings = vi.fn();
   render(
@@ -63,14 +62,31 @@ function renderSwitcher(overrides: Partial<Parameters<typeof ModelSwitcher>[0]> 
         status={STATUS}
         selection={AUTO_SELECTION}
         label="Auto"
-        onSelectAuto={onSelectAuto}
         onSelectModel={onSelectModel}
         onOpenSettings={onOpenSettings}
         {...overrides}
       />
     </I18nProvider>,
   );
-  return { onSelectAuto, onSelectModel, onOpenSettings };
+  return { onSelectModel, onOpenSettings };
+}
+
+function openMenu() {
+  const trigger = host!.querySelector('.chat-model-switcher-btn') as HTMLButtonElement;
+  act(() => {
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  });
+  return trigger;
+}
+
+function typeInSearch(value: string) {
+  const search = document.querySelector('.chat-model-menu-search input') as HTMLInputElement;
+  act(() => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(search, value);
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  return search;
 }
 
 /**
@@ -82,17 +98,53 @@ function renderSwitcher(overrides: Partial<Parameters<typeof ModelSwitcher>[0]> 
  * arrow-nav, outside-press).
  */
 describe('ModelSwitcher', () => {
-  it('opens on trigger click and lists Auto plus each provider\'s models', () => {
+  it('opens on trigger click and lists each provider\'s models, with no Auto entry', () => {
     renderSwitcher();
     expect(document.querySelector('.chat-model-menu')).toBeNull();
-    const trigger = host!.querySelector('.chat-model-switcher-btn') as HTMLButtonElement;
-    act(() => {
-      trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    });
+    openMenu();
     const items = document.querySelectorAll('.chat-model-menu-item');
-    // Auto + 2 provider models.
-    expect(items.length).toBe(3);
-    expect(items[0].textContent).toContain('Auto');
+    expect(items.length).toBe(2);
+    expect(Array.from(items).every((item) => item.classList.contains('chat-model-menu-item--model'))).toBe(true);
+    expect(document.querySelector('.chat-model-menu')?.textContent).not.toContain('Auto');
+  });
+
+  it('filters the list by model name, id, or provider name', () => {
+    renderSwitcher();
+    openMenu();
+
+    typeInSearch('opus');
+    let titles = Array.from(document.querySelectorAll('.chat-model-menu-title')).map((n) => n.textContent);
+    expect(titles).toEqual(['Claude Opus']);
+
+    // Model id, not the display name.
+    typeInSearch('claude-sonnet');
+    titles = Array.from(document.querySelectorAll('.chat-model-menu-title')).map((n) => n.textContent);
+    expect(titles).toEqual(['Claude Sonnet']);
+
+    // A provider-name hit keeps that provider's whole catalog.
+    typeInSearch('anthropic');
+    expect(document.querySelectorAll('.chat-model-menu-item--model').length).toBe(2);
+
+    typeInSearch('nothing-matches-this');
+    expect(document.querySelectorAll('.chat-model-menu-item--model').length).toBe(0);
+    expect(document.querySelector('.chat-model-menu-empty')?.textContent).toBe('No matching models');
+  });
+
+  it('Enter in the search box picks the first match', () => {
+    const { onSelectModel } = renderSwitcher();
+    openMenu();
+    const search = typeInSearch('opus');
+    act(() => {
+      search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    });
+    expect(onSelectModel).toHaveBeenCalledWith('anthropic', 'claude-opus');
+    expect(document.querySelector('.chat-model-menu')).toBeNull();
+  });
+
+  it('the trigger shows provider and model together', () => {
+    renderSwitcher({ selection: MODEL_SELECTION, label: 'Claude Sonnet' });
+    expect(host!.querySelector('.chat-model-switcher-provider')?.textContent).toBe('Anthropic');
+    expect(host!.querySelector('.chat-model-switcher-model')?.textContent).toBe('Claude Sonnet');
   });
 
   it('Popover portals the menu to document.body, not inside the switcher', () => {
@@ -197,15 +249,18 @@ describe('ModelSwitcher', () => {
     expect(document.querySelector('.chat-model-menu')).not.toBeNull();
   });
 
-  it('autofocuses the active selection\'s menu item on open (Popover\'s data-menu-autofocus marker)', () => {
+  it('marks the current selection active and leaves focus in the search box', async () => {
     renderSwitcher({ selection: MODEL_SELECTION, label: 'Claude Sonnet' });
-    const trigger = host!.querySelector('.chat-model-switcher-btn') as HTMLButtonElement;
-    act(() => {
-      trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    });
+    openMenu();
     const active = document.querySelector('.chat-model-menu-item--active') as HTMLElement;
-    expect(active.getAttribute('data-menu-autofocus')).toBe('true');
-    expect(document.activeElement).toBe(active);
+    expect(active.textContent).toContain('Claude Sonnet');
+
+    // Popover's own autoFocus is off here; the switcher focuses the filter
+    // input a frame later, once the rect-anchored panel is measured/visible.
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    });
+    expect(document.activeElement).toBe(document.querySelector('.chat-model-menu-search input'));
   });
 
   it('wires aria-haspopup/aria-expanded/aria-controls to the portaled panel\'s id', () => {

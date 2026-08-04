@@ -18,7 +18,6 @@ export interface UseCanvasModelsResult {
   selection: ModelSelection;
   selectedLabel: string;
   refresh: () => Promise<void>;
-  selectAuto: () => Promise<void>;
   selectModel: (providerId: string, modelId: string) => Promise<void>;
   upsertProvider: (provider: CanvasModelProviderConfig) => Promise<CanvasModelStatus | undefined>;
   removeProvider: (providerId: string) => Promise<void>;

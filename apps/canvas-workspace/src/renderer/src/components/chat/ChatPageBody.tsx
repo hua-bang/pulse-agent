@@ -483,7 +483,6 @@ export const ChatPageBody = ({
           modelStatus={canvasModels.status}
           modelSelection={canvasModels.selection}
           modelLabel={canvasModels.selectedLabel}
-          onSelectAutoModel={canvasModels.selectAuto}
           onSelectModel={canvasModels.selectModel}
           onOpenModelSettings={openModelSettingsFromSwitcher}
           contextComposer

@@ -88,7 +88,6 @@ interface ChatViewProps {
   modelStatus?: CanvasModelStatus;
   modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
   modelLabel?: string;
-  onSelectAutoModel?: () => Promise<void>;
   onSelectModel?: (providerId: string, modelId: string) => Promise<void>;
   onOpenModelSettings?: () => void;
   executionMode?: 'auto' | 'ask' | 'scheduled';
@@ -171,7 +170,6 @@ export const ChatView = ({
   modelStatus,
   modelSelection,
   modelLabel,
-  onSelectAutoModel,
   onSelectModel,
   onOpenModelSettings,
   executionMode = 'auto',
@@ -245,7 +243,6 @@ export const ChatView = ({
         modelStatus={modelStatus}
         modelSelection={modelSelection}
         modelLabel={modelLabel}
-        onSelectAutoModel={onSelectAutoModel}
         onSelectModel={onSelectModel}
         onOpenModelSettings={onOpenModelSettings}
         onMentionNavigate={(chip) => {

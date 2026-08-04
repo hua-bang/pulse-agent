@@ -5,6 +5,8 @@ import type { AgentNodeData, CanvasNode } from '../../types';
 import { getAgentCommand } from '../../config/agentRegistry';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
+import { handleTerminalShortcut } from '../../shortcuts/terminalShortcuts';
+import { createTerminalKeyArbiter } from './utils/terminalFocus';
 import type { AgentNodeBodyProps, ViewMode } from './types';
 import {
   SCROLLBACK_SAVE_INTERVAL,
@@ -215,6 +217,12 @@ export const useAgentNodeController = ({
   const needsAutoMintRef = useRef(shouldResumeOnMount);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
+  // Double-Escape is the only keyboard way out of a focused terminal; the
+  // arbiter owns that window and the blur sequence.
+  const arbitrateTerminalKey = useRef(createTerminalKeyArbiter({
+    getTerminal: () => termRef.current,
+    getContainer: () => containerRef.current,
+  })).current;
   const fitRef = useRef<FitAddon | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const killSessionRef = useRef<(() => void) | null>(null);
@@ -330,11 +338,10 @@ export const useAgentNodeController = ({
         fitRef.current = fitAddon;
 
         term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-          if (e.type === 'keydown' && e.key === '2' && (e.ctrlKey || e.metaKey) && !e.altKey) {
-            setPickerOpen(true);
-            return false;
-          }
-          return true;
+          if (handleTerminalShortcut(e, {
+            'terminal.mentionPicker': () => setPickerOpen(true),
+          })) return false;
+          return arbitrateTerminalKey(e);
         });
 
         scheduleTerminalFit(fitAddon, term, containerRef.current);
@@ -498,11 +505,10 @@ export const useAgentNodeController = ({
       fitRef.current = fitAddon;
 
       term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-        if (e.type === 'keydown' && e.key === '2' && (e.ctrlKey || e.metaKey) && !e.altKey) {
-          setPickerOpen(true);
-          return false;
-        }
-        return true;
+        if (handleTerminalShortcut(e, {
+          'terminal.mentionPicker': () => setPickerOpen(true),
+        })) return false;
+        return arbitrateTerminalKey(e);
       });
 
       scheduleTerminalFit(fitAddon, term, containerRef.current);

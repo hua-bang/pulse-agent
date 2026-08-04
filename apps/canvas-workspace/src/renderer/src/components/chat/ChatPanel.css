@@ -2573,7 +2573,10 @@
   font-size: 12px;
   font-weight: 650;
   cursor: pointer;
-  max-width: 132px;
+  /* Wide enough for "provider / model" — the old 132px cut a bare model name
+     to a few characters, which is the whole reason the provider had to be
+     spelled out here in the first place. */
+  max-width: 240px;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
@@ -2611,6 +2614,35 @@
 }
 
 .chat-model-switcher-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The provider is context, the model is the answer: the provider gives up
+   its width first so the model name stays readable in a narrow composer. */
+.chat-model-switcher-provider {
+  flex: 0 3 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.62;
+}
+
+.chat-model-switcher-provider::after {
+  content: "/";
+  padding-left: 4px;
+  opacity: 0.7;
+}
+
+.chat-model-switcher-model {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2630,7 +2662,7 @@
   top: 0;
   left: 0;
   width: 292px;
-  max-height: min(360px, calc(100vh - 24px));
+  max-height: min(420px, calc(100vh - 24px));
   overflow-y: auto;
   background: #fff;
   border: 1px solid rgba(55, 53, 47, 0.1);
@@ -2641,22 +2673,36 @@
   z-index: calc(var(--layer-dock) + 10);
 }
 
-.chat-model-menu-label,
-.chat-model-menu-provider-head {
-  padding: 7px 9px 5px;
-  font-size: 10px;
-  line-height: 1;
-  font-weight: 700;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-  color: rgba(55, 53, 47, 0.42);
+/* Sticky because the panel itself is the scroll container: the filter has to
+   stay reachable while a long catalog scrolls under it. The negative top
+   cancels the panel's own 6px padding so nothing peeks above it. */
+.chat-model-menu-search {
+  position: sticky;
+  top: -6px;
+  z-index: 1;
+  margin: -6px -6px 2px;
+  padding: 8px 8px 6px;
+  background: var(--surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+/* ui/TextField owns the field chrome; only the menu's tighter metrics differ. */
+.chat-model-menu-search-input.ui-textfield__control {
+  height: 30px;
+  font-size: 12px;
 }
 
 .chat-model-menu-provider-head {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  padding-top: 9px;
+  padding: 9px 9px 5px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  color: rgba(55, 53, 47, 0.42);
 }
 
 .chat-model-menu-provider-head span:last-child {

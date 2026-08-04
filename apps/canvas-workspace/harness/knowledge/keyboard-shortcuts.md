@@ -122,6 +122,41 @@ of adding them to the startup matcher (`definitions.ts` and the handler
 tables) — a row that exists only to be documented does not need a
 `ShortcutDefinition` or a handler.
 
+## Terminal-scoped shortcuts: a third owner, and why claiming is explicit
+
+`owner: 'terminal'` (`shortcuts/terminalShortcuts.ts`) is dispatched from
+xterm's `attachCustomKeyEventHandler` instead of a window listener, because a
+focused terminal is a SCOPE, not a route: a chord it owns must beat the global
+layers while it has focus and mean nothing anywhere else. `RightDock`'s
+`DOCK_FOCUS_SCOPED_COMMANDS` is the same idea one surface over. That scoping
+is what lets `terminal.mentionPicker` deliberately share Cmd/Ctrl+2 with
+`app.switchWorkspace` — the registry's own "no colliding chords" test is
+per-owner for exactly this reason.
+
+**Returning `false` from an xterm custom key handler stops XTERM ONLY.** The
+DOM event keeps bubbling to the window listeners `useCanvasKeyboard` and
+`useAppShortcuts` install, so a surface that merely returns false has not
+claimed anything. Four surfaces (`AgentNodeBody/useAgentNodeController.ts`
+twice, `TerminalNodeBody`, `WorkspaceTerminalDock`) each hand-wrote
+`if (key === '2' && (ctrlKey || metaKey))` and returned false, and the result
+was that Cmd+2 in a terminal or coding-agent node opened the node-mention
+picker AND switched workspace out from under the user. Both dispatchers skip
+an event whose `defaultPrevented` is set, so `preventDefault` — not the
+`false` return — is what resolves a collision. `handleTerminalShortcut` does
+it for registry-owned chords; `claimTerminalKey` is the same escape hatch for
+a chord a terminal borrows from another owner without owning it (the dock
+terminal's font-size keys, which otherwise drove `canvas.zoom*` at the same
+time).
+
+Capture-phase window/document listeners (`useEscapeClose`,
+`useMenuKeyboardNav`, the marquee/shape hooks) have already run by the time a
+guest textarea sees the key, so the `stopPropagation` in `claimTerminalKey`
+cannot starve them — it only stops the bubble-phase dispatchers, which is the
+collision source.
+
+Handlers are an exhaustive `Record<TerminalShortcutId, () => void>`, the same
+type-error guarantee the other two owners give.
+
 ## Matching semantics: exact on modifiers
 
 Matching is EXACT on modifiers. `matchesBinding` in `registry.ts` requires
@@ -279,6 +314,28 @@ values:
   it); two in quick succession blur the terminal and hand focus back to the
   canvas.
 
+`decideTerminalKey` is PURE — the two stateful halves live in
+`AgentNodeBody/utils/terminalFocus.ts`, so no surface hand-rolls them:
+
+- `createTerminalKeyArbiter` owns the double-Escape timestamp and returns
+  exactly what an xterm custom key handler must return. Its "no previous
+  Escape" sentinel is `-Infinity`, NOT 0: the rule asks whether
+  `now - lastEscapeAt` is inside the hatch window, so a 0 sentinel makes a
+  first Escape pressed while `performance.now()` is still under 400ms read as
+  the second half of a pair and blur on its own. The same sentinel is used to
+  reset after a release, so the next Escape starts a fresh pair.
+- `releaseTerminalFocus` owns the blur sequence. All three steps matter:
+  xterm's own `blur()` clears its internal focus state, the container blur
+  covers a surface whose wrapper took focus, and the `activeElement` blur is
+  the backstop for the helper textarea, which is neither of those elements.
+
+All four xterm handlers route through the arbiter. Until 2026-08 only
+`TerminalNodeBody` did: the coding-agent node and the workspace terminal dock
+had hand-rolled handlers with no hatch at all, so focus in either one could
+only be escaped with the mouse. NOTE the cost in a coding-agent node: the
+second Escape is not forwarded to the PTY, so a CLI that binds double-Escape
+itself (Claude Code's jump-to-previous-message) cannot see it there.
+
 ## Bound checks
 
 Bound checks: the `keyboard-shortcuts` rule in `harness/validate/validation.yaml`.
@@ -299,8 +356,12 @@ The rule's `paths` cover: `src/renderer/src/shortcuts/**`,
 `src/renderer/src/utils/keyboardShortcut.ts`,
 `src/renderer/src/components/AppShellProvider/ShortcutsDialog.tsx`,
 `src/shared/webview-shortcuts.ts`,
-`src/main/webview/shortcut-forwarding.ts`, `src/main/app/menu.ts`, and
-`src/renderer/src/components/AgentNodeBody/utils/terminal.ts`.
+`src/main/webview/shortcut-forwarding.ts`, `src/main/app/menu.ts`,
+`src/renderer/src/components/AgentNodeBody/utils/terminal.ts`,
+`src/renderer/src/components/AgentNodeBody/utils/terminalFocus.ts`, and the four
+xterm surfaces that dispatch terminal-owned shortcuts
+(`AgentNodeBody/useAgentNodeController.ts`, `TerminalNodeBody/index.tsx`,
+`WorkspaceTerminalDock/index.tsx`, `NodeMentionPicker/index.tsx`).
 
 Its `quick` step and its `required` step both run:
 
@@ -316,7 +377,14 @@ first.
 Primary regression suites live in:
 
 - `src/renderer/src/shortcuts/registry.test.ts`
+- `src/renderer/src/shortcuts/terminalShortcuts.test.ts` — pins the Cmd+2
+  collision end to end against the REAL `useAppShortcuts`, including the
+  control case that fails if the chord ever stops being shared
 - `src/renderer/src/hooks/useCanvasKeyboard.test.ts`
 - `src/renderer/src/hooks/useAppShortcuts.test.ts`
 - `src/main/webview/__tests__/shortcut-forwarding.test.ts`
-- `src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts`
+- `src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts` — the
+  pure decision rule
+- `src/renderer/src/components/AgentNodeBody/utils/terminalFocus.test.ts` — the
+  stateful hatch: double-Escape, the window boundary, the post-release reset,
+  the time-zero sentinel, and the blur sequence

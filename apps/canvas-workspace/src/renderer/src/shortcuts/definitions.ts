@@ -242,6 +242,22 @@ export const SHORTCUTS = {
     // binding, not so it renders a second row.
     bindings: [{ key: 'Escape', hidden: true }],
   },
+  // ---- Terminal-scoped ---------------------------------------------------
+  // Only live while a terminal / coding-agent surface owns focus, so they may
+  // deliberately share a chord with a global canvas/app binding — the focused
+  // surface claims it first. See `terminalShortcuts.ts`.
+  'terminal.mentionPicker': {
+    owner: 'terminal',
+    // Shares Cmd/Ctrl+2 with app.switchWorkspace ON PURPOSE: a focused
+    // terminal wins the key, everywhere else it still switches workspace.
+    // `mod` matches meta OR ctrl on every platform, which is what the four
+    // hand-written `(ctrlKey || metaKey)` conditions this replaced did.
+    bindings: [{ key: '2', mod: true }],
+    // xterm's helper element is a <textarea>, so the whole surface reads as
+    // "editable" — without this the terminal's own shortcut never fires.
+    editable: 'allow',
+  },
+
   'app.shortcutsHelp': {
     owner: 'app',
     bindings: [{ key: '?', shift: true, display: '?' }, { key: '/', shift: true, hidden: true }],
@@ -262,3 +278,4 @@ export type ShortcutIdFor<O extends ShortcutOwner> = {
 
 export type CanvasShortcutId = ShortcutIdFor<'canvas'>;
 export type AppShortcutId = ShortcutIdFor<'app'>;
+export type TerminalShortcutId = ShortcutIdFor<'terminal'>;

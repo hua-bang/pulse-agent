@@ -4,14 +4,15 @@ import { CheckIcon } from '../icons';
 import type { ModelSelection } from './modelSettingsTypes';
 import { providerLabel } from './modelSettingsTypes';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
 import { Popover } from '../ui/Popover';
+import { TextField } from '../ui/TextField';
 
 interface ModelSwitcherProps {
   status?: CanvasModelStatus;
   selection: ModelSelection;
   label: string;
   disabled?: boolean;
-  onSelectAuto: () => Promise<void>;
   onSelectModel: (providerId: string, modelId: string) => Promise<void>;
   onOpenSettings: () => void;
 }
@@ -24,15 +25,17 @@ export const ModelSwitcher = ({
   selection,
   label,
   disabled = false,
-  onSelectAuto,
   onSelectModel,
   onOpenSettings,
 }: ModelSwitcherProps) => {
   const { t } = useI18n();
   const menuId = useId();
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const [selectionError, setSelectionError] = useState<string>();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+  const activeItemRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (disabled) setOpen(false);
   }, [disabled]);
@@ -51,6 +54,34 @@ export const ModelSwitcher = ({
   const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
   const hasConfiguredModels = providers.some((provider) => provider.models.length > 0);
   const notConfigured = status !== undefined && !status.apiKeyPresent;
+
+  // The trigger carries provider + model, not the bare model name: several
+  // providers can serve identically-named models, so the model alone doesn't
+  // say which endpoint the next message goes to.
+  const activeProviderName = useMemo(() => {
+    if (selection.mode !== 'model' || !selection.providerId) return undefined;
+    return providers.find((provider) => provider.id === selection.providerId)?.name;
+  }, [providers, selection]);
+
+  // The provider list is long enough (a fetched OpenAI-compatible catalog runs
+  // to dozens of entries) that scrolling to a model is the slow path — filter
+  // over provider name, model name, and model id.
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredProviders = useMemo(() => {
+    if (!normalizedQuery) return providers.map((provider) => ({ provider, models: provider.models }));
+    return providers
+      .map((provider) => {
+        // A provider-name hit keeps that provider's whole catalog, so typing
+        // "openai" is a way to narrow to one provider rather than one model.
+        const providerHit = provider.name.toLowerCase().includes(normalizedQuery);
+        const models = providerHit ? provider.models : provider.models.filter((model) => (
+          model.id.toLowerCase().includes(normalizedQuery)
+          || (model.name ?? '').toLowerCase().includes(normalizedQuery)
+        ));
+        return { provider, models };
+      })
+      .filter((entry) => entry.models.length > 0);
+  }, [providers, normalizedQuery]);
 
   const openMenuFromKeyboard = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -73,6 +104,39 @@ export const ModelSwitcher = ({
       setSelectionError(error instanceof Error ? error.message : String(error));
     }
   }, []);
+
+  const pickModel = useCallback((providerId: string, modelId: string) => {
+    setOpen(false);
+    void runSelection(() => onSelectModel(providerId, modelId));
+  }, [onSelectModel, runSelection]);
+
+  // Focus lands in the filter box, not on a menu item — typing is the fast
+  // path through a long list, and Popover's own arrow-nav still walks the
+  // items from there. The rect-anchored panel mounts hidden until its first
+  // measurement (Chromium drops focus calls inside that commit), so both the
+  // focus and the scroll-into-view wait a frame.
+  useEffect(() => {
+    if (!open) return undefined;
+    const frame = requestAnimationFrame(() => {
+      searchBoxRef.current?.querySelector('input')?.focus();
+      activeItemRef.current?.scrollIntoView?.({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) setQuery('');
+  }, [open]);
+
+  const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // The Enter that confirms a CJK candidate is aimed at the IME, not at us.
+    if (event.key !== 'Enter' || isImeComposing(event)) return;
+    const first = filteredProviders[0];
+    const model = first?.models[0];
+    if (!first || !model) return;
+    event.preventDefault();
+    pickModel(first.provider.id, model.id);
+  };
 
   return (
     <div className="chat-model-switcher">
@@ -99,7 +163,16 @@ export const ModelSwitcher = ({
         aria-controls={!notConfigured && open ? menuId : undefined}
       >
         <span className="chat-model-switcher-dot" />
-        <span className="chat-model-switcher-label">{notConfigured ? t('chat.model.configure') : label}</span>
+        <span className="chat-model-switcher-label">
+          {notConfigured ? t('chat.model.configure') : (
+            <>
+              {activeProviderName && (
+                <span className="chat-model-switcher-provider">{activeProviderName}</span>
+              )}
+              <span className="chat-model-switcher-model">{label}</span>
+            </>
+          )}
+        </span>
         {!notConfigured && (
           <span className="chat-model-switcher-chevron" aria-hidden="true">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -119,46 +192,37 @@ export const ModelSwitcher = ({
           panelId={menuId}
           ariaLabel={t('chat.model.useModel')}
           className="chat-model-menu"
+          // Focus belongs in the filter input below, so Popover must not
+          // claim it for the first menu button on mount.
+          autoFocus={false}
         >
-          <div className="chat-model-menu-label">{t('chat.model.useModel')}</div>
-          <button
-            type="button"
-            className={`chat-model-menu-item${selection.mode === 'auto' ? ' chat-model-menu-item--active' : ''}`}
-            role="menuitemradio"
-            aria-checked={selection.mode === 'auto'}
-            data-menu-autofocus={selection.mode === 'auto' ? 'true' : undefined}
-            onClick={() => {
-              setOpen(false);
-              void runSelection(onSelectAuto);
-            }}
-          >
-            <span className="chat-model-menu-check">{selection.mode === 'auto' ? <CheckIcon /> : null}</span>
-            <span className="chat-model-menu-main">
-              <span className="chat-model-menu-title">{t('chat.model.auto')}</span>
-              <span className="chat-model-menu-subtitle">{t('chat.model.autoSubtitle')}</span>
-            </span>
-          </button>
-          {providers.length > 0 && <div className="chat-model-menu-divider" />}
-          {providers.map((provider) => (
+          <div className="chat-model-menu-search" ref={searchBoxRef}>
+            <TextField
+              className="chat-model-menu-search-input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onSearchKeyDown}
+              placeholder={t('chat.model.searchPlaceholder')}
+              aria-label={t('chat.model.searchPlaceholder')}
+            />
+          </div>
+          {filteredProviders.map(({ provider, models }) => (
             <div key={provider.id} className="chat-model-menu-provider">
               <div className="chat-model-menu-provider-head">
                 <span>{provider.name}</span>
                 <span>{providerLabel(provider.provider_type)}</span>
               </div>
-              {provider.models.length > 0 ? provider.models.map((model) => {
+              {models.length > 0 ? models.map((model) => {
                 const active = selection.mode === 'model' && selection.providerId === provider.id && selection.modelId === model.id;
                 return (
                   <button
                     key={`${provider.id}:${model.id}`}
+                    ref={active ? activeItemRef : undefined}
                     type="button"
                     className={`chat-model-menu-item chat-model-menu-item--model${active ? ' chat-model-menu-item--active' : ''}`}
                     role="menuitemradio"
                     aria-checked={active}
-                    data-menu-autofocus={active ? 'true' : undefined}
-                    onClick={() => {
-                      setOpen(false);
-                      void runSelection(() => onSelectModel(provider.id, model.id));
-                    }}
+                    onClick={() => pickModel(provider.id, model.id)}
                   >
                     <span className="chat-model-menu-check">{active ? <CheckIcon /> : null}</span>
                     <span className="chat-model-menu-main">
@@ -172,6 +236,9 @@ export const ModelSwitcher = ({
               )}
             </div>
           ))}
+          {normalizedQuery && filteredProviders.length === 0 && (
+            <div className="chat-model-menu-empty">{t('chat.model.noMatches')}</div>
+          )}
           {!hasConfiguredModels && (
             <div className="chat-model-menu-hint">
               {t('chat.model.emptyHint')}

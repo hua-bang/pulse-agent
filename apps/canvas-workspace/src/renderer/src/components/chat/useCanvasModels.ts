@@ -61,18 +61,6 @@ export function useCanvasModels(): UseCanvasModelsResult {
     return shortModelName(selection.modelId, t('models.auto'));
   }, [selection, t]);
 
-  const selectAuto = useCallback(async () => {
-    const result = await window.canvasWorkspace.model.setCurrent(undefined, undefined);
-    if (!result.ok) {
-      const message = result.error ?? t('models.switchFailed');
-      setError(message);
-      throw new Error(message);
-    }
-    setError(undefined);
-    setStatus(result.status);
-    broadcastModelStatus(result.status);
-  }, [t]);
-
   const selectModel = useCallback(async (providerId: string, modelId: string) => {
     const result = await window.canvasWorkspace.model.setCurrent(modelId, providerId);
     if (!result.ok) {
@@ -121,7 +109,6 @@ export function useCanvasModels(): UseCanvasModelsResult {
     selection,
     selectedLabel,
     refresh,
-    selectAuto,
     selectModel,
     upsertProvider,
     removeProvider,

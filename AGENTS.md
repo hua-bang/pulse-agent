@@ -125,6 +125,8 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
   Detail + guards: apps/canvas-workspace/harness/knowledge/keyboard-shortcuts.md.
 - **Documented-but-unimplemented shortcuts**: a UI surface must never hardcode a chord or its label — derive both from the registry; `Cmd+Shift+A` once shipped advertised-with-no-handler and silently ran select-all instead.
   Detail + guards: apps/canvas-workspace/harness/knowledge/keyboard-shortcuts.md.
+- **Returning false to xterm is not claiming a key**: an `attachCustomKeyEventHandler` returning `false` stops xterm alone — the DOM event still bubbles to the window dispatchers — so a focus-scoped chord must `preventDefault`, the only thing those dispatchers check; four hand-written copies of `Cmd+2` opened the mention picker AND switched workspace.
+  Detail + guards: apps/canvas-workspace/harness/knowledge/keyboard-shortcuts.md (§Terminal-scoped shortcuts).
 
 Failures are captured in fix commits + regression tests — debug via `git log -- <file>` and focused tests, not by grepping for TODOs.
 

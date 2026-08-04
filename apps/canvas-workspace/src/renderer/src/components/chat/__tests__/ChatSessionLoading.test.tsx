@@ -138,7 +138,6 @@ describe('session-detail loading state', () => {
         modelStatus={UNCONFIGURED_MODEL}
         modelSelection={{ mode: 'auto' }}
         modelLabel="Auto"
-        onSelectAutoModel={vi.fn(async () => undefined)}
         onSelectModel={vi.fn(async () => undefined)}
         onOpenModelSettings={onOpenModelSettings}
       />,

@@ -38,6 +38,7 @@ export {
   type CanvasShortcutId,
   type ShortcutId,
   type ShortcutIdFor,
+  type TerminalShortcutId,
 } from './definitions';
 
 const KEY_DISPLAY: Record<string, string> = {
