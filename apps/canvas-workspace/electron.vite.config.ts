@@ -161,7 +161,16 @@ function localPluginRendererAssetsPlugin() {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // Bundle the optional Pi backend so Rollup keeps only the two API paths
+    // Canvas actually uses. Leaving these external makes electron-builder
+    // package pi-ai's complete provider SDK dependency tree (AWS, Google,
+    // Mistral, and others) even though those providers are unreachable here.
+    plugins: [externalizeDepsPlugin({
+      exclude: [
+        "@earendil-works/pi-agent-core",
+        "@earendil-works/pi-ai",
+      ],
+    })],
     build: {
       outDir: "dist/main",
       minify: "esbuild"

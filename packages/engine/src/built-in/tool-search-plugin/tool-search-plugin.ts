@@ -309,6 +309,15 @@ export const builtInToolSearchPlugin: EnginePlugin = {
       };
     });
 
+    // External model harnesses do not append results to Engine's transcript,
+    // so load discovered tools at the shared execution boundary as well.
+    context.registerHook('afterToolCall', ({ name, output }) => {
+      if (name !== regexTool.name && name !== bm25Tool.name) return;
+      const references = (output as ToolSearchResultPayload | undefined)?.tool_references;
+      if (!Array.isArray(references)) return;
+      service.addLoadedTools(references.map(reference => reference.tool_name));
+    });
+
     context.registerHook('afterLLMCall', ({ context: runContext, finishReason }) => {
       if (finishReason !== 'tool-calls') {
         return;

@@ -10,7 +10,7 @@ Engine code should stay host-agnostic. Prefer an extension point before changing
 
 - Package exports: `.`, `./src`, `./types`, and `./built-in`.
 - Main exports: `Engine`, `PulseAgent`, `loop`, AI helpers, compaction helpers, provider builders, shared runtime types, built-in tools, and built-in plugins.
-- Public types include `EngineOptions`, `LoopOptions`, `LoopHooks`, `CompactionEvent`, `EnginePlugin`, `EnginePluginContext`, `Tool`, `ToolExecutionContext`, `Context`, and `ClarificationRequest`.
+- Public types include `EngineOptions`, `EngineToolSession`, `LoopOptions`, `LoopHooks`, `CompactionEvent`, `EnginePlugin`, `EnginePluginContext`, `Tool`, `ToolExecutionContext`, `Context`, and `ClarificationRequest`.
 - Built-in plugin exports under `pulse-coder-engine/built-in` are consumed directly by canvas and other hosts. The two barrels are asymmetric: `src/index.ts` re-exports 8 plugin instances but NOT `builtInToolSearchPlugin` or `SubAgentPlugin`, which only `src/built-in/index.ts` exports. Consumers reach those two through `./built-in`; a public-surface change should not blindly pattern-match the existing top-level list.
 
 ## Runtime Contracts
@@ -29,6 +29,13 @@ Engine code should stay host-agnostic. Prefer an extension point before changing
   `output`. Host safety policies should use this boundary when a denied call
   must become a normal tool result without executing the underlying tool.
 - Tools should keep explicit schemas where possible and preserve `ToolExecutionContext` propagation, including `runContext`, clarification callbacks, abort signal, and `toolCallId`.
+- `Engine.createToolSession()` is the policy-safe boundary for an external
+  model harness. `getRegisteredTools()` exposes the post-`beforeRun` registry
+  (including deferred definitions), while `getTools()` exposes only the
+  current `beforeLLMCall`-filtered table. The session also exposes the
+  policy-adjusted prompt; execution still performs schema validation and the
+  normal before/after tool hooks. Callers must always `dispose()` it so
+  `afterLLMCall` / `afterRun` lifecycle hooks close.
 - Preserve `.pulse-coder/*` as the preferred runtime config root and `.coder/*` compatibility unless there is an explicit migration plan.
 
 ## Extension Boundary
@@ -50,7 +57,7 @@ Use these before editing the loop:
 | `packages/acp` | `ClarificationRequest` (type-only) | src |
 | `packages/plugin-kit` | `EnginePlugin`, `EnginePluginContext`, `SystemPromptOption`, `Tool`, `ToolExecutionContext`, `OnCompactedEvent`; its `src/memory` module adds `OnCompactedInput`, its `src/langfuse` module adds `Context` | src |
 | `apps/remote-server` | `Engine`, `Context`, `ClarificationRequest`, `Tool`, `ToolExecutionContext`, `buildProvider`, `CompactionEvent`, `LLMProviderFactory`; `./built-in`: all built-in plugins + `SubAgentPlugin`, hand-assembled with `disableBuiltInPlugins: true` | package exports (dist); no typecheck script |
-| `apps/canvas-workspace` | `Engine`, `GenerateImageTool`, `buildProvider`, `LLMProviderFactory`, `ModelType`; `./built-in`: `createSkillsPlugin`, `createMcpPlugin`, `mcpAuth`, OAuth types (hand-assembled, skills+MCP only) | hand-written shim `src/main/agent/engine.d.ts` for the base module (loose `any` types); `./built-in` relies on real dist types |
+| `apps/canvas-workspace` | `Engine`, `EngineToolSession`, `GenerateImageTool`, `buildProvider`, `LLMProviderFactory`, `ModelType`; `./built-in`: `createSkillsPlugin`, `createMcpPlugin`, `mcpAuth`, OAuth types (hand-assembled, skills+MCP only) | hand-written shim `src/main/agent/engine.d.ts` for the base module (loose `any` types); `./built-in` relies on real dist types |
 
 Consumer hazards:
 

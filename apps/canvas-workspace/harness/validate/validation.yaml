@@ -70,6 +70,22 @@ pathRules:
     required:
       - node apps/canvas-workspace/harness/tools/describe-canvas.mjs
 
+  # pi's package metadata currently asks for Node >=22.19 while Electron 30
+  # embeds Node 20.16. Keep both ordinary adapter checks and a real Electron
+  # main-process prompt available as explicit compatibility evidence.
+  - name: pi-agent-harness-runtime
+    paths:
+      - package.json
+      - src/main/agent/backends/pi-*
+      - src/main/agent/model/config.ts
+      - harness/tools/pi-agent-harness-smoke/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/main/agent/backends/pi-agent-harness-backend.test.ts src/main/agent/backends/pi-model-adapter.test.ts src/main/agent/backends/pi-tool-adapter.test.ts
+      - pnpm --filter canvas-workspace typecheck:main
+    required:
+      - pnpm --filter canvas-workspace build
+      - pnpm --filter canvas-workspace smoke:pi-electron
+
   - name: packaged-agent-tooling
     paths:
       - package.json

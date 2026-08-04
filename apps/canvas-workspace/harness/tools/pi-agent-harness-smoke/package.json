@@ -1,0 +1,6 @@
+{
+  "name": "pi-agent-harness-electron-smoke",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs"
+}

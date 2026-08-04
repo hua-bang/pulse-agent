@@ -1,4 +1,5 @@
-import type { Context, Tool, LLMProviderFactory, SystemPromptOption, ToolHooks, ILogger, PulseEngineInstance, ModelType } from './shared/types';
+import { asSchema } from 'ai';
+import type { Context, Tool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ToolHooks, ILogger, PulseEngineInstance, ModelType } from './shared/types';
 import type { LoopOptions, LoopHooks } from './core/loop';
 import type { EnginePluginLoadOptions } from './plugin/EnginePlugin.js';
 import type { UserConfigPluginLoadOptions } from './plugin/UserConfigPlugin.js';
@@ -10,6 +11,19 @@ import { BuiltinToolsMap } from './tools/index.js';
 import { PluginManager } from './plugin/PluginManager.js';
 import { builtInPlugins } from './built-in/index.js';
 import { buildProvider } from './config/index.js';
+
+export interface EngineToolSession {
+  /** Post-beforeRun registry, including tools that are currently deferred. */
+  getRegisteredTools(): Record<string, Tool>;
+  /** Current policy-filtered tools visible to the external model harness. */
+  getTools(): Record<string, Tool>;
+  /** Current policy-adjusted prompt for the external model harness. */
+  getSystemPrompt(): SystemPromptOption | undefined;
+  /** Execute a currently visible tool and advance per-step policy state. */
+  executeTool(name: string, input: unknown, toolContext?: ToolExecutionContext): Promise<unknown>;
+  /** Close outstanding model/plugin lifecycle hooks. Idempotent. */
+  dispose(result?: string): Promise<void>;
+}
 
 /**
  * 引擎配置选项
@@ -323,6 +337,197 @@ export class Engine {
    */
   getTools(): Record<string, any> {
     return { ...this.tools };
+  }
+
+  /**
+   * Create a policy-aware tool session for an external model harness.
+   * beforeRun runs once; beforeLLMCall filters the visible table initially and
+   * after every tool result. This preserves deferred loading, PTC filtering,
+   * dynamic skill descriptions, and the normal tool hook boundary.
+   */
+  async createToolSession(
+    context: Context,
+    options: {
+      runContext?: Record<string, any>;
+      model?: string;
+      systemPrompt?: SystemPromptOption;
+    } = {},
+  ): Promise<EngineToolSession> {
+    const policyContext: Context = { ...context, messages: [...context.messages] };
+    let tools: Record<string, Tool> = { ...this.tools };
+    let systemPrompt = options.systemPrompt ?? this.options.systemPrompt;
+    const hooks = this.collectLoopHooks();
+    let visibleTools: Record<string, Tool> = {};
+    let visibleSystemPrompt = systemPrompt;
+    let llmCallOpen = false;
+    let disposed = false;
+    let afterRunCalled = false;
+
+    const finishRun = async (result: string) => {
+      if (afterRunCalled) return;
+      afterRunCalled = true;
+      for (const hook of this.pluginManager.getHooks('afterRun')) {
+        await hook({ context: policyContext, result });
+      }
+    };
+    const closeLLMCall = async (finishReason: string) => {
+      if (!llmCallOpen) return;
+      llmCallOpen = false;
+      for (const hook of hooks.afterLLMCall ?? []) {
+        await hook({
+          context: policyContext,
+          finishReason,
+          text: '',
+          model: options.model ?? this.options.model,
+        });
+      }
+    };
+    const refreshVisibleTools = async () => {
+      let nextTools = tools;
+      let nextPrompt = systemPrompt;
+      for (const hook of hooks.beforeLLMCall ?? []) {
+        const result = await hook({
+          context: policyContext,
+          systemPrompt: nextPrompt,
+          tools: nextTools,
+          runContext: options.runContext,
+          model: options.model ?? this.options.model,
+        });
+        if (result && 'systemPrompt' in result && result.systemPrompt !== undefined) {
+          nextPrompt = result.systemPrompt;
+        }
+        if (result && 'tools' in result && result.tools !== undefined) {
+          nextTools = result.tools;
+        }
+      }
+      visibleTools = nextTools;
+      visibleSystemPrompt = nextPrompt;
+      llmCallOpen = true;
+    };
+
+    try {
+      for (const hook of this.pluginManager.getHooks('beforeRun')) {
+        const result = await hook({
+          context: policyContext,
+          systemPrompt,
+          tools,
+          runContext: options.runContext,
+          model: options.model ?? this.options.model,
+        });
+        if (result && 'systemPrompt' in result && result.systemPrompt !== undefined) {
+          systemPrompt = result.systemPrompt;
+        }
+        if (result && 'tools' in result && result.tools !== undefined) {
+          tools = result.tools;
+        }
+      }
+      await refreshVisibleTools();
+    } catch (error) {
+      try {
+        await finishRun('');
+      } catch {
+        // Preserve the initialization error as the actionable failure.
+      }
+      throw error;
+    }
+
+    return {
+      getRegisteredTools: () => ({ ...tools }),
+      getTools: () => ({ ...visibleTools }),
+      getSystemPrompt: () => visibleSystemPrompt,
+      executeTool: async (name, input, toolContext) => {
+        if (disposed) throw new Error('Engine tool session is disposed');
+        const tool = visibleTools[name];
+        if (!tool || typeof tool.execute !== 'function') {
+          throw new Error(`Unknown or unavailable tool: ${name}`);
+        }
+        await closeLLMCall('tool-calls');
+        let output: unknown;
+        try {
+          output = await this.executeResolvedTool(tool, name, input, {
+            context: policyContext,
+            toolContext,
+          });
+        } catch (error) {
+          await refreshVisibleTools();
+          throw error;
+        }
+
+        const toolCallId = toolContext?.toolCallId ?? `external:${name}`;
+        policyContext.messages.push({
+          role: 'tool',
+          content: [{
+            type: 'tool-result',
+            toolCallId,
+            toolName: name,
+            output: { type: 'json', value: output },
+          }],
+        } as any);
+        await refreshVisibleTools();
+        return output;
+      },
+      dispose: async (result = '') => {
+        if (disposed) return;
+        disposed = true;
+        try {
+          await closeLLMCall('stop');
+        } finally {
+          await finishRun(result);
+        }
+      },
+    };
+  }
+
+  private async executeResolvedTool(
+    tool: Tool,
+    name: string,
+    input: unknown,
+    options: { context: Context; toolContext?: ToolExecutionContext },
+  ): Promise<unknown> {
+    const schema = asSchema(tool.inputSchema);
+    let validatedInput = input;
+    if (schema.validate) {
+      const result = await schema.validate(input);
+      if (!result.success) {
+        throw new Error(`Invalid input for tool ${name}: ${result.error.message}`);
+      }
+      validatedInput = result.value;
+    }
+
+    const hooks = this.collectLoopHooks();
+    let finalInput = validatedInput;
+    let finalToolContext = options.toolContext;
+    let shortCircuitOutput: unknown;
+    let shortCircuited = false;
+    for (const hook of hooks.beforeToolCall ?? []) {
+      const result = await hook({
+        context: options.context,
+        name,
+        input: finalInput,
+        toolContext: finalToolContext,
+      });
+      if (result && 'input' in result) finalInput = result.input;
+      if (result && 'toolContext' in result) finalToolContext = result.toolContext;
+      if (result && 'output' in result) {
+        shortCircuitOutput = result.output;
+        shortCircuited = true;
+        break;
+      }
+    }
+
+    let output = shortCircuited
+      ? shortCircuitOutput
+      : await tool.execute(finalInput, finalToolContext);
+    for (const hook of hooks.afterToolCall ?? []) {
+      const result = await hook({
+        context: options.context,
+        name,
+        input: finalInput,
+        output,
+      });
+      if (result && 'output' in result) output = result.output;
+    }
+    return output;
   }
 
   /**

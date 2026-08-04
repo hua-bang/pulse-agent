@@ -4,6 +4,7 @@ import {
   EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
   EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
+  EXPERIMENTAL_FLAG_PI_AGENT_HARNESS,
   EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL,
   EXPERIMENTAL_FLAG_WORKSPACE_GRAPH,
   EXPERIMENTAL_FLAG_WORKSPACE_NODES,
@@ -63,11 +64,19 @@ describe('experimental feature lifecycle', () => {
     const grandfathered = EXPERIMENTAL_FEATURES.find(
       (feature) => feature.id === EXPERIMENTAL_FLAG_AGENT_TEAMS,
     )!;
+    const piHarness = EXPERIMENTAL_FEATURES.find(
+      (feature) => feature.id === EXPERIMENTAL_FLAG_PI_AGENT_HARNESS,
+    )!;
 
     expect(canConfigureExperimentalFeature(stable, {})).toBe(false);
     expect(canConfigureExperimentalFeature(grandfathered, {})).toBe(false);
     expect(canConfigureExperimentalFeature(grandfathered, {
       [EXPERIMENTAL_FLAG_AGENT_TEAMS]: true,
     })).toBe(true);
+    expect(canConfigureExperimentalFeature(piHarness, {})).toBe(true);
+    expect(resolveFeatureValues({})[EXPERIMENTAL_FLAG_PI_AGENT_HARNESS]).toBe(false);
+    expect(resolveFeatureValues({
+      [EXPERIMENTAL_FLAG_PI_AGENT_HARNESS]: true,
+    })[EXPERIMENTAL_FLAG_PI_AGENT_HARNESS]).toBe(true);
   });
 });

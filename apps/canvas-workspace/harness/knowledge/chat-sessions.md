@@ -201,13 +201,18 @@ accepted.
 - Explicitly removing a ready draft attachment deletes its saved file.
 - Clearing a successfully sent draft must retain the file, because session
   history references it.
+- Native runtimes must treat the context's final user frame as the complete
+  model-facing current turn. It carries attachment paths and inspection
+  guidance that the plain composer text does not; seed it zero times and
+  prompt it exactly once, including for image-only turns.
 - A failed turn must persist the live tool-call snapshot and settle
   unfinished tools so reload matches the streamed UI.
 
 Guards: `useChatAttachments.test.tsx`
 (`src/renderer/src/components/chat/hooks/useChatAttachments.ts`),
 `chat-protocol.test.ts`, and `chat-failure-persistence.test.ts` (both under
-`src/main/agent/`).
+`src/main/agent/`), plus
+`src/main/agent/backends/pi-agent-harness-backend.test.ts`.
 
 ### Full-screen chat rail projection
 

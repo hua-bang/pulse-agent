@@ -2,6 +2,7 @@ import type { ModelMessage } from 'ai';
 import type { Engine } from 'pulse-coder-engine';
 
 import type { AgentRoleDefinition } from '../../shared/agent-roles';
+import type { AgentClarificationRequest } from '../../shared/agent-chat';
 import type { ResolvedCanvasModel } from './model/config';
 import type {
   CanvasAgentDebugTrace,
@@ -9,17 +10,10 @@ import type {
   CanvasAgentToolCall,
 } from './types';
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
-import { buildEngineStreamCallbacks } from './engine-stream-callbacks';
-import { runExternalRoleSegment } from './external/segment';
+import { resolveAgentRuntime } from './backends';
 import { ENGINE_ABORT_SENTINEL } from './chat-stop';
 
-const CANVAS_AGENT_MAX_STEPS = 200;
-
-type ClarificationHandler = (request: {
-  id: string;
-  question: string;
-  context?: string;
-}) => Promise<string>;
+type ClarificationHandler = (request: AgentClarificationRequest) => Promise<string>;
 
 interface ExecuteCanvasAgentSegmentOptions {
   engine: Engine;
@@ -47,6 +41,20 @@ interface ExecuteCanvasAgentSegmentOptions {
   replaceMessages: (messages: ModelMessage[]) => void;
 }
 
+/**
+ * Execute one chat segment on whichever backend the role routes to
+ * (`resolveAgentRuntime`). This executor owns the runtime-agnostic policies,
+ * which must behave identically for every backend:
+ *
+ * - `streamedText` accumulation, independent of what the backend returns or
+ *   throws (the stopped-vs-failed rule needs the partial text).
+ * - Response-message collection: backends report produced messages through
+ *   `recordResponseMessages`, which appends to the live model history AND
+ *   the per-segment collection, so partial output survives an abort.
+ * - Abort normalization: a rejection after `abortSignal` fired is a STOPPED
+ *   turn (`ENGINE_ABORT_SENTINEL`), never a failure — see
+ *   harness/knowledge/agent-roles.md (stopped-vs-failed turn rule).
+ */
 export async function executeCanvasAgentSegment(
   options: ExecuteCanvasAgentSegmentOptions,
 ): Promise<{
@@ -62,52 +70,20 @@ export async function executeCanvasAgentSegment(
     streamedText += delta;
     options.onText?.(delta);
   };
+  const recordResponseMessages = (messages: ModelMessage[]) => {
+    options.appendMessages(messages);
+    responseMessages.push(...messages);
+  };
 
+  const backend = resolveAgentRuntime(options.role);
   try {
-    let resultText: string;
-    if (options.role?.external) {
-      const external = await runExternalRoleSegment({
-        role: options.role,
-        external: options.role.external,
-        chatSessionId: options.chatSessionId,
-        workspaceRootFolder: options.workspaceRootFolder,
-        history: options.history,
-        currentAsk: options.currentAsk,
-        handoffNames: options.handoffNames,
-        abortSignal: options.abortSignal,
-        executionMode: options.executionMode,
-        onApprovalRequest: options.onClarificationRequest,
-        onText: handleText,
-        onToolCall: options.onToolCall,
-        onToolResult: options.onToolResult,
-      });
-      resultText = external.text;
-      externalToolCalls = external.toolCalls;
-      const message = { role: 'assistant', content: resultText } as ModelMessage;
-      options.appendMessages([message]);
-      responseMessages.push(message);
-    } else {
-      resultText = await options.engine.run(options.context, {
-        provider: options.modelConfig.provider,
-        model: options.configuredModel ?? options.modelConfig.model,
-        modelType: options.modelConfig.modelType,
-        systemPrompt: options.systemPrompt,
-        maxSteps: CANVAS_AGENT_MAX_STEPS,
-        abortSignal: options.abortSignal,
-        runContext: { executionMode: options.executionMode },
-        onClarificationRequest: options.onClarificationRequest,
-        ...buildEngineStreamCallbacks(options, options.debugTrace),
-        onResponse: (messages: ModelMessage[]) => {
-          options.appendMessages(messages);
-          responseMessages.push(...messages);
-        },
-        onCompacted: (messages: ModelMessage[]) => {
-          options.replaceMessages(messages);
-          options.context.messages = messages;
-        },
-      });
-    }
-    return { resultText, streamedText, responseMessages, externalToolCalls };
+    const result = await backend.runSegment({
+      ...options,
+      onText: handleText,
+      recordResponseMessages,
+    });
+    externalToolCalls = result.toolCalls;
+    return { resultText: result.resultText, streamedText, responseMessages, externalToolCalls };
   } catch (error) {
     if (!options.abortSignal.aborted) throw error;
     return {

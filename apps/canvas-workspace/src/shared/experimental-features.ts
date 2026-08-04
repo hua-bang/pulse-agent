@@ -64,8 +64,17 @@ export const EXPERIMENTAL_FLAG_CHANNELS = 'chat-channels';
 export const EXPERIMENTAL_FLAG_AGENT_TEAMS = 'agent-teams';
 export const EXPERIMENTAL_FLAG_DEFAULT_BROWSER = 'default-browser';
 export const EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL = 'agent-runtime-control';
+export const EXPERIMENTAL_FLAG_PI_AGENT_HARNESS = 'pi-agent-harness';
 
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
+  {
+    id: EXPERIMENTAL_FLAG_PI_AGENT_HARNESS,
+    label: 'Pi AgentHarness runtime',
+    description:
+      'Runs the default Canvas assistant on the embedded pi AgentHarness while preserving Canvas tools, policies, model settings, and host-owned chat history.',
+    defaultEnabled: false,
+    exposure: 'experimental',
+  },
   {
     id: EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
     label: 'Agent runtime control',
