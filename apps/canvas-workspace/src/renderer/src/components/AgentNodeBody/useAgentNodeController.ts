@@ -18,6 +18,7 @@ import {
   syncTerminalFontSizeToCanvas,
   writeTerminalOutput,
 } from './utils/terminal';
+import { resolvePiSessionBinding } from './utils/piSession';
 
 const mintSessionId = (nodeId: string): string => `${nodeId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const shellQuote = (value: string): string => `'${value.replace(/'/g, "'\\''")}'`;
@@ -99,11 +100,13 @@ const normalizeAgentType = (agentType?: string): string =>
 const canResumeCliConversation = (data: AgentNodeData): boolean => {
   if (data.agentType === 'claude-code') return !!data.cliSessionId;
   if (data.agentType === 'codex') return !!data.codexSessionId;
+  if (data.agentType === 'pi') return !!data.piSessionKey;
   return false;
 };
 const cliConversationKey = (data: AgentNodeData): string | undefined => {
   if (data.agentType === 'claude-code') return data.cliSessionId;
   if (data.agentType === 'codex') return data.codexSessionId;
+  if (data.agentType === 'pi') return data.piSessionKey;
   return undefined;
 };
 
@@ -537,6 +540,12 @@ export const useAgentNodeController = ({
         dataRef.current = nextData;
         onUpdateRef.current(nodeIdRef.current, { data: nextData });
       }
+      const piSession = resolvePiSessionBinding(agentType, dataRef.current.piSessionKey);
+      if (piSession.key && dataRef.current.piSessionKey !== piSession.key) {
+        const nextData = { ...dataRef.current, piSessionKey: piSession.key };
+        dataRef.current = nextData;
+        onUpdateRef.current(nodeIdRef.current, { data: nextData });
+      }
       const writeCommandTimeRef = { current: 0 };
 
       const readCodexSessionBaseline = async (): Promise<Set<string> | null> => {
@@ -696,7 +705,7 @@ export const useAgentNodeController = ({
           const flags =
             (agentType === 'claude-code'
               ? ` ${resumeMode && canResumeClaude ? '--resume' : '--session-id'} ${cliSessionId}`
-              : '') + commonFlags;
+              : piSession.flags(resumeMode)) + commonFlags;
           if (promptForCommand) {
             api.write(sessionId, `${clearTerminalCommand}; ${command}${flags} ${shellQuote(promptForCommand)}${teamExitSuffix}\n`);
           } else if (promptFile) {
@@ -909,6 +918,7 @@ export const useAgentNodeController = ({
     data.agentType,
     data.cliSessionId,
     data.codexSessionId,
+    data.piSessionKey,
     data.cwd,
     data.agentTeamWarmup,
     data.inlinePrompt,
@@ -986,6 +996,7 @@ export const useAgentNodeController = ({
     data.agentType,
     data.cliSessionId,
     data.codexSessionId,
+    data.piSessionKey,
     data.cwd,
     data.agentTeamAutoResume,
     data.inlinePrompt,

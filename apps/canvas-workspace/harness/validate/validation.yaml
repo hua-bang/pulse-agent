@@ -56,6 +56,26 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts
 
+  # The Coding Agent node's CLI roster is a cross-file contract: one registry
+  # entry, but a usable agent also needs a brand mark, a dock identity, a
+  # command-detection arm, and — the part with no compile-time guard — its own
+  # session-binding rule, which decides whether "Resume" is offered and which
+  # conversation it reaches. Getting that wrong attaches a node to someone
+  # else's conversation, silently.
+  # Knowledge: harness/knowledge/coding-agent-registry.md.
+  - name: coding-agent-roster
+    paths:
+      - src/renderer/src/config/agentRegistry.ts
+      - src/renderer/src/components/AgentNodeBody/**
+      - src/renderer/src/utils/codingAgentCommand.ts
+      - src/renderer/src/components/RightDock/DockAgentTabIcon.tsx
+      - src/main/agent/codex-sessions.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/components/AgentNodeBody src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/components/AgentNodeBody src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.
   # The canvas-cli mirror paths are bound by the root validation overlay.

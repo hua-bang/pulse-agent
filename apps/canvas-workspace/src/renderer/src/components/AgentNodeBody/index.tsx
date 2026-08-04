@@ -221,6 +221,7 @@ export const AgentNodeBody = ({
           prompt={controller.data.lastInitPrompt}
           cliSessionId={controller.data.cliSessionId}
           codexSessionId={controller.data.codexSessionId}
+          piSessionKey={controller.data.piSessionKey}
           onRestart={controller.handleRestartSession}
           onEdit={controller.handleEditInit}
         />

@@ -9,6 +9,7 @@ interface AgentRestartProps {
   prompt?: string;
   cliSessionId?: string;
   codexSessionId?: string;
+  piSessionKey?: string;
   onRestart: () => void;
   onEdit: () => void;
 }
@@ -83,6 +84,7 @@ export const AgentRestart = ({
   prompt,
   cliSessionId,
   codexSessionId,
+  piSessionKey,
   onRestart,
   onEdit,
 }: AgentRestartProps) => {
@@ -91,13 +93,19 @@ export const AgentRestart = ({
   const cwdDisplay = cwd ? truncatePath(cwd, 36) : 'Working Directory';
   const hasPrompt = !!(prompt && prompt.trim().length > 0);
   const promptPreview = hasPrompt ? t('agent.promptSaved') : t('agent.promptNotProvided');
-  // Only offer "resume" when the node has a stable CLI conversation id.
-  // Falling back to Codex `--last` can attach this node to another agent.
+  // Only offer "resume" when this node's conversation is addressable on its
+  // own. Never a bare "continue the latest session" fallback (Codex `--last`,
+  // `pi -c` against the shared default directory) — that can attach the node
+  // to a sibling node's conversation, or to one the user started by hand.
+  // Pi qualifies via its per-node `--session-dir`, which makes `--continue`
+  // scan only this node's directory (`piSessionDirArg`).
   const canResume = agentType === 'claude-code'
     ? !!cliSessionId
     : agentType === 'codex'
       ? !!codexSessionId
-      : false;
+      : agentType === 'pi'
+        ? !!piSessionKey
+        : false;
   const restartLabel = canResume ? t('agent.resumeSession') : t('agent.restartSession');
   const restartTitle = canResume
     ? `Resume the previous ${agentDef?.label ?? 'agent'} conversation`
@@ -105,8 +113,9 @@ export const AgentRestart = ({
   // `canResume` is a CAPABILITY, so the no-resume copy must not assert a
   // CAUSE. This view is reached by an app relaunch, by a PTY that ended, and
   // by Back-from-"Edit initial parameters" — the old wording claimed the app
-  // had restarted, which was wrong in two of the three, and is what every
-  // agent without a resumable session id (currently Pi) always shows.
+  // had restarted, which was wrong in two of the three. Still reachable: a
+  // node whose first launch predates its agent's session binding, and any
+  // future agent that cannot address one conversation.
   const warningText = canResume
     ? t('agent.resumeWarning')
     : t('agent.restartWarning');

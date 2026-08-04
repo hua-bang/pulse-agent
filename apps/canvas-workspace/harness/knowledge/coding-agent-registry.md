@@ -75,14 +75,70 @@ prompt positionally and needs no flags.
   executes tools without asking by default, so it has no flag and no toggle.
   Keep the picker's flag map and the controller's `dangerousFlag` chain in
   sync — they are two copies of the same mapping.
-- **Resume.** `AgentRestart` offers "resume" only for an agent whose node
-  holds a stable conversation id: Claude Code because `--session-id <uuid>`
-  assigns one at launch, Codex because the session file is discovered
-  afterwards by marker (`main/agent/codex-sessions.ts`). An agent that can
-  only continue "the most recent session" gets restart, NOT resume — a
-  `--continue`-style fallback can attach the node to another agent's
-  conversation. Pi is in this class: its `--session <path|id>` opens an
-  existing session and cannot mint one at a caller-chosen id.
+- **Resume.** See "Binding a node to one conversation" below. The rule the
+  code enforces: `AgentRestart` offers "resume" only when the node can name
+  its OWN conversation. A bare "continue the most recent session" fallback
+  never qualifies — it can attach the node to a sibling node's conversation,
+  or to one the user started by hand in a terminal.
+
+## Binding a node to one conversation
+
+A Coding Agent node is a long-lived thing: the app restarts, the PTY dies,
+the user hits "Resume". For that to mean anything, the node must be able to
+point at ONE conversation. Every CLI solves this differently, and the cost of
+each mechanism is what decides whether resume is offered at all.
+
+| Agent | Mechanism | Where it lives |
+|---|---|---|
+| Claude Code | caller-supplied id: `--session-id <uuid>` on first launch, `--resume <uuid>` after | `cliSessionId` on the node |
+| Codex | discovered after the fact: a marker comment is appended to the first prompt, then `~/.codex/state_5.sqlite` is polled for the thread containing it (session-index diffing as fallback), then `codex exec resume <id>` | `codexSessionId` / `codexSessionMarker`; `main/agent/codex-sessions.ts` |
+| Pi | private storage: `--session-dir <node dir>` on every launch, plus `--continue` to resume | `piSessionKey` on the node |
+
+Prefer the cheapest mechanism the CLI actually supports, in this order:
+
+1. **A caller-supplied id** (Claude Code). Deterministic, nothing to discover.
+2. **A private session directory** (Pi). Also deterministic, and it needs no
+   id at all — scoping storage collapses "the most recent session" from a
+   machine-wide guess into an exact answer. Prefer this over discovery
+   whenever the CLI exposes such a flag.
+3. **Post-hoc discovery** (Codex). Only when neither of the above exists. It
+   reads another tool's private on-disk state, so it is version-fragile, it
+   must handle "found two candidates" as a distinct outcome, and its 30s
+   poll can simply fail — after which the node has no resumable id.
+
+### Pi's session directory
+
+`pi --session-dir <dir>` scopes both where sessions are written and where
+lookups search, so a node-private directory makes `--continue` — "the most
+recent session in this directory" — resolve to that node and nothing else.
+The node stores only an opaque UUID (`piSessionKey`); the path is derived in
+`useAgentNodeController` (`piSessionDirArg`) as
+`$HOME/.pi/agent/sessions/pulse-canvas/<key>`.
+
+Four things about that path are load-bearing:
+
+- **The flag ships on every launch, not just resumes.** It is what puts the
+  first conversation somewhere a later `--continue` can find it.
+- **Two levels below `sessions/`.** Pi's cross-project session list scans
+  only the direct children of `sessions/`, so canvas conversations stay out
+  of the CLI's `pi -r` picker while remaining reachable by path.
+- **`$HOME`, not `~`.** Pi expands a leading tilde for its
+  `PI_CODING_AGENT_SESSION_DIR` env var but NOT for `--session-dir`, so the
+  shell has to do the expanding. The env var is not an option here anyway:
+  `pty:spawn` allowlists env keys to `^PULSE_CANVAS_[A-Z0-9_]+$`.
+- **The key is a UUID**, so the double-quoted path can never carry shell
+  syntax.
+
+A node whose first launch predates this binding has no key; its earlier
+conversation sits in pi's default per-cwd directory and is not addressable
+from the node, so the first keyed launch starts fresh and the restart card
+says so.
+
+Rejected: `pi -c` against the default directory. It resolves per working
+directory, so two nodes on one repo — or a `pi` the user ran in a terminal —
+silently share a conversation.
+
+Tests: `AgentNodeBody/__tests__/piSessionBinding.test.tsx`.
 
 ## Not automatic
 
