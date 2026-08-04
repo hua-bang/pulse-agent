@@ -63,11 +63,14 @@ function setAnchorRect(el: HTMLElement, rect: Partial<DOMRect>) {
 /** Stubs EVERY element's offsetWidth/offsetHeight to a fixed size — happy-dom
  *  never lays out real content, so this is the only way to give the panel a
  *  non-zero measured size for the placement/flip/clamp math to react to. */
-function mockPanelSize(width: number, height: number) {
+function mockPanelSize(width: number, height: number | (() => number)) {
   const widthDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
   const heightDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
   Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => width });
-  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => height });
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get: () => typeof height === 'function' ? height() : height,
+  });
   restoreFns.push(() => {
     if (widthDesc) Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDesc);
     if (heightDesc) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDesc);
@@ -463,6 +466,49 @@ describe('Popover — rect anchor mode (anchorRef)', () => {
       window.dispatchEvent(new Event('resize'));
     });
     expect(el.style.top).toBe('338px');
+  });
+
+  it('reanchors when the panel itself shrinks after its content is filtered', () => {
+    setViewport(1000, 800);
+    let panelHeight = 420;
+    mockPanelSize(292, () => panelHeight);
+    const anchor = createAnchor({ top: 700, left: 700, right: 800, bottom: 730, width: 100, height: 30 });
+    let notifyResize: (() => void) | undefined;
+    const resizeObserverDesc = Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver');
+
+    class ResizeObserverStub implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this);
+      }
+
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      configurable: true,
+      value: ResizeObserverStub,
+    });
+    restoreFns.push(() => {
+      if (resizeObserverDesc) {
+        Object.defineProperty(globalThis, 'ResizeObserver', resizeObserverDesc);
+      } else {
+        delete (globalThis as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+      }
+    });
+
+    render(
+      <Popover anchorRef={anchor} onClose={vi.fn()} className="test-popover" placement="top" align="end" gap={8} viewportMargin={12}>
+        <button role="menuitem">Item</button>
+      </Popover>,
+    );
+    const el = document.querySelector('.test-popover') as HTMLElement;
+    expect(el.style.top).toBe('272px');
+
+    panelHeight = 180;
+    act(() => notifyResize?.());
+    expect(el.style.top).toBe('512px');
   });
 
   it('reanchors on capture-phase scroll (ancestor scroll containers do not bubble a plain scroll listener)', () => {

@@ -32,8 +32,9 @@ interface Options {
 
 /**
  * Positions a `position: fixed` panel relative to a LIVE element's rect (a
- * trigger button), re-measuring on window resize and ancestor scroll — the
- * capability `useViewportClampedPosition`'s one-shot x/y clamp doesn't have.
+ * trigger button), re-measuring on window resize, ancestor scroll, and panel
+ * resize — the capability `useViewportClampedPosition`'s one-shot x/y clamp
+ * doesn't have.
  * Extracted from `chat/ModelSwitcher`'s hand-rolled `updateMenuPosition`
  * (API-extension batch follow-up, see `docs/ui-reuse-burndown.md`).
  *
@@ -109,6 +110,20 @@ export const useAnchorRectPosition = <T extends HTMLElement>({
       window.removeEventListener('resize', reposition);
       window.removeEventListener('scroll', reposition, true);
     };
+  }, [enabled, reposition]);
+
+  useEffect(() => {
+    if (!enabled || typeof ResizeObserver === 'undefined') return undefined;
+    const panel = ref.current;
+    if (!panel) return undefined;
+
+    // A rect-anchored panel can change size while it stays open (for example,
+    // filtering ModelSwitcher's long catalog down to two matches). Its old
+    // top/left were calculated from the pre-filter dimensions, so without a
+    // fresh measurement a top-placed panel visibly detaches from its trigger.
+    const observer = new ResizeObserver(reposition);
+    observer.observe(panel);
+    return () => observer.disconnect();
   }, [enabled, reposition]);
 
   return { ref, pos };
