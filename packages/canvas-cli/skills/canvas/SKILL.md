@@ -8,9 +8,21 @@ version: 1.0.0
 
 Interact with canvas workspaces via the `pulse-canvas` CLI. The canvas is a shared workspace between humans and agents.
 
-The current workspace ID is available via `$PULSE_CANVAS_WORKSPACE_ID` environment variable (auto-set by canvas). All `node` and `context` commands use it automatically — no need to pass workspace ID explicitly.
+Commands resolve the target workspace automatically, so you rarely pass `--workspace`. Resolution order: `--workspace <id>` → `$PULSE_CANVAS_WORKSPACE_ID` (auto-set by canvas) → the app's active workspace. Run `pulse-canvas workspace current` to see which one commands will act on, and `pulse-canvas workspace list` to see all workspaces (the active one is flagged).
 
 Whenever `$PULSE_CANVAS_WORKSPACE_ID` is set, treat the canvas as required user-provided context. Before planning, coding, reviewing, or answering a workspace task, run `pulse-canvas context --format json` and use that result alongside repository files.
+
+### Your workspace vs. the one the user is looking at
+
+`$PULSE_CANVAS_WORKSPACE_ID` pins you to the workspace that **owns your node**, and it is frozen for the life of your shell. The user can switch the Pulse Canvas UI to a different workspace at any time, so the two legitimately diverge — that is not a stale variable to work around.
+
+`context` reports both: `workspaceSource` (how your workspace was resolved), `activeWorkspaceId` (what the app has open), and `isActiveWorkspace`. When `isActiveWorkspace` is false:
+
+- Keep reading and writing your own workspace. It owns your session, and switching to `activeId` would drop your work into whatever canvas the user happens to be viewing.
+- Do not answer "the current workspace" from your own canvas. Name the workspace you are reading, say which one the app has open, and ask which one they meant.
+- Use `--workspace <id>` for a one-off read of another workspace instead of reinterpreting your own pinning.
+
+If your workspace and the node you are asked about really do disagree (the node exists in another workspace), say so rather than guessing — a canvas node that renders in one workspace but reports another is a bug worth surfacing, not routing around.
 
 ## Core Commands
 

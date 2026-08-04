@@ -45,6 +45,11 @@ export interface CanvasWorkspaceApi {
   appInfo: AppInfoApi;
   pluginFlags: Record<string, boolean>;
   pty: {
+    /**
+     * Resolves `{ ok: false, code: 'workspace_mismatch' }` when `id` names a
+     * session already live in another workspace — reusing it would pin the
+     * caller's shell to the wrong canvas (see main/terminal/session-binding.ts).
+     */
     spawn: (
       id: string,
       cols?: number,
@@ -52,7 +57,7 @@ export interface CanvasWorkspaceApi {
       cwd?: string,
       workspaceId?: string,
       env?: Record<string, string | undefined>,
-    ) => Promise<{ ok: boolean; pid?: number; error?: string; reused?: boolean; leaseId?: string }>;
+    ) => Promise<{ ok: boolean; pid?: number; error?: string; code?: string; reused?: boolean; leaseId?: string }>;
     write: (id: string, data: string) => void;
     resize: (id: string, cols: number, rows: number) => void;
     kill: (id: string, leaseId?: string) => void;

@@ -84,6 +84,16 @@ Commands resolve the target workspace automatically, so you rarely pass \`--work
 
 Whenever \`$PULSE_CANVAS_WORKSPACE_ID\` is set, treat the canvas as required user-provided context. Before planning, coding, reviewing, or answering a workspace task, run \`pulse-canvas context --format json\` and use that result alongside repository files.
 
+### Your workspace vs. the one the user is looking at
+
+\`$PULSE_CANVAS_WORKSPACE_ID\` pins you to the workspace that **owns your node**, and it is frozen for the life of your shell. The user can switch the Pulse Canvas UI to a different workspace at any time, so the two legitimately diverge — that is not a stale variable to work around.
+
+\`context\` reports both: \`workspaceSource\` (how your workspace was resolved), \`activeWorkspaceId\` (what the app has open), and \`isActiveWorkspace\`. When \`isActiveWorkspace\` is false:
+
+- Keep reading and writing your own workspace. It owns your session, and switching to \`activeId\` would drop your work into whatever canvas the user happens to be viewing.
+- Do not answer "the current workspace" from your own canvas. Name the workspace you are reading, say which one the app has open, and ask which one they meant.
+- Use \`--workspace <id>\` for a one-off read of another workspace instead of reinterpreting your own pinning.
+
 ## Core Commands
 
 ### Read workspace context (start here)

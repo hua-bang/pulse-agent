@@ -123,6 +123,8 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 
 - **Menu accelerators silently ate renderer shortcuts**: Electron `role` menu items win a keystroke in MAIN before any renderer listener sees it — check `menu.ts` for a role claiming the chord before adding any renderer shortcut, and never add a `role` whose accelerator collides with a registry binding.
   Detail + guards: apps/canvas-workspace/harness/knowledge/keyboard-shortcuts.md.
+- **A canvas agent answered about the wrong workspace**: a PTY's env (`PULSE_CANVAS_WORKSPACE_ID`) is frozen at spawn and pins an agent to the workspace that OWNS its node — which diverges from the workspace the user has open the moment they switch. Two rules follow: `pulse-canvas context` must report `workspaceSource` / `activeWorkspaceId` / `isActiveWorkspace` so the agent can see the divergence instead of guessing (never resolve "the current workspace" to `activeId` — that writes into whatever canvas the user is looking at), and `pty:spawn` must never reuse a live session across workspaces, because node ids and `data.sessionId` survive workspace export→import verbatim.
+  Guards: `apps/canvas-workspace/src/main/terminal/session-binding.test.ts`, `packages/canvas-cli/src/core/__tests__/node-query.test.ts` (§generateContext workspace identity).
 - **Documented-but-unimplemented shortcuts**: a UI surface must never hardcode a chord or its label — derive both from the registry; `Cmd+Shift+A` once shipped advertised-with-no-handler and silently ran select-all instead.
   Detail + guards: apps/canvas-workspace/harness/knowledge/keyboard-shortcuts.md.
 

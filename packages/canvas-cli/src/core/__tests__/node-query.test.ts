@@ -3,8 +3,8 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { searchNodes, updateNode } from '../nodes';
-import { saveCanvas, loadCanvas } from '../store';
-import { generateContext, CONTEXT_SCHEMA_VERSION } from '../context';
+import { saveCanvas, loadCanvas, saveWorkspaceManifest } from '../store';
+import { generateContext, CONTEXT_SCHEMA_VERSION, formatContextAsText } from '../context';
 import type { CanvasNode, CanvasSaveData } from '../types';
 
 let testDir: string;
@@ -106,5 +106,56 @@ describe('generateContext filtering + version', () => {
     expect(ctx!.nodes.map(n => n.type).sort()).toEqual(['file', 'text']);
     // e1 (t1→f1) both included; e2 (t1→i1) dropped because i1 excluded.
     expect(ctx!.edges.map(e => e.id)).toEqual(['e1']);
+  });
+});
+
+describe('generateContext workspace identity', () => {
+  async function seedWorkspaces(activeId: string): Promise<void> {
+    const canvas: CanvasSaveData = {
+      nodes: [node('t1', 'text', 'Note', { content: 'x' })],
+      edges: [],
+      transform: { x: 0, y: 0, scale: 1 },
+      savedAt: '2025-01-01T00:00:00.000Z',
+    };
+    await saveCanvas('ws-pinned', canvas, testDir);
+    await saveCanvas('ws-open', canvas, testDir);
+    await saveWorkspaceManifest({
+      workspaces: [
+        { id: 'ws-pinned', name: 'Harness' },
+        { id: 'ws-open', name: 'Client AI' },
+      ],
+      activeId,
+    }, testDir);
+  }
+
+  it('reports the resolution source and the app-active workspace', async () => {
+    await seedWorkspaces('ws-open');
+    const ctx = await generateContext('ws-pinned', testDir, { source: 'environment' });
+    expect(ctx!.workspaceSource).toBe('environment');
+    expect(ctx!.activeWorkspaceId).toBe('ws-open');
+    expect(ctx!.isActiveWorkspace).toBe(false);
+  });
+
+  it('marks the workspace active when it is the one open in the app', async () => {
+    await seedWorkspaces('ws-pinned');
+    const ctx = await generateContext('ws-pinned', testDir, { source: 'environment' });
+    expect(ctx!.isActiveWorkspace).toBe(true);
+  });
+
+  // An env-pinned agent reads its OWN canvas while the user may be looking at
+  // another one; without this line it answers about the wrong workspace.
+  it('warns in text output when the context is not the open workspace', async () => {
+    await seedWorkspaces('ws-open');
+    const ctx = await generateContext('ws-pinned', testDir, { source: 'environment' });
+    const text = formatContextAsText(ctx!);
+    expect(text).toContain('[source: environment]');
+    expect(text).toContain('NOT the workspace currently open');
+    expect(text).toContain('ws-open');
+  });
+
+  it('keeps the text output clean when the workspaces match', async () => {
+    await seedWorkspaces('ws-pinned');
+    const text = formatContextAsText((await generateContext('ws-pinned', testDir))!);
+    expect(text).not.toContain('NOT the workspace currently open');
   });
 });

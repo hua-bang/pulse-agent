@@ -1,6 +1,7 @@
 import { loadCanvas, loadWorkspaceManifest, getWorkspaceDir } from './store';
 import { getNodeCapabilities, readNode } from './nodes';
 import type { CanvasNode, CanvasEdge, NodeReadResult } from './types';
+import type { WorkspaceResolutionSource } from './workspace-resolution';
 
 interface ContextNode {
   id: string;
@@ -22,8 +23,10 @@ interface ContextEdge {
 /**
  * Version of the `context` output shape. Bump on any breaking change to the
  * fields below so machine consumers can detect an incompatible CLI.
+ *
+ * v2 added `workspaceSource` / `activeWorkspaceId` / `isActiveWorkspace`.
  */
-export const CONTEXT_SCHEMA_VERSION = 1;
+export const CONTEXT_SCHEMA_VERSION = 2;
 
 interface CanvasContext {
   /** Output-contract version (see CONTEXT_SCHEMA_VERSION). */
@@ -31,6 +34,21 @@ interface CanvasContext {
   workspaceId: string;
   workspaceName: string;
   canvasDir: string;
+  /**
+   * How `workspaceId` was resolved (see WorkspaceResolutionSource). An agent
+   * launched from a canvas node is pinned by `$PULSE_CANVAS_WORKSPACE_ID`
+   * (`environment`) to the workspace that OWNS the node — which is not
+   * necessarily the workspace the user is currently looking at.
+   */
+  workspaceSource?: WorkspaceResolutionSource;
+  /** The app's currently selected workspace (`__workspaces__.json.activeId`). */
+  activeWorkspaceId?: string;
+  /**
+   * False when this context describes a workspace other than the one open in
+   * the UI. An agent must not silently answer "the current workspace" from a
+   * different canvas — say which workspace it is reading instead.
+   */
+  isActiveWorkspace: boolean;
   nodes: ContextNode[];
   edges: ContextEdge[];
 }
@@ -65,6 +83,8 @@ export interface GenerateContextOptions {
   confineToWorkspace?: boolean;
   /** If set, include only nodes whose `type` is in this list (edges follow). */
   types?: string[];
+  /** How the caller resolved `workspaceId`; echoed into the output. */
+  source?: WorkspaceResolutionSource;
 }
 
 export async function generateContext(
@@ -195,16 +215,43 @@ export async function generateContext(
     };
   });
 
-  return { contextVersion: CONTEXT_SCHEMA_VERSION, workspaceId, workspaceName, canvasDir, nodes, edges };
+  return {
+    contextVersion: CONTEXT_SCHEMA_VERSION,
+    workspaceId,
+    workspaceName,
+    canvasDir,
+    workspaceSource: opts.source,
+    activeWorkspaceId: manifest.activeId,
+    isActiveWorkspace: !manifest.activeId || manifest.activeId === workspaceId,
+    nodes,
+    edges,
+  };
 }
 
 export function formatContextAsText(ctx: CanvasContext): string {
+  const sourceHint = ctx.workspaceSource ? `  [source: ${ctx.workspaceSource}]` : '';
   const lines: string[] = [
     '# Pulse Canvas Context',
     '',
-    `Workspace: ${ctx.workspaceName} (${ctx.workspaceId})`,
+    `Workspace: ${ctx.workspaceName} (${ctx.workspaceId})${sourceHint}`,
     `Canvas dir: ${ctx.canvasDir}`,
   ];
+
+  // An agent spawned inside a canvas node stays pinned to that node's
+  // workspace for its whole lifetime, while the user can switch the app to
+  // another workspace at any moment. Without this line the agent reads one
+  // canvas while the user is looking at another, and silently answers about
+  // the wrong one.
+  if (!ctx.isActiveWorkspace) {
+    lines.push(
+      '',
+      `> NOTE: this is NOT the workspace currently open in Pulse Canvas ` +
+      `(active: ${ctx.activeWorkspaceId}). This context describes ` +
+      `"${ctx.workspaceName}". Keep writing here — it owns your session — but ` +
+      `when the user says "the current workspace", name the workspace you are ` +
+      `reading instead of assuming it is theirs.`,
+    );
+  }
 
   const fileNodes = ctx.nodes.filter(n => n.type === 'file');
   const terminalNodes = ctx.nodes.filter(n => n.type === 'terminal');

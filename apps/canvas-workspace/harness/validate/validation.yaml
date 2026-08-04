@@ -76,6 +76,22 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/components/AgentNodeBody src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
 
+  # A PTY's env — PULSE_CANVAS_WORKSPACE_ID included — is frozen at spawn and
+  # cannot be rewritten, so `pty:spawn` handing back a live session by id alone
+  # binds the caller's shell to whichever workspace spawned it first. Node ids
+  # and `data.sessionId` survive workspace export→import verbatim, so that
+  # collision is reachable without any id-generation bug, and its symptom is
+  # silent: an agent that renders in one workspace but resolves every
+  # `pulse-canvas` command against another.
+  - name: pty-session-workspace-binding
+    paths:
+      - src/main/terminal/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/main/terminal
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/main/terminal
+
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.
   # The canvas-cli mirror paths are bound by the root validation overlay.

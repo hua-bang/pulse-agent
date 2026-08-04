@@ -7,6 +7,7 @@ import { chmodSync, existsSync } from "fs";
 import { readlink } from "fs/promises";
 import { delimiter, dirname, join, resolve } from "path";
 import { PtySessionLeaseRegistry } from "./session-lease";
+import { decidePtySessionReuse, describePtySessionReuseRefusal } from "./session-binding";
 import { commonPosixBinDirs, mergePath } from "../shell-path";
 
 const sessions = new Map<string, pty.IPty>();
@@ -221,11 +222,18 @@ export const setupPtyIpc = () => {
       }
     ) => {
       const { id, cols = 80, rows = 24, cwd, workspaceId } = payload;
-      const leaseId = sessionLeases.claim(id);
 
       if (sessions.has(id)) {
-        return { ok: true, reused: true, leaseId };
+        // Checked BEFORE claiming a lease: a refused request must not
+        // invalidate the lease the live session's real owner is holding.
+        const decision = decidePtySessionReuse(sessionInfos.get(id)?.workspaceId, workspaceId);
+        if (!decision.reuse) {
+          return { ok: false, code: decision.code, error: describePtySessionReuseRefusal(id, decision) };
+        }
+        return { ok: true, reused: true, leaseId: sessionLeases.claim(id) };
       }
+
+      const leaseId = sessionLeases.claim(id);
       // A fresh spawn means the app is live again after any teardown.
       intentionalShutdown = false;
 
