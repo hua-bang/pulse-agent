@@ -454,12 +454,19 @@
   display: block;
 }
 
+/* Per-agent brand marks read the --agent-brand-* tokens from styles.css:
+ * the tab switcher renders these icons inside a body-level popover, so the
+ * tokens must resolve outside the .right-dock subtree. */
 .right-dock__tab-icon--agent-claude-code {
-  color: #d97757;
+  color: var(--agent-brand-claude-code);
 }
 
 .right-dock__tab-icon--agent-codex {
-  color: #202123;
+  color: var(--agent-brand-codex);
+}
+
+.right-dock__tab-icon--agent-pi {
+  color: var(--agent-brand-pi);
 }
 
 .right-dock__tab-icon--link {
@@ -476,11 +483,15 @@
 }
 
 .right-dock__tab--active .right-dock__tab-icon--agent-claude-code {
-  color: #d97757;
+  color: var(--agent-brand-claude-code);
 }
 
 .right-dock__tab--active .right-dock__tab-icon--agent-codex {
-  color: #202123;
+  color: var(--agent-brand-codex);
+}
+
+.right-dock__tab--active .right-dock__tab-icon--agent-pi {
+  color: var(--agent-brand-pi);
 }
 
 .right-dock__tab-title {

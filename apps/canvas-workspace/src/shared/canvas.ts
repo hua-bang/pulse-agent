@@ -232,6 +232,14 @@ export interface AgentNodeData {
    * bind the created Codex thread id from local metadata after launch.
    */
   codexSessionMarker?: string;
+  /**
+   * Opaque key naming this node's private Pi session directory. Pi accepts no
+   * caller-supplied session id, but `--session-dir` scopes both storage and
+   * lookup, so a per-node directory makes `--continue` resolve to this node's
+   * conversation. Minted on first Pi launch; the shell path is derived from it
+   * (see `piSessionDirArg` in `useAgentNodeController`).
+   */
+  piSessionKey?: string;
   agentTeamAutoResume?: {
     sessionKey?: string;
     attempts?: number;

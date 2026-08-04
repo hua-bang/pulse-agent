@@ -68,7 +68,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         data: z.record(z.string(), z.unknown()).optional().describe(
           'Additional node data. Keys vary by type:\n' +
           '- terminal: { cwd?: string }\n' +
-          '- agent: { agentType?: "claude-code"|"codex", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
+          '- agent: { agentType?: "claude-code"|"codex"|"pi", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
           '- frame: { color?: string, label?: string }\n' +
           '- group: { color?: string, label?: string, childIds?: string[] }\n' +
           '- text: { textColor?: string, backgroundColor?: string, fontSize?: number }\n' +

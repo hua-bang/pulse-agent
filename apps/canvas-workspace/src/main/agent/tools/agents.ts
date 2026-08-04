@@ -21,12 +21,12 @@ export function createAgentTools(workspaceId: string): Record<string, CanvasTool
       defer_loading: true,
       description:
         'Create and optionally auto-launch an AI agent node on the canvas. ' +
-        'Use this when you need to delegate a task to another agent (Claude Code or Codex). ' +
+        'Use this when you need to delegate a task to another agent (Claude Code, Codex, or Pi). ' +
         'Set `prompt` with task instructions and relevant canvas context so the agent knows what to do. ' +
         'The prompt is piped directly to the agent as its initial prompt.',
       inputSchema: z.object({
         title: z.string().optional().describe('Node title (e.g. "Codex: Implement login").'),
-        agentType: z.enum(['claude-code', 'codex']).optional()
+        agentType: z.enum(['claude-code', 'codex', 'pi']).optional()
           .describe('Agent type. Defaults to "claude-code".'),
         cwd: z.string().optional()
           .describe('Working directory for the agent. Defaults to the workspace root folder when set; omit unless the agent needs to run outside the workspace root.'),

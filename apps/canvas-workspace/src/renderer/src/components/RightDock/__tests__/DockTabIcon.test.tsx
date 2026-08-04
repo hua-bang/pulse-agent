@@ -28,18 +28,20 @@ describe('DockTabIcon', () => {
         <DockTabIcon kind="chat" />
         <DockTabIcon kind="link" faviconUrl="https://example.com/favicon.ico" />
         <DockAgentTabIcon agentType="codex" />
+        <DockAgentTabIcon agentType="pi" />
         <DockTabIcon kind="node-detail" />
         <DockTabIcon kind="canvas" />
       </>,
     ));
 
     const slots = [...mount.querySelectorAll('.right-dock__tab-icon')];
-    expect(slots).toHaveLength(5);
+    expect(slots).toHaveLength(6);
     expect(slots.every((slot) => slot.getAttribute('aria-hidden') === 'true')).toBe(true);
     expect(mount.querySelector('.right-dock__tab-icon--chat img')).toBeTruthy();
     expect(mount.querySelector<HTMLImageElement>('.right-dock__tab-favicon')?.src)
       .toBe('https://example.com/favicon.ico');
     expect(mount.querySelector('.right-dock__tab-icon--agent-codex svg')).toBeTruthy();
+    expect(mount.querySelector('.right-dock__tab-icon--agent-pi svg')).toBeTruthy();
     expect(mount.querySelector('.right-dock__tab-icon--node-detail svg')).toBeTruthy();
     expect(mount.querySelector('.right-dock__tab-dot--canvas')).toBeTruthy();
   });
