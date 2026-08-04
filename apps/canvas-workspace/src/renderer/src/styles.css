@@ -120,7 +120,7 @@
    * components/AgentNodeBody/AgentIcon.tsx. */
   --agent-brand-claude-code: #d97757;
   --agent-brand-codex: #202123;
-  --agent-brand-pi: #6e56cf;
+  --agent-brand-pi: #09090b;
 
   /* ── Layering scale ──────────────────────────────────────────────
    * Every surface that overlays other components takes its z-index

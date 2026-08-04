@@ -41,7 +41,11 @@ describe('AgentIcon', () => {
     expect(new Set(marks.values()).size).toBe(AGENT_REGISTRY.length);
   });
 
-  it('renders the Pi mark when the pi agent is selected', () => {
-    expect(renderIcon('pi')).toContain('#6e56cf');
+  it('renders Pi\'s official mark, tintable by the surface', () => {
+    const markup = renderIcon('pi');
+    // The blocky-P outline from pi.dev's logo.svg, viewBox-tightened to the
+    // path bounds. Monochrome by design upstream, so it takes currentColor.
+    expect(markup).toContain('M165.29 165.29H517.36V400H400V517.36H282.65V634.72H165.29Z');
+    expect(markup).toContain('currentColor');
   });
 });

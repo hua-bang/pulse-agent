@@ -23,17 +23,29 @@ export const AgentIcon = ({ id, size = 14 }: { id: string; size?: number }) => {
           />
         </svg>
       );
-    // App-side mark for the Pi CLI (pi.dev) — a π glyph, not a vendor asset.
+    // Pi's official mark (pi.dev press kit / earendil-works/pi-website
+    // `src/logo.svg`): a blocky P with a detached i-dot. Shipped monochrome
+    // on purpose — upstream serves a `logo-auto.svg` that flips black/white
+    // with the color scheme, so `currentColor` here is the intended usage and
+    // lets --agent-brand-pi tint it per surface. The source art draws inside a
+    // 0 0 800 800 canvas with ~165u of padding; the viewBox is tightened to
+    // the path bounds so it carries the same optical weight as the marks
+    // above, which fill theirs.
     case 'pi':
       return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <svg
+          width={size}
+          height={size}
+          viewBox="165.29 165.29 469.43 469.43"
+          fill="none"
+          aria-hidden="true"
+        >
           <path
-            d="M3.9 7h16.2M9.3 7v9.1c0 1.7-1 2.7-2.6 2.7M15.5 7v8.5c0 2 1 2.9 2.7 2.7"
-            stroke="#6e56cf"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            fillRule="evenodd"
+            d="M165.29 165.29H517.36V400H400V517.36H282.65V634.72H165.29ZM282.65 282.65V400H400V282.65Z"
+            fill="currentColor"
           />
+          <path d="M517.36 400H634.72V634.72H517.36Z" fill="currentColor" />
         </svg>
       );
     default:

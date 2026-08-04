@@ -24,7 +24,7 @@ The registry entry alone renders a working tab. These land with it:
 
 | What | Where |
 |---|---|
-| Brand mark | a `case` in `AgentNodeBody/AgentIcon.tsx` (inline SVG; the `default` case is a generic clock glyph, so a missing case is visible as "not really supported") |
+| Brand mark | a `case` in `AgentNodeBody/AgentIcon.tsx` (inline SVG; the `default` case is a generic clock glyph, so a missing case is visible as "not really supported") — see "Brand marks" below |
 | Brand color | `--agent-brand-<id>` in `src/renderer/src/styles.css`, plus the idle and active `right-dock__tab-icon--agent-<id>` rules in `RightDock/index.css` and the `BRANDED_AGENT_TYPES` list in `RightDock/DockAgentTabIcon.tsx` |
 | Dock tab title | the `agentDefaultTitle` chain in `RightDock/TerminalDockTab.tsx` |
 | Install guide | `AGENT_INSTALL_GUIDES` in `AgentNodeBody/AgentPicker.tsx` — shown when the binary probe reports missing or a launch fails |
@@ -34,6 +34,28 @@ The registry entry alone renders a working tab. These land with it:
 The brand color lives in `styles.css`, not `RightDock/index.css`, because the
 dock's tab switcher renders these icons inside a body-level popover — a token
 scoped to `.right-dock` would not resolve there.
+
+## Brand marks
+
+Use the vendor's real mark, taken from a source you can cite in the code
+comment (press kit, website repo, or the published package) — not a drawn
+approximation. Current provenance: Claude Code and Codex use their vendors'
+wordless glyphs; `pi` uses pi.dev's `logo.svg`, whose geometry is identical
+in the site repo's `src/logo.svg`, `src/favicon.svg`, and the `logo-auto.svg`
+the upstream README embeds.
+
+Two things to normalize when importing one:
+
+- **Color.** A mark that ships colored (Claude's orange) keeps its literal
+  fill. A mark the vendor ships monochrome — Codex, and Pi via its
+  `logo-auto.svg` black/white pair — takes `fill="currentColor"`, which is
+  the vendor's intent and lets `--agent-brand-<id>` and the active-tab accent
+  tint it. Never paste an upstream `<style>` block: those class names
+  (`.logo-mark`) are unscoped and would leak across the document.
+- **Optical weight.** Source art is often padded inside a square canvas
+  (Pi's is drawn with ~165u of margin in an 800u box). Tighten the `viewBox`
+  to the path bounds so the mark carries the same weight at 14–16px as the
+  marks that already fill theirs.
 
 `.agent-tabs` derives its grid track count from `--agent-tab-count`, which
 `AgentPicker` sets from `AGENT_REGISTRY.length`. Adding an entry widens the
