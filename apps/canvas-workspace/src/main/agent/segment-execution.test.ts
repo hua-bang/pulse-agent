@@ -1,5 +1,5 @@
 import type { Engine } from 'pulse-coder-engine';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentRoleDefinition } from '../../shared/agent-roles';
 import { createFailedTurnToolTracker } from './chat-failure-persistence';
@@ -12,6 +12,16 @@ vi.mock('./external/segment', () => ({ runExternalRoleSegment }));
 import { executeCanvasAgentSegment } from './segment-execution';
 
 describe('executeCanvasAgentSegment', () => {
+  beforeEach(() => {
+    // These cases pin the Engine/external executor contracts. Keep them
+    // independent from a developer's active Pi experimental setting.
+    vi.stubEnv('PULSE_CANVAS_AGENT_RUNTIME', 'engine');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('normalizes an aborted external driver into stopped text and cancelled live tools', async () => {
     const abortController = new AbortController();
     const toolTracker = createFailedTurnToolTracker();

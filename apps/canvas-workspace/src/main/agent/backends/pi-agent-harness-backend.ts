@@ -193,10 +193,11 @@ const seedHistory = async (
   session: Awaited<ReturnType<InMemorySessionRepo['create']>>,
   request: TurnSegmentRequest,
   model: PiModelRuntime['model'],
+  currentPrompt: string,
 ): Promise<void> => {
   const messages = request.context.messages;
   const last = messages.at(-1);
-  const history = last?.role === 'user' && messageText(last.content) === request.currentAsk
+  const history = last?.role === 'user' && messageText(last.content) === currentPrompt
     ? messages.slice(0, -1)
     : messages;
   for (const message of history) {
@@ -246,10 +247,19 @@ export function createPiAgentHarnessTurnBackend(
         request.replaceMessages(compacted.newMessages);
         request.context.messages = compacted.newMessages;
       }
+      // Canvas stores the complete model-facing current turn in context. For
+      // image attachments that envelope includes local paths and inspection
+      // guidance, while `currentAsk` remains only the composer text (and may
+      // be empty for an image-only turn). Prompt Pi with the host envelope and
+      // exclude that same frame from seeded history so it is sent exactly once.
+      const lastHostMessage = request.context.messages.at(-1);
+      const currentPrompt = lastHostMessage?.role === 'user'
+        ? messageText(lastHostMessage.content)
+        : request.currentAsk;
       const modelRuntime = createModelRuntime(request.modelConfig);
       const repo = new InMemorySessionRepo();
       const session = await repo.create({ id: request.chatSessionId });
-      await seedHistory(session, request, modelRuntime.model);
+      await seedHistory(session, request, modelRuntime.model, currentPrompt);
       const toolSession = await request.engine.createToolSession(
         request.context,
         {
@@ -336,7 +346,7 @@ export function createPiAgentHarnessTurnBackend(
           if (
             currentPromptPending
             && event.message.role === 'user'
-            && messageText(event.message.content) === request.currentAsk
+            && messageText(event.message.content) === currentPrompt
           ) {
             currentPromptPending = false;
           } else {
@@ -394,7 +404,7 @@ export function createPiAgentHarnessTurnBackend(
       let resultText = '';
       let runError: unknown;
       try {
-        const response = await harness.prompt(request.currentAsk);
+        const response = await harness.prompt(currentPrompt);
         if (response.stopReason === 'error') {
           throw new Error(response.errorMessage || 'Pi AgentHarness provider request failed');
         }

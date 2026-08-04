@@ -134,6 +134,69 @@ describe('pi AgentHarness turn backend', () => {
     expect(dispose).toHaveBeenCalledWith('PI_HARNESS_OK');
   });
 
+  it('prompts once with the host attachment envelope for the current user turn', async () => {
+    const faux = fauxProvider({ tokensPerSecond: 10_000 });
+    const models = createModels();
+    models.setProvider(faux.provider);
+    let providerMessages: any[] = [];
+    faux.setResponses([(context) => {
+      providerMessages = [...context.messages];
+      return fauxAssistantMessage('image received');
+    }]);
+    const attachmentPrompt = [
+      'describe this image',
+      '',
+      'User attached image files for this turn:',
+      '1. /tmp/pi-attachment.png (pi-attachment.png, mime=image/png)',
+      'Use canvas_analyze_image with imagePaths when you need to inspect these images.',
+    ].join('\n');
+    const backend = createPiAgentHarnessTurnBackend({
+      createModelRuntime: () => ({ models, model: faux.getModel() }),
+    });
+
+    await backend.runSegment({
+      engine: {
+        getTools: () => ({}),
+        compactContext: async () => ({ didCompact: false }),
+        createToolSession: async () => ({
+          getTools: () => ({}),
+          getSystemPrompt: () => 'Canvas system prompt',
+          executeTool: vi.fn(),
+          dispose: vi.fn(),
+        }),
+      } as unknown as Engine,
+      context: { messages: [{ role: 'user', content: attachmentPrompt }] },
+      role: null,
+      chatSessionId: 'session-attachment',
+      history: [],
+      // Canvas stores the richer model-facing envelope in context while the
+      // plain composer text remains the host's currentAsk value.
+      currentAsk: 'describe this image',
+      handoffNames: [],
+      abortSignal: new AbortController().signal,
+      executionMode: 'auto',
+      onText: vi.fn(),
+      modelConfig: {
+        providerType: 'openai',
+        provider: vi.fn(),
+        model: 'faux-model',
+        modelLabel: 'Faux model',
+      },
+      systemPrompt: 'Canvas system prompt',
+      recordResponseMessages: vi.fn(),
+      replaceMessages: vi.fn(),
+    });
+
+    const userMessages = providerMessages.filter(message => message.role === 'user');
+    expect(userMessages).toHaveLength(1);
+    expect(userMessages[0].content).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('/tmp/pi-attachment.png'),
+      }),
+    ]));
+  });
+
   it('loads and executes a deferred Engine tool inside the same AgentHarness run', async () => {
     const faux = fauxProvider({ tokensPerSecond: 10_000 });
     const models = createModels();
