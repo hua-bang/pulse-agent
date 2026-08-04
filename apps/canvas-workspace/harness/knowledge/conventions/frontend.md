@@ -115,8 +115,9 @@ counter may shrink but never grow):
   popover shell that portals to `document.body`; two anchoring modes —
   default `x`/`y` one-shot point anchor with a viewport clamp, for
   context-menu-style menus opened at a click point, or `anchorRef` for a
-  LIVE trigger-rect anchor that keeps reanchoring on scroll/resize via
-  `useAnchorRectPosition`, with `placement`/`align` flip+align — both modes
+  LIVE trigger-rect anchor that keeps reanchoring on scroll, viewport resize,
+  and panel-content resize via `useAnchorRectPosition`, with
+  `placement`/`align` flip+align — both modes
   share ESC/arrow-nav + click-outside),
   `DropdownShell` (the one TRIGGER-anchored dropdown shell — in-flow, no
   portal; owns click-outside/ESC/arrow-nav like Popover but stays next to
