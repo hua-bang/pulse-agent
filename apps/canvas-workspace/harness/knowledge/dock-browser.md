@@ -139,6 +139,16 @@ terminal/agent, page-favicon, node-detail, or content mark. Keep favicon and
 agent metadata in the projection rather than replacing every row with a
 generic kind dot.
 
+The pinned Pulse AI tab is `position: sticky; left: 0`, so the rest of the
+strip scrolls *underneath* it. Every state it can paint (active, hover,
+split-visible) must therefore end up fully opaque. The design tints are all
+translucent, so each is composited as a gradient layer over an opaque
+`var(--surface)` base rather than being used as the background outright — a
+bare translucent background lets the tab passing behind show through and the
+titles read as double-printed. Those chat-tab rules also have to restate the
+whole `background` shorthand, because the generic `.right-dock__tab` rules
+they override are more specific and a shorthand resets `background-color`.
+
 Closed web tabs enter the bounded, workspace-scoped reopen stack. Reopen must
 allocate a fresh id if the original id already exists; duplicate React keys or
 guest identities are never permitted.

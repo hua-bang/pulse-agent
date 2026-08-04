@@ -183,7 +183,6 @@ describe('ChatInput execution and attachment states', () => {
           interactionDisabled
           onAttachFiles={vi.fn()}
           onToggleExecutionMode={vi.fn()}
-          onSelectAutoModel={vi.fn(async () => undefined)}
           onSelectModel={vi.fn(async () => undefined)}
           onOpenModelSettings={vi.fn()}
         />

@@ -86,6 +86,9 @@
 
 .right-dock__tabs {
   --tab-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Shared by the generic tab hover and the sticky chat tab's opaque
+     restatement of it — one value, two rules. */
+  --dock-tab-hover-wash: rgba(55, 53, 47, 0.06);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -272,7 +275,7 @@
 }
 
 .right-dock__tab:not(.right-dock__tab--active):hover {
-  background: rgba(55, 53, 47, 0.06);
+  background: var(--dock-tab-hover-wash);
   color: #37352f;
   transform: translateY(-1px);
 }
@@ -355,8 +358,24 @@
   background: var(--surface);
 }
 
+/* The chat tab is `position: sticky`, so the rest of the strip scrolls
+ * UNDERNEATH it — every state it can be in has to paint an opaque box or the
+ * tab passing behind shows through and its title reads as double-printed over
+ * "Chat". The tints (--surface-alt, the hover wash, --accent-soft) are all
+ * translucent, so each is composited as a gradient LAYER over an opaque
+ * var(--surface) base instead of being used as the background outright.
+ * These restate the full shorthand rather than only the color because the
+ * generic .right-dock__tab rules they override are more specific. */
 .right-dock__tab--chat.right-dock__tab--active {
-  background: var(--surface-alt);
+  background: linear-gradient(var(--surface-alt), var(--surface-alt)) var(--surface);
+}
+
+.right-dock__tab--chat:not(.right-dock__tab--active):hover {
+  background: linear-gradient(var(--dock-tab-hover-wash), var(--dock-tab-hover-wash)) var(--surface);
+}
+
+.right-dock__tab--chat[data-split-visible="true"] {
+  background: linear-gradient(var(--accent-soft), var(--accent-soft)) var(--surface);
 }
 
 .right-dock__tab-switcher {

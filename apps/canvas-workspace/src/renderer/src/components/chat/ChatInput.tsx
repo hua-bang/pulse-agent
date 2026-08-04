@@ -26,7 +26,6 @@ interface ChatInputProps {
   modelStatus?: CanvasModelStatus;
   modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
   modelLabel?: string;
-  onSelectAutoModel?: () => Promise<void>;
   onSelectModel?: (providerId: string, modelId: string) => Promise<void>;
   onOpenModelSettings?: () => void;
   editableRef: RefObject<HTMLDivElement>;
@@ -62,7 +61,6 @@ export const ChatInput = ({
   modelStatus,
   modelSelection = { mode: 'auto' },
   modelLabel,
-  onSelectAutoModel,
   onSelectModel,
   onOpenModelSettings,
   editableRef,
@@ -225,13 +223,12 @@ export const ChatInput = ({
             ) : null}
           </div>
           <div className="chat-input-footer-right">
-            {contextComposer && onSelectAutoModel && onSelectModel && onOpenModelSettings && (
+            {contextComposer && onSelectModel && onOpenModelSettings && (
               <ModelSwitcher
                 status={modelStatus}
                 selection={modelSelection}
                 label={modelLabel ?? t('models.auto')}
                 disabled={interactionDisabled || loading}
-                onSelectAuto={onSelectAutoModel}
                 onSelectModel={onSelectModel}
                 onOpenSettings={onOpenModelSettings}
               />
