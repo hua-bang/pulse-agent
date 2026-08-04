@@ -314,6 +314,28 @@ values:
   it); two in quick succession blur the terminal and hand focus back to the
   canvas.
 
+`decideTerminalKey` is PURE — the two stateful halves live in
+`AgentNodeBody/utils/terminalFocus.ts`, so no surface hand-rolls them:
+
+- `createTerminalKeyArbiter` owns the double-Escape timestamp and returns
+  exactly what an xterm custom key handler must return. Its "no previous
+  Escape" sentinel is `-Infinity`, NOT 0: the rule asks whether
+  `now - lastEscapeAt` is inside the hatch window, so a 0 sentinel makes a
+  first Escape pressed while `performance.now()` is still under 400ms read as
+  the second half of a pair and blur on its own. The same sentinel is used to
+  reset after a release, so the next Escape starts a fresh pair.
+- `releaseTerminalFocus` owns the blur sequence. All three steps matter:
+  xterm's own `blur()` clears its internal focus state, the container blur
+  covers a surface whose wrapper took focus, and the `activeElement` blur is
+  the backstop for the helper textarea, which is neither of those elements.
+
+All four xterm handlers route through the arbiter. Until 2026-08 only
+`TerminalNodeBody` did: the coding-agent node and the workspace terminal dock
+had hand-rolled handlers with no hatch at all, so focus in either one could
+only be escaped with the mouse. NOTE the cost in a coding-agent node: the
+second Escape is not forwarded to the PTY, so a CLI that binds double-Escape
+itself (Claude Code's jump-to-previous-message) cannot see it there.
+
 ## Bound checks
 
 Bound checks: the `keyboard-shortcuts` rule in `harness/validate/validation.yaml`.
@@ -335,7 +357,8 @@ The rule's `paths` cover: `src/renderer/src/shortcuts/**`,
 `src/renderer/src/components/AppShellProvider/ShortcutsDialog.tsx`,
 `src/shared/webview-shortcuts.ts`,
 `src/main/webview/shortcut-forwarding.ts`, `src/main/app/menu.ts`,
-`src/renderer/src/components/AgentNodeBody/utils/terminal.ts`, and the four
+`src/renderer/src/components/AgentNodeBody/utils/terminal.ts`,
+`src/renderer/src/components/AgentNodeBody/utils/terminalFocus.ts`, and the four
 xterm surfaces that dispatch terminal-owned shortcuts
 (`AgentNodeBody/useAgentNodeController.ts`, `TerminalNodeBody/index.tsx`,
 `WorkspaceTerminalDock/index.tsx`, `NodeMentionPicker/index.tsx`).
@@ -360,4 +383,8 @@ Primary regression suites live in:
 - `src/renderer/src/hooks/useCanvasKeyboard.test.ts`
 - `src/renderer/src/hooks/useAppShortcuts.test.ts`
 - `src/main/webview/__tests__/shortcut-forwarding.test.ts`
-- `src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts`
+- `src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts` — the
+  pure decision rule
+- `src/renderer/src/components/AgentNodeBody/utils/terminalFocus.test.ts` — the
+  stateful hatch: double-Escape, the window boundary, the post-release reset,
+  the time-zero sentinel, and the blur sequence

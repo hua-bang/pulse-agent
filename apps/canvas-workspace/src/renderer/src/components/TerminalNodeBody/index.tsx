@@ -6,6 +6,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import type { CanvasNode, TerminalNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
+import { createTerminalKeyArbiter } from '../AgentNodeBody/utils/terminalFocus';
 import { formatShortcutId } from '../../shortcuts/registry';
 import { handleTerminalShortcut } from '../../shortcuts/terminalShortcuts';
 import { NodeMentionPicker } from '../NodeMentionPicker';
@@ -15,7 +16,6 @@ import {
   createPtySpawnLifecycle,
   createDebouncedTerminalRefit,
   createTerminalSnapshotPersister,
-  decideTerminalKey,
   finalizeTerminalSnapshotBeforeDispose,
   fitTerminalWithCanvasScale,
   readTerminalSnapshot,
@@ -45,9 +45,13 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mentionHintVisible, setMentionHintVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  /** Timestamp of the last bare Escape — see decideTerminalKey. */
-  const lastEscapeAtRef = useRef(0);
   const termRef = useRef<Terminal | null>(null);
+  // Double-Escape is the only keyboard way out of a focused terminal; the
+  // arbiter owns that window and the blur sequence.
+  const arbitrateTerminalKey = useRef(createTerminalKeyArbiter({
+    getTerminal: () => termRef.current,
+    getContainer: () => containerRef.current,
+  })).current;
   const fitRef = useRef<FitAddon | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const killSessionRef = useRef<(() => void) | null>(null);
@@ -163,20 +167,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
       if (handleTerminalShortcut(e, {
         'terminal.mentionPicker': () => setPickerOpen(true),
       })) return false;
-      const decision = decideTerminalKey(e, lastEscapeAtRef.current, performance.now());
-      if (e.key === 'Escape') {
-        lastEscapeAtRef.current = decision === 'release-focus' ? 0 : performance.now();
-      }
-      if (decision === 'release-focus') {
-        // Hand focus back to the canvas so the shortcut layer's editable
-        // guard stops treating xterm's helper textarea as "the user is
-        // typing". Without this there is no keyboard way out of a terminal.
-        term.blur();
-        containerRef.current?.blur();
-        (document.activeElement as HTMLElement | null)?.blur?.();
-        return false;
-      }
-      return decision === 'terminal';
+      return arbitrateTerminalKey(e);
     });
 
     requestAnimationFrame(() => {

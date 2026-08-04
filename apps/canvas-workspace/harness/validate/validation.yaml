@@ -54,15 +54,16 @@ pathRules:
       - src/main/webview/shortcut-forwarding.ts
       - src/main/app/menu.ts
       - src/renderer/src/components/AgentNodeBody/utils/terminal.ts
+      - src/renderer/src/components/AgentNodeBody/utils/terminalFocus.ts
       - src/renderer/src/components/AgentNodeBody/useAgentNodeController.ts
       - src/renderer/src/components/TerminalNodeBody/index.tsx
       - src/renderer/src/components/WorkspaceTerminalDock/index.tsx
       - src/renderer/src/components/NodeMentionPicker/index.tsx
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalFocus.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalFocus.test.ts
 
   # The Coding Agent node's CLI roster is a cross-file contract: one registry
   # entry, but a usable agent also needs a brand mark, a dock identity, a

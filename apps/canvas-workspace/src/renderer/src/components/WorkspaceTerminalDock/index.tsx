@@ -25,6 +25,7 @@ import {
   hasLikelyReturnedToShellPrompt,
 } from '../../utils/codingAgentCommand';
 import { fitTerminalIfSane } from '../AgentNodeBody/utils/terminal';
+import { createTerminalKeyArbiter } from '../AgentNodeBody/utils/terminalFocus';
 import { scheduleBootOverlayDismiss } from './boot-overlay';
 import './index.css';
 
@@ -96,6 +97,12 @@ export const WorkspaceTerminalDock = ({
   const [booting, setBooting] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
+  // Double-Escape is the only keyboard way out of a focused terminal; the
+  // arbiter owns that window and the blur sequence.
+  const arbitrateTerminalKey = useRef(createTerminalKeyArbiter({
+    getTerminal: () => termRef.current,
+    getContainer: () => containerRef.current,
+  })).current;
   const fitRef = useRef<FitAddon | null>(null);
   const fontSizeRef = useRef<number>(readStoredTerminalFontSize());
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -269,7 +276,7 @@ export const WorkspaceTerminalDock = ({
           return claimTerminalKey(event);
         }
       }
-      return true;
+      return arbitrateTerminalKey(event);
     });
 
     const api = window.canvasWorkspace?.pty;
