@@ -532,9 +532,12 @@
 
 /* ── Setup: agent tabs ─────────────────────────────────────────── */
 
+/* One column per registered agent — AgentPicker sets --agent-tab-count from
+ * AGENT_REGISTRY.length so a new entry widens the row instead of wrapping
+ * onto a half-empty second line. Labels ellipsis at narrow node widths. */
 .agent-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--agent-tab-count, 2), minmax(0, 1fr));
   gap: 8px;
 }
 

@@ -23,6 +23,19 @@ export const AgentIcon = ({ id, size = 14 }: { id: string; size?: number }) => {
           />
         </svg>
       );
+    // App-side mark for the Pi CLI (pi.dev) — a π glyph, not a vendor asset.
+    case 'pi':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M3.9 7h16.2M9.3 7v9.1c0 1.7-1 2.7-2.6 2.7M15.5 7v8.5c0 2 1 2.9 2.7 2.7"
+            stroke="#6e56cf"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
     default:
       return (
         <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">

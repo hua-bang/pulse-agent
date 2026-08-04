@@ -379,7 +379,12 @@ const RATCHET_BASELINE: Record<string, number> = {
   // configure banner removed its bespoke color treatment.
   // 1812→1810 (canvas dim): the focus-mode and fullscreen backdrops were two
   // separate literals doing one job; both now read --canvas-focus-dim.
-  hardcodedColorLiterals: 1789,
+  // 1789→1785 (Pi coding-agent support): the right dock spelled each agent's
+  // brand color twice (idle + active tab). Adding a third agent would have
+  // added two more literals; the three colors became --agent-brand-* tokens
+  // in styles.css instead, so all six rules now read var() and a fourth agent
+  // costs zero literals.
+  hardcodedColorLiterals: 1785,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { AGENT_REGISTRY, type AgentDef } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
@@ -85,6 +85,14 @@ const AGENT_INSTALL_GUIDES: Record<string, AgentInstallGuide> = {
     verifyCommand: 'codex',
     docUrl: 'https://developers.openai.com/codex/quickstart',
   },
+  pi: {
+    primaryCommand: 'curl -fsSL https://pi.dev/install.sh | sh',
+    alternateCommands: [
+      'npm install -g @mariozechner/pi-coding-agent',
+    ],
+    verifyCommand: 'pi',
+    docUrl: 'https://github.com/earendil-works/pi',
+  },
 };
 
 export const AgentPicker = ({
@@ -122,6 +130,8 @@ export const AgentPicker = ({
   const previewCmd = agentDef?.command ?? 'agent';
   const visibleRecents = recentCwds.filter((p) => p !== cwdInput).slice(0, 3);
   const isTeamLead = variant === 'team-lead';
+  // Pi has no approval prompt to skip (it executes tools without asking by
+  // default), so it exposes no flag here and the toggle stays hidden.
   const dangerousFlag =
     selectedAgent === 'claude-code'
       ? '--dangerously-skip-permissions'
@@ -211,7 +221,12 @@ export const AgentPicker = ({
         )}
 
         <div className="agent-card-body">
-          <div className="agent-tabs" role="tablist" aria-label="Coding agent">
+          <div
+            className="agent-tabs"
+            role="tablist"
+            aria-label="Coding agent"
+            style={{ '--agent-tab-count': AGENT_REGISTRY.length } as CSSProperties}
+          >
             {AGENT_REGISTRY.map((a: AgentDef) => {
               const commandStatus = commandStatusByAgent[a.id] ?? 'checking';
               const isMissing = commandStatus === 'missing';

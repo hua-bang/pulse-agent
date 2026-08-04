@@ -1,4 +1,4 @@
-const CODING_AGENT_COMMAND_PATTERN = /^(?:env\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*(?:(?:npx|bunx)(?:\s+(?:-y|--yes))?\s+|(?:pnpm|npm|yarn)\s+(?:dlx|exec)\s+(?:--\s+)?)?(claude|codex|@anthropic-ai\/claude-code|@openai\/codex)(?:\s|$)/;
+const CODING_AGENT_COMMAND_PATTERN = /^(?:env\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*(?:(?:npx|bunx)(?:\s+(?:-y|--yes))?\s+|(?:pnpm|npm|yarn)\s+(?:dlx|exec)\s+(?:--\s+)?)?(claude|codex|pi|@anthropic-ai\/claude-code|@openai\/codex|@mariozechner\/pi-coding-agent)(?:\s|$)/;
 const ANSI_PATTERN = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\))/g;
 const TERMINAL_OUTPUT_TAIL_LIMIT = 3000;
 
@@ -9,10 +9,12 @@ const SHELL_PROMPT_PATTERNS = [
   /(?:^|\n)(?:\([^\n)]{1,40}\)\s*)?\[[^\n\]]+@[\w.-]+\s+[^\n\]]+\](?:\$|#)\s*$/,
 ];
 
-export const detectCodingAgentCommand = (command: string): 'claude-code' | 'codex' | undefined => {
+export const detectCodingAgentCommand = (command: string): 'claude-code' | 'codex' | 'pi' | undefined => {
   const match = CODING_AGENT_COMMAND_PATTERN.exec(command.trim());
   if (!match) return undefined;
-  return match[1].includes('claude') ? 'claude-code' : 'codex';
+  if (match[1].includes('claude')) return 'claude-code';
+  if (match[1].includes('codex')) return 'codex';
+  return 'pi';
 };
 
 export const isCodingAgentCommand = (command: string): boolean => (

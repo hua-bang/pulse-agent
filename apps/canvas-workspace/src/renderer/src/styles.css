@@ -112,6 +112,16 @@
   --sidebar-collapsed: 48px;
   --titlebar-height: 38px;
 
+  /* ── Coding-agent brand marks ────────────────────────────────────
+   * One token per entry in config/agentRegistry.ts, so a surface that
+   * tints an AgentIcon never spells the color itself. Global (not dock-
+   * scoped) because the dock's tab switcher renders those icons inside a
+   * body-level popover. Keep in sync with the glyph fills in
+   * components/AgentNodeBody/AgentIcon.tsx. */
+  --agent-brand-claude-code: #d97757;
+  --agent-brand-codex: #202123;
+  --agent-brand-pi: #6e56cf;
+
   /* ── Layering scale ──────────────────────────────────────────────
    * Every surface that overlays other components takes its z-index
    * from this scale; never hardcode a z-index for a full-app surface.

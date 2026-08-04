@@ -1,8 +1,11 @@
 import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 
+/** Agent ids that own a brand color in `index.css`; others fall back to the neutral slot. */
+const BRANDED_AGENT_TYPES = ['claude-code', 'codex', 'pi'];
+
 /** Agent-branded variant kept with the lazy terminal/menu surfaces. */
 export const DockAgentTabIcon = ({ agentType }: { agentType: string }) => {
-  const brandModifier = agentType === 'claude-code' || agentType === 'codex'
+  const brandModifier = BRANDED_AGENT_TYPES.includes(agentType)
     ? ` right-dock__tab-icon--agent-${agentType}`
     : '';
 

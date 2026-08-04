@@ -38,7 +38,9 @@ export const TerminalDockTab = ({
     ? `Claude ${tab.ordinal}`
     : tab.agentType === 'codex'
       ? `Codex ${tab.ordinal}`
-      : undefined;
+      : tab.agentType === 'pi'
+        ? `Pi ${tab.ordinal}`
+        : undefined;
   const defaultTitle = agentDefaultTitle ?? t('rightDock.terminalNumber', { number: tab.ordinal });
   const title = tab.title ?? defaultTitle;
   const [editing, setEditing] = useState(false);

@@ -8,11 +8,19 @@ import {
 } from '../codingAgentCommand';
 
 describe('codingAgentCommand', () => {
-  it('detects Claude and Codex commands from direct and runner invocations', () => {
+  it('detects Claude, Codex and Pi commands from direct and runner invocations', () => {
     expect(detectCodingAgentCommand('claude')).toBe('claude-code');
     expect(detectCodingAgentCommand('codex --model gpt-5')).toBe('codex');
+    expect(detectCodingAgentCommand('pi')).toBe('pi');
+    expect(detectCodingAgentCommand('pi --model sonnet "fix the build"')).toBe('pi');
     expect(detectCodingAgentCommand('env FOO=bar npx -y @anthropic-ai/claude-code')).toBe('claude-code');
     expect(detectCodingAgentCommand('pnpm exec -- @openai/codex resume abc')).toBe('codex');
+    expect(detectCodingAgentCommand('npx -y @mariozechner/pi-coding-agent')).toBe('pi');
+  });
+
+  it('does not mistake other commands that merely start with "pi" for the Pi CLI', () => {
+    expect(detectCodingAgentCommand('pip install requests')).toBeUndefined();
+    expect(detectCodingAgentCommand('ping example.com')).toBeUndefined();
   });
 
   it('keeps the boolean helper behavior', () => {
