@@ -102,6 +102,11 @@ export const AgentRestart = ({
   const restartTitle = canResume
     ? `Resume the previous ${agentDef?.label ?? 'agent'} conversation`
     : 'Restart with saved configuration';
+  // `canResume` is a CAPABILITY, so the no-resume copy must not assert a
+  // CAUSE. This view is reached by an app relaunch, by a PTY that ended, and
+  // by Back-from-"Edit initial parameters" — the old wording claimed the app
+  // had restarted, which was wrong in two of the three, and is what every
+  // agent without a resumable session id (currently Pi) always shows.
   const warningText = canResume
     ? t('agent.resumeWarning')
     : t('agent.restartWarning');
