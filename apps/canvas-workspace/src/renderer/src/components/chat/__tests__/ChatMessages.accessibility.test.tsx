@@ -368,7 +368,10 @@ describe('ChatMessages accessibility', () => {
     expect(onRegenerate).toHaveBeenCalledWith(0);
   });
 
-  it('renders the exact context snapshot beneath its user turn', async () => {
+  it('does not render turn context beneath its user turn (temporarily hidden)', async () => {
+    // ChatMessage.tsx no longer wires ChatTurnContext up — the row saw little
+    // user attention, so it's hidden for now even when the snapshot carries
+    // references. ChatTurnMeta.tsx keeps the rendering logic intact.
     const el = await renderMessages([{
       role: 'user',
       content: 'Compare these.',
@@ -385,16 +388,7 @@ describe('ChatMessages accessibility', () => {
       },
     }]);
 
-    const snapshot = el.querySelector<HTMLElement>('.chat-turn-context');
-    expect(snapshot?.getAttribute('aria-label')).toBe('Turn context');
-    expect(snapshot?.textContent).toContain('Roadmap');
-    expect(snapshot?.textContent).toContain('#launch');
-    expect(snapshot?.textContent).toContain('Research canvas');
-    // Scope / model / execution restate the composer, so they are deliberately
-    // absent — every user turn used to carry that redundant row.
-    expect(snapshot?.textContent).not.toContain('Product canvas');
-    expect(snapshot?.textContent).not.toContain('GPT-5.6');
-    expect(snapshot?.textContent).not.toContain('Ask first');
+    expect(el.querySelector('.chat-turn-context')).toBeNull();
   });
 
   it('renders no turn context when the snapshot carries no references', async () => {

@@ -19,7 +19,7 @@ import {
 } from '../artifacts';
 import { CopyGeneratedImageButton, parseGeneratedImage } from './GeneratedImageActions';
 import { useI18n } from '../../i18n';
-import { ChatTurnContext, ChatTurnOutcome } from './ChatTurnMeta';
+import { ChatTurnOutcome } from './ChatTurnMeta';
 import { ChatLoadingDots, CopyMessageButton } from './ChatMessageActions';
 
 interface ChatMessageProps {
@@ -416,9 +416,6 @@ export const ChatMessage = ({
           className="chat-message-content chat-md"
           dangerouslySetInnerHTML={{ __html: userHtml }}
         />
-      )}
-      {message.role === 'user' && !isEditing && message.contextSnapshot && (
-        <ChatTurnContext snapshot={message.contextSnapshot} />
       )}
       {message.role === 'assistant' && (
         <ChatTurnOutcome
