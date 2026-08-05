@@ -267,46 +267,63 @@ export class Engine {
   async run(context: Context, options?: LoopOptions): Promise<string> {
     let systemPrompt = options?.systemPrompt ?? this.options.systemPrompt;
     let tools = { ...this.tools };
+    let resultText = '';
+    let runFailed = false;
+    let runError: unknown;
 
-    // --- beforeRun hooks ---
-    const beforeRunHooks = this.pluginManager.getHooks('beforeRun');
-    for (const hook of beforeRunHooks) {
-      const result = await hook({ context, systemPrompt, tools, runContext: options?.runContext, model: options?.model ?? this.options.model });
-      if (result) {
-        if ('systemPrompt' in result && result.systemPrompt !== undefined) {
-          systemPrompt = result.systemPrompt;
-        }
-        if ('tools' in result && result.tools !== undefined) {
-          tools = result.tools;
+    try {
+      // --- beforeRun hooks ---
+      const beforeRunHooks = this.pluginManager.getHooks('beforeRun');
+      for (const hook of beforeRunHooks) {
+        const result = await hook({ context, systemPrompt, tools, runContext: options?.runContext, model: options?.model ?? this.options.model });
+        if (result) {
+          if ('systemPrompt' in result && result.systemPrompt !== undefined) {
+            systemPrompt = result.systemPrompt;
+          }
+          if ('tools' in result && result.tools !== undefined) {
+            tools = result.tools;
+          }
         }
       }
+
+      // Collect all hook arrays for the loop
+      const loopHooks = this.collectLoopHooks();
+
+      resultText = await loop(context, {
+        ...options,
+        tools,
+        provider: options?.provider
+          ?? (options?.modelType ? buildProvider(options.modelType) : undefined)
+          ?? this.options.llmProvider
+          ?? (this.options.modelType ? buildProvider(this.options.modelType) : undefined),
+        model: options?.model ?? this.options.model,
+        systemPrompt,
+        hooks: loopHooks,
+        onToolCall: (toolCall) => {
+          options?.onToolCall?.(toolCall);
+        },
+        onClarificationRequest: options?.onClarificationRequest,
+      });
+    } catch (error) {
+      runFailed = true;
+      runError = error;
     }
-
-    // Collect all hook arrays for the loop
-    const loopHooks = this.collectLoopHooks();
-
-    const resultText = await loop(context, {
-      ...options,
-      tools,
-      provider: options?.provider
-        ?? (options?.modelType ? buildProvider(options.modelType) : undefined)
-        ?? this.options.llmProvider
-        ?? (this.options.modelType ? buildProvider(this.options.modelType) : undefined),
-      model: options?.model ?? this.options.model,
-      systemPrompt,
-      hooks: loopHooks,
-      onToolCall: (toolCall) => {
-        options?.onToolCall?.(toolCall);
-      },
-      onClarificationRequest: options?.onClarificationRequest,
-    });
 
     // --- afterRun hooks ---
-    const afterRunHooks = this.pluginManager.getHooks('afterRun');
-    for (const hook of afterRunHooks) {
-      await hook({ context, result: resultText });
+    try {
+      const afterRunHooks = this.pluginManager.getHooks('afterRun');
+      for (const hook of afterRunHooks) {
+        await hook({ context, result: resultText });
+      }
+    } catch (hookError) {
+      if (!runFailed) throw hookError;
+      (this.options.logger ?? console).warn(
+        '[Engine] afterRun hook failed while preserving the run error',
+        { hookError },
+      );
     }
 
+    if (runFailed) throw runError;
     return resultText;
   }
 

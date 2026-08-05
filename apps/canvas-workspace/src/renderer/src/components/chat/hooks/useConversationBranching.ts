@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react';
 
 import type {
   AgentChatMessage,
@@ -8,23 +8,30 @@ import type {
 } from '../../../types';
 import { requestContextFromSnapshot } from './turnContextSnapshot';
 import { useI18n } from '../../../i18n';
-
-interface ConversationBranch {
-  sourceSessionId: string;
-  activeSessionId: string;
-}
+import { chatScopeId } from '../chatScope';
+import {
+  beginChatConversationMutation,
+  createChatConversationMutationState,
+  finishChatConversationMutation,
+  isCurrentChatConversationMutation,
+  type ChatConversationMutationRef,
+} from './chatConversationMutation';
 
 interface UseConversationBranchingOptions {
   agentScope: AgentScope;
   loading: boolean;
   messages: AgentChatMessage[];
   replaceMessages: (messages: AgentChatMessage[]) => void;
-  sendMessage: (
+  sendMessageForMutation: (
+    mutationGeneration: number,
     text: string,
     requestContext?: AgentRequestContext,
     attachments?: ChatImageAttachment[],
   ) => Promise<boolean>;
   onActiveSessionChange?: (sessionId: string) => void;
+  onConversationMutationStart?: () => void;
+  conversationEpochRef?: MutableRefObject<number>;
+  conversationMutationRef?: ChatConversationMutationRef;
 }
 
 export function useConversationBranching({
@@ -32,44 +39,68 @@ export function useConversationBranching({
   loading,
   messages,
   replaceMessages,
-  sendMessage,
+  sendMessageForMutation,
   onActiveSessionChange,
+  onConversationMutationStart,
+  conversationEpochRef,
+  conversationMutationRef,
 }: UseConversationBranchingOptions) {
   const { t } = useI18n();
-  const [conversationBranch, setConversationBranch] = useState<ConversationBranch | null>(null);
-  const [branchError, setBranchError] = useState<string | null>(null);
+  const [conversationError, setConversationError] = useState<string | null>(null);
+  const scopeId = chatScopeId(agentScope);
+  const previousScopeIdRef = useRef(scopeId);
+  const scopeEpochRef = useRef(0);
+  const localConversationMutationRef = useRef(createChatConversationMutationState());
+  const mutationRef = conversationMutationRef ?? localConversationMutationRef;
 
-  const createBranch = useCallback(async (fromIndex: number): Promise<boolean> => {
-    if (loading || fromIndex < 0) return false;
-    setBranchError(null);
+  useLayoutEffect(() => {
+    if (previousScopeIdRef.current === scopeId) return;
+    previousScopeIdRef.current = scopeId;
+    scopeEpochRef.current += 1;
+  }, [scopeId]);
+
+  const runBranchMutation = useCallback(async (
+    fromIndex: number,
+    sendReplacement: (mutationGeneration: number) => Promise<boolean>,
+  ): Promise<boolean> => {
+    if (loading || fromIndex < 0 || mutationRef.current.busy) return false;
+    const branchMutationGeneration = beginChatConversationMutation(mutationRef, onConversationMutationStart);
+    const branchConversationEpoch = conversationEpochRef?.current;
+    const branchScopeEpoch = scopeEpochRef.current;
+    const isCurrentMutation = () => (
+      isCurrentChatConversationMutation(mutationRef, branchMutationGeneration)
+      && conversationEpochRef?.current === branchConversationEpoch
+      && scopeEpochRef.current === branchScopeEpoch
+    );
+    setConversationError(null);
     try {
       const result = await window.canvasWorkspace.agent.branchSession(
         { scope: agentScope },
         fromIndex,
       );
+      if (!isCurrentMutation()) return false;
       if (
         !result.ok
         || !result.sourceSessionId
         || !result.activeSessionId
         || !result.messages
       ) {
-        setBranchError(result.error ?? t('chat.branchCreateFailed'));
+        setConversationError(result.error ?? t('chat.sessionUpdateFailed'));
         return false;
       }
       // Main is authoritative: update the visible thread only after the new
       // branch is durable and active.
       replaceMessages(result.messages);
-      setConversationBranch({
-        sourceSessionId: result.sourceSessionId,
-        activeSessionId: result.activeSessionId,
-      });
       onActiveSessionChange?.(result.activeSessionId);
-      return true;
+      return await sendReplacement(branchMutationGeneration);
     } catch (error) {
-      setBranchError(error instanceof Error ? error.message : String(error));
+      if (!isCurrentMutation()) return false;
+      setConversationError(error instanceof Error ? error.message : String(error));
       return false;
+    } finally {
+      finishChatConversationMutation(mutationRef, branchMutationGeneration);
     }
-  }, [agentScope, loading, onActiveSessionChange, replaceMessages, t]);
+  }, [agentScope, conversationEpochRef, loading, mutationRef, onActiveSessionChange, onConversationMutationStart, replaceMessages, t]);
 
   const editUserMessage = useCallback(async (
     userIndex: number,
@@ -80,12 +111,19 @@ export function useConversationBranching({
     if (!trimmed || loading) return false;
     const original = messages[userIndex];
     if (!original || original.role !== 'user') return false;
-    if (!await createBranch(userIndex)) return false;
     const originalContext = original.contextSnapshot
       ? requestContextFromSnapshot(original.contextSnapshot)
       : requestContext;
-    return sendMessage(trimmed, originalContext, original.attachments ?? []);
-  }, [createBranch, loading, messages, sendMessage]);
+    return runBranchMutation(
+      userIndex,
+      mutationGeneration => sendMessageForMutation(
+        mutationGeneration,
+        trimmed,
+        originalContext,
+        original.attachments ?? [],
+      ),
+    );
+  }, [loading, messages, runBranchMutation, sendMessageForMutation]);
 
   const regenerateAssistantMessage = useCallback(async (
     assistantIndex: number,
@@ -98,45 +136,23 @@ export function useConversationBranching({
     while (userIndex >= 0 && messages[userIndex].role !== 'user') userIndex--;
     if (userIndex < 0) return false;
     const userMessage = messages[userIndex];
-    if (!await createBranch(userIndex)) return false;
     const originalContext = userMessage.contextSnapshot
       ? requestContextFromSnapshot(userMessage.contextSnapshot)
       : requestContext;
-    return sendMessage(
-      userMessage.content,
-      originalContext,
-      userMessage.attachments ?? [],
+    return runBranchMutation(
+      userIndex,
+      mutationGeneration => sendMessageForMutation(
+        mutationGeneration,
+        userMessage.content,
+        originalContext,
+        userMessage.attachments ?? [],
+      ),
     );
-  }, [createBranch, loading, messages, sendMessage]);
-
-  const undoConversationBranch = useCallback(async (): Promise<boolean> => {
-    const branch = conversationBranch;
-    if (!branch || loading) return false;
-    setBranchError(null);
-    try {
-      const result = await window.canvasWorkspace.agent.loadSession(
-        { scope: agentScope },
-        branch.sourceSessionId,
-      );
-      if (!result.ok || result.activeSessionId !== branch.sourceSessionId || !result.messages) {
-        setBranchError(result.error ?? t('chat.branchRestoreFailed'));
-        return false;
-      }
-      replaceMessages(result.messages);
-      onActiveSessionChange?.(branch.sourceSessionId);
-      setConversationBranch(null);
-      return true;
-    } catch (error) {
-      setBranchError(error instanceof Error ? error.message : String(error));
-      return false;
-    }
-  }, [agentScope, conversationBranch, loading, onActiveSessionChange, replaceMessages, t]);
+  }, [loading, messages, runBranchMutation, sendMessageForMutation]);
 
   return {
-    branchError,
-    conversationBranch,
+    conversationError,
     editUserMessage,
     regenerateAssistantMessage,
-    undoConversationBranch,
   };
 }

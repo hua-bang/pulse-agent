@@ -39,7 +39,7 @@ interface ChatInputProps {
   onRemoveAttachment?: (id: string) => void;
   onRetryAttachment?: (id: string) => void;
   onSend: () => Promise<boolean>;
-  onAbort: () => Promise<void>;
+  onAbort: () => Promise<boolean>;
   onToggleExecutionMode?: () => void;
   /** Focus/navigate to a clicked mention chip's target (node or workspace). */
   onMentionNavigate?: (chip: HTMLElement) => void;
@@ -102,7 +102,7 @@ export const ChatInput = ({
     <div className="chat-input-container">
       {mentionPopup}
       {contextComposer && loading && (
-        <div className="chat-generating-status" aria-live="polite">{t('chat.generatingCanContinue')}</div>
+        <div className="chat-generating-status">{t('chat.generatingCanContinue')}</div>
       )}
       <div className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}>
         {showContextChips && (
@@ -214,7 +214,7 @@ export const ChatInput = ({
               </button>}
               </>
             ) : loading ? (
-              <div className="chat-generating-indicator" aria-live="polite">
+              <div className="chat-generating-indicator">
                 <div className="chat-loading-dot" />
                 <div className="chat-loading-dot" />
                 <div className="chat-loading-dot" />
@@ -240,7 +240,16 @@ export const ChatInput = ({
             {loading ? (
               <button
                 className="chat-send-btn chat-send-btn--stop"
-                onClick={() => void onAbort()}
+                onClick={async (event) => {
+                  const trigger = event.currentTarget;
+                  const stopped = await onAbort();
+                  if (
+                    stopped
+                    && (document.activeElement === trigger || document.activeElement === document.body)
+                  ) {
+                    editableRef.current?.focus();
+                  }
+                }}
                 title={t('chat.stopGenerating')}
                 aria-label={t('chat.stopGenerating')}
               >

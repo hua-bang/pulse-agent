@@ -48,7 +48,7 @@ const viewProps = {
   onKeyDown: vi.fn(),
   onPaste: vi.fn(),
   onSubmit: vi.fn(async () => true),
-  onAbort: vi.fn(async () => undefined),
+  onAbort: vi.fn(async () => true),
 };
 
 const PRIOR_SESSION: AgentChatMessage[] = [

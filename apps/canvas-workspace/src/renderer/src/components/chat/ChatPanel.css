@@ -3063,18 +3063,48 @@
 }
 
 .chat-turn-outcome {
-  max-width: 100%;
-  margin-top: 8px;
-  padding: 7px 9px;
-  border-left: 3px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-alt);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: fit-content;
+  max-width: min(100%, 640px);
+  box-sizing: border-box;
+  margin-top: 9px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
   color: var(--chat-a11y-secondary);
   font-size: 12px;
+  line-height: 1.4;
 }
 
 .chat-turn-outcome--failed {
-  border-left-color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 18%, var(--border));
+  background: color-mix(in srgb, var(--error) 4%, var(--surface));
+}
+
+.chat-turn-outcome__icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--text-secondary);
+}
+
+.chat-turn-outcome--failed .chat-turn-outcome__icon {
+  background: color-mix(in srgb, var(--error) 9%, transparent);
+  color: var(--error);
+}
+
+.chat-turn-outcome__body,
+.chat-turn-outcome__copy {
+  min-width: 0;
+  flex: 1;
 }
 
 .chat-turn-outcome__row {
@@ -3089,18 +3119,28 @@
   font-weight: 650;
 }
 
+.chat-turn-outcome__description {
+  margin: 2px 0 0;
+  color: var(--chat-a11y-secondary);
+}
+
+.chat-turn-outcome__action {
+  flex: 0 0 auto;
+}
+
 .chat-turn-error-details {
-  margin-top: 6px;
-  border-top: 1px solid var(--border);
+  margin-top: 5px;
 }
 
 .chat-turn-error-details summary {
-  min-height: 28px;
+  width: fit-content;
+  min-height: 24px;
   box-sizing: border-box;
-  padding-block: 6px;
+  padding: 4px 2px;
   cursor: pointer;
   color: var(--chat-a11y-secondary);
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 550;
 }
 
 .chat-turn-error-details summary:focus-visible {
@@ -3110,7 +3150,7 @@
 
 .chat-turn-error-details pre {
   max-height: 180px;
-  margin: 0 0 4px;
+  margin: 2px 0 0;
   padding: 8px;
   overflow: auto;
   border: 1px solid var(--border);

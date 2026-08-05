@@ -74,6 +74,7 @@ export interface StreamOptions {
   abortSignal?: AbortSignal;
   onStepFinish?: (event: StepResult<any>) => void;
   onChunk?: (event: { chunk: any }) => void;
+  onError?: (event: { error: unknown }) => void;
   toolExecutionContext?: ToolExecutionContext;
   /** Custom LLM provider. Falls back to the default CoderAI provider when not set. */
   provider?: LLMProviderFactory;
@@ -161,6 +162,7 @@ export const streamTextAI = (messages: ModelMessage[], tools: Record<string, Cod
     abortSignal: options?.abortSignal,
     onStepFinish: options?.onStepFinish,
     onChunk: options?.onChunk,
+    onError: options?.onError,
   }) as unknown as ReturnType<typeof streamText> & { steps: StepResult<any>[]; finishReason: string };
 }
 

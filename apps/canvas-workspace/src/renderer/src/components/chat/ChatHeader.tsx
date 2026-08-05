@@ -198,8 +198,8 @@ export const ChatHeader = ({
                             variant="icon"
                             size="xs"
                             role="menuitem"
-                            title={t('chat.openOriginal')}
-                            aria-label={t('chat.openOriginal')}
+                            title={t('chat.openInScope')}
+                            aria-label={t('chat.openInScope')}
                             disabled={disabled}
                             onClick={() => onOpenOriginalSession(session)}
                           >

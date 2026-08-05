@@ -154,4 +154,37 @@ describe('executeCanvasAgentSegment', () => {
     expect(result.responseMessages).toEqual([{ role: 'assistant', content: 'done' }]);
     expect(appended).toEqual([{ role: 'assistant', content: 'done' }]);
   });
+
+  it('propagates provider failures so Canvas can persist a failed turn instead of assistant prose', async () => {
+    const providerError = Object.assign(new Error('upstream unavailable'), { status: 503 });
+    const engine = {
+      run: vi.fn(async (_context: unknown, loopOptions: { errorMode?: string }) => {
+        if (loopOptions.errorMode === 'throw') throw providerError;
+        return 'Model request failed.';
+      }),
+    } as unknown as Engine;
+
+    const run = executeCanvasAgentSegment({
+      engine,
+      context: { messages: [] },
+      role: null,
+      chatSessionId: 'session-provider-failure',
+      history: [],
+      currentAsk: 'go',
+      handoffNames: [],
+      abortSignal: new AbortController().signal,
+      executionMode: 'auto',
+      modelConfig: {
+        providerType: 'openai',
+        provider: vi.fn(),
+        model: 'test-model',
+        modelLabel: 'Test model',
+      },
+      systemPrompt: 'system',
+      appendMessages: vi.fn(),
+      replaceMessages: vi.fn(),
+    });
+
+    await expect(run).rejects.toBe(providerError);
+  });
 });

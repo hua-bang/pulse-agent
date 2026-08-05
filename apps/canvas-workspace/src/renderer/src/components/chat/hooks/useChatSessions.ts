@@ -4,6 +4,13 @@ import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../type
 import { useClickOutside } from '../../../hooks/useClickOutside';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import { useI18n } from '../../../i18n';
+import {
+  beginChatConversationMutation,
+  createChatConversationMutationState,
+  finishChatConversationMutation,
+  invalidateChatConversationMutation,
+  type ChatConversationMutationRef,
+} from './chatConversationMutation';
 
 interface UseChatSessionsOptions {
   agentScope: AgentScope;
@@ -11,18 +18,11 @@ interface UseChatSessionsOptions {
   onMessagesLoaded: (messages: AgentChatMessage[]) => void;
   /** When true, load the session list on mount and whenever workspaceId changes. */
   eagerLoad?: boolean;
-  /**
-   * When true, don't call getHistory on mount. Use this when the caller is
-   * about to load a specific session manually — avoids a race between the
-   * initial getHistory and the pending loadSession.
-   *
-   * Setting this OBLIGES the caller to call handleLoadSession: `sessionLoading`
-   * is seeded true at mount and, with the history fetch skipped, only a thread
-   * fetch clears it.
-   */
+  /** Skip mount history when the caller will load a session; that load must clear `sessionLoading`. */
   skipInitialHistory?: boolean;
+  conversationMutationRef?: ChatConversationMutationRef;
+  onConversationMutationStart?: () => void;
 }
-
 /** Shared shape of every IPC call that replaces the whole message thread. */
 interface ThreadFetchResult {
   ok: boolean;
@@ -36,7 +36,6 @@ interface CachedSessions {
   sessions: AgentSessionInfo[];
   otherSessions: OtherWorkspaceSession[];
 }
-
 /** Cross-mount per-scope session-list cache, bounded by Map insertion recency. */
 const SESSIONS_CACHE_LIMIT = 20;
 const sessionsCache = new Map<string, CachedSessions>();
@@ -45,11 +44,9 @@ const sessionsCache = new Map<string, CachedSessions>();
 export const resetChatSessionsCacheForTests = (): void => {
   sessionsCache.clear();
 };
-
 function patchSessionsCache(key: string, patch: Partial<CachedSessions>): void {
   const prev = sessionsCache.get(key) ?? { sessions: [], otherSessions: [] };
-  // Delete-then-set moves the key to the end of the Map's iteration order,
-  // marking it most-recently-used.
+  // Delete-then-set marks the key most recently used.
   sessionsCache.delete(key);
   sessionsCache.set(key, { ...prev, ...patch });
   if (sessionsCache.size > SESSIONS_CACHE_LIMIT) {
@@ -64,6 +61,8 @@ export function useChatSessions({
   onMessagesLoaded,
   eagerLoad = false,
   skipInitialHistory = false,
+  conversationMutationRef,
+  onConversationMutationStart,
 }: UseChatSessionsOptions) {
   const { t } = useI18n();
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
@@ -104,22 +103,24 @@ export function useChatSessions({
   const sessionMenuRef = useRef<HTMLDivElement>(null);
   const previousScopeKeyRef = useRef(scopeKey);
   const historyHandledScopeRef = useRef<string | null>(null);
+  const localConversationMutationRef = useRef(createChatConversationMutationState());
+  const mutationRef = conversationMutationRef ?? localConversationMutationRef;
 
   useLayoutEffect(() => {
     if (previousScopeKeyRef.current === scopeKey) return;
+    invalidateChatConversationMutation(mutationRef);
+    onConversationMutationStart?.();
     sessionListRequestRef.current += 1;
     threadRequestRef.current += 1;
     onMessagesLoaded([]);
     setSessionsLoading(eagerLoad);
-    // The scope-specific history or selected session fetch starts directly
-    // after this layout pass. Mark it busy before paint so the composer cannot
-    // submit into the scope while the main-side pointer is switching.
+    // Block sends before the next scope's pointer fetch starts.
     setSessionLoading(true);
     setSessionError(null);
     setActiveSessionId(null);
     setSessionMenuOpen(false);
     previousScopeKeyRef.current = scopeKey;
-  }, [eagerLoad, onMessagesLoaded, scopeKey]);
+  }, [eagerLoad, mutationRef, onConversationMutationStart, onMessagesLoaded, scopeKey]);
 
   useLayoutEffect(() => {
     if (!skipInitialHistory) return;
@@ -142,6 +143,7 @@ export function useChatSessions({
     fetchThread: () => Promise<ThreadFetchResult>,
     expectedSessionId?: string,
   ) => {
+    const mutationGeneration = beginChatConversationMutation(mutationRef, onConversationMutationStart);
     sessionListRequestRef.current += 1;
     setSessionsLoading(false);
     threadRetryRef.current = { scopeKey, fetchThread, expectedSessionId };
@@ -188,16 +190,15 @@ export function useChatSessions({
       }
       return undefined;
     } finally {
+      finishChatConversationMutation(mutationRef, mutationGeneration);
       if (token === threadRequestRef.current) {
         setSessionLoading(false);
       }
     }
-  }, [onMessagesLoaded, scopeKey, t]);
+  }, [mutationRef, onConversationMutationStart, onMessagesLoaded, scopeKey, t]);
 
   useEffect(() => {
-    // The caller is about to run its own handleLoadSession; leave
-    // sessionLoading seeded true so the thread stays in its loading state
-    // continuously instead of flashing empty between the two.
+    // Keep the loading state continuous until the caller loads its session.
     if (skipInitialHistory) {
       historyHandledScopeRef.current = scopeKey;
       return;
@@ -212,11 +213,10 @@ export function useChatSessions({
 
   useClickOutside(sessionMenuRef, () => setSessionMenuOpen(false), sessionMenuOpen);
   const closeSessionMenu = useCallback(() => setSessionMenuOpen(false), []);
-
   const loadSessions = useCallback(async () => {
-      const token = ++sessionListRequestRef.current;
-      setSessionsLoading(true);
-      try {
+    const token = ++sessionListRequestRef.current;
+    setSessionsLoading(true);
+    try {
       const workspaceNameMap: Record<string, string> = {};
       for (const workspace of allWorkspaces ?? []) {
         workspaceNameMap[workspace.id] = workspace.name;
@@ -312,6 +312,7 @@ export function useChatSessions({
   }, [loadSessions, sessionMenuOpen]);
 
   const handleNewSession = useCallback(async () => {
+    const mutationGeneration = beginChatConversationMutation(mutationRef, onConversationMutationStart);
     sessionListRequestRef.current += 1;
     setSessionsLoading(false);
     setSessionMenuOpen(false);
@@ -346,9 +347,10 @@ export function useChatSessions({
       }
       return result;
     } finally {
+      finishChatConversationMutation(mutationRef, mutationGeneration);
       if (token === threadRequestRef.current) setSessionLoading(false);
     }
-  }, [agentScope, onMessagesLoaded, t]);
+  }, [agentScope, mutationRef, onConversationMutationStart, onMessagesLoaded, t]);
 
   const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
     setSessionMenuOpen(false);
@@ -368,12 +370,7 @@ export function useChatSessions({
     );
   }, [agentScope, runThreadFetch, workspaceId]);
 
-  /**
-   * Adopt a session that was created by another authoritative main-process
-   * mutation (for example edit/regenerate branching). This keeps the
-   * renderer's pointer and cached rail metadata aligned without issuing a
-   * second competing load request.
-   */
+  /** Adopt the session created by an authoritative main-process branch mutation. */
   const adoptActiveSession = useCallback((sessionId: string) => {
     sessionListRequestRef.current += 1;
     setSessionsLoading(false);
@@ -450,6 +447,9 @@ export function useChatSessions({
     const changesVisibleScope = (
       scopeSessionStoreId(scope) === scopeSessionStoreId(agentScope)
     );
+    const mutationGeneration = changesVisibleScope
+      ? beginChatConversationMutation(mutationRef, onConversationMutationStart)
+      : null;
     if (changesVisibleScope) sessionListRequestRef.current += 1;
     if (changesVisibleScope) setSessionsLoading(false);
     const token = changesVisibleScope ? ++threadRequestRef.current : null;
@@ -469,11 +469,12 @@ export function useChatSessions({
       await loadSessions();
       return result;
     } finally {
+      if (mutationGeneration !== null) finishChatConversationMutation(mutationRef, mutationGeneration);
       if (token !== null && token === threadRequestRef.current) {
         setSessionLoading(false);
       }
     }
-  }, [agentScope, failSessionMutation, loadSessions, onMessagesLoaded, t]);
+  }, [agentScope, failSessionMutation, loadSessions, mutationRef, onConversationMutationStart, onMessagesLoaded, t]);
 
   return {
     adoptActiveSession,

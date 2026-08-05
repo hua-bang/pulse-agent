@@ -20,7 +20,7 @@ One `Engine.run()` → `loop()` turn, end to end. Verified against `src/core/loo
     - `error` → return failure.
     - `tool-calls` → continue unless `totalSteps >= MAX_STEPS` (500).
 11. On thrown error: abort check → `afterLLMCall` (if the call had started) → retry policy (below) or formatted error return.
-12. `afterRun` hooks (once, in `Engine.run()`).
+12. `afterRun` hooks (once, in `Engine.run()`, including when the loop or a `beforeRun` hook throws; failure cleanup cannot replace the original run error).
 
 ## Host-Visible Context Mutations & Step Accounting
 
@@ -42,9 +42,12 @@ External `AbortSignal` propagates to both the LLM call and `ToolExecutionContext
 ## Retry & Error Classification
 
 - Retryable (`isRetryableError`): HTTP 429/500/502/503, or message containing "no output generated" (upstream opened a stream but produced nothing).
+- AI SDK 6 may replace a stream failure with `AI_NoOutputGeneratedError` without retaining the original HTTP status or cause. Missing transport metadata is therefore an unknown origin, not evidence of a local crash: retry it and use a neutral host-visible message. Only explicit JavaScript exception types such as `TypeError` are classified as local crashes.
+- When the AI SDK reports a terminal stream failure through `streamText.onError` and later rejects its result with that no-output wrapper, the loop preserves the `onError` value. This avoids retrying an already-exhausted `AI_RetryError` and keeps the Provider cause available to host failure details. `onChunk` cannot carry error events in AI SDK 6.
 - Backoff: `min(2000 * 2^(errorCount-1), 30000)` ms — 2s, 4s, 8s…
 - Cap: `MAX_ERROR_COUNT = 3`, then "Failed after 3 errors: …".
 - Everything else (auth, malformed request…) returns a formatted error immediately.
+- `LoopOptions.errorMode` defaults to `'return'` for compatibility. Hosts may opt into `'throw'` to receive the original terminal LLM error after retry exhaustion, immediately for a non-retryable failure, or an `LLMFinishReasonError` when the Provider ends with `finishReason: 'error'`; caller aborts still resolve to the `Request aborted.` sentinel in either mode.
 
 ## Exit Conditions
 

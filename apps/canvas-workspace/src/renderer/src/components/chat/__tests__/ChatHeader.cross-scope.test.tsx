@@ -8,8 +8,8 @@ import { ChatHeader } from '../ChatHeader';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe('ChatHeader cross-scope sessions', () => {
-  it('requires an explicit choice between opening the owner and copying here', () => {
-    const openOriginal = vi.fn();
+  it('requires an explicit choice between opening the owning scope and copying here', () => {
+    const openInScope = vi.fn();
     const copyHere = vi.fn(async () => undefined);
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -33,7 +33,7 @@ describe('ChatHeader cross-scope sessions', () => {
           onCloseSessionMenu={vi.fn()}
           onNewSession={vi.fn(async () => undefined)}
           onLoadSession={vi.fn(async () => undefined)}
-          onOpenOriginalSession={openOriginal}
+          onOpenOriginalSession={openInScope}
           onCopyOtherSession={copyHere}
           onOpenSettings={vi.fn()}
           settingsLabel="Settings"
@@ -47,13 +47,13 @@ describe('ChatHeader cross-scope sessions', () => {
     // Icon-only actions (no visible label — the dropdown is too narrow to
     // fit text buttons alongside the workspace tag and message count), so
     // the tooltip/aria-label is the only way to find them.
-    const openButton = host.querySelector<HTMLButtonElement>('[aria-label="Open original"]');
+    const openButton = host.querySelector<HTMLButtonElement>('[aria-label="Open in its scope"]');
     const copyButton = host.querySelector<HTMLButtonElement>('[aria-label="Copy here"]');
     expect(openButton).not.toBeNull();
     expect(copyButton).not.toBeNull();
     act(() => openButton?.click());
     act(() => copyButton?.click());
-    expect(openOriginal).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'other-session' }));
+    expect(openInScope).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'other-session' }));
     expect(copyHere).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'other-session' }));
 
     act(() => root.unmount());

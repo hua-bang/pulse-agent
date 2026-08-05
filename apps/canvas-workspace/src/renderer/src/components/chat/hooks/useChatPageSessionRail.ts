@@ -7,6 +7,7 @@ import type {
 } from '../types';
 import type { ChatSessionsRailProps, UnifiedSession } from '../ChatSessionsRail';
 import { scopeFromSessionStoreId } from '../utils/sessionScope';
+import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 import { useStableSessionRail } from './useStableSessionRail';
 
 interface Options {
@@ -55,9 +56,10 @@ export const useChatPageSessionRail = ({
   });
   const onNewSession = useCallback(async () => {
     if (disabled) return;
+    const trigger = document.activeElement;
     onClearBackStack?.();
     const result = await handleNewSession();
-    if (result.ok) focusInput();
+    if (result.ok) restoreComposerFocusAfterRender(focusInput, trigger);
   }, [disabled, focusInput, handleNewSession, onClearBackStack]);
   const onSelect = useCallback((session: UnifiedSession) => {
     if (!disabled) onSelectSession(session);

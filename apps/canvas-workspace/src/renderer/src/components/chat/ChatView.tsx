@@ -1,9 +1,10 @@
-import type {
-  ClipboardEventHandler,
-  KeyboardEventHandler,
-  MouseEvent as ReactMouseEvent,
-  ReactNode,
-  RefObject,
+import {
+  useCallback,
+  type ClipboardEventHandler,
+  type KeyboardEventHandler,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+  type RefObject,
 } from 'react';
 import type { AgentChatMessage, CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
 import { ChatEmptyState, type ChatEmptyStateVariant } from './ChatEmptyState';
@@ -13,6 +14,7 @@ import { ChatMessages } from './ChatMessages';
 import { RelayBar } from './RelayBar';
 import type { RelayProgress } from './hooks/relayTurnHandlers';
 import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
+import { restoreComposerFocusAfterRender } from './utils/focusRecovery';
 
 interface ChatViewProps {
   className?: string;
@@ -81,7 +83,7 @@ interface ChatViewProps {
   sendDisabled?: boolean;
   interactionDisabled?: boolean;
   onSubmit: () => Promise<boolean>;
-  onAbort: () => Promise<void>;
+  onAbort: () => Promise<boolean>;
   contextComposer?: boolean;
   knowledgeMode?: boolean;
   emptyStateVariant?: ChatEmptyStateVariant;
@@ -181,6 +183,23 @@ export const ChatView = ({
   onResizeStart,
 }: ChatViewProps) => {
   const hasMessages = messages.length > 0 || loading || sessionLoading || Boolean(pendingLabel);
+  const runRecoveryAction = useCallback(async (
+    action: () => Promise<boolean | void> | boolean | void,
+  ) => {
+    const trigger = document.activeElement;
+    const result = await action();
+    const succeeded = result !== false;
+    if (succeeded) {
+      restoreComposerFocusAfterRender(() => editableRef.current?.focus(), trigger);
+    }
+    return succeeded;
+  }, [editableRef]);
+  const handleEditUserMessage = useCallback((index: number, newContent: string) => (
+    runRecoveryAction(() => onEditUserMessage?.(index, newContent))
+  ), [onEditUserMessage, runRecoveryAction]);
+  const handleRegenerate = useCallback((index: number) => (
+    runRecoveryAction(() => onRegenerate?.(index))
+  ), [onRegenerate, runRecoveryAction]);
 
   return (
     <div className={className ?? 'chat-view'}>
@@ -213,8 +232,8 @@ export const ChatView = ({
           onToggleToolExpand={onToggleToolExpand}
           onAddImageToCanvas={onAddImageToCanvas}
           onNodeFocus={onNodeFocus}
-          onEditUserMessage={onEditUserMessage}
-          onRegenerate={onRegenerate}
+          onEditUserMessage={onEditUserMessage ? handleEditUserMessage : undefined}
+          onRegenerate={onRegenerate ? handleRegenerate : undefined}
           onSessionJump={onSessionJump}
           pendingLabel={pendingLabel}
           conversationKey={conversationKey}

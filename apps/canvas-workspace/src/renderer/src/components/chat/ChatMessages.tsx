@@ -16,13 +16,12 @@ import { buildAnchorElementId } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isVSCodeLink } from './utils/externalLinks';
 import { ChatClarificationCard } from './ChatClarificationCard';
+import { useChatMessagesStatus } from './hooks/useChatMessagesStatus';
 
 /** How close (px) to the bottom still counts as "reading the tail" — within
  *  this band the view keeps following the stream; beyond it the user has
  *  scrolled up to read and auto-scroll must not yank them back. */
 const PIN_THRESHOLD_PX = 80;
-const SKELETON_DELAY_MS = 180;
-const SKELETON_MIN_VISIBLE_MS = 320;
 const CONVERSATION_SCROLL_CACHE_LIMIT = 50;
 
 // Session switches remount the transcript content, not the scroll container.
@@ -89,6 +88,15 @@ const LoadingPlaceholder = ({ label }: { label?: string }) => (
   </div>
 );
 
+const handleMessageKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const target = event.target as HTMLElement | null;
+  const chip = target?.closest<HTMLElement>('.chat-mention-chip--clickable');
+  if (!chip) return;
+  event.preventDefault();
+  chip.click();
+};
+
 export const ChatMessages = ({
   messages,
   loading,
@@ -125,12 +133,8 @@ export const ChatMessages = ({
   // "jump to latest" affordance.
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
-  const [skeletonVisible, setSkeletonVisible] = useState(false);
-  const [turnAnnouncement, setTurnAnnouncement] = useState('');
-  const skeletonShownAtRef = useRef(0);
   const prevCountRef = useRef(0);
   const prevSessionLoadingRef = useRef(sessionLoading);
-  const prevTurnLoadingRef = useRef(false);
   const previousConversationKeyRef = useRef(conversationKey);
   const restoredConversationKeyRef = useRef<string>();
   const skipNextFollowEffectRef = useRef(false);
@@ -138,41 +142,14 @@ export const ChatMessages = ({
   // events report "not at bottom" — ignore them briefly so the jump button
   // doesn't flash mid-animation.
   const autoScrollUntilRef = useRef(0);
-
-  useEffect(() => {
-    let timer: number | undefined;
-    if (sessionLoading && messages.length === 0 && !skeletonVisible) {
-      timer = window.setTimeout(() => {
-        skeletonShownAtRef.current = Date.now();
-        setSkeletonVisible(true);
-      }, SKELETON_DELAY_MS);
-    } else if (!sessionLoading && skeletonVisible) {
-      const elapsed = Date.now() - skeletonShownAtRef.current;
-      timer = window.setTimeout(
-        () => setSkeletonVisible(false),
-        Math.max(0, SKELETON_MIN_VISIBLE_MS - elapsed),
-      );
-    } else if (messages.length > 0) {
-      setSkeletonVisible(false);
-    }
-    return () => {
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [messages.length, sessionLoading, skeletonVisible]);
-
-  useEffect(() => {
-    const turnJustFinished = prevTurnLoadingRef.current && !loading;
-    prevTurnLoadingRef.current = loading;
-    if (pendingLabel) {
-      setTurnAnnouncement(pendingLabel);
-    } else if (loading) {
-      setTurnAnnouncement(t('chat.generating'));
-    } else if (turnJustFinished) {
-      setTurnAnnouncement(t('chat.responseComplete'));
-    } else {
-      setTurnAnnouncement('');
-    }
-  }, [loading, pendingLabel, t]);
+  const latestTurnStatus = messages[messages.length - 1]?.turnStatus;
+  const { skeletonVisible, turnAnnouncement } = useChatMessagesStatus({
+    latestTurnStatus,
+    loading,
+    messageCount: messages.length,
+    pendingLabel,
+    sessionLoading,
+  });
 
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
@@ -330,15 +307,6 @@ export const ChatMessages = ({
       onNodeFocus(nodeId);
     }
   }, [interactionDisabled, loading, onNodeFocus, onSessionJump, sessionLoading, t]);
-
-  const handleMessageKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    const target = event.target as HTMLElement | null;
-    const chip = target?.closest<HTMLElement>('.chat-mention-chip--clickable');
-    if (!chip) return;
-    event.preventDefault();
-    chip.click();
-  }, []);
 
   const hasStreamingAssistantMessage = loading
     && messages.length > 0

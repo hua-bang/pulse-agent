@@ -18,10 +18,16 @@ import { startChatRunWatchdog } from './chatRunWatchdog';
 import { useChatScopeActivity } from './useChatScopeActivity';
 import { useChatMessageActions } from './useChatMessageActions';
 import { useChatRunControls } from './useChatRunControls';
-import { createChatTurnEpochGuard } from './chatTurnEpoch';
 import { createMessageDeltaBatcher } from './createMessageDeltaBatcher';
 import { recoverChangedChatSession } from './recoverChangedChatSession';
 import { useI18n } from '../../../i18n';
+import {
+  createChatConversationGuard,
+  type ChatConversationMutationRef,
+} from './chatConversationMutation';
+import { useChatTurnLease } from './useChatTurnLease';
+import { useChatMutationSenders } from './useChatMutationSenders';
+import { chatScopeId } from '../chatScope';
 
 interface UseChatStreamOptions {
   agentScope: AgentScope;
@@ -30,11 +36,9 @@ interface UseChatStreamOptions {
   scopeLabel?: string;
   onActiveSessionChange?: (sessionId: string) => void;
   conversationSessionIdRef?: MutableRefObject<string | null>;
+  conversationEpochRef?: MutableRefObject<number>;
+  conversationMutationRef?: ChatConversationMutationRef;
 }
-
-const agentScopeKey = (scope: AgentScope): string =>
-  scope.kind === 'workspace' ? `workspace:${scope.workspaceId}`
-    : scope.kind === 'scheduled' ? `scheduled:${scope.taskId}` : 'global';
 
 export function useChatStream({
   agentScope,
@@ -43,9 +47,11 @@ export function useChatStream({
   scopeLabel,
   onActiveSessionChange,
   conversationSessionIdRef,
+  conversationEpochRef,
+  conversationMutationRef,
 }: UseChatStreamOptions) {
   const { t } = useI18n();
-  const scopeKey = agentScopeKey(agentScope);
+  const scopeKey = chatScopeId(agentScope);
   const [messages, setMessages] = useState<AgentChatMessage[]>(
     () => getCachedThread(scopeKey),
   );
@@ -78,36 +84,21 @@ export function useChatStream({
     setClarificationAnswering(false);
     setClarificationError(null);
   }, []);
-
-  const cleanupSubscriptions = useCallback(() => {
-    for (const unsubscribe of activeUnsubsRef.current) {
-      unsubscribe();
-    }
-    activeUnsubsRef.current = [];
-  }, []);
-
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const previousScopeKeyRef = useRef(scopeKey);
-
   useLayoutEffect(() => {
     if (previousScopeKeyRef.current === scopeKey) return;
     scopeEpochRef.current += 1;
     cacheThread(previousScopeKeyRef.current, messagesRef.current);
     previousScopeKeyRef.current = scopeKey;
   }, [scopeKey]);
-
   useEffect(() => () => {
     scopeEpochRef.current += 1;
     cacheThread(previousScopeKeyRef.current, messagesRef.current);
   }, []);
-
-  useEffect(() => {
-    resetTurnState();
-    return cleanupSubscriptions;
-  }, [cleanupSubscriptions, resetTurnState, scopeKey]);
-
   const replaceMessages = useCallback((nextMessages: AgentChatMessage[]) => {
     cacheThread(scopeKey, nextMessages);
+    messagesRef.current = nextMessages;
     setMessages(nextMessages);
     setMessageTools(new Map(
       nextMessages.flatMap((message, index) => (
@@ -139,29 +130,39 @@ export function useChatStream({
       setClarificationError(null);
     }
   }, []);
-
   const { busyElsewhere, claimScope, releaseScope, trackScopeRun } = useChatScopeActivity({
     scope: agentScope,
     scopeKey,
     onExternalRunComplete: replaceMessages,
     onRemoteRunState: handleRemoteRunState,
   });
+  const finishActiveTurn = useCallback(() => { releaseScope(); resetTurnState(); }, [releaseScope, resetTurnState]);
+  const { beginTurn, disposeCurrentTurn, retireCurrentTurn } = useChatTurnLease(finishActiveTurn);
+  useEffect(() => {
+    resetTurnState();
+    return disposeCurrentTurn;
+  }, [resetTurnState, disposeCurrentTurn, scopeKey]);
   const { addImageToCanvas, appendTurnFailure, applyResolvedModel } = useChatMessageActions(
     workspaceId,
     setMessages,
   );
-
-  const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
-    const turnEpoch = scopeEpochRef.current;
-    const { isCurrent, guard } = createChatTurnEpochGuard(scopeEpochRef, turnEpoch);
+  const sendMessageInternal = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
     const text = rawText.trim();
     if (
       (!text && attachments.length === 0)
       || loading
       || busyElsewhere
-      || !claimScope()
     ) return false;
-
+    const turn = beginTurn();
+    if (!turn || !claimScope()) {
+      turn?.retire();
+      return false;
+    }
+    const { isCurrent, guard } = createChatConversationGuard(
+      scopeEpochRef, conversationEpochRef, conversationMutationRef, turn.isCurrent,
+    );
+    const messagesBeforeTurn = messagesRef.current;
+    turn.registerSuperseded(() => replaceMessages(messagesBeforeTurn));
     const contextSnapshot = createTurnContextSnapshot(agentScope, requestContext, {
       modelLabel: modelLabel ?? t('models.auto'),
       scopeLabel: scopeLabel ?? (agentScope.kind === 'global' ? t('chat.scope.global') : agentScope.kind === 'scheduled' ? t('chat.scope.scheduled') : agentScope.workspaceId),
@@ -195,22 +196,21 @@ export function useChatStream({
       );
 
       if (!result.ok || !result.sessionId) {
-        releaseScope();
-        if (!isCurrent()) return false;
-        appendTurnFailure(result.error ?? t('chat.turn.startFailed'));
-        resetTurnState();
+        if (isCurrent()) appendTurnFailure(result.error ?? t('chat.turn.startFailed'));
+        turn.retire();
         return false;
       }
 
       const sessionId = result.sessionId;
       if (!isCurrent()) {
         await window.canvasWorkspace.agent.cancelPreparedChat(sessionId).catch(() => undefined);
-        releaseScope();
+        turn.retire();
         return false;
       }
       const segment = createSegmentState();
       setActiveSessionId(sessionId);
       let turnClosed = false;
+      let turnCompleted = false;
       let cancelWatchdog: () => void = () => undefined;
       let turnUnsubs: Array<() => void> = [];
 
@@ -225,14 +225,15 @@ export function useChatStream({
       };
 
       const cleanupTurn = () => {
+        if (turnClosed) return;
         turnClosed = true;
         cancelWatchdog();
-        releaseScope();
         for (const unsubscribe of turnUnsubs) unsubscribe();
         activeUnsubsRef.current = activeUnsubsRef.current.filter(
           unsubscribe => !turnUnsubs.includes(unsubscribe),
         );
       };
+      turn.registerCleanup(cleanupTurn);
 
       const publishTools = () => {
         const snapshot = [...segment.tools];
@@ -340,14 +341,16 @@ export function useChatStream({
 
       const unsubscribeComplete = window.canvasWorkspace.agent.onChatComplete(sessionId, guard(completeResult => {
         if (turnClosed) return;
+        turnCompleted = true;
         textDeltaBatcher.flush();
         cleanupTurn();
         if (completeResult.code === 'CHAT_SESSION_CHANGED') {
+          releaseScope();
           void recoverChangedChatSession({
             scope: agentScope, isCurrent, replaceMessages,
             adoptSession: onActiveSessionChange,
             appendFailure: appendTurnFailure,
-            reset: resetTurnState,
+            reset: () => turn.retire(),
             error: completeResult.error ?? t('chat.sessionChanged'),
           });
           return;
@@ -371,8 +374,7 @@ export function useChatStream({
         }
 
         applyTurnCompletion({ completeResult, segment, toolSnapshot, setMessages, failureFallback: t('chat.turn.failure.unknown') });
-
-        resetTurnState();
+        turn.retire();
       }));
 
       turnUnsubs = [
@@ -393,14 +395,14 @@ export function useChatStream({
       activeUnsubsRef.current.push(...turnUnsubs);
 
       const startResult = await window.canvasWorkspace.agent.startChat(sessionId);
+      if (turnCompleted) return true;
       if (!isCurrent()) {
-        cleanupTurn();
+        turn.retire();
         return false;
       }
       if (!startResult.ok) {
-        cleanupTurn();
         appendTurnFailure(startResult.error ?? t('chat.turn.startFailed'));
-        resetTurnState();
+        turn.retire();
         return false;
       }
       applyResolvedModel(userMessage.timestamp, {
@@ -414,24 +416,20 @@ export function useChatStream({
           getRunStatus: () => window.canvasWorkspace.agent.getRunStatus(sessionId),
           recoverHistory: () => window.canvasWorkspace.agent.getHistory({ scope: agentScope }),
           onRecovered: guard((historyMessages) => {
-            cleanupTurn();
             replaceMessages(historyMessages);
-            resetTurnState();
+            turn.retire();
           }),
           onRecoveryFailed: guard((error) => {
-            cleanupTurn();
             appendTurnFailure(error);
-            resetTurnState();
+            turn.retire();
           }),
         });
       }
 
       return true;
     } catch (error) {
-      releaseScope();
-      if (!isCurrent()) return false;
-      appendTurnFailure(error);
-      resetTurnState();
+      if (isCurrent()) appendTurnFailure(error);
+      turn.retire();
       return false;
     }
   }, [
@@ -440,30 +438,32 @@ export function useChatStream({
     applyResolvedModel,
     appendTurnFailure,
     busyElsewhere,
+    beginTurn,
     claimScope,
     conversationSessionIdRef,
+    conversationEpochRef, conversationMutationRef,
     loading,
     modelLabel,
     onActiveSessionChange,
     replaceMessages,
     releaseScope,
-    resetTurnState,
     scopeLabel, t,
     trackScopeRun,
     workspaceId,
   ]);
+  const { sendMessage, sendMessageForMutation } = useChatMutationSenders(
+    sendMessageInternal, conversationMutationRef,
+  );
   const { abort, stopRelay } = useChatRunControls({
     activeSessionId,
     setRelay,
     setPendingClarify,
     setClarifyInput,
   });
-
   const answerClarification = useCallback(async (answerOverride?: string) => {
     const pending = pendingClarify;
     const sessionId = activeSessionId;
     if (!pending || !sessionId) return;
-
     const answer = (answerOverride ?? clarifyInput).trim();
     if (!answer) return;
 
@@ -483,16 +483,16 @@ export function useChatStream({
       setClarificationAnswering(false);
     }
   }, [activeSessionId, clarifyInput, pendingClarify, t]);
-
   const branching = useConversationBranching({
     agentScope,
     loading,
     messages,
     replaceMessages,
-    sendMessage,
+    sendMessageForMutation,
     onActiveSessionChange,
+    onConversationMutationStart: retireCurrentTurn,
+    conversationEpochRef, conversationMutationRef,
   });
-
   const toggleSection = useCallback((messageIndex: number) => {
     setCollapsedSections(prev => {
       const next = new Set(prev);
@@ -501,7 +501,6 @@ export function useChatStream({
       return next;
     });
   }, []);
-
   const toggleToolExpand = useCallback((toolId: number) => {
     setExpandedTools(prev => {
       const next = new Set(prev);
@@ -521,9 +520,8 @@ export function useChatStream({
     clarifyInput,
     clarificationAnswering,
     clarificationError,
-    branchError: branching.branchError,
+    conversationError: branching.conversationError,
     collapsedSections,
-    conversationBranch: branching.conversationBranch,
     editUserMessage: branching.editUserMessage,
     expandedTools,
     loading,
@@ -532,11 +530,11 @@ export function useChatStream({
     pendingClarify,
     regenerateAssistantMessage: branching.regenerateAssistantMessage,
     replaceMessages,
+    retireCurrentTurn,
     sendMessage,
     setClarifyInput,
     streamingTools,
     toggleSection,
     toggleToolExpand,
-    undoConversationBranch: branching.undoConversationBranch,
   };
 }

@@ -1,10 +1,11 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import type { AgentContextTabRef, AgentRequestContext, CanvasNode } from '../../../types';
 import { useCanvasModels } from '../ModelSettings';
 import type { AgentScope, WorkspaceOption } from '../types';
 import { useChatSessions } from './useChatSessions';
 import { useChatStream } from './useChatStream';
 import { useMentions } from './useMentions';
+import { createChatConversationMutationState } from './chatConversationMutation';
 
 interface UseChatComposerStateOptions {
   agentScope: AgentScope;
@@ -54,9 +55,20 @@ export function useChatComposerState({
   const canvasModels = useCanvasModels();
   const activeSessionChangeRef = useRef<((sessionId: string) => void) | null>(null);
   const conversationSessionIdRef = useRef<string | null>(null);
-  const handleActiveSessionChange = useCallback((sessionId: string) => {
-    activeSessionChangeRef.current?.(sessionId);
+  const conversationEpochRef = useRef(0);
+  const conversationMutationRef = useRef(createChatConversationMutationState());
+  const adoptConversationSession = useCallback((sessionId: string | null) => {
+    if (conversationSessionIdRef.current === sessionId) return;
+    conversationSessionIdRef.current = sessionId;
+    conversationEpochRef.current += 1;
   }, []);
+  const handleActiveSessionChange = useCallback((sessionId: string) => {
+    // Branching immediately starts the replacement turn after main makes the
+    // new conversation durable. React state adoption renders later, so hand
+    // the CAS pointer off synchronously before sendMessage reads this ref.
+    adoptConversationSession(sessionId);
+    activeSessionChangeRef.current?.(sessionId);
+  }, [adoptConversationSession]);
 
   const chatStream = useChatStream({
     agentScope,
@@ -65,6 +77,8 @@ export function useChatComposerState({
     scopeLabel,
     onActiveSessionChange: handleActiveSessionChange,
     conversationSessionIdRef,
+    conversationEpochRef,
+    conversationMutationRef,
   });
 
   const chatSessions = useChatSessions({
@@ -73,9 +87,13 @@ export function useChatComposerState({
     onMessagesLoaded: chatStream.replaceMessages,
     eagerLoad,
     skipInitialHistory,
+    conversationMutationRef,
+    onConversationMutationStart: chatStream.retireCurrentTurn,
   });
   activeSessionChangeRef.current = chatSessions.adoptActiveSession;
-  conversationSessionIdRef.current = chatSessions.activeSessionId;
+  useLayoutEffect(() => {
+    adoptConversationSession(chatSessions.activeSessionId);
+  }, [adoptConversationSession, chatSessions.activeSessionId]);
 
   // A turn must not be sent into a conversation that is still being fetched:
   // the thread on screen is a skeleton and the main-side session pointer is
@@ -88,7 +106,11 @@ export function useChatComposerState({
   const sessionErrorRef = useRef(false);
   sessionErrorRef.current = chatSessions.sessionError !== null;
   const isSubmitBlocked = useCallback(
-    () => sessionLoadingRef.current || sessionErrorRef.current,
+    () => (
+      sessionLoadingRef.current
+      || sessionErrorRef.current
+      || conversationMutationRef.current.busy
+    ),
     [],
   );
 

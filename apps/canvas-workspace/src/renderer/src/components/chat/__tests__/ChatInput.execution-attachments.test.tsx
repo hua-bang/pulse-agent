@@ -16,7 +16,7 @@ const baseProps = {
   onKeyDown: vi.fn(),
   onPaste: vi.fn(),
   onSend: vi.fn(async () => true),
-  onAbort: vi.fn(async () => undefined),
+  onAbort: vi.fn(async () => true),
 };
 
 describe('ChatInput execution and attachment states', () => {
@@ -195,6 +195,52 @@ describe('ChatInput execution and attachment states', () => {
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Add context"]')?.disabled).toBe(true);
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Add image"]')?.disabled).toBe(true);
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Choose model"]')?.disabled).toBe(true);
+    act(() => root.unmount());
+  });
+
+  it('returns focus to the composer after main acknowledges Stop', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    const editableRef = createRef<HTMLDivElement>();
+    const onAbort = vi.fn(async () => true);
+    await act(async () => root.render(
+      <I18nProvider>
+        <ChatInput
+          {...baseProps}
+          loading
+          editableRef={editableRef}
+          onAbort={onAbort}
+        />
+      </I18nProvider>,
+    ));
+
+    const stop = host.querySelector<HTMLButtonElement>('[aria-label="Stop generating"]');
+    stop?.focus();
+    await act(async () => {
+      stop?.click();
+      await Promise.resolve();
+    });
+
+    expect(onAbort).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(editableRef.current);
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it('keeps generating guidance visual without creating a second live region', () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    act(() => root.render(
+      <I18nProvider>
+        <ChatInput {...baseProps} loading />
+      </I18nProvider>,
+    ));
+
+    expect(host.textContent).toContain('Generating. You can keep typing.');
+    expect(host.querySelector('[aria-live]')).toBeNull();
+
     act(() => root.unmount());
   });
 });

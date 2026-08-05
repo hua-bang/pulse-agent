@@ -1,3 +1,4 @@
+import { ArrowClockwise, StopCircle, WarningCircle } from '@phosphor-icons/react';
 import type { AgentChatMessage, AgentTurnContextSnapshot } from '../../types';
 import { useI18n } from '../../i18n';
 import { Button } from '../ui';
@@ -32,28 +33,37 @@ export const ChatTurnOutcome = ({
       role="group"
       aria-label={statusLabel}
     >
-      <div className="chat-turn-outcome__row">
-        <span className="chat-turn-outcome__status">{statusLabel}</span>
-        {retryable && onRetry && (
-          <Button
-            size="xs"
-            className="chat-turn-outcome__action"
-            onClick={onRetry}
-            title={stopped ? t('chat.turn.continueHint') : undefined}
-          >
-            {stopped ? t('chat.turn.continue') : t('chat.turn.tryAgain')}
-          </Button>
+      <span className="chat-turn-outcome__icon" aria-hidden="true">
+        {stopped ? <StopCircle size={16} weight="fill" /> : <WarningCircle size={16} weight="fill" />}
+      </span>
+      <div className="chat-turn-outcome__body">
+        <div className="chat-turn-outcome__row">
+          <div className="chat-turn-outcome__copy">
+            <span className="chat-turn-outcome__status">{statusLabel}</span>
+            {!stopped && failureDescription && (
+              <p className="chat-turn-outcome__description">{failureDescription}</p>
+            )}
+          </div>
+          {retryable && onRetry && (
+            <Button
+              variant="secondary"
+              size="xs"
+              className="chat-turn-outcome__action"
+              onClick={onRetry}
+              title={stopped ? t('chat.turn.regenerateHint') : undefined}
+            >
+              <ArrowClockwise size={12} />
+              {stopped ? t('chat.turn.regenerate') : t('chat.turn.tryAgain')}
+            </Button>
+          )}
+        </div>
+        {!stopped && errorDetails && (
+          <details className="chat-turn-error-details">
+            <summary>{t('chat.turn.technicalDetails')}</summary>
+            <pre>{errorDetails}</pre>
+          </details>
         )}
       </div>
-      {!stopped && failureDescription && (
-        <p className="chat-turn-outcome__description">{failureDescription}</p>
-      )}
-      {!stopped && errorDetails && (
-        <details className="chat-turn-error-details">
-          <summary>{t('chat.turn.technicalDetails')}</summary>
-          <pre>{errorDetails}</pre>
-        </details>
-      )}
     </div>
   );
 };
