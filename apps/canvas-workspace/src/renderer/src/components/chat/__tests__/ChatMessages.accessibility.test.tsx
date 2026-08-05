@@ -250,6 +250,57 @@ describe('ChatMessages accessibility', () => {
     expect(status?.textContent).toBe('Response complete.');
   });
 
+  it('announces a stopped turn instead of claiming the response completed', async () => {
+    const el = await renderMessages([], { loading: true });
+    const status = el.querySelector<HTMLElement>('.chat-turn-status');
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatMessages
+            {...baseProps}
+            messages={[{
+              role: 'assistant',
+              content: 'A partial response.',
+              timestamp: 1,
+              turnStatus: 'stopped',
+              retryable: true,
+            }]}
+            loading={false}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(status?.textContent).toBe('Stopped');
+  });
+
+  it('announces a failed turn instead of claiming the response completed', async () => {
+    const el = await renderMessages([], { loading: true });
+    const status = el.querySelector<HTMLElement>('.chat-turn-status');
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatMessages
+            {...baseProps}
+            messages={[{
+              role: 'assistant',
+              content: '',
+              timestamp: 1,
+              turnStatus: 'failed',
+              errorDetails: 'ProviderError: unavailable',
+              retryable: true,
+            }]}
+            loading={false}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(status?.textContent).toBe('Response failed');
+  });
+
   it('keeps clarification pending, visible, and non-stealing while an answer is sent', async () => {
     const el = await renderMessages([], {
       pendingClarify: { id: 'clarify-1', question: 'Which workspace?' },
@@ -318,7 +369,7 @@ describe('ChatMessages accessibility', () => {
     expect(onAnswerClarification).toHaveBeenNthCalledWith(2, 'No');
   });
 
-  it('shows a stopped turn with one keyboard-operable recovery action', async () => {
+  it('labels a stopped-turn recovery as regeneration instead of continuation', async () => {
     const onRegenerate = vi.fn(async () => true);
     const el = await renderMessages([{
       role: 'assistant',
@@ -329,12 +380,13 @@ describe('ChatMessages accessibility', () => {
     }], { onRegenerate });
 
     expect(el.querySelector('.chat-turn-outcome--stopped')?.textContent).toContain('Stopped');
-    const continueButton = Array.from(el.querySelectorAll<HTMLButtonElement>('button'))
-      .find(button => button.textContent === 'Continue');
-    expect(continueButton).toBeTruthy();
+    const regenerateButton = Array.from(el.querySelectorAll<HTMLButtonElement>('button'))
+      .find(button => button.textContent === 'Regenerate');
+    expect(regenerateButton).toBeTruthy();
+    expect(regenerateButton?.title).toBe('Discards the partial response and starts again');
 
     await act(async () => {
-      continueButton?.click();
+      regenerateButton?.click();
     });
     expect(onRegenerate).toHaveBeenCalledWith(0);
     expect(el.querySelector('[aria-label="Regenerate response"]')).toBeNull();

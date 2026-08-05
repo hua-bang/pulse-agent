@@ -50,10 +50,10 @@ export const ChatTurnOutcome = ({
               size="xs"
               className="chat-turn-outcome__action"
               onClick={onRetry}
-              title={stopped ? t('chat.turn.continueHint') : undefined}
+              title={stopped ? t('chat.turn.regenerateHint') : undefined}
             >
               <ArrowClockwise size={12} />
-              {stopped ? t('chat.turn.continue') : t('chat.turn.tryAgain')}
+              {stopped ? t('chat.turn.regenerate') : t('chat.turn.tryAgain')}
             </Button>
           )}
         </div>

@@ -159,9 +159,27 @@ its visible conversation-session id. After the mutation lane goes idle, main
 must compare-and-swap that pointer before calling the agent, and return the
 authoritative history on mismatch.
 
+Renderer branch recovery must hand the acknowledged branch id to the send
+path synchronously before React adopts the new session. Delayed branch results
+are guarded by monotonic mutation, scope, and conversation epochs so a scope or
+session switch — including leaving and returning — cannot overwrite the newly
+visible thread.
+
+Starting any renderer-side pointer mutation must also retire the active turn
+lease synchronously. A late `prepareChat` or `startChat` result may dispose only
+its own subscriptions; it must not release the scope or reset state owned by a
+newer turn. Superseding a turn rolls its optimistic message suffix back to the
+pre-turn baseline if the pointer mutation fails; authoritative branch messages
+must update the synchronous message ref before their immediate replacement send.
+While a branch mutation owns the pointer, ordinary composer sends are vetoed;
+only that branch's replacement send may bypass the busy gate with its still-current
+mutation generation.
+
 Guards: `active-chat-registry.test.ts`, `prepared-chat.test.ts`,
 `chat-protocol.test.ts`, `chat-session-cas.test.ts`, and
-`__tests__/service-session-mutation.test.ts` (all under `src/main/agent/`).
+`__tests__/service-session-mutation.test.ts` (all under `src/main/agent/`), plus
+`useChatComposerState.session-handoff.test.tsx` and
+`useConversationBranching.test.tsx` under renderer chat hooks.
 
 ### Clarification serialization
 
@@ -207,11 +225,16 @@ accepted.
   prompt it exactly once, including for image-only turns.
 - A failed turn must persist the live tool-call snapshot and settle
   unfinished tools so reload matches the streamed UI.
+- The built-in Engine backend opts into `LoopOptions.errorMode: 'throw'` so a
+  terminal Provider failure or `finishReason: 'error'` reaches Canvas
+  failed-turn persistence instead of becoming assistant prose. Engine preserves
+  a terminal stream error when the SDK later masks it with a no-output wrapper;
+  its default return-string mode remains unchanged for other hosts.
 
 Guards: `useChatAttachments.test.tsx`
 (`src/renderer/src/components/chat/hooks/useChatAttachments.ts`),
-`chat-protocol.test.ts`, and `chat-failure-persistence.test.ts` (both under
-`src/main/agent/`), plus
+`segment-execution.test.ts`, `chat-protocol.test.ts`, and
+`chat-failure-persistence.test.ts` (all under `src/main/agent/`), plus
 `src/main/agent/backends/pi-agent-harness-backend.test.ts`.
 
 ### Full-screen chat rail projection

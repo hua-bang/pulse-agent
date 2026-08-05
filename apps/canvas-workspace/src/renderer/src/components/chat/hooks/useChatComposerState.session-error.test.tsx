@@ -9,6 +9,9 @@ const mockState = vi.hoisted(() => ({
   sessionLoading: false,
   sessionError: null as { message: string } | null,
   isSubmitBlocked: undefined as (() => boolean) | undefined,
+  conversationMutationRef: undefined as {
+    current: { generation: number; busy: boolean };
+  } | undefined,
 }));
 
 vi.mock('../ModelSettings', () => ({
@@ -16,9 +19,12 @@ vi.mock('../ModelSettings', () => ({
 }));
 
 vi.mock('./useChatStream', () => ({
-  useChatStream: () => ({
-    replaceMessages: vi.fn(),
-  }),
+  useChatStream: (options: {
+    conversationMutationRef?: { current: { generation: number; busy: boolean } };
+  }) => {
+    mockState.conversationMutationRef = options.conversationMutationRef;
+    return { replaceMessages: vi.fn() };
+  },
 }));
 
 vi.mock('./useChatSessions', () => ({
@@ -54,6 +60,7 @@ afterEach(() => {
   mockState.sessionLoading = false;
   mockState.sessionError = null;
   mockState.isSubmitBlocked = undefined;
+  mockState.conversationMutationRef = undefined;
 });
 
 describe('useChatComposerState session mutation guard', () => {
@@ -69,6 +76,19 @@ describe('useChatComposerState session mutation guard', () => {
 
     mockState.sessionError = null;
     act(() => root?.render(<Probe />));
+    expect(mockState.isSubmitBlocked?.()).toBe(false);
+  });
+
+  it('blocks composer submits while a conversation mutation owns the pointer', () => {
+    host = document.createElement('div');
+    root = createRoot(host);
+    act(() => root?.render(<Probe />));
+    expect(mockState.isSubmitBlocked?.()).toBe(false);
+
+    mockState.conversationMutationRef!.current = { generation: 1, busy: true };
+    expect(mockState.isSubmitBlocked?.()).toBe(true);
+
+    mockState.conversationMutationRef!.current = { generation: 1, busy: false };
     expect(mockState.isSubmitBlocked?.()).toBe(false);
   });
 });

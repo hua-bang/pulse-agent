@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   AgentChatMessage,
   AgentRequestContext,
+  AgentScope,
   ChatImageAttachment,
 } from '../../../types';
 import { useConversationBranching } from './useConversationBranching';
@@ -53,19 +54,25 @@ let sendMessage: ReturnType<typeof vi.fn<[
   ChatImageAttachment[]?,
 ], Promise<boolean>>>;
 let onActiveSessionChange: ReturnType<typeof vi.fn>;
+let conversationEpochRef: { current: number };
 
-const HookProbe = () => {
+const HookProbe = ({ agentScope }: { agentScope: AgentScope }) => {
   latest = useConversationBranching({
-    agentScope: { kind: 'global' },
+    agentScope,
     loading: false,
     messages: originalMessages,
     replaceMessages,
-    sendMessage,
+    sendMessageForMutation: (_generation, text, requestContext, attachments) => (
+      sendMessage(text, requestContext, attachments)
+    ),
     onActiveSessionChange,
+    conversationEpochRef,
   });
   return null;
 };
-const Probe = () => <I18nProvider><HookProbe /></I18nProvider>;
+const Probe = ({ agentScope = { kind: 'global' } }: { agentScope?: AgentScope }) => (
+  <I18nProvider><HookProbe agentScope={agentScope} /></I18nProvider>
+);
 
 beforeEach(async () => {
   replaceMessages = vi.fn();
@@ -75,6 +82,7 @@ beforeEach(async () => {
     ChatImageAttachment[]?,
   ], Promise<boolean>>(async () => true);
   onActiveSessionChange = vi.fn();
+  conversationEpochRef = { current: 0 };
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -156,5 +164,130 @@ describe('useConversationBranching', () => {
     });
     expect(sendMessage).toHaveBeenCalledWith('second', expect.anything(), []);
     expect(latest?.conversationError).toBeNull();
+  });
+
+  it('does not apply a delayed branch after the visible scope changes', async () => {
+    const branch = deferred<{
+      ok: boolean;
+      sourceSessionId: string;
+      activeSessionId: string;
+      messages: AgentChatMessage[];
+    }>();
+    const agent = {
+      branchSession: vi.fn(() => branch.promise),
+    };
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { agent },
+    });
+
+    let editing!: Promise<boolean>;
+    await act(async () => {
+      editing = latest!.editUserMessage(2, 'revised second');
+    });
+    await act(async () => {
+      root?.render(
+        <Probe agentScope={{ kind: 'workspace', workspaceId: 'workspace-next' }} />,
+      );
+    });
+
+    let edited = true;
+    await act(async () => {
+      branch.resolve({
+        ok: true,
+        sourceSessionId: 'session-source',
+        activeSessionId: 'session-old-branch',
+        messages: branchedMessages,
+      });
+      edited = await editing;
+    });
+
+    expect(edited).toBe(false);
+    expect(replaceMessages).not.toHaveBeenCalled();
+    expect(onActiveSessionChange).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('does not apply a delayed branch after the active conversation changes in the same scope', async () => {
+    const branch = deferred<{
+      ok: boolean;
+      sourceSessionId: string;
+      activeSessionId: string;
+      messages: AgentChatMessage[];
+    }>();
+    const agent = {
+      branchSession: vi.fn(() => branch.promise),
+    };
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { agent },
+    });
+
+    let editing!: Promise<boolean>;
+    await act(async () => {
+      editing = latest!.editUserMessage(2, 'revised second');
+    });
+    conversationEpochRef.current += 1;
+
+    let edited = true;
+    await act(async () => {
+      branch.resolve({
+        ok: true,
+        sourceSessionId: 'session-source',
+        activeSessionId: 'session-stale-branch',
+        messages: branchedMessages,
+      });
+      edited = await editing;
+    });
+
+    expect(edited).toBe(false);
+    expect(replaceMessages).not.toHaveBeenCalled();
+    expect(onActiveSessionChange).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('does not apply a delayed branch after the scope leaves and returns', async () => {
+    const branch = deferred<{
+      ok: boolean;
+      sourceSessionId: string;
+      activeSessionId: string;
+      messages: AgentChatMessage[];
+    }>();
+    const agent = {
+      branchSession: vi.fn(() => branch.promise),
+    };
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { agent },
+    });
+
+    let editing!: Promise<boolean>;
+    await act(async () => {
+      editing = latest!.editUserMessage(2, 'revised second');
+    });
+    await act(async () => {
+      root?.render(
+        <Probe agentScope={{ kind: 'workspace', workspaceId: 'workspace-next' }} />,
+      );
+    });
+    await act(async () => {
+      root?.render(<Probe agentScope={{ kind: 'global' }} />);
+    });
+
+    let edited = true;
+    await act(async () => {
+      branch.resolve({
+        ok: true,
+        sourceSessionId: 'session-source',
+        activeSessionId: 'session-stale-branch',
+        messages: branchedMessages,
+      });
+      edited = await editing;
+    });
+
+    expect(edited).toBe(false);
+    expect(replaceMessages).not.toHaveBeenCalled();
+    expect(onActiveSessionChange).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });

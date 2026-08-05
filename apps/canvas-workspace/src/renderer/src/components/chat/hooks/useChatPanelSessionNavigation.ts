@@ -8,6 +8,7 @@ import type {
 } from '../types';
 import type { SessionBackEntry } from '../SessionBackBar';
 import { buildAnchorElementId, buildChatAnchors } from '../utils/anchors';
+import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 import { scopeFromSessionStoreId } from '../utils/sessionScope';
 
 const flashAnchor = (scopeId: string, messageIndex: number, delay = 0) => {
@@ -106,9 +107,10 @@ export const useChatPanelSessionNavigation = ({
   }, [backStack, jumpToSession]);
   const onNewSession = useCallback(async () => {
     if (busy) return;
+    const trigger = document.activeElement;
     setBackStack([]);
     const result = await handleNewSession();
-    if (result.ok) focusInput();
+    if (result.ok) restoreComposerFocusAfterRender(focusInput, trigger);
   }, [busy, focusInput, handleNewSession]);
   const onLoadSession = useCallback(async (sessionId: string) => {
     if (busy) return;

@@ -198,6 +198,11 @@ export interface LoopOptions {
   onCompacted?: (newMessages: ModelMessage[], event?: CompactionEvent) => void;
   onResponse?: (messages: StepResult<ToolSet>['response']['messages']) => void;
   abortSignal?: AbortSignal;
+  /**
+   * Controls terminal thrown LLM errors. `return` preserves the legacy
+   * formatted-string result; `throw` lets a host render the original error.
+   */
+  errorMode?: 'return' | 'throw';
   runContext?: Record<string, any>;
 
   tools?: Record<string, Tool>;
@@ -596,6 +601,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       let steps: StepResult<any>[];
       let finishReason: string;
       let usage: any;
+      let terminalStreamError: unknown;
 
       try {
         const messagesForLLM = pruneIncompleteToolExchanges(context.messages);
@@ -613,6 +619,9 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
           model: options?.model,
           modelType: options?.modelType,
           systemPrompt,
+          onError: ({ error }) => {
+            terminalStreamError = error;
+          },
           onStepFinish: (step) => {
             options?.onStepFinish?.(step);
           },
@@ -670,7 +679,11 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
           llmWaitAbortPromise,
         ]);
       } catch (error) {
-        throw timeoutError ?? error;
+        if (timeoutError) throw timeoutError;
+        if (terminalStreamError !== undefined && isNoOutputGeneratedError(error)) {
+          throw terminalStreamError;
+        }
+        throw error;
       } finally {
         disposeLLMTimeouts();
       }
@@ -788,6 +801,13 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
           model: options?.model,
           modelType: options?.modelType,
         });
+        if (options?.errorMode === 'throw') {
+          const finishError = Object.assign(
+            new Error(text || 'Task failed.'),
+            { name: 'LLMFinishReasonError', finishReason: 'error' as const },
+          );
+          throw finishError;
+        }
         return text || 'Task failed.';
       }
 
@@ -808,7 +828,14 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         return 'Request aborted.';
       }
 
-      if (typeof error?.message === 'string' && error.message.toLowerCase().includes('no output generated')) {
+      // The normal afterLLMCall hook already observed this terminal finish
+      // reason above. Let host-facing throw mode reject without reporting the
+      // same turn as a second caught exception.
+      if (error?.name === 'LLMFinishReasonError' && options?.errorMode === 'throw') {
+        throw error;
+      }
+
+      if (isNoOutputGeneratedError(error)) {
         console.warn('[loop] LLM stream produced no output', {
           model: options?.model,
           modelType: options?.modelType,
@@ -846,16 +873,29 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
 
       errorCount++;
       if (errorCount >= MAX_ERROR_COUNT) {
+        if (options?.errorMode === 'throw') {
+          throw error;
+        }
         const formatted = formatUpstreamError(error);
         return formatted ?? `Failed after ${errorCount} errors: ${error?.message ?? String(error)}`;
       }
 
       if (isRetryableError(error)) {
         const delay = Math.min(2000 * Math.pow(2, errorCount - 1), 30000);
-        await sleep(delay, options?.abortSignal);
+        try {
+          await sleep(delay, options?.abortSignal);
+        } catch (sleepError: any) {
+          if (options?.abortSignal?.aborted || sleepError?.name === 'AbortError') {
+            return 'Request aborted.';
+          }
+          throw sleepError;
+        }
         continue;
       }
 
+      if (options?.errorMode === 'throw') {
+        throw error;
+      }
       return formatUpstreamError(error) ?? `Error: ${error?.message ?? String(error)}`;
     }
   }
@@ -924,6 +964,16 @@ function formatUpstreamError(error: any): string | null {
     }
 
     const detail = pickFirstNonEmpty(messages, 'no output generated');
+    if (!hasUpstreamFailureMetadata(error)) {
+      return [
+        '⚠️ 模型请求没有产出任何输出。',
+        '',
+        '请求在产出 token 前结束，但 AI SDK 没有保留足够的根因信息，暂时无法判断是上游服务、Provider 配置还是本地请求准备阶段导致。',
+        '',
+        detail ? `底层错误：${detail}` : '建议先重试；如果持续发生，再检查模型配置与运行日志。',
+      ].join('\n');
+    }
+
     return [
       '⚠️ 上游模型没有产出任何输出。',
       '',
@@ -1063,22 +1113,32 @@ function isRetryableError(error: any): boolean {
   // Local crashes (TypeError, schema conversion failures, etc.) also surface as
   // "No output generated" but are deterministic — retrying just burns 3 attempts
   // and spams the logs, so skip them.
-  if (typeof error?.message === 'string' && error.message.toLowerCase().includes('no output generated')) {
+  if (isNoOutputGeneratedError(error)) {
     return !isLocalCrash(error);
   }
   return false;
 }
 
+function isNoOutputGeneratedError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { name?: unknown; message?: unknown };
+  return candidate.name === 'AI_NoOutputGeneratedError'
+    || (typeof candidate.message === 'string'
+      && candidate.message.toLowerCase().includes('no output generated'));
+}
+
 function isLocalCrash(error: any): boolean {
   if (!error) return false;
   const name = error?.name;
-  if (name === 'TypeError' || name === 'SyntaxError' || name === 'ReferenceError' || name === 'RangeError') {
-    return true;
-  }
+  return name === 'TypeError' || name === 'SyntaxError' || name === 'ReferenceError' || name === 'RangeError';
+}
+
+function hasUpstreamFailureMetadata(error: any): boolean {
+  if (!error) return false;
   const hasHttpStatus = typeof error?.status === 'number' || typeof error?.statusCode === 'number';
   const hasResponseBody = typeof error?.responseBody === 'string' && error.responseBody.length > 0;
   const hasData = error?.data !== undefined;
-  return !hasHttpStatus && !hasResponseBody && !hasData;
+  return hasHttpStatus || hasResponseBody || hasData;
 }
 
 function sleep(ms: number, abortSignal?: AbortSignal): Promise<void> {

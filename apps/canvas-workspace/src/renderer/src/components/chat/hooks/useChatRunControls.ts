@@ -10,24 +10,38 @@ export function useChatRunControls(options: {
 }) {
   const { activeSessionId, setClarifyInput, setPendingClarify, setRelay } = options;
 
-  const stopRelay = useCallback(async () => {
-    if (!activeSessionId) return;
+  const stopRelay = useCallback(async (): Promise<boolean> => {
+    if (!activeSessionId) return false;
     setRelay(previous => (previous ? { ...previous, stopping: true } : previous));
     try {
-      await window.canvasWorkspace.agent.stopRelay(activeSessionId);
+      const result = await window.canvasWorkspace.agent.stopRelay(activeSessionId);
+      if (!result.ok) {
+        setRelay(previous => (previous ? { ...previous, stopping: false } : previous));
+        console.error('[chat-panel] stop-relay failed:', result.error ?? 'Unknown error');
+        return false;
+      }
+      return true;
     } catch (error) {
+      setRelay(previous => (previous ? { ...previous, stopping: false } : previous));
       console.error('[chat-panel] stop-relay failed:', error);
+      return false;
     }
   }, [activeSessionId, setRelay]);
 
-  const abort = useCallback(async () => {
-    if (!activeSessionId) return;
-    setPendingClarify(null);
-    setClarifyInput('');
+  const abort = useCallback(async (): Promise<boolean> => {
+    if (!activeSessionId) return false;
     try {
-      await window.canvasWorkspace.agent.abort(activeSessionId);
+      const result = await window.canvasWorkspace.agent.abort(activeSessionId);
+      if (!result.ok) {
+        console.error('[chat-panel] abort failed:', result.error ?? 'Unknown error');
+        return false;
+      }
+      setPendingClarify(null);
+      setClarifyInput('');
+      return true;
     } catch (error) {
       console.error('[chat-panel] abort failed:', error);
+      return false;
     }
   }, [activeSessionId, setClarifyInput, setPendingClarify]);
 

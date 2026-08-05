@@ -301,6 +301,167 @@ describe('loop', () => {
     expect(streamTextAIMock).toHaveBeenCalledTimes(2);
   });
 
+  it('throws the original retryable LLM error after retries when requested', async () => {
+    vi.useFakeTimers();
+    try {
+      const context: Context = {
+        messages: [{ role: 'user', content: 'retry test' }],
+      };
+      const upstreamError = Object.assign(new Error('service unavailable'), { status: 503 });
+
+      streamTextAIMock.mockImplementation(() => {
+        throw upstreamError;
+      });
+
+      const runPromise = loop(context, { errorMode: 'throw' });
+      const rejection = expect(runPromise).rejects.toBe(upstreamError);
+      await vi.runAllTimersAsync();
+
+      await rejection;
+      expect(streamTextAIMock).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('preserves a terminal stream error hidden by the no-output result wrapper', async () => {
+    vi.useFakeTimers();
+    try {
+      const context: Context = {
+        messages: [{ role: 'user', content: 'provider failure' }],
+      };
+      const upstreamError = Object.assign(new Error('Mock provider unavailable'), { status: 503 });
+      const streamError = Object.assign(
+        new Error('Failed after 3 attempts. Last error: Mock provider unavailable'),
+        {
+          name: 'AI_RetryError',
+          errors: [upstreamError],
+          lastError: upstreamError,
+        },
+      );
+      const noOutputWrapper = Object.assign(
+        new Error('No output generated. Check the stream for errors.'),
+        { name: 'AI_NoOutputGeneratedError' },
+      );
+
+      streamTextAIMock.mockImplementation((_messages, _tools, options) => {
+        options.onError({ error: streamError });
+        return {
+          text: Promise.reject(noOutputWrapper),
+          steps: Promise.resolve([]),
+          finishReason: Promise.resolve('error'),
+        };
+      });
+
+      const runPromise = loop(context, { errorMode: 'throw' });
+      const rejection = expect(runPromise).rejects.toBe(streamError);
+      await vi.runAllTimersAsync();
+
+      await rejection;
+      expect(streamTextAIMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('throws an error finish reason to hosts that render failed turns', async () => {
+    const context: Context = {
+      messages: [{ role: 'user', content: 'finish reason failure' }],
+    };
+
+    streamTextAIMock.mockReturnValue({
+      text: Promise.resolve('Provider ended the response with an error.'),
+      steps: Promise.resolve([]),
+      finishReason: Promise.resolve('error'),
+    });
+
+    await expect(loop(context, { errorMode: 'throw' })).rejects.toMatchObject({
+      name: 'LLMFinishReasonError',
+      message: 'Provider ended the response with an error.',
+      finishReason: 'error',
+    });
+    expect(streamTextAIMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the legacy string result for an error finish reason by default', async () => {
+    const context: Context = {
+      messages: [{ role: 'user', content: 'finish reason failure' }],
+    };
+
+    streamTextAIMock.mockReturnValue({
+      text: Promise.resolve('Provider ended the response with an error.'),
+      steps: Promise.resolve([]),
+      finishReason: Promise.resolve('error'),
+    });
+
+    await expect(loop(context)).resolves.toBe('Provider ended the response with an error.');
+  });
+
+  it('returns formatted terminal LLM errors by default', async () => {
+    const context: Context = {
+      messages: [{ role: 'user', content: 'auth test' }],
+    };
+    const upstreamError = Object.assign(new Error('invalid api key'), { status: 401 });
+
+    streamTextAIMock.mockImplementation(() => {
+      throw upstreamError;
+    });
+
+    await expect(loop(context)).resolves.toBe('Error: invalid api key');
+    expect(streamTextAIMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws the original non-retryable LLM error immediately when requested', async () => {
+    const context: Context = {
+      messages: [{ role: 'user', content: 'auth test' }],
+    };
+    const upstreamError = Object.assign(new Error('invalid api key'), { status: 401 });
+
+    streamTextAIMock.mockImplementation(() => {
+      throw upstreamError;
+    });
+
+    await expect(loop(context, { errorMode: 'throw' })).rejects.toBe(upstreamError);
+    expect(streamTextAIMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the abort sentinel in throw mode', async () => {
+    const context: Context = {
+      messages: [{ role: 'user', content: 'abort test' }],
+    };
+    const abortError = new Error('Aborted');
+    abortError.name = 'AbortError';
+
+    streamTextAIMock.mockImplementation(() => {
+      throw abortError;
+    });
+
+    await expect(loop(context, { errorMode: 'throw' })).resolves.toBe('Request aborted.');
+    expect(streamTextAIMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the abort sentinel when the caller stops during retry backoff', async () => {
+    const context: Context = {
+      messages: [{ role: 'user', content: 'abort retry test' }],
+    };
+    const upstreamError = Object.assign(new Error('service unavailable'), { status: 503 });
+    const controller = new AbortController();
+
+    streamTextAIMock.mockImplementation(() => {
+      throw upstreamError;
+    });
+
+    const runPromise = loop(context, {
+      errorMode: 'throw',
+      abortSignal: controller.signal,
+    });
+    await vi.waitFor(() => expect(streamTextAIMock).toHaveBeenCalledTimes(1));
+    controller.abort();
+
+    await expect(runPromise).resolves.toBe('Request aborted.');
+    expect(streamTextAIMock).toHaveBeenCalledTimes(1);
+  });
+
   it('invokes onCompacted plugin hooks with old/new messages', async () => {
     const context: Context = {
       messages: [{ role: 'user', content: 'long context' }],
@@ -470,16 +631,42 @@ describe('loop', () => {
     }
   });
 
-  it('surfaces local crashes (no HTTP status / responseBody) as local errors, not upstream', async () => {
+  it('does not diagnose an AI SDK no-output wrapper from an upstream failure as a local crash', async () => {
+    vi.useFakeTimers();
+    try {
+      const context: Context = {
+        messages: [{ role: 'user', content: 'test' }],
+      };
+      // AI SDK 6 creates this wrapper without retaining the HTTP status when an
+      // upstream stream (for example a 503 response) closes before any output.
+      const noOutputError = Object.assign(new Error('No output generated. Check the stream for errors.'), {
+        name: 'AI_NoOutputGeneratedError',
+      });
+
+      streamTextAIMock.mockImplementation(() => {
+        throw noOutputError;
+      });
+
+      const resultPromise = loop(context);
+      await vi.runAllTimersAsync();
+      const result = await resultPromise;
+
+      expect(result).toContain('模型请求没有产出任何输出');
+      expect(result).not.toContain('本地代码在准备 LLM 请求时崩溃');
+      expect(result).not.toContain('非上游错误');
+      expect(result).not.toContain('pm2');
+      expect(streamTextAIMock).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('surfaces explicit local exceptions as local errors, not upstream', async () => {
     const context: Context = {
       messages: [{ role: 'user', content: 'test' }],
     };
-    // Simulates the AI SDK's NoOutputGeneratedError: message contains
-    // "No output generated" but there's no status, responseBody, or data.
-    // The original local exception (e.g., a zod schema TypeError) has
-    // already been swallowed by the SDK and logged separately to stderr.
-    const noOutputError = Object.assign(new Error('No output generated. Check the stream for errors.'), {
-      name: 'AI_NoOutputGeneratedError',
+    const noOutputError = Object.assign(new Error('No output generated while converting tool schema.'), {
+      name: 'TypeError',
     });
 
     streamTextAIMock.mockImplementation(() => {
@@ -489,8 +676,8 @@ describe('loop', () => {
     const result = await loop(context);
 
     expect(result).toContain('本地代码在准备 LLM 请求时崩溃');
-    expect(result).toContain('AI_NoOutputGeneratedError');
-    expect(result).toContain('No output generated. Check the stream for errors.');
+    expect(result).toContain('TypeError');
+    expect(result).toContain('No output generated while converting tool schema.');
     expect(result).not.toContain('上游模型没有产出任何输出');
     expect(streamTextAIMock).toHaveBeenCalledTimes(1);
   });
