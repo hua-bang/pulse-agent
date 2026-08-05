@@ -94,14 +94,13 @@ export const ChatPanel = ({
     answerClarification,
     attachmentSendBlocked,
     attachments,
-    branchError,
+    conversationError,
     busyElsewhere,
     canvasModels,
     clarifyInput,
     clarificationAnswering,
     clarificationError,
     clearInput,
-    conversationBranch,
     editUserMessage,
     regenerateAssistantMessage,
     relay,
@@ -148,7 +147,6 @@ export const ChatPanel = ({
     submitCurrentInput,
     toggleSection,
     toggleToolExpand,
-    undoConversationBranch,
   } = useChatComposerState({
     agentScope,
     scopeLabel,
@@ -421,9 +419,7 @@ export const ChatPanel = ({
           busyElsewhere={busyElsewhere}
           sessionError={sessionError}
           onRetrySession={retrySession}
-          conversationBranch={conversationBranch}
-          branchError={branchError}
-          onOpenOriginal={async () => { await undoConversationBranch(); }}
+          conversationError={conversationError}
           disabled={loading || sessionLoading || busyElsewhere}
         />
         {backEntry

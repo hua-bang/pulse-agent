@@ -1,11 +1,7 @@
+import { ArrowClockwise, SpinnerGap, WarningCircle } from '@phosphor-icons/react';
 import { useI18n } from '../../i18n';
 import { Button } from '../ui';
 import './ChatConversationStatus.css';
-
-export interface ConversationBranchRef {
-  sourceSessionId: string;
-  activeSessionId: string;
-}
 
 interface ChatConversationStatusProps {
   sessionLoading?: boolean;
@@ -21,9 +17,7 @@ interface ChatConversationStatusProps {
   busyElsewhere?: boolean;
   sessionError?: { code?: string; message: string } | null;
   onRetrySession?: () => void | Promise<void>;
-  conversationBranch?: ConversationBranchRef | null;
-  branchError?: string | null;
-  onOpenOriginal?: () => void | Promise<void>;
+  conversationError?: string | null;
   disabled?: boolean;
 }
 
@@ -33,31 +27,36 @@ export const ChatConversationStatus = ({
   busyElsewhere = false,
   sessionError,
   onRetrySession,
-  conversationBranch,
-  branchError,
-  onOpenOriginal,
+  conversationError,
   disabled = false,
 }: ChatConversationStatusProps) => {
   const { t } = useI18n();
   const showOpeningBanner = sessionLoading && hasMessages;
-  if (!showOpeningBanner && !busyElsewhere && !sessionError && !conversationBranch && !branchError) return null;
+  if (!showOpeningBanner && !busyElsewhere && !sessionError && !conversationError) return null;
 
   return (
     <div className="chat-conversation-status-stack">
       {showOpeningBanner && (
-        <div className="chat-conversation-status" role="status" aria-live="polite">
-          <span className="chat-conversation-status__pulse" aria-hidden="true" />
+        <div className="chat-conversation-status chat-conversation-status--loading" role="status" aria-live="polite">
+          <span className="chat-conversation-status__icon" aria-hidden="true">
+            <SpinnerGap size={15} className="chat-spin" />
+          </span>
           <span>{t('chat.openingConversation')}</span>
         </div>
       )}
       {busyElsewhere && (
-        <div className="chat-conversation-status" role="status" aria-live="polite">
-          <span className="chat-conversation-status__pulse" aria-hidden="true" />
+        <div className="chat-conversation-status chat-conversation-status--loading" role="status" aria-live="polite">
+          <span className="chat-conversation-status__icon" aria-hidden="true">
+            <SpinnerGap size={15} className="chat-spin" />
+          </span>
           <span>{t('chat.generatingElsewhere')}</span>
         </div>
       )}
       {sessionError && (
         <div className="chat-conversation-status chat-conversation-status--error" role="alert">
+          <span className="chat-conversation-status__icon" aria-hidden="true">
+            <WarningCircle size={15} weight="fill" />
+          </span>
           <span className="chat-conversation-status__message">{sessionError.message}</span>
           {onRetrySession && (
             <Button
@@ -66,31 +65,18 @@ export const ChatConversationStatus = ({
               disabled={disabled}
               onClick={() => void onRetrySession()}
             >
+              <ArrowClockwise size={12} />
               {t('chat.retry')}
             </Button>
           )}
         </div>
       )}
-      {conversationBranch && (
-        <div className="chat-conversation-status" role="status">
-          <span className="chat-conversation-status__message">
-            {t('chat.branchedFromOriginal')}
-          </span>
-          {onOpenOriginal && (
-            <Button
-              variant="secondary"
-              size="xs"
-              disabled={disabled}
-              onClick={() => void onOpenOriginal()}
-            >
-              {t('chat.openOriginal')}
-            </Button>
-          )}
-        </div>
-      )}
-      {branchError && (
+      {conversationError && (
         <div className="chat-conversation-status chat-conversation-status--error" role="alert">
-          <span className="chat-conversation-status__message">{branchError}</span>
+          <span className="chat-conversation-status__icon" aria-hidden="true">
+            <WarningCircle size={15} weight="fill" />
+          </span>
+          <span className="chat-conversation-status__message">{conversationError}</span>
         </div>
       )}
     </div>

@@ -155,7 +155,7 @@ export const ChatPageBody = ({
     answerClarification,
     attachmentSendBlocked,
     attachments,
-    branchError,
+    conversationError,
     busyElsewhere,
     canvasModels,
     clarifyInput,
@@ -163,7 +163,6 @@ export const ChatPageBody = ({
     clarificationError,
     clearInput,
     collapsedSections,
-    conversationBranch,
     deleteSession,
     editableRef,
     editUserMessage,
@@ -206,7 +205,6 @@ export const ChatPageBody = ({
     toggleSection,
     toggleSessionPinned,
     toggleToolExpand,
-    undoConversationBranch,
   } = useChatComposerState({
     agentScope,
     scopeLabel,
@@ -421,9 +419,7 @@ export const ChatPageBody = ({
               busyElsewhere={busyElsewhere}
               sessionError={sessionError}
               onRetrySession={retrySessionTransition}
-              conversationBranch={conversationBranch}
-              branchError={branchError}
-              onOpenOriginal={async () => { await undoConversationBranch(); }}
+              conversationError={conversationError}
               disabled={sessionInteractionDisabled}
             />
             {fixedChat?.banner ?? (backEntry && onBackToSession ? (

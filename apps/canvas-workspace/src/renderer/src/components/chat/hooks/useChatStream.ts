@@ -521,9 +521,8 @@ export function useChatStream({
     clarifyInput,
     clarificationAnswering,
     clarificationError,
-    branchError: branching.branchError,
+    conversationError: branching.conversationError,
     collapsedSections,
-    conversationBranch: branching.conversationBranch,
     editUserMessage: branching.editUserMessage,
     expandedTools,
     loading,
@@ -537,6 +536,5 @@ export function useChatStream({
     streamingTools,
     toggleSection,
     toggleToolExpand,
-    undoConversationBranch: branching.undoConversationBranch,
   };
 }

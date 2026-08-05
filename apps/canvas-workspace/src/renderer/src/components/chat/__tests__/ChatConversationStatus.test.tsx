@@ -48,27 +48,22 @@ describe('ChatConversationStatus', () => {
     act(() => root.unmount());
   });
 
-  it('names a branch and opens the original conversation', () => {
-    const openOriginal = vi.fn();
+  it('shows a conversation update failure without exposing implementation details', () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     act(() => root.render(
       <I18nProvider>
         <ChatConversationStatus
           hasMessages
-          conversationBranch={{ sourceSessionId: 'source', activeSessionId: 'branch' }}
-          branchError="Unable to restore"
-          onOpenOriginal={openOriginal}
+          conversationError="Unable to update this conversation"
         />
       </I18nProvider>,
     ));
 
-    expect(host.textContent).toContain('Branched from the original conversation');
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Unable to restore');
-    const openButton = Array.from(host.querySelectorAll('button'))
-      .find(button => button.textContent === 'Open original');
-    act(() => openButton?.click());
-    expect(openOriginal).toHaveBeenCalledOnce();
+    expect(host.querySelector('[role="alert"]')?.textContent)
+      .toContain('Unable to update this conversation');
+    expect(host.textContent).not.toContain('branch');
+    expect(host.querySelector('button')).toBeNull();
 
     act(() => root.unmount());
   });

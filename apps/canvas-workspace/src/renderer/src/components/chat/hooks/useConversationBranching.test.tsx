@@ -134,24 +134,16 @@ describe('useConversationBranching', () => {
       expect.objectContaining({ executionMode: 'ask' }),
       [],
     );
-    expect(latest?.conversationBranch).toEqual({
-      sourceSessionId: 'session-source',
-      activeSessionId: 'session-branch',
-    });
+    expect(latest?.conversationError).toBeNull();
   });
 
-  it('restores the intact source session when undoing a branch', async () => {
+  it('keeps branching as an internal history-protection detail', async () => {
     const agent = {
       branchSession: vi.fn(async () => ({
         ok: true,
         sourceSessionId: 'session-source',
         activeSessionId: 'session-branch',
         messages: branchedMessages,
-      })),
-      loadSession: vi.fn(async () => ({
-        ok: true,
-        activeSessionId: 'session-source',
-        messages: originalMessages,
       })),
     };
     Object.defineProperty(window, 'canvasWorkspace', {
@@ -162,19 +154,7 @@ describe('useConversationBranching', () => {
     await act(async () => {
       await latest!.regenerateAssistantMessage(3);
     });
-    replaceMessages.mockClear();
-    onActiveSessionChange.mockClear();
-
-    await act(async () => {
-      await latest!.undoConversationBranch();
-    });
-
-    expect(agent.loadSession).toHaveBeenCalledWith(
-      { scope: { kind: 'global' } },
-      'session-source',
-    );
-    expect(replaceMessages).toHaveBeenCalledWith(originalMessages);
-    expect(onActiveSessionChange).toHaveBeenCalledWith('session-source');
-    expect(latest?.conversationBranch).toBeNull();
+    expect(sendMessage).toHaveBeenCalledWith('second', expect.anything(), []);
+    expect(latest?.conversationError).toBeNull();
   });
 });

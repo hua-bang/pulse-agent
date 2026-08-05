@@ -9,11 +9,6 @@ import type {
 import { requestContextFromSnapshot } from './turnContextSnapshot';
 import { useI18n } from '../../../i18n';
 
-interface ConversationBranch {
-  sourceSessionId: string;
-  activeSessionId: string;
-}
-
 interface UseConversationBranchingOptions {
   agentScope: AgentScope;
   loading: boolean;
@@ -36,12 +31,11 @@ export function useConversationBranching({
   onActiveSessionChange,
 }: UseConversationBranchingOptions) {
   const { t } = useI18n();
-  const [conversationBranch, setConversationBranch] = useState<ConversationBranch | null>(null);
-  const [branchError, setBranchError] = useState<string | null>(null);
+  const [conversationError, setConversationError] = useState<string | null>(null);
 
   const createBranch = useCallback(async (fromIndex: number): Promise<boolean> => {
     if (loading || fromIndex < 0) return false;
-    setBranchError(null);
+    setConversationError(null);
     try {
       const result = await window.canvasWorkspace.agent.branchSession(
         { scope: agentScope },
@@ -53,20 +47,16 @@ export function useConversationBranching({
         || !result.activeSessionId
         || !result.messages
       ) {
-        setBranchError(result.error ?? t('chat.branchCreateFailed'));
+        setConversationError(result.error ?? t('chat.sessionUpdateFailed'));
         return false;
       }
       // Main is authoritative: update the visible thread only after the new
       // branch is durable and active.
       replaceMessages(result.messages);
-      setConversationBranch({
-        sourceSessionId: result.sourceSessionId,
-        activeSessionId: result.activeSessionId,
-      });
       onActiveSessionChange?.(result.activeSessionId);
       return true;
     } catch (error) {
-      setBranchError(error instanceof Error ? error.message : String(error));
+      setConversationError(error instanceof Error ? error.message : String(error));
       return false;
     }
   }, [agentScope, loading, onActiveSessionChange, replaceMessages, t]);
@@ -109,34 +99,9 @@ export function useConversationBranching({
     );
   }, [createBranch, loading, messages, sendMessage]);
 
-  const undoConversationBranch = useCallback(async (): Promise<boolean> => {
-    const branch = conversationBranch;
-    if (!branch || loading) return false;
-    setBranchError(null);
-    try {
-      const result = await window.canvasWorkspace.agent.loadSession(
-        { scope: agentScope },
-        branch.sourceSessionId,
-      );
-      if (!result.ok || result.activeSessionId !== branch.sourceSessionId || !result.messages) {
-        setBranchError(result.error ?? t('chat.branchRestoreFailed'));
-        return false;
-      }
-      replaceMessages(result.messages);
-      onActiveSessionChange?.(branch.sourceSessionId);
-      setConversationBranch(null);
-      return true;
-    } catch (error) {
-      setBranchError(error instanceof Error ? error.message : String(error));
-      return false;
-    }
-  }, [agentScope, conversationBranch, loading, onActiveSessionChange, replaceMessages, t]);
-
   return {
-    branchError,
-    conversationBranch,
+    conversationError,
     editUserMessage,
     regenerateAssistantMessage,
-    undoConversationBranch,
   };
 }
