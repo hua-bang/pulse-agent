@@ -264,6 +264,32 @@ describe('InkUiBridge', () => {
     expect(last.status).toContain('Done in 1.2s');
   });
 
+  it('finalizes the live region on error, not just on abort', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.text('partial answer before the failure');
+    bridge.toolCall('bash', { command: 'sleep 100' });
+    bridge.error('Error: provider connection reset');
+
+    const last = snapshots[snapshots.length - 1];
+    expect(last.liveText).toBe('');
+    expect(last.liveTools).toHaveLength(0);
+    expect(last.events.some(event => event.kind === 'assistant' && event.text.includes('partial answer'))).toBe(true);
+    expect(last.events.some(event => event.kind === 'tool' && event.status === 'error')).toBe(true);
+    expect(last.events.slice(-1)[0]).toMatchObject({ kind: 'error' });
+  });
+
+  it('marks the clarification phase so the composer can show its waiting state', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.clarification({ id: 'c1', question: 'Which package?', timeout: 0 } as never);
+
+    const last = snapshots[snapshots.length - 1];
+    expect(last.phase).toBe('Clarification');
+    expect(last.status).toBe('Waiting for clarification');
+  });
+
   it('finalizes still-running tools as cancelled on abort', () => {
     const { snapshots, bridge } = createBridge();
 

@@ -362,18 +362,28 @@ class InkCoderController implements InkCliController {
   }
 
   requestStop(): void {
+    // A clarification is requested from INSIDE a run, so isProcessing is true
+    // while it is outstanding. It must therefore be cancelled independently of
+    // the run — otherwise Esc aborts the run but leaves the request pending,
+    // and the next message the user types is silently eaten as its answer.
+    const hadPendingClarification = this.inputManager.hasPendingRequest();
+    if (hadPendingClarification) {
+      this.inputManager.cancel('User interrupted with Esc');
+    }
+
     if (this.isProcessing) {
       if (this.currentAbortController && !this.currentAbortController.signal.aborted) {
         this.currentAbortController.abort();
-        this.ui.abort('Request cancelled by Esc. You can type the next message now.');
+        this.ui.abort(hadPendingClarification
+          ? 'Clarification and request cancelled by Esc. You can type the next message now.'
+          : 'Request cancelled by Esc. You can type the next message now.');
       } else {
         this.ui.abort('Cancellation already requested. Waiting for current step to finish...');
       }
       return;
     }
 
-    if (this.inputManager.hasPendingRequest()) {
-      this.inputManager.cancel('User interrupted with Esc');
+    if (hadPendingClarification) {
       this.ui.abort('Clarification cancelled.');
     }
   }
@@ -383,6 +393,8 @@ class InkCoderController implements InkCliController {
 
     if (this.inputManager.handleUserInput(trimmedInput)) {
       this.ui.user(trimmedInput || '(empty clarification response)');
+      // Leave the clarification phase so the composer drops its waiting style.
+      this.ui.updateSnapshot({ phase: this.isProcessing ? 'Running' : 'Idle' });
       this.publishSession('Clarification submitted');
       return;
     }
@@ -905,11 +917,11 @@ class InkCoderController implements InkCliController {
             onToolCall: (toolCall) => {
               toolCalls += 1;
               const input = this.getToolInput(toolCall);
-              this.ui.toolCall(this.resolveToolName(toolCall), input);
+              this.ui.toolCall(this.resolveToolName(toolCall), input, this.getToolCallId(toolCall));
             },
             onToolResult: (toolResult) => {
-              const toolName = this.resolveToolName(toolResult as Record<string, unknown>);
-              this.ui.toolResult(toolName, this.getToolOutput(toolResult as Record<string, unknown>));
+              const record = toolResult as Record<string, unknown>;
+              this.ui.toolResult(this.resolveToolName(record), this.getToolOutput(record), this.getToolCallId(record));
             },
             onClarificationRequest: async (request) => {
               return await this.inputManager.requestInput(request);

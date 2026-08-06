@@ -212,6 +212,10 @@ export class InkUiBridge {
   }
 
   error(message: string): void {
+    // Mirrors abort(): a mid-run failure must close out the live region too,
+    // or partially streamed text is lost and live tool lines spin forever.
+    this.finalizeLiveText();
+    this.finalizeLiveTools('error', '(failed)');
     this.addEvent('error', undefined, message);
   }
 
@@ -377,7 +381,8 @@ export class InkUiBridge {
       lines.push(`Default: ${request.defaultAnswer}`);
     }
     this.addEvent('system', 'Clarification needed', lines.join('\n'));
-    this.updateSnapshot({ status: 'Waiting for clarification' });
+    // `phase` drives the composer's waiting-for-answer styling in ink-app.
+    this.updateSnapshot({ status: 'Waiting for clarification', phase: 'Clarification' });
   }
 
   /**
