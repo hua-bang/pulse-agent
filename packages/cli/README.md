@@ -108,7 +108,7 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 /new [title]                - 创建新会话
 /resume                     - 交互式会话选择器（Ink 宿主：↑↓ 选择、Enter 恢复、Esc 取消、直接打字过滤）
 /resume <index|id-prefix|id> - 按序号 / 唯一 ID 前缀 / 完整 ID 恢复（readline 宿主仅此形式）
-/sessions                   - 列出所有会话
+/sessions [n]               - 列出最近 n 个会话（默认 20，避免长历史刷屏）
 /search <query>             - 搜索会话
 /rename <id> <new-title>    - 重命名会话
 /delete <id>                - 删除会话

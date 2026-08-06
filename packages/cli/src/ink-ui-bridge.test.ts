@@ -9,6 +9,7 @@ import {
   formatStatusline,
   formatTokenCount,
   getSlashCommandSuggestions,
+  truncateLabel,
   insertAtCursor,
   isPasteChunk,
   nextInteractionMode,
@@ -396,15 +397,58 @@ describe('Ink composer editing helpers', () => {
       liveTools: [],
     });
 
-    expect(statusline).toContain('mode plan');
-    expect(statusline).toContain('model deepseek_v3');
+    expect(statusline).toContain('plan');
+    expect(statusline).toContain('deepseek_v3');
     expect(statusline).toContain('ctx ~1.5k (2%)');
     expect(statusline).toContain('cache 82%');
     expect(statusline).toContain('out ~20');
-    expect(statusline).toContain('active bash');
     expect(statusline).toContain('tools 1/3');
     expect(statusline).toContain('queue 2');
-    expect(statusline).toContain('session session-');
+  });
+
+  it('sheds low-priority status segments when the terminal is narrow', () => {
+    const snapshot: InkCliSnapshot = {
+      sessionId: 'session-1234567890',
+      taskListId: null,
+      mode: 'edit',
+      messages: 0,
+      estimatedTokens: 0,
+      usageInputTokens: 43000,
+      usageOutputTokens: 36000,
+      usageCachedTokens: 43000,
+      contextWindowTokens: 64000,
+      modelLabel: 'deepseek-v4-flash',
+      queuedInputs: 0,
+      isProcessing: false,
+      status: 'Ready',
+      phase: 'Idle',
+      activeTool: null,
+      toolCalls: 17,
+      completedTools: 17,
+      lastStep: null,
+      events: [],
+      liveText: '',
+      liveTools: [],
+    };
+
+    const wide = formatStatusline(snapshot, 200);
+    expect(wide).toContain('out ~36k');
+    expect(wide).toContain('cache 100%');
+
+    const narrow = formatStatusline(snapshot, 40);
+    expect(narrow.length).toBeLessThanOrEqual(40);
+    // Essentials survive, tail segments are shed.
+    expect(narrow.startsWith('edit · ctx ~43k (67%)')).toBe(true);
+    expect(narrow).not.toContain('out ~36k');
+
+    // The first segment is never dropped, even at an absurd width.
+    expect(formatStatusline(snapshot, 1)).toBe('edit');
+  });
+
+  it('truncates over-wide live tool labels', () => {
+    expect(truncateLabel('short', 20)).toBe('short');
+    expect(truncateLabel('a'.repeat(30), 10)).toBe(`${'a'.repeat(9)}…`);
+    expect(truncateLabel('abc', 0)).toBe('abc');
   });
 
   it('filters picker items across label, hint, and preview', () => {

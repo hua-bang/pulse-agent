@@ -141,15 +141,18 @@ export class SessionCommands {
     return true;
   }
 
-  async listSessions(): Promise<void> {
-    const sessions = await this.sessionManager.listSessions();
+  /** Prints the most recent sessions. Bounded by default so a long history cannot flood the transcript. */
+  async listSessions(limit = 20): Promise<void> {
+    const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 20;
+    const allSessions = await this.sessionManager.listSessions(Math.max(normalizedLimit, 200));
+    const sessions = allSessions.slice(0, normalizedLimit);
 
     if (sessions.length === 0) {
       this.log('\n📭 No saved sessions found.');
       return;
     }
 
-    this.log('\n📋 Saved sessions:');
+    this.log(`\n📋 Saved sessions (showing ${sessions.length} of ${allSessions.length}):`);
     this.log('='.repeat(80));
 
     sessions.forEach((session, index) => {
@@ -164,6 +167,9 @@ export class SessionCommands {
       this.log(`   Preview: ${session.preview}`);
       this.log();
     });
+    if (allSessions.length > sessions.length) {
+      this.log(`… ${allSessions.length - sessions.length} older sessions hidden · /sessions <n> shows more`);
+    }
     this.log('Resume with /resume <index>, a unique id prefix, or the full id.');
   }
 

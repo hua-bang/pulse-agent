@@ -49,7 +49,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/help', description: 'Show this help message' },
   { command: '/new [title]', description: 'Create a new session' },
   { command: '/resume [index|id-prefix|id]', description: 'Resume a session (bare /resume opens an interactive picker)' },
-  { command: '/sessions', description: 'List all saved sessions' },
+  { command: '/sessions [n]', description: 'List recent sessions (default 20)' },
   { command: '/search <query>', description: 'Search in saved sessions' },
   { command: '/rename <id> <new-title>', description: 'Rename a session' },
   { command: '/delete <id>', description: 'Delete a session' },
@@ -563,7 +563,7 @@ class InkCoderController implements InkCliController {
           await this.resumeSessionRef(args[0]);
           break;
         case 'sessions':
-          await this.sessionCommands.listSessions();
+          await this.sessionCommands.listSessions(args[0] ? Number(args[0]) : undefined);
           break;
         case 'search':
           if (args.length === 0) {

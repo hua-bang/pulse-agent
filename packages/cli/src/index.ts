@@ -198,7 +198,7 @@ class CoderCLI {
           break;
 
         case 'sessions':
-          await this.sessionCommands.listSessions();
+          await this.sessionCommands.listSessions(args[0] ? Number(args[0]) : undefined);
           break;
 
         case 'search':

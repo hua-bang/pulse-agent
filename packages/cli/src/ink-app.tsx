@@ -18,7 +18,7 @@ interface InkRuntime {
   useApp: () => { exit: () => void };
   useInput: (handler: (input: string, key: any) => void) => void;
   usePaste?: (handler: (text: string) => void) => void;
-  useStdout: () => { stdout: { rows?: number } };
+  useStdout: () => { stdout: { rows?: number; columns?: number } };
 }
 
 export interface InkCliEvent {
@@ -136,7 +136,7 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/help', description: 'Show commands and shortcuts', usage: '/help', group: 'Core' },
   { command: '/new', description: 'Create a new session', usage: '/new <title?>', group: 'Session' },
   { command: '/resume', description: 'Resume a session (bare = interactive picker)', usage: '/resume [index|id-prefix]', group: 'Session' },
-  { command: '/sessions', description: 'List saved sessions', usage: '/sessions', group: 'Session' },
+  { command: '/sessions', description: 'List recent sessions (default 20)', usage: '/sessions [n]', group: 'Session' },
   { command: '/search', description: 'Search saved sessions', usage: '/search <query>', group: 'Session' },
   { command: '/rename', description: 'Rename a session', usage: '/rename <id> <title>', group: 'Session' },
   { command: '/delete', description: 'Delete a session', usage: '/delete <id>', group: 'Session' },
@@ -370,25 +370,47 @@ export function formatElapsed(ms: number): string {
   return `${minutes}m${String(seconds % 60).padStart(2, '0')}s`;
 }
 
-export function formatStatusline(snapshot: InkCliSnapshot): string {
+/**
+ * Status segments in drop order: the tail is shed first when the line would
+ * not fit the terminal, so a narrow window keeps mode/context/model and a wide
+ * one still shows everything. Everything dropped here stays available in
+ * `/status`.
+ */
+export function formatStatusline(snapshot: InkCliSnapshot, maxWidth = Number.POSITIVE_INFINITY): string {
   const mode = normalizeInteractionMode(snapshot.mode);
   const contextTokens = snapshot.usageInputTokens > 0 ? snapshot.usageInputTokens : snapshot.estimatedTokens;
   const window = snapshot.contextWindowTokens ?? 0;
   const contextPct = window > 0 && contextTokens > 0 ? ` (${Math.min(999, Math.round(contextTokens / window * 100))}%)` : '';
-  const parts = [
-    `mode ${mode}`,
-    snapshot.modelLabel ? `model ${snapshot.modelLabel}` : null,
+
+  const segments = [
+    mode,
     `ctx ~${formatTokenCount(contextTokens)}${contextPct}`,
+    snapshot.queuedInputs > 0 ? `queue ${snapshot.queuedInputs}` : null,
+    snapshot.toolCalls > 0 ? `tools ${snapshot.completedTools}/${snapshot.toolCalls}` : null,
+    snapshot.modelLabel ?? null,
     snapshot.usageCachedTokens !== undefined && snapshot.usageInputTokens > 0
       ? `cache ${Math.min(100, Math.round(snapshot.usageCachedTokens / snapshot.usageInputTokens * 100))}%`
       : null,
     snapshot.usageOutputTokens > 0 ? `out ~${formatTokenCount(snapshot.usageOutputTokens)}` : null,
-    snapshot.activeTool ? `active ${snapshot.activeTool}` : null,
-    snapshot.toolCalls > 0 ? `tools ${snapshot.completedTools}/${snapshot.toolCalls}` : null,
-    snapshot.queuedInputs > 0 ? `queue ${snapshot.queuedInputs}` : null,
-    `session ${snapshot.sessionId ? snapshot.sessionId.slice(0, 8) : 'new'}`,
-  ].filter((part): part is string => Boolean(part));
-  return parts.join(' · ');
+  ].filter((segment): segment is string => Boolean(segment));
+
+  const kept: string[] = [];
+  for (const segment of segments) {
+    const candidate = [...kept, segment].join(' · ');
+    if (kept.length > 0 && candidate.length > maxWidth) {
+      break;
+    }
+    kept.push(segment);
+  }
+  return kept.join(' · ');
+}
+
+/** Hard-truncates a live tool label so an over-wide line cannot reflow the composer. */
+export function truncateLabel(label: string, maxWidth: number): string {
+  if (!Number.isFinite(maxWidth) || maxWidth <= 1 || label.length <= maxWidth) {
+    return label;
+  }
+  return `${label.slice(0, Math.max(1, maxWidth - 1))}…`;
 }
 
 export function describeInteractionMode(mode: CliInteractionMode): string {
@@ -811,6 +833,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   });
 
   const terminalRows = stdout.rows ?? 30;
+  const terminalColumns = stdout.columns ?? 80;
   const spinner = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length];
   const pickerItems = useMemo(() => (picker ? filterPickerItems(picker.items, pickerQuery) : []), [picker, pickerQuery]);
   const clampedPickerIndex = Math.min(pickerIndex, Math.max(0, pickerItems.length - 1));
@@ -842,6 +865,14 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const composerColor = waitingClarification ? 'magenta' : snapshot.isProcessing ? 'yellow' : 'cyan';
   const statusIcon = snapshot.isProcessing ? spinner : '●';
   const statusColor = snapshot.isProcessing ? 'yellow' : snapshot.status === 'Cancelled' ? 'red' : 'green';
+  const statusPrefix = `${statusIcon} ${snapshot.status}${snapshot.isProcessing && snapshot.runStartedAt ? ` · ${formatElapsed(Date.now() - snapshot.runStartedAt)}` : ''}`;
+  const statusline = formatStatusline(snapshot, Math.max(20, terminalColumns - statusPrefix.length - 4));
+
+  // Parallel tools (teams, sub-agents) can stack up; window them so the
+  // composer never gets pushed off screen.
+  const maxLiveTools = Math.max(1, Math.min(5, terminalRows - 14));
+  const visibleLiveTools = snapshot.liveTools.slice(-maxLiveTools);
+  const hiddenLiveToolCount = snapshot.liveTools.length - visibleLiveTools.length;
 
   return (
     <Box flexDirection="column">
@@ -855,16 +886,19 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
         </Box>
       ) : null}
 
-      {snapshot.liveTools.map(tool => (
+      {hiddenLiveToolCount > 0 ? (
+        <Text color="gray" dimColor>… {hiddenLiveToolCount} more tool{hiddenLiveToolCount === 1 ? '' : 's'} running</Text>
+      ) : null}
+      {visibleLiveTools.map(tool => (
         <Text key={tool.id}>
           <Text color="yellow" dimColor>{spinner} </Text>
-          <Text color="gray">{tool.label}</Text>
+          <Text color="gray">{truncateLabel(tool.label, terminalColumns - 4)}</Text>
         </Text>
       ))}
 
       <Box marginTop={1}>
-        <Text color={statusColor}>{statusIcon} {snapshot.status}{snapshot.isProcessing && snapshot.runStartedAt ? ` · ${formatElapsed(Date.now() - snapshot.runStartedAt)}` : ''}</Text>
-        <Text color="gray"> · {formatStatusline(snapshot)}</Text>
+        <Text color={statusColor}>{statusPrefix}</Text>
+        <Text color="gray"> · {statusline}</Text>
       </Box>
 
       {picker ? (
