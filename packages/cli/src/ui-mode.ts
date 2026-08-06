@@ -6,6 +6,7 @@ export interface ParsedCliArgs {
   prompt: string;
   continueLast: boolean;
   verbose: boolean;
+  model?: string;
 }
 
 export function resolveCliUiMode(args = process.argv.slice(2), env: NodeJS.ProcessEnv = process.env): CliUiMode {
@@ -55,11 +56,21 @@ export function parseCliArgs(args = process.argv.slice(2), env: NodeJS.ProcessEn
   let print = false;
   let continueLast = false;
   let verbose = false;
+  let model: string | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === '--ui' || arg === '--tui') {
       index += 1;
+      continue;
+    }
+    if (arg === '--model') {
+      model = args[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--model=')) {
+      model = arg.slice('--model='.length);
       continue;
     }
     if (arg.startsWith('--ui=') || arg.startsWith('--tui=')) {
@@ -86,5 +97,6 @@ export function parseCliArgs(args = process.argv.slice(2), env: NodeJS.ProcessEn
     prompt: promptParts.join(' '),
     continueLast,
     verbose,
+    ...(model ? { model } : {}),
   };
 }

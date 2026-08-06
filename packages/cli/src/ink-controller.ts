@@ -1,4 +1,4 @@
-import { CONTEXT_WINDOW_TOKENS, PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
+import { CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
 
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
@@ -13,6 +13,7 @@ import { formatRelativeTime, type InkCliController, type InkCliSnapshot, type Cl
 import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
+import { loadModelRegistry, parseModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -40,6 +41,7 @@ const LOCAL_COMMANDS = new Set([
   'save',
   'tui',
   'debug',
+  'model',
   'exit',
 ]);
 
@@ -66,6 +68,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/save', description: 'Save current session explicitly' },
   { command: '/tui [status]', description: 'Show current Ink UI status' },
   { command: '/debug [on|off|tail <n>]', description: 'Engine log layer: toggle live display or tail the capture' },
+  { command: '/model [id|claude:<id>|reset]', description: 'Show/switch model (bare = picker from .pulse-coder/models.json)' },
   { command: '/exit', description: 'Exit the application' },
 ];
 
@@ -109,10 +112,16 @@ class InkCoderController implements InkCliController {
   private debugLogs: boolean;
   private teamsLogsVisible = false;
   private readonly seenWarnTexts = new Set<string>();
+  private modelOverride: ModelChoice | null = null;
+  private activePicker: 'session' | 'model' | null = null;
+  private pickerModelChoices = new Map<string, ModelChoice>();
 
-  constructor(options: { logSink?: EngineLogSink; verbose?: boolean } = {}) {
+  constructor(options: { logSink?: EngineLogSink; verbose?: boolean; modelSpec?: string } = {}) {
     this.logSink = options.logSink ?? null;
     this.debugLogs = options.verbose ?? false;
+    if (options.modelSpec) {
+      this.modelOverride = parseModelSpec(options.modelSpec);
+    }
     this.agent = new PulseAgent({
       enginePlugins: {
         plugins: [memoryIntegration.enginePlugin],
@@ -129,7 +138,10 @@ class InkCoderController implements InkCliController {
     this.ui = new InkUiBridge({
       onChange: snapshot => this.notify(snapshot),
     });
-    this.ui.updateSnapshot({ contextWindowTokens: CONTEXT_WINDOW_TOKENS });
+    this.ui.updateSnapshot({
+      contextWindowTokens: this.currentContextWindow(),
+      modelLabel: shortModelLabel(this.modelOverride?.model ?? DEFAULT_MODEL),
+    });
     this.sessionCommands = new SessionCommands(message => this.ui.info(message ?? ''));
     this.inputManager = new InputManager({
       onRequest: request => this.ui.clarification(request),
@@ -212,6 +224,66 @@ class InkCoderController implements InkCliController {
     this.ui.setToolDetail(!this.ui.getToolDetail());
   }
 
+  private currentContextWindow(): number {
+    return this.modelOverride?.contextWindow ?? CONTEXT_WINDOW_TOKENS;
+  }
+
+  private applyModelOverride(note: string): void {
+    this.ui.updateSnapshot({
+      modelLabel: shortModelLabel(this.modelOverride?.model ?? DEFAULT_MODEL),
+      contextWindowTokens: this.currentContextWindow(),
+    });
+    this.ui.info(`${note} · ctx window ${Math.round(this.currentContextWindow() / 1000)}k · applies to new runs in this process`);
+    this.publishSession('Ready');
+  }
+
+  private modelRunOptions(): { model?: string; modelType?: 'openai' | 'claude'; contextWindowTokens?: number } {
+    if (!this.modelOverride) {
+      return {};
+    }
+    return {
+      model: this.modelOverride.model,
+      ...(this.modelOverride.modelType ? { modelType: this.modelOverride.modelType } : {}),
+      ...(this.modelOverride.contextWindow ? { contextWindowTokens: this.modelOverride.contextWindow } : {}),
+    };
+  }
+
+  private async openModelPicker(): Promise<void> {
+    const registry = await loadModelRegistry();
+    const currentModel = this.modelOverride?.model ?? DEFAULT_MODEL;
+    const seen = new Set<string>();
+    this.pickerModelChoices = new Map();
+    const items = [
+      { id: DEFAULT_MODEL, label: shortModelLabel(DEFAULT_MODEL, 40), hint: 'env default', preview: DEFAULT_MODEL },
+      ...registry.map(choice => {
+        const id = `${choice.modelType ? `${choice.modelType}:` : ''}${choice.model}`;
+        this.pickerModelChoices.set(id, choice);
+        return {
+          id,
+          label: choice.label ?? shortModelLabel(choice.model, 40),
+          hint: `${choice.modelType ?? 'default provider'}${choice.contextWindow ? ` · ${Math.round(choice.contextWindow / 1000)}k ctx` : ''}`,
+          preview: choice.model,
+        };
+      }),
+    ].filter(item => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+
+    if (items.length <= 1) {
+      this.ui.section('Model', [
+        `Current: ${currentModel}${this.modelOverride ? ' (session override)' : ' (env default)'}`,
+        'Switch directly: /model <id> · /model claude:<id> · /model reset',
+        'Add picker candidates in .pulse-coder/models.json, e.g. {"models": ["openai:deepseek-v4-flash", {"model": "claude-opus-5", "type": "claude"}]}',
+      ]);
+      return;
+    }
+
+    this.activePicker = 'model';
+    this.ui.showPicker({ title: 'Select model', items });
+  }
+
   private async resumeSessionRef(ref: string): Promise<void> {
     if (await this.sessionCommands.resumeSession(ref)) {
       await this.sessionCommands.loadContext(this.context);
@@ -227,6 +299,7 @@ class InkCoderController implements InkCliController {
       return;
     }
 
+    this.activePicker = 'session';
     this.ui.showPicker({
       title: 'Resume session',
       items: sessions.map(session => ({
@@ -239,11 +312,28 @@ class InkCoderController implements InkCliController {
   }
 
   pickerSelect(id: string): void {
+    const kind = this.activePicker;
+    this.activePicker = null;
+
+    if (kind === 'model') {
+      this.ui.hidePicker();
+      const choice = this.pickerModelChoices.get(id) ?? parseModelSpec(id);
+      this.pickerModelChoices = new Map();
+      if (choice) {
+        this.modelOverride = choice.model === DEFAULT_MODEL && !choice.modelType && !choice.contextWindow ? null : choice;
+        this.applyModelOverride(this.modelOverride
+          ? `Model set: ${choice.model}${choice.modelType ? ` (${choice.modelType})` : ''}`
+          : 'Model reset to env default');
+      }
+      return;
+    }
+
     this.ui.hidePicker('Resuming session…');
     void this.resumeSessionRef(id);
   }
 
   pickerCancel(): void {
+    this.activePicker = null;
     this.ui.hidePicker();
     this.publishSession('Ready');
   }
@@ -483,7 +573,7 @@ class InkCoderController implements InkCliController {
           this.publishSession('Ready');
           break;
         case 'compact':
-          await this.compactContext();
+          await this.runExclusive(async () => this.compactContext());
           break;
         case 'skills':
           this.ui.info('Use /skills <name|index> <message> directly in input for one-shot skill execution.');
@@ -496,6 +586,7 @@ class InkCoderController implements InkCliController {
         case 'status':
           this.ui.section('CLI Status', [
             `Session: ${this.sessionCommands.getCurrentSessionId() || 'None (new session)'}`,
+            `Model: ${this.modelOverride ? `${this.modelOverride.model}${this.modelOverride.modelType ? ` (${this.modelOverride.modelType})` : ''} (session override)` : `${DEFAULT_MODEL} (env default)`}`,
             `Task List: ${this.sessionCommands.getCurrentTaskListId() || 'None'}`,
             `Messages: ${this.context.messages.length}`,
             `Context tokens: ${this.lastContextTokens > 0 ? `${this.lastContextTokens} (last run)` : `~${this.estimateTokens(this.context.messages)} (estimated)`}`,
@@ -542,6 +633,26 @@ class InkCoderController implements InkCliController {
         case 'tui':
           this.ui.showTuiStatus();
           break;
+        case 'model': {
+          const spec = args.join(' ').trim();
+          if (!spec) {
+            await this.openModelPicker();
+            break;
+          }
+          if (spec.toLowerCase() === 'reset') {
+            this.modelOverride = null;
+            this.applyModelOverride('Model reset to env default');
+            break;
+          }
+          const choice = parseModelSpec(spec);
+          if (!choice) {
+            this.ui.error('Usage: /model [<id> | claude:<id> | openai:<id> | reset]');
+            break;
+          }
+          this.modelOverride = choice;
+          this.applyModelOverride(`Model set: ${choice.model}${choice.modelType ? ` (${choice.modelType})` : ''}`);
+          break;
+        }
         case 'debug': {
           if (!this.logSink) {
             this.ui.warn('Engine log capture is unavailable in this host.');
@@ -612,7 +723,12 @@ class InkCoderController implements InkCliController {
     const beforeCount = this.context.messages.length;
     const beforeTokens = this.estimateTokens(this.context.messages);
     const keepLastTurns = this.getKeepLastTurns();
-    const compactResult = await this.agent.compactContext(this.context, { force: true });
+    const compactResult = await this.agent.compactContext(this.context, {
+      force: true,
+      ...(this.modelOverride ? { model: this.modelOverride.model } : {}),
+      contextWindowTokens: this.currentContextWindow(),
+      onStart: () => this.ui.updateSnapshot({ status: 'Compacting context…', phase: 'Compacting' }),
+    });
 
     if (!compactResult.didCompact || !compactResult.newMessages) {
       this.ui.info('No compaction was applied.');
@@ -696,6 +812,11 @@ class InkCoderController implements InkCliController {
 
       const runAgent = async () => this.agent.run(this.context, {
         abortSignal: ac.signal,
+        ...this.modelRunOptions(),
+        onCompactionStart: () => {
+          this.ui.log('Compacting context (summarizing older turns)…');
+          this.ui.updateSnapshot({ status: 'Compacting context…', phase: 'Compacting' });
+        },
         onText: (delta) => {
           sawText = true;
           this.ui.text(delta);
@@ -725,12 +846,14 @@ class InkCoderController implements InkCliController {
         onClarificationRequest: async (request) => {
           return await this.inputManager.requestInput(request);
         },
-        onCompacted: (newMessages) => {
+        onCompacted: (newMessages, event) => {
           const beforeMessages = this.context.messages.length;
           const beforeTokens = this.estimateTokens(this.context.messages);
           this.context.messages = newMessages;
           const afterTokens = this.estimateTokens(newMessages);
-          this.ui.info(`Context compacted · ${beforeMessages} → ${newMessages.length} messages · ~${beforeTokens} → ~${afterTokens} tokens`);
+          const reason = (event as { reason?: string } | undefined)?.reason;
+          this.ui.info(`Context compacted · ${beforeMessages} → ${newMessages.length} messages · ~${beforeTokens} → ~${afterTokens} tokens${reason ? ` (${reason})` : ''}`);
+          this.ui.updateSnapshot({ status: 'Running agent', phase: 'Running' });
         },
         onResponse: (messages) => {
           this.context.messages.push(...messages);
@@ -994,10 +1117,11 @@ export interface CreateInkControllerOptions {
   continueLast?: boolean;
   verbose?: boolean;
   logSink?: EngineLogSink;
+  modelSpec?: string;
 }
 
 export async function createInkCoderController(options: CreateInkControllerOptions = {}): Promise<InkCliController> {
-  const controller = new InkCoderController({ logSink: options.logSink, verbose: options.verbose });
+  const controller = new InkCoderController({ logSink: options.logSink, verbose: options.verbose, modelSpec: options.modelSpec });
   await controller.initialize({ continueLast: options.continueLast });
   return controller;
 }

@@ -46,4 +46,9 @@ describe('parseCliArgs', () => {
     expect(parsed.verbose).toBe(true);
     expect(parsed.prompt).toBe('hi');
   });
+
+  it('parses --model in both flag forms', () => {
+    expect(parseCliArgs(['--model', 'claude:claude-opus-5'], {}).model).toBe('claude:claude-opus-5');
+    expect(parseCliArgs(['--model=gpt-5.2', '-p', 'hi'], {})).toMatchObject({ model: 'gpt-5.2', prompt: 'hi' });
+  });
 });

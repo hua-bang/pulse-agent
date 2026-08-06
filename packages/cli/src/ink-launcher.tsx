@@ -8,6 +8,7 @@ import { EngineLogSink } from './log-sink.js';
 export interface StartInkTuiOptions {
   continueLast?: boolean;
   verbose?: boolean;
+  model?: string;
 }
 
 export async function startInkTui(options: StartInkTuiOptions = {}): Promise<void> {
@@ -21,7 +22,7 @@ export async function startInkTui(options: StartInkTuiOptions = {}): Promise<voi
   ]);
   const historyStore = new PromptHistoryStore();
   const [controller, initialHistory] = await Promise.all([
-    createInkCoderController({ continueLast: options.continueLast, verbose: options.verbose, logSink }),
+    createInkCoderController({ continueLast: options.continueLast, verbose: options.verbose, modelSpec: options.model, logSink }),
     historyStore.load(),
   ]);
   const instance = render(

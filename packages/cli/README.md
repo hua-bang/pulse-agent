@@ -31,7 +31,10 @@ pnpm start
 - 叙述分层 - 工具调用之间的过程叙述灰色显示，只有收尾的最终回答保持白色 + Markdown；状态行运行期稳定显示实耗时（`Running agent · 2m10s`），不随单个工具完成翻动
 - 流式工具参数 - 模型开始生成工具调用时 live 区即出现该工具行，参数尾部实时增长，最终标签原位替换；并行工具结果按 callId 精确归位
 - 状态栏密度 - `ctx ~46k (72%)` 上下文占比（窗口取引擎 `CONTEXT_WINDOW_TOKENS`，默认 64k）+ `cache 82%` 提示词缓存命中率（provider 上报 `cachedInputTokens` 时显示）+ `out ~3.4k` 累计输出 tokens；`/status` 另有单次/会话两级缓存命中明细
-- 会话自动标题 - 默认标题的会话在首条消息后自动以消息内容命名（显式 `/new <title>` 不受影响）；上下文自动压缩时打印一行横幅（前后消息数 / tokens）
+- 会话自动标题 - 默认标题的会话在首条消息后自动以消息内容命名（显式 `/new <title>` 不受影响）
+- 压缩可见性 - 压缩真正开始时状态行变为 `Compacting context…`（engine `onCompactionStart` 回调），完成后打一行横幅（前后消息数 / tokens / 原因）；`/compact` 进入处理态，期间输入自动排队
+- 模型切换 - `/model` 弹出选择器（候选来自 `.pulse-coder/models.json`）或 `/model <id>` / `/model claude:<id>` 直接切换、`/model reset` 回到 env 默认；`--model` 启动参数同理；状态栏常驻 `model <名>` 段
+- 按模型配置上下文窗口 - models.json 条目可带 `contextWindow`（如 200000），切换后 `ctx %` 分母与 **engine 压缩阈值（75%/50%）** 一起跟随该模型，不再固定 64k；全局默认仍可用 `CONTEXT_WINDOW_TOKENS` 环境变量调整
 - 输出分层 - 引擎/插件日志默认写入 `~/.pulse-coder/logs/cli.log` 不上屏（warn/error 以暗色单行显示），`/debug on` 或 `--verbose` 实时查看，`/debug tail <n>` 回看
 - 轻量 Markdown 渲染 - 标题/加粗/行内代码/列表/代码块在终端中着色显示
 - ACP 模式 - CLI 内置 ACP 切换与路由，支持 `//` 前缀强制透传
@@ -63,6 +66,7 @@ pulse-coder -p "<prompt>"       # 非交互：跑一条 prompt，流式输出到
 git diff | pulse-coder -p "review this"   # stdin 会拼接到 prompt 之后
 pulse-coder --ui readline       # 指定 UI 宿主（ink / readline / plain）
 pulse-coder --verbose           # 启动即实时显示引擎日志（等价 /debug on）
+pulse-coder --model claude:claude-opus-5   # 启动即指定模型（等价 /model …）
 ```
 
 `-p` 模式下引擎/插件日志走 stderr，stdout 只包含回答文本，方便管道消费。
@@ -125,6 +129,7 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 /save                       - 显式保存当前会话
 /tui [on|off|status]        - 切换或查看 TUI 渲染器（Ink 宿主: /tui [status] 查看 Ink 状态）
 /debug [on|off|tail <n>]    - 引擎日志层：切换实时显示 / 回看最近 n 条（Ink 宿主）
+/model [id|claude:<id>|reset] - 查看/切换模型；裸 /model 弹出选择器（Ink 宿主）
 /exit                       - 退出并保存
 ```
 
@@ -176,6 +181,21 @@ readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。
   }
 }
 ```
+
+### 模型候选配置
+
+创建 `.pulse-coder/models.json`（兼容 `.coder/models.json`），作为 `/model` 选择器的候选来源：
+
+```json
+{
+  "models": [
+    "openai:deepseek-v4-flash",
+    { "model": "claude-opus-5", "type": "claude", "label": "Opus 5", "contextWindow": 200000 }
+  ]
+}
+```
+
+条目为字符串（`claude:` / `openai:` 前缀指定 provider 通道）或对象（可带 `label`、`contextWindow`）。`contextWindow` 会同时驱动状态栏 `ctx %` 与 engine 压缩阈值。
 
 ### Skills 配置
 

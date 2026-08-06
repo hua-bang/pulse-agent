@@ -827,7 +827,7 @@ async function main(): Promise<void> {
 
   if (parsed.uiMode === 'ink') {
     const { startInkTui } = await import('./ink-launcher.js');
-    await startInkTui({ continueLast: parsed.continueLast, verbose: parsed.verbose });
+    await startInkTui({ continueLast: parsed.continueLast, verbose: parsed.verbose, model: parsed.model });
     return;
   }
 
@@ -836,6 +836,9 @@ async function main(): Promise<void> {
 }
 
 main().catch(error => {
-  console.error('Failed to start CLI:', error);
+  // Write straight to stderr: with the Ink host's EngineLogSink installed,
+  // console.error is captured into the log file and a startup crash would
+  // otherwise be silent.
+  process.stderr.write(`Failed to start CLI: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
   process.exit(1);
 });

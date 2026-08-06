@@ -59,6 +59,8 @@ export interface InkCliSnapshot {
   /** Last-step prompt-cache hits; undefined when the provider reports none. */
   usageCachedTokens?: number;
   contextWindowTokens?: number;
+  /** Short display label of the active model. */
+  modelLabel?: string;
   queuedInputs: number;
   isProcessing: boolean;
   status: string;
@@ -145,6 +147,7 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/wt', description: 'Use worktree skill', usage: '/wt use <work-name>', group: 'Agent' },
   { command: '/status', description: 'Show session status', usage: '/status', group: 'Core' },
   { command: '/debug', description: 'Engine log layer: toggle, tail, status', usage: '/debug on|off|tail <n>|status', group: 'Core' },
+  { command: '/model', description: 'Show or switch model (bare = picker)', usage: '/model [id|claude:<id>|reset]', group: 'Core' },
   { command: '/mode', description: 'Show or set CLI interaction mode', usage: '/mode edit|plan', group: 'Mode' },
   { command: '/plan', description: 'Switch to planning mode (engine planning)', usage: '/plan', group: 'Mode' },
   { command: '/edit', description: 'Switch to edit mode (engine executing)', usage: '/edit', group: 'Mode' },
@@ -374,6 +377,7 @@ export function formatStatusline(snapshot: InkCliSnapshot): string {
   const contextPct = window > 0 && contextTokens > 0 ? ` (${Math.min(999, Math.round(contextTokens / window * 100))}%)` : '';
   const parts = [
     `mode ${mode}`,
+    snapshot.modelLabel ? `model ${snapshot.modelLabel}` : null,
     `ctx ~${formatTokenCount(contextTokens)}${contextPct}`,
     snapshot.usageCachedTokens !== undefined && snapshot.usageInputTokens > 0
       ? `cache ${Math.min(100, Math.round(snapshot.usageCachedTokens / snapshot.usageInputTokens * 100))}%`
@@ -885,7 +889,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
               <Text color="gray">… {pickerItems.length - visiblePickerItems.length} more (↑↓ to scroll)</Text>
             ) : null}
           </Box>
-          <Text color="gray">↑↓ select · Enter resume · Esc cancel · type to filter</Text>
+          <Text color="gray">↑↓ select · Enter confirm · Esc cancel · type to filter</Text>
         </Box>
       ) : (
         <Box flexDirection="column">

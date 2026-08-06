@@ -382,6 +382,7 @@ describe('Ink composer editing helpers', () => {
       usageOutputTokens: 20,
       usageCachedTokens: 1230,
       contextWindowTokens: 64000,
+      modelLabel: 'deepseek_v3',
       queuedInputs: 2,
       isProcessing: true,
       status: 'Running agent',
@@ -396,6 +397,7 @@ describe('Ink composer editing helpers', () => {
     });
 
     expect(statusline).toContain('mode plan');
+    expect(statusline).toContain('model deepseek_v3');
     expect(statusline).toContain('ctx ~1.5k (2%)');
     expect(statusline).toContain('cache 82%');
     expect(statusline).toContain('out ~20');

@@ -163,17 +163,32 @@ const buildCompactedResult = ({
 
 export const maybeCompactContext = async (
   context: Context,
-  options?: { force?: boolean; provider?: LLMProviderFactory; model?: string }
+  options?: {
+    force?: boolean;
+    provider?: LLMProviderFactory;
+    model?: string;
+    /**
+     * Per-run context window override (e.g. per-model). When set, the trigger
+     * (75%) and target (50%) are derived from it, taking precedence over the
+     * env-level CONTEXT_WINDOW_TOKENS / COMPACT_* values.
+     */
+    contextWindowTokens?: number;
+    /** Fired once compaction is actually going to run (summarization LLM call imminent) — lets hosts show progress. */
+    onStart?: (info: { beforeMessageCount: number; beforeEstimatedTokens: number }) => void;
+  }
 ): Promise<CompactResult> => {
   const { messages } = context;
   if (messages.length === 0) {
     return { didCompact: false };
   }
 
+  const windowOverride = options?.contextWindowTokens;
+  const compactTrigger = windowOverride && windowOverride > 0 ? Math.floor(windowOverride * 0.75) : COMPACT_TRIGGER;
+
   const force = Boolean(options?.force);
   const beforeMessageCount = messages.length;
   const beforeEstimatedTokens = estimateTokens(messages);
-  if (!force && beforeEstimatedTokens < COMPACT_TRIGGER) {
+  if (!force && beforeEstimatedTokens < compactTrigger) {
     return { didCompact: false };
   }
 
@@ -199,6 +214,8 @@ export const maybeCompactContext = async (
     }
   }
 
+  options?.onStart?.({ beforeMessageCount, beforeEstimatedTokens });
+
   try {
     const summary = await summarizeMessages(oldMessages, {
       provider: options?.provider,
@@ -214,10 +231,11 @@ export const maybeCompactContext = async (
       ...recentMessages,
     ];
 
+    const compactTarget = windowOverride && windowOverride > 0 ? Math.floor(windowOverride * 0.5) : COMPACT_TARGET;
     const nextEstimatedTokens = estimateTokens(nextMessages);
-    if (nextEstimatedTokens > COMPACT_TARGET || nextEstimatedTokens >= beforeEstimatedTokens) {
-      const fallbackReason = nextEstimatedTokens > COMPACT_TARGET ? 'summary-too-large' : 'summary-no-gain';
-      const fallbackStrategy: CompactStats['strategy'] = nextEstimatedTokens > COMPACT_TARGET
+    if (nextEstimatedTokens > compactTarget || nextEstimatedTokens >= beforeEstimatedTokens) {
+      const fallbackReason = nextEstimatedTokens > compactTarget ? 'summary-too-large' : 'summary-no-gain';
+      const fallbackStrategy: CompactStats['strategy'] = nextEstimatedTokens > compactTarget
         ? 'summary-too-large'
         : 'fallback';
       const fallbackMessages = ensureEndsWithUser(takeLastTurns(messages, KEEP_LAST_TURNS));

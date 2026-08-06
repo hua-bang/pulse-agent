@@ -193,6 +193,10 @@ export interface LoopOptions {
   onToolInputDelta?: (chunk: { id: string; delta: string }) => void;
   /** Fired when the LLM finishes emitting a tool's input JSON. */
   onToolInputEnd?: (chunk: { id: string }) => void;
+  /** Fired when context compaction actually starts (the summarization LLM call is in flight). */
+  onCompactionStart?: (info: { beforeMessageCount: number; beforeEstimatedTokens: number }) => void;
+  /** Per-run context window override (e.g. per-model); drives compaction trigger/target instead of env CONTEXT_WINDOW_TOKENS. */
+  contextWindowTokens?: number;
   onStepFinish?: (step: StepResult<any>) => void;
   onClarificationRequest?: (request: ClarificationRequest) => Promise<string>;
   onCompacted?: (newMessages: ModelMessage[], event?: CompactionEvent) => void;
@@ -433,6 +437,8 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
           provider: options?.provider,
           model: options?.model,
+          contextWindowTokens: options?.contextWindowTokens,
+          onStart: (info) => options?.onCompactionStart?.(info),
         });
         if (didCompact) {
           const nextAttempt = compactionAttempts + 1;
@@ -757,6 +763,8 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
             force: true,
             provider: options?.provider,
             model: options?.model,
+            contextWindowTokens: options?.contextWindowTokens,
+            onStart: (info) => options?.onCompactionStart?.(info),
           });
           if (didCompact) {
             const nextAttempt = compactionAttempts + 1;
