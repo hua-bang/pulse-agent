@@ -49,6 +49,7 @@ export interface InkCliSnapshot {
   toolCalls: number;
   completedTools: number;
   lastStep?: string | null;
+  runStartedAt?: number | null;
   events: InkCliEvent[];
   liveText: string;
   liveTools: InkLiveTool[];
@@ -100,6 +101,7 @@ const DEFAULT_SNAPSHOT: InkCliSnapshot = {
   toolCalls: 0,
   completedTools: 0,
   lastStep: null,
+  runStartedAt: null,
   events: [],
   liveText: '',
   liveTools: [],
@@ -309,12 +311,31 @@ export function normalizeInteractionMode(mode: string | null | undefined): CliIn
   return 'chat';
 }
 
+export function formatTokenCount(tokens: number): string {
+  if (tokens < 1000) {
+    return `${tokens}`;
+  }
+  if (tokens < 10000) {
+    return `${(tokens / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  }
+  return `${Math.round(tokens / 1000)}k`;
+}
+
+export function formatElapsed(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m${String(seconds % 60).padStart(2, '0')}s`;
+}
+
 export function formatStatusline(snapshot: InkCliSnapshot): string {
   const mode = normalizeInteractionMode(snapshot.mode);
   const contextTokens = snapshot.usageInputTokens > 0 ? snapshot.usageInputTokens : snapshot.estimatedTokens;
   const parts = [
     `mode ${mode}`,
-    `ctx ~${contextTokens}`,
+    `ctx ~${formatTokenCount(contextTokens)}`,
     snapshot.activeTool ? `active ${snapshot.activeTool}` : null,
     snapshot.toolCalls > 0 ? `tools ${snapshot.completedTools}/${snapshot.toolCalls}` : null,
     snapshot.queuedInputs > 0 ? `queue ${snapshot.queuedInputs}` : null,
@@ -388,6 +409,15 @@ function TranscriptEvent({ event, Box, Text }: { event: InkCliEvent; Box: React.
   }
 
   if (event.kind === 'assistant') {
+    // Narration between tool calls (status: 'info') sits at the tool-trace
+    // layer; only the answer segment that ends a run renders bright.
+    if (event.status === 'info') {
+      return (
+        <Box flexDirection="column" marginTop={1}>
+          <Text color="gray">{event.text}</Text>
+        </Box>
+      );
+    }
     return (
       <Box flexDirection="column" marginTop={1}>
         <Text>{renderMarkdownAnsi(event.text)}</Text>
@@ -740,7 +770,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       ))}
 
       <Box marginTop={1}>
-        <Text color={statusColor}>{statusIcon} {snapshot.status}</Text>
+        <Text color={statusColor}>{statusIcon} {snapshot.status}{snapshot.isProcessing && snapshot.runStartedAt ? ` · ${formatElapsed(Date.now() - snapshot.runStartedAt)}` : ''}</Text>
         <Text color="gray"> · {formatStatusline(snapshot)}</Text>
       </Box>
 

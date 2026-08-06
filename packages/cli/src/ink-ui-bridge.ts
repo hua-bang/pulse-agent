@@ -167,6 +167,7 @@ export class InkUiBridge {
       status: `Done in ${this.formatDuration(summary.elapsedMs)} · tools ${summary.toolCalls}`,
       phase: 'Complete',
       activeTool: null,
+      runStartedAt: null,
       toolCalls: summary.toolCalls,
       completedTools: summary.toolCalls,
     });
@@ -218,6 +219,7 @@ export class InkUiBridge {
       status: 'Cancelled',
       phase: 'Cancelled',
       activeTool: null,
+      runStartedAt: null,
     });
     this.addEvent('error', 'Abort', message);
   }
@@ -230,6 +232,7 @@ export class InkUiBridge {
       status: label,
       phase: label,
       activeTool: null,
+      runStartedAt: Date.now(),
       toolCalls: 0,
       completedTools: 0,
       lastStep: null,
@@ -244,6 +247,7 @@ export class InkUiBridge {
       status: 'Ready',
       phase: 'Idle',
       activeTool: null,
+      runStartedAt: null,
     });
   }
 
@@ -253,18 +257,20 @@ export class InkUiBridge {
   }
 
   toolCall(name: string, input?: unknown): void {
-    this.finalizeLiveText();
+    // Text finalized because a tool starts = in-run narration, not the answer.
+    this.finalizeLiveText('interim');
     const label = this.formatToolLabel(name, this.summarizeToolInput(name, input));
     this.liveTools = [...this.liveTools, {
       id: `live-tool-${++this.liveToolCounter}`,
       name,
       label,
     }];
+    // The status TEXT stays stable while running — per-tool churn ("Running
+    // tool: X" / "Completed tool: Y") goes stale the moment tools overlap.
     this.updateSnapshot({
       phase: 'Using tool',
       activeTool: name,
       toolCalls: this.snapshot.toolCalls + 1,
-      status: `Running tool: ${name}`,
     });
   }
 
@@ -293,7 +299,6 @@ export class InkUiBridge {
       phase: stillRunning ? 'Using tool' : 'Tool completed',
       activeTool: stillRunning ? this.liveTools[this.liveTools.length - 1].name : null,
       completedTools: Math.min(this.snapshot.toolCalls, this.snapshot.completedTools + 1),
-      status: `${isError ? 'Tool failed' : 'Completed tool'}: ${name}`,
     });
   }
 
@@ -323,7 +328,11 @@ export class InkUiBridge {
     this.updateSnapshot({ status: 'Waiting for clarification' });
   }
 
-  private finalizeLiveText(): void {
+  /**
+   * `interim` = narration between tool calls (rendered muted);
+   * `final` = the answer segment that ends a run (bright + markdown).
+   */
+  private finalizeLiveText(kind: 'interim' | 'final' = 'final'): void {
     if (!this.liveText.trim()) {
       this.liveText = '';
       return;
@@ -331,7 +340,7 @@ export class InkUiBridge {
 
     const text = this.liveText;
     this.liveText = '';
-    this.addEvent('assistant', undefined, text);
+    this.addEvent('assistant', undefined, text, true, kind === 'interim' ? { status: 'info' } : {});
   }
 
   private finalizeLiveTools(status: 'info' | 'error', note = ''): void {
@@ -516,7 +525,7 @@ export class InkUiBridge {
         const searchPath = this.pickString(record, ['path', 'cwd', 'dir', 'glob']);
         const toolVerb = normalizedName.includes('grep') ? 'grep' : normalizedName.includes('find') ? 'find' : 'search';
         if (pattern && searchPath) {
-          return `${toolVerb} "${this.compactText(pattern, 40)}" in ${this.shortPath(searchPath)}`;
+          return `${toolVerb} "${this.compactText(pattern, 40)}" in ${this.shortPath(searchPath, 40)}`;
         }
         if (pattern) return `${toolVerb} "${this.compactText(pattern, 60)}"`;
         if (searchPath) return `${toolVerb} ${this.shortPath(searchPath)}`;

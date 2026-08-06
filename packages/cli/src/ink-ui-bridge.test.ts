@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { InkUiBridge } from './ink-ui-bridge.js';
 import {
   applySlashCommandCompletion,
+  formatElapsed,
   formatStatusline,
+  formatTokenCount,
   getSlashCommandSuggestions,
   insertAtCursor,
   isPasteChunk,
@@ -52,6 +54,23 @@ describe('InkUiBridge', () => {
     expect(last.liveText).toBe('');
     expect(last.liveTools).toHaveLength(1);
     expect(last.liveTools[0].label).toBe('$ echo ok');
+  });
+
+  it('marks narration segments as interim and the closing segment as final', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.text('narration before the tool');
+    bridge.toolCall('bash', { command: 'echo ok' });
+    bridge.toolResult('bash', 'ok');
+    bridge.text('the actual answer');
+    bridge.runSummary({ elapsedMs: 10, toolCalls: 1, messages: 2, estimatedTokens: 5, mode: 'chat' });
+
+    const assistantEvents = snapshots[snapshots.length - 1].events.filter(event => event.kind === 'assistant');
+    expect(assistantEvents).toHaveLength(2);
+    expect(assistantEvents[0]).toMatchObject({ text: 'narration before the tool', status: 'info' });
+    expect(assistantEvents[1].text).toBe('the actual answer');
+    expect(assistantEvents[1].status).toBeUndefined();
   });
 
   it('finalizes a tool call as a one-line summary by default', () => {
@@ -313,10 +332,19 @@ describe('Ink composer editing helpers', () => {
     });
 
     expect(statusline).toContain('mode plan');
-    expect(statusline).toContain('ctx ~1500');
+    expect(statusline).toContain('ctx ~1.5k');
     expect(statusline).toContain('active bash');
     expect(statusline).toContain('tools 1/3');
     expect(statusline).toContain('queue 2');
     expect(statusline).toContain('session session-');
+  });
+
+  it('formats token counts and elapsed durations for the status line', () => {
+    expect(formatTokenCount(950)).toBe('950');
+    expect(formatTokenCount(1500)).toBe('1.5k');
+    expect(formatTokenCount(2000)).toBe('2k');
+    expect(formatTokenCount(144437)).toBe('144k');
+    expect(formatElapsed(9000)).toBe('9s');
+    expect(formatElapsed(130000)).toBe('2m10s');
   });
 });
