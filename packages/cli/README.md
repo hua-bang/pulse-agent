@@ -184,7 +184,16 @@ readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。
 
 ### 模型候选配置（provider 粒度）
 
-创建 `.pulse-coder/models.json`（兼容 `.coder/models.json`），作为 `/model` 选择器的候选来源。`providers` 定义连接（可同时挂多个 OpenAI 兼容源），`models` 引用它们：
+配置文件读取两个层级并**合并**（项目层同名条目覆盖全局层）：
+
+| 层级 | 路径 | 用途 |
+|---|---|---|
+| 全局 | `~/.pulse-coder/models.json`（兼容 `~/.coder/`） | 常用 provider 与模型，任何目录下启动都可用 |
+| 项目 | `<cwd>/.pulse-coder/models.json`（兼容 `<cwd>/.coder/`） | 该项目特有的模型，或覆盖全局同名条目 |
+
+合并规则：provider 按名字覆盖（项目层赢，且全局层引用同名 provider 的模型会自动改用项目层连接）；模型按 `provider:model` 标识覆盖，项目层独有条目追加在后。只配全局层即可全机通用。
+
+`providers` 定义连接（可同时挂多个 OpenAI 兼容源），`models` 引用它们：
 
 ```json
 {
@@ -206,6 +215,7 @@ readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。
 - 字符串条目前缀可以是 provider 名（`deepseek:…`）或通道名（`claude:` / `openai:`）；`/model deepseek:任意模型` 也可直接引用 provider
 - `contextWindow` 同时驱动状态栏 `ctx %` 与 engine 压缩阈值（75%/50%）
 - 未配 `baseUrl`/`apiKeyEnv` 的条目沿用该通道的全局 env 连接；`apiKeyEnv` 指向的变量为空时回退到通道默认 key 并提示
+- 文件解析失败（JSON 语法错误等）不会中断启动，只在日志层提示一行并按空注册表处理
 - OpenAI 通道走 Responses API——OpenAI 兼容网关需支持 `/responses`（与引擎既有行为一致）
 
 ### Skills 配置
