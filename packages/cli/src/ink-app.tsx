@@ -4,9 +4,12 @@ import { renderMarkdownAnsi } from './markdown.js';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error' | 'log';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
-export type CliInteractionMode = 'chat' | 'plan' | 'edit' | 'auto';
+// Exactly the two states the engine actually distinguishes (executing /
+// planning). chat/auto existed as CLI-side skins over executing and were
+// collapsed into edit; the old command names remain accepted as aliases.
+export type CliInteractionMode = 'edit' | 'plan';
 
-const CLI_INTERACTION_MODES: CliInteractionMode[] = ['chat', 'plan', 'edit', 'auto'];
+const CLI_INTERACTION_MODES: CliInteractionMode[] = ['edit', 'plan'];
 
 interface InkRuntime {
   Box: React.ComponentType<any>;
@@ -122,12 +125,9 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/wt', description: 'Use worktree skill', usage: '/wt use <work-name>', group: 'Agent' },
   { command: '/status', description: 'Show session status', usage: '/status', group: 'Core' },
   { command: '/debug', description: 'Engine log layer: toggle, tail, status', usage: '/debug on|off|tail <n>|status', group: 'Core' },
-  { command: '/mode', description: 'Show or set CLI interaction mode', usage: '/mode chat|plan|edit|auto', group: 'Mode' },
-  { command: '/chat', description: 'Switch to chat interaction mode', usage: '/chat', group: 'Mode' },
-  { command: '/plan', description: 'Switch to planning interaction mode', usage: '/plan', group: 'Mode' },
-  { command: '/edit', description: 'Switch to edit interaction mode', usage: '/edit', group: 'Mode' },
-  { command: '/auto', description: 'Switch to autonomous interaction mode', usage: '/auto', group: 'Mode' },
-  { command: '/execute', description: 'Alias for /edit', usage: '/execute', group: 'Mode' },
+  { command: '/mode', description: 'Show or set CLI interaction mode', usage: '/mode edit|plan', group: 'Mode' },
+  { command: '/plan', description: 'Switch to planning mode (engine planning)', usage: '/plan', group: 'Mode' },
+  { command: '/edit', description: 'Switch to edit mode (engine executing)', usage: '/edit', group: 'Mode' },
   { command: '/team', description: 'Run a multi-agent team', usage: '/team <task>', group: 'Teams' },
   { command: '/teams', description: 'Enter teams mode', usage: '/teams <task>', group: 'Teams' },
   { command: '/solo', description: 'Exit teams mode', usage: '/solo', group: 'Teams' },
@@ -299,16 +299,10 @@ export function nextInteractionMode(mode: string | null | undefined): CliInterac
 }
 
 export function normalizeInteractionMode(mode: string | null | undefined): CliInteractionMode {
-  if (mode === 'chat' || mode === 'plan' || mode === 'edit' || mode === 'auto') {
-    return mode;
-  }
-  if (mode === 'planning') {
+  if (mode === 'plan' || mode === 'planning') {
     return 'plan';
   }
-  if (mode === 'executing') {
-    return 'edit';
-  }
-  return 'chat';
+  return 'edit';
 }
 
 export function formatTokenCount(tokens: number): string {
@@ -346,14 +340,10 @@ export function formatStatusline(snapshot: InkCliSnapshot): string {
 
 export function describeInteractionMode(mode: CliInteractionMode): string {
   switch (mode) {
-    case 'chat':
-      return 'free-form conversation';
     case 'plan':
       return 'engine plan mode: inspect and plan before changes';
     case 'edit':
       return 'engine execute mode: implement and validate';
-    case 'auto':
-      return 'low-interaction autonomous execution';
   }
 }
 

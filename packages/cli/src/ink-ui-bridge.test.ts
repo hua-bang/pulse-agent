@@ -305,10 +305,13 @@ describe('Ink composer editing helpers', () => {
   });
 
   it('normalizes interaction modes and formats statusline', () => {
-    expect(normalizeInteractionMode(undefined)).toBe('chat');
+    expect(normalizeInteractionMode(undefined)).toBe('edit');
     expect(normalizeInteractionMode('planning')).toBe('plan');
     expect(normalizeInteractionMode('executing')).toBe('edit');
-    expect(nextInteractionMode('auto')).toBe('chat');
+    expect(normalizeInteractionMode('chat')).toBe('edit');
+    expect(nextInteractionMode('edit')).toBe('plan');
+    expect(nextInteractionMode('plan')).toBe('edit');
+    expect(nextInteractionMode('auto')).toBe('plan');
 
     const statusline = formatStatusline({
       sessionId: 'session-1234567890',

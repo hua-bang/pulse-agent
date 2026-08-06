@@ -56,12 +56,9 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/acp [status|on|off|cd]', description: 'Manage ACP mode for this CLI' },
   { command: '/wt use <work-name>', description: 'Create a worktree + branch via worktree skill' },
   { command: '/status', description: 'Show current CLI/session status' },
-  { command: '/mode [chat|plan|edit|auto]', description: 'Show or set CLI interaction mode' },
-  { command: '/chat', description: 'Switch to chat interaction mode' },
-  { command: '/plan', description: 'Switch to planning interaction mode' },
-  { command: '/edit', description: 'Switch to edit interaction mode' },
-  { command: '/auto', description: 'Switch to autonomous interaction mode' },
-  { command: '/execute', description: 'Alias for /edit' },
+  { command: '/mode [edit|plan]', description: 'Show or set CLI interaction mode' },
+  { command: '/plan', description: 'Switch to planning mode (engine planning)' },
+  { command: '/edit', description: 'Switch to edit mode (engine executing); /execute, /chat, /auto are aliases' },
   { command: '/team <task>', description: 'Run a multi-agent team (LLM plans DAG by default)' },
   { command: '/teams <task>', description: 'Run agent teams (enters teams mode for follow-ups)' },
   { command: '/solo', description: 'Exit teams mode, return to normal agent' },
@@ -74,7 +71,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
 const HELP_FOOTER = [
   'Enter - Send current input',
   'Ctrl+J - Insert a newline into the current draft',
-  'Shift+Tab - Cycle CLI interaction mode (chat → plan → edit → auto; plan/others map to engine planning/executing)',
+  'Shift+Tab - Toggle CLI interaction mode (edit ↔ plan; maps to engine executing/planning)',
   'Tab - Complete the selected slash-command suggestion',
   'Type / - Show slash-command suggestions',
   '↑/↓ - Recall previous/next prompt (persisted across sessions)',
@@ -95,7 +92,7 @@ class InkCoderController implements InkCliController {
   private readonly skillCommands: SkillCommands;
   private readonly acpPlatformKey: string;
   private readonly ui: InkUiBridge;
-  private interactionMode: CliInteractionMode = 'chat';
+  private interactionMode: CliInteractionMode = 'edit';
   private readonly listeners = new Set<(snapshot: InkCliSnapshot) => void>();
   private currentAbortController: AbortController | null = null;
   private isProcessing = false;
@@ -487,25 +484,23 @@ class InkCoderController implements InkCliController {
             this.ui.section('CLI Mode', [
               `Current: ${this.interactionMode}`,
               `Engine plan mode: ${this.agent.getMode() || 'unavailable'}`,
-              'Available: chat, plan, edit, auto',
-              'Shortcut: Shift+Tab cycles modes',
-              'plan maps to engine planning; chat/edit/auto map to engine executing.',
+              'Available: edit (engine executing), plan (engine planning)',
+              'Shortcut: Shift+Tab toggles modes',
             ]);
           }
           break;
         }
-        case 'chat':
-          this.applyInteractionMode('chat', 'cli:/chat');
-          break;
         case 'plan':
           this.applyInteractionMode('plan', 'cli:/plan');
           break;
         case 'edit':
         case 'execute':
-          this.applyInteractionMode('edit', `cli:/${command.toLowerCase()}`);
-          break;
+        case 'chat':
         case 'auto':
-          this.applyInteractionMode('auto', 'cli:/auto');
+          if (command.toLowerCase() !== 'edit') {
+            this.ui.info(`Modes are now edit|plan; /${command.toLowerCase()} maps to edit.`);
+          }
+          this.applyInteractionMode('edit', `cli:/${command.toLowerCase()}`);
           break;
         case 'tui':
           this.ui.showTuiStatus();
@@ -562,13 +557,10 @@ class InkCoderController implements InkCliController {
   }
 
   private parseInteractionMode(value: string | undefined): CliInteractionMode | null {
-    if (value === 'chat' || value === 'plan' || value === 'edit' || value === 'auto') {
-      return value;
-    }
-    if (value === 'planning') {
+    if (value === 'plan' || value === 'planning') {
       return 'plan';
     }
-    if (value === 'execute' || value === 'executing') {
+    if (value === 'edit' || value === 'execute' || value === 'executing' || value === 'chat' || value === 'auto') {
       return 'edit';
     }
     return null;

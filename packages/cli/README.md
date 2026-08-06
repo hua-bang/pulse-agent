@@ -33,7 +33,7 @@ pnpm start
 - 轻量 Markdown 渲染 - 标题/加粗/行内代码/列表/代码块在终端中着色显示
 - ACP 模式 - CLI 内置 ACP 切换与路由，支持 `//` 前缀强制透传
 - Teams 多智能体 - `/team` DAG 编排与 `/teams` 持续协作模式
-- 计划模式 - `/plan`、`/mode`、`Shift+Tab` 切换，plan 映射引擎 planning、其余映射 executing（两宿主一致）
+- 计划模式 - edit / plan 两档（`Shift+Tab` 或 `/mode` 切换），分别映射引擎 executing / planning；`/chat` `/auto` `/execute` 为兼容别名（均指向 edit）
 - 非交互模式 - `pulse-coder -p "<prompt>"`（支持 stdin 管道）跑完即退，适合脚本/CI
 - 双 UI 宿主 - 默认 Ink，可回退 readline
 
@@ -109,7 +109,7 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 /skills [list|<name|index> <message>] - 单次以某技能运行一条消息
 /wt use <work-name>         - 通过 worktree 技能创建工作树与分支
 /status                     - 显示会话状态
-/mode                       - 显示当前模式（Ink 宿主: /mode [chat|plan|edit|auto] 设置模式）
+/mode                       - 显示当前模式（Ink 宿主: /mode [edit|plan] 设置模式）
 /plan                       - 切换到计划模式
 /execute                    - 切换到执行模式
 /team <task>                - 运行多智能体团队（默认 LLM 规划 DAG）
@@ -128,7 +128,7 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 
 - `Esc` - 处理中：中止当前响应；空闲：清空当前草稿（不会退出程序）
 - `Ctrl+C` - 双击退出（首击清空草稿并提示，2 秒内再按一次保存退出）
-- `Shift+Tab` - 循环 CLI 交互模式（chat → plan → edit → auto；plan 映射引擎 planning）
+- `Shift+Tab` - 切换 CLI 交互模式（edit ↔ plan，映射引擎 executing / planning）
 - `↑/↓` - 历史输入（持久化于 `~/.pulse-coder/history.json`，跨会话保留）
 - `Ctrl+J` - 草稿内换行；粘贴（含多行）原样插入，不会误触发送
 - `Ctrl+O` - 切换工具留痕详情（一行摘要 ↔ 内容预览；只影响之后的留痕）
