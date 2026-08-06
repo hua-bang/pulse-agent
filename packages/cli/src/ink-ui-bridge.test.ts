@@ -286,7 +286,7 @@ describe('InkUiBridge', () => {
       estimatedTokens: 42,
       mode: 'executing',
     });
-    bridge.usage({ inputTokens: 1200, outputTokens: 340 });
+    bridge.usage({ inputTokens: 1200, outputTokens: 340, cachedInputTokens: 900 });
     bridge.runSummary({
       elapsedMs: 1234,
       toolCalls: 2,
@@ -302,6 +302,7 @@ describe('InkUiBridge', () => {
     expect(last.estimatedTokens).toBe(64);
     expect(last.usageInputTokens).toBe(1200);
     expect(last.usageOutputTokens).toBe(340);
+    expect(last.usageCachedTokens).toBe(900);
     expect(last.mode).toBe('planning');
     expect(last.isProcessing).toBe(false);
     expect(last.status).toContain('Done in 1.2s');
@@ -358,6 +359,7 @@ describe('Ink composer editing helpers', () => {
       estimatedTokens: 96,
       usageInputTokens: 1500,
       usageOutputTokens: 20,
+      usageCachedTokens: 1230,
       contextWindowTokens: 64000,
       queuedInputs: 2,
       isProcessing: true,
@@ -374,6 +376,7 @@ describe('Ink composer editing helpers', () => {
 
     expect(statusline).toContain('mode plan');
     expect(statusline).toContain('ctx ~1.5k (2%)');
+    expect(statusline).toContain('cache 82%');
     expect(statusline).toContain('out ~20');
     expect(statusline).toContain('active bash');
     expect(statusline).toContain('tools 1/3');

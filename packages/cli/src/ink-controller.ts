@@ -12,6 +12,7 @@ import { InkUiBridge } from './ink-ui-bridge.js';
 import type { InkCliController, InkCliSnapshot, CliInteractionMode } from './ink-app.js';
 import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
+import { extractStepUsage } from './usage-metrics.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -101,6 +102,9 @@ class InkCoderController implements InkCliController {
   private readonly queuedInputs: string[] = [];
   private lastContextTokens = 0;
   private totalOutputTokens = 0;
+  private lastCachedTokens: number | undefined;
+  private totalInputTokens = 0;
+  private totalCachedTokens = 0;
   private readonly logSink: EngineLogSink | null;
   private debugLogs: boolean;
   private teamsLogsVisible = false;
@@ -465,6 +469,7 @@ class InkCoderController implements InkCliController {
             `Messages: ${this.context.messages.length}`,
             `Context tokens: ${this.lastContextTokens > 0 ? `${this.lastContextTokens} (last run)` : `~${this.estimateTokens(this.context.messages)} (estimated)`}`,
             `Output tokens: ${this.totalOutputTokens} (this process)`,
+            `Cache hit: ${this.describeCacheHit()}`,
             `CLI mode: ${this.interactionMode}`,
             `Engine plan mode: ${this.agent.getMode() || 'unavailable'}`,
             `Phase: ${this.getSnapshot().phase ?? 'Idle'}`,
@@ -905,19 +910,36 @@ class InkCoderController implements InkCliController {
     return (toolResult as { content?: unknown }).content;
   }
 
-  private recordStepUsage(step: { usage?: { inputTokens?: number; outputTokens?: number } }): void {
-    const usage = step.usage;
-    if (!usage) {
-      return;
-    }
+  private recordStepUsage(step: unknown): void {
+    const usage = extractStepUsage(step);
 
-    if (typeof usage.inputTokens === 'number' && Number.isFinite(usage.inputTokens)) {
+    if (usage.inputTokens !== undefined) {
       this.lastContextTokens = usage.inputTokens;
+      this.totalInputTokens += usage.inputTokens;
     }
-    if (typeof usage.outputTokens === 'number' && Number.isFinite(usage.outputTokens)) {
+    if (usage.outputTokens !== undefined) {
       this.totalOutputTokens += usage.outputTokens;
     }
-    this.ui.usage({ inputTokens: this.lastContextTokens, outputTokens: this.totalOutputTokens });
+    if (usage.cachedInputTokens !== undefined) {
+      this.lastCachedTokens = usage.cachedInputTokens;
+      this.totalCachedTokens += usage.cachedInputTokens;
+    }
+
+    this.ui.usage({
+      inputTokens: this.lastContextTokens,
+      outputTokens: this.totalOutputTokens,
+      cachedInputTokens: this.lastCachedTokens,
+    });
+  }
+
+  private describeCacheHit(): string {
+    if (this.lastCachedTokens === undefined) {
+      return 'n/a (provider reports no cache usage)';
+    }
+
+    const lastPct = this.lastContextTokens > 0 ? Math.round(this.lastCachedTokens / this.lastContextTokens * 100) : 0;
+    const sessionPct = this.totalInputTokens > 0 ? Math.round(this.totalCachedTokens / this.totalInputTokens * 100) : 0;
+    return `last ${lastPct}% (${this.lastCachedTokens}/${this.lastContextTokens}) · session ${sessionPct}% (${this.totalCachedTokens}/${this.totalInputTokens})`;
   }
 
   private resolveToolName(payload: Record<string, unknown>): string {

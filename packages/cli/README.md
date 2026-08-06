@@ -30,7 +30,7 @@ pnpm start
 - 工具透明 - 每个工具一行灰色留痕 + 行尾智能摘要（`· 350 lines` / `· 10 matches` / 错误首行标红），`Ctrl+O` 切换内容预览模式，永不 dump JSON
 - 叙述分层 - 工具调用之间的过程叙述灰色显示，只有收尾的最终回答保持白色 + Markdown；状态行运行期稳定显示实耗时（`Running agent · 2m10s`），不随单个工具完成翻动
 - 流式工具参数 - 模型开始生成工具调用时 live 区即出现该工具行，参数尾部实时增长，最终标签原位替换；并行工具结果按 callId 精确归位
-- 状态栏密度 - `ctx ~46k (72%)` 上下文占比（窗口取引擎 `CONTEXT_WINDOW_TOKENS`，默认 64k）+ `out ~3.4k` 累计输出 tokens
+- 状态栏密度 - `ctx ~46k (72%)` 上下文占比（窗口取引擎 `CONTEXT_WINDOW_TOKENS`，默认 64k）+ `cache 82%` 提示词缓存命中率（provider 上报 `cachedInputTokens` 时显示）+ `out ~3.4k` 累计输出 tokens；`/status` 另有单次/会话两级缓存命中明细
 - 会话自动标题 - 默认标题的会话在首条消息后自动以消息内容命名（显式 `/new <title>` 不受影响）；上下文自动压缩时打印一行横幅（前后消息数 / tokens）
 - 输出分层 - 引擎/插件日志默认写入 `~/.pulse-coder/logs/cli.log` 不上屏（warn/error 以暗色单行显示），`/debug on` 或 `--verbose` 实时查看，`/debug tail <n>` 回看
 - 轻量 Markdown 渲染 - 标题/加粗/行内代码/列表/代码块在终端中着色显示

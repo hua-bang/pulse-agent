@@ -151,10 +151,11 @@ export class InkUiBridge {
     });
   }
 
-  usage(usage: { inputTokens?: number; outputTokens?: number }): void {
+  usage(usage: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number }): void {
     this.updateSnapshot({
       ...(typeof usage.inputTokens === 'number' ? { usageInputTokens: usage.inputTokens } : {}),
       ...(typeof usage.outputTokens === 'number' ? { usageOutputTokens: usage.outputTokens } : {}),
+      ...(typeof usage.cachedInputTokens === 'number' ? { usageCachedTokens: usage.cachedInputTokens } : {}),
     });
   }
 

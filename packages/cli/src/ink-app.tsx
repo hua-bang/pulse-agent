@@ -44,6 +44,8 @@ export interface InkCliSnapshot {
   estimatedTokens: number;
   usageInputTokens: number;
   usageOutputTokens: number;
+  /** Last-step prompt-cache hits; undefined when the provider reports none. */
+  usageCachedTokens?: number;
   contextWindowTokens?: number;
   queuedInputs: number;
   isProcessing: boolean;
@@ -334,6 +336,9 @@ export function formatStatusline(snapshot: InkCliSnapshot): string {
   const parts = [
     `mode ${mode}`,
     `ctx ~${formatTokenCount(contextTokens)}${contextPct}`,
+    snapshot.usageCachedTokens !== undefined && snapshot.usageInputTokens > 0
+      ? `cache ${Math.min(100, Math.round(snapshot.usageCachedTokens / snapshot.usageInputTokens * 100))}%`
+      : null,
     snapshot.usageOutputTokens > 0 ? `out ~${formatTokenCount(snapshot.usageOutputTokens)}` : null,
     snapshot.activeTool ? `active ${snapshot.activeTool}` : null,
     snapshot.toolCalls > 0 ? `tools ${snapshot.completedTools}/${snapshot.toolCalls}` : null,
