@@ -9,6 +9,8 @@ import {
   formatStatusline,
   formatTokenCount,
   getSlashCommandSuggestions,
+  truncateLabel,
+  verticalCursorTarget,
   insertAtCursor,
   isPasteChunk,
   nextInteractionMode,
@@ -263,6 +265,32 @@ describe('InkUiBridge', () => {
     expect(last.status).toContain('Done in 1.2s');
   });
 
+  it('finalizes the live region on error, not just on abort', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.text('partial answer before the failure');
+    bridge.toolCall('bash', { command: 'sleep 100' });
+    bridge.error('Error: provider connection reset');
+
+    const last = snapshots[snapshots.length - 1];
+    expect(last.liveText).toBe('');
+    expect(last.liveTools).toHaveLength(0);
+    expect(last.events.some(event => event.kind === 'assistant' && event.text.includes('partial answer'))).toBe(true);
+    expect(last.events.some(event => event.kind === 'tool' && event.status === 'error')).toBe(true);
+    expect(last.events.slice(-1)[0]).toMatchObject({ kind: 'error' });
+  });
+
+  it('marks the clarification phase so the composer can show its waiting state', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.clarification({ id: 'c1', question: 'Which package?', timeout: 0 } as never);
+
+    const last = snapshots[snapshots.length - 1];
+    expect(last.phase).toBe('Clarification');
+    expect(last.status).toBe('Waiting for clarification');
+  });
+
   it('finalizes still-running tools as cancelled on abort', () => {
     const { snapshots, bridge } = createBridge();
 
@@ -337,6 +365,27 @@ describe('Ink composer editing helpers', () => {
     expect(removeAtCursor({ input: 'hello', cursor: 1 })).toEqual({ input: 'hllo', cursor: 1 });
   });
 
+  it('deletes whole code points, never half a surrogate pair', () => {
+    expect(removeBeforeCursor({ input: 'a🚀', cursor: 3 })).toEqual({ input: 'a', cursor: 1 });
+    expect(removeAtCursor({ input: 'a🚀b', cursor: 1 })).toEqual({ input: 'ab', cursor: 1 });
+  });
+
+  it('moves the cursor by line inside a multi-line draft and defers to history otherwise', () => {
+    const draft = 'first line\nsecond';
+    // column 3 on line 2 -> column 3 on line 1
+    expect(verticalCursorTarget(draft, 14, -1)).toBe(3);
+    // back down again
+    expect(verticalCursorTarget(draft, 3, 1)).toBe(14);
+    // no line above/below -> null, so ↑/↓ falls through to history
+    expect(verticalCursorTarget(draft, 3, -1)).toBeNull();
+    expect(verticalCursorTarget(draft, 14, 1)).toBeNull();
+    expect(verticalCursorTarget('single line', 4, -1)).toBeNull();
+  });
+
+  it('clamps the column when the target line is shorter', () => {
+    expect(verticalCursorTarget('ab\nlonger line', 12, -1)).toBe(2);
+  });
+
   it('deletes the previous word and clamps prompt cursor', () => {
     expect(removeWordBeforeCursor({ input: 'run the agent', cursor: 13 })).toEqual({ input: 'run the ', cursor: 8 });
     expect(removeWordBeforeCursor({ input: 'run   ', cursor: 6 })).toEqual({ input: '', cursor: 0 });
@@ -355,12 +404,33 @@ describe('Ink composer editing helpers', () => {
   });
 
   it('suggests, fuzzily matches, and completes slash commands', () => {
-    expect(getSlashCommandSuggestions('/s', 2).map(item => item.command)).toEqual(['/sessions', '/search', '/skills', '/status', '/solo', '/save']);
-    expect(getSlashCommandSuggestions('/tm', 3).map(item => item.command)).toContain('/team');
+    expect(getSlashCommandSuggestions('/s', 2).map(item => item.command)).toEqual(['/sessions', '/search', '/skills', '/status', '/save', '/resume']);
+    expect(getSlashCommandSuggestions('/md', 3).map(item => item.command)).toContain('/model');
     expect(getSlashCommandSuggestions('//', 2)).toEqual([]);
     expect(shouldAcceptSlashSuggestion('/sta', 4, getSlashCommandSuggestions('/sta', 4)[0])).toBe(true);
     expect(shouldAcceptSlashSuggestion('/status', 7, getSlashCommandSuggestions('/status', 7)[0])).toBe(false);
     expect(applySlashCommandCompletion('/sta', 4, '/status')).toEqual({ input: '/status ', cursor: 8 });
+  });
+
+  it('merges runtime skills into the palette without letting them shadow built-ins', () => {
+    const skills = [
+      { name: 'branch-naming', description: 'Name a branch' },
+      { name: 'status', description: 'a skill that must not shadow /status' },
+    ];
+
+    const skillHit = getSlashCommandSuggestions('/br', 3, 6, skills);
+    expect(skillHit.map(item => item.command)).toEqual(['/branch-naming']);
+    expect(skillHit[0].group).toBe('Skill');
+    expect(skillHit[0].usage).toBe('/branch-naming <message>');
+
+    // The colliding skill is dropped entirely; /status stays the built-in.
+    const statusHits = getSlashCommandSuggestions('/status', 7, 6, skills);
+    expect(statusHits.map(item => item.command)).toEqual(['/status']);
+    expect(statusHits[0].group).toBe('Core');
+
+    // Built-ins outrank skills at equal score.
+    const retired = getSlashCommandSuggestions('/team', 5, 6, skills);
+    expect(retired).toEqual([]);
   });
 
   it('normalizes interaction modes and formats statusline', () => {
@@ -396,15 +466,58 @@ describe('Ink composer editing helpers', () => {
       liveTools: [],
     });
 
-    expect(statusline).toContain('mode plan');
-    expect(statusline).toContain('model deepseek_v3');
+    expect(statusline).toContain('plan');
+    expect(statusline).toContain('deepseek_v3');
     expect(statusline).toContain('ctx ~1.5k (2%)');
     expect(statusline).toContain('cache 82%');
     expect(statusline).toContain('out ~20');
-    expect(statusline).toContain('active bash');
     expect(statusline).toContain('tools 1/3');
     expect(statusline).toContain('queue 2');
-    expect(statusline).toContain('session session-');
+  });
+
+  it('sheds low-priority status segments when the terminal is narrow', () => {
+    const snapshot: InkCliSnapshot = {
+      sessionId: 'session-1234567890',
+      taskListId: null,
+      mode: 'edit',
+      messages: 0,
+      estimatedTokens: 0,
+      usageInputTokens: 43000,
+      usageOutputTokens: 36000,
+      usageCachedTokens: 43000,
+      contextWindowTokens: 64000,
+      modelLabel: 'deepseek-v4-flash',
+      queuedInputs: 0,
+      isProcessing: false,
+      status: 'Ready',
+      phase: 'Idle',
+      activeTool: null,
+      toolCalls: 17,
+      completedTools: 17,
+      lastStep: null,
+      events: [],
+      liveText: '',
+      liveTools: [],
+    };
+
+    const wide = formatStatusline(snapshot, 200);
+    expect(wide).toContain('out ~36k');
+    expect(wide).toContain('cache 100%');
+
+    const narrow = formatStatusline(snapshot, 40);
+    expect(narrow.length).toBeLessThanOrEqual(40);
+    // Essentials survive, tail segments are shed.
+    expect(narrow.startsWith('edit · ctx ~43k (67%)')).toBe(true);
+    expect(narrow).not.toContain('out ~36k');
+
+    // The first segment is never dropped, even at an absurd width.
+    expect(formatStatusline(snapshot, 1)).toBe('edit');
+  });
+
+  it('truncates over-wide live tool labels', () => {
+    expect(truncateLabel('short', 20)).toBe('short');
+    expect(truncateLabel('a'.repeat(30), 10)).toBe(`${'a'.repeat(9)}…`);
+    expect(truncateLabel('abc', 0)).toBe('abc');
   });
 
   it('filters picker items across label, hint, and preview', () => {

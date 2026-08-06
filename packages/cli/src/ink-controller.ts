@@ -1,12 +1,9 @@
 import { buildProvider, CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type LLMProviderFactory, type PlanMode, type TaskListService } from 'pulse-coder-engine';
-import { getAcpState, runAcp } from 'pulse-coder-acp';
 
-import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
 import { InputManager } from './input-manager.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { SessionCommands } from './session-commands.js';
 import { SkillCommands } from './skill-commands.js';
-import { runTeam, TeamsSession } from './team-commands.js';
 import type { TuiHelpItem } from './tui-renderer.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
 import { formatRelativeTime, type InkCliController, type InkCliSnapshot, type CliInteractionMode } from './ink-app.js';
@@ -14,6 +11,7 @@ import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
 import { loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
+import { expandFileReferences, indexWorkspaceFiles } from './file-reference.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -27,7 +25,6 @@ const LOCAL_COMMANDS = new Set([
   'compact',
   'skills',
   'wt',
-  'acp',
   'status',
   'mode',
   'chat',
@@ -35,9 +32,6 @@ const LOCAL_COMMANDS = new Set([
   'edit',
   'auto',
   'execute',
-  'team',
-  'teams',
-  'solo',
   'save',
   'tui',
   'debug',
@@ -45,26 +39,35 @@ const LOCAL_COMMANDS = new Set([
   'exit',
 ]);
 
+/**
+ * Commands removed from the surface. The implementations still exist so the
+ * capability can be brought back, but they are unreachable from the CLI: both
+ * were unmaintained (raw stdout writes tearing the Ink frame, no abort
+ * support) and are superseded by sub-agents.
+ */
+const RETIRED_COMMANDS: Record<string, string> = {
+  team: '/team is retired — use sub-agents instead.',
+  teams: '/teams is retired — use sub-agents instead.',
+  solo: '/solo is retired along with /teams.',
+  acp: '/acp is retired — the CLI no longer proxies to external ACP agents.',
+};
+
 const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/help', description: 'Show this help message' },
   { command: '/new [title]', description: 'Create a new session' },
   { command: '/resume [index|id-prefix|id]', description: 'Resume a session (bare /resume opens an interactive picker)' },
-  { command: '/sessions', description: 'List all saved sessions' },
+  { command: '/sessions [n]', description: 'List recent sessions (default 20)' },
   { command: '/search <query>', description: 'Search in saved sessions' },
   { command: '/rename <id> <new-title>', description: 'Rename a session' },
   { command: '/delete <id>', description: 'Delete a session' },
   { command: '/clear', description: 'Clear current conversation' },
   { command: '/compact', description: 'Force compact current conversation context' },
   { command: '/skills [list|<name|index> <message>]', description: 'Run one message with a selected skill' },
-  { command: '/acp [status|on|off|cd]', description: 'Manage ACP mode for this CLI' },
   { command: '/wt use <work-name>', description: 'Create a worktree + branch via worktree skill' },
   { command: '/status', description: 'Show current CLI/session status' },
   { command: '/mode [edit|plan]', description: 'Show or set CLI interaction mode' },
   { command: '/plan', description: 'Switch to planning mode (engine planning)' },
   { command: '/edit', description: 'Switch to edit mode (engine executing); /execute, /chat, /auto are aliases' },
-  { command: '/team <task>', description: 'Run a multi-agent team (LLM plans DAG by default)' },
-  { command: '/teams <task>', description: 'Run agent teams (enters teams mode for follow-ups)' },
-  { command: '/solo', description: 'Exit teams mode, return to normal agent' },
   { command: '/save', description: 'Save current session explicitly' },
   { command: '/tui [status]', description: 'Show current Ink UI status' },
   { command: '/debug [on|off|tail <n>]', description: 'Engine log layer: toggle live display or tail the capture' },
@@ -94,14 +97,12 @@ class InkCoderController implements InkCliController {
   private readonly sessionCommands: SessionCommands;
   private readonly inputManager: InputManager;
   private readonly skillCommands: SkillCommands;
-  private readonly acpPlatformKey: string;
   private readonly ui: InkUiBridge;
   private interactionMode: CliInteractionMode = 'edit';
   private readonly listeners = new Set<(snapshot: InkCliSnapshot) => void>();
   private currentAbortController: AbortController | null = null;
   private isProcessing = false;
   private isShuttingDown = false;
-  private teamsSession: TeamsSession | null = null;
   private readonly queuedInputs: string[] = [];
   private lastContextTokens = 0;
   private totalOutputTokens = 0;
@@ -110,7 +111,6 @@ class InkCoderController implements InkCliController {
   private totalCachedTokens = 0;
   private readonly logSink: EngineLogSink | null;
   private debugLogs: boolean;
-  private teamsLogsVisible = false;
   private readonly seenWarnTexts = new Set<string>();
   private modelOverride: ModelChoice | null = null;
   private activePicker: 'session' | 'model' | null = null;
@@ -147,14 +147,12 @@ class InkCoderController implements InkCliController {
       onRequest: request => this.ui.clarification(request),
     });
     this.skillCommands = new SkillCommands(this.agent, message => this.ui.info(message ?? ''));
-    this.acpPlatformKey = resolveAcpPlatformKey();
 
     // Engine log layer policy: errors always surface as dim lines; warns
     // surface once per unique text per session (an SDK warning repeated on
     // every LLM call must not flood the transcript — the log file keeps all
     // occurrences). info/debug stay in the log file unless /debug (or
-    // --verbose) is on, or a team run is in progress (its console output is
-    // the product).
+    // --verbose) is on.
     this.logSink?.subscribe(entry => {
       if (entry.level === 'error') {
         this.ui.log(`[error] ${entry.text}`);
@@ -168,7 +166,7 @@ class InkCoderController implements InkCliController {
         this.ui.log(`[warn] ${entry.text}`);
         return;
       }
-      if (this.debugLogs || this.teamsLogsVisible) {
+      if (this.debugLogs) {
         this.ui.log(entry.text);
       }
     });
@@ -182,6 +180,19 @@ class InkCoderController implements InkCliController {
 
     const pluginStatus = this.agent.getPluginStatus();
     this.ui.showPluginStatus(pluginStatus.enginePlugins.length);
+
+    // Skills load with the engine, so publish them once initialization is done;
+    // the composer merges them into the slash palette as `/<skill-name>`.
+    const skills = this.skillCommands.listSkills();
+    if (skills.length > 0) {
+      this.ui.updateSnapshot({ skills: skills.map(skill => ({ name: skill.name, description: skill.description })) });
+    }
+
+    // Index the workspace in the background so `@` completion is ready without
+    // delaying startup; a failure just leaves `@` with no suggestions.
+    void indexWorkspaceFiles()
+      .then(fileIndex => this.ui.updateSnapshot({ fileIndex }))
+      .catch(() => undefined);
 
     if (options.continueLast && await this.sessionCommands.resumeLatest()) {
       await this.sessionCommands.loadContext(this.context);
@@ -217,11 +228,27 @@ class InkCoderController implements InkCliController {
   }
 
   setInteractionMode(mode: CliInteractionMode, source = 'cli'): void {
+    if (this.isProcessing) {
+      // Switching engine plan mode mid-run would apply to the in-flight request
+      // and churn the status line; make the refusal explicit instead.
+      this.ui.warn('Cannot switch mode while a run is in progress — press Esc first.');
+      return;
+    }
     this.applyInteractionMode(mode, source);
   }
 
   toggleToolDetail(): void {
     this.ui.setToolDetail(!this.ui.getToolDetail());
+  }
+
+  /** Usage counters are per-conversation; /new, /clear and /resume must zero them. */
+  private resetUsageCounters(): void {
+    this.lastContextTokens = 0;
+    this.totalOutputTokens = 0;
+    this.lastCachedTokens = undefined;
+    this.totalInputTokens = 0;
+    this.totalCachedTokens = 0;
+    this.ui.resetUsage();
   }
 
   private currentContextWindow(): number {
@@ -309,6 +336,7 @@ class InkCoderController implements InkCliController {
   private async resumeSessionRef(ref: string): Promise<void> {
     if (await this.sessionCommands.resumeSession(ref)) {
       await this.sessionCommands.loadContext(this.context);
+      this.resetUsageCounters();
       await this.syncSessionTaskListBinding();
       this.publishSession('Session resumed');
     }
@@ -362,18 +390,28 @@ class InkCoderController implements InkCliController {
   }
 
   requestStop(): void {
+    // A clarification is requested from INSIDE a run, so isProcessing is true
+    // while it is outstanding. It must therefore be cancelled independently of
+    // the run — otherwise Esc aborts the run but leaves the request pending,
+    // and the next message the user types is silently eaten as its answer.
+    const hadPendingClarification = this.inputManager.hasPendingRequest();
+    if (hadPendingClarification) {
+      this.inputManager.cancel('User interrupted with Esc');
+    }
+
     if (this.isProcessing) {
       if (this.currentAbortController && !this.currentAbortController.signal.aborted) {
         this.currentAbortController.abort();
-        this.ui.abort('Request cancelled by Esc. You can type the next message now.');
+        this.ui.abort(hadPendingClarification
+          ? 'Clarification and request cancelled by Esc. You can type the next message now.'
+          : 'Request cancelled by Esc. You can type the next message now.');
       } else {
         this.ui.abort('Cancellation already requested. Waiting for current step to finish...');
       }
       return;
     }
 
-    if (this.inputManager.hasPendingRequest()) {
-      this.inputManager.cancel('User interrupted with Esc');
+    if (hadPendingClarification) {
       this.ui.abort('Clarification cancelled.');
     }
   }
@@ -383,6 +421,8 @@ class InkCoderController implements InkCliController {
 
     if (this.inputManager.handleUserInput(trimmedInput)) {
       this.ui.user(trimmedInput || '(empty clarification response)');
+      // Leave the clarification phase so the composer drops its waiting style.
+      this.ui.updateSnapshot({ phase: this.isProcessing ? 'Running' : 'Idle' });
       this.publishSession('Clarification submitted');
       return;
     }
@@ -424,9 +464,6 @@ class InkCoderController implements InkCliController {
 
     this.ui.info('Saving current session...');
     try {
-      if (this.teamsSession?.active) {
-        await this.teamsSession.stop();
-      }
       await this.sessionCommands.saveContext(this.context);
       this.ui.success('Goodbye!');
     } catch (error) {
@@ -436,19 +473,13 @@ class InkCoderController implements InkCliController {
 
   private async handleInput(input: string): Promise<void> {
     let messageInput = input;
-    let forceAcp = false;
 
     if (input.startsWith('//')) {
-      const acpState = await getAcpState(this.acpPlatformKey);
-      if (!acpState) {
-        this.ui.warn('ACP 未启用，请先使用 /acp on <claude|codex>。');
-        return;
-      }
-      messageInput = input.slice(1);
-      forceAcp = true;
+      this.ui.warn(`${RETIRED_COMMANDS.acp} The "//" ACP passthrough prefix is retired with it.`);
+      return;
     }
 
-    if (messageInput.startsWith('/') && !forceAcp) {
+    if (messageInput.startsWith('/')) {
       const commandLine = messageInput.substring(1);
       const parts = commandLine.split(/\s+/).filter(part => part.length > 0);
 
@@ -461,52 +492,26 @@ class InkCoderController implements InkCliController {
       const args = parts.slice(1);
       const normalizedCommand = command.toLowerCase();
 
-      if (normalizedCommand === 'acp') {
-        await this.handleCommand(command, args);
+      const retiredNotice = RETIRED_COMMANDS[normalizedCommand];
+      if (retiredNotice) {
+        this.ui.warn(retiredNotice);
         return;
       }
 
       if (!LOCAL_COMMANDS.has(normalizedCommand)) {
-        const acpState = await getAcpState(this.acpPlatformKey);
-        if (acpState) {
-          forceAcp = true;
+        // Command resolution order: built-in > skill > error. Built-ins always
+        // win so a skill named e.g. "status" cannot shadow /status.
+        const skillMessage = this.resolveSkillCommand(command, args);
+        if (skillMessage) {
+          messageInput = skillMessage;
         } else {
           this.ui.warn(`Unknown command: /${command}`);
-          this.ui.info('Type /help to see available commands');
+          this.ui.info('Type /help for commands, /skills list for skills');
           return;
         }
       }
 
-      if (!forceAcp) {
-        if (normalizedCommand === 'team') {
-          await this.runExclusive(async () => this.withTeamLogsVisible(() => runTeam(this.agent, args)));
-          return;
-        }
-
-        if (normalizedCommand === 'teams') {
-          await this.runExclusive(async () => this.withTeamLogsVisible(async () => {
-            const session = await TeamsSession.start(args);
-            if (session) {
-              this.teamsSession = session;
-              this.ui.success('Entered teams mode. Use /solo to return to normal agent.');
-            }
-          }));
-          return;
-        }
-
-        if (normalizedCommand === 'solo') {
-          if (this.teamsSession?.active) {
-            await this.runExclusive(async () => this.withTeamLogsVisible(async () => {
-              await this.teamsSession?.stop();
-              this.teamsSession = null;
-              this.ui.success('Exited teams mode.');
-            }));
-          } else {
-            this.ui.warn('Not in teams mode. Use /teams <task> to start.');
-          }
-          return;
-        }
-
+      if (LOCAL_COMMANDS.has(normalizedCommand)) {
         if (normalizedCommand === 'skills') {
           const transformedMessage = await this.skillCommands.transformSkillsCommandToMessage(args);
           if (!transformedMessage) {
@@ -535,12 +540,27 @@ class InkCoderController implements InkCliController {
       }
     }
 
-    if (this.teamsSession?.active && !forceAcp) {
-      await this.runExclusive(async () => this.withTeamLogsVisible(async () => this.teamsSession?.followUp(messageInput)));
-      return;
+    await this.runMessage(messageInput);
+  }
+
+  /**
+   * Resolves `/<skill-name> <message>` against the skill registry.
+   * Returns the engine's one-shot skill message, or null when no skill matches.
+   */
+  private resolveSkillCommand(command: string, args: string[]): string | null {
+    const skill = this.skillCommands.findSkill(command);
+    if (!skill) {
+      return null;
     }
 
-    await this.runMessage(messageInput, forceAcp);
+    const message = args.join(' ').trim();
+    if (!message) {
+      this.ui.error(`Usage: /${skill.name} <message>`);
+      this.ui.info(skill.description);
+      return null;
+    }
+
+    return `[use skill](${skill.name}) ${message}`;
   }
 
   private async handleCommand(command: string, args: string[]): Promise<void> {
@@ -552,6 +572,7 @@ class InkCoderController implements InkCliController {
         case 'new':
           await this.sessionCommands.createSession(args.join(' ') || undefined);
           this.context.messages = [];
+          this.resetUsageCounters();
           await this.syncSessionTaskListBinding();
           this.publishSession('New session created');
           break;
@@ -563,7 +584,7 @@ class InkCoderController implements InkCliController {
           await this.resumeSessionRef(args[0]);
           break;
         case 'sessions':
-          await this.sessionCommands.listSessions();
+          await this.sessionCommands.listSessions(args[0] ? Number(args[0]) : undefined);
           break;
         case 'search':
           if (args.length === 0) {
@@ -587,11 +608,22 @@ class InkCoderController implements InkCliController {
             this.ui.info('Usage: /delete <session-id>');
             break;
           }
-          await this.sessionCommands.deleteSession(args[0]);
+          {
+            const activeId = this.sessionCommands.getCurrentSessionId();
+            const deleted = await this.sessionCommands.deleteSession(args[0]);
+            // Deleting the ACTIVE session must also drop its in-memory context,
+            // or the conversation keeps running and silently cannot be saved.
+            if (deleted && activeId && !this.sessionCommands.getCurrentSessionId()) {
+              this.context.messages = [];
+              this.resetUsageCounters();
+              this.ui.warn('Deleted the active session; its conversation was cleared. Use /new to start another.');
+            }
+          }
           this.publishSession('Session deleted');
           break;
         case 'clear':
           this.context.messages = [];
+          this.resetUsageCounters();
           this.ui.success('Current conversation cleared!');
           this.publishSession('Ready');
           break;
@@ -601,11 +633,6 @@ class InkCoderController implements InkCliController {
         case 'skills':
           this.ui.info('Use /skills <name|index> <message> directly in input for one-shot skill execution.');
           break;
-        case 'acp': {
-          const message = await handleAcpCommand(this.acpPlatformKey, args);
-          this.ui.info(message);
-          break;
-        }
         case 'status':
           this.ui.section('CLI Status', [
             `Session: ${this.sessionCommands.getCurrentSessionId() || 'None (new session)'}`,
@@ -778,15 +805,6 @@ class InkCoderController implements InkCliController {
     this.publishSession('Ready');
   }
 
-  private async withTeamLogsVisible<T>(task: () => Promise<T>): Promise<T> {
-    this.teamsLogsVisible = true;
-    try {
-      return await task();
-    } finally {
-      this.teamsLogsVisible = false;
-    }
-  }
-
   private async runExclusive(task: () => Promise<unknown>): Promise<void> {
     this.isProcessing = true;
     this.ui.startProcessing('Running command');
@@ -801,8 +819,20 @@ class InkCoderController implements InkCliController {
     }
   }
 
-  private async runMessage(messageInput: string, forceAcp: boolean): Promise<void> {
-    this.ui.user(messageInput);
+  private async runMessage(rawInput: string): Promise<void> {
+    // The transcript shows what the user typed; the model additionally gets the
+    // contents of any @referenced files appended below it.
+    this.ui.user(rawInput);
+
+    const expansion = await expandFileReferences(rawInput);
+    if (expansion.attached.length > 0) {
+      this.ui.log(`Attached ${expansion.attached.length} reference${expansion.attached.length === 1 ? '' : 's'}: ${expansion.attached.join(', ')}`);
+    }
+    for (const skipped of expansion.skipped) {
+      this.ui.log(`[warn] @${skipped.ref} skipped — ${skipped.reason}`);
+    }
+    const messageInput = expansion.text;
+
     this.ui.session({
       sessionId: this.sessionCommands.getCurrentSessionId(),
       taskListId: this.sessionCommands.getCurrentTaskListId(),
@@ -812,7 +842,8 @@ class InkCoderController implements InkCliController {
     });
 
     if (this.context.messages.length === 0) {
-      await this.sessionCommands.maybeAutoTitle(messageInput);
+      // Title from what the user typed, never from injected file contents.
+      await this.sessionCommands.maybeAutoTitle(rawInput);
     }
 
     this.context.messages.push({
@@ -820,7 +851,7 @@ class InkCoderController implements InkCliController {
       content: messageInput,
     });
 
-    this.ui.startProcessing(forceAcp ? 'Running ACP agent' : 'Running agent');
+    this.ui.startProcessing('Running agent');
 
     const ac = new AbortController();
     this.currentAbortController = ac;
@@ -832,7 +863,6 @@ class InkCoderController implements InkCliController {
 
     try {
       await this.syncSessionTaskListBinding();
-      const acpState = await getAcpState(this.acpPlatformKey);
       const currentSessionId = this.resolveCurrentSessionId();
 
       const runAgent = async () => this.agent.run(this.context, {
@@ -885,49 +915,15 @@ class InkCoderController implements InkCliController {
         },
       });
 
-      const runAcpAgent = async () => {
-        if (!acpState) {
-          return '';
-        }
-        const result = await runAcp({
-          platformKey: this.acpPlatformKey,
-          agent: acpState.agent,
-          cwd: acpState.cwd,
-          sessionId: acpState.sessionId,
-          userText: messageInput,
-          abortSignal: ac.signal,
-          clientInfo: ACP_CLIENT_INFO,
-          callbacks: {
-            onText: (delta) => {
-              sawText = true;
-              this.ui.text(delta);
-            },
-            onToolCall: (toolCall) => {
-              toolCalls += 1;
-              const input = this.getToolInput(toolCall);
-              this.ui.toolCall(this.resolveToolName(toolCall), input);
-            },
-            onToolResult: (toolResult) => {
-              const toolName = this.resolveToolName(toolResult as Record<string, unknown>);
-              this.ui.toolResult(toolName, this.getToolOutput(toolResult as Record<string, unknown>));
-            },
-            onClarificationRequest: async (request) => {
-              return await this.inputManager.requestInput(request);
-            },
-          },
-        });
-        return result.text;
-      };
-
       const result = currentSessionId
         ? await memoryIntegration.withRunContext(
           buildMemoryRunContext({
             sessionId: currentSessionId,
             userText: messageInput,
           }),
-          acpState ? runAcpAgent : runAgent,
+          runAgent,
         )
-        : await (acpState ? runAcpAgent() : runAgent());
+        : await runAgent();
 
       this.ui.runSummary({
         elapsedMs: Date.now() - runStartedAt,

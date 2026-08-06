@@ -16,6 +16,20 @@ export class SkillCommands {
     private readonly log: (message?: string) => void = console.log,
   ) {}
 
+  /** Exact (case-insensitive) skill lookup, for `/<skill-name>` slash invocation. */
+  findSkill(name: string): SkillSummary | null {
+    const target = name.trim().toLowerCase();
+    if (!target) {
+      return null;
+    }
+    return this.getAvailableSkills().find(skill => skill.name.toLowerCase() === target) ?? null;
+  }
+
+  /** Skill names as suggestion entries for the composer palette. */
+  listSkills(): SkillSummary[] {
+    return this.getAvailableSkills();
+  }
+
   async transformSkillsCommandToMessage(args: string[]): Promise<string | null> {
     const registry = this.getSkillRegistry();
     if (!registry) {

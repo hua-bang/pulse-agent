@@ -29,6 +29,8 @@ const DEFAULT_SNAPSHOT: InkUiSnapshot = {
   completedTools: 0,
   lastStep: null,
   picker: null,
+  skills: [],
+  fileIndex: [],
 };
 
 const MAX_EVENT_TEXT_LENGTH = 20000;
@@ -161,6 +163,18 @@ export class InkUiBridge {
     this.updateSnapshot({ picker: null, status });
   }
 
+  /** Clears per-conversation usage readouts (on /new, /clear, /resume). */
+  resetUsage(): void {
+    this.updateSnapshot({
+      usageInputTokens: 0,
+      usageOutputTokens: 0,
+      usageCachedTokens: undefined,
+      estimatedTokens: 0,
+      toolCalls: 0,
+      completedTools: 0,
+    });
+  }
+
   usage(usage: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number }): void {
     this.updateSnapshot({
       ...(typeof usage.inputTokens === 'number' ? { usageInputTokens: usage.inputTokens } : {}),
@@ -190,13 +204,16 @@ export class InkUiBridge {
     this.addEvent('system', title, lines.join('\n'));
   }
 
+  /** The complete answer for runs that produced no streaming deltas. */
   plain(message = ''): void {
     if (!message) {
       this.finalizeLiveText();
       return;
     }
 
-    this.addEvent('system', undefined, message);
+    // 'assistant' (not 'system') so it renders bright with markdown, matching
+    // the streamed path — this is the answer, not a notice.
+    this.addEvent('assistant', undefined, message);
   }
 
   info(message: string): void {
@@ -212,6 +229,10 @@ export class InkUiBridge {
   }
 
   error(message: string): void {
+    // Mirrors abort(): a mid-run failure must close out the live region too,
+    // or partially streamed text is lost and live tool lines spin forever.
+    this.finalizeLiveText();
+    this.finalizeLiveTools('error', '(failed)');
     this.addEvent('error', undefined, message);
   }
 
@@ -225,6 +246,11 @@ export class InkUiBridge {
   }
 
   abort(message: string): void {
+    if (this.snapshot.status === 'Cancelled' && this.liveTools.length === 0 && !this.liveText) {
+      // Already cancelled and nothing left live: a second Esc must not write
+      // another permanent Abort block to the transcript.
+      return;
+    }
     this.finalizeLiveText();
     this.finalizeLiveTools('error', '(cancelled)');
     this.updateSnapshot({
@@ -377,7 +403,8 @@ export class InkUiBridge {
       lines.push(`Default: ${request.defaultAnswer}`);
     }
     this.addEvent('system', 'Clarification needed', lines.join('\n'));
-    this.updateSnapshot({ status: 'Waiting for clarification' });
+    // `phase` drives the composer's waiting-for-answer styling in ink-app.
+    this.updateSnapshot({ status: 'Waiting for clarification', phase: 'Clarification' });
   }
 
   /**

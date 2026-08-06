@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { renderMarkdownAnsi } from './markdown.js';
+import { applyFileReference, detectFileReferenceQuery, filterFileEntries, type FileEntry } from './file-reference.js';
+import { nextCharIndex, prevCharIndex, truncateToWidth } from './text-width.js';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error' | 'log';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
@@ -18,7 +20,7 @@ interface InkRuntime {
   useApp: () => { exit: () => void };
   useInput: (handler: (input: string, key: any) => void) => void;
   usePaste?: (handler: (text: string) => void) => void;
-  useStdout: () => { stdout: { rows?: number } };
+  useStdout: () => { stdout: { rows?: number; columns?: number; on?: (event: string, handler: () => void) => void; off?: (event: string, handler: () => void) => void } };
 }
 
 export interface InkCliEvent {
@@ -71,6 +73,10 @@ export interface InkCliSnapshot {
   lastStep?: string | null;
   runStartedAt?: number | null;
   picker?: InkPickerState | null;
+  /** Runtime skills, merged into the slash palette as `/<skill-name>`. */
+  skills?: Array<{ name: string; description: string }>;
+  /** Workspace file index backing `@` references. */
+  fileIndex?: FileEntry[];
   events: InkCliEvent[];
   liveText: string;
   liveTools: InkLiveTool[];
@@ -127,6 +133,8 @@ const DEFAULT_SNAPSHOT: InkCliSnapshot = {
   lastStep: null,
   runStartedAt: null,
   picker: null,
+  skills: [],
+  fileIndex: [],
   events: [],
   liveText: '',
   liveTools: [],
@@ -136,14 +144,13 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/help', description: 'Show commands and shortcuts', usage: '/help', group: 'Core' },
   { command: '/new', description: 'Create a new session', usage: '/new <title?>', group: 'Session' },
   { command: '/resume', description: 'Resume a session (bare = interactive picker)', usage: '/resume [index|id-prefix]', group: 'Session' },
-  { command: '/sessions', description: 'List saved sessions', usage: '/sessions', group: 'Session' },
+  { command: '/sessions', description: 'List recent sessions (default 20)', usage: '/sessions [n]', group: 'Session' },
   { command: '/search', description: 'Search saved sessions', usage: '/search <query>', group: 'Session' },
   { command: '/rename', description: 'Rename a session', usage: '/rename <id> <title>', group: 'Session' },
   { command: '/delete', description: 'Delete a session', usage: '/delete <id>', group: 'Session' },
   { command: '/clear', description: 'Clear conversation context', usage: '/clear', group: 'Context' },
   { command: '/compact', description: 'Compact current context', usage: '/compact', group: 'Context' },
   { command: '/skills', description: 'Run a message with a selected skill', usage: '/skills <name|index> <message>', group: 'Agent' },
-  { command: '/acp', description: 'Manage ACP mode', usage: '/acp status|on|off|cd', group: 'Agent' },
   { command: '/wt', description: 'Use worktree skill', usage: '/wt use <work-name>', group: 'Agent' },
   { command: '/status', description: 'Show session status', usage: '/status', group: 'Core' },
   { command: '/debug', description: 'Engine log layer: toggle, tail, status', usage: '/debug on|off|tail <n>|status', group: 'Core' },
@@ -151,9 +158,6 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/mode', description: 'Show or set CLI interaction mode', usage: '/mode edit|plan', group: 'Mode' },
   { command: '/plan', description: 'Switch to planning mode (engine planning)', usage: '/plan', group: 'Mode' },
   { command: '/edit', description: 'Switch to edit mode (engine executing)', usage: '/edit', group: 'Mode' },
-  { command: '/team', description: 'Run a multi-agent team', usage: '/team <task>', group: 'Teams' },
-  { command: '/teams', description: 'Enter teams mode', usage: '/teams <task>', group: 'Teams' },
-  { command: '/solo', description: 'Exit teams mode', usage: '/solo', group: 'Teams' },
   { command: '/save', description: 'Save current session', usage: '/save', group: 'Session' },
   { command: '/tui', description: 'Show TUI status', usage: '/tui status', group: 'Core' },
   { command: '/exit', description: 'Save and exit', usage: '/exit', group: 'Core' },
@@ -177,9 +181,10 @@ export function removeBeforeCursor(state: ComposerState): ComposerState {
     return { input: state.input, cursor };
   }
 
+  const start = prevCharIndex(state.input, cursor);
   return {
-    input: `${state.input.slice(0, cursor - 1)}${state.input.slice(cursor)}`,
-    cursor: cursor - 1,
+    input: `${state.input.slice(0, start)}${state.input.slice(cursor)}`,
+    cursor: start,
   };
 }
 
@@ -190,7 +195,7 @@ export function removeAtCursor(state: ComposerState): ComposerState {
   }
 
   return {
-    input: `${state.input.slice(0, cursor)}${state.input.slice(cursor + 1)}`,
+    input: `${state.input.slice(0, cursor)}${state.input.slice(nextCharIndex(state.input, cursor))}`,
     cursor,
   };
 }
@@ -209,6 +214,39 @@ export function removeWordBeforeCursor(state: ComposerState): ComposerState {
     input: `${beforeCursor.slice(0, deleteFrom)}${afterCursor}`,
     cursor: deleteFrom,
   };
+}
+
+/**
+ * Target index one line up/down inside a multi-line draft, preserving the
+ * column. Returns null when there is no such line — the caller then falls
+ * through to history navigation, so ↑/↓ keeps working on a single-line draft.
+ */
+export function verticalCursorTarget(input: string, cursor: number, direction: -1 | 1): number | null {
+  if (!input.includes('\n')) {
+    return null;
+  }
+
+  const position = clampCursor(input, cursor);
+  const lineStart = input.lastIndexOf('\n', position - 1) + 1;
+  const column = position - lineStart;
+
+  if (direction === -1) {
+    if (lineStart === 0) {
+      return null;
+    }
+    const prevStart = input.lastIndexOf('\n', lineStart - 2) + 1;
+    const prevLength = lineStart - 1 - prevStart;
+    return prevStart + Math.min(column, prevLength);
+  }
+
+  const lineEnd = input.indexOf('\n', position);
+  if (lineEnd === -1) {
+    return null;
+  }
+  const nextStart = lineEnd + 1;
+  const nextEnd = input.indexOf('\n', nextStart);
+  const nextLength = (nextEnd === -1 ? input.length : nextEnd) - nextStart;
+  return nextStart + Math.min(column, nextLength);
 }
 
 export function renderPrompt(input: string, cursor: number, cursorVisible: boolean): string {
@@ -235,7 +273,12 @@ export function normalizePastedText(value: string): string {
   return value.replace(/\x1b\[20[01]~/g, '').replace(/\r\n?/g, '\n');
 }
 
-export function getSlashCommandSuggestions(input: string, cursor: number, limit = 6): SlashCommandSuggestion[] {
+export function getSlashCommandSuggestions(
+  input: string,
+  cursor: number,
+  limit = 6,
+  skills: Array<{ name: string; description: string }> = [],
+): SlashCommandSuggestion[] {
   const normalizedCursor = clampCursor(input, cursor);
   const beforeCursor = input.slice(0, normalizedCursor);
   if (!beforeCursor.startsWith('/') || beforeCursor.startsWith('//') || beforeCursor.includes('\n')) {
@@ -248,7 +291,20 @@ export function getSlashCommandSuggestions(input: string, cursor: number, limit 
   }
 
   const query = match[1].toLowerCase();
-  return SLASH_COMMANDS
+  // Built-ins first so a skill can never shadow a real command; skills whose
+  // name collides with a built-in are dropped (they stay reachable via
+  // `/skills <name> <message>`).
+  const builtInNames = new Set(SLASH_COMMANDS.map(item => item.command.slice(1).toLowerCase()));
+  const skillEntries: SlashCommandSuggestion[] = skills
+    .filter(skill => !builtInNames.has(skill.name.toLowerCase()))
+    .map(skill => ({
+      command: `/${skill.name}`,
+      description: skill.description,
+      usage: `/${skill.name} <message>`,
+      group: 'Skill',
+    }));
+
+  return [...SLASH_COMMANDS, ...skillEntries]
     .map((item, index) => ({ item, index, score: scoreSlashCommand(item.command.slice(1), query) }))
     .filter(match => match.score >= 0)
     .sort((a, b) => a.score - b.score || a.index - b.index)
@@ -370,25 +426,47 @@ export function formatElapsed(ms: number): string {
   return `${minutes}m${String(seconds % 60).padStart(2, '0')}s`;
 }
 
-export function formatStatusline(snapshot: InkCliSnapshot): string {
+/**
+ * Status segments in drop order: the tail is shed first when the line would
+ * not fit the terminal, so a narrow window keeps mode/context/model and a wide
+ * one still shows everything. Everything dropped here stays available in
+ * `/status`.
+ */
+export function formatStatusline(snapshot: InkCliSnapshot, maxWidth = Number.POSITIVE_INFINITY): string {
   const mode = normalizeInteractionMode(snapshot.mode);
   const contextTokens = snapshot.usageInputTokens > 0 ? snapshot.usageInputTokens : snapshot.estimatedTokens;
   const window = snapshot.contextWindowTokens ?? 0;
   const contextPct = window > 0 && contextTokens > 0 ? ` (${Math.min(999, Math.round(contextTokens / window * 100))}%)` : '';
-  const parts = [
-    `mode ${mode}`,
-    snapshot.modelLabel ? `model ${snapshot.modelLabel}` : null,
+
+  const segments = [
+    mode,
     `ctx ~${formatTokenCount(contextTokens)}${contextPct}`,
+    snapshot.queuedInputs > 0 ? `queue ${snapshot.queuedInputs}` : null,
+    snapshot.toolCalls > 0 ? `tools ${snapshot.completedTools}/${snapshot.toolCalls}` : null,
+    snapshot.modelLabel ?? null,
     snapshot.usageCachedTokens !== undefined && snapshot.usageInputTokens > 0
       ? `cache ${Math.min(100, Math.round(snapshot.usageCachedTokens / snapshot.usageInputTokens * 100))}%`
       : null,
     snapshot.usageOutputTokens > 0 ? `out ~${formatTokenCount(snapshot.usageOutputTokens)}` : null,
-    snapshot.activeTool ? `active ${snapshot.activeTool}` : null,
-    snapshot.toolCalls > 0 ? `tools ${snapshot.completedTools}/${snapshot.toolCalls}` : null,
-    snapshot.queuedInputs > 0 ? `queue ${snapshot.queuedInputs}` : null,
-    `session ${snapshot.sessionId ? snapshot.sessionId.slice(0, 8) : 'new'}`,
-  ].filter((part): part is string => Boolean(part));
-  return parts.join(' · ');
+  ].filter((segment): segment is string => Boolean(segment));
+
+  const kept: string[] = [];
+  for (const segment of segments) {
+    const candidate = [...kept, segment].join(' · ');
+    if (kept.length > 0 && candidate.length > maxWidth) {
+      break;
+    }
+    kept.push(segment);
+  }
+  return kept.join(' · ');
+}
+
+/**
+ * Hard-truncates a live tool label so an over-wide line cannot reflow the
+ * composer. Measured in display columns, so CJK/emoji labels do not overflow.
+ */
+export function truncateLabel(label: string, maxWidth: number): string {
+  return truncateToWidth(label, maxWidth);
 }
 
 export function describeInteractionMode(mode: CliInteractionMode): string {
@@ -495,14 +573,31 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const [history, setHistory] = useState<string[]>(() => (initialHistory ?? []).slice(-MAX_HISTORY));
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const [historyDraft, setHistoryDraft] = useState('');
+  // Browsing is its own state: historyIndex is cleared by ordinary edits and
+  // cursor moves, which must NOT restart the browse (that re-captured the
+  // draft from already-loaded history text and stuck ↑ on the newest entry).
+  const browsingHistory = useRef(false);
   const [spinnerIndex, setSpinnerIndex] = useState(0);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [pickerIndex, setPickerIndex] = useState(0);
   const [pickerQuery, setPickerQuery] = useState('');
   const [ctrlCArmed, setCtrlCArmed] = useState(false);
   const ctrlCTimer = useRef<NodeJS.Timeout | null>(null);
   const app = useApp();
   const { stdout } = useStdout();
+  // Ink's resize handling re-lays-out the committed tree but never re-renders
+  // the component, so width/height-derived math would go stale. Mirror the
+  // size into state and subscribe to 'resize' ourselves.
+  const [terminalSize, setTerminalSize] = useState(() => ({ rows: stdout.rows ?? 30, columns: stdout.columns ?? 80 }));
+  useEffect(() => {
+    if (typeof stdout.on !== 'function') {
+      return;
+    }
+    const onResize = () => setTerminalSize({ rows: stdout.rows ?? 30, columns: stdout.columns ?? 80 });
+    stdout.on('resize', onResize);
+    return () => stdout.off?.('resize', onResize);
+  }, [stdout]);
   const currentInteractionMode = normalizeInteractionMode(snapshot.mode);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
@@ -548,15 +643,23 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   };
 
   const exitApp = () => {
-    void controller.shutdown();
-    onExit?.();
-    app.exit();
+    // Await shutdown so its "saving / goodbye" events reach the transcript
+    // before Ink unmounts; a fire-and-forget exit dropped them entirely.
+    void (async () => {
+      await controller.shutdown();
+      // Yield one frame so React commits shutdown's transcript events (Static
+      // prints on render, not on state change) before Ink unmounts.
+      await new Promise(resolve => setTimeout(resolve, 50));
+      onExit?.();
+      app.exit();
+    })();
   };
 
   const submitCurrentInput = () => {
     const submitted = input;
     setInput('');
     setCursor(0);
+    browsingHistory.current = false;
     setHistory(current => recordHistory(current, submitted));
     if (submitted.trim()) {
       onHistoryRecord?.(submitted.trim());
@@ -579,7 +682,8 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       return;
     }
 
-    if (historyIndex === null) {
+    if (!browsingHistory.current || historyIndex === null) {
+      browsingHistory.current = true;
       setHistoryDraft(input);
       setHistoryIndex(history.length - 1);
       replaceComposer(history[history.length - 1]);
@@ -592,12 +696,13 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   };
 
   const showNextHistory = () => {
-    if (historyIndex === null) {
+    if (!browsingHistory.current || historyIndex === null) {
       return;
     }
 
     const nextIndex = historyIndex + 1;
     if (nextIndex >= history.length) {
+      browsingHistory.current = false;
       setHistoryIndex(null);
       replaceComposer(historyDraft);
       setHistoryDraft('');
@@ -699,6 +804,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       }
 
       if (input.length > 0) {
+        browsingHistory.current = false;
         setInput('');
         setCursor(0);
         setHistoryIndex(null);
@@ -713,6 +819,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.tab || value === '\t') {
+      if (selectedFile) {
+        updateComposer(applyFileReference(input, cursor, selectedFile.relPath + (selectedFile.isDirectory ? '/' : '')));
+        return;
+      }
       if (selectedSuggestion) {
         updateComposer(applySlashCommandCompletion(input, cursor, selectedSuggestion.command));
       }
@@ -730,6 +840,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.return) {
+      if (selectedFile) {
+        updateComposer(applyFileReference(input, cursor, selectedFile.relPath + (selectedFile.isDirectory ? '/' : '')));
+        return;
+      }
       if (shouldAcceptSlashSuggestion(input, cursor, selectedSuggestion)) {
         updateComposer(applySlashCommandCompletion(input, cursor, selectedSuggestion.command));
         return;
@@ -739,8 +853,18 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.upArrow) {
+      if (fileSuggestions.length > 0) {
+        setSelectedFileIndex(current => Math.max(0, Math.min(current, fileSuggestions.length - 1) - 1));
+        return;
+      }
       if (slashSuggestions.length > 0) {
         setSelectedSuggestionIndex(current => Math.max(0, current - 1));
+        return;
+      }
+      // Inside a multi-line draft, ↑ moves a line before it means "history".
+      const upTarget = verticalCursorTarget(input, cursor, -1);
+      if (upTarget !== null) {
+        setCursor(upTarget);
         return;
       }
       showPreviousHistory();
@@ -748,8 +872,17 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.downArrow) {
+      if (fileSuggestions.length > 0) {
+        setSelectedFileIndex(current => Math.min(Math.max(0, fileSuggestions.length - 1), current + 1));
+        return;
+      }
       if (slashSuggestions.length > 0) {
         setSelectedSuggestionIndex(current => Math.min(slashSuggestions.length - 1, current + 1));
+        return;
+      }
+      const downTarget = verticalCursorTarget(input, cursor, 1);
+      if (downTarget !== null) {
+        setCursor(downTarget);
         return;
       }
       showNextHistory();
@@ -757,14 +890,12 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.leftArrow) {
-      setCursor(current => Math.max(0, current - 1));
-      setHistoryIndex(null);
+      setCursor(current => prevCharIndex(input, current));
       return;
     }
 
     if (key.rightArrow) {
-      setCursor(current => Math.min(input.length, current + 1));
-      setHistoryIndex(null);
+      setCursor(current => nextCharIndex(input, current));
       return;
     }
 
@@ -810,19 +941,35 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
   });
 
-  const terminalRows = stdout.rows ?? 30;
+  const terminalRows = terminalSize.rows;
+  const terminalColumns = terminalSize.columns;
   const spinner = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length];
   const pickerItems = useMemo(() => (picker ? filterPickerItems(picker.items, pickerQuery) : []), [picker, pickerQuery]);
   const clampedPickerIndex = Math.min(pickerIndex, Math.max(0, pickerItems.length - 1));
-  const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - 6));
-  const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + 6);
+  const pickerWindowSize = Math.max(3, Math.min(8, terminalRows - 12));
+  const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - pickerWindowSize));
+  const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + pickerWindowSize);
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
-  const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor), [cursor, input]);
+  const liveMarkdown = useMemo(() => renderMarkdownAnsi(snapshot.liveText), [snapshot.liveText]);
+  const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor, 6, snapshot.skills ?? []), [cursor, input, snapshot.skills]);
+  const fileQuery = useMemo(() => detectFileReferenceQuery(input, cursor), [cursor, input]);
+  const fileSuggestions = useMemo(
+    () => (fileQuery ? filterFileEntries(snapshot.fileIndex ?? [], fileQuery.query) : []),
+    [fileQuery, snapshot.fileIndex],
+  );
+  const normalizedFileIndex = Math.min(selectedFileIndex, Math.max(0, fileSuggestions.length - 1));
+  const selectedFile = fileSuggestions[normalizedFileIndex];
   const normalizedSuggestionIndex = Math.min(selectedSuggestionIndex, Math.max(0, slashSuggestions.length - 1));
   const selectedSuggestion = slashSuggestions[normalizedSuggestionIndex];
+  const slashSuggestionKey = slashSuggestions.map(item => item.command).join(',');
   useEffect(() => {
-    setSelectedSuggestionIndex(current => Math.min(current, Math.max(0, slashSuggestions.length - 1)));
-  }, [slashSuggestions.length]);
+    // Reset on any change to the candidate set: clamping on length alone let a
+    // stale index point at an unrelated command after the query changed.
+    setSelectedSuggestionIndex(0);
+  }, [slashSuggestionKey]);
+  useEffect(() => {
+    setSelectedFileIndex(0);
+  }, [fileQuery?.query, fileSuggestions.length]);
 
   const maxPromptLines = Math.max(1, Math.min(6, terminalRows - 10));
   const visiblePromptLines = promptLines.slice(-maxPromptLines);
@@ -834,14 +981,24 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       ? 'Clarification · Enter submit answer · Esc cancel'
       : snapshot.isProcessing
         ? 'Esc stop · Enter queues draft · Shift+Tab mode'
-        : slashSuggestions.length > 0
-          ? '↑↓ select · Tab/Enter complete · Esc clear'
+        : fileSuggestions.length > 0
+          ? '↑↓ select file · Tab/Enter insert · Esc clear'
+          : slashSuggestions.length > 0
+            ? '↑↓ select · Tab/Enter complete · Esc clear'
           : input.length > 0
             ? 'Enter send · Ctrl+J newline · Esc clear'
             : `/ commands · ↑↓ history · Ctrl+O detail · Shift+Tab mode (${currentInteractionMode}: ${describeInteractionMode(currentInteractionMode)})`;
   const composerColor = waitingClarification ? 'magenta' : snapshot.isProcessing ? 'yellow' : 'cyan';
   const statusIcon = snapshot.isProcessing ? spinner : '●';
   const statusColor = snapshot.isProcessing ? 'yellow' : snapshot.status === 'Cancelled' ? 'red' : 'green';
+  const statusPrefix = `${statusIcon} ${snapshot.status}${snapshot.isProcessing && snapshot.runStartedAt ? ` · ${formatElapsed(Date.now() - snapshot.runStartedAt)}` : ''}`;
+  const statusline = formatStatusline(snapshot, Math.max(20, terminalColumns - statusPrefix.length - 4));
+
+  // Parallel tools (teams, sub-agents) can stack up; window them so the
+  // composer never gets pushed off screen.
+  const maxLiveTools = Math.max(1, Math.min(5, terminalRows - 14));
+  const visibleLiveTools = snapshot.liveTools.slice(-maxLiveTools);
+  const hiddenLiveToolCount = snapshot.liveTools.length - visibleLiveTools.length;
 
   return (
     <Box flexDirection="column">
@@ -851,20 +1008,23 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
 
       {snapshot.liveText ? (
         <Box flexDirection="column" marginTop={1}>
-          <Text>{renderMarkdownAnsi(snapshot.liveText)}</Text>
+          <Text>{liveMarkdown}</Text>
         </Box>
       ) : null}
 
-      {snapshot.liveTools.map(tool => (
+      {hiddenLiveToolCount > 0 ? (
+        <Text color="gray" dimColor>… {hiddenLiveToolCount} more tool{hiddenLiveToolCount === 1 ? '' : 's'} running</Text>
+      ) : null}
+      {visibleLiveTools.map(tool => (
         <Text key={tool.id}>
           <Text color="yellow" dimColor>{spinner} </Text>
-          <Text color="gray">{tool.label}</Text>
+          <Text color="gray">{truncateLabel(tool.label, terminalColumns - 4)}</Text>
         </Text>
       ))}
 
       <Box marginTop={1}>
-        <Text color={statusColor}>{statusIcon} {snapshot.status}{snapshot.isProcessing && snapshot.runStartedAt ? ` · ${formatElapsed(Date.now() - snapshot.runStartedAt)}` : ''}</Text>
-        <Text color="gray"> · {formatStatusline(snapshot)}</Text>
+        <Text color={statusColor}>{statusPrefix}</Text>
+        <Text color="gray"> · {statusline}</Text>
       </Box>
 
       {picker ? (
@@ -902,11 +1062,21 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
             ))}
           </Box>
 
+          {fileSuggestions.length > 0 ? (
+            <Box flexDirection="column">
+              {fileSuggestions.map((entry, index) => (
+                <Text key={entry.relPath} color={index === normalizedFileIndex ? 'yellow' : 'gray'}>
+                  {index === normalizedFileIndex ? '→ ' : '  '}@{truncateLabel(entry.relPath, terminalColumns - 8)}{entry.isDirectory ? '/' : ''}
+                </Text>
+              ))}
+            </Box>
+          ) : null}
+
           {slashSuggestions.length > 0 ? (
             <Box flexDirection="column">
               {slashSuggestions.map((suggestion, index) => (
                 <Text key={suggestion.command} color={index === normalizedSuggestionIndex ? 'yellow' : 'gray'}>
-                  {index === normalizedSuggestionIndex ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{suggestion.description}{index === normalizedSuggestionIndex && suggestion.usage ? ` · ${suggestion.usage}` : ''}</Text>
+                  {index === normalizedSuggestionIndex ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{suggestion.group === 'Skill' ? '[skill] ' : ''}{suggestion.description}{index === normalizedSuggestionIndex && suggestion.usage ? ` · ${suggestion.usage}` : ''}</Text>
                 </Text>
               ))}
             </Box>

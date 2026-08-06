@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { homedir } from 'os';
 
 export interface ProviderConfig {
   name: string;
@@ -91,28 +92,78 @@ export function shortModelLabel(model: string, maxLength = 22): string {
 }
 
 /**
- * Loads the /model registry from `.pulse-coder/models.json` (or legacy
- * `.coder/models.json`). Shape:
- * `{ "providers": { name: { type, baseUrl?, apiKeyEnv? } },
- *    "models": ["openai:id", { model, provider|type, label?, contextWindow? }] }`
+ * Loads the /model registry, merging two scopes so a machine-wide setup keeps
+ * working in every directory:
+ *   1. home:    `~/.pulse-coder/models.json` (or legacy `~/.coder/…`)
+ *   2. project: `<cwd>/.pulse-coder/models.json` (or legacy `<cwd>/.coder/…`)
+ *
+ * Project entries win on conflicts (same provider name / same model id within
+ * the same provider), and project-only entries are appended after home ones.
+ *
+ * Shape: `{ "providers": { name: { type, baseUrl?, apiKeyEnv? } },
+ *           "models": ["openai:id", { model, provider|type, label?, contextWindow? }] }`
  * A bare array of entries is also accepted.
  */
-export async function loadModelRegistry(cwd = process.cwd()): Promise<ModelRegistry> {
-  for (const dir of ['.pulse-coder', '.coder']) {
-    const filePath = path.join(cwd, dir, 'models.json');
-    try {
-      const raw = await fs.readFile(filePath, 'utf-8');
-      return normalizeRegistry(JSON.parse(raw));
-    } catch {
-      continue;
-    }
+export async function loadModelRegistry(cwd = process.cwd(), home = homedir()): Promise<ModelRegistry> {
+  const homeRegistry = await readRegistryFrom(home, 'home');
+  const projectRegistry = home === cwd ? null : await readRegistryFrom(cwd, 'project');
+
+  if (!homeRegistry && !projectRegistry) {
+    return EMPTY_MODEL_REGISTRY;
   }
-  return EMPTY_MODEL_REGISTRY;
+  if (!projectRegistry) {
+    return homeRegistry ?? EMPTY_MODEL_REGISTRY;
+  }
+  if (!homeRegistry) {
+    return projectRegistry;
+  }
+  return mergeRegistries(homeRegistry, projectRegistry);
 }
 
-function normalizeRegistry(parsed: unknown): ModelRegistry {
-  const warnings: string[] = [];
-  const providers = normalizeProviders(parsed, warnings);
+async function readRegistryFrom(root: string, scope: 'home' | 'project'): Promise<ModelRegistry | null> {
+  for (const dir of ['.pulse-coder', '.coder']) {
+    const filePath = path.join(root, dir, 'models.json');
+    try {
+      const raw = await fs.readFile(filePath, 'utf-8');
+      return normalizeRegistry(JSON.parse(raw), scope);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+        continue;
+      }
+      return {
+        ...EMPTY_MODEL_REGISTRY,
+        warnings: [`${scope} ${filePath}: unreadable or invalid JSON — ignored`],
+      };
+    }
+  }
+  return null;
+}
+
+/** Project scope wins: same provider name, or same model id under the same provider. */
+function mergeRegistries(base: ModelRegistry, override: ModelRegistry): ModelRegistry {
+  const providers = { ...base.providers, ...override.providers };
+
+  // Home models referencing a provider the project redefined must pick up the
+  // project's connection, so re-resolve them against the merged provider map.
+  const rebasedBaseModels = base.models.map(choice => {
+    const provider = choice.providerName ? providers[choice.providerName] : undefined;
+    return provider ? applyProvider(choice, provider) : choice;
+  });
+
+  const identity = (choice: ModelChoice) => `${choice.providerName ?? choice.modelType ?? ''}:${choice.model}`;
+  const overrideKeys = new Set(override.models.map(identity));
+  const models = [
+    ...rebasedBaseModels.filter(choice => !overrideKeys.has(identity(choice))),
+    ...override.models,
+  ];
+
+  return { providers, models, warnings: [...base.warnings, ...override.warnings] };
+}
+
+function normalizeRegistry(parsed: unknown, scope: 'home' | 'project' = 'project'): ModelRegistry {
+  const rawWarnings: string[] = [];
+  const providers = normalizeProviders(parsed, rawWarnings);
+  const warnings = rawWarnings;
 
   const entries = Array.isArray(parsed)
     ? parsed
@@ -136,7 +187,7 @@ function normalizeRegistry(parsed: unknown): ModelRegistry {
       }
     }
   }
-  return { providers, models, warnings };
+  return { providers, models, warnings: warnings.map(warning => `${scope}: ${warning}`) };
 }
 
 function normalizeProviders(parsed: unknown, warnings: string[]): Record<string, ProviderConfig> {

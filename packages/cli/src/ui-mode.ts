@@ -9,7 +9,23 @@ export interface ParsedCliArgs {
   model?: string;
 }
 
-export function resolveCliUiMode(args = process.argv.slice(2), env: NodeJS.ProcessEnv = process.env): CliUiMode {
+/**
+ * Resolves the UI host.
+ *
+ * A non-TTY stdin always forces readline: Ink needs raw mode, and asking for
+ * it on a pipe/redirect throws out of a React effect (an unhandled crash, not
+ * a graceful message). This overrides `--ui ink` on purpose — it is a hard
+ * capability constraint, not a preference.
+ */
+export function resolveCliUiMode(
+  args = process.argv.slice(2),
+  env: NodeJS.ProcessEnv = process.env,
+  isTTY: boolean = Boolean(process.stdin.isTTY),
+): CliUiMode {
+  if (!isTTY) {
+    return 'readline';
+  }
+
   const flagIndex = args.findIndex(arg => arg === '--ui' || arg === '--tui');
   if (flagIndex >= 0) {
     const value = args[flagIndex + 1]?.toLowerCase();
@@ -51,7 +67,11 @@ export function resolveCliUiMode(args = process.argv.slice(2), env: NodeJS.Proce
  * - `--verbose` — show engine logs live in the Ink transcript (same as /debug on)
  * Unrecognized tokens are collected as the prompt (used only with `-p`).
  */
-export function parseCliArgs(args = process.argv.slice(2), env: NodeJS.ProcessEnv = process.env): ParsedCliArgs {
+export function parseCliArgs(
+  args = process.argv.slice(2),
+  env: NodeJS.ProcessEnv = process.env,
+  isTTY: boolean = Boolean(process.stdin.isTTY),
+): ParsedCliArgs {
   const promptParts: string[] = [];
   let print = false;
   let continueLast = false;
@@ -65,8 +85,13 @@ export function parseCliArgs(args = process.argv.slice(2), env: NodeJS.ProcessEn
       continue;
     }
     if (arg === '--model') {
-      model = args[index + 1];
-      index += 1;
+      const next = args[index + 1];
+      // Never swallow the following token when it is itself a flag — that
+      // silently ate --print/--continue and left model undefined.
+      if (next && !next.startsWith('-')) {
+        model = next;
+        index += 1;
+      }
       continue;
     }
     if (arg.startsWith('--model=')) {
@@ -92,7 +117,7 @@ export function parseCliArgs(args = process.argv.slice(2), env: NodeJS.ProcessEn
   }
 
   return {
-    uiMode: resolveCliUiMode(args, env),
+    uiMode: resolveCliUiMode(args, env, isTTY),
     print,
     prompt: promptParts.join(' '),
     continueLast,
