@@ -1,7 +1,7 @@
 import type { ClarificationRequest } from 'pulse-coder-engine';
 
 import type { TuiHelpItem, TuiRunSummary, TuiSessionSnapshot } from './tui-renderer.js';
-import type { InkCliEvent, InkCliSnapshot, InkLiveTool } from './ink-app.js';
+import type { InkCliEvent, InkCliSnapshot, InkLiveTool, InkPickerState } from './ink-app.js';
 
 export interface InkUiSnapshot extends Omit<InkCliSnapshot, 'events' | 'liveText' | 'liveTools'> {}
 
@@ -28,6 +28,7 @@ const DEFAULT_SNAPSHOT: InkUiSnapshot = {
   toolCalls: 0,
   completedTools: 0,
   lastStep: null,
+  picker: null,
 };
 
 const MAX_EVENT_TEXT_LENGTH = 20000;
@@ -149,6 +150,15 @@ export class InkUiBridge {
       estimatedTokens: snapshot.estimatedTokens,
       mode: snapshot.mode,
     });
+  }
+
+  /** Modal list selection rendered in place of the composer (e.g. /resume). */
+  showPicker(picker: InkPickerState): void {
+    this.updateSnapshot({ picker, status: picker.title });
+  }
+
+  hidePicker(status = 'Ready'): void {
+    this.updateSnapshot({ picker: null, status });
   }
 
   usage(usage: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number }): void {

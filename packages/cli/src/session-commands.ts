@@ -1,4 +1,4 @@
-import { SessionManager, type Session } from './session.js';
+import { extractMessageText, SessionManager, type Session, type SessionSummary } from './session.js';
 import type { Context } from 'pulse-coder-engine';
 
 export class SessionCommands {
@@ -91,6 +91,12 @@ export class SessionCommands {
     return { reason: `Session not found: ${trimmed}` };
   }
 
+  /** Sessions offered by the interactive picker: non-empty, excluding the active one. */
+  async listForPicker(limit = 50): Promise<SessionSummary[]> {
+    const sessions = await this.sessionManager.listSessions(limit);
+    return sessions.filter(session => session.messageCount > 0 && session.id !== this.currentSessionId);
+  }
+
   async resumeLatest(): Promise<boolean> {
     const [latest] = await this.sessionManager.listSessions(1);
     if (!latest) {
@@ -118,14 +124,16 @@ export class SessionCommands {
     this.log(`🗂️ Task list: ${this.currentTaskListId}`);
     this.log(`📊 Loaded ${session.messages.length} messages`);
 
-    // Show last few messages as context
-    const recentMessages = session.messages.slice(-5);
+    // Show the last few text-bearing turns as context (tool traffic skipped)
+    const recentMessages = session.messages
+      .filter(msg => (msg.role === 'user' || msg.role === 'assistant') && extractMessageText(msg.content).trim())
+      .slice(-5);
     if (recentMessages.length > 0) {
       this.log('\n💬 Recent conversation:');
       recentMessages.forEach((msg, index) => {
         const role = msg.role === 'user' ? '👤 You' : '🤖 Assistant';
-        const contentStr = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-        const preview = contentStr.substring(0, 100) + (contentStr.length > 100 ? '...' : '');
+        const contentStr = extractMessageText(msg.content).replace(/\s+/g, ' ').trim();
+        const preview = contentStr.substring(0, 100) + (contentStr.length > 100 ? '…' : '');
         this.log(`${index + 1}. ${role}: ${preview}`);
       });
     }

@@ -36,6 +36,18 @@ export interface InkLiveTool {
   label: string;
 }
 
+export interface InkPickerItem {
+  id: string;
+  label: string;
+  hint?: string;
+  preview?: string;
+}
+
+export interface InkPickerState {
+  title: string;
+  items: InkPickerItem[];
+}
+
 export interface InkCliSnapshot {
   sessionId?: string | null;
   taskListId?: string | null;
@@ -56,6 +68,7 @@ export interface InkCliSnapshot {
   completedTools: number;
   lastStep?: string | null;
   runStartedAt?: number | null;
+  picker?: InkPickerState | null;
   events: InkCliEvent[];
   liveText: string;
   liveTools: InkLiveTool[];
@@ -67,6 +80,8 @@ export interface InkCliController {
   requestStop: () => void;
   setInteractionMode?: (mode: CliInteractionMode, source?: string) => void | Promise<void>;
   toggleToolDetail?: () => void;
+  pickerSelect?: (id: string) => void;
+  pickerCancel?: () => void;
   shutdown: () => void | Promise<void>;
   subscribe: (listener: (snapshot: InkCliSnapshot) => void) => () => void;
 }
@@ -109,6 +124,7 @@ const DEFAULT_SNAPSHOT: InkCliSnapshot = {
   completedTools: 0,
   lastStep: null,
   runStartedAt: null,
+  picker: null,
   events: [],
   liveText: '',
   liveTools: [],
@@ -117,7 +133,7 @@ const DEFAULT_SNAPSHOT: InkCliSnapshot = {
 const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/help', description: 'Show commands and shortcuts', usage: '/help', group: 'Core' },
   { command: '/new', description: 'Create a new session', usage: '/new <title?>', group: 'Session' },
-  { command: '/resume', description: 'Resume a saved session', usage: '/resume <index|id-prefix>', group: 'Session' },
+  { command: '/resume', description: 'Resume a session (bare = interactive picker)', usage: '/resume [index|id-prefix]', group: 'Session' },
   { command: '/sessions', description: 'List saved sessions', usage: '/sessions', group: 'Session' },
   { command: '/search', description: 'Search saved sessions', usage: '/search <query>', group: 'Session' },
   { command: '/rename', description: 'Rename a session', usage: '/rename <id> <title>', group: 'Session' },
@@ -309,6 +325,29 @@ export function normalizeInteractionMode(mode: string | null | undefined): CliIn
   return 'edit';
 }
 
+export function filterPickerItems(items: InkPickerItem[], query: string): InkPickerItem[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return items;
+  }
+  return items.filter(item =>
+    `${item.label} ${item.hint ?? ''} ${item.preview ?? ''}`.toLowerCase().includes(normalized));
+}
+
+export function formatRelativeTime(thenMs: number, nowMs = Date.now()): string {
+  const seconds = Math.max(0, Math.floor((nowMs - thenMs) / 1000));
+  if (seconds < 60) {
+    return 'just now';
+  }
+  if (seconds < 3600) {
+    return `${Math.floor(seconds / 60)}m ago`;
+  }
+  if (seconds < 86400) {
+    return `${Math.floor(seconds / 3600)}h ago`;
+  }
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
 export function formatTokenCount(tokens: number): string {
   if (tokens < 1000) {
     return `${tokens}`;
@@ -454,6 +493,8 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const [historyDraft, setHistoryDraft] = useState('');
   const [spinnerIndex, setSpinnerIndex] = useState(0);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [pickerIndex, setPickerIndex] = useState(0);
+  const [pickerQuery, setPickerQuery] = useState('');
   const [ctrlCArmed, setCtrlCArmed] = useState(false);
   const ctrlCTimer = useRef<NodeJS.Timeout | null>(null);
   const app = useApp();
@@ -461,6 +502,12 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const currentInteractionMode = normalizeInteractionMode(snapshot.mode);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
+
+  const picker = snapshot.picker ?? null;
+  useEffect(() => {
+    setPickerIndex(0);
+    setPickerQuery('');
+  }, [picker]);
 
   useEffect(() => {
     if (!snapshot.isProcessing) {
@@ -567,6 +614,11 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     if (!normalized) {
       return;
     }
+    if (snapshot.picker) {
+      setPickerQuery(current => `${current}${normalized.replace(/\n+/g, ' ')}`);
+      setPickerIndex(0);
+      return;
+    }
     updateComposer(insertAtCursor({ input, cursor }, normalized));
   };
 
@@ -595,6 +647,39 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     disarmCtrlC();
+
+    // Modal picker (e.g. /resume): captures all keys until resolved.
+    if (snapshot.picker) {
+      if (key.escape) {
+        controller.pickerCancel?.();
+        return;
+      }
+      if (key.return) {
+        const item = pickerItems[clampedPickerIndex];
+        if (item) {
+          controller.pickerSelect?.(item.id);
+        }
+        return;
+      }
+      if (key.upArrow) {
+        setPickerIndex(current => Math.max(0, Math.min(current, pickerItems.length - 1) - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setPickerIndex(current => Math.min(Math.max(0, pickerItems.length - 1), current + 1));
+        return;
+      }
+      if (key.backspace || key.delete) {
+        setPickerQuery(current => current.slice(0, -1));
+        setPickerIndex(0);
+        return;
+      }
+      if (value && !key.ctrl && !key.meta && !key.tab) {
+        setPickerQuery(current => `${current}${normalizeInputValue(value).replace(/\n+/g, ' ')}`);
+        setPickerIndex(0);
+      }
+      return;
+    }
 
     // Chunked input (paste on terminals without bracketed paste, coalesced
     // typing) must be inserted literally before any key interpretation.
@@ -723,6 +808,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
 
   const terminalRows = stdout.rows ?? 30;
   const spinner = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length];
+  const pickerItems = useMemo(() => (picker ? filterPickerItems(picker.items, pickerQuery) : []), [picker, pickerQuery]);
+  const clampedPickerIndex = Math.min(pickerIndex, Math.max(0, pickerItems.length - 1));
+  const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - 6));
+  const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + 6);
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
   const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor), [cursor, input]);
   const normalizedSuggestionIndex = Math.min(selectedSuggestionIndex, Math.max(0, slashSuggestions.length - 1));
@@ -774,26 +863,54 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
         <Text color="gray"> · {formatStatusline(snapshot)}</Text>
       </Box>
 
-      <Box borderStyle="round" borderColor={composerColor} paddingX={1} flexDirection="column">
-        {hiddenPromptLineCount > 0 ? <Text color="gray">… {hiddenPromptLineCount} earlier draft line{hiddenPromptLineCount === 1 ? '' : 's'}</Text> : null}
-        {visiblePromptLines.map((line, index) => (
-          <Text key={`${index}-${line}`} color="cyan">
-            {index === 0 ? '› ' : '  '}<Text color="white">{line || ' '}</Text>
-          </Text>
-        ))}
-      </Box>
-
-      {slashSuggestions.length > 0 ? (
+      {picker ? (
         <Box flexDirection="column">
-          {slashSuggestions.map((suggestion, index) => (
-            <Text key={suggestion.command} color={index === normalizedSuggestionIndex ? 'yellow' : 'gray'}>
-              {index === normalizedSuggestionIndex ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{suggestion.description}{index === normalizedSuggestionIndex && suggestion.usage ? ` · ${suggestion.usage}` : ''}</Text>
-            </Text>
-          ))}
+          <Box borderStyle="round" borderColor="cyan" paddingX={1} flexDirection="column">
+            <Text bold color="cyan">{picker.title}{pickerQuery ? <Text color="gray"> · filter: {pickerQuery}</Text> : null}</Text>
+            {pickerItems.length === 0 ? (
+              <Text color="gray">No matches. Backspace to clear the filter, Esc to cancel.</Text>
+            ) : visiblePickerItems.map((item, index) => {
+              const actualIndex = pickerWindowStart + index;
+              const selected = actualIndex === clampedPickerIndex;
+              return (
+                <Box key={item.id} flexDirection="column">
+                  <Text color={selected ? 'yellow' : undefined}>
+                    {selected ? '→ ' : '  '}{item.label}{item.hint ? <Text color="gray">  {item.hint}</Text> : null}
+                  </Text>
+                  {item.preview ? <Text color="gray" dimColor>    {item.preview}</Text> : null}
+                </Box>
+              );
+            })}
+            {pickerItems.length > visiblePickerItems.length ? (
+              <Text color="gray">… {pickerItems.length - visiblePickerItems.length} more (↑↓ to scroll)</Text>
+            ) : null}
+          </Box>
+          <Text color="gray">↑↓ select · Enter resume · Esc cancel · type to filter</Text>
         </Box>
-      ) : null}
+      ) : (
+        <Box flexDirection="column">
+          <Box borderStyle="round" borderColor={composerColor} paddingX={1} flexDirection="column">
+            {hiddenPromptLineCount > 0 ? <Text color="gray">… {hiddenPromptLineCount} earlier draft line{hiddenPromptLineCount === 1 ? '' : 's'}</Text> : null}
+            {visiblePromptLines.map((line, index) => (
+              <Text key={`${index}-${line}`} color="cyan">
+                {index === 0 ? '› ' : '  '}<Text color="white">{line || ' '}</Text>
+              </Text>
+            ))}
+          </Box>
 
-      <Text color="gray">{keyHint}</Text>
+          {slashSuggestions.length > 0 ? (
+            <Box flexDirection="column">
+              {slashSuggestions.map((suggestion, index) => (
+                <Text key={suggestion.command} color={index === normalizedSuggestionIndex ? 'yellow' : 'gray'}>
+                  {index === normalizedSuggestionIndex ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{suggestion.description}{index === normalizedSuggestionIndex && suggestion.usage ? ` · ${suggestion.usage}` : ''}</Text>
+                </Text>
+              ))}
+            </Box>
+          ) : null}
+
+          <Text color="gray">{keyHint}</Text>
+        </Box>
+      )}
     </Box>
   );
 }

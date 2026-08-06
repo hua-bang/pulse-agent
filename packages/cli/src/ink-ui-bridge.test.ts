@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { InkUiBridge } from './ink-ui-bridge.js';
 import {
   applySlashCommandCompletion,
+  filterPickerItems,
   formatElapsed,
+  formatRelativeTime,
   formatStatusline,
   formatTokenCount,
   getSlashCommandSuggestions,
@@ -201,6 +203,25 @@ describe('InkUiBridge', () => {
     expect(toolEvent.text).toBe('');
   });
 
+  it('shows and hides the modal picker via the snapshot', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.showPicker({
+      title: 'Resume session',
+      items: [{ id: 's1', label: 'Fix login page', hint: '12 msgs · 2h ago', preview: 'done' }],
+    });
+
+    let last = snapshots[snapshots.length - 1];
+    expect(last.picker?.title).toBe('Resume session');
+    expect(last.picker?.items).toHaveLength(1);
+    expect(last.status).toBe('Resume session');
+
+    bridge.hidePicker();
+    last = snapshots[snapshots.length - 1];
+    expect(last.picker).toBeNull();
+    expect(last.status).toBe('Ready');
+  });
+
   it('records engine log lines as compact log events', () => {
     const { snapshots, bridge } = createBridge();
 
@@ -382,6 +403,26 @@ describe('Ink composer editing helpers', () => {
     expect(statusline).toContain('tools 1/3');
     expect(statusline).toContain('queue 2');
     expect(statusline).toContain('session session-');
+  });
+
+  it('filters picker items across label, hint, and preview', () => {
+    const items = [
+      { id: 'a', label: '修复登录页样式', hint: '12 msgs', preview: '改了按钮颜色' },
+      { id: 'b', label: 'Refactor CLI', hint: '3 msgs', preview: 'ink rewrite' },
+    ];
+    expect(filterPickerItems(items, '')).toHaveLength(2);
+    expect(filterPickerItems(items, '登录').map(item => item.id)).toEqual(['a']);
+    expect(filterPickerItems(items, 'INK').map(item => item.id)).toEqual(['b']);
+    expect(filterPickerItems(items, '按钮')).toHaveLength(1);
+    expect(filterPickerItems(items, 'nope')).toHaveLength(0);
+  });
+
+  it('formats relative time for picker hints', () => {
+    const now = 1_000_000_000_000;
+    expect(formatRelativeTime(now - 30_000, now)).toBe('just now');
+    expect(formatRelativeTime(now - 5 * 60_000, now)).toBe('5m ago');
+    expect(formatRelativeTime(now - 3 * 3_600_000, now)).toBe('3h ago');
+    expect(formatRelativeTime(now - 2 * 86_400_000, now)).toBe('2d ago');
   });
 
   it('formats token counts and elapsed durations for the status line', () => {

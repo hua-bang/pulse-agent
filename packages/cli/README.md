@@ -25,7 +25,7 @@ pnpm start
 
 - 内置 MCP 支持 - 引擎自动加载，无需显式配置
 - 内置 Skills 系统 - 智能技能识别与单次调用
-- 会话管理 - 保存与恢复对话（存储于 `~/.pulse-coder/sessions`），`/resume` 支持序号/ID 前缀，`--continue` 启动即恢复最近会话
+- 会话管理 - 保存与恢复对话（存储于 `~/.pulse-coder/sessions`），裸 `/resume` 弹出交互式选择器（过滤 + ↑↓），也支持序号/ID 前缀；`--continue` 启动即恢复最近会话；列表预览对含工具调用的结构化消息提取纯文本
 - 滚动回看 - Ink 宿主把已完成输出写入终端原生 scrollback（Ink `<Static>`），长回答不截断、可随时上翻
 - 工具透明 - 每个工具一行灰色留痕 + 行尾智能摘要（`· 350 lines` / `· 10 matches` / 错误首行标红），`Ctrl+O` 切换内容预览模式，永不 dump JSON
 - 叙述分层 - 工具调用之间的过程叙述灰色显示，只有收尾的最终回答保持白色 + Markdown；状态行运行期稳定显示实耗时（`Running agent · 2m10s`），不随单个工具完成翻动
@@ -102,7 +102,8 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 ```
 /help                       - 显示帮助
 /new [title]                - 创建新会话
-/resume <index|id-prefix|id> - 恢复会话（支持 /sessions 列表序号或唯一 ID 前缀）
+/resume                     - 交互式会话选择器（Ink 宿主：↑↓ 选择、Enter 恢复、Esc 取消、直接打字过滤）
+/resume <index|id-prefix|id> - 按序号 / 唯一 ID 前缀 / 完整 ID 恢复（readline 宿主仅此形式）
 /sessions                   - 列出所有会话
 /search <query>             - 搜索会话
 /rename <id> <new-title>    - 重命名会话

@@ -9,7 +9,7 @@ import { SkillCommands } from './skill-commands.js';
 import { runTeam, TeamsSession } from './team-commands.js';
 import type { TuiHelpItem } from './tui-renderer.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
-import type { InkCliController, InkCliSnapshot, CliInteractionMode } from './ink-app.js';
+import { formatRelativeTime, type InkCliController, type InkCliSnapshot, type CliInteractionMode } from './ink-app.js';
 import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
@@ -46,7 +46,7 @@ const LOCAL_COMMANDS = new Set([
 const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/help', description: 'Show this help message' },
   { command: '/new [title]', description: 'Create a new session' },
-  { command: '/resume <id>', description: 'Resume a saved session' },
+  { command: '/resume [index|id-prefix|id]', description: 'Resume a session (bare /resume opens an interactive picker)' },
   { command: '/sessions', description: 'List all saved sessions' },
   { command: '/search <query>', description: 'Search in saved sessions' },
   { command: '/rename <id> <new-title>', description: 'Rename a session' },
@@ -210,6 +210,42 @@ class InkCoderController implements InkCliController {
 
   toggleToolDetail(): void {
     this.ui.setToolDetail(!this.ui.getToolDetail());
+  }
+
+  private async resumeSessionRef(ref: string): Promise<void> {
+    if (await this.sessionCommands.resumeSession(ref)) {
+      await this.sessionCommands.loadContext(this.context);
+      await this.syncSessionTaskListBinding();
+      this.publishSession('Session resumed');
+    }
+  }
+
+  private async openSessionPicker(): Promise<void> {
+    const sessions = await this.sessionCommands.listForPicker();
+    if (sessions.length === 0) {
+      this.ui.info('No previous sessions with messages. Use /sessions to list everything.');
+      return;
+    }
+
+    this.ui.showPicker({
+      title: 'Resume session',
+      items: sessions.map(session => ({
+        id: session.id,
+        label: session.title,
+        hint: `${session.messageCount} msgs · ${formatRelativeTime(session.updatedAt)}`,
+        preview: session.preview,
+      })),
+    });
+  }
+
+  pickerSelect(id: string): void {
+    this.ui.hidePicker('Resuming session…');
+    void this.resumeSessionRef(id);
+  }
+
+  pickerCancel(): void {
+    this.ui.hidePicker();
+    this.publishSession('Ready');
   }
 
   requestStop(): void {
@@ -408,15 +444,10 @@ class InkCoderController implements InkCliController {
           break;
         case 'resume':
           if (args.length === 0) {
-            this.ui.error('Please provide a session ID');
-            this.ui.info('Usage: /resume <session-id>');
+            await this.openSessionPicker();
             break;
           }
-          if (await this.sessionCommands.resumeSession(args[0])) {
-            await this.sessionCommands.loadContext(this.context);
-            await this.syncSessionTaskListBinding();
-            this.publishSession('Session resumed');
-          }
+          await this.resumeSessionRef(args[0]);
           break;
         case 'sessions':
           await this.sessionCommands.listSessions();
