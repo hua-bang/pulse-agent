@@ -159,6 +159,28 @@ export class SessionCommands {
     this.log('Resume with /resume <index>, a unique id prefix, or the full id.');
   }
 
+  /**
+   * Auto-title a session from its first user message, but only while it still
+   * carries the default "Session <date>" title — explicit titles are kept.
+   */
+  async maybeAutoTitle(firstUserText: string): Promise<void> {
+    if (!this.currentSessionId) {
+      return;
+    }
+
+    const session = await this.sessionManager.loadSession(this.currentSessionId);
+    if (!session || !/^Session /.test(session.title)) {
+      return;
+    }
+
+    const title = firstUserText.replace(/\s+/g, ' ').trim().slice(0, 48);
+    if (!title) {
+      return;
+    }
+
+    await this.sessionManager.updateSessionTitle(this.currentSessionId, title);
+  }
+
   async saveContext(context: Context): Promise<void> {
     if (!this.currentSessionId) return;
 

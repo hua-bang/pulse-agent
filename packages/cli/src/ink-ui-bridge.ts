@@ -19,6 +19,7 @@ const DEFAULT_SNAPSHOT: InkUiSnapshot = {
   estimatedTokens: 0,
   usageInputTokens: 0,
   usageOutputTokens: 0,
+  contextWindowTokens: 0,
   queuedInputs: 0,
   isProcessing: false,
   status: 'Ready',
@@ -54,6 +55,7 @@ export class InkUiBridge {
   private pendingEmit: NodeJS.Timeout | null = null;
   private lastEmitAt = 0;
   private toolDetail = false;
+  private readonly pendingInputBuffers = new Map<string, string>();
 
   constructor(options: InkUiBridgeOptions) {
     this.onChange = options.onChange;
@@ -227,6 +229,7 @@ export class InkUiBridge {
   startProcessing(label = 'Processing'): void {
     this.liveText = '';
     this.liveTools = [];
+    this.pendingInputBuffers.clear();
     this.updateSnapshot({
       isProcessing: true,
       status: label,
@@ -256,15 +259,53 @@ export class InkUiBridge {
     this.emitThrottled();
   }
 
-  toolCall(name: string, input?: unknown): void {
+  /**
+   * Streaming tool arguments (AI SDK tool-input-* chunks): a live line appears
+   * as soon as the model starts emitting a call, its label growing with the
+   * argument tail, and is replaced in place by the final label on tool-call.
+   */
+  toolInputStart(id: string, name: string): void {
+    this.finalizeLiveText('interim');
+    this.pendingInputBuffers.set(id, '');
+    this.liveTools = [...this.liveTools, { id, name, label: `${name} …` }];
+    this.updateSnapshot({
+      phase: 'Using tool',
+      activeTool: name,
+    });
+  }
+
+  toolInputDelta(id: string, delta: string): void {
+    if (!this.pendingInputBuffers.has(id)) {
+      return;
+    }
+    const buffer = `${this.pendingInputBuffers.get(id)}${delta}`.slice(-400);
+    this.pendingInputBuffers.set(id, buffer);
+    if (!this.liveTools.some(tool => tool.id === id)) {
+      return;
+    }
+    const tail = this.formatPendingInputTail(buffer);
+    this.liveTools = this.liveTools.map(tool => tool.id === id ? { ...tool, label: `${tool.name} · ${tail}` } : tool);
+    this.emitThrottled();
+  }
+
+  toolInputEnd(id: string): void {
+    this.pendingInputBuffers.delete(id);
+  }
+
+  toolCall(name: string, input?: unknown, callId?: string): void {
     // Text finalized because a tool starts = in-run narration, not the answer.
     this.finalizeLiveText('interim');
     const label = this.formatToolLabel(name, this.summarizeToolInput(name, input));
-    this.liveTools = [...this.liveTools, {
-      id: `live-tool-${++this.liveToolCounter}`,
-      name,
-      label,
-    }];
+    const pendingIndex = callId ? this.liveTools.findIndex(tool => tool.id === callId) : -1;
+    if (pendingIndex >= 0) {
+      this.liveTools = this.liveTools.map((tool, index) => index === pendingIndex ? { ...tool, name, label } : tool);
+    } else {
+      this.liveTools = [...this.liveTools, {
+        id: callId ?? `live-tool-${++this.liveToolCounter}`,
+        name,
+        label,
+      }];
+    }
     // The status TEXT stays stable while running — per-tool churn ("Running
     // tool: X" / "Completed tool: Y") goes stale the moment tools overlap.
     this.updateSnapshot({
@@ -286,8 +327,8 @@ export class InkUiBridge {
     return this.toolDetail;
   }
 
-  toolResult(name: string, output?: unknown): void {
-    const entry = this.takeRunningTool(name);
+  toolResult(name: string, output?: unknown, callId?: string): void {
+    const entry = this.takeRunningTool(name, callId);
     const isError = this.detectToolError(output);
     const label = entry?.label ?? name;
     const summary = this.summarizeToolResult(name, output, isError);
@@ -355,9 +396,10 @@ export class InkUiBridge {
     }
   }
 
-  private takeRunningTool(name: string): InkLiveTool | null {
-    const index = this.liveTools.findIndex(entry => entry.name === name);
-    const resolvedIndex = index >= 0 ? index : this.liveTools.length > 0 ? 0 : -1;
+  private takeRunningTool(name: string, callId?: string): InkLiveTool | null {
+    const byId = callId ? this.liveTools.findIndex(entry => entry.id === callId) : -1;
+    const byName = this.liveTools.findIndex(entry => entry.name === name);
+    const resolvedIndex = byId >= 0 ? byId : byName >= 0 ? byName : this.liveTools.length > 0 ? 0 : -1;
     if (resolvedIndex < 0) {
       return null;
     }
@@ -365,6 +407,15 @@ export class InkUiBridge {
     const entry = this.liveTools[resolvedIndex];
     this.liveTools = this.liveTools.filter((_, i) => i !== resolvedIndex);
     return entry;
+  }
+
+  /** Human-glanceable tail of a partially-streamed JSON argument object. */
+  private formatPendingInputTail(buffer: string, maxLength = 48): string {
+    const stripped = buffer.replace(/[{}"\\]/g, '').replace(/\s+/g, ' ').trim();
+    if (stripped.length <= maxLength) {
+      return stripped || '…';
+    }
+    return `…${stripped.slice(-maxLength)}`;
   }
 
   private formatToolLabel(name: string, summary: string): string {

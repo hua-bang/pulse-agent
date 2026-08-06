@@ -624,6 +624,10 @@ class CoderCLI {
         mode: this.agent.getMode(),
       });
 
+      if (this.context.messages.length === 0) {
+        await this.sessionCommands.maybeAutoTitle(messageInput);
+      }
+
       this.context.messages.push({
         role: 'user',
         content: messageInput,

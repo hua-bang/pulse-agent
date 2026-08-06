@@ -1,4 +1,4 @@
-import { PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
+import { CONTEXT_WINDOW_TOKENS, PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
 
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
@@ -125,6 +125,7 @@ class InkCoderController implements InkCliController {
     this.ui = new InkUiBridge({
       onChange: snapshot => this.notify(snapshot),
     });
+    this.ui.updateSnapshot({ contextWindowTokens: CONTEXT_WINDOW_TOKENS });
     this.sessionCommands = new SessionCommands(message => this.ui.info(message ?? ''));
     this.inputManager = new InputManager({
       onRequest: request => this.ui.clarification(request),
@@ -633,6 +634,10 @@ class InkCoderController implements InkCliController {
       mode: this.interactionMode,
     });
 
+    if (this.context.messages.length === 0) {
+      await this.sessionCommands.maybeAutoTitle(messageInput);
+    }
+
     this.context.messages.push({
       role: 'user',
       content: messageInput,
@@ -659,14 +664,23 @@ class InkCoderController implements InkCliController {
           sawText = true;
           this.ui.text(delta);
         },
+        onToolInputStart: ({ id, toolName }) => {
+          this.ui.toolInputStart(id, toolName);
+        },
+        onToolInputDelta: ({ id, delta }) => {
+          this.ui.toolInputDelta(id, delta);
+        },
+        onToolInputEnd: ({ id }) => {
+          this.ui.toolInputEnd(id);
+        },
         onToolCall: (toolCall) => {
           toolCalls += 1;
           const input = this.getToolInput(toolCall);
-          this.ui.toolCall(this.resolveToolName(toolCall), input);
+          this.ui.toolCall(this.resolveToolName(toolCall), input, this.getToolCallId(toolCall));
         },
         onToolResult: (toolResult) => {
-          const toolName = this.resolveToolName(toolResult as Record<string, unknown>);
-          this.ui.toolResult(toolName, this.getToolOutput(toolResult as Record<string, unknown>));
+          const record = toolResult as Record<string, unknown>;
+          this.ui.toolResult(this.resolveToolName(record), this.getToolOutput(record), this.getToolCallId(record));
         },
         onStepFinish: (step) => {
           this.recordStepUsage(step);
@@ -676,7 +690,11 @@ class InkCoderController implements InkCliController {
           return await this.inputManager.requestInput(request);
         },
         onCompacted: (newMessages) => {
+          const beforeMessages = this.context.messages.length;
+          const beforeTokens = this.estimateTokens(this.context.messages);
           this.context.messages = newMessages;
+          const afterTokens = this.estimateTokens(newMessages);
+          this.ui.info(`Context compacted · ${beforeMessages} → ${newMessages.length} messages · ~${beforeTokens} → ~${afterTokens} tokens`);
         },
         onResponse: (messages) => {
           this.context.messages.push(...messages);
@@ -868,6 +886,11 @@ class InkCoderController implements InkCliController {
       return args;
     }
     return undefined;
+  }
+
+  private getToolCallId(payload: Record<string, unknown>): string | undefined {
+    const callId = (payload as { toolCallId?: unknown }).toolCallId;
+    return typeof callId === 'string' && callId ? callId : undefined;
   }
 
   private getToolOutput(toolResult: Record<string, unknown>): unknown {

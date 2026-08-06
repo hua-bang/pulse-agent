@@ -90,6 +90,24 @@ describe('SessionCommands', () => {
     expect(await commands.resumeSession('abcd')).toBe(false);
   });
 
+  it('auto-titles default-titled sessions from the first message, keeping explicit titles', async () => {
+    const defaultTitled = makeSession({ id: 'auto-1', title: 'Session 8/6/2026, 10:00:00 AM' });
+    vi.spyOn(SessionManager.prototype, 'createSession').mockResolvedValue(defaultTitled);
+    vi.spyOn(SessionManager.prototype, 'loadSession').mockResolvedValue(defaultTitled);
+    vi.spyOn(SessionManager.prototype, 'saveSession').mockResolvedValue();
+    const renameSpy = vi.spyOn(SessionManager.prototype, 'updateSessionTitle').mockResolvedValue(true);
+
+    const commands = new SessionCommands();
+    await commands.createSession();
+    await commands.maybeAutoTitle('  帮我看下   cli 包的测试都过不过  ');
+    expect(renameSpy).toHaveBeenCalledWith('auto-1', '帮我看下 cli 包的测试都过不过');
+
+    renameSpy.mockClear();
+    vi.spyOn(SessionManager.prototype, 'loadSession').mockResolvedValue(makeSession({ id: 'auto-1', title: 'My Custom Title' }));
+    await commands.maybeAutoTitle('another message');
+    expect(renameSpy).not.toHaveBeenCalled();
+  });
+
   it('resumes the most recent session with resumeLatest', async () => {
     const target = makeSession({ id: 'latest-session' });
     vi.spyOn(SessionManager.prototype, 'loadSession').mockImplementation(async id => (id === 'latest-session' ? target : null));

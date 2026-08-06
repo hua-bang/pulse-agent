@@ -56,6 +56,43 @@ describe('InkUiBridge', () => {
     expect(last.liveTools[0].label).toBe('$ echo ok');
   });
 
+  it('streams tool arguments into a live line that the final call replaces in place', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.toolInputStart('call-1', 'bash');
+    bridge.toolInputDelta('call-1', '{"command":"pnpm te');
+
+    let liveTools = snapshots[snapshots.length - 1].liveTools;
+    expect(liveTools).toHaveLength(1);
+    expect(liveTools[0].label).toContain('pnpm te');
+    expect(liveTools[0].label).not.toContain('{');
+
+    bridge.toolInputEnd('call-1');
+    bridge.toolCall('bash', { command: 'pnpm test' }, 'call-1');
+
+    liveTools = snapshots[snapshots.length - 1].liveTools;
+    expect(liveTools).toHaveLength(1);
+    expect(liveTools[0].label).toBe('$ pnpm test');
+
+    bridge.toolResult('bash', 'ok', 'call-1');
+    const last = snapshots[snapshots.length - 1];
+    expect(last.liveTools).toHaveLength(0);
+    expect(last.events.slice(-1)[0].title).toBe('$ pnpm test · ok');
+  });
+
+  it('resolves parallel tool results by call id', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.toolCall('grep', { pattern: 'one' }, 'call-a');
+    bridge.toolCall('grep', { pattern: 'two' }, 'call-b');
+    bridge.toolResult('grep', 'match-b', 'call-b');
+
+    const last = snapshots[snapshots.length - 1];
+    expect(last.liveTools).toHaveLength(1);
+    expect(last.liveTools[0].label).toBe('grep "one"');
+    expect(last.events.slice(-1)[0].title).toBe('grep "two" · match-b');
+  });
+
   it('marks narration segments as interim and the closing segment as final', () => {
     const { snapshots, bridge } = createBridge();
 
@@ -321,6 +358,7 @@ describe('Ink composer editing helpers', () => {
       estimatedTokens: 96,
       usageInputTokens: 1500,
       usageOutputTokens: 20,
+      contextWindowTokens: 64000,
       queuedInputs: 2,
       isProcessing: true,
       status: 'Running agent',
@@ -335,7 +373,8 @@ describe('Ink composer editing helpers', () => {
     });
 
     expect(statusline).toContain('mode plan');
-    expect(statusline).toContain('ctx ~1.5k');
+    expect(statusline).toContain('ctx ~1.5k (2%)');
+    expect(statusline).toContain('out ~20');
     expect(statusline).toContain('active bash');
     expect(statusline).toContain('tools 1/3');
     expect(statusline).toContain('queue 2');

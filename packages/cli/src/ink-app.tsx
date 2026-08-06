@@ -44,6 +44,7 @@ export interface InkCliSnapshot {
   estimatedTokens: number;
   usageInputTokens: number;
   usageOutputTokens: number;
+  contextWindowTokens?: number;
   queuedInputs: number;
   isProcessing: boolean;
   status: string;
@@ -96,6 +97,7 @@ const DEFAULT_SNAPSHOT: InkCliSnapshot = {
   estimatedTokens: 0,
   usageInputTokens: 0,
   usageOutputTokens: 0,
+  contextWindowTokens: 0,
   queuedInputs: 0,
   isProcessing: false,
   status: 'Ready',
@@ -327,9 +329,12 @@ export function formatElapsed(ms: number): string {
 export function formatStatusline(snapshot: InkCliSnapshot): string {
   const mode = normalizeInteractionMode(snapshot.mode);
   const contextTokens = snapshot.usageInputTokens > 0 ? snapshot.usageInputTokens : snapshot.estimatedTokens;
+  const window = snapshot.contextWindowTokens ?? 0;
+  const contextPct = window > 0 && contextTokens > 0 ? ` (${Math.min(999, Math.round(contextTokens / window * 100))}%)` : '';
   const parts = [
     `mode ${mode}`,
-    `ctx ~${formatTokenCount(contextTokens)}`,
+    `ctx ~${formatTokenCount(contextTokens)}${contextPct}`,
+    snapshot.usageOutputTokens > 0 ? `out ~${formatTokenCount(snapshot.usageOutputTokens)}` : null,
     snapshot.activeTool ? `active ${snapshot.activeTool}` : null,
     snapshot.toolCalls > 0 ? `tools ${snapshot.completedTools}/${snapshot.toolCalls}` : null,
     snapshot.queuedInputs > 0 ? `queue ${snapshot.queuedInputs}` : null,
