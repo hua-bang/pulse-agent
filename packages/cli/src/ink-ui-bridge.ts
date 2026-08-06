@@ -200,6 +200,11 @@ export class InkUiBridge {
     this.addEvent('error', undefined, message);
   }
 
+  /** Engine log layer: rendered as a compact dim line in the transcript. */
+  log(message: string): void {
+    this.addEvent('log', undefined, message);
+  }
+
   queued(message: string): void {
     this.addEvent('system', 'Queued', message);
   }
@@ -387,7 +392,8 @@ export class InkUiBridge {
       if (Array.isArray(record.content)) return this.extractOutputText(record.content);
       if (typeof record.error === 'string') return record.error;
     }
-    return this.compactText(this.safeStringify(output), 300);
+    // Structured output without a text field: one compact line, not a JSON dump.
+    return this.compactText(this.safeStringify(output), 120);
   }
 
   private detectToolError(output: unknown): boolean {
@@ -482,6 +488,10 @@ export class InkUiBridge {
         return `ls ${this.shortPath(dirPath)}`;
       }
 
+      const primary = this.pickString(record, ['name', 'title', 'id', 'action', 'query']);
+      if (primary) {
+        return this.compactText(primary, 60);
+      }
       const keys = Object.keys(record).slice(0, 3);
       return keys.length > 0 ? `input: ${keys.join(', ')}` : 'input object';
     }
@@ -566,7 +576,9 @@ export class InkUiBridge {
   }
 
   private isListTool(name: string): boolean {
-    return name === 'ls' || name.includes('list');
+    // Only filesystem-style listers: `task_list` and friends must not be
+    // summarized as `ls <path>`.
+    return name === 'ls' || name === 'list' || name.startsWith('list_');
   }
 
   private safeStringify(value: unknown): string {

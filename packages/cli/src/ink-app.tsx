@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { renderMarkdownAnsi } from './markdown.js';
 
-export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error';
+export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error' | 'log';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
 export type CliInteractionMode = 'chat' | 'plan' | 'edit' | 'auto';
 
@@ -118,6 +118,7 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/acp', description: 'Manage ACP mode', usage: '/acp status|on|off|cd', group: 'Agent' },
   { command: '/wt', description: 'Use worktree skill', usage: '/wt use <work-name>', group: 'Agent' },
   { command: '/status', description: 'Show session status', usage: '/status', group: 'Core' },
+  { command: '/debug', description: 'Engine log layer: toggle, tail, status', usage: '/debug on|off|tail <n>|status', group: 'Core' },
   { command: '/mode', description: 'Show or set CLI interaction mode', usage: '/mode chat|plan|edit|auto', group: 'Mode' },
   { command: '/chat', description: 'Switch to chat interaction mode', usage: '/chat', group: 'Mode' },
   { command: '/plan', description: 'Switch to planning interaction mode', usage: '/plan', group: 'Mode' },
@@ -352,6 +353,10 @@ function recordHistory(history: string[], submitted: string): string[] {
 }
 
 function TranscriptEvent({ event, Box, Text }: { event: InkCliEvent; Box: React.ComponentType<any>; Text: React.ComponentType<any> }) {
+  if (event.kind === 'log') {
+    return <Text color="gray" dimColor>{event.text}</Text>;
+  }
+
   if (event.kind === 'tool') {
     const icon = event.status === 'error' ? '✕' : event.status === 'info' ? '·' : '✓';
     const iconColor = event.status === 'error' ? 'red' : event.status === 'info' ? 'gray' : 'green';

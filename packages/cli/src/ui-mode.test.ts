@@ -25,7 +25,7 @@ describe('resolveCliUiMode', () => {
 
 describe('parseCliArgs', () => {
   it('parses defaults', () => {
-    expect(parseCliArgs([], {})).toEqual({ uiMode: 'ink', print: false, prompt: '', continueLast: false });
+    expect(parseCliArgs([], {})).toEqual({ uiMode: 'ink', print: false, prompt: '', continueLast: false, verbose: false });
   });
 
   it('parses print mode with a prompt', () => {
@@ -38,6 +38,12 @@ describe('parseCliArgs', () => {
     const parsed = parseCliArgs(['--ui', 'readline', '--continue', '-p', 'hi'], {});
     expect(parsed.uiMode).toBe('readline');
     expect(parsed.continueLast).toBe(true);
+    expect(parsed.prompt).toBe('hi');
+  });
+
+  it('parses --verbose without leaking it into the prompt', () => {
+    const parsed = parseCliArgs(['--verbose', '-p', 'hi'], {});
+    expect(parsed.verbose).toBe(true);
     expect(parsed.prompt).toBe('hi');
   });
 });

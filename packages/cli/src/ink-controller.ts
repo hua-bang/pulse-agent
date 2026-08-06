@@ -10,6 +10,7 @@ import { runTeam, TeamsSession } from './team-commands.js';
 import type { TuiHelpItem } from './tui-renderer.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
 import type { InkCliController, InkCliSnapshot, CliInteractionMode } from './ink-app.js';
+import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 
 const LOCAL_COMMANDS = new Set([
@@ -37,6 +38,7 @@ const LOCAL_COMMANDS = new Set([
   'solo',
   'save',
   'tui',
+  'debug',
   'exit',
 ]);
 
@@ -65,6 +67,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/solo', description: 'Exit teams mode, return to normal agent' },
   { command: '/save', description: 'Save current session explicitly' },
   { command: '/tui [status]', description: 'Show current Ink UI status' },
+  { command: '/debug [on|off|tail <n>]', description: 'Engine log layer: toggle live display or tail the capture' },
   { command: '/exit', description: 'Exit the application' },
 ];
 
@@ -100,8 +103,13 @@ class InkCoderController implements InkCliController {
   private readonly queuedInputs: string[] = [];
   private lastContextTokens = 0;
   private totalOutputTokens = 0;
+  private readonly logSink: EngineLogSink | null;
+  private debugLogs: boolean;
+  private teamsLogsVisible = false;
 
-  constructor() {
+  constructor(options: { logSink?: EngineLogSink; verbose?: boolean } = {}) {
+    this.logSink = options.logSink ?? null;
+    this.debugLogs = options.verbose ?? false;
     this.agent = new PulseAgent({
       enginePlugins: {
         plugins: [memoryIntegration.enginePlugin],
@@ -124,6 +132,19 @@ class InkCoderController implements InkCliController {
     });
     this.skillCommands = new SkillCommands(this.agent, message => this.ui.info(message ?? ''));
     this.acpPlatformKey = resolveAcpPlatformKey();
+
+    // Engine log layer policy: warn/error always surface as dim lines;
+    // info/debug stay in the log file unless /debug (or --verbose) is on,
+    // or a team run is in progress (its console output is the product).
+    this.logSink?.subscribe(entry => {
+      if (entry.level === 'warn' || entry.level === 'error') {
+        this.ui.log(`[${entry.level}] ${entry.text}`);
+        return;
+      }
+      if (this.debugLogs || this.teamsLogsVisible) {
+        this.ui.log(entry.text);
+      }
+    });
   }
 
   async initialize(options: { continueLast?: boolean } = {}): Promise<void> {
@@ -157,18 +178,14 @@ class InkCoderController implements InkCliController {
   private applyInteractionMode(mode: CliInteractionMode, source = 'cli'): void {
     this.interactionMode = mode;
 
+    // The status line and idle hint already reflect the mode — no transcript
+    // event, or cycling with Shift+Tab would spam one line per press.
     const targetEngineMode: PlanMode = mode === 'plan' ? 'planning' : 'executing';
-    let engineNote: string;
-    if (this.agent.getMode() === targetEngineMode) {
-      engineNote = ` · engine ${targetEngineMode}`;
-    } else if (this.agent.setMode(targetEngineMode, source)) {
-      engineNote = ` · engine ${targetEngineMode}`;
-    } else {
-      engineNote = ' · engine plan-mode plugin unavailable';
+    if (this.agent.getMode() !== targetEngineMode && !this.agent.setMode(targetEngineMode, source)) {
+      this.ui.warn('Engine plan-mode plugin unavailable; mode is CLI-side only.');
     }
 
     this.ui.updateSnapshot({ mode });
-    this.ui.info(`CLI mode: ${mode}${engineNote} (${source})`);
     this.publishSession('Ready');
   }
 
@@ -294,28 +311,28 @@ class InkCoderController implements InkCliController {
 
       if (!forceAcp) {
         if (normalizedCommand === 'team') {
-          await this.runExclusive(async () => runTeam(this.agent, args));
+          await this.runExclusive(async () => this.withTeamLogsVisible(() => runTeam(this.agent, args)));
           return;
         }
 
         if (normalizedCommand === 'teams') {
-          await this.runExclusive(async () => {
+          await this.runExclusive(async () => this.withTeamLogsVisible(async () => {
             const session = await TeamsSession.start(args);
             if (session) {
               this.teamsSession = session;
               this.ui.success('Entered teams mode. Use /solo to return to normal agent.');
             }
-          });
+          }));
           return;
         }
 
         if (normalizedCommand === 'solo') {
           if (this.teamsSession?.active) {
-            await this.runExclusive(async () => {
+            await this.runExclusive(async () => this.withTeamLogsVisible(async () => {
               await this.teamsSession?.stop();
               this.teamsSession = null;
               this.ui.success('Exited teams mode.');
-            });
+            }));
           } else {
             this.ui.warn('Not in teams mode. Use /teams <task> to start.');
           }
@@ -351,7 +368,7 @@ class InkCoderController implements InkCliController {
     }
 
     if (this.teamsSession?.active && !forceAcp) {
-      await this.runExclusive(async () => this.teamsSession?.followUp(messageInput));
+      await this.runExclusive(async () => this.withTeamLogsVisible(async () => this.teamsSession?.followUp(messageInput)));
       return;
     }
 
@@ -440,6 +457,7 @@ class InkCoderController implements InkCliController {
             `Tools: ${this.getSnapshot().completedTools}/${this.getSnapshot().toolCalls}`,
             `Queued inputs: ${this.queuedInputs.length}`,
             `Processing: ${this.isProcessing ? 'yes' : 'no'}`,
+            `Engine logs: ${this.debugLogs ? 'shown live' : 'file only'} · ${this.logSink?.count() ?? 0} captured · /debug`,
           ]);
           break;
         case 'mode': {
@@ -474,6 +492,37 @@ class InkCoderController implements InkCliController {
         case 'tui':
           this.ui.showTuiStatus();
           break;
+        case 'debug': {
+          if (!this.logSink) {
+            this.ui.warn('Engine log capture is unavailable in this host.');
+            break;
+          }
+          const action = (args[0] ?? 'status').toLowerCase();
+          if (action === 'on') {
+            this.debugLogs = true;
+            this.ui.success('Engine logs shown live (dim lines). /debug off to hide again.');
+          } else if (action === 'off') {
+            this.debugLogs = false;
+            this.ui.success('Engine logs hidden. Still captured to the log file; warn/error still surface.');
+          } else if (action === 'tail') {
+            const requested = Number(args[1] ?? 20);
+            const limit = Math.min(Math.max(Number.isFinite(requested) ? Math.floor(requested) : 20, 1), 100);
+            const entries = this.logSink.entries(limit);
+            if (entries.length === 0) {
+              this.ui.info('No engine logs captured yet.');
+            } else {
+              this.ui.section(`Engine logs · last ${entries.length}`, entries.map(entry => `[${entry.level}] ${entry.text.split('\n')[0]}`));
+            }
+          } else {
+            this.ui.section('Engine log layer', [
+              `Live display: ${this.debugLogs ? 'on' : 'off (warn/error always surface)'}`,
+              `Captured this session: ${this.logSink.count()} entries`,
+              `File: ${this.logSink.filePath}`,
+              'Usage: /debug on | off | tail <n>',
+            ]);
+          }
+          break;
+        }
         case 'save':
           if (this.sessionCommands.getCurrentSessionId()) {
             await this.sessionCommands.saveContext(this.context);
@@ -539,6 +588,15 @@ class InkCoderController implements InkCliController {
       `KEEP_LAST_TURNS=${keepLastTurns}`,
     ]);
     this.publishSession('Ready');
+  }
+
+  private async withTeamLogsVisible<T>(task: () => Promise<T>): Promise<T> {
+    this.teamsLogsVisible = true;
+    try {
+      return await task();
+    } finally {
+      this.teamsLogsVisible = false;
+    }
   }
 
   private async runExclusive(task: () => Promise<unknown>): Promise<void> {
@@ -846,8 +904,14 @@ class InkCoderController implements InkCliController {
   }
 }
 
-export async function createInkCoderController(options: { continueLast?: boolean } = {}): Promise<InkCliController> {
-  const controller = new InkCoderController();
-  await controller.initialize(options);
+export interface CreateInkControllerOptions {
+  continueLast?: boolean;
+  verbose?: boolean;
+  logSink?: EngineLogSink;
+}
+
+export async function createInkCoderController(options: CreateInkControllerOptions = {}): Promise<InkCliController> {
+  const controller = new InkCoderController({ logSink: options.logSink, verbose: options.verbose });
+  await controller.initialize({ continueLast: options.continueLast });
   return controller;
 }

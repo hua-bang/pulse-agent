@@ -20,6 +20,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 | Non-interactive `-p` mode | `src/print-mode.ts` |
 | Markdown-to-ANSI rendering | `src/markdown.ts` |
 | Prompt history persistence | `src/history-store.ts` |
+| Engine log layer (`/debug`) | `src/log-sink.ts` |
 | Input handling | `src/input-manager.ts` |
 | Sessions | `src/session.ts`, `src/session-commands.ts` |
 | Skills and worktree slash commands | `src/skill-commands.ts`, `src/index.ts`, `src/ink-controller.ts` |
@@ -38,6 +39,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 - The Ink host renders with `exitOnCtrlC: false`; Ctrl+C double-press exit lives in `ink-app.tsx`. Re-enabling Ink's built-in handler would exit on the first press and skip session save.
 - CLI interaction modes map to engine plan mode: `plan` → `setMode('planning')`, `chat`/`edit`/`auto` → `setMode('executing')` (see `applyInteractionMode`). Keep this mapping aligned with the readline host's `/plan` / `/execute`.
 - Multi-character `useInput` chunks are pastes (or coalesced typing) and must be inserted literally — never interpreted as Enter/Tab; bracketed paste additionally arrives via Ink's `usePaste` channel.
+- The Ink host renders with `patchConsole: false`: `EngineLogSink` owns `console.*` (installed before engine init) and routes it to `~/.pulse-coder/logs/cli.log` + the `/debug` policy (warn/error surface as dim lines; info/debug only with `/debug on`, `--verbose`, or during team runs). Never write to stdout directly from Ink-host code paths — it tears the frame; log via `console.*` (captured) or the bridge.
 - Session files live under `~/.pulse-coder/sessions`; keep local runtime data out of source control and preserve session task-list metadata.
 - Slash command changes should preserve session persistence, queued input, abort handling, clarification flow, and ACP passthrough behavior.
 - This package currently has no `typecheck` script; do not document or rely on `pnpm --filter pulse-coder-cli typecheck` until `package.json` adds it.
@@ -73,6 +75,7 @@ Run commands from the repository root. `pnpm start` maps to the built CLI packag
 - `src/ui-mode.ts`: `--ui`/`--tui`/`-p`/`--continue` and `PULSE_CODER_UI` resolution.
 - `src/print-mode.ts`: `-p` one-shot runner; stdout carries only the answer, console logging is redirected to stderr.
 - `src/markdown.ts`, `src/history-store.ts`: markdown-to-ANSI renderer and persisted prompt history.
+- `src/log-sink.ts`: console capture for the engine log layer (file + ring buffer + subscriber policy).
 - `src/session.ts`, `src/session-commands.ts`: session storage and slash-command behavior.
 - `src/acp-commands.ts`: `/acp` state commands, platform key resolution, session listing, and session close.
 - `src/team-commands.ts`: `/team`, `/teams`, and `/solo` command surface.

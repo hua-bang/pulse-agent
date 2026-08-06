@@ -88,6 +88,43 @@ describe('InkUiBridge', () => {
     expect(toolEvent.text).toContain('boom');
   });
 
+  it('labels non-filesystem tools by their input instead of mislabeling as ls', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.toolCall('task_list', { action: 'list' });
+    bridge.toolCall('skill', { name: 'task-tracking-workflow' });
+    bridge.toolCall('ls', { path: 'packages/cli' });
+
+    const liveTools = snapshots[snapshots.length - 1].liveTools;
+    expect(liveTools.map(tool => tool.label)).toEqual([
+      'task_list: list',
+      'skill: task-tracking-workflow',
+      'ls packages/cli',
+    ]);
+  });
+
+  it('compacts structured tool output into a single short line', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.toolCall('task_list', { action: 'list' });
+    bridge.toolResult('task_list', { taskListId: 'session-1', storagePath: '/Users/x/.pulse-coder/tasks/session-1.json', extras: 'y'.repeat(300) });
+
+    const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
+    expect(toolEvent.text).not.toContain('\n');
+    expect(toolEvent.text.length).toBeLessThanOrEqual(121);
+    expect(toolEvent.text).toContain('taskListId');
+  });
+
+  it('records engine log lines as compact log events', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.log('[warn] [MCP] Failed to load server "deepwiki"');
+
+    const last = snapshots[snapshots.length - 1].events.slice(-1)[0];
+    expect(last.kind).toBe('log');
+    expect(last.text).toContain('deepwiki');
+  });
+
   it('extracts text from MCP-style content parts', () => {
     const { snapshots, bridge } = createBridge();
 

@@ -823,7 +823,7 @@ async function main(): Promise<void> {
 
   if (parsed.uiMode === 'ink') {
     const { startInkTui } = await import('./ink-launcher.js');
-    await startInkTui({ continueLast: parsed.continueLast });
+    await startInkTui({ continueLast: parsed.continueLast, verbose: parsed.verbose });
     return;
   }
 
