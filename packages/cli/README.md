@@ -25,10 +25,22 @@ pnpm start
 
 - 内置 MCP 支持 - 引擎自动加载，无需显式配置
 - 内置 Skills 系统 - 智能技能识别与单次调用
-- 会话管理 - 保存与恢复对话（存储于 `~/.pulse-coder/sessions`）
+- 会话管理 - 保存与恢复对话（存储于 `~/.pulse-coder/sessions`），裸 `/resume` 弹出交互式选择器（过滤 + ↑↓），也支持序号/ID 前缀；`--continue` 启动即恢复最近会话；列表预览对含工具调用的结构化消息提取纯文本
+- 滚动回看 - Ink 宿主把已完成输出写入终端原生 scrollback（Ink `<Static>`），长回答不截断、可随时上翻
+- 工具透明 - 每个工具一行灰色留痕 + 行尾智能摘要（`· 350 lines` / `· 10 matches` / 错误首行标红），`Ctrl+O` 切换内容预览模式，永不 dump JSON
+- 叙述分层 - 工具调用之间的过程叙述灰色显示，只有收尾的最终回答保持白色 + Markdown；状态行运行期稳定显示实耗时（`Running agent · 2m10s`），不随单个工具完成翻动
+- 流式工具参数 - 模型开始生成工具调用时 live 区即出现该工具行，参数尾部实时增长，最终标签原位替换；并行工具结果按 callId 精确归位
+- 状态栏密度 - `ctx ~46k (72%)` 上下文占比（窗口取引擎 `CONTEXT_WINDOW_TOKENS`，默认 64k）+ `cache 82%` 提示词缓存命中率（provider 上报 `cachedInputTokens` 时显示）+ `out ~3.4k` 累计输出 tokens；`/status` 另有单次/会话两级缓存命中明细
+- 会话自动标题 - 默认标题的会话在首条消息后自动以消息内容命名（显式 `/new <title>` 不受影响）
+- 压缩可见性 - 压缩真正开始时状态行变为 `Compacting context…`（engine `onCompactionStart` 回调），完成后打一行横幅（前后消息数 / tokens / 原因）；`/compact` 进入处理态，期间输入自动排队
+- 模型切换 - `/model` 弹出选择器（候选来自 `.pulse-coder/models.json`）或 `/model <id>` / `/model claude:<id>` 直接切换、`/model reset` 回到 env 默认；`--model` 启动参数同理；状态栏常驻 `model <名>` 段
+- 按模型配置上下文窗口 - models.json 条目可带 `contextWindow`（如 200000），切换后 `ctx %` 分母与 **engine 压缩阈值（75%/50%）** 一起跟随该模型，不再固定 64k；全局默认仍可用 `CONTEXT_WINDOW_TOKENS` 环境变量调整
+- 输出分层 - 引擎/插件日志默认写入 `~/.pulse-coder/logs/cli.log` 不上屏（warn/error 以暗色单行显示），`/debug on` 或 `--verbose` 实时查看，`/debug tail <n>` 回看
+- 轻量 Markdown 渲染 - 标题/加粗/行内代码/列表/代码块在终端中着色显示
 - ACP 模式 - CLI 内置 ACP 切换与路由，支持 `//` 前缀强制透传
 - Teams 多智能体 - `/team` DAG 编排与 `/teams` 持续协作模式
-- 计划模式 - `/plan`、`/execute` 切换交互模式
+- 计划模式 - edit / plan 两档（`Shift+Tab` 或 `/mode` 切换），分别映射引擎 executing / planning；`/chat` `/auto` `/execute` 为兼容别名（均指向 edit）
+- 非交互模式 - `pulse-coder -p "<prompt>"`（支持 stdin 管道）跑完即退，适合脚本/CI
 - 双 UI 宿主 - 默认 Ink，可回退 readline
 
 ## 使用示例
@@ -44,6 +56,20 @@ pulse-coder
 ```
 
 全局链接安装后得到的是 `pulse-coder` 命令（不是 `coder`）。
+
+### 命令行参数
+
+```
+pulse-coder                     # 交互式（默认 Ink UI）
+pulse-coder -c | --continue     # 启动时恢复最近一次会话
+pulse-coder -p "<prompt>"       # 非交互：跑一条 prompt，流式输出到 stdout 后退出
+git diff | pulse-coder -p "review this"   # stdin 会拼接到 prompt 之后
+pulse-coder --ui readline       # 指定 UI 宿主（ink / readline / plain）
+pulse-coder --verbose           # 启动即实时显示引擎日志（等价 /debug on）
+pulse-coder --model claude:claude-opus-5   # 启动即指定模型（等价 /model …）
+```
+
+`-p` 模式下引擎/插件日志走 stderr，stdout 只包含回答文本，方便管道消费。
 
 ### 内置功能示例
 
@@ -80,7 +106,8 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 ```
 /help                       - 显示帮助
 /new [title]                - 创建新会话
-/resume <id>                - 恢复会话
+/resume                     - 交互式会话选择器（Ink 宿主：↑↓ 选择、Enter 恢复、Esc 取消、直接打字过滤）
+/resume <index|id-prefix|id> - 按序号 / 唯一 ID 前缀 / 完整 ID 恢复（readline 宿主仅此形式）
 /sessions                   - 列出所有会话
 /search <query>             - 搜索会话
 /rename <id> <new-title>    - 重命名会话
@@ -90,7 +117,7 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 /skills [list|<name|index> <message>] - 单次以某技能运行一条消息
 /wt use <work-name>         - 通过 worktree 技能创建工作树与分支
 /status                     - 显示会话状态
-/mode                       - 显示当前模式（Ink 宿主: /mode [chat|plan|edit|auto] 设置模式）
+/mode                       - 显示当前模式（Ink 宿主: /mode [edit|plan] 设置模式）
 /plan                       - 切换到计划模式
 /execute                    - 切换到执行模式
 /team <task>                - 运行多智能体团队（默认 LLM 规划 DAG）
@@ -101,10 +128,22 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 /solo                       - 退出 teams 模式，回到普通 agent
 /save                       - 显式保存当前会话
 /tui [on|off|status]        - 切换或查看 TUI 渲染器（Ink 宿主: /tui [status] 查看 Ink 状态）
+/debug [on|off|tail <n>]    - 引擎日志层：切换实时显示 / 回看最近 n 条（Ink 宿主）
+/model [id|claude:<id>|reset] - 查看/切换模型；裸 /model 弹出选择器（Ink 宿主）
 /exit                       - 退出并保存
 ```
 
-控制键：处理中按 `Esc` 中止当前响应并接受下一条输入；`Ctrl+C` 立即退出。
+控制键（Ink 宿主）：
+
+- `Esc` - 处理中：中止当前响应；空闲：清空当前草稿（不会退出程序）
+- `Ctrl+C` - 双击退出（首击清空草稿并提示，2 秒内再按一次保存退出）
+- `Shift+Tab` - 切换 CLI 交互模式（edit ↔ plan，映射引擎 executing / planning）
+- `↑/↓` - 历史输入（持久化于 `~/.pulse-coder/history.json`，跨会话保留）
+- `Ctrl+J` - 草稿内换行；粘贴（含多行）原样插入，不会误触发送
+- `Ctrl+O` - 切换工具留痕详情（一行摘要 ↔ 内容预览；只影响之后的留痕）
+- 处理中输入会排队，当前轮结束后自动执行
+
+readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。
 
 ### ACP 模式
 
@@ -142,6 +181,32 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
   }
 }
 ```
+
+### 模型候选配置（provider 粒度）
+
+创建 `.pulse-coder/models.json`（兼容 `.coder/models.json`），作为 `/model` 选择器的候选来源。`providers` 定义连接（可同时挂多个 OpenAI 兼容源），`models` 引用它们：
+
+```json
+{
+  "providers": {
+    "deepseek":  { "type": "openai", "baseUrl": "https://api.deepseek.com/v1",     "apiKeyEnv": "DEEPSEEK_API_KEY" },
+    "novita":    { "type": "openai", "baseUrl": "https://api.novita.ai/v3/openai", "apiKeyEnv": "NOVITA_API_KEY" },
+    "anthropic": { "type": "claude" }
+  },
+  "models": [
+    { "model": "deepseek-v4-flash", "provider": "deepseek",  "contextWindow": 128000 },
+    { "model": "claude-opus-5",     "provider": "anthropic", "label": "Opus 5", "contextWindow": 200000 },
+    "deepseek:deepseek-r2",
+    "openai:gpt-5.2"
+  ]
+}
+```
+
+- `type` 是 SDK 通道（`openai` 兼容层 / `claude`），`baseUrl` + `apiKeyEnv` 组成连接；**密钥只能用 `apiKeyEnv` 引用环境变量名，内联 `apiKey` 会被忽略并警告**（本文件可进版本库）
+- 字符串条目前缀可以是 provider 名（`deepseek:…`）或通道名（`claude:` / `openai:`）；`/model deepseek:任意模型` 也可直接引用 provider
+- `contextWindow` 同时驱动状态栏 `ctx %` 与 engine 压缩阈值（75%/50%）
+- 未配 `baseUrl`/`apiKeyEnv` 的条目沿用该通道的全局 env 连接；`apiKeyEnv` 指向的变量为空时回退到通道默认 key 并提示
+- OpenAI 通道走 Responses API——OpenAI 兼容网关需支持 `/responses`（与引擎既有行为一致）
 
 ### Skills 配置
 
@@ -232,20 +297,24 @@ pnpm --filter pulse-coder-cli start:debug # PULSE_CODER_DEBUG=1 重新构建并�
 ```
 src/
 ├── index.ts              # readline 宿主入口、命令循环、agent/ACP 路由、会话保存
-├── ui-mode.ts            # --ui/--tui 与 PULSE_CODER_UI 解析
-├── ink-launcher.tsx      # Ink 启动
-├── ink-controller.ts     # Ink 宿主控制器（命令处理、ACP 路由、会话同步、队列输入）
-├── ink-app.tsx           # Ink 渲染、输入合成、命令建议、历史、模式快捷
-├── ink-ui-bridge.ts      # 运行时回调与 Ink UI 的事件/快照桥接
+├── ui-mode.ts            # --ui/--tui/-p/--continue 与 PULSE_CODER_UI 解析
+├── print-mode.ts         # -p 非交互模式（stdout 仅输出回答，日志走 stderr）
+├── ink-launcher.tsx      # Ink 启动（exitOnCtrlC: false，历史存储装配）
+├── ink-controller.ts     # Ink 宿主控制器（命令处理、plan-mode 接线、ACP 路由、会话同步、队列输入）
+├── ink-app.tsx           # Ink 渲染（Static transcript、composer、粘贴、命令建议、历史）
+├── ink-ui-bridge.ts      # 运行时回调与 Ink UI 的桥接（append-only 事件 + live 区、工具结果预览、流式节流）
+├── markdown.ts           # 轻量 markdown → ANSI 渲染
+├── history-store.ts      # 输入历史持久化（~/.pulse-coder/history.json）
+├── log-sink.ts           # 引擎日志层：console 捕获 → ~/.pulse-coder/logs/cli.log + /debug
 ├── tui-renderer.ts       # readline 宿主渲染器
 ├── input-manager.ts      # 输入与 clarification 请求处理
 ├── session.ts            # 会话存储（~/.pulse-coder/sessions）
-├── session-commands.ts   # 会话斜杠命令
+├── session-commands.ts   # 会话斜杠命令（/resume 序号/前缀解析、resumeLatest）
 ├── skill-commands.ts     # /skills 命令
 ├── team-commands.ts      # /team、/teams、/solo 命令与 teams 会话
 ├── acp-commands.ts       # /acp 子命令、平台 key 解析、session 列举/关闭
 ├── memory-integration.ts # 记忆插件装配与每轮记忆上下文
-└── sandbox-runner.ts     # run_js 沙箱执行（构建为 dist/runner.cjs；当前活动 CLI 路径未直接导入）
+└── sandbox/              # run_js 沙箱执行（runner 构建为 dist/runner.cjs）
 ```
 
 各 `*.test.ts` 为对应的聚焦行为测试（`vitest run`）。

@@ -1,22 +1,14 @@
 import type { ClarificationRequest } from 'pulse-coder-engine';
 
 import type { TuiHelpItem, TuiRunSummary, TuiSessionSnapshot } from './tui-renderer.js';
-import type { InkCliEvent, InkCliSnapshot } from './ink-app.js';
+import type { InkCliEvent, InkCliSnapshot, InkLiveTool, InkPickerState } from './ink-app.js';
 
-export interface InkUiSnapshot extends Omit<InkCliSnapshot, 'events'> {}
+export interface InkUiSnapshot extends Omit<InkCliSnapshot, 'events' | 'liveText' | 'liveTools'> {}
 
 interface InkUiBridgeOptions {
-  maxEvents?: number;
   onChange: (snapshot: InkCliSnapshot) => void;
-}
-
-type ToolActivityStatus = 'running' | 'success' | 'error';
-
-interface ToolActivityCall {
-  id: string;
-  name: string;
-  summary: string;
-  status: ToolActivityStatus;
+  /** Minimum ms between snapshot emissions caused by streaming text. 0 = emit synchronously (tests). */
+  textThrottleMs?: number;
 }
 
 const DEFAULT_SNAPSHOT: InkUiSnapshot = {
@@ -25,6 +17,9 @@ const DEFAULT_SNAPSHOT: InkUiSnapshot = {
   mode: null,
   messages: 0,
   estimatedTokens: 0,
+  usageInputTokens: 0,
+  usageOutputTokens: 0,
+  contextWindowTokens: 0,
   queuedInputs: 0,
   isProcessing: false,
   status: 'Ready',
@@ -33,34 +28,78 @@ const DEFAULT_SNAPSHOT: InkUiSnapshot = {
   toolCalls: 0,
   completedTools: 0,
   lastStep: null,
+  picker: null,
 };
 
-const MAX_EVENT_TEXT_LENGTH = 4000;
+const MAX_EVENT_TEXT_LENGTH = 20000;
+const DEFAULT_TEXT_THROTTLE_MS = 33;
 
+/**
+ * Bridges runtime callbacks to the Ink UI.
+ *
+ * Rendering model (Claude Code-style):
+ * - `events` is an append-only transcript of finalized blocks. The app renders
+ *   it inside Ink's `<Static>`, so each event is printed once into the
+ *   terminal's native scrollback and never re-rendered or truncated away.
+ * - `liveText` / `liveTools` describe the in-flight region (streaming
+ *   assistant text, currently running tools) that re-renders in place.
+ */
 export class InkUiBridge {
   private snapshot: InkUiSnapshot = { ...DEFAULT_SNAPSHOT };
   private events: InkCliEvent[] = [];
   private eventCounter = 0;
-  private activeAssistantEventId: string | null = null;
-  private toolActivityEventId: string | null = null;
-  private toolActivityCalls: ToolActivityCall[] = [];
-  private readonly maxEvents: number;
+  private liveText = '';
+  private liveTools: InkLiveTool[] = [];
+  private liveToolCounter = 0;
   private readonly onChange: (snapshot: InkCliSnapshot) => void;
+  private readonly textThrottleMs: number;
+  private pendingEmit: NodeJS.Timeout | null = null;
+  private lastEmitAt = 0;
+  private toolDetail = false;
+  private readonly pendingInputBuffers = new Map<string, string>();
 
   constructor(options: InkUiBridgeOptions) {
-    this.maxEvents = options.maxEvents ?? 80;
     this.onChange = options.onChange;
+    this.textThrottleMs = options.textThrottleMs ?? DEFAULT_TEXT_THROTTLE_MS;
   }
 
   getSnapshot(): InkCliSnapshot {
     return {
       ...this.snapshot,
       events: this.events,
+      liveText: this.liveText,
+      liveTools: this.liveTools,
     };
   }
 
   emit(): void {
+    if (this.pendingEmit) {
+      clearTimeout(this.pendingEmit);
+      this.pendingEmit = null;
+    }
+    this.lastEmitAt = Date.now();
     this.onChange(this.getSnapshot());
+  }
+
+  private emitThrottled(): void {
+    if (this.textThrottleMs <= 0) {
+      this.emit();
+      return;
+    }
+
+    const elapsed = Date.now() - this.lastEmitAt;
+    if (elapsed >= this.textThrottleMs) {
+      this.emit();
+      return;
+    }
+
+    if (this.pendingEmit) {
+      return;
+    }
+    this.pendingEmit = setTimeout(() => {
+      this.pendingEmit = null;
+      this.emit();
+    }, this.textThrottleMs - elapsed);
   }
 
   updateSnapshot(partial: Partial<InkUiSnapshot>): void {
@@ -71,8 +110,13 @@ export class InkUiBridge {
     this.emit();
   }
 
-  showWelcome(): void {
-    this.addEvent('system', 'Welcome', 'Type a message and press Enter to run the agent. Use /help for commands. Shift+Tab cycles CLI mode. Esc stops the current response; Ctrl+C exits safely.');
+  showWelcome(info: { cwd?: string } = {}): void {
+    const lines = [
+      info.cwd ? `cwd: ${info.cwd}` : null,
+      'Type a message and press Enter. / for commands, Shift+Tab cycles mode.',
+      'Esc stops the current run · Ctrl+C twice exits.',
+    ].filter((line): line is string => Boolean(line));
+    this.addEvent('system', 'Pulse Coder', lines.join('\n'));
   }
 
   showHelp(items: TuiHelpItem[], footer: string[] = []): void {
@@ -89,10 +133,10 @@ export class InkUiBridge {
     this.section('TUI Status', [
       'Current UI: Ink',
       'Discovery: type / for slash-command suggestions, Tab completes the first match, Shift+Tab cycles CLI mode',
-      'Input: Enter send, Ctrl+J newline, ↑/↓ history, ←/→ move cursor, Ctrl+A/E jump',
+      'Input: Enter send, Ctrl+J newline, ↑/↓ history (persisted), ←/→ move cursor, Ctrl+A/E jump, paste is inserted literally',
       'Editing: Ctrl+U delete before cursor, Ctrl+K delete after cursor, Ctrl+W delete previous word',
-      'Control: Esc stops a run; when idle it clears input first, then exits on empty input',
-      'Display: Ctrl+L clears the visible transcript only; /clear resets conversation context',
+      'Control: Esc stops a run or clears the draft; Ctrl+C twice exits (first press clears the draft)',
+      'Transcript: finished output stays in the terminal scrollback — scroll up to review it',
       'Fallback: PULSE_CODER_UI=readline pulse-coder',
       'Plain fallback: PULSE_CODER_PLAIN=1 PULSE_CODER_UI=readline pulse-coder',
     ]);
@@ -108,8 +152,26 @@ export class InkUiBridge {
     });
   }
 
+  /** Modal list selection rendered in place of the composer (e.g. /resume). */
+  showPicker(picker: InkPickerState): void {
+    this.updateSnapshot({ picker, status: picker.title });
+  }
+
+  hidePicker(status = 'Ready'): void {
+    this.updateSnapshot({ picker: null, status });
+  }
+
+  usage(usage: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number }): void {
+    this.updateSnapshot({
+      ...(typeof usage.inputTokens === 'number' ? { usageInputTokens: usage.inputTokens } : {}),
+      ...(typeof usage.outputTokens === 'number' ? { usageOutputTokens: usage.outputTokens } : {}),
+      ...(typeof usage.cachedInputTokens === 'number' ? { usageCachedTokens: usage.cachedInputTokens } : {}),
+    });
+  }
+
   runSummary(summary: TuiRunSummary): void {
-    this.activeAssistantEventId = null;
+    this.finalizeLiveText();
+    this.finalizeLiveTools('info');
     this.updateSnapshot({
       isProcessing: false,
       messages: summary.messages,
@@ -118,6 +180,7 @@ export class InkUiBridge {
       status: `Done in ${this.formatDuration(summary.elapsedMs)} · tools ${summary.toolCalls}`,
       phase: 'Complete',
       activeTool: null,
+      runStartedAt: null,
       toolCalls: summary.toolCalls,
       completedTools: summary.toolCalls,
     });
@@ -129,8 +192,7 @@ export class InkUiBridge {
 
   plain(message = ''): void {
     if (!message) {
-      this.activeAssistantEventId = null;
-      this.emit();
+      this.finalizeLiveText();
       return;
     }
 
@@ -153,30 +215,38 @@ export class InkUiBridge {
     this.addEvent('error', undefined, message);
   }
 
+  /** Engine log layer: rendered as a compact dim line in the transcript. */
+  log(message: string): void {
+    this.addEvent('log', undefined, message);
+  }
+
   queued(message: string): void {
     this.addEvent('system', 'Queued', message);
   }
 
   abort(message: string): void {
-    this.activeAssistantEventId = null;
+    this.finalizeLiveText();
+    this.finalizeLiveTools('error', '(cancelled)');
     this.updateSnapshot({
       isProcessing: false,
       status: 'Cancelled',
       phase: 'Cancelled',
       activeTool: null,
+      runStartedAt: null,
     });
     this.addEvent('error', 'Abort', message);
   }
 
   startProcessing(label = 'Processing'): void {
-    this.activeAssistantEventId = null;
-    this.toolActivityEventId = null;
-    this.toolActivityCalls = [];
+    this.liveText = '';
+    this.liveTools = [];
+    this.pendingInputBuffers.clear();
     this.updateSnapshot({
       isProcessing: true,
       status: label,
       phase: label,
       activeTool: null,
+      runStartedAt: Date.now(),
       toolCalls: 0,
       completedTools: 0,
       lastStep: null,
@@ -184,66 +254,107 @@ export class InkUiBridge {
   }
 
   stopProcessing(): void {
+    this.finalizeLiveText();
+    this.finalizeLiveTools('info');
     this.updateSnapshot({
       isProcessing: false,
       status: 'Ready',
       phase: 'Idle',
       activeTool: null,
+      runStartedAt: null,
     });
   }
 
   text(delta: string): void {
-    if (!this.activeAssistantEventId) {
-      this.activeAssistantEventId = this.addEvent('assistant', undefined, '', false);
-    }
-
-    this.updateEvent(this.activeAssistantEventId, event => ({
-      ...event,
-      text: this.truncateEventText(`${event.text}${delta}`),
-    }));
+    this.liveText = this.truncateEventText(`${this.liveText}${delta}`);
+    this.emitThrottled();
   }
 
-  toolCall(name: string, input?: unknown): void {
-    this.activeAssistantEventId = null;
-    const nextToolCalls = this.snapshot.toolCalls + 1;
-    const call: ToolActivityCall = {
-      id: `tool-${nextToolCalls}`,
-      name,
-      summary: this.summarizeToolInput(name, input),
-      status: 'running',
-    };
-    this.toolActivityCalls = [...this.toolActivityCalls, call];
-    this.upsertToolActivityEvent();
+  /**
+   * Streaming tool arguments (AI SDK tool-input-* chunks): a live line appears
+   * as soon as the model starts emitting a call, its label growing with the
+   * argument tail, and is replaced in place by the final label on tool-call.
+   */
+  toolInputStart(id: string, name: string): void {
+    this.finalizeLiveText('interim');
+    this.pendingInputBuffers.set(id, '');
+    this.liveTools = [...this.liveTools, { id, name, label: `${name} …` }];
     this.updateSnapshot({
       phase: 'Using tool',
       activeTool: name,
-      toolCalls: nextToolCalls,
-      status: `Running tool: ${name}`,
     });
   }
 
-  toolResult(name: string): void {
-    const nextCompletedTools = Math.min(this.snapshot.toolCalls, this.snapshot.completedTools + 1);
-    const runningIndex = this.findRunningToolIndex(name);
-    if (runningIndex >= 0) {
-      this.toolActivityCalls = this.toolActivityCalls.map((call, index) => index === runningIndex ? {
-        ...call,
-        name: call.name || name,
-        status: 'success',
-      } : call);
+  toolInputDelta(id: string, delta: string): void {
+    if (!this.pendingInputBuffers.has(id)) {
+      return;
     }
-    this.upsertToolActivityEvent();
+    const buffer = `${this.pendingInputBuffers.get(id)}${delta}`.slice(-400);
+    this.pendingInputBuffers.set(id, buffer);
+    if (!this.liveTools.some(tool => tool.id === id)) {
+      return;
+    }
+    const tail = this.formatPendingInputTail(buffer);
+    this.liveTools = this.liveTools.map(tool => tool.id === id ? { ...tool, label: `${tool.name} · ${tail}` } : tool);
+    this.emitThrottled();
+  }
 
+  toolInputEnd(id: string): void {
+    this.pendingInputBuffers.delete(id);
+  }
+
+  toolCall(name: string, input?: unknown, callId?: string): void {
+    // Text finalized because a tool starts = in-run narration, not the answer.
+    this.finalizeLiveText('interim');
+    const label = this.formatToolLabel(name, this.summarizeToolInput(name, input));
+    const pendingIndex = callId ? this.liveTools.findIndex(tool => tool.id === callId) : -1;
+    if (pendingIndex >= 0) {
+      this.liveTools = this.liveTools.map((tool, index) => index === pendingIndex ? { ...tool, name, label } : tool);
+    } else {
+      this.liveTools = [...this.liveTools, {
+        id: callId ?? `live-tool-${++this.liveToolCounter}`,
+        name,
+        label,
+      }];
+    }
+    // The status TEXT stays stable while running — per-tool churn ("Running
+    // tool: X" / "Completed tool: Y") goes stale the moment tools overlap.
     this.updateSnapshot({
-      phase: 'Tool completed',
-      activeTool: null,
-      completedTools: nextCompletedTools,
-      status: `Completed tool: ${name}`,
+      phase: 'Using tool',
+      activeTool: name,
+      toolCalls: this.snapshot.toolCalls + 1,
+    });
+  }
+
+  /** Toggle between one-line summaries (default) and 3-line content previews for FUTURE tool traces. */
+  setToolDetail(on: boolean): void {
+    this.toolDetail = on;
+    this.log(on
+      ? 'Detail: on · tool traces now include a content preview (Ctrl+O to turn off)'
+      : 'Detail: off · tool traces show one-line summaries');
+  }
+
+  getToolDetail(): boolean {
+    return this.toolDetail;
+  }
+
+  toolResult(name: string, output?: unknown, callId?: string): void {
+    const entry = this.takeRunningTool(name, callId);
+    const isError = this.detectToolError(output);
+    const label = entry?.label ?? name;
+    const summary = this.summarizeToolResult(name, output, isError);
+    const preview = this.toolDetail ? this.formatToolResultPreview(output) : '';
+    this.addEvent('tool', summary ? `${label} · ${summary}` : label, preview, true, { status: isError ? 'error' : 'success' });
+
+    const stillRunning = this.liveTools.length > 0;
+    this.updateSnapshot({
+      phase: stillRunning ? 'Using tool' : 'Tool completed',
+      activeTool: stillRunning ? this.liveTools[this.liveTools.length - 1].name : null,
+      completedTools: Math.min(this.snapshot.toolCalls, this.snapshot.completedTools + 1),
     });
   }
 
   stepFinished(reason: string): void {
-    this.addEvent('system', 'Step finished', reason, true, { status: 'info' });
     this.updateSnapshot({
       phase: 'Step finished',
       activeTool: null,
@@ -252,10 +363,12 @@ export class InkUiBridge {
   }
 
   user(message: string): void {
+    this.finalizeLiveText();
     this.addEvent('user', undefined, message);
   }
 
   clarification(request: ClarificationRequest): void {
+    this.finalizeLiveText();
     const lines = [request.question];
     if (request.context) {
       lines.push(request.context);
@@ -267,74 +380,149 @@ export class InkUiBridge {
     this.updateSnapshot({ status: 'Waiting for clarification' });
   }
 
-  private upsertToolActivityEvent(): void {
-    if (this.toolActivityCalls.length === 0) {
+  /**
+   * `interim` = narration between tool calls (rendered muted);
+   * `final` = the answer segment that ends a run (bright + markdown).
+   */
+  private finalizeLiveText(kind: 'interim' | 'final' = 'final'): void {
+    if (!this.liveText.trim()) {
+      this.liveText = '';
       return;
     }
 
-    const status = this.toolActivityCalls.some(call => call.status === 'running') ? 'running' : 'success';
-    const title = 'Tools';
-    const text = this.formatToolActivityText();
-    const summary = this.formatToolActivitySummary();
+    const text = this.liveText;
+    this.liveText = '';
+    this.addEvent('assistant', undefined, text, true, kind === 'interim' ? { status: 'info' } : {});
+  }
 
-    if (!this.toolActivityEventId || !this.events.some(event => event.id === this.toolActivityEventId)) {
-      this.toolActivityEventId = this.addEvent('tool', title, text, false, { status, summary });
-      this.emit();
+  private finalizeLiveTools(status: 'info' | 'error', note = ''): void {
+    if (this.liveTools.length === 0) {
       return;
     }
 
-    this.updateEvent(this.toolActivityEventId, event => ({
-      ...event,
-      title,
-      text,
-      status,
-      summary,
-    }));
-  }
-
-  private findRunningToolIndex(name: string): number {
-    const sameNameIndex = this.toolActivityCalls.findIndex(call => call.status === 'running' && call.name === name);
-    if (sameNameIndex >= 0) {
-      return sameNameIndex;
+    const pending = this.liveTools;
+    this.liveTools = [];
+    for (const entry of pending) {
+      this.addEvent('tool', entry.label, note, true, { status });
     }
-    return this.toolActivityCalls.findIndex(call => call.status === 'running');
   }
 
-  private formatToolActivityText(): string {
-    const counts = this.countToolNames();
-    const groupedTools = Object.entries(counts)
-      .map(([tool, count]) => count > 1 ? `${tool} ×${count}` : tool)
-      .join(' · ');
-    const latestCalls = this.toolActivityCalls.slice(-5).map(call => {
-      const icon = call.status === 'success' ? '✓' : call.status === 'error' ? '✕' : '·';
-      // If summary already has an action prefix, skip repeating the tool name
-      const hasActionPrefix = /^\s*(\$|open |grep |find |search |edit |write |patch |ls )/.test(call.summary);
-      const label = hasActionPrefix ? call.summary : `${call.name}: ${call.summary}`;
-      return `  ${icon} ${label}`;
-    });
-    const lines = [`  ${groupedTools || 'No tools yet'}`];
-
-    if (latestCalls.length > 0) {
-      lines.push('', ...latestCalls);
+  private takeRunningTool(name: string, callId?: string): InkLiveTool | null {
+    const byId = callId ? this.liveTools.findIndex(entry => entry.id === callId) : -1;
+    const byName = this.liveTools.findIndex(entry => entry.name === name);
+    const resolvedIndex = byId >= 0 ? byId : byName >= 0 ? byName : this.liveTools.length > 0 ? 0 : -1;
+    if (resolvedIndex < 0) {
+      return null;
     }
 
-    return lines.join('\n');
+    const entry = this.liveTools[resolvedIndex];
+    this.liveTools = this.liveTools.filter((_, i) => i !== resolvedIndex);
+    return entry;
   }
 
-  private formatToolActivitySummary(): string {
-    const total = this.toolActivityCalls.length;
-    const completed = this.toolActivityCalls.filter(call => call.status === 'success').length;
-    const running = this.toolActivityCalls.find(call => call.status === 'running');
-    const callLabel = total === 1 ? 'call' : 'calls';
-    return running ? `${total} ${callLabel} · ${completed} done · running ${running.name}` : `${total} ${callLabel} · ${completed} done`;
+  /** Human-glanceable tail of a partially-streamed JSON argument object. */
+  private formatPendingInputTail(buffer: string, maxLength = 48): string {
+    const stripped = buffer.replace(/[{}"\\]/g, '').replace(/\s+/g, ' ').trim();
+    if (stripped.length <= maxLength) {
+      return stripped || '…';
+    }
+    return `…${stripped.slice(-maxLength)}`;
   }
 
-  private countToolNames(): Record<string, number> {
-    return this.toolActivityCalls.reduce<Record<string, number>>((counts, call) => {
-      const toolName = call.name || 'tool';
-      counts[toolName] = (counts[toolName] ?? 0) + 1;
-      return counts;
-    }, {});
+  private formatToolLabel(name: string, summary: string): string {
+    const hasActionPrefix = /^\s*(\$|open |grep |find |search |edit |write |patch |ls )/.test(summary);
+    return hasActionPrefix ? summary : `${name}: ${summary}`;
+  }
+
+  /**
+   * One-line result summary appended to the tool label.
+   * Text output: single line inlined, multi-line counted with a
+   * category-appropriate noun. Structured output without a text field yields
+   * no summary — never a JSON dump. Errors inline the first error line.
+   */
+  private summarizeToolResult(name: string, output: unknown, isError: boolean): string {
+    const text = this.extractOutputText(output);
+    if (text === null || !text.trim()) {
+      return isError ? 'failed' : '';
+    }
+
+    const lines = this.splitOutputLines(text);
+    if (isError || lines.length <= 1) {
+      return this.compactText(lines[0] ?? '', isError ? 80 : 60);
+    }
+
+    const normalizedName = name.toLowerCase();
+    const noun = this.isSearchTool(normalizedName) ? 'matches' : this.isListTool(normalizedName) ? 'items' : 'lines';
+    return `${lines.length} ${noun}`;
+  }
+
+  private formatToolResultPreview(output: unknown, maxLines = 3): string {
+    const text = this.extractOutputText(output) ?? this.compactText(this.safeStringify(output), 120);
+    if (!text.trim()) {
+      return '';
+    }
+
+    const lines = this.splitOutputLines(text);
+    const head = lines.slice(0, maxLines).map(line => this.compactText(line, 120));
+    const remaining = lines.length - head.length;
+    if (remaining > 0) {
+      head.push(`… +${remaining} lines`);
+    }
+    return head.join('\n');
+  }
+
+  private splitOutputLines(text: string): string[] {
+    const lines = text.split('\n').map(line => line.trimEnd());
+    while (lines.length > 0 && !lines[lines.length - 1]) {
+      lines.pop();
+    }
+    while (lines.length > 0 && !lines[0]) {
+      lines.shift();
+    }
+    return lines;
+  }
+
+  /** Returns the human-readable text of a tool output, or null when there is none. */
+  private extractOutputText(output: unknown): string | null {
+    if (output === null || output === undefined) {
+      return null;
+    }
+    if (typeof output === 'string') {
+      return output;
+    }
+    if (Array.isArray(output)) {
+      const joined = output
+        .map(part => {
+          if (typeof part === 'string') return part;
+          const record = this.asRecord(part);
+          return typeof record?.text === 'string' ? record.text : '';
+        })
+        .filter(Boolean)
+        .join('\n');
+      return joined || null;
+    }
+
+    const record = this.asRecord(output);
+    if (record) {
+      if (typeof record.text === 'string') return record.text;
+      if (typeof record.output === 'string') return record.output;
+      if (typeof record.content === 'string') return record.content;
+      if (Array.isArray(record.content)) return this.extractOutputText(record.content);
+      if (typeof record.error === 'string') return record.error;
+    }
+    return null;
+  }
+
+  private detectToolError(output: unknown): boolean {
+    const record = this.asRecord(output);
+    if (record) {
+      if (record.isError === true || record.is_error === true) return true;
+      if (record.error !== undefined && record.error !== null && record.error !== false) return true;
+    }
+    if (typeof output === 'string') {
+      return /^(error|failed)\b/i.test(output.trim());
+    }
+    return false;
   }
 
   private addEvent(
@@ -354,18 +542,13 @@ export class InkUiBridge {
         text: this.truncateEventText(text),
         ...metadata,
       },
-    ].slice(-this.maxEvents);
+    ];
 
     if (emit) {
       this.emit();
     }
 
     return id;
-  }
-
-  private updateEvent(id: string, updater: (event: InkCliEvent) => InkCliEvent): void {
-    this.events = this.events.map(event => event.id === id ? updater(event) : event);
-    this.emit();
   }
 
   private truncateEventText(text: string): string {
@@ -404,7 +587,7 @@ export class InkUiBridge {
         const searchPath = this.pickString(record, ['path', 'cwd', 'dir', 'glob']);
         const toolVerb = normalizedName.includes('grep') ? 'grep' : normalizedName.includes('find') ? 'find' : 'search';
         if (pattern && searchPath) {
-          return `${toolVerb} "${this.compactText(pattern, 40)}" in ${this.shortPath(searchPath)}`;
+          return `${toolVerb} "${this.compactText(pattern, 40)}" in ${this.shortPath(searchPath, 40)}`;
         }
         if (pattern) return `${toolVerb} "${this.compactText(pattern, 60)}"`;
         if (searchPath) return `${toolVerb} ${this.shortPath(searchPath)}`;
@@ -422,6 +605,10 @@ export class InkUiBridge {
         return `ls ${this.shortPath(dirPath)}`;
       }
 
+      const primary = this.pickString(record, ['name', 'title', 'id', 'action', 'query']);
+      if (primary) {
+        return this.compactText(primary, 60);
+      }
       const keys = Object.keys(record).slice(0, 3);
       return keys.length > 0 ? `input: ${keys.join(', ')}` : 'input object';
     }
@@ -506,7 +693,9 @@ export class InkUiBridge {
   }
 
   private isListTool(name: string): boolean {
-    return name === 'ls' || name.includes('list');
+    // Only filesystem-style listers: `task_list` and friends must not be
+    // summarized as `ls <path>`.
+    return name === 'ls' || name === 'list' || name.startsWith('list_');
   }
 
   private safeStringify(value: unknown): string {
@@ -514,7 +703,7 @@ export class InkUiBridge {
       if (typeof value === 'string') {
         return value;
       }
-      return JSON.stringify(value, null, 2);
+      return JSON.stringify(value);
     } catch {
       return String(value);
     }

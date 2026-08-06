@@ -1,4 +1,4 @@
-import { SessionManager, type Session } from './session.js';
+import { extractMessageText, SessionManager, type Session, type SessionSummary } from './session.js';
 import type { Context } from 'pulse-coder-engine';
 
 export class SessionCommands {
@@ -53,10 +53,68 @@ export class SessionCommands {
   }
 
 
-  async resumeSession(id: string): Promise<boolean> {
-    const session = await this.sessionManager.loadSession(id);
+  /**
+   * Resolve a user-facing session reference to a real session id.
+   * Accepts: exact id, 1-based index into the `/sessions` listing (most recent
+   * first), or a unique id prefix (>= 4 chars).
+   */
+  private async resolveSessionRef(ref: string): Promise<{ id?: string; reason?: string }> {
+    const trimmed = ref.trim();
+    if (!trimmed) {
+      return { reason: 'Empty session reference' };
+    }
+
+    if (await this.sessionManager.loadSession(trimmed)) {
+      return { id: trimmed };
+    }
+
+    const sessions = await this.sessionManager.listSessions(100);
+
+    if (/^\d{1,3}$/.test(trimmed)) {
+      const index = Number(trimmed) - 1;
+      const match = sessions[index];
+      return match
+        ? { id: match.id }
+        : { reason: `Index ${trimmed} is out of range (${sessions.length} sessions)` };
+    }
+
+    if (trimmed.length >= 4) {
+      const prefixMatches = sessions.filter(session => session.id.startsWith(trimmed));
+      if (prefixMatches.length === 1) {
+        return { id: prefixMatches[0].id };
+      }
+      if (prefixMatches.length > 1) {
+        return { reason: `Prefix "${trimmed}" matches ${prefixMatches.length} sessions; be more specific` };
+      }
+    }
+
+    return { reason: `Session not found: ${trimmed}` };
+  }
+
+  /** Sessions offered by the interactive picker: non-empty, excluding the active one. */
+  async listForPicker(limit = 50): Promise<SessionSummary[]> {
+    const sessions = await this.sessionManager.listSessions(limit);
+    return sessions.filter(session => session.messageCount > 0 && session.id !== this.currentSessionId);
+  }
+
+  async resumeLatest(): Promise<boolean> {
+    const [latest] = await this.sessionManager.listSessions(1);
+    if (!latest) {
+      return false;
+    }
+    return this.resumeSession(latest.id);
+  }
+
+  async resumeSession(ref: string): Promise<boolean> {
+    const resolved = await this.resolveSessionRef(ref);
+    if (!resolved.id) {
+      this.log(`\n❌ ${resolved.reason}`);
+      return false;
+    }
+
+    const session = await this.sessionManager.loadSession(resolved.id);
     if (!session) {
-      this.log(`\n❌ Session not found: ${id}`);
+      this.log(`\n❌ Session not found: ${resolved.id}`);
       return false;
     }
 
@@ -66,14 +124,16 @@ export class SessionCommands {
     this.log(`🗂️ Task list: ${this.currentTaskListId}`);
     this.log(`📊 Loaded ${session.messages.length} messages`);
 
-    // Show last few messages as context
-    const recentMessages = session.messages.slice(-5);
+    // Show the last few text-bearing turns as context (tool traffic skipped)
+    const recentMessages = session.messages
+      .filter(msg => (msg.role === 'user' || msg.role === 'assistant') && extractMessageText(msg.content).trim())
+      .slice(-5);
     if (recentMessages.length > 0) {
       this.log('\n💬 Recent conversation:');
       recentMessages.forEach((msg, index) => {
         const role = msg.role === 'user' ? '👤 You' : '🤖 Assistant';
-        const contentStr = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-        const preview = contentStr.substring(0, 100) + (contentStr.length > 100 ? '...' : '');
+        const contentStr = extractMessageText(msg.content).replace(/\s+/g, ' ').trim();
+        const preview = contentStr.substring(0, 100) + (contentStr.length > 100 ? '…' : '');
         this.log(`${index + 1}. ${role}: ${preview}`);
       });
     }
@@ -104,6 +164,29 @@ export class SessionCommands {
       this.log(`   Preview: ${session.preview}`);
       this.log();
     });
+    this.log('Resume with /resume <index>, a unique id prefix, or the full id.');
+  }
+
+  /**
+   * Auto-title a session from its first user message, but only while it still
+   * carries the default "Session <date>" title — explicit titles are kept.
+   */
+  async maybeAutoTitle(firstUserText: string): Promise<void> {
+    if (!this.currentSessionId) {
+      return;
+    }
+
+    const session = await this.sessionManager.loadSession(this.currentSessionId);
+    if (!session || !/^Session /.test(session.title)) {
+      return;
+    }
+
+    const title = firstUserText.replace(/\s+/g, ' ').trim().slice(0, 48);
+    if (!title) {
+      return;
+    }
+
+    await this.sessionManager.updateSessionTitle(this.currentSessionId, title);
   }
 
   async saveContext(context: Context): Promise<void> {

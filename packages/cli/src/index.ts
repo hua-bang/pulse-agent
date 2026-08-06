@@ -9,7 +9,7 @@ import { runTeam, TeamsSession } from './team-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
 import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
-import { resolveCliUiMode } from './ui-mode.js';
+import { parseCliArgs } from './ui-mode.js';
 import { createPulseCliTools } from './runtime-tools.js';
 
 const LOCAL_COMMANDS = new Set([
@@ -361,7 +361,7 @@ class CoderCLI {
     }
   }
 
-  async start() {
+  async start(options: { continueLast?: boolean } = {}) {
     this.tui.showWelcome();
 
     await this.sessionCommands.initialize();
@@ -372,8 +372,12 @@ class CoderCLI {
     const pluginStatus = this.agent.getPluginStatus();
     this.tui.showPluginStatus(pluginStatus.enginePlugins.length);
 
-    // Auto-create a new session
-    await this.sessionCommands.createSession();
+    // Resume the most recent session with --continue, otherwise auto-create one
+    if (options.continueLast && await this.sessionCommands.resumeLatest()) {
+      await this.sessionCommands.loadContext(this.context);
+    } else {
+      await this.sessionCommands.createSession();
+    }
     await this.syncSessionTaskListBinding();
 
     const rl = readline.createInterface({
@@ -620,6 +624,10 @@ class CoderCLI {
         mode: this.agent.getMode(),
       });
 
+      if (this.context.messages.length === 0) {
+        await this.sessionCommands.maybeAutoTitle(messageInput);
+      }
+
       this.context.messages.push({
         role: 'user',
         content: messageInput,
@@ -810,17 +818,27 @@ class CoderCLI {
 }
 
 async function main(): Promise<void> {
-  if (resolveCliUiMode() === 'ink') {
+  const parsed = parseCliArgs();
+
+  if (parsed.print) {
+    const { runPrintMode } = await import('./print-mode.js');
+    process.exit(await runPrintMode(parsed.prompt));
+  }
+
+  if (parsed.uiMode === 'ink') {
     const { startInkTui } = await import('./ink-launcher.js');
-    await startInkTui();
+    await startInkTui({ continueLast: parsed.continueLast, verbose: parsed.verbose, model: parsed.model });
     return;
   }
 
   const cli = new CoderCLI();
-  await cli.start();
+  await cli.start({ continueLast: parsed.continueLast });
 }
 
 main().catch(error => {
-  console.error('Failed to start CLI:', error);
+  // Write straight to stderr: with the Ink host's EngineLogSink installed,
+  // console.error is captured into the log file and a startup crash would
+  // otherwise be silent.
+  process.stderr.write(`Failed to start CLI: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
   process.exit(1);
 });

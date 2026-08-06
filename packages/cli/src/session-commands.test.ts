@@ -47,6 +47,7 @@ describe('SessionCommands', () => {
 
   it('returns false when resuming a non-existing session', async () => {
     vi.spyOn(SessionManager.prototype, 'loadSession').mockResolvedValue(null);
+    vi.spyOn(SessionManager.prototype, 'listSessions').mockResolvedValue([]);
 
     const commands = new SessionCommands();
     const resumed = await commands.resumeSession('missing');
@@ -54,6 +55,70 @@ describe('SessionCommands', () => {
     expect(resumed).toBe(false);
     expect(commands.getCurrentSessionId()).toBeNull();
     expect(commands.getCurrentTaskListId()).toBeNull();
+  });
+
+  it('resumes by 1-based index from the session listing', async () => {
+    const target = makeSession({ id: 'recent-session' });
+    vi.spyOn(SessionManager.prototype, 'loadSession').mockImplementation(async id => (id === 'recent-session' ? target : null));
+    vi.spyOn(SessionManager.prototype, 'listSessions').mockResolvedValue([
+      { id: 'recent-session', title: 'A', createdAt: 1, updatedAt: 2, messageCount: 0, preview: '' },
+      { id: 'older-session', title: 'B', createdAt: 1, updatedAt: 1, messageCount: 0, preview: '' },
+    ]);
+    vi.spyOn(SessionManager.prototype, 'saveSession').mockResolvedValue();
+
+    const commands = new SessionCommands();
+    expect(await commands.resumeSession('1')).toBe(true);
+    expect(commands.getCurrentSessionId()).toBe('recent-session');
+  });
+
+  it('resumes by unique id prefix and rejects ambiguous prefixes', async () => {
+    const target = makeSession({ id: 'abcd-unique' });
+    vi.spyOn(SessionManager.prototype, 'loadSession').mockImplementation(async id => (id === 'abcd-unique' ? target : null));
+    const listSpy = vi.spyOn(SessionManager.prototype, 'listSessions').mockResolvedValue([
+      { id: 'abcd-unique', title: 'A', createdAt: 1, updatedAt: 2, messageCount: 0, preview: '' },
+    ]);
+    vi.spyOn(SessionManager.prototype, 'saveSession').mockResolvedValue();
+
+    const commands = new SessionCommands();
+    expect(await commands.resumeSession('abcd')).toBe(true);
+    expect(commands.getCurrentSessionId()).toBe('abcd-unique');
+
+    listSpy.mockResolvedValue([
+      { id: 'abcd-one', title: 'A', createdAt: 1, updatedAt: 2, messageCount: 0, preview: '' },
+      { id: 'abcd-two', title: 'B', createdAt: 1, updatedAt: 1, messageCount: 0, preview: '' },
+    ]);
+    expect(await commands.resumeSession('abcd')).toBe(false);
+  });
+
+  it('auto-titles default-titled sessions from the first message, keeping explicit titles', async () => {
+    const defaultTitled = makeSession({ id: 'auto-1', title: 'Session 8/6/2026, 10:00:00 AM' });
+    vi.spyOn(SessionManager.prototype, 'createSession').mockResolvedValue(defaultTitled);
+    vi.spyOn(SessionManager.prototype, 'loadSession').mockResolvedValue(defaultTitled);
+    vi.spyOn(SessionManager.prototype, 'saveSession').mockResolvedValue();
+    const renameSpy = vi.spyOn(SessionManager.prototype, 'updateSessionTitle').mockResolvedValue(true);
+
+    const commands = new SessionCommands();
+    await commands.createSession();
+    await commands.maybeAutoTitle('  帮我看下   cli 包的测试都过不过  ');
+    expect(renameSpy).toHaveBeenCalledWith('auto-1', '帮我看下 cli 包的测试都过不过');
+
+    renameSpy.mockClear();
+    vi.spyOn(SessionManager.prototype, 'loadSession').mockResolvedValue(makeSession({ id: 'auto-1', title: 'My Custom Title' }));
+    await commands.maybeAutoTitle('another message');
+    expect(renameSpy).not.toHaveBeenCalled();
+  });
+
+  it('resumes the most recent session with resumeLatest', async () => {
+    const target = makeSession({ id: 'latest-session' });
+    vi.spyOn(SessionManager.prototype, 'loadSession').mockImplementation(async id => (id === 'latest-session' ? target : null));
+    vi.spyOn(SessionManager.prototype, 'listSessions').mockResolvedValue([
+      { id: 'latest-session', title: 'A', createdAt: 1, updatedAt: 2, messageCount: 0, preview: '' },
+    ]);
+    vi.spyOn(SessionManager.prototype, 'saveSession').mockResolvedValue();
+
+    const commands = new SessionCommands();
+    expect(await commands.resumeLatest()).toBe(true);
+    expect(commands.getCurrentSessionId()).toBe('latest-session');
   });
 
   it('saves context messages back to current session with task list binding', async () => {

@@ -38,6 +38,33 @@ export interface SessionSummary {
   taskListId?: string;
 }
 
+/**
+ * Extracts human-readable text from a stored message content value.
+ * Context messages are AI SDK ModelMessages: content may be a plain string or
+ * an array of parts (text / tool-call / tool-result). Non-text parts yield ''.
+ */
+export function extractMessageText(content: unknown): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map(part => {
+        if (typeof part === 'string') return part;
+        if (part && typeof part === 'object' && typeof (part as { text?: unknown }).text === 'string') {
+          return (part as { text: string }).text;
+        }
+        return '';
+      })
+      .filter(Boolean)
+      .join(' ');
+  }
+  if (content && typeof content === 'object' && typeof (content as { text?: unknown }).text === 'string') {
+    return (content as { text: string }).text;
+  }
+  return '';
+}
+
 export class SessionManager {
   private sessionsDir: string;
 
@@ -96,14 +123,19 @@ export class SessionManager {
     }
   }
 
-  private safeContent(content: any): string {
-    if (typeof content === 'string') {
-      return content;
+  /** Last user/assistant message with extractable text, compacted for list previews. */
+  private buildPreview(messages: SessionMessage[]): string {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message.role !== 'user' && message.role !== 'assistant') {
+        continue;
+      }
+      const text = extractMessageText(message.content).replace(/\s+/g, ' ').trim();
+      if (text) {
+        return text.length > 100 ? `${text.slice(0, 100)}…` : text;
+      }
     }
-    if (content === null || content === undefined) {
-      return '';
-    }
-    return String(content);
+    return messages.length > 0 ? '(no text messages)' : 'No messages';
   }
 
   async listSessions(limit = 20): Promise<SessionSummary[]> {
@@ -126,9 +158,7 @@ export class SessionManager {
           createdAt: session.createdAt,
           updatedAt: session.updatedAt,
           messageCount: session.messages.length,
-          preview: session.messages.length > 0
-            ? this.safeContent(session.messages[session.messages.length - 1].content).substring(0, 100) + '...'
-            : 'No messages',
+          preview: this.buildPreview(session.messages),
           taskListId: session.metadata?.taskListId,
         }));
     } catch (error) {

@@ -1,4 +1,4 @@
-import { PulseAgent, type Context, type TaskListService } from 'pulse-coder-engine';
+import { buildProvider, CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type LLMProviderFactory, type PlanMode, type TaskListService } from 'pulse-coder-engine';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
 
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
@@ -9,8 +9,11 @@ import { SkillCommands } from './skill-commands.js';
 import { runTeam, TeamsSession } from './team-commands.js';
 import type { TuiHelpItem } from './tui-renderer.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
-import type { InkCliController, InkCliSnapshot, CliInteractionMode } from './ink-app.js';
+import { formatRelativeTime, type InkCliController, type InkCliSnapshot, type CliInteractionMode } from './ink-app.js';
+import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
+import { extractStepUsage } from './usage-metrics.js';
+import { loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -37,13 +40,15 @@ const LOCAL_COMMANDS = new Set([
   'solo',
   'save',
   'tui',
+  'debug',
+  'model',
   'exit',
 ]);
 
 const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/help', description: 'Show this help message' },
   { command: '/new [title]', description: 'Create a new session' },
-  { command: '/resume <id>', description: 'Resume a saved session' },
+  { command: '/resume [index|id-prefix|id]', description: 'Resume a session (bare /resume opens an interactive picker)' },
   { command: '/sessions', description: 'List all saved sessions' },
   { command: '/search <query>', description: 'Search in saved sessions' },
   { command: '/rename <id> <new-title>', description: 'Rename a session' },
@@ -54,33 +59,33 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/acp [status|on|off|cd]', description: 'Manage ACP mode for this CLI' },
   { command: '/wt use <work-name>', description: 'Create a worktree + branch via worktree skill' },
   { command: '/status', description: 'Show current CLI/session status' },
-  { command: '/mode [chat|plan|edit|auto]', description: 'Show or set CLI interaction mode' },
-  { command: '/chat', description: 'Switch to chat interaction mode' },
-  { command: '/plan', description: 'Switch to planning interaction mode' },
-  { command: '/edit', description: 'Switch to edit interaction mode' },
-  { command: '/auto', description: 'Switch to autonomous interaction mode' },
-  { command: '/execute', description: 'Alias for /edit' },
+  { command: '/mode [edit|plan]', description: 'Show or set CLI interaction mode' },
+  { command: '/plan', description: 'Switch to planning mode (engine planning)' },
+  { command: '/edit', description: 'Switch to edit mode (engine executing); /execute, /chat, /auto are aliases' },
   { command: '/team <task>', description: 'Run a multi-agent team (LLM plans DAG by default)' },
   { command: '/teams <task>', description: 'Run agent teams (enters teams mode for follow-ups)' },
   { command: '/solo', description: 'Exit teams mode, return to normal agent' },
   { command: '/save', description: 'Save current session explicitly' },
   { command: '/tui [status]', description: 'Show current Ink UI status' },
+  { command: '/debug [on|off|tail <n>]', description: 'Engine log layer: toggle live display or tail the capture' },
+  { command: '/model [id|claude:<id>|reset]', description: 'Show/switch model (bare = picker from .pulse-coder/models.json)' },
   { command: '/exit', description: 'Exit the application' },
 ];
 
 const HELP_FOOTER = [
   'Enter - Send current input',
   'Ctrl+J - Insert a newline into the current draft',
-  'Shift+Tab - Cycle CLI interaction mode (chat → plan → edit → auto)',
-  'Tab - Complete the first visible slash-command suggestion',
+  'Shift+Tab - Toggle CLI interaction mode (edit ↔ plan; maps to engine executing/planning)',
+  'Tab - Complete the selected slash-command suggestion',
   'Type / - Show slash-command suggestions',
-  '↑/↓ - Recall previous/next prompt',
+  '↑/↓ - Recall previous/next prompt (persisted across sessions)',
   '←/→, Ctrl+A/E - Move cursor',
   'Ctrl+U/K/W - Delete before cursor / after cursor / previous word',
-  'Ctrl+L - Clear visible transcript without clearing conversation',
-  'Esc (while processing) - Stop current response and accept next input',
-  'Esc (idle) - Clear current input first; exit when input is empty',
-  'Ctrl+C - Save and exit CLI immediately',
+  'Ctrl+O - Toggle tool-trace detail (one-line summaries ↔ content previews; affects new traces)',
+  'Paste - Inserted literally (newlines included); bracketed paste supported',
+  'Esc - Stop the current response, or clear the current draft when idle',
+  'Ctrl+C - Press twice to save and exit (first press clears the draft)',
+  'Scroll up - Finished output lives in the normal terminal scrollback',
 ];
 
 class InkCoderController implements InkCliController {
@@ -91,15 +96,32 @@ class InkCoderController implements InkCliController {
   private readonly skillCommands: SkillCommands;
   private readonly acpPlatformKey: string;
   private readonly ui: InkUiBridge;
-  private interactionMode: CliInteractionMode = 'chat';
+  private interactionMode: CliInteractionMode = 'edit';
   private readonly listeners = new Set<(snapshot: InkCliSnapshot) => void>();
   private currentAbortController: AbortController | null = null;
   private isProcessing = false;
   private isShuttingDown = false;
   private teamsSession: TeamsSession | null = null;
   private readonly queuedInputs: string[] = [];
+  private lastContextTokens = 0;
+  private totalOutputTokens = 0;
+  private lastCachedTokens: number | undefined;
+  private totalInputTokens = 0;
+  private totalCachedTokens = 0;
+  private readonly logSink: EngineLogSink | null;
+  private debugLogs: boolean;
+  private teamsLogsVisible = false;
+  private readonly seenWarnTexts = new Set<string>();
+  private modelOverride: ModelChoice | null = null;
+  private activePicker: 'session' | 'model' | null = null;
+  private pickerModelChoices = new Map<string, ModelChoice>();
 
-  constructor() {
+  constructor(options: { logSink?: EngineLogSink; verbose?: boolean; modelSpec?: string } = {}) {
+    this.logSink = options.logSink ?? null;
+    this.debugLogs = options.verbose ?? false;
+    if (options.modelSpec) {
+      this.modelOverride = parseModelSpec(options.modelSpec);
+    }
     this.agent = new PulseAgent({
       enginePlugins: {
         plugins: [memoryIntegration.enginePlugin],
@@ -116,16 +138,44 @@ class InkCoderController implements InkCliController {
     this.ui = new InkUiBridge({
       onChange: snapshot => this.notify(snapshot),
     });
+    this.ui.updateSnapshot({
+      contextWindowTokens: this.currentContextWindow(),
+      modelLabel: shortModelLabel(this.modelOverride?.model ?? DEFAULT_MODEL),
+    });
     this.sessionCommands = new SessionCommands(message => this.ui.info(message ?? ''));
     this.inputManager = new InputManager({
       onRequest: request => this.ui.clarification(request),
     });
     this.skillCommands = new SkillCommands(this.agent, message => this.ui.info(message ?? ''));
     this.acpPlatformKey = resolveAcpPlatformKey();
+
+    // Engine log layer policy: errors always surface as dim lines; warns
+    // surface once per unique text per session (an SDK warning repeated on
+    // every LLM call must not flood the transcript — the log file keeps all
+    // occurrences). info/debug stay in the log file unless /debug (or
+    // --verbose) is on, or a team run is in progress (its console output is
+    // the product).
+    this.logSink?.subscribe(entry => {
+      if (entry.level === 'error') {
+        this.ui.log(`[error] ${entry.text}`);
+        return;
+      }
+      if (entry.level === 'warn') {
+        if (this.seenWarnTexts.has(entry.text)) {
+          return;
+        }
+        this.seenWarnTexts.add(entry.text);
+        this.ui.log(`[warn] ${entry.text}`);
+        return;
+      }
+      if (this.debugLogs || this.teamsLogsVisible) {
+        this.ui.log(entry.text);
+      }
+    });
   }
 
-  async initialize(): Promise<void> {
-    this.ui.showWelcome();
+  async initialize(options: { continueLast?: boolean } = {}): Promise<void> {
+    this.ui.showWelcome({ cwd: process.cwd() });
     await this.sessionCommands.initialize();
     await memoryIntegration.initialize();
     await this.agent.initialize();
@@ -133,7 +183,11 @@ class InkCoderController implements InkCliController {
     const pluginStatus = this.agent.getPluginStatus();
     this.ui.showPluginStatus(pluginStatus.enginePlugins.length);
 
-    await this.sessionCommands.createSession();
+    if (options.continueLast && await this.sessionCommands.resumeLatest()) {
+      await this.sessionCommands.loadContext(this.context);
+    } else {
+      await this.sessionCommands.createSession();
+    }
     await this.syncSessionTaskListBinding();
     this.publishSession('Ready');
   }
@@ -150,13 +204,161 @@ class InkCoderController implements InkCliController {
 
   private applyInteractionMode(mode: CliInteractionMode, source = 'cli'): void {
     this.interactionMode = mode;
+
+    // The status line and idle hint already reflect the mode — no transcript
+    // event, or cycling with Shift+Tab would spam one line per press.
+    const targetEngineMode: PlanMode = mode === 'plan' ? 'planning' : 'executing';
+    if (this.agent.getMode() !== targetEngineMode && !this.agent.setMode(targetEngineMode, source)) {
+      this.ui.warn('Engine plan-mode plugin unavailable; mode is CLI-side only.');
+    }
+
     this.ui.updateSnapshot({ mode });
-    this.ui.info(`CLI mode: ${mode} (${source})`);
     this.publishSession('Ready');
   }
 
   setInteractionMode(mode: CliInteractionMode, source = 'cli'): void {
     this.applyInteractionMode(mode, source);
+  }
+
+  toggleToolDetail(): void {
+    this.ui.setToolDetail(!this.ui.getToolDetail());
+  }
+
+  private currentContextWindow(): number {
+    return this.modelOverride?.contextWindow ?? CONTEXT_WINDOW_TOKENS;
+  }
+
+  private describeConnection(choice: ModelChoice): string {
+    if (choice.providerName) {
+      return ` (provider ${choice.providerName})`;
+    }
+    return choice.modelType ? ` (${choice.modelType})` : '';
+  }
+
+  private applyModelOverride(note: string): void {
+    this.ui.updateSnapshot({
+      modelLabel: shortModelLabel(this.modelOverride?.model ?? DEFAULT_MODEL),
+      contextWindowTokens: this.currentContextWindow(),
+    });
+    const keyEnv = this.modelOverride?.apiKeyEnv;
+    if (keyEnv && !process.env[keyEnv]) {
+      this.ui.log(`[warn] ${keyEnv} is not set — falling back to the channel's default API key env`);
+    }
+    this.ui.info(`${note} · ctx window ${Math.round(this.currentContextWindow() / 1000)}k · applies to new runs in this process`);
+    this.publishSession('Ready');
+  }
+
+  /** Per-run overrides derived from the model choice; a provider-bound choice gets its own connection factory. */
+  private modelRunOptions(): { model?: string; modelType?: 'openai' | 'claude'; contextWindowTokens?: number; provider?: LLMProviderFactory } {
+    if (!this.modelOverride) {
+      return {};
+    }
+    const needsCustomConnection = Boolean(this.modelOverride.baseUrl || this.modelOverride.apiKeyEnv);
+    return {
+      model: this.modelOverride.model,
+      ...(this.modelOverride.modelType ? { modelType: this.modelOverride.modelType } : {}),
+      ...(this.modelOverride.contextWindow ? { contextWindowTokens: this.modelOverride.contextWindow } : {}),
+      ...(needsCustomConnection ? {
+        provider: buildProvider(this.modelOverride.modelType ?? 'openai', {
+          ...(this.modelOverride.baseUrl ? { baseURL: this.modelOverride.baseUrl } : {}),
+          ...(this.modelOverride.apiKeyEnv && process.env[this.modelOverride.apiKeyEnv]
+            ? { apiKey: process.env[this.modelOverride.apiKeyEnv] }
+            : {}),
+        }),
+      } : {}),
+    };
+  }
+
+  private async openModelPicker(): Promise<void> {
+    const registry = await loadModelRegistry();
+    registry.warnings.forEach(warning => this.ui.log(`[models.json] ${warning}`));
+    const currentModel = this.modelOverride?.model ?? DEFAULT_MODEL;
+    const seen = new Set<string>();
+    this.pickerModelChoices = new Map();
+    const items = [
+      { id: DEFAULT_MODEL, label: shortModelLabel(DEFAULT_MODEL, 40), hint: 'env default', preview: DEFAULT_MODEL },
+      ...registry.models.map(choice => {
+        const id = `${choice.providerName ?? choice.modelType ?? ''}${choice.providerName || choice.modelType ? ':' : ''}${choice.model}`;
+        this.pickerModelChoices.set(id, choice);
+        return {
+          id,
+          label: choice.label ?? shortModelLabel(choice.model, 40),
+          hint: `${choice.providerName ?? choice.modelType ?? 'default provider'}${choice.contextWindow ? ` · ${Math.round(choice.contextWindow / 1000)}k ctx` : ''}`,
+          preview: choice.model,
+        };
+      }),
+    ].filter(item => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+
+    if (items.length <= 1) {
+      this.ui.section('Model', [
+        `Current: ${currentModel}${this.modelOverride ? ' (session override)' : ' (env default)'}`,
+        'Switch directly: /model <id> · /model <provider>:<id> · /model claude:<id> · /model reset',
+        'Add candidates + providers in .pulse-coder/models.json — see README §模型候选配置',
+      ]);
+      return;
+    }
+
+    this.activePicker = 'model';
+    this.ui.showPicker({ title: 'Select model', items });
+  }
+
+  private async resumeSessionRef(ref: string): Promise<void> {
+    if (await this.sessionCommands.resumeSession(ref)) {
+      await this.sessionCommands.loadContext(this.context);
+      await this.syncSessionTaskListBinding();
+      this.publishSession('Session resumed');
+    }
+  }
+
+  private async openSessionPicker(): Promise<void> {
+    const sessions = await this.sessionCommands.listForPicker();
+    if (sessions.length === 0) {
+      this.ui.info('No previous sessions with messages. Use /sessions to list everything.');
+      return;
+    }
+
+    this.activePicker = 'session';
+    this.ui.showPicker({
+      title: 'Resume session',
+      items: sessions.map(session => ({
+        id: session.id,
+        label: session.title,
+        hint: `${session.messageCount} msgs · ${formatRelativeTime(session.updatedAt)}`,
+        preview: session.preview,
+      })),
+    });
+  }
+
+  pickerSelect(id: string): void {
+    const kind = this.activePicker;
+    this.activePicker = null;
+
+    if (kind === 'model') {
+      this.ui.hidePicker();
+      const choice = this.pickerModelChoices.get(id) ?? parseModelSpec(id);
+      this.pickerModelChoices = new Map();
+      if (choice) {
+        const isPlainDefault = choice.model === DEFAULT_MODEL && !choice.modelType && !choice.contextWindow && !choice.providerName;
+        this.modelOverride = isPlainDefault ? null : choice;
+        this.applyModelOverride(this.modelOverride
+          ? `Model set: ${choice.model}${this.describeConnection(choice)}`
+          : 'Model reset to env default');
+      }
+      return;
+    }
+
+    this.ui.hidePicker('Resuming session…');
+    void this.resumeSessionRef(id);
+  }
+
+  pickerCancel(): void {
+    this.activePicker = null;
+    this.ui.hidePicker();
+    this.publishSession('Ready');
   }
 
   requestStop(): void {
@@ -277,28 +479,28 @@ class InkCoderController implements InkCliController {
 
       if (!forceAcp) {
         if (normalizedCommand === 'team') {
-          await this.runExclusive(async () => runTeam(this.agent, args));
+          await this.runExclusive(async () => this.withTeamLogsVisible(() => runTeam(this.agent, args)));
           return;
         }
 
         if (normalizedCommand === 'teams') {
-          await this.runExclusive(async () => {
+          await this.runExclusive(async () => this.withTeamLogsVisible(async () => {
             const session = await TeamsSession.start(args);
             if (session) {
               this.teamsSession = session;
               this.ui.success('Entered teams mode. Use /solo to return to normal agent.');
             }
-          });
+          }));
           return;
         }
 
         if (normalizedCommand === 'solo') {
           if (this.teamsSession?.active) {
-            await this.runExclusive(async () => {
+            await this.runExclusive(async () => this.withTeamLogsVisible(async () => {
               await this.teamsSession?.stop();
               this.teamsSession = null;
               this.ui.success('Exited teams mode.');
-            });
+            }));
           } else {
             this.ui.warn('Not in teams mode. Use /teams <task> to start.');
           }
@@ -334,7 +536,7 @@ class InkCoderController implements InkCliController {
     }
 
     if (this.teamsSession?.active && !forceAcp) {
-      await this.runExclusive(async () => this.teamsSession?.followUp(messageInput));
+      await this.runExclusive(async () => this.withTeamLogsVisible(async () => this.teamsSession?.followUp(messageInput)));
       return;
     }
 
@@ -355,15 +557,10 @@ class InkCoderController implements InkCliController {
           break;
         case 'resume':
           if (args.length === 0) {
-            this.ui.error('Please provide a session ID');
-            this.ui.info('Usage: /resume <session-id>');
+            await this.openSessionPicker();
             break;
           }
-          if (await this.sessionCommands.resumeSession(args[0])) {
-            await this.sessionCommands.loadContext(this.context);
-            await this.syncSessionTaskListBinding();
-            this.publishSession('Session resumed');
-          }
+          await this.resumeSessionRef(args[0]);
           break;
         case 'sessions':
           await this.sessionCommands.listSessions();
@@ -399,7 +596,7 @@ class InkCoderController implements InkCliController {
           this.publishSession('Ready');
           break;
         case 'compact':
-          await this.compactContext();
+          await this.runExclusive(async () => this.compactContext());
           break;
         case 'skills':
           this.ui.info('Use /skills <name|index> <message> directly in input for one-shot skill execution.');
@@ -412,9 +609,12 @@ class InkCoderController implements InkCliController {
         case 'status':
           this.ui.section('CLI Status', [
             `Session: ${this.sessionCommands.getCurrentSessionId() || 'None (new session)'}`,
+            `Model: ${this.modelOverride ? `${this.modelOverride.model}${this.describeConnection(this.modelOverride)} (session override)` : `${DEFAULT_MODEL} (env default)`}`,
             `Task List: ${this.sessionCommands.getCurrentTaskListId() || 'None'}`,
             `Messages: ${this.context.messages.length}`,
-            `Estimated tokens: ~${this.estimateTokens(this.context.messages)}`,
+            `Context tokens: ${this.lastContextTokens > 0 ? `${this.lastContextTokens} (last run)` : `~${this.estimateTokens(this.context.messages)} (estimated)`}`,
+            `Output tokens: ${this.totalOutputTokens} (this process)`,
+            `Cache hit: ${this.describeCacheHit()}`,
             `CLI mode: ${this.interactionMode}`,
             `Engine plan mode: ${this.agent.getMode() || 'unavailable'}`,
             `Phase: ${this.getSnapshot().phase ?? 'Idle'}`,
@@ -422,6 +622,8 @@ class InkCoderController implements InkCliController {
             `Tools: ${this.getSnapshot().completedTools}/${this.getSnapshot().toolCalls}`,
             `Queued inputs: ${this.queuedInputs.length}`,
             `Processing: ${this.isProcessing ? 'yes' : 'no'}`,
+            `Engine logs: ${this.debugLogs ? 'shown live' : 'file only'} · ${this.logSink?.count() ?? 0} captured · /debug`,
+            `Tool detail: ${this.ui.getToolDetail() ? 'preview (detailed)' : 'one-line summaries'} · Ctrl+O toggles`,
           ]);
           break;
         case 'mode': {
@@ -432,29 +634,81 @@ class InkCoderController implements InkCliController {
           } else {
             this.ui.section('CLI Mode', [
               `Current: ${this.interactionMode}`,
-              'Available: chat, plan, edit, auto',
-              'Shortcut: Shift+Tab cycles modes',
-              'Note: this is CLI-local UX state; engine behavior is unchanged.',
+              `Engine plan mode: ${this.agent.getMode() || 'unavailable'}`,
+              'Available: edit (engine executing), plan (engine planning)',
+              'Shortcut: Shift+Tab toggles modes',
             ]);
           }
           break;
         }
-        case 'chat':
-          this.applyInteractionMode('chat', 'cli:/chat');
-          break;
         case 'plan':
           this.applyInteractionMode('plan', 'cli:/plan');
           break;
         case 'edit':
         case 'execute':
-          this.applyInteractionMode('edit', `cli:/${command.toLowerCase()}`);
-          break;
+        case 'chat':
         case 'auto':
-          this.applyInteractionMode('auto', 'cli:/auto');
+          if (command.toLowerCase() !== 'edit') {
+            this.ui.info(`Modes are now edit|plan; /${command.toLowerCase()} maps to edit.`);
+          }
+          this.applyInteractionMode('edit', `cli:/${command.toLowerCase()}`);
           break;
         case 'tui':
           this.ui.showTuiStatus();
           break;
+        case 'model': {
+          const spec = args.join(' ').trim();
+          if (!spec) {
+            await this.openModelPicker();
+            break;
+          }
+          if (spec.toLowerCase() === 'reset') {
+            this.modelOverride = null;
+            this.applyModelOverride('Model reset to env default');
+            break;
+          }
+          const registry = await loadModelRegistry();
+          registry.warnings.forEach(warning => this.ui.log(`[models.json] ${warning}`));
+          const choice = resolveModelSpec(spec, registry);
+          if (!choice) {
+            this.ui.error('Usage: /model [<id> | <provider>:<id> | claude:<id> | openai:<id> | reset]');
+            break;
+          }
+          this.modelOverride = choice;
+          this.applyModelOverride(`Model set: ${choice.model}${this.describeConnection(choice)}`);
+          break;
+        }
+        case 'debug': {
+          if (!this.logSink) {
+            this.ui.warn('Engine log capture is unavailable in this host.');
+            break;
+          }
+          const action = (args[0] ?? 'status').toLowerCase();
+          if (action === 'on') {
+            this.debugLogs = true;
+            this.ui.success('Engine logs shown live (dim lines). /debug off to hide again.');
+          } else if (action === 'off') {
+            this.debugLogs = false;
+            this.ui.success('Engine logs hidden. Still captured to the log file; warn/error still surface.');
+          } else if (action === 'tail') {
+            const requested = Number(args[1] ?? 20);
+            const limit = Math.min(Math.max(Number.isFinite(requested) ? Math.floor(requested) : 20, 1), 100);
+            const entries = this.logSink.entries(limit);
+            if (entries.length === 0) {
+              this.ui.info('No engine logs captured yet.');
+            } else {
+              this.ui.section(`Engine logs · last ${entries.length}`, entries.map(entry => `[${entry.level}] ${entry.text.split('\n')[0]}`));
+            }
+          } else {
+            this.ui.section('Engine log layer', [
+              `Live display: ${this.debugLogs ? 'on' : 'off (warn/error always surface)'}`,
+              `Captured this session: ${this.logSink.count()} entries`,
+              `File: ${this.logSink.filePath}`,
+              'Usage: /debug on | off | tail <n>',
+            ]);
+          }
+          break;
+        }
         case 'save':
           if (this.sessionCommands.getCurrentSessionId()) {
             await this.sessionCommands.saveContext(this.context);
@@ -476,13 +730,10 @@ class InkCoderController implements InkCliController {
   }
 
   private parseInteractionMode(value: string | undefined): CliInteractionMode | null {
-    if (value === 'chat' || value === 'plan' || value === 'edit' || value === 'auto') {
-      return value;
-    }
-    if (value === 'planning') {
+    if (value === 'plan' || value === 'planning') {
       return 'plan';
     }
-    if (value === 'execute' || value === 'executing') {
+    if (value === 'edit' || value === 'execute' || value === 'executing' || value === 'chat' || value === 'auto') {
       return 'edit';
     }
     return null;
@@ -497,7 +748,12 @@ class InkCoderController implements InkCliController {
     const beforeCount = this.context.messages.length;
     const beforeTokens = this.estimateTokens(this.context.messages);
     const keepLastTurns = this.getKeepLastTurns();
-    const compactResult = await this.agent.compactContext(this.context, { force: true });
+    const compactResult = await this.agent.compactContext(this.context, {
+      force: true,
+      ...this.modelRunOptions(),
+      contextWindowTokens: this.currentContextWindow(),
+      onStart: () => this.ui.updateSnapshot({ status: 'Compacting context…', phase: 'Compacting' }),
+    });
 
     if (!compactResult.didCompact || !compactResult.newMessages) {
       this.ui.info('No compaction was applied.');
@@ -520,6 +776,15 @@ class InkCoderController implements InkCliController {
       `KEEP_LAST_TURNS=${keepLastTurns}`,
     ]);
     this.publishSession('Ready');
+  }
+
+  private async withTeamLogsVisible<T>(task: () => Promise<T>): Promise<T> {
+    this.teamsLogsVisible = true;
+    try {
+      return await task();
+    } finally {
+      this.teamsLogsVisible = false;
+    }
   }
 
   private async runExclusive(task: () => Promise<unknown>): Promise<void> {
@@ -546,6 +811,10 @@ class InkCoderController implements InkCliController {
       mode: this.interactionMode,
     });
 
+    if (this.context.messages.length === 0) {
+      await this.sessionCommands.maybeAutoTitle(messageInput);
+    }
+
     this.context.messages.push({
       role: 'user',
       content: messageInput,
@@ -568,27 +837,48 @@ class InkCoderController implements InkCliController {
 
       const runAgent = async () => this.agent.run(this.context, {
         abortSignal: ac.signal,
+        ...this.modelRunOptions(),
+        onCompactionStart: () => {
+          this.ui.log('Compacting context (summarizing older turns)…');
+          this.ui.updateSnapshot({ status: 'Compacting context…', phase: 'Compacting' });
+        },
         onText: (delta) => {
           sawText = true;
           this.ui.text(delta);
         },
+        onToolInputStart: ({ id, toolName }) => {
+          this.ui.toolInputStart(id, toolName);
+        },
+        onToolInputDelta: ({ id, delta }) => {
+          this.ui.toolInputDelta(id, delta);
+        },
+        onToolInputEnd: ({ id }) => {
+          this.ui.toolInputEnd(id);
+        },
         onToolCall: (toolCall) => {
           toolCalls += 1;
           const input = this.getToolInput(toolCall);
-          this.ui.toolCall(this.resolveToolName(toolCall), input);
+          this.ui.toolCall(this.resolveToolName(toolCall), input, this.getToolCallId(toolCall));
         },
         onToolResult: (toolResult) => {
-          const toolName = this.resolveToolName(toolResult as Record<string, unknown>);
-          this.ui.toolResult(toolName);
+          const record = toolResult as Record<string, unknown>;
+          this.ui.toolResult(this.resolveToolName(record), this.getToolOutput(record), this.getToolCallId(record));
         },
         onStepFinish: (step) => {
+          this.recordStepUsage(step);
           this.ui.stepFinished(step.finishReason);
         },
         onClarificationRequest: async (request) => {
           return await this.inputManager.requestInput(request);
         },
-        onCompacted: (newMessages) => {
+        onCompacted: (newMessages, event) => {
+          const beforeMessages = this.context.messages.length;
+          const beforeTokens = this.estimateTokens(this.context.messages);
           this.context.messages = newMessages;
+          const afterTokens = this.estimateTokens(newMessages);
+          const reason = (event as { reason?: string } | undefined)?.reason;
+          this.ui.info(`Context compacted · ${beforeMessages} → ${newMessages.length} messages · ~${beforeTokens} → ~${afterTokens} tokens${reason ? ` (${reason})` : ''}`);
+          this.ui.updateSnapshot({ status: 'Running agent', phase: 'Running' });
         },
         onResponse: (messages) => {
           this.context.messages.push(...messages);
@@ -619,7 +909,7 @@ class InkCoderController implements InkCliController {
             },
             onToolResult: (toolResult) => {
               const toolName = this.resolveToolName(toolResult as Record<string, unknown>);
-              this.ui.toolResult(toolName);
+              this.ui.toolResult(toolName, this.getToolOutput(toolResult as Record<string, unknown>));
             },
             onClarificationRequest: async (request) => {
               return await this.inputManager.requestInput(request);
@@ -782,6 +1072,55 @@ class InkCoderController implements InkCliController {
     return undefined;
   }
 
+  private getToolCallId(payload: Record<string, unknown>): string | undefined {
+    const callId = (payload as { toolCallId?: unknown }).toolCallId;
+    return typeof callId === 'string' && callId ? callId : undefined;
+  }
+
+  private getToolOutput(toolResult: Record<string, unknown>): unknown {
+    const output = (toolResult as { output?: unknown }).output;
+    if (output !== undefined) {
+      return output;
+    }
+    const result = (toolResult as { result?: unknown }).result;
+    if (result !== undefined) {
+      return result;
+    }
+    return (toolResult as { content?: unknown }).content;
+  }
+
+  private recordStepUsage(step: unknown): void {
+    const usage = extractStepUsage(step);
+
+    if (usage.inputTokens !== undefined) {
+      this.lastContextTokens = usage.inputTokens;
+      this.totalInputTokens += usage.inputTokens;
+    }
+    if (usage.outputTokens !== undefined) {
+      this.totalOutputTokens += usage.outputTokens;
+    }
+    if (usage.cachedInputTokens !== undefined) {
+      this.lastCachedTokens = usage.cachedInputTokens;
+      this.totalCachedTokens += usage.cachedInputTokens;
+    }
+
+    this.ui.usage({
+      inputTokens: this.lastContextTokens,
+      outputTokens: this.totalOutputTokens,
+      cachedInputTokens: this.lastCachedTokens,
+    });
+  }
+
+  private describeCacheHit(): string {
+    if (this.lastCachedTokens === undefined) {
+      return 'n/a (provider reports no cache usage)';
+    }
+
+    const lastPct = this.lastContextTokens > 0 ? Math.round(this.lastCachedTokens / this.lastContextTokens * 100) : 0;
+    const sessionPct = this.totalInputTokens > 0 ? Math.round(this.totalCachedTokens / this.totalInputTokens * 100) : 0;
+    return `last ${lastPct}% (${this.lastCachedTokens}/${this.lastContextTokens}) · session ${sessionPct}% (${this.totalCachedTokens}/${this.totalInputTokens})`;
+  }
+
   private resolveToolName(payload: Record<string, unknown>): string {
     const name = (payload as { toolName?: unknown }).toolName
       ?? (payload as { name?: unknown }).name
@@ -799,8 +1138,15 @@ class InkCoderController implements InkCliController {
   }
 }
 
-export async function createInkCoderController(): Promise<InkCliController> {
-  const controller = new InkCoderController();
-  await controller.initialize();
+export interface CreateInkControllerOptions {
+  continueLast?: boolean;
+  verbose?: boolean;
+  logSink?: EngineLogSink;
+  modelSpec?: string;
+}
+
+export async function createInkCoderController(options: CreateInkControllerOptions = {}): Promise<InkCliController> {
+  const controller = new InkCoderController({ logSink: options.logSink, verbose: options.verbose, modelSpec: options.modelSpec });
+  await controller.initialize({ continueLast: options.continueLast });
   return controller;
 }

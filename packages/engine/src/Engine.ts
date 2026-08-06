@@ -333,12 +333,20 @@ export class Engine {
    */
   async compactContext(
     context: Context,
-    options?: { force?: boolean; provider?: LLMProviderFactory; model?: string }
+    options?: {
+      force?: boolean;
+      provider?: LLMProviderFactory;
+      model?: string;
+      contextWindowTokens?: number;
+      onStart?: (info: { beforeMessageCount: number; beforeEstimatedTokens: number }) => void;
+    }
   ): Promise<{ didCompact: boolean; reason?: string; newMessages?: Context['messages'] }> {
     return await maybeCompactContext(context, {
       force: options?.force,
       provider: options?.provider ?? this.options.llmProvider,
       model: options?.model ?? this.options.model,
+      contextWindowTokens: options?.contextWindowTokens,
+      onStart: options?.onStart,
     });
   }
 
