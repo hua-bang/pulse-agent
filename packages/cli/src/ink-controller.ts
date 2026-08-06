@@ -11,6 +11,7 @@ import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
 import { loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
+import { expandFileReferences, indexWorkspaceFiles } from './file-reference.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -186,6 +187,12 @@ class InkCoderController implements InkCliController {
     if (skills.length > 0) {
       this.ui.updateSnapshot({ skills: skills.map(skill => ({ name: skill.name, description: skill.description })) });
     }
+
+    // Index the workspace in the background so `@` completion is ready without
+    // delaying startup; a failure just leaves `@` with no suggestions.
+    void indexWorkspaceFiles()
+      .then(fileIndex => this.ui.updateSnapshot({ fileIndex }))
+      .catch(() => undefined);
 
     if (options.continueLast && await this.sessionCommands.resumeLatest()) {
       await this.sessionCommands.loadContext(this.context);
@@ -783,8 +790,20 @@ class InkCoderController implements InkCliController {
     }
   }
 
-  private async runMessage(messageInput: string): Promise<void> {
-    this.ui.user(messageInput);
+  private async runMessage(rawInput: string): Promise<void> {
+    // The transcript shows what the user typed; the model additionally gets the
+    // contents of any @referenced files appended below it.
+    this.ui.user(rawInput);
+
+    const expansion = await expandFileReferences(rawInput);
+    if (expansion.attached.length > 0) {
+      this.ui.log(`Attached ${expansion.attached.length} reference${expansion.attached.length === 1 ? '' : 's'}: ${expansion.attached.join(', ')}`);
+    }
+    for (const skipped of expansion.skipped) {
+      this.ui.log(`[warn] @${skipped.ref} skipped — ${skipped.reason}`);
+    }
+    const messageInput = expansion.text;
+
     this.ui.session({
       sessionId: this.sessionCommands.getCurrentSessionId(),
       taskListId: this.sessionCommands.getCurrentTaskListId(),
@@ -794,7 +813,8 @@ class InkCoderController implements InkCliController {
     });
 
     if (this.context.messages.length === 0) {
-      await this.sessionCommands.maybeAutoTitle(messageInput);
+      // Title from what the user typed, never from injected file contents.
+      await this.sessionCommands.maybeAutoTitle(rawInput);
     }
 
     this.context.messages.push({

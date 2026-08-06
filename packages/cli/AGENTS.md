@@ -22,6 +22,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 | Prompt history persistence | `src/history-store.ts` |
 | Engine log layer (`/debug`) | `src/log-sink.ts` |
 | Model registry (`/model`, `--model`) | `src/model-registry.ts` |
+| `@` file references | `src/file-reference.ts` |
 | Input handling | `src/input-manager.ts` |
 | Sessions | `src/session.ts`, `src/session-commands.ts` |
 | Skills and worktree slash commands | `src/skill-commands.ts`, `src/index.ts`, `src/ink-controller.ts` |
@@ -38,6 +39,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 - Ink transcript model: `InkUiBridge.events` is append-only and rendered via Ink `<Static>` (printed once into terminal scrollback). Never mutate an already-emitted event — stream into `liveText`/`liveTools` and finalize on boundaries (tool call, tool result, run end, abort).
 - The Ink host renders with `exitOnCtrlC: false`; Ctrl+C double-press exit lives in `ink-app.tsx`. Re-enabling Ink's built-in handler would exit on the first press and skip session save.
 - CLI interaction modes are exactly the two engine states: `edit` → `setMode('executing')`, `plan` → `setMode('planning')` (see `applyInteractionMode`). `/chat`, `/auto`, `/execute` remain accepted as aliases for edit — do not reintroduce modes without a real behavioral difference backing them.
+- `@` references expand at submit time in `runMessage`: the transcript keeps the raw text (and the auto-title uses it), while the model gets file contents appended below. Expansion is bounded (per-file bytes, attachment count, directory entries) and refuses binaries and paths escaping the workspace — keep those guards when touching it. The index is built in the background after engine init; `@` completion is keyboard-handled before the slash palette in `useInput`.
 - Slash command resolution is strictly ordered: built-in > runtime skill > error. Built-ins always win, so a skill cannot shadow a real command; colliding skills are dropped from the palette and stay reachable via `/skills <name> <message>`. Skills reach the composer through the snapshot's `skills` field, published once after engine init.
 - `/team`, `/teams`, `/solo`, `/acp` and the `//` passthrough are retired from BOTH hosts (see `RETIRED_COMMANDS` in each). Their modules and the `pulse-coder-acp` dependency are intentionally kept so the capability can return; do not re-add them to `LOCAL_COMMANDS` without also restoring abort support and routing their output through the bridge.
 - Bare `/resume` opens a modal picker (snapshot `picker` field, same pattern as clarification) — Ink host only; the readline host keeps the text form, an intentional UI-specific divergence. Session list previews must go through `extractMessageText` (`session.ts`) — context messages carry AI SDK structured content, and `String(content)` renders `[object Object]`. The picker is shared by `/model` via `activePicker` routing in the controller.

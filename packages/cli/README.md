@@ -37,6 +37,7 @@ pnpm start
 - 按模型配置上下文窗口 - models.json 条目可带 `contextWindow`（如 200000），切换后 `ctx %` 分母与 **engine 压缩阈值（75%/50%）** 一起跟随该模型，不再固定 64k；全局默认仍可用 `CONTEXT_WINDOW_TOKENS` 环境变量调整
 - 输出分层 - 引擎/插件日志默认写入 `~/.pulse-coder/logs/cli.log` 不上屏（warn/error 以暗色单行显示），`/debug on` 或 `--verbose` 实时查看，`/debug tail <n>` 回看
 - 轻量 Markdown 渲染 - 标题/加粗/行内代码/列表/代码块在终端中着色显示
+- `@` 文件/文件夹引用 - 输入 `@` 弹出文件补全（尊重 `.gitignore`，跳过 node_modules/dist 等），`↑↓` 选择、`Tab`/`Enter` 插入；提交时把被引用的文件内容附在消息之后（目录则附目录清单），二进制/超限/越界自动跳过并提示
 - 技能斜杠调用 - 运行时技能自动并入斜杠命令面，`/<skill-name> <message>` 直呼；内置命令优先，同名技能不会劫持
 - 计划模式 - edit / plan 两档（`Shift+Tab` 或 `/mode` 切换），分别映射引擎 executing / planning；`/chat` `/auto` `/execute` 为兼容别名（均指向 edit）
 - 非交互模式 - `pulse-coder -p "<prompt>"`（支持 stdin 管道）跑完即退，适合脚本/CI
@@ -135,6 +136,7 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 - `↑/↓` - 历史输入（持久化于 `~/.pulse-coder/history.json`，跨会话保留）
 - `Ctrl+J` - 草稿内换行；粘贴（含多行）原样插入，不会误触发送
 - `Ctrl+O` - 切换工具留痕详情（一行摘要 ↔ 内容预览；只影响之后的留痕）
+- `@` - 文件/文件夹引用补全（`↑↓` 选择、`Tab`/`Enter` 插入路径）
 - 处理中输入会排队，当前轮结束后自动执行
 
 readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。
@@ -299,6 +301,7 @@ src/
 ├── ink-controller.ts     # Ink 宿主控制器（命令处理、plan-mode 接线、ACP 路由、会话同步、队列输入）
 ├── ink-app.tsx           # Ink 渲染（Static transcript、composer、粘贴、命令建议、历史）
 ├── ink-ui-bridge.ts      # 运行时回调与 Ink UI 的桥接（append-only 事件 + live 区、工具结果预览、流式节流）
+├── file-reference.ts     # @ 引用：索引、补全过滤、提交时内容注入
 ├── markdown.ts           # 轻量 markdown → ANSI 渲染
 ├── history-store.ts      # 输入历史持久化（~/.pulse-coder/history.json）
 ├── log-sink.ts           # 引擎日志层：console 捕获 → ~/.pulse-coder/logs/cli.log + /debug

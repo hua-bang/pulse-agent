@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { renderMarkdownAnsi } from './markdown.js';
+import { applyFileReference, detectFileReferenceQuery, filterFileEntries, type FileEntry } from './file-reference.js';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error' | 'log';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
@@ -73,6 +74,8 @@ export interface InkCliSnapshot {
   picker?: InkPickerState | null;
   /** Runtime skills, merged into the slash palette as `/<skill-name>`. */
   skills?: Array<{ name: string; description: string }>;
+  /** Workspace file index backing `@` references. */
+  fileIndex?: FileEntry[];
   events: InkCliEvent[];
   liveText: string;
   liveTools: InkLiveTool[];
@@ -130,6 +133,7 @@ const DEFAULT_SNAPSHOT: InkCliSnapshot = {
   runStartedAt: null,
   picker: null,
   skills: [],
+  fileIndex: [],
   events: [],
   liveText: '',
   liveTools: [],
@@ -536,6 +540,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const [historyDraft, setHistoryDraft] = useState('');
   const [spinnerIndex, setSpinnerIndex] = useState(0);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [pickerIndex, setPickerIndex] = useState(0);
   const [pickerQuery, setPickerQuery] = useState('');
   const [ctrlCArmed, setCtrlCArmed] = useState(false);
@@ -752,6 +757,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.tab || value === '\t') {
+      if (selectedFile) {
+        updateComposer(applyFileReference(input, cursor, selectedFile.relPath + (selectedFile.isDirectory ? '/' : '')));
+        return;
+      }
       if (selectedSuggestion) {
         updateComposer(applySlashCommandCompletion(input, cursor, selectedSuggestion.command));
       }
@@ -769,6 +778,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.return) {
+      if (selectedFile) {
+        updateComposer(applyFileReference(input, cursor, selectedFile.relPath + (selectedFile.isDirectory ? '/' : '')));
+        return;
+      }
       if (shouldAcceptSlashSuggestion(input, cursor, selectedSuggestion)) {
         updateComposer(applySlashCommandCompletion(input, cursor, selectedSuggestion.command));
         return;
@@ -778,6 +791,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.upArrow) {
+      if (fileSuggestions.length > 0) {
+        setSelectedFileIndex(current => Math.max(0, Math.min(current, fileSuggestions.length - 1) - 1));
+        return;
+      }
       if (slashSuggestions.length > 0) {
         setSelectedSuggestionIndex(current => Math.max(0, current - 1));
         return;
@@ -787,6 +804,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.downArrow) {
+      if (fileSuggestions.length > 0) {
+        setSelectedFileIndex(current => Math.min(Math.max(0, fileSuggestions.length - 1), current + 1));
+        return;
+      }
       if (slashSuggestions.length > 0) {
         setSelectedSuggestionIndex(current => Math.min(slashSuggestions.length - 1, current + 1));
         return;
@@ -858,11 +879,21 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + 6);
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
   const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor, 6, snapshot.skills ?? []), [cursor, input, snapshot.skills]);
+  const fileQuery = useMemo(() => detectFileReferenceQuery(input, cursor), [cursor, input]);
+  const fileSuggestions = useMemo(
+    () => (fileQuery ? filterFileEntries(snapshot.fileIndex ?? [], fileQuery.query) : []),
+    [fileQuery, snapshot.fileIndex],
+  );
+  const normalizedFileIndex = Math.min(selectedFileIndex, Math.max(0, fileSuggestions.length - 1));
+  const selectedFile = fileSuggestions[normalizedFileIndex];
   const normalizedSuggestionIndex = Math.min(selectedSuggestionIndex, Math.max(0, slashSuggestions.length - 1));
   const selectedSuggestion = slashSuggestions[normalizedSuggestionIndex];
   useEffect(() => {
     setSelectedSuggestionIndex(current => Math.min(current, Math.max(0, slashSuggestions.length - 1)));
   }, [slashSuggestions.length]);
+  useEffect(() => {
+    setSelectedFileIndex(0);
+  }, [fileQuery?.query, fileSuggestions.length]);
 
   const maxPromptLines = Math.max(1, Math.min(6, terminalRows - 10));
   const visiblePromptLines = promptLines.slice(-maxPromptLines);
@@ -874,8 +905,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       ? 'Clarification · Enter submit answer · Esc cancel'
       : snapshot.isProcessing
         ? 'Esc stop · Enter queues draft · Shift+Tab mode'
-        : slashSuggestions.length > 0
-          ? '↑↓ select · Tab/Enter complete · Esc clear'
+        : fileSuggestions.length > 0
+          ? '↑↓ select file · Tab/Enter insert · Esc clear'
+          : slashSuggestions.length > 0
+            ? '↑↓ select · Tab/Enter complete · Esc clear'
           : input.length > 0
             ? 'Enter send · Ctrl+J newline · Esc clear'
             : `/ commands · ↑↓ history · Ctrl+O detail · Shift+Tab mode (${currentInteractionMode}: ${describeInteractionMode(currentInteractionMode)})`;
@@ -952,6 +985,16 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
               </Text>
             ))}
           </Box>
+
+          {fileSuggestions.length > 0 ? (
+            <Box flexDirection="column">
+              {fileSuggestions.map((entry, index) => (
+                <Text key={entry.relPath} color={index === normalizedFileIndex ? 'yellow' : 'gray'}>
+                  {index === normalizedFileIndex ? '→ ' : '  '}@{truncateLabel(entry.relPath, terminalColumns - 8)}{entry.isDirectory ? '/' : ''}
+                </Text>
+              ))}
+            </Box>
+          ) : null}
 
           {slashSuggestions.length > 0 ? (
             <Box flexDirection="column">
