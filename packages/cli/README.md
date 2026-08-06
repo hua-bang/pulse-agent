@@ -135,6 +135,8 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 - `Shift+Tab` - 切换 CLI 交互模式（edit ↔ plan，映射引擎 executing / planning）
 - `↑/↓` - 历史输入（持久化于 `~/.pulse-coder/history.json`，跨会话保留）
 - `Ctrl+J` - 草稿内换行；粘贴（含多行）原样插入，不会误触发送
+- `↑/↓` - 多行草稿内按行移动光标；单行草稿时才切换历史
+- `←/→`、退格/删除 - 按完整字符移动与删除（CJK、emoji 不会被劈开）
 - `Ctrl+O` - 切换工具留痕详情（一行摘要 ↔ 内容预览；只影响之后的留痕）
 - `@` - 文件/文件夹引用补全（`↑↓` 选择、`Tab`/`Enter` 插入路径）
 - 处理中输入会排队，当前轮结束后自动执行
@@ -302,6 +304,7 @@ src/
 ├── ink-app.tsx           # Ink 渲染（Static transcript、composer、粘贴、命令建议、历史）
 ├── ink-ui-bridge.ts      # 运行时回调与 Ink UI 的桥接（append-only 事件 + live 区、工具结果预览、流式节流）
 ├── file-reference.ts     # @ 引用：索引、补全过滤、提交时内容注入
+├── text-width.ts         # 终端显示宽度与码点级光标步进（CJK/emoji）
 ├── markdown.ts           # 轻量 markdown → ANSI 渲染
 ├── history-store.ts      # 输入历史持久化（~/.pulse-coder/history.json）
 ├── log-sink.ts           # 引擎日志层：console 捕获 → ~/.pulse-coder/logs/cli.log + /debug

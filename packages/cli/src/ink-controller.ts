@@ -228,11 +228,27 @@ class InkCoderController implements InkCliController {
   }
 
   setInteractionMode(mode: CliInteractionMode, source = 'cli'): void {
+    if (this.isProcessing) {
+      // Switching engine plan mode mid-run would apply to the in-flight request
+      // and churn the status line; make the refusal explicit instead.
+      this.ui.warn('Cannot switch mode while a run is in progress — press Esc first.');
+      return;
+    }
     this.applyInteractionMode(mode, source);
   }
 
   toggleToolDetail(): void {
     this.ui.setToolDetail(!this.ui.getToolDetail());
+  }
+
+  /** Usage counters are per-conversation; /new, /clear and /resume must zero them. */
+  private resetUsageCounters(): void {
+    this.lastContextTokens = 0;
+    this.totalOutputTokens = 0;
+    this.lastCachedTokens = undefined;
+    this.totalInputTokens = 0;
+    this.totalCachedTokens = 0;
+    this.ui.resetUsage();
   }
 
   private currentContextWindow(): number {
@@ -320,6 +336,7 @@ class InkCoderController implements InkCliController {
   private async resumeSessionRef(ref: string): Promise<void> {
     if (await this.sessionCommands.resumeSession(ref)) {
       await this.sessionCommands.loadContext(this.context);
+      this.resetUsageCounters();
       await this.syncSessionTaskListBinding();
       this.publishSession('Session resumed');
     }
@@ -555,6 +572,7 @@ class InkCoderController implements InkCliController {
         case 'new':
           await this.sessionCommands.createSession(args.join(' ') || undefined);
           this.context.messages = [];
+          this.resetUsageCounters();
           await this.syncSessionTaskListBinding();
           this.publishSession('New session created');
           break;
@@ -590,11 +608,22 @@ class InkCoderController implements InkCliController {
             this.ui.info('Usage: /delete <session-id>');
             break;
           }
-          await this.sessionCommands.deleteSession(args[0]);
+          {
+            const activeId = this.sessionCommands.getCurrentSessionId();
+            const deleted = await this.sessionCommands.deleteSession(args[0]);
+            // Deleting the ACTIVE session must also drop its in-memory context,
+            // or the conversation keeps running and silently cannot be saved.
+            if (deleted && activeId && !this.sessionCommands.getCurrentSessionId()) {
+              this.context.messages = [];
+              this.resetUsageCounters();
+              this.ui.warn('Deleted the active session; its conversation was cleared. Use /new to start another.');
+            }
+          }
           this.publishSession('Session deleted');
           break;
         case 'clear':
           this.context.messages = [];
+          this.resetUsageCounters();
           this.ui.success('Current conversation cleared!');
           this.publishSession('Ready');
           break;

@@ -10,6 +10,7 @@ import {
   formatTokenCount,
   getSlashCommandSuggestions,
   truncateLabel,
+  verticalCursorTarget,
   insertAtCursor,
   isPasteChunk,
   nextInteractionMode,
@@ -362,6 +363,27 @@ describe('Ink composer editing helpers', () => {
     expect(insertAtCursor({ input: 'helo', cursor: 2 }, 'l')).toEqual({ input: 'hello', cursor: 3 });
     expect(removeBeforeCursor({ input: 'hello', cursor: 3 })).toEqual({ input: 'helo', cursor: 2 });
     expect(removeAtCursor({ input: 'hello', cursor: 1 })).toEqual({ input: 'hllo', cursor: 1 });
+  });
+
+  it('deletes whole code points, never half a surrogate pair', () => {
+    expect(removeBeforeCursor({ input: 'a🚀', cursor: 3 })).toEqual({ input: 'a', cursor: 1 });
+    expect(removeAtCursor({ input: 'a🚀b', cursor: 1 })).toEqual({ input: 'ab', cursor: 1 });
+  });
+
+  it('moves the cursor by line inside a multi-line draft and defers to history otherwise', () => {
+    const draft = 'first line\nsecond';
+    // column 3 on line 2 -> column 3 on line 1
+    expect(verticalCursorTarget(draft, 14, -1)).toBe(3);
+    // back down again
+    expect(verticalCursorTarget(draft, 3, 1)).toBe(14);
+    // no line above/below -> null, so ↑/↓ falls through to history
+    expect(verticalCursorTarget(draft, 3, -1)).toBeNull();
+    expect(verticalCursorTarget(draft, 14, 1)).toBeNull();
+    expect(verticalCursorTarget('single line', 4, -1)).toBeNull();
+  });
+
+  it('clamps the column when the target line is shorter', () => {
+    expect(verticalCursorTarget('ab\nlonger line', 12, -1)).toBe(2);
   });
 
   it('deletes the previous word and clamps prompt cursor', () => {

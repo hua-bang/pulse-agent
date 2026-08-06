@@ -1,0 +1,64 @@
+import { describe, expect, it } from 'vitest';
+
+import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth } from './text-width.js';
+
+describe('stringWidth', () => {
+  it('counts CJK and emoji as two columns', () => {
+    expect(stringWidth('abc')).toBe(3);
+    expect(stringWidth('中文')).toBe(4);
+    expect(stringWidth('修复 bug')).toBe(8);
+    expect(stringWidth('🚀')).toBe(2);
+  });
+
+  it('ignores zero-width joiners and variation selectors', () => {
+    expect(stringWidth('a‍b')).toBe(2);
+    expect(stringWidth('️')).toBe(0);
+  });
+});
+
+describe('truncateToWidth', () => {
+  it('measures in display columns, not code units', () => {
+    // 6 CJK chars = 12 columns; a length-based clamp would have kept 9 of them.
+    expect(truncateToWidth('一二三四五六', 9)).toBe('一二三四…');
+    expect(stringWidth(truncateToWidth('一二三四五六', 9))).toBeLessThanOrEqual(9);
+  });
+
+  it('returns the input untouched when it fits', () => {
+    expect(truncateToWidth('short', 20)).toBe('short');
+    expect(truncateToWidth('中文', 4)).toBe('中文');
+  });
+
+  it('never splits a surrogate pair', () => {
+    const result = truncateToWidth('🚀🚀🚀', 5);
+    expect(result.endsWith('…')).toBe(true);
+    expect(result).not.toContain('�');
+    expect([...result].every(char => char === '🚀' || char === '…')).toBe(true);
+  });
+
+  it('is a no-op for degenerate budgets', () => {
+    expect(truncateToWidth('abc', 0)).toBe('abc');
+    expect(truncateToWidth('abc', 1)).toBe('abc');
+  });
+});
+
+describe('prevCharIndex / nextCharIndex', () => {
+  it('steps whole code points across surrogate pairs', () => {
+    const value = 'a🚀b';
+    expect(nextCharIndex(value, 0)).toBe(1);
+    expect(nextCharIndex(value, 1)).toBe(3); // skips the whole emoji
+    expect(prevCharIndex(value, 3)).toBe(1);
+    expect(prevCharIndex(value, 4)).toBe(3);
+  });
+
+  it('steps one unit for BMP characters, including CJK', () => {
+    expect(nextCharIndex('中文', 0)).toBe(1);
+    expect(prevCharIndex('中文', 2)).toBe(1);
+  });
+
+  it('clamps at the boundaries', () => {
+    expect(prevCharIndex('abc', 0)).toBe(0);
+    expect(prevCharIndex('abc', 99)).toBe(2);
+    expect(nextCharIndex('abc', 3)).toBe(3);
+    expect(nextCharIndex('abc', -5)).toBe(1);
+  });
+});

@@ -2,6 +2,7 @@ import { PulseAgent, type Context } from 'pulse-coder-engine';
 
 import { memoryIntegration } from './memory-integration.js';
 import { createPulseCliTools } from './runtime-tools.js';
+import { parseModelSpec } from './model-registry.js';
 
 async function readAllStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -16,7 +17,7 @@ async function readAllStdin(): Promise<string> {
  * Piped stdin is appended to the prompt, so `git diff | pulse-coder -p "review"` works.
  * Streams the assistant text to stdout and exits; no session is persisted.
  */
-export async function runPrintMode(promptArg: string): Promise<number> {
+export async function runPrintMode(promptArg: string, options: { modelSpec?: string } = {}): Promise<number> {
   // Keep stdout clean for the streamed answer (so `pulse-coder -p … | tool`
   // works); engine/plugin console logging goes to stderr instead.
   console.log = (...args: unknown[]) => console.error(...args);
@@ -46,6 +47,14 @@ export async function runPrintMode(promptArg: string): Promise<number> {
   await memoryIntegration.initialize();
   await agent.initialize();
 
+  const choice = options.modelSpec ? parseModelSpec(options.modelSpec) : null;
+  const modelOptions = choice
+    ? {
+      model: choice.model,
+      ...(choice.modelType ? { modelType: choice.modelType } : {}),
+    }
+    : {};
+
   const context: Context = { messages: [{ role: 'user', content: prompt }] };
   const ac = new AbortController();
   const onSigint = () => ac.abort();
@@ -55,6 +64,7 @@ export async function runPrintMode(promptArg: string): Promise<number> {
   try {
     const result = await agent.run(context, {
       abortSignal: ac.signal,
+      ...modelOptions,
       onText: (delta) => {
         sawText = true;
         process.stdout.write(delta);

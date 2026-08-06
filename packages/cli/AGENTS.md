@@ -23,6 +23,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 | Engine log layer (`/debug`) | `src/log-sink.ts` |
 | Model registry (`/model`, `--model`) | `src/model-registry.ts` |
 | `@` file references | `src/file-reference.ts` |
+| Terminal width / cursor stepping | `src/text-width.ts` |
 | Input handling | `src/input-manager.ts` |
 | Sessions | `src/session.ts`, `src/session-commands.ts` |
 | Skills and worktree slash commands | `src/skill-commands.ts`, `src/index.ts`, `src/ink-controller.ts` |
@@ -51,6 +52,8 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 - The Ink host renders with `patchConsole: false`: `EngineLogSink` owns `console.*` (installed before engine init) and routes it to `~/.pulse-coder/logs/cli.log` + the `/debug` policy (errors surface as dim lines; warns dedupe per unique text per session; info/debug only with `/debug on`, `--verbose`, or `--verbose`). Never write to stdout directly from Ink-host code paths — it tears the frame; log via `console.*` (captured) or the bridge.
 - Tool traces are gray one-line summaries by default (`label · N lines/matches`, single-line output inlined, structured output yields NO summary — never a JSON dump); failures stay red with the error inline. `Ctrl+O` toggles content previews and, per the Static model, affects only future traces.
 - Assistant text is two-tier: segments finalized because a tool call started are narration (`status: 'info'`, rendered gray, no markdown); only the segment that ends a run renders bright with markdown. The status line's TEXT stays stable during a run (`Running agent · <elapsed>`) — never write per-tool churn into `status`.
+- Terminal text math goes through `src/text-width.ts`: layout truncation measures DISPLAY COLUMNS (CJK/emoji are 2 wide) and cursor movement/deletion steps whole CODE POINTS. `String.length` is wrong for both — never clamp or step by it.
+- Usage counters are per-conversation state: `/new`, `/clear`, `/resume` and deleting the active session must all call `resetUsageCounters()`, or the status line keeps reporting the previous conversation's tokens.
 - Everything rendered BELOW `<Static>` shares one screen with the composer, so every such region must be bounded by terminal size: transcript-adjacent lists window on rows (`liveTools`, picker, prompt lines) and single lines bound on columns (`formatStatusline` sheds tail segments, `truncateLabel` clips live tool labels). An unbounded `.map()` there pushes the composer off screen — check this when adding any live region. Print-style commands (`/sessions`, `section()`) go into scrollback instead, but still take an explicit count bound so a long history cannot flood the transcript.
 - Session files live under `~/.pulse-coder/sessions`; keep local runtime data out of source control and preserve session task-list metadata.
 - Slash command changes should preserve session persistence, queued input, abort handling, and the clarification flow.

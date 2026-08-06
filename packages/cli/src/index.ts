@@ -7,6 +7,7 @@ import { SkillCommands } from './skill-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
 import { parseCliArgs } from './ui-mode.js';
+import { parseModelSpec } from './model-registry.js';
 import { createPulseCliTools } from './runtime-tools.js';
 
 const LOCAL_COMMANDS = new Set([
@@ -23,7 +24,10 @@ const LOCAL_COMMANDS = new Set([
   'wt',
   'status',
   'mode',
+  'chat',
   'plan',
+  'edit',
+  'auto',
   'execute',
   'save',
   'tui',
@@ -72,7 +76,7 @@ class CoderCLI {
   private skillCommands: SkillCommands;
   private tui: TuiRenderer;
 
-  constructor() {
+  constructor(private readonly modelSpec?: string) {
     // 🎯 现在引擎自动包含内置插件，无需显式配置！
     this.agent = new PulseAgent({
       enginePlugins: {
@@ -285,6 +289,25 @@ class CoderCLI {
           }
 
           this.tui.info(`Current mode: ${currentMode}`);
+          break;
+
+        case 'chat':
+        case 'auto':
+        case 'edit':
+        case 'mode':
+          if (command.toLowerCase() === 'mode' && !args[0]) {
+            this.tui.info(`Current mode: ${this.agent.getMode() ?? 'unavailable'}`);
+            break;
+          }
+          {
+            const requested = command.toLowerCase() === 'mode' ? args[0]?.toLowerCase() : command.toLowerCase();
+            const target = requested === 'plan' || requested === 'planning' ? 'planning' : 'executing';
+            if (this.agent.setMode(target, `cli:/${command.toLowerCase()}`)) {
+              this.tui.success(`Switched to ${target} mode`);
+            } else {
+              this.tui.error('Failed to switch mode: plan mode plugin unavailable');
+            }
+          }
           break;
 
         case 'plan':
@@ -611,8 +634,10 @@ class CoderCLI {
 
         const currentSessionId = this.resolveCurrentSessionId();
 
+        const modelChoice = this.modelSpec ? parseModelSpec(this.modelSpec) : null;
         const runAgent = async () => this.agent.run(this.context, {
           abortSignal: ac.signal,
+          ...(modelChoice ? { model: modelChoice.model, ...(modelChoice.modelType ? { modelType: modelChoice.modelType } : {}) } : {}),
           onText: (delta) => {
             sawText = true;
             this.tui.text(delta);
@@ -719,7 +744,7 @@ async function main(): Promise<void> {
 
   if (parsed.print) {
     const { runPrintMode } = await import('./print-mode.js');
-    process.exit(await runPrintMode(parsed.prompt));
+    process.exit(await runPrintMode(parsed.prompt, { modelSpec: parsed.model }));
   }
 
   if (parsed.uiMode === 'ink') {

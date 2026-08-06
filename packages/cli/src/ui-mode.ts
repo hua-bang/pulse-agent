@@ -85,8 +85,13 @@ export function parseCliArgs(
       continue;
     }
     if (arg === '--model') {
-      model = args[index + 1];
-      index += 1;
+      const next = args[index + 1];
+      // Never swallow the following token when it is itself a flag — that
+      // silently ate --print/--continue and left model undefined.
+      if (next && !next.startsWith('-')) {
+        model = next;
+        index += 1;
+      }
       continue;
     }
     if (arg.startsWith('--model=')) {

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { renderMarkdownAnsi } from './markdown.js';
 import { applyFileReference, detectFileReferenceQuery, filterFileEntries, type FileEntry } from './file-reference.js';
+import { nextCharIndex, prevCharIndex, truncateToWidth } from './text-width.js';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error' | 'log';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
@@ -19,7 +20,7 @@ interface InkRuntime {
   useApp: () => { exit: () => void };
   useInput: (handler: (input: string, key: any) => void) => void;
   usePaste?: (handler: (text: string) => void) => void;
-  useStdout: () => { stdout: { rows?: number; columns?: number } };
+  useStdout: () => { stdout: { rows?: number; columns?: number; on?: (event: string, handler: () => void) => void; off?: (event: string, handler: () => void) => void } };
 }
 
 export interface InkCliEvent {
@@ -180,9 +181,10 @@ export function removeBeforeCursor(state: ComposerState): ComposerState {
     return { input: state.input, cursor };
   }
 
+  const start = prevCharIndex(state.input, cursor);
   return {
-    input: `${state.input.slice(0, cursor - 1)}${state.input.slice(cursor)}`,
-    cursor: cursor - 1,
+    input: `${state.input.slice(0, start)}${state.input.slice(cursor)}`,
+    cursor: start,
   };
 }
 
@@ -193,7 +195,7 @@ export function removeAtCursor(state: ComposerState): ComposerState {
   }
 
   return {
-    input: `${state.input.slice(0, cursor)}${state.input.slice(cursor + 1)}`,
+    input: `${state.input.slice(0, cursor)}${state.input.slice(nextCharIndex(state.input, cursor))}`,
     cursor,
   };
 }
@@ -212,6 +214,39 @@ export function removeWordBeforeCursor(state: ComposerState): ComposerState {
     input: `${beforeCursor.slice(0, deleteFrom)}${afterCursor}`,
     cursor: deleteFrom,
   };
+}
+
+/**
+ * Target index one line up/down inside a multi-line draft, preserving the
+ * column. Returns null when there is no such line — the caller then falls
+ * through to history navigation, so ↑/↓ keeps working on a single-line draft.
+ */
+export function verticalCursorTarget(input: string, cursor: number, direction: -1 | 1): number | null {
+  if (!input.includes('\n')) {
+    return null;
+  }
+
+  const position = clampCursor(input, cursor);
+  const lineStart = input.lastIndexOf('\n', position - 1) + 1;
+  const column = position - lineStart;
+
+  if (direction === -1) {
+    if (lineStart === 0) {
+      return null;
+    }
+    const prevStart = input.lastIndexOf('\n', lineStart - 2) + 1;
+    const prevLength = lineStart - 1 - prevStart;
+    return prevStart + Math.min(column, prevLength);
+  }
+
+  const lineEnd = input.indexOf('\n', position);
+  if (lineEnd === -1) {
+    return null;
+  }
+  const nextStart = lineEnd + 1;
+  const nextEnd = input.indexOf('\n', nextStart);
+  const nextLength = (nextEnd === -1 ? input.length : nextEnd) - nextStart;
+  return nextStart + Math.min(column, nextLength);
 }
 
 export function renderPrompt(input: string, cursor: number, cursorVisible: boolean): string {
@@ -426,12 +461,12 @@ export function formatStatusline(snapshot: InkCliSnapshot, maxWidth = Number.POS
   return kept.join(' · ');
 }
 
-/** Hard-truncates a live tool label so an over-wide line cannot reflow the composer. */
+/**
+ * Hard-truncates a live tool label so an over-wide line cannot reflow the
+ * composer. Measured in display columns, so CJK/emoji labels do not overflow.
+ */
 export function truncateLabel(label: string, maxWidth: number): string {
-  if (!Number.isFinite(maxWidth) || maxWidth <= 1 || label.length <= maxWidth) {
-    return label;
-  }
-  return `${label.slice(0, Math.max(1, maxWidth - 1))}…`;
+  return truncateToWidth(label, maxWidth);
 }
 
 export function describeInteractionMode(mode: CliInteractionMode): string {
@@ -538,6 +573,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const [history, setHistory] = useState<string[]>(() => (initialHistory ?? []).slice(-MAX_HISTORY));
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const [historyDraft, setHistoryDraft] = useState('');
+  // Browsing is its own state: historyIndex is cleared by ordinary edits and
+  // cursor moves, which must NOT restart the browse (that re-captured the
+  // draft from already-loaded history text and stuck ↑ on the newest entry).
+  const browsingHistory = useRef(false);
   const [spinnerIndex, setSpinnerIndex] = useState(0);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
@@ -547,6 +586,18 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const ctrlCTimer = useRef<NodeJS.Timeout | null>(null);
   const app = useApp();
   const { stdout } = useStdout();
+  // Ink's resize handling re-lays-out the committed tree but never re-renders
+  // the component, so width/height-derived math would go stale. Mirror the
+  // size into state and subscribe to 'resize' ourselves.
+  const [terminalSize, setTerminalSize] = useState(() => ({ rows: stdout.rows ?? 30, columns: stdout.columns ?? 80 }));
+  useEffect(() => {
+    if (typeof stdout.on !== 'function') {
+      return;
+    }
+    const onResize = () => setTerminalSize({ rows: stdout.rows ?? 30, columns: stdout.columns ?? 80 });
+    stdout.on('resize', onResize);
+    return () => stdout.off?.('resize', onResize);
+  }, [stdout]);
   const currentInteractionMode = normalizeInteractionMode(snapshot.mode);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
@@ -592,15 +643,23 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   };
 
   const exitApp = () => {
-    void controller.shutdown();
-    onExit?.();
-    app.exit();
+    // Await shutdown so its "saving / goodbye" events reach the transcript
+    // before Ink unmounts; a fire-and-forget exit dropped them entirely.
+    void (async () => {
+      await controller.shutdown();
+      // Yield one frame so React commits shutdown's transcript events (Static
+      // prints on render, not on state change) before Ink unmounts.
+      await new Promise(resolve => setTimeout(resolve, 50));
+      onExit?.();
+      app.exit();
+    })();
   };
 
   const submitCurrentInput = () => {
     const submitted = input;
     setInput('');
     setCursor(0);
+    browsingHistory.current = false;
     setHistory(current => recordHistory(current, submitted));
     if (submitted.trim()) {
       onHistoryRecord?.(submitted.trim());
@@ -623,7 +682,8 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       return;
     }
 
-    if (historyIndex === null) {
+    if (!browsingHistory.current || historyIndex === null) {
+      browsingHistory.current = true;
       setHistoryDraft(input);
       setHistoryIndex(history.length - 1);
       replaceComposer(history[history.length - 1]);
@@ -636,12 +696,13 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   };
 
   const showNextHistory = () => {
-    if (historyIndex === null) {
+    if (!browsingHistory.current || historyIndex === null) {
       return;
     }
 
     const nextIndex = historyIndex + 1;
     if (nextIndex >= history.length) {
+      browsingHistory.current = false;
       setHistoryIndex(null);
       replaceComposer(historyDraft);
       setHistoryDraft('');
@@ -743,6 +804,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       }
 
       if (input.length > 0) {
+        browsingHistory.current = false;
         setInput('');
         setCursor(0);
         setHistoryIndex(null);
@@ -799,6 +861,12 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
         setSelectedSuggestionIndex(current => Math.max(0, current - 1));
         return;
       }
+      // Inside a multi-line draft, ↑ moves a line before it means "history".
+      const upTarget = verticalCursorTarget(input, cursor, -1);
+      if (upTarget !== null) {
+        setCursor(upTarget);
+        return;
+      }
       showPreviousHistory();
       return;
     }
@@ -812,19 +880,22 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
         setSelectedSuggestionIndex(current => Math.min(slashSuggestions.length - 1, current + 1));
         return;
       }
+      const downTarget = verticalCursorTarget(input, cursor, 1);
+      if (downTarget !== null) {
+        setCursor(downTarget);
+        return;
+      }
       showNextHistory();
       return;
     }
 
     if (key.leftArrow) {
-      setCursor(current => Math.max(0, current - 1));
-      setHistoryIndex(null);
+      setCursor(current => prevCharIndex(input, current));
       return;
     }
 
     if (key.rightArrow) {
-      setCursor(current => Math.min(input.length, current + 1));
-      setHistoryIndex(null);
+      setCursor(current => nextCharIndex(input, current));
       return;
     }
 
@@ -870,14 +941,16 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
   });
 
-  const terminalRows = stdout.rows ?? 30;
-  const terminalColumns = stdout.columns ?? 80;
+  const terminalRows = terminalSize.rows;
+  const terminalColumns = terminalSize.columns;
   const spinner = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length];
   const pickerItems = useMemo(() => (picker ? filterPickerItems(picker.items, pickerQuery) : []), [picker, pickerQuery]);
   const clampedPickerIndex = Math.min(pickerIndex, Math.max(0, pickerItems.length - 1));
-  const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - 6));
-  const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + 6);
+  const pickerWindowSize = Math.max(3, Math.min(8, terminalRows - 12));
+  const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - pickerWindowSize));
+  const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + pickerWindowSize);
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
+  const liveMarkdown = useMemo(() => renderMarkdownAnsi(snapshot.liveText), [snapshot.liveText]);
   const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor, 6, snapshot.skills ?? []), [cursor, input, snapshot.skills]);
   const fileQuery = useMemo(() => detectFileReferenceQuery(input, cursor), [cursor, input]);
   const fileSuggestions = useMemo(
@@ -888,9 +961,12 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const selectedFile = fileSuggestions[normalizedFileIndex];
   const normalizedSuggestionIndex = Math.min(selectedSuggestionIndex, Math.max(0, slashSuggestions.length - 1));
   const selectedSuggestion = slashSuggestions[normalizedSuggestionIndex];
+  const slashSuggestionKey = slashSuggestions.map(item => item.command).join(',');
   useEffect(() => {
-    setSelectedSuggestionIndex(current => Math.min(current, Math.max(0, slashSuggestions.length - 1)));
-  }, [slashSuggestions.length]);
+    // Reset on any change to the candidate set: clamping on length alone let a
+    // stale index point at an unrelated command after the query changed.
+    setSelectedSuggestionIndex(0);
+  }, [slashSuggestionKey]);
   useEffect(() => {
     setSelectedFileIndex(0);
   }, [fileQuery?.query, fileSuggestions.length]);
@@ -932,7 +1008,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
 
       {snapshot.liveText ? (
         <Box flexDirection="column" marginTop={1}>
-          <Text>{renderMarkdownAnsi(snapshot.liveText)}</Text>
+          <Text>{liveMarkdown}</Text>
         </Box>
       ) : null}
 
