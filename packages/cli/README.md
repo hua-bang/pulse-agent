@@ -25,10 +25,14 @@ pnpm start
 
 - 内置 MCP 支持 - 引擎自动加载，无需显式配置
 - 内置 Skills 系统 - 智能技能识别与单次调用
-- 会话管理 - 保存与恢复对话（存储于 `~/.pulse-coder/sessions`）
+- 会话管理 - 保存与恢复对话（存储于 `~/.pulse-coder/sessions`），`/resume` 支持序号/ID 前缀，`--continue` 启动即恢复最近会话
+- 滚动回看 - Ink 宿主把已完成输出写入终端原生 scrollback（Ink `<Static>`），长回答不截断、可随时上翻
+- 工具透明 - 每个工具调用完成后显示一行式结果预览（stdout 头几行 / 错误标红）
+- 轻量 Markdown 渲染 - 标题/加粗/行内代码/列表/代码块在终端中着色显示
 - ACP 模式 - CLI 内置 ACP 切换与路由，支持 `//` 前缀强制透传
 - Teams 多智能体 - `/team` DAG 编排与 `/teams` 持续协作模式
-- 计划模式 - `/plan`、`/execute` 切换交互模式
+- 计划模式 - `/plan`、`/mode`、`Shift+Tab` 切换，plan 映射引擎 planning、其余映射 executing（两宿主一致）
+- 非交互模式 - `pulse-coder -p "<prompt>"`（支持 stdin 管道）跑完即退，适合脚本/CI
 - 双 UI 宿主 - 默认 Ink，可回退 readline
 
 ## 使用示例
@@ -44,6 +48,18 @@ pulse-coder
 ```
 
 全局链接安装后得到的是 `pulse-coder` 命令（不是 `coder`）。
+
+### 命令行参数
+
+```
+pulse-coder                     # 交互式（默认 Ink UI）
+pulse-coder -c | --continue     # 启动时恢复最近一次会话
+pulse-coder -p "<prompt>"       # 非交互：跑一条 prompt，流式输出到 stdout 后退出
+git diff | pulse-coder -p "review this"   # stdin 会拼接到 prompt 之后
+pulse-coder --ui readline       # 指定 UI 宿主（ink / readline / plain）
+```
+
+`-p` 模式下引擎/插件日志走 stderr，stdout 只包含回答文本，方便管道消费。
 
 ### 内置功能示例
 
@@ -80,7 +96,7 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 ```
 /help                       - 显示帮助
 /new [title]                - 创建新会话
-/resume <id>                - 恢复会话
+/resume <index|id-prefix|id> - 恢复会话（支持 /sessions 列表序号或唯一 ID 前缀）
 /sessions                   - 列出所有会话
 /search <query>             - 搜索会话
 /rename <id> <new-title>    - 重命名会话
@@ -104,7 +120,16 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 /exit                       - 退出并保存
 ```
 
-控制键：处理中按 `Esc` 中止当前响应并接受下一条输入；`Ctrl+C` 立即退出。
+控制键（Ink 宿主）：
+
+- `Esc` - 处理中：中止当前响应；空闲：清空当前草稿（不会退出程序）
+- `Ctrl+C` - 双击退出（首击清空草稿并提示，2 秒内再按一次保存退出）
+- `Shift+Tab` - 循环 CLI 交互模式（chat → plan → edit → auto；plan 映射引擎 planning）
+- `↑/↓` - 历史输入（持久化于 `~/.pulse-coder/history.json`，跨会话保留）
+- `Ctrl+J` - 草稿内换行；粘贴（含多行）原样插入，不会误触发送
+- 处理中输入会排队，当前轮结束后自动执行
+
+readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。
 
 ### ACP 模式
 
@@ -232,20 +257,23 @@ pnpm --filter pulse-coder-cli start:debug # PULSE_CODER_DEBUG=1 重新构建并�
 ```
 src/
 ├── index.ts              # readline 宿主入口、命令循环、agent/ACP 路由、会话保存
-├── ui-mode.ts            # --ui/--tui 与 PULSE_CODER_UI 解析
-├── ink-launcher.tsx      # Ink 启动
-├── ink-controller.ts     # Ink 宿主控制器（命令处理、ACP 路由、会话同步、队列输入）
-├── ink-app.tsx           # Ink 渲染、输入合成、命令建议、历史、模式快捷
-├── ink-ui-bridge.ts      # 运行时回调与 Ink UI 的事件/快照桥接
+├── ui-mode.ts            # --ui/--tui/-p/--continue 与 PULSE_CODER_UI 解析
+├── print-mode.ts         # -p 非交互模式（stdout 仅输出回答，日志走 stderr）
+├── ink-launcher.tsx      # Ink 启动（exitOnCtrlC: false，历史存储装配）
+├── ink-controller.ts     # Ink 宿主控制器（命令处理、plan-mode 接线、ACP 路由、会话同步、队列输入）
+├── ink-app.tsx           # Ink 渲染（Static transcript、composer、粘贴、命令建议、历史）
+├── ink-ui-bridge.ts      # 运行时回调与 Ink UI 的桥接（append-only 事件 + live 区、工具结果预览、流式节流）
+├── markdown.ts           # 轻量 markdown → ANSI 渲染
+├── history-store.ts      # 输入历史持久化（~/.pulse-coder/history.json）
 ├── tui-renderer.ts       # readline 宿主渲染器
 ├── input-manager.ts      # 输入与 clarification 请求处理
 ├── session.ts            # 会话存储（~/.pulse-coder/sessions）
-├── session-commands.ts   # 会话斜杠命令
+├── session-commands.ts   # 会话斜杠命令（/resume 序号/前缀解析、resumeLatest）
 ├── skill-commands.ts     # /skills 命令
 ├── team-commands.ts      # /team、/teams、/solo 命令与 teams 会话
 ├── acp-commands.ts       # /acp 子命令、平台 key 解析、session 列举/关闭
 ├── memory-integration.ts # 记忆插件装配与每轮记忆上下文
-└── sandbox-runner.ts     # run_js 沙箱执行（构建为 dist/runner.cjs；当前活动 CLI 路径未直接导入）
+└── sandbox/              # run_js 沙箱执行（runner 构建为 dist/runner.cjs）
 ```
 
 各 `*.test.ts` 为对应的聚焦行为测试（`vitest run`）。

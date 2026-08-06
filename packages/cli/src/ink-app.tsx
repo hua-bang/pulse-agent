@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+
+import { renderMarkdownAnsi } from './markdown.js';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
@@ -9,8 +11,10 @@ const CLI_INTERACTION_MODES: CliInteractionMode[] = ['chat', 'plan', 'edit', 'au
 interface InkRuntime {
   Box: React.ComponentType<any>;
   Text: React.ComponentType<any>;
+  Static: React.ComponentType<any>;
   useApp: () => { exit: () => void };
   useInput: (handler: (input: string, key: any) => void) => void;
+  usePaste?: (handler: (text: string) => void) => void;
   useStdout: () => { stdout: { rows?: number } };
 }
 
@@ -23,12 +27,20 @@ export interface InkCliEvent {
   summary?: string;
 }
 
+export interface InkLiveTool {
+  id: string;
+  name: string;
+  label: string;
+}
+
 export interface InkCliSnapshot {
   sessionId?: string | null;
   taskListId?: string | null;
   mode?: string | null;
   messages: number;
   estimatedTokens: number;
+  usageInputTokens: number;
+  usageOutputTokens: number;
   queuedInputs: number;
   isProcessing: boolean;
   status: string;
@@ -38,6 +50,8 @@ export interface InkCliSnapshot {
   completedTools: number;
   lastStep?: string | null;
   events: InkCliEvent[];
+  liveText: string;
+  liveTools: InkLiveTool[];
 }
 
 export interface InkCliController {
@@ -53,6 +67,8 @@ interface InkCliAppProps {
   controller: InkCliController;
   runtime: InkRuntime;
   onExit?: () => void;
+  initialHistory?: string[];
+  onHistoryRecord?: (entry: string) => void;
 }
 
 export interface ComposerState {
@@ -73,6 +89,8 @@ const DEFAULT_SNAPSHOT: InkCliSnapshot = {
   mode: null,
   messages: 0,
   estimatedTokens: 0,
+  usageInputTokens: 0,
+  usageOutputTokens: 0,
   queuedInputs: 0,
   isProcessing: false,
   status: 'Ready',
@@ -82,44 +100,14 @@ const DEFAULT_SNAPSHOT: InkCliSnapshot = {
   completedTools: 0,
   lastStep: null,
   events: [],
-};
-
-const KIND_LABEL: Record<InkEventKind, string> = {
-  user: 'You',
-  assistant: 'Assistant',
-  tool: 'Tool',
-  result: 'Result',
-  system: 'System',
-  error: 'Error',
-};
-
-const KIND_COLOR: Record<InkEventKind, string> = {
-  user: 'cyan',
-  assistant: 'green',
-  tool: 'magenta',
-  result: 'green',
-  system: 'blue',
-  error: 'red',
-};
-
-const EVENT_STATUS_ICON: Record<InkEventStatus, string> = {
-  running: '⏳',
-  success: '✓',
-  error: '✕',
-  info: '•',
-};
-
-const EVENT_STATUS_COLOR: Record<InkEventStatus, string> = {
-  running: 'yellow',
-  success: 'green',
-  error: 'red',
-  info: 'blue',
+  liveText: '',
+  liveTools: [],
 };
 
 const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/help', description: 'Show commands and shortcuts', usage: '/help', group: 'Core' },
   { command: '/new', description: 'Create a new session', usage: '/new <title?>', group: 'Session' },
-  { command: '/resume', description: 'Resume a saved session', usage: '/resume <session-id>', group: 'Session' },
+  { command: '/resume', description: 'Resume a saved session', usage: '/resume <index|id-prefix>', group: 'Session' },
   { command: '/sessions', description: 'List saved sessions', usage: '/sessions', group: 'Session' },
   { command: '/search', description: 'Search saved sessions', usage: '/search <query>', group: 'Session' },
   { command: '/rename', description: 'Rename a session', usage: '/rename <id> <title>', group: 'Session' },
@@ -146,6 +134,7 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const MAX_HISTORY = 100;
+const CTRL_C_CONFIRM_WINDOW_MS = 2000;
 
 export function insertAtCursor(state: ComposerState, value: string): ComposerState {
   const cursor = clampCursor(state.input, state.cursor);
@@ -203,6 +192,20 @@ export function renderPromptLines(input: string, cursor: number, cursorVisible: 
   const normalizedCursor = clampCursor(input, cursor);
   const cursorGlyph = cursorVisible ? '█' : ' ';
   return `${input.slice(0, normalizedCursor)}${cursorGlyph}${input.slice(normalizedCursor)}`.split('\n');
+}
+
+/**
+ * Multi-character `useInput` values only occur when the terminal delivered a
+ * chunk (non-bracketed paste or coalesced typing). Those must be inserted
+ * literally — never interpreted as Enter/Tab — or a paste containing a
+ * newline would submit the draft mid-paste.
+ */
+export function isPasteChunk(value: string): boolean {
+  return typeof value === 'string' && value.length > 1;
+}
+
+export function normalizePastedText(value: string): string {
+  return value.replace(/\x1b\[20[01]~/g, '').replace(/\r\n?/g, '\n');
 }
 
 export function getSlashCommandSuggestions(input: string, cursor: number, limit = 6): SlashCommandSuggestion[] {
@@ -306,24 +309,28 @@ export function normalizeInteractionMode(mode: string | null | undefined): CliIn
 
 export function formatStatusline(snapshot: InkCliSnapshot): string {
   const mode = normalizeInteractionMode(snapshot.mode);
-  const phase = snapshot.phase ?? (snapshot.isProcessing ? 'Running' : 'Idle');
-  const active = snapshot.activeTool ? ` · active ${snapshot.activeTool}` : '';
-  const tools = `${snapshot.completedTools}/${snapshot.toolCalls}`;
-  const queue = snapshot.queuedInputs > 0 ? ` · queue ${snapshot.queuedInputs}` : '';
-  const session = snapshot.sessionId ?? 'new';
-  return `Pulse Coder · mode ${mode} · phase ${phase}${active} · tools ${tools}${queue} · session ${session}`;
+  const contextTokens = snapshot.usageInputTokens > 0 ? snapshot.usageInputTokens : snapshot.estimatedTokens;
+  const parts = [
+    `mode ${mode}`,
+    `ctx ~${contextTokens}`,
+    snapshot.activeTool ? `active ${snapshot.activeTool}` : null,
+    snapshot.toolCalls > 0 ? `tools ${snapshot.completedTools}/${snapshot.toolCalls}` : null,
+    snapshot.queuedInputs > 0 ? `queue ${snapshot.queuedInputs}` : null,
+    `session ${snapshot.sessionId ? snapshot.sessionId.slice(0, 8) : 'new'}`,
+  ].filter((part): part is string => Boolean(part));
+  return parts.join(' · ');
 }
 
 export function describeInteractionMode(mode: CliInteractionMode): string {
   switch (mode) {
     case 'chat':
-      return 'free-form conversation; no extra CLI-side constraints';
+      return 'free-form conversation';
     case 'plan':
-      return 'ask for inspection and a plan before changes';
+      return 'engine plan mode: inspect and plan before changes';
     case 'edit':
-      return 'optimize for implementation and validation';
+      return 'engine execute mode: implement and validate';
     case 'auto':
-      return 'optimize for low-interaction autonomous execution';
+      return 'low-interaction autonomous execution';
   }
 }
 
@@ -344,32 +351,76 @@ function recordHistory(history: string[], submitted: string): string[] {
   return [...history, trimmed].slice(-MAX_HISTORY);
 }
 
-export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
-  const { Box, Text, useApp, useInput, useStdout } = runtime;
+function TranscriptEvent({ event, Box, Text }: { event: InkCliEvent; Box: React.ComponentType<any>; Text: React.ComponentType<any> }) {
+  if (event.kind === 'tool') {
+    const icon = event.status === 'error' ? '✕' : event.status === 'info' ? '·' : '✓';
+    const iconColor = event.status === 'error' ? 'red' : event.status === 'info' ? 'gray' : 'green';
+    const previewLines = event.text ? event.text.split('\n') : [];
+    return (
+      <Box flexDirection="column">
+        <Text>
+          <Text color={iconColor}>{icon} </Text>
+          <Text color={event.status === 'error' ? 'red' : undefined}>{event.title ?? 'tool'}</Text>
+        </Text>
+        {previewLines.map((line, index) => (
+          <Text key={index} color="gray">  {index === 0 ? '⎿ ' : '  '}{line}</Text>
+        ))}
+      </Box>
+    );
+  }
+
+  if (event.kind === 'user') {
+    return (
+      <Box flexDirection="column" marginTop={1}>
+        <Text color="cyan">› <Text color="white">{event.text}</Text></Text>
+      </Box>
+    );
+  }
+
+  if (event.kind === 'assistant') {
+    return (
+      <Box flexDirection="column" marginTop={1}>
+        <Text>{renderMarkdownAnsi(event.text)}</Text>
+      </Box>
+    );
+  }
+
+  if (event.kind === 'error') {
+    return (
+      <Box flexDirection="column" marginTop={1}>
+        <Text color="red">{event.title ? `${event.title} · ` : ''}{event.text}</Text>
+      </Box>
+    );
+  }
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      {event.title ? <Text bold color="blue">{event.title}</Text> : null}
+      <Text color="gray">{event.text}</Text>
+    </Box>
+  );
+}
+
+export function InkCliApp({ controller, runtime, onExit, initialHistory, onHistoryRecord }: InkCliAppProps) {
+  const { Box, Text, Static, useApp, useInput, usePaste, useStdout } = runtime;
   const [snapshot, setSnapshot] = useState<InkCliSnapshot>(() => ({
     ...DEFAULT_SNAPSHOT,
     ...controller.getSnapshot(),
   }));
   const [input, setInput] = useState('');
   const [cursor, setCursor] = useState(0);
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<string[]>(() => (initialHistory ?? []).slice(-MAX_HISTORY));
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const [historyDraft, setHistoryDraft] = useState('');
-  const [clearedEventCount, setClearedEventCount] = useState(0);
-  const [cursorVisible, setCursorVisible] = useState(true);
   const [spinnerIndex, setSpinnerIndex] = useState(0);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [ctrlCArmed, setCtrlCArmed] = useState(false);
+  const ctrlCTimer = useRef<NodeJS.Timeout | null>(null);
   const app = useApp();
   const { stdout } = useStdout();
   const currentInteractionMode = normalizeInteractionMode(snapshot.mode);
-  const statusline = formatStatusline(snapshot);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
-
-  useEffect(() => {
-    const timer = setInterval(() => setCursorVisible(current => !current), 500);
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     if (!snapshot.isProcessing) {
@@ -379,6 +430,12 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
     const timer = setInterval(() => setSpinnerIndex(current => current + 1), 120);
     return () => clearInterval(timer);
   }, [snapshot.isProcessing]);
+
+  useEffect(() => () => {
+    if (ctrlCTimer.current) {
+      clearTimeout(ctrlCTimer.current);
+    }
+  }, []);
 
   const updateComposer = (next: ComposerState) => {
     setInput(next.input);
@@ -391,11 +448,28 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
     setCursor(nextInput.length);
   };
 
+  const disarmCtrlC = () => {
+    if (ctrlCTimer.current) {
+      clearTimeout(ctrlCTimer.current);
+      ctrlCTimer.current = null;
+    }
+    setCtrlCArmed(false);
+  };
+
+  const exitApp = () => {
+    void controller.shutdown();
+    onExit?.();
+    app.exit();
+  };
+
   const submitCurrentInput = () => {
     const submitted = input;
     setInput('');
     setCursor(0);
     setHistory(current => recordHistory(current, submitted));
+    if (submitted.trim()) {
+      onHistoryRecord?.(submitted.trim());
+    }
     setHistoryIndex(null);
     setHistoryDraft('');
 
@@ -448,16 +522,44 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
     void controller.setInteractionMode?.(nextMode, 'shortcut:shift-tab');
   };
 
+  const insertPastedText = (text: string) => {
+    const normalized = normalizePastedText(text);
+    if (!normalized) {
+      return;
+    }
+    updateComposer(insertAtCursor({ input, cursor }, normalized));
+  };
+
+  usePaste?.(insertPastedText);
+
   useInput((value, key) => {
     if (key.ctrl && value === 'c') {
-      void controller.shutdown();
-      onExit?.();
-      app.exit();
+      if (ctrlCArmed) {
+        disarmCtrlC();
+        exitApp();
+        return;
+      }
+
+      if (input.length > 0) {
+        setInput('');
+        setCursor(0);
+        setHistoryIndex(null);
+        setHistoryDraft('');
+      }
+      setCtrlCArmed(true);
+      ctrlCTimer.current = setTimeout(() => {
+        ctrlCTimer.current = null;
+        setCtrlCArmed(false);
+      }, CTRL_C_CONFIRM_WINDOW_MS);
       return;
     }
 
-    if (key.ctrl && value === 'l') {
-      setClearedEventCount(snapshot.events.length);
+    disarmCtrlC();
+
+    // Chunked input (paste on terminals without bracketed paste, coalesced
+    // typing) must be inserted literally before any key interpretation.
+    if (isPasteChunk(value) && !key.ctrl && !key.meta) {
+      insertPastedText(value);
       return;
     }
 
@@ -472,12 +574,7 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
         setCursor(0);
         setHistoryIndex(null);
         setHistoryDraft('');
-        return;
       }
-
-      void controller.shutdown();
-      onExit?.();
-      app.exit();
       return;
     }
 
@@ -580,12 +677,8 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
   });
 
   const terminalRows = stdout.rows ?? 30;
-  const visibleEventCount = Math.max(4, Math.min(12, terminalRows - 12));
-  const eventsAfterClear = snapshot.events.slice(Math.min(clearedEventCount, snapshot.events.length));
-  const visibleEvents = eventsAfterClear.slice(-visibleEventCount);
-  const hiddenEventCount = snapshot.events.length - visibleEvents.length;
-  const spinner = snapshot.isProcessing ? SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length] : '●';
-  const promptLines = useMemo(() => renderPromptLines(input, cursor, cursorVisible), [cursor, cursorVisible, input]);
+  const spinner = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length];
+  const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
   const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor), [cursor, input]);
   const normalizedSuggestionIndex = Math.min(selectedSuggestionIndex, Math.max(0, slashSuggestions.length - 1));
   const selectedSuggestion = slashSuggestions[normalizedSuggestionIndex];
@@ -593,78 +686,66 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
     setSelectedSuggestionIndex(current => Math.min(current, Math.max(0, slashSuggestions.length - 1)));
   }, [slashSuggestions.length]);
 
-  const maxPromptLines = Math.max(1, Math.min(6, terminalRows - 18));
+  const maxPromptLines = Math.max(1, Math.min(6, terminalRows - 10));
   const visiblePromptLines = promptLines.slice(-maxPromptLines);
   const hiddenPromptLineCount = promptLines.length - visiblePromptLines.length;
-  const keyHint = snapshot.isProcessing
-    ? 'Running · Enter queues draft · Esc stop · Shift+Tab mode · Ctrl+C exit'
-    : slashSuggestions.length > 0
-      ? 'Palette · ↑↓ select · Tab/Enter complete · Shift+Tab mode · Esc clear'
-      : input.length > 0
-        ? 'Editing · Enter send · Ctrl+J newline · Shift+Tab mode · Esc clear'
-      : 'Idle · type / for commands · Shift+Tab mode · ↑↓ history · Ctrl+L clear · Esc exit';
-  const lineCount = input.split('\n').length;
-  const composerHint = input.length > 0 ? `draft ${lineCount} line${lineCount === 1 ? '' : 's'} · ${input.length} chars` : 'ready for next prompt';
-  const modeHint = `${currentInteractionMode}: ${describeInteractionMode(currentInteractionMode)}`;
-  const queuedHint = snapshot.queuedInputs > 0 ? ` · queued ${snapshot.queuedInputs}` : '';
-  const hiddenHint = hiddenEventCount > 0 ? ` · ${hiddenEventCount} older` : '';
-  const progressColor = snapshot.isProcessing ? 'yellow' : snapshot.status === 'Cancelled' ? 'red' : 'green';
-  const toolProgress = snapshot.toolCalls > 0 ? `${snapshot.completedTools}/${snapshot.toolCalls} tools` : 'no tools yet';
+  const waitingClarification = snapshot.phase === 'Clarification';
+  const keyHint = ctrlCArmed
+    ? 'Press Ctrl+C again to exit'
+    : waitingClarification
+      ? 'Clarification · Enter submit answer · Esc cancel'
+      : snapshot.isProcessing
+        ? 'Esc stop · Enter queues draft · Shift+Tab mode'
+        : slashSuggestions.length > 0
+          ? '↑↓ select · Tab/Enter complete · Esc clear'
+          : input.length > 0
+            ? 'Enter send · Ctrl+J newline · Esc clear'
+            : `/ commands · ↑↓ history · Shift+Tab mode (${currentInteractionMode}: ${describeInteractionMode(currentInteractionMode)})`;
+  const composerColor = waitingClarification ? 'magenta' : snapshot.isProcessing ? 'yellow' : 'cyan';
+  const statusIcon = snapshot.isProcessing ? spinner : '●';
+  const statusColor = snapshot.isProcessing ? 'yellow' : snapshot.status === 'Cancelled' ? 'red' : 'green';
 
   return (
-    <Box flexDirection="column" paddingX={1}>
-      <Box borderStyle="round" borderColor="cyan" paddingX={1} flexDirection="column">
-        <Text bold color="cyan">{statusline}</Text>
-        <Text color="gray">
-          {snapshot.messages} msgs · ~{snapshot.estimatedTokens} tokens
-          {snapshot.taskListId ? ` · tasks ${snapshot.taskListId}` : ''}
-        </Text>
+    <Box flexDirection="column">
+      <Static items={snapshot.events}>
+        {(event: InkCliEvent) => <TranscriptEvent key={event.id} event={event} Box={Box} Text={Text} />}
+      </Static>
+
+      {snapshot.liveText ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text>{renderMarkdownAnsi(snapshot.liveText)}</Text>
+        </Box>
+      ) : null}
+
+      {snapshot.liveTools.map(tool => (
+        <Text key={tool.id} color="yellow">{spinner} {tool.label}</Text>
+      ))}
+
+      <Box marginTop={1}>
+        <Text color={statusColor}>{statusIcon} {snapshot.status}</Text>
+        <Text color="gray"> · {formatStatusline(snapshot)}</Text>
       </Box>
 
-      <Box marginTop={1} borderStyle="single" borderColor={progressColor} paddingX={1} flexDirection="column">
-        <Text bold color={progressColor}>Progress · {snapshot.phase ?? (snapshot.isProcessing ? 'Running' : 'Idle')}</Text>
-        <Text color="gray">{toolProgress}{snapshot.activeTool ? ` · active ${snapshot.activeTool}` : ''}{snapshot.lastStep ? ` · last ${snapshot.lastStep}` : ''}{snapshot.queuedInputs > 0 ? ` · queued ${snapshot.queuedInputs}` : ''}</Text>
-      </Box>
-
-      <Box marginTop={1} flexDirection="column">
-        {visibleEvents.length === 0 ? (
-          <Text color="gray">Type a message below. Use /help for commands.{clearedEventCount > 0 ? ' Ctrl+L cleared visible history.' : ''}</Text>
-        ) : visibleEvents.map(event => (
-          <Box key={event.id} flexDirection="column" marginBottom={1}>
-            <Text bold color={event.status ? EVENT_STATUS_COLOR[event.status] : KIND_COLOR[event.kind]}>
-              {event.status ? `${EVENT_STATUS_ICON[event.status]} ` : ''}{KIND_LABEL[event.kind]}{event.title ? ` · ${event.title}` : ''}{event.summary ? ` · ${event.summary}` : ''}
-            </Text>
-            <Text color={event.kind === 'tool' ? 'gray' : undefined}>{event.text}</Text>
-          </Box>
+      <Box borderStyle="round" borderColor={composerColor} paddingX={1} flexDirection="column">
+        {hiddenPromptLineCount > 0 ? <Text color="gray">… {hiddenPromptLineCount} earlier draft line{hiddenPromptLineCount === 1 ? '' : 's'}</Text> : null}
+        {visiblePromptLines.map((line, index) => (
+          <Text key={`${index}-${line}`} color="cyan">
+            {index === 0 ? '› ' : '  '}<Text color="white">{line || ' '}</Text>
+          </Text>
         ))}
       </Box>
 
-      <Box borderStyle="single" borderColor={snapshot.isProcessing ? 'yellow' : 'green'} paddingX={1} flexDirection="column">
-        <Text color={snapshot.isProcessing ? 'yellow' : 'green'}>
-          {spinner} {snapshot.status}{queuedHint}{hiddenHint}
-        </Text>
-        <Text color="gray">{keyHint} · {composerHint}</Text>
-        <Text color="gray">Mode · {modeHint}</Text>
-        {slashSuggestions.length > 0 ? (
-          <Box flexDirection="column">
-            <Text color="yellow">Commands · ↑↓ select · Tab/Enter completes</Text>
-            {slashSuggestions.map((suggestion, index) => (
-              <Text key={suggestion.command} color={index === normalizedSuggestionIndex ? 'yellow' : 'gray'}>
-                {index === normalizedSuggestionIndex ? '→ ' : '  '}{suggestion.command} <Text color="gray">[{suggestion.group}] {suggestion.description}</Text>
-              </Text>
-            ))}
-            {selectedSuggestion?.usage ? <Text color="gray">Hint: {selectedSuggestion.usage}</Text> : null}
-          </Box>
-        ) : null}
+      {slashSuggestions.length > 0 ? (
         <Box flexDirection="column">
-          {hiddenPromptLineCount > 0 ? <Text color="gray">… {hiddenPromptLineCount} earlier draft line{hiddenPromptLineCount === 1 ? '' : 's'}</Text> : null}
-          {visiblePromptLines.map((line, index) => (
-            <Text key={`${index}-${line}`} color="cyan">
-              {index === 0 ? '› ' : '  '}<Text color="white">{line || ' '}</Text>
+          {slashSuggestions.map((suggestion, index) => (
+            <Text key={suggestion.command} color={index === normalizedSuggestionIndex ? 'yellow' : 'gray'}>
+              {index === normalizedSuggestionIndex ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{suggestion.description}{index === normalizedSuggestionIndex && suggestion.usage ? ` · ${suggestion.usage}` : ''}</Text>
             </Text>
           ))}
         </Box>
-      </Box>
+      ) : null}
+
+      <Text color="gray">{keyHint}</Text>
     </Box>
   );
 }

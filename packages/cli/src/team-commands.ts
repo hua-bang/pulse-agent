@@ -104,7 +104,9 @@ export async function runTeam(agent: PulseAgent, args: string[]): Promise<void> 
     const active = activeNodes.size > 0
       ? ` running: ${Array.from(activeNodes).join(', ')}`
       : '';
-    process.stdout.write(`${dim}[orchestrator] ${elapsed}s elapsed${active}${reset}\n`);
+    // console.log (not process.stdout.write): Ink patches console methods, so
+    // this renders above the app instead of tearing the Ink frame.
+    console.log(`${dim}[orchestrator] ${elapsed}s elapsed${active}${reset}`);
   }, 5000);
 
   try {

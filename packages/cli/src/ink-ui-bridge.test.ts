@@ -6,8 +6,10 @@ import {
   formatStatusline,
   getSlashCommandSuggestions,
   insertAtCursor,
+  isPasteChunk,
   nextInteractionMode,
   normalizeInteractionMode,
+  normalizePastedText,
   removeAtCursor,
   removeBeforeCursor,
   removeWordBeforeCursor,
@@ -17,107 +19,142 @@ import {
   type InkCliSnapshot,
 } from './ink-app.js';
 
+const createBridge = () => {
+  const snapshots: InkCliSnapshot[] = [];
+  const bridge = new InkUiBridge({
+    onChange: snapshot => snapshots.push(snapshot),
+    textThrottleMs: 0,
+  });
+  return { snapshots, bridge };
+};
+
 describe('InkUiBridge', () => {
-  it('streams assistant deltas into one assistant event', () => {
-    const snapshots: InkCliSnapshot[] = [];
-    const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
+  it('streams deltas into liveText without finalizing events', () => {
+    const { snapshots, bridge } = createBridge();
 
     bridge.text('hello');
     bridge.text(' world');
 
     const last = snapshots[snapshots.length - 1];
-    expect(last.events).toHaveLength(1);
-    expect(last.events[0]).toMatchObject({
-      kind: 'assistant',
-      text: 'hello world',
-    });
+    expect(last.liveText).toBe('hello world');
+    expect(last.events).toHaveLength(0);
   });
 
-  it('resets assistant stream when a tool call is shown', () => {
-    const snapshots: InkCliSnapshot[] = [];
-    const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
+  it('finalizes streaming text into an assistant event when a tool call starts', () => {
+    const { snapshots, bridge } = createBridge();
 
     bridge.text('before');
     bridge.toolCall('bash', { command: 'echo ok' });
-    bridge.text('after');
 
-    const events = snapshots[snapshots.length - 1].events;
-    expect(events.map(event => event.kind)).toEqual(['assistant', 'tool', 'assistant']);
-    expect(events[1].title).toBe('Tools');
-    expect(events[2].text).toBe('after');
+    const last = snapshots[snapshots.length - 1];
+    expect(last.events.map(event => event.kind)).toEqual(['assistant']);
+    expect(last.events[0].text).toBe('before');
+    expect(last.liveText).toBe('');
+    expect(last.liveTools).toHaveLength(1);
+    expect(last.liveTools[0].label).toBe('$ echo ok');
   });
 
-  it('updates one tool card through running and success lifecycle', () => {
-    const snapshots: InkCliSnapshot[] = [];
-    const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
+  it('finalizes a tool call with a success preview of its output', () => {
+    const { snapshots, bridge } = createBridge();
 
     bridge.startProcessing('Running agent');
     bridge.toolCall('bash', { command: 'echo ok' });
-    bridge.toolResult('bash');
+    bridge.toolResult('bash', 'ok\nline2\nline3\nline4\nline5');
 
     const last = snapshots[snapshots.length - 1];
+    expect(last.liveTools).toHaveLength(0);
     expect(last.toolCalls).toBe(1);
     expect(last.completedTools).toBe(1);
-    expect(last.activeTool).toBeNull();
-    expect(last.events).toHaveLength(1);
-    expect(last.events[0]).toMatchObject({
+
+    const toolEvent = last.events[last.events.length - 1];
+    expect(toolEvent).toMatchObject({
       kind: 'tool',
-      title: 'Tools',
+      title: '$ echo ok',
       status: 'success',
-      summary: '1 call · 1 done',
     });
+    expect(toolEvent.text).toContain('ok');
+    expect(toolEvent.text).toContain('… +2 lines');
   });
-  it('groups multiple tool calls into one compact activity event', () => {
-    const snapshots: InkCliSnapshot[] = [];
-    const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
+
+  it('marks failed tool results as errors', () => {
+    const { snapshots, bridge } = createBridge();
 
     bridge.startProcessing('Running agent');
-    bridge.toolCall('read', { filePath: 'packages/cli/src/ink-app.tsx' });
-    bridge.toolResult('read');
-    bridge.toolCall('grep', { pattern: 'toolCall', path: 'packages/cli/src' });
-    bridge.toolResult('grep');
+    bridge.toolCall('bash', { command: 'false' });
+    bridge.toolResult('bash', { error: 'boom' });
 
-    const last = snapshots[snapshots.length - 1];
-    expect(last.toolCalls).toBe(2);
-    expect(last.completedTools).toBe(2);
-    expect(last.events).toHaveLength(1);
-    expect(last.events[0]).toMatchObject({
-      kind: 'tool',
-      title: 'Tools',
-      status: 'success',
-      summary: '2 calls · 2 done',
-    });
-    expect(last.events[0].text).toContain('read');
-    expect(last.events[0].text).toContain('grep');
-    expect(last.events[0].text).toContain('  ✓ open packages/cli/src/ink-app.tsx');
-    expect(last.events[0].text).toContain('  ✓ grep "toolCall" in packages/cli/src');
+    const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
+    expect(toolEvent.status).toBe('error');
+    expect(toolEvent.text).toContain('boom');
   });
 
-  it('shows running progress in the compact tools summary', () => {
-    const snapshots: InkCliSnapshot[] = [];
-    const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
+  it('extracts text from MCP-style content parts', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.toolCall('search', { query: 'docs' });
+    bridge.toolResult('search', { content: [{ type: 'text', text: 'part one' }, { type: 'text', text: 'part two' }] });
+
+    const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
+    expect(toolEvent.text).toContain('part one');
+    expect(toolEvent.text).toContain('part two');
+  });
+
+  it('finalizes leftover live text on run summary', () => {
+    const { snapshots, bridge } = createBridge();
 
     bridge.startProcessing('Running agent');
-    bridge.toolCall('read', { filePath: 'packages/cli/src/ink-app.tsx' });
-    bridge.toolResult('read');
-    bridge.toolCall('bash', { command: 'pnpm --filter pulse-coder-cli test -- --runInBand' });
+    bridge.text('final answer');
+    bridge.runSummary({
+      elapsedMs: 1234,
+      toolCalls: 0,
+      messages: 2,
+      estimatedTokens: 12,
+      mode: 'chat',
+    });
 
     const last = snapshots[snapshots.length - 1];
-    expect(last.events).toHaveLength(1);
-    expect(last.events[0]).toMatchObject({
-      kind: 'tool',
-      title: 'Tools',
-      status: 'running',
-      summary: '2 calls · 1 done · running bash',
-    });
-    expect(last.events[0].text).toContain('  read · bash');
-    expect(last.events[0].text).not.toContain('  latest');
-    expect(last.events[0].text).toContain('  · $ pnpm --filter pulse-coder-cli test -- --runInBand');
+    expect(last.liveText).toBe('');
+    expect(last.events.some(event => event.kind === 'assistant' && event.text === 'final answer')).toBe(true);
+    expect(last.isProcessing).toBe(false);
+    expect(last.status).toContain('Done in 1.2s');
   });
 
-  it('updates session snapshot and run summary status', () => {
+  it('finalizes still-running tools as cancelled on abort', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('bash', { command: 'sleep 100' });
+    bridge.abort('stopped');
+
+    const last = snapshots[snapshots.length - 1];
+    expect(last.liveTools).toHaveLength(0);
+    const kinds = last.events.map(event => `${event.kind}:${event.status ?? ''}`);
+    expect(kinds).toContain('tool:error');
+    expect(last.events.slice(-1)[0]).toMatchObject({ kind: 'error', title: 'Abort' });
+    expect(last.status).toBe('Cancelled');
+  });
+
+  it('throttles streaming emissions but keeps the snapshot current', () => {
     const snapshots: InkCliSnapshot[] = [];
-    const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
+    const bridge = new InkUiBridge({
+      onChange: snapshot => snapshots.push(snapshot),
+      textThrottleMs: 5000,
+    });
+
+    bridge.text('a');
+    bridge.text('b');
+    bridge.text('c');
+
+    // First delta emits immediately; the rest coalesce into a pending flush.
+    expect(snapshots).toHaveLength(1);
+    expect(bridge.getSnapshot().liveText).toBe('abc');
+
+    bridge.emit();
+    expect(snapshots[snapshots.length - 1].liveText).toBe('abc');
+  });
+
+  it('updates session snapshot, usage, and run summary status', () => {
+    const { snapshots, bridge } = createBridge();
 
     bridge.session({
       sessionId: 's1',
@@ -126,6 +163,7 @@ describe('InkUiBridge', () => {
       estimatedTokens: 42,
       mode: 'executing',
     });
+    bridge.usage({ inputTokens: 1200, outputTokens: 340 });
     bridge.runSummary({
       elapsedMs: 1234,
       toolCalls: 2,
@@ -139,6 +177,8 @@ describe('InkUiBridge', () => {
     expect(last.taskListId).toBe('tasks-s1');
     expect(last.messages).toBe(5);
     expect(last.estimatedTokens).toBe(64);
+    expect(last.usageInputTokens).toBe(1200);
+    expect(last.usageOutputTokens).toBe(340);
     expect(last.mode).toBe('planning');
     expect(last.isProcessing).toBe(false);
     expect(last.status).toContain('Done in 1.2s');
@@ -162,6 +202,13 @@ describe('Ink composer editing helpers', () => {
     expect(renderPromptLines('one\ntwo', 4, true)).toEqual(['one', '█two']);
   });
 
+  it('treats multi-character chunks as paste and normalizes them', () => {
+    expect(isPasteChunk('a')).toBe(false);
+    expect(isPasteChunk('ab')).toBe(true);
+    expect(normalizePastedText('line1\r\nline2\rline3')).toBe('line1\nline2\nline3');
+    expect(normalizePastedText('\x1b[200~pasted\x1b[201~')).toBe('pasted');
+  });
+
   it('suggests, fuzzily matches, and completes slash commands', () => {
     expect(getSlashCommandSuggestions('/s', 2).map(item => item.command)).toEqual(['/sessions', '/search', '/skills', '/status', '/solo', '/save']);
     expect(getSlashCommandSuggestions('/tm', 3).map(item => item.command)).toContain('/team');
@@ -178,11 +225,13 @@ describe('Ink composer editing helpers', () => {
     expect(nextInteractionMode('auto')).toBe('chat');
 
     const statusline = formatStatusline({
-      sessionId: 's1',
+      sessionId: 'session-1234567890',
       taskListId: null,
       mode: 'plan',
       messages: 0,
-      estimatedTokens: 0,
+      estimatedTokens: 96,
+      usageInputTokens: 1500,
+      usageOutputTokens: 20,
       queuedInputs: 2,
       isProcessing: true,
       status: 'Running agent',
@@ -190,12 +239,17 @@ describe('Ink composer editing helpers', () => {
       activeTool: 'bash',
       toolCalls: 3,
       completedTools: 1,
+      lastStep: null,
       events: [],
+      liveText: '',
+      liveTools: [],
     });
 
     expect(statusline).toContain('mode plan');
+    expect(statusline).toContain('ctx ~1500');
     expect(statusline).toContain('active bash');
     expect(statusline).toContain('tools 1/3');
     expect(statusline).toContain('queue 2');
+    expect(statusline).toContain('session session-');
   });
 });

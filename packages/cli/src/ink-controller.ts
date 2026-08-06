@@ -1,4 +1,4 @@
-import { PulseAgent, type Context, type TaskListService } from 'pulse-coder-engine';
+import { PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
 
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
@@ -71,16 +71,16 @@ const HELP_ITEMS: TuiHelpItem[] = [
 const HELP_FOOTER = [
   'Enter - Send current input',
   'Ctrl+J - Insert a newline into the current draft',
-  'Shift+Tab - Cycle CLI interaction mode (chat → plan → edit → auto)',
-  'Tab - Complete the first visible slash-command suggestion',
+  'Shift+Tab - Cycle CLI interaction mode (chat → plan → edit → auto; plan/others map to engine planning/executing)',
+  'Tab - Complete the selected slash-command suggestion',
   'Type / - Show slash-command suggestions',
-  '↑/↓ - Recall previous/next prompt',
+  '↑/↓ - Recall previous/next prompt (persisted across sessions)',
   '←/→, Ctrl+A/E - Move cursor',
   'Ctrl+U/K/W - Delete before cursor / after cursor / previous word',
-  'Ctrl+L - Clear visible transcript without clearing conversation',
-  'Esc (while processing) - Stop current response and accept next input',
-  'Esc (idle) - Clear current input first; exit when input is empty',
-  'Ctrl+C - Save and exit CLI immediately',
+  'Paste - Inserted literally (newlines included); bracketed paste supported',
+  'Esc - Stop the current response, or clear the current draft when idle',
+  'Ctrl+C - Press twice to save and exit (first press clears the draft)',
+  'Scroll up - Finished output lives in the normal terminal scrollback',
 ];
 
 class InkCoderController implements InkCliController {
@@ -98,6 +98,8 @@ class InkCoderController implements InkCliController {
   private isShuttingDown = false;
   private teamsSession: TeamsSession | null = null;
   private readonly queuedInputs: string[] = [];
+  private lastContextTokens = 0;
+  private totalOutputTokens = 0;
 
   constructor() {
     this.agent = new PulseAgent({
@@ -124,8 +126,8 @@ class InkCoderController implements InkCliController {
     this.acpPlatformKey = resolveAcpPlatformKey();
   }
 
-  async initialize(): Promise<void> {
-    this.ui.showWelcome();
+  async initialize(options: { continueLast?: boolean } = {}): Promise<void> {
+    this.ui.showWelcome({ cwd: process.cwd() });
     await this.sessionCommands.initialize();
     await memoryIntegration.initialize();
     await this.agent.initialize();
@@ -133,7 +135,11 @@ class InkCoderController implements InkCliController {
     const pluginStatus = this.agent.getPluginStatus();
     this.ui.showPluginStatus(pluginStatus.enginePlugins.length);
 
-    await this.sessionCommands.createSession();
+    if (options.continueLast && await this.sessionCommands.resumeLatest()) {
+      await this.sessionCommands.loadContext(this.context);
+    } else {
+      await this.sessionCommands.createSession();
+    }
     await this.syncSessionTaskListBinding();
     this.publishSession('Ready');
   }
@@ -150,8 +156,19 @@ class InkCoderController implements InkCliController {
 
   private applyInteractionMode(mode: CliInteractionMode, source = 'cli'): void {
     this.interactionMode = mode;
+
+    const targetEngineMode: PlanMode = mode === 'plan' ? 'planning' : 'executing';
+    let engineNote: string;
+    if (this.agent.getMode() === targetEngineMode) {
+      engineNote = ` · engine ${targetEngineMode}`;
+    } else if (this.agent.setMode(targetEngineMode, source)) {
+      engineNote = ` · engine ${targetEngineMode}`;
+    } else {
+      engineNote = ' · engine plan-mode plugin unavailable';
+    }
+
     this.ui.updateSnapshot({ mode });
-    this.ui.info(`CLI mode: ${mode} (${source})`);
+    this.ui.info(`CLI mode: ${mode}${engineNote} (${source})`);
     this.publishSession('Ready');
   }
 
@@ -414,7 +431,8 @@ class InkCoderController implements InkCliController {
             `Session: ${this.sessionCommands.getCurrentSessionId() || 'None (new session)'}`,
             `Task List: ${this.sessionCommands.getCurrentTaskListId() || 'None'}`,
             `Messages: ${this.context.messages.length}`,
-            `Estimated tokens: ~${this.estimateTokens(this.context.messages)}`,
+            `Context tokens: ${this.lastContextTokens > 0 ? `${this.lastContextTokens} (last run)` : `~${this.estimateTokens(this.context.messages)} (estimated)`}`,
+            `Output tokens: ${this.totalOutputTokens} (this process)`,
             `CLI mode: ${this.interactionMode}`,
             `Engine plan mode: ${this.agent.getMode() || 'unavailable'}`,
             `Phase: ${this.getSnapshot().phase ?? 'Idle'}`,
@@ -432,9 +450,10 @@ class InkCoderController implements InkCliController {
           } else {
             this.ui.section('CLI Mode', [
               `Current: ${this.interactionMode}`,
+              `Engine plan mode: ${this.agent.getMode() || 'unavailable'}`,
               'Available: chat, plan, edit, auto',
               'Shortcut: Shift+Tab cycles modes',
-              'Note: this is CLI-local UX state; engine behavior is unchanged.',
+              'plan maps to engine planning; chat/edit/auto map to engine executing.',
             ]);
           }
           break;
@@ -579,9 +598,10 @@ class InkCoderController implements InkCliController {
         },
         onToolResult: (toolResult) => {
           const toolName = this.resolveToolName(toolResult as Record<string, unknown>);
-          this.ui.toolResult(toolName);
+          this.ui.toolResult(toolName, this.getToolOutput(toolResult as Record<string, unknown>));
         },
         onStepFinish: (step) => {
+          this.recordStepUsage(step);
           this.ui.stepFinished(step.finishReason);
         },
         onClarificationRequest: async (request) => {
@@ -619,7 +639,7 @@ class InkCoderController implements InkCliController {
             },
             onToolResult: (toolResult) => {
               const toolName = this.resolveToolName(toolResult as Record<string, unknown>);
-              this.ui.toolResult(toolName);
+              this.ui.toolResult(toolName, this.getToolOutput(toolResult as Record<string, unknown>));
             },
             onClarificationRequest: async (request) => {
               return await this.inputManager.requestInput(request);
@@ -782,6 +802,33 @@ class InkCoderController implements InkCliController {
     return undefined;
   }
 
+  private getToolOutput(toolResult: Record<string, unknown>): unknown {
+    const output = (toolResult as { output?: unknown }).output;
+    if (output !== undefined) {
+      return output;
+    }
+    const result = (toolResult as { result?: unknown }).result;
+    if (result !== undefined) {
+      return result;
+    }
+    return (toolResult as { content?: unknown }).content;
+  }
+
+  private recordStepUsage(step: { usage?: { inputTokens?: number; outputTokens?: number } }): void {
+    const usage = step.usage;
+    if (!usage) {
+      return;
+    }
+
+    if (typeof usage.inputTokens === 'number' && Number.isFinite(usage.inputTokens)) {
+      this.lastContextTokens = usage.inputTokens;
+    }
+    if (typeof usage.outputTokens === 'number' && Number.isFinite(usage.outputTokens)) {
+      this.totalOutputTokens += usage.outputTokens;
+    }
+    this.ui.usage({ inputTokens: this.lastContextTokens, outputTokens: this.totalOutputTokens });
+  }
+
   private resolveToolName(payload: Record<string, unknown>): string {
     const name = (payload as { toolName?: unknown }).toolName
       ?? (payload as { name?: unknown }).name
@@ -799,8 +846,8 @@ class InkCoderController implements InkCliController {
   }
 }
 
-export async function createInkCoderController(): Promise<InkCliController> {
+export async function createInkCoderController(options: { continueLast?: boolean } = {}): Promise<InkCliController> {
   const controller = new InkCoderController();
-  await controller.initialize();
+  await controller.initialize(options);
   return controller;
 }

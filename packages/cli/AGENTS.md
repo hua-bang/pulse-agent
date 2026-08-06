@@ -5,7 +5,7 @@
 
 ## Module Positioning
 
-`pulse-coder-cli` owns the interactive terminal host on top of `pulse-coder-engine`. It handles the default Ink UI, the readline fallback UI, session persistence, slash commands, clarification input, ACP mode, teams commands, memory integration, task-list binding, and host tool registration (`run_js` plus the experimental Pulse Canvas capability adapter).
+`pulse-coder-cli` owns the interactive terminal host on top of `pulse-coder-engine`. It handles the default Ink UI, the readline fallback UI, the `-p/--print` non-interactive mode, session persistence, slash commands, clarification input, ACP mode, teams commands, memory integration, task-list binding, and host tool registration (`run_js` plus the experimental Pulse Canvas capability adapter).
 
 CLI behavior should remain a host layer over the engine. Engine runtime behavior belongs in `packages/engine`; ACP protocol behavior belongs in `packages/acp`; team coordination behavior belongs in `packages/agent-teams`; sandbox execution behavior lives locally in `src/sandbox/` (executor + forked `runner` — built as `dist/runner.cjs`).
 
@@ -14,9 +14,12 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 | Task | Read |
 |---|---|
 | Package overview and scripts | `README.md`, `package.json` |
-| UI mode selection | `src/ui-mode.ts` |
+| UI mode / CLI flag parsing | `src/ui-mode.ts` |
 | Default Ink host path | `src/ink-launcher.tsx`, `src/ink-controller.ts`, `src/ink-app.tsx`, `src/ink-ui-bridge.ts` |
 | Readline fallback host path | `src/index.ts`, `src/tui-renderer.ts` |
+| Non-interactive `-p` mode | `src/print-mode.ts` |
+| Markdown-to-ANSI rendering | `src/markdown.ts` |
+| Prompt history persistence | `src/history-store.ts` |
 | Input handling | `src/input-manager.ts` |
 | Sessions | `src/session.ts`, `src/session-commands.ts` |
 | Skills and worktree slash commands | `src/skill-commands.ts`, `src/index.ts`, `src/ink-controller.ts` |
@@ -31,6 +34,10 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 - Keep CLI-specific state and UI behavior in this package; do not push UI concerns into the engine.
 - Keep command behavior aligned between the Ink controller and the readline fallback unless a change is intentionally UI-specific.
 - Default startup selects Ink via `src/ui-mode.ts`; `PULSE_CODER_UI=readline` is the fallback path.
+- Ink transcript model: `InkUiBridge.events` is append-only and rendered via Ink `<Static>` (printed once into terminal scrollback). Never mutate an already-emitted event — stream into `liveText`/`liveTools` and finalize on boundaries (tool call, tool result, run end, abort).
+- The Ink host renders with `exitOnCtrlC: false`; Ctrl+C double-press exit lives in `ink-app.tsx`. Re-enabling Ink's built-in handler would exit on the first press and skip session save.
+- CLI interaction modes map to engine plan mode: `plan` → `setMode('planning')`, `chat`/`edit`/`auto` → `setMode('executing')` (see `applyInteractionMode`). Keep this mapping aligned with the readline host's `/plan` / `/execute`.
+- Multi-character `useInput` chunks are pastes (or coalesced typing) and must be inserted literally — never interpreted as Enter/Tab; bracketed paste additionally arrives via Ink's `usePaste` channel.
 - Session files live under `~/.pulse-coder/sessions`; keep local runtime data out of source control and preserve session task-list metadata.
 - Slash command changes should preserve session persistence, queued input, abort handling, clarification flow, and ACP passthrough behavior.
 - This package currently has no `typecheck` script; do not document or rely on `pnpm --filter pulse-coder-cli typecheck` until `package.json` adds it.
@@ -59,11 +66,13 @@ Run commands from the repository root. `pnpm start` maps to the built CLI packag
 
 ## Key Files
 
-- `src/index.ts`: readline fallback CLI entrypoint, command loop, agent run wiring, ACP routing, and session save path.
-- `src/ink-controller.ts`: default Ink-mode controller with command handling, agent/ACP routing, session sync, queued input, and shutdown.
-- `src/ink-app.tsx`: Ink rendering, input composer, command suggestions, history, and mode shortcuts.
-- `src/ink-ui-bridge.ts`: event/snapshot bridge between runtime callbacks and the Ink UI.
-- `src/ui-mode.ts`: `--ui`/`--tui` and `PULSE_CODER_UI` resolution.
+- `src/index.ts`: shared entrypoint (arg parse → print mode / Ink / readline), readline command loop, agent run wiring, ACP routing, and session save path.
+- `src/ink-controller.ts`: default Ink-mode controller with command handling, engine plan-mode wiring, agent/ACP routing, session sync, queued input, real token usage, and shutdown.
+- `src/ink-app.tsx`: Ink rendering (Static transcript + live region), input composer, paste handling, command suggestions, history, and mode shortcuts.
+- `src/ink-ui-bridge.ts`: append-only event + live-region bridge between runtime callbacks and the Ink UI; tool-result previews and streaming throttle live here.
+- `src/ui-mode.ts`: `--ui`/`--tui`/`-p`/`--continue` and `PULSE_CODER_UI` resolution.
+- `src/print-mode.ts`: `-p` one-shot runner; stdout carries only the answer, console logging is redirected to stderr.
+- `src/markdown.ts`, `src/history-store.ts`: markdown-to-ANSI renderer and persisted prompt history.
 - `src/session.ts`, `src/session-commands.ts`: session storage and slash-command behavior.
 - `src/acp-commands.ts`: `/acp` state commands, platform key resolution, session listing, and session close.
 - `src/team-commands.ts`: `/team`, `/teams`, and `/solo` command surface.

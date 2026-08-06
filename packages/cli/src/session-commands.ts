@@ -53,10 +53,62 @@ export class SessionCommands {
   }
 
 
-  async resumeSession(id: string): Promise<boolean> {
-    const session = await this.sessionManager.loadSession(id);
+  /**
+   * Resolve a user-facing session reference to a real session id.
+   * Accepts: exact id, 1-based index into the `/sessions` listing (most recent
+   * first), or a unique id prefix (>= 4 chars).
+   */
+  private async resolveSessionRef(ref: string): Promise<{ id?: string; reason?: string }> {
+    const trimmed = ref.trim();
+    if (!trimmed) {
+      return { reason: 'Empty session reference' };
+    }
+
+    if (await this.sessionManager.loadSession(trimmed)) {
+      return { id: trimmed };
+    }
+
+    const sessions = await this.sessionManager.listSessions(100);
+
+    if (/^\d{1,3}$/.test(trimmed)) {
+      const index = Number(trimmed) - 1;
+      const match = sessions[index];
+      return match
+        ? { id: match.id }
+        : { reason: `Index ${trimmed} is out of range (${sessions.length} sessions)` };
+    }
+
+    if (trimmed.length >= 4) {
+      const prefixMatches = sessions.filter(session => session.id.startsWith(trimmed));
+      if (prefixMatches.length === 1) {
+        return { id: prefixMatches[0].id };
+      }
+      if (prefixMatches.length > 1) {
+        return { reason: `Prefix "${trimmed}" matches ${prefixMatches.length} sessions; be more specific` };
+      }
+    }
+
+    return { reason: `Session not found: ${trimmed}` };
+  }
+
+  async resumeLatest(): Promise<boolean> {
+    const [latest] = await this.sessionManager.listSessions(1);
+    if (!latest) {
+      return false;
+    }
+    return this.resumeSession(latest.id);
+  }
+
+  async resumeSession(ref: string): Promise<boolean> {
+    const resolved = await this.resolveSessionRef(ref);
+    if (!resolved.id) {
+      this.log(`\n❌ ${resolved.reason}`);
+      return false;
+    }
+
+    const session = await this.sessionManager.loadSession(resolved.id);
     if (!session) {
-      this.log(`\n❌ Session not found: ${id}`);
+      this.log(`\n❌ Session not found: ${resolved.id}`);
       return false;
     }
 
@@ -104,6 +156,7 @@ export class SessionCommands {
       this.log(`   Preview: ${session.preview}`);
       this.log();
     });
+    this.log('Resume with /resume <index>, a unique id prefix, or the full id.');
   }
 
   async saveContext(context: Context): Promise<void> {
