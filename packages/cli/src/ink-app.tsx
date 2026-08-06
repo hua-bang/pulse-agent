@@ -71,6 +71,8 @@ export interface InkCliSnapshot {
   lastStep?: string | null;
   runStartedAt?: number | null;
   picker?: InkPickerState | null;
+  /** Runtime skills, merged into the slash palette as `/<skill-name>`. */
+  skills?: Array<{ name: string; description: string }>;
   events: InkCliEvent[];
   liveText: string;
   liveTools: InkLiveTool[];
@@ -127,6 +129,7 @@ const DEFAULT_SNAPSHOT: InkCliSnapshot = {
   lastStep: null,
   runStartedAt: null,
   picker: null,
+  skills: [],
   events: [],
   liveText: '',
   liveTools: [],
@@ -143,7 +146,6 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/clear', description: 'Clear conversation context', usage: '/clear', group: 'Context' },
   { command: '/compact', description: 'Compact current context', usage: '/compact', group: 'Context' },
   { command: '/skills', description: 'Run a message with a selected skill', usage: '/skills <name|index> <message>', group: 'Agent' },
-  { command: '/acp', description: 'Manage ACP mode', usage: '/acp status|on|off|cd', group: 'Agent' },
   { command: '/wt', description: 'Use worktree skill', usage: '/wt use <work-name>', group: 'Agent' },
   { command: '/status', description: 'Show session status', usage: '/status', group: 'Core' },
   { command: '/debug', description: 'Engine log layer: toggle, tail, status', usage: '/debug on|off|tail <n>|status', group: 'Core' },
@@ -151,9 +153,6 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/mode', description: 'Show or set CLI interaction mode', usage: '/mode edit|plan', group: 'Mode' },
   { command: '/plan', description: 'Switch to planning mode (engine planning)', usage: '/plan', group: 'Mode' },
   { command: '/edit', description: 'Switch to edit mode (engine executing)', usage: '/edit', group: 'Mode' },
-  { command: '/team', description: 'Run a multi-agent team', usage: '/team <task>', group: 'Teams' },
-  { command: '/teams', description: 'Enter teams mode', usage: '/teams <task>', group: 'Teams' },
-  { command: '/solo', description: 'Exit teams mode', usage: '/solo', group: 'Teams' },
   { command: '/save', description: 'Save current session', usage: '/save', group: 'Session' },
   { command: '/tui', description: 'Show TUI status', usage: '/tui status', group: 'Core' },
   { command: '/exit', description: 'Save and exit', usage: '/exit', group: 'Core' },
@@ -235,7 +234,12 @@ export function normalizePastedText(value: string): string {
   return value.replace(/\x1b\[20[01]~/g, '').replace(/\r\n?/g, '\n');
 }
 
-export function getSlashCommandSuggestions(input: string, cursor: number, limit = 6): SlashCommandSuggestion[] {
+export function getSlashCommandSuggestions(
+  input: string,
+  cursor: number,
+  limit = 6,
+  skills: Array<{ name: string; description: string }> = [],
+): SlashCommandSuggestion[] {
   const normalizedCursor = clampCursor(input, cursor);
   const beforeCursor = input.slice(0, normalizedCursor);
   if (!beforeCursor.startsWith('/') || beforeCursor.startsWith('//') || beforeCursor.includes('\n')) {
@@ -248,7 +252,20 @@ export function getSlashCommandSuggestions(input: string, cursor: number, limit 
   }
 
   const query = match[1].toLowerCase();
-  return SLASH_COMMANDS
+  // Built-ins first so a skill can never shadow a real command; skills whose
+  // name collides with a built-in are dropped (they stay reachable via
+  // `/skills <name> <message>`).
+  const builtInNames = new Set(SLASH_COMMANDS.map(item => item.command.slice(1).toLowerCase()));
+  const skillEntries: SlashCommandSuggestion[] = skills
+    .filter(skill => !builtInNames.has(skill.name.toLowerCase()))
+    .map(skill => ({
+      command: `/${skill.name}`,
+      description: skill.description,
+      usage: `/${skill.name} <message>`,
+      group: 'Skill',
+    }));
+
+  return [...SLASH_COMMANDS, ...skillEntries]
     .map((item, index) => ({ item, index, score: scoreSlashCommand(item.command.slice(1), query) }))
     .filter(match => match.score >= 0)
     .sort((a, b) => a.score - b.score || a.index - b.index)
@@ -840,7 +857,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - 6));
   const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + 6);
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
-  const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor), [cursor, input]);
+  const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor, 6, snapshot.skills ?? []), [cursor, input, snapshot.skills]);
   const normalizedSuggestionIndex = Math.min(selectedSuggestionIndex, Math.max(0, slashSuggestions.length - 1));
   const selectedSuggestion = slashSuggestions[normalizedSuggestionIndex];
   useEffect(() => {
@@ -940,7 +957,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
             <Box flexDirection="column">
               {slashSuggestions.map((suggestion, index) => (
                 <Text key={suggestion.command} color={index === normalizedSuggestionIndex ? 'yellow' : 'gray'}>
-                  {index === normalizedSuggestionIndex ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{suggestion.description}{index === normalizedSuggestionIndex && suggestion.usage ? ` · ${suggestion.usage}` : ''}</Text>
+                  {index === normalizedSuggestionIndex ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{suggestion.group === 'Skill' ? '[skill] ' : ''}{suggestion.description}{index === normalizedSuggestionIndex && suggestion.usage ? ` · ${suggestion.usage}` : ''}</Text>
                 </Text>
               ))}
             </Box>

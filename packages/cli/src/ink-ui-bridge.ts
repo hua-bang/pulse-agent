@@ -29,6 +29,7 @@ const DEFAULT_SNAPSHOT: InkUiSnapshot = {
   completedTools: 0,
   lastStep: null,
   picker: null,
+  skills: [],
 };
 
 const MAX_EVENT_TEXT_LENGTH = 20000;

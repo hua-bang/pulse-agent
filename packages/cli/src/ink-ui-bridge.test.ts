@@ -382,12 +382,33 @@ describe('Ink composer editing helpers', () => {
   });
 
   it('suggests, fuzzily matches, and completes slash commands', () => {
-    expect(getSlashCommandSuggestions('/s', 2).map(item => item.command)).toEqual(['/sessions', '/search', '/skills', '/status', '/solo', '/save']);
-    expect(getSlashCommandSuggestions('/tm', 3).map(item => item.command)).toContain('/team');
+    expect(getSlashCommandSuggestions('/s', 2).map(item => item.command)).toEqual(['/sessions', '/search', '/skills', '/status', '/save', '/resume']);
+    expect(getSlashCommandSuggestions('/md', 3).map(item => item.command)).toContain('/model');
     expect(getSlashCommandSuggestions('//', 2)).toEqual([]);
     expect(shouldAcceptSlashSuggestion('/sta', 4, getSlashCommandSuggestions('/sta', 4)[0])).toBe(true);
     expect(shouldAcceptSlashSuggestion('/status', 7, getSlashCommandSuggestions('/status', 7)[0])).toBe(false);
     expect(applySlashCommandCompletion('/sta', 4, '/status')).toEqual({ input: '/status ', cursor: 8 });
+  });
+
+  it('merges runtime skills into the palette without letting them shadow built-ins', () => {
+    const skills = [
+      { name: 'branch-naming', description: 'Name a branch' },
+      { name: 'status', description: 'a skill that must not shadow /status' },
+    ];
+
+    const skillHit = getSlashCommandSuggestions('/br', 3, 6, skills);
+    expect(skillHit.map(item => item.command)).toEqual(['/branch-naming']);
+    expect(skillHit[0].group).toBe('Skill');
+    expect(skillHit[0].usage).toBe('/branch-naming <message>');
+
+    // The colliding skill is dropped entirely; /status stays the built-in.
+    const statusHits = getSlashCommandSuggestions('/status', 7, 6, skills);
+    expect(statusHits.map(item => item.command)).toEqual(['/status']);
+    expect(statusHits[0].group).toBe('Core');
+
+    // Built-ins outrank skills at equal score.
+    const retired = getSlashCommandSuggestions('/team', 5, 6, skills);
+    expect(retired).toEqual([]);
   });
 
   it('normalizes interaction modes and formats statusline', () => {

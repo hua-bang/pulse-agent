@@ -1,13 +1,10 @@
 import { PulseAgent } from 'pulse-coder-engine';
 import * as readline from 'readline';
 import type { Context, TaskListService } from 'pulse-coder-engine';
-import { getAcpState, runAcp } from 'pulse-coder-acp';
 import { SessionCommands } from './session-commands.js';
 import { InputManager } from './input-manager.js';
 import { SkillCommands } from './skill-commands.js';
-import { runTeam, TeamsSession } from './team-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
-import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
 import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
 import { parseCliArgs } from './ui-mode.js';
 import { createPulseCliTools } from './runtime-tools.js';
@@ -24,14 +21,10 @@ const LOCAL_COMMANDS = new Set([
   'compact',
   'skills',
   'wt',
-  'acp',
   'status',
   'mode',
   'plan',
   'execute',
-  'team',
-  'teams',
-  'solo',
   'save',
   'tui',
   'exit',
@@ -48,22 +41,23 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/clear', description: 'Clear current conversation' },
   { command: '/compact', description: 'Force compact current conversation context' },
   { command: '/skills [list|<name|index> <message>]', description: 'Run one message with a selected skill' },
-  { command: '/acp [status|on|off|cd]', description: 'Manage ACP mode for this CLI' },
   { command: '/wt use <work-name>', description: 'Create a worktree + branch via worktree skill' },
   { command: '/status', description: 'Show current session status' },
   { command: '/mode', description: 'Show current plan mode' },
   { command: '/plan', description: 'Switch to planning mode' },
   { command: '/execute', description: 'Switch to executing mode' },
-  { command: '/team <task>', description: 'Run a multi-agent team (LLM plans DAG by default)' },
-  { command: '/team --route=auto <task>', description: 'Use keyword-based routing instead of LLM planning' },
-  { command: '/teams <task>', description: 'Run agent teams (enters teams mode for follow-ups)' },
-  { command: '/teams <task> --concurrency N', description: 'Limit parallel teammates' },
-  { command: '/teams <task> --cwd <dir>', description: 'Set working directory for teammates' },
-  { command: '/solo', description: 'Exit teams mode, return to normal agent' },
   { command: '/save', description: 'Save current session explicitly' },
   { command: '/tui [on|off|status]', description: 'Toggle or inspect the interactive TUI renderer' },
   { command: '/exit', description: 'Exit the application' },
 ];
+
+/** Retired from the command surface; see ink-controller.ts RETIRED_COMMANDS. */
+const RETIRED_COMMANDS: Record<string, string> = {
+  team: '/team is retired — use sub-agents instead.',
+  teams: '/teams is retired — use sub-agents instead.',
+  solo: '/solo is retired along with /teams.',
+  acp: '/acp is retired — the CLI no longer proxies to external ACP agents.',
+};
 
 const HELP_FOOTER = [
   'Esc (while processing) - Stop current response and accept next input',
@@ -76,7 +70,6 @@ class CoderCLI {
   private sessionCommands: SessionCommands;
   private inputManager: InputManager;
   private skillCommands: SkillCommands;
-  private acpPlatformKey: string;
   private tui: TuiRenderer;
 
   constructor() {
@@ -99,7 +92,6 @@ class CoderCLI {
     this.sessionCommands = new SessionCommands();
     this.inputManager = new InputManager();
     this.skillCommands = new SkillCommands(this.agent);
-    this.acpPlatformKey = resolveAcpPlatformKey();
     this.tui = new TuiRenderer();
   }
 
@@ -274,12 +266,6 @@ class CoderCLI {
           this.tui.info('Use /skills <name|index> <message> directly in input for one-shot skill execution.');
           break;
 
-        case 'acp': {
-          const message = await handleAcpCommand(this.acpPlatformKey, args);
-          this.tui.plain(`\n${message}`);
-          break;
-        }
-
         case 'status':
           const currentId = this.sessionCommands.getCurrentSessionId();
           const currentTaskListId = this.sessionCommands.getCurrentTaskListId();
@@ -389,7 +375,6 @@ class CoderCLI {
     let currentAbortController: AbortController | null = null;
     let isProcessing = false;
     const queuedInputs: string[] = [];
-    let teamsSession: TeamsSession | null = null;
 
     readline.emitKeypressEvents(process.stdin);
 
@@ -436,8 +421,7 @@ class CoderCLI {
       }
 
       this.tui.info('Saving current session...');
-      const cleanupTeams = teamsSession?.active ? teamsSession.stop().catch(() => {}) : Promise.resolve();
-      cleanupTeams.then(() => this.sessionCommands.saveContext(this.context)).finally(() => {
+      this.sessionCommands.saveContext(this.context).finally(() => {
         this.tui.success('Goodbye!');
         process.exit(0);
       });
@@ -484,21 +468,15 @@ class CoderCLI {
       }
 
       let messageInput = trimmedInput;
-      let forceAcp = false;
 
       if (trimmedInput.startsWith('//')) {
-        const acpState = await getAcpState(this.acpPlatformKey);
-        if (!acpState) {
-          this.tui.warn('ACP 未启用，请先使用 /acp on <claude|codex>。');
-          rl.prompt();
-          return;
-        }
-        messageInput = trimmedInput.slice(1);
-        forceAcp = true;
+        this.tui.warn(`${RETIRED_COMMANDS.acp} The "//" ACP passthrough prefix is retired with it.`);
+        rl.prompt();
+        return;
       }
 
       // Handle commands
-      if (messageInput.startsWith('/') && !forceAcp) {
+      if (messageInput.startsWith('/')) {
         const commandLine = messageInput.substring(1);
         const parts = commandLine.split(/\s+/).filter(part => part.length > 0);
 
@@ -512,63 +490,33 @@ class CoderCLI {
         const args = parts.slice(1);
         const normalizedCommand = command.toLowerCase();
 
-        if (normalizedCommand === 'acp') {
-          await this.handleCommand(command, args);
+        const retiredNotice = RETIRED_COMMANDS[normalizedCommand];
+        if (retiredNotice) {
+          this.tui.warn(retiredNotice);
           rl.prompt();
           return;
         }
 
         if (!LOCAL_COMMANDS.has(normalizedCommand)) {
-          const acpState = await getAcpState(this.acpPlatformKey);
-          if (acpState) {
-            forceAcp = true;
+          // built-in > skill > error (same order as the Ink host).
+          const skill = this.skillCommands.findSkill(command);
+          const skillMessage = args.join(' ').trim();
+          if (skill && skillMessage) {
+            messageInput = `[use skill](${skill.name}) ${skillMessage}`;
           } else {
-            this.tui.warn(`Unknown command: /${command}`);
-            this.tui.info('Type /help to see available commands');
+            if (skill) {
+              this.tui.error(`Usage: /${skill.name} <message>`);
+            } else {
+              this.tui.warn(`Unknown command: /${command}`);
+              this.tui.info('Type /help for commands, /skills list for skills');
+            }
             rl.prompt();
             return;
           }
         }
 
-        if (!forceAcp) {
-          if (normalizedCommand === 'team') {
-            isProcessing = true;
-            try {
-              await runTeam(this.agent, args);
-            } finally {
-              isProcessing = false;
-              rl.prompt();
-            }
-            return;
-          } else if (normalizedCommand === 'teams') {
-            isProcessing = true;
-            try {
-              const session = await TeamsSession.start(args);
-              if (session) {
-                teamsSession = session;
-                rl.setPrompt(this.tui.prompt('teams'));
-              }
-            } finally {
-              isProcessing = false;
-              rl.prompt();
-            }
-            return;
-          } else if (normalizedCommand === 'solo') {
-            if (teamsSession?.active) {
-              isProcessing = true;
-              try {
-                await teamsSession.stop();
-                teamsSession = null;
-                rl.setPrompt(this.tui.prompt());
-              } finally {
-                isProcessing = false;
-              }
-            } else {
-              this.tui.warn('Not in teams mode. Use /teams <task> to start.');
-            }
-            rl.prompt();
-            return;
-          } else if (normalizedCommand === 'skills') {
+        {
+          if (normalizedCommand === 'skills') {
             const transformedMessage = await this.skillCommands.transformSkillsCommandToMessage(args);
             if (!transformedMessage) {
               rl.prompt();
@@ -601,20 +549,6 @@ class CoderCLI {
         }
       }
 
-      // Teams mode: route plain messages as follow-ups
-      if (teamsSession?.active && !forceAcp) {
-        isProcessing = true;
-        try {
-          await teamsSession.followUp(messageInput);
-        } catch (err: any) {
-          this.tui.error(`Teams follow-up error: ${err.message}`);
-        } finally {
-          isProcessing = false;
-          rl.prompt();
-        }
-        return;
-      }
-
       // Regular message processing
       this.tui.session({
         sessionId: this.sessionCommands.getCurrentSessionId(),
@@ -634,7 +568,7 @@ class CoderCLI {
       });
 
 
-      this.tui.startProcessing(forceAcp ? 'Running ACP agent' : 'Running agent');
+      this.tui.startProcessing('Running agent');
 
       const ac = new AbortController();
       currentAbortController = ac;
@@ -675,8 +609,6 @@ class CoderCLI {
       try {
         await this.syncSessionTaskListBinding();
 
-        const acpState = await getAcpState(this.acpPlatformKey);
-
         const currentSessionId = this.resolveCurrentSessionId();
 
         const runAgent = async () => this.agent.run(this.context, {
@@ -707,50 +639,15 @@ class CoderCLI {
             this.context.messages.push(...messages);
           },
         });
-        const runAcpAgent = async () => {
-          if (!acpState) {
-            return '';
-          }
-          const result = await runAcp({
-            platformKey: this.acpPlatformKey,
-            agent: acpState.agent,
-            cwd: acpState.cwd,
-            sessionId: acpState.sessionId,
-            userText: messageInput,
-            abortSignal: ac.signal,
-            clientInfo: ACP_CLIENT_INFO,
-            callbacks: {
-              onText: (delta) => {
-                sawText = true;
-                this.tui.text(delta);
-              },
-              onToolCall: (toolCall) => {
-                toolCalls += 1;
-                const input = getToolInput(toolCall);
-                this.tui.toolCall(resolveToolName(toolCall), input);
-              },
-              onToolResult: (toolResult) => {
-                const toolName = resolveToolName(toolResult as Record<string, unknown>);
-                this.tui.toolResult(toolName);
-              },
-
-              onClarificationRequest: async (request) => {
-                return await this.inputManager.requestInput(request);
-              },
-            },
-          });
-          return result.text;
-        };
-
         const result = currentSessionId
           ? await memoryIntegration.withRunContext(
             buildMemoryRunContext({
               sessionId: currentSessionId,
               userText: messageInput,
             }),
-            acpState ? runAcpAgent : runAgent,
+            runAgent,
           )
-          : await (acpState ? runAcpAgent() : runAgent());
+          : await runAgent();
 
         this.tui.runSummary({
           elapsedMs: Date.now() - runStartedAt,
