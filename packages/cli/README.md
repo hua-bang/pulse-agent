@@ -182,20 +182,31 @@ readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。
 }
 ```
 
-### 模型候选配置
+### 模型候选配置（provider 粒度）
 
-创建 `.pulse-coder/models.json`（兼容 `.coder/models.json`），作为 `/model` 选择器的候选来源：
+创建 `.pulse-coder/models.json`（兼容 `.coder/models.json`），作为 `/model` 选择器的候选来源。`providers` 定义连接（可同时挂多个 OpenAI 兼容源），`models` 引用它们：
 
 ```json
 {
+  "providers": {
+    "deepseek":  { "type": "openai", "baseUrl": "https://api.deepseek.com/v1",     "apiKeyEnv": "DEEPSEEK_API_KEY" },
+    "novita":    { "type": "openai", "baseUrl": "https://api.novita.ai/v3/openai", "apiKeyEnv": "NOVITA_API_KEY" },
+    "anthropic": { "type": "claude" }
+  },
   "models": [
-    "openai:deepseek-v4-flash",
-    { "model": "claude-opus-5", "type": "claude", "label": "Opus 5", "contextWindow": 200000 }
+    { "model": "deepseek-v4-flash", "provider": "deepseek",  "contextWindow": 128000 },
+    { "model": "claude-opus-5",     "provider": "anthropic", "label": "Opus 5", "contextWindow": 200000 },
+    "deepseek:deepseek-r2",
+    "openai:gpt-5.2"
   ]
 }
 ```
 
-条目为字符串（`claude:` / `openai:` 前缀指定 provider 通道）或对象（可带 `label`、`contextWindow`）。`contextWindow` 会同时驱动状态栏 `ctx %` 与 engine 压缩阈值。
+- `type` 是 SDK 通道（`openai` 兼容层 / `claude`），`baseUrl` + `apiKeyEnv` 组成连接；**密钥只能用 `apiKeyEnv` 引用环境变量名，内联 `apiKey` 会被忽略并警告**（本文件可进版本库）
+- 字符串条目前缀可以是 provider 名（`deepseek:…`）或通道名（`claude:` / `openai:`）；`/model deepseek:任意模型` 也可直接引用 provider
+- `contextWindow` 同时驱动状态栏 `ctx %` 与 engine 压缩阈值（75%/50%）
+- 未配 `baseUrl`/`apiKeyEnv` 的条目沿用该通道的全局 env 连接；`apiKeyEnv` 指向的变量为空时回退到通道默认 key 并提示
+- OpenAI 通道走 Responses API——OpenAI 兼容网关需支持 `/responses`（与引擎既有行为一致）
 
 ### Skills 配置
 

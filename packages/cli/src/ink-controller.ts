@@ -1,4 +1,4 @@
-import { CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
+import { buildProvider, CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type LLMProviderFactory, type PlanMode, type TaskListService } from 'pulse-coder-engine';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
 
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
@@ -13,7 +13,7 @@ import { formatRelativeTime, type InkCliController, type InkCliSnapshot, type Cl
 import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
-import { loadModelRegistry, parseModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
+import { loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -228,40 +228,62 @@ class InkCoderController implements InkCliController {
     return this.modelOverride?.contextWindow ?? CONTEXT_WINDOW_TOKENS;
   }
 
+  private describeConnection(choice: ModelChoice): string {
+    if (choice.providerName) {
+      return ` (provider ${choice.providerName})`;
+    }
+    return choice.modelType ? ` (${choice.modelType})` : '';
+  }
+
   private applyModelOverride(note: string): void {
     this.ui.updateSnapshot({
       modelLabel: shortModelLabel(this.modelOverride?.model ?? DEFAULT_MODEL),
       contextWindowTokens: this.currentContextWindow(),
     });
+    const keyEnv = this.modelOverride?.apiKeyEnv;
+    if (keyEnv && !process.env[keyEnv]) {
+      this.ui.log(`[warn] ${keyEnv} is not set — falling back to the channel's default API key env`);
+    }
     this.ui.info(`${note} · ctx window ${Math.round(this.currentContextWindow() / 1000)}k · applies to new runs in this process`);
     this.publishSession('Ready');
   }
 
-  private modelRunOptions(): { model?: string; modelType?: 'openai' | 'claude'; contextWindowTokens?: number } {
+  /** Per-run overrides derived from the model choice; a provider-bound choice gets its own connection factory. */
+  private modelRunOptions(): { model?: string; modelType?: 'openai' | 'claude'; contextWindowTokens?: number; provider?: LLMProviderFactory } {
     if (!this.modelOverride) {
       return {};
     }
+    const needsCustomConnection = Boolean(this.modelOverride.baseUrl || this.modelOverride.apiKeyEnv);
     return {
       model: this.modelOverride.model,
       ...(this.modelOverride.modelType ? { modelType: this.modelOverride.modelType } : {}),
       ...(this.modelOverride.contextWindow ? { contextWindowTokens: this.modelOverride.contextWindow } : {}),
+      ...(needsCustomConnection ? {
+        provider: buildProvider(this.modelOverride.modelType ?? 'openai', {
+          ...(this.modelOverride.baseUrl ? { baseURL: this.modelOverride.baseUrl } : {}),
+          ...(this.modelOverride.apiKeyEnv && process.env[this.modelOverride.apiKeyEnv]
+            ? { apiKey: process.env[this.modelOverride.apiKeyEnv] }
+            : {}),
+        }),
+      } : {}),
     };
   }
 
   private async openModelPicker(): Promise<void> {
     const registry = await loadModelRegistry();
+    registry.warnings.forEach(warning => this.ui.log(`[models.json] ${warning}`));
     const currentModel = this.modelOverride?.model ?? DEFAULT_MODEL;
     const seen = new Set<string>();
     this.pickerModelChoices = new Map();
     const items = [
       { id: DEFAULT_MODEL, label: shortModelLabel(DEFAULT_MODEL, 40), hint: 'env default', preview: DEFAULT_MODEL },
-      ...registry.map(choice => {
-        const id = `${choice.modelType ? `${choice.modelType}:` : ''}${choice.model}`;
+      ...registry.models.map(choice => {
+        const id = `${choice.providerName ?? choice.modelType ?? ''}${choice.providerName || choice.modelType ? ':' : ''}${choice.model}`;
         this.pickerModelChoices.set(id, choice);
         return {
           id,
           label: choice.label ?? shortModelLabel(choice.model, 40),
-          hint: `${choice.modelType ?? 'default provider'}${choice.contextWindow ? ` · ${Math.round(choice.contextWindow / 1000)}k ctx` : ''}`,
+          hint: `${choice.providerName ?? choice.modelType ?? 'default provider'}${choice.contextWindow ? ` · ${Math.round(choice.contextWindow / 1000)}k ctx` : ''}`,
           preview: choice.model,
         };
       }),
@@ -274,8 +296,8 @@ class InkCoderController implements InkCliController {
     if (items.length <= 1) {
       this.ui.section('Model', [
         `Current: ${currentModel}${this.modelOverride ? ' (session override)' : ' (env default)'}`,
-        'Switch directly: /model <id> · /model claude:<id> · /model reset',
-        'Add picker candidates in .pulse-coder/models.json, e.g. {"models": ["openai:deepseek-v4-flash", {"model": "claude-opus-5", "type": "claude"}]}',
+        'Switch directly: /model <id> · /model <provider>:<id> · /model claude:<id> · /model reset',
+        'Add candidates + providers in .pulse-coder/models.json — see README §模型候选配置',
       ]);
       return;
     }
@@ -320,9 +342,10 @@ class InkCoderController implements InkCliController {
       const choice = this.pickerModelChoices.get(id) ?? parseModelSpec(id);
       this.pickerModelChoices = new Map();
       if (choice) {
-        this.modelOverride = choice.model === DEFAULT_MODEL && !choice.modelType && !choice.contextWindow ? null : choice;
+        const isPlainDefault = choice.model === DEFAULT_MODEL && !choice.modelType && !choice.contextWindow && !choice.providerName;
+        this.modelOverride = isPlainDefault ? null : choice;
         this.applyModelOverride(this.modelOverride
-          ? `Model set: ${choice.model}${choice.modelType ? ` (${choice.modelType})` : ''}`
+          ? `Model set: ${choice.model}${this.describeConnection(choice)}`
           : 'Model reset to env default');
       }
       return;
@@ -586,7 +609,7 @@ class InkCoderController implements InkCliController {
         case 'status':
           this.ui.section('CLI Status', [
             `Session: ${this.sessionCommands.getCurrentSessionId() || 'None (new session)'}`,
-            `Model: ${this.modelOverride ? `${this.modelOverride.model}${this.modelOverride.modelType ? ` (${this.modelOverride.modelType})` : ''} (session override)` : `${DEFAULT_MODEL} (env default)`}`,
+            `Model: ${this.modelOverride ? `${this.modelOverride.model}${this.describeConnection(this.modelOverride)} (session override)` : `${DEFAULT_MODEL} (env default)`}`,
             `Task List: ${this.sessionCommands.getCurrentTaskListId() || 'None'}`,
             `Messages: ${this.context.messages.length}`,
             `Context tokens: ${this.lastContextTokens > 0 ? `${this.lastContextTokens} (last run)` : `~${this.estimateTokens(this.context.messages)} (estimated)`}`,
@@ -644,13 +667,15 @@ class InkCoderController implements InkCliController {
             this.applyModelOverride('Model reset to env default');
             break;
           }
-          const choice = parseModelSpec(spec);
+          const registry = await loadModelRegistry();
+          registry.warnings.forEach(warning => this.ui.log(`[models.json] ${warning}`));
+          const choice = resolveModelSpec(spec, registry);
           if (!choice) {
-            this.ui.error('Usage: /model [<id> | claude:<id> | openai:<id> | reset]');
+            this.ui.error('Usage: /model [<id> | <provider>:<id> | claude:<id> | openai:<id> | reset]');
             break;
           }
           this.modelOverride = choice;
-          this.applyModelOverride(`Model set: ${choice.model}${choice.modelType ? ` (${choice.modelType})` : ''}`);
+          this.applyModelOverride(`Model set: ${choice.model}${this.describeConnection(choice)}`);
           break;
         }
         case 'debug': {
@@ -725,7 +750,7 @@ class InkCoderController implements InkCliController {
     const keepLastTurns = this.getKeepLastTurns();
     const compactResult = await this.agent.compactContext(this.context, {
       force: true,
-      ...(this.modelOverride ? { model: this.modelOverride.model } : {}),
+      ...this.modelRunOptions(),
       contextWindowTokens: this.currentContextWindow(),
       onStart: () => this.ui.updateSnapshot({ status: 'Compacting context…', phase: 'Compacting' }),
     });
