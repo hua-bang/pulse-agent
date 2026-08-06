@@ -53,6 +53,7 @@ export class InkUiBridge {
   private readonly textThrottleMs: number;
   private pendingEmit: NodeJS.Timeout | null = null;
   private lastEmitAt = 0;
+  private toolDetail = false;
 
   constructor(options: InkUiBridgeOptions) {
     this.onChange = options.onChange;
@@ -267,11 +268,25 @@ export class InkUiBridge {
     });
   }
 
+  /** Toggle between one-line summaries (default) and 3-line content previews for FUTURE tool traces. */
+  setToolDetail(on: boolean): void {
+    this.toolDetail = on;
+    this.log(on
+      ? 'Detail: on · tool traces now include a content preview (Ctrl+O to turn off)'
+      : 'Detail: off · tool traces show one-line summaries');
+  }
+
+  getToolDetail(): boolean {
+    return this.toolDetail;
+  }
+
   toolResult(name: string, output?: unknown): void {
     const entry = this.takeRunningTool(name);
     const isError = this.detectToolError(output);
-    const preview = this.formatToolResultPreview(output);
-    this.addEvent('tool', entry?.label ?? name, preview, true, { status: isError ? 'error' : 'success' });
+    const label = entry?.label ?? name;
+    const summary = this.summarizeToolResult(name, output, isError);
+    const preview = this.toolDetail ? this.formatToolResultPreview(output) : '';
+    this.addEvent('tool', summary ? `${label} · ${summary}` : label, preview, true, { status: isError ? 'error' : 'success' });
 
     const stillRunning = this.liveTools.length > 0;
     this.updateSnapshot({
@@ -348,17 +363,35 @@ export class InkUiBridge {
     return hasActionPrefix ? summary : `${name}: ${summary}`;
   }
 
-  private formatToolResultPreview(output: unknown, maxLines = 3): string {
+  /**
+   * One-line result summary appended to the tool label.
+   * Text output: single line inlined, multi-line counted with a
+   * category-appropriate noun. Structured output without a text field yields
+   * no summary — never a JSON dump. Errors inline the first error line.
+   */
+  private summarizeToolResult(name: string, output: unknown, isError: boolean): string {
     const text = this.extractOutputText(output);
+    if (text === null || !text.trim()) {
+      return isError ? 'failed' : '';
+    }
+
+    const lines = this.splitOutputLines(text);
+    if (isError || lines.length <= 1) {
+      return this.compactText(lines[0] ?? '', isError ? 80 : 60);
+    }
+
+    const normalizedName = name.toLowerCase();
+    const noun = this.isSearchTool(normalizedName) ? 'matches' : this.isListTool(normalizedName) ? 'items' : 'lines';
+    return `${lines.length} ${noun}`;
+  }
+
+  private formatToolResultPreview(output: unknown, maxLines = 3): string {
+    const text = this.extractOutputText(output) ?? this.compactText(this.safeStringify(output), 120);
     if (!text.trim()) {
       return '';
     }
 
-    const lines = text.split('\n').map(line => line.trimEnd());
-    while (lines.length > 0 && !lines[lines.length - 1]) {
-      lines.pop();
-    }
-
+    const lines = this.splitOutputLines(text);
     const head = lines.slice(0, maxLines).map(line => this.compactText(line, 120));
     const remaining = lines.length - head.length;
     if (remaining > 0) {
@@ -367,15 +400,27 @@ export class InkUiBridge {
     return head.join('\n');
   }
 
-  private extractOutputText(output: unknown): string {
+  private splitOutputLines(text: string): string[] {
+    const lines = text.split('\n').map(line => line.trimEnd());
+    while (lines.length > 0 && !lines[lines.length - 1]) {
+      lines.pop();
+    }
+    while (lines.length > 0 && !lines[0]) {
+      lines.shift();
+    }
+    return lines;
+  }
+
+  /** Returns the human-readable text of a tool output, or null when there is none. */
+  private extractOutputText(output: unknown): string | null {
     if (output === null || output === undefined) {
-      return '';
+      return null;
     }
     if (typeof output === 'string') {
       return output;
     }
     if (Array.isArray(output)) {
-      return output
+      const joined = output
         .map(part => {
           if (typeof part === 'string') return part;
           const record = this.asRecord(part);
@@ -383,17 +428,18 @@ export class InkUiBridge {
         })
         .filter(Boolean)
         .join('\n');
+      return joined || null;
     }
 
     const record = this.asRecord(output);
     if (record) {
       if (typeof record.text === 'string') return record.text;
       if (typeof record.output === 'string') return record.output;
+      if (typeof record.content === 'string') return record.content;
       if (Array.isArray(record.content)) return this.extractOutputText(record.content);
       if (typeof record.error === 'string') return record.error;
     }
-    // Structured output without a text field: one compact line, not a JSON dump.
-    return this.compactText(this.safeStringify(output), 120);
+    return null;
   }
 
   private detectToolError(output: unknown): boolean {

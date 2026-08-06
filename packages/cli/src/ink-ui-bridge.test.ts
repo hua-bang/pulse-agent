@@ -54,7 +54,7 @@ describe('InkUiBridge', () => {
     expect(last.liveTools[0].label).toBe('$ echo ok');
   });
 
-  it('finalizes a tool call with a success preview of its output', () => {
+  it('finalizes a tool call as a one-line summary by default', () => {
     const { snapshots, bridge } = createBridge();
 
     bridge.startProcessing('Running agent');
@@ -69,14 +69,44 @@ describe('InkUiBridge', () => {
     const toolEvent = last.events[last.events.length - 1];
     expect(toolEvent).toMatchObject({
       kind: 'tool',
-      title: '$ echo ok',
+      title: '$ echo ok · 5 lines',
       status: 'success',
     });
+    expect(toolEvent.text).toBe('');
+  });
+
+  it('inlines single-line output and uses category nouns for counts', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.toolCall('bash', { command: 'echo ok' });
+    bridge.toolResult('bash', 'ok');
+    bridge.toolCall('grep', { pattern: 'test', path: 'src' });
+    bridge.toolResult('grep', 'a.ts\nb.ts\nc.ts');
+    bridge.toolCall('read', { filePath: 'src/loop.ts' });
+    bridge.toolResult('read', { content: 'line1\nline2' });
+
+    const titles = snapshots[snapshots.length - 1].events.map(event => event.title);
+    expect(titles).toContain('$ echo ok · ok');
+    expect(titles).toContain('grep "test" in src · 3 matches');
+    expect(titles).toContain('open src/loop.ts · 2 lines');
+  });
+
+  it('shows content previews for new traces after enabling detail mode', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.setToolDetail(true);
+    bridge.toolCall('bash', { command: 'echo ok' });
+    bridge.toolResult('bash', 'ok\nline2\nline3\nline4\nline5');
+
+    const events = snapshots[snapshots.length - 1].events;
+    expect(events.some(event => event.kind === 'log' && event.text.includes('Detail: on'))).toBe(true);
+    const toolEvent = events[events.length - 1];
+    expect(toolEvent.title).toBe('$ echo ok · 5 lines');
     expect(toolEvent.text).toContain('ok');
     expect(toolEvent.text).toContain('… +2 lines');
   });
 
-  it('marks failed tool results as errors', () => {
+  it('marks failed tool results as errors with the error inline', () => {
     const { snapshots, bridge } = createBridge();
 
     bridge.startProcessing('Running agent');
@@ -85,7 +115,8 @@ describe('InkUiBridge', () => {
 
     const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
     expect(toolEvent.status).toBe('error');
-    expect(toolEvent.text).toContain('boom');
+    expect(toolEvent.title).toBe('$ false · boom');
+    expect(toolEvent.text).toBe('');
   });
 
   it('labels non-filesystem tools by their input instead of mislabeling as ls', () => {
@@ -103,16 +134,15 @@ describe('InkUiBridge', () => {
     ]);
   });
 
-  it('compacts structured tool output into a single short line', () => {
+  it('never dumps JSON for structured output without a text field', () => {
     const { snapshots, bridge } = createBridge();
 
     bridge.toolCall('task_list', { action: 'list' });
     bridge.toolResult('task_list', { taskListId: 'session-1', storagePath: '/Users/x/.pulse-coder/tasks/session-1.json', extras: 'y'.repeat(300) });
 
     const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
-    expect(toolEvent.text).not.toContain('\n');
-    expect(toolEvent.text.length).toBeLessThanOrEqual(121);
-    expect(toolEvent.text).toContain('taskListId');
+    expect(toolEvent.title).toBe('task_list: list');
+    expect(toolEvent.text).toBe('');
   });
 
   it('records engine log lines as compact log events', () => {
@@ -132,8 +162,8 @@ describe('InkUiBridge', () => {
     bridge.toolResult('search', { content: [{ type: 'text', text: 'part one' }, { type: 'text', text: 'part two' }] });
 
     const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
-    expect(toolEvent.text).toContain('part one');
-    expect(toolEvent.text).toContain('part two');
+    expect(toolEvent.title).toBe('search "docs" · 2 matches');
+    expect(toolEvent.status).toBe('success');
   });
 
   it('finalizes leftover live text on run summary', () => {

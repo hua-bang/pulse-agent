@@ -80,6 +80,7 @@ const HELP_FOOTER = [
   '↑/↓ - Recall previous/next prompt (persisted across sessions)',
   '←/→, Ctrl+A/E - Move cursor',
   'Ctrl+U/K/W - Delete before cursor / after cursor / previous word',
+  'Ctrl+O - Toggle tool-trace detail (one-line summaries ↔ content previews; affects new traces)',
   'Paste - Inserted literally (newlines included); bracketed paste supported',
   'Esc - Stop the current response, or clear the current draft when idle',
   'Ctrl+C - Press twice to save and exit (first press clears the draft)',
@@ -106,6 +107,7 @@ class InkCoderController implements InkCliController {
   private readonly logSink: EngineLogSink | null;
   private debugLogs: boolean;
   private teamsLogsVisible = false;
+  private readonly seenWarnTexts = new Set<string>();
 
   constructor(options: { logSink?: EngineLogSink; verbose?: boolean } = {}) {
     this.logSink = options.logSink ?? null;
@@ -133,12 +135,23 @@ class InkCoderController implements InkCliController {
     this.skillCommands = new SkillCommands(this.agent, message => this.ui.info(message ?? ''));
     this.acpPlatformKey = resolveAcpPlatformKey();
 
-    // Engine log layer policy: warn/error always surface as dim lines;
-    // info/debug stay in the log file unless /debug (or --verbose) is on,
-    // or a team run is in progress (its console output is the product).
+    // Engine log layer policy: errors always surface as dim lines; warns
+    // surface once per unique text per session (an SDK warning repeated on
+    // every LLM call must not flood the transcript — the log file keeps all
+    // occurrences). info/debug stay in the log file unless /debug (or
+    // --verbose) is on, or a team run is in progress (its console output is
+    // the product).
     this.logSink?.subscribe(entry => {
-      if (entry.level === 'warn' || entry.level === 'error') {
-        this.ui.log(`[${entry.level}] ${entry.text}`);
+      if (entry.level === 'error') {
+        this.ui.log(`[error] ${entry.text}`);
+        return;
+      }
+      if (entry.level === 'warn') {
+        if (this.seenWarnTexts.has(entry.text)) {
+          return;
+        }
+        this.seenWarnTexts.add(entry.text);
+        this.ui.log(`[warn] ${entry.text}`);
         return;
       }
       if (this.debugLogs || this.teamsLogsVisible) {
@@ -191,6 +204,10 @@ class InkCoderController implements InkCliController {
 
   setInteractionMode(mode: CliInteractionMode, source = 'cli'): void {
     this.applyInteractionMode(mode, source);
+  }
+
+  toggleToolDetail(): void {
+    this.ui.setToolDetail(!this.ui.getToolDetail());
   }
 
   requestStop(): void {
@@ -458,6 +475,7 @@ class InkCoderController implements InkCliController {
             `Queued inputs: ${this.queuedInputs.length}`,
             `Processing: ${this.isProcessing ? 'yes' : 'no'}`,
             `Engine logs: ${this.debugLogs ? 'shown live' : 'file only'} · ${this.logSink?.count() ?? 0} captured · /debug`,
+            `Tool detail: ${this.ui.getToolDetail() ? 'preview (detailed)' : 'one-line summaries'} · Ctrl+O toggles`,
           ]);
           break;
         case 'mode': {

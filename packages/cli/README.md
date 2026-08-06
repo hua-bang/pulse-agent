@@ -27,7 +27,7 @@ pnpm start
 - 内置 Skills 系统 - 智能技能识别与单次调用
 - 会话管理 - 保存与恢复对话（存储于 `~/.pulse-coder/sessions`），`/resume` 支持序号/ID 前缀，`--continue` 启动即恢复最近会话
 - 滚动回看 - Ink 宿主把已完成输出写入终端原生 scrollback（Ink `<Static>`），长回答不截断、可随时上翻
-- 工具透明 - 每个工具调用完成后显示一行式结果预览（stdout 头几行 / 错误标红）
+- 工具透明 - 每个工具一行灰色留痕 + 行尾智能摘要（`· 350 lines` / `· 10 matches` / 错误首行标红），`Ctrl+O` 切换内容预览模式，永不 dump JSON
 - 输出分层 - 引擎/插件日志默认写入 `~/.pulse-coder/logs/cli.log` 不上屏（warn/error 以暗色单行显示），`/debug on` 或 `--verbose` 实时查看，`/debug tail <n>` 回看
 - 轻量 Markdown 渲染 - 标题/加粗/行内代码/列表/代码块在终端中着色显示
 - ACP 模式 - CLI 内置 ACP 切换与路由，支持 `//` 前缀强制透传
@@ -130,6 +130,7 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 - `Shift+Tab` - 循环 CLI 交互模式（chat → plan → edit → auto；plan 映射引擎 planning）
 - `↑/↓` - 历史输入（持久化于 `~/.pulse-coder/history.json`，跨会话保留）
 - `Ctrl+J` - 草稿内换行；粘贴（含多行）原样插入，不会误触发送
+- `Ctrl+O` - 切换工具留痕详情（一行摘要 ↔ 内容预览；只影响之后的留痕）
 - 处理中输入会排队，当前轮结束后自动执行
 
 readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。

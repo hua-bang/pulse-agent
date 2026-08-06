@@ -59,6 +59,7 @@ export interface InkCliController {
   submitInput: (input: string) => void | Promise<void>;
   requestStop: () => void;
   setInteractionMode?: (mode: CliInteractionMode, source?: string) => void | Promise<void>;
+  toggleToolDetail?: () => void;
   shutdown: () => void | Promise<void>;
   subscribe: (listener: (snapshot: InkCliSnapshot) => void) => () => void;
 }
@@ -358,17 +359,21 @@ function TranscriptEvent({ event, Box, Text }: { event: InkCliEvent; Box: React.
   }
 
   if (event.kind === 'tool') {
-    const icon = event.status === 'error' ? '✕' : event.status === 'info' ? '·' : '✓';
-    const iconColor = event.status === 'error' ? 'red' : event.status === 'info' ? 'gray' : 'green';
+    // Tool traces are secondary: everything gray, a hint of color on the icon
+    // only. Failures are the exception — they stay bright red.
+    const isError = event.status === 'error';
+    const icon = isError ? '✕' : event.status === 'info' ? '·' : '✓';
     const previewLines = event.text ? event.text.split('\n') : [];
     return (
       <Box flexDirection="column">
         <Text>
-          <Text color={iconColor}>{icon} </Text>
-          <Text color={event.status === 'error' ? 'red' : undefined}>{event.title ?? 'tool'}</Text>
+          {isError
+            ? <Text color="red">{icon} </Text>
+            : <Text color={event.status === 'info' ? 'gray' : 'green'} dimColor>{icon} </Text>}
+          <Text color={isError ? 'red' : 'gray'}>{event.title ?? 'tool'}</Text>
         </Text>
         {previewLines.map((line, index) => (
-          <Text key={index} color="gray">  {index === 0 ? '⎿ ' : '  '}{line}</Text>
+          <Text key={index} color="gray" dimColor>  {index === 0 ? '⎿ ' : '  '}{line}</Text>
         ))}
       </Box>
     );
@@ -595,6 +600,11 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       return;
     }
 
+    if (key.ctrl && value === 'o') {
+      controller.toggleToolDetail?.();
+      return;
+    }
+
     if (key.ctrl && (value === 'j' || value === '\n')) {
       updateComposer(insertAtCursor({ input, cursor }, '\n'));
       return;
@@ -705,7 +715,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
           ? '↑↓ select · Tab/Enter complete · Esc clear'
           : input.length > 0
             ? 'Enter send · Ctrl+J newline · Esc clear'
-            : `/ commands · ↑↓ history · Shift+Tab mode (${currentInteractionMode}: ${describeInteractionMode(currentInteractionMode)})`;
+            : `/ commands · ↑↓ history · Ctrl+O detail · Shift+Tab mode (${currentInteractionMode}: ${describeInteractionMode(currentInteractionMode)})`;
   const composerColor = waitingClarification ? 'magenta' : snapshot.isProcessing ? 'yellow' : 'cyan';
   const statusIcon = snapshot.isProcessing ? spinner : '●';
   const statusColor = snapshot.isProcessing ? 'yellow' : snapshot.status === 'Cancelled' ? 'red' : 'green';
@@ -723,7 +733,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       ) : null}
 
       {snapshot.liveTools.map(tool => (
-        <Text key={tool.id} color="yellow">{spinner} {tool.label}</Text>
+        <Text key={tool.id}>
+          <Text color="yellow" dimColor>{spinner} </Text>
+          <Text color="gray">{tool.label}</Text>
+        </Text>
       ))}
 
       <Box marginTop={1}>
