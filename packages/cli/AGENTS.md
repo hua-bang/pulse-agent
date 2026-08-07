@@ -23,6 +23,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 | Engine log layer (`/debug`) | `src/log-sink.ts` |
 | Model registry (`/model`, `--model`) | `src/model-registry.ts` |
 | `@` file references | `src/file-reference.ts` |
+| User preferences (last model) | `src/preferences.ts` |
 | Terminal width / cursor stepping | `src/text-width.ts` |
 | Input handling | `src/input-manager.ts` |
 | Sessions | `src/session.ts`, `src/session-commands.ts` |
@@ -46,6 +47,8 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 - Bare `/resume` opens a modal picker (snapshot `picker` field, same pattern as clarification) — Ink host only; the readline host keeps the text form, an intentional UI-specific divergence. Session list previews must go through `extractMessageText` (`session.ts`) — context messages carry AI SDK structured content, and `String(content)` renders `[object Object]`. The picker is shared by `/model` via `activePicker` routing in the controller.
 - Per-model `contextWindow` (models.json) must flow through `modelRunOptions()` into BOTH the run options and `compactContext` — the status-line ctx% denominator and the engine's compaction trigger/target must never diverge.
 - models.json is provider-granular and committable: provider entries carry `baseUrl` + `apiKeyEnv` (an env var NAME); inline `apiKey` values are ignored with a warning — never let secrets into this file (root AGENTS §7). Provider-bound choices build their connection via the engine's `buildProvider(type, {baseURL, apiKey})` inside `modelRunOptions()`.
+- Sessions record their creating `cwd` in metadata, and every listing path (`/sessions`, `/search`, the `/resume` picker, `--continue`, index/prefix resolution) is scoped to it. Sessions written before the field existed have no `cwd` and must keep passing the filter — never make the check exclusive.
+- Startup model precedence is `--model` > persisted last choice (`preferences.ts`) > models.json `"default": true` > engine env default. Only an explicit user switch persists; a `--model` flag never does. A persisted spec that no longer resolves warns and falls back rather than failing.
 - The registry loads from BOTH `~/.pulse-coder/models.json` and `<cwd>/.pulse-coder/models.json` and merges them (project wins per provider name and per `provider:model` id; home models referencing a redefined provider are rebased onto the project connection). A home-only setup must keep working from any directory — do not reduce this back to a single-scope lookup.
 - Startup failures must write to `process.stderr` directly (see `main().catch`): with `EngineLogSink` installed, `console.error` is captured into the log file and a crash before render is otherwise silent. This package has no typecheck script — a missing cross-package export (e.g. an engine re-export) surfaces only at runtime, so smoke-launch after wiring new engine imports.
 - Multi-character `useInput` chunks are pastes (or coalesced typing) and must be inserted literally — never interpreted as Enter/Tab; bracketed paste additionally arrives via Ink's `usePaste` channel.

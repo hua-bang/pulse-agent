@@ -10,7 +10,8 @@ import { formatRelativeTime, type InkCliController, type InkCliSnapshot, type Cl
 import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
-import { loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
+import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
+import { PreferencesStore } from './preferences.js';
 import { expandFileReferences, indexWorkspaceFiles } from './file-reference.js';
 
 const LOCAL_COMMANDS = new Set([
@@ -56,7 +57,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/help', description: 'Show this help message' },
   { command: '/new [title]', description: 'Create a new session' },
   { command: '/resume [index|id-prefix|id]', description: 'Resume a session (bare /resume opens an interactive picker)' },
-  { command: '/sessions [n]', description: 'List recent sessions (default 20)' },
+  { command: '/sessions [n] [--all]', description: 'List recent sessions in this directory (default 20; --all for every directory)' },
   { command: '/search <query>', description: 'Search in saved sessions' },
   { command: '/rename <id> <new-title>', description: 'Rename a session' },
   { command: '/delete <id>', description: 'Delete a session' },
@@ -115,10 +116,14 @@ class InkCoderController implements InkCliController {
   private modelOverride: ModelChoice | null = null;
   private activePicker: 'session' | 'model' | null = null;
   private pickerModelChoices = new Map<string, ModelChoice>();
+  private readonly preferences = new PreferencesStore();
+  /** A --model flag pins the model for this run and is never persisted. */
+  private readonly modelPinnedByFlag: boolean;
 
   constructor(options: { logSink?: EngineLogSink; verbose?: boolean; modelSpec?: string } = {}) {
     this.logSink = options.logSink ?? null;
     this.debugLogs = options.verbose ?? false;
+    this.modelPinnedByFlag = Boolean(options.modelSpec);
     if (options.modelSpec) {
       this.modelOverride = parseModelSpec(options.modelSpec);
     }
@@ -180,6 +185,8 @@ class InkCoderController implements InkCliController {
 
     const pluginStatus = this.agent.getPluginStatus();
     this.ui.showPluginStatus(pluginStatus.enginePlugins.length);
+
+    await this.resolveStartupModel();
 
     // Skills load with the engine, so publish them once initialization is done;
     // the composer merges them into the slash palette as `/<skill-name>`.
@@ -251,6 +258,45 @@ class InkCoderController implements InkCliController {
     this.ui.resetUsage();
   }
 
+  /**
+   * Model precedence at startup:
+   *   1. --model flag (this run only)
+   *   2. the last /model choice, persisted in ~/.pulse-coder/preferences.json
+   *   3. a models.json entry marked "default": true
+   *   4. the engine's env default (ANTHROPIC_MODEL / OPENAI_MODEL / …)
+   */
+  private async resolveStartupModel(): Promise<void> {
+    const registry = await loadModelRegistry();
+    registry.warnings.forEach(warning => this.ui.log(`[models.json] ${warning}`));
+
+    if (this.modelPinnedByFlag) {
+      // Re-resolve the flag against the registry so it picks up the entry's
+      // provider connection and contextWindow, not just the bare id.
+      if (this.modelOverride) {
+        this.modelOverride = resolveModelSpec(formatModelSpec(this.modelOverride), registry) ?? this.modelOverride;
+      }
+      this.applyModelOverride(`Model pinned by --model: ${this.modelOverride?.model}`);
+      return;
+    }
+
+    const preferences = await this.preferences.load();
+    if (preferences.lastModel) {
+      const restored = resolveModelSpec(preferences.lastModel, registry);
+      if (restored) {
+        this.modelOverride = restored;
+        this.applyModelOverride(`Model restored from last session: ${restored.model}`);
+        return;
+      }
+      this.ui.log(`[warn] last model "${preferences.lastModel}" is no longer in models.json — using the default`);
+    }
+
+    const fallback = findDefaultModel(registry);
+    if (fallback) {
+      this.modelOverride = fallback;
+      this.applyModelOverride(`Model from models.json default: ${fallback.model}`);
+    }
+  }
+
   private currentContextWindow(): number {
     return this.modelOverride?.contextWindow ?? CONTEXT_WINDOW_TOKENS;
   }
@@ -262,7 +308,10 @@ class InkCoderController implements InkCliController {
     return choice.modelType ? ` (${choice.modelType})` : '';
   }
 
-  private applyModelOverride(note: string): void {
+  private applyModelOverride(note: string, persist = false): void {
+    if (persist) {
+      void this.preferences.update({ lastModel: this.modelOverride ? formatModelSpec(this.modelOverride) : null });
+    }
     this.ui.updateSnapshot({
       modelLabel: shortModelLabel(this.modelOverride?.model ?? DEFAULT_MODEL),
       contextWindowTokens: this.currentContextWindow(),
@@ -374,7 +423,7 @@ class InkCoderController implements InkCliController {
         this.modelOverride = isPlainDefault ? null : choice;
         this.applyModelOverride(this.modelOverride
           ? `Model set: ${choice.model}${this.describeConnection(choice)}`
-          : 'Model reset to env default');
+          : 'Model reset to env default', true);
       }
       return;
     }
@@ -584,7 +633,11 @@ class InkCoderController implements InkCliController {
           await this.resumeSessionRef(args[0]);
           break;
         case 'sessions':
-          await this.sessionCommands.listSessions(args[0] ? Number(args[0]) : undefined);
+          {
+            const allDirectories = args.some(arg => arg === '--all' || arg === '-a');
+            const countArg = args.find(arg => /^\d+$/.test(arg));
+            await this.sessionCommands.listSessions(countArg ? Number(countArg) : undefined, { allDirectories });
+          }
           break;
         case 'search':
           if (args.length === 0) {
@@ -691,7 +744,7 @@ class InkCoderController implements InkCliController {
           }
           if (spec.toLowerCase() === 'reset') {
             this.modelOverride = null;
-            this.applyModelOverride('Model reset to env default');
+            this.applyModelOverride('Model reset to env default', true);
             break;
           }
           const registry = await loadModelRegistry();
@@ -702,7 +755,7 @@ class InkCoderController implements InkCliController {
             break;
           }
           this.modelOverride = choice;
-          this.applyModelOverride(`Model set: ${choice.model}${this.describeConnection(choice)}`);
+          this.applyModelOverride(`Model set: ${choice.model}${this.describeConnection(choice)}`, true);
           break;
         }
         case 'debug': {

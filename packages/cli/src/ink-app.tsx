@@ -144,7 +144,7 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/help', description: 'Show commands and shortcuts', usage: '/help', group: 'Core' },
   { command: '/new', description: 'Create a new session', usage: '/new <title?>', group: 'Session' },
   { command: '/resume', description: 'Resume a session (bare = interactive picker)', usage: '/resume [index|id-prefix]', group: 'Session' },
-  { command: '/sessions', description: 'List recent sessions (default 20)', usage: '/sessions [n]', group: 'Session' },
+  { command: '/sessions', description: 'List sessions in this directory (--all for every directory)', usage: '/sessions [n] [--all]', group: 'Session' },
   { command: '/search', description: 'Search saved sessions', usage: '/search <query>', group: 'Session' },
   { command: '/rename', description: 'Rename a session', usage: '/rename <id> <title>', group: 'Session' },
   { command: '/delete', description: 'Delete a session', usage: '/delete <id>', group: 'Session' },

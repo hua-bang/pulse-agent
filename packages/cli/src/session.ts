@@ -25,6 +25,8 @@ export interface Session {
     lastMessageAt?: number;
     tags?: string[];
     taskListId?: string;
+    /** Working directory the session was created in; scopes the session lists. */
+    cwd?: string;
   };
 }
 
@@ -36,6 +38,13 @@ export interface SessionSummary {
   messageCount: number;
   preview: string;
   taskListId?: string;
+  cwd?: string;
+}
+
+export interface ListSessionsOptions {
+  limit?: number;
+  /** Only sessions created in this directory. Legacy sessions (no cwd) always pass. */
+  cwd?: string;
 }
 
 /**
@@ -84,7 +93,7 @@ export class SessionManager {
     }
   }
 
-  async createSession(title?: string): Promise<Session> {
+  async createSession(title?: string, cwd = process.cwd()): Promise<Session> {
     const sessionId = randomUUID();
     const session: Session = {
       id: sessionId,
@@ -95,6 +104,7 @@ export class SessionManager {
       metadata: {
         totalMessages: 0,
         taskListId: this.buildTaskListId(sessionId),
+        cwd,
       },
     };
 
@@ -138,18 +148,29 @@ export class SessionManager {
     return messages.length > 0 ? '(no text messages)' : 'No messages';
   }
 
-  async listSessions(limit = 20): Promise<SessionSummary[]> {
+  /**
+   * Lists sessions newest-first. With `cwd` set, only sessions created in that
+   * directory are returned; sessions written before cwd was recorded have no
+   * `cwd` and are always included rather than silently disappearing.
+   */
+  async listSessions(options: number | ListSessionsOptions = {}): Promise<SessionSummary[]> {
+    const { limit = 20, cwd } = typeof options === 'number' ? { limit: options } : options;
     try {
       const files = await fs.readdir(this.sessionsDir);
       const sessionFiles = files.filter(file => file.endsWith('.json'));
-      
+
       const sessions: Session[] = [];
       for (const file of sessionFiles) {
-        const data = await fs.readFile(path.join(this.sessionsDir, file), 'utf-8');
-        sessions.push(JSON.parse(data));
+        try {
+          const data = await fs.readFile(path.join(this.sessionsDir, file), 'utf-8');
+          sessions.push(JSON.parse(data));
+        } catch {
+          continue;
+        }
       }
 
       return sessions
+        .filter(session => !cwd || !session.metadata?.cwd || session.metadata.cwd === cwd)
         .sort((a, b) => b.updatedAt - a.updatedAt)
         .slice(0, limit)
         .map(session => ({
@@ -160,6 +181,7 @@ export class SessionManager {
           messageCount: session.messages.length,
           preview: this.buildPreview(session.messages),
           taskListId: session.metadata?.taskListId,
+          cwd: session.metadata?.cwd,
         }));
     } catch (error) {
       return [];
@@ -198,8 +220,8 @@ export class SessionManager {
     return true;
   }
 
-  async searchSessions(query: string): Promise<SessionSummary[]> {
-    const sessions = await this.listSessions(100); // Get more for search
+  async searchSessions(query: string, cwd?: string): Promise<SessionSummary[]> {
+    const sessions = await this.listSessions({ limit: 100, cwd });
     const lowercaseQuery = query.toLowerCase();
     
     return sessions.filter(session =>

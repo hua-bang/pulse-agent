@@ -21,6 +21,8 @@ export interface ModelChoice {
   providerName?: string;
   baseUrl?: string;
   apiKeyEnv?: string;
+  /** Marks the entry `/model` starts on when nothing else is pinned. */
+  isDefault?: boolean;
 }
 
 export interface ModelRegistry {
@@ -82,6 +84,17 @@ export function resolveModelSpec(spec: string, registry: ModelRegistry): ModelCh
   }
 
   return parseModelSpec(trimmed);
+}
+
+/** The entry marked `"default": true`, if any (first wins). */
+export function findDefaultModel(registry: ModelRegistry): ModelChoice | null {
+  return registry.models.find(choice => choice.isDefault) ?? null;
+}
+
+/** Canonical spec string for a choice, suitable for persisting and re-resolving. */
+export function formatModelSpec(choice: ModelChoice): string {
+  const prefix = choice.providerName ?? choice.modelType;
+  return prefix ? `${prefix}:${choice.model}` : choice.model;
 }
 
 /** Short display form: last path segment, truncated. */
@@ -244,6 +257,7 @@ function resolveObjectEntry(
   const contextWindow = record.contextWindow ?? record.context_window;
   let choice: ModelChoice = {
     model: record.model.trim(),
+    ...(record.default === true ? { isDefault: true } : {}),
     ...(typeof record.label === 'string' && record.label.trim() ? { label: record.label.trim() } : {}),
     ...(typeof contextWindow === 'number' && Number.isFinite(contextWindow) && contextWindow > 0 ? { contextWindow: Math.floor(contextWindow) } : {}),
   };

@@ -194,7 +194,11 @@ class CoderCLI {
           break;
 
         case 'sessions':
-          await this.sessionCommands.listSessions(args[0] ? Number(args[0]) : undefined);
+          {
+            const allDirectories = args.some(arg => arg === '--all' || arg === '-a');
+            const countArg = args.find(arg => /^\d+$/.test(arg));
+            await this.sessionCommands.listSessions(countArg ? Number(countArg) : undefined, { allDirectories });
+          }
           break;
 
         case 'search':
