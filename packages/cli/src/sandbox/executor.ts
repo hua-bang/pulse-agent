@@ -134,9 +134,13 @@ export function createJsExecutor(options: JsExecutorOptions = {}): JsExecutor {
   const maxCodeLength = options.maxCodeLength ?? DEFAULT_MAX_CODE_LENGTH;
 
   return {
-    async execute(request: JsExecutionRequest): Promise<JsExecutionResult> {
+    async execute(request: JsExecutionRequest, abortSignal?: AbortSignal): Promise<JsExecutionResult> {
       const startedAt = Date.now();
       const effectiveTimeoutMs = request.timeoutMs ?? timeoutMs;
+
+      if (abortSignal?.aborted) {
+        return createErrorResult(startedAt, '', '', 'INTERNAL', 'Execution aborted.', false);
+      }
 
       if (!Number.isInteger(effectiveTimeoutMs) || effectiveTimeoutMs <= 0) {
         return createErrorResult(
@@ -177,6 +181,7 @@ export function createJsExecutor(options: JsExecutorOptions = {}): JsExecutor {
         let child: ChildProcess | undefined;
         let finished = false;
         let timedOut = false;
+        let aborted = false;
         let stdoutBuffer = '';
         let stderrBuffer = '';
         let streamTruncated = false;
@@ -187,7 +192,17 @@ export function createJsExecutor(options: JsExecutorOptions = {}): JsExecutor {
           }
 
           finished = true;
+          abortSignal?.removeEventListener('abort', onAbort);
           resolve(result);
+        };
+
+        const onAbort = (): void => {
+          if (finished) {
+            return;
+          }
+
+          aborted = true;
+          child?.kill('SIGKILL');
         };
 
         try {
@@ -218,6 +233,7 @@ export function createJsExecutor(options: JsExecutorOptions = {}): JsExecutor {
           timedOut = true;
           child?.kill('SIGKILL');
         }, effectiveTimeoutMs);
+        abortSignal?.addEventListener('abort', onAbort, { once: true });
 
         const collectStreamChunk = (source: 'stdout' | 'stderr', chunk: string): void => {
           const currentBuffer = source === 'stdout' ? stdoutBuffer : stderrBuffer;
@@ -305,6 +321,20 @@ export function createJsExecutor(options: JsExecutorOptions = {}): JsExecutor {
           clearTimeout(timeoutHandle);
 
           if (finished) {
+            return;
+          }
+
+          if (aborted) {
+            finish(
+              createErrorResult(
+                startedAt,
+                stdoutBuffer,
+                stderrBuffer,
+                'INTERNAL',
+                'Execution aborted.',
+                streamTruncated
+              )
+            );
             return;
           }
 

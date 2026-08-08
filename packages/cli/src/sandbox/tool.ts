@@ -1,4 +1,5 @@
 import z from 'zod';
+import type { ToolExecutionContext } from 'pulse-coder-engine';
 
 import type { RunJsToolInput, RunJsToolOptions, RunJsToolOutput } from './types.js';
 
@@ -23,8 +24,8 @@ export function createRunJsTool(options: RunJsToolOptions) {
         .optional()
         .describe('Optional timeout in milliseconds. Defaults to executor timeout.')
     }),
-    execute: async (input: RunJsToolInput): Promise<RunJsToolOutput> => {
-      return options.executor.execute(input);
+    execute: async (input: RunJsToolInput, context?: ToolExecutionContext): Promise<RunJsToolOutput> => {
+      return options.executor.execute(input, context?.abortSignal);
     }
   };
 }

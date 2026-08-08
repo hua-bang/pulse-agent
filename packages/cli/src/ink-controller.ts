@@ -1,4 +1,4 @@
-import { buildProvider, CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type LLMProviderFactory, type PlanMode, type TaskListService } from 'pulse-coder-engine';
+import { CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
 
 import { InputManager } from './input-manager.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
@@ -11,6 +11,7 @@ import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
 import { loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
+import { buildModelRunOptions, type ModelRunOptions } from './model-run-options.js';
 import { expandFileReferences, indexWorkspaceFiles } from './file-reference.js';
 
 const LOCAL_COMMANDS = new Set([
@@ -276,24 +277,8 @@ class InkCoderController implements InkCliController {
   }
 
   /** Per-run overrides derived from the model choice; a provider-bound choice gets its own connection factory. */
-  private modelRunOptions(): { model?: string; modelType?: 'openai' | 'claude'; contextWindowTokens?: number; provider?: LLMProviderFactory } {
-    if (!this.modelOverride) {
-      return {};
-    }
-    const needsCustomConnection = Boolean(this.modelOverride.baseUrl || this.modelOverride.apiKeyEnv);
-    return {
-      model: this.modelOverride.model,
-      ...(this.modelOverride.modelType ? { modelType: this.modelOverride.modelType } : {}),
-      ...(this.modelOverride.contextWindow ? { contextWindowTokens: this.modelOverride.contextWindow } : {}),
-      ...(needsCustomConnection ? {
-        provider: buildProvider(this.modelOverride.modelType ?? 'openai', {
-          ...(this.modelOverride.baseUrl ? { baseURL: this.modelOverride.baseUrl } : {}),
-          ...(this.modelOverride.apiKeyEnv && process.env[this.modelOverride.apiKeyEnv]
-            ? { apiKey: process.env[this.modelOverride.apiKeyEnv] }
-            : {}),
-        }),
-      } : {}),
-    };
+  private modelRunOptions(): ModelRunOptions {
+    return buildModelRunOptions(this.modelOverride);
   }
 
   private async openModelPicker(): Promise<void> {
