@@ -73,7 +73,8 @@ structurally stable while the selected conversation changes scope.
   folder or expand the active folder, but must preserve manually expanded
   siblings and must not mutate state merely because search filtered a folder.
 - While a conversation opens, keep the rail visible and mark only the pending
-  row busy. The full-page body must not add an in-flow opening banner: even a
+  row busy through `aria-busy`; do not dim the rail or swap in a transient
+  spinner. The full-page body must not add an in-flow opening banner: even a
   one-frame banner shifts the entire thread. Disabling or replacing the whole
   rail destroys spatial context.
 - Session and group recency use exact `updatedAt`; the calendar date is only a
@@ -83,7 +84,7 @@ structurally stable while the selected conversation changes scope.
 Guards: `hooks/useChatSessions.test.tsx` composes cross-scope loading with the
 unified rail and pins the one-source list contract;
 `__tests__/ChatSessionsRail.test.tsx` pins expansion preservation, pending-row
-feedback, precise recency ordering, and repeated-preview metadata;
+feedback, the title-only row layout, and precise recency ordering;
 `src/main/agent/__tests__/service-history.test.ts` pins active-store exclusion.
 
 ## Full-page chat topbar vs dock content tabs
