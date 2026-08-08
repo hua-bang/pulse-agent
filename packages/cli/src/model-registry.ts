@@ -2,6 +2,8 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { homedir } from 'os';
 
+import { truncateToWidth } from './text-width.js';
+
 export interface ProviderConfig {
   name: string;
   /** SDK channel: 'openai' (OpenAI-compatible /responses) or 'claude' (Anthropic). */
@@ -134,7 +136,9 @@ export function formatModelSpec(choice: ModelChoice): string {
 export function shortModelLabel(model: string, maxLength = 22): string {
   const segments = model.split('/').filter(Boolean);
   const short = segments[segments.length - 1] ?? model;
-  return short.length > maxLength ? `${short.slice(0, maxLength - 1)}…` : short;
+  // Display columns: this feeds the status line and the picker, both of which
+  // budget in terminal columns, so a CJK/emoji id must not slip past the cap.
+  return truncateToWidth(short, maxLength);
 }
 
 /**
@@ -220,7 +224,7 @@ function normalizeRegistry(parsed: unknown, scope: 'home' | 'project' = 'project
   const models: ModelChoice[] = [];
   for (const entry of entries) {
     if (typeof entry === 'string') {
-      const choice = resolveStringEntry(entry, providers);
+      const choice = resolveStringEntry(entry, providers, warnings);
       if (choice) {
         models.push(choice);
       }
@@ -266,13 +270,24 @@ function normalizeProviders(parsed: unknown, warnings: string[]): Record<string,
   return providers;
 }
 
-function resolveStringEntry(entry: string, providers: Record<string, ProviderConfig>): ModelChoice | null {
+function resolveStringEntry(
+  entry: string,
+  providers: Record<string, ProviderConfig>,
+  warnings: string[],
+): ModelChoice | null {
   const colonIndex = entry.indexOf(':');
   if (colonIndex > 0) {
     const head = entry.slice(0, colonIndex);
     const rest = entry.slice(colonIndex + 1).trim();
     if (rest && providers[head]) {
       return applyProvider({ model: rest }, providers[head]);
+    }
+    // Warn like the object form does. Without this a typo'd or deleted provider
+    // silently yields a model literally named "provider:model", which only fails
+    // much later at the API call.
+    if (rest && head !== 'claude' && head !== 'openai') {
+      warnings.push(`model "${entry}" references unknown provider "${head}" — using the bare model id`);
+      return parseModelSpec(rest);
     }
   }
   return parseModelSpec(entry);

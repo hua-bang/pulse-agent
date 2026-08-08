@@ -340,7 +340,13 @@ export class InkCoderController implements InkCliController {
     const seen = new Set<string>();
     this.pickerModelChoices = new Map();
     const items = [
-      { id: DEFAULT_MODEL, label: shortModelLabel(DEFAULT_MODEL, 40), hint: 'env default', preview: DEFAULT_MODEL },
+      {
+        id: DEFAULT_MODEL,
+        label: shortModelLabel(DEFAULT_MODEL, 40),
+        hint: 'env default',
+        preview: DEFAULT_MODEL,
+        isCurrent: !this.modelOverride,
+      },
       ...registry.models.map(choice => {
         const id = `${choice.providerName ?? choice.modelType ?? ''}${choice.providerName || choice.modelType ? ':' : ''}${choice.model}`;
         this.pickerModelChoices.set(id, choice);
@@ -349,6 +355,9 @@ export class InkCoderController implements InkCliController {
           label: choice.label ?? shortModelLabel(choice.model, 40),
           hint: `${choice.providerName ?? choice.modelType ?? 'default provider'}${choice.contextWindow ? ` · ${Math.round(choice.contextWindow / 1000)}k ctx` : ''}`,
           preview: choice.model,
+          // Marks the row the picker opens on — matching on the full spec, not
+          // just the model id, so two providers serving the same id stay apart.
+          isCurrent: Boolean(this.modelOverride) && formatModelSpec(choice) === formatModelSpec(this.modelOverride!),
         };
       }),
     ].filter(item => {
@@ -436,14 +445,33 @@ export class InkCoderController implements InkCliController {
       this.inputManager.cancel('User interrupted with Esc');
     }
 
+    // Anything queued behind the run was typed for a conversation the user is
+    // now stopping. Draining it after the abort (which the run's finally does)
+    // would fire it milliseconds after telling them the request was cancelled.
+    const droppedQueued = this.queuedInputs.length;
+    this.queuedInputs.length = 0;
+
     if (this.isProcessing) {
+      const dropped = droppedQueued > 0
+        ? ` ${droppedQueued} queued message${droppedQueued === 1 ? '' : 's'} discarded.`
+        : '';
       if (this.currentAbortController && !this.currentAbortController.signal.aborted) {
         this.currentAbortController.abort();
-        this.ui.abort(hadPendingClarification
+        this.ui.abort((hadPendingClarification
           ? 'Clarification and request cancelled by Esc. You can type the next message now.'
-          : 'Request cancelled by Esc. You can type the next message now.');
+          : 'Request cancelled by Esc. You can type the next message now.') + dropped);
+      } else if (this.currentAbortController) {
+        this.ui.abort(`Cancellation already requested. Waiting for current step to finish...${dropped}`);
       } else {
-        this.ui.abort('Cancellation already requested. Waiting for current step to finish...');
+        // runExclusive() commands (/compact) hold no abort controller, so there
+        // is nothing to cancel — say that instead of claiming a cancellation the
+        // user never got.
+        this.ui.abort(`This command cannot be interrupted; waiting for it to finish.${dropped}`);
+      }
+      if (droppedQueued > 0) {
+        // Only the counter — publishSession() would restore isProcessing:true
+        // and undo the cancelled state abort() just published.
+        this.ui.updateSnapshot({ queuedInputs: 0 });
       }
       return;
     }
@@ -857,7 +885,24 @@ export class InkCoderController implements InkCliController {
     } finally {
       this.isProcessing = false;
       this.ui.stopProcessing();
+      this.drainQueuedInput();
     }
+  }
+
+  /**
+   * Runs the next queued message, if any. Both exclusive commands and agent runs
+   * must call this — anything typed while one was in flight is otherwise stranded
+   * until the NEXT run happens to drain it.
+   */
+  private drainQueuedInput(): void {
+    const nextInput = this.queuedInputs.shift();
+    if (!nextInput) {
+      return;
+    }
+    this.ui.info('Running queued input...');
+    setImmediate(() => {
+      void this.submitInput(nextInput);
+    });
   }
 
   private async runMessage(rawInput: string): Promise<void> {
@@ -1011,15 +1056,7 @@ export class InkCoderController implements InkCliController {
       this.currentAbortController = null;
       this.publishSession('Ready');
 
-      if (this.queuedInputs.length > 0) {
-        const nextInput = this.queuedInputs.shift();
-        if (nextInput) {
-          this.ui.info('Running queued input...');
-          setImmediate(() => {
-            void this.submitInput(nextInput);
-          });
-        }
-      }
+      this.drainQueuedInput();
     }
   }
 

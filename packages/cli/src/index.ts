@@ -1,4 +1,4 @@
-import { PulseAgent } from 'pulse-coder-engine';
+import { DEFAULT_MODEL, PulseAgent } from 'pulse-coder-engine';
 import * as readline from 'readline';
 import type { Context, TaskListService } from 'pulse-coder-engine';
 import { SessionCommands } from './session-commands.js';
@@ -7,7 +7,7 @@ import { SkillCommands } from './skill-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
 import { parseCliArgs } from './ui-mode.js';
-import { formatModelSpec, type ModelChoice } from './model-registry.js';
+import { formatModelSpec, loadModelRegistry, resolveModelSpec, type ModelChoice } from './model-registry.js';
 import { buildModelRunOptions, resolveModelChoice } from './model-run-options.js';
 import { createPulseCliTools } from './runtime-tools.js';
 
@@ -21,6 +21,7 @@ const LOCAL_COMMANDS = new Set([
   'delete',
   'clear',
   'compact',
+  'model',
   'skills',
   'wt',
   'status',
@@ -45,6 +46,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/delete <id>', description: 'Delete a session' },
   { command: '/clear', description: 'Clear current conversation' },
   { command: '/compact', description: 'Force compact current conversation context' },
+  { command: '/model [<spec>|reset]', description: 'Show candidates or switch the model for this session' },
   { command: '/skills [list|<name|index> <message>]', description: 'Run one message with a selected skill' },
   { command: '/wt use <work-name>', description: 'Create a worktree + branch via worktree skill' },
   { command: '/status', description: 'Show current session status' },
@@ -239,6 +241,10 @@ class CoderCLI {
           this.tui.success('Current conversation cleared!');
           break;
 
+        case 'model':
+          await this.handleModelCommand(args);
+          break;
+
         case 'compact':
           if (this.context.messages.length === 0) {
             this.tui.info('Context is empty, nothing to compact.');
@@ -368,6 +374,59 @@ class CoderCLI {
     } catch (error) {
       this.tui.error(`Error executing command: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  /**
+   * `/model` for the readline host. No modal picker here (that is Ink-only), so
+   * the list is printed with indexes and switching is `/model <spec|index>` —
+   * the same registry, resolver and run options the Ink host uses.
+   */
+  private async handleModelCommand(args: string[]): Promise<void> {
+    const registry = await loadModelRegistry();
+    registry.warnings.forEach(warning => this.tui.warn(`[models.json] ${warning}`));
+
+    const describe = (choice: ModelChoice | null) =>
+      (choice ? `${formatModelSpec(choice)}${choice.contextWindow ? ` · ${Math.round(choice.contextWindow / 1000)}k ctx` : ''}` : `${DEFAULT_MODEL} (env default)`);
+    const spec = args[0]?.trim();
+
+    if (!spec) {
+      this.tui.section('Model', [
+        `Current: ${describe(this.modelChoice)}`,
+        ...(registry.models.length > 0
+          ? ['Candidates:', ...registry.models.map((choice, index) => `  ${index + 1}. ${describe(choice)}`)]
+          : ['No candidates in models.json — see README §模型候选配置']),
+        'Switch: /model <index> · /model <id> · /model <provider>:<id> · /model reset',
+      ]);
+      return;
+    }
+
+    if (spec === 'reset') {
+      this.modelChoice = null;
+      this.tui.success(`Model reset to ${DEFAULT_MODEL} (env default)`);
+      return;
+    }
+
+    // A numeric spec is ALWAYS an index — never let it fall through to the
+    // lenient resolver, which would happily accept a model literally named "1".
+    if (/^\d+$/.test(spec)) {
+      const byIndex = registry.models[Number(spec) - 1];
+      if (!byIndex) {
+        this.tui.error(`No candidate #${spec}. Run /model to see the list.`);
+        return;
+      }
+      this.modelChoice = byIndex;
+      this.tui.success(`Model switched to ${describe(byIndex)}`);
+      return;
+    }
+
+    const resolved = resolveModelSpec(spec, registry);
+    if (!resolved) {
+      this.tui.error(`Unknown model "${spec}". Run /model to see the candidates.`);
+      return;
+    }
+
+    this.modelChoice = resolved;
+    this.tui.success(`Model switched to ${describe(resolved)}`);
   }
 
   async start(options: { continueLast?: boolean } = {}) {

@@ -138,6 +138,18 @@ describe('indexWorkspaceFiles / expandFileReferences', () => {
     expect(result.text).toContain('app.ts');
   });
 
+  it('applies the same ignore rules the @ completion index uses', async () => {
+    // Otherwise node_modules/.git/dist eat the entry cap in readdir order and
+    // push real source files into the "+N more entries" tail.
+    await fs.mkdir(path.join(root, 'src', 'node_modules'), { recursive: true });
+
+    const result = await expandFileReferences('@src', root);
+
+    expect(result.text).toContain('app.ts');
+    expect(result.text).not.toContain('node_modules');
+    expect(result.text).not.toContain('debug.log');
+  });
+
   it('skips binaries, missing paths, and escapes outside the workspace', async () => {
     const result = await expandFileReferences('@image.png @nope.ts @../outside.ts', root);
 

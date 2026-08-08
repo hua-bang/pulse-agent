@@ -61,6 +61,29 @@ describe('EngineLogSink', () => {
     }
   });
 
+  it('rotates mid-session once the file grows past the cap', async () => {
+    // Rotation used to be evaluated only at install(), so one long-running
+    // process grew cli.log without bound.
+    const sink = new EngineLogSink({ filePath, maxFileBytes: 200 });
+    sink.install();
+    try {
+      for (let index = 0; index < 20; index += 1) {
+        console.log(`line ${index} ${'x'.repeat(40)}`);
+        // Rotation waits for the stream to flush, so yield between writes.
+        await new Promise(resolve => setImmediate(resolve));
+      }
+    } finally {
+      await sink.restore();
+    }
+
+    const entries = await fs.readdir(dir);
+    expect(entries.sort()).toEqual(['cli.log', 'cli.log.old']);
+    // The live file holds only what was written since the last swap.
+    const current = await fs.readFile(filePath, 'utf-8');
+    expect(current.length).toBeLessThan(20 * 60);
+    expect(await fs.readFile(`${filePath}.old`, 'utf-8')).not.toBe('');
+  });
+
   it('notifies its subscriber and caps the ring buffer', () => {
     const sink = new EngineLogSink({ filePath, maxEntries: 2 });
     const seen: EngineLogEntry[] = [];

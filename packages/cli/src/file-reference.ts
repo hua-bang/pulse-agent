@@ -92,6 +92,15 @@ function parseIgnorePatterns(gitignore: string): string[] {
     .map(line => line.replace(/\/+$/, '').replace(/^\/+/, ''));
 }
 
+/** The workspace's `.gitignore` patterns, or none when it is missing/unreadable. */
+async function loadIgnorePatterns(root: string): Promise<string[]> {
+  try {
+    return parseIgnorePatterns(await fs.readFile(path.join(root, '.gitignore'), 'utf-8'));
+  } catch {
+    return [];
+  }
+}
+
 /** Deliberately simple .gitignore matching: exact segment, prefix, or `*.ext`. */
 export function isIgnored(relPath: string, patterns: string[]): boolean {
   const segments = relPath.split('/');
@@ -112,12 +121,7 @@ export function isIgnored(relPath: string, patterns: string[]): boolean {
  * too, so `@src/` can attach a folder.
  */
 export async function indexWorkspaceFiles(root = process.cwd(), limit = 2000): Promise<FileEntry[]> {
-  let patterns: string[] = [];
-  try {
-    patterns = parseIgnorePatterns(await fs.readFile(path.join(root, '.gitignore'), 'utf-8'));
-  } catch {
-    patterns = [];
-  }
+  const patterns = await loadIgnorePatterns(root);
 
   const entries: FileEntry[] = [];
   const queue: string[] = [''];
@@ -213,6 +217,7 @@ export async function expandFileReferences(
   const attached: string[] = [];
   const skipped: Array<{ ref: string; reason: string }> = [];
   const blocks: string[] = [];
+  const ignorePatterns = await loadIgnorePatterns(root);
 
   for (const ref of refs) {
     if (attached.length >= maxFiles) {
@@ -236,7 +241,12 @@ export async function expandFileReferences(
 
     if (stat.isDirectory()) {
       try {
-        const dirents = await fs.readdir(absolute, { withFileTypes: true });
+        const relativeDir = path.relative(root, absolute);
+        // Same ignore rules the `@` completion index uses: without them
+        // node_modules/.git/dist consume the entry cap in readdir order and push
+        // the real source files into the "+N more" tail.
+        const dirents = (await fs.readdir(absolute, { withFileTypes: true }))
+          .filter(dirent => !isIgnored(path.join(relativeDir, dirent.name).split(path.sep).join('/'), ignorePatterns));
         const listing = dirents
           .slice(0, maxDirEntries)
           .map(dirent => `${dirent.name}${dirent.isDirectory() ? '/' : ''}`)

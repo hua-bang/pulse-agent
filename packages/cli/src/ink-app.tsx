@@ -43,6 +43,8 @@ export interface InkPickerItem {
   label: string;
   hint?: string;
   preview?: string;
+  /** Marks the entry that is already active, so the picker can start on it. */
+  isCurrent?: boolean;
 }
 
 export interface InkPickerState {
@@ -453,7 +455,9 @@ export function formatStatusline(snapshot: InkCliSnapshot, maxWidth = Number.POS
   const kept: string[] = [];
   for (const segment of segments) {
     const candidate = [...kept, segment].join(' · ');
-    if (kept.length > 0 && candidate.length > maxWidth) {
+    // Display columns, not code units — a CJK/emoji model label is twice as wide
+    // as its .length and would push this single line into a wrap.
+    if (kept.length > 0 && stringWidth(candidate) > maxWidth) {
       break;
     }
     kept.push(segment);
@@ -604,7 +608,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
 
   const picker = snapshot.picker ?? null;
   useEffect(() => {
-    setPickerIndex(0);
+    // Land on the active entry when the picker knows one, so /model opens on the
+    // model you are already using instead of always on item 0.
+    const current = picker?.items.findIndex(item => item.isCurrent) ?? -1;
+    setPickerIndex(current >= 0 ? current : 0);
     setPickerQuery('');
   }, [picker]);
 
@@ -1001,7 +1008,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const statusIcon = snapshot.isProcessing ? spinner : '●';
   const statusColor = snapshot.isProcessing ? 'yellow' : snapshot.status === 'Cancelled' ? 'red' : 'green';
   const statusPrefix = `${statusIcon} ${snapshot.status}${snapshot.isProcessing && snapshot.runStartedAt ? ` · ${formatElapsed(Date.now() - snapshot.runStartedAt)}` : ''}`;
-  const statusline = formatStatusline(snapshot, Math.max(20, terminalColumns - statusPrefix.length - 4));
+  const statusline = formatStatusline(snapshot, Math.max(20, terminalColumns - stringWidth(statusPrefix) - 4));
 
   // Parallel tools (teams, sub-agents) can stack up; window them so the
   // composer never gets pushed off screen.
@@ -1046,7 +1053,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
               const actualIndex = pickerWindowStart + index;
               const selected = actualIndex === clampedPickerIndex;
               // Hint gets at most a third of the row; the label takes the rest.
-              const hint = item.hint ? truncateLabel(item.hint, Math.floor(pickerContentWidth / 3)) : '';
+              const hint = truncateLabel(
+                `${item.isCurrent ? 'current' : ''}${item.isCurrent && item.hint ? ' · ' : ''}${item.hint ?? ''}`,
+                Math.floor(pickerContentWidth / 3),
+              );
               const label = truncateLabel(item.label, Math.max(8, pickerContentWidth - 2 - (hint ? stringWidth(hint) + 2 : 0)));
               return (
                 <Box key={item.id} flexDirection="column">
