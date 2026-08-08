@@ -11,7 +11,7 @@ interface AppendActiveSessionGroupsOptions {
   workspaceNames: Record<string, string>;
 }
 
-const scopeFromServiceKey = (key: string): AgentScope => {
+export const scopeFromServiceKey = (key: string): AgentScope => {
   if (key === 'global') return { kind: 'global' };
   if (key.startsWith('scheduled:')) {
     return { kind: 'scheduled', taskId: key.slice('scheduled:'.length) };

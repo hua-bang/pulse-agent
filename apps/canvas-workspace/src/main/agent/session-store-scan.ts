@@ -11,11 +11,28 @@ import {
 export interface AgentSessionListEntry {
   sessionId: string;
   date: string;
+  /** Exact recency used by the rail; unlike `date`, retains time-of-day. */
+  updatedAt: number;
   messageCount: number;
   preview: string;
   title?: string;
   pinned: boolean;
   isCurrent: boolean;
+}
+
+export function sessionUpdatedAt(session: CanvasAgentSession, fileTimestamp = 0): number {
+  const messageTimestamp = (session.messages ?? []).reduce(
+    (latest, message) => Number.isFinite(message.timestamp)
+      ? Math.max(latest, message.timestamp ?? 0)
+      : latest,
+    0,
+  );
+  // File mtimes are only a fallback: imports and harness clones legitimately
+  // rewrite them, which must not make every historical conversation "just now".
+  if (messageTimestamp > 0) return messageTimestamp;
+  const startedAt = Date.parse(session.startedAt ?? '');
+  if (Number.isFinite(startedAt)) return startedAt;
+  return fileTimestamp;
 }
 
 function archiveFileTimestamp(file: string): number {
@@ -34,6 +51,7 @@ export async function archiveSortKey(filePath: string, fileName: string): Promis
 
 export async function scanAllWorkspaceSessions(
   rootDir: string,
+  excludedStoreIds: ReadonlySet<string> = new Set(),
 ): Promise<Array<{ workspaceId: string; sessions: AgentSessionListEntry[] }>> {
   const results: Array<{ workspaceId: string; sessions: AgentSessionListEntry[] }> = [];
   let dirs: string[];
@@ -45,19 +63,22 @@ export async function scanAllWorkspaceSessions(
 
   for (const dir of dirs) {
     if (!isListableSessionStore(dir)) continue;
+    if (excludedStoreIds.has(dir)) continue;
     const sessionsDir = join(rootDir, dir, 'agent-sessions');
     const archiveDir = join(sessionsDir, 'archive');
     const metadata = await readSessionMetadata(join(sessionsDir, 'metadata.json'));
     const sessions: AgentSessionListEntry[] = [];
 
     try {
-      const raw = await fs.readFile(join(sessionsDir, 'current.json'), 'utf-8');
+      const currentPath = join(sessionsDir, 'current.json');
+      const raw = await fs.readFile(currentPath, 'utf-8');
       const data = JSON.parse(raw) as CanvasAgentSession;
       if (data.messages?.length > 0) {
         const firstUserMessage = data.messages.find((message) => message.role === 'user');
         sessions.push({
           sessionId: data.sessionId,
           date: data.startedAt?.slice(0, 10) || '',
+          updatedAt: sessionUpdatedAt(data, await archiveSortKey(currentPath, '')),
           messageCount: data.messages.length,
           preview: firstUserMessage ? sessionPreview(firstUserMessage.content) : '',
           ...listedSessionMetadata(metadata, data.sessionId),
@@ -84,6 +105,7 @@ export async function scanAllWorkspaceSessions(
           const session = {
             sessionId: data.sessionId,
             date: data.startedAt?.slice(0, 10) || file.replace('.json', '').slice(0, 10),
+            updatedAt: sessionUpdatedAt(data, sortKey),
             messageCount: data.messages.length,
             preview: firstUserMessage ? sessionPreview(firstUserMessage.content) : '',
             ...listedSessionMetadata(metadata, data.sessionId),
@@ -105,7 +127,7 @@ export async function scanAllWorkspaceSessions(
     if (sessions.length === 0) continue;
     sessions.sort((left, right) => {
       if (left.isCurrent !== right.isCurrent) return left.isCurrent ? -1 : 1;
-      return right.date.localeCompare(left.date);
+      return right.updatedAt - left.updatedAt || right.date.localeCompare(left.date);
     });
     results.push({ workspaceId: dir, sessions });
   }

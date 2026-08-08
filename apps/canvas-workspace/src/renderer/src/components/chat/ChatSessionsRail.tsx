@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   ChevronRightIcon,
   PlusIcon,
@@ -13,6 +13,7 @@ export interface UnifiedSession {
   workspaceId: string;
   workspaceName: string;
   date: string;
+  updatedAt?: number;
   messageCount: number;
   preview?: string;
   isCurrent?: boolean;
@@ -25,6 +26,8 @@ export interface ChatSessionsRailProps {
   loading?: boolean;
   /** Prevents session mutations/navigation while a thread pointer is changing. */
   disabled?: boolean;
+  /** Selected conversation whose thread is currently being opened. */
+  pendingSessionKey?: string | null;
   onNewSession: () => void | Promise<void>;
   onSelectSession: (session: UnifiedSession) => void;
   onRenameSession?: (session: UnifiedSession, title: string) => void | Promise<void>;
@@ -43,6 +46,7 @@ export const ChatSessionsRail = ({
   allSessions,
   loading = false,
   disabled = false,
+  pendingSessionKey = null,
   onNewSession,
   onSelectSession,
   onRenameSession,
@@ -74,6 +78,7 @@ export const ChatSessionsRail = ({
         ...group,
         sessions: group.sessions.slice().sort((left, right) => (
           Number(Boolean(right.isPinned)) - Number(Boolean(left.isPinned))
+          || (right.updatedAt ?? 0) - (left.updatedAt ?? 0)
           || right.date.localeCompare(left.date)
           || right.sessionId.localeCompare(left.sessionId)
         )),
@@ -93,17 +98,26 @@ export const ChatSessionsRail = ({
       return sessions.length > 0 ? [{ ...group, sessions }] : [];
     });
   }, [allSessionGroups, normalizedQuery]);
-  const activeGroupId = sessionGroups.find((group) => group.sessions.some((session) => session.isCurrent))?.id;
-  const openGroupId = activeGroupId ?? sessionGroups[0]?.id;
+  const activeGroupId = allSessionGroups.find((group) => group.sessions.some((session) => session.isCurrent))?.id;
+  const openGroupId = activeGroupId ?? allSessionGroups[0]?.id;
+  const allGroupIds = useMemo(() => allSessionGroups.map((group) => group.id), [allSessionGroups]);
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => new Set(
-    sessionGroups.filter((group) => group.id !== openGroupId).map((group) => group.id),
+    allGroupIds.filter((groupId) => groupId !== openGroupId),
   ));
+  const knownGroupIdsRef = useRef(new Set(allGroupIds));
   useEffect(() => {
-    if (!openGroupId) return;
-    setCollapsedGroupIds(new Set(
-      sessionGroups.filter((group) => group.id !== openGroupId).map((group) => group.id),
-    ));
-  }, [openGroupId, sessionGroups]);
+    const knownGroupIds = knownGroupIdsRef.current;
+    const nextGroupIds = new Set(allGroupIds);
+    setCollapsedGroupIds((current) => {
+      const next = new Set([...current].filter((groupId) => nextGroupIds.has(groupId)));
+      for (const groupId of allGroupIds) {
+        if (!knownGroupIds.has(groupId) && groupId !== openGroupId) next.add(groupId);
+      }
+      if (openGroupId) next.delete(openGroupId);
+      return next;
+    });
+    knownGroupIdsRef.current = nextGroupIds;
+  }, [allGroupIds, openGroupId]);
   const toggleGroup = (groupId: string) => {
     setCollapsedGroupIds((current) => {
       const next = new Set(current);
@@ -114,7 +128,11 @@ export const ChatSessionsRail = ({
   };
 
   return (
-    <aside className="chat-page-rail" aria-label={t('chat.sessionList')}>
+    <aside
+      className="chat-page-rail"
+      aria-label={t('chat.sessionList')}
+      aria-busy={pendingSessionKey ? true : undefined}
+    >
       <button
         type="button"
         className="chat-page-rail-new"
@@ -181,6 +199,7 @@ export const ChatSessionsRail = ({
                         onDeleteSession={onDeleteSession}
                         onTogglePinSession={onTogglePinSession}
                         disabled={disabled}
+                        pending={pendingSessionKey === `${session.workspaceId}:${session.sessionId}`}
                       />
                     </div>
                   ))}

@@ -397,6 +397,7 @@ export interface AgentTurnContextSnapshot {
 export interface AgentSessionInfo {
   sessionId: string;
   date: string;
+  updatedAt?: number;
   messageCount: number;
   isCurrent: boolean;
   preview?: string;

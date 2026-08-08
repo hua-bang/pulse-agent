@@ -12,6 +12,7 @@ interface UseStableSessionRailOptions {
   otherSessions: OtherWorkspaceSession[];
   selectedSessionKey: string | null;
   sessions: AgentSessionInfo[];
+  sessionsStoreId: string;
 }
 
 /**
@@ -28,25 +29,28 @@ export function useStableSessionRail({
   otherSessions,
   selectedSessionKey,
   sessions,
+  sessionsStoreId,
 }: UseStableSessionRailOptions): UnifiedSession[] {
   const stableSessionsRef = useRef<UnifiedSession[]>([]);
   const stableScopeRef = useRef(scopeSessionStoreId(agentScope));
   const computedSessions = useMemo(() => {
-    const storeId = scopeSessionStoreId(agentScope);
-    const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+    const activeStoreId = scopeSessionStoreId(agentScope);
+    const workspaceId = sessionsStoreId === activeStoreId && agentScope.kind === 'workspace'
+      ? agentScope.workspaceId
+      : sessionsStoreId;
     const workspaceName = currentScopeName
-      ?? (workspaceId
-        ? allWorkspaces.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId
-        : 'Global Chat');
+      ?? (sessionsStoreId === '__global_chat__'
+        ? 'Global Chat'
+        : allWorkspaces.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId);
     const unified: UnifiedSession[] = [
       ...sessions.map((session) => ({
         ...session,
         preview: session.title ?? session.preview,
         isPinned: session.pinned,
-        workspaceId: storeId,
+        workspaceId: sessionsStoreId,
         workspaceName,
         isCurrent: selectedSessionKey
-          ? selectedSessionKey === `${storeId}:${session.sessionId}`
+          ? selectedSessionKey === `${sessionsStoreId}:${session.sessionId}`
           : session.isCurrent,
       })),
       ...otherSessions.map((session) => ({
@@ -54,6 +58,7 @@ export function useStableSessionRail({
         workspaceId: session.sourceWorkspaceId,
         workspaceName: session.workspaceName,
         date: session.date,
+        updatedAt: session.updatedAt,
         messageCount: session.messageCount,
         preview: session.title ?? session.preview,
         isPinned: session.pinned,
@@ -62,10 +67,11 @@ export function useStableSessionRail({
       })),
     ];
     return unified.sort((left, right) => (
-      right.date.localeCompare(left.date)
+      (right.updatedAt ?? 0) - (left.updatedAt ?? 0)
+      || right.date.localeCompare(left.date)
       || right.sessionId.localeCompare(left.sessionId)
     ));
-  }, [agentScope, allWorkspaces, currentScopeName, otherSessions, selectedSessionKey, sessions]);
+  }, [agentScope, allWorkspaces, currentScopeName, otherSessions, selectedSessionKey, sessions, sessionsStoreId]);
 
   return useMemo(() => {
     const nextScopeId = scopeSessionStoreId(agentScope);
