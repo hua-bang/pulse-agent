@@ -150,6 +150,24 @@ describe('indexWorkspaceFiles / expandFileReferences', () => {
     ]);
   });
 
+  it('skips a sibling directory whose name merely extends the workspace basename', async () => {
+    // A raw startsWith(root) check passes for `<root>-secrets`, leaking the file.
+    const sibling = `${root}-secrets`;
+    await fs.mkdir(sibling, { recursive: true });
+    await fs.writeFile(path.join(sibling, 'creds.env'), 'TOKEN=leaked\n');
+
+    try {
+      const ref = `../${path.basename(sibling)}/creds.env`;
+      const result = await expandFileReferences(`@${ref}`, root);
+
+      expect(result.attached).toEqual([]);
+      expect(result.text).not.toContain('TOKEN=leaked');
+      expect(result.skipped).toEqual([{ ref, reason: 'outside the workspace' }]);
+    } finally {
+      await fs.rm(sibling, { recursive: true, force: true });
+    }
+  });
+
   it('truncates oversized files and honours the attachment cap', async () => {
     await fs.writeFile(path.join(root, 'big.txt'), 'x'.repeat(5000));
     const truncated = await expandFileReferences('@big.txt', root, { maxFileBytes: 100 });

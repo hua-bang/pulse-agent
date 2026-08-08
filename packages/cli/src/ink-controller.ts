@@ -1,4 +1,4 @@
-import { buildProvider, CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type LLMProviderFactory, type PlanMode, type TaskListService } from 'pulse-coder-engine';
+import { CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
 
 import { InputManager } from './input-manager.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
@@ -11,6 +11,7 @@ import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
 import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
+import { buildModelRunOptions, type ModelRunOptions } from './model-run-options.js';
 import { PreferencesStore } from './preferences.js';
 import { expandFileReferences, indexWorkspaceFiles } from './file-reference.js';
 
@@ -92,7 +93,8 @@ const HELP_FOOTER = [
   'Scroll up - Finished output lives in the normal terminal scrollback',
 ];
 
-class InkCoderController implements InkCliController {
+/** Exported for tests only; production code goes through `createInkCoderController`. */
+export class InkCoderController implements InkCliController {
   private readonly agent: PulseAgent;
   private readonly context: Context;
   private readonly sessionCommands: SessionCommands;
@@ -325,24 +327,8 @@ class InkCoderController implements InkCliController {
   }
 
   /** Per-run overrides derived from the model choice; a provider-bound choice gets its own connection factory. */
-  private modelRunOptions(): { model?: string; modelType?: 'openai' | 'claude'; contextWindowTokens?: number; provider?: LLMProviderFactory } {
-    if (!this.modelOverride) {
-      return {};
-    }
-    const needsCustomConnection = Boolean(this.modelOverride.baseUrl || this.modelOverride.apiKeyEnv);
-    return {
-      model: this.modelOverride.model,
-      ...(this.modelOverride.modelType ? { modelType: this.modelOverride.modelType } : {}),
-      ...(this.modelOverride.contextWindow ? { contextWindowTokens: this.modelOverride.contextWindow } : {}),
-      ...(needsCustomConnection ? {
-        provider: buildProvider(this.modelOverride.modelType ?? 'openai', {
-          ...(this.modelOverride.baseUrl ? { baseURL: this.modelOverride.baseUrl } : {}),
-          ...(this.modelOverride.apiKeyEnv && process.env[this.modelOverride.apiKeyEnv]
-            ? { apiKey: process.env[this.modelOverride.apiKeyEnv] }
-            : {}),
-        }),
-      } : {}),
-    };
+  private modelRunOptions(): ModelRunOptions {
+    return buildModelRunOptions(this.modelOverride);
   }
 
   private async openModelPicker(): Promise<void> {
@@ -977,6 +963,17 @@ class InkCoderController implements InkCliController {
           runAgent,
         )
         : await runAgent();
+
+      // The engine does not throw on abort: once the signal fires, loop() returns
+      // the plain sentinel string 'Request aborted.' as an ordinary result, so the
+      // AbortError catch below never sees an engine-side cancellation. Without this
+      // check the success path would finalize the partial answer as final, write a
+      // "Done in Xs" summary, print the sentinel as the model's reply, and persist
+      // the cancelled turn to the session and the daily log.
+      if (ac.signal.aborted) {
+        this.ui.abort('Operation cancelled.');
+        return;
+      }
 
       this.ui.runSummary({
         elapsedMs: Date.now() - runStartedAt,

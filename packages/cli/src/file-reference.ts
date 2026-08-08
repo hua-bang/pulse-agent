@@ -182,6 +182,19 @@ function looksBinary(relPath: string, buffer: Buffer): boolean {
 }
 
 /**
+ * True when `absolute` is the workspace root or lives beneath it.
+ *
+ * A raw `startsWith(root)` is NOT enough: it has no path-separator boundary, so
+ * a sibling directory whose name merely extends the root's basename
+ * (`/w/project` vs `/w/project-secrets`) passes the check and leaks outside the
+ * workspace. `path.relative` gives us that boundary for free.
+ */
+export function isInsideWorkspace(absolute: string, root: string): boolean {
+  const relative = path.relative(path.resolve(root), absolute);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/**
  * Expands `@path` references in a submitted message into attached file
  * contents. The original text (including the `@path` tokens) is preserved so
  * the model still sees what the user pointed at; contents are appended below.
@@ -208,7 +221,7 @@ export async function expandFileReferences(
     }
 
     const absolute = path.resolve(root, ref);
-    if (!absolute.startsWith(path.resolve(root))) {
+    if (!isInsideWorkspace(absolute, root)) {
       skipped.push({ ref, reason: 'outside the workspace' });
       continue;
     }

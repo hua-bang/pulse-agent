@@ -7,7 +7,8 @@ import { SkillCommands } from './skill-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
 import { parseCliArgs } from './ui-mode.js';
-import { parseModelSpec } from './model-registry.js';
+import { formatModelSpec, type ModelChoice } from './model-registry.js';
+import { buildModelRunOptions, resolveModelChoice } from './model-run-options.js';
 import { createPulseCliTools } from './runtime-tools.js';
 
 const LOCAL_COMMANDS = new Set([
@@ -75,6 +76,7 @@ class CoderCLI {
   private inputManager: InputManager;
   private skillCommands: SkillCommands;
   private tui: TuiRenderer;
+  private modelChoice: ModelChoice | null = null;
 
   constructor(private readonly modelSpec?: string) {
     // 🎯 现在引擎自动包含内置插件，无需显式配置！
@@ -285,16 +287,10 @@ class CoderCLI {
           ]);
           break;
 
-        case 'mode':
-          const currentMode = this.agent.getMode();
-          if (!currentMode) {
-            this.tui.warn('plan mode plugin unavailable');
-            break;
-          }
-
-          this.tui.info(`Current mode: ${currentMode}`);
-          break;
-
+        // NOTE: `case 'mode'` belongs to the switch group below, which handles
+        // both the bare `/mode` query and `/mode <target>`. An earlier duplicate
+        // clause here used to shadow it, so `/mode plan` only ever printed the
+        // current mode and never switched.
         case 'chat':
         case 'auto':
         case 'edit':
@@ -376,6 +372,13 @@ class CoderCLI {
 
   async start(options: { continueLast?: boolean } = {}) {
     this.tui.showWelcome();
+
+    // Resolve --model once, against the same merged home+project registry the Ink
+    // host uses, so a provider-bound spec reaches the engine with its connection.
+    this.modelChoice = await resolveModelChoice(this.modelSpec, warning => this.tui.info(warning));
+    if (this.modelSpec && this.modelChoice) {
+      this.tui.info(`Model: ${formatModelSpec(this.modelChoice)}`);
+    }
 
     await this.sessionCommands.initialize();
     await memoryIntegration.initialize();
@@ -638,10 +641,11 @@ class CoderCLI {
 
         const currentSessionId = this.resolveCurrentSessionId();
 
-        const modelChoice = this.modelSpec ? parseModelSpec(this.modelSpec) : null;
+        // Registry-resolved, so a provider-bound spec (`deepseek:v4`) carries its
+        // baseUrl/apiKey/contextWindow here exactly as it does in the Ink host.
         const runAgent = async () => this.agent.run(this.context, {
           abortSignal: ac.signal,
-          ...(modelChoice ? { model: modelChoice.model, ...(modelChoice.modelType ? { modelType: modelChoice.modelType } : {}) } : {}),
+          ...buildModelRunOptions(this.modelChoice),
           onText: (delta) => {
             sawText = true;
             this.tui.text(delta);
@@ -677,6 +681,16 @@ class CoderCLI {
             runAgent,
           )
           : await runAgent();
+
+        // The engine does not throw on abort: loop() returns the plain sentinel
+        // string 'Request aborted.' as an ordinary result, so the AbortError catch
+        // below never sees an engine-side cancellation. Without this check the
+        // success path would print that sentinel as the model's reply and persist
+        // the cancelled turn to the session and the daily log.
+        if (ac.signal.aborted) {
+          this.tui.abort('Operation cancelled.');
+          return;
+        }
 
         this.tui.runSummary({
           elapsedMs: Date.now() - runStartedAt,
@@ -757,7 +771,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const cli = new CoderCLI();
+  const cli = new CoderCLI(parsed.model);
   await cli.start({ continueLast: parsed.continueLast });
 }
 
