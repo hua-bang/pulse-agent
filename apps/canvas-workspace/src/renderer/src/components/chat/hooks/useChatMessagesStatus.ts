@@ -4,7 +4,7 @@ import { useI18n } from '../../../i18n';
 import type { AgentChatMessage } from '../../../types';
 
 const SKELETON_DELAY_MS = 180;
-const SKELETON_MIN_VISIBLE_MS = 320;
+const SKELETON_MIN_VISIBLE_MS = 600;
 
 interface UseChatMessagesStatusOptions {
   latestTurnStatus: AgentChatMessage['turnStatus'];
@@ -45,8 +45,6 @@ export function useChatMessagesStatus({
         () => setSkeletonVisible(false),
         Math.max(0, SKELETON_MIN_VISIBLE_MS - elapsed),
       );
-    } else if (messageCount > 0) {
-      setSkeletonVisible(false);
     }
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);

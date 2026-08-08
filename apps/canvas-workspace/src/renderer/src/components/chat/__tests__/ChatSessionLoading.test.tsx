@@ -13,6 +13,7 @@ let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
 afterEach(() => {
+  vi.useRealTimers();
   if (root) act(() => root?.unmount());
   host?.remove();
   root = null;
@@ -116,6 +117,52 @@ describe('session-detail loading state', () => {
     });
     expect(el.querySelector('.chat-thread-skeleton')).not.toBeNull();
     vi.useRealTimers();
+  });
+
+  it('keeps the skeleton visible through a fast response handoff', async () => {
+    vi.useFakeTimers();
+    const el = await render(
+      <ChatView {...viewProps} messages={[]} loading={false} sessionLoading />,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(180);
+    });
+    expect(el.querySelector('.chat-thread-skeleton')).not.toBeNull();
+
+    const nextMessages: AgentChatMessage[] = [
+      { role: 'user', content: 'new question', timestamp: 3 },
+      { role: 'assistant', content: 'new answer', timestamp: 4 },
+    ];
+    // The messages callback and the loading flag can settle in separate
+    // renders. Neither event should make the placeholder disappear early.
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatView {...viewProps} messages={nextMessages} loading={false} sessionLoading />
+        </I18nProvider>,
+      );
+    });
+    expect(el.querySelector('.chat-thread-skeleton')).not.toBeNull();
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatView {...viewProps} messages={nextMessages} loading={false} sessionLoading={false} />
+        </I18nProvider>,
+      );
+    });
+    expect(el.querySelector('.chat-thread-skeleton')).not.toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(599);
+    });
+    expect(el.querySelector('.chat-thread-skeleton')).not.toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(el.querySelector('.chat-thread-skeleton')).toBeNull();
   });
 
   it('falls back to the empty state for a genuinely empty session', async () => {
