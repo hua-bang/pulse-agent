@@ -44,7 +44,11 @@ const parseSession = (value: unknown): DockLinkSession | null => {
   const activeTabId = requestedActiveId && tabs.some((tab) => tab.id === requestedActiveId)
     ? requestedActiveId
     : undefined;
-  return { tabs, activeTabId };
+  return {
+    tabs,
+    activeTabId,
+    ...(typeof value.expanded === 'boolean' ? { expanded: value.expanded } : {}),
+  };
 };
 
 const parseSessions = (value: unknown): DockLinkSessions => {

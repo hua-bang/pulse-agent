@@ -20,6 +20,7 @@ describe('dock session persistence', () => {
       'ws-a': {
         tabs: [{ id: 'link:1', kind: 'link', title: 'Example', url: 'https://example.com' }],
         activeTabId: 'link:1',
+        expanded: true,
       },
     });
 
@@ -28,6 +29,7 @@ describe('dock session persistence', () => {
       'ws-a': {
         tabs: [{ id: 'link:1', kind: 'link', title: 'Example', url: 'https://example.com' }],
         activeTabId: 'link:1',
+        expanded: true,
       },
     });
   });

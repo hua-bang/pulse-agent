@@ -394,6 +394,44 @@ describe('DockStore', () => {
     expect(back.retainedLinkTabs).toHaveLength(0);
   });
 
+  it('remembers whether the dock is expanded independently for each workspace', () => {
+    const dock = new DockStore();
+
+    dock.setActiveWorkspace('ws-a');
+    dock.openChat();
+    expect(dock.getSnapshot().expanded).toBe(true);
+
+    dock.setActiveWorkspace('ws-b');
+    expect(dock.getSnapshot().expanded).toBe(false);
+
+    dock.openChat();
+    dock.setActiveWorkspace('ws-a');
+    expect(dock.getSnapshot().expanded).toBe(true);
+
+    dock.collapse();
+    dock.setActiveWorkspace('ws-b');
+    expect(dock.getSnapshot().expanded).toBe(true);
+
+    dock.setActiveWorkspace('ws-a');
+    expect(dock.getSnapshot().expanded).toBe(false);
+  });
+
+  it('restores a workspace dock expansion after restarting the store', () => {
+    const saved = createSessionPersistence();
+    const firstRun = new DockStore(saved.persistence);
+    firstRun.setActiveWorkspace('ws-a');
+    firstRun.openChat();
+
+    const restored = new DockStore(saved.persistence);
+    restored.setActiveWorkspace('ws-a');
+    expect(restored.getSnapshot().expanded).toBe(true);
+
+    restored.collapse();
+    const restoredAgain = new DockStore(saved.persistence);
+    restoredAgain.setActiveWorkspace('ws-a');
+    expect(restoredAgain.getSnapshot().expanded).toBe(false);
+  });
+
   it('restores a hidden tab at the URL it navigated to, not the one it left at', () => {
     // `useEmbeddedBrowser` treats a stored URL that differs from the live
     // guest as a navigation COMMAND, so a stale record would yank a
@@ -784,7 +822,7 @@ describe('DockStore', () => {
       activeTerminalWorkspaceId: 'ws-b',
       activeTabId: CHAT_TAB_ID,
       activeTerminalTabId: undefined,
-      expanded: true,
+      expanded: false,
       terminalOpen: false,
       terminalTabs: [],
       nextTerminalOrdinal: 1,
@@ -818,7 +856,7 @@ describe('DockStore', () => {
     restored.setActiveWorkspace('ws-a');
     expect(restored.getSnapshot()).toMatchObject({
       activeTabId: linkTabId('https://a.example'),
-      expanded: false,
+      expanded: true,
     });
     expect(restored.getSnapshot().tabs).toMatchObject([
       { kind: 'link', url: 'https://a.example' },
@@ -830,6 +868,26 @@ describe('DockStore', () => {
       { kind: 'link', url: 'https://other.example' },
     ]);
     expect(restored.getSnapshot().activeTabId).toBe(linkTabId('https://other.example'));
+  });
+
+  it('keeps the last active web tab when a transient preview becomes active', () => {
+    const saved = createSessionPersistence();
+    const firstRun = new DockStore(saved.persistence);
+    firstRun.setActiveWorkspace('ws-a');
+    firstRun.openLink('https://a.example');
+    firstRun.openLink('https://b.example');
+    firstRun.openArtifact('ws-a', 'artifact-1');
+
+    const restored = new DockStore(saved.persistence);
+    restored.setActiveWorkspace('ws-a');
+
+    expect(restored.getSnapshot().activeTabId).toBe(linkTabId('https://b.example'));
+
+    restored.openArtifact('ws-a', 'artifact-2');
+    restored.close(linkTabId('https://b.example'));
+    const afterClosingLink = new DockStore(saved.persistence);
+    afterClosingLink.setActiveWorkspace('ws-a');
+    expect(afterClosingLink.getSnapshot().activeTabId).toBe(linkTabId('https://a.example'));
   });
 
   it('persists web-tab navigation metadata and removes closed tabs from the saved session', () => {
@@ -851,13 +909,14 @@ describe('DockStore', () => {
         faviconUrl: 'https://example.com/favicon.ico',
       }],
       activeTabId: id,
+      expanded: true,
     });
 
     dock.close(id);
-    expect(saved.read()['ws-a']).toEqual({ tabs: [], activeTabId: undefined });
+    expect(saved.read()['ws-a']).toEqual({ tabs: [], activeTabId: undefined, expanded: true });
   });
 
-  it('does not persist transient non-web previews', () => {
+  it('persists dock expansion without persisting transient non-web previews', () => {
     const saved = createSessionPersistence();
     const dock = new DockStore(saved.persistence);
     dock.setActiveWorkspace('ws-a');
@@ -865,7 +924,9 @@ describe('DockStore', () => {
     dock.openNodeDetail('ws-a', 'node-1', 'Node');
     dock.openCanvasPreview('ws-b', 'Other workspace');
 
-    expect(saved.read()).toEqual({});
+    expect(saved.read()).toEqual({
+      'ws-a': { tabs: [], activeTabId: undefined, expanded: true },
+    });
   });
 
   it('stores terminal agent type per workspace tab', () => {

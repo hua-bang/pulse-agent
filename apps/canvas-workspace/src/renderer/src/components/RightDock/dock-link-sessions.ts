@@ -5,6 +5,7 @@ export type DockLinkTab = Extract<DockPreviewTab, { kind: 'link' }>;
 export interface DockLinkSession {
   tabs: DockLinkTab[];
   activeTabId?: string;
+  expanded?: boolean;
 }
 
 export type DockLinkSessions = Record<string, DockLinkSession>;
@@ -29,14 +30,21 @@ export class DockLinkSessionStore {
     return this.sessions[workspaceId];
   }
 
-  capture(workspaceId: string, tabs: DockPreviewTab[], activeTabId: string): void {
+  capture(workspaceId: string, tabs: DockPreviewTab[], activeTabId: string, expanded?: boolean): void {
     if (!workspaceId || workspaceId === '__default__') return;
     const linkTabs = tabs.filter((tab): tab is DockLinkTab => tab.kind === 'link');
+    const previous = this.sessions[workspaceId];
+    const activeLinkId = linkTabs.some((tab) => tab.id === activeTabId)
+      ? activeTabId
+      : previous?.activeTabId && linkTabs.some((tab) => tab.id === previous.activeTabId)
+        ? previous.activeTabId
+        : undefined;
     this.sessions = {
       ...this.sessions,
       [workspaceId]: {
         tabs: linkTabs,
-        activeTabId: linkTabs.some((tab) => tab.id === activeTabId) ? activeTabId : undefined,
+        activeTabId: activeLinkId,
+        expanded: expanded ?? previous?.expanded,
       },
     };
     try {

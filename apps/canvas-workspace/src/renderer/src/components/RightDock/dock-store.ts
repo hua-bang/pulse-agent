@@ -67,16 +67,18 @@ export class DockStore {
   getSnapshot = (): DockState => this.state;
 
   private commit(next: Partial<DockState>): void {
+    const previous = this.state;
     this.state = applyDockSplitState(this.state, next);
+    if (
+      previous.tabs !== this.state.tabs
+      || previous.activeTabId !== this.state.activeTabId
+      || previous.expanded !== this.state.expanded
+    ) this.persistActiveLinkSession();
     for (const listener of [...this.listeners]) listener();
   }
 
   private persistActiveLinkSession(): void {
-    this.linkSessions.capture(
-      this.state.activeTerminalWorkspaceId,
-      this.state.tabs,
-      this.state.activeTabId,
-    );
+    this.linkSessions.capture(this.state.activeTerminalWorkspaceId, this.state.tabs, this.state.activeTabId, this.state.expanded);
   }
 
   private commitTerminalWorkspace(
@@ -182,7 +184,6 @@ export class DockStore {
     const next = getOpenLinkPatch(this.state, url, options);
     if (!next) return;
     this.commit(next);
-    this.persistActiveLinkSession();
   }
 
   /** Open a link on behalf of a specific workspace's mounted browser guest.
@@ -211,14 +212,12 @@ export class DockStore {
   newLink(title = 'New tab'): void {
     this.commit(getNewLinkPatch(this.state, title, this.nextLinkOrdinal));
     this.nextLinkOrdinal += 1;
-    this.persistActiveLinkSession();
   }
 
   navigateLink(id: string, url: string): void {
     const next = getNavigateLinkPatch(this.state, id, url);
     if (!next) return;
     this.commit(next);
-    this.persistActiveLinkSession();
   }
 
   /** Mirror a guest URL without overwriting its resolved page title. */
@@ -226,7 +225,6 @@ export class DockStore {
     const next = getSyncLinkUrlPatch(this.state, id, url);
     if (!next) return;
     this.commit(next);
-    this.persistActiveLinkSession();
   }
 
   /** Switch to an existing tab (chat, workspace terminal, or preview). Viewing chat clears unread. */
@@ -254,9 +252,6 @@ export class DockStore {
       activeTabId: id,
       ...(id === CHAT_TAB_ID ? { chatUnread: false } : {}),
     });
-    if (this.state.tabs.some((tab) => tab.id === id && tab.kind === 'link')) {
-      this.persistActiveLinkSession();
-    }
   }
 
   /** Pair the active content tab with the pinned Pulse AI pane. */
@@ -306,7 +301,8 @@ export class DockStore {
     const retainedEntry = this.state.retainedLinkTabs.find(
       (entry) => entry.workspaceId === workspaceId,
     );
-    const restoredSession = retainedEntry ?? this.linkSessions.get(workspaceId);
+    const persistedSession = this.linkSessions.get(workspaceId);
+    const restoredSession = retainedEntry ?? persistedSession;
     const restoredLinkTabs = restoredSession?.tabs ?? [];
     const tabs = [...nonLinkTabs, ...restoredLinkTabs];
     const projection = projectTerminalWorkspace(this.state.terminalTabsByWorkspace, workspaceId);
@@ -328,7 +324,7 @@ export class DockStore {
       retainedLinkTabs,
       ...projection,
       activeTabId,
-      expanded: this.state.expanded,
+      expanded: persistedSession?.expanded ?? false,
       ...(activeTabId === CHAT_TAB_ID ? { chatUnread: false } : {}),
     });
   }
@@ -408,7 +404,6 @@ export class DockStore {
     const previewTabs = reorderTabs(this.state.tabs, sourceId, targetId, position);
     if (previewTabs) {
       this.commit({ tabs: previewTabs });
-      this.persistActiveLinkSession();
       return;
     }
     const workspaceId = this.state.activeTerminalWorkspaceId;
@@ -428,9 +423,7 @@ export class DockStore {
   setTitle(id: string, title: string): void {
     const next = getSetTitlePatch(this.state, id, title);
     if (!next) return;
-    const wasLink = this.state.tabs.find((tab) => tab.id === id)?.kind === 'link';
     this.commit(next);
-    if (wasLink) this.persistActiveLinkSession();
   }
 
   /** Live favicon update once a link's webview reports the page icon. */
@@ -438,7 +431,6 @@ export class DockStore {
     const next = getSetFaviconPatch(this.state, id, faviconUrl);
     if (!next) return;
     this.commit(next);
-    this.persistActiveLinkSession();
   }
 
   close(id: string): void {
@@ -468,7 +460,6 @@ export class DockStore {
       chatUnread,
       ...(this.state.splitTabId === id ? { splitTabId: undefined } : {}),
     });
-    if (closingLink) this.persistActiveLinkSession();
   }
 
   /** Whether `reopenClosedTab` has anything to restore in this workspace. */
@@ -488,7 +479,6 @@ export class DockStore {
       : { ...entry.tab, id: restoredId };
     tabs.splice(Math.min(entry.index, tabs.length), 0, restoredTab);
     this.commit({ tabs, activeTabId: restoredId, expanded: true });
-    this.persistActiveLinkSession();
   }
 
   /** A chat turn finished while chat wasn't the visible tab → unread dot. */
