@@ -837,7 +837,16 @@ async function main(): Promise<void> {
 
   if (parsed.print) {
     const { runPrintMode } = await import('./print-mode.js');
-    process.exit(await runPrintMode(parsed.prompt, { modelSpec: parsed.model }));
+    process.exitCode = await runPrintMode(parsed.prompt, {
+      modelSpec: parsed.model,
+      isolated: parsed.isolated,
+      timeoutSeconds: parsed.timeoutSeconds,
+      maxSteps: parsed.maxSteps,
+      maxTokens: parsed.maxTokens,
+      outputFormat: parsed.outputFormat,
+      traceFile: parsed.traceFile,
+    });
+    return;
   }
 
   if (parsed.uiMode === 'ink') {

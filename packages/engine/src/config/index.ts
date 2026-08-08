@@ -4,7 +4,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { LanguageModel } from "ai";
 import type { ModelType, LLMProviderFactory } from '../shared/types.js';
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 /**
  * Resolve an environment variable with fallback priority:

@@ -1,17 +1,37 @@
 import { homedir } from 'os';
 import { join } from 'path';
-import { createMemoryIntegrationFromEnv } from 'pulse-coder-plugin-kit/memory';
+import {
+  createMemoryIntegrationFromEnv,
+  type MemoryIntegration,
+} from 'pulse-coder-plugin-kit/memory';
 
 const DEFAULT_MEMORY_USER = 'local';
 
 const memoryPlatformKey = resolveMemoryPlatformKey();
 
-export const memoryIntegration = createMemoryIntegrationFromEnv({
-  env: process.env,
-  baseDir: join(homedir(), '.pulse-coder', 'cli-memory'),
-  pluginName: 'cli-memory',
-  pluginVersion: '0.0.1',
-});
+let activeMemoryIntegration: MemoryIntegration | undefined;
+
+function getMemoryIntegration(): MemoryIntegration {
+  activeMemoryIntegration ??= createMemoryIntegrationFromEnv({
+    env: process.env,
+    baseDir: join(homedir(), '.pulse-coder', 'cli-memory'),
+    pluginName: 'cli-memory',
+    pluginVersion: '0.0.1',
+  });
+  return activeMemoryIntegration;
+}
+
+export const memoryIntegration: MemoryIntegration = {
+  get service() {
+    return getMemoryIntegration().service;
+  },
+  get enginePlugin() {
+    return getMemoryIntegration().enginePlugin;
+  },
+  initialize: () => getMemoryIntegration().initialize(),
+  withRunContext: (context, run) => getMemoryIntegration().withRunContext(context, run),
+  getRunContext: () => getMemoryIntegration().getRunContext(),
+};
 
 interface BuildMemoryRunContextInput {
   sessionId: string;

@@ -69,9 +69,14 @@ git diff | pulse-coder -p "review this"   # stdin 会拼接到 prompt 之后
 pulse-coder --ui readline       # 指定 UI 宿主（ink / readline / plain）
 pulse-coder --verbose           # 启动即实时显示引擎日志（等价 /debug on）
 pulse-coder --model claude:claude-opus-5   # 启动即指定模型（等价 /model …）
+# benchmark / CI：无持久状态、固定预算、JSONL 轨迹
+pulse-coder -p --isolated --timeout 1200 --max-steps 100 --max-tokens 500000 \
+  --output-format jsonl --trace-file ./trace.jsonl "fix the issue"
 ```
 
-`-p` 模式下引擎/插件日志走 stderr，stdout 只包含回答文本，方便管道消费。
+`-p` 文本模式下引擎/插件日志走 stderr，stdout 只包含回答文本，方便管道消费。`--output-format jsonl` 改为逐行输出 `run_start`、工具、step、压缩与 `run_end` 事件；`--trace-file` 可在文本或 JSONL 模式下额外保存同一轨迹。`--isolated` 关闭 memory、用户配置、外部插件扫描及会发现/持久化用户状态的内建插件，保留核心工具、plan-mode 和 CLI `run_js`，用于可重复的 benchmark 运行。文件系统、网络与进程树的硬隔离仍由 Harbor/SWE-bench 的每题容器负责。超时退出码为 124，SIGINT/SIGTERM 分别为 130/143，token 或 step 预算耗尽为 2。
+
+Harbor/SWE-bench 的自定义 agent、容器内本地源码安装和对比运行方法见 [`harness/tools/harbor/README.md`](harness/tools/harbor/README.md)。CLI 无需先发布到 npm；adapter 会上传当前已提交的 Git `HEAD`。
 
 ### 内置功能示例
 
@@ -314,7 +319,8 @@ pnpm --filter pulse-coder-cli start:debug # PULSE_CODER_DEBUG=1 重新构建并�
 src/
 ├── index.ts              # readline 宿主入口、命令循环、agent/ACP 路由、会话保存
 ├── ui-mode.ts            # --ui/--tui/-p/--continue 与 PULSE_CODER_UI 解析
-├── print-mode.ts         # -p 非交互模式（stdout 仅输出回答，日志走 stderr）
+├── print-mode.ts         # -p 非交互/benchmark 模式（隔离、预算、轨迹、信号处理）
+├── benchmark-trace.ts    # 有界 JSONL 事件输出与 trace-file sink
 ├── ink-launcher.tsx      # Ink 启动（exitOnCtrlC: false，历史存储装配）
 ├── ink-controller.ts     # Ink 宿主控制器（命令处理、plan-mode 接线、ACP 路由、会话同步、队列输入）
 ├── ink-app.tsx           # Ink 渲染（Static transcript、composer、粘贴、命令建议、历史）

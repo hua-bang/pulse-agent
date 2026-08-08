@@ -57,4 +57,34 @@ describe('parseCliArgs', () => {
     expect(parseCliArgs(['--model', 'claude:claude-opus-5'], {}, true).model).toBe('claude:claude-opus-5');
     expect(parseCliArgs(['--model=gpt-5.2', '-p', 'hi'], {}, true)).toMatchObject({ model: 'gpt-5.2', prompt: 'hi' });
   });
+
+  it('parses print-mode benchmark controls without leaking them into the prompt', () => {
+    expect(parseCliArgs([
+      '-p',
+      '--isolated',
+      '--timeout', '1200',
+      '--max-steps=80',
+      '--max-tokens', '250000',
+      '--output-format', 'jsonl',
+      '--trace-file=./trace.jsonl',
+      'fix', 'the', 'bug',
+    ], {}, true)).toMatchObject({
+      print: true,
+      prompt: 'fix the bug',
+      isolated: true,
+      timeoutSeconds: 1200,
+      maxSteps: 80,
+      maxTokens: 250000,
+      outputFormat: 'jsonl',
+      traceFile: './trace.jsonl',
+    });
+  });
+
+  it('rejects invalid benchmark controls', () => {
+    expect(() => parseCliArgs(['-p', '--timeout', '0', 'hi'], {}, true)).toThrow('--timeout');
+    expect(() => parseCliArgs(['-p', '--max-steps=nope', 'hi'], {}, true)).toThrow('--max-steps');
+    expect(() => parseCliArgs(['-p', '--output-format', 'xml', 'hi'], {}, true)).toThrow('--output-format');
+    expect(() => parseCliArgs(['-p', '--trace-file'], {}, true)).toThrow('--trace-file');
+    expect(() => parseCliArgs(['--isolated'], {}, true)).toThrow('require -p');
+  });
 });

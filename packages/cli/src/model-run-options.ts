@@ -12,21 +12,20 @@ export interface ModelRunOptions {
 /**
  * Turns a resolved registry choice into engine run options.
  *
- * Shared by BOTH hosts: `model-registry.ts` stays engine-free (and fast to test),
- * while the provider wiring lives here so the Ink controller and the readline
- * fallback cannot drift on how a provider-bound model reaches the engine.
- *
- * `contextWindowTokens` must reach the run options AND `compactContext`, or the
- * status line's ctx% denominator and the engine's compaction trigger diverge.
+ * Shared by print, Ink, and readline hosts so provider wiring and context-window
+ * behavior cannot drift. The injectable env keeps this conversion deterministic
+ * in tests while production callers use process.env.
  */
-export function buildModelRunOptions(choice: ModelChoice | null | undefined): ModelRunOptions {
+export function buildModelRunOptions(
+  choice: ModelChoice | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): ModelRunOptions {
   if (!choice) {
     return {};
   }
 
   const needsCustomConnection = Boolean(choice.baseUrl || choice.apiKeyEnv);
-  const apiKey = choice.apiKeyEnv ? process.env[choice.apiKeyEnv] : undefined;
-
+  const apiKey = choice.apiKeyEnv ? env[choice.apiKeyEnv] : undefined;
   return {
     model: choice.model,
     ...(choice.modelType ? { modelType: choice.modelType } : {}),
@@ -40,13 +39,7 @@ export function buildModelRunOptions(choice: ModelChoice | null | undefined): Mo
   };
 }
 
-/**
- * Resolves a `--model`/`/model` spec against the merged home+project registry.
- *
- * Returns null for an empty spec. A spec that matches nothing in the registry
- * still resolves (to a bare model id) — that leniency is intentional for
- * ad-hoc ids; only the startup-restore path wants strictness.
- */
+/** Resolve a CLI model spec against the merged home+project registry. */
 export async function resolveModelChoice(
   spec: string | undefined,
   onWarning?: (warning: string) => void,

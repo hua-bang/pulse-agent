@@ -1,6 +1,14 @@
 version: 1
 
 pathRules:
+  - name: harbor-agent
+    paths:
+      - harness/tools/harbor/**
+    required:
+      - python3 -m unittest packages.cli.harness.tools.harbor.pulse_agent_config_test
+      - python3 -m py_compile packages/cli/harness/tools/harbor/pulse_agent.py packages/cli/harness/tools/harbor/pulse_agent_config.py
+      - uv run --python 3.12 --with harbor==0.20.0 python -m unittest packages.cli.harness.tools.harbor.pulse_agent_contract_test
+
   - name: default
     paths:
       - src/**

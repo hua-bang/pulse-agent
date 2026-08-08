@@ -48,6 +48,7 @@ export const BashTool: Tool<
         shell: '/bin/bash',
         cwd: cwd || process.cwd(),
         stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
       });
 
       const stdoutChunks: Buffer[] = [];
@@ -83,9 +84,17 @@ export const BashTool: Tool<
 
       const killChild = (signal: NodeJS.Signals): void => {
         try {
-          child.kill(signal);
+          if (process.platform !== 'win32' && child.pid) {
+            process.kill(-child.pid, signal);
+          } else {
+            child.kill(signal);
+          }
         } catch {
-          // Process may already be gone.
+          try {
+            child.kill(signal);
+          } catch {
+            // Process may already be gone.
+          }
         }
         if (!killTimer) {
           killTimer = setTimeout(() => killChild('SIGKILL'), KILL_GRACE_MS);

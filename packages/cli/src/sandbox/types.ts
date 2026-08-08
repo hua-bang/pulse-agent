@@ -27,7 +27,7 @@ export interface JsExecutionResult {
 }
 
 export interface JsExecutor {
-  execute(request: JsExecutionRequest): Promise<JsExecutionResult>;
+  execute(request: JsExecutionRequest, abortSignal?: AbortSignal): Promise<JsExecutionResult>;
 }
 
 export interface JsExecutorOptions {
