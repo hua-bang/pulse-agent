@@ -138,6 +138,18 @@ describe('indexWorkspaceFiles / expandFileReferences', () => {
     expect(result.text).toContain('app.ts');
   });
 
+  it('applies the same ignore rules the @ completion index uses', async () => {
+    // Otherwise node_modules/.git/dist eat the entry cap in readdir order and
+    // push real source files into the "+N more entries" tail.
+    await fs.mkdir(path.join(root, 'src', 'node_modules'), { recursive: true });
+
+    const result = await expandFileReferences('@src', root);
+
+    expect(result.text).toContain('app.ts');
+    expect(result.text).not.toContain('node_modules');
+    expect(result.text).not.toContain('debug.log');
+  });
+
   it('skips binaries, missing paths, and escapes outside the workspace', async () => {
     const result = await expandFileReferences('@image.png @nope.ts @../outside.ts', root);
 
@@ -148,6 +160,24 @@ describe('indexWorkspaceFiles / expandFileReferences', () => {
       { ref: 'nope.ts', reason: 'not found' },
       { ref: '../outside.ts', reason: 'outside the workspace' },
     ]);
+  });
+
+  it('skips a sibling directory whose name merely extends the workspace basename', async () => {
+    // A raw startsWith(root) check passes for `<root>-secrets`, leaking the file.
+    const sibling = `${root}-secrets`;
+    await fs.mkdir(sibling, { recursive: true });
+    await fs.writeFile(path.join(sibling, 'creds.env'), 'TOKEN=leaked\n');
+
+    try {
+      const ref = `../${path.basename(sibling)}/creds.env`;
+      const result = await expandFileReferences(`@${ref}`, root);
+
+      expect(result.attached).toEqual([]);
+      expect(result.text).not.toContain('TOKEN=leaked');
+      expect(result.skipped).toEqual([{ ref, reason: 'outside the workspace' }]);
+    } finally {
+      await fs.rm(sibling, { recursive: true, force: true });
+    }
   });
 
   it('truncates oversized files and honours the attachment cap', async () => {

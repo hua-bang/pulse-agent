@@ -25,6 +25,8 @@ pnpm start
 
 - 内置 MCP 支持 - 引擎自动加载，无需显式配置
 - 内置 Skills 系统 - 智能技能识别与单次调用
+- 会话按目录隔离 - 会话记录创建时的 cwd，`/sessions`、`/search`、`/resume` 选择器与 `--continue` 默认只看**当前目录**的会话；`/sessions --all` 查看全部（升级前的旧会话没有 cwd，始终可见）
+- 模型记忆与默认值 - `/model` 的选择持久化到 `~/.pulse-coder/preferences.json`，重启自动恢复；models.json 条目可标 `"default": true` 作为新环境的默认模型
 - 会话管理 - 保存与恢复对话（存储于 `~/.pulse-coder/sessions`），裸 `/resume` 弹出交互式选择器（过滤 + ↑↓），也支持序号/ID 前缀；`--continue` 启动即恢复最近会话；列表预览对含工具调用的结构化消息提取纯文本
 - 滚动回看 - Ink 宿主把已完成输出写入终端原生 scrollback（Ink `<Static>`），长回答不截断、可随时上翻
 - 工具透明 - 每个工具一行灰色留痕 + 行尾智能摘要（`· 350 lines` / `· 10 matches` / 错误首行标红），`Ctrl+O` 切换内容预览模式，永不 dump JSON
@@ -111,7 +113,7 @@ readline 路径：`index.ts` + `tui-renderer.ts`。
 /new [title]                - 创建新会话
 /resume                     - 交互式会话选择器（Ink 宿主：↑↓ 选择、Enter 恢复、Esc 取消、直接打字过滤）
 /resume <index|id-prefix|id> - 按序号 / 唯一 ID 前缀 / 完整 ID 恢复（readline 宿主仅此形式）
-/sessions [n]               - 列出最近 n 个会话（默认 20，避免长历史刷屏）
+/sessions [n] [--all]       - 列出当前目录最近 n 个会话（默认 20）；--all 列出所有目录
 /search <query>             - 搜索会话
 /rename <id> <new-title>    - 重命名会话
 /delete <id>                - 删除会话
@@ -207,9 +209,23 @@ readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。
 - `type` 是 SDK 通道（`openai` 兼容层 / `claude`），`baseUrl` + `apiKeyEnv` 组成连接；**密钥只能用 `apiKeyEnv` 引用环境变量名，内联 `apiKey` 会被忽略并警告**（本文件可进版本库）
 - 字符串条目前缀可以是 provider 名（`deepseek:…`）或通道名（`claude:` / `openai:`）；`/model deepseek:任意模型` 也可直接引用 provider
 - `contextWindow` 同时驱动状态栏 `ctx %` 与 engine 压缩阈值（75%/50%）
+- `"default": true` 标记该条目为默认模型（多个只取第一个）
 - 未配 `baseUrl`/`apiKeyEnv` 的条目沿用该通道的全局 env 连接；`apiKeyEnv` 指向的变量为空时回退到通道默认 key 并提示
 - 文件解析失败（JSON 语法错误等）不会中断启动，只在日志层提示一行并按空注册表处理
 - OpenAI 通道走 Responses API——OpenAI 兼容网关需支持 `/responses`（与引擎既有行为一致）
+
+### 模型选择优先级
+
+启动时按以下顺序决定用哪个模型，越靠前越优先：
+
+| 顺序 | 来源 | 是否持久化 |
+|---|---|---|
+| 1 | `--model <spec>` 启动参数 | 否（仅本次运行） |
+| 2 | 上次 `/model` 的选择（`~/.pulse-coder/preferences.json`） | 是 |
+| 3 | models.json 中标了 `"default": true` 的条目 | — |
+| 4 | 环境变量（`ANTHROPIC_MODEL` / `OPENAI_MODEL` / `PULSE_*`） | — |
+
+`/model reset` 会清除持久化的选择，回到第 3/4 层。若持久化的模型在当前 models.json 中已不存在（比如换了项目），会提示一行并回退到默认，不会报错。
 
 ### Skills 配置
 
@@ -308,6 +324,7 @@ src/
 ├── ink-app.tsx           # Ink 渲染（Static transcript、composer、粘贴、命令建议、历史）
 ├── ink-ui-bridge.ts      # 运行时回调与 Ink UI 的桥接（append-only 事件 + live 区、工具结果预览、流式节流）
 ├── file-reference.ts     # @ 引用：索引、补全过滤、提交时内容注入
+├── preferences.ts        # 用户偏好持久化（~/.pulse-coder/preferences.json，记住上次模型）
 ├── text-width.ts         # 终端显示宽度与码点级光标步进（CJK/emoji）
 ├── markdown.ts           # 轻量 markdown → ANSI 渲染
 ├── history-store.ts      # 输入历史持久化（~/.pulse-coder/history.json）

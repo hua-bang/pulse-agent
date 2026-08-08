@@ -1,4 +1,4 @@
-import { PulseAgent } from 'pulse-coder-engine';
+import { DEFAULT_MODEL, PulseAgent } from 'pulse-coder-engine';
 import * as readline from 'readline';
 import type { Context, TaskListService } from 'pulse-coder-engine';
 import { SessionCommands } from './session-commands.js';
@@ -7,7 +7,8 @@ import { SkillCommands } from './skill-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
 import { parseCliArgs } from './ui-mode.js';
-import { parseModelSpec } from './model-registry.js';
+import { formatModelSpec, loadModelRegistry, resolveModelSpec, type ModelChoice } from './model-registry.js';
+import { buildModelRunOptions, resolveModelChoice } from './model-run-options.js';
 import { createPulseCliTools } from './runtime-tools.js';
 
 const LOCAL_COMMANDS = new Set([
@@ -20,6 +21,7 @@ const LOCAL_COMMANDS = new Set([
   'delete',
   'clear',
   'compact',
+  'model',
   'skills',
   'wt',
   'status',
@@ -44,6 +46,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/delete <id>', description: 'Delete a session' },
   { command: '/clear', description: 'Clear current conversation' },
   { command: '/compact', description: 'Force compact current conversation context' },
+  { command: '/model [<spec>|reset]', description: 'Show candidates or switch the model for this session' },
   { command: '/skills [list|<name|index> <message>]', description: 'Run one message with a selected skill' },
   { command: '/wt use <work-name>', description: 'Create a worktree + branch via worktree skill' },
   { command: '/status', description: 'Show current session status' },
@@ -75,6 +78,7 @@ class CoderCLI {
   private inputManager: InputManager;
   private skillCommands: SkillCommands;
   private tui: TuiRenderer;
+  private modelChoice: ModelChoice | null = null;
 
   constructor(private readonly modelSpec?: string) {
     // 🎯 现在引擎自动包含内置插件，无需显式配置！
@@ -194,7 +198,11 @@ class CoderCLI {
           break;
 
         case 'sessions':
-          await this.sessionCommands.listSessions(args[0] ? Number(args[0]) : undefined);
+          {
+            const allDirectories = args.some(arg => arg === '--all' || arg === '-a');
+            const countArg = args.find(arg => /^\d+$/.test(arg));
+            await this.sessionCommands.listSessions(countArg ? Number(countArg) : undefined, { allDirectories });
+          }
           break;
 
         case 'search':
@@ -231,6 +239,10 @@ class CoderCLI {
         case 'clear':
           this.context.messages = [];
           this.tui.success('Current conversation cleared!');
+          break;
+
+        case 'model':
+          await this.handleModelCommand(args);
           break;
 
         case 'compact':
@@ -281,16 +293,10 @@ class CoderCLI {
           ]);
           break;
 
-        case 'mode':
-          const currentMode = this.agent.getMode();
-          if (!currentMode) {
-            this.tui.warn('plan mode plugin unavailable');
-            break;
-          }
-
-          this.tui.info(`Current mode: ${currentMode}`);
-          break;
-
+        // NOTE: `case 'mode'` belongs to the switch group below, which handles
+        // both the bare `/mode` query and `/mode <target>`. An earlier duplicate
+        // clause here used to shadow it, so `/mode plan` only ever printed the
+        // current mode and never switched.
         case 'chat':
         case 'auto':
         case 'edit':
@@ -370,8 +376,68 @@ class CoderCLI {
     }
   }
 
+  /**
+   * `/model` for the readline host. No modal picker here (that is Ink-only), so
+   * the list is printed with indexes and switching is `/model <spec|index>` —
+   * the same registry, resolver and run options the Ink host uses.
+   */
+  private async handleModelCommand(args: string[]): Promise<void> {
+    const registry = await loadModelRegistry();
+    registry.warnings.forEach(warning => this.tui.warn(`[models.json] ${warning}`));
+
+    const describe = (choice: ModelChoice | null) =>
+      (choice ? `${formatModelSpec(choice)}${choice.contextWindow ? ` · ${Math.round(choice.contextWindow / 1000)}k ctx` : ''}` : `${DEFAULT_MODEL} (env default)`);
+    const spec = args[0]?.trim();
+
+    if (!spec) {
+      this.tui.section('Model', [
+        `Current: ${describe(this.modelChoice)}`,
+        ...(registry.models.length > 0
+          ? ['Candidates:', ...registry.models.map((choice, index) => `  ${index + 1}. ${describe(choice)}`)]
+          : ['No candidates in models.json — see README §模型候选配置']),
+        'Switch: /model <index> · /model <id> · /model <provider>:<id> · /model reset',
+      ]);
+      return;
+    }
+
+    if (spec === 'reset') {
+      this.modelChoice = null;
+      this.tui.success(`Model reset to ${DEFAULT_MODEL} (env default)`);
+      return;
+    }
+
+    // A numeric spec is ALWAYS an index — never let it fall through to the
+    // lenient resolver, which would happily accept a model literally named "1".
+    if (/^\d+$/.test(spec)) {
+      const byIndex = registry.models[Number(spec) - 1];
+      if (!byIndex) {
+        this.tui.error(`No candidate #${spec}. Run /model to see the list.`);
+        return;
+      }
+      this.modelChoice = byIndex;
+      this.tui.success(`Model switched to ${describe(byIndex)}`);
+      return;
+    }
+
+    const resolved = resolveModelSpec(spec, registry);
+    if (!resolved) {
+      this.tui.error(`Unknown model "${spec}". Run /model to see the candidates.`);
+      return;
+    }
+
+    this.modelChoice = resolved;
+    this.tui.success(`Model switched to ${describe(resolved)}`);
+  }
+
   async start(options: { continueLast?: boolean } = {}) {
     this.tui.showWelcome();
+
+    // Resolve --model once, against the same merged home+project registry the Ink
+    // host uses, so a provider-bound spec reaches the engine with its connection.
+    this.modelChoice = await resolveModelChoice(this.modelSpec, warning => this.tui.info(warning));
+    if (this.modelSpec && this.modelChoice) {
+      this.tui.info(`Model: ${formatModelSpec(this.modelChoice)}`);
+    }
 
     await this.sessionCommands.initialize();
     await memoryIntegration.initialize();
@@ -431,8 +497,21 @@ class CoderCLI {
 
     process.stdin.on('keypress', onKeypress);
 
-    // Handle SIGINT gracefully
-    process.on('SIGINT', () => {
+    // Handle SIGINT/SIGTERM gracefully.
+    //
+    // This host runs the terminal in normal mode, so every Ctrl+C is a real
+    // signal. Without the re-entrancy guard a second press (the natural reflex,
+    // and the gesture the Ink host trains) starts a SECOND concurrent
+    // saveContext against the same file, and whichever settles first calls
+    // process.exit() without waiting for the other — killing the process
+    // mid-write. saveSession is atomic now; this keeps the races out entirely.
+    let isShuttingDown = false;
+    const shutdown = () => {
+      if (isShuttingDown) {
+        return;
+      }
+      isShuttingDown = true;
+
       process.stdin.off('keypress', onKeypress);
 
       if (isProcessing && currentAbortController && !currentAbortController.signal.aborted) {
@@ -448,7 +527,10 @@ class CoderCLI {
         this.tui.success('Goodbye!');
         process.exit(0);
       });
-    });
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
 
     // Main input handler
     const handleInput = async (input: string) => {
@@ -634,10 +716,11 @@ class CoderCLI {
 
         const currentSessionId = this.resolveCurrentSessionId();
 
-        const modelChoice = this.modelSpec ? parseModelSpec(this.modelSpec) : null;
+        // Registry-resolved, so a provider-bound spec (`deepseek:v4`) carries its
+        // baseUrl/apiKey/contextWindow here exactly as it does in the Ink host.
         const runAgent = async () => this.agent.run(this.context, {
           abortSignal: ac.signal,
-          ...(modelChoice ? { model: modelChoice.model, ...(modelChoice.modelType ? { modelType: modelChoice.modelType } : {}) } : {}),
+          ...buildModelRunOptions(this.modelChoice),
           onText: (delta) => {
             sawText = true;
             this.tui.text(delta);
@@ -673,6 +756,16 @@ class CoderCLI {
             runAgent,
           )
           : await runAgent();
+
+        // The engine does not throw on abort: loop() returns the plain sentinel
+        // string 'Request aborted.' as an ordinary result, so the AbortError catch
+        // below never sees an engine-side cancellation. Without this check the
+        // success path would print that sentinel as the model's reply and persist
+        // the cancelled turn to the session and the daily log.
+        if (ac.signal.aborted) {
+          this.tui.abort('Operation cancelled.');
+          return;
+        }
 
         this.tui.runSummary({
           elapsedMs: Date.now() - runStartedAt,
@@ -762,7 +855,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const cli = new CoderCLI();
+  const cli = new CoderCLI(parsed.model);
   await cli.start({ continueLast: parsed.continueLast });
 }
 

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { renderMarkdownAnsi } from './markdown.js';
 import { applyFileReference, detectFileReferenceQuery, filterFileEntries, type FileEntry } from './file-reference.js';
-import { nextCharIndex, prevCharIndex, truncateToWidth } from './text-width.js';
+import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth } from './text-width.js';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error' | 'log';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
@@ -43,6 +43,8 @@ export interface InkPickerItem {
   label: string;
   hint?: string;
   preview?: string;
+  /** Marks the entry that is already active, so the picker can start on it. */
+  isCurrent?: boolean;
 }
 
 export interface InkPickerState {
@@ -144,7 +146,7 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
   { command: '/help', description: 'Show commands and shortcuts', usage: '/help', group: 'Core' },
   { command: '/new', description: 'Create a new session', usage: '/new <title?>', group: 'Session' },
   { command: '/resume', description: 'Resume a session (bare = interactive picker)', usage: '/resume [index|id-prefix]', group: 'Session' },
-  { command: '/sessions', description: 'List recent sessions (default 20)', usage: '/sessions [n]', group: 'Session' },
+  { command: '/sessions', description: 'List sessions in this directory (--all for every directory)', usage: '/sessions [n] [--all]', group: 'Session' },
   { command: '/search', description: 'Search saved sessions', usage: '/search <query>', group: 'Session' },
   { command: '/rename', description: 'Rename a session', usage: '/rename <id> <title>', group: 'Session' },
   { command: '/delete', description: 'Delete a session', usage: '/delete <id>', group: 'Session' },
@@ -453,7 +455,9 @@ export function formatStatusline(snapshot: InkCliSnapshot, maxWidth = Number.POS
   const kept: string[] = [];
   for (const segment of segments) {
     const candidate = [...kept, segment].join(' · ');
-    if (kept.length > 0 && candidate.length > maxWidth) {
+    // Display columns, not code units — a CJK/emoji model label is twice as wide
+    // as its .length and would push this single line into a wrap.
+    if (kept.length > 0 && stringWidth(candidate) > maxWidth) {
       break;
     }
     kept.push(segment);
@@ -604,7 +608,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
 
   const picker = snapshot.picker ?? null;
   useEffect(() => {
-    setPickerIndex(0);
+    // Land on the active entry when the picker knows one, so /model opens on the
+    // model you are already using instead of always on item 0.
+    const current = picker?.items.findIndex(item => item.isCurrent) ?? -1;
+    setPickerIndex(current >= 0 ? current : 0);
     setPickerQuery('');
   }, [picker]);
 
@@ -946,9 +953,18 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const spinner = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length];
   const pickerItems = useMemo(() => (picker ? filterPickerItems(picker.items, pickerQuery) : []), [picker, pickerQuery]);
   const clampedPickerIndex = Math.min(pickerIndex, Math.max(0, pickerItems.length - 1));
-  const pickerWindowSize = Math.max(3, Math.min(8, terminalRows - 12));
+  // The picker sits below <Static> and shares the screen with the composer, so
+  // it is bounded on BOTH axes. Rows: an item with a preview costs two physical
+  // rows, not one, so the window must divide by the real per-item height.
+  // Columns: label/hint/preview are truncated below — Ink's default wrap would
+  // otherwise reflow a long session title onto extra rows and blow the budget
+  // this window size just computed.
+  const pickerRowsPerItem = pickerItems.some(item => item.preview) ? 2 : 1;
+  const pickerWindowSize = Math.max(2, Math.min(8, Math.floor((terminalRows - 12) / pickerRowsPerItem)));
   const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - pickerWindowSize));
   const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + pickerWindowSize);
+  // Round border (2) + paddingX (2).
+  const pickerContentWidth = Math.max(20, terminalColumns - 4);
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
   const liveMarkdown = useMemo(() => renderMarkdownAnsi(snapshot.liveText), [snapshot.liveText]);
   const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor, 6, snapshot.skills ?? []), [cursor, input, snapshot.skills]);
@@ -992,7 +1008,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const statusIcon = snapshot.isProcessing ? spinner : '●';
   const statusColor = snapshot.isProcessing ? 'yellow' : snapshot.status === 'Cancelled' ? 'red' : 'green';
   const statusPrefix = `${statusIcon} ${snapshot.status}${snapshot.isProcessing && snapshot.runStartedAt ? ` · ${formatElapsed(Date.now() - snapshot.runStartedAt)}` : ''}`;
-  const statusline = formatStatusline(snapshot, Math.max(20, terminalColumns - statusPrefix.length - 4));
+  const statusline = formatStatusline(snapshot, Math.max(20, terminalColumns - stringWidth(statusPrefix) - 4));
 
   // Parallel tools (teams, sub-agents) can stack up; window them so the
   // composer never gets pushed off screen.
@@ -1036,12 +1052,18 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
             ) : visiblePickerItems.map((item, index) => {
               const actualIndex = pickerWindowStart + index;
               const selected = actualIndex === clampedPickerIndex;
+              // Hint gets at most a third of the row; the label takes the rest.
+              const hint = truncateLabel(
+                `${item.isCurrent ? 'current' : ''}${item.isCurrent && item.hint ? ' · ' : ''}${item.hint ?? ''}`,
+                Math.floor(pickerContentWidth / 3),
+              );
+              const label = truncateLabel(item.label, Math.max(8, pickerContentWidth - 2 - (hint ? stringWidth(hint) + 2 : 0)));
               return (
                 <Box key={item.id} flexDirection="column">
                   <Text color={selected ? 'yellow' : undefined}>
-                    {selected ? '→ ' : '  '}{item.label}{item.hint ? <Text color="gray">  {item.hint}</Text> : null}
+                    {selected ? '→ ' : '  '}{label}{hint ? <Text color="gray">  {hint}</Text> : null}
                   </Text>
-                  {item.preview ? <Text color="gray" dimColor>    {item.preview}</Text> : null}
+                  {item.preview ? <Text color="gray" dimColor>    {truncateLabel(item.preview, Math.max(8, pickerContentWidth - 4))}</Text> : null}
                 </Box>
               );
             })}
@@ -1074,11 +1096,15 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
 
           {slashSuggestions.length > 0 ? (
             <Box flexDirection="column">
-              {slashSuggestions.map((suggestion, index) => (
-                <Text key={suggestion.command} color={index === normalizedSuggestionIndex ? 'yellow' : 'gray'}>
-                  {index === normalizedSuggestionIndex ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{suggestion.group === 'Skill' ? '[skill] ' : ''}{suggestion.description}{index === normalizedSuggestionIndex && suggestion.usage ? ` · ${suggestion.usage}` : ''}</Text>
-                </Text>
-              ))}
+              {slashSuggestions.map((suggestion, index) => {
+                const selected = index === normalizedSuggestionIndex;
+                const detail = `${suggestion.group === 'Skill' ? '[skill] ' : ''}${suggestion.description}${selected && suggestion.usage ? ` · ${suggestion.usage}` : ''}`;
+                return (
+                  <Text key={suggestion.command} color={selected ? 'yellow' : 'gray'}>
+                    {selected ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{truncateLabel(detail, Math.max(8, terminalColumns - 4 - stringWidth(suggestion.command)))}</Text>
+                  </Text>
+                );
+              })}
             </Box>
           ) : null}
 

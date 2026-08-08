@@ -2,6 +2,8 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { homedir } from 'os';
 
+import { truncateToWidth } from './text-width.js';
+
 export interface ProviderConfig {
   name: string;
   /** SDK channel: 'openai' (OpenAI-compatible /responses) or 'claude' (Anthropic). */
@@ -21,6 +23,8 @@ export interface ModelChoice {
   providerName?: string;
   baseUrl?: string;
   apiKeyEnv?: string;
+  /** Marks the entry `/model` starts on when nothing else is pinned. */
+  isDefault?: boolean;
 }
 
 export interface ModelRegistry {
@@ -84,11 +88,57 @@ export function resolveModelSpec(spec: string, registry: ModelRegistry): ModelCh
   return parseModelSpec(trimmed);
 }
 
+/**
+ * Strict resolution for the startup-restore path.
+ *
+ * `resolveModelSpec` never fails — an unrecognised spec falls through to
+ * `parseModelSpec`, which accepts any non-empty string. That leniency is right
+ * for a spec the user just typed, but wrong when silently restoring a persisted
+ * choice: once a provider is renamed or removed from models.json, `acme:foo`
+ * would come back as the literal model id `"acme:foo"` (colon and all), with no
+ * connection and no context window, and the CLI would report it as restored.
+ *
+ * Returns null for a `provider:model` spec whose provider is neither a live
+ * registry provider nor an SDK channel, so the caller can warn and fall back.
+ */
+export function resolveKnownModelSpec(spec: string, registry: ModelRegistry): ModelChoice | null {
+  const trimmed = spec.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const colonIndex = trimmed.indexOf(':');
+  if (colonIndex > 0) {
+    const head = trimmed.slice(0, colonIndex);
+    const isKnown = head === 'claude' || head === 'openai' || Boolean(registry.providers[head]);
+    const isExactEntry = registry.models.some(choice =>
+      choice.providerName && `${choice.providerName}:${choice.model}` === trimmed);
+    if (!isKnown && !isExactEntry) {
+      return null;
+    }
+  }
+
+  return resolveModelSpec(trimmed, registry);
+}
+
+/** The entry marked `"default": true`, if any (first wins). */
+export function findDefaultModel(registry: ModelRegistry): ModelChoice | null {
+  return registry.models.find(choice => choice.isDefault) ?? null;
+}
+
+/** Canonical spec string for a choice, suitable for persisting and re-resolving. */
+export function formatModelSpec(choice: ModelChoice): string {
+  const prefix = choice.providerName ?? choice.modelType;
+  return prefix ? `${prefix}:${choice.model}` : choice.model;
+}
+
 /** Short display form: last path segment, truncated. */
 export function shortModelLabel(model: string, maxLength = 22): string {
   const segments = model.split('/').filter(Boolean);
   const short = segments[segments.length - 1] ?? model;
-  return short.length > maxLength ? `${short.slice(0, maxLength - 1)}…` : short;
+  // Display columns: this feeds the status line and the picker, both of which
+  // budget in terminal columns, so a CJK/emoji id must not slip past the cap.
+  return truncateToWidth(short, maxLength);
 }
 
 /**
@@ -174,7 +224,7 @@ function normalizeRegistry(parsed: unknown, scope: 'home' | 'project' = 'project
   const models: ModelChoice[] = [];
   for (const entry of entries) {
     if (typeof entry === 'string') {
-      const choice = resolveStringEntry(entry, providers);
+      const choice = resolveStringEntry(entry, providers, warnings);
       if (choice) {
         models.push(choice);
       }
@@ -220,13 +270,24 @@ function normalizeProviders(parsed: unknown, warnings: string[]): Record<string,
   return providers;
 }
 
-function resolveStringEntry(entry: string, providers: Record<string, ProviderConfig>): ModelChoice | null {
+function resolveStringEntry(
+  entry: string,
+  providers: Record<string, ProviderConfig>,
+  warnings: string[],
+): ModelChoice | null {
   const colonIndex = entry.indexOf(':');
   if (colonIndex > 0) {
     const head = entry.slice(0, colonIndex);
     const rest = entry.slice(colonIndex + 1).trim();
     if (rest && providers[head]) {
       return applyProvider({ model: rest }, providers[head]);
+    }
+    // Warn like the object form does. Without this a typo'd or deleted provider
+    // silently yields a model literally named "provider:model", which only fails
+    // much later at the API call.
+    if (rest && head !== 'claude' && head !== 'openai') {
+      warnings.push(`model "${entry}" references unknown provider "${head}" — using the bare model id`);
+      return parseModelSpec(rest);
     }
   }
   return parseModelSpec(entry);
@@ -244,6 +305,7 @@ function resolveObjectEntry(
   const contextWindow = record.contextWindow ?? record.context_window;
   let choice: ModelChoice = {
     model: record.model.trim(),
+    ...(record.default === true ? { isDefault: true } : {}),
     ...(typeof record.label === 'string' && record.label.trim() ? { label: record.label.trim() } : {}),
     ...(typeof contextWindow === 'number' && Number.isFinite(contextWindow) && contextWindow > 0 ? { contextWindow: Math.floor(contextWindow) } : {}),
   };
