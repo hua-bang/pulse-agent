@@ -92,6 +92,15 @@ function parseIgnorePatterns(gitignore: string): string[] {
     .map(line => line.replace(/\/+$/, '').replace(/^\/+/, ''));
 }
 
+/** The workspace's `.gitignore` patterns, or none when it is missing/unreadable. */
+async function loadIgnorePatterns(root: string): Promise<string[]> {
+  try {
+    return parseIgnorePatterns(await fs.readFile(path.join(root, '.gitignore'), 'utf-8'));
+  } catch {
+    return [];
+  }
+}
+
 /** Deliberately simple .gitignore matching: exact segment, prefix, or `*.ext`. */
 export function isIgnored(relPath: string, patterns: string[]): boolean {
   const segments = relPath.split('/');
@@ -112,12 +121,7 @@ export function isIgnored(relPath: string, patterns: string[]): boolean {
  * too, so `@src/` can attach a folder.
  */
 export async function indexWorkspaceFiles(root = process.cwd(), limit = 2000): Promise<FileEntry[]> {
-  let patterns: string[] = [];
-  try {
-    patterns = parseIgnorePatterns(await fs.readFile(path.join(root, '.gitignore'), 'utf-8'));
-  } catch {
-    patterns = [];
-  }
+  const patterns = await loadIgnorePatterns(root);
 
   const entries: FileEntry[] = [];
   const queue: string[] = [''];
@@ -182,6 +186,19 @@ function looksBinary(relPath: string, buffer: Buffer): boolean {
 }
 
 /**
+ * True when `absolute` is the workspace root or lives beneath it.
+ *
+ * A raw `startsWith(root)` is NOT enough: it has no path-separator boundary, so
+ * a sibling directory whose name merely extends the root's basename
+ * (`/w/project` vs `/w/project-secrets`) passes the check and leaks outside the
+ * workspace. `path.relative` gives us that boundary for free.
+ */
+export function isInsideWorkspace(absolute: string, root: string): boolean {
+  const relative = path.relative(path.resolve(root), absolute);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/**
  * Expands `@path` references in a submitted message into attached file
  * contents. The original text (including the `@path` tokens) is preserved so
  * the model still sees what the user pointed at; contents are appended below.
@@ -200,6 +217,7 @@ export async function expandFileReferences(
   const attached: string[] = [];
   const skipped: Array<{ ref: string; reason: string }> = [];
   const blocks: string[] = [];
+  const ignorePatterns = await loadIgnorePatterns(root);
 
   for (const ref of refs) {
     if (attached.length >= maxFiles) {
@@ -208,7 +226,7 @@ export async function expandFileReferences(
     }
 
     const absolute = path.resolve(root, ref);
-    if (!absolute.startsWith(path.resolve(root))) {
+    if (!isInsideWorkspace(absolute, root)) {
       skipped.push({ ref, reason: 'outside the workspace' });
       continue;
     }
@@ -223,7 +241,12 @@ export async function expandFileReferences(
 
     if (stat.isDirectory()) {
       try {
-        const dirents = await fs.readdir(absolute, { withFileTypes: true });
+        const relativeDir = path.relative(root, absolute);
+        // Same ignore rules the `@` completion index uses: without them
+        // node_modules/.git/dist consume the entry cap in readdir order and push
+        // the real source files into the "+N more" tail.
+        const dirents = (await fs.readdir(absolute, { withFileTypes: true }))
+          .filter(dirent => !isIgnored(path.join(relativeDir, dirent.name).split(path.sep).join('/'), ignorePatterns));
         const listing = dirents
           .slice(0, maxDirEntries)
           .map(dirent => `${dirent.name}${dirent.isDirectory() ? '/' : ''}`)

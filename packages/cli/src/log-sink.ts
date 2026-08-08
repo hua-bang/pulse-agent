@@ -39,6 +39,9 @@ export class EngineLogSink {
   private stream: fs.WriteStream | null = null;
   private original: Partial<Record<'log' | 'info' | 'debug' | 'trace' | 'warn' | 'error', ConsoleMethod>> = {};
   private installed = false;
+  /** Bytes written by this process; drives mid-session rotation. */
+  private writtenBytes = 0;
+  private rotating = false;
 
   constructor(options: EngineLogSinkOptions = {}) {
     this.filePath = options.filePath ?? path.join(homedir(), '.pulse-coder', 'logs', 'cli.log');
@@ -59,6 +62,14 @@ export class EngineLogSink {
         fs.renameSync(this.filePath, `${this.filePath}.old`);
       }
       this.stream = fs.createWriteStream(this.filePath, { flags: 'a' });
+      // A stream 'error' with no listener THROWS, and nothing in the process
+      // catches it — a write that fails after the stream opened (disk full, home
+      // volume gone read-only, log file removed underneath us) would kill the
+      // CLI mid-run, before shutdown() could save the session. File logging is a
+      // convenience; degrade to the ring buffer instead of taking the host down.
+      this.stream.on('error', () => {
+        this.stream = null;
+      });
     } catch {
       this.stream = null;
     }
@@ -116,10 +127,64 @@ export class EngineLogSink {
 
     if (this.stream) {
       const stamp = new Date(entry.at).toISOString();
-      this.stream.write(`${stamp} [${level}] ${text}\n`);
+      const line = `${stamp} [${level}] ${text}\n`;
+      this.stream.write(line);
+      this.writtenBytes += Buffer.byteLength(line);
+      // Rotation used to be evaluated only at install(), so a single long
+      // session (or `--verbose`/`/debug on` left enabled) grew the file without
+      // bound — the process never restarts to re-check it.
+      if (this.writtenBytes >= this.maxFileBytes) {
+        this.rotate();
+      }
     }
 
     this.listener?.(entry);
+  }
+
+  /**
+   * Closes the current file, moves it to `.old`, and reopens. Best effort.
+   *
+   * The rename waits for `end()` to flush: a WriteStream opens its fd lazily, so
+   * renaming straight after a burst of synchronous writes would hit a file that
+   * does not exist on disk yet. While the swap is in flight `stream` is null, so
+   * those few lines reach the ring buffer and `/debug` but not the file.
+   */
+  private rotate(): void {
+    if (this.rotating) {
+      return;
+    }
+    this.rotating = true;
+
+    const stream = this.stream;
+    this.stream = null;
+    this.writtenBytes = 0;
+
+    const reopen = () => {
+      this.rotating = false;
+      // restore() may have run while the flush was in flight; don't resurrect
+      // file logging after the sink was uninstalled.
+      if (!this.installed) {
+        return;
+      }
+      try {
+        fs.renameSync(this.filePath, `${this.filePath}.old`);
+        const next = fs.createWriteStream(this.filePath, { flags: 'a' });
+        next.on('error', () => {
+          this.stream = null;
+        });
+        this.stream = next;
+      } catch {
+        // Leave file logging off rather than take the host down; the ring buffer
+        // and /debug keep working.
+        this.stream = null;
+      }
+    };
+
+    if (stream) {
+      stream.end(reopen);
+    } else {
+      reopen();
+    }
   }
 
   subscribe(listener: (entry: EngineLogEntry) => void): () => void {

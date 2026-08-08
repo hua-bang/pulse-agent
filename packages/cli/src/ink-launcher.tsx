@@ -42,6 +42,39 @@ export async function startInkTui(options: StartInkTuiOptions = {}): Promise<voi
     },
   );
 
-  await instance.waitUntilExit();
+  // Ink puts stdin in raw mode, so a local Ctrl+C never becomes a signal — it
+  // arrives as a raw byte and is handled by the app's double-press exit. These
+  // handlers therefore cover only externally delivered signals (`kill`, a
+  // supervisor or `docker stop` sending SIGTERM, CI cancelling the job), which
+  // would otherwise terminate the process at Node's default disposition and
+  // skip shutdown() — losing every turn since the last successful save.
+  let signalled = false;
+  const onSignal = () => {
+    if (signalled) {
+      return;
+    }
+    signalled = true;
+
+    // shutdown() is idempotent, so racing an in-app exit is safe. Bound the wait:
+    // a hung save (network home directory) must not make the CLI ignore SIGTERM
+    // until the supervisor escalates to SIGKILL.
+    const exit = async () => {
+      instance.unmount();
+      await logSink.restore().catch(() => {});
+      process.exit(0);
+    };
+    const deadline = new Promise<void>(resolve => setTimeout(resolve, 3000).unref());
+    void Promise.race([controller.shutdown().catch(() => {}), deadline]).then(exit, exit);
+  };
+
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
+
+  try {
+    await instance.waitUntilExit();
+  } finally {
+    process.off('SIGINT', onSignal);
+    process.off('SIGTERM', onSignal);
+  }
   await logSink.restore();
 }

@@ -1,4 +1,4 @@
-import { buildProvider, CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type LLMProviderFactory, type PlanMode, type TaskListService } from 'pulse-coder-engine';
+import { CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
 
 import { InputManager } from './input-manager.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
@@ -10,7 +10,9 @@ import { formatRelativeTime, type InkCliController, type InkCliSnapshot, type Cl
 import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
-import { loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
+import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveKnownModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
+import { buildModelRunOptions, type ModelRunOptions } from './model-run-options.js';
+import { PreferencesStore } from './preferences.js';
 import { expandFileReferences, indexWorkspaceFiles } from './file-reference.js';
 
 const LOCAL_COMMANDS = new Set([
@@ -56,7 +58,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/help', description: 'Show this help message' },
   { command: '/new [title]', description: 'Create a new session' },
   { command: '/resume [index|id-prefix|id]', description: 'Resume a session (bare /resume opens an interactive picker)' },
-  { command: '/sessions [n]', description: 'List recent sessions (default 20)' },
+  { command: '/sessions [n] [--all]', description: 'List recent sessions in this directory (default 20; --all for every directory)' },
   { command: '/search <query>', description: 'Search in saved sessions' },
   { command: '/rename <id> <new-title>', description: 'Rename a session' },
   { command: '/delete <id>', description: 'Delete a session' },
@@ -91,7 +93,8 @@ const HELP_FOOTER = [
   'Scroll up - Finished output lives in the normal terminal scrollback',
 ];
 
-class InkCoderController implements InkCliController {
+/** Exported for tests only; production code goes through `createInkCoderController`. */
+export class InkCoderController implements InkCliController {
   private readonly agent: PulseAgent;
   private readonly context: Context;
   private readonly sessionCommands: SessionCommands;
@@ -115,10 +118,14 @@ class InkCoderController implements InkCliController {
   private modelOverride: ModelChoice | null = null;
   private activePicker: 'session' | 'model' | null = null;
   private pickerModelChoices = new Map<string, ModelChoice>();
+  private readonly preferences = new PreferencesStore();
+  /** A --model flag pins the model for this run and is never persisted. */
+  private readonly modelPinnedByFlag: boolean;
 
   constructor(options: { logSink?: EngineLogSink; verbose?: boolean; modelSpec?: string } = {}) {
     this.logSink = options.logSink ?? null;
     this.debugLogs = options.verbose ?? false;
+    this.modelPinnedByFlag = Boolean(options.modelSpec);
     if (options.modelSpec) {
       this.modelOverride = parseModelSpec(options.modelSpec);
     }
@@ -180,6 +187,8 @@ class InkCoderController implements InkCliController {
 
     const pluginStatus = this.agent.getPluginStatus();
     this.ui.showPluginStatus(pluginStatus.enginePlugins.length);
+
+    await this.resolveStartupModel();
 
     // Skills load with the engine, so publish them once initialization is done;
     // the composer merges them into the slash palette as `/<skill-name>`.
@@ -251,6 +260,47 @@ class InkCoderController implements InkCliController {
     this.ui.resetUsage();
   }
 
+  /**
+   * Model precedence at startup:
+   *   1. --model flag (this run only)
+   *   2. the last /model choice, persisted in ~/.pulse-coder/preferences.json
+   *   3. a models.json entry marked "default": true
+   *   4. the engine's env default (ANTHROPIC_MODEL / OPENAI_MODEL / …)
+   */
+  private async resolveStartupModel(): Promise<void> {
+    const registry = await loadModelRegistry();
+    registry.warnings.forEach(warning => this.ui.log(`[models.json] ${warning}`));
+
+    if (this.modelPinnedByFlag) {
+      // Re-resolve the flag against the registry so it picks up the entry's
+      // provider connection and contextWindow, not just the bare id.
+      if (this.modelOverride) {
+        this.modelOverride = resolveModelSpec(formatModelSpec(this.modelOverride), registry) ?? this.modelOverride;
+      }
+      this.applyModelOverride(`Model pinned by --model: ${this.modelOverride?.model}`);
+      return;
+    }
+
+    const preferences = await this.preferences.load();
+    if (preferences.lastModel) {
+      // Strict on purpose: a silent restore must not resurrect a spec whose
+      // provider has since left models.json as a literal `provider:model` id.
+      const restored = resolveKnownModelSpec(preferences.lastModel, registry);
+      if (restored) {
+        this.modelOverride = restored;
+        this.applyModelOverride(`Model restored from last session: ${restored.model}`);
+        return;
+      }
+      this.ui.log(`[warn] last model "${preferences.lastModel}" is no longer in models.json — using the default`);
+    }
+
+    const fallback = findDefaultModel(registry);
+    if (fallback) {
+      this.modelOverride = fallback;
+      this.applyModelOverride(`Model from models.json default: ${fallback.model}`);
+    }
+  }
+
   private currentContextWindow(): number {
     return this.modelOverride?.contextWindow ?? CONTEXT_WINDOW_TOKENS;
   }
@@ -262,7 +312,10 @@ class InkCoderController implements InkCliController {
     return choice.modelType ? ` (${choice.modelType})` : '';
   }
 
-  private applyModelOverride(note: string): void {
+  private applyModelOverride(note: string, persist = false): void {
+    if (persist) {
+      void this.preferences.update({ lastModel: this.modelOverride ? formatModelSpec(this.modelOverride) : null });
+    }
     this.ui.updateSnapshot({
       modelLabel: shortModelLabel(this.modelOverride?.model ?? DEFAULT_MODEL),
       contextWindowTokens: this.currentContextWindow(),
@@ -276,24 +329,8 @@ class InkCoderController implements InkCliController {
   }
 
   /** Per-run overrides derived from the model choice; a provider-bound choice gets its own connection factory. */
-  private modelRunOptions(): { model?: string; modelType?: 'openai' | 'claude'; contextWindowTokens?: number; provider?: LLMProviderFactory } {
-    if (!this.modelOverride) {
-      return {};
-    }
-    const needsCustomConnection = Boolean(this.modelOverride.baseUrl || this.modelOverride.apiKeyEnv);
-    return {
-      model: this.modelOverride.model,
-      ...(this.modelOverride.modelType ? { modelType: this.modelOverride.modelType } : {}),
-      ...(this.modelOverride.contextWindow ? { contextWindowTokens: this.modelOverride.contextWindow } : {}),
-      ...(needsCustomConnection ? {
-        provider: buildProvider(this.modelOverride.modelType ?? 'openai', {
-          ...(this.modelOverride.baseUrl ? { baseURL: this.modelOverride.baseUrl } : {}),
-          ...(this.modelOverride.apiKeyEnv && process.env[this.modelOverride.apiKeyEnv]
-            ? { apiKey: process.env[this.modelOverride.apiKeyEnv] }
-            : {}),
-        }),
-      } : {}),
-    };
+  private modelRunOptions(): ModelRunOptions {
+    return buildModelRunOptions(this.modelOverride);
   }
 
   private async openModelPicker(): Promise<void> {
@@ -303,7 +340,13 @@ class InkCoderController implements InkCliController {
     const seen = new Set<string>();
     this.pickerModelChoices = new Map();
     const items = [
-      { id: DEFAULT_MODEL, label: shortModelLabel(DEFAULT_MODEL, 40), hint: 'env default', preview: DEFAULT_MODEL },
+      {
+        id: DEFAULT_MODEL,
+        label: shortModelLabel(DEFAULT_MODEL, 40),
+        hint: 'env default',
+        preview: DEFAULT_MODEL,
+        isCurrent: !this.modelOverride,
+      },
       ...registry.models.map(choice => {
         const id = `${choice.providerName ?? choice.modelType ?? ''}${choice.providerName || choice.modelType ? ':' : ''}${choice.model}`;
         this.pickerModelChoices.set(id, choice);
@@ -312,6 +355,9 @@ class InkCoderController implements InkCliController {
           label: choice.label ?? shortModelLabel(choice.model, 40),
           hint: `${choice.providerName ?? choice.modelType ?? 'default provider'}${choice.contextWindow ? ` · ${Math.round(choice.contextWindow / 1000)}k ctx` : ''}`,
           preview: choice.model,
+          // Marks the row the picker opens on — matching on the full spec, not
+          // just the model id, so two providers serving the same id stay apart.
+          isCurrent: Boolean(this.modelOverride) && formatModelSpec(choice) === formatModelSpec(this.modelOverride!),
         };
       }),
     ].filter(item => {
@@ -374,7 +420,7 @@ class InkCoderController implements InkCliController {
         this.modelOverride = isPlainDefault ? null : choice;
         this.applyModelOverride(this.modelOverride
           ? `Model set: ${choice.model}${this.describeConnection(choice)}`
-          : 'Model reset to env default');
+          : 'Model reset to env default', true);
       }
       return;
     }
@@ -399,14 +445,33 @@ class InkCoderController implements InkCliController {
       this.inputManager.cancel('User interrupted with Esc');
     }
 
+    // Anything queued behind the run was typed for a conversation the user is
+    // now stopping. Draining it after the abort (which the run's finally does)
+    // would fire it milliseconds after telling them the request was cancelled.
+    const droppedQueued = this.queuedInputs.length;
+    this.queuedInputs.length = 0;
+
     if (this.isProcessing) {
+      const dropped = droppedQueued > 0
+        ? ` ${droppedQueued} queued message${droppedQueued === 1 ? '' : 's'} discarded.`
+        : '';
       if (this.currentAbortController && !this.currentAbortController.signal.aborted) {
         this.currentAbortController.abort();
-        this.ui.abort(hadPendingClarification
+        this.ui.abort((hadPendingClarification
           ? 'Clarification and request cancelled by Esc. You can type the next message now.'
-          : 'Request cancelled by Esc. You can type the next message now.');
+          : 'Request cancelled by Esc. You can type the next message now.') + dropped);
+      } else if (this.currentAbortController) {
+        this.ui.abort(`Cancellation already requested. Waiting for current step to finish...${dropped}`);
       } else {
-        this.ui.abort('Cancellation already requested. Waiting for current step to finish...');
+        // runExclusive() commands (/compact) hold no abort controller, so there
+        // is nothing to cancel — say that instead of claiming a cancellation the
+        // user never got.
+        this.ui.abort(`This command cannot be interrupted; waiting for it to finish.${dropped}`);
+      }
+      if (droppedQueued > 0) {
+        // Only the counter — publishSession() would restore isProcessing:true
+        // and undo the cancelled state abort() just published.
+        this.ui.updateSnapshot({ queuedInputs: 0 });
       }
       return;
     }
@@ -584,7 +649,11 @@ class InkCoderController implements InkCliController {
           await this.resumeSessionRef(args[0]);
           break;
         case 'sessions':
-          await this.sessionCommands.listSessions(args[0] ? Number(args[0]) : undefined);
+          {
+            const allDirectories = args.some(arg => arg === '--all' || arg === '-a');
+            const countArg = args.find(arg => /^\d+$/.test(arg));
+            await this.sessionCommands.listSessions(countArg ? Number(countArg) : undefined, { allDirectories });
+          }
           break;
         case 'search':
           if (args.length === 0) {
@@ -691,7 +760,7 @@ class InkCoderController implements InkCliController {
           }
           if (spec.toLowerCase() === 'reset') {
             this.modelOverride = null;
-            this.applyModelOverride('Model reset to env default');
+            this.applyModelOverride('Model reset to env default', true);
             break;
           }
           const registry = await loadModelRegistry();
@@ -702,7 +771,7 @@ class InkCoderController implements InkCliController {
             break;
           }
           this.modelOverride = choice;
-          this.applyModelOverride(`Model set: ${choice.model}${this.describeConnection(choice)}`);
+          this.applyModelOverride(`Model set: ${choice.model}${this.describeConnection(choice)}`, true);
           break;
         }
         case 'debug': {
@@ -816,7 +885,24 @@ class InkCoderController implements InkCliController {
     } finally {
       this.isProcessing = false;
       this.ui.stopProcessing();
+      this.drainQueuedInput();
     }
+  }
+
+  /**
+   * Runs the next queued message, if any. Both exclusive commands and agent runs
+   * must call this — anything typed while one was in flight is otherwise stranded
+   * until the NEXT run happens to drain it.
+   */
+  private drainQueuedInput(): void {
+    const nextInput = this.queuedInputs.shift();
+    if (!nextInput) {
+      return;
+    }
+    this.ui.info('Running queued input...');
+    setImmediate(() => {
+      void this.submitInput(nextInput);
+    });
   }
 
   private async runMessage(rawInput: string): Promise<void> {
@@ -925,6 +1011,17 @@ class InkCoderController implements InkCliController {
         )
         : await runAgent();
 
+      // The engine does not throw on abort: once the signal fires, loop() returns
+      // the plain sentinel string 'Request aborted.' as an ordinary result, so the
+      // AbortError catch below never sees an engine-side cancellation. Without this
+      // check the success path would finalize the partial answer as final, write a
+      // "Done in Xs" summary, print the sentinel as the model's reply, and persist
+      // the cancelled turn to the session and the daily log.
+      if (ac.signal.aborted) {
+        this.ui.abort('Operation cancelled.');
+        return;
+      }
+
       this.ui.runSummary({
         elapsedMs: Date.now() - runStartedAt,
         toolCalls,
@@ -959,15 +1056,7 @@ class InkCoderController implements InkCliController {
       this.currentAbortController = null;
       this.publishSession('Ready');
 
-      if (this.queuedInputs.length > 0) {
-        const nextInput = this.queuedInputs.shift();
-        if (nextInput) {
-          this.ui.info('Running queued input...');
-          setImmediate(() => {
-            void this.submitInput(nextInput);
-          });
-        }
-      }
+      this.drainQueuedInput();
     }
   }
 

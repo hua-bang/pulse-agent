@@ -5,9 +5,12 @@ export class SessionCommands {
   private sessionManager: SessionManager;
   private currentSessionId: string | null = null;
   private currentTaskListId: string | null = null;
+  /** Session lists are scoped to the directory the CLI was started in. */
+  private readonly cwd: string;
 
-  constructor(private readonly log: (message?: string) => void = console.log) {
+  constructor(private readonly log: (message?: string) => void = console.log, cwd = process.cwd()) {
     this.sessionManager = new SessionManager();
+    this.cwd = cwd;
   }
 
   async initialize(): Promise<void> {
@@ -68,7 +71,7 @@ export class SessionCommands {
       return { id: trimmed };
     }
 
-    const sessions = await this.sessionManager.listSessions(100);
+    const sessions = await this.sessionManager.listSessions({ limit: 100, cwd: this.cwd });
 
     if (/^\d{1,3}$/.test(trimmed)) {
       const index = Number(trimmed) - 1;
@@ -93,12 +96,12 @@ export class SessionCommands {
 
   /** Sessions offered by the interactive picker: non-empty, excluding the active one. */
   async listForPicker(limit = 50): Promise<SessionSummary[]> {
-    const sessions = await this.sessionManager.listSessions(limit);
+    const sessions = await this.sessionManager.listSessions({ limit, cwd: this.cwd });
     return sessions.filter(session => session.messageCount > 0 && session.id !== this.currentSessionId);
   }
 
   async resumeLatest(): Promise<boolean> {
-    const [latest] = await this.sessionManager.listSessions(1);
+    const [latest] = await this.sessionManager.listSessions({ limit: 1, cwd: this.cwd });
     if (!latest) {
       return false;
     }
@@ -142,9 +145,12 @@ export class SessionCommands {
   }
 
   /** Prints the most recent sessions. Bounded by default so a long history cannot flood the transcript. */
-  async listSessions(limit = 20): Promise<void> {
+  async listSessions(limit = 20, options: { allDirectories?: boolean } = {}): Promise<void> {
     const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 20;
-    const allSessions = await this.sessionManager.listSessions(Math.max(normalizedLimit, 200));
+    const allSessions = await this.sessionManager.listSessions({
+      limit: Math.max(normalizedLimit, 200),
+      ...(options.allDirectories ? {} : { cwd: this.cwd }),
+    });
     const sessions = allSessions.slice(0, normalizedLimit);
 
     if (sessions.length === 0) {
@@ -152,7 +158,8 @@ export class SessionCommands {
       return;
     }
 
-    this.log(`\n📋 Saved sessions (showing ${sessions.length} of ${allSessions.length}):`);
+    const scope = options.allDirectories ? 'all directories' : this.cwd;
+    this.log(`\n📋 Saved sessions (showing ${sessions.length} of ${allSessions.length} · ${scope}):`);
     this.log('='.repeat(80));
 
     sessions.forEach((session, index) => {
@@ -169,6 +176,9 @@ export class SessionCommands {
     });
     if (allSessions.length > sessions.length) {
       this.log(`… ${allSessions.length - sessions.length} older sessions hidden · /sessions <n> shows more`);
+    }
+    if (!options.allDirectories) {
+      this.log('Scoped to this directory · /sessions --all lists every directory.');
     }
     this.log('Resume with /resume <index>, a unique id prefix, or the full id.');
   }
@@ -229,7 +239,7 @@ export class SessionCommands {
   }
 
   async searchSessions(query: string): Promise<void> {
-    const sessions = await this.sessionManager.searchSessions(query);
+    const sessions = await this.sessionManager.searchSessions(query, this.cwd);
 
     if (sessions.length === 0) {
       this.log(`\n🔍 No sessions found matching "${query}"`);
