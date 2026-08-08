@@ -87,6 +87,9 @@
 
 .ui-btn.chat-page-rail-folder {
   appearance: none;
+  position: sticky;
+  top: 0;
+  z-index: 1;
   width: 100%;
   display: flex;
   align-items: center;
@@ -95,7 +98,7 @@
   height: auto;
   border: 0;
   border-radius: var(--radius-xs);
-  background: transparent;
+  background: var(--surface);
   color: var(--text-secondary);
   cursor: pointer;
   font: inherit;
@@ -144,6 +147,24 @@
   gap: 1px;
 }
 
+.ui-btn.chat-page-rail-more {
+  align-self: stretch;
+  justify-content: flex-start;
+  margin-left: 16px;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.ui-btn.chat-page-rail-more:hover,
+.ui-btn.chat-page-rail-more:focus-visible {
+  background: var(--surface-alt);
+  color: var(--text-secondary);
+}
+
 .chat-page-rail-item {
   display: flex;
   align-items: center;
@@ -183,19 +204,6 @@
 .chat-page-rail-item-content {
   min-width: 0;
   flex: 1;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.chat-page-rail-item-meta {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1;
 }
 
 .chat-page-rail-item-count {
@@ -367,10 +375,6 @@
 .chat-page-rail-item-shell .chat-page-rail-item {
   min-width: 0;
   flex: 1;
-}
-
-.chat-page-rail-item-shell--pinned .chat-page-rail-item > svg {
-  color: var(--accent);
 }
 
 .chat-page-rail-item-actions {

@@ -153,6 +153,11 @@ Closed web tabs enter the bounded, workspace-scoped reopen stack. Reopen must
 allocate a fresh id if the original id already exists; duplicate React keys or
 guest identities are never permitted.
 
+Dock expansion is workspace-scoped as well. Switching workspaces saves the
+current workspace's expanded state and restores the target workspace's last
+state from the same persisted dock session; a workspace without saved state
+starts collapsed.
+
 Menus or suggestions above a guest must hold `useGuestInteractionShield`,
 because guest clicks do not reach the host document. The shield observes guests
 mounted while an overlay is already open; a one-time query silently misses a

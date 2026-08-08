@@ -260,7 +260,6 @@ export const ChatPageBody = ({
       onActiveSessionResolved?.(activeSessionId, sessionsStoreId);
     }
   }, [activeSessionId, onActiveSessionResolved, pendingSessionId, sessionLoading, sessionsStoreId]);
-
   const retrySessionTransition = useChatPagePendingSession({
     busyElsewhere, handleLoadSession, onJumpToSession, onSessionConsumed,
     pendingSessionId, pendingSessionIntentId, retrySession, sessionStoreId,
@@ -373,6 +372,7 @@ export const ChatPageBody = ({
   }, [executionPolicy, onExecutionPolicyChange]);
 
   const sessionInteractionDisabled = loading || sessionLoading || busyElsewhere;
+  const sessionRailDisabled = loading || busyElsewhere;
   const sessionRail = useChatPageSessionRail({
     agentScope,
     allWorkspaces,
@@ -383,7 +383,7 @@ export const ChatPageBody = ({
     sessions,
     sessionsStoreId,
     pendingSessionKey: sessionLoading ? selectedSessionKey : null,
-    disabled: sessionInteractionDisabled,
+    disabled: sessionRailDisabled,
     focusInput,
     handleNewSession,
     onClearBackStack,

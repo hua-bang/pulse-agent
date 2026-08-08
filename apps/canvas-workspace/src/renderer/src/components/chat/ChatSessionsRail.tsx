@@ -8,6 +8,8 @@ import { Button, TextField } from '../ui';
 import { useI18n } from '../../i18n';
 import { ChatSessionRailItem } from './ChatSessionRailItem';
 
+const SESSION_PREVIEW_LIMIT = 10;
+
 export interface UnifiedSession {
   sessionId: string;
   workspaceId: string;
@@ -56,6 +58,7 @@ export const ChatSessionsRail = ({
   const { t } = useI18n();
   const railId = useId().replace(/:/g, '');
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedSessionGroupIds, setExpandedSessionGroupIds] = useState<Set<string>>(new Set());
   const allSessionGroups = useMemo(() => {
     const groups = new Map<string, { id: string; name: string; sessions: UnifiedSession[] }>();
     for (const session of allSessions) {
@@ -105,20 +108,28 @@ export const ChatSessionsRail = ({
     allGroupIds.filter((groupId) => groupId !== openGroupId),
   ));
   const knownGroupIdsRef = useRef(new Set(allGroupIds));
+  const manuallyCollapsedGroupIdsRef = useRef(new Set<string>());
   useEffect(() => {
     const knownGroupIds = knownGroupIdsRef.current;
     const nextGroupIds = new Set(allGroupIds);
+    manuallyCollapsedGroupIdsRef.current = new Set(
+      [...manuallyCollapsedGroupIdsRef.current].filter((groupId) => nextGroupIds.has(groupId)),
+    );
     setCollapsedGroupIds((current) => {
       const next = new Set([...current].filter((groupId) => nextGroupIds.has(groupId)));
       for (const groupId of allGroupIds) {
         if (!knownGroupIds.has(groupId) && groupId !== openGroupId) next.add(groupId);
       }
-      if (openGroupId) next.delete(openGroupId);
+      if (openGroupId && !manuallyCollapsedGroupIdsRef.current.has(openGroupId)) {
+        next.delete(openGroupId);
+      }
       return next;
     });
     knownGroupIdsRef.current = nextGroupIds;
   }, [allGroupIds, openGroupId]);
   const toggleGroup = (groupId: string) => {
+    if (collapsedGroupIds.has(groupId)) manuallyCollapsedGroupIdsRef.current.delete(groupId);
+    else manuallyCollapsedGroupIdsRef.current.add(groupId);
     setCollapsedGroupIds((current) => {
       const next = new Set(current);
       if (next.has(groupId)) next.delete(groupId);
@@ -167,6 +178,15 @@ export const ChatSessionsRail = ({
           sessionGroups.map((group, groupIndex) => {
             const listId = `${railId}-sessions-${groupIndex}`;
             const collapsed = !normalizedQuery && collapsedGroupIds.has(group.id);
+            const showsAllSessions = Boolean(normalizedQuery) || expandedSessionGroupIds.has(group.id);
+            const sessionPreview = group.sessions.slice(0, SESSION_PREVIEW_LIMIT);
+            const currentSession = group.sessions.find((session) => session.isCurrent);
+            const visibleSessions = showsAllSessions
+              ? group.sessions
+              : currentSession && !sessionPreview.includes(currentSession)
+                ? [...sessionPreview.slice(0, -1), currentSession]
+                : sessionPreview;
+            const hiddenSessionCount = group.sessions.length - visibleSessions.length;
             return (
               <section className="chat-page-rail-group" key={group.id}>
                 <Button
@@ -186,7 +206,7 @@ export const ChatSessionsRail = ({
                   <span className="chat-page-rail-folder-count">{group.sessions.length}</span>
                 </Button>
                 <div id={listId} className="chat-page-rail-list" role="list">
-                  {!collapsed && group.sessions.map((session) => (
+                  {!collapsed && visibleSessions.map((session) => (
                     <div
                       key={`${session.workspaceId}:${session.sessionId}`}
                       className="chat-page-rail-item-row"
@@ -203,6 +223,24 @@ export const ChatSessionsRail = ({
                       />
                     </div>
                   ))}
+                  {!collapsed && !normalizedQuery && group.sessions.length > SESSION_PREVIEW_LIMIT && (
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      className="chat-page-rail-more"
+                      onClick={() => setExpandedSessionGroupIds((current) => {
+                        const next = new Set(current);
+                        if (next.has(group.id)) next.delete(group.id);
+                        else next.add(group.id);
+                        return next;
+                      })}
+                      disabled={disabled}
+                    >
+                      {showsAllSessions
+                        ? t('chat.showFewerSessions')
+                        : t('chat.showMoreSessions', { count: hiddenSessionCount })}
+                    </Button>
+                  )}
                 </div>
               </section>
             );
