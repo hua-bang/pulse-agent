@@ -10,7 +10,7 @@ import { formatRelativeTime, type InkCliController, type InkCliSnapshot, type Cl
 import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
-import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
+import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveKnownModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
 import { buildModelRunOptions, type ModelRunOptions } from './model-run-options.js';
 import { PreferencesStore } from './preferences.js';
 import { expandFileReferences, indexWorkspaceFiles } from './file-reference.js';
@@ -283,7 +283,9 @@ export class InkCoderController implements InkCliController {
 
     const preferences = await this.preferences.load();
     if (preferences.lastModel) {
-      const restored = resolveModelSpec(preferences.lastModel, registry);
+      // Strict on purpose: a silent restore must not resurrect a spec whose
+      // provider has since left models.json as a literal `provider:model` id.
+      const restored = resolveKnownModelSpec(preferences.lastModel, registry);
       if (restored) {
         this.modelOverride = restored;
         this.applyModelOverride(`Model restored from last session: ${restored.model}`);

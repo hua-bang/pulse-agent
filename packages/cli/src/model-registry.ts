@@ -86,6 +86,39 @@ export function resolveModelSpec(spec: string, registry: ModelRegistry): ModelCh
   return parseModelSpec(trimmed);
 }
 
+/**
+ * Strict resolution for the startup-restore path.
+ *
+ * `resolveModelSpec` never fails — an unrecognised spec falls through to
+ * `parseModelSpec`, which accepts any non-empty string. That leniency is right
+ * for a spec the user just typed, but wrong when silently restoring a persisted
+ * choice: once a provider is renamed or removed from models.json, `acme:foo`
+ * would come back as the literal model id `"acme:foo"` (colon and all), with no
+ * connection and no context window, and the CLI would report it as restored.
+ *
+ * Returns null for a `provider:model` spec whose provider is neither a live
+ * registry provider nor an SDK channel, so the caller can warn and fall back.
+ */
+export function resolveKnownModelSpec(spec: string, registry: ModelRegistry): ModelChoice | null {
+  const trimmed = spec.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const colonIndex = trimmed.indexOf(':');
+  if (colonIndex > 0) {
+    const head = trimmed.slice(0, colonIndex);
+    const isKnown = head === 'claude' || head === 'openai' || Boolean(registry.providers[head]);
+    const isExactEntry = registry.models.some(choice =>
+      choice.providerName && `${choice.providerName}:${choice.model}` === trimmed);
+    if (!isKnown && !isExactEntry) {
+      return null;
+    }
+  }
+
+  return resolveModelSpec(trimmed, registry);
+}
+
 /** The entry marked `"default": true`, if any (first wins). */
 export function findDefaultModel(registry: ModelRegistry): ModelChoice | null {
   return registry.models.find(choice => choice.isDefault) ?? null;

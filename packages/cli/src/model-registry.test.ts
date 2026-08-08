@@ -4,7 +4,7 @@ import * as path from 'path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveModelSpec, shortModelLabel, type ModelRegistry } from './model-registry.js';
+import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveKnownModelSpec, resolveModelSpec, shortModelLabel, type ModelRegistry } from './model-registry.js';
 
 describe('parseModelSpec', () => {
   it('pins the SDK channel from prefixed specs and passes bare ids through', () => {
@@ -183,6 +183,28 @@ describe('resolveModelSpec', () => {
     });
     expect(resolveModelSpec('claude:claude-opus-5', registry)).toEqual({ model: 'claude-opus-5', modelType: 'claude' });
     expect(resolveModelSpec('bare-model', registry)).toEqual({ model: 'bare-model' });
+  });
+});
+
+describe('resolveKnownModelSpec', () => {
+  const registry: ModelRegistry = {
+    providers: { deepseek: { name: 'deepseek', type: 'openai', baseUrl: 'https://api.deepseek.com/v1' } },
+    models: [{ model: 'v4', modelType: 'openai', providerName: 'deepseek', baseUrl: 'https://api.deepseek.com/v1' }],
+    warnings: [],
+  };
+
+  it('rejects a spec whose provider is no longer defined', () => {
+    // resolveModelSpec would hand back the literal id 'acme:foo' instead.
+    expect(resolveModelSpec('acme:foo', registry)).toEqual({ model: 'acme:foo' });
+    expect(resolveKnownModelSpec('acme:foo', registry)).toBeNull();
+  });
+
+  it('accepts registry entries, live providers, SDK channels and bare ids', () => {
+    expect(resolveKnownModelSpec('deepseek:v4', registry)).toEqual(registry.models[0]);
+    expect(resolveKnownModelSpec('deepseek:ad-hoc', registry)).toMatchObject({ model: 'ad-hoc', providerName: 'deepseek' });
+    expect(resolveKnownModelSpec('claude:claude-opus-5', registry)).toEqual({ model: 'claude-opus-5', modelType: 'claude' });
+    expect(resolveKnownModelSpec('novita/deepseek/deepseek_v3', registry)).toEqual({ model: 'novita/deepseek/deepseek_v3' });
+    expect(resolveKnownModelSpec('  ', registry)).toBeNull();
   });
 });
 

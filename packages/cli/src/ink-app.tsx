@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { renderMarkdownAnsi } from './markdown.js';
 import { applyFileReference, detectFileReferenceQuery, filterFileEntries, type FileEntry } from './file-reference.js';
-import { nextCharIndex, prevCharIndex, truncateToWidth } from './text-width.js';
+import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth } from './text-width.js';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error' | 'log';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
@@ -946,9 +946,18 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const spinner = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length];
   const pickerItems = useMemo(() => (picker ? filterPickerItems(picker.items, pickerQuery) : []), [picker, pickerQuery]);
   const clampedPickerIndex = Math.min(pickerIndex, Math.max(0, pickerItems.length - 1));
-  const pickerWindowSize = Math.max(3, Math.min(8, terminalRows - 12));
+  // The picker sits below <Static> and shares the screen with the composer, so
+  // it is bounded on BOTH axes. Rows: an item with a preview costs two physical
+  // rows, not one, so the window must divide by the real per-item height.
+  // Columns: label/hint/preview are truncated below — Ink's default wrap would
+  // otherwise reflow a long session title onto extra rows and blow the budget
+  // this window size just computed.
+  const pickerRowsPerItem = pickerItems.some(item => item.preview) ? 2 : 1;
+  const pickerWindowSize = Math.max(2, Math.min(8, Math.floor((terminalRows - 12) / pickerRowsPerItem)));
   const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - pickerWindowSize));
   const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + pickerWindowSize);
+  // Round border (2) + paddingX (2).
+  const pickerContentWidth = Math.max(20, terminalColumns - 4);
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
   const liveMarkdown = useMemo(() => renderMarkdownAnsi(snapshot.liveText), [snapshot.liveText]);
   const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor, 6, snapshot.skills ?? []), [cursor, input, snapshot.skills]);
@@ -1036,12 +1045,15 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
             ) : visiblePickerItems.map((item, index) => {
               const actualIndex = pickerWindowStart + index;
               const selected = actualIndex === clampedPickerIndex;
+              // Hint gets at most a third of the row; the label takes the rest.
+              const hint = item.hint ? truncateLabel(item.hint, Math.floor(pickerContentWidth / 3)) : '';
+              const label = truncateLabel(item.label, Math.max(8, pickerContentWidth - 2 - (hint ? stringWidth(hint) + 2 : 0)));
               return (
                 <Box key={item.id} flexDirection="column">
                   <Text color={selected ? 'yellow' : undefined}>
-                    {selected ? '→ ' : '  '}{item.label}{item.hint ? <Text color="gray">  {item.hint}</Text> : null}
+                    {selected ? '→ ' : '  '}{label}{hint ? <Text color="gray">  {hint}</Text> : null}
                   </Text>
-                  {item.preview ? <Text color="gray" dimColor>    {item.preview}</Text> : null}
+                  {item.preview ? <Text color="gray" dimColor>    {truncateLabel(item.preview, Math.max(8, pickerContentWidth - 4))}</Text> : null}
                 </Box>
               );
             })}
@@ -1074,11 +1086,15 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
 
           {slashSuggestions.length > 0 ? (
             <Box flexDirection="column">
-              {slashSuggestions.map((suggestion, index) => (
-                <Text key={suggestion.command} color={index === normalizedSuggestionIndex ? 'yellow' : 'gray'}>
-                  {index === normalizedSuggestionIndex ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{suggestion.group === 'Skill' ? '[skill] ' : ''}{suggestion.description}{index === normalizedSuggestionIndex && suggestion.usage ? ` · ${suggestion.usage}` : ''}</Text>
-                </Text>
-              ))}
+              {slashSuggestions.map((suggestion, index) => {
+                const selected = index === normalizedSuggestionIndex;
+                const detail = `${suggestion.group === 'Skill' ? '[skill] ' : ''}${suggestion.description}${selected && suggestion.usage ? ` · ${suggestion.usage}` : ''}`;
+                return (
+                  <Text key={suggestion.command} color={selected ? 'yellow' : 'gray'}>
+                    {selected ? '→ ' : '  '}{suggestion.command}  <Text color="gray">{truncateLabel(detail, Math.max(8, terminalColumns - 4 - stringWidth(suggestion.command)))}</Text>
+                  </Text>
+                );
+              })}
             </Box>
           ) : null}
 
