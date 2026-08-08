@@ -23,7 +23,17 @@ describe('SidebarHeader', () => {
     document.body.appendChild(host);
     root = createRoot(host);
 
-    const renderHeader = (nodesEnabled: boolean, graphEnabled: boolean) => (
+    const renderHeader = ({
+      nodesEnabled,
+      graphEnabled,
+      skillsEnabled,
+      scheduledEnabled,
+    }: {
+      nodesEnabled: boolean;
+      graphEnabled: boolean;
+      skillsEnabled: boolean;
+      scheduledEnabled: boolean;
+    }) => (
       <I18nProvider>
         <SidebarHeader
           onToggle={vi.fn()}
@@ -35,6 +45,8 @@ describe('SidebarHeader', () => {
           onEnterScheduled={vi.fn()}
           nodesEnabled={nodesEnabled}
           graphEnabled={graphEnabled}
+          skillsEnabled={skillsEnabled}
+          scheduledEnabled={scheduledEnabled}
           pluginNavItems={[]}
           onNavigate={vi.fn()}
           showAddMenu={false}
@@ -49,16 +61,26 @@ describe('SidebarHeader', () => {
     );
 
     act(() => {
-      root?.render(renderHeader(false, false));
+      root?.render(renderHeader({
+        nodesEnabled: false,
+        graphEnabled: false,
+        skillsEnabled: false,
+        scheduledEnabled: false,
+      }));
     });
 
     const labels = () => [...host!.querySelectorAll('.sidebar-nav-label')]
       .map((element) => element.textContent);
 
-    expect(labels()).toEqual(['AI Chat', 'Skills', 'Scheduled']);
+    expect(labels()).toEqual(['AI Chat']);
 
     act(() => {
-      root?.render(renderHeader(true, true));
+      root?.render(renderHeader({
+        nodesEnabled: true,
+        graphEnabled: true,
+        skillsEnabled: true,
+        scheduledEnabled: true,
+      }));
     });
 
     expect(labels()).toEqual(['AI Chat', 'Nodes', 'Graph', 'Skills', 'Scheduled']);

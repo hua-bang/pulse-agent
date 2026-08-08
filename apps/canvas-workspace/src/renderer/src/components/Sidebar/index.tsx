@@ -61,6 +61,10 @@ interface Props {
   nodesEnabled: boolean;
   /** When false, the Graph nav button is hidden (feature flag off). */
   graphEnabled: boolean;
+  /** When false, the Skills nav button is hidden while its route remains available. */
+  skillsEnabled: boolean;
+  /** When false, the Scheduled nav button is hidden while its route remains available. */
+  scheduledEnabled: boolean;
   pluginNavItems: ReadonlyArray<NavItem>;
   onNavigate: (path: string) => void;
   onExitChat: () => void;
@@ -74,7 +78,7 @@ export const Sidebar = ({
   onExport, onOpenSettings, onOpenAppSettings, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace,
   onReorderWorkspace, onReorderFolder,
   activeNodes = [], selectedNodeIds = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
-  onEnterNodes, onEnterGraph, nodesEnabled, graphEnabled,
+  onEnterNodes, onEnterGraph, nodesEnabled, graphEnabled, skillsEnabled, scheduledEnabled,
   onEnterSkills,
   onEnterScheduled,
 }: Props) => {
@@ -337,6 +341,7 @@ export const Sidebar = ({
             onEnterSkills={onEnterSkills}
             onEnterScheduled={onEnterScheduled}
             nodesEnabled={nodesEnabled} graphEnabled={graphEnabled}
+            skillsEnabled={skillsEnabled} scheduledEnabled={scheduledEnabled}
             pluginNavItems={pluginNavItems} onNavigate={onNavigate}
             showAddMenu={showAddMenu} onToggleAddMenu={() => setShowAddMenu((v) => !v)}
             onCloseAddMenu={() => setShowAddMenu(false)}
@@ -419,24 +424,28 @@ export const Sidebar = ({
           >
             <AvatarIcon size={14} />
           </button>
-          <Button
-            variant="icon"
-            className={`sidebar-collapsed-btn${activeView === 'skills' ? ' sidebar-collapsed-btn--active' : ''}`}
-            onClick={onEnterSkills}
-            title={t('sidebar.skillsTitle')}
-            aria-label={t('sidebar.skills')}
-          >
-            <PuzzlePiece size={14} />
-          </Button>
-          <Button
-            variant="icon"
-            className={`sidebar-collapsed-btn${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-collapsed-btn--active' : ''}`}
-            onClick={onEnterScheduled}
-            title={t('sidebar.scheduledTitle')}
-            aria-label={t('sidebar.scheduled')}
-          >
-            <CalendarBlank size={14} />
-          </Button>
+          {skillsEnabled && (
+            <Button
+              variant="icon"
+              className={`sidebar-collapsed-btn${activeView === 'skills' ? ' sidebar-collapsed-btn--active' : ''}`}
+              onClick={onEnterSkills}
+              title={t('sidebar.skillsTitle')}
+              aria-label={t('sidebar.skills')}
+            >
+              <PuzzlePiece size={14} />
+            </Button>
+          )}
+          {scheduledEnabled && (
+            <Button
+              variant="icon"
+              className={`sidebar-collapsed-btn${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-collapsed-btn--active' : ''}`}
+              onClick={onEnterScheduled}
+              title={t('sidebar.scheduledTitle')}
+              aria-label={t('sidebar.scheduled')}
+            >
+              <CalendarBlank size={14} />
+            </Button>
+          )}
           <button
             type="button"
             className="sidebar-collapsed-btn"

@@ -57,7 +57,7 @@ const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
 const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true, NODES_NAV_VISIBLE = false;
-const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true, GRAPH_NAV_VISIBLE = false;
+const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true, GRAPH_NAV_VISIBLE = false, SKILLS_NAV_VISIBLE = false, SCHEDULED_NAV_VISIBLE = false;
 type ActiveView = 'canvas' | 'chat' | string;
 const AppContent = () => {
   const { t } = useI18n();
@@ -517,8 +517,8 @@ const AppContent = () => {
           onEnterGraph={enterGraphView}
           onEnterSkills={() => setLocation(ROUTE_SKILLS)}
           onEnterScheduled={() => setLocation(ROUTE_SCHEDULED)}
-          nodesEnabled={NODES_NAV_VISIBLE && NODES_ENABLED}
-          graphEnabled={GRAPH_NAV_VISIBLE && GRAPH_ENABLED}
+          nodesEnabled={NODES_NAV_VISIBLE && NODES_ENABLED} skillsEnabled={SKILLS_NAV_VISIBLE}
+          graphEnabled={GRAPH_NAV_VISIBLE && GRAPH_ENABLED} scheduledEnabled={SCHEDULED_NAV_VISIBLE}
           pluginNavItems={pluginNavItems}
           onNavigate={navigateToPath}
           onExitChat={exitChatView}
