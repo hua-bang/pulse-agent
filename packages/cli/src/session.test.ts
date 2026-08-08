@@ -67,6 +67,22 @@ describe('SessionManager cwd scoping', () => {
     expect(scoped.map(session => session.title)).toEqual(['legacy']);
   });
 
+  it('writes sessions atomically, leaving no temp files behind', async () => {
+    // A plain writeFile truncates before writing, so a process killed mid-save
+    // leaves the conversation empty or half-written. saveSession writes to a
+    // temp file and renames over the target instead.
+    const session = await manager.createSession('atomic', '/work/a');
+    session.messages.push({ role: 'user', content: 'hello', timestamp: Date.now() } as never);
+    await manager.saveSession(session);
+
+    const entries = await fs.readdir(dir);
+    expect(entries).toEqual([`${session.id}.json`]);
+    expect(entries.some(entry => entry.endsWith('.tmp'))).toBe(false);
+
+    const reloaded = await manager.loadSession(session.id);
+    expect(reloaded?.messages).toHaveLength(1);
+  });
+
   it('scopes search to the given cwd', async () => {
     await manager.createSession('alpha report', '/work/a');
     await manager.createSession('alpha notes', '/work/b');

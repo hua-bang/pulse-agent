@@ -120,7 +120,21 @@ export class SessionManager {
     }
 
     const filePath = path.join(this.sessionsDir, `${session.id}.json`);
-    await fs.writeFile(filePath, JSON.stringify(session, null, 2));
+    const payload = JSON.stringify(session, null, 2);
+
+    // Write-then-rename, not write-in-place: a plain writeFile truncates first,
+    // so a process killed mid-write (a second Ctrl+C racing the shutdown save, a
+    // SIGTERM, a full disk) leaves the whole conversation as an empty or
+    // half-written file. rename(2) is atomic within a directory, so a reader
+    // sees either the old session or the new one — never a torn one.
+    const tempPath = `${filePath}.${process.pid}.tmp`;
+    try {
+      await fs.writeFile(tempPath, payload);
+      await fs.rename(tempPath, filePath);
+    } catch (error) {
+      await fs.rm(tempPath, { force: true }).catch(() => {});
+      throw error;
+    }
   }
 
   async loadSession(id: string): Promise<Session | null> {

@@ -438,8 +438,21 @@ class CoderCLI {
 
     process.stdin.on('keypress', onKeypress);
 
-    // Handle SIGINT gracefully
-    process.on('SIGINT', () => {
+    // Handle SIGINT/SIGTERM gracefully.
+    //
+    // This host runs the terminal in normal mode, so every Ctrl+C is a real
+    // signal. Without the re-entrancy guard a second press (the natural reflex,
+    // and the gesture the Ink host trains) starts a SECOND concurrent
+    // saveContext against the same file, and whichever settles first calls
+    // process.exit() without waiting for the other — killing the process
+    // mid-write. saveSession is atomic now; this keeps the races out entirely.
+    let isShuttingDown = false;
+    const shutdown = () => {
+      if (isShuttingDown) {
+        return;
+      }
+      isShuttingDown = true;
+
       process.stdin.off('keypress', onKeypress);
 
       if (isProcessing && currentAbortController && !currentAbortController.signal.aborted) {
@@ -455,7 +468,10 @@ class CoderCLI {
         this.tui.success('Goodbye!');
         process.exit(0);
       });
-    });
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
 
     // Main input handler
     const handleInput = async (input: string) => {

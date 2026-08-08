@@ -41,6 +41,26 @@ describe('EngineLogSink', () => {
     expect(written).toContain('[warn] careful');
   });
 
+  it('survives a stream error instead of crashing the process', async () => {
+    // A WriteStream 'error' with no listener throws, and nothing in the CLI
+    // catches it — an async write failure (disk full, log dir removed) used to
+    // take the whole host down mid-run, before shutdown() could save.
+    const sink = new EngineLogSink({ filePath });
+    sink.install();
+    try {
+      const stream = (sink as unknown as { stream: NodeJS.EventEmitter | null }).stream;
+      expect(stream).not.toBeNull();
+
+      expect(() => stream!.emit('error', new Error('ENOSPC'))).not.toThrow();
+      // File logging is dropped, but the sink keeps serving the ring buffer.
+      expect((sink as unknown as { stream: unknown }).stream).toBeNull();
+      expect(() => sink.record('log', ['after the failure'])).not.toThrow();
+      expect(sink.entries().map(entry => entry.text)).toContain('after the failure');
+    } finally {
+      await sink.restore();
+    }
+  });
+
   it('notifies its subscriber and caps the ring buffer', () => {
     const sink = new EngineLogSink({ filePath, maxEntries: 2 });
     const seen: EngineLogEntry[] = [];

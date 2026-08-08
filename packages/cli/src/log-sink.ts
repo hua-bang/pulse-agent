@@ -59,6 +59,14 @@ export class EngineLogSink {
         fs.renameSync(this.filePath, `${this.filePath}.old`);
       }
       this.stream = fs.createWriteStream(this.filePath, { flags: 'a' });
+      // A stream 'error' with no listener THROWS, and nothing in the process
+      // catches it — a write that fails after the stream opened (disk full, home
+      // volume gone read-only, log file removed underneath us) would kill the
+      // CLI mid-run, before shutdown() could save the session. File logging is a
+      // convenience; degrade to the ring buffer instead of taking the host down.
+      this.stream.on('error', () => {
+        this.stream = null;
+      });
     } catch {
       this.stream = null;
     }
