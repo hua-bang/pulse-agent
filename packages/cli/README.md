@@ -74,7 +74,7 @@ pulse-coder -p --isolated --timeout 1200 --max-steps 100 --max-tokens 500000 \
   --output-format jsonl --trace-file ./trace.jsonl "fix the issue"
 ```
 
-`-p` 文本模式下引擎/插件日志走 stderr，stdout 只包含回答文本，方便管道消费。`--output-format jsonl` 改为逐行输出 `run_start`、工具、step、压缩与 `run_end` 事件；`--trace-file` 可在文本或 JSONL 模式下额外保存同一轨迹。`--isolated` 关闭 memory、用户配置、外部插件扫描及会发现/持久化用户状态的内建插件，保留核心工具、plan-mode 和 CLI `run_js`，用于可重复的 benchmark 运行。文件系统、网络与进程树的硬隔离仍由 Harbor/SWE-bench 的每题容器负责。超时退出码为 124，SIGINT/SIGTERM 分别为 130/143，token 或 step 预算耗尽为 2。
+`-p` 文本模式下引擎/插件日志走 stderr，stdout 只包含回答文本，方便管道消费。`--output-format jsonl` 改为逐行输出 `run_start`、工具、step、压缩与 `run_end` 事件；`--trace-file` 可在文本或 JSONL 模式下额外保存同一轨迹。`--isolated` 关闭 memory、用户配置、外部插件扫描及会发现/持久化用户状态的内建插件，保留核心工具、plan-mode 和 CLI `run_js`，用于可重复的 benchmark 运行。文件系统、网络与进程树的硬隔离仍由 Harbor/SWE-bench 的每题容器负责。`--timeout 0` 可关闭 CLI 内部计时器；benchmark harness 仍应设置外层硬超时，避免 endpoint 永久挂起。超时退出码为 124，SIGINT/SIGTERM 分别为 130/143，token 或 step 预算耗尽为 2。
 
 Harbor/SWE-bench 的自定义 agent、容器内本地源码安装和对比运行方法见 [`harness/tools/harbor/README.md`](harness/tools/harbor/README.md)。CLI 无需先发布到 npm；adapter 会上传当前已提交的 Git `HEAD`。
 
