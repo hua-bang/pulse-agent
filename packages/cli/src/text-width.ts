@@ -72,6 +72,57 @@ export function truncateToWidth(value: string, maxWidth: number): string {
   return `${result}…`;
 }
 
+// SGR sequences colour a glyph without occupying a column of their own, so
+// anything measuring already-rendered (markdown → ANSI) text must drop them
+// first or it over-counts every styled line.
+const ANSI_SGR_PATTERN = /\x1b\[[0-9;]*m/g;
+
+/**
+ * Physical rows one logical line occupies once the terminal wraps it at
+ * `columns`. Greedy word wrap, matching Ink's default `wrap`: a word that does
+ * not fit on a line of its own is hard-split across rows.
+ *
+ * A row budget computed from `String.split('\n').length` is wrong whenever a
+ * line is wider than the terminal — that undercount is what lets a "bounded"
+ * region overflow the screen.
+ */
+export function wrappedRowCount(line: string, columns: number): number {
+  if (!Number.isFinite(columns) || columns <= 0) {
+    return 1;
+  }
+
+  const plain = line.replace(ANSI_SGR_PATTERN, '');
+  if (stringWidth(plain) <= columns) {
+    return 1;
+  }
+
+  let rows = 1;
+  let used = 0;
+  for (const word of plain.split(' ')) {
+    const wordWidth = stringWidth(word);
+    const gap = used > 0 ? 1 : 0;
+    if (used + gap + wordWidth <= columns) {
+      used += gap + wordWidth;
+      continue;
+    }
+
+    if (used > 0) {
+      rows += 1;
+      used = 0;
+    }
+
+    // Words wider than the terminal (long paths, unspaced CJK) fill whole rows.
+    let remaining = wordWidth;
+    while (remaining > columns) {
+      rows += 1;
+      remaining -= columns;
+    }
+    used = remaining;
+  }
+
+  return rows;
+}
+
 /** Index of the code point boundary before `index` (for ←/Backspace). */
 export function prevCharIndex(value: string, index: number): number {
   const position = Math.max(0, Math.min(value.length, index));

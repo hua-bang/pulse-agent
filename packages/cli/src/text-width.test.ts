@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth } from './text-width.js';
+import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth, wrappedRowCount } from './text-width.js';
 
 describe('stringWidth', () => {
   it('counts CJK and emoji as two columns', () => {
@@ -38,6 +38,34 @@ describe('truncateToWidth', () => {
   it('is a no-op for degenerate budgets', () => {
     expect(truncateToWidth('abc', 0)).toBe('abc');
     expect(truncateToWidth('abc', 1)).toBe('abc');
+  });
+});
+
+describe('wrappedRowCount', () => {
+  it('counts one row while the line fits', () => {
+    expect(wrappedRowCount('', 20)).toBe(1);
+    expect(wrappedRowCount('exactly twenty chars', 20)).toBe(1);
+    // Rendered markdown carries SGR escapes; measuring them as glyphs would
+    // report a wrap that the terminal never performs.
+    expect(wrappedRowCount('\x1b[1mexactly twenty chars\x1b[0m', 20)).toBe(1);
+    expect(stringWidth('\x1b[1mexactly twenty chars\x1b[0m')).toBeGreaterThan(20);
+  });
+
+  it('counts the rows a greedy word wrap actually produces', () => {
+    // Character math says 2 rows (20 columns / 10); word wrap needs 3.
+    expect(wrappedRowCount('aaaaaa bbbbbb cccccc', 10)).toBe(3);
+    expect(wrappedRowCount('one two three four', 10)).toBe(2);
+  });
+
+  it('hard-splits words wider than the terminal', () => {
+    expect(wrappedRowCount('a'.repeat(25), 10)).toBe(3);
+    // Unspaced CJK is one long word: 30 columns over a 10-column terminal.
+    expect(wrappedRowCount('一二三四五六七八九十十九八七六', 10)).toBe(3);
+  });
+
+  it('degrades to one row for a degenerate width', () => {
+    expect(wrappedRowCount('anything', 0)).toBe(1);
+    expect(wrappedRowCount('anything', Number.POSITIVE_INFINITY)).toBe(1);
   });
 });
 
