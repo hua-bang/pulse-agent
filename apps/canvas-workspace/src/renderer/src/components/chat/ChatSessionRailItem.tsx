@@ -2,9 +2,7 @@ import { useState } from 'react';
 import {
   CheckIcon,
   CloseIcon,
-  ListLinesIcon,
   PencilIcon,
-  SpinnerIcon,
   TrashIcon,
 } from '../icons';
 import { Button, TextField } from '../ui';
@@ -12,7 +10,6 @@ import { useI18n } from '../../i18n';
 import { SessionTitle } from './SessionTitle';
 import type { ChatSessionsRailProps, UnifiedSession } from './ChatSessionsRail';
 import { sessionTitleText } from './utils/sessionTitle';
-import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
 
 interface Props {
   session: UnifiedSession;
@@ -46,8 +43,6 @@ export const ChatSessionRailItem = ({
 }: Props) => {
   const { t } = useI18n();
   const title = session.preview ? sessionTitleText(session.preview) : session.date;
-  const updatedAt = session.updatedAt ?? Date.parse(`${session.date}T00:00:00`);
-  const recency = formatRelativeTime(updatedAt) || session.date;
   const [mode, setMode] = useState<'idle' | 'rename' | 'delete'>('idle');
   const [renameValue, setRenameValue] = useState(title);
   const [busy, setBusy] = useState(false);
@@ -177,22 +172,9 @@ export const ChatSessionRailItem = ({
         aria-busy={pending ? true : undefined}
         disabled={disabled}
       >
-        {pending
-          ? <SpinnerIcon size={14} className="chat-spin" />
-          : session.isPinned ? <PinIcon filled /> : <ListLinesIcon size={14} />}
         <span className="chat-page-rail-item-content">
           <span className="chat-page-rail-item-text">
             {session.preview ? <SessionTitle value={session.preview} /> : session.date}
-          </span>
-          <span className="chat-page-rail-item-meta">
-            <time
-              dateTime={Number.isFinite(updatedAt) ? new Date(updatedAt).toISOString() : undefined}
-              title={formatAbsoluteTime(updatedAt)}
-            >
-              {recency}
-            </time>
-            <span aria-hidden="true">·</span>
-            <span>{t('chat.toolCalls.messageCount', { count: session.messageCount })}</span>
           </span>
         </span>
       </button>

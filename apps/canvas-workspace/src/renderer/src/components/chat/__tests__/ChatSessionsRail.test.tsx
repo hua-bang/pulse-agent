@@ -222,7 +222,7 @@ describe('ChatSessionsRail workspace tree', () => {
     )).toEqual(['Newer', 'Older']);
   });
 
-  it('shows recency and message count so repeated previews remain distinguishable', async () => {
+  it('keeps session rows title-only without leading or metadata columns', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -242,16 +242,9 @@ describe('ChatSessionsRail workspace tree', () => {
       );
     });
 
-    const metadata = Array.from(
-      host.querySelectorAll('.chat-page-rail-item-meta'),
-      (node) => node.textContent,
-    );
-    expect(metadata).toHaveLength(2);
-    expect(metadata).toEqual(expect.arrayContaining([
-      expect.stringContaining('2 msgs'),
-      expect.stringContaining('9 msgs'),
-    ]));
-    expect(host.querySelectorAll('.chat-page-rail-item-meta time')).toHaveLength(2);
+    expect(host.querySelectorAll('.chat-page-rail-item')).toHaveLength(2);
+    expect(host.querySelector('.chat-page-rail-item > svg')).toBeNull();
+    expect(host.querySelector('.chat-page-rail-item-meta')).toBeNull();
   });
 
   it('opens the active folder and collapses other folders by default', async () => {
@@ -437,7 +430,6 @@ describe('ChatSessionsRail workspace tree', () => {
               ...session,
               isCurrent: session.sessionId === 'session-a',
             }))}
-            disabled
             pendingSessionKey="workspace-a:session-a"
             onNewSession={vi.fn()}
             onSelectSession={vi.fn()}
@@ -448,7 +440,9 @@ describe('ChatSessionsRail workspace tree', () => {
 
     expect(host.querySelector('.chat-page-rail')?.getAttribute('aria-busy')).toBe('true');
     expect(host.querySelector('.chat-page-rail-item--active')?.getAttribute('aria-busy')).toBe('true');
-    expect(host.querySelector('.chat-page-rail-item--active .chat-spin')).not.toBeNull();
+    expect(host.querySelector('.chat-page-rail-item--active .chat-spin')).toBeNull();
+    expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-folder')?.disabled).toBe(false);
+    expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-item')?.disabled).toBe(false);
     expect(host.textContent).toContain('Second conversation');
   });
 });

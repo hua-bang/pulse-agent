@@ -183,19 +183,6 @@
 .chat-page-rail-item-content {
   min-width: 0;
   flex: 1;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.chat-page-rail-item-meta {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1;
 }
 
 .chat-page-rail-item-count {
@@ -367,10 +354,6 @@
 .chat-page-rail-item-shell .chat-page-rail-item {
   min-width: 0;
   flex: 1;
-}
-
-.chat-page-rail-item-shell--pinned .chat-page-rail-item > svg {
-  color: var(--accent);
 }
 
 .chat-page-rail-item-actions {
