@@ -22,6 +22,7 @@ import {
   renderPrompt,
   renderPromptLines,
   shouldAcceptSlashSuggestion,
+  windowLiveTextLines,
   type InkCliSnapshot,
 } from './ink-app.js';
 
@@ -518,6 +519,40 @@ describe('Ink composer editing helpers', () => {
     expect(truncateLabel('short', 20)).toBe('short');
     expect(truncateLabel('a'.repeat(30), 10)).toBe(`${'a'.repeat(9)}…`);
     expect(truncateLabel('abc', 0)).toBe('abc');
+  });
+
+  it('keeps the streaming answer inside its row budget', () => {
+    const lines = Array.from({ length: 40 }, (_, index) => `line ${index}`);
+
+    // Fits: nothing is hidden and the text is passed through untouched.
+    expect(windowLiveTextLines(lines, 40, 80)).toEqual({ lines, hiddenLineCount: 0 });
+
+    // Over budget: the tail survives and one row is left for the "… N earlier
+    // lines" head, so the region occupies exactly the budget and no more.
+    const windowed = windowLiveTextLines(lines, 10, 80);
+    expect(windowed.lines).toEqual(lines.slice(31));
+    expect(windowed.hiddenLineCount).toBe(31);
+    expect(windowed.lines.length + 1).toBe(10);
+    expect(windowed.lines[windowed.lines.length - 1]).toBe('line 39');
+  });
+
+  it('charges wrapped lines their real height when windowing', () => {
+    // Each of these is three physical rows on a 10-column terminal, so a
+    // 7-row budget (6 after the head) fits exactly two of them.
+    const lines = Array.from({ length: 5 }, (_, index) => `${index}${'x'.repeat(29)}`);
+    const windowed = windowLiveTextLines(lines, 7, 10);
+
+    expect(windowed.lines).toHaveLength(2);
+    expect(windowed.hiddenLineCount).toBe(3);
+  });
+
+  it('hides the streaming answer entirely when no rows are left', () => {
+    const lines = ['a', 'b'];
+    expect(windowLiveTextLines(lines, 0, 80)).toEqual({ lines: [], hiddenLineCount: 2 });
+    expect(windowLiveTextLines(lines, -3, 80)).toEqual({ lines: [], hiddenLineCount: 2 });
+    // A single row would go entirely to the head, showing none of the answer.
+    expect(windowLiveTextLines(lines, 1, 80)).toEqual({ lines: [], hiddenLineCount: 2 });
+    expect(windowLiveTextLines([], 5, 80)).toEqual({ lines: [], hiddenLineCount: 0 });
   });
 
   it('filters picker items across label, hint, and preview', () => {

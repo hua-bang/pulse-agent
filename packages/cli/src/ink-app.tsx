@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { renderMarkdownAnsi } from './markdown.js';
 import { applyFileReference, detectFileReferenceQuery, filterFileEntries, type FileEntry } from './file-reference.js';
-import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth } from './text-width.js';
+import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth, wrappedRowCount } from './text-width.js';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error' | 'log';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
@@ -166,6 +166,8 @@ const SLASH_COMMANDS: SlashCommandSuggestion[] = [
 ];
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+// Shared so the live-region row budget counts the same string that is rendered.
+const PICKER_HINT = '↑↓ select · Enter confirm · Esc cancel · type to filter';
 const MAX_HISTORY = 100;
 const CTRL_C_CONFIRM_WINDOW_MS = 2000;
 
@@ -471,6 +473,49 @@ export function formatStatusline(snapshot: InkCliSnapshot, maxWidth = Number.POS
  */
 export function truncateLabel(label: string, maxWidth: number): string {
   return truncateToWidth(label, maxWidth);
+}
+
+export interface LiveTextWindow {
+  /** Rendered lines that fit the budget, oldest first. */
+  lines: string[];
+  /** Lines dropped off the top; > 0 means the "… N earlier lines" head shows. */
+  hiddenLineCount: number;
+}
+
+/**
+ * Keeps the streaming answer inside a row budget.
+ *
+ * Ink re-prints the WHOLE screen (`clearTerminal` + a replay of the entire
+ * static transcript) on every frame whose live output is taller than the
+ * terminal, and keeps doing it until the output shrinks back. At streaming
+ * frequency that full-screen wipe is exactly the flicker users see, so the
+ * live answer shows a bounded tail and the finalized event carries the rest
+ * into scrollback.
+ *
+ * Rows are counted after wrapping (`wrappedRowCount`): a budget that assumed
+ * one row per line would be silently blown by the first over-wide paragraph.
+ */
+export function windowLiveTextLines(lines: string[], maxRows: number, columns: number): LiveTextWindow {
+  if (maxRows <= 0 || lines.length === 0) {
+    return { lines: [], hiddenLineCount: lines.length };
+  }
+
+  const costs = lines.map(line => wrappedRowCount(line, columns));
+  const total = costs.reduce((sum, cost) => sum + cost, 0);
+  if (total <= maxRows) {
+    return { lines, hiddenLineCount: 0 };
+  }
+
+  // Truncating costs one row for the "… N earlier lines" head.
+  const budget = maxRows - 1;
+  let used = 0;
+  let start = lines.length;
+  while (start > 0 && used + costs[start - 1] <= budget) {
+    used += costs[start - 1];
+    start -= 1;
+  }
+
+  return { lines: lines.slice(start), hiddenLineCount: start };
 }
 
 export function describeInteractionMode(mode: CliInteractionMode): string {
@@ -966,7 +1011,12 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   // Round border (2) + paddingX (2).
   const pickerContentWidth = Math.max(20, terminalColumns - 4);
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
-  const liveMarkdown = useMemo(() => renderMarkdownAnsi(snapshot.liveText), [snapshot.liveText]);
+  // Markdown is rendered over the WHOLE streamed text (fenced code blocks are
+  // stateful across lines) and only then windowed onto the rows still free.
+  const liveTextLines = useMemo(
+    () => (snapshot.liveText ? renderMarkdownAnsi(snapshot.liveText).split('\n') : []),
+    [snapshot.liveText],
+  );
   const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor, 6, snapshot.skills ?? []), [cursor, input, snapshot.skills]);
   const fileQuery = useMemo(() => detectFileReferenceQuery(input, cursor), [cursor, input]);
   const fileSuggestions = useMemo(
@@ -1016,15 +1066,51 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const visibleLiveTools = snapshot.liveTools.slice(-maxLiveTools);
   const hiddenLiveToolCount = snapshot.liveTools.length - visibleLiveTools.length;
 
+  // The live region is the only part without a fixed size, so it gets whatever
+  // rows the fixed ones leave over — never more. Ink flips into full-screen
+  // clear-and-replay for as long as the live output is taller than the
+  // terminal, which is the flicker this budget exists to prevent.
+  const liveToolRows = visibleLiveTools.length + (hiddenLiveToolCount > 0 ? 1 : 0);
+  const statusRows = 2; // marginTop + the line itself
+  // Border (2) + paddingX (2); the draft additionally carries a '› ' prefix.
+  const boxContentColumns = Math.max(1, terminalColumns - 4);
+  const footerRows = picker
+    // Border (2) + title + items + optional "… N more" + the hint line below.
+    ? 3 + Math.max(1, visiblePickerItems.length * pickerRowsPerItem)
+      + (pickerItems.length > visiblePickerItems.length ? 1 : 0)
+      + wrappedRowCount(PICKER_HINT, terminalColumns)
+    // Border (2) + draft lines + optional head + suggestions + the key hint.
+    // The hint and a long draft line wrap, so both are counted after wrapping —
+    // suggestion rows are already truncated to one row each.
+    : 2 + visiblePromptLines.reduce((rows, line) => rows + wrappedRowCount(line, Math.max(1, boxContentColumns - 2)), 0)
+      + (hiddenPromptLineCount > 0 ? 1 : 0)
+      + fileSuggestions.length + slashSuggestions.length
+      + wrappedRowCount(keyHint, terminalColumns);
+  // +1 for the region's own marginTop, +1 so the frame stays strictly under the
+  // viewport rather than exactly at it. Running tools are billed first: they
+  // are the "what is happening now" signal and the answer can window.
+  const maxLiveRegionRows = Math.max(0, terminalRows - (statusRows + footerRows + 2));
+  const maxLiveTextRows = maxLiveRegionRows - liveToolRows;
+  const liveTextWindow = useMemo(
+    () => windowLiveTextLines(liveTextLines, maxLiveTextRows, terminalColumns),
+    [liveTextLines, maxLiveTextRows, terminalColumns],
+  );
+  const hiddenLiveTextCount = liveTextWindow.hiddenLineCount;
+
   return (
     <Box flexDirection="column">
       <Static items={snapshot.events}>
         {(event: InkCliEvent) => <TranscriptEvent key={event.id} event={event} Box={Box} Text={Text} />}
       </Static>
 
-      {snapshot.liveText ? (
+      {/* No visible tail means no room at all — the head alone would just cost
+          a row without showing any of the answer. */}
+      {liveTextWindow.lines.length > 0 ? (
         <Box flexDirection="column" marginTop={1}>
-          <Text>{liveMarkdown}</Text>
+          {hiddenLiveTextCount > 0 ? (
+            <Text color="gray" dimColor>… {hiddenLiveTextCount} earlier line{hiddenLiveTextCount === 1 ? '' : 's'}</Text>
+          ) : null}
+          <Text>{liveTextWindow.lines.join('\n')}</Text>
         </Box>
       ) : null}
 
@@ -1071,7 +1157,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
               <Text color="gray">… {pickerItems.length - visiblePickerItems.length} more (↑↓ to scroll)</Text>
             ) : null}
           </Box>
-          <Text color="gray">↑↓ select · Enter confirm · Esc cancel · type to filter</Text>
+          <Text color="gray">{PICKER_HINT}</Text>
         </Box>
       ) : (
         <Box flexDirection="column">

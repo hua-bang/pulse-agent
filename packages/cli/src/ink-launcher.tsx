@@ -39,6 +39,11 @@ export async function startInkTui(options: StartInkTuiOptions = {}): Promise<voi
       // Console is owned by EngineLogSink — Ink's patchConsole would re-patch
       // console methods after us and pull engine logs back into the frame.
       patchConsole: false,
+      // Ink's default renderer erases the whole live block and repaints it on
+      // every frame; at streaming rate that repaint of the transcript tail,
+      // status line and bordered composer is visible as shimmer. Incremental
+      // mode rewrites only the lines that actually changed.
+      incrementalRendering: true,
     },
   );
 
