@@ -32,6 +32,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 | Retired team/ACP modules (unwired) | `src/team-commands.ts`, `src/acp-commands.ts` |
 | Memory integration | `src/memory-integration.ts` |
 | Host tool registration | `src/runtime-tools.ts`, `src/canvas-runtime-tools.ts`, `src/sandbox/`, `../canvas-cli/AGENTS.md` |
+| Harbor/SWE-bench evaluation | `harness/tools/harbor/README.md`, `harness/tools/harbor/pulse_agent.py` |
 | Focused behavior tests | `src/*.test.ts` |
 
 ## Local Constraints
