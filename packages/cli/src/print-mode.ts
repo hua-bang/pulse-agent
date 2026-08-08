@@ -181,7 +181,13 @@ export async function runPrintMode(promptArg: string, options: PrintModeOptions 
         });
       },
       onCompactionStart: info => trace.emit({ type: 'compaction_start', ...info }),
-      onCompacted: (_messages, event) => trace.emit({ type: 'compaction_end', event }),
+      onCompacted: (messages, event) => {
+        context.messages = messages;
+        trace.emit({ type: 'compaction_end', event });
+      },
+      onResponse: messages => {
+        context.messages.push(...messages);
+      },
       onClarificationRequest: async request => {
         trace.emit({ type: 'clarification_unavailable', request });
         return 'Clarification is unavailable in non-interactive benchmark mode. Proceed with the best reasonable interpretation.';
