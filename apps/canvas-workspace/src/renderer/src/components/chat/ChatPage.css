@@ -87,6 +87,9 @@
 
 .ui-btn.chat-page-rail-folder {
   appearance: none;
+  position: sticky;
+  top: 0;
+  z-index: 1;
   width: 100%;
   display: flex;
   align-items: center;
@@ -95,7 +98,7 @@
   height: auto;
   border: 0;
   border-radius: var(--radius-xs);
-  background: transparent;
+  background: var(--surface);
   color: var(--text-secondary);
   cursor: pointer;
   font: inherit;
@@ -142,6 +145,24 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+
+.ui-btn.chat-page-rail-more {
+  align-self: stretch;
+  justify-content: flex-start;
+  margin-left: 16px;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.ui-btn.chat-page-rail-more:hover,
+.ui-btn.chat-page-rail-more:focus-visible {
+  background: var(--surface-alt);
+  color: var(--text-secondary);
 }
 
 .chat-page-rail-item {

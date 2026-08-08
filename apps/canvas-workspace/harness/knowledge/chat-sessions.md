@@ -71,7 +71,10 @@ structurally stable while the selected conversation changes scope.
   never re-label them using the destination scope early.
 - Folder collapse state is user state. Reconciliation may initialize a new
   folder or expand the active folder, but must preserve manually expanded
-  siblings and must not mutate state merely because search filtered a folder.
+  siblings and manually collapsed active folders; it must not mutate state
+  merely because search filtered or refreshed a folder. Large folders preview
+  ten sessions with explicit progressive disclosure so one scope cannot push
+  the rest of the rail out of view; the current session stays in that preview.
 - While a conversation opens, keep the rail visible and mark only the pending
   row busy through `aria-busy`; do not dim the rail or swap in a transient
   spinner. The full-page body must not add an in-flow opening banner: even a

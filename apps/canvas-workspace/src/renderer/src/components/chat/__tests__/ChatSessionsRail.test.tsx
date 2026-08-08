@@ -176,6 +176,37 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(folders[1].getAttribute('aria-expanded')).toBe('true');
   });
 
+  it('does not reopen a manually collapsed active folder when the session list refreshes', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const renderRail = async () => {
+      await act(async () => {
+        root?.render(
+          <I18nProvider>
+            <ChatSessionsRail
+              allSessions={sessions.map((session) => ({
+                ...session,
+                isCurrent: session.sessionId === 'session-a',
+              }))}
+              onNewSession={vi.fn()}
+              onSelectSession={vi.fn()}
+            />
+          </I18nProvider>,
+        );
+      });
+    };
+
+    await renderRail();
+    let folders = Array.from(host.querySelectorAll<HTMLButtonElement>('.chat-page-rail-folder'));
+    await act(async () => folders[0].click());
+    expect(folders[0].getAttribute('aria-expanded')).toBe('false');
+
+    await renderRail();
+    folders = Array.from(host.querySelectorAll<HTMLButtonElement>('.chat-page-rail-folder'));
+    expect(folders[0].getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('always places Global Chat before workspace folders', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -245,6 +276,74 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(host.querySelectorAll('.chat-page-rail-item')).toHaveLength(2);
     expect(host.querySelector('.chat-page-rail-item > svg')).toBeNull();
     expect(host.querySelector('.chat-page-rail-item-meta')).toBeNull();
+  });
+
+  it('previews ten sessions in a large folder and lets the user show all or fewer', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const manySessions = Array.from({ length: 15 }, (_, index): UnifiedSession => ({
+      sessionId: `session-${index}`,
+      workspaceId: 'workspace-a',
+      workspaceName: 'Workspace A',
+      date: `2026-07-${String(30 - index).padStart(2, '0')}`,
+      messageCount: 1,
+      preview: `Conversation ${index + 1}`,
+      isCurrent: index === 0,
+    }));
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={manySessions}
+            onNewSession={vi.fn()}
+            onSelectSession={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(host.querySelectorAll('.chat-page-rail-item')).toHaveLength(10);
+    let more = host.querySelector<HTMLButtonElement>('.chat-page-rail-more');
+    expect(more).not.toBeNull();
+
+    await act(async () => more?.click());
+    expect(host.querySelectorAll('.chat-page-rail-item')).toHaveLength(15);
+
+    more = host.querySelector<HTMLButtonElement>('.chat-page-rail-more');
+    await act(async () => more?.click());
+    expect(host.querySelectorAll('.chat-page-rail-item')).toHaveLength(10);
+  });
+
+  it('keeps an older current session visible in a limited folder preview', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const manySessions = Array.from({ length: 15 }, (_, index): UnifiedSession => ({
+      sessionId: `session-${index}`,
+      workspaceId: 'workspace-a',
+      workspaceName: 'Workspace A',
+      date: `2026-07-${String(30 - index).padStart(2, '0')}`,
+      messageCount: 1,
+      preview: `Conversation ${index + 1}`,
+      isCurrent: index === 14,
+    }));
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={manySessions}
+            onNewSession={vi.fn()}
+            onSelectSession={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(host.querySelectorAll('.chat-page-rail-item')).toHaveLength(10);
+    expect(host.querySelector('.chat-page-rail-item--active')?.textContent).toContain('Conversation 15');
   });
 
   it('opens the active folder and collapses other folders by default', async () => {
