@@ -1066,10 +1066,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const visibleLiveTools = snapshot.liveTools.slice(-maxLiveTools);
   const hiddenLiveToolCount = snapshot.liveTools.length - visibleLiveTools.length;
 
-  // The streaming answer is the only live region without a fixed size, so it
-  // gets whatever rows the fixed ones leave over — never more. Ink flips into
-  // full-screen clear-and-replay for as long as the live output is taller than
-  // the terminal, which is the flicker this budget exists to prevent.
+  // The live region is the only part without a fixed size, so it gets whatever
+  // rows the fixed ones leave over — never more. Ink flips into full-screen
+  // clear-and-replay for as long as the live output is taller than the
+  // terminal, which is the flicker this budget exists to prevent.
   const liveToolRows = visibleLiveTools.length + (hiddenLiveToolCount > 0 ? 1 : 0);
   const statusRows = 2; // marginTop + the line itself
   // Border (2) + paddingX (2); the draft additionally carries a '› ' prefix.
@@ -1086,9 +1086,11 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       + (hiddenPromptLineCount > 0 ? 1 : 0)
       + fileSuggestions.length + slashSuggestions.length
       + wrappedRowCount(keyHint, terminalColumns);
-  // +1 for the live text's own marginTop, +1 so the frame stays strictly under
-  // the viewport rather than exactly at it.
-  const maxLiveTextRows = terminalRows - (statusRows + liveToolRows + footerRows + 2);
+  // +1 for the region's own marginTop, +1 so the frame stays strictly under the
+  // viewport rather than exactly at it. Running tools are billed first: they
+  // are the "what is happening now" signal and the answer can window.
+  const maxLiveRegionRows = Math.max(0, terminalRows - (statusRows + footerRows + 2));
+  const maxLiveTextRows = maxLiveRegionRows - liveToolRows;
   const liveTextWindow = useMemo(
     () => windowLiveTextLines(liveTextLines, maxLiveTextRows, terminalColumns),
     [liveTextLines, maxLiveTextRows, terminalColumns],

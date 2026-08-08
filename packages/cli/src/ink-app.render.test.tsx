@@ -82,14 +82,6 @@ const baseSnapshot: InkCliSnapshot = {
 const streamedAnswer = (lines: number): string =>
   Array.from({ length: lines }, (_, index) => `streamed line ${index}`).join('\n');
 
-const createController = (snapshot: InkCliSnapshot): InkCliController => ({
-  getSnapshot: () => snapshot,
-  submitInput: () => {},
-  requestStop: () => {},
-  shutdown: () => {},
-  subscribe: () => () => {},
-});
-
 /**
  * Physical rows of the tallest frame Ink wrote, ANSI escapes excluded. Ink
  * brackets each frame with cursor/sync writes, so the content frame is picked
@@ -105,11 +97,34 @@ const frameHeight = (frames: string[]): number => Math.max(
 );
 
 const renderFrame = async (snapshot: InkCliSnapshot, viewport: Viewport = DEFAULT_VIEWPORT) => {
+  const [height] = await renderSequence([snapshot], viewport);
+  return height;
+};
+
+/**
+ * Renders each snapshot in turn through one mounted app and returns the frame
+ * height after each — the app's own state (the live-region reservation) is
+ * carried across the sequence, which a fresh mount per snapshot would lose.
+ */
+const renderSequence = async (snapshots: InkCliSnapshot[], viewport: Viewport = DEFAULT_VIEWPORT) => {
   const ink = await import('ink');
   const stdout = new MockStdout(viewport.columns, viewport.rows);
+  let current = snapshots[0];
+  let publish: ((snapshot: InkCliSnapshot) => void) | undefined;
+  const controller: InkCliController = {
+    getSnapshot: () => current,
+    submitInput: () => {},
+    requestStop: () => {},
+    shutdown: () => {},
+    subscribe: listener => {
+      publish = listener;
+      return () => {};
+    },
+  };
+
   const instance = ink.render(
     <InkCliApp
-      controller={createController(snapshot)}
+      controller={controller}
       runtime={{
         Box: ink.Box,
         Text: ink.Text,
@@ -125,14 +140,23 @@ const renderFrame = async (snapshot: InkCliSnapshot, viewport: Viewport = DEFAUL
       stdin: new MockStdin() as never,
       exitOnCtrlC: false,
       patchConsole: false,
+      // Deliberately NOT the launcher's incrementalRendering: that writer emits
+      // per-line diffs, and these tests measure block geometry — a property of
+      // the React tree, not of which writer ink uses to paint it.
     },
   );
 
-  // Let React commit and Ink flush the frame.
-  await new Promise(resolve => setTimeout(resolve, 60));
-  const height = frameHeight(stdout.frames);
+  const heights: number[] = [];
+  for (const snapshot of snapshots) {
+    current = snapshot;
+    publish?.(snapshot);
+    // Let React commit and Ink flush the frame.
+    await new Promise(resolve => setTimeout(resolve, 60));
+    heights.push(frameHeight(stdout.frames.splice(0)));
+  }
+
   instance.unmount();
-  return height;
+  return heights;
 };
 
 describe('InkCliApp frame height', () => {

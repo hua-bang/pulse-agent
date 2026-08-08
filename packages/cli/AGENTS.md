@@ -33,7 +33,8 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 | Memory integration | `src/memory-integration.ts` |
 | Host tool registration | `src/runtime-tools.ts`, `src/canvas-runtime-tools.ts`, `src/sandbox/`, `../canvas-cli/AGENTS.md` |
 | Harbor/SWE-bench evaluation | `harness/tools/harbor/README.md`, `harness/tools/harbor/pulse_agent.py` |
-| Focused behavior tests | `src/*.test.ts`, `src/ink-app.render.test.tsx` (Ink frame height) |
+| Focused behavior tests | `src/*.test.ts` |
+| Ink frame height / terminal paint | `src/ink-app.render.test.tsx`, `src/ink-app.screen.test.tsx` |
 
 ## Local Constraints
 
@@ -68,6 +69,8 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 - Assistant text is two-tier: segments finalized because a tool call started are narration (`status: 'info'`, rendered gray, no markdown); only the segment that ends a run renders bright with markdown. The status line's TEXT stays stable during a run (`Running agent · <elapsed>`) — never write per-tool churn into `status`.
 - Terminal text math goes through `src/text-width.ts`: layout truncation measures DISPLAY COLUMNS (CJK/emoji are 2 wide) and cursor movement/deletion steps whole CODE POINTS. `String.length` is wrong for both — never clamp or step by it.
 - Usage counters are per-conversation state: `/new`, `/clear`, `/resume` and deleting the active session must all call `resetUsageCounters()`, or the status line keeps reporting the previous conversation's tokens.
+- The Ink host renders with `incrementalRendering: true`: Ink's default writer erases and repaints the ENTIRE live block on every frame (measured: ~2x the lines and bytes of the incremental writer over a streaming answer), and at 30fps that repaint of the status line and bordered composer is visible as shimmer. `src/ink-app.screen.test.tsx` pins that the incremental writer paints the same screen as the default one.
+- A live region that shrinks must be compensated by matching `<Static>` output, or the composer walks UP the screen and leaves dead rows below it. Ink writes static output in place of the erased live block, so the normal finalize-into-transcript path is already neutral — `src/ink-app.screen.test.tsx` emulates a terminal across a bridge-driven run and fails if the composer jumps up more than a row. Do not "fix" this with reserved padding: holding a high-water height pins the composer mid-run but voids the screen and produces a far bigger jump when the reservation is released.
 - Everything rendered BELOW `<Static>` must be bounded by terminal size on BOTH axes, and the axes are coupled — a row window is only correct if it either truncates on columns or charges each line its wrapped height. A frame taller than the viewport makes Ink wipe the screen and replay the whole transcript on EVERY frame until it shrinks back, which at streaming rate is the terminal flicker. `src/ink-app.render.test.tsx` pins the frame height against a mock TTY. Detail + current bounds: `harness/knowledge/live-region-bounding.md`.
 - Session files live under `~/.pulse-coder/sessions`; keep local runtime data out of source control and preserve session task-list metadata.
 - Slash command changes should preserve session persistence, queued input, abort handling, and the clarification flow.

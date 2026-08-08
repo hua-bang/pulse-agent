@@ -550,7 +550,7 @@ describe('Ink composer editing helpers', () => {
     const lines = ['a', 'b'];
     expect(windowLiveTextLines(lines, 0, 80)).toEqual({ lines: [], hiddenLineCount: 2 });
     expect(windowLiveTextLines(lines, -3, 80)).toEqual({ lines: [], hiddenLineCount: 2 });
-    // A single row can only carry the head.
+    // A single row would go entirely to the head, showing none of the answer.
     expect(windowLiveTextLines(lines, 1, 80)).toEqual({ lines: [], hiddenLineCount: 2 });
     expect(windowLiveTextLines([], 5, 80)).toEqual({ lines: [], hiddenLineCount: 0 });
   });

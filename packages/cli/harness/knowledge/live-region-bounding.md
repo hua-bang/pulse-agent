@@ -22,6 +22,32 @@ and the full answer still reaches scrollback when the run finalizes it into
 mock TTY and asserts the frame height stays under the viewport (it measured
 207 rows on a 24-row terminal before the bound existed).
 
+## Height is not the only thing that reads as instability
+
+Two other effects get reported as "the terminal jumps", and they have different
+causes and different fixes. Measure before treating either as a bound problem.
+
+**Repaint churn.** Ink's default writer erases the whole live block and
+repaints it on every frame — over a streaming answer that measured ~2x the
+lines and bytes of the incremental writer, and at 30fps the status line and
+bordered composer visibly shimmer. `ink-launcher.tsx` therefore renders with
+`incrementalRendering: true`, which rewrites only the lines that changed.
+
+**Composer drift.** The composer sits at the end of the output, so it moves up
+the screen whenever the live region shrinks without matching `<Static>` output,
+leaving dead rows below it. Ink already compensates the normal path: on a frame
+with static output it erases the live block, writes the static rows into that
+same space, then repaints the (shorter) block, so finalizing a streamed segment
+into the transcript is geometry-neutral. Measured over a bridge-driven run, the
+composer's total upward movement is 2 rows — it does not bounce.
+
+Reserving a high-water height and padding the difference looks like the fix and
+is not: it pins the composer mid-run, but it voids most of the screen (the
+transcript gets squeezed into whatever rows the padding leaves) and turns the
+release at run end into a single jump far larger than the drift it removed.
+Measured: 2 rows of drift without the reservation, 13 with it.
+`ink-app.screen.test.tsx` emulates a terminal and pins this.
+
 ## The two axes are coupled
 
 Rows and columns are not independent budgets. Ink's default `wrap='wrap'`
