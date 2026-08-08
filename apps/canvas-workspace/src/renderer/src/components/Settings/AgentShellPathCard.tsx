@@ -4,12 +4,12 @@ import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
 import { Button } from '../ui';
 
-interface AgentShellPathCardProps {
+interface Props {
   shellPath: ShellPathResult;
   onConfigured: () => Promise<void>;
 }
 
-const AgentShellPathCard = ({ shellPath, onConfigured }: AgentShellPathCardProps) => {
+export const AgentShellPathCard = ({ shellPath, onConfigured }: Props) => {
   const { notify } = useAppShell();
   const { language, t } = useI18n();
   const [configuring, setConfiguring] = useState(false);
@@ -71,5 +71,3 @@ const AgentShellPathCard = ({ shellPath, onConfigured }: AgentShellPathCardProps
     </div>
   );
 };
-
-export default AgentShellPathCard;
