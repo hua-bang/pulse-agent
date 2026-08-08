@@ -142,6 +142,40 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(host.querySelector('.chat-page-rail-item--active')?.textContent).toContain('Second conversation');
   });
 
+  it('preserves manually expanded folders when the current session changes', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const renderRail = async (value: UnifiedSession[]) => {
+      await act(async () => {
+        root?.render(
+          <I18nProvider>
+            <ChatSessionsRail
+              allSessions={value}
+              onNewSession={vi.fn()}
+              onSelectSession={vi.fn()}
+            />
+          </I18nProvider>,
+        );
+      });
+    };
+
+    await renderRail(sessions.map((session) => ({
+      ...session,
+      isCurrent: session.sessionId === 'session-a',
+    })));
+    let folders = Array.from(host.querySelectorAll<HTMLButtonElement>('.chat-page-rail-folder'));
+    await act(async () => folders[1].click());
+    expect(folders[1].getAttribute('aria-expanded')).toBe('true');
+
+    await renderRail(sessions.map((session) => ({
+      ...session,
+      isCurrent: session.sessionId === 'session-b',
+    })));
+    folders = Array.from(host.querySelectorAll<HTMLButtonElement>('.chat-page-rail-folder'));
+    expect(folders[1].getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('always places Global Chat before workspace folders', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -160,6 +194,64 @@ describe('ChatSessionsRail workspace tree', () => {
     });
 
     expect(host.querySelector('.chat-page-rail-folder-name')?.textContent).toBe('Global Chat');
+  });
+
+  it('orders same-day sessions by their precise update time', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={[
+              { ...sessions[0], sessionId: 'session-z', preview: 'Older', updatedAt: 100 },
+              { ...sessions[0], sessionId: 'session-a', preview: 'Newer', updatedAt: 200 },
+            ]}
+            onNewSession={vi.fn()}
+            onSelectSession={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(Array.from(
+      host.querySelectorAll('.chat-page-rail-item-text'),
+      (node) => node.textContent,
+    )).toEqual(['Newer', 'Older']);
+  });
+
+  it('shows recency and message count so repeated previews remain distinguishable', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={[
+              { ...sessions[0], sessionId: 'repeat-a', preview: 'Repeated', updatedAt: 100, messageCount: 2 },
+              { ...sessions[0], sessionId: 'repeat-b', preview: 'Repeated', updatedAt: 200, messageCount: 9 },
+            ]}
+            onNewSession={vi.fn()}
+            onSelectSession={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    const metadata = Array.from(
+      host.querySelectorAll('.chat-page-rail-item-meta'),
+      (node) => node.textContent,
+    );
+    expect(metadata).toHaveLength(2);
+    expect(metadata).toEqual(expect.arrayContaining([
+      expect.stringContaining('2 msgs'),
+      expect.stringContaining('9 msgs'),
+    ]));
+    expect(host.querySelectorAll('.chat-page-rail-item-meta time')).toHaveLength(2);
   });
 
   it('opens the active folder and collapses other folders by default', async () => {
@@ -330,5 +422,33 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(host.querySelector<HTMLInputElement>('.chat-page-rail-search')?.disabled).toBe(true);
     expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-folder')?.disabled).toBe(true);
     expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-item')?.disabled).toBe(true);
+  });
+
+  it('keeps the list visible and marks the selected conversation busy while it opens', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={sessions.map((session) => ({
+              ...session,
+              isCurrent: session.sessionId === 'session-a',
+            }))}
+            disabled
+            pendingSessionKey="workspace-a:session-a"
+            onNewSession={vi.fn()}
+            onSelectSession={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(host.querySelector('.chat-page-rail')?.getAttribute('aria-busy')).toBe('true');
+    expect(host.querySelector('.chat-page-rail-item--active')?.getAttribute('aria-busy')).toBe('true');
+    expect(host.querySelector('.chat-page-rail-item--active .chat-spin')).not.toBeNull();
+    expect(host.textContent).toContain('Second conversation');
   });
 });

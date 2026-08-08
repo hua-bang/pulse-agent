@@ -11,6 +11,7 @@ import {
   invalidateChatConversationMutation,
   type ChatConversationMutationRef,
 } from './chatConversationMutation';
+import { partitionSessionGroups } from './sessionListGroups';
 
 interface UseChatSessionsOptions {
   agentScope: AgentScope;
@@ -79,6 +80,10 @@ export function useChatSessions({
   );
   const [otherSessions, setOtherSessions] = useState<OtherWorkspaceSession[]>(
     () => sessionsCache.get(scopeKey)?.otherSessions ?? [],
+  );
+  // Keep list ownership explicit while a cross-scope thread is opening.
+  const [sessionsStoreId, setSessionsStoreId] = useState(
+    () => scopeSessionStoreId(agentScope),
   );
   const [currentScopeName, setCurrentScopeName] = useState<string | null>(null);
   // Avoid an empty-state flash before an eager first list fetch.
@@ -217,51 +222,37 @@ export function useChatSessions({
     const token = ++sessionListRequestRef.current;
     setSessionsLoading(true);
     try {
+      const currentStoreId = scopeSessionStoreId(agentScope);
       const workspaceNameMap: Record<string, string> = {};
       for (const workspace of allWorkspaces ?? []) {
         workspaceNameMap[workspace.id] = workspace.name;
       }
-      const [result, allResult] = await Promise.all([
-        window.canvasWorkspace.agent.listSessions({ scope: agentScope }),
-        allWorkspaces
-          ? window.canvasWorkspace.agent.listAllSessions(workspaceNameMap)
-          : Promise.resolve(null),
-      ]);
+      // The all-sessions response already contains the current scope. Asking
+      // for both APIs made the full-page rail scan that store redundantly and
+      // then reconcile two snapshots from the same mutation boundary.
+      const result = allWorkspaces
+        ? null
+        : await window.canvasWorkspace.agent.listSessions({ scope: agentScope });
+      const allResult = allWorkspaces
+        ? await window.canvasWorkspace.agent.listAllSessions(workspaceNameMap)
+        : null;
       if (token !== sessionListRequestRef.current) return;
       let nextSessions: AgentSessionInfo[] | undefined;
       let nextOtherSessions: OtherWorkspaceSession[] | undefined;
       let nextCurrentScopeName: string | null | undefined;
 
-      if (result.ok && result.sessions) {
+      if (result?.ok && result.sessions) {
         nextSessions = result.sessions;
         setActiveSessionId(result.sessions.find(session => session.isCurrent)?.sessionId ?? null);
       }
 
       if (allResult) {
         if (allResult.ok && allResult.groups) {
-          nextCurrentScopeName = null;
-          // Groups are keyed by session-STORE id, which is the workspace id
-          // only for workspace scopes; global chat and each scheduled task
-          // have their own sentinel store. Dedupe on the store id so the
-          // current scope is never listed twice.
-          const currentStoreId = scopeSessionStoreId(agentScope);
-          const flattened: OtherWorkspaceSession[] = [];
-          for (const group of allResult.groups) {
-            if (group.workspaceId === currentStoreId) {
-              nextCurrentScopeName = group.workspaceName;
-              continue;
-            }
-            for (const session of group.sessions) {
-              flattened.push({
-                ...session,
-                sourceWorkspaceId: group.workspaceId,
-                workspaceName: group.workspaceName,
-              });
-            }
-          }
-
-          flattened.sort((left, right) => right.date.localeCompare(left.date));
-          nextOtherSessions = flattened;
+          const partitioned = partitionSessionGroups(allResult.groups, currentStoreId);
+          nextSessions = partitioned.sessions;
+          nextOtherSessions = partitioned.otherSessions;
+          nextCurrentScopeName = partitioned.currentScopeName;
+          setActiveSessionId(nextSessions.find(session => session.isCurrent)?.sessionId ?? null);
         }
       } else {
         nextOtherSessions = [];
@@ -270,7 +261,10 @@ export function useChatSessions({
       // Commit the two halves together. Updating `sessions` before
       // `otherSessions` briefly duplicated the promoted session and rebuilt
       // the folder tree around the pointer.
-      if (nextSessions) setSessions(nextSessions);
+      if (nextSessions) {
+        setSessions(nextSessions);
+        setSessionsStoreId(scopeSessionStoreId(agentScope));
+      }
       if (nextOtherSessions) setOtherSessions(nextOtherSessions);
       if (nextCurrentScopeName !== undefined) {
         setCurrentScopeName(nextCurrentScopeName);
@@ -479,6 +473,7 @@ export function useChatSessions({
   return {
     adoptActiveSession,
     otherSessions,
+    sessionsStoreId,
     activeSessionId,
     currentScopeName,
     deleteSession,

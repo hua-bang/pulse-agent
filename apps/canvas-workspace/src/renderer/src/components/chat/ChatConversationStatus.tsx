@@ -5,6 +5,8 @@ import './ChatConversationStatus.css';
 
 interface ChatConversationStatusProps {
   sessionLoading?: boolean;
+  /** Where session-opening feedback is presented for this surface. */
+  sessionLoadingFeedback?: 'inline' | 'external';
   /**
    * Whether the thread already has messages on screen. When it doesn't,
    * `ChatMessages` renders `ChatThreadSkeleton` in its place — which already
@@ -23,6 +25,7 @@ interface ChatConversationStatusProps {
 
 export const ChatConversationStatus = ({
   sessionLoading = false,
+  sessionLoadingFeedback = 'inline',
   hasMessages,
   busyElsewhere = false,
   sessionError,
@@ -31,7 +34,9 @@ export const ChatConversationStatus = ({
   disabled = false,
 }: ChatConversationStatusProps) => {
   const { t } = useI18n();
-  const showOpeningBanner = sessionLoading && hasMessages;
+  const showOpeningBanner = sessionLoading
+    && sessionLoadingFeedback === 'inline'
+    && hasMessages;
   if (!showOpeningBanner && !busyElsewhere && !sessionError && !conversationError) return null;
 
   return (

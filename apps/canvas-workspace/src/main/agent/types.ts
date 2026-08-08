@@ -333,9 +333,12 @@ export interface CrossWorkspaceSessionGroup {
   sessions: Array<{
     sessionId: string;
     date: string;
+    updatedAt: number;
     messageCount: number;
     preview: string;
     isCurrent: boolean;
+    title?: string;
+    pinned?: boolean;
   }>;
 }
 

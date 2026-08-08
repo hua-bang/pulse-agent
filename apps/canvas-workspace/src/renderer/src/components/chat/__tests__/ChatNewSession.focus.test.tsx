@@ -40,6 +40,7 @@ const RailHarness = ({ createSession, initiallyAdopted = false }: RailHarnessPro
     otherSessions: [],
     selectedSessionKey: null,
     sessions: [],
+    sessionsStoreId: 'workspace-a',
     disabled: false,
     focusInput: () => composerRef.current?.focus(),
     handleNewSession,

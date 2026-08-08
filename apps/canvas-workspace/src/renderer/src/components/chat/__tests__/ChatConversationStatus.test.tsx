@@ -48,6 +48,27 @@ describe('ChatConversationStatus', () => {
     act(() => root.unmount());
   });
 
+  it('does not insert an opening banner when the session rail already shows the pending conversation', () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    act(() => root.render(
+      <I18nProvider>
+        <ChatConversationStatus
+          sessionLoading
+          hasMessages
+          sessionLoadingFeedback="external"
+          sessionError={{ message: 'Session unavailable' }}
+        />
+      </I18nProvider>,
+    ));
+
+    expect(host.querySelector('[role="status"]')).toBeNull();
+    expect(host.textContent).not.toContain('Opening conversation');
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Session unavailable');
+
+    act(() => root.unmount());
+  });
+
   it('shows a conversation update failure without exposing implementation details', () => {
     const host = document.createElement('div');
     const root = createRoot(host);

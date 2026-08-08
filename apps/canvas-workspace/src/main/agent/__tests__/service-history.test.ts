@@ -86,11 +86,13 @@ describe('CanvasAgentService history', () => {
   });
 
   it('keeps an active empty-chat scope in the unified session groups', async () => {
-    vi.spyOn(SessionStore, 'listAllWorkspaceSessions').mockResolvedValue([]);
+    const scan = vi.spyOn(SessionStore, 'listAllWorkspaceSessions').mockResolvedValue([]);
     const service = new CanvasAgentService();
     await service.getHistoryForScope({ kind: 'global' });
 
     const groups = await service.listAllSessions({});
+
+    expect(scan).toHaveBeenCalledWith(new Set(['__global_chat__']));
 
     expect(groups).toEqual([{
       workspaceId: '__global_chat__',

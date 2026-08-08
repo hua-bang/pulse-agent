@@ -6,6 +6,7 @@ import type { AgentChatMessage, AgentSessionInfo } from '../../../types';
 import type { AgentScope } from '../types';
 import { I18nProvider } from '../../../i18n';
 import { resetChatSessionsCacheForTests, useChatSessions } from './useChatSessions';
+import { useChatPageSessionRail } from './useChatPageSessionRail';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -38,7 +39,7 @@ function makeAgentMocks() {
     listSessions: vi.fn<[], Promise<{ ok: boolean; sessions: AgentSessionInfo[] }>>(
       async () => ({ ok: true, sessions: [] }),
     ),
-    listAllSessions: vi.fn(async () => ({ ok: true, groups: [] })),
+    listAllSessions: vi.fn(async (): Promise<{ ok: boolean; groups: any[] }> => ({ ok: true, groups: [] })),
   };
 }
 
@@ -60,6 +61,7 @@ function message(content: string): AgentChatMessage {
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 let latest: Hook | null = null;
+let latestRailWorkspaceIds: string[] = [];
 let onMessagesLoaded: ReturnType<typeof vi.fn>;
 let agent: ReturnType<typeof makeAgentMocks>;
 
@@ -113,10 +115,119 @@ afterEach(() => {
   root = null;
   host = null;
   latest = null;
+  latestRailWorkspaceIds = [];
   vi.restoreAllMocks();
 });
 
 describe('useChatSessions — session detail loading', () => {
+
+  it('keeps the unified rail grouped by its committed scopes during a cross-scope thread load', async () => {
+    const workspace = { id: 'workspace-a', name: 'Workspace A' };
+    const thread = deferred<ThreadResult>();
+    agent.listSessions.mockResolvedValue({
+      ok: true,
+      sessions: [{
+        sessionId: 'global-session',
+        date: '2026-08-08',
+        messageCount: 1,
+        preview: 'Global session',
+        isCurrent: true,
+      }],
+    });
+    agent.listAllSessions.mockResolvedValue({
+      ok: true,
+      groups: [
+        {
+          workspaceId: '__global_chat__',
+          workspaceName: 'Global Chat',
+          sessions: [{
+            sessionId: 'global-session',
+            date: '2026-08-08',
+            messageCount: 1,
+            preview: 'Global session',
+            isCurrent: true,
+          }],
+        },
+        {
+          workspaceId: workspace.id,
+          workspaceName: workspace.name,
+          sessions: [{
+            sessionId: 'workspace-session',
+            date: '2026-08-07',
+            messageCount: 1,
+            preview: 'Workspace session',
+            isCurrent: false,
+          }],
+        },
+      ],
+    });
+    agent.loadSession.mockReturnValue(thread.promise);
+    const workspaces = [workspace];
+    const focusInput = vi.fn();
+    const onSelectSession = vi.fn();
+
+    const RailProbe = ({ scope, pending }: { scope: AgentScope; pending: boolean }) => {
+      const state = useChatSessions({
+        agentScope: scope,
+        allWorkspaces: workspaces,
+        onMessagesLoaded,
+        eagerLoad: true,
+        skipInitialHistory: pending,
+      });
+      latest = state;
+      const rail = useChatPageSessionRail({
+        agentScope: scope,
+        allWorkspaces: workspaces,
+        currentScopeName: state.currentScopeName,
+        sessionsLoading: state.sessionsLoading,
+        otherSessions: state.otherSessions,
+        selectedSessionKey: pending ? `${workspace.id}:workspace-session` : '__global_chat__:global-session',
+        sessions: state.sessions,
+        sessionsStoreId: state.sessionsStoreId,
+        disabled: false,
+        focusInput,
+        handleNewSession: state.handleNewSession,
+        onSelectSession,
+        renameSession: state.renameSession,
+        deleteSession: state.deleteSession,
+        toggleSessionPinned: state.toggleSessionPinned,
+      });
+      latestRailWorkspaceIds = [...new Set(rail.allSessions.map((session) => session.workspaceId))];
+      return null;
+    };
+
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <RailProbe scope={{ kind: 'global' }} pending={false} />
+        </I18nProvider>,
+      );
+    });
+    expect(latestRailWorkspaceIds.sort()).toEqual(['__global_chat__', workspace.id].sort());
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <RailProbe scope={{ kind: 'workspace', workspaceId: workspace.id }} pending />
+        </I18nProvider>,
+      );
+    });
+    act(() => { void latest!.handleLoadSession('workspace-session'); });
+
+    expect(latestRailWorkspaceIds.sort()).toEqual(['__global_chat__', workspace.id].sort());
+
+    await act(async () => {
+      thread.resolve({
+        ok: true,
+        activeSessionId: 'workspace-session',
+        messages: [message('workspace thread')],
+      });
+      await thread.promise;
+    });
+  });
   it('is loading from the first paint until the mount history fetch settles', async () => {
     const history = deferred<ThreadResult>();
     agent.getHistory.mockReturnValue(history.promise);
@@ -305,6 +416,59 @@ describe('useChatSessions — session detail loading', () => {
     expect(agent.listSessions).toHaveBeenCalledTimes(2);
   });
 
+  it('uses the all-sessions response as the single list source for the full-page rail', async () => {
+    const workspaces = [{ id: 'workspace-a', name: 'Workspace A' }];
+    const scope = { kind: 'global' } as const;
+    agent.listAllSessions.mockResolvedValue({
+      ok: true,
+      groups: [
+        {
+          workspaceId: '__global_chat__',
+          workspaceName: 'Global Chat',
+          sessions: [{
+            sessionId: 'global-current',
+            date: '2026-08-08',
+            messageCount: 1,
+            preview: 'Global current',
+            isCurrent: true,
+          }],
+        },
+        {
+          workspaceId: 'workspace-a',
+          workspaceName: 'Workspace A',
+          sessions: [{
+            sessionId: 'workspace-session',
+            date: '2026-08-07',
+            messageCount: 1,
+            preview: 'Workspace session',
+            isCurrent: false,
+          }],
+        },
+      ],
+    });
+
+    const FullPageProbe = () => {
+      latest = useChatSessions({
+        agentScope: scope,
+        allWorkspaces: workspaces,
+        onMessagesLoaded,
+        eagerLoad: true,
+      });
+      return null;
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<I18nProvider><FullPageProbe /></I18nProvider>);
+    });
+
+    expect(agent.listAllSessions).toHaveBeenCalledTimes(1);
+    expect(agent.listSessions).not.toHaveBeenCalled();
+    expect(latest?.sessions.map((session) => session.sessionId)).toEqual(['global-current']);
+    expect(latest?.otherSessions.map((session) => session.sessionId)).toEqual(['workspace-session']);
+  });
+
   it('adopts the replacement thread after deleting the active session', async () => {
     await mount();
     onMessagesLoaded.mockClear();
@@ -464,12 +628,10 @@ describe('useChatSessions — session detail loading', () => {
     expect(onMessagesLoaded).toHaveBeenCalledWith([]);
   });
 
-  it('commits the current and cross-workspace session lists atomically', async () => {
-    const currentList = deferred<any>();
+  it('commits the unified current and cross-workspace session response atomically', async () => {
     const allList = deferred<any>();
     const listWorkspaces = [{ id: 'workspace-a', name: 'Workspace A' }];
     const listScope = { kind: 'global' } as const;
-    agent.listSessions.mockReturnValue(currentList.promise);
     agent.listAllSessions.mockReturnValue(allList.promise);
     const ListProbe = () => {
       latest = useChatSessions({
@@ -487,16 +649,6 @@ describe('useChatSessions — session detail loading', () => {
       root?.render(<I18nProvider><ListProbe /></I18nProvider>);
     });
 
-    currentList.resolve({
-      ok: true,
-      sessions: [{
-        sessionId: 'global-a',
-        date: '2026-07-29',
-        messageCount: 1,
-        preview: 'Global A',
-        isCurrent: true,
-      }],
-    });
     await Promise.resolve();
     expect(latest?.sessions).toEqual([]);
     expect(latest?.otherSessions).toEqual([]);
@@ -504,18 +656,31 @@ describe('useChatSessions — session detail loading', () => {
     await act(async () => {
       allList.resolve({
         ok: true,
-        groups: [{
-          workspaceId: 'workspace-a',
-          workspaceName: 'Workspace A',
-          sessions: [{
-            sessionId: 'workspace-a-1',
-            date: '2026-07-29',
-            messageCount: 1,
-            preview: 'Workspace A session',
-          }],
-        }],
+        groups: [
+          {
+            workspaceId: '__global_chat__',
+            workspaceName: 'Global Chat',
+            sessions: [{
+              sessionId: 'global-a',
+              date: '2026-07-29',
+              messageCount: 1,
+              preview: 'Global A',
+              isCurrent: true,
+            }],
+          },
+          {
+            workspaceId: 'workspace-a',
+            workspaceName: 'Workspace A',
+            sessions: [{
+              sessionId: 'workspace-a-1',
+              date: '2026-07-29',
+              messageCount: 1,
+              preview: 'Workspace A session',
+            }],
+          },
+        ],
       });
-      await Promise.all([currentList.promise, allList.promise]);
+      await allList.promise;
     });
 
     expect(latest?.sessions).toHaveLength(1);

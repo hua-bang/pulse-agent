@@ -17,11 +17,7 @@ import {
   readSessionMetadata,
   removeSessionMetadata,
 } from './session-metadata';
-import {
-  archiveSortKey,
-  scanAllWorkspaceSessions,
-  type AgentSessionListEntry,
-} from './session-store-scan';
+import { archiveSortKey, scanAllWorkspaceSessions, sessionUpdatedAt, type AgentSessionListEntry } from './session-store-scan';
 export type { AgentSessionListEntry } from './session-store-scan';
 // Lazy so tests can redirect storage through the environment.
 const storeDir = (): string =>
@@ -173,6 +169,7 @@ export class SessionStore {
     return [{
       sessionId: current.sessionId,
       date: current.startedAt.slice(0, 10),
+      updatedAt: sessionUpdatedAt(current, await archiveSortKey(this.currentPath, '')),
       messageCount: current.messages.length,
       preview: firstUserMessage ? sessionPreview(firstUserMessage.content) : '',
       ...listedSessionMetadata(metadata, current.sessionId),
@@ -209,6 +206,7 @@ export class SessionStore {
       const sessionsById = new Map<string, {
         sessionId: string;
         date: string;
+        updatedAt: number;
         messageCount: number;
         preview: string;
         title?: string;
@@ -233,6 +231,7 @@ export class SessionStore {
           const session = {
             sessionId: data.sessionId,
             date: data.startedAt?.slice(0, 10) || file.replace('.json', '').slice(0, 10),
+            updatedAt: sessionUpdatedAt(data, sortKey),
             messageCount: data.messages.length,
             preview: firstUserMsg ? sessionPreview(firstUserMsg.content) : '',
             ...listedSessionMetadata(metadata, data.sessionId),
@@ -248,7 +247,7 @@ export class SessionStore {
       }
 
       return Array.from(sessionsById.values())
-        .sort((a, b) => b.sortKey - a.sortKey || b.date.localeCompare(a.date))
+        .sort((a, b) => b.updatedAt - a.updatedAt || b.sortKey - a.sortKey || b.date.localeCompare(a.date))
         .map(({ sortKey: _sortKey, ...session }) => session);
     } catch {
       return [];
@@ -326,8 +325,8 @@ export class SessionStore {
   // ─── Cross-workspace scanning ────────────────────────────────
 
   /** Scan all listable session stores. */
-  static listAllWorkspaceSessions() {
-    return scanAllWorkspaceSessions(storeDir());
+  static listAllWorkspaceSessions(excludedStoreIds?: ReadonlySet<string>) {
+    return scanAllWorkspaceSessions(storeDir(), excludedStoreIds);
   }
 
   /** Read a store's on-disk current id without activating an agent. */

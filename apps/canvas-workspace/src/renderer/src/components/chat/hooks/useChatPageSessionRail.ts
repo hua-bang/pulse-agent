@@ -18,6 +18,8 @@ interface Options {
   otherSessions: OtherWorkspaceSession[];
   selectedSessionKey: string | null;
   sessions: AgentSessionInfo[];
+  sessionsStoreId: string;
+  pendingSessionKey?: string | null;
   disabled: boolean;
   focusInput: () => void;
   handleNewSession: () => Promise<{ ok: boolean }>;
@@ -36,6 +38,8 @@ export const useChatPageSessionRail = ({
   otherSessions,
   selectedSessionKey,
   sessions,
+  sessionsStoreId,
+  pendingSessionKey,
   disabled,
   focusInput,
   handleNewSession,
@@ -53,6 +57,7 @@ export const useChatPageSessionRail = ({
     otherSessions,
     selectedSessionKey,
     sessions,
+    sessionsStoreId,
   });
   const onNewSession = useCallback(async () => {
     if (disabled) return;
@@ -82,6 +87,7 @@ export const useChatPageSessionRail = ({
     allSessions,
     loading: sessionsLoading,
     disabled,
+    pendingSessionKey,
     onNewSession,
     onSelectSession: onSelect,
     onRenameSession: onRename,

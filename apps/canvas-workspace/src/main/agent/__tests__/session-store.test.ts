@@ -325,6 +325,29 @@ describe('SessionStore', () => {
     });
   });
 
+  it('uses the exact message time for recency even when a copied archive has a newer mtime', async () => {
+    const workspaceId = 'ws-recency';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    const exactUpdatedAt = Date.now() + 60_000;
+    store.addMessage({ role: 'user', content: 'first', timestamp: exactUpdatedAt });
+    await store.startSession();
+
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    const [archiveFile] = await fs.readdir(archiveDir);
+    const copiedAt = exactUpdatedAt + 60_000;
+    await fs.utimes(
+      join(archiveDir, archiveFile),
+      new Date(copiedAt),
+      new Date(copiedAt),
+    );
+
+    const listed = (await new SessionStore(workspaceId).listArchivedSessions())
+      .find((session) => session.sessionId === sessionId);
+    expect(listed?.updatedAt).toBe(exactUpdatedAt);
+  });
+
   it('persists pin and unpin state for an archived session', async () => {
     const store = new SessionStore('ws-pin');
     await store.startSession();

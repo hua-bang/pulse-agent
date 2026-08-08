@@ -6,7 +6,7 @@ import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore,
 import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
 import { scheduledTaskTitles } from './scheduled-session-names';
 import { searchSessionTitles } from './session-title-search';
-import { appendActiveSessionGroups } from './active-session-groups';
+import { appendActiveSessionGroups, scopeFromServiceKey } from './active-session-groups';
 import { ScopeActivationGate } from './scope-activation-gate';
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
 import type { ResolvedCanvasModel } from './model/config';
@@ -323,7 +323,11 @@ export class CanvasAgentService {
   async listAllSessions(
     workspaceNames: Record<string, string>,
   ): Promise<CrossWorkspaceSessionGroup[]> {
-    const diskGroups = await SessionStore.listAllWorkspaceSessions();
+    // Active agents supply the freshest list; do not parse their stores twice.
+    const activeStoreIds = new Set(Array.from(
+      this.agents.keys(), key => scopeSessionStoreId(scopeFromServiceKey(key)),
+    ));
+    const diskGroups = await SessionStore.listAllWorkspaceSessions(activeStoreIds);
     const groups: CrossWorkspaceSessionGroup[] = [];
     const scheduledTitles = await scheduledTaskTitles();
     const includedStoreIds = new Set<string>();
@@ -361,11 +365,12 @@ export class CanvasAgentService {
       workspaceNames,
     });
 
-    // Sort: ensure workspaces with more recent sessions come first
     groups.sort((a, b) => {
-      const aDate = a.sessions[0]?.date ?? '';
-      const bDate = b.sessions[0]?.date ?? '';
-      return bDate.localeCompare(aDate);
+      const aSession = a.sessions[0];
+      const bSession = b.sessions[0];
+      const aUpdatedAt = aSession?.updatedAt ?? (Date.parse(aSession?.date ?? '') || 0);
+      const bUpdatedAt = bSession?.updatedAt ?? (Date.parse(bSession?.date ?? '') || 0);
+      return bUpdatedAt - aUpdatedAt;
     });
 
     return groups;

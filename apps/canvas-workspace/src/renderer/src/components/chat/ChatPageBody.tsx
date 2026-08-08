@@ -196,7 +196,7 @@ export const ChatPageBody = ({
     retrySession,
     selectMention,
     sendMessage,
-    sessions, sessionsLoading, sessionLoading,
+    sessions, sessionsLoading, sessionsStoreId, sessionLoading,
     sessionError,
     setClarifyInput,
     setMentionIndex,
@@ -253,10 +253,13 @@ export const ChatPageBody = ({
   }, [onWorkspaceContextRequest, workspaceId]);
 
   useEffect(() => {
-    if (!sessionLoading && activeSessionId) {
-      onActiveSessionResolved?.(activeSessionId, scopeId);
+    // Do not let the previous scope's active id overwrite the synchronously
+    // selected rail key in that render gap. Once the intent is consumed, the
+    // committed list owner is the authoritative store for this id.
+    if (!pendingSessionId && !sessionLoading && activeSessionId) {
+      onActiveSessionResolved?.(activeSessionId, sessionsStoreId);
     }
-  }, [activeSessionId, onActiveSessionResolved, scopeId, sessionLoading]);
+  }, [activeSessionId, onActiveSessionResolved, pendingSessionId, sessionLoading, sessionsStoreId]);
 
   const retrySessionTransition = useChatPagePendingSession({
     busyElsewhere, handleLoadSession, onJumpToSession, onSessionConsumed,
@@ -378,6 +381,8 @@ export const ChatPageBody = ({
     otherSessions,
     selectedSessionKey,
     sessions,
+    sessionsStoreId,
+    pendingSessionKey: sessionLoading ? selectedSessionKey : null,
     disabled: sessionInteractionDisabled,
     focusInput,
     handleNewSession,
@@ -413,7 +418,7 @@ export const ChatPageBody = ({
         <ChatView
           className="chat-page-body"
           banner={<>
-            <ChatConversationStatus
+            <ChatConversationStatus sessionLoadingFeedback="external"
               sessionLoading={sessionLoading}
               hasMessages={messages.length > 0}
               busyElsewhere={busyElsewhere}
