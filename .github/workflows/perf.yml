@@ -340,6 +340,9 @@ jobs:
         env:
           CSC_FOR_PULL_REQUEST: "true"
 
+      - name: Verify packaged runtime imports
+        run: node apps/canvas-workspace/harness/tools/smoke-packaged-agent-tooling.mjs --runtime-import-only
+
       - name: Evaluate package Gates
         run: pnpm --filter canvas-workspace perf:package
 

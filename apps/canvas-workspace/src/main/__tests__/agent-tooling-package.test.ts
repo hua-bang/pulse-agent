@@ -10,12 +10,21 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json
 };
 
 describe('packaged agent tooling', () => {
-  it('builds and bundles the existing pulse-canvas CLI and its complete skills tree', () => {
+  it('rebuilds workspace runtimes before bundling the CLI and its complete skills tree', () => {
+    expect(packageJson.scripts?.['prepare:workspace-runtime']).toContain(
+      'pnpm --filter pulse-coder-engine build',
+    );
+    expect(packageJson.scripts?.['prepare:workspace-runtime']).toContain(
+      'pnpm --filter pulse-coder-agent-teams build',
+    );
     expect(packageJson.scripts?.['prepare:agent-tooling']).toContain(
       'pnpm --filter @pulse-coder/canvas-cli build',
     );
+    expect(packageJson.scripts?.['prepare:package']).toBe(
+      'pnpm run prepare:workspace-runtime && pnpm run prepare:agent-tooling',
+    );
     for (const script of ['package', 'package:mac', 'package:mac:arm64', 'package:win', 'package:linux']) {
-      expect(packageJson.scripts?.[script]).toMatch(/^pnpm run prepare:agent-tooling && /);
+      expect(packageJson.scripts?.[script]).toMatch(/^pnpm run prepare:package && /);
     }
     expect(packageJson.build?.extraResources).toEqual(expect.arrayContaining([
       expect.objectContaining({

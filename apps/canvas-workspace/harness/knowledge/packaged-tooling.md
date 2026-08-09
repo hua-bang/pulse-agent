@@ -120,6 +120,21 @@ appends one marked `~/.pulse-coder/bin` entry (for example
 "$HOME/.pulse-coder/bin"` for fish) only after a user click, never during
 automatic install/update.
 
+## Package workspace runtimes from fresh builds
+
+Electron Builder packages the built `dist` entrypoints of workspace runtime
+dependencies. Every `package:*` command must therefore run
+`prepare:package`, which rebuilds `pulse-coder-engine`,
+`pulse-coder-agent-teams`, and the bundled Canvas CLI before Electron is
+built. Skipping that preparation can ship an ignored, stale Engine `dist`
+whose external imports no longer match current package metadata.
+
+The packaged-tooling smoke imports the Engine entry directly from
+`app.asar` with the packaged Electron runtime before launching the app. CI
+runs that import preflight after building the macOS package, so a missing
+runtime dependency fails with its exact module-resolution error instead of
+surfacing later as a startup timeout.
+
 ## Key files
 
 - `src/main/files/agent-tooling-manager.ts` — `AgentToolingManager` /
