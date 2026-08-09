@@ -27,6 +27,12 @@ Three flags look similar and are not interchangeable.
   generating". That one drives the three-dot `.chat-loading` indicator,
   never the skeleton.
 
+`ChatThreadSkeleton` is delayed to avoid a flash, then stays visible for a
+short minimum transition window after it appears. The messages callback and
+the `sessionLoading` state can commit in separate renders, so message arrival
+must not hide the skeleton by itself; only the session-loading transition may
+start its removal timer.
+
 `sessionsLoading` and `sessionLoading` both live in `hooks/useChatSessions.ts`
 (`src/renderer/src/components/chat/hooks/useChatSessions.ts`). Do not
 conflate them.

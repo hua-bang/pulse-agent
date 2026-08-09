@@ -33,6 +33,8 @@ interface SidebarHeaderProps {
   onEnterScheduled: () => void;
   nodesEnabled: boolean;
   graphEnabled: boolean;
+  skillsEnabled: boolean;
+  scheduledEnabled: boolean;
   pluginNavItems: ReadonlyArray<NavItem>;
   onNavigate: (path: string) => void;
   showAddMenu: boolean;
@@ -54,6 +56,8 @@ export const SidebarHeader = ({
   onEnterScheduled,
   nodesEnabled,
   graphEnabled,
+  skillsEnabled,
+  scheduledEnabled,
   pluginNavItems,
   onNavigate,
   showAddMenu,
@@ -140,28 +144,32 @@ export const SidebarHeader = ({
             <span className="sidebar-nav-label">{t('sidebar.graph')}</span>
           </button>
         )}
-        <Button
-          variant="secondary"
-          className={`sidebar-nav-item${activeView === 'skills' ? ' sidebar-nav-item--active' : ''}`}
-          onClick={onEnterSkills}
-          title={t('sidebar.skillsTitle')}
-        >
-          <span className="sidebar-nav-icon">
-            <PuzzlePiece size={14} />
-          </span>
-          <span className="sidebar-nav-label">{t('sidebar.skills')}</span>
-        </Button>
-        <Button
-          variant="secondary"
-          className={`sidebar-nav-item${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-nav-item--active' : ''}`}
-          onClick={onEnterScheduled}
-          title={t('sidebar.scheduledTitle')}
-        >
-          <span className="sidebar-nav-icon">
-            <CalendarBlank size={14} />
-          </span>
-          <span className="sidebar-nav-label">{t('sidebar.scheduled')}</span>
-        </Button>
+        {skillsEnabled && (
+          <Button
+            variant="secondary"
+            className={`sidebar-nav-item${activeView === 'skills' ? ' sidebar-nav-item--active' : ''}`}
+            onClick={onEnterSkills}
+            title={t('sidebar.skillsTitle')}
+          >
+            <span className="sidebar-nav-icon">
+              <PuzzlePiece size={14} />
+            </span>
+            <span className="sidebar-nav-label">{t('sidebar.skills')}</span>
+          </Button>
+        )}
+        {scheduledEnabled && (
+          <Button
+            variant="secondary"
+            className={`sidebar-nav-item${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-nav-item--active' : ''}`}
+            onClick={onEnterScheduled}
+            title={t('sidebar.scheduledTitle')}
+          >
+            <span className="sidebar-nav-icon">
+              <CalendarBlank size={14} />
+            </span>
+            <span className="sidebar-nav-label">{t('sidebar.scheduled')}</span>
+          </Button>
+        )}
         {pluginNavItems.map((item) => {
           const Icon = item.icon;
           return (

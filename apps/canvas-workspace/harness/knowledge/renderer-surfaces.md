@@ -21,6 +21,12 @@ The workbench has exactly two side regions plus a modal tier:
                  app-shell dialogs / toasts (above everything)
 ```
 
+The primary sidebar currently focuses on Canvas workspaces and AI Chat.
+Skills and Scheduled remain implemented and deep-linkable, but their expanded
+and collapsed navigation entries are disabled by `SKILLS_NAV_VISIBLE` and
+`SCHEDULED_NAV_VISIBLE` in `src/renderer/src/App.tsx`; restore those constants
+when the surfaces return to primary navigation.
+
 - **Left region — Library.** `ReferenceDrawer` (displayed as "Library")
   is the only left-side container: the pinned reference entries (persisted
   per workspace in `references.json`, hydrated/saved by
