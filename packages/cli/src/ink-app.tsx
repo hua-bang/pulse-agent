@@ -891,12 +891,20 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       return;
     }
 
+    // A recalled history entry may itself be a slash command (or end in an
+    // `@path` fragment), which opens the matching suggestion palette. While
+    // the browse is active those palettes must NOT capture ↑/↓/Enter — the
+    // arrows keep paging history and Enter resubmits the recalled text
+    // verbatim. Any edit clears historyIndex, handing the keys back to the
+    // palettes; Tab still completes explicitly either way.
+    const recallActive = browsingHistory.current && historyIndex !== null;
+
     if (key.return) {
-      if (selectedFile) {
+      if (!recallActive && selectedFile) {
         updateComposer(applyFileReference(input, cursor, selectedFile.relPath + (selectedFile.isDirectory ? '/' : '')));
         return;
       }
-      if (shouldAcceptSlashSuggestion(input, cursor, selectedSuggestion)) {
+      if (!recallActive && shouldAcceptSlashSuggestion(input, cursor, selectedSuggestion)) {
         updateComposer(applySlashCommandCompletion(input, cursor, selectedSuggestion.command));
         return;
       }
@@ -905,11 +913,11 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.upArrow) {
-      if (fileSuggestions.length > 0) {
+      if (!recallActive && fileSuggestions.length > 0) {
         setSelectedFileIndex(current => Math.max(0, Math.min(current, fileSuggestions.length - 1) - 1));
         return;
       }
-      if (slashSuggestions.length > 0) {
+      if (!recallActive && slashSuggestions.length > 0) {
         setSelectedSuggestionIndex(current => Math.max(0, current - 1));
         return;
       }
@@ -924,11 +932,11 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.downArrow) {
-      if (fileSuggestions.length > 0) {
+      if (!recallActive && fileSuggestions.length > 0) {
         setSelectedFileIndex(current => Math.min(Math.max(0, fileSuggestions.length - 1), current + 1));
         return;
       }
-      if (slashSuggestions.length > 0) {
+      if (!recallActive && slashSuggestions.length > 0) {
         setSelectedSuggestionIndex(current => Math.min(slashSuggestions.length - 1, current + 1));
         return;
       }

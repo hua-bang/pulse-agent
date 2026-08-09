@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { Readable } from 'node:stream';
 import React from 'react';
 import { describe, expect, it } from 'vitest';
 
@@ -97,14 +98,14 @@ class TerminalScreen extends EventEmitter {
   }
 }
 
-class MockStdin extends EventEmitter {
+// Ink reads input via 'readable' + stdin.read() (see ink's App component), so
+// the mock must be a real paused-mode Readable — a bare EventEmitter's 'data'
+// events never reach useInput.
+class MockStdin extends Readable {
   isTTY = true;
-  setRawMode(): void {}
-  resume(): void {}
-  pause(): void {}
-  setEncoding(): void {}
-  read(): null {
-    return null;
+  _read(): void {}
+  setRawMode(): this {
+    return this;
   }
   unref(): void {}
   ref(): void {}
@@ -211,6 +212,58 @@ const stableScreen = (lines: string[]): string[] => lines.map(line => line
   .replace(/\d+m\d+s|\d+(\.\d+)?s\b/g, '<elapsed>')
   .replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/g, '<spinner>'));
 
+const KEY = { up: '\x1b[A', down: '\x1b[B', enter: '\r' };
+
+/** An idle composer session driven by real stdin bytes. */
+const renderComposer = async (initialHistory: string[]) => {
+  const ink = await import('ink');
+  const screen = new TerminalScreen();
+  const stdin = new MockStdin();
+  const submitted: string[] = [];
+  const bridge = new InkUiBridge({ onChange: () => {}, textThrottleMs: 0 });
+
+  const instance = ink.render(
+    <InkCliApp
+      controller={{
+        getSnapshot: () => bridge.getSnapshot(),
+        submitInput: input => { submitted.push(input); },
+        requestStop: () => {},
+        shutdown: () => {},
+        subscribe: () => () => {},
+      }}
+      runtime={{
+        Box: ink.Box,
+        Text: ink.Text,
+        Static: ink.Static,
+        useApp: ink.useApp,
+        useInput: ink.useInput,
+        usePaste: ink.usePaste,
+        useStdout: ink.useStdout,
+      }}
+      initialHistory={initialHistory}
+    />,
+    {
+      stdout: screen as never,
+      stdin: stdin as never,
+      exitOnCtrlC: false,
+      patchConsole: false,
+    },
+  );
+
+  const press = async (sequence: string) => {
+    stdin.push(Buffer.from(sequence));
+    await new Promise(resolve => setTimeout(resolve, 45));
+  };
+  /** The composer's draft line: borders, `› ` prefix and cursor block stripped. */
+  const draft = () => {
+    const line = screen.visible().find(row => row.includes('› '));
+    return (line ?? '').replace(/.*› /, '').replace(/[█│]/g, '').trim();
+  };
+
+  await new Promise(resolve => setTimeout(resolve, 45));
+  return { press, draft, submitted, done: () => instance.unmount() };
+};
+
 describe('InkCliApp on a terminal', () => {
   it('keeps the composer anchored through a whole run', async () => {
     const { labels, composerRows } = await renderRun({ incrementalRendering: true });
@@ -227,6 +280,56 @@ describe('InkCliApp on a terminal', () => {
       .filter(step => step.delta < -1);
 
     expect(jumps).toEqual([]);
+  });
+
+  it('keeps paging history with ↑/↓ when a recalled entry is a slash command', async () => {
+    // Recalling '/status' opens the slash-suggestion palette (the cursor sits
+    // right after a bare /command). The palette must not capture the arrows:
+    // ↑ keeps going back through history, ↓ comes forward and restores the
+    // draft. This regressed silently — the palette branch ran first.
+    const session = await renderComposer(['first prompt', '/status', 'last prompt']);
+
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('last prompt');
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('/status');
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('first prompt');
+
+    await session.press(KEY.down);
+    expect(session.draft()).toBe('/status');
+    await session.press(KEY.down);
+    expect(session.draft()).toBe('last prompt');
+
+    session.done();
+  });
+
+  it('resubmits a recalled slash command with Enter instead of completing it', async () => {
+    // '/mode' is a prefix of other commands, so the palette has a completion
+    // to offer — but Enter on a recalled entry means "run it again exactly".
+    const session = await renderComposer(['/mode plan', '/mode']);
+
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('/mode');
+    await session.press(KEY.enter);
+
+    expect(session.submitted).toEqual(['/mode']);
+    session.done();
+  });
+
+  it('hands the arrows back to the palette once the recalled entry is edited', async () => {
+    const session = await renderComposer(['/mode']);
+
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('/mode');
+    // Editing ends the recall: backspace to '/mod', palette is live again, so
+    // ↑ now moves the palette selection and must NOT rewrite the draft.
+    await session.press('\x7f');
+    expect(session.draft()).toBe('/mod');
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('/mod');
+
+    session.done();
   });
 
   it('paints the same screen incrementally as it does with a full repaint', async () => {
