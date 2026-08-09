@@ -14,6 +14,26 @@ describe('stringWidth', () => {
     expect(stringWidth('a‍b')).toBe(2);
     expect(stringWidth('️')).toBe(0);
   });
+
+  it('counts BMP emoji-presentation glyphs as two columns', () => {
+    // The everyday status set: undercounting these by one column each is what
+    // let emoji-bearing lines slip past truncation and row budgets.
+    expect(stringWidth('✅')).toBe(2);
+    expect(stringWidth('❌')).toBe(2);
+    expect(stringWidth('⭐')).toBe(2);
+    expect(stringWidth('⏳')).toBe(2);
+    // Their text-presentation siblings stay narrow.
+    expect(stringWidth('✓')).toBe(1);
+    expect(stringWidth('⚠')).toBe(1);
+  });
+
+  it('upgrades a narrow symbol to two columns when VS16 requests emoji form', () => {
+    expect(stringWidth('⚠️')).toBe(2);
+    expect(stringWidth('ℹ️')).toBe(2);
+    // VS16 after ordinary text or an already-wide glyph changes nothing.
+    expect(stringWidth('a️')).toBe(1);
+    expect(stringWidth('✅️')).toBe(2);
+  });
 });
 
 describe('truncateToWidth', () => {
@@ -66,6 +86,17 @@ describe('wrappedRowCount', () => {
   it('degrades to one row for a degenerate width', () => {
     expect(wrappedRowCount('anything', 0)).toBe(1);
     expect(wrappedRowCount('anything', Number.POSITIVE_INFINITY)).toBe(1);
+  });
+
+  it('expands tabs to 8-column stops before measuring', () => {
+    // '\t' advances to column 8, so 'a\tb' is 9 columns — 2 rows at 8, not 1.
+    expect(wrappedRowCount('a\tb', 8)).toBe(2);
+    expect(wrappedRowCount('a\tb', 9)).toBe(1);
+    // A tab-indented code line: 8 (tab) + 12 chars = 20 columns.
+    expect(wrappedRowCount('\tconst a = 1;', 20)).toBe(1);
+    expect(wrappedRowCount('\tconst a = 1;', 19)).toBe(2);
+    // Mid-column tabs snap to the NEXT stop, not a fixed width.
+    expect(wrappedRowCount('abcde\tx', 9)).toBe(1); // 5 → stop at 8, +1 = 9
   });
 });
 

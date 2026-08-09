@@ -9,6 +9,44 @@
 
 const WIDE_RANGES: Array<[number, number]> = [
   [0x1100, 0x115f],   // Hangul Jamo
+  // BMP emoji with default emoji presentation (Unicode Emoji_Presentation):
+  // terminals render these two columns wide even without a VS16. The everyday
+  // status glyphs (✅ ❌ ⭐ ⏳ …) live here — undercounting them broke
+  // truncation and row budgets by one column per glyph. Textual siblings like
+  // ✓ (0x2713) and ⚠ (0x26a0) stay narrow on purpose; VS16 upgrades them.
+  [0x231a, 0x231b],   // ⌚⌛
+  [0x23e9, 0x23ec],   // ⏩⏪⏫⏬
+  [0x23f0, 0x23f0],   // ⏰
+  [0x23f3, 0x23f3],   // ⏳
+  [0x25fd, 0x25fe],   // ◽◾
+  [0x2614, 0x2615],   // ☔☕
+  [0x2648, 0x2653],   // zodiac
+  [0x267f, 0x267f],   // ♿
+  [0x2693, 0x2693],   // ⚓
+  [0x26a1, 0x26a1],   // ⚡
+  [0x26aa, 0x26ab],   // ⚪⚫
+  [0x26bd, 0x26be],   // ⚽⚾
+  [0x26c4, 0x26c5],   // ⛄⛅
+  [0x26ce, 0x26ce],   // ⛎
+  [0x26d4, 0x26d4],   // ⛔
+  [0x26ea, 0x26ea],   // ⛪
+  [0x26f2, 0x26f3],   // ⛲⛳
+  [0x26f5, 0x26f5],   // ⛵
+  [0x26fa, 0x26fa],   // ⛺
+  [0x26fd, 0x26fd],   // ⛽
+  [0x2705, 0x2705],   // ✅
+  [0x270a, 0x270b],   // ✊✋
+  [0x2728, 0x2728],   // ✨
+  [0x274c, 0x274c],   // ❌
+  [0x274e, 0x274e],   // ❎
+  [0x2753, 0x2755],   // ❓❔❕
+  [0x2757, 0x2757],   // ❗
+  [0x2795, 0x2797],   // ➕➖➗
+  [0x27b0, 0x27b0],   // ➰
+  [0x27bf, 0x27bf],   // ➿
+  [0x2b1b, 0x2b1c],   // ⬛⬜
+  [0x2b50, 0x2b50],   // ⭐
+  [0x2b55, 0x2b55],   // ⭕
   [0x2e80, 0x303e],   // CJK radicals, Kangxi
   [0x3041, 0x33ff],   // Hiragana .. CJK compatibility
   [0x3400, 0x4dbf],   // CJK ext A
@@ -24,6 +62,22 @@ const WIDE_RANGES: Array<[number, number]> = [
   [0x1f900, 0x1f9ff], // Emoji: supplemental
   [0x20000, 0x3fffd], // CJK ext B+
 ];
+
+/**
+ * VS16 (U+FE0F) flips a narrow text-presentation symbol (⚠ ℹ ✔ …) into its
+ * emoji presentation, which terminals draw two columns wide. The selector
+ * itself is zero-width, so the pair costs prev+1 — but only when the base was
+ * a narrow symbol: after an already-wide glyph or ordinary text VS16 changes
+ * nothing.
+ */
+function vs16Extra(codePoint: number, prevCodePoint: number | null): number {
+  return codePoint === 0xfe0f
+    && prevCodePoint !== null
+    && prevCodePoint >= 0x2000
+    && charWidth(prevCodePoint) === 1
+    ? 1
+    : 0;
+}
 
 /** Columns a single code point occupies (0 for combining marks, 2 for wide). */
 export function charWidth(codePoint: number): number {
@@ -44,8 +98,11 @@ export function charWidth(codePoint: number): number {
 /** Display columns the string occupies in a terminal. */
 export function stringWidth(value: string): number {
   let width = 0;
+  let prev: number | null = null;
   for (const char of value) {
-    width += charWidth(char.codePointAt(0) ?? 0);
+    const codePoint = char.codePointAt(0) ?? 0;
+    width += charWidth(codePoint) + vs16Extra(codePoint, prev);
+    prev = codePoint;
   }
   return width;
 }
@@ -61,13 +118,16 @@ export function truncateToWidth(value: string, maxWidth: number): string {
 
   let width = 0;
   let result = '';
+  let prev: number | null = null;
   for (const char of value) {
-    const next = charWidth(char.codePointAt(0) ?? 0);
+    const codePoint = char.codePointAt(0) ?? 0;
+    const next = charWidth(codePoint) + vs16Extra(codePoint, prev);
     if (width + next > maxWidth - 1) {
       break;
     }
     width += next;
     result += char;
+    prev = codePoint;
   }
   return `${result}…`;
 }
@@ -91,20 +151,39 @@ export function wrapToRows(line: string, columns: number): string[] {
     return [line];
   }
 
-  const plain = line.replace(ANSI_SGR_PATTERN, '');
+  // Terminals advance a tab to the next 8-column stop; measuring it as one
+  // column undercounted tab-indented code and let the frame outgrow the
+  // viewport. Expansion assumes the line starts at column 0, which holds for
+  // every region this budgets (each logical line renders from the left edge).
+  const plain = expandTabs(line.replace(ANSI_SGR_PATTERN, ''));
   if (stringWidth(plain) <= columns) {
     return [plain];
   }
 
   const rows: string[] = [];
-  let current = '';
-  let used = 0;
-  for (const word of plain.split(' ')) {
+  // Leading indentation is real columns (Ink wraps with trim:false): the
+  // word-split below charges inter-word gaps only when something precedes
+  // them, which silently swallowed a leading run — an 8-column tab indent
+  // measured as 0 and the row budget undercounted every indented code line.
+  const leading = plain.match(/^ +/)?.[0] ?? '';
+  let remainingLead = leading;
+  while (stringWidth(remainingLead) > columns) {
+    rows.push(remainingLead.slice(0, columns));
+    remainingLead = remainingLead.slice(columns);
+  }
+  let current = remainingLead;
+  let used = stringWidth(remainingLead);
+  // A gap column precedes a word only when another WORD is already on the
+  // row — the seeded indentation IS the separator, so the first word after
+  // it must not pay (or render) an extra space.
+  let wordsOnRow = 0;
+  for (const word of plain.slice(leading.length).split(' ')) {
     const wordWidth = stringWidth(word);
-    const gap = used > 0 ? 1 : 0;
+    const gap = wordsOnRow > 0 ? 1 : 0;
     if (used + gap + wordWidth <= columns) {
       current += gap > 0 ? ` ${word}` : word;
       used += gap + wordWidth;
+      wordsOnRow += 1;
       continue;
     }
 
@@ -112,6 +191,7 @@ export function wrapToRows(line: string, columns: number): string[] {
       rows.push(current);
       current = '';
       used = 0;
+      wordsOnRow = 0;
     }
 
     // Words wider than the terminal (long paths, base64, unspaced CJK) fill
@@ -126,6 +206,7 @@ export function wrapToRows(line: string, columns: number): string[] {
     }
     current = remaining;
     used = stringWidth(remaining);
+    wordsOnRow = remaining ? 1 : 0;
   }
 
   rows.push(current);
@@ -144,17 +225,45 @@ export function wrappedRowCount(line: string, columns: number): number {
   return wrapToRows(line, columns).length;
 }
 
+/** Expands tabs to 8-column terminal stops, counting columns in display width. */
+function expandTabs(value: string, tabStop = 8): string {
+  if (!value.includes('\t')) {
+    return value;
+  }
+
+  let result = '';
+  let column = 0;
+  let prev: number | null = null;
+  for (const char of value) {
+    if (char === '\t') {
+      const spaces = tabStop - (column % tabStop);
+      result += ' '.repeat(spaces);
+      column += spaces;
+      prev = 0x20;
+      continue;
+    }
+    const codePoint = char.codePointAt(0) ?? 0;
+    column += charWidth(codePoint) + vs16Extra(codePoint, prev);
+    result += char;
+    prev = codePoint;
+  }
+  return result;
+}
+
 /** Longest prefix fitting `maxWidth` display columns, never splitting a glyph. */
 function takeWidth(value: string, maxWidth: number): string {
   let width = 0;
   let result = '';
+  let prev: number | null = null;
   for (const char of value) {
-    const next = charWidth(char.codePointAt(0) ?? 0);
+    const codePoint = char.codePointAt(0) ?? 0;
+    const next = charWidth(codePoint) + vs16Extra(codePoint, prev);
     if (width + next > maxWidth) {
       break;
     }
     width += next;
     result += char;
+    prev = codePoint;
   }
   return result;
 }
