@@ -632,7 +632,9 @@ export class InkUiBridge {
         return `ls ${this.shortPath(dirPath)}`;
       }
 
-      const primary = this.pickString(record, ['name', 'title', 'id', 'action', 'query']);
+      // 'task' first: sub-agent tools (`<name>_agent`) carry their whole
+      // assignment there, and it is the one line worth showing.
+      const primary = this.pickString(record, ['task', 'name', 'title', 'id', 'action', 'query']);
       if (primary) {
         return this.compactText(primary, 60);
       }
@@ -703,20 +705,31 @@ export class InkUiBridge {
     return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}…` : normalized;
   }
 
+  /**
+   * Whole-word tool-name classification. Substring matching misfires on
+   * embedded words — `researcher_agent` contains "search" and was summarized
+   * as a search tool, whose fallback dumped the raw input JSON into every
+   * trace. Tokens split on `_`/`-`/`.` so `web_search` still matches.
+   */
+  private nameHasWord(name: string, words: string[]): boolean {
+    const tokens = name.split(/[^a-z0-9]+/);
+    return tokens.some(token => words.includes(token));
+  }
+
   private isShellTool(name: string): boolean {
-    return name.includes('bash') || name.includes('shell') || name.includes('exec') || name.includes('command');
+    return this.nameHasWord(name, ['bash', 'shell', 'exec', 'command', 'cmd']);
   }
 
   private isReadTool(name: string): boolean {
-    return name.includes('read') || name.includes('cat') || name.includes('open');
+    return this.nameHasWord(name, ['read', 'cat', 'open']);
   }
 
   private isSearchTool(name: string): boolean {
-    return name.includes('grep') || name.includes('search') || name.includes('find');
+    return this.nameHasWord(name, ['grep', 'search', 'find']);
   }
 
   private isMutationTool(name: string): boolean {
-    return name.includes('edit') || name.includes('write') || name.includes('patch');
+    return this.nameHasWord(name, ['edit', 'write', 'patch']);
   }
 
   private isListTool(name: string): boolean {

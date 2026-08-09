@@ -180,6 +180,23 @@ describe('InkUiBridge', () => {
     expect(toolEvent.text).toBe('');
   });
 
+  it('does not misclassify sub-agent tools whose names embed a classifier word', () => {
+    const { snapshots, bridge } = createBridge();
+
+    // 're-SEARCH-er': substring matching branded this a search tool and dumped
+    // the raw input JSON into every trace of a parallel sub-agent run.
+    bridge.toolCall('researcher_agent', { task: '对当前仓库 packages/cli 的 Ink TUI 做只读 UX 审计', context: { depth: 1 } });
+
+    const label = snapshots[snapshots.length - 1].liveTools[0].label;
+    expect(label.startsWith('researcher_agent: 对当前仓库')).toBe(true);
+    expect(label).not.toContain('{');
+    expect(label).not.toContain('search ');
+
+    // Whole-word matches keep working across separators.
+    bridge.toolCall('web_search', { query: 'ink render throttle' });
+    expect(snapshots[snapshots.length - 1].liveTools[1].label).toBe('search "ink render throttle"');
+  });
+
   it('labels non-filesystem tools by their input instead of mislabeling as ls', () => {
     const { snapshots, bridge } = createBridge();
 
