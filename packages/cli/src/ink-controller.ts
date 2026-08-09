@@ -150,6 +150,10 @@ export class InkCoderController implements InkCliController {
       modelLabel: shortModelLabel(this.modelOverride?.model ?? DEFAULT_MODEL),
     });
     this.sessionCommands = new SessionCommands(message => this.ui.info(message ?? ''));
+    // Every session save records the model it ran under, so /resume can bring
+    // the session back on that model instead of whatever was chosen since.
+    this.sessionCommands.setModelSpecProvider(() =>
+      this.modelOverride ? formatModelSpec(this.modelOverride) : null);
     this.inputManager = new InputManager({
       onRequest: request => this.ui.clarification(request),
     });
@@ -205,6 +209,7 @@ export class InkCoderController implements InkCliController {
 
     if (options.continueLast && await this.sessionCommands.resumeLatest()) {
       await this.sessionCommands.loadContext(this.context);
+      await this.restoreSessionModel();
     } else {
       await this.sessionCommands.createSession();
     }
@@ -382,10 +387,37 @@ export class InkCoderController implements InkCliController {
   private async resumeSessionRef(ref: string): Promise<void> {
     if (await this.sessionCommands.resumeSession(ref)) {
       await this.sessionCommands.loadContext(this.context);
+      await this.restoreSessionModel();
       this.resetUsageCounters();
       await this.syncSessionTaskListBinding();
       this.publishSession('Session resumed');
     }
+  }
+
+  /**
+   * Applies the model recorded in the just-loaded session, so a resumed
+   * conversation continues on the model it was actually using. Silent restore:
+   * it never overwrites the global last-model preference (that records
+   * explicit choices only), and --model still pins the whole process.
+   */
+  private async restoreSessionModel(): Promise<void> {
+    const spec = this.sessionCommands.getLoadedModelSpec();
+    if (!spec || this.modelPinnedByFlag) {
+      return;
+    }
+    if (this.modelOverride && formatModelSpec(this.modelOverride) === spec) {
+      return;
+    }
+
+    const registry = await loadModelRegistry();
+    const restored = resolveKnownModelSpec(spec, registry);
+    if (!restored) {
+      this.ui.log(`[warn] session model "${spec}" is no longer in models.json — keeping the current model`);
+      return;
+    }
+
+    this.modelOverride = restored;
+    this.applyModelOverride(`Model restored from session: ${restored.model}`);
   }
 
   private async openSessionPicker(): Promise<void> {

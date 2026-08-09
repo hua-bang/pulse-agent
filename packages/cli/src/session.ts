@@ -27,6 +27,12 @@ export interface Session {
     taskListId?: string;
     /** Working directory the session was created in; scopes the session lists. */
     cwd?: string;
+    /**
+     * Model spec (formatModelSpec form) the session was last saved under, so
+     * resuming it brings back the model it was using — not whatever was chosen
+     * since. Absent on legacy sessions and when the env default was in use.
+     */
+    model?: string;
   };
 }
 

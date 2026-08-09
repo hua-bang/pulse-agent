@@ -7,7 +7,7 @@ import { SkillCommands } from './skill-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
 import { parseCliArgs } from './ui-mode.js';
-import { formatModelSpec, loadModelRegistry, resolveModelSpec, type ModelChoice } from './model-registry.js';
+import { formatModelSpec, loadModelRegistry, resolveKnownModelSpec, resolveModelSpec, type ModelChoice } from './model-registry.js';
 import { buildModelRunOptions, resolveModelChoice } from './model-run-options.js';
 import { createPulseCliTools } from './runtime-tools.js';
 
@@ -98,6 +98,10 @@ class CoderCLI {
     });
     this.context = { messages: [] };
     this.sessionCommands = new SessionCommands();
+    // Mirrors the Ink host: saves record the active model so a resumed session
+    // comes back on the model it was using.
+    this.sessionCommands.setModelSpecProvider(() =>
+      this.modelChoice ? formatModelSpec(this.modelChoice) : null);
     this.inputManager = new InputManager();
     this.skillCommands = new SkillCommands(this.agent);
     this.tui = new TuiRenderer();
@@ -193,6 +197,7 @@ class CoderCLI {
           const success = await this.sessionCommands.resumeSession(sessionId);
           if (success) {
             await this.sessionCommands.loadContext(this.context);
+            await this.restoreSessionModel();
             await this.syncSessionTaskListBinding();
           }
           break;
@@ -429,6 +434,31 @@ class CoderCLI {
     this.tui.success(`Model switched to ${describe(resolved)}`);
   }
 
+  /**
+   * Applies the model recorded in the just-loaded session (see the Ink host's
+   * restoreSessionModel). A --model flag pins the process and wins; an
+   * unresolvable spec warns and keeps the current model.
+   */
+  private async restoreSessionModel(): Promise<void> {
+    const spec = this.sessionCommands.getLoadedModelSpec();
+    if (!spec || this.modelSpec) {
+      return;
+    }
+    if (this.modelChoice && formatModelSpec(this.modelChoice) === spec) {
+      return;
+    }
+
+    const registry = await loadModelRegistry();
+    const restored = resolveKnownModelSpec(spec, registry);
+    if (!restored) {
+      this.tui.warn(`Session model "${spec}" is no longer in models.json — keeping the current model`);
+      return;
+    }
+
+    this.modelChoice = restored;
+    this.tui.info(`Model restored from session: ${formatModelSpec(restored)}`);
+  }
+
   async start(options: { continueLast?: boolean } = {}) {
     this.tui.showWelcome();
 
@@ -450,6 +480,7 @@ class CoderCLI {
     // Resume the most recent session with --continue, otherwise auto-create one
     if (options.continueLast && await this.sessionCommands.resumeLatest()) {
       await this.sessionCommands.loadContext(this.context);
+      await this.restoreSessionModel();
     } else {
       await this.sessionCommands.createSession();
     }

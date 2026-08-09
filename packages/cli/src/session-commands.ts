@@ -7,6 +7,9 @@ export class SessionCommands {
   private currentTaskListId: string | null = null;
   /** Session lists are scoped to the directory the CLI was started in. */
   private readonly cwd: string;
+  /** Asked at every save for the host's active model spec; null = env default. */
+  private modelSpecProvider: (() => string | null) | null = null;
+  private loadedModelSpec: string | null = null;
 
   constructor(private readonly log: (message?: string) => void = console.log, cwd = process.cwd()) {
     this.sessionManager = new SessionManager();
@@ -19,6 +22,20 @@ export class SessionCommands {
 
   getCurrentSessionId(): string | null {
     return this.currentSessionId;
+  }
+
+  setModelSpecProvider(provider: () => string | null): void {
+    this.modelSpecProvider = provider;
+  }
+
+  /**
+   * Model spec recorded in the session most recently loaded via loadContext
+   * (null for legacy sessions and env-default sessions). The host applies it
+   * AFTER loadContext, so a resumed session comes back on the model it was
+   * actually using rather than whatever was chosen since.
+   */
+  getLoadedModelSpec(): string | null {
+    return this.loadedModelSpec;
   }
 
   getCurrentTaskListId(): string | null {
@@ -215,6 +232,15 @@ export class SessionCommands {
       session.metadata.taskListId = this.currentTaskListId;
     }
 
+    // Record the model the session is running under; clear it when the host
+    // is back on the env default so a stale spec cannot outlive a reset.
+    const modelSpec = this.modelSpecProvider?.() ?? null;
+    if (modelSpec) {
+      session.metadata.model = modelSpec;
+    } else {
+      delete session.metadata.model;
+    }
+
     // Sync messages from context
     session.messages = context.messages.map(msg => ({
       ...msg,
@@ -230,6 +256,9 @@ export class SessionCommands {
     const session = await this.sessionManager.loadSession(this.currentSessionId);
     if (!session) return;
 
+    this.loadedModelSpec = typeof session.metadata.model === 'string' && session.metadata.model.trim()
+      ? session.metadata.model
+      : null;
     this.currentTaskListId = await this.ensureSessionTaskListId(session);
 
     // Load messages into context
