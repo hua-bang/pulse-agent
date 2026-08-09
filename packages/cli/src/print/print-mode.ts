@@ -1,10 +1,10 @@
 import { builtInPlanModePlugin, DEFAULT_MODEL, PulseAgent, type Context, type EngineOptions } from 'pulse-coder-engine';
 
 import { BenchmarkTrace } from './benchmark-trace.js';
-import { loadModelRegistry, resolveModelSpec } from './model-registry.js';
-import { buildModelRunOptions } from './model-run-options.js';
-import { createPulseCliTools } from './runtime-tools.js';
-import { extractStepUsage } from './usage-metrics.js';
+import { loadModelRegistry, resolveModelSpec } from '../models/model-registry.js';
+import { buildModelRunOptions } from '../models/model-run-options.js';
+import { createPulseCliTools } from '../tools/runtime-tools.js';
+import { extractStepUsage } from '../shared/usage-metrics.js';
 
 export interface PrintModeOptions {
   modelSpec?: string;
@@ -17,7 +17,7 @@ export interface PrintModeOptions {
 }
 
 type TerminationReason = 'completed' | 'timeout' | 'signal' | 'token_budget' | 'max_steps' | 'error';
-type MemoryIntegration = typeof import('./memory-integration.js')['memoryIntegration'];
+type MemoryIntegration = typeof import('../shared/memory-integration.js')['memoryIntegration'];
 
 async function readAllStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -146,7 +146,7 @@ export async function runPrintMode(promptArg: string, options: PrintModeOptions 
 
     const memory = options.isolated
       ? undefined
-      : (await import('./memory-integration.js')).memoryIntegration;
+      : (await import('../shared/memory-integration.js')).memoryIntegration;
     const agent = new PulseAgent(agentOptions(Boolean(options.isolated), memory));
     if (!options.isolated) {
       await memory?.initialize();

@@ -34,7 +34,7 @@ scheduling, running, artifact storage, aggregation. It sits BELOW
   impact: consumers are `built-in/agent-teams-plugin` (in-repo relative
   imports + type re-exports with renames, e.g. `OrchestrationInput as
   TeamRunInput` in `built-in/index.ts`) and `packages/cli`
-  (`src/team-commands.ts` via the subpath export).
+  (`src/commands/team-commands.ts` via the subpath export).
 
 ## Key files
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { InkCoderController } from './ink-controller.js';
-import type { InputManager } from './input-manager.js';
+import type { InputManager } from '../shared/input-manager.js';
 
 interface TranscriptEvent {
   kind: string;

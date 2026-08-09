@@ -1,4 +1,4 @@
-import { extractMessageText, SessionManager, type Session, type SessionSummary } from './session.js';
+import { extractMessageText, SessionManager, type Session, type SessionSummary } from '../session/session.js';
 import type { Context } from 'pulse-coder-engine';
 
 export class SessionCommands {

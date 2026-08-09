@@ -19,7 +19,7 @@ ACP protocol behavior is contract-heavy. Hosts such as the CLI and remote server
 | JSON-RPC client and child process behavior | `src/client.ts` |
 | Runner lifecycle, retry, timeout, permission, session list/close | `src/runner.ts` |
 | State model and file persistence | `src/state.ts`, `src/state-store.ts` |
-| CLI host commands | `../cli/src/acp-commands.ts` |
+| CLI host commands | `../cli/src/commands/acp-commands.ts` |
 | Focused behavior tests | `src/client.test.ts`, `src/runner.test.ts`, `src/state.test.ts` |
 
 ## Local Constraints

@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { homedir } from 'os';
 
-import { truncateToWidth } from './text-width.js';
+import { truncateToWidth } from '../terminal/text-width.js';
 
 export interface ProviderConfig {
   name: string;

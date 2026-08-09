@@ -276,7 +276,7 @@ const agent = new PulseAgent({
     scan: true
   },
   tools: {
-    [runJsTool.name]: runJsTool // 来自 src/sandbox
+    [runJsTool.name]: runJsTool // 来自 src/tools/sandbox
   }
 });
 ```
@@ -318,31 +318,46 @@ pnpm --filter pulse-coder-cli start:debug # PULSE_CODER_DEBUG=1 重新构建并�
 
 ```
 src/
-├── index.ts              # readline 宿主入口、命令循环、agent/ACP 路由、会话保存
-├── ui-mode.ts            # --ui/--tui/-p/--continue 与 PULSE_CODER_UI 解析
-├── print-mode.ts         # -p 非交互/benchmark 模式（隔离、预算、轨迹、信号处理）
-├── benchmark-trace.ts    # 有界 JSONL 事件输出与 trace-file sink
-├── ink-launcher.tsx      # Ink 启动（exitOnCtrlC: false，历史存储装配）
-├── ink-controller.ts     # Ink 宿主控制器（命令处理、plan-mode 接线、ACP 路由、会话同步、队列输入）
-├── ink-app.tsx           # Ink 渲染（Static transcript、composer、粘贴、命令建议、历史）
-├── ink-ui-bridge.ts      # 运行时回调与 Ink UI 的桥接（append-only 事件 + live 区、工具结果预览、流式节流）
-├── file-reference.ts     # @ 引用：索引、补全过滤、提交时内容注入
-├── preferences.ts        # 用户偏好持久化（~/.pulse-coder/preferences.json，记住上次模型）
-├── text-width.ts         # 终端显示宽度与码点级光标步进（CJK/emoji）
-├── markdown.ts           # 轻量 markdown → ANSI 渲染
-├── history-store.ts      # 输入历史持久化（~/.pulse-coder/history.json）
-├── log-sink.ts           # 引擎日志层：console 捕获 → ~/.pulse-coder/logs/cli.log + /debug
-├── tui-renderer.ts       # readline 宿主渲染器
-├── input-manager.ts      # 输入与 clarification 请求处理
-├── session.ts            # 会话存储（~/.pulse-coder/sessions）
-├── session-commands.ts   # 会话斜杠命令（/resume 序号/前缀解析、resumeLatest）
-├── skill-commands.ts     # /skills 命令
-├── team-commands.ts      # /team、/teams、├── acp-commands.ts       # /acp 子命令、平台 key 解析、session 列举/关闭
-├── memory-integration.ts # 记忆插件装配与每轮记忆上下文
-└── sandbox/              # run_js 沙箱执行（runner 构建为 dist/runner.cjs）
+├── index.ts                  # 入口分发（arg parse → print / Ink / readline）+ readline 宿主命令循环、会话保存
+├── ui-mode.ts                # --ui/--tui/-p/--continue 与 PULSE_CODER_UI 解析
+├── ink/                      # 默认 Ink 宿主
+│   ├── ink-launcher.tsx      #   Ink 启动（exitOnCtrlC: false，历史存储装配）
+│   ├── ink-controller.ts     #   Ink 宿主控制器（命令处理、plan-mode 接线、会话同步、队列输入）
+│   ├── ink-app.tsx           #   Ink 渲染（Static transcript、composer、粘贴、命令建议、历史）
+│   └── ink-ui-bridge.ts      #   运行时回调与 Ink UI 的桥接（append-only 事件 + live 区、流式节流）
+├── readline/
+│   └── tui-renderer.ts       # readline 回退宿主渲染器
+├── print/
+│   ├── print-mode.ts         # -p 非交互/benchmark 模式（隔离、预算、轨迹、信号处理）
+│   └── benchmark-trace.ts    # 有界 JSONL 事件输出与 trace-file sink
+├── commands/                 # 两个宿主共享的斜杠命令面
+│   ├── session-commands.ts   #   会话斜杠命令（/resume 序号/前缀解析、resumeLatest）
+│   ├── skill-commands.ts     #   /skills 命令
+│   ├── team-commands.ts      #   /team、/teams、/solo（已退役，模块保留）
+│   └── acp-commands.ts       #   /acp 子命令（已退役，模块保留）
+├── models/
+│   ├── model-registry.ts     # models.json 加载/合并与 spec 解析
+│   ├── model-run-options.ts  # 模型选择 → 引擎 run options（两宿主共用）
+│   └── preferences.ts        # 用户偏好持久化（~/.pulse-coder/preferences.json，记住上次模型）
+├── session/
+│   ├── session.ts            # 会话存储（~/.pulse-coder/sessions）
+│   └── history-store.ts      # 输入历史持久化（~/.pulse-coder/history.json）
+├── tools/                    # 宿主工具注册
+│   ├── runtime-tools.ts      #   两宿主共享的工具装配（run_js + 实验性 live-app 能力）
+│   ├── canvas-runtime-tools.ts #  Pulse Canvas 能力适配器
+│   └── sandbox/              #   run_js 沙箱执行（runner 构建为 dist/runner.cjs）
+├── terminal/
+│   ├── markdown.ts           # 轻量 markdown → ANSI 渲染
+│   └── text-width.ts         # 终端显示宽度与码点级光标步进（CJK/emoji）
+└── shared/                   # 跨宿主共享的引擎接线
+    ├── input-manager.ts      #   输入与 clarification 请求处理
+    ├── file-reference.ts     #   @ 引用：索引、补全过滤、提交时内容注入
+    ├── log-sink.ts           #   引擎日志层：console 捕获 → ~/.pulse-coder/logs/cli.log + /debug
+    ├── usage-metrics.ts      #   引擎 step usage 抽取（状态行 token 统计）
+    └── memory-integration.ts #   记忆插件装配与每轮记忆上下文
 ```
 
-各 `*.test.ts` 为对应的聚焦行为测试（`vitest run`）。
+各 `*.test.ts` 与被测模块同目录，为对应的聚焦行为测试（`vitest run`）。
 
 ## 依赖
 

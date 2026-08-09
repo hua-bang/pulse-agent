@@ -91,7 +91,7 @@ Registered from `packages/engine/src/built-in/index.ts` (in load order):
 - one-shot skill command transformation (`/skills ...`),
 - `Esc` abort for in-flight responses,
 - clarification flow via the `clarify` tool,
-- built-in `run_js` tool (sandboxed JS executor in `src/sandbox/`).
+- built-in `run_js` tool (sandboxed JS executor in `src/tools/sandbox/`).
 
 ### 6) Orchestrator (`packages/engine/src/orchestrator`, subpath export `pulse-coder-engine/orchestrator`)
 Runs a **TaskGraph** — a DAG of `TaskNode` objects with `{ id, role, deps[], input?, agent?, instruction? }`.

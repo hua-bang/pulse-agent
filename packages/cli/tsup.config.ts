@@ -8,7 +8,7 @@ export default defineConfig((options) => {
   return {
     entry: {
       index: 'src/index.ts',
-      runner: 'src/sandbox/runner.ts'
+      runner: 'src/tools/sandbox/runner.ts'
     },
     format: ['cjs'],
     dts: false,

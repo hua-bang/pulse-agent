@@ -2,8 +2,8 @@ import React from 'react';
 
 import { InkCliApp } from './ink-app.js';
 import { createInkCoderController } from './ink-controller.js';
-import { PromptHistoryStore } from './history-store.js';
-import { EngineLogSink } from './log-sink.js';
+import { PromptHistoryStore } from '../session/history-store.js';
+import { EngineLogSink } from '../shared/log-sink.js';
 import { STREAM_FPS } from './ink-ui-bridge.js';
 
 export interface StartInkTuiOptions {

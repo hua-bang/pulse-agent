@@ -7,7 +7,9 @@
 
 `pulse-coder-cli` owns the interactive terminal host on top of `pulse-coder-engine`. It handles the default Ink UI, the readline fallback UI, the `-p/--print` non-interactive mode, session persistence, slash commands (including `/<skill-name>` invocation), clarification input, model switching, memory integration, task-list binding, and host tool registration (`run_js` plus the experimental Pulse Canvas capability adapter).
 
-CLI behavior should remain a host layer over the engine. Engine runtime behavior belongs in `packages/engine`; ACP protocol behavior belongs in `packages/acp`; team coordination behavior belongs in `packages/agent-teams`; sandbox execution behavior lives locally in `src/sandbox/` (executor + forked `runner` — built as `dist/runner.cjs`).
+CLI behavior should remain a host layer over the engine. Engine runtime behavior belongs in `packages/engine`; ACP protocol behavior belongs in `packages/acp`; team coordination behavior belongs in `packages/agent-teams`; sandbox execution behavior lives locally in `src/tools/sandbox/` (executor + forked `runner` — built as `dist/runner.cjs`).
+
+Source layout: `src/index.ts` + `src/ui-mode.ts` at the root own entry dispatch and the readline command loop; each host surface has a directory (`src/ink/`, `src/readline/`, `src/print/`); host-shared modules are grouped by role (`src/commands/`, `src/models/`, `src/session/`, `src/tools/`, `src/terminal/`, and `src/shared/` for cross-host engine wiring). Tests sit beside the module they cover.
 
 ## Knowledge Navigation
 
@@ -15,26 +17,26 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 |---|---|
 | Package overview and scripts | `README.md`, `package.json` |
 | UI mode / CLI flag parsing | `src/ui-mode.ts` |
-| Default Ink host path | `src/ink-launcher.tsx`, `src/ink-controller.ts`, `src/ink-app.tsx`, `src/ink-ui-bridge.ts` |
-| Readline fallback host path | `src/index.ts`, `src/tui-renderer.ts` |
-| Non-interactive `-p` mode | `src/print-mode.ts` |
-| Markdown-to-ANSI rendering | `src/markdown.ts` |
-| Prompt history persistence | `src/history-store.ts` |
-| Engine log layer (`/debug`) | `src/log-sink.ts` |
-| Model registry (`/model`, `--model`) | `src/model-registry.ts` |
-| Model → engine run options (shared) | `src/model-run-options.ts` |
-| `@` file references | `src/file-reference.ts` |
-| User preferences (last model) | `src/preferences.ts` |
-| Terminal width / cursor stepping | `src/text-width.ts` |
-| Input handling | `src/input-manager.ts` |
-| Sessions | `src/session.ts`, `src/session-commands.ts` |
-| Skills and worktree slash commands | `src/skill-commands.ts`, `src/index.ts`, `src/ink-controller.ts` |
-| Retired team/ACP modules (unwired) | `src/team-commands.ts`, `src/acp-commands.ts` |
-| Memory integration | `src/memory-integration.ts` |
-| Host tool registration | `src/runtime-tools.ts`, `src/canvas-runtime-tools.ts`, `src/sandbox/`, `../canvas-cli/AGENTS.md` |
+| Default Ink host path | `src/ink/ink-launcher.tsx`, `src/ink/ink-controller.ts`, `src/ink/ink-app.tsx`, `src/ink/ink-ui-bridge.ts` |
+| Readline fallback host path | `src/index.ts`, `src/readline/tui-renderer.ts` |
+| Non-interactive `-p` mode | `src/print/print-mode.ts` |
+| Markdown-to-ANSI rendering | `src/terminal/markdown.ts` |
+| Prompt history persistence | `src/session/history-store.ts` |
+| Engine log layer (`/debug`) | `src/shared/log-sink.ts` |
+| Model registry (`/model`, `--model`) | `src/models/model-registry.ts` |
+| Model → engine run options (shared) | `src/models/model-run-options.ts` |
+| `@` file references | `src/shared/file-reference.ts` |
+| User preferences (last model) | `src/models/preferences.ts` |
+| Terminal width / cursor stepping | `src/terminal/text-width.ts` |
+| Input handling | `src/shared/input-manager.ts` |
+| Sessions | `src/session/session.ts`, `src/commands/session-commands.ts` |
+| Skills and worktree slash commands | `src/commands/skill-commands.ts`, `src/index.ts`, `src/ink/ink-controller.ts` |
+| Retired team/ACP modules (unwired) | `src/commands/team-commands.ts`, `src/commands/acp-commands.ts` |
+| Memory integration | `src/shared/memory-integration.ts` |
+| Host tool registration | `src/tools/runtime-tools.ts`, `src/tools/canvas-runtime-tools.ts`, `src/tools/sandbox/`, `../canvas-cli/AGENTS.md` |
 | Harbor/SWE-bench evaluation | `harness/tools/harbor/README.md`, `harness/tools/harbor/pulse_agent.py` |
-| Focused behavior tests | `src/*.test.ts` |
-| Ink frame height / terminal paint | `src/ink-app.render.test.tsx`, `src/ink-app.screen.test.tsx` |
+| Focused behavior tests | `src/**/*.test.ts` (beside the module under test) |
+| Ink frame height / terminal paint | `src/ink/ink-app.render.test.tsx`, `src/ink/ink-app.screen.test.tsx` |
 
 ## Local Constraints
 
@@ -69,15 +71,15 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 - The Ink host renders with `patchConsole: false`: `EngineLogSink` owns `console.*` (installed before engine init) and routes it to `~/.pulse-coder/logs/cli.log` + the `/debug` policy (errors surface as dim lines; warns dedupe per unique text per session; info/debug only with `/debug on`, `--verbose`, or `--verbose`). Never write to stdout directly from Ink-host code paths — it tears the frame; log via `console.*` (captured) or the bridge.
 - Tool traces are gray one-line summaries by default (`label · N lines/matches`, single-line output inlined, structured output yields NO summary — never a JSON dump); failures stay red with the error inline. `Ctrl+O` toggles content previews and, per the Static model, affects only future traces.
 - Assistant text is two-tier: segments finalized because a tool call started are narration (`status: 'info'`, rendered gray, no markdown); only the segment that ends a run renders bright with markdown. The status line's TEXT stays stable during a run (`Running agent · <elapsed>`) — never write per-tool churn into `status`.
-- Terminal text math goes through `src/text-width.ts`: layout truncation measures DISPLAY COLUMNS (CJK/emoji are 2 wide) and cursor movement/deletion steps whole CODE POINTS. `String.length` is wrong for both — never clamp or step by it.
+- Terminal text math goes through `src/terminal/text-width.ts`: layout truncation measures DISPLAY COLUMNS (CJK/emoji are 2 wide) and cursor movement/deletion steps whole CODE POINTS. `String.length` is wrong for both — never clamp or step by it.
 - Usage counters are per-conversation state: `/new`, `/clear`, `/resume` and deleting the active session must all call `resetUsageCounters()`, or the status line keeps reporting the previous conversation's tokens.
-- The Ink host renders with `incrementalRendering: true`: Ink's default writer erases and repaints the ENTIRE live block on every frame (measured: ~2x the lines and bytes of the incremental writer over a streaming answer), and at 30fps that repaint of the status line and bordered composer is visible as shimmer. `src/ink-app.screen.test.tsx` pins that the incremental writer paints the same screen as the default one.
-- A live region that shrinks must be compensated by matching `<Static>` output, or the composer walks UP the screen and leaves dead rows below it. Ink writes static output in place of the erased live block, so the normal finalize-into-transcript path is already neutral — `src/ink-app.screen.test.tsx` emulates a terminal across a bridge-driven run and fails if the composer jumps up more than a row. Do not "fix" this with reserved padding: holding a high-water height pins the composer mid-run but voids the screen and produces a far bigger jump when the reservation is released.
-- Everything rendered BELOW `<Static>` must be bounded by terminal size on BOTH axes, and the axes are coupled — a row window is only correct if it either truncates on columns or charges each line its wrapped height. A frame taller than the viewport makes Ink wipe the screen and replay the whole transcript on EVERY frame until it shrinks back, which at streaming rate is the terminal flicker. `src/ink-app.render.test.tsx` pins the frame height against a mock TTY. Detail + current bounds: `harness/knowledge/live-region-bounding.md`.
+- The Ink host renders with `incrementalRendering: true`: Ink's default writer erases and repaints the ENTIRE live block on every frame (measured: ~2x the lines and bytes of the incremental writer over a streaming answer), and at 30fps that repaint of the status line and bordered composer is visible as shimmer. `src/ink/ink-app.screen.test.tsx` pins that the incremental writer paints the same screen as the default one.
+- A live region that shrinks must be compensated by matching `<Static>` output, or the composer walks UP the screen and leaves dead rows below it. Ink writes static output in place of the erased live block, so the normal finalize-into-transcript path is already neutral — `src/ink/ink-app.screen.test.tsx` emulates a terminal across a bridge-driven run and fails if the composer jumps up more than a row. Do not "fix" this with reserved padding: holding a high-water height pins the composer mid-run but voids the screen and produces a far bigger jump when the reservation is released.
+- Everything rendered BELOW `<Static>` must be bounded by terminal size on BOTH axes, and the axes are coupled — a row window is only correct if it either truncates on columns or charges each line its wrapped height. A frame taller than the viewport makes Ink wipe the screen and replay the whole transcript on EVERY frame until it shrinks back, which at streaming rate is the terminal flicker. `src/ink/ink-app.render.test.tsx` pins the frame height against a mock TTY. Detail + current bounds: `harness/knowledge/live-region-bounding.md`.
 - Session files live under `~/.pulse-coder/sessions`; keep local runtime data out of source control and preserve session task-list metadata.
 - Slash command changes should preserve session persistence, queued input, abort handling, and the clarification flow.
 - This package currently has no `typecheck` script; do not document or rely on `pnpm --filter pulse-coder-cli typecheck` until `package.json` adds it.
-- `src/runtime-tools.ts` is the shared tool assembly for both UI hosts. Keep Ink
+- `src/tools/runtime-tools.ts` is the shared tool assembly for both UI hosts. Keep Ink
   and readline on this entry so `run_js` and live-app capabilities cannot drift.
 - Live-app capability tools are absent by default; expose them only when
   `PULSE_CODER_EXPERIMENTAL_APP_RUNTIME=1`. The Canvas host separately requires
@@ -86,7 +88,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
   bundled Pulse Canvas skill must route the agent to native tools first;
   `pulse-canvas runtime` is the fallback for hosts without those tools. Both
   entries share `@pulse-coder/canvas-cli/core`; do not fork transport policy.
-- `run_js` registration imports `src/sandbox/index.js`; `src/sandbox/runner.ts` is never imported — it is the fork target `resolveRunnerPath()` locates next to the built bundle (`dist/runner.cjs`), so keep the tsup `runner` entry in sync.
+- `run_js` registration imports `src/tools/sandbox/index.js`; `src/tools/sandbox/runner.ts` is never imported — it is the fork target `resolveRunnerPath()` locates next to the built bundle (`dist/runner.cjs`), so keep the tsup `runner` entry in sync.
 - Contract changes with engine, ACP, teams, or plugin-kit (memory module) should use the affected workspace contracts/validation plus the root impact overlay.
 
 ## Common Commands
@@ -103,16 +105,16 @@ Run commands from the repository root. `pnpm start` maps to the built CLI packag
 ## Key Files
 
 - `src/index.ts`: shared entrypoint (arg parse → print mode / Ink / readline), readline command loop, agent run wiring, ACP routing, and session save path.
-- `src/ink-controller.ts`: default Ink-mode controller with command handling, engine plan-mode wiring, agent/ACP routing, session sync, queued input, real token usage, and shutdown.
-- `src/ink-app.tsx`: Ink rendering (Static transcript + live region), input composer, paste handling, command suggestions, history, and mode shortcuts.
-- `src/ink-ui-bridge.ts`: append-only event + live-region bridge between runtime callbacks and the Ink UI; tool-result previews and streaming throttle live here.
+- `src/ink/ink-controller.ts`: default Ink-mode controller with command handling, engine plan-mode wiring, agent/ACP routing, session sync, queued input, real token usage, and shutdown.
+- `src/ink/ink-app.tsx`: Ink rendering (Static transcript + live region), input composer, paste handling, command suggestions, history, and mode shortcuts.
+- `src/ink/ink-ui-bridge.ts`: append-only event + live-region bridge between runtime callbacks and the Ink UI; tool-result previews and streaming throttle live here.
 - `src/ui-mode.ts`: `--ui`/`--tui`/`-p`/`--continue` and `PULSE_CODER_UI` resolution.
-- `src/print-mode.ts`: `-p` one-shot runner; stdout carries only the answer, console logging is redirected to stderr.
-- `src/markdown.ts`, `src/history-store.ts`: markdown-to-ANSI renderer and persisted prompt history.
-- `src/log-sink.ts`: console capture for the engine log layer (file + ring buffer + subscriber policy).
-- `src/session.ts`, `src/session-commands.ts`: session storage and slash-command behavior.
-- `src/acp-commands.ts`: `/acp` state commands, platform key resolution, session listing, and session close.
-- `src/team-commands.ts`: `/team`, `/teams`, and `/solo` command surface.
-- `src/memory-integration.ts`: memory plugin setup and per-run memory context.
-- `src/runtime-tools.ts`, `src/canvas-runtime-tools.ts`: shared host-tool
+- `src/print/print-mode.ts`: `-p` one-shot runner; stdout carries only the answer, console logging is redirected to stderr.
+- `src/terminal/markdown.ts`, `src/session/history-store.ts`: markdown-to-ANSI renderer and persisted prompt history.
+- `src/shared/log-sink.ts`: console capture for the engine log layer (file + ring buffer + subscriber policy).
+- `src/session/session.ts`, `src/commands/session-commands.ts`: session storage and slash-command behavior.
+- `src/commands/acp-commands.ts`: `/acp` state commands, platform key resolution, session listing, and session close.
+- `src/commands/team-commands.ts`: `/team`, `/teams`, and `/solo` command surface.
+- `src/shared/memory-integration.ts`: memory plugin setup and per-run memory context.
+- `src/tools/runtime-tools.ts`, `src/tools/canvas-runtime-tools.ts`: shared host-tool
   assembly and the structured Pulse Canvas capability adapter.

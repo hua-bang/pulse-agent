@@ -91,7 +91,7 @@ Run 级 hooks（`beforeRun` / `afterRun`）在 `Engine.run()`（`packages/engine
 - `/skills` 单次技能消息转换
 - `Esc` 中断当前响应
 - `clarify` 追问交互
-- 内置 `run_js` 工具（沙箱 JS 执行器位于 `src/sandbox/`）
+- 内置 `run_js` 工具（沙箱 JS 执行器位于 `src/tools/sandbox/`）
 
 ### 6）Orchestrator（`packages/engine/src/orchestrator`，子路径导出 `pulse-coder-engine/orchestrator`）
 执行 **TaskGraph** —— `TaskNode` 组成的 DAG：`{ id, role, deps[], input?, agent?, instruction? }`。

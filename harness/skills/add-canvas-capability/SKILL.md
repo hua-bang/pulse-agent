@@ -34,7 +34,7 @@ Make the Capability Runtime the single behavior boundary. Expose that capability
    - Ensure discovery and execution apply the same policy. Registration alone does not make a capability externally callable.
 
 6. Expose adapters without forking behavior.
-   - Pulse Agent already discovers and calls allowed capabilities through `app_capabilities_list` and `app_capability_call` in `packages/cli/src/canvas-runtime-tools.ts`.
+   - Pulse Agent already discovers and calls allowed capabilities through `app_capabilities_list` and `app_capability_call` in `packages/cli/src/tools/canvas-runtime-tools.ts`.
    - External agents already use `pulse-canvas runtime capabilities` and `pulse-canvas runtime call` through `packages/canvas-cli/src/core/runtime-capabilities.ts`.
    - Verify both generic paths for every new externally allowed capability; do not add adapter code merely to rename the same generic call.
    - For a frequent action that needs better model selection, add a task-specific Canvas Agent Tool that calls `getCanvasCapabilityRuntime().call(...)` with actor `canvas-agent` and forwards the abort signal. Read `apps/canvas-workspace/harness/skills/add-agent-tool/SKILL.md` before doing so.

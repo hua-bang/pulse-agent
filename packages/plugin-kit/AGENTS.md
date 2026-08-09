@@ -10,7 +10,7 @@
 - Worktree binding (`/worktree`): file-backed worktree records, scope-to-worktree bindings, `AsyncLocalStorage` run context, and a prompt-injection engine plugin.
 - Vault binding (`/vault`): file-backed per-project/per-tenant workspace directories, vault resolution, prompt injection, and the optional `vault_inspect` tool.
 - Devtools (`/devtools`): run, LLM, tool, compaction, hook timing, prompt snapshot, token/cost, tool-stat, error, and cache timeline diagnostics.
-- Memory (`/memory`): host-side memory service, engine plugin integration, daily-log extraction, semantic/keyword recall, embeddings (carries the `better-sqlite3` native dep). Formerly `packages/memory-plugin`.
+- Memory (`/memory`): host-side memory service, engine plugin integration, daily-log extraction, semantic/keyword recall, embeddings (carries the `better-sqlite3` native dep). Formerly the standalone `memory-plugin` package.
 - Langfuse (`/langfuse`): optional observability engine plugin. Formerly `packages/langfuse-plugin`.
 
 This package should expose reusable infrastructure primitives and engine plugins. Host-specific policy should stay in the host app or plugin using the kit.

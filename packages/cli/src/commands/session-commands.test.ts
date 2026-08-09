@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Context } from 'pulse-coder-engine';
 import { SessionCommands } from './session-commands.js';
-import { SessionManager, type Session } from './session.js';
+import { SessionManager, type Session } from '../session/session.js';
 
 const makeSession = (overrides: Partial<Session> = {}): Session => ({
   id: 'session-1',

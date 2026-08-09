@@ -1,15 +1,15 @@
 import { DEFAULT_MODEL, PulseAgent } from 'pulse-coder-engine';
 import * as readline from 'readline';
 import type { Context, TaskListService } from 'pulse-coder-engine';
-import { SessionCommands } from './session-commands.js';
-import { InputManager } from './input-manager.js';
-import { SkillCommands } from './skill-commands.js';
-import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
-import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
+import { SessionCommands } from './commands/session-commands.js';
+import { InputManager } from './shared/input-manager.js';
+import { SkillCommands } from './commands/skill-commands.js';
+import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './shared/memory-integration.js';
+import { TuiRenderer, type TuiHelpItem } from './readline/tui-renderer.js';
 import { parseCliArgs } from './ui-mode.js';
-import { formatModelSpec, loadModelRegistry, resolveKnownModelSpec, resolveModelSpec, type ModelChoice } from './model-registry.js';
-import { buildModelRunOptions, resolveModelChoice } from './model-run-options.js';
-import { createPulseCliTools } from './runtime-tools.js';
+import { formatModelSpec, loadModelRegistry, resolveKnownModelSpec, resolveModelSpec, type ModelChoice } from './models/model-registry.js';
+import { buildModelRunOptions, resolveModelChoice } from './models/model-run-options.js';
+import { createPulseCliTools } from './tools/runtime-tools.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -877,7 +877,7 @@ async function main(): Promise<void> {
   const parsed = parseCliArgs();
 
   if (parsed.print) {
-    const { runPrintMode } = await import('./print-mode.js');
+    const { runPrintMode } = await import('./print/print-mode.js');
     process.exitCode = await runPrintMode(parsed.prompt, {
       modelSpec: parsed.model,
       isolated: parsed.isolated,
@@ -891,7 +891,7 @@ async function main(): Promise<void> {
   }
 
   if (parsed.uiMode === 'ink') {
-    const { startInkTui } = await import('./ink-launcher.js');
+    const { startInkTui } = await import('./ink/ink-launcher.js');
     await startInkTui({ continueLast: parsed.continueLast, verbose: parsed.verbose, model: parsed.model });
     return;
   }

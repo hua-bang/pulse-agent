@@ -1,19 +1,19 @@
 import { CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL, PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
 
-import { InputManager } from './input-manager.js';
-import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
-import { SessionCommands } from './session-commands.js';
-import { SkillCommands } from './skill-commands.js';
-import type { TuiHelpItem } from './tui-renderer.js';
+import { InputManager } from '../shared/input-manager.js';
+import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from '../shared/memory-integration.js';
+import { SessionCommands } from '../commands/session-commands.js';
+import { SkillCommands } from '../commands/skill-commands.js';
+import type { TuiHelpItem } from '../readline/tui-renderer.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
 import { formatRelativeTime, truncateLabel, type InkCliController, type InkCliSnapshot, type CliInteractionMode } from './ink-app.js';
-import type { EngineLogSink } from './log-sink.js';
-import { createPulseCliTools } from './runtime-tools.js';
-import { extractStepUsage } from './usage-metrics.js';
-import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveKnownModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from './model-registry.js';
-import { buildModelRunOptions, type ModelRunOptions } from './model-run-options.js';
-import { PreferencesStore } from './preferences.js';
-import { expandFileReferences, indexWorkspaceFiles } from './file-reference.js';
+import type { EngineLogSink } from '../shared/log-sink.js';
+import { createPulseCliTools } from '../tools/runtime-tools.js';
+import { extractStepUsage } from '../shared/usage-metrics.js';
+import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveKnownModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from '../models/model-registry.js';
+import { buildModelRunOptions, type ModelRunOptions } from '../models/model-run-options.js';
+import { PreferencesStore } from '../models/preferences.js';
+import { expandFileReferences, indexWorkspaceFiles } from '../shared/file-reference.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',

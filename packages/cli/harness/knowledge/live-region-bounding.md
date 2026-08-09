@@ -18,7 +18,7 @@ The streaming answer (`liveText`) was the region that hit this: it grew with the
 model's output until it outgrew the screen. It now takes only the rows the
 fixed-size regions leave over — `windowLiveTextLines()` in `ink-app.tsx` —
 and the full answer still reaches scrollback when the run finalizes it into
-`<Static>`. `src/ink-app.render.test.tsx` renders the real component into a
+`<Static>`. `src/ink/ink-app.render.test.tsx` renders the real component into a
 mock TTY and asserts the frame height stays under the viewport (it measured
 207 rows on a 24-row terminal before the bound existed). A snapshot cannot
 express everything on that screen — the draft is the app's own state — so that
@@ -132,7 +132,7 @@ count bound so a long history cannot flood the transcript.
 
 ## Measurement
 
-All of it measures DISPLAY COLUMNS through `src/text-width.ts` (CJK and emoji are
+All of it measures DISPLAY COLUMNS through `src/terminal/text-width.ts` (CJK and emoji are
 two columns wide), never `String.length`. Cursor movement and deletion step whole
 code points through the same module.
 

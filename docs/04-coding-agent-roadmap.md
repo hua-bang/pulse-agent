@@ -64,9 +64,9 @@ Phase 4 (P3) ── 生产级成熟   长期目标
 
 | 能力 | 状态 | 文件 |
 |------|------|------|
-| 会话 CRUD（创建/保存/加载/删除） | ✅ | `packages/cli/src/session.ts` |
-| 会话持久化（`~/.coder/sessions/*.json`） | ✅ | `packages/cli/src/session.ts` |
-| 会话列表与全文搜索 | ✅ | `packages/cli/src/session-commands.ts` |
+| 会话 CRUD（创建/保存/加载/删除） | ✅ | `packages/cli/src/session/session.ts` |
+| 会话持久化（`~/.coder/sessions/*.json`） | ✅ | `packages/cli/src/session/session.ts` |
+| 会话列表与全文搜索 | ✅ | `packages/cli/src/commands/session-commands.ts` |
 | CLI 命令（`/new`, `/resume`, `/sessions`, `/search`） | ✅ | `packages/cli/src/index.ts` |
 
 ---
@@ -262,7 +262,7 @@ interface TodoReadOutput {
 
 **会话元数据扩展：**
 ```typescript
-// packages/cli/src/session.ts 扩展
+// packages/cli/src/session/session.ts 扩展
 interface Session {
   id: string;
   title: string;
@@ -512,7 +512,7 @@ Web UI 能力
 | `packages/engine/src/built-in/skills-plugin/` | Skills 发现与加载 |
 | `packages/engine/src/context/` | Token 计数，上下文压缩 |
 | `packages/engine/src/tools/` | 8 个内置工具实现 |
-| `packages/cli/src/session.ts` | 会话持久化与管理 |
+| `packages/cli/src/session/session.ts` | 会话持久化与管理 |
 | `packages/cli/src/index.ts` | CLI 入口，命令系统，流式输出 |
 
 ---

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { renderMarkdownAnsi } from './markdown.js';
-import { applyFileReference, detectFileReferenceQuery, filterFileEntries, type FileEntry } from './file-reference.js';
-import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth, wrappedRowCount, wrapToRows } from './text-width.js';
+import { renderMarkdownAnsi } from '../terminal/markdown.js';
+import { applyFileReference, detectFileReferenceQuery, filterFileEntries, type FileEntry } from '../shared/file-reference.js';
+import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth, wrappedRowCount, wrapToRows } from '../terminal/text-width.js';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error' | 'log';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
