@@ -1272,7 +1272,16 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   // newlines it contains. `promptContentColumns` is the box content width less
   // the '› ' / '  ' gutter every draft row carries.
   const maxPromptRows = Math.max(1, Math.min(6, terminalRows - 10));
-  const promptWindow = windowPromptRows(promptLines, maxPromptRows, promptContentColumns);
+  // Memoized: windowPromptRows() calls wrappedRowCount() per draft row, and a
+  // spinner tick (every 120ms while a run is active) re-renders this
+  // component without touching the draft — recomputing that wrap on every
+  // such tick is pure waste. `promptLines` is itself already memoized on
+  // [cursor, input], so this only re-runs when the draft, cursor or the box's
+  // measured width actually changes.
+  const promptWindow = useMemo(
+    () => windowPromptRows(promptLines, maxPromptRows, promptContentColumns),
+    [promptLines, maxPromptRows, promptContentColumns],
+  );
   const visiblePromptRows = promptWindow.rows;
   const hiddenPromptRowCount = promptWindow.hiddenRowCount;
   const waitingClarification = snapshot.phase === 'Clarification';
@@ -1292,8 +1301,22 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const composerColor = waitingClarification ? 'magenta' : snapshot.isProcessing ? 'yellow' : 'cyan';
   const statusIcon = snapshot.isProcessing ? spinner : '●';
   const statusColor = snapshot.isProcessing ? 'yellow' : snapshot.status === 'Cancelled' ? 'red' : 'green';
+  // `statusPrefix` carries Date.now()-derived elapsed time and the spinner
+  // glyph — both intentionally recompute every tick, so this stays OUTSIDE
+  // the memo below. Its display WIDTH is what statusline's budget actually
+  // needs, and that width is stable across spinner ticks (every spinner
+  // frame is one column; elapsed text only grows when its digit count does),
+  // so deriving the width here and memoizing on the number — not on this
+  // string — is what lets the memo skip formatStatusline() on a bare tick.
   const statusPrefix = `${statusIcon} ${snapshot.status}${snapshot.isProcessing && snapshot.runStartedAt ? ` · ${formatElapsed(Date.now() - snapshot.runStartedAt)}` : ''}`;
-  const statusline = formatStatusline(snapshot, Math.max(20, terminalColumns - stringWidth(statusPrefix) - 4));
+  const statuslineMaxWidth = Math.max(20, terminalColumns - stringWidth(statusPrefix) - 4);
+  // formatStatusline() measures every candidate segment combination with
+  // stringWidth(); memoized so a spinner-only re-render (snapshot and
+  // statuslineMaxWidth both unchanged) does not redo that work.
+  const statusline = useMemo(
+    () => formatStatusline(snapshot, statuslineMaxWidth),
+    [snapshot, statuslineMaxWidth],
+  );
 
   // Parallel tools (teams, sub-agents) can stack up; window them so the
   // composer never gets pushed off screen.
@@ -1306,7 +1329,16 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   // clear-and-replay for as long as the live output is taller than the
   // terminal, which is the flicker this budget exists to prevent.
   const liveToolRows = visibleLiveTools.length + (hiddenLiveToolCount > 0 ? 1 : 0);
-  const footerRows = picker
+  // Memoized: the non-picker branch calls wrappedRowCount() once per visible
+  // draft row plus once for the key hint, and none of that depends on the
+  // spinner — redoing it on every 120ms tick while a run is active was pure
+  // waste. Dependencies are the PRIMITIVE/already-memoized inputs, not the
+  // intermediate arrays (`visiblePickerItems`, etc.) that this component
+  // rebuilds fresh every render regardless — depending on THOSE would defeat
+  // the memo, since a fresh `.slice()` never compares equal to the last one.
+  // Over-listing is the safer failure mode here (a stale footer height wrongly
+  // clips the live region), so every real input reaches this array.
+  const footerRows = useMemo(() => (picker
     // Border (2) + title + items + optional "… N more" + the hint line below.
     ? 3 + Math.max(1, visiblePickerItems.length * pickerRowsPerItem)
       + (pickerItems.length > visiblePickerItems.length ? 1 : 0)
@@ -1314,10 +1346,24 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     // Border (2) + draft rows + optional head + suggestions + the key hint.
     // Draft rows are pre-wrapped to the content width, so each really is one
     // physical row; the hint still wraps and is counted after wrapping.
-    : 2 + visiblePromptRows.reduce((rows, line) => rows + wrappedRowCount(line, promptContentColumns), 0)
-      + (hiddenPromptRowCount > 0 ? 1 : 0)
+    : 2 + promptWindow.rows.reduce((rows, line) => rows + wrappedRowCount(line, promptContentColumns), 0)
+      + (promptWindow.hiddenRowCount > 0 ? 1 : 0)
       + fileSuggestions.length + slashSuggestions.length
-      + wrappedRowCount(keyHint, terminalColumns);
+      + wrappedRowCount(keyHint, terminalColumns)
+  ), [
+    picker,
+    visiblePickerItems.length,
+    pickerRowsPerItem,
+    pickerItems.length,
+    showPickerHint,
+    pickerHintRows,
+    promptWindow,
+    promptContentColumns,
+    fileSuggestions.length,
+    slashSuggestions.length,
+    keyHint,
+    terminalColumns,
+  ]);
   // +1 for the region's own marginTop, +1 so the frame stays strictly under the
   // viewport rather than exactly at it. Running tools are billed first: they
   // are the "what is happening now" signal and the answer can window.
