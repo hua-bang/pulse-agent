@@ -61,6 +61,12 @@ export class InkUiBridge {
   /** Set by abort(), cleared by startProcessing(): drops late streaming events. */
   private cancelled = false;
   private readonly pendingInputBuffers = new Map<string, string>();
+  /**
+   * A tool trace held back one beat so N consecutive identical traces can
+   * merge into one `· ×N` line — see addToolTrace() for why this has to
+   * happen before the first of them ever prints.
+   */
+  private pendingTrace: { title: string; status?: InkCliEvent['status']; summary?: string; count: number } | null = null;
 
   constructor(options: InkUiBridgeOptions) {
     this.onChange = options.onChange;
@@ -186,6 +192,9 @@ export class InkUiBridge {
   }
 
   runSummary(summary: TuiRunSummary): void {
+    // Terminal path: a trace still held back for a possible merge must reach
+    // the transcript now, or it is silently lost.
+    this.flushPendingTrace();
     this.finalizeLiveText();
     this.finalizeLiveTools('info');
     this.updateSnapshot({
@@ -231,6 +240,9 @@ export class InkUiBridge {
   }
 
   error(message: string): void {
+    // Terminal path: flush before anything else, or a trace still held back
+    // for a possible merge is silently lost.
+    this.flushPendingTrace();
     // Mirrors abort(): a mid-run failure must close out the live region too,
     // or partially streamed text is lost and live tool lines spin forever.
     this.finalizeLiveText();
@@ -261,6 +273,10 @@ export class InkUiBridge {
       // another permanent Abort block to the transcript.
       return;
     }
+    // Terminal path: a trace still held back for a possible merge must reach
+    // the transcript now — it is a completed trace, not part of what is being
+    // cancelled below.
+    this.flushPendingTrace();
     this.finalizeLiveText();
     this.finalizeLiveTools('error', '(cancelled)');
     this.updateSnapshot({
@@ -291,6 +307,9 @@ export class InkUiBridge {
   }
 
   stopProcessing(): void {
+    // Terminal path: flush before anything else, or a trace still held back
+    // for a possible merge is silently lost.
+    this.flushPendingTrace();
     this.finalizeLiveText();
     this.finalizeLiveTools('info');
     this.updateSnapshot({
@@ -393,7 +412,7 @@ export class InkUiBridge {
     const label = entry?.label ?? name;
     const summary = this.summarizeToolResult(name, output, isError);
     const preview = this.toolDetail ? this.formatToolResultPreview(output) : '';
-    this.addEvent('tool', summary ? `${label} · ${summary}` : label, preview, true, { status: isError ? 'error' : 'success' });
+    this.addToolTrace(summary ? `${label} · ${summary}` : label, preview, { status: isError ? 'error' : 'success' });
 
     const stillRunning = this.liveTools.length > 0;
     this.updateSnapshot({
@@ -412,11 +431,17 @@ export class InkUiBridge {
   }
 
   user(message: string): void {
+    // Terminal path: flush before anything else, or a trace still held back
+    // for a possible merge is silently lost.
+    this.flushPendingTrace();
     this.finalizeLiveText();
     this.addEvent('user', undefined, message);
   }
 
   clarification(request: ClarificationRequest): void {
+    // Terminal path: flush before anything else, or a trace still held back
+    // for a possible merge is silently lost.
+    this.flushPendingTrace();
     this.finalizeLiveText();
     const lines = [request.question];
     if (request.context) {
@@ -575,6 +600,51 @@ export class InkUiBridge {
     return false;
   }
 
+  /**
+   * Emits a tool trace, but holds it back one beat instead of printing it
+   * immediately: `events` is append-only and rendered via `<Static>`, so an
+   * already-printed row can never be rewritten. Merging N consecutive
+   * identical traces into one `label · ×N` line therefore has to happen
+   * BEFORE the first of them prints — which means we cannot know yet whether
+   * to print it until the NEXT event tells us it does not match.
+   *
+   * Cost: a trace reaches the screen one event later than it actually
+   * happened. Every terminal path (error/abort/runSummary/stopProcessing/
+   * clarification/user) explicitly flushes so nothing pending is ever lost.
+   */
+  private addToolTrace(title: string, text: string, metadata: Pick<InkCliEvent, 'status' | 'summary'>): void {
+    const mergeable = text === '';
+
+    if (
+      mergeable &&
+      this.pendingTrace &&
+      this.pendingTrace.title === title &&
+      this.pendingTrace.status === metadata.status
+    ) {
+      this.pendingTrace.count += 1;
+      return;
+    }
+
+    this.flushPendingTrace();
+
+    if (mergeable) {
+      this.pendingTrace = { title, status: metadata.status, summary: metadata.summary, count: 1 };
+      return;
+    }
+
+    this.addEvent('tool', title, text, true, metadata);
+  }
+
+  /** Prints whatever trace is being held back for a possible merge, if any. */
+  private flushPendingTrace(): void {
+    if (!this.pendingTrace) {
+      return;
+    }
+    const { title, status, summary, count } = this.pendingTrace;
+    this.pendingTrace = null;
+    this.addEvent('tool', count > 1 ? `${title} ·×${count}` : title, '', true, { status, summary });
+  }
+
   private addEvent(
     kind: InkCliEvent['kind'],
     title: string | undefined,
@@ -582,6 +652,13 @@ export class InkUiBridge {
     emit = true,
     metadata: Pick<InkCliEvent, 'status' | 'summary'> = {},
   ): string {
+    // Every OTHER event kind must land in chronological order relative to a
+    // trace still held back by addToolTrace() — an engine log line or the
+    // next narration segment must not print ahead of a tool trace that
+    // actually finished before it.
+    if (kind !== 'tool') {
+      this.flushPendingTrace();
+    }
     const id = `event-${++this.eventCounter}`;
     this.events = [
       ...this.events,

@@ -81,6 +81,9 @@ describe('InkUiBridge', () => {
     expect(liveTools[0].label).toBe('$ pnpm test');
 
     bridge.toolResult('bash', 'ok', 'call-1');
+    // The trace is held back a beat for a possible merge (see addToolTrace);
+    // stopProcessing() is a terminal path and flushes it.
+    bridge.stopProcessing();
     const last = snapshots[snapshots.length - 1];
     expect(last.liveTools).toHaveLength(0);
     expect(last.events.slice(-1)[0].title).toBe('$ pnpm test · ok');
@@ -92,11 +95,15 @@ describe('InkUiBridge', () => {
     bridge.toolCall('grep', { pattern: 'one' }, 'call-a');
     bridge.toolCall('grep', { pattern: 'two' }, 'call-b');
     bridge.toolResult('grep', 'match-b', 'call-b');
+    // The trace is held back a beat for a possible merge (see addToolTrace);
+    // any other event kind (a log line here) flushes it — stopProcessing()
+    // would wrongly also finalize the still-running "one" call.
+    bridge.log('flush trigger');
 
     const last = snapshots[snapshots.length - 1];
     expect(last.liveTools).toHaveLength(1);
     expect(last.liveTools[0].label).toBe('grep "one"');
-    expect(last.events.slice(-1)[0].title).toBe('grep "two" · match-b');
+    expect(last.events.filter(event => event.kind === 'tool').slice(-1)[0].title).toBe('grep "two" · match-b');
   });
 
   it('marks narration segments as interim and the closing segment as final', () => {
@@ -122,6 +129,9 @@ describe('InkUiBridge', () => {
     bridge.startProcessing('Running agent');
     bridge.toolCall('bash', { command: 'echo ok' });
     bridge.toolResult('bash', 'ok\nline2\nline3\nline4\nline5');
+    // The trace is held back a beat for a possible merge (see addToolTrace);
+    // stopProcessing() is a terminal path and flushes it.
+    bridge.stopProcessing();
 
     const last = snapshots[snapshots.length - 1];
     expect(last.liveTools).toHaveLength(0);
@@ -146,6 +156,9 @@ describe('InkUiBridge', () => {
     bridge.toolResult('grep', 'a.ts\nb.ts\nc.ts');
     bridge.toolCall('read', { filePath: 'src/loop.ts' });
     bridge.toolResult('read', { content: 'line1\nline2' });
+    // The last trace is held back a beat for a possible merge (see
+    // addToolTrace); any other event kind flushes it.
+    bridge.log('flush trigger');
 
     const titles = snapshots[snapshots.length - 1].events.map(event => event.title);
     expect(titles).toContain('$ echo ok · ok');
@@ -174,6 +187,9 @@ describe('InkUiBridge', () => {
     bridge.startProcessing('Running agent');
     bridge.toolCall('bash', { command: 'false' });
     bridge.toolResult('bash', { error: 'boom' });
+    // The trace is held back a beat for a possible merge (see addToolTrace);
+    // stopProcessing() is a terminal path and flushes it.
+    bridge.stopProcessing();
 
     const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
     expect(toolEvent.status).toBe('error');
@@ -218,8 +234,11 @@ describe('InkUiBridge', () => {
 
     bridge.toolCall('task_list', { action: 'list' });
     bridge.toolResult('task_list', { taskListId: 'session-1', storagePath: '/Users/x/.pulse-coder/tasks/session-1.json', extras: 'y'.repeat(300) });
+    // The trace is held back a beat for a possible merge (see addToolTrace);
+    // any other event kind flushes it.
+    bridge.log('flush trigger');
 
-    const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
+    const toolEvent = snapshots[snapshots.length - 1].events.filter(event => event.kind === 'tool').slice(-1)[0];
     expect(toolEvent.title).toBe('task_list: list');
     expect(toolEvent.text).toBe('');
   });
@@ -258,8 +277,11 @@ describe('InkUiBridge', () => {
 
     bridge.toolCall('search', { query: 'docs' });
     bridge.toolResult('search', { content: [{ type: 'text', text: 'part one' }, { type: 'text', text: 'part two' }] });
+    // The trace is held back a beat for a possible merge (see addToolTrace);
+    // any other event kind flushes it.
+    bridge.log('flush trigger');
 
-    const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
+    const toolEvent = snapshots[snapshots.length - 1].events.filter(event => event.kind === 'tool').slice(-1)[0];
     expect(toolEvent.title).toBe('search "docs" · 2 matches');
     expect(toolEvent.status).toBe('success');
   });
@@ -323,6 +345,59 @@ describe('InkUiBridge', () => {
     expect(kinds).toContain('tool:error');
     expect(last.events.slice(-1)[0]).toMatchObject({ kind: 'error', title: 'Abort' });
     expect(last.status).toBe('Cancelled');
+  });
+
+  it('merges consecutive identical tool traces into one "· ×N" line', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('edit', { filePath: 'packages/cli/src/model-registry.ts' }, 'call-1');
+    bridge.toolResult('edit', undefined, 'call-1');
+    bridge.toolCall('edit', { filePath: 'packages/cli/src/model-registry.ts' }, 'call-2');
+    bridge.toolResult('edit', undefined, 'call-2');
+    bridge.toolCall('edit', { filePath: 'packages/cli/src/model-registry.ts' }, 'call-3');
+    bridge.toolResult('edit', undefined, 'call-3');
+    // The last of the three is still held back for a possible merge (see
+    // addToolTrace); stopProcessing() is a terminal path and flushes it.
+    bridge.stopProcessing();
+
+    const toolEvents = snapshots[snapshots.length - 1].events.filter(event => event.kind === 'tool');
+    expect(toolEvents).toHaveLength(1);
+    expect(toolEvents[0].title).toBe('edit packages/cli/src/model-registry.ts ·×3');
+  });
+
+  it('does not merge different consecutive tool traces', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('edit', { filePath: 'a.ts' }, 'call-1');
+    bridge.toolResult('edit', undefined, 'call-1');
+    bridge.toolCall('edit', { filePath: 'b.ts' }, 'call-2');
+    bridge.toolResult('edit', undefined, 'call-2');
+    bridge.stopProcessing();
+
+    const titles = snapshots[snapshots.length - 1].events
+      .filter(event => event.kind === 'tool')
+      .map(event => event.title);
+    expect(titles).toEqual(['edit a.ts', 'edit b.ts']);
+  });
+
+  it('flushes a pending merged trace on abort instead of losing it', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('edit', { filePath: 'a.ts' }, 'call-1');
+    bridge.toolResult('edit', undefined, 'call-1');
+    bridge.toolCall('edit', { filePath: 'a.ts' }, 'call-2');
+    bridge.toolResult('edit', undefined, 'call-2');
+    // Nothing else happens before the run is cancelled — the merged trace for
+    // the two "a.ts" edits above is still only pending, never printed yet.
+    bridge.abort('stopped');
+
+    const toolEvents = snapshots[snapshots.length - 1].events.filter(event => event.kind === 'tool');
+    // The pending merged edit trace must survive the abort (not just the
+    // "(cancelled)" entry for whatever tool was still live).
+    expect(toolEvents.some(event => event.title === 'edit a.ts ·×2')).toBe(true);
   });
 
   it('throttles streaming emissions but keeps the snapshot current', () => {
@@ -617,6 +692,9 @@ describe('Ink composer editing helpers', () => {
     bridge.text('the next answer');
     bridge.toolCall('bash', { command: 'echo ok' }, 'call-2');
     bridge.toolResult('bash', 'ok', 'call-2');
+    // The trace is held back a beat for a possible merge (see addToolTrace);
+    // stopProcessing() is a terminal path and flushes it.
+    bridge.stopProcessing();
 
     const snapshot = bridge.getSnapshot();
     expect(snapshot.events.some(event => event.text.includes('the next answer'))).toBe(true);
