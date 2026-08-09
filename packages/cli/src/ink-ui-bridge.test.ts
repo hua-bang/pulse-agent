@@ -166,6 +166,27 @@ describe('InkUiBridge', () => {
     expect(titles).toContain('open src/loop.ts · 2 lines');
   });
 
+  it('keeps the package segment of a long monorepo path instead of only the tail', () => {
+    const { snapshots, bridge } = createBridge();
+
+    // Old behavior kept only the last 2 segments ("…/directory/model-registry.ts"),
+    // which throws away the one segment that actually tells packages apart in
+    // a monorepo — most packages have a src/ and many share file basenames.
+    bridge.toolCall('edit', { filePath: 'packages/cli/src/very/deeply/nested/directory/model-registry.ts' });
+    const label = snapshots[snapshots.length - 1].liveTools[0].label;
+    expect(label).toBe('edit packages/…/directory/model-registry.ts');
+
+    // Still too long even with the head kept (the head segment itself is huge):
+    // degrades to the old tail-only form.
+    bridge.toolCall('edit', { filePath: 'a-package-name-that-is-extremely-long-and-verbose-for-testing-purposes/src/deeply/nested/model-registry.ts' });
+    const longLabel = snapshots[snapshots.length - 1].liveTools[1].label;
+    expect(longLabel).toBe('edit …/nested/model-registry.ts');
+
+    // Short paths are untouched.
+    bridge.toolCall('edit', { filePath: 'src/foo.ts' });
+    expect(snapshots[snapshots.length - 1].liveTools[2].label).toBe('edit src/foo.ts');
+  });
+
   it('shows content previews for new traces after enabling detail mode', () => {
     const { snapshots, bridge } = createBridge();
 

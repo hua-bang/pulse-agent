@@ -770,8 +770,13 @@ export class InkUiBridge {
   }
 
   /**
-   * Shorten a file path for display:
-   * - Keep last 2 segments if path is long (e.g. "src/foo.ts" or "…/bar/baz.ts")
+   * Shorten a file path for display, keeping the ends over the middle:
+   * - Long path: first segment + last 2 ("packages/…/src/model-registry.ts").
+   *   In a monorepo the package name is the most identifying part of a path
+   *   and `…/src/model-registry.ts` alone throws it away — every package has
+   *   a src/ and most have a model-registry.ts-shaped file somewhere.
+   * - Still too long (or too few segments for a head to mean anything):
+   *   degrade to the old last-2-segments form.
    */
   private shortPath(filePath: string, maxLength = 60): string {
     const normalized = filePath.replace(/\\/g, '/').trim();
@@ -779,8 +784,14 @@ export class InkUiBridge {
       return normalized;
     }
     const parts = normalized.split('/').filter(Boolean);
-    const short = parts.slice(-2).join('/');
-    return `…/${short}`;
+    const tail = parts.slice(-2).join('/');
+    if (parts.length > 3) {
+      const withHead = `${parts[0]}/…/${tail}`;
+      if (withHead.length <= maxLength) {
+        return withHead;
+      }
+    }
+    return `…/${tail}`;
   }
 
   private asRecord(value: unknown): Record<string, unknown> | null {
