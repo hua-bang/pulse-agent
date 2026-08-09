@@ -435,7 +435,7 @@
 
 /* ─── Right-dock artifact tab content ───────────────────────────────────
  * The shell (tab strip, positioning, width/resize, layering, animations)
- * comes from components/RightDock — only tab content is styled here. */
+ * comes from components/dock/RightDock — only tab content is styled here. */
 
 .artifact-drawer__type-badge {
   font-size: 10px;

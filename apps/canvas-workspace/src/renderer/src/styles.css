@@ -118,7 +118,7 @@
    * tints an AgentIcon never spells the color itself. Global (not dock-
    * scoped) because the dock's tab switcher renders those icons inside a
    * body-level popover. Keep in sync with the glyph fills in
-   * components/AgentNodeBody/AgentIcon.tsx. */
+   * components/node-bodies/AgentNodeBody/AgentIcon.tsx. */
   --agent-brand-claude-code: #d97757;
   --agent-brand-codex: #202123;
   --agent-brand-pi: #09090b;

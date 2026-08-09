@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode } from '../../types';
-import type { SettingsSection } from '../Settings';
+import type { SettingsSection } from '../settings/Settings';
 import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatPageBody } from './ChatPageBody';
 import type { SessionBackEntry } from './SessionBackBar';

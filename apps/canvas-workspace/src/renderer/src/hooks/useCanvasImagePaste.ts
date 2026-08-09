@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { CanvasNode, TextNodeData } from '../types';
-import { normalizeReferenceUrl } from '../components/ReferenceDrawer/utils';
+import { normalizeReferenceUrl } from '../components/dock/ReferenceDrawer/utils';
 
 interface Options {
   /** Current canvas workspace id — used as the saveImage target directory. */

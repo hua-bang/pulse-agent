@@ -1,6 +1,6 @@
 import type { MouseEvent, ReactNode } from 'react';
 import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
-import type { SettingsSection } from '../Settings';
+import type { SettingsSection } from '../settings/Settings';
 import type { I18nKey } from '../../i18n';
 
 export interface WorkspaceOption {

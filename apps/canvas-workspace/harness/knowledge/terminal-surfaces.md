@@ -1,6 +1,6 @@
 # Terminal surface sizing (xterm fit policy)
 
-`src/renderer/src/components/AgentNodeBody/utils/terminal.ts` owns the
+`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminal.ts` owns the
 shared sizing policy for every xterm instance in the app: agent nodes,
 terminal nodes, and the workspace terminal dock. Read this file before
 touching how any of those surfaces mount, resize, restore, or scroll a
@@ -80,9 +80,9 @@ difference between the two re-fit paths — do not unify them into a single
 
 ## Consumers (every xterm in the app)
 
-- Agent nodes: `src/renderer/src/components/AgentNodeBody/useAgentNodeController.ts`.
-- Terminal nodes: `src/renderer/src/components/TerminalNodeBody/index.tsx`.
-- The workspace terminal dock: `src/renderer/src/components/WorkspaceTerminalDock/index.tsx`.
+- Agent nodes: `src/renderer/src/components/node-bodies/AgentNodeBody/useAgentNodeController.ts`.
+- Terminal nodes: `src/renderer/src/components/node-bodies/TerminalNodeBody/index.tsx`.
+- The workspace terminal dock: `src/renderer/src/components/dock/WorkspaceTerminalDock/index.tsx`.
 
 All three call into the fit primitives above rather than the raw
 `FitAddon`.
@@ -99,5 +99,5 @@ behavior.
 
 ## Evidence
 
-- `src/renderer/src/components/AgentNodeBody/utils/terminalFit.test.ts` —
+- `src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFit.test.ts` —
   the bound regression suite for this sizing policy.

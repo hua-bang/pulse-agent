@@ -7,7 +7,7 @@ keeps one authoritative run and one session pointer per chat scope. Read this
 before changing `hooks/useChatSessions.ts`
 (`src/renderer/src/components/chat/hooks/useChatSessions.ts`), the full-page
 chat topbar / dock content-tabs toggle, `RightDock/dock-width.ts`
-(`src/renderer/src/components/RightDock/dock-width.ts`), or
+(`src/renderer/src/components/dock/RightDock/dock-width.ts`), or
 `src/main/agent/service.ts` and its collaborators (`active-chat-registry.ts`,
 `session-mutation-coordinator.ts`, `prepared-chat.ts`, `chat-session-cas.ts`,
 `clarification-registry.ts`, `session-store.ts`,
@@ -132,7 +132,7 @@ inset case inside `RightDock/index.test.tsx`.
 
 ## Dock width policy
 
-`RightDock/dock-width.ts` (`src/renderer/src/components/RightDock/dock-width.ts`).
+`RightDock/dock-width.ts` (`src/renderer/src/components/dock/RightDock/dock-width.ts`).
 
 - On the canvas, the dock may grow to ~95% of the viewport — the canvas
   reflows behind it, so a near-full-screen dock is legitimate there.
@@ -301,7 +301,7 @@ React's maximum update depth, and clears the renderer.
 
 Workbench's node and selection fallbacks are module constants, and are
 covered by `Workbench/__tests__/ChatDockLifecycle.test.tsx`
-(`src/renderer/src/components/Workbench/__tests__/ChatDockLifecycle.test.tsx`).
+(`src/renderer/src/components/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`).
 Knowledge chat applies the same stable-fallback rule, but is NOT exercised by
 that guard.
 
@@ -313,9 +313,9 @@ Primary regression suites live in:
 - `src/renderer/src/components/chat/hooks/useMentions.submit-veto.test.tsx`
 - `src/renderer/src/components/chat/__tests__/ChatSessionLoading.test.tsx`
 - `src/renderer/src/components/chat/__tests__/ChatSessionsRail.test.tsx`
-- `src/renderer/src/components/RightDock/__tests__/dock-content-tabs.test.ts`
-- `src/renderer/src/components/RightDock/index.test.tsx`
-- `src/renderer/src/components/RightDock/__tests__/dock-width.test.ts`
+- `src/renderer/src/components/dock/RightDock/__tests__/dock-content-tabs.test.ts`
+- `src/renderer/src/components/dock/RightDock/index.test.tsx`
+- `src/renderer/src/components/dock/RightDock/__tests__/dock-width.test.ts`
 - `src/main/agent/__tests__/service-history.test.ts`
 - `src/main/agent/active-chat-registry.test.ts`
 - `src/main/agent/prepared-chat.test.ts`
@@ -326,4 +326,4 @@ Primary regression suites live in:
 - `src/main/agent/__tests__/session-store.test.ts`
 - `src/renderer/src/components/chat/hooks/useChatAttachments.test.tsx`
 - `src/main/agent/chat-failure-persistence.test.ts`
-- `src/renderer/src/components/Workbench/__tests__/ChatDockLifecycle.test.tsx`
+- `src/renderer/src/components/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`

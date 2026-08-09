@@ -37,10 +37,10 @@ The workbench has exactly two side regions plus a modal tier:
   = browse/pick sources; Sidebar Layers = this canvas's spatial
   structure tree; the experimental `/nodes` page = full-page knowledge
   nodes management.
-- **Right region — `RightDock`** (`components/RightDock`): ONE tabbed
+- **Right region — `RightDock`** (`components/dock/RightDock`): ONE tabbed
   panel whose first tab is the **pinned chat**; preview surfaces open as
   additional tabs — artifacts (`components/artifacts/ArtifactTabView`)
-  and the link preview (`components/LinkDrawer` → `LinkTabView`).
+  and the link preview (`components/dock/LinkDrawer` → `LinkTabView`).
   `DockStore` owns the policies:
   - **the tab strip only renders when a preview tab exists** — chat alone
     looks like a plain chat panel (and the migration was invisible to

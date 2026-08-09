@@ -21,7 +21,7 @@ An Electron desktop app that provides a free-form canvas workspace for AI-assist
 | `agent` | Runs an external AI agent CLI (e.g. `claude`) in a PTY; accepts inline prompts or prompt files |
 | `frame` | Visual grouping rectangle with a label/color |
 
-The table above lists only the most common types. The canonical set is defined in [`src/shared/canvas.ts`](./src/shared/canvas.ts) and also includes `group`, `text`, `iframe`, `image`, `shape`, `mindmap`, `reference`, `dynamic-app`, and the extensible `plugin` type. `plugin` and `dynamic-app` each ship dedicated renderer components ([`PluginNodeBody`](./src/renderer/src/components/PluginNodeBody/), [`DynamicAppNodeBody`](./src/renderer/src/components/DynamicAppNodeBody/)).
+The table above lists only the most common types. The canonical set is defined in [`src/shared/canvas.ts`](./src/shared/canvas.ts) and also includes `group`, `text`, `iframe`, `image`, `shape`, `mindmap`, `reference`, `dynamic-app`, and the extensible `plugin` type. `plugin` and `dynamic-app` each ship dedicated renderer components ([`PluginNodeBody`](./src/renderer/src/components/node-bodies/PluginNodeBody/), [`DynamicAppNodeBody`](./src/renderer/src/components/node-bodies/DynamicAppNodeBody/)).
 
 ## Views
 
@@ -60,7 +60,7 @@ src/
     webview/        # Webview registry, CDP helpers, page reader
   preload/          # Context bridge (exposes window.canvasWorkspace API)
   renderer/src/
-    components/     # Canvas, Sidebar, AgentNodeBody, FileNodeBody, chat/, …
+    components/     # Grouped by domain: shell/, canvas/, node-bodies/, note-editor/, dock/, views/, settings/, chat/, artifacts/, ui/, icons/
     hooks/          # useWorkspaces, canvas interaction hooks
     editor/         # Tiptap editor setup
     config/ constants/ i18n/ utils/

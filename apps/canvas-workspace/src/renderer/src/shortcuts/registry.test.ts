@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SHORTCUT_HELP, SHORTCUT_SECTIONS } from '../components/AppShellProvider/ShortcutsDialog';
+import { SHORTCUT_HELP, SHORTCUT_SECTIONS } from '../components/shell/AppShellProvider/ShortcutsDialog';
 import { usesAppleShortcuts } from '../utils/keyboardShortcut';
 import { WEBVIEW_FORWARDED_CHORDS } from '../../../shared/webview-shortcuts';
 import {

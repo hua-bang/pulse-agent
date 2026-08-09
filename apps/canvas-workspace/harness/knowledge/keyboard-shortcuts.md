@@ -95,7 +95,7 @@ anywhere in the app again — both must come from the registry
 Two surfaces render shortcut labels, and both derive them from the registry
 instead of hardcoding strings:
 
-- The lazy `?` overlay, `src/renderer/src/components/AppShellProvider/ShortcutsDialog.tsx`,
+- The lazy `?` overlay, `src/renderer/src/components/shell/AppShellProvider/ShortcutsDialog.tsx`,
   exhaustively maps runtime shortcut IDs to display metadata — `SHORTCUT_HELP`
   is itself declared `satisfies Record<ShortcutId, { section, descriptionKey }>`,
   so it cannot go stale against the registry either — and derives its combo
@@ -108,9 +108,9 @@ instead of hardcoding strings:
   into the same sectioned layout (`SECTION_ORDER`: `canvas`, `view`,
   `selection`, `edit`, `panels`). `ShortcutsDialog` itself is only mounted
   through `React.lazy(() => import('./ShortcutsDialog'))` in
-  `src/renderer/src/components/AppShellProvider/index.tsx` — it is not
+  `src/renderer/src/components/shell/AppShellProvider/index.tsx` — it is not
   loaded until the user opens the `?` overlay.
-- Palette hints, `src/renderer/src/components/Canvas/hooks/useCanvasPaletteCommands.ts`,
+- Palette hints, `src/renderer/src/components/canvas/Canvas/hooks/useCanvasPaletteCommands.ts`,
   also derive from the registry: every Cmd+K palette command that has a
   keyboard equivalent sets its `shortcut` field via
   `formatShortcutId('canvas.…')` / `formatShortcutId('app.…')` rather than a
@@ -290,7 +290,7 @@ whitelist through three files, in this order:
 
 A focused terminal keeps Ctrl-chords but yields Cmd-chords and releases
 focus on double-Escape. The arbitration function is `decideTerminalKey` in
-`src/renderer/src/components/AgentNodeBody/utils/terminal.ts`. A focused
+`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminal.ts`. A focused
 terminal is otherwise its own keyboard black hole: xterm's helper element is
 a `<textarea>`, so the canvas dispatcher's editable guard silently drops
 every shortcut typed while it has focus, with no route back out. The split
@@ -354,11 +354,11 @@ The rule's `paths` cover: `src/renderer/src/shortcuts/**`,
 `src/renderer/src/hooks/useAppShortcuts.ts`,
 `src/renderer/src/hooks/useWebviewShortcutBridge.ts`,
 `src/renderer/src/utils/keyboardShortcut.ts`,
-`src/renderer/src/components/AppShellProvider/ShortcutsDialog.tsx`,
+`src/renderer/src/components/shell/AppShellProvider/ShortcutsDialog.tsx`,
 `src/shared/webview-shortcuts.ts`,
 `src/main/webview/shortcut-forwarding.ts`, `src/main/app/menu.ts`,
-`src/renderer/src/components/AgentNodeBody/utils/terminal.ts`,
-`src/renderer/src/components/AgentNodeBody/utils/terminalFocus.ts`, and the four
+`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminal.ts`,
+`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.ts`, and the four
 xterm surfaces that dispatch terminal-owned shortcuts
 (`AgentNodeBody/useAgentNodeController.ts`, `TerminalNodeBody/index.tsx`,
 `WorkspaceTerminalDock/index.tsx`, `NodeMentionPicker/index.tsx`).
@@ -366,7 +366,7 @@ xterm surfaces that dispatch terminal-owned shortcuts
 Its `quick` step and its `required` step both run:
 
 ```
-pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts
+pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalKeys.test.ts
 ```
 
 `required` additionally runs `pnpm --filter canvas-workspace typecheck`
@@ -383,8 +383,8 @@ Primary regression suites live in:
 - `src/renderer/src/hooks/useCanvasKeyboard.test.ts`
 - `src/renderer/src/hooks/useAppShortcuts.test.ts`
 - `src/main/webview/__tests__/shortcut-forwarding.test.ts`
-- `src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts` — the
+- `src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalKeys.test.ts` — the
   pure decision rule
-- `src/renderer/src/components/AgentNodeBody/utils/terminalFocus.test.ts` — the
+- `src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.test.ts` — the
   stateful hatch: double-Escape, the window boundary, the post-release reset,
   the time-zero sentinel, and the blur sequence

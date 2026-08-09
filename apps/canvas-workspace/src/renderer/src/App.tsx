@@ -1,29 +1,29 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import './App.css';
-import { AppShellProvider, useAppShell } from './components/AppShellProvider';
-import { DeferredSettings } from './components/AppLazyBoundaries';
+import { AppShellProvider, useAppShell } from './components/shell/AppShellProvider';
+import { DeferredSettings } from './components/shell/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
-import { isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useRightDock } from './components/RightDock';
-import { GlobalChatLauncher } from './components/RightDock/GlobalChatLauncher';
-import type { SettingsSection } from './components/Settings';
-import { Sidebar } from './components/Sidebar';
+import { isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useRightDock } from './components/dock/RightDock';
+import { GlobalChatLauncher } from './components/dock/RightDock/GlobalChatLauncher';
+import type { SettingsSection } from './components/settings/Settings';
+import { Sidebar } from './components/shell/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
-import { Workbench, useWorkbenchState } from './components/Workbench';
-import { resolveKnowledgeChatRouteContext } from './components/Workbench/knowledgeChatContext';
-import { GraphPageLazy as GraphPage } from './components/WorkspaceNodes/GraphPageLazy';
-import { useKnowledgeAiContext } from './components/WorkspaceNodes/knowledgeAiContext';
-import { NodesRouteViews } from './components/WorkspaceNodes/NodesRouteViews';
-import { useNodeDetailBridges } from './components/WorkspaceNodes/useNodeDetailBridges';
+import { Workbench, useWorkbenchState } from './components/shell/Workbench';
+import { resolveKnowledgeChatRouteContext } from './components/shell/Workbench/knowledgeChatContext';
+import { GraphPageLazy as GraphPage } from './components/views/WorkspaceNodes/GraphPageLazy';
+import { useKnowledgeAiContext } from './components/views/WorkspaceNodes/knowledgeAiContext';
+import { NodesRouteViews } from './components/views/WorkspaceNodes/NodesRouteViews';
+import { useNodeDetailBridges } from './components/views/WorkspaceNodes/useNodeDetailBridges';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { useAppShortcutBindings } from './hooks/useAppShortcuts';
 import { parseCanvasLocation } from './utils/canvasLinks';
-import { PulseRouter, PulseRouterView } from './components/router';
+import { PulseRouter, PulseRouterView } from './components/shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
-import { ScheduledRouteViews, SkillsRouteView } from './components/RouteViews';
-import { useScheduledRunChatOpener } from './components/Scheduled/useScheduledRunChatOpener';
+import { ScheduledRouteViews, SkillsRouteView } from './components/shell/RouteViews';
+import { useScheduledRunChatOpener } from './components/views/Scheduled/useScheduledRunChatOpener';
 import {
   ChatTargetProvider,
   useActiveChatTarget,
@@ -31,7 +31,7 @@ import {
 } from './components/chat/ChatTargetContext';
 import { useChatNavigation } from './components/chat/hooks/useChatNavigation';
 import type { AgentScope } from './components/chat/types';
-const MigrationSpinner = lazy(() => import('./components/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
+const MigrationSpinner = lazy(() => import('./components/shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
