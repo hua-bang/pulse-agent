@@ -571,9 +571,19 @@ function TranscriptEvent({ event, Box, Text }: { event: InkCliEvent; Box: React.
   }
 
   if (event.kind === 'user') {
+    // The user's own turns must stay findable when scrolling back through a
+    // long run: bold DEFAULT-foreground text (hardcoded white disappears on
+    // light terminal themes) and the `›` gutter on every line, so a pasted
+    // multi-line prompt reads as one attributed block.
+    const lines = event.text.split('\n');
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text color="cyan">› <Text color="white">{event.text}</Text></Text>
+        {lines.map((line, index) => (
+          <Text key={index}>
+            <Text color="cyan">{index === 0 ? '› ' : '  '}</Text>
+            <Text bold>{line || ' '}</Text>
+          </Text>
+        ))}
       </Box>
     );
   }

@@ -332,6 +332,58 @@ describe('InkCliApp on a terminal', () => {
     session.done();
   });
 
+  it('keeps the › gutter on every line of a multi-line user turn', async () => {
+    const ink = await import('ink');
+    const screen = new TerminalScreen();
+    let current: InkCliSnapshot;
+    let publish: ((snapshot: InkCliSnapshot) => void) | undefined;
+    const bridge = new InkUiBridge({
+      onChange: snapshot => {
+        current = snapshot;
+        publish?.(snapshot);
+      },
+      textThrottleMs: 0,
+    });
+    current = bridge.getSnapshot();
+
+    const instance = ink.render(
+      <InkCliApp
+        controller={{
+          getSnapshot: () => current,
+          submitInput: () => {},
+          requestStop: () => {},
+          shutdown: () => {},
+          subscribe: listener => {
+            publish = listener;
+            return () => {};
+          },
+        }}
+        runtime={{
+          Box: ink.Box,
+          Text: ink.Text,
+          Static: ink.Static,
+          useApp: ink.useApp,
+          useInput: ink.useInput,
+          usePaste: ink.usePaste,
+          useStdout: ink.useStdout,
+        }}
+      />,
+      { stdout: screen as never, stdin: new MockStdin() as never, exitOnCtrlC: false, patchConsole: false },
+    );
+
+    bridge.user('review this snippet\nconst a = 1;\nconst b = 2;');
+    await new Promise(resolve => setTimeout(resolve, 60));
+    instance.unmount();
+
+    const turn = screen.visible().filter(line => /review this snippet|const [ab]/.test(line));
+    expect(turn).toHaveLength(3);
+    // First line carries the marker; continuations stay inside the gutter so
+    // the whole paste reads as one attributed block when scrolling back.
+    expect(turn[0].startsWith('› ')).toBe(true);
+    expect(turn[1].startsWith('  const a')).toBe(true);
+    expect(turn[2].startsWith('  const b')).toBe(true);
+  });
+
   it('paints the same screen incrementally as it does with a full repaint', async () => {
     // The launcher enables incrementalRendering to stop the whole live block
     // being erased and repainted 30 times a second. It must land the user on

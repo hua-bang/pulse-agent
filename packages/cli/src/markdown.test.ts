@@ -38,4 +38,25 @@ describe('renderMarkdownAnsi', () => {
     expect(renderMarkdownAnsi('---')).toBe(`${DIM}${'─'.repeat(40)}${RESET}`);
     expect(renderMarkdownAnsi('> quoted')).toBe(`${DIM}▌ ${RESET}quoted`);
   });
+
+  it('squeezes blank-line runs outside fences and trims block edges', () => {
+    // Prose: leading blanks dropped, 3-blank run collapsed to one, tail trimmed.
+    expect(renderMarkdownAnsi('\n\nfirst\n\n\n\nsecond\n\n')).toBe('first\n\nsecond');
+    // Whitespace-only lines count as blank.
+    expect(renderMarkdownAnsi('a\n   \n\t\nb')).toBe('a\n\nb');
+  });
+
+  it('keeps blank lines inside fenced code intact', () => {
+    const source = '```\nline1\n\n\n\nline2\n```';
+    const rendered = renderMarkdownAnsi(source);
+    expect(rendered.split('\n')).toEqual([
+      `${DIM}\`\`\`${RESET}`,
+      'line1',
+      '',
+      '',
+      '',
+      'line2',
+      `${DIM}\`\`\`${RESET}`,
+    ]);
+  });
 });
