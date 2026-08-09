@@ -335,6 +335,30 @@ describe('InkCliApp frame height', () => {
     }
   });
 
+  it('bounds the picker on a terminal too narrow for the old 20-column floor', async () => {
+    // pickerContentWidth used to floor at Math.max(20, columns - 4): on a
+    // 20-column terminal that floor (20) exceeds the real inner width (16),
+    // so label/hint/preview truncated against a budget wider than what is
+    // actually there, could still wrap, and blow the row budget this same
+    // width exists to keep inside.
+    const snapshot: InkCliSnapshot = {
+      ...baseSnapshot,
+      isProcessing: false,
+      picker: {
+        title: 'Resume a session',
+        items: Array.from({ length: 10 }, (_, index) => ({
+          id: `session-${index}`,
+          label: `Session ${index} with a fairly long title that will not fit`,
+          hint: '12 msgs · 3h ago',
+          preview: 'a preview line long enough to need truncation on this terminal',
+        })),
+      },
+    };
+
+    const [height] = await renderSequence([snapshot], { rows: 24, columns: 20 });
+    expect(height).toBeLessThan(24);
+  });
+
   it('still shows a pickable entry on a short terminal', async () => {
     // Bounded is not enough: a picker with no visible entry cannot be used.
     // The hint line is what gets dropped first when the screen is that tight.

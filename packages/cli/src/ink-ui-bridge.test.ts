@@ -619,6 +619,73 @@ describe('STREAM_FPS: single throttle frequency source', () => {
   });
 });
 
+describe('truncateEventText (20000-char event bound)', () => {
+  it('cuts at the last newline before the limit, leaving the surviving prefix untouched', () => {
+    const { snapshots, bridge } = createBridge();
+    const body = `${'a'.repeat(19990)}\n${'b'.repeat(50)}`;
+
+    bridge.info(body);
+    const text = snapshots[snapshots.length - 1].events[0].text;
+
+    expect(text).toBe(`${'a'.repeat(19990)}\n…`);
+    expect(text).not.toContain('b');
+  });
+
+  it('closes an odd, still-open code fence before appending the truncation marker', () => {
+    const { snapshots, bridge } = createBridge();
+    // Opens a fence and never closes it — a naive slice() would leave every
+    // line rendered after this event misread as still inside the fence.
+    const body = '```js\n' + 'code\n'.repeat(4100);
+    expect(body.length).toBeGreaterThan(20000);
+
+    bridge.info(body);
+    const text = snapshots[snapshots.length - 1].events[0].text;
+
+    expect(text.length).toBeLessThan(body.length);
+    expect((text.match(/```/g) ?? []).length % 2).toBe(0);
+    expect(text.endsWith('\n```\n…')).toBe(true);
+  });
+
+  it('does not invent a closing fence when none was open', () => {
+    const { snapshots, bridge } = createBridge();
+    const body = `${'a'.repeat(19990)}\n${'b'.repeat(50)}`;
+
+    bridge.info(body);
+    const text = snapshots[snapshots.length - 1].events[0].text;
+
+    expect(text).not.toContain('```');
+  });
+
+  it('falls back to a hard cut that never splits an in-progress ANSI SGR sequence', () => {
+    const { snapshots, bridge } = createBridge();
+    // No newline anywhere, so the fallback hard cut is exercised. The escape
+    // sequence straddles the exact cut point (20000): '\x1b[31m' starts at
+    // 19997, so a naive slice(0, 20000) would keep '\x1b[3' and drop the '1m'.
+    const body = `${'x'.repeat(19997)}\x1b[31m${'y'.repeat(50)}`;
+    expect(body.length).toBeGreaterThan(20000);
+
+    bridge.info(body);
+    const text = snapshots[snapshots.length - 1].events[0].text;
+
+    expect(text).not.toContain('\x1b');
+    expect(text.startsWith('x'.repeat(19997))).toBe(true);
+  });
+
+  it('falls back to a hard cut that never splits a surrogate pair', () => {
+    const { snapshots, bridge } = createBridge();
+    // No newline anywhere; the emoji (a surrogate pair) straddles 20000.
+    const body = `${'x'.repeat(19999)}🚀${'y'.repeat(50)}`;
+    expect(body.length).toBeGreaterThan(20000);
+
+    bridge.info(body);
+    const text = snapshots[snapshots.length - 1].events[0].text;
+
+    expect(text).not.toContain('🚀');
+    expect(text).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/);
+    expect(text.startsWith('x'.repeat(19999))).toBe(true);
+  });
+});
+
 describe('Ink composer editing helpers', () => {
   it('inserts and deletes at cursor position', () => {
     expect(insertAtCursor({ input: 'helo', cursor: 2 }, 'l')).toEqual({ input: 'hello', cursor: 3 });

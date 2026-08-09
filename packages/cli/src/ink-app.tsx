@@ -1239,8 +1239,16 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   const pickerWindowSize = Math.min(8, Math.floor(pickerItemRows / pickerRowsPerItem));
   const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - pickerWindowSize));
   const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + pickerWindowSize);
-  // Round border (2) + paddingX (2).
-  const pickerContentWidth = Math.max(20, terminalColumns - 4);
+  // Round border (2) + paddingX (2). Clamped to the REAL inner width, not an
+  // arbitrary floor: a floor of 20 exceeds the actual content width on any
+  // terminal narrower than 24 columns, which let label/hint/preview truncate
+  // against a budget wider than what is actually there — the truncated text
+  // still overflows the box and can wrap, blowing the row budget this same
+  // width is supposed to keep inside. `4` is a floor only against a
+  // degenerate near-zero width, not a claim that 4 columns is usable.
+  const pickerContentWidth = Math.max(4, terminalColumns - 4);
+  /** Clamps a computed picker-field width so it can never exceed the real inner width, however narrow. */
+  const clampToPickerWidth = (value: number) => Math.max(1, Math.min(pickerContentWidth, value));
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
   // The live region renders PLAIN text, gray — see the render below. Only the
   // final answer segment (finalized into `<Static>` at run end) gets markdown,
@@ -1429,13 +1437,13 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
                 `${item.isCurrent ? 'current' : ''}${item.isCurrent && item.hint ? ' · ' : ''}${item.hint ?? ''}`,
                 Math.floor(pickerContentWidth / 3),
               );
-              const label = truncateLabel(item.label, Math.max(8, pickerContentWidth - 2 - (hint ? stringWidth(hint) + 2 : 0)));
+              const label = truncateLabel(item.label, clampToPickerWidth(pickerContentWidth - 2 - (hint ? stringWidth(hint) + 2 : 0)));
               return (
                 <Box key={item.id} flexDirection="column">
                   <Text color={selected ? 'yellow' : undefined}>
                     {selected ? '→ ' : '  '}{label}{hint ? <Text color="gray">  {hint}</Text> : null}
                   </Text>
-                  {item.preview ? <Text color="gray" dimColor>    {truncateLabel(item.preview, Math.max(8, pickerContentWidth - 4))}</Text> : null}
+                  {item.preview ? <Text color="gray" dimColor>    {truncateLabel(item.preview, clampToPickerWidth(pickerContentWidth - 4))}</Text> : null}
                 </Box>
               );
             })}

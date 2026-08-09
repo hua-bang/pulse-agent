@@ -101,6 +101,17 @@ Wrapping applies to the fixed regions too, not just the windowed ones: the key
 hint and a long draft line each wrap on a narrow terminal, so the rows they are
 charged in the `liveText` budget go through `wrappedRowCount` as well.
 
+The same "a floor is not a bound" bug exists on the COLUMN axis, not just the
+row axis: `pickerContentWidth` used `Math.max(20, columns - 4)`, a floor that
+exceeds the real inner width on any terminal narrower than 24 columns. A
+label/hint/preview truncated against that too-wide budget can still overflow
+the border and wrap, which reflows the row the wrap-vs-truncate section above
+assumed was exactly one row — on a narrow enough terminal this alone blew the
+picker's row budget. `pickerContentWidth` now clamps to the real inner width
+(floor of 4, only against a degenerate near-zero width); the downstream
+label/preview width floors clamp through the same `clampToPickerWidth` helper
+so neither can independently claim more than `pickerContentWidth` allows.
+
 ## Current bounds
 
 | Region | Rows | Columns |
