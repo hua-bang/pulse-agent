@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { renderMarkdownAnsi } from './markdown.js';
 import { applyFileReference, detectFileReferenceQuery, filterFileEntries, type FileEntry } from './file-reference.js';
-import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth, wrappedRowCount } from './text-width.js';
+import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth, wrappedRowCount, wrapToRows } from './text-width.js';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error' | 'log';
 export type InkEventStatus = 'running' | 'success' | 'error' | 'info';
@@ -90,6 +90,7 @@ export interface InkCliController {
   requestStop: () => void;
   setInteractionMode?: (mode: CliInteractionMode, source?: string) => void | Promise<void>;
   toggleToolDetail?: () => void;
+  toggleNarrationCollapse?: () => void;
   pickerSelect?: (id: string) => void;
   pickerCancel?: () => void;
   shutdown: () => void | Promise<void>;
@@ -170,6 +171,8 @@ const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', 
 const PICKER_HINT = '↑↓ select · Enter confirm · Esc cancel · type to filter';
 const MAX_HISTORY = 100;
 const CTRL_C_CONFIRM_WINDOW_MS = 2000;
+// Shared so the draft window can find the row the cursor sits on.
+const CURSOR_GLYPH = '█';
 
 export function insertAtCursor(state: ComposerState, value: string): ComposerState {
   const cursor = clampCursor(state.input, state.cursor);
@@ -221,6 +224,90 @@ export function removeWordBeforeCursor(state: ComposerState): ComposerState {
 }
 
 /**
+ * Index one word forward of `cursor` (Alt+→): skip whitespace, then eat
+ * non-whitespace — the mirror of `removeWordBeforeCursor`'s boundary search.
+ *
+ * Bounded to the CURRENT LINE: a multi-line draft must not let a word step
+ * eat the newline as if it were ordinary whitespace (that would silently
+ * splice two lines together from the caller's point of view). Sitting
+ * exactly on a line boundary still makes progress — it steps over the single
+ * `\n`, the same one-row-at-a-time contract `verticalCursorTarget` keeps for
+ * vertical movement — so repeated presses can never get stuck.
+ */
+export function nextWordIndex(input: string, cursor: number): number {
+  const position = clampCursor(input, cursor);
+  if (position >= input.length) {
+    return position;
+  }
+  if (input[position] === '\n') {
+    return position + 1;
+  }
+
+  const lineBreak = input.indexOf('\n', position);
+  const boundary = lineBreak === -1 ? input.length : lineBreak;
+  const match = input.slice(position, boundary).match(/^\s*\S*/);
+  const consumed = match ? match[0].length : 0;
+  if (consumed > 0) {
+    return position + consumed;
+  }
+  // Nothing left on this line (cursor already sits at its end): step over the
+  // newline that ends it, if there is one, rather than standing still.
+  return boundary < input.length ? boundary + 1 : position;
+}
+
+/**
+ * Index one word back of `cursor` (Alt+←): the same boundary search
+ * `removeWordBeforeCursor` uses, exposed for cursor movement and bounded to
+ * the current line for the same reason `nextWordIndex` is.
+ */
+export function prevWordIndex(input: string, cursor: number): number {
+  const position = clampCursor(input, cursor);
+  if (position <= 0) {
+    return 0;
+  }
+  if (input[position - 1] === '\n') {
+    return position - 1;
+  }
+
+  const lineStart = input.lastIndexOf('\n', position - 1) + 1;
+  const segment = input.slice(lineStart, position);
+  const wordStart = segment.replace(/\s+$/, '').search(/\S+$/);
+  return lineStart + (wordStart === -1 ? 0 : wordStart);
+}
+
+/**
+ * Deletes the word after the cursor (Alt+D, Ctrl+Delete) — the forward twin
+ * of `removeWordBeforeCursor`.
+ *
+ * Unlike `nextWordIndex` (cursor movement, where stepping over a lone `\n`
+ * is the correct way to make progress at a line's end) a delete must NEVER
+ * consume that newline itself — doing so would splice two draft lines
+ * together, which is a content change `verticalCursorTarget`'s row-by-row
+ * model does not expect. So this stops at the line boundary and deletes
+ * nothing when the cursor already sits there.
+ */
+export function removeWordAfterCursor(state: ComposerState): ComposerState {
+  const cursor = clampCursor(state.input, state.cursor);
+  if (cursor >= state.input.length || state.input[cursor] === '\n') {
+    return { input: state.input, cursor };
+  }
+
+  const lineBreak = state.input.indexOf('\n', cursor);
+  const boundary = lineBreak === -1 ? state.input.length : lineBreak;
+  const match = state.input.slice(cursor, boundary).match(/^\s*\S*/);
+  const consumed = match ? match[0].length : 0;
+  if (consumed === 0) {
+    return { input: state.input, cursor };
+  }
+
+  const deleteTo = cursor + consumed;
+  return {
+    input: `${state.input.slice(0, cursor)}${state.input.slice(deleteTo)}`,
+    cursor,
+  };
+}
+
+/**
  * Target index one line up/down inside a multi-line draft, preserving the
  * column. Returns null when there is no such line — the caller then falls
  * through to history navigation, so ↑/↓ keeps working on a single-line draft.
@@ -259,8 +346,42 @@ export function renderPrompt(input: string, cursor: number, cursorVisible: boole
 
 export function renderPromptLines(input: string, cursor: number, cursorVisible: boolean): string[] {
   const normalizedCursor = clampCursor(input, cursor);
-  const cursorGlyph = cursorVisible ? '█' : ' ';
+  const cursorGlyph = cursorVisible ? CURSOR_GLYPH : ' ';
   return `${input.slice(0, normalizedCursor)}${cursorGlyph}${input.slice(normalizedCursor)}`.split('\n');
+}
+
+export interface PromptWindow {
+  /** Pre-wrapped physical rows to render, in order. */
+  rows: string[];
+  /** Rows scrolled off the top; > 0 shows the "… N earlier draft lines" head. */
+  hiddenRowCount: number;
+}
+
+/**
+ * Keeps the draft inside a PHYSICAL row budget.
+ *
+ * The composer shares the screen with everything else below `<Static>`, so its
+ * height is bounded the same way the live region is — and a budget counting
+ * LOGICAL lines is not a bound at all: one pasted URL is a single logical line
+ * and thirty physical rows, which on its own puts the frame over the viewport
+ * and drops Ink into clear-and-replay on every keystroke.
+ *
+ * The rows are wrapped HERE and rendered one `<Text>` per row: each row fits
+ * `columns`, so Ink cannot reflow it and the budget cannot be blown behind its
+ * back. The window is anchored on the cursor's row rather than on the tail —
+ * editing at the top of a long paste must still show what is being edited.
+ */
+export function windowPromptRows(lines: string[], maxRows: number, columns: number): PromptWindow {
+  const rows = lines.flatMap(line => wrapToRows(line, columns));
+  const budget = Math.max(1, maxRows);
+  if (rows.length <= budget) {
+    return { rows, hiddenRowCount: 0 };
+  }
+
+  const cursorRow = rows.findIndex(row => row.includes(CURSOR_GLYPH));
+  const anchor = cursorRow >= 0 ? cursorRow : rows.length - 1;
+  const start = Math.max(0, Math.min(anchor + 1 - budget, rows.length - budget));
+  return { rows: rows.slice(start, start + budget), hiddenRowCount: start };
 }
 
 /**
@@ -500,19 +621,39 @@ export function windowLiveTextLines(lines: string[], maxRows: number, columns: n
     return { lines: [], hiddenLineCount: lines.length };
   }
 
-  const costs = lines.map(line => wrappedRowCount(line, columns));
-  const total = costs.reduce((sum, cost) => sum + cost, 0);
-  if (total <= maxRows) {
+  // Accumulate from the TAIL, stopping the instant the budget is exceeded,
+  // instead of mapping wrappedRowCount() over every line up front. A long
+  // answer only ever shows its last `maxRows`-ish rows, so the old
+  // map-then-slice paid for every earlier line's wrap cost on every frame —
+  // this makes the common case O(visible lines), not O(total lines). Each
+  // line costs >= 1 row, so this first pass can never run more than
+  // maxRows + 1 iterations even when it does reach the front.
+  let used = 0;
+  let start = lines.length;
+  while (start > 0) {
+    const cost = wrappedRowCount(lines[start - 1], columns);
+    if (used + cost > maxRows) {
+      break;
+    }
+    used += cost;
+    start -= 1;
+  }
+
+  if (start === 0) {
+    // Walked every line without exceeding the budget: everything fits, no
+    // head row needed. Same fast path as before, just reached by counting
+    // from the tail instead of summing a fully-mapped cost array.
     return { lines, hiddenLineCount: 0 };
   }
 
-  // Truncating costs one row for the "… N earlier lines" head.
+  // Some lines are hidden, so a row is spent on the "… N earlier lines"
+  // head — shrink the effective budget by one and drop lines already
+  // tentatively included (computed against the looser maxRows above) until
+  // the tighter budget holds. At most one extra line comes off here.
   const budget = maxRows - 1;
-  let used = 0;
-  let start = lines.length;
-  while (start > 0 && used + costs[start - 1] <= budget) {
-    used += costs[start - 1];
-    start -= 1;
+  while (start < lines.length && used > budget) {
+    start += 1;
+    used -= wrappedRowCount(lines[start - 1], columns);
   }
 
   return { lines: lines.slice(start), hiddenLineCount: start };
@@ -544,7 +685,7 @@ function recordHistory(history: string[], submitted: string): string[] {
   return [...history, trimmed].slice(-MAX_HISTORY);
 }
 
-function TranscriptEvent({ event, Box, Text }: { event: InkCliEvent; Box: React.ComponentType<any>; Text: React.ComponentType<any> }) {
+function TranscriptEvent({ event, Box, Text, terminalColumns }: { event: InkCliEvent; Box: React.ComponentType<any>; Text: React.ComponentType<any>; terminalColumns: number }) {
   if (event.kind === 'log') {
     return <Text color="gray" dimColor>{event.text}</Text>;
   }
@@ -555,13 +696,23 @@ function TranscriptEvent({ event, Box, Text }: { event: InkCliEvent; Box: React.
     const isError = event.status === 'error';
     const icon = isError ? '✕' : event.status === 'info' ? '·' : '✓';
     const previewLines = event.text ? event.text.split('\n') : [];
+    // title and summary are kept as SEPARATE fields (not one concatenated
+    // string) so the summary never orphan-wraps onto its own row: the LABEL
+    // is what gets truncated against the terminal width, the summary always
+    // stays whole on the same line. Budget: icon + space (2 cols) + the
+    // summary's own " · <summary>" + a little slack (3 cols).
+    const summary = event.summary;
+    const summaryWidth = summary ? stringWidth(` · ${summary}`) : 0;
+    const labelBudget = Math.max(1, terminalColumns - 2 - summaryWidth - 3);
+    const label = truncateLabel(event.title ?? 'tool', labelBudget);
     return (
       <Box flexDirection="column">
         <Text>
           {isError
             ? <Text color="red">{icon} </Text>
             : <Text color={event.status === 'info' ? 'gray' : 'green'} dimColor>{icon} </Text>}
-          <Text color={isError ? 'red' : 'gray'}>{event.title ?? 'tool'}</Text>
+          <Text color={isError ? 'red' : 'gray'}>{label}</Text>
+          {summary ? <Text color="gray"> · {summary}</Text> : null}
         </Text>
         {previewLines.map((line, index) => (
           <Text key={index} color="gray" dimColor>  {index === 0 ? '⎿ ' : '  '}{line}</Text>
@@ -571,9 +722,19 @@ function TranscriptEvent({ event, Box, Text }: { event: InkCliEvent; Box: React.
   }
 
   if (event.kind === 'user') {
+    // The user's own turns must stay findable when scrolling back through a
+    // long run: bold DEFAULT-foreground text (hardcoded white disappears on
+    // light terminal themes) and the `›` gutter on every line, so a pasted
+    // multi-line prompt reads as one attributed block.
+    const lines = event.text.split('\n');
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text color="cyan">› <Text color="white">{event.text}</Text></Text>
+        {lines.map((line, index) => (
+          <Text key={index}>
+            <Text color="cyan">{index === 0 ? '› ' : '  '}</Text>
+            <Text bold>{line || ' '}</Text>
+          </Text>
+        ))}
       </Box>
     );
   }
@@ -886,17 +1047,30 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       return;
     }
 
+    if (key.ctrl && value === 't') {
+      controller.toggleNarrationCollapse?.();
+      return;
+    }
+
     if (key.ctrl && (value === 'j' || value === '\n')) {
       updateComposer(insertAtCursor({ input, cursor }, '\n'));
       return;
     }
 
+    // A recalled history entry may itself be a slash command (or end in an
+    // `@path` fragment), which opens the matching suggestion palette. While
+    // the browse is active those palettes must NOT capture ↑/↓/Enter — the
+    // arrows keep paging history and Enter resubmits the recalled text
+    // verbatim. Any edit clears historyIndex, handing the keys back to the
+    // palettes; Tab still completes explicitly either way.
+    const recallActive = browsingHistory.current && historyIndex !== null;
+
     if (key.return) {
-      if (selectedFile) {
+      if (!recallActive && selectedFile) {
         updateComposer(applyFileReference(input, cursor, selectedFile.relPath + (selectedFile.isDirectory ? '/' : '')));
         return;
       }
-      if (shouldAcceptSlashSuggestion(input, cursor, selectedSuggestion)) {
+      if (!recallActive && shouldAcceptSlashSuggestion(input, cursor, selectedSuggestion)) {
         updateComposer(applySlashCommandCompletion(input, cursor, selectedSuggestion.command));
         return;
       }
@@ -905,11 +1079,11 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.upArrow) {
-      if (fileSuggestions.length > 0) {
+      if (!recallActive && fileSuggestions.length > 0) {
         setSelectedFileIndex(current => Math.max(0, Math.min(current, fileSuggestions.length - 1) - 1));
         return;
       }
-      if (slashSuggestions.length > 0) {
+      if (!recallActive && slashSuggestions.length > 0) {
         setSelectedSuggestionIndex(current => Math.max(0, current - 1));
         return;
       }
@@ -924,11 +1098,11 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     }
 
     if (key.downArrow) {
-      if (fileSuggestions.length > 0) {
+      if (!recallActive && fileSuggestions.length > 0) {
         setSelectedFileIndex(current => Math.min(Math.max(0, fileSuggestions.length - 1), current + 1));
         return;
       }
-      if (slashSuggestions.length > 0) {
+      if (!recallActive && slashSuggestions.length > 0) {
         setSelectedSuggestionIndex(current => Math.min(slashSuggestions.length - 1, current + 1));
         return;
       }
@@ -941,6 +1115,19 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       return;
     }
 
+    // Alt+←/→ (xterm sends `\x1b[1;3D`/`\x1b[1;3C`, which ink's parser
+    // resolves to key.leftArrow/rightArrow + key.meta — see input-parser.js
+    // fnKeyRe) move by word; checked before the plain-arrow fallback below.
+    if (key.leftArrow && key.meta) {
+      setCursor(current => prevWordIndex(input, current));
+      return;
+    }
+
+    if (key.rightArrow && key.meta) {
+      setCursor(current => nextWordIndex(input, current));
+      return;
+    }
+
     if (key.leftArrow) {
       setCursor(current => prevCharIndex(input, current));
       return;
@@ -948,6 +1135,20 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
 
     if (key.rightArrow) {
       setCursor(current => nextCharIndex(input, current));
+      return;
+    }
+
+    // Home/End (`\x1b[H`/`\x1bOH`/`\x1b[1~` and `\x1b[F`/`\x1bOF`/`\x1b[4~`)
+    // resolve to key.home/key.end in ink's parser — same jump as Ctrl+A/E.
+    if (key.home) {
+      setCursor(0);
+      setHistoryIndex(null);
+      return;
+    }
+
+    if (key.end) {
+      setCursor(input.length);
+      setHistoryIndex(null);
       return;
     }
 
@@ -978,6 +1179,19 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       return;
     }
 
+    // Alt+D (ESC d, arrives as value 'd' + key.meta once ink strips the
+    // escape prefix) and Ctrl+Delete (`\x1b[3;5~`, resolves to key.delete +
+    // key.ctrl) delete the word after the cursor.
+    if (key.meta && value === 'd') {
+      updateComposer(removeWordAfterCursor({ input, cursor }));
+      return;
+    }
+
+    if (key.ctrl && key.delete) {
+      updateComposer(removeWordAfterCursor({ input, cursor }));
+      return;
+    }
+
     if (key.backspace) {
       updateComposer(removeBeforeCursor({ input, cursor }));
       return;
@@ -995,6 +1209,10 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
 
   const terminalRows = terminalSize.rows;
   const terminalColumns = terminalSize.columns;
+  // Round border (2) + paddingX (2); the draft additionally carries a '› ' gutter.
+  const boxContentColumns = Math.max(1, terminalColumns - 4);
+  const promptContentColumns = Math.max(1, boxContentColumns - 2);
+  const statusRows = 2; // marginTop + the line itself
   const spinner = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length];
   const pickerItems = useMemo(() => (picker ? filterPickerItems(picker.items, pickerQuery) : []), [picker, pickerQuery]);
   const clampedPickerIndex = Math.min(pickerIndex, Math.max(0, pickerItems.length - 1));
@@ -1004,19 +1222,40 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   // Columns: label/hint/preview are truncated below — Ink's default wrap would
   // otherwise reflow a long session title onto extra rows and blow the budget
   // this window size just computed.
+  //
+  // The item budget is what is LEFT once the picker's own fixed rows are paid
+  // for, never a flat minimum: a floor of two items pushed a 9-row terminal
+  // over the viewport all by itself, which is the clear-and-replay flicker.
+  // Border (2) + title + the "… N more" row the window adds as soon as anything
+  // scrolls off; +2 for the live region's marginTop and a row of slack so the
+  // frame stays strictly under the viewport.
   const pickerRowsPerItem = pickerItems.some(item => item.preview) ? 2 : 1;
-  const pickerWindowSize = Math.max(2, Math.min(8, Math.floor((terminalRows - 12) / pickerRowsPerItem)));
+  const pickerHintRows = wrappedRowCount(PICKER_HINT, terminalColumns);
+  const pickerRowsWithHint = terminalRows - statusRows - 4 - pickerHintRows - 2;
+  // Too short for both the hint and one item: keep the item. A picker showing
+  // no entries at all cannot be used; the hint only restates the key bindings.
+  const showPickerHint = pickerRowsWithHint >= pickerRowsPerItem;
+  const pickerItemRows = Math.max(0, showPickerHint ? pickerRowsWithHint : pickerRowsWithHint + pickerHintRows);
+  const pickerWindowSize = Math.min(8, Math.floor(pickerItemRows / pickerRowsPerItem));
   const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - pickerWindowSize));
   const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + pickerWindowSize);
-  // Round border (2) + paddingX (2).
-  const pickerContentWidth = Math.max(20, terminalColumns - 4);
+  // Round border (2) + paddingX (2). Clamped to the REAL inner width, not an
+  // arbitrary floor: a floor of 20 exceeds the actual content width on any
+  // terminal narrower than 24 columns, which let label/hint/preview truncate
+  // against a budget wider than what is actually there — the truncated text
+  // still overflows the box and can wrap, blowing the row budget this same
+  // width is supposed to keep inside. `4` is a floor only against a
+  // degenerate near-zero width, not a claim that 4 columns is usable.
+  const pickerContentWidth = Math.max(4, terminalColumns - 4);
+  /** Clamps a computed picker-field width so it can never exceed the real inner width, however narrow. */
+  const clampToPickerWidth = (value: number) => Math.max(1, Math.min(pickerContentWidth, value));
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
-  // Markdown is rendered over the WHOLE streamed text (fenced code blocks are
-  // stateful across lines) and only then windowed onto the rows still free.
-  const liveTextLines = useMemo(
-    () => (snapshot.liveText ? renderMarkdownAnsi(snapshot.liveText).split('\n') : []),
-    [snapshot.liveText],
-  );
+  // The live region renders PLAIN text, gray — see the render below. Only the
+  // final answer segment (finalized into `<Static>` at run end) gets markdown,
+  // so streaming no longer pays for a full markdown re-render on every delta;
+  // splitting raw text into lines is cheap enough that it does not need its
+  // own memo.
+  const liveTextLines = snapshot.liveText ? snapshot.liveText.split('\n') : [];
   const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor, 6, snapshot.skills ?? []), [cursor, input, snapshot.skills]);
   const fileQuery = useMemo(() => detectFileReferenceQuery(input, cursor), [cursor, input]);
   const fileSuggestions = useMemo(
@@ -1037,9 +1276,22 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     setSelectedFileIndex(0);
   }, [fileQuery?.query, fileSuggestions.length]);
 
-  const maxPromptLines = Math.max(1, Math.min(6, terminalRows - 10));
-  const visiblePromptLines = promptLines.slice(-maxPromptLines);
-  const hiddenPromptLineCount = promptLines.length - visiblePromptLines.length;
+  // A PHYSICAL row budget: a draft is bounded by the rows it paints, not by the
+  // newlines it contains. `promptContentColumns` is the box content width less
+  // the '› ' / '  ' gutter every draft row carries.
+  const maxPromptRows = Math.max(1, Math.min(6, terminalRows - 10));
+  // Memoized: windowPromptRows() calls wrappedRowCount() per draft row, and a
+  // spinner tick (every 120ms while a run is active) re-renders this
+  // component without touching the draft — recomputing that wrap on every
+  // such tick is pure waste. `promptLines` is itself already memoized on
+  // [cursor, input], so this only re-runs when the draft, cursor or the box's
+  // measured width actually changes.
+  const promptWindow = useMemo(
+    () => windowPromptRows(promptLines, maxPromptRows, promptContentColumns),
+    [promptLines, maxPromptRows, promptContentColumns],
+  );
+  const visiblePromptRows = promptWindow.rows;
+  const hiddenPromptRowCount = promptWindow.hiddenRowCount;
   const waitingClarification = snapshot.phase === 'Clarification';
   const keyHint = ctrlCArmed
     ? 'Press Ctrl+C again to exit'
@@ -1053,12 +1305,26 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
             ? '↑↓ select · Tab/Enter complete · Esc clear'
           : input.length > 0
             ? 'Enter send · Ctrl+J newline · Esc clear'
-            : `/ commands · ↑↓ history · Ctrl+O detail · Shift+Tab mode (${currentInteractionMode}: ${describeInteractionMode(currentInteractionMode)})`;
+            : `/ commands · ↑↓ history · Ctrl+O detail · Ctrl+T narration · Shift+Tab mode (${currentInteractionMode}: ${describeInteractionMode(currentInteractionMode)})`;
   const composerColor = waitingClarification ? 'magenta' : snapshot.isProcessing ? 'yellow' : 'cyan';
   const statusIcon = snapshot.isProcessing ? spinner : '●';
   const statusColor = snapshot.isProcessing ? 'yellow' : snapshot.status === 'Cancelled' ? 'red' : 'green';
+  // `statusPrefix` carries Date.now()-derived elapsed time and the spinner
+  // glyph — both intentionally recompute every tick, so this stays OUTSIDE
+  // the memo below. Its display WIDTH is what statusline's budget actually
+  // needs, and that width is stable across spinner ticks (every spinner
+  // frame is one column; elapsed text only grows when its digit count does),
+  // so deriving the width here and memoizing on the number — not on this
+  // string — is what lets the memo skip formatStatusline() on a bare tick.
   const statusPrefix = `${statusIcon} ${snapshot.status}${snapshot.isProcessing && snapshot.runStartedAt ? ` · ${formatElapsed(Date.now() - snapshot.runStartedAt)}` : ''}`;
-  const statusline = formatStatusline(snapshot, Math.max(20, terminalColumns - stringWidth(statusPrefix) - 4));
+  const statuslineMaxWidth = Math.max(20, terminalColumns - stringWidth(statusPrefix) - 4);
+  // formatStatusline() measures every candidate segment combination with
+  // stringWidth(); memoized so a spinner-only re-render (snapshot and
+  // statuslineMaxWidth both unchanged) does not redo that work.
+  const statusline = useMemo(
+    () => formatStatusline(snapshot, statuslineMaxWidth),
+    [snapshot, statuslineMaxWidth],
+  );
 
   // Parallel tools (teams, sub-agents) can stack up; window them so the
   // composer never gets pushed off screen.
@@ -1071,21 +1337,41 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   // clear-and-replay for as long as the live output is taller than the
   // terminal, which is the flicker this budget exists to prevent.
   const liveToolRows = visibleLiveTools.length + (hiddenLiveToolCount > 0 ? 1 : 0);
-  const statusRows = 2; // marginTop + the line itself
-  // Border (2) + paddingX (2); the draft additionally carries a '› ' prefix.
-  const boxContentColumns = Math.max(1, terminalColumns - 4);
-  const footerRows = picker
+  // Memoized: the non-picker branch calls wrappedRowCount() once per visible
+  // draft row plus once for the key hint, and none of that depends on the
+  // spinner — redoing it on every 120ms tick while a run is active was pure
+  // waste. Dependencies are the PRIMITIVE/already-memoized inputs, not the
+  // intermediate arrays (`visiblePickerItems`, etc.) that this component
+  // rebuilds fresh every render regardless — depending on THOSE would defeat
+  // the memo, since a fresh `.slice()` never compares equal to the last one.
+  // Over-listing is the safer failure mode here (a stale footer height wrongly
+  // clips the live region), so every real input reaches this array.
+  const footerRows = useMemo(() => (picker
     // Border (2) + title + items + optional "… N more" + the hint line below.
     ? 3 + Math.max(1, visiblePickerItems.length * pickerRowsPerItem)
       + (pickerItems.length > visiblePickerItems.length ? 1 : 0)
-      + wrappedRowCount(PICKER_HINT, terminalColumns)
-    // Border (2) + draft lines + optional head + suggestions + the key hint.
-    // The hint and a long draft line wrap, so both are counted after wrapping —
-    // suggestion rows are already truncated to one row each.
-    : 2 + visiblePromptLines.reduce((rows, line) => rows + wrappedRowCount(line, Math.max(1, boxContentColumns - 2)), 0)
-      + (hiddenPromptLineCount > 0 ? 1 : 0)
+      + (showPickerHint ? pickerHintRows : 0)
+    // Border (2) + draft rows + optional head + suggestions + the key hint.
+    // Draft rows are pre-wrapped to the content width, so each really is one
+    // physical row; the hint still wraps and is counted after wrapping.
+    : 2 + promptWindow.rows.reduce((rows, line) => rows + wrappedRowCount(line, promptContentColumns), 0)
+      + (promptWindow.hiddenRowCount > 0 ? 1 : 0)
       + fileSuggestions.length + slashSuggestions.length
-      + wrappedRowCount(keyHint, terminalColumns);
+      + wrappedRowCount(keyHint, terminalColumns)
+  ), [
+    picker,
+    visiblePickerItems.length,
+    pickerRowsPerItem,
+    pickerItems.length,
+    showPickerHint,
+    pickerHintRows,
+    promptWindow,
+    promptContentColumns,
+    fileSuggestions.length,
+    slashSuggestions.length,
+    keyHint,
+    terminalColumns,
+  ]);
   // +1 for the region's own marginTop, +1 so the frame stays strictly under the
   // viewport rather than exactly at it. Running tools are billed first: they
   // are the "what is happening now" signal and the answer can window.
@@ -1100,17 +1386,25 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   return (
     <Box flexDirection="column">
       <Static items={snapshot.events}>
-        {(event: InkCliEvent) => <TranscriptEvent key={event.id} event={event} Box={Box} Text={Text} />}
+        {(event: InkCliEvent) => <TranscriptEvent key={event.id} event={event} Box={Box} Text={Text} terminalColumns={terminalColumns} />}
       </Static>
 
       {/* No visible tail means no room at all — the head alone would just cost
-          a row without showing any of the answer. */}
+          a row without showing any of the answer.
+
+          Plain text, gray — matching the color a segment gets once a tool
+          call finalizes it as narration. Rendering markdown here too used to
+          mean every streamed answer flashed bright, then jumped to gray the
+          moment a tool call finalized it (or stayed bright if none did,
+          which was its own inconsistency). Now the jump happens at most once
+          per run, when the final answer lands in `<Static>` with markdown —
+          gray while it is provisional, bright once it is the real answer. */}
       {liveTextWindow.lines.length > 0 ? (
         <Box flexDirection="column" marginTop={1}>
           {hiddenLiveTextCount > 0 ? (
             <Text color="gray" dimColor>… {hiddenLiveTextCount} earlier line{hiddenLiveTextCount === 1 ? '' : 's'}</Text>
           ) : null}
-          <Text>{liveTextWindow.lines.join('\n')}</Text>
+          <Text color="gray">{liveTextWindow.lines.join('\n')}</Text>
         </Box>
       ) : null}
 
@@ -1143,13 +1437,13 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
                 `${item.isCurrent ? 'current' : ''}${item.isCurrent && item.hint ? ' · ' : ''}${item.hint ?? ''}`,
                 Math.floor(pickerContentWidth / 3),
               );
-              const label = truncateLabel(item.label, Math.max(8, pickerContentWidth - 2 - (hint ? stringWidth(hint) + 2 : 0)));
+              const label = truncateLabel(item.label, clampToPickerWidth(pickerContentWidth - 2 - (hint ? stringWidth(hint) + 2 : 0)));
               return (
                 <Box key={item.id} flexDirection="column">
                   <Text color={selected ? 'yellow' : undefined}>
                     {selected ? '→ ' : '  '}{label}{hint ? <Text color="gray">  {hint}</Text> : null}
                   </Text>
-                  {item.preview ? <Text color="gray" dimColor>    {truncateLabel(item.preview, Math.max(8, pickerContentWidth - 4))}</Text> : null}
+                  {item.preview ? <Text color="gray" dimColor>    {truncateLabel(item.preview, clampToPickerWidth(pickerContentWidth - 4))}</Text> : null}
                 </Box>
               );
             })}
@@ -1157,13 +1451,13 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
               <Text color="gray">… {pickerItems.length - visiblePickerItems.length} more (↑↓ to scroll)</Text>
             ) : null}
           </Box>
-          <Text color="gray">{PICKER_HINT}</Text>
+          {showPickerHint ? <Text color="gray">{PICKER_HINT}</Text> : null}
         </Box>
       ) : (
         <Box flexDirection="column">
           <Box borderStyle="round" borderColor={composerColor} paddingX={1} flexDirection="column">
-            {hiddenPromptLineCount > 0 ? <Text color="gray">… {hiddenPromptLineCount} earlier draft line{hiddenPromptLineCount === 1 ? '' : 's'}</Text> : null}
-            {visiblePromptLines.map((line, index) => (
+            {hiddenPromptRowCount > 0 ? <Text color="gray">… {hiddenPromptRowCount} earlier draft line{hiddenPromptRowCount === 1 ? '' : 's'}</Text> : null}
+            {visiblePromptRows.map((line, index) => (
               <Text key={`${index}-${line}`} color="cyan">
                 {index === 0 ? '› ' : '  '}<Text color="white">{line || ' '}</Text>
               </Text>

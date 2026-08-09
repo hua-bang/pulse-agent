@@ -34,7 +34,24 @@ const DEFAULT_SNAPSHOT: InkUiSnapshot = {
 };
 
 const MAX_EVENT_TEXT_LENGTH = 20000;
-const DEFAULT_TEXT_THROTTLE_MS = 33;
+
+/**
+ * Single frequency source for the two independent throttle layers between a
+ * streamed model delta and a terminal write:
+ *
+ * - This bridge throttles how often a new `InkCliSnapshot` is handed to
+ *   React (`emitThrottled()`) — it limits REACT STATE UPDATE frequency.
+ * - Ink's own `maxFps` (passed at `render()` in ink-launcher.tsx) throttles
+ *   how often it actually WRITES to the terminal once state has changed.
+ *
+ * Both layers exist for a reason (React re-render cost vs. terminal I/O
+ * cost) and neither can replace the other, but they used to run off two
+ * unrelated constants (33ms here, ink's default maxFps:30 = 34ms) — two
+ * differently-phased throttles worst-cases to roughly their SUM before a
+ * delta reaches the screen. One exported constant keeps them the same rate.
+ */
+export const STREAM_FPS = 30;
+const DEFAULT_TEXT_THROTTLE_MS = Math.ceil(1000 / STREAM_FPS);
 
 /**
  * Bridges runtime callbacks to the Ink UI.
@@ -58,7 +75,17 @@ export class InkUiBridge {
   private pendingEmit: NodeJS.Timeout | null = null;
   private lastEmitAt = 0;
   private toolDetail = false;
+  /** Off by default: narration segments print in full. Ctrl+T / `/narration`. */
+  private narrationCollapsed = false;
+  /** Set by abort(), cleared by startProcessing(): drops late streaming events. */
+  private cancelled = false;
   private readonly pendingInputBuffers = new Map<string, string>();
+  /**
+   * A tool trace held back one beat so N consecutive identical traces can
+   * merge into one `· ×N` line — see addToolTrace() for why this has to
+   * happen before the first of them ever prints.
+   */
+  private pendingTrace: { title: string; status?: InkCliEvent['status']; summary?: string; count: number } | null = null;
 
   constructor(options: InkUiBridgeOptions) {
     this.onChange = options.onChange;
@@ -139,6 +166,8 @@ export class InkUiBridge {
       'Editing: Ctrl+U delete before cursor, Ctrl+K delete after cursor, Ctrl+W delete previous word',
       'Control: Esc stops a run or clears the draft; Ctrl+C twice exits (first press clears the draft)',
       'Transcript: finished output stays in the terminal scrollback — scroll up to review it',
+      `Tool trace detail: Ctrl+O toggles (currently ${this.toolDetail ? 'on' : 'off'})`,
+      `Narration folding: Ctrl+T or /narration on|off toggles (currently ${this.narrationCollapsed ? 'on' : 'off'})`,
       'Fallback: PULSE_CODER_UI=readline pulse-coder',
       'Plain fallback: PULSE_CODER_PLAIN=1 PULSE_CODER_UI=readline pulse-coder',
     ]);
@@ -184,6 +213,9 @@ export class InkUiBridge {
   }
 
   runSummary(summary: TuiRunSummary): void {
+    // Terminal path: a trace still held back for a possible merge must reach
+    // the transcript now, or it is silently lost.
+    this.flushPendingTrace();
     this.finalizeLiveText();
     this.finalizeLiveTools('info');
     this.updateSnapshot({
@@ -229,6 +261,9 @@ export class InkUiBridge {
   }
 
   error(message: string): void {
+    // Terminal path: flush before anything else, or a trace still held back
+    // for a possible merge is silently lost.
+    this.flushPendingTrace();
     // Mirrors abort(): a mid-run failure must close out the live region too,
     // or partially streamed text is lost and live tool lines spin forever.
     this.finalizeLiveText();
@@ -246,11 +281,23 @@ export class InkUiBridge {
   }
 
   abort(message: string): void {
+    // Latch: the model keeps streaming for a while after the signal fires (the
+    // engine returns its sentinel only once the current step unwinds), and
+    // those late deltas used to walk straight past the dedupe guard below —
+    // resurrecting `liveText` and `liveTools` so the next abort wrote a SECOND
+    // Abort block, painting bright answer fragments under a Cancelled status,
+    // and leaving tool lines spinning forever. Cleared by startProcessing().
+    this.cancelled = true;
+
     if (this.snapshot.status === 'Cancelled' && this.liveTools.length === 0 && !this.liveText) {
       // Already cancelled and nothing left live: a second Esc must not write
       // another permanent Abort block to the transcript.
       return;
     }
+    // Terminal path: a trace still held back for a possible merge must reach
+    // the transcript now — it is a completed trace, not part of what is being
+    // cancelled below.
+    this.flushPendingTrace();
     this.finalizeLiveText();
     this.finalizeLiveTools('error', '(cancelled)');
     this.updateSnapshot({
@@ -264,6 +311,7 @@ export class InkUiBridge {
   }
 
   startProcessing(label = 'Processing'): void {
+    this.cancelled = false;
     this.liveText = '';
     this.liveTools = [];
     this.pendingInputBuffers.clear();
@@ -280,6 +328,9 @@ export class InkUiBridge {
   }
 
   stopProcessing(): void {
+    // Terminal path: flush before anything else, or a trace still held back
+    // for a possible merge is silently lost.
+    this.flushPendingTrace();
     this.finalizeLiveText();
     this.finalizeLiveTools('info');
     this.updateSnapshot({
@@ -292,6 +343,9 @@ export class InkUiBridge {
   }
 
   text(delta: string): void {
+    if (this.cancelled) {
+      return;
+    }
     this.liveText = this.truncateEventText(`${this.liveText}${delta}`);
     this.emitThrottled();
   }
@@ -302,6 +356,9 @@ export class InkUiBridge {
    * argument tail, and is replaced in place by the final label on tool-call.
    */
   toolInputStart(id: string, name: string): void {
+    if (this.cancelled) {
+      return;
+    }
     this.finalizeLiveText('interim');
     this.pendingInputBuffers.set(id, '');
     this.liveTools = [...this.liveTools, { id, name, label: `${name} …` }];
@@ -312,7 +369,7 @@ export class InkUiBridge {
   }
 
   toolInputDelta(id: string, delta: string): void {
-    if (!this.pendingInputBuffers.has(id)) {
+    if (this.cancelled || !this.pendingInputBuffers.has(id)) {
       return;
     }
     const buffer = `${this.pendingInputBuffers.get(id)}${delta}`.slice(-400);
@@ -330,6 +387,9 @@ export class InkUiBridge {
   }
 
   toolCall(name: string, input?: unknown, callId?: string): void {
+    if (this.cancelled) {
+      return;
+    }
     // Text finalized because a tool starts = in-run narration, not the answer.
     this.finalizeLiveText('interim');
     const label = this.formatToolLabel(name, this.summarizeToolInput(name, input));
@@ -364,13 +424,38 @@ export class InkUiBridge {
     return this.toolDetail;
   }
 
+  /**
+   * Toggle narration folding for FUTURE narration segments (finalizeLiveText
+   * kind 'interim'). Same shape as setToolDetail()/Ctrl+O: a flag on the
+   * bridge, a log line, no effect on anything already printed — `events` is
+   * append-only, so this can only ever change what happens next. The
+   * segment that ends a run is never folded, collapsed or not.
+   */
+  setNarrationCollapse(on: boolean): void {
+    this.narrationCollapsed = on;
+    this.log(on
+      ? 'Narration: collapsed · future narration segments show a one-line summary (Ctrl+T to turn off)'
+      : 'Narration: expanded · future narration segments show in full');
+  }
+
+  getNarrationCollapse(): boolean {
+    return this.narrationCollapsed;
+  }
+
   toolResult(name: string, output?: unknown, callId?: string): void {
+    if (this.cancelled) {
+      return;
+    }
     const entry = this.takeRunningTool(name, callId);
     const isError = this.detectToolError(output);
     const label = entry?.label ?? name;
     const summary = this.summarizeToolResult(name, output, isError);
     const preview = this.toolDetail ? this.formatToolResultPreview(output) : '';
-    this.addEvent('tool', summary ? `${label} · ${summary}` : label, preview, true, { status: isError ? 'error' : 'success' });
+    // title/summary stay SEPARATE fields (not concatenated): the renderer
+    // truncates the label against the terminal width and always keeps the
+    // summary intact on the same line, so a long label cannot orphan-wrap
+    // "· N lines" onto its own row. See TranscriptEvent in ink-app.tsx.
+    this.addToolTrace(label, preview, { status: isError ? 'error' : 'success', summary: summary || undefined });
 
     const stillRunning = this.liveTools.length > 0;
     this.updateSnapshot({
@@ -389,11 +474,17 @@ export class InkUiBridge {
   }
 
   user(message: string): void {
+    // Terminal path: flush before anything else, or a trace still held back
+    // for a possible merge is silently lost.
+    this.flushPendingTrace();
     this.finalizeLiveText();
     this.addEvent('user', undefined, message);
   }
 
   clarification(request: ClarificationRequest): void {
+    // Terminal path: flush before anything else, or a trace still held back
+    // for a possible merge is silently lost.
+    this.flushPendingTrace();
     this.finalizeLiveText();
     const lines = [request.question];
     if (request.context) {
@@ -419,7 +510,20 @@ export class InkUiBridge {
 
     const text = this.liveText;
     this.liveText = '';
-    this.addEvent('assistant', undefined, text, true, kind === 'interim' ? { status: 'info' } : {});
+    // Narration folding only ever applies to 'interim' segments — the segment
+    // that ends a run ('final') is the answer and is never folded.
+    const displayText = kind === 'interim' && this.narrationCollapsed ? this.collapseNarration(text) : text;
+    this.addEvent('assistant', undefined, displayText, true, kind === 'interim' ? { status: 'info' } : {});
+  }
+
+  /** First line (truncated) + "… +N lines" for a folded narration segment. */
+  private collapseNarration(text: string): string {
+    const lines = text.trim().split('\n');
+    if (lines.length <= 1) {
+      return this.compactText(lines[0] ?? text, 96);
+    }
+    const rest = lines.length - 1;
+    return `${this.compactText(lines[0], 96)} … +${rest} line${rest === 1 ? '' : 's'}`;
   }
 
   private finalizeLiveTools(status: 'info' | 'error', note = ''): void {
@@ -540,6 +644,19 @@ export class InkUiBridge {
     return null;
   }
 
+  /**
+   * Structured output (isError/is_error/error field) is still the primary
+   * signal and is unconditionally trusted. Plain-string output only gets
+   * flagged as an error under a tighter heuristic than a bare
+   * `/^(error|failed)\b/i` first-line match: that misfired on any first line
+   * that merely STARTS WITH the word, coloring documentation ("Error Codes")
+   * and a successful grep whose first match line happens to read
+   * "error: ..." bright red. Now it requires the first line to look like an
+   * actual error header (the word immediately followed by `:` or `!`) AND
+   * the whole output to be short — a real error is typically one line or a
+   * short stack/message, while a multi-line search or file dump is not an
+   * error just because a line inside it contains "error:".
+   */
   private detectToolError(output: unknown): boolean {
     const record = this.asRecord(output);
     if (record) {
@@ -547,9 +664,59 @@ export class InkUiBridge {
       if (record.error !== undefined && record.error !== null && record.error !== false) return true;
     }
     if (typeof output === 'string') {
-      return /^(error|failed)\b/i.test(output.trim());
+      const trimmed = output.trim();
+      if (!trimmed) {
+        return false;
+      }
+      const lines = trimmed.split('\n');
+      return lines.length <= 3 && /^(error|failed)\s*[:!]/i.test(lines[0]);
     }
     return false;
+  }
+
+  /**
+   * Emits a tool trace, but holds it back one beat instead of printing it
+   * immediately: `events` is append-only and rendered via `<Static>`, so an
+   * already-printed row can never be rewritten. Merging N consecutive
+   * identical traces into one `label · ×N` line therefore has to happen
+   * BEFORE the first of them prints — which means we cannot know yet whether
+   * to print it until the NEXT event tells us it does not match.
+   *
+   * Cost: a trace reaches the screen one event later than it actually
+   * happened. Every terminal path (error/abort/runSummary/stopProcessing/
+   * clarification/user) explicitly flushes so nothing pending is ever lost.
+   */
+  private addToolTrace(title: string, text: string, metadata: Pick<InkCliEvent, 'status' | 'summary'>): void {
+    const mergeable = text === '';
+
+    if (
+      mergeable &&
+      this.pendingTrace &&
+      this.pendingTrace.title === title &&
+      this.pendingTrace.status === metadata.status
+    ) {
+      this.pendingTrace.count += 1;
+      return;
+    }
+
+    this.flushPendingTrace();
+
+    if (mergeable) {
+      this.pendingTrace = { title, status: metadata.status, summary: metadata.summary, count: 1 };
+      return;
+    }
+
+    this.addEvent('tool', title, text, true, metadata);
+  }
+
+  /** Prints whatever trace is being held back for a possible merge, if any. */
+  private flushPendingTrace(): void {
+    if (!this.pendingTrace) {
+      return;
+    }
+    const { title, status, summary, count } = this.pendingTrace;
+    this.pendingTrace = null;
+    this.addEvent('tool', count > 1 ? `${title} ·×${count}` : title, '', true, { status, summary });
   }
 
   private addEvent(
@@ -559,6 +726,13 @@ export class InkUiBridge {
     emit = true,
     metadata: Pick<InkCliEvent, 'status' | 'summary'> = {},
   ): string {
+    // Every OTHER event kind must land in chronological order relative to a
+    // trace still held back by addToolTrace() — an engine log line or the
+    // next narration segment must not print ahead of a tool trace that
+    // actually finished before it.
+    if (kind !== 'tool') {
+      this.flushPendingTrace();
+    }
     const id = `event-${++this.eventCounter}`;
     this.events = [
       ...this.events,
@@ -578,11 +752,60 @@ export class InkUiBridge {
     return id;
   }
 
+  /**
+   * A bare `text.slice(0, MAX_EVENT_TEXT_LENGTH)` can land the cut mid-way
+   * through an ANSI escape sequence or inside a markdown code fence — the
+   * escape then never closes and everything the renderer draws after it
+   * inherits whatever SGR state was left open, and an unclosed ``` fence
+   * makes every following line render as literal code. Cuts instead at the
+   * last newline before the limit so the break falls on a natural boundary;
+   * only text with no newline at all in range falls back to a hard cut, and
+   * that hard cut itself must not split a surrogate pair or a still-open
+   * ANSI sequence.
+   */
   private truncateEventText(text: string): string {
     if (text.length <= MAX_EVENT_TEXT_LENGTH) {
       return text;
     }
-    return `${text.slice(0, MAX_EVENT_TEXT_LENGTH)}…`;
+
+    const cut = this.findTruncationCut(text, MAX_EVENT_TEXT_LENGTH);
+    const prefix = text.slice(0, cut);
+    const openFence = this.countFenceMarkers(prefix) % 2 === 1;
+    return openFence ? `${prefix}\n\`\`\`\n…` : `${prefix}\n…`;
+  }
+
+  /** Last newline at or before `limit`; falls back to a codepoint/ANSI-safe hard cut when there is none. */
+  private findTruncationCut(text: string, limit: number): number {
+    const lastNewline = text.lastIndexOf('\n', limit);
+    return lastNewline > 0 ? lastNewline : this.safeHardCut(text, limit);
+  }
+
+  /** A hard cut that never splits a surrogate pair or an in-progress ANSI SGR sequence. */
+  private safeHardCut(text: string, limit: number): number {
+    let cut = Math.min(limit, text.length);
+
+    // Cutting between a high and low surrogate leaves two lone, unrenderable
+    // code units either side of the cut.
+    if (cut > 0 && cut < text.length) {
+      const code = text.charCodeAt(cut - 1);
+      if (code >= 0xd8_00 && code <= 0xdb_ff) {
+        cut -= 1;
+      }
+    }
+
+    // Back up to the start of the last escape sequence still open at the cut
+    // (started but not yet closed with a final 'm').
+    const lastEscape = text.lastIndexOf('\x1b', cut - 1);
+    if (lastEscape >= 0 && !/^\x1b\[[0-9;]*m/.test(text.slice(lastEscape, cut))) {
+      cut = lastEscape;
+    }
+
+    return cut;
+  }
+
+  /** Counts ``` fence markers so a truncated prefix can be closed off before the ellipsis. */
+  private countFenceMarkers(text: string): number {
+    return text.match(/```/g)?.length ?? 0;
   }
 
   private summarizeToolInput(name: string, value: unknown): string {
@@ -632,7 +855,9 @@ export class InkUiBridge {
         return `ls ${this.shortPath(dirPath)}`;
       }
 
-      const primary = this.pickString(record, ['name', 'title', 'id', 'action', 'query']);
+      // 'task' first: sub-agent tools (`<name>_agent`) carry their whole
+      // assignment there, and it is the one line worth showing.
+      const primary = this.pickString(record, ['task', 'name', 'title', 'id', 'action', 'query']);
       if (primary) {
         return this.compactText(primary, 60);
       }
@@ -668,8 +893,13 @@ export class InkUiBridge {
   }
 
   /**
-   * Shorten a file path for display:
-   * - Keep last 2 segments if path is long (e.g. "src/foo.ts" or "…/bar/baz.ts")
+   * Shorten a file path for display, keeping the ends over the middle:
+   * - Long path: first segment + last 2 ("packages/…/src/model-registry.ts").
+   *   In a monorepo the package name is the most identifying part of a path
+   *   and `…/src/model-registry.ts` alone throws it away — every package has
+   *   a src/ and most have a model-registry.ts-shaped file somewhere.
+   * - Still too long (or too few segments for a head to mean anything):
+   *   degrade to the old last-2-segments form.
    */
   private shortPath(filePath: string, maxLength = 60): string {
     const normalized = filePath.replace(/\\/g, '/').trim();
@@ -677,8 +907,14 @@ export class InkUiBridge {
       return normalized;
     }
     const parts = normalized.split('/').filter(Boolean);
-    const short = parts.slice(-2).join('/');
-    return `…/${short}`;
+    const tail = parts.slice(-2).join('/');
+    if (parts.length > 3) {
+      const withHead = `${parts[0]}/…/${tail}`;
+      if (withHead.length <= maxLength) {
+        return withHead;
+      }
+    }
+    return `…/${tail}`;
   }
 
   private asRecord(value: unknown): Record<string, unknown> | null {
@@ -703,20 +939,31 @@ export class InkUiBridge {
     return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}…` : normalized;
   }
 
+  /**
+   * Whole-word tool-name classification. Substring matching misfires on
+   * embedded words — `researcher_agent` contains "search" and was summarized
+   * as a search tool, whose fallback dumped the raw input JSON into every
+   * trace. Tokens split on `_`/`-`/`.` so `web_search` still matches.
+   */
+  private nameHasWord(name: string, words: string[]): boolean {
+    const tokens = name.split(/[^a-z0-9]+/);
+    return tokens.some(token => words.includes(token));
+  }
+
   private isShellTool(name: string): boolean {
-    return name.includes('bash') || name.includes('shell') || name.includes('exec') || name.includes('command');
+    return this.nameHasWord(name, ['bash', 'shell', 'exec', 'command', 'cmd']);
   }
 
   private isReadTool(name: string): boolean {
-    return name.includes('read') || name.includes('cat') || name.includes('open');
+    return this.nameHasWord(name, ['read', 'cat', 'open']);
   }
 
   private isSearchTool(name: string): boolean {
-    return name.includes('grep') || name.includes('search') || name.includes('find');
+    return this.nameHasWord(name, ['grep', 'search', 'find']);
   }
 
   private isMutationTool(name: string): boolean {
-    return name.includes('edit') || name.includes('write') || name.includes('patch');
+    return this.nameHasWord(name, ['edit', 'write', 'patch']);
   }
 
   private isListTool(name: string): boolean {

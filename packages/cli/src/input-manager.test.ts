@@ -28,6 +28,43 @@ describe('InputManager', () => {
     expect(manager.hasPendingRequest()).toBe(false);
   });
 
+  it('resolves an empty answer to the advertised default', async () => {
+    const manager = new InputManager();
+
+    const pending = manager.requestInput({
+      id: 'clarify-default',
+      question: 'Proceed?',
+      defaultAnswer: 'yes',
+      timeout: 5_000
+    });
+
+    // The prompt says "(Default: yes)", so bare Enter has to send yes — before
+    // this the empty string went to the engine and the offer was decoration.
+    expect(manager.resolveAnswer('   ')).toBe('yes');
+    // Anything actually typed still wins over the default.
+    expect(manager.resolveAnswer(' no ')).toBe('no');
+
+    expect(manager.handleUserInput(manager.resolveAnswer(''))).toBe(true);
+    await expect(pending).resolves.toBe('yes');
+  });
+
+  it('leaves an empty answer empty when the request has no default', async () => {
+    const manager = new InputManager();
+
+    const pending = manager.requestInput({
+      id: 'clarify-no-default',
+      question: 'Which file?',
+      timeout: 5_000
+    });
+
+    expect(manager.resolveAnswer('')).toBe('');
+    manager.handleUserInput(manager.resolveAnswer(''));
+    await expect(pending).resolves.toBe('');
+
+    // With nothing pending it is a plain trim, so hosts can call it blind.
+    expect(manager.resolveAnswer('  hello  ')).toBe('hello');
+  });
+
   it('rejects a second request while one is pending', async () => {
     const manager = new InputManager();
 

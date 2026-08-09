@@ -201,7 +201,13 @@ export class SubAgentPlugin implements EnginePlugin {
         // 避免初始化阶段的静态快照导致后注册的插件工具缺失。
         const tools = { ...BuiltinToolsMap, ...context.getTools() };
         const tag = `[agent:${config.name}]`;
-        const log = (msg: string) => process.stdout.write(`  \x1b[35m${tag}\x1b[0m ${msg}\n`);
+        // console, never process.stdout.write: the engine is host-agnostic and
+        // hosts own the terminal. Raw stdout bytes tear an Ink host's frame —
+        // every foreign write scrolls the screen and strands a stale copy of
+        // the live region in scrollback (observed as dozens of duplicated
+        // "running tool" lines while parallel sub-agents worked). Hosts
+        // capture console.* and route it to their log layer instead.
+        const log = (msg: string) => console.log(`${tag} ${msg}`);
         try {
           log(`Running: ${task.slice(0, 80)}${task.length > 80 ? '...' : ''}`);
           const summarizeArgs = (args: any): string => {

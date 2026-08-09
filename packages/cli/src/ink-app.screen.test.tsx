@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
+import { Readable } from 'node:stream';
 import React from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { InkCliApp, type InkCliSnapshot } from './ink-app.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
@@ -97,14 +98,14 @@ class TerminalScreen extends EventEmitter {
   }
 }
 
-class MockStdin extends EventEmitter {
+// Ink reads input via 'readable' + stdin.read() (see ink's App component), so
+// the mock must be a real paused-mode Readable — a bare EventEmitter's 'data'
+// events never reach useInput.
+class MockStdin extends Readable {
   isTTY = true;
-  setRawMode(): void {}
-  resume(): void {}
-  pause(): void {}
-  setEncoding(): void {}
-  read(): null {
-    return null;
+  _read(): void {}
+  setRawMode(): this {
+    return this;
   }
   unref(): void {}
   ref(): void {}
@@ -211,6 +212,119 @@ const stableScreen = (lines: string[]): string[] => lines.map(line => line
   .replace(/\d+m\d+s|\d+(\.\d+)?s\b/g, '<elapsed>')
   .replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/g, '<spinner>'));
 
+const KEY = {
+  up: '\x1b[A',
+  down: '\x1b[B',
+  enter: '\r',
+  // xterm Home/End — ink's parser (parse-keypress.js keyName map) resolves
+  // both these and the `\x1bO*`/`\x1b[1~`/`\x1b[4~` variants to key.home/end.
+  home: '\x1b[H',
+  homeTilde: '\x1b[1~',
+  end: '\x1b[F',
+  endTilde: '\x1b[4~',
+  // xterm Alt+←/→ — resolves to key.leftArrow/rightArrow + key.meta.
+  altLeft: '\x1b[1;3D',
+  altRight: '\x1b[1;3C',
+  // Alt+D (ESC d) — resolves to value 'd' + key.meta once ink strips the
+  // leading escape byte.
+  altD: '\x1bd',
+  // Ctrl+Delete — resolves to key.delete + key.ctrl.
+  ctrlDelete: '\x1b[3;5~',
+};
+
+/** An idle composer session driven by real stdin bytes. */
+const renderComposer = async (initialHistory: string[]) => {
+  const ink = await import('ink');
+  const screen = new TerminalScreen();
+  const stdin = new MockStdin();
+  const submitted: string[] = [];
+  const bridge = new InkUiBridge({ onChange: () => {}, textThrottleMs: 0 });
+
+  const instance = ink.render(
+    <InkCliApp
+      controller={{
+        getSnapshot: () => bridge.getSnapshot(),
+        submitInput: input => { submitted.push(input); },
+        requestStop: () => {},
+        shutdown: () => {},
+        subscribe: () => () => {},
+      }}
+      runtime={{
+        Box: ink.Box,
+        Text: ink.Text,
+        Static: ink.Static,
+        useApp: ink.useApp,
+        useInput: ink.useInput,
+        usePaste: ink.usePaste,
+        useStdout: ink.useStdout,
+      }}
+      initialHistory={initialHistory}
+    />,
+    {
+      stdout: screen as never,
+      stdin: stdin as never,
+      exitOnCtrlC: false,
+      patchConsole: false,
+    },
+  );
+
+  const press = async (sequence: string) => {
+    stdin.push(Buffer.from(sequence));
+    await new Promise(resolve => setTimeout(resolve, 45));
+  };
+  /** The composer's draft line: borders, `› ` prefix and cursor block stripped. */
+  const draft = () => {
+    const line = screen.visible().find(row => row.includes('› '));
+    return (line ?? '').replace(/.*› /, '').replace(/[█│]/g, '').trim();
+  };
+
+  await new Promise(resolve => setTimeout(resolve, 45));
+  return { press, draft, submitted, done: () => instance.unmount() };
+};
+
+describe('InkCliApp narration-folding shortcut', () => {
+  it('triggers toggleNarrationCollapse on Ctrl+T', async () => {
+    const ink = await import('ink');
+    const screen = new TerminalScreen();
+    const stdin = new MockStdin();
+    const toggleNarrationCollapse = vi.fn();
+    const bridge = new InkUiBridge({ onChange: () => {}, textThrottleMs: 0 });
+
+    const instance = ink.render(
+      <InkCliApp
+        controller={{
+          getSnapshot: () => bridge.getSnapshot(),
+          submitInput: () => {},
+          requestStop: () => {},
+          shutdown: () => {},
+          subscribe: () => () => {},
+          toggleNarrationCollapse,
+        }}
+        runtime={{
+          Box: ink.Box,
+          Text: ink.Text,
+          Static: ink.Static,
+          useApp: ink.useApp,
+          useInput: ink.useInput,
+          usePaste: ink.usePaste,
+          useStdout: ink.useStdout,
+        }}
+      />,
+      { stdout: screen as never, stdin: stdin as never, exitOnCtrlC: false, patchConsole: false },
+    );
+
+    await new Promise(resolve => setTimeout(resolve, 45));
+    // Ctrl+T (DC4, 0x14) — not one of the chords already bound (Ctrl+C/J/O/A/
+    // E/U/K/W, Shift+Tab, Esc, arrows, Tab).
+    stdin.push(Buffer.from('\x14'));
+    await new Promise(resolve => setTimeout(resolve, 45));
+
+    expect(toggleNarrationCollapse).toHaveBeenCalledTimes(1);
+
+    instance.unmount();
+  });
+});
+
 describe('InkCliApp on a terminal', () => {
   it('keeps the composer anchored through a whole run', async () => {
     const { labels, composerRows } = await renderRun({ incrementalRendering: true });
@@ -227,6 +341,191 @@ describe('InkCliApp on a terminal', () => {
       .filter(step => step.delta < -1);
 
     expect(jumps).toEqual([]);
+  });
+
+  it('keeps paging history with ↑/↓ when a recalled entry is a slash command', async () => {
+    // Recalling '/status' opens the slash-suggestion palette (the cursor sits
+    // right after a bare /command). The palette must not capture the arrows:
+    // ↑ keeps going back through history, ↓ comes forward and restores the
+    // draft. This regressed silently — the palette branch ran first.
+    const session = await renderComposer(['first prompt', '/status', 'last prompt']);
+
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('last prompt');
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('/status');
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('first prompt');
+
+    await session.press(KEY.down);
+    expect(session.draft()).toBe('/status');
+    await session.press(KEY.down);
+    expect(session.draft()).toBe('last prompt');
+
+    session.done();
+  });
+
+  it('resubmits a recalled slash command with Enter instead of completing it', async () => {
+    // '/mode' is a prefix of other commands, so the palette has a completion
+    // to offer — but Enter on a recalled entry means "run it again exactly".
+    const session = await renderComposer(['/mode plan', '/mode']);
+
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('/mode');
+    await session.press(KEY.enter);
+
+    expect(session.submitted).toEqual(['/mode']);
+    session.done();
+  });
+
+  it('hands the arrows back to the palette once the recalled entry is edited', async () => {
+    const session = await renderComposer(['/mode']);
+
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('/mode');
+    // Editing ends the recall: backspace to '/mod', palette is live again, so
+    // ↑ now moves the palette selection and must NOT rewrite the draft.
+    await session.press('\x7f');
+    expect(session.draft()).toBe('/mod');
+    await session.press(KEY.up);
+    expect(session.draft()).toBe('/mod');
+
+    session.done();
+  });
+
+  it('Home/End jump to the start/end of the draft, same as Ctrl+A/E', async () => {
+    // The typed text and inserted markers double as the cursor probe: draft()
+    // strips the cursor glyph itself, so WHERE a subsequent insert lands is
+    // what proves the jump actually happened.
+    const session = await renderComposer([]);
+
+    await session.press('foo bar');
+    expect(session.draft()).toBe('foo bar');
+
+    await session.press(KEY.home);
+    await session.press('X');
+    expect(session.draft()).toBe('Xfoo bar');
+
+    await session.press(KEY.end);
+    await session.press('Y');
+    expect(session.draft()).toBe('Xfoo barY');
+
+    session.done();
+  });
+
+  it('accepts the \\x1b[1~/\\x1b[4~ Home/End variants too', async () => {
+    const session = await renderComposer([]);
+
+    await session.press('foo bar');
+    await session.press(KEY.homeTilde);
+    await session.press('X');
+    expect(session.draft()).toBe('Xfoo bar');
+
+    await session.press(KEY.endTilde);
+    await session.press('Y');
+    expect(session.draft()).toBe('Xfoo barY');
+
+    session.done();
+  });
+
+  it('Alt+Left moves the cursor back a word (\\x1b[1;3D)', async () => {
+    const session = await renderComposer([]);
+
+    await session.press('foo bar baz');
+    await session.press(KEY.altLeft);
+    await session.press('X');
+    expect(session.draft()).toBe('foo bar Xbaz');
+
+    session.done();
+  });
+
+  it('Alt+Right moves the cursor forward a word (\\x1b[1;3C)', async () => {
+    const session = await renderComposer([]);
+
+    await session.press('foo bar baz');
+    await session.press(KEY.home);
+    await session.press(KEY.altRight);
+    await session.press('X');
+    expect(session.draft()).toBe('fooX bar baz');
+
+    session.done();
+  });
+
+  it('Alt+D deletes the word after the cursor', async () => {
+    const session = await renderComposer([]);
+
+    await session.press('foo bar baz');
+    await session.press(KEY.home);
+    await session.press(KEY.altD);
+    // draft() trims the ends, so the leading space removeWordAfterCursor
+    // deliberately leaves behind (it eats the word, not the space after it)
+    // does not show up here — see the pure-function unit tests for that.
+    expect(session.draft()).toBe('bar baz');
+
+    session.done();
+  });
+
+  it('Ctrl+Delete deletes the word after the cursor (\\x1b[3;5~)', async () => {
+    const session = await renderComposer([]);
+
+    await session.press('foo bar baz');
+    await session.press(KEY.home);
+    await session.press(KEY.ctrlDelete);
+    expect(session.draft()).toBe('bar baz');
+
+    session.done();
+  });
+
+  it('keeps the › gutter on every line of a multi-line user turn', async () => {
+    const ink = await import('ink');
+    const screen = new TerminalScreen();
+    let current: InkCliSnapshot;
+    let publish: ((snapshot: InkCliSnapshot) => void) | undefined;
+    const bridge = new InkUiBridge({
+      onChange: snapshot => {
+        current = snapshot;
+        publish?.(snapshot);
+      },
+      textThrottleMs: 0,
+    });
+    current = bridge.getSnapshot();
+
+    const instance = ink.render(
+      <InkCliApp
+        controller={{
+          getSnapshot: () => current,
+          submitInput: () => {},
+          requestStop: () => {},
+          shutdown: () => {},
+          subscribe: listener => {
+            publish = listener;
+            return () => {};
+          },
+        }}
+        runtime={{
+          Box: ink.Box,
+          Text: ink.Text,
+          Static: ink.Static,
+          useApp: ink.useApp,
+          useInput: ink.useInput,
+          usePaste: ink.usePaste,
+          useStdout: ink.useStdout,
+        }}
+      />,
+      { stdout: screen as never, stdin: new MockStdin() as never, exitOnCtrlC: false, patchConsole: false },
+    );
+
+    bridge.user('review this snippet\nconst a = 1;\nconst b = 2;');
+    await new Promise(resolve => setTimeout(resolve, 60));
+    instance.unmount();
+
+    const turn = screen.visible().filter(line => /review this snippet|const [ab]/.test(line));
+    expect(turn).toHaveLength(3);
+    // First line carries the marker; continuations stay inside the gutter so
+    // the whole paste reads as one attributed block when scrolling back.
+    expect(turn[0].startsWith('› ')).toBe(true);
+    expect(turn[1].startsWith('  const a')).toBe(true);
+    expect(turn[2].startsWith('  const b')).toBe(true);
   });
 
   it('paints the same screen incrementally as it does with a full repaint', async () => {

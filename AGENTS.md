@@ -121,6 +121,7 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 - **Parallel canvas-cli writes destroyed each other's nodes**: every CLI canvas write runs inside the workspace lock and must not full-sync-sweep per-node files; app↔CLI concurrency is NOT covered by the lock (per-node `updatedAt` arbitration only).
   Detail + guards: packages/canvas-cli/harness/knowledge/storage-concurrency.md.
 
+- **Raw stdout writes from an engine plugin tore the Ink host's frame**: `process.stdout.write` inside `sub-agent-plugin` scrolled the screen under Ink, stranding a stale copy of the live region in scrollback per write (observed as dozens of duplicated running-tool lines during parallel sub-agent runs). Engine code logs via `console.*` — hosts own the terminal and capture console into their log layer; never write raw stdout/stderr from engine or plugin code.
 - **Menu accelerators silently ate renderer shortcuts**: Electron `role` menu items win a keystroke in MAIN before any renderer listener sees it — check `menu.ts` for a role claiming the chord before adding any renderer shortcut, and never add a `role` whose accelerator collides with a registry binding.
   Detail + guards: apps/canvas-workspace/harness/knowledge/keyboard-shortcuts.md.
 - **Documented-but-unimplemented shortcuts**: a UI surface must never hardcode a chord or its label — derive both from the registry; `Cmd+Shift+A` once shipped advertised-with-no-handler and silently ran select-all instead.

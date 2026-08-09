@@ -160,6 +160,40 @@ describe('SessionCommands', () => {
     );
   });
 
+  it('records the active model at save and exposes the loaded session model', async () => {
+    const session = makeSession({ id: 's-model', metadata: { totalMessages: 0 } });
+    vi.spyOn(SessionManager.prototype, 'createSession').mockResolvedValue(session);
+    vi.spyOn(SessionManager.prototype, 'loadSession').mockResolvedValue(session);
+    const saveSpy = vi.spyOn(SessionManager.prototype, 'saveSession').mockResolvedValue();
+
+    let activeSpec: string | null = 'acme:test-model-b';
+    const commands = new SessionCommands();
+    commands.setModelSpecProvider(() => activeSpec);
+    await commands.createSession('Model Session');
+
+    const context: Context = { messages: [] };
+    await commands.saveContext(context);
+    expect(saveSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ model: 'acme:test-model-b' }) }),
+    );
+
+    // Back on the env default: the stale spec must not outlive the reset.
+    activeSpec = null;
+    await commands.saveContext(context);
+    const lastSaved = saveSpy.mock.calls[saveSpy.mock.calls.length - 1][0] as Session;
+    expect(lastSaved.metadata.model).toBeUndefined();
+
+    // Resuming surfaces whatever the session recorded — null for legacy ones.
+    await commands.loadContext(context);
+    expect(commands.getLoadedModelSpec()).toBeNull();
+
+    vi.spyOn(SessionManager.prototype, 'loadSession').mockResolvedValue(
+      makeSession({ id: 's-model', metadata: { totalMessages: 0, model: 'acme:test-model-b' } }),
+    );
+    await commands.loadContext(context);
+    expect(commands.getLoadedModelSpec()).toBe('acme:test-model-b');
+  });
+
   it('clears current session/task list when deleting active session', async () => {
     const current = makeSession({
       id: 'to-delete',

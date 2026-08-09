@@ -85,6 +85,41 @@ describe('loadModelRegistry', () => {
     ]);
   });
 
+  it('carries the provider promptCacheKey opt-in onto its models only', async () => {
+    await write({
+      providers: {
+        sub2api: { type: 'openai', baseUrl: 'https://sub2.example/v1', apiKeyEnv: 'SUB2_KEY', promptCacheKey: true },
+        deepseek: { type: 'openai', baseUrl: 'https://api.deepseek.com/v1', apiKeyEnv: 'DEEPSEEK_API_KEY' },
+      },
+      models: [
+        { model: 'gpt-test', provider: 'sub2api' },
+        { model: 'deepseek-v4-flash', provider: 'deepseek' },
+      ],
+    });
+
+    const registry = await loadModelRegistry(cwd, home);
+    expect(registry.models[0].promptCacheKey).toBe(true);
+    // Not opted in → the field is absent, not false, so spreads stay clean.
+    expect('promptCacheKey' in registry.models[1]).toBe(false);
+  });
+
+  it('drops a stale home opt-in when the project redefines the provider without it', async () => {
+    await writeAt(home, {
+      providers: { acme: { type: 'openai', baseUrl: 'https://home.example/v1', promptCacheKey: true } },
+      models: [{ model: 'shared-model', provider: 'acme' }],
+    });
+    await write({
+      providers: { acme: { type: 'openai', baseUrl: 'https://project.example/v1' } },
+      models: [],
+    });
+
+    const registry = await loadModelRegistry(cwd, home);
+    const rebased = registry.models.find(choice => choice.model === 'shared-model');
+    // The project provider is the SSOT: connection rebased, opt-in gone.
+    expect(rebased?.baseUrl).toBe('https://project.example/v1');
+    expect(rebased?.promptCacheKey).toBeUndefined();
+  });
+
   it('parses the default flag on a model entry', async () => {
     await write({ models: [{ model: 'a' }, { model: 'b', default: true }] });
     const registry = await loadModelRegistry(cwd, home);

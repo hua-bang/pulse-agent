@@ -6,7 +6,7 @@ import { SessionCommands } from './session-commands.js';
 import { SkillCommands } from './skill-commands.js';
 import type { TuiHelpItem } from './tui-renderer.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
-import { formatRelativeTime, type InkCliController, type InkCliSnapshot, type CliInteractionMode } from './ink-app.js';
+import { formatRelativeTime, truncateLabel, type InkCliController, type InkCliSnapshot, type CliInteractionMode } from './ink-app.js';
 import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
@@ -38,6 +38,7 @@ const LOCAL_COMMANDS = new Set([
   'tui',
   'debug',
   'model',
+  'narration',
   'exit',
 ]);
 
@@ -74,6 +75,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/tui [status]', description: 'Show current Ink UI status' },
   { command: '/debug [on|off|tail <n>]', description: 'Engine log layer: toggle live display or tail the capture' },
   { command: '/model [id|claude:<id>|reset]', description: 'Show/switch model (bare = picker from .pulse-coder/models.json)' },
+  { command: '/narration [on|off]', description: 'Fold future narration segments to a one-line summary (default off); bare shows the current state' },
   { command: '/exit', description: 'Exit the application' },
 ];
 
@@ -87,6 +89,7 @@ const HELP_FOOTER = [
   '←/→, Ctrl+A/E - Move cursor',
   'Ctrl+U/K/W - Delete before cursor / after cursor / previous word',
   'Ctrl+O - Toggle tool-trace detail (one-line summaries ↔ content previews; affects new traces)',
+  'Ctrl+T - Toggle narration folding (/narration on|off does the same; affects new narration segments)',
   'Paste - Inserted literally (newlines included); bracketed paste supported',
   'Esc - Stop the current response, or clear the current draft when idle',
   'Ctrl+C - Press twice to save and exit (first press clears the draft)',
@@ -107,6 +110,8 @@ export class InkCoderController implements InkCliController {
   private isProcessing = false;
   private isShuttingDown = false;
   private readonly queuedInputs: string[] = [];
+  /** A drain is already scheduled; nested finallys must not shift a second entry. */
+  private drainScheduled = false;
   private lastContextTokens = 0;
   private totalOutputTokens = 0;
   private lastCachedTokens: number | undefined;
@@ -150,6 +155,10 @@ export class InkCoderController implements InkCliController {
       modelLabel: shortModelLabel(this.modelOverride?.model ?? DEFAULT_MODEL),
     });
     this.sessionCommands = new SessionCommands(message => this.ui.info(message ?? ''));
+    // Every session save records the model it ran under, so /resume can bring
+    // the session back on that model instead of whatever was chosen since.
+    this.sessionCommands.setModelSpecProvider(() =>
+      this.modelOverride ? formatModelSpec(this.modelOverride) : null);
     this.inputManager = new InputManager({
       onRequest: request => this.ui.clarification(request),
     });
@@ -205,6 +214,7 @@ export class InkCoderController implements InkCliController {
 
     if (options.continueLast && await this.sessionCommands.resumeLatest()) {
       await this.sessionCommands.loadContext(this.context);
+      await this.restoreSessionModel();
     } else {
       await this.sessionCommands.createSession();
     }
@@ -248,6 +258,10 @@ export class InkCoderController implements InkCliController {
 
   toggleToolDetail(): void {
     this.ui.setToolDetail(!this.ui.getToolDetail());
+  }
+
+  toggleNarrationCollapse(): void {
+    this.ui.setNarrationCollapse(!this.ui.getNarrationCollapse());
   }
 
   /** Usage counters are per-conversation; /new, /clear and /resume must zero them. */
@@ -330,7 +344,12 @@ export class InkCoderController implements InkCliController {
 
   /** Per-run overrides derived from the model choice; a provider-bound choice gets its own connection factory. */
   private modelRunOptions(): ModelRunOptions {
-    return buildModelRunOptions(this.modelOverride);
+    // Session-anchored so opt-in providers get a stable prompt_cache_key:
+    // /resume restores the session's key, /new and model switches change an
+    // input and produce a fresh one.
+    return buildModelRunOptions(this.modelOverride, process.env, {
+      sessionId: this.sessionCommands.getCurrentSessionId(),
+    });
   }
 
   private async openModelPicker(): Promise<void> {
@@ -382,10 +401,37 @@ export class InkCoderController implements InkCliController {
   private async resumeSessionRef(ref: string): Promise<void> {
     if (await this.sessionCommands.resumeSession(ref)) {
       await this.sessionCommands.loadContext(this.context);
+      await this.restoreSessionModel();
       this.resetUsageCounters();
       await this.syncSessionTaskListBinding();
       this.publishSession('Session resumed');
     }
+  }
+
+  /**
+   * Applies the model recorded in the just-loaded session, so a resumed
+   * conversation continues on the model it was actually using. Silent restore:
+   * it never overwrites the global last-model preference (that records
+   * explicit choices only), and --model still pins the whole process.
+   */
+  private async restoreSessionModel(): Promise<void> {
+    const spec = this.sessionCommands.getLoadedModelSpec();
+    if (!spec || this.modelPinnedByFlag) {
+      return;
+    }
+    if (this.modelOverride && formatModelSpec(this.modelOverride) === spec) {
+      return;
+    }
+
+    const registry = await loadModelRegistry();
+    const restored = resolveKnownModelSpec(spec, registry);
+    if (!restored) {
+      this.ui.log(`[warn] session model "${spec}" is no longer in models.json — keeping the current model`);
+      return;
+    }
+
+    this.modelOverride = restored;
+    this.applyModelOverride(`Model restored from session: ${restored.model}`);
   }
 
   private async openSessionPicker(): Promise<void> {
@@ -484,8 +530,14 @@ export class InkCoderController implements InkCliController {
   async submitInput(input: string): Promise<void> {
     const trimmedInput = input.trim();
 
-    if (this.inputManager.handleUserInput(trimmedInput)) {
-      this.ui.user(trimmedInput || '(empty clarification response)');
+    // A clarification advertising "Default: yes" must SEND yes when the user
+    // just presses Enter — the prompt is an offer, not decoration. Resolving
+    // it here (rather than inside handleUserInput) keeps the echo honest: the
+    // transcript shows the answer the engine actually received.
+    const clarificationAnswer = this.inputManager.resolveAnswer(trimmedInput);
+
+    if (this.inputManager.handleUserInput(clarificationAnswer)) {
+      this.ui.user(clarificationAnswer || '(empty clarification response)');
       // Leave the clarification phase so the composer drops its waiting style.
       this.ui.updateSnapshot({ phase: this.isProcessing ? 'Running' : 'Idle' });
       this.publishSession('Clarification submitted');
@@ -496,7 +548,10 @@ export class InkCoderController implements InkCliController {
       if (trimmedInput) {
         this.queuedInputs.push(trimmedInput);
         this.publishSession('Input queued');
-        this.ui.queued(`Queued input #${this.queuedInputs.length}. It will run after the current step finishes.`);
+        // Content preview, not just the position: with only a number in the
+        // transcript there is no way to tell what got queued behind a long
+        // run apart from counting how many times Enter was pressed.
+        this.ui.queued(`Queued #${this.queuedInputs.length} · ${truncateLabel(trimmedInput, 60)}`);
       }
       return;
     }
@@ -536,7 +591,26 @@ export class InkCoderController implements InkCliController {
     }
   }
 
+  /**
+   * Every dispatch path hands the queue on.
+   *
+   * Only `runMessage()` and `runExclusive()` (i.e. `/compact`) used to drain,
+   * so anything queued behind a run that then drained a slash command was
+   * stranded: the command returned, nothing drained, the status line kept
+   * counting inputs nobody would run, and the next message the user typed
+   * executed BEFORE the older queued ones. `drainQueuedInput()` is re-entrant
+   * safe, so the inner drains those two already do simply win the race and
+   * this one is a no-op.
+   */
   private async handleInput(input: string): Promise<void> {
+    try {
+      await this.dispatchInput(input);
+    } finally {
+      this.drainQueuedInput();
+    }
+  }
+
+  private async dispatchInput(input: string): Promise<void> {
     let messageInput = input;
 
     if (input.startsWith('//')) {
@@ -720,6 +794,7 @@ export class InkCoderController implements InkCliController {
             `Processing: ${this.isProcessing ? 'yes' : 'no'}`,
             `Engine logs: ${this.debugLogs ? 'shown live' : 'file only'} · ${this.logSink?.count() ?? 0} captured · /debug`,
             `Tool detail: ${this.ui.getToolDetail() ? 'preview (detailed)' : 'one-line summaries'} · Ctrl+O toggles`,
+            `Narration folding: ${this.ui.getNarrationCollapse() ? 'on (one-line summaries)' : 'off (full text)'} · Ctrl+T or /narration toggles`,
           ]);
           break;
         case 'mode': {
@@ -801,6 +876,22 @@ export class InkCoderController implements InkCliController {
               `Captured this session: ${this.logSink.count()} entries`,
               `File: ${this.logSink.filePath}`,
               'Usage: /debug on | off | tail <n>',
+            ]);
+          }
+          break;
+        }
+        case 'narration': {
+          const action = args[0]?.toLowerCase();
+          if (action === 'on') {
+            this.ui.setNarrationCollapse(true);
+          } else if (action === 'off') {
+            this.ui.setNarrationCollapse(false);
+          } else {
+            this.ui.section('Narration folding', [
+              `Current: ${this.ui.getNarrationCollapse() ? 'on (one-line summaries)' : 'off (full text, default)'}`,
+              'Applies to FUTURE narration segments only — already-printed transcript lines never change.',
+              'The final answer segment that ends a run is never folded.',
+              'Usage: /narration on | off · shortcut: Ctrl+T',
             ]);
           }
           break;
@@ -890,17 +981,36 @@ export class InkCoderController implements InkCliController {
   }
 
   /**
-   * Runs the next queued message, if any. Both exclusive commands and agent runs
-   * must call this — anything typed while one was in flight is otherwise stranded
-   * until the NEXT run happens to drain it.
+   * Runs the next queued input, if any. Every path that finishes a piece of
+   * work calls this — agent runs, exclusive commands, and command dispatch —
+   * so anything typed while one was in flight runs next, in the order it was
+   * typed, instead of waiting for the user to send another message.
+   *
+   * Nested callers are the normal case (a command's dispatch finally fires
+   * right after `runExclusive`'s own finally), so the drain is guarded: while
+   * one is scheduled the rest are no-ops. Without it both would shift an entry
+   * and the second would land on an already-busy controller and re-queue it at
+   * the BACK, reordering exactly what the queue exists to preserve.
    */
   private drainQueuedInput(): void {
-    const nextInput = this.queuedInputs.shift();
-    if (!nextInput) {
+    if (this.drainScheduled || this.isShuttingDown || this.queuedInputs.length === 0) {
       return;
     }
-    this.ui.info('Running queued input...');
+
+    this.drainScheduled = true;
     setImmediate(() => {
+      this.drainScheduled = false;
+      // Taken here, not at schedule time: Esc discards the queue, and an entry
+      // already pulled out of it would run after the user was told it was
+      // dropped.
+      const nextInput = this.queuedInputs.shift();
+      if (!nextInput) {
+        return;
+      }
+      this.ui.info('Running queued input...');
+      // The status line counts the queue, so it has to shrink with it — a
+      // command dispatch does not otherwise publish a session snapshot.
+      this.ui.updateSnapshot({ queuedInputs: this.queuedInputs.length });
       void this.submitInput(nextInput);
     });
   }
@@ -958,30 +1068,58 @@ export class InkCoderController implements InkCliController {
           this.ui.log('Compacting context (summarizing older turns)…');
           this.ui.updateSnapshot({ status: 'Compacting context…', phase: 'Compacting' });
         },
+        // Aborting does not stop the model mid-flight: the current step keeps
+        // delivering text and tool events until it unwinds. Writing those to
+        // the bridge after the user was told the request was cancelled puts
+        // answer fragments and spinning tool lines under a Cancelled status,
+        // so every streaming callback stops at the signal.
         onText: (delta) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           sawText = true;
           this.ui.text(delta);
         },
         onToolInputStart: ({ id, toolName }) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           this.ui.toolInputStart(id, toolName);
         },
         onToolInputDelta: ({ id, delta }) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           this.ui.toolInputDelta(id, delta);
         },
         onToolInputEnd: ({ id }) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           this.ui.toolInputEnd(id);
         },
         onToolCall: (toolCall) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           toolCalls += 1;
           const input = this.getToolInput(toolCall);
           this.ui.toolCall(this.resolveToolName(toolCall), input, this.getToolCallId(toolCall));
         },
         onToolResult: (toolResult) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           const record = toolResult as Record<string, unknown>;
           this.ui.toolResult(this.resolveToolName(record), this.getToolOutput(record), this.getToolCallId(record));
         },
         onStepFinish: (step) => {
+          // Usage still counts: those tokens were spent whether or not the
+          // answer they paid for is shown.
           this.recordStepUsage(step);
+          if (ac.signal.aborted) {
+            return;
+          }
           this.ui.stepFinished(step.finishReason);
         },
         onClarificationRequest: async (request) => {

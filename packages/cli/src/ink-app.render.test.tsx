@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { Readable } from 'node:stream';
 import React from 'react';
 import { describe, expect, it } from 'vitest';
 
@@ -39,14 +40,14 @@ class MockStdout extends EventEmitter {
   }
 }
 
-class MockStdin extends EventEmitter {
+// Ink reads input via 'readable' + stdin.read(), so anything that has to reach
+// the composer (a draft is app state, not snapshot state) must be pushed
+// through a real paused-mode Readable — same shape as ink-app.screen.test.tsx.
+class MockStdin extends Readable {
   isTTY = true;
-  setRawMode(): void {}
-  resume(): void {}
-  pause(): void {}
-  setEncoding(): void {}
-  read(): null {
-    return null;
+  _read(): void {}
+  setRawMode(): this {
+    return this;
   }
   unref(): void {}
   ref(): void {}
@@ -159,6 +160,70 @@ const renderSequence = async (snapshots: InkCliSnapshot[], viewport: Viewport = 
   return heights;
 };
 
+/**
+ * Types `draft` into the composer as one terminal chunk (what a paste is) and
+ * measures the frame that lands afterwards. The draft cannot come from a
+ * snapshot — it is the app's own state, so it has to arrive as real stdin bytes.
+ */
+const renderDraft = async (
+  draft: string,
+  snapshot: InkCliSnapshot = { ...baseSnapshot, isProcessing: false, status: 'Ready', phase: 'Idle' },
+  viewport: Viewport = DEFAULT_VIEWPORT,
+) => {
+  const ink = await import('ink');
+  const stdout = new MockStdout(viewport.columns, viewport.rows);
+  const stdin = new MockStdin();
+  const instance = ink.render(
+    <InkCliApp
+      controller={{
+        getSnapshot: () => snapshot,
+        submitInput: () => {},
+        requestStop: () => {},
+        shutdown: () => {},
+        subscribe: () => () => {},
+      }}
+      runtime={{
+        Box: ink.Box,
+        Text: ink.Text,
+        Static: ink.Static,
+        useApp: ink.useApp,
+        useInput: ink.useInput,
+        usePaste: ink.usePaste,
+        useStdout: ink.useStdout,
+      }}
+    />,
+    { stdout: stdout as never, stdin: stdin as never, exitOnCtrlC: false, patchConsole: false },
+  );
+
+  await new Promise(resolve => setTimeout(resolve, 60));
+  if (draft) {
+    stdout.frames.length = 0;
+    stdin.push(Buffer.from(draft));
+    await new Promise(resolve => setTimeout(resolve, 80));
+  }
+
+  const frames = stdout.frames.splice(0);
+  instance.unmount();
+  return { height: frameHeight(frames), painted: frames.join('') };
+};
+
+/** What a picker actually paints on a given viewport. */
+const renderPickerScreen = async (viewport: Viewport) => {
+  const { painted } = await renderDraft('', {
+    ...baseSnapshot,
+    isProcessing: false,
+    picker: {
+      title: 'Resume a session',
+      items: Array.from({ length: 30 }, (_, index) => ({
+        id: `session-${index}`,
+        label: `Session ${index}`,
+        hint: '12 msgs · 3h ago',
+      })),
+    },
+  }, viewport);
+  return painted;
+};
+
 describe('InkCliApp frame height', () => {
   it('keeps a long streamed answer under the viewport', async () => {
     const height = await renderFrame({ ...baseSnapshot, liveText: streamedAnswer(200) });
@@ -201,6 +266,33 @@ describe('InkCliApp frame height', () => {
     expect(await renderFrame(snapshot, { rows: 8, columns: 60 })).toBeLessThan(8);
   });
 
+  it('keeps a pasted wall of text in the draft under the viewport', async () => {
+    // One logical line, ~27 physical rows at 80 columns: a draft window that
+    // caps LOGICAL lines lets this through whole, and the composer alone is
+    // then taller than the terminal — every keystroke repaints the screen.
+    const pasted = `https://example.com/${'a1b2c3d4'.repeat(247)}abcd`;
+    expect(pasted).toHaveLength(2_000);
+
+    const { height, painted } = await renderDraft(pasted);
+
+    expect(height).toBeLessThan(DEFAULT_VIEWPORT.rows);
+    // …and it still shows the draft: the cursor (end of the paste) is painted,
+    // above it the head says the rest scrolled off. A window that collapsed to
+    // nothing would satisfy the height bound while showing no draft at all.
+    expect(painted).toContain('█');
+    expect(painted).toMatch(/… \d+ earlier draft lines/);
+  });
+
+  it('holds the draft bound on a short terminal and while an answer streams', async () => {
+    const pasted = 'x'.repeat(3_000);
+
+    expect((await renderDraft(pasted, undefined, { rows: 12, columns: 80 })).height).toBeLessThan(12);
+    expect((await renderDraft(pasted, undefined, { rows: 24, columns: 40 })).height).toBeLessThan(24);
+    // Streaming text and a wall-of-text draft compete for the same screen.
+    const streaming = { ...baseSnapshot, liveText: streamedAnswer(200) };
+    expect((await renderDraft(pasted, streaming)).height).toBeLessThan(DEFAULT_VIEWPORT.rows);
+  });
+
   it('holds the bound while the picker is open', async () => {
     const snapshot: InkCliSnapshot = {
       ...baseSnapshot,
@@ -217,5 +309,135 @@ describe('InkCliApp frame height', () => {
     };
 
     expect(await renderFrame(snapshot)).toBeLessThan(DEFAULT_VIEWPORT.rows);
+  });
+
+  it('fits the picker into a terminal too short for its old two-item floor', async () => {
+    // The picker's own chrome (border, title, the "… N more" row, the hint)
+    // plus a floor of two items measured 9 rows on a 9-row screen, and a
+    // picker that overflows puts Ink into clear-and-replay just like a
+    // streamed answer does. The floor is gone; items get whatever is left.
+    const snapshot: InkCliSnapshot = {
+      ...baseSnapshot,
+      isProcessing: false,
+      picker: {
+        title: 'Resume a session',
+        items: Array.from({ length: 30 }, (_, index) => ({
+          id: `session-${index}`,
+          label: `Session ${index} · a fairly long session title that fills the row`,
+          hint: '12 msgs · 3h ago',
+        })),
+      },
+    };
+
+    for (const rows of [9, 10, 11]) {
+      const [height] = await renderSequence([snapshot], { rows, columns: 80 });
+      expect(height, `viewport ${rows} rows`).toBeLessThan(rows);
+    }
+  });
+
+  it('bounds the picker on a terminal too narrow for the old 20-column floor', async () => {
+    // pickerContentWidth used to floor at Math.max(20, columns - 4): on a
+    // 20-column terminal that floor (20) exceeds the real inner width (16),
+    // so label/hint/preview truncated against a budget wider than what is
+    // actually there, could still wrap, and blow the row budget this same
+    // width exists to keep inside.
+    const snapshot: InkCliSnapshot = {
+      ...baseSnapshot,
+      isProcessing: false,
+      picker: {
+        title: 'Resume a session',
+        items: Array.from({ length: 10 }, (_, index) => ({
+          id: `session-${index}`,
+          label: `Session ${index} with a fairly long title that will not fit`,
+          hint: '12 msgs · 3h ago',
+          preview: 'a preview line long enough to need truncation on this terminal',
+        })),
+      },
+    };
+
+    const [height] = await renderSequence([snapshot], { rows: 24, columns: 20 });
+    expect(height).toBeLessThan(24);
+  });
+
+  it('still shows a pickable entry on a short terminal', async () => {
+    // Bounded is not enough: a picker with no visible entry cannot be used.
+    // The hint line is what gets dropped first when the screen is that tight.
+    const stdout = await renderPickerScreen({ rows: 10, columns: 80 });
+
+    expect(stdout).toContain('Session 0');
+    expect(stdout).toContain('→ ');
+  });
+
+  it('never orphan-wraps a tool trace summary onto its own row', async () => {
+    // title/summary are separate fields (ink-ui-bridge.ts) precisely so the
+    // LABEL truncates against the terminal width while the summary always
+    // stays on the same row — a long label used to overflow the concatenated
+    // "label · summary" string and wrap "· 252 lines" alone onto the next row.
+    const { painted } = await renderDraft('', {
+      ...baseSnapshot,
+      isProcessing: false,
+      status: 'Ready',
+      phase: 'Idle',
+      events: [{
+        id: 'e1',
+        kind: 'tool',
+        title: 'edit packages/cli/src/a-fairly-long-file-name-for-this-test.ts',
+        summary: '252 lines',
+        status: 'success',
+        text: '',
+      }],
+    }, { rows: 24, columns: 40 });
+
+    const clean = painted.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+    const lines = clean.split('\n');
+    const summaryLine = lines.find(line => line.includes('252 lines'));
+    expect(summaryLine).toBeDefined();
+    // The row carrying the summary must also carry (a truncated) label —
+    // an orphaned wrap would put "· 252 lines" alone at the start of a row.
+    expect(summaryLine).toMatch(/edit .*252 lines/);
+  });
+});
+
+describe('InkCliApp live region styling', () => {
+  it('renders the streaming answer as plain gray text, never bright markdown', async () => {
+    // Rendering markdown on the live region used to mean a streamed answer
+    // flashed bright, then jumped to gray the instant a tool call finalized
+    // it as narration. The live region now stays plain text, gray, the whole
+    // time it is provisional — markdown is only for the finalized answer.
+    const { painted } = await renderDraft('', {
+      ...baseSnapshot,
+      liveText: '# Bold Heading\n**important** text',
+    });
+
+    // Markdown syntax is NOT stripped or transformed while streaming — it is
+    // rendered as literal, unrendered source.
+    expect(painted).toContain('# Bold Heading');
+    expect(painted).toContain('**important**');
+    // No bold escape anywhere: the only other bold users (a user turn's
+    // transcript entry, a picker title) are absent from this snapshot.
+    expect(painted).not.toContain('\x1b[1m');
+  });
+
+  it('renders the finalized answer with markdown once a run completes', async () => {
+    const { painted } = await renderDraft('', {
+      ...baseSnapshot,
+      isProcessing: false,
+      status: 'Ready',
+      phase: 'Idle',
+      liveText: '',
+      events: [{
+        id: 'e1',
+        kind: 'assistant',
+        title: undefined,
+        text: '# Bold Heading',
+      }],
+    });
+
+    // The finalized answer (kind: 'assistant', no `status: 'info'`) renders
+    // through renderMarkdownAnsi — a heading comes out bold + cyan, and the
+    // literal "#" markdown syntax is gone.
+    expect(painted).toContain('\x1b[1m');
+    expect(painted).not.toContain('# Bold Heading');
+    expect(painted).toContain('Bold Heading');
   });
 });
