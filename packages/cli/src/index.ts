@@ -567,8 +567,16 @@ class CoderCLI {
     const handleInput = async (input: string) => {
       const trimmedInput = input.trim();
 
-      // Handle clarification requests first
-      if (this.inputManager.handleUserInput(trimmedInput)) {
+      // Handle clarification requests first. An empty answer to a request that
+      // advertised "(Default: x)" means x — same rule as the Ink host, and the
+      // substitution is echoed so the user sees what was sent.
+      const clarificationAnswer = this.inputManager.resolveAnswer(trimmedInput);
+      const substitutedDefault = !trimmedInput && clarificationAnswer;
+
+      if (this.inputManager.handleUserInput(clarificationAnswer)) {
+        if (substitutedDefault) {
+          this.tui.info(`Using default answer: ${clarificationAnswer}`);
+        }
         return;
       }
 

@@ -84,6 +84,23 @@ export class InputManager {
   }
 
   /**
+   * The answer a submission actually resolves to.
+   *
+   * A request that carries `defaultAnswer` is shown as "Default: <x>", so an
+   * empty submission means <x> — pressing Enter on the offer has to send the
+   * thing that was offered. Hosts call this before `handleUserInput()` and
+   * echo what it returns, so the transcript shows what the engine received.
+   * With no pending request (or no default) it is just the trimmed input.
+   */
+  resolveAnswer(input: string): string {
+    const trimmed = input.trim();
+    if (trimmed || !this.pendingRequest) {
+      return trimmed;
+    }
+    return this.pendingRequest.request.defaultAnswer?.trim() ?? '';
+  }
+
+  /**
    * Cancel any pending clarification request
    * @param reason Optional cancellation reason
    */

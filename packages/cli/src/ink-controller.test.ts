@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { InkCoderController } from './ink-controller.js';
+import type { InputManager } from './input-manager.js';
 
 interface TranscriptEvent {
   kind: string;
@@ -75,5 +76,65 @@ describe('runMessage cancellation', () => {
     expect(internals.ui.events.some(event => event.kind === 'assistant' && event.text.includes('the real answer'))).toBe(true);
     expect(internals.ui.events.some(event => event.kind === 'error' && event.title === 'Abort')).toBe(false);
     expect(saveContext).toHaveBeenCalled();
+  });
+});
+
+/**
+ * The clarification prompt renders "Default: <x>" from the request's
+ * `defaultAnswer`. Submitting an empty draft used to hand the engine the empty
+ * string anyway, so the advertised default was decoration: the engine saw no
+ * answer, and the transcript showed "(empty clarification response)".
+ */
+describe('clarification defaults', () => {
+  const buildController = () => {
+    const controller = new InkCoderController();
+    return controller as unknown as {
+      inputManager: InputManager;
+      submitInput: (input: string) => Promise<void>;
+      ui: { events: TranscriptEvent[] };
+    };
+  };
+
+  it('sends the advertised default when the answer is empty', async () => {
+    const internals = buildController();
+
+    const answer = internals.inputManager.requestInput({
+      id: 'clarify-1',
+      question: 'Run the migration now?',
+      defaultAnswer: 'yes',
+      timeout: 0,
+    });
+
+    await internals.submitInput('   ');
+
+    // What the engine receives…
+    await expect(answer).resolves.toBe('yes');
+    // …and what the user is shown are the same string.
+    const echoed = internals.ui.events.filter(event => event.kind === 'user');
+    expect(echoed.map(event => event.text)).toEqual(['yes']);
+    expect(internals.inputManager.hasPendingRequest()).toBe(false);
+  });
+
+  it('keeps a typed answer and an empty answer with no default unchanged', async () => {
+    const typed = buildController();
+    const typedAnswer = typed.inputManager.requestInput({
+      id: 'clarify-2',
+      question: 'Which branch?',
+      defaultAnswer: 'main',
+      timeout: 0,
+    });
+    await typed.submitInput('  release  ');
+    await expect(typedAnswer).resolves.toBe('release');
+
+    const bare = buildController();
+    const bareAnswer = bare.inputManager.requestInput({
+      id: 'clarify-3',
+      question: 'Which branch?',
+      timeout: 0,
+    });
+    await bare.submitInput('');
+    await expect(bareAnswer).resolves.toBe('');
+    expect(bare.ui.events.filter(event => event.kind === 'user').map(event => event.text))
+      .toEqual(['(empty clarification response)']);
   });
 });

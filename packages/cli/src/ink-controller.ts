@@ -521,8 +521,14 @@ export class InkCoderController implements InkCliController {
   async submitInput(input: string): Promise<void> {
     const trimmedInput = input.trim();
 
-    if (this.inputManager.handleUserInput(trimmedInput)) {
-      this.ui.user(trimmedInput || '(empty clarification response)');
+    // A clarification advertising "Default: yes" must SEND yes when the user
+    // just presses Enter — the prompt is an offer, not decoration. Resolving
+    // it here (rather than inside handleUserInput) keeps the echo honest: the
+    // transcript shows the answer the engine actually received.
+    const clarificationAnswer = this.inputManager.resolveAnswer(trimmedInput);
+
+    if (this.inputManager.handleUserInput(clarificationAnswer)) {
+      this.ui.user(clarificationAnswer || '(empty clarification response)');
       // Leave the clarification phase so the composer drops its waiting style.
       this.ui.updateSnapshot({ phase: this.isProcessing ? 'Running' : 'Idle' });
       this.publishSession('Clarification submitted');
