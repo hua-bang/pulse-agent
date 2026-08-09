@@ -1092,12 +1092,12 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   // Round border (2) + paddingX (2).
   const pickerContentWidth = Math.max(20, terminalColumns - 4);
   const promptLines = useMemo(() => renderPromptLines(input, cursor, true), [cursor, input]);
-  // Markdown is rendered over the WHOLE streamed text (fenced code blocks are
-  // stateful across lines) and only then windowed onto the rows still free.
-  const liveTextLines = useMemo(
-    () => (snapshot.liveText ? renderMarkdownAnsi(snapshot.liveText).split('\n') : []),
-    [snapshot.liveText],
-  );
+  // The live region renders PLAIN text, gray — see the render below. Only the
+  // final answer segment (finalized into `<Static>` at run end) gets markdown,
+  // so streaming no longer pays for a full markdown re-render on every delta;
+  // splitting raw text into lines is cheap enough that it does not need its
+  // own memo.
+  const liveTextLines = snapshot.liveText ? snapshot.liveText.split('\n') : [];
   const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor, 6, snapshot.skills ?? []), [cursor, input, snapshot.skills]);
   const fileQuery = useMemo(() => detectFileReferenceQuery(input, cursor), [cursor, input]);
   const fileSuggestions = useMemo(
@@ -1186,13 +1186,21 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       </Static>
 
       {/* No visible tail means no room at all — the head alone would just cost
-          a row without showing any of the answer. */}
+          a row without showing any of the answer.
+
+          Plain text, gray — matching the color a segment gets once a tool
+          call finalizes it as narration. Rendering markdown here too used to
+          mean every streamed answer flashed bright, then jumped to gray the
+          moment a tool call finalized it (or stayed bright if none did,
+          which was its own inconsistency). Now the jump happens at most once
+          per run, when the final answer lands in `<Static>` with markdown —
+          gray while it is provisional, bright once it is the real answer. */}
       {liveTextWindow.lines.length > 0 ? (
         <Box flexDirection="column" marginTop={1}>
           {hiddenLiveTextCount > 0 ? (
             <Text color="gray" dimColor>… {hiddenLiveTextCount} earlier line{hiddenLiveTextCount === 1 ? '' : 's'}</Text>
           ) : null}
-          <Text>{liveTextWindow.lines.join('\n')}</Text>
+          <Text color="gray">{liveTextWindow.lines.join('\n')}</Text>
         </Box>
       ) : null}
 

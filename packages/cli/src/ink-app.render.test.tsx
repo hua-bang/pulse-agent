@@ -373,3 +373,47 @@ describe('InkCliApp frame height', () => {
     expect(summaryLine).toMatch(/edit .*252 lines/);
   });
 });
+
+describe('InkCliApp live region styling', () => {
+  it('renders the streaming answer as plain gray text, never bright markdown', async () => {
+    // Rendering markdown on the live region used to mean a streamed answer
+    // flashed bright, then jumped to gray the instant a tool call finalized
+    // it as narration. The live region now stays plain text, gray, the whole
+    // time it is provisional — markdown is only for the finalized answer.
+    const { painted } = await renderDraft('', {
+      ...baseSnapshot,
+      liveText: '# Bold Heading\n**important** text',
+    });
+
+    // Markdown syntax is NOT stripped or transformed while streaming — it is
+    // rendered as literal, unrendered source.
+    expect(painted).toContain('# Bold Heading');
+    expect(painted).toContain('**important**');
+    // No bold escape anywhere: the only other bold users (a user turn's
+    // transcript entry, a picker title) are absent from this snapshot.
+    expect(painted).not.toContain('\x1b[1m');
+  });
+
+  it('renders the finalized answer with markdown once a run completes', async () => {
+    const { painted } = await renderDraft('', {
+      ...baseSnapshot,
+      isProcessing: false,
+      status: 'Ready',
+      phase: 'Idle',
+      liveText: '',
+      events: [{
+        id: 'e1',
+        kind: 'assistant',
+        title: undefined,
+        text: '# Bold Heading',
+      }],
+    });
+
+    // The finalized answer (kind: 'assistant', no `status: 'info'`) renders
+    // through renderMarkdownAnsi — a heading comes out bold + cyan, and the
+    // literal "#" markdown syntax is gone.
+    expect(painted).toContain('\x1b[1m');
+    expect(painted).not.toContain('# Bold Heading');
+    expect(painted).toContain('Bold Heading');
+  });
+});
