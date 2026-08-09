@@ -4,6 +4,7 @@ import { InkCliApp } from './ink-app.js';
 import { createInkCoderController } from './ink-controller.js';
 import { PromptHistoryStore } from './history-store.js';
 import { EngineLogSink } from './log-sink.js';
+import { STREAM_FPS } from './ink-ui-bridge.js';
 
 export interface StartInkTuiOptions {
   continueLast?: boolean;
@@ -44,6 +45,12 @@ export async function startInkTui(options: StartInkTuiOptions = {}): Promise<voi
       // status line and bordered composer is visible as shimmer. Incremental
       // mode rewrites only the lines that actually changed.
       incrementalRendering: true,
+      // Explicit rather than relying on ink's own default (also 30): this is
+      // the terminal-WRITE throttle, paired with the bridge's react-STATE
+      // throttle (InkUiBridge.textThrottleMs, ink-ui-bridge.ts) at the same
+      // rate so the two independent layers cannot phase-stack into worst-case
+      // latency roughly double either one alone.
+      maxFps: STREAM_FPS,
     },
   );
 

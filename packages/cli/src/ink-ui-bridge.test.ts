@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { InkUiBridge } from './ink-ui-bridge.js';
+import { InkUiBridge, STREAM_FPS } from './ink-ui-bridge.js';
 import {
   applySlashCommandCompletion,
   filterPickerItems,
@@ -532,6 +532,40 @@ describe('InkUiBridge', () => {
     expect(last.mode).toBe('planning');
     expect(last.isProcessing).toBe(false);
     expect(last.status).toContain('Done in 1.2s');
+  });
+});
+
+describe('STREAM_FPS: single throttle frequency source', () => {
+  it('derives the bridge default throttle from STREAM_FPS', () => {
+    // ink-launcher.tsx passes this same constant as render()'s maxFps, so it
+    // is what keeps the two independent throttle layers (this bridge's
+    // react-state throttle vs. ink's terminal-write throttle) phase-aligned
+    // instead of stacking to roughly their sum.
+    expect(STREAM_FPS).toBe(30);
+  });
+
+  it('throttles emits at the STREAM_FPS-derived rate (34ms) when no override is given', () => {
+    vi.useFakeTimers();
+    try {
+      const snapshots: unknown[] = [];
+      // No textThrottleMs override — exercises the real default, which every
+      // other test in this file bypasses with textThrottleMs: 0.
+      const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
+
+      bridge.text('a');
+      expect(snapshots).toHaveLength(1); // first emit is always synchronous
+
+      bridge.text('b');
+      expect(snapshots).toHaveLength(1); // second is throttled
+
+      vi.advanceTimersByTime(Math.ceil(1000 / STREAM_FPS) - 1);
+      expect(snapshots).toHaveLength(1);
+
+      vi.advanceTimersByTime(1);
+      expect(snapshots).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

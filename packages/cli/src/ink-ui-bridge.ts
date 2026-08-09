@@ -34,7 +34,24 @@ const DEFAULT_SNAPSHOT: InkUiSnapshot = {
 };
 
 const MAX_EVENT_TEXT_LENGTH = 20000;
-const DEFAULT_TEXT_THROTTLE_MS = 33;
+
+/**
+ * Single frequency source for the two independent throttle layers between a
+ * streamed model delta and a terminal write:
+ *
+ * - This bridge throttles how often a new `InkCliSnapshot` is handed to
+ *   React (`emitThrottled()`) — it limits REACT STATE UPDATE frequency.
+ * - Ink's own `maxFps` (passed at `render()` in ink-launcher.tsx) throttles
+ *   how often it actually WRITES to the terminal once state has changed.
+ *
+ * Both layers exist for a reason (React re-render cost vs. terminal I/O
+ * cost) and neither can replace the other, but they used to run off two
+ * unrelated constants (33ms here, ink's default maxFps:30 = 34ms) — two
+ * differently-phased throttles worst-cases to roughly their SUM before a
+ * delta reaches the screen. One exported constant keeps them the same rate.
+ */
+export const STREAM_FPS = 30;
+const DEFAULT_TEXT_THROTTLE_MS = Math.ceil(1000 / STREAM_FPS);
 
 /**
  * Bridges runtime callbacks to the Ink UI.
