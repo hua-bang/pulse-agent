@@ -18,35 +18,50 @@ interface TranscriptEvent {
  * "Done in Xs" summary was written, the sentinel was printed as the model's
  * reply, and the cancelled turn was saved to the session and the daily log.
  */
-describe('runMessage cancellation', () => {
-  const buildController = (runImpl: (context: unknown, options: any) => Promise<string>) => {
-    const controller = new InkCoderController();
-    const internals = controller as unknown as {
-      agent: { run: unknown };
-      sessionCommands: {
-        saveContext: unknown;
-        getCurrentSessionId: () => string | null;
-        getCurrentTaskListId: () => string | null;
-      };
-      syncSessionTaskListBinding: () => Promise<void>;
-      resolveCurrentSessionId: () => string | null;
-      runMessage: (input: string) => Promise<void>;
-      requestStop: () => void;
-      ui: { events: TranscriptEvent[] };
-    };
-
-    const saveContext = vi.fn(async () => {});
-    internals.agent.run = vi.fn(runImpl);
-    internals.sessionCommands.saveContext = saveContext;
-    // A null session id keeps the run off the memory-context and daily-log paths.
-    internals.resolveCurrentSessionId = () => null;
-    internals.sessionCommands.getCurrentSessionId = () => null;
-    internals.sessionCommands.getCurrentTaskListId = () => null;
-    internals.syncSessionTaskListBinding = async () => {};
-
-    return { internals, saveContext };
+interface ControllerInternals {
+  agent: { run: unknown };
+  sessionCommands: {
+    saveContext: unknown;
+    getCurrentSessionId: () => string | null;
+    getCurrentTaskListId: () => string | null;
   };
+  syncSessionTaskListBinding: () => Promise<void>;
+  resolveCurrentSessionId: () => string | null;
+  runMessage: (input: string) => Promise<void>;
+  submitInput: (input: string) => Promise<void>;
+  queuedInputs: string[];
+  requestStop: () => void;
+  inputManager: InputManager;
+  ui: { events: TranscriptEvent[] };
+}
 
+/** A controller whose engine run is a stub and whose session I/O is inert. */
+const buildController = (runImpl: (context: unknown, options: any) => Promise<string>) => {
+  const controller = new InkCoderController();
+  const internals = controller as unknown as ControllerInternals;
+
+  const saveContext = vi.fn(async () => {});
+  const run = vi.fn(runImpl);
+  internals.agent.run = run;
+  internals.sessionCommands.saveContext = saveContext;
+  // A null session id keeps the run off the memory-context and daily-log paths.
+  internals.resolveCurrentSessionId = () => null;
+  internals.sessionCommands.getCurrentSessionId = () => null;
+  internals.sessionCommands.getCurrentTaskListId = () => null;
+  internals.syncSessionTaskListBinding = async () => {};
+
+  return { internals, saveContext, run };
+};
+
+/** Queued input runs on setImmediate, so pinning order means waiting for it. */
+const waitUntil = async (predicate: () => boolean, timeoutMs = 3_000): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+};
+
+describe('runMessage cancellation', () => {
   it('does not report an aborted run as a completed answer', async () => {
     const { internals, saveContext } = buildController(async () => {
       // Mirror the engine: cancel mid-run, then resolve with the sentinel string
@@ -86,17 +101,10 @@ describe('runMessage cancellation', () => {
  * answer, and the transcript showed "(empty clarification response)".
  */
 describe('clarification defaults', () => {
-  const buildController = () => {
-    const controller = new InkCoderController();
-    return controller as unknown as {
-      inputManager: InputManager;
-      submitInput: (input: string) => Promise<void>;
-      ui: { events: TranscriptEvent[] };
-    };
-  };
+  const buildBareController = () => new InkCoderController() as unknown as ControllerInternals;
 
   it('sends the advertised default when the answer is empty', async () => {
-    const internals = buildController();
+    const internals = buildBareController();
 
     const answer = internals.inputManager.requestInput({
       id: 'clarify-1',
@@ -116,7 +124,7 @@ describe('clarification defaults', () => {
   });
 
   it('keeps a typed answer and an empty answer with no default unchanged', async () => {
-    const typed = buildController();
+    const typed = buildBareController();
     const typedAnswer = typed.inputManager.requestInput({
       id: 'clarify-2',
       question: 'Which branch?',
@@ -126,7 +134,7 @@ describe('clarification defaults', () => {
     await typed.submitInput('  release  ');
     await expect(typedAnswer).resolves.toBe('release');
 
-    const bare = buildController();
+    const bare = buildBareController();
     const bareAnswer = bare.inputManager.requestInput({
       id: 'clarify-3',
       question: 'Which branch?',
@@ -136,5 +144,59 @@ describe('clarification defaults', () => {
     await expect(bareAnswer).resolves.toBe('');
     expect(bare.ui.events.filter(event => event.kind === 'user').map(event => event.text))
       .toEqual(['(empty clarification response)']);
+  });
+});
+
+/**
+ * Input typed during a run is queued and drained when the run ends — but the
+ * drain only pulled ONE entry and then relied on whatever ran next to pull the
+ * following one. Of the sixteen command cases only `/compact` (via
+ * `runExclusive`) did; every other command returned straight to the caller, so
+ * a queue like [/status, "continue"] stalled after /status: the status line
+ * kept counting an input nobody would run, and the next message the user typed
+ * executed BEFORE it.
+ */
+describe('queued input across slash commands', () => {
+  it('keeps draining after a command and preserves the typed order', async () => {
+    const { internals, run } = buildController(async () => {
+      // Typed while the first run is in flight, so both are queued.
+      if ((run.mock.calls.length ?? 0) === 1) {
+        await internals.submitInput('/status');
+        await internals.submitInput('continue');
+      }
+      return 'answer';
+    });
+
+    await internals.runMessage('first message');
+    expect(internals.queuedInputs).toHaveLength(2);
+
+    // The command drains, and the message behind it drains after the command.
+    await waitUntil(() => run.mock.calls.length >= 2);
+
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(internals.queuedInputs).toHaveLength(0);
+
+    const kinds = internals.ui.events;
+    const statusAt = kinds.findIndex(event => event.title === 'CLI Status');
+    const continueAt = kinds.findIndex(event => event.kind === 'user' && event.text === 'continue');
+    expect(statusAt).toBeGreaterThanOrEqual(0);
+    expect(continueAt).toBeGreaterThanOrEqual(0);
+    // Order, not just arrival: the queue is FIFO and /status was typed first.
+    expect(statusAt).toBeLessThan(continueAt);
+  });
+
+  it('drains a command queued behind another command', async () => {
+    const { internals, run } = buildController(async () => 'answer');
+
+    // Nothing is running, so these go straight into the queue.
+    internals.queuedInputs.push('/help', '/status', 'go');
+    (internals as unknown as { drainQueuedInput: () => void }).drainQueuedInput();
+
+    await waitUntil(() => run.mock.calls.length >= 1);
+
+    expect(internals.queuedInputs).toHaveLength(0);
+    expect(internals.ui.events.some(event => event.title === 'Commands')).toBe(true);
+    expect(internals.ui.events.some(event => event.title === 'CLI Status')).toBe(true);
+    expect(run).toHaveBeenCalledTimes(1);
   });
 });

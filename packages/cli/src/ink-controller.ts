@@ -107,6 +107,8 @@ export class InkCoderController implements InkCliController {
   private isProcessing = false;
   private isShuttingDown = false;
   private readonly queuedInputs: string[] = [];
+  /** A drain is already scheduled; nested finallys must not shift a second entry. */
+  private drainScheduled = false;
   private lastContextTokens = 0;
   private totalOutputTokens = 0;
   private lastCachedTokens: number | undefined;
@@ -579,7 +581,26 @@ export class InkCoderController implements InkCliController {
     }
   }
 
+  /**
+   * Every dispatch path hands the queue on.
+   *
+   * Only `runMessage()` and `runExclusive()` (i.e. `/compact`) used to drain,
+   * so anything queued behind a run that then drained a slash command was
+   * stranded: the command returned, nothing drained, the status line kept
+   * counting inputs nobody would run, and the next message the user typed
+   * executed BEFORE the older queued ones. `drainQueuedInput()` is re-entrant
+   * safe, so the inner drains those two already do simply win the race and
+   * this one is a no-op.
+   */
   private async handleInput(input: string): Promise<void> {
+    try {
+      await this.dispatchInput(input);
+    } finally {
+      this.drainQueuedInput();
+    }
+  }
+
+  private async dispatchInput(input: string): Promise<void> {
     let messageInput = input;
 
     if (input.startsWith('//')) {
@@ -933,17 +954,36 @@ export class InkCoderController implements InkCliController {
   }
 
   /**
-   * Runs the next queued message, if any. Both exclusive commands and agent runs
-   * must call this — anything typed while one was in flight is otherwise stranded
-   * until the NEXT run happens to drain it.
+   * Runs the next queued input, if any. Every path that finishes a piece of
+   * work calls this — agent runs, exclusive commands, and command dispatch —
+   * so anything typed while one was in flight runs next, in the order it was
+   * typed, instead of waiting for the user to send another message.
+   *
+   * Nested callers are the normal case (a command's dispatch finally fires
+   * right after `runExclusive`'s own finally), so the drain is guarded: while
+   * one is scheduled the rest are no-ops. Without it both would shift an entry
+   * and the second would land on an already-busy controller and re-queue it at
+   * the BACK, reordering exactly what the queue exists to preserve.
    */
   private drainQueuedInput(): void {
-    const nextInput = this.queuedInputs.shift();
-    if (!nextInput) {
+    if (this.drainScheduled || this.isShuttingDown || this.queuedInputs.length === 0) {
       return;
     }
-    this.ui.info('Running queued input...');
+
+    this.drainScheduled = true;
     setImmediate(() => {
+      this.drainScheduled = false;
+      // Taken here, not at schedule time: Esc discards the queue, and an entry
+      // already pulled out of it would run after the user was told it was
+      // dropped.
+      const nextInput = this.queuedInputs.shift();
+      if (!nextInput) {
+        return;
+      }
+      this.ui.info('Running queued input...');
+      // The status line counts the queue, so it has to shrink with it — a
+      // command dispatch does not otherwise publish a session snapshot.
+      this.ui.updateSnapshot({ queuedInputs: this.queuedInputs.length });
       void this.submitInput(nextInput);
     });
   }
