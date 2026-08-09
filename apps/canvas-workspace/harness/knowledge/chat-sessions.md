@@ -57,6 +57,14 @@ Tests: `hooks/useChatSessions.test.tsx`,
 `hooks/useMentions.submit-veto.test.tsx`, `__tests__/ChatSessionLoading.test.tsx`
 (all under `src/renderer/src/components/chat/`).
 
+## Stopped-turn outcome lifecycle
+
+A stopped turn keeps a compact recovery marker while it remains the latest
+user-visible outcome. Once a later user message moves the conversation on,
+that old marker is hidden; the partial assistant content stays in history.
+Failed-turn outcomes remain visible because their diagnostics and retry state
+are still relevant. Guard: `__tests__/ChatMessages.accessibility.test.tsx`.
+
 ## Stable full-page session rail
 
 The full-page rail is a unified, cross-scope index. Its folder tree must stay
@@ -107,10 +115,10 @@ toggle.
 - An expanded dock still pointing at the chat/terminal tab must be
   re-pointed at a content tab rather than collapsed — collapsing instead
   would make the first click read as a no-op.
-- The button stays visible but disabled when no content tab exists yet (a
-  tab can land mid-conversation, e.g. the agent opening an artifact or
-  preview), and its topbar position must not jump around as that happens.
-  `chat.noDockTabs` labels the disabled state.
+- The button stays visible and actionable even when no content tab exists.
+  Its first click opens the scoped workspace canvas as a read-only preview
+  when possible; global/scheduled scopes and an already-mounted canvas create
+  a blank browser tab instead. Its topbar position must not jump as tabs land.
 
 **Inset rule.** These routes reflow like any other route, through
 `reserveSpace` — the dock inset must NOT be gated on `chatTabEnabled`. Gating

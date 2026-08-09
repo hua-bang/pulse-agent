@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, type KeyboardEventHandler, type ReactNode } from 'react';
 import type { CanvasNode } from '../../types';
 import { useRightDock, useRightDockState } from '../RightDock/context';
-import { canPreviewWorkspaceCanvas, hasDockContentTabs, isDockContentTabVisible } from '../RightDock/dock-content-tabs';
+import { isDockContentTabVisible, toggleFullPageDockContentTabs } from '../RightDock/dock-content-tabs';
 import { buildDockTabRefs } from '../RightDock/tabRefs';
 import type { SettingsSection } from '../Settings';
 import './ChatPage.css';
@@ -64,8 +64,6 @@ export interface ChatPageBodyProps {
   onToggleRail: () => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
-  /** Opens per-workspace settings when the chat scope is workspace-bound. */
-  onOpenWorkspaceSettings?: (workspaceId: string) => void;
   /** Fixed-task chats hide the cross-session rail/new-chat controls. */
   fixedChat?: {
     title: string;
@@ -99,7 +97,6 @@ export const ChatPageBody = ({
   railCollapsed,
   onToggleRail,
   onOpenAppSettings,
-  onOpenWorkspaceSettings,
   fixedChat,
 }: ChatPageBodyProps) => {
   const { t } = useI18n();
@@ -107,21 +104,21 @@ export const ChatPageBody = ({
   const dock = useRightDock();
   const dockState = useRightDockState();
   // The dock's Tab strip lives beside this page (its chat tab is hidden here),
-  // so the control is a plain show/hide — no navigation. Kept visible
-  // (disabled, not hidden) even with nothing to show: a tab can land
-  // mid-conversation, and its position shouldn't jump as that happens.
+  // so the control is a plain show/hide — no navigation.
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
-  const canOpenDefaultDockTab = canPreviewWorkspaceCanvas(dockState, workspaceId);
-  const dockTabsToggleable = hasDockContentTabs(dockState) || canOpenDefaultDockTab;
   const dockTabsVisible = isDockContentTabVisible(dockState);
-  // Zero content tabs yet: default to opening this page's own canvas as a
-  // read-only preview instead of leaving the click a no-op.
+  // The control is always actionable. With no content yet, prefer this
+  // scope's canvas preview; global/scheduled/live-canvas scopes get a fresh
+  // browser tab so the panel still opens on the first click.
   const handleToggleDockTabs = useCallback(() => {
-    if (!hasDockContentTabs(dockState) && workspaceId) {
-      dock.openCanvasPreview(workspaceId, allWorkspaces.find(w => w.id === workspaceId)?.name ?? workspaceId);
-      return;
-    }
-    dock.toggleContentTabs();
+    toggleFullPageDockContentTabs(
+      dockState,
+      workspaceId ? {
+        id: workspaceId,
+        title: allWorkspaces.find(w => w.id === workspaceId)?.name ?? workspaceId,
+      } : undefined,
+      dock,
+    );
   }, [allWorkspaces, dock, dockState, workspaceId]);
   const scopeId = chatScopeId(agentScope);
   const sessionStoreId = scopeSessionStoreId(agentScope);
@@ -138,16 +135,6 @@ export const ChatPageBody = ({
     executionPolicy,
     fixedTitle: fixedChat?.title,
   });
-  const settingsButtonLabel = workspaceId && onOpenWorkspaceSettings
-    ? t('workspaceSettings.ariaLabel')
-    : t('chat.modelSettings');
-  const handleOpenScopeSettings = useCallback(() => {
-    if (workspaceId && onOpenWorkspaceSettings) {
-      onOpenWorkspaceSettings(workspaceId);
-      return;
-    }
-    onOpenAppSettings('models');
-  }, [onOpenAppSettings, onOpenWorkspaceSettings, workspaceId]);
   const {
     abort,
     activeSessionId,
@@ -406,13 +393,9 @@ export const ChatPageBody = ({
           onToggleRail={onToggleRail}
           anchors={anchors}
           onJumpAnchor={handleJumpAnchor}
-          onOpenReplyStyle={() => onOpenAppSettings('reply-style')}
-          onOpenScopeSettings={handleOpenScopeSettings}
-          settingsLabel={settingsButtonLabel}
           onNewSession={() => void sessionRail.onNewSession()}
           newSessionDisabled={sessionInteractionDisabled}
           dockTabsVisible={dockTabsVisible}
-          dockTabsToggleable={dockTabsToggleable}
           onToggleDockTabs={handleToggleDockTabs}
         />
         <ChatView

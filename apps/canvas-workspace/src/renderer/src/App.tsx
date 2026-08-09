@@ -82,17 +82,17 @@ const AppContent = () => {
   const activeView: ActiveView =
     routePath === ROUTE_CHAT ? 'chat'
       : routePath === ROUTE_SKILLS ? 'skills'
-      : scheduledTaskMatch ? 'scheduled-task'
-      : routePath === ROUTE_SCHEDULED ? 'scheduled'
-      : nodesRouteActive
-        ? detailNodeMatch
-          ? 'node-detail'
-          : 'nodes'
-        : graphRouteActive
-          ? 'graph'
-          : pluginRoutes.some((r) => r.path === routePath)
-            ? routePath
-            : 'canvas';
+        : scheduledTaskMatch ? 'scheduled-task'
+          : routePath === ROUTE_SCHEDULED ? 'scheduled'
+            : nodesRouteActive
+              ? detailNodeMatch
+                ? 'node-detail'
+                : 'nodes'
+              : graphRouteActive
+                ? 'graph'
+                : pluginRoutes.some((r) => r.path === routePath)
+                  ? routePath
+                  : 'canvas';
   const routeQuery = routeParams.toString();
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
   const chatTargetBroker = useChatTargetBroker();
@@ -552,7 +552,6 @@ const AppContent = () => {
               onExit={exitChatView}
               onNodeFocus={focusNodeOnCanvas}
               onOpenAppSettings={openAppSettings}
-              onOpenWorkspaceSettings={openWorkspaceSettings}
             />
           </PulseRouterView>
           <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} />

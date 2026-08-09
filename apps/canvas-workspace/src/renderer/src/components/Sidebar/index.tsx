@@ -13,7 +13,7 @@ import { WorkspaceList } from './WorkspaceList';
 import { LayersPanel } from './LayersPanel';
 import { LayerContextMenu } from './LayerContextMenu';
 import { useAppShell } from '../AppShellProvider';
-import { AvatarIcon, SettingsIcon } from '../icons';
+import { AppLogoIcon, SettingsIcon } from '../icons';
 import { Button } from '../ui';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { buildCanvasNodeLink } from '../../utils/canvasLinks';
@@ -64,6 +64,9 @@ interface Props {
   pluginNavItems: ReadonlyArray<NavItem>;
   onNavigate: (path: string) => void;
   onExitChat: () => void;
+
+  enableSkills?: boolean;
+  enableScheduled?: boolean;
 }
 
 const WS_DRAG = 'application/x-workspace-id';
@@ -77,6 +80,8 @@ export const Sidebar = ({
   onEnterNodes, onEnterGraph, nodesEnabled, graphEnabled,
   onEnterSkills,
   onEnterScheduled,
+  enableSkills = true,
+  enableScheduled = true
 }: Props) => {
   const { notify } = useAppShell();
   const { t } = useI18n();
@@ -344,6 +349,8 @@ export const Sidebar = ({
             onNewWorkspace={() => { setShowAddMenu(false); setInlineCreate('workspace'); setInlineCreateValue(''); setInlineCreateFolderId(null); }}
             onNewFolder={() => { setShowAddMenu(false); setInlineCreate('folder'); setInlineCreateValue(''); setInlineCreateFolderId(null); }}
             onImportWorkspace={() => { setShowAddMenu(false); onImport(); }}
+            enableSkills={enableSkills}
+            enableScheduled={enableScheduled}
           />
           <WorkspaceList
             folders={folders} workspaces={workspaces}
@@ -403,6 +410,7 @@ export const Sidebar = ({
       {collapsed && (
         <div className="sidebar-collapsed-rail">
           <button
+            type="button"
             className="sidebar-collapsed-btn"
             onClick={onToggle}
             title={t('sidebar.expand')}
@@ -417,26 +425,31 @@ export const Sidebar = ({
             title={t('sidebar.aiChatTitle')}
             aria-label={t('sidebar.aiChat')}
           >
-            <AvatarIcon size={14} />
+            <AppLogoIcon size={20} />
           </button>
-          <Button
-            variant="icon"
-            className={`sidebar-collapsed-btn${activeView === 'skills' ? ' sidebar-collapsed-btn--active' : ''}`}
-            onClick={onEnterSkills}
-            title={t('sidebar.skillsTitle')}
-            aria-label={t('sidebar.skills')}
-          >
-            <PuzzlePiece size={14} />
-          </Button>
-          <Button
-            variant="icon"
-            className={`sidebar-collapsed-btn${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-collapsed-btn--active' : ''}`}
-            onClick={onEnterScheduled}
-            title={t('sidebar.scheduledTitle')}
-            aria-label={t('sidebar.scheduled')}
-          >
-            <CalendarBlank size={14} />
-          </Button>
+          {
+            enableSkills ? <Button
+              variant="icon"
+              className={`sidebar-collapsed-btn${activeView === 'skills' ? ' sidebar-collapsed-btn--active' : ''}`}
+              onClick={onEnterSkills}
+              title={t('sidebar.skillsTitle')}
+              aria-label={t('sidebar.skills')}
+            >
+              <PuzzlePiece size={14} />
+            </Button> : null
+          }
+          {
+            enableScheduled ? (<Button
+              variant="icon"
+              className={`sidebar-collapsed-btn${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-collapsed-btn--active' : ''}`}
+              onClick={onEnterScheduled}
+              title={t('sidebar.scheduledTitle')}
+              aria-label={t('sidebar.scheduled')}
+            >
+              <CalendarBlank size={14} />
+            </Button>) : null
+          }
+
           <button
             type="button"
             className="sidebar-collapsed-btn"

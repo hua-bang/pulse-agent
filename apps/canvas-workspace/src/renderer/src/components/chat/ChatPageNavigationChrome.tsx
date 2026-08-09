@@ -1,6 +1,6 @@
 import { ColumnsPlusRight } from '@phosphor-icons/react';
 import { useI18n } from '../../i18n';
-import { PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
+import { PlusIcon } from '../icons';
 import { Button } from '../ui';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type ChatSessionsRailProps } from './ChatSessionsRail';
@@ -29,13 +29,9 @@ interface ChatPageTopbarProps {
   onToggleRail: () => void;
   anchors: ChatAnchor[];
   onJumpAnchor: (index: number) => void;
-  onOpenReplyStyle: () => void;
-  onOpenScopeSettings: () => void;
-  settingsLabel: string;
   onNewSession: () => void;
   newSessionDisabled: boolean;
   dockTabsVisible: boolean;
-  dockTabsToggleable: boolean;
   onToggleDockTabs: () => void;
 }
 
@@ -45,19 +41,13 @@ export const ChatPageTopbar = ({
   onToggleRail,
   anchors,
   onJumpAnchor,
-  onOpenReplyStyle,
-  onOpenScopeSettings,
-  settingsLabel,
   onNewSession,
   newSessionDisabled,
   dockTabsVisible,
-  dockTabsToggleable,
   onToggleDockTabs,
 }: ChatPageTopbarProps) => {
   const { t } = useI18n();
-  const dockTabsLabel = dockTabsToggleable
-    ? (dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs'))
-    : t('chat.noDockTabs');
+  const dockTabsLabel = dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs');
 
   return (
     <div className="chat-page-topbar">
@@ -79,26 +69,6 @@ export const ChatPageTopbar = ({
       )}
       <div className="chat-page-topbar-spacer" />
       <ChatAnchors anchors={anchors} onJump={onJumpAnchor} />
-      <Button
-        variant="icon"
-        size="md"
-        className="chat-panel-action-btn"
-        onClick={onOpenReplyStyle}
-        title={t('chat.replyStyleSettings')}
-        aria-label={t('chat.replyStyleSettings')}
-      >
-        <SparklesIcon size={16} strokeWidth={1.25} />
-      </Button>
-      <Button
-        variant="icon"
-        size="md"
-        className="chat-panel-action-btn"
-        onClick={onOpenScopeSettings}
-        title={settingsLabel}
-        aria-label={settingsLabel}
-      >
-        <SettingsIcon size={16} strokeWidth={1.25} />
-      </Button>
       {!fixedTitle && (
         <Button
           variant="icon"
@@ -118,7 +88,6 @@ export const ChatPageTopbar = ({
         className="chat-panel-action-btn"
         data-active={dockTabsVisible}
         aria-pressed={dockTabsVisible}
-        disabled={!dockTabsToggleable}
         onClick={onToggleDockTabs}
         title={dockTabsLabel}
         aria-label={dockTabsLabel}

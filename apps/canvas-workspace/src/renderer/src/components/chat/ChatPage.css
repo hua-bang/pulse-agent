@@ -1,7 +1,6 @@
 /* ─── ChatPage container ──────────────────────────────────── */
 
 .chat-page {
-  --chat-page-topbar-height: 49px;
   position: relative;
   flex: 1;
   min-width: 0;
@@ -242,7 +241,7 @@
 .chat-page-topbar {
   display: flex;
   align-items: center;
-  min-height: var(--chat-page-topbar-height);
+  min-height: var(--app-topbar-height);
   box-sizing: border-box;
   padding: 10px 16px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
@@ -444,7 +443,7 @@
 @media (max-width: 1040px) {
   .chat-page-rail-wrapper {
     position: absolute;
-    inset: var(--chat-page-topbar-height) auto 0 0;
+    inset: var(--app-topbar-height) auto 0 0;
     z-index: 4;
     width: min(260px, calc(100% - 72px));
     background: var(--surface);

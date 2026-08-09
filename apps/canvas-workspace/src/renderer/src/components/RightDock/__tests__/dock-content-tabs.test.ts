@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DockStore } from '../dock-store';
-import { canPreviewWorkspaceCanvas, hasDockContentTabs, isDockContentTabVisible } from '../dock-content-tabs';
+import {
+  canPreviewWorkspaceCanvas,
+  hasDockContentTabs,
+  isDockContentTabVisible,
+  toggleFullPageDockContentTabs,
+} from '../dock-content-tabs';
 
 const seeded = (): DockStore => {
   const store = new DockStore();
@@ -63,5 +68,62 @@ describe('canPreviewWorkspaceCanvas', () => {
   it('refuses when there is no workspace to preview (global/scheduled chat)', () => {
     const store = new DockStore();
     expect(canPreviewWorkspaceCanvas(store.getSnapshot(), undefined)).toBe(false);
+  });
+});
+
+describe('toggleFullPageDockContentTabs', () => {
+  const actions = () => ({
+    openCanvasPreview: vi.fn(() => true),
+    newLink: vi.fn(),
+    toggleContentTabs: vi.fn(),
+  });
+
+  it('toggles existing content tabs', () => {
+    const store = seeded();
+    const dockActions = actions();
+    toggleFullPageDockContentTabs(store.getSnapshot(), undefined, dockActions);
+    expect(dockActions.toggleContentTabs).toHaveBeenCalledOnce();
+    expect(dockActions.newLink).not.toHaveBeenCalled();
+  });
+
+  it('opens the scoped workspace canvas when it can be previewed', () => {
+    const store = new DockStore();
+    const dockActions = actions();
+    toggleFullPageDockContentTabs(
+      store.getSnapshot(),
+      { id: 'ws-1', title: 'Workspace one' },
+      dockActions,
+    );
+    expect(dockActions.openCanvasPreview).toHaveBeenCalledWith('ws-1', 'Workspace one');
+    expect(dockActions.newLink).not.toHaveBeenCalled();
+  });
+
+  it('creates a blank tab for global chat or an already-mounted canvas', () => {
+    const store = new DockStore();
+    store.setMountedWorkspaces(['ws-1']);
+    const globalActions = actions();
+    const mountedActions = actions();
+    toggleFullPageDockContentTabs(store.getSnapshot(), undefined, globalActions);
+    toggleFullPageDockContentTabs(
+      store.getSnapshot(),
+      { id: 'ws-1', title: 'Workspace one' },
+      mountedActions,
+    );
+    expect(globalActions.newLink).toHaveBeenCalledOnce();
+    expect(mountedActions.newLink).toHaveBeenCalledOnce();
+    expect(mountedActions.openCanvasPreview).not.toHaveBeenCalled();
+  });
+
+  it('creates a blank tab if the canvas preview is refused at invocation time', () => {
+    const store = new DockStore();
+    const dockActions = actions();
+    dockActions.openCanvasPreview.mockReturnValue(false);
+    toggleFullPageDockContentTabs(
+      store.getSnapshot(),
+      { id: 'ws-1', title: 'Workspace one' },
+      dockActions,
+    );
+    expect(dockActions.openCanvasPreview).toHaveBeenCalledOnce();
+    expect(dockActions.newLink).toHaveBeenCalledOnce();
   });
 });

@@ -111,6 +111,7 @@
   --sidebar-width: 240px;
   --sidebar-collapsed: 48px;
   --titlebar-height: 38px;
+  --app-topbar-height: 49px;
 
   /* ── Coding-agent brand marks ────────────────────────────────────
    * One token per entry in config/agentRegistry.ts, so a surface that

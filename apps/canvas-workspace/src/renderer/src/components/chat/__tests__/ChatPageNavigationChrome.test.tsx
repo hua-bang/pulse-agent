@@ -25,13 +25,9 @@ describe('ChatPage navigation chrome', () => {
           onToggleRail={vi.fn()}
           anchors={[]}
           onJumpAnchor={vi.fn()}
-          onOpenReplyStyle={vi.fn()}
-          onOpenScopeSettings={vi.fn()}
-          settingsLabel="Settings"
           onNewSession={vi.fn()}
           newSessionDisabled={false}
           dockTabsVisible={false}
-          dockTabsToggleable={false}
           onToggleDockTabs={vi.fn()}
         />
       </I18nProvider>,
@@ -42,6 +38,9 @@ describe('ChatPage navigation chrome', () => {
     expect(railElement?.querySelector('button')).toBeNull();
     const toggle = host.querySelector<HTMLButtonElement>('[aria-controls="chat-page-session-rail"]');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(host.querySelector('[aria-label="Settings"]')).toBeNull();
+    expect(host.querySelectorAll('.chat-page-topbar > .chat-panel-action-btn')).toHaveLength(3);
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="Show the Tab panel"]')?.disabled).toBe(false);
 
     act(() => root.unmount());
   });

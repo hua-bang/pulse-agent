@@ -43,6 +43,8 @@ interface ChatMessageProps {
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   /** Re-run the user turn that produced this assistant message. */
   onRegenerate?: (index: number) => Promise<boolean> | void;
+  /** Old stopped turns become transcript history once a later user turn exists. */
+  hideStoppedOutcome?: boolean;
   /** Jump to a session/message from a session_search result chip. */
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
 }
@@ -64,6 +66,7 @@ export const ChatMessage = ({
   anchorId,
   onEditUserMessage,
   onRegenerate,
+  hideStoppedOutcome = false,
   onSessionJump,
 }: ChatMessageProps) => {
   const { t } = useI18n();
@@ -417,7 +420,7 @@ export const ChatMessage = ({
           dangerouslySetInnerHTML={{ __html: userHtml }}
         />
       )}
-      {message.role === 'assistant' && (
+      {message.role === 'assistant' && !(hideStoppedOutcome && message.turnStatus === 'stopped') && (
         <ChatTurnOutcome
           status={message.turnStatus}
           errorDetails={message.errorDetails}

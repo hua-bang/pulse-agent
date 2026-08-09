@@ -53,3 +53,25 @@ export const canPreviewWorkspaceCanvas = (
   state: DockState,
   workspaceId: string | undefined,
 ): boolean => workspaceId != null && !state.mountedWorkspaceIds.has(workspaceId);
+
+interface FullPageDockActions {
+  openCanvasPreview: (workspaceId: string, title: string) => boolean;
+  newLink: () => void;
+  toggleContentTabs: () => void;
+}
+
+/** Execute the always-actionable full-page chat dock control. */
+export const toggleFullPageDockContentTabs = (
+  state: DockState,
+  workspace: { id: string; title: string } | undefined,
+  actions: FullPageDockActions,
+): void => {
+  if (hasDockContentTabs(state)) {
+    actions.toggleContentTabs();
+    return;
+  }
+  if (workspace && canPreviewWorkspaceCanvas(state, workspace.id)) {
+    if (actions.openCanvasPreview(workspace.id, workspace.title)) return;
+  }
+  actions.newLink();
+};
