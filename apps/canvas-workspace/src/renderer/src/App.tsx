@@ -552,7 +552,6 @@ const AppContent = () => {
               onExit={exitChatView}
               onNodeFocus={focusNodeOnCanvas}
               onOpenAppSettings={openAppSettings}
-              onOpenWorkspaceSettings={openWorkspaceSettings}
             />
           </PulseRouterView>
           <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} />

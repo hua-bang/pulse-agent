@@ -392,6 +392,30 @@ describe('ChatMessages accessibility', () => {
     expect(el.querySelector('[aria-label="Regenerate response"]')).toBeNull();
   });
 
+  it('hides an old stopped outcome after the user has moved the conversation on', async () => {
+    const el = await renderMessages([
+      {
+        role: 'assistant',
+        content: 'Please finish the sign-in in the browser.',
+        timestamp: 1,
+        turnStatus: 'stopped',
+        retryable: true,
+      },
+      {
+        role: 'user',
+        content: 'That is handled. Continue another way.',
+        timestamp: 2,
+      },
+      {
+        role: 'assistant',
+        content: 'Continuing with the updated request.',
+        timestamp: 3,
+      },
+    ]);
+
+    expect(el.querySelector('.chat-turn-outcome--stopped')).toBeNull();
+  });
+
   it('keeps a failed turn friendly while disclosing raw diagnostics on demand', async () => {
     const onRegenerate = vi.fn(async () => true);
     const el = await renderMessages([{

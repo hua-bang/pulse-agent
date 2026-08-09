@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type React from 'react';
-import { CalendarBlank, PuzzlePiece } from '@phosphor-icons/react';
+import { CalendarBlank, PuzzlePiece, SidebarSimple } from '@phosphor-icons/react';
 import type { NavItem } from '../../../../plugins/types';
 import {
   PlusIcon,
@@ -17,14 +17,10 @@ import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 import { Button } from '../ui';
 
 export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-    <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" strokeWidth="1.3" />
-    <path d="M6 2.5v11" stroke="currentColor" strokeWidth="1.3" />
-  </svg>
+  <SidebarSimple size={size} weight="regular" />
 );
 
 interface SidebarHeaderProps {
-  onToggle: () => void;
   activeView: string;
   onEnterChat: () => void;
   onEnterNodes: () => void;
@@ -45,7 +41,6 @@ interface SidebarHeaderProps {
 }
 
 export const SidebarHeader = ({
-  onToggle,
   activeView,
   onEnterChat,
   onEnterNodes,
@@ -100,9 +95,6 @@ export const SidebarHeader = ({
           <AppLogoIcon size={22} />
         </span>
         <span className="sidebar-brand">Pulse Canvas</span>
-        <button className="sidebar-section-btn" onClick={onToggle} title={t('sidebar.collapse')}>
-          <SidebarToggleIcon size={14} />
-        </button>
       </div>
 
       <div className="sidebar-nav">

@@ -3084,6 +3084,16 @@
   background: color-mix(in srgb, var(--error) 4%, var(--surface));
 }
 
+.chat-turn-outcome--stopped {
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+}
+
 .chat-turn-outcome__icon {
   width: 24px;
   height: 24px;
@@ -3099,6 +3109,18 @@
 .chat-turn-outcome--failed .chat-turn-outcome__icon {
   background: color-mix(in srgb, var(--error) 9%, transparent);
   color: var(--error);
+}
+
+.chat-turn-outcome--stopped .chat-turn-outcome__icon {
+  width: 18px;
+  height: 18px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.chat-turn-outcome--stopped .chat-turn-outcome__status {
+  color: var(--text-secondary);
+  font-weight: 550;
 }
 
 .chat-turn-outcome__body,

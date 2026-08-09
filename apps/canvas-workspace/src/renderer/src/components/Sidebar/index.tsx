@@ -332,7 +332,7 @@ export const Sidebar = ({
       {!collapsed && (
         <>
           <SidebarHeader
-            onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat}
+            activeView={activeView} onEnterChat={onEnterChat}
             onEnterNodes={onEnterNodes} onEnterGraph={onEnterGraph}
             onEnterSkills={onEnterSkills}
             onEnterScheduled={onEnterScheduled}
@@ -460,6 +460,15 @@ export const Sidebar = ({
           >
             <SettingsIcon size={14} strokeWidth={1.4} />
             <span>{t('sidebar.settings')}</span>
+          </button>
+          <button
+            type="button"
+            className="sidebar-footer-icon-btn"
+            onClick={onToggle}
+            title={t('sidebar.collapse')}
+            aria-label={t('sidebar.collapse')}
+          >
+            <SidebarToggleIcon size={16} />
           </button>
         </div>
       )}

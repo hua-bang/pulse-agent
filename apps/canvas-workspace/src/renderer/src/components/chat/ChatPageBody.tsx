@@ -64,8 +64,6 @@ export interface ChatPageBodyProps {
   onToggleRail: () => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
-  /** Opens per-workspace settings when the chat scope is workspace-bound. */
-  onOpenWorkspaceSettings?: (workspaceId: string) => void;
   /** Fixed-task chats hide the cross-session rail/new-chat controls. */
   fixedChat?: {
     title: string;
@@ -99,7 +97,6 @@ export const ChatPageBody = ({
   railCollapsed,
   onToggleRail,
   onOpenAppSettings,
-  onOpenWorkspaceSettings,
   fixedChat,
 }: ChatPageBodyProps) => {
   const { t } = useI18n();
@@ -138,16 +135,6 @@ export const ChatPageBody = ({
     executionPolicy,
     fixedTitle: fixedChat?.title,
   });
-  const settingsButtonLabel = workspaceId && onOpenWorkspaceSettings
-    ? t('workspaceSettings.ariaLabel')
-    : t('chat.modelSettings');
-  const handleOpenScopeSettings = useCallback(() => {
-    if (workspaceId && onOpenWorkspaceSettings) {
-      onOpenWorkspaceSettings(workspaceId);
-      return;
-    }
-    onOpenAppSettings('models');
-  }, [onOpenAppSettings, onOpenWorkspaceSettings, workspaceId]);
   const {
     abort,
     activeSessionId,
@@ -406,9 +393,6 @@ export const ChatPageBody = ({
           onToggleRail={onToggleRail}
           anchors={anchors}
           onJumpAnchor={handleJumpAnchor}
-          onOpenReplyStyle={() => onOpenAppSettings('reply-style')}
-          onOpenScopeSettings={handleOpenScopeSettings}
-          settingsLabel={settingsButtonLabel}
           onNewSession={() => void sessionRail.onNewSession()}
           newSessionDisabled={sessionInteractionDisabled}
           dockTabsVisible={dockTabsVisible}

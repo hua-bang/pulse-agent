@@ -1,6 +1,6 @@
 import { ColumnsPlusRight } from '@phosphor-icons/react';
 import { useI18n } from '../../i18n';
-import { PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
+import { PlusIcon } from '../icons';
 import { Button } from '../ui';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type ChatSessionsRailProps } from './ChatSessionsRail';
@@ -29,9 +29,6 @@ interface ChatPageTopbarProps {
   onToggleRail: () => void;
   anchors: ChatAnchor[];
   onJumpAnchor: (index: number) => void;
-  onOpenReplyStyle: () => void;
-  onOpenScopeSettings: () => void;
-  settingsLabel: string;
   onNewSession: () => void;
   newSessionDisabled: boolean;
   dockTabsVisible: boolean;
@@ -45,9 +42,6 @@ export const ChatPageTopbar = ({
   onToggleRail,
   anchors,
   onJumpAnchor,
-  onOpenReplyStyle,
-  onOpenScopeSettings,
-  settingsLabel,
   onNewSession,
   newSessionDisabled,
   dockTabsVisible,
@@ -79,26 +73,6 @@ export const ChatPageTopbar = ({
       )}
       <div className="chat-page-topbar-spacer" />
       <ChatAnchors anchors={anchors} onJump={onJumpAnchor} />
-      <Button
-        variant="icon"
-        size="md"
-        className="chat-panel-action-btn"
-        onClick={onOpenReplyStyle}
-        title={t('chat.replyStyleSettings')}
-        aria-label={t('chat.replyStyleSettings')}
-      >
-        <SparklesIcon size={16} strokeWidth={1.25} />
-      </Button>
-      <Button
-        variant="icon"
-        size="md"
-        className="chat-panel-action-btn"
-        onClick={onOpenScopeSettings}
-        title={settingsLabel}
-        aria-label={settingsLabel}
-      >
-        <SettingsIcon size={16} strokeWidth={1.25} />
-      </Button>
       {!fixedTitle && (
         <Button
           variant="icon"

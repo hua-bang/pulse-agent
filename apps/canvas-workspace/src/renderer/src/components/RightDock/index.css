@@ -115,7 +115,8 @@
 }
 
 .right-dock__tabs[data-visible="true"] {
-  max-height: 46px;
+  height: var(--app-topbar-height);
+  max-height: var(--app-topbar-height);
   padding: 8px 8px 8px 10px;
   border-bottom-width: 1px;
   opacity: 1;

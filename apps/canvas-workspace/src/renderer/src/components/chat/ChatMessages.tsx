@@ -311,6 +311,10 @@ export const ChatMessages = ({
   const hasStreamingAssistantMessage = loading
     && messages.length > 0
     && messages[messages.length - 1].role === 'assistant';
+  const latestUserMessageIndex = messages.reduce(
+    (latest, message, index) => (message.role === 'user' ? index : latest),
+    -1,
+  );
 
   return (
     <div className="chat-messages-wrap">
@@ -357,6 +361,7 @@ export const ChatMessages = ({
               anchorId={buildAnchorElementId(workspaceId, index)}
               onEditUserMessage={onEditUserMessage}
               onRegenerate={onRegenerate}
+              hideStoppedOutcome={message.turnStatus === 'stopped' && index < latestUserMessageIndex}
               onSessionJump={onSessionJump}
             />
           );

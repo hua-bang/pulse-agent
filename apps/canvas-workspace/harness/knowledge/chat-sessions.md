@@ -57,6 +57,14 @@ Tests: `hooks/useChatSessions.test.tsx`,
 `hooks/useMentions.submit-veto.test.tsx`, `__tests__/ChatSessionLoading.test.tsx`
 (all under `src/renderer/src/components/chat/`).
 
+## Stopped-turn outcome lifecycle
+
+A stopped turn keeps a compact recovery marker while it remains the latest
+user-visible outcome. Once a later user message moves the conversation on,
+that old marker is hidden; the partial assistant content stays in history.
+Failed-turn outcomes remain visible because their diagnostics and retry state
+are still relevant. Guard: `__tests__/ChatMessages.accessibility.test.tsx`.
+
 ## Stable full-page session rail
 
 The full-page rail is a unified, cross-scope index. Its folder tree must stay
