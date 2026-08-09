@@ -196,13 +196,32 @@ const renderDraft = async (
   );
 
   await new Promise(resolve => setTimeout(resolve, 60));
-  stdout.frames.length = 0;
-  stdin.push(Buffer.from(draft));
-  await new Promise(resolve => setTimeout(resolve, 80));
+  if (draft) {
+    stdout.frames.length = 0;
+    stdin.push(Buffer.from(draft));
+    await new Promise(resolve => setTimeout(resolve, 80));
+  }
 
   const frames = stdout.frames.splice(0);
   instance.unmount();
   return { height: frameHeight(frames), painted: frames.join('') };
+};
+
+/** What a picker actually paints on a given viewport. */
+const renderPickerScreen = async (viewport: Viewport) => {
+  const { painted } = await renderDraft('', {
+    ...baseSnapshot,
+    isProcessing: false,
+    picker: {
+      title: 'Resume a session',
+      items: Array.from({ length: 30 }, (_, index) => ({
+        id: `session-${index}`,
+        label: `Session ${index}`,
+        hint: '12 msgs · 3h ago',
+      })),
+    },
+  }, viewport);
+  return painted;
 };
 
 describe('InkCliApp frame height', () => {
@@ -290,5 +309,38 @@ describe('InkCliApp frame height', () => {
     };
 
     expect(await renderFrame(snapshot)).toBeLessThan(DEFAULT_VIEWPORT.rows);
+  });
+
+  it('fits the picker into a terminal too short for its old two-item floor', async () => {
+    // The picker's own chrome (border, title, the "… N more" row, the hint)
+    // plus a floor of two items measured 9 rows on a 9-row screen, and a
+    // picker that overflows puts Ink into clear-and-replay just like a
+    // streamed answer does. The floor is gone; items get whatever is left.
+    const snapshot: InkCliSnapshot = {
+      ...baseSnapshot,
+      isProcessing: false,
+      picker: {
+        title: 'Resume a session',
+        items: Array.from({ length: 30 }, (_, index) => ({
+          id: `session-${index}`,
+          label: `Session ${index} · a fairly long session title that fills the row`,
+          hint: '12 msgs · 3h ago',
+        })),
+      },
+    };
+
+    for (const rows of [9, 10, 11]) {
+      const [height] = await renderSequence([snapshot], { rows, columns: 80 });
+      expect(height, `viewport ${rows} rows`).toBeLessThan(rows);
+    }
+  });
+
+  it('still shows a pickable entry on a short terminal', async () => {
+    // Bounded is not enough: a picker with no visible entry cannot be used.
+    // The hint line is what gets dropped first when the screen is that tight.
+    const stdout = await renderPickerScreen({ rows: 10, columns: 80 });
+
+    expect(stdout).toContain('Session 0');
+    expect(stdout).toContain('→ ');
   });
 });

@@ -1052,6 +1052,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   // Round border (2) + paddingX (2); the draft additionally carries a '› ' gutter.
   const boxContentColumns = Math.max(1, terminalColumns - 4);
   const promptContentColumns = Math.max(1, boxContentColumns - 2);
+  const statusRows = 2; // marginTop + the line itself
   const spinner = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length];
   const pickerItems = useMemo(() => (picker ? filterPickerItems(picker.items, pickerQuery) : []), [picker, pickerQuery]);
   const clampedPickerIndex = Math.min(pickerIndex, Math.max(0, pickerItems.length - 1));
@@ -1061,8 +1062,21 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   // Columns: label/hint/preview are truncated below — Ink's default wrap would
   // otherwise reflow a long session title onto extra rows and blow the budget
   // this window size just computed.
+  //
+  // The item budget is what is LEFT once the picker's own fixed rows are paid
+  // for, never a flat minimum: a floor of two items pushed a 9-row terminal
+  // over the viewport all by itself, which is the clear-and-replay flicker.
+  // Border (2) + title + the "… N more" row the window adds as soon as anything
+  // scrolls off; +2 for the live region's marginTop and a row of slack so the
+  // frame stays strictly under the viewport.
   const pickerRowsPerItem = pickerItems.some(item => item.preview) ? 2 : 1;
-  const pickerWindowSize = Math.max(2, Math.min(8, Math.floor((terminalRows - 12) / pickerRowsPerItem)));
+  const pickerHintRows = wrappedRowCount(PICKER_HINT, terminalColumns);
+  const pickerRowsWithHint = terminalRows - statusRows - 4 - pickerHintRows - 2;
+  // Too short for both the hint and one item: keep the item. A picker showing
+  // no entries at all cannot be used; the hint only restates the key bindings.
+  const showPickerHint = pickerRowsWithHint >= pickerRowsPerItem;
+  const pickerItemRows = Math.max(0, showPickerHint ? pickerRowsWithHint : pickerRowsWithHint + pickerHintRows);
+  const pickerWindowSize = Math.min(8, Math.floor(pickerItemRows / pickerRowsPerItem));
   const pickerWindowStart = Math.max(0, Math.min(clampedPickerIndex - 2, pickerItems.length - pickerWindowSize));
   const visiblePickerItems = pickerItems.slice(pickerWindowStart, pickerWindowStart + pickerWindowSize);
   // Round border (2) + paddingX (2).
@@ -1132,12 +1146,11 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   // clear-and-replay for as long as the live output is taller than the
   // terminal, which is the flicker this budget exists to prevent.
   const liveToolRows = visibleLiveTools.length + (hiddenLiveToolCount > 0 ? 1 : 0);
-  const statusRows = 2; // marginTop + the line itself
   const footerRows = picker
     // Border (2) + title + items + optional "… N more" + the hint line below.
     ? 3 + Math.max(1, visiblePickerItems.length * pickerRowsPerItem)
       + (pickerItems.length > visiblePickerItems.length ? 1 : 0)
-      + wrappedRowCount(PICKER_HINT, terminalColumns)
+      + (showPickerHint ? pickerHintRows : 0)
     // Border (2) + draft rows + optional head + suggestions + the key hint.
     // Draft rows are pre-wrapped to the content width, so each really is one
     // physical row; the hint still wraps and is counted after wrapping.
@@ -1216,7 +1229,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
               <Text color="gray">… {pickerItems.length - visiblePickerItems.length} more (↑↓ to scroll)</Text>
             ) : null}
           </Box>
-          <Text color="gray">{PICKER_HINT}</Text>
+          {showPickerHint ? <Text color="gray">{PICKER_HINT}</Text> : null}
         </Box>
       ) : (
         <Box flexDirection="column">
