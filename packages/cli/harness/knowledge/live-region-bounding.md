@@ -20,7 +20,10 @@ fixed-size regions leave over — `windowLiveTextLines()` in `ink-app.tsx` —
 and the full answer still reaches scrollback when the run finalizes it into
 `<Static>`. `src/ink-app.render.test.tsx` renders the real component into a
 mock TTY and asserts the frame height stays under the viewport (it measured
-207 rows on a 24-row terminal before the bound existed).
+207 rows on a 24-row terminal before the bound existed). A snapshot cannot
+express everything on that screen — the draft is the app's own state — so that
+file also mounts with a paused-mode Readable stdin and types the draft in as
+real bytes, the same way `ink-app.screen.test.tsx` drives the composer.
 
 ## Height is not the only thing that reads as instability
 
@@ -66,6 +69,31 @@ Greedy word wrap can need MORE rows than `ceil(width / columns)`
 must simulate the wrap rather than divide. Undercounting is what puts the frame
 over the viewport.
 
+There is a third resolution for a region that must show whatever it holds:
+**wrap it yourself and window the physical rows**. `wrapToRows()` (text-width)
+is that wrap, and `wrappedRowCount()` is now just its length, so the counter and
+the renderer cannot drift. The composer does this — the draft is rendered
+pre-wrapped, one `<Text>` per row, each fitting the content width — because a
+draft is a single logical line however long it is: a 2000-character paste is
+"one line" and ~27 rows, and a window counting logical lines let the composer
+alone outgrow the screen (measured 32 rows on a 24-row terminal). Its window is
+anchored on the CURSOR's row rather than the tail, so editing the head of a
+long paste still shows what is being edited.
+
+## Fixed overhead is part of the budget, and a floor is not a bound
+
+A region's own chrome — border, title, hint, the "… N more" row a window adds
+as soon as it hides anything — is paid before anything is left for content, and
+what remains may be nothing. `maxLiveRegionRows` clamps to 0 for exactly this
+reason, and `pickerWindowSize` now does too: its old `max(2, …)` floor was a
+constant that ignored the screen, and the chrome plus two items measured 9 rows
+on a 9-row terminal — the picker overflowed the viewport all by itself.
+
+When the leftovers cannot cover both the chrome and one unit of content, drop
+CHROME first: a picker rendering no entry cannot be used, while its hint only
+restates key bindings. Bounded-but-empty satisfies the height assertion and
+fails the user, so the render test pins a visible entry alongside the bound.
+
 `pickerWindowSize` additionally divides by the real per-item height: a picker
 item that renders a preview costs two physical rows, not one.
 
@@ -79,10 +107,10 @@ charged in the `liveText` budget go through `wrappedRowCount` as well.
 |---|---|---|
 | `liveText` | `windowLiveTextLines`: whatever rows the fixed regions leave, with a "… N earlier lines" head; hidden entirely at zero | counted after wrapping (`wrappedRowCount`), not truncated — prose stays readable |
 | `liveTools` | windowed, with a "… N more running" tail | `truncateLabel(tool.label, terminalColumns - 4)` |
-| Picker items | `pickerWindowSize`, divided by per-item height | label / hint / preview each truncated to the bordered content width |
+| Picker items | `pickerWindowSize`: rows left after border/title/"… N more"/hint, divided by per-item height, clamped to 0; the hint is dropped before the last item | label / hint / preview each truncated to the bordered content width |
 | Slash suggestions | capped list length | description truncated against the command's width |
 | File suggestions | capped list length | `truncateLabel(entry.relPath, terminalColumns - 8)` |
-| Prompt lines | windowed, with a "… N earlier draft lines" head | composer wraps by construction |
+| Prompt lines | `windowPromptRows`: PHYSICAL rows, anchored on the cursor's row, with a "… N earlier draft lines" head | pre-wrapped to the content width less the '› ' gutter, so Ink never reflows a draft row |
 | Status line | single line | `formatStatusline` sheds tail segments |
 
 ## Print-style output is a different path
