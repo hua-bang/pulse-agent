@@ -573,6 +573,57 @@ describe('Ink composer editing helpers', () => {
     expect(windowLiveTextLines([], 5, 80)).toEqual({ lines: [], hiddenLineCount: 0 });
   });
 
+  it('drops streaming events that arrive after an abort', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.text('partial ans');
+    bridge.abort('Request cancelled by Esc.');
+
+    const afterAbort = snapshots.length;
+    const cancelled = snapshots[afterAbort - 1];
+    expect(cancelled.status).toBe('Cancelled');
+
+    // The model keeps streaming until its current step unwinds. None of it may
+    // reach the UI: text would paint a bright fragment under a Cancelled
+    // status, a tool call would spin a live line nothing will ever retire, and
+    // either one resurrects the live region so a second Esc writes a second
+    // permanent Abort block.
+    bridge.text(' that kept coming');
+    bridge.toolInputStart('call-late', 'bash');
+    bridge.toolInputDelta('call-late', '{"command":"rm -rf"');
+    bridge.toolCall('bash', { command: 'late call' }, 'call-late');
+    bridge.toolResult('bash', 'late result', 'call-late');
+
+    expect(snapshots).toHaveLength(afterAbort);
+    const latest = bridge.getSnapshot();
+    expect(latest.liveText).toBe('');
+    expect(latest.liveTools).toEqual([]);
+    expect(latest.events).toEqual(cancelled.events);
+
+    // A second Esc still finds nothing live, so it stays deduped.
+    bridge.abort('Request cancelled by Esc.');
+    expect(bridge.getSnapshot().events.filter(event => event.title === 'Abort')).toHaveLength(1);
+  });
+
+  it('streams normally again on the next run', () => {
+    const { bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.abort('Request cancelled by Esc.');
+    bridge.text('ignored');
+
+    bridge.startProcessing('Running agent');
+    bridge.text('the next answer');
+    bridge.toolCall('bash', { command: 'echo ok' }, 'call-2');
+    bridge.toolResult('bash', 'ok', 'call-2');
+
+    const snapshot = bridge.getSnapshot();
+    expect(snapshot.events.some(event => event.text.includes('the next answer'))).toBe(true);
+    expect(snapshot.events.some(event => event.text.includes('ignored'))).toBe(false);
+    expect(snapshot.events.some(event => event.kind === 'tool' && event.title?.includes('echo ok'))).toBe(true);
+  });
+
   it('bounds the draft by physical rows, not by logical lines', () => {
     // One pasted URL: a single logical line, ten physical rows at 50 columns.
     // A window counting logical lines calls this "1 line" and lets the composer

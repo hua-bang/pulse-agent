@@ -58,6 +58,8 @@ export class InkUiBridge {
   private pendingEmit: NodeJS.Timeout | null = null;
   private lastEmitAt = 0;
   private toolDetail = false;
+  /** Set by abort(), cleared by startProcessing(): drops late streaming events. */
+  private cancelled = false;
   private readonly pendingInputBuffers = new Map<string, string>();
 
   constructor(options: InkUiBridgeOptions) {
@@ -246,6 +248,14 @@ export class InkUiBridge {
   }
 
   abort(message: string): void {
+    // Latch: the model keeps streaming for a while after the signal fires (the
+    // engine returns its sentinel only once the current step unwinds), and
+    // those late deltas used to walk straight past the dedupe guard below —
+    // resurrecting `liveText` and `liveTools` so the next abort wrote a SECOND
+    // Abort block, painting bright answer fragments under a Cancelled status,
+    // and leaving tool lines spinning forever. Cleared by startProcessing().
+    this.cancelled = true;
+
     if (this.snapshot.status === 'Cancelled' && this.liveTools.length === 0 && !this.liveText) {
       // Already cancelled and nothing left live: a second Esc must not write
       // another permanent Abort block to the transcript.
@@ -264,6 +274,7 @@ export class InkUiBridge {
   }
 
   startProcessing(label = 'Processing'): void {
+    this.cancelled = false;
     this.liveText = '';
     this.liveTools = [];
     this.pendingInputBuffers.clear();
@@ -292,6 +303,9 @@ export class InkUiBridge {
   }
 
   text(delta: string): void {
+    if (this.cancelled) {
+      return;
+    }
     this.liveText = this.truncateEventText(`${this.liveText}${delta}`);
     this.emitThrottled();
   }
@@ -302,6 +316,9 @@ export class InkUiBridge {
    * argument tail, and is replaced in place by the final label on tool-call.
    */
   toolInputStart(id: string, name: string): void {
+    if (this.cancelled) {
+      return;
+    }
     this.finalizeLiveText('interim');
     this.pendingInputBuffers.set(id, '');
     this.liveTools = [...this.liveTools, { id, name, label: `${name} …` }];
@@ -312,7 +329,7 @@ export class InkUiBridge {
   }
 
   toolInputDelta(id: string, delta: string): void {
-    if (!this.pendingInputBuffers.has(id)) {
+    if (this.cancelled || !this.pendingInputBuffers.has(id)) {
       return;
     }
     const buffer = `${this.pendingInputBuffers.get(id)}${delta}`.slice(-400);
@@ -330,6 +347,9 @@ export class InkUiBridge {
   }
 
   toolCall(name: string, input?: unknown, callId?: string): void {
+    if (this.cancelled) {
+      return;
+    }
     // Text finalized because a tool starts = in-run narration, not the answer.
     this.finalizeLiveText('interim');
     const label = this.formatToolLabel(name, this.summarizeToolInput(name, input));
@@ -365,6 +385,9 @@ export class InkUiBridge {
   }
 
   toolResult(name: string, output?: unknown, callId?: string): void {
+    if (this.cancelled) {
+      return;
+    }
     const entry = this.takeRunningTool(name, callId);
     const isError = this.detectToolError(output);
     const label = entry?.label ?? name;

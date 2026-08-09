@@ -1041,30 +1041,58 @@ export class InkCoderController implements InkCliController {
           this.ui.log('Compacting context (summarizing older turns)…');
           this.ui.updateSnapshot({ status: 'Compacting context…', phase: 'Compacting' });
         },
+        // Aborting does not stop the model mid-flight: the current step keeps
+        // delivering text and tool events until it unwinds. Writing those to
+        // the bridge after the user was told the request was cancelled puts
+        // answer fragments and spinning tool lines under a Cancelled status,
+        // so every streaming callback stops at the signal.
         onText: (delta) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           sawText = true;
           this.ui.text(delta);
         },
         onToolInputStart: ({ id, toolName }) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           this.ui.toolInputStart(id, toolName);
         },
         onToolInputDelta: ({ id, delta }) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           this.ui.toolInputDelta(id, delta);
         },
         onToolInputEnd: ({ id }) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           this.ui.toolInputEnd(id);
         },
         onToolCall: (toolCall) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           toolCalls += 1;
           const input = this.getToolInput(toolCall);
           this.ui.toolCall(this.resolveToolName(toolCall), input, this.getToolCallId(toolCall));
         },
         onToolResult: (toolResult) => {
+          if (ac.signal.aborted) {
+            return;
+          }
           const record = toolResult as Record<string, unknown>;
           this.ui.toolResult(this.resolveToolName(record), this.getToolOutput(record), this.getToolCallId(record));
         },
         onStepFinish: (step) => {
+          // Usage still counts: those tokens were spent whether or not the
+          // answer they paid for is shown.
           this.recordStepUsage(step);
+          if (ac.signal.aborted) {
+            return;
+          }
           this.ui.stepFinished(step.finishReason);
         },
         onClarificationRequest: async (request) => {

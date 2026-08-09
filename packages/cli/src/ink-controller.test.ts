@@ -200,3 +200,38 @@ describe('queued input across slash commands', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * Esc aborts the signal, but the engine's current step keeps delivering text
+ * and tool events until it unwinds. Those late events used to be written to
+ * the bridge exactly like live ones.
+ */
+describe('streaming after Esc', () => {
+  it('ignores text and tool events emitted after the abort', async () => {
+    const { internals } = buildController(async (_context, options) => {
+      options.onText('the answer begins');
+      internals.requestStop();
+
+      // Everything below arrives after the user was told it was cancelled.
+      options.onText(' and keeps going');
+      options.onToolInputStart({ id: 'late-1', toolName: 'bash' });
+      options.onToolInputDelta({ id: 'late-1', delta: '{"command":"echo late"' });
+      options.onToolInputEnd({ id: 'late-1' });
+      options.onToolCall({ toolName: 'bash', args: { command: 'echo late' }, toolCallId: 'late-1' });
+      options.onToolResult({ toolName: 'bash', result: 'late output', toolCallId: 'late-1' });
+      options.onStepFinish({ finishReason: 'stop' });
+
+      return 'Request aborted.';
+    });
+
+    await internals.runMessage('do the thing');
+
+    const events = internals.ui.events;
+    // Exactly one Abort block, and no tool trace for a call nobody will see.
+    expect(events.filter(event => event.title === 'Abort')).toHaveLength(1);
+    expect(events.some(event => event.kind === 'tool')).toBe(false);
+    expect(events.some(event => event.text.includes('and keeps going'))).toBe(false);
+    // The partial answer streamed BEFORE the abort is still finalized by it.
+    expect(events.some(event => event.text.includes('the answer begins'))).toBe(true);
+  });
+});
