@@ -580,7 +580,7 @@ function recordHistory(history: string[], submitted: string): string[] {
   return [...history, trimmed].slice(-MAX_HISTORY);
 }
 
-function TranscriptEvent({ event, Box, Text }: { event: InkCliEvent; Box: React.ComponentType<any>; Text: React.ComponentType<any> }) {
+function TranscriptEvent({ event, Box, Text, terminalColumns }: { event: InkCliEvent; Box: React.ComponentType<any>; Text: React.ComponentType<any>; terminalColumns: number }) {
   if (event.kind === 'log') {
     return <Text color="gray" dimColor>{event.text}</Text>;
   }
@@ -591,13 +591,23 @@ function TranscriptEvent({ event, Box, Text }: { event: InkCliEvent; Box: React.
     const isError = event.status === 'error';
     const icon = isError ? '✕' : event.status === 'info' ? '·' : '✓';
     const previewLines = event.text ? event.text.split('\n') : [];
+    // title and summary are kept as SEPARATE fields (not one concatenated
+    // string) so the summary never orphan-wraps onto its own row: the LABEL
+    // is what gets truncated against the terminal width, the summary always
+    // stays whole on the same line. Budget: icon + space (2 cols) + the
+    // summary's own " · <summary>" + a little slack (3 cols).
+    const summary = event.summary;
+    const summaryWidth = summary ? stringWidth(` · ${summary}`) : 0;
+    const labelBudget = Math.max(1, terminalColumns - 2 - summaryWidth - 3);
+    const label = truncateLabel(event.title ?? 'tool', labelBudget);
     return (
       <Box flexDirection="column">
         <Text>
           {isError
             ? <Text color="red">{icon} </Text>
             : <Text color={event.status === 'info' ? 'gray' : 'green'} dimColor>{icon} </Text>}
-          <Text color={isError ? 'red' : 'gray'}>{event.title ?? 'tool'}</Text>
+          <Text color={isError ? 'red' : 'gray'}>{label}</Text>
+          {summary ? <Text color="gray"> · {summary}</Text> : null}
         </Text>
         {previewLines.map((line, index) => (
           <Text key={index} color="gray" dimColor>  {index === 0 ? '⎿ ' : '  '}{line}</Text>
@@ -1172,7 +1182,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   return (
     <Box flexDirection="column">
       <Static items={snapshot.events}>
-        {(event: InkCliEvent) => <TranscriptEvent key={event.id} event={event} Box={Box} Text={Text} />}
+        {(event: InkCliEvent) => <TranscriptEvent key={event.id} event={event} Box={Box} Text={Text} terminalColumns={terminalColumns} />}
       </Static>
 
       {/* No visible tail means no room at all — the head alone would just cost

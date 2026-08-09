@@ -86,7 +86,7 @@ describe('InkUiBridge', () => {
     bridge.stopProcessing();
     const last = snapshots[snapshots.length - 1];
     expect(last.liveTools).toHaveLength(0);
-    expect(last.events.slice(-1)[0].title).toBe('$ pnpm test · ok');
+    expect(last.events.slice(-1)[0]).toMatchObject({ title: '$ pnpm test', summary: 'ok' });
   });
 
   it('resolves parallel tool results by call id', () => {
@@ -103,7 +103,7 @@ describe('InkUiBridge', () => {
     const last = snapshots[snapshots.length - 1];
     expect(last.liveTools).toHaveLength(1);
     expect(last.liveTools[0].label).toBe('grep "one"');
-    expect(last.events.filter(event => event.kind === 'tool').slice(-1)[0].title).toBe('grep "two" · match-b');
+    expect(last.events.filter(event => event.kind === 'tool').slice(-1)[0]).toMatchObject({ title: 'grep "two"', summary: 'match-b' });
   });
 
   it('marks narration segments as interim and the closing segment as final', () => {
@@ -141,7 +141,8 @@ describe('InkUiBridge', () => {
     const toolEvent = last.events[last.events.length - 1];
     expect(toolEvent).toMatchObject({
       kind: 'tool',
-      title: '$ echo ok · 5 lines',
+      title: '$ echo ok',
+      summary: '5 lines',
       status: 'success',
     });
     expect(toolEvent.text).toBe('');
@@ -160,10 +161,12 @@ describe('InkUiBridge', () => {
     // addToolTrace); any other event kind flushes it.
     bridge.log('flush trigger');
 
-    const titles = snapshots[snapshots.length - 1].events.map(event => event.title);
-    expect(titles).toContain('$ echo ok · ok');
-    expect(titles).toContain('grep "test" in src · 3 matches');
-    expect(titles).toContain('open src/loop.ts · 2 lines');
+    // title and summary are kept as separate fields (see addToolTrace/
+    // TranscriptEvent) so a long label cannot orphan-wrap the summary.
+    const events = snapshots[snapshots.length - 1].events.filter(event => event.kind === 'tool');
+    expect(events).toContainEqual(expect.objectContaining({ title: '$ echo ok', summary: 'ok' }));
+    expect(events).toContainEqual(expect.objectContaining({ title: 'grep "test" in src', summary: '3 matches' }));
+    expect(events).toContainEqual(expect.objectContaining({ title: 'open src/loop.ts', summary: '2 lines' }));
   });
 
   it('keeps the package segment of a long monorepo path instead of only the tail', () => {
@@ -197,7 +200,8 @@ describe('InkUiBridge', () => {
     const events = snapshots[snapshots.length - 1].events;
     expect(events.some(event => event.kind === 'log' && event.text.includes('Detail: on'))).toBe(true);
     const toolEvent = events[events.length - 1];
-    expect(toolEvent.title).toBe('$ echo ok · 5 lines');
+    expect(toolEvent.title).toBe('$ echo ok');
+    expect(toolEvent.summary).toBe('5 lines');
     expect(toolEvent.text).toContain('ok');
     expect(toolEvent.text).toContain('… +2 lines');
   });
@@ -214,7 +218,8 @@ describe('InkUiBridge', () => {
 
     const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
     expect(toolEvent.status).toBe('error');
-    expect(toolEvent.title).toBe('$ false · boom');
+    expect(toolEvent.title).toBe('$ false');
+    expect(toolEvent.summary).toBe('boom');
     expect(toolEvent.text).toBe('');
   });
 
@@ -303,7 +308,8 @@ describe('InkUiBridge', () => {
     bridge.log('flush trigger');
 
     const toolEvent = snapshots[snapshots.length - 1].events.filter(event => event.kind === 'tool').slice(-1)[0];
-    expect(toolEvent.title).toBe('search "docs" · 2 matches');
+    expect(toolEvent.title).toBe('search "docs"');
+    expect(toolEvent.summary).toBe('2 matches');
     expect(toolEvent.status).toBe('success');
   });
 

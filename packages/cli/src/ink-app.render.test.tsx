@@ -343,4 +343,33 @@ describe('InkCliApp frame height', () => {
     expect(stdout).toContain('Session 0');
     expect(stdout).toContain('→ ');
   });
+
+  it('never orphan-wraps a tool trace summary onto its own row', async () => {
+    // title/summary are separate fields (ink-ui-bridge.ts) precisely so the
+    // LABEL truncates against the terminal width while the summary always
+    // stays on the same row — a long label used to overflow the concatenated
+    // "label · summary" string and wrap "· 252 lines" alone onto the next row.
+    const { painted } = await renderDraft('', {
+      ...baseSnapshot,
+      isProcessing: false,
+      status: 'Ready',
+      phase: 'Idle',
+      events: [{
+        id: 'e1',
+        kind: 'tool',
+        title: 'edit packages/cli/src/a-fairly-long-file-name-for-this-test.ts',
+        summary: '252 lines',
+        status: 'success',
+        text: '',
+      }],
+    }, { rows: 24, columns: 40 });
+
+    const clean = painted.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+    const lines = clean.split('\n');
+    const summaryLine = lines.find(line => line.includes('252 lines'));
+    expect(summaryLine).toBeDefined();
+    // The row carrying the summary must also carry (a truncated) label —
+    // an orphaned wrap would put "· 252 lines" alone at the start of a row.
+    expect(summaryLine).toMatch(/edit .*252 lines/);
+  });
 });

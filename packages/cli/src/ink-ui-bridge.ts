@@ -412,7 +412,11 @@ export class InkUiBridge {
     const label = entry?.label ?? name;
     const summary = this.summarizeToolResult(name, output, isError);
     const preview = this.toolDetail ? this.formatToolResultPreview(output) : '';
-    this.addToolTrace(summary ? `${label} · ${summary}` : label, preview, { status: isError ? 'error' : 'success' });
+    // title/summary stay SEPARATE fields (not concatenated): the renderer
+    // truncates the label against the terminal width and always keeps the
+    // summary intact on the same line, so a long label cannot orphan-wrap
+    // "· N lines" onto its own row. See TranscriptEvent in ink-app.tsx.
+    this.addToolTrace(label, preview, { status: isError ? 'error' : 'success', summary: summary || undefined });
 
     const stillRunning = this.liveTools.length > 0;
     this.updateSnapshot({
