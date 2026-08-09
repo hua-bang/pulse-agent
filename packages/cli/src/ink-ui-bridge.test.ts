@@ -279,6 +279,56 @@ describe('InkUiBridge', () => {
     expect(toolEvent.text).toBe('');
   });
 
+  it('still marks a real single-line string error as failed', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('read_file', { filePath: 'missing.ts' });
+    bridge.toolResult('read_file', 'Error: ENOENT: no such file or directory');
+    bridge.stopProcessing();
+
+    const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
+    expect(toolEvent.status).toBe('error');
+  });
+
+  it('does not misclassify a "failed:" header the same way', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('bash', { command: 'pnpm test' });
+    bridge.toolResult('bash', 'Failed! see log for details');
+    bridge.stopProcessing();
+
+    const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
+    expect(toolEvent.status).toBe('error');
+  });
+
+  it('does not misclassify documentation whose first line merely starts with "Error"', () => {
+    // Old heuristic (/^(error|failed)\b/i on the first line alone) painted
+    // any line simply STARTING with the word red, including a doc heading.
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('bash', { command: 'cat error-codes.md' });
+    bridge.toolResult('bash', 'Error Codes\n\n404: not found\n500: internal error\n503: unavailable');
+    bridge.stopProcessing();
+
+    const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
+    expect(toolEvent.status).toBe('success');
+  });
+
+  it('does not misclassify a multi-line grep result whose first match line reads "error: ..."', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('grep', { pattern: 'error:' });
+    bridge.toolResult('grep', 'log.txt:12: error: connection refused\nlog.txt:45: error: connection refused\nlog.txt:88: retrying...\nlog.txt:90: connected');
+    bridge.stopProcessing();
+
+    const toolEvent = snapshots[snapshots.length - 1].events.slice(-1)[0];
+    expect(toolEvent.status).toBe('success');
+  });
+
   it('does not misclassify sub-agent tools whose names embed a classifier word', () => {
     const { snapshots, bridge } = createBridge();
 

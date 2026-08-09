@@ -644,6 +644,19 @@ export class InkUiBridge {
     return null;
   }
 
+  /**
+   * Structured output (isError/is_error/error field) is still the primary
+   * signal and is unconditionally trusted. Plain-string output only gets
+   * flagged as an error under a tighter heuristic than a bare
+   * `/^(error|failed)\b/i` first-line match: that misfired on any first line
+   * that merely STARTS WITH the word, coloring documentation ("Error Codes")
+   * and a successful grep whose first match line happens to read
+   * "error: ..." bright red. Now it requires the first line to look like an
+   * actual error header (the word immediately followed by `:` or `!`) AND
+   * the whole output to be short — a real error is typically one line or a
+   * short stack/message, while a multi-line search or file dump is not an
+   * error just because a line inside it contains "error:".
+   */
   private detectToolError(output: unknown): boolean {
     const record = this.asRecord(output);
     if (record) {
@@ -651,7 +664,12 @@ export class InkUiBridge {
       if (record.error !== undefined && record.error !== null && record.error !== false) return true;
     }
     if (typeof output === 'string') {
-      return /^(error|failed)\b/i.test(output.trim());
+      const trimmed = output.trim();
+      if (!trimmed) {
+        return false;
+      }
+      const lines = trimmed.split('\n');
+      return lines.length <= 3 && /^(error|failed)\s*[:!]/i.test(lines[0]);
     }
     return false;
   }
