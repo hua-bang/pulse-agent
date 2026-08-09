@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+
 import { buildProvider, type LLMProviderFactory } from 'pulse-coder-engine';
 
 import { loadModelRegistry, resolveModelSpec, type ModelChoice } from './model-registry.js';
@@ -7,6 +9,25 @@ export interface ModelRunOptions {
   modelType?: 'openai' | 'claude';
   contextWindowTokens?: number;
   provider?: LLMProviderFactory;
+  /** Stable per-session cache-routing key (see sessionPromptCacheKey). */
+  promptCacheKey?: string;
+}
+
+/**
+ * Stable cache-routing key for one session on one provider+model: 64 hex chars
+ * of SHA-256 over `provider:model:sessionId`.
+ *
+ * Gateways with several upstream accounts/cache nodes route by
+ * `prompt_cache_key` — without one, identical prompt prefixes still land on
+ * different cache nodes and the hit rate collapses. The key is routing
+ * AFFINITY, not cache isolation: `/clear` keeps the session and therefore the
+ * key (rotating it buys nothing), while `/new`, `/resume` and model switches
+ * change an input and yield the session's own key naturally.
+ */
+export function sessionPromptCacheKey(choice: ModelChoice, sessionId: string): string {
+  return createHash('sha256')
+    .update(`${choice.providerName ?? choice.modelType ?? ''}:${choice.model}:${sessionId}`)
+    .digest('hex');
 }
 
 /**
@@ -19,6 +40,7 @@ export interface ModelRunOptions {
 export function buildModelRunOptions(
   choice: ModelChoice | null | undefined,
   env: NodeJS.ProcessEnv = process.env,
+  run: { sessionId?: string | null } = {},
 ): ModelRunOptions {
   if (!choice) {
     return {};
@@ -30,6 +52,12 @@ export function buildModelRunOptions(
     model: choice.model,
     ...(choice.modelType ? { modelType: choice.modelType } : {}),
     ...(choice.contextWindow ? { contextWindowTokens: choice.contextWindow } : {}),
+    // Strictly opt-in per provider, and only when a session exists to anchor
+    // the key — print mode and session-less runs stay untouched. The engine
+    // additionally drops the key on the Claude path.
+    ...(choice.promptCacheKey === true && run.sessionId
+      ? { promptCacheKey: sessionPromptCacheKey(choice, run.sessionId) }
+      : {}),
     ...(needsCustomConnection ? {
       provider: buildProvider(choice.modelType ?? 'openai', {
         ...(choice.baseUrl ? { baseURL: choice.baseUrl } : {}),

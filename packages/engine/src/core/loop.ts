@@ -222,6 +222,13 @@ export interface LoopOptions {
   modelType?: ModelType;
   /** Model name passed to the provider. Overrides DEFAULT_MODEL when set. */
   model?: string;
+  /**
+   * Stable per-session cache-routing key, forwarded to the OpenAI-compatible
+   * request path as `prompt_cache_key` (dropped on the Claude path). Hosts
+   * derive it from provider+model+session so a session's requests keep
+   * hitting the same upstream cache node.
+   */
+  promptCacheKey?: string;
   /** Custom system prompt. See SystemPromptOption for the three supported forms. */
   systemPrompt?: SystemPromptOption;
 
@@ -624,6 +631,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
           provider: options?.provider ?? (options?.modelType ? buildProvider(options.modelType) : undefined),
           model: options?.model,
           modelType: options?.modelType,
+          promptCacheKey: options?.promptCacheKey,
           systemPrompt,
           onError: ({ error }) => {
             terminalStreamError = error;

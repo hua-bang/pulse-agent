@@ -29,9 +29,22 @@ function resolveMaxOutputTokens(modelType?: ModelType): number {
   return modelType === 'claude' ? DEFAULT_MAX_OUTPUT_TOKENS_CLAUDE : DEFAULT_MAX_OUTPUT_TOKENS_OPENAI;
 }
 
-function resolveProviderOptions(modelType?: ModelType) {
+/**
+ * Provider options for one request. Exported for tests.
+ *
+ * `promptCacheKey` (OpenAI `prompt_cache_key`) rides ONLY the
+ * OpenAI-compatible path: gateways with several upstream accounts/cache nodes
+ * route by this key, so a stable value keeps a session's requests on the same
+ * cache node (routing affinity, not cache isolation). The Claude path drops it
+ * — Anthropic caching works via cacheControl and an unknown option would leak
+ * into the request.
+ */
+export function resolveProviderOptions(modelType?: ModelType, promptCacheKey?: string) {
   if (modelType === 'claude') {
     return { ...openaiProviderOptions, ...claudeProviderOptions };
+  }
+  if (promptCacheKey) {
+    return { openai: { ...openaiProviderOptions.openai, promptCacheKey } };
   }
   return openaiProviderOptions;
 }
@@ -84,6 +97,8 @@ export interface StreamOptions {
   modelType?: ModelType;
   /** Custom system prompt. See SystemPromptOption for the three supported forms. */
   systemPrompt?: SystemPromptOption;
+  /** Stable per-session cache-routing key, sent as OpenAI `prompt_cache_key`. See resolveProviderOptions. */
+  promptCacheKey?: string;
 }
 
 /**
@@ -157,7 +172,7 @@ export const streamTextAI = (messages: ModelMessage[], tools: Record<string, Cod
     system: finalSystemPrompt,
     messages: filteredMessages,
     tools: wrappedTools as Record<string, Tool>,
-    providerOptions: resolveProviderOptions(options?.modelType),
+    providerOptions: resolveProviderOptions(options?.modelType, options?.promptCacheKey),
     maxOutputTokens: resolveMaxOutputTokens(options?.modelType),
     abortSignal: options?.abortSignal,
     onStepFinish: options?.onStepFinish,

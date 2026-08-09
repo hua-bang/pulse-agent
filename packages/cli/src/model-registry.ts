@@ -11,6 +11,13 @@ export interface ProviderConfig {
   baseUrl?: string;
   /** Name of the env var holding the API key. Keys are NEVER stored inline — models.json is committable. */
   apiKeyEnv?: string;
+  /**
+   * Opt-in: send a stable per-session `prompt_cache_key` so gateways with
+   * several upstream accounts/cache nodes route a session's requests to the
+   * same cache node. Off by default — only providers that are known to route
+   * by the key should enable it.
+   */
+  promptCacheKey?: boolean;
 }
 
 export interface ModelChoice {
@@ -23,6 +30,8 @@ export interface ModelChoice {
   providerName?: string;
   baseUrl?: string;
   apiKeyEnv?: string;
+  /** Inherited from the provider: this choice wants a per-session prompt_cache_key. */
+  promptCacheKey?: boolean;
   /** Marks the entry `/model` starts on when nothing else is pinned. */
   isDefault?: boolean;
 }
@@ -253,18 +262,20 @@ function normalizeProviders(parsed: unknown, warnings: string[]): Record<string,
     if (!value || typeof value !== 'object') {
       continue;
     }
-    const record = value as { type?: unknown; baseUrl?: unknown; base_url?: unknown; apiKeyEnv?: unknown; api_key_env?: unknown; apiKey?: unknown };
+    const record = value as { type?: unknown; baseUrl?: unknown; base_url?: unknown; apiKeyEnv?: unknown; api_key_env?: unknown; apiKey?: unknown; promptCacheKey?: unknown; prompt_cache_key?: unknown };
     if (record.apiKey !== undefined) {
       warnings.push(`provider "${name}": inline apiKey ignored — use apiKeyEnv (models.json is committable; never store keys in it)`);
     }
     const type = record.type === 'claude' ? 'claude' : 'openai';
     const baseUrl = record.baseUrl ?? record.base_url;
     const apiKeyEnv = record.apiKeyEnv ?? record.api_key_env;
+    const promptCacheKey = record.promptCacheKey ?? record.prompt_cache_key;
     providers[name] = {
       name,
       type,
       ...(typeof baseUrl === 'string' && baseUrl.trim() ? { baseUrl: baseUrl.trim() } : {}),
       ...(typeof apiKeyEnv === 'string' && apiKeyEnv.trim() ? { apiKeyEnv: apiKeyEnv.trim() } : {}),
+      ...(promptCacheKey === true ? { promptCacheKey: true } : {}),
     };
   }
   return providers;
@@ -328,11 +339,16 @@ function resolveObjectEntry(
 }
 
 function applyProvider(choice: ModelChoice, provider: ProviderConfig): ModelChoice {
+  // The provider is the SSOT for promptCacheKey: drop whatever the choice
+  // carried (e.g. from a home-scope provider) before applying this one, or a
+  // stale opt-in would survive a project-scope provider redefinition.
+  const { promptCacheKey: _stale, ...rest } = choice;
   return {
-    ...choice,
+    ...rest,
     modelType: provider.type,
     providerName: provider.name,
     ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
     ...(provider.apiKeyEnv ? { apiKeyEnv: provider.apiKeyEnv } : {}),
+    ...(provider.promptCacheKey === true ? { promptCacheKey: true } : {}),
   };
 }

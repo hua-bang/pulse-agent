@@ -335,7 +335,12 @@ export class InkCoderController implements InkCliController {
 
   /** Per-run overrides derived from the model choice; a provider-bound choice gets its own connection factory. */
   private modelRunOptions(): ModelRunOptions {
-    return buildModelRunOptions(this.modelOverride);
+    // Session-anchored so opt-in providers get a stable prompt_cache_key:
+    // /resume restores the session's key, /new and model switches change an
+    // input and produce a fresh one.
+    return buildModelRunOptions(this.modelOverride, process.env, {
+      sessionId: this.sessionCommands.getCurrentSessionId(),
+    });
   }
 
   private async openModelPicker(): Promise<void> {

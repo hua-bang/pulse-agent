@@ -213,6 +213,7 @@ readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。
 - `contextWindow` 同时驱动状态栏 `ctx %` 与 engine 压缩阈值（75%/50%）
 - `"default": true` 标记该条目为默认模型（多个只取第一个）
 - 未配 `baseUrl`/`apiKeyEnv` 的条目沿用该通道的全局 env 连接；`apiKeyEnv` 指向的变量为空时回退到通道默认 key 并提示
+- `"promptCacheKey": true`（provider 级，默认关）：为该 provider 的每个会话生成稳定的 64 位 SHA-256 路由 key（`provider+model+sessionId`），经 OpenAI 兼容通道以 `prompt_cache_key` 发送。适用于 Sub2API 这类多上游账号/多缓存节点的网关——没有稳定 key 时相同前缀也会被路由到不同缓存节点，命中率骤降。key 是路由亲和而非缓存隔离：`/resume` 恢复原 key，`/new`、切模型自然产生新 key，`/clear` 保留本会话 key；Claude 通道与未开启的 provider 完全不受影响
 - 文件解析失败（JSON 语法错误等）不会中断启动，只在日志层提示一行并按空注册表处理
 - OpenAI 通道走 Responses API——OpenAI 兼容网关需支持 `/responses`（与引擎既有行为一致）
 

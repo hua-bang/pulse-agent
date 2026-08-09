@@ -751,7 +751,9 @@ class CoderCLI {
         // baseUrl/apiKey/contextWindow here exactly as it does in the Ink host.
         const runAgent = async () => this.agent.run(this.context, {
           abortSignal: ac.signal,
-          ...buildModelRunOptions(this.modelChoice),
+          ...buildModelRunOptions(this.modelChoice, process.env, {
+            sessionId: this.sessionCommands.getCurrentSessionId(),
+          }),
           onText: (delta) => {
             sawText = true;
             this.tui.text(delta);
