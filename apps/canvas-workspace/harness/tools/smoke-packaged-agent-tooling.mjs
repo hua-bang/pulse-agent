@@ -2,15 +2,21 @@ import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const defaultApp = join(
   process.cwd(),
   'apps/canvas-workspace/release/mac-arm64/Pulse Canvas.app',
 );
-const requestedApp = process.argv[2] ?? defaultApp;
+const runtimeImportOnly = process.argv.includes('--runtime-import-only');
+const requestedApp = process.argv.slice(2).find((arg) => !arg.startsWith('--')) ?? defaultApp;
 const appPath = isAbsolute(requestedApp) ? requestedApp : resolve(requestedApp);
 const executable = join(appPath, 'Contents/MacOS/Pulse Canvas');
 const resources = join(appPath, 'Contents/Resources/agent-tooling/canvas-cli');
+const packagedEngineEntry = join(
+  appPath,
+  'Contents/Resources/app.asar/node_modules/pulse-coder-engine/dist/index.js',
+);
 const home = await fs.mkdtemp(join(tmpdir(), 'pulse-packaged-tooling-'));
 const env = {
   ...process.env,
@@ -21,43 +27,56 @@ let child;
 
 try {
   await fs.access(executable);
-  const sourceSkills = (await fs.readdir(join(resources, 'skills'), { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name === 'canvas' ? 'pulse-canvas' : entry.name)
-    .sort();
-
-  child = spawn(executable, [], { env, stdio: 'ignore' });
-  const wrapper = join(home, '.pulse-coder/bin/pulse-canvas');
-  const activeState = join(home, '.pulse-coder/tooling/pulse-canvas/active.json');
-  await waitFor(wrapper, 30_000);
-  await waitFor(activeState, 30_000);
-
-  const version = await run(wrapper, ['--version'], env);
-  if (!version.trim()) throw new Error('Bundled CLI returned an empty version');
-  const active = JSON.parse(await fs.readFile(activeState, 'utf8'));
-  if (active.version !== version.trim()) {
-    throw new Error(`Active tooling state does not match CLI version: ${JSON.stringify(active)}`);
-  }
-  const status = JSON.parse(await run(wrapper, ['--format', 'json', 'status'], env));
-  if (status.runtime?.reachable !== true) {
-    throw new Error(`Bundled CLI could not reach the packaged app: ${JSON.stringify(status)}`);
-  }
-
-  const parents = [
-    join(home, '.pulse-coder/skills'),
-    join(home, '.codex/skills'),
-    join(home, '.claude/skills'),
-  ];
-  for (const parent of parents) {
-    for (const skill of sourceSkills) {
-      await fs.access(join(parent, skill, 'SKILL.md'));
-    }
-  }
-
-  console.log(
-    `packaged agent tooling smoke passed: pulse-canvas ${version.trim()}, `
-      + `${sourceSkills.length} skills × ${parents.length} agent homes`,
+  await run(
+    executable,
+    [
+      '--input-type=module',
+      '-e',
+      `await import(${JSON.stringify(pathToFileURL(packagedEngineEntry).href)})`,
+    ],
+    { ...env, ELECTRON_RUN_AS_NODE: '1' },
   );
+  console.log('packaged runtime import passed: pulse-coder-engine');
+
+  if (!runtimeImportOnly) {
+    const sourceSkills = (await fs.readdir(join(resources, 'skills'), { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name === 'canvas' ? 'pulse-canvas' : entry.name)
+      .sort();
+
+    child = spawn(executable, [], { env, stdio: 'ignore' });
+    const wrapper = join(home, '.pulse-coder/bin/pulse-canvas');
+    const activeState = join(home, '.pulse-coder/tooling/pulse-canvas/active.json');
+    await waitFor(wrapper, 30_000);
+    await waitFor(activeState, 30_000);
+
+    const version = await run(wrapper, ['--version'], env);
+    if (!version.trim()) throw new Error('Bundled CLI returned an empty version');
+    const active = JSON.parse(await fs.readFile(activeState, 'utf8'));
+    if (active.version !== version.trim()) {
+      throw new Error(`Active tooling state does not match CLI version: ${JSON.stringify(active)}`);
+    }
+    const status = JSON.parse(await run(wrapper, ['--format', 'json', 'status'], env));
+    if (status.runtime?.reachable !== true) {
+      throw new Error(`Bundled CLI could not reach the packaged app: ${JSON.stringify(status)}`);
+    }
+
+    const parents = [
+      join(home, '.pulse-coder/skills'),
+      join(home, '.codex/skills'),
+      join(home, '.claude/skills'),
+    ];
+    for (const parent of parents) {
+      for (const skill of sourceSkills) {
+        await fs.access(join(parent, skill, 'SKILL.md'));
+      }
+    }
+
+    console.log(
+      `packaged agent tooling smoke passed: pulse-canvas ${version.trim()}, `
+        + `${sourceSkills.length} skills × ${parents.length} agent homes`,
+    );
+  }
 } finally {
   if (child && child.exitCode === null) {
     child.kill('SIGTERM');
