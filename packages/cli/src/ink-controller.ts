@@ -6,7 +6,7 @@ import { SessionCommands } from './session-commands.js';
 import { SkillCommands } from './skill-commands.js';
 import type { TuiHelpItem } from './tui-renderer.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
-import { formatRelativeTime, type InkCliController, type InkCliSnapshot, type CliInteractionMode } from './ink-app.js';
+import { formatRelativeTime, truncateLabel, type InkCliController, type InkCliSnapshot, type CliInteractionMode } from './ink-app.js';
 import type { EngineLogSink } from './log-sink.js';
 import { createPulseCliTools } from './runtime-tools.js';
 import { extractStepUsage } from './usage-metrics.js';
@@ -548,7 +548,10 @@ export class InkCoderController implements InkCliController {
       if (trimmedInput) {
         this.queuedInputs.push(trimmedInput);
         this.publishSession('Input queued');
-        this.ui.queued(`Queued input #${this.queuedInputs.length}. It will run after the current step finishes.`);
+        // Content preview, not just the position: with only a number in the
+        // transcript there is no way to tell what got queued behind a long
+        // run apart from counting how many times Enter was pressed.
+        this.ui.queued(`Queued #${this.queuedInputs.length} · ${truncateLabel(trimmedInput, 60)}`);
       }
       return;
     }

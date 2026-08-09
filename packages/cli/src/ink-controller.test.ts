@@ -201,6 +201,30 @@ describe('queued input across slash commands', () => {
   });
 });
 
+describe('queued input transcript preview', () => {
+  it('shows the queued content, not just its position in the queue', async () => {
+    const longInput = 'continue and finish the refactor please - ' + 'x'.repeat(80);
+    const { internals, run } = buildController(async () => {
+      if ((run.mock.calls.length ?? 0) === 1) {
+        await internals.submitInput(longInput);
+      }
+      return 'answer';
+    });
+
+    await internals.runMessage('first message');
+
+    const queuedEvent = internals.ui.events.find(event => event.title === 'Queued');
+    expect(queuedEvent?.text.startsWith('Queued #1 · ')).toBe(true);
+    // The preview shows actual content (truncateLabel(input, 60)), not just
+    // "Queued input #1" — the old message left no way to tell what got
+    // queued behind a long run apart from counting Enter presses.
+    expect(queuedEvent?.text).toContain('continue and finish the refactor please');
+    // Long enough to need truncation, so the preview must end in an ellipsis
+    // rather than dumping the whole 120+ character input into the transcript.
+    expect(queuedEvent?.text.endsWith('…')).toBe(true);
+  });
+});
+
 /** /narration on|off toggles the bridge's narration-folding flag through the same shape as /debug. */
 describe('/narration command', () => {
   interface UiInternals { ui: { getNarrationCollapse: () => boolean } }
