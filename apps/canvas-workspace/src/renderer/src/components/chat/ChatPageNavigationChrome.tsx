@@ -32,7 +32,6 @@ interface ChatPageTopbarProps {
   onNewSession: () => void;
   newSessionDisabled: boolean;
   dockTabsVisible: boolean;
-  dockTabsToggleable: boolean;
   onToggleDockTabs: () => void;
 }
 
@@ -45,13 +44,10 @@ export const ChatPageTopbar = ({
   onNewSession,
   newSessionDisabled,
   dockTabsVisible,
-  dockTabsToggleable,
   onToggleDockTabs,
 }: ChatPageTopbarProps) => {
   const { t } = useI18n();
-  const dockTabsLabel = dockTabsToggleable
-    ? (dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs'))
-    : t('chat.noDockTabs');
+  const dockTabsLabel = dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs');
 
   return (
     <div className="chat-page-topbar">
@@ -92,7 +88,6 @@ export const ChatPageTopbar = ({
         className="chat-panel-action-btn"
         data-active={dockTabsVisible}
         aria-pressed={dockTabsVisible}
-        disabled={!dockTabsToggleable}
         onClick={onToggleDockTabs}
         title={dockTabsLabel}
         aria-label={dockTabsLabel}

@@ -73,7 +73,7 @@
 }
 
 .sidebar-footer-icon-btn:hover {
-  background: rgba(55, 53, 47, 0.05);
+  background: var(--surface-hover);
   color: var(--text);
 }
 

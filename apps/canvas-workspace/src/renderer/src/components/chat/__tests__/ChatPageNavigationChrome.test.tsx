@@ -28,7 +28,6 @@ describe('ChatPage navigation chrome', () => {
           onNewSession={vi.fn()}
           newSessionDisabled={false}
           dockTabsVisible={false}
-          dockTabsToggleable={false}
           onToggleDockTabs={vi.fn()}
         />
       </I18nProvider>,
@@ -41,7 +40,7 @@ describe('ChatPage navigation chrome', () => {
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(host.querySelector('[aria-label="Settings"]')).toBeNull();
     expect(host.querySelectorAll('.chat-page-topbar > .chat-panel-action-btn')).toHaveLength(3);
-    expect(host.querySelector<HTMLButtonElement>('[aria-label="No tabs open yet"]')?.disabled).toBe(true);
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="Show the Tab panel"]')?.disabled).toBe(false);
 
     act(() => root.unmount());
   });

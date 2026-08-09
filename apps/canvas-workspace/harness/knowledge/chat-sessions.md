@@ -115,10 +115,10 @@ toggle.
 - An expanded dock still pointing at the chat/terminal tab must be
   re-pointed at a content tab rather than collapsed — collapsing instead
   would make the first click read as a no-op.
-- The button stays visible but disabled when no content tab exists yet (a
-  tab can land mid-conversation, e.g. the agent opening an artifact or
-  preview), and its topbar position must not jump around as that happens.
-  `chat.noDockTabs` labels the disabled state.
+- The button stays visible and actionable even when no content tab exists.
+  Its first click opens the scoped workspace canvas as a read-only preview
+  when possible; global/scheduled scopes and an already-mounted canvas create
+  a blank browser tab instead. Its topbar position must not jump as tabs land.
 
 **Inset rule.** These routes reflow like any other route, through
 `reserveSpace` — the dock inset must NOT be gated on `chatTabEnabled`. Gating
