@@ -775,6 +775,18 @@ describe('Ink composer editing helpers', () => {
     expect(windowLiveTextLines([], 5, 80)).toEqual({ lines: [], hiddenLineCount: 0 });
   });
 
+  it('matches the old map-every-line result when the tail-first pass overshoots by exactly one line', () => {
+    // Regression guard for the tail-accumulate rewrite: the first pass walks
+    // the tail against the LOOSE budget (maxRows) and can tentatively include
+    // one line more than the final (maxRows - 1, once a head row is spent)
+    // budget allows — the correction pass must drop exactly that one line
+    // back off, landing on the same window the old "map every line, then
+    // slice from a precomputed cost array" version produced.
+    const lines = ['a', 'b', 'c', 'd', 'e'];
+    const windowed = windowLiveTextLines(lines, 3, 80);
+    expect(windowed).toEqual({ lines: ['d', 'e'], hiddenLineCount: 3 });
+  });
+
   it('drops streaming events that arrive after an abort', () => {
     const { snapshots, bridge } = createBridge();
 

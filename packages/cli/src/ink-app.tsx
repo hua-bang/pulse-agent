@@ -621,19 +621,39 @@ export function windowLiveTextLines(lines: string[], maxRows: number, columns: n
     return { lines: [], hiddenLineCount: lines.length };
   }
 
-  const costs = lines.map(line => wrappedRowCount(line, columns));
-  const total = costs.reduce((sum, cost) => sum + cost, 0);
-  if (total <= maxRows) {
+  // Accumulate from the TAIL, stopping the instant the budget is exceeded,
+  // instead of mapping wrappedRowCount() over every line up front. A long
+  // answer only ever shows its last `maxRows`-ish rows, so the old
+  // map-then-slice paid for every earlier line's wrap cost on every frame —
+  // this makes the common case O(visible lines), not O(total lines). Each
+  // line costs >= 1 row, so this first pass can never run more than
+  // maxRows + 1 iterations even when it does reach the front.
+  let used = 0;
+  let start = lines.length;
+  while (start > 0) {
+    const cost = wrappedRowCount(lines[start - 1], columns);
+    if (used + cost > maxRows) {
+      break;
+    }
+    used += cost;
+    start -= 1;
+  }
+
+  if (start === 0) {
+    // Walked every line without exceeding the budget: everything fits, no
+    // head row needed. Same fast path as before, just reached by counting
+    // from the tail instead of summing a fully-mapped cost array.
     return { lines, hiddenLineCount: 0 };
   }
 
-  // Truncating costs one row for the "… N earlier lines" head.
+  // Some lines are hidden, so a row is spent on the "… N earlier lines"
+  // head — shrink the effective budget by one and drop lines already
+  // tentatively included (computed against the looser maxRows above) until
+  // the tighter budget holds. At most one extra line comes off here.
   const budget = maxRows - 1;
-  let used = 0;
-  let start = lines.length;
-  while (start > 0 && used + costs[start - 1] <= budget) {
-    used += costs[start - 1];
-    start -= 1;
+  while (start < lines.length && used > budget) {
+    start += 1;
+    used -= wrappedRowCount(lines[start - 1], columns);
   }
 
   return { lines: lines.slice(start), hiddenLineCount: start };
