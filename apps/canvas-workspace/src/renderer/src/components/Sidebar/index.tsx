@@ -403,14 +403,6 @@ export const Sidebar = ({
       {collapsed && (
         <div className="sidebar-collapsed-rail">
           <button
-            className="sidebar-collapsed-btn"
-            onClick={onToggle}
-            title={t('sidebar.expand')}
-            aria-label={t('sidebar.expand')}
-          >
-            <SidebarToggleIcon size={14} />
-          </button>
-          <button
             type="button"
             className={`sidebar-collapsed-btn${activeView === 'chat' ? ' sidebar-collapsed-btn--active' : ''}`}
             onClick={onEnterChat}
@@ -445,6 +437,15 @@ export const Sidebar = ({
             aria-label={t('sidebar.openSettings')}
           >
             <SettingsIcon size={14} strokeWidth={1.4} />
+          </button>
+          <button
+            type="button"
+            className="sidebar-collapsed-btn sidebar-collapsed-btn--bottom"
+            onClick={onToggle}
+            title={t('sidebar.expand')}
+            aria-label={t('sidebar.expand')}
+          >
+            <SidebarToggleIcon size={14} />
           </button>
         </div>
       )}
