@@ -38,6 +38,9 @@ interface SidebarHeaderProps {
   onNewWorkspace: () => void;
   onNewFolder: () => void;
   onImportWorkspace: () => void;
+
+  enableSkills?: boolean;
+  enableScheduled?: boolean;
 }
 
 export const SidebarHeader = ({
@@ -59,6 +62,8 @@ export const SidebarHeader = ({
   onNewWorkspace,
   onNewFolder,
   onImportWorkspace,
+  enableScheduled,
+  enableSkills
 }: SidebarHeaderProps) => {
   const { t } = useI18n();
   const addButtonRef = useRef<HTMLButtonElement>(null);
@@ -140,7 +145,7 @@ export const SidebarHeader = ({
             <span className="sidebar-nav-label">{t('sidebar.graph')}</span>
           </button>
         )}
-        <Button
+        {enableSkills ? <Button
           variant="secondary"
           className={`sidebar-nav-item${activeView === 'skills' ? ' sidebar-nav-item--active' : ''}`}
           onClick={onEnterSkills}
@@ -150,18 +155,22 @@ export const SidebarHeader = ({
             <PuzzlePiece size={14} />
           </span>
           <span className="sidebar-nav-label">{t('sidebar.skills')}</span>
-        </Button>
-        <Button
-          variant="secondary"
-          className={`sidebar-nav-item${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-nav-item--active' : ''}`}
-          onClick={onEnterScheduled}
-          title={t('sidebar.scheduledTitle')}
-        >
-          <span className="sidebar-nav-icon">
-            <CalendarBlank size={14} />
-          </span>
-          <span className="sidebar-nav-label">{t('sidebar.scheduled')}</span>
-        </Button>
+        </Button> : null}
+
+        {
+          enableScheduled ? <Button
+            variant="secondary"
+            className={`sidebar-nav-item${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-nav-item--active' : ''}`}
+            onClick={onEnterScheduled}
+            title={t('sidebar.scheduledTitle')}
+          >
+            <span className="sidebar-nav-icon">
+              <CalendarBlank size={14} />
+            </span>
+            <span className="sidebar-nav-label">{t('sidebar.scheduled')}</span>
+          </Button> : null
+        }
+
         {pluginNavItems.map((item) => {
           const Icon = item.icon;
           return (
