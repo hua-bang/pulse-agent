@@ -119,7 +119,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 294→293 (model switcher): dropped the menu's "Auto" entry — every
   // message now names the provider+model it runs on, so the implicit
   // default-config row had no selectable meaning left.
-  rawButtonTags: 293,
+  // 293→292 (sidebar chrome): the expanded collapse control now reuses the
+  // blessed icon Button instead of adding another raw micro-button.
+  rawButtonTags: 292,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

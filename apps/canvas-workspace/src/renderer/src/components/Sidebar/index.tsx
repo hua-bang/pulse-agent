@@ -13,7 +13,7 @@ import { WorkspaceList } from './WorkspaceList';
 import { LayersPanel } from './LayersPanel';
 import { LayerContextMenu } from './LayerContextMenu';
 import { useAppShell } from '../AppShellProvider';
-import { AvatarIcon, SettingsIcon } from '../icons';
+import { AppLogoIcon, SettingsIcon } from '../icons';
 import { Button } from '../ui';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { buildCanvasNodeLink } from '../../utils/canvasLinks';
@@ -332,7 +332,7 @@ export const Sidebar = ({
       {!collapsed && (
         <>
           <SidebarHeader
-            activeView={activeView} onEnterChat={onEnterChat}
+            onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat}
             onEnterNodes={onEnterNodes} onEnterGraph={onEnterGraph}
             onEnterSkills={onEnterSkills}
             onEnterScheduled={onEnterScheduled}
@@ -404,12 +404,21 @@ export const Sidebar = ({
         <div className="sidebar-collapsed-rail">
           <button
             type="button"
+            className="sidebar-collapsed-btn"
+            onClick={onToggle}
+            title={t('sidebar.expand')}
+            aria-label={t('sidebar.expand')}
+          >
+            <SidebarToggleIcon size={14} />
+          </button>
+          <button
+            type="button"
             className={`sidebar-collapsed-btn${activeView === 'chat' ? ' sidebar-collapsed-btn--active' : ''}`}
             onClick={onEnterChat}
             title={t('sidebar.aiChatTitle')}
             aria-label={t('sidebar.aiChat')}
           >
-            <AvatarIcon size={14} />
+            <AppLogoIcon size={20} />
           </button>
           <Button
             variant="icon"
@@ -438,15 +447,6 @@ export const Sidebar = ({
           >
             <SettingsIcon size={14} strokeWidth={1.4} />
           </button>
-          <button
-            type="button"
-            className="sidebar-collapsed-btn sidebar-collapsed-btn--bottom"
-            onClick={onToggle}
-            title={t('sidebar.expand')}
-            aria-label={t('sidebar.expand')}
-          >
-            <SidebarToggleIcon size={14} />
-          </button>
         </div>
       )}
 
@@ -461,15 +461,6 @@ export const Sidebar = ({
           >
             <SettingsIcon size={14} strokeWidth={1.4} />
             <span>{t('sidebar.settings')}</span>
-          </button>
-          <button
-            type="button"
-            className="sidebar-footer-icon-btn"
-            onClick={onToggle}
-            title={t('sidebar.collapse')}
-            aria-label={t('sidebar.collapse')}
-          >
-            <SidebarToggleIcon size={16} />
           </button>
         </div>
       )}

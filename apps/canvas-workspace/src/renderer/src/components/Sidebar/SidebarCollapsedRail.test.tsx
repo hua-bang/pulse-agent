@@ -9,7 +9,7 @@ import { Sidebar } from '.';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe('collapsed sidebar rail', () => {
-  it('keeps the expand control at the bottom of the rail', () => {
+  it('keeps the expand control at the top of the rail', () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     const noop = vi.fn();
@@ -56,8 +56,8 @@ describe('collapsed sidebar rail', () => {
 
     const rail = host.querySelector('.sidebar-collapsed-rail');
     const expandButton = host.querySelector('[aria-label="Expand sidebar"]');
-    expect(rail?.lastElementChild).toBe(expandButton);
-    expect(expandButton?.classList.contains('sidebar-collapsed-btn--bottom')).toBe(true);
+    expect(rail?.firstElementChild).toBe(expandButton);
+    expect(rail?.children[1]?.querySelector('img')?.getAttribute('width')).toBe('20');
 
     act(() => root.unmount());
   });

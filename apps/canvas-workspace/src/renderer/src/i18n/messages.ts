@@ -209,8 +209,8 @@ const en = {
 
   'sidebar.collapse': 'Collapse sidebar',
   'sidebar.expand': 'Expand sidebar',
-  'sidebar.aiChatTitle': 'Chat with an agent using the current workspace context (⌘/Ctrl+Shift+L)',
-  'sidebar.aiChat': 'AI Chat',
+  'sidebar.aiChatTitle': 'Open Pulse Agent with the current workspace context (⌘/Ctrl+Shift+L)',
+  'sidebar.aiChat': 'Pulse Agent',
   'sidebar.nodesTitle': 'Workspace nodes',
   'sidebar.nodes': 'Nodes',
   'sidebar.graphTitle': 'Workspace graph',
@@ -1980,8 +1980,8 @@ const zh: Record<keyof typeof en, string> = {
 
   'sidebar.collapse': '收起侧边栏',
   'sidebar.expand': '展开侧边栏',
-  'sidebar.aiChatTitle': '基于当前工作区上下文与 Agent 对话（⌘/Ctrl+Shift+L）',
-  'sidebar.aiChat': 'AI 聊天',
+  'sidebar.aiChatTitle': '使用当前工作区上下文打开 Pulse Agent（⌘/Ctrl+Shift+L）',
+  'sidebar.aiChat': 'Pulse Agent',
   'sidebar.nodesTitle': '工作区节点',
   'sidebar.nodes': '节点',
   'sidebar.graphTitle': '工作区图谱',

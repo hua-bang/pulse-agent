@@ -4,7 +4,6 @@ import { CalendarBlank, PuzzlePiece, SidebarSimple } from '@phosphor-icons/react
 import type { NavItem } from '../../../../plugins/types';
 import {
   PlusIcon,
-  AvatarIcon,
   AppLogoIcon,
   WorkspaceIcon,
   FolderIcon,
@@ -21,6 +20,7 @@ export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
 );
 
 interface SidebarHeaderProps {
+  onToggle: () => void;
   activeView: string;
   onEnterChat: () => void;
   onEnterNodes: () => void;
@@ -41,6 +41,7 @@ interface SidebarHeaderProps {
 }
 
 export const SidebarHeader = ({
+  onToggle,
   activeView,
   onEnterChat,
   onEnterNodes,
@@ -91,10 +92,17 @@ export const SidebarHeader = ({
   return (
     <>
       <div className="sidebar-brand-header">
-        <span className="sidebar-brand-mark" aria-hidden="true">
-          <AppLogoIcon size={22} />
-        </span>
         <span className="sidebar-brand">Pulse Canvas</span>
+        <Button
+          variant="icon"
+          size="xs"
+          className="sidebar-section-btn"
+          onClick={onToggle}
+          title={t('sidebar.collapse')}
+          aria-label={t('sidebar.collapse')}
+        >
+          <SidebarToggleIcon size={14} />
+        </Button>
       </div>
 
       <div className="sidebar-nav">
@@ -104,7 +112,7 @@ export const SidebarHeader = ({
           title={t('sidebar.aiChatTitle')}
         >
           <span className="sidebar-nav-icon">
-            <AvatarIcon size={14} />
+            <AppLogoIcon size={20} />
           </span>
           <span className="sidebar-nav-label">{t('sidebar.aiChat')}</span>
         </button>

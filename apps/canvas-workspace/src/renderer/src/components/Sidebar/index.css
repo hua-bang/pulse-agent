@@ -36,13 +36,10 @@
   margin-top: auto;
   padding: 8px 8px 12px;
   border-top: 1px solid var(--border-light);
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .sidebar-footer-btn {
-  flex: 1;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -55,26 +52,6 @@
   font-weight: 600;
   cursor: pointer;
   text-align: left;
-}
-
-.sidebar-footer-icon-btn {
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.sidebar-footer-icon-btn:hover {
-  background: var(--surface-hover);
-  color: var(--text);
 }
 
 .sidebar-footer-btn:hover {

@@ -26,6 +26,7 @@ describe('SidebarHeader', () => {
     const renderHeader = (nodesEnabled: boolean, graphEnabled: boolean) => (
       <I18nProvider>
         <SidebarHeader
+          onToggle={vi.fn()}
           activeView="canvas"
           onEnterChat={vi.fn()}
           onEnterNodes={vi.fn()}
@@ -54,13 +55,15 @@ describe('SidebarHeader', () => {
     const labels = () => [...host!.querySelectorAll('.sidebar-nav-label')]
       .map((element) => element.textContent);
 
-    expect(labels()).toEqual(['AI Chat', 'Skills', 'Scheduled']);
-    expect(host.querySelector('[title="Collapse sidebar"]')).toBeNull();
+    expect(labels()).toEqual(['Pulse Agent', 'Skills', 'Scheduled']);
+    expect(host.querySelector('[title="Collapse sidebar"]')).not.toBeNull();
+    expect(host.querySelector('.sidebar-brand-mark')).toBeNull();
+    expect(host.querySelector('.sidebar-nav-item img')?.getAttribute('width')).toBe('20');
 
     act(() => {
       root?.render(renderHeader(true, true));
     });
 
-    expect(labels()).toEqual(['AI Chat', 'Nodes', 'Graph', 'Skills', 'Scheduled']);
+    expect(labels()).toEqual(['Pulse Agent', 'Nodes', 'Graph', 'Skills', 'Scheduled']);
   });
 });
