@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { Readable } from 'node:stream';
 import React from 'react';
 import { describe, expect, it } from 'vitest';
 
@@ -39,14 +40,14 @@ class MockStdout extends EventEmitter {
   }
 }
 
-class MockStdin extends EventEmitter {
+// Ink reads input via 'readable' + stdin.read(), so anything that has to reach
+// the composer (a draft is app state, not snapshot state) must be pushed
+// through a real paused-mode Readable — same shape as ink-app.screen.test.tsx.
+class MockStdin extends Readable {
   isTTY = true;
-  setRawMode(): void {}
-  resume(): void {}
-  pause(): void {}
-  setEncoding(): void {}
-  read(): null {
-    return null;
+  _read(): void {}
+  setRawMode(): this {
+    return this;
   }
   unref(): void {}
   ref(): void {}
@@ -159,6 +160,51 @@ const renderSequence = async (snapshots: InkCliSnapshot[], viewport: Viewport = 
   return heights;
 };
 
+/**
+ * Types `draft` into the composer as one terminal chunk (what a paste is) and
+ * measures the frame that lands afterwards. The draft cannot come from a
+ * snapshot — it is the app's own state, so it has to arrive as real stdin bytes.
+ */
+const renderDraft = async (
+  draft: string,
+  snapshot: InkCliSnapshot = { ...baseSnapshot, isProcessing: false, status: 'Ready', phase: 'Idle' },
+  viewport: Viewport = DEFAULT_VIEWPORT,
+) => {
+  const ink = await import('ink');
+  const stdout = new MockStdout(viewport.columns, viewport.rows);
+  const stdin = new MockStdin();
+  const instance = ink.render(
+    <InkCliApp
+      controller={{
+        getSnapshot: () => snapshot,
+        submitInput: () => {},
+        requestStop: () => {},
+        shutdown: () => {},
+        subscribe: () => () => {},
+      }}
+      runtime={{
+        Box: ink.Box,
+        Text: ink.Text,
+        Static: ink.Static,
+        useApp: ink.useApp,
+        useInput: ink.useInput,
+        usePaste: ink.usePaste,
+        useStdout: ink.useStdout,
+      }}
+    />,
+    { stdout: stdout as never, stdin: stdin as never, exitOnCtrlC: false, patchConsole: false },
+  );
+
+  await new Promise(resolve => setTimeout(resolve, 60));
+  stdout.frames.length = 0;
+  stdin.push(Buffer.from(draft));
+  await new Promise(resolve => setTimeout(resolve, 80));
+
+  const frames = stdout.frames.splice(0);
+  instance.unmount();
+  return { height: frameHeight(frames), painted: frames.join('') };
+};
+
 describe('InkCliApp frame height', () => {
   it('keeps a long streamed answer under the viewport', async () => {
     const height = await renderFrame({ ...baseSnapshot, liveText: streamedAnswer(200) });
@@ -199,6 +245,33 @@ describe('InkCliApp frame height', () => {
     // Short: the fixed regions alone nearly fill the screen.
     expect(await renderFrame(snapshot, { rows: 12, columns: 80 })).toBeLessThan(12);
     expect(await renderFrame(snapshot, { rows: 8, columns: 60 })).toBeLessThan(8);
+  });
+
+  it('keeps a pasted wall of text in the draft under the viewport', async () => {
+    // One logical line, ~27 physical rows at 80 columns: a draft window that
+    // caps LOGICAL lines lets this through whole, and the composer alone is
+    // then taller than the terminal — every keystroke repaints the screen.
+    const pasted = `https://example.com/${'a1b2c3d4'.repeat(247)}abcd`;
+    expect(pasted).toHaveLength(2_000);
+
+    const { height, painted } = await renderDraft(pasted);
+
+    expect(height).toBeLessThan(DEFAULT_VIEWPORT.rows);
+    // …and it still shows the draft: the cursor (end of the paste) is painted,
+    // above it the head says the rest scrolled off. A window that collapsed to
+    // nothing would satisfy the height bound while showing no draft at all.
+    expect(painted).toContain('█');
+    expect(painted).toMatch(/… \d+ earlier draft lines/);
+  });
+
+  it('holds the draft bound on a short terminal and while an answer streams', async () => {
+    const pasted = 'x'.repeat(3_000);
+
+    expect((await renderDraft(pasted, undefined, { rows: 12, columns: 80 })).height).toBeLessThan(12);
+    expect((await renderDraft(pasted, undefined, { rows: 24, columns: 40 })).height).toBeLessThan(24);
+    // Streaming text and a wall-of-text draft compete for the same screen.
+    const streaming = { ...baseSnapshot, liveText: streamedAnswer(200) };
+    expect((await renderDraft(pasted, streaming)).height).toBeLessThan(DEFAULT_VIEWPORT.rows);
   });
 
   it('holds the bound while the picker is open', async () => {

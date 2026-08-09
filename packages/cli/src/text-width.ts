@@ -78,49 +78,85 @@ export function truncateToWidth(value: string, maxWidth: number): string {
 const ANSI_SGR_PATTERN = /\x1b\[[0-9;]*m/g;
 
 /**
+ * The physical rows a terminal wraps one logical line onto at `columns`.
+ * Greedy word wrap, matching Ink's default `wrap`: a word that does not fit on
+ * a line of its own is hard-split across rows.
+ *
+ * Rendering these rows instead of the raw line is what lets a region budget its
+ * own height exactly — every returned row fits `columns`, so Ink cannot reflow
+ * one into extra rows behind the budget's back.
+ */
+export function wrapToRows(line: string, columns: number): string[] {
+  if (!Number.isFinite(columns) || columns <= 0) {
+    return [line];
+  }
+
+  const plain = line.replace(ANSI_SGR_PATTERN, '');
+  if (stringWidth(plain) <= columns) {
+    return [plain];
+  }
+
+  const rows: string[] = [];
+  let current = '';
+  let used = 0;
+  for (const word of plain.split(' ')) {
+    const wordWidth = stringWidth(word);
+    const gap = used > 0 ? 1 : 0;
+    if (used + gap + wordWidth <= columns) {
+      current += gap > 0 ? ` ${word}` : word;
+      used += gap + wordWidth;
+      continue;
+    }
+
+    if (used > 0) {
+      rows.push(current);
+      current = '';
+      used = 0;
+    }
+
+    // Words wider than the terminal (long paths, base64, unspaced CJK) fill
+    // whole rows on their own.
+    let remaining = word;
+    while (stringWidth(remaining) > columns) {
+      // A single glyph wider than the terminal still has to go somewhere, or
+      // the split loop would never consume it.
+      const head = takeWidth(remaining, columns) || Array.from(remaining)[0];
+      rows.push(head);
+      remaining = remaining.slice(head.length);
+    }
+    current = remaining;
+    used = stringWidth(remaining);
+  }
+
+  rows.push(current);
+  return rows;
+}
+
+/**
  * Physical rows one logical line occupies once the terminal wraps it at
- * `columns`. Greedy word wrap, matching Ink's default `wrap`: a word that does
- * not fit on a line of its own is hard-split across rows.
+ * `columns`.
  *
  * A row budget computed from `String.split('\n').length` is wrong whenever a
  * line is wider than the terminal — that undercount is what lets a "bounded"
  * region overflow the screen.
  */
 export function wrappedRowCount(line: string, columns: number): number {
-  if (!Number.isFinite(columns) || columns <= 0) {
-    return 1;
-  }
+  return wrapToRows(line, columns).length;
+}
 
-  const plain = line.replace(ANSI_SGR_PATTERN, '');
-  if (stringWidth(plain) <= columns) {
-    return 1;
-  }
-
-  let rows = 1;
-  let used = 0;
-  for (const word of plain.split(' ')) {
-    const wordWidth = stringWidth(word);
-    const gap = used > 0 ? 1 : 0;
-    if (used + gap + wordWidth <= columns) {
-      used += gap + wordWidth;
-      continue;
+/** Longest prefix fitting `maxWidth` display columns, never splitting a glyph. */
+function takeWidth(value: string, maxWidth: number): string {
+  let width = 0;
+  let result = '';
+  for (const char of value) {
+    const next = charWidth(char.codePointAt(0) ?? 0);
+    if (width + next > maxWidth) {
+      break;
     }
-
-    if (used > 0) {
-      rows += 1;
-      used = 0;
-    }
-
-    // Words wider than the terminal (long paths, unspaced CJK) fill whole rows.
-    let remaining = wordWidth;
-    while (remaining > columns) {
-      rows += 1;
-      remaining -= columns;
-    }
-    used = remaining;
+    width += next;
+    result += char;
   }
-
-  return rows;
+  return result;
 }
 
 /** Index of the code point boundary before `index` (for ←/Backspace). */

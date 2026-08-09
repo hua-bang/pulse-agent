@@ -23,6 +23,7 @@ import {
   renderPromptLines,
   shouldAcceptSlashSuggestion,
   windowLiveTextLines,
+  windowPromptRows,
   type InkCliSnapshot,
 } from './ink-app.js';
 
@@ -570,6 +571,35 @@ describe('Ink composer editing helpers', () => {
     // A single row would go entirely to the head, showing none of the answer.
     expect(windowLiveTextLines(lines, 1, 80)).toEqual({ lines: [], hiddenLineCount: 2 });
     expect(windowLiveTextLines([], 5, 80)).toEqual({ lines: [], hiddenLineCount: 0 });
+  });
+
+  it('bounds the draft by physical rows, not by logical lines', () => {
+    // One pasted URL: a single logical line, ten physical rows at 50 columns.
+    // A window counting logical lines calls this "1 line" and lets the composer
+    // grow past the viewport.
+    const windowed = windowPromptRows(renderPromptLines('x'.repeat(500), 500, true), 6, 50);
+
+    expect(windowed.rows).toHaveLength(6);
+    expect(windowed.hiddenRowCount).toBe(5);
+    // Pre-wrapped: every row fits, so Ink cannot reflow one into extra rows.
+    expect(windowed.rows.every(row => row.length <= 50)).toBe(true);
+    // The cursor is at the end of the paste, so the tail is what shows.
+    expect(windowed.rows[windowed.rows.length - 1]).toContain('█');
+  });
+
+  it('keeps the cursor row visible when editing the head of a long draft', () => {
+    const windowed = windowPromptRows(renderPromptLines('y'.repeat(500), 0, true), 4, 50);
+
+    expect(windowed.rows).toHaveLength(4);
+    expect(windowed.hiddenRowCount).toBe(0);
+    expect(windowed.rows[0].startsWith('█')).toBe(true);
+  });
+
+  it('passes a draft that fits through untouched', () => {
+    const lines = renderPromptLines('first\nsecond', 12, true);
+    expect(windowPromptRows(lines, 6, 50)).toEqual({ rows: lines, hiddenRowCount: 0 });
+    // Never collapses to nothing: a budget of zero still shows the cursor row.
+    expect(windowPromptRows(['a', 'b', 'c'], 0, 50).rows).toHaveLength(1);
   });
 
   it('filters picker items across label, hint, and preview', () => {
