@@ -212,7 +212,17 @@ const stableScreen = (lines: string[]): string[] => lines.map(line => line
   .replace(/\d+m\d+s|\d+(\.\d+)?s\b/g, '<elapsed>')
   .replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/g, '<spinner>'));
 
-const KEY = { up: '\x1b[A', down: '\x1b[B', enter: '\r' };
+const KEY = {
+  up: '\x1b[A',
+  down: '\x1b[B',
+  enter: '\r',
+  // xterm Home/End — ink's parser (parse-keypress.js keyName map) resolves
+  // both these and the `\x1bO*`/`\x1b[1~`/`\x1b[4~` variants to key.home/end.
+  home: '\x1b[H',
+  homeTilde: '\x1b[1~',
+  end: '\x1b[F',
+  endTilde: '\x1b[4~',
+};
 
 /** An idle composer session driven by real stdin bytes. */
 const renderComposer = async (initialHistory: string[]) => {
@@ -371,6 +381,41 @@ describe('InkCliApp on a terminal', () => {
     expect(session.draft()).toBe('/mod');
     await session.press(KEY.up);
     expect(session.draft()).toBe('/mod');
+
+    session.done();
+  });
+
+  it('Home/End jump to the start/end of the draft, same as Ctrl+A/E', async () => {
+    // The typed text and inserted markers double as the cursor probe: draft()
+    // strips the cursor glyph itself, so WHERE a subsequent insert lands is
+    // what proves the jump actually happened.
+    const session = await renderComposer([]);
+
+    await session.press('foo bar');
+    expect(session.draft()).toBe('foo bar');
+
+    await session.press(KEY.home);
+    await session.press('X');
+    expect(session.draft()).toBe('Xfoo bar');
+
+    await session.press(KEY.end);
+    await session.press('Y');
+    expect(session.draft()).toBe('Xfoo barY');
+
+    session.done();
+  });
+
+  it('accepts the \\x1b[1~/\\x1b[4~ Home/End variants too', async () => {
+    const session = await renderComposer([]);
+
+    await session.press('foo bar');
+    await session.press(KEY.homeTilde);
+    await session.press('X');
+    expect(session.draft()).toBe('Xfoo bar');
+
+    await session.press(KEY.endTilde);
+    await session.press('Y');
+    expect(session.draft()).toBe('Xfoo barY');
 
     session.done();
   });

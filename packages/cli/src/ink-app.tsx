@@ -1021,6 +1021,20 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       return;
     }
 
+    // Home/End (`\x1b[H`/`\x1bOH`/`\x1b[1~` and `\x1b[F`/`\x1bOF`/`\x1b[4~`)
+    // resolve to key.home/key.end in ink's parser — same jump as Ctrl+A/E.
+    if (key.home) {
+      setCursor(0);
+      setHistoryIndex(null);
+      return;
+    }
+
+    if (key.end) {
+      setCursor(input.length);
+      setHistoryIndex(null);
+      return;
+    }
+
     if (key.ctrl && value === 'a') {
       setCursor(0);
       setHistoryIndex(null);
