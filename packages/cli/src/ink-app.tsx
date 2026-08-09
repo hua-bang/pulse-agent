@@ -90,6 +90,7 @@ export interface InkCliController {
   requestStop: () => void;
   setInteractionMode?: (mode: CliInteractionMode, source?: string) => void | Promise<void>;
   toggleToolDetail?: () => void;
+  toggleNarrationCollapse?: () => void;
   pickerSelect?: (id: string) => void;
   pickerCancel?: () => void;
   shutdown: () => void | Promise<void>;
@@ -942,6 +943,11 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       return;
     }
 
+    if (key.ctrl && value === 't') {
+      controller.toggleNarrationCollapse?.();
+      return;
+    }
+
     if (key.ctrl && (value === 'j' || value === '\n')) {
       updateComposer(insertAtCursor({ input, cursor }, '\n'));
       return;
@@ -1138,7 +1144,7 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
             ? '↑↓ select · Tab/Enter complete · Esc clear'
           : input.length > 0
             ? 'Enter send · Ctrl+J newline · Esc clear'
-            : `/ commands · ↑↓ history · Ctrl+O detail · Shift+Tab mode (${currentInteractionMode}: ${describeInteractionMode(currentInteractionMode)})`;
+            : `/ commands · ↑↓ history · Ctrl+O detail · Ctrl+T narration · Shift+Tab mode (${currentInteractionMode}: ${describeInteractionMode(currentInteractionMode)})`;
   const composerColor = waitingClarification ? 'magenta' : snapshot.isProcessing ? 'yellow' : 'cyan';
   const statusIcon = snapshot.isProcessing ? spinner : '●';
   const statusColor = snapshot.isProcessing ? 'yellow' : snapshot.status === 'Cancelled' ? 'red' : 'green';

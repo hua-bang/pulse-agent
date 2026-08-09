@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import React from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { InkCliApp, type InkCliSnapshot } from './ink-app.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
@@ -263,6 +263,49 @@ const renderComposer = async (initialHistory: string[]) => {
   await new Promise(resolve => setTimeout(resolve, 45));
   return { press, draft, submitted, done: () => instance.unmount() };
 };
+
+describe('InkCliApp narration-folding shortcut', () => {
+  it('triggers toggleNarrationCollapse on Ctrl+T', async () => {
+    const ink = await import('ink');
+    const screen = new TerminalScreen();
+    const stdin = new MockStdin();
+    const toggleNarrationCollapse = vi.fn();
+    const bridge = new InkUiBridge({ onChange: () => {}, textThrottleMs: 0 });
+
+    const instance = ink.render(
+      <InkCliApp
+        controller={{
+          getSnapshot: () => bridge.getSnapshot(),
+          submitInput: () => {},
+          requestStop: () => {},
+          shutdown: () => {},
+          subscribe: () => () => {},
+          toggleNarrationCollapse,
+        }}
+        runtime={{
+          Box: ink.Box,
+          Text: ink.Text,
+          Static: ink.Static,
+          useApp: ink.useApp,
+          useInput: ink.useInput,
+          usePaste: ink.usePaste,
+          useStdout: ink.useStdout,
+        }}
+      />,
+      { stdout: screen as never, stdin: stdin as never, exitOnCtrlC: false, patchConsole: false },
+    );
+
+    await new Promise(resolve => setTimeout(resolve, 45));
+    // Ctrl+T (DC4, 0x14) — not one of the chords already bound (Ctrl+C/J/O/A/
+    // E/U/K/W, Shift+Tab, Esc, arrows, Tab).
+    stdin.push(Buffer.from('\x14'));
+    await new Promise(resolve => setTimeout(resolve, 45));
+
+    expect(toggleNarrationCollapse).toHaveBeenCalledTimes(1);
+
+    instance.unmount();
+  });
+});
 
 describe('InkCliApp on a terminal', () => {
   it('keeps the composer anchored through a whole run', async () => {

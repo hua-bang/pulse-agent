@@ -58,6 +58,8 @@ export class InkUiBridge {
   private pendingEmit: NodeJS.Timeout | null = null;
   private lastEmitAt = 0;
   private toolDetail = false;
+  /** Off by default: narration segments print in full. Ctrl+T / `/narration`. */
+  private narrationCollapsed = false;
   /** Set by abort(), cleared by startProcessing(): drops late streaming events. */
   private cancelled = false;
   private readonly pendingInputBuffers = new Map<string, string>();
@@ -147,6 +149,8 @@ export class InkUiBridge {
       'Editing: Ctrl+U delete before cursor, Ctrl+K delete after cursor, Ctrl+W delete previous word',
       'Control: Esc stops a run or clears the draft; Ctrl+C twice exits (first press clears the draft)',
       'Transcript: finished output stays in the terminal scrollback — scroll up to review it',
+      `Tool trace detail: Ctrl+O toggles (currently ${this.toolDetail ? 'on' : 'off'})`,
+      `Narration folding: Ctrl+T or /narration on|off toggles (currently ${this.narrationCollapsed ? 'on' : 'off'})`,
       'Fallback: PULSE_CODER_UI=readline pulse-coder',
       'Plain fallback: PULSE_CODER_PLAIN=1 PULSE_CODER_UI=readline pulse-coder',
     ]);
@@ -403,6 +407,24 @@ export class InkUiBridge {
     return this.toolDetail;
   }
 
+  /**
+   * Toggle narration folding for FUTURE narration segments (finalizeLiveText
+   * kind 'interim'). Same shape as setToolDetail()/Ctrl+O: a flag on the
+   * bridge, a log line, no effect on anything already printed — `events` is
+   * append-only, so this can only ever change what happens next. The
+   * segment that ends a run is never folded, collapsed or not.
+   */
+  setNarrationCollapse(on: boolean): void {
+    this.narrationCollapsed = on;
+    this.log(on
+      ? 'Narration: collapsed · future narration segments show a one-line summary (Ctrl+T to turn off)'
+      : 'Narration: expanded · future narration segments show in full');
+  }
+
+  getNarrationCollapse(): boolean {
+    return this.narrationCollapsed;
+  }
+
   toolResult(name: string, output?: unknown, callId?: string): void {
     if (this.cancelled) {
       return;
@@ -471,7 +493,20 @@ export class InkUiBridge {
 
     const text = this.liveText;
     this.liveText = '';
-    this.addEvent('assistant', undefined, text, true, kind === 'interim' ? { status: 'info' } : {});
+    // Narration folding only ever applies to 'interim' segments — the segment
+    // that ends a run ('final') is the answer and is never folded.
+    const displayText = kind === 'interim' && this.narrationCollapsed ? this.collapseNarration(text) : text;
+    this.addEvent('assistant', undefined, displayText, true, kind === 'interim' ? { status: 'info' } : {});
+  }
+
+  /** First line (truncated) + "… +N lines" for a folded narration segment. */
+  private collapseNarration(text: string): string {
+    const lines = text.trim().split('\n');
+    if (lines.length <= 1) {
+      return this.compactText(lines[0] ?? text, 96);
+    }
+    const rest = lines.length - 1;
+    return `${this.compactText(lines[0], 96)} … +${rest} line${rest === 1 ? '' : 's'}`;
   }
 
   private finalizeLiveTools(status: 'info' | 'error', note = ''): void {

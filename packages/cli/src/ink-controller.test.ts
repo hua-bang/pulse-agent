@@ -201,6 +201,34 @@ describe('queued input across slash commands', () => {
   });
 });
 
+/** /narration on|off toggles the bridge's narration-folding flag through the same shape as /debug. */
+describe('/narration command', () => {
+  interface UiInternals { ui: { getNarrationCollapse: () => boolean } }
+
+  it('is off by default, and on|off set it explicitly', async () => {
+    const controller = new InkCoderController();
+    const internals = controller as unknown as ControllerInternals & UiInternals;
+
+    expect(internals.ui.getNarrationCollapse()).toBe(false);
+
+    await internals.submitInput('/narration on');
+    expect(internals.ui.getNarrationCollapse()).toBe(true);
+    expect(internals.ui.events.some(event => event.kind === 'log' && event.text.includes('Narration: collapsed'))).toBe(true);
+
+    await internals.submitInput('/narration off');
+    expect(internals.ui.getNarrationCollapse()).toBe(false);
+    expect(internals.ui.events.some(event => event.kind === 'log' && event.text.includes('Narration: expanded'))).toBe(true);
+  });
+
+  it('reports its current state with a bare /narration', async () => {
+    const controller = new InkCoderController();
+    const internals = controller as unknown as ControllerInternals & UiInternals;
+
+    await internals.submitInput('/narration');
+    expect(internals.ui.events.some(event => event.title === 'Narration folding')).toBe(true);
+  });
+});
+
 /**
  * Esc aborts the signal, but the engine's current step keeps delivering text
  * and tool events until it unwinds. Those late events used to be written to

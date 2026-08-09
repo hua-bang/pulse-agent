@@ -38,6 +38,7 @@ const LOCAL_COMMANDS = new Set([
   'tui',
   'debug',
   'model',
+  'narration',
   'exit',
 ]);
 
@@ -74,6 +75,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/tui [status]', description: 'Show current Ink UI status' },
   { command: '/debug [on|off|tail <n>]', description: 'Engine log layer: toggle live display or tail the capture' },
   { command: '/model [id|claude:<id>|reset]', description: 'Show/switch model (bare = picker from .pulse-coder/models.json)' },
+  { command: '/narration [on|off]', description: 'Fold future narration segments to a one-line summary (default off); bare shows the current state' },
   { command: '/exit', description: 'Exit the application' },
 ];
 
@@ -87,6 +89,7 @@ const HELP_FOOTER = [
   '←/→, Ctrl+A/E - Move cursor',
   'Ctrl+U/K/W - Delete before cursor / after cursor / previous word',
   'Ctrl+O - Toggle tool-trace detail (one-line summaries ↔ content previews; affects new traces)',
+  'Ctrl+T - Toggle narration folding (/narration on|off does the same; affects new narration segments)',
   'Paste - Inserted literally (newlines included); bracketed paste supported',
   'Esc - Stop the current response, or clear the current draft when idle',
   'Ctrl+C - Press twice to save and exit (first press clears the draft)',
@@ -255,6 +258,10 @@ export class InkCoderController implements InkCliController {
 
   toggleToolDetail(): void {
     this.ui.setToolDetail(!this.ui.getToolDetail());
+  }
+
+  toggleNarrationCollapse(): void {
+    this.ui.setNarrationCollapse(!this.ui.getNarrationCollapse());
   }
 
   /** Usage counters are per-conversation; /new, /clear and /resume must zero them. */
@@ -784,6 +791,7 @@ export class InkCoderController implements InkCliController {
             `Processing: ${this.isProcessing ? 'yes' : 'no'}`,
             `Engine logs: ${this.debugLogs ? 'shown live' : 'file only'} · ${this.logSink?.count() ?? 0} captured · /debug`,
             `Tool detail: ${this.ui.getToolDetail() ? 'preview (detailed)' : 'one-line summaries'} · Ctrl+O toggles`,
+            `Narration folding: ${this.ui.getNarrationCollapse() ? 'on (one-line summaries)' : 'off (full text)'} · Ctrl+T or /narration toggles`,
           ]);
           break;
         case 'mode': {
@@ -865,6 +873,22 @@ export class InkCoderController implements InkCliController {
               `Captured this session: ${this.logSink.count()} entries`,
               `File: ${this.logSink.filePath}`,
               'Usage: /debug on | off | tail <n>',
+            ]);
+          }
+          break;
+        }
+        case 'narration': {
+          const action = args[0]?.toLowerCase();
+          if (action === 'on') {
+            this.ui.setNarrationCollapse(true);
+          } else if (action === 'off') {
+            this.ui.setNarrationCollapse(false);
+          } else {
+            this.ui.section('Narration folding', [
+              `Current: ${this.ui.getNarrationCollapse() ? 'on (one-line summaries)' : 'off (full text, default)'}`,
+              'Applies to FUTURE narration segments only — already-printed transcript lines never change.',
+              'The final answer segment that ends a run is never folded.',
+              'Usage: /narration on | off · shortcut: Ctrl+T',
             ]);
           }
           break;

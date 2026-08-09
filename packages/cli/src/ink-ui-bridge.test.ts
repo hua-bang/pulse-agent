@@ -123,6 +123,59 @@ describe('InkUiBridge', () => {
     expect(assistantEvents[1].status).toBeUndefined();
   });
 
+  it('folds narration segments to a one-line summary once collapse is on, off by default', () => {
+    const { snapshots, bridge } = createBridge();
+
+    expect(bridge.getNarrationCollapse()).toBe(false);
+    bridge.startProcessing('Running agent');
+    bridge.text('line one\nline two\nline three');
+    bridge.toolCall('bash', { command: 'echo ok' });
+
+    // Off by default: the full narration text is preserved.
+    let narration = snapshots[snapshots.length - 1].events.find(event => event.status === 'info');
+    expect(narration?.text).toBe('line one\nline two\nline three');
+
+    bridge.setNarrationCollapse(true);
+    expect(bridge.getNarrationCollapse()).toBe(true);
+    expect(snapshots[snapshots.length - 1].events.some(event => event.kind === 'log' && event.text.includes('Narration: collapsed'))).toBe(true);
+
+    bridge.text('folded one\nfolded two\nfolded three\nfolded four');
+    bridge.toolCall('bash', { command: 'echo again' });
+
+    const events = snapshots[snapshots.length - 1].events.filter(event => event.status === 'info');
+    expect(events).toHaveLength(2);
+    // Only a NEW narration segment is affected — the already-printed one above
+    // is untouched (Static is append-only).
+    expect(events[0].text).toBe('line one\nline two\nline three');
+    expect(events[1].text).toBe('folded one … +3 lines');
+  });
+
+  it('never folds the final answer segment, and turning collapse off restores full narration', () => {
+    const { snapshots, bridge } = createBridge();
+
+    bridge.setNarrationCollapse(true);
+    bridge.startProcessing('Running agent');
+    bridge.text('narration line one\nnarration line two');
+    bridge.toolCall('bash', { command: 'echo ok' });
+    bridge.toolResult('bash', 'ok');
+    bridge.text('final answer line one\nfinal answer line two');
+    bridge.runSummary({ elapsedMs: 5, toolCalls: 1, messages: 2, estimatedTokens: 4, mode: 'chat' });
+
+    const assistantEvents = snapshots[snapshots.length - 1].events.filter(event => event.kind === 'assistant');
+    expect(assistantEvents[0]).toMatchObject({ text: 'narration line one … +1 line', status: 'info' });
+    // The final segment is never folded, collapsed setting or not.
+    expect(assistantEvents[1]).toMatchObject({ text: 'final answer line one\nfinal answer line two' });
+    expect(assistantEvents[1].status).toBeUndefined();
+
+    bridge.setNarrationCollapse(false);
+    bridge.startProcessing('Running agent');
+    bridge.text('back to full\nnarration text');
+    bridge.toolCall('bash', { command: 'echo ok' });
+
+    const restored = snapshots[snapshots.length - 1].events.filter(event => event.status === 'info').slice(-1)[0];
+    expect(restored.text).toBe('back to full\nnarration text');
+  });
+
   it('finalizes a tool call as a one-line summary by default', () => {
     const { snapshots, bridge } = createBridge();
 
