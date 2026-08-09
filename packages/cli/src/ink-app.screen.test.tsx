@@ -222,6 +222,14 @@ const KEY = {
   homeTilde: '\x1b[1~',
   end: '\x1b[F',
   endTilde: '\x1b[4~',
+  // xterm Alt+←/→ — resolves to key.leftArrow/rightArrow + key.meta.
+  altLeft: '\x1b[1;3D',
+  altRight: '\x1b[1;3C',
+  // Alt+D (ESC d) — resolves to value 'd' + key.meta once ink strips the
+  // leading escape byte.
+  altD: '\x1bd',
+  // Ctrl+Delete — resolves to key.delete + key.ctrl.
+  ctrlDelete: '\x1b[3;5~',
 };
 
 /** An idle composer session driven by real stdin bytes. */
@@ -416,6 +424,54 @@ describe('InkCliApp on a terminal', () => {
     await session.press(KEY.endTilde);
     await session.press('Y');
     expect(session.draft()).toBe('Xfoo barY');
+
+    session.done();
+  });
+
+  it('Alt+Left moves the cursor back a word (\\x1b[1;3D)', async () => {
+    const session = await renderComposer([]);
+
+    await session.press('foo bar baz');
+    await session.press(KEY.altLeft);
+    await session.press('X');
+    expect(session.draft()).toBe('foo bar Xbaz');
+
+    session.done();
+  });
+
+  it('Alt+Right moves the cursor forward a word (\\x1b[1;3C)', async () => {
+    const session = await renderComposer([]);
+
+    await session.press('foo bar baz');
+    await session.press(KEY.home);
+    await session.press(KEY.altRight);
+    await session.press('X');
+    expect(session.draft()).toBe('fooX bar baz');
+
+    session.done();
+  });
+
+  it('Alt+D deletes the word after the cursor', async () => {
+    const session = await renderComposer([]);
+
+    await session.press('foo bar baz');
+    await session.press(KEY.home);
+    await session.press(KEY.altD);
+    // draft() trims the ends, so the leading space removeWordAfterCursor
+    // deliberately leaves behind (it eats the word, not the space after it)
+    // does not show up here — see the pure-function unit tests for that.
+    expect(session.draft()).toBe('bar baz');
+
+    session.done();
+  });
+
+  it('Ctrl+Delete deletes the word after the cursor (\\x1b[3;5~)', async () => {
+    const session = await renderComposer([]);
+
+    await session.press('foo bar baz');
+    await session.press(KEY.home);
+    await session.press(KEY.ctrlDelete);
+    expect(session.draft()).toBe('bar baz');
 
     session.done();
   });

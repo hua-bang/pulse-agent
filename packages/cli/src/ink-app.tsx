@@ -224,6 +224,90 @@ export function removeWordBeforeCursor(state: ComposerState): ComposerState {
 }
 
 /**
+ * Index one word forward of `cursor` (Alt+→): skip whitespace, then eat
+ * non-whitespace — the mirror of `removeWordBeforeCursor`'s boundary search.
+ *
+ * Bounded to the CURRENT LINE: a multi-line draft must not let a word step
+ * eat the newline as if it were ordinary whitespace (that would silently
+ * splice two lines together from the caller's point of view). Sitting
+ * exactly on a line boundary still makes progress — it steps over the single
+ * `\n`, the same one-row-at-a-time contract `verticalCursorTarget` keeps for
+ * vertical movement — so repeated presses can never get stuck.
+ */
+export function nextWordIndex(input: string, cursor: number): number {
+  const position = clampCursor(input, cursor);
+  if (position >= input.length) {
+    return position;
+  }
+  if (input[position] === '\n') {
+    return position + 1;
+  }
+
+  const lineBreak = input.indexOf('\n', position);
+  const boundary = lineBreak === -1 ? input.length : lineBreak;
+  const match = input.slice(position, boundary).match(/^\s*\S*/);
+  const consumed = match ? match[0].length : 0;
+  if (consumed > 0) {
+    return position + consumed;
+  }
+  // Nothing left on this line (cursor already sits at its end): step over the
+  // newline that ends it, if there is one, rather than standing still.
+  return boundary < input.length ? boundary + 1 : position;
+}
+
+/**
+ * Index one word back of `cursor` (Alt+←): the same boundary search
+ * `removeWordBeforeCursor` uses, exposed for cursor movement and bounded to
+ * the current line for the same reason `nextWordIndex` is.
+ */
+export function prevWordIndex(input: string, cursor: number): number {
+  const position = clampCursor(input, cursor);
+  if (position <= 0) {
+    return 0;
+  }
+  if (input[position - 1] === '\n') {
+    return position - 1;
+  }
+
+  const lineStart = input.lastIndexOf('\n', position - 1) + 1;
+  const segment = input.slice(lineStart, position);
+  const wordStart = segment.replace(/\s+$/, '').search(/\S+$/);
+  return lineStart + (wordStart === -1 ? 0 : wordStart);
+}
+
+/**
+ * Deletes the word after the cursor (Alt+D, Ctrl+Delete) — the forward twin
+ * of `removeWordBeforeCursor`.
+ *
+ * Unlike `nextWordIndex` (cursor movement, where stepping over a lone `\n`
+ * is the correct way to make progress at a line's end) a delete must NEVER
+ * consume that newline itself — doing so would splice two draft lines
+ * together, which is a content change `verticalCursorTarget`'s row-by-row
+ * model does not expect. So this stops at the line boundary and deletes
+ * nothing when the cursor already sits there.
+ */
+export function removeWordAfterCursor(state: ComposerState): ComposerState {
+  const cursor = clampCursor(state.input, state.cursor);
+  if (cursor >= state.input.length || state.input[cursor] === '\n') {
+    return { input: state.input, cursor };
+  }
+
+  const lineBreak = state.input.indexOf('\n', cursor);
+  const boundary = lineBreak === -1 ? state.input.length : lineBreak;
+  const match = state.input.slice(cursor, boundary).match(/^\s*\S*/);
+  const consumed = match ? match[0].length : 0;
+  if (consumed === 0) {
+    return { input: state.input, cursor };
+  }
+
+  const deleteTo = cursor + consumed;
+  return {
+    input: `${state.input.slice(0, cursor)}${state.input.slice(deleteTo)}`,
+    cursor,
+  };
+}
+
+/**
  * Target index one line up/down inside a multi-line draft, preserving the
  * column. Returns null when there is no such line — the caller then falls
  * through to history navigation, so ↑/↓ keeps working on a single-line draft.
@@ -1011,6 +1095,19 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
       return;
     }
 
+    // Alt+←/→ (xterm sends `\x1b[1;3D`/`\x1b[1;3C`, which ink's parser
+    // resolves to key.leftArrow/rightArrow + key.meta — see input-parser.js
+    // fnKeyRe) move by word; checked before the plain-arrow fallback below.
+    if (key.leftArrow && key.meta) {
+      setCursor(current => prevWordIndex(input, current));
+      return;
+    }
+
+    if (key.rightArrow && key.meta) {
+      setCursor(current => nextWordIndex(input, current));
+      return;
+    }
+
     if (key.leftArrow) {
       setCursor(current => prevCharIndex(input, current));
       return;
@@ -1059,6 +1156,19 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
 
     if (key.ctrl && value === 'w') {
       updateComposer(removeWordBeforeCursor({ input, cursor }));
+      return;
+    }
+
+    // Alt+D (ESC d, arrives as value 'd' + key.meta once ink strips the
+    // escape prefix) and Ctrl+Delete (`\x1b[3;5~`, resolves to key.delete +
+    // key.ctrl) delete the word after the cursor.
+    if (key.meta && value === 'd') {
+      updateComposer(removeWordAfterCursor({ input, cursor }));
+      return;
+    }
+
+    if (key.ctrl && key.delete) {
+      updateComposer(removeWordAfterCursor({ input, cursor }));
       return;
     }
 

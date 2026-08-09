@@ -14,10 +14,13 @@ import {
   insertAtCursor,
   isPasteChunk,
   nextInteractionMode,
+  nextWordIndex,
   normalizeInteractionMode,
   normalizePastedText,
+  prevWordIndex,
   removeAtCursor,
   removeBeforeCursor,
+  removeWordAfterCursor,
   removeWordBeforeCursor,
   renderPrompt,
   renderPromptLines,
@@ -564,6 +567,50 @@ describe('Ink composer editing helpers', () => {
     expect(removeWordBeforeCursor({ input: 'run the agent', cursor: 13 })).toEqual({ input: 'run the ', cursor: 8 });
     expect(removeWordBeforeCursor({ input: 'run   ', cursor: 6 })).toEqual({ input: '', cursor: 0 });
     expect(renderPrompt('abc', 99, true)).toBe('abc█');
+  });
+
+  describe('word navigation (Alt+←/→, Alt+D, Ctrl+Delete)', () => {
+    it('nextWordIndex skips whitespace then eats one word, symmetric with removeWordBeforeCursor\'s search', () => {
+      expect(nextWordIndex('foo bar baz', 0)).toBe(3);
+      expect(nextWordIndex('foo bar baz', 3)).toBe(7);
+      // Multiple spaces are skipped as a unit before the word is eaten.
+      expect(nextWordIndex('foo   bar', 3)).toBe(9);
+      // Already at the end: no further movement.
+      expect(nextWordIndex('foo', 3)).toBe(3);
+    });
+
+    it('prevWordIndex mirrors removeWordBeforeCursor\'s boundary search', () => {
+      expect(prevWordIndex('foo bar baz', 11)).toBe(8);
+      expect(prevWordIndex('foo bar baz', 8)).toBe(4);
+      expect(prevWordIndex('foo bar   ', 10)).toBe(4);
+      expect(prevWordIndex('foo', 0)).toBe(0);
+    });
+
+    it('steps over exactly one newline at a line boundary instead of standing still', () => {
+      // Word movement is bounded to the current line (must not eat the \n as
+      // if it were ordinary whitespace connecting two lines), but a press
+      // sitting right on the boundary still has to make progress — one line
+      // at a time, the same contract verticalCursorTarget keeps.
+      const input = 'foo\nbar';
+      expect(nextWordIndex(input, 3)).toBe(4);
+      expect(prevWordIndex(input, 4)).toBe(3);
+      // From well inside "foo", forward movement stops at the line's end
+      // rather than reaching into "bar" in one step.
+      expect(nextWordIndex(input, 0)).toBe(3);
+    });
+
+    it('removeWordAfterCursor deletes the word after the cursor without eating trailing whitespace', () => {
+      expect(removeWordAfterCursor({ input: 'foo bar baz', cursor: 0 })).toEqual({ input: ' bar baz', cursor: 0 });
+      expect(removeWordAfterCursor({ input: 'foo bar baz', cursor: 3 })).toEqual({ input: 'foo baz', cursor: 3 });
+      // Cursor already at the end: nothing to delete.
+      expect(removeWordAfterCursor({ input: 'foo', cursor: 3 })).toEqual({ input: 'foo', cursor: 3 });
+    });
+
+    it('removeWordAfterCursor never deletes across a line boundary', () => {
+      // Cursor right before the \n: a delete-forward-word must not splice
+      // "foo" and "bar" together by eating the newline between them.
+      expect(removeWordAfterCursor({ input: 'foo\nbar', cursor: 3 })).toEqual({ input: 'foo\nbar', cursor: 3 });
+    });
   });
 
   it('renders multiline prompts with cursor placement', () => {
