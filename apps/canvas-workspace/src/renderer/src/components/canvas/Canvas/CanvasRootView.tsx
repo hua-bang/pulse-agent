@@ -63,8 +63,6 @@ type CanvasRootViewProps = Pick<
   nodes: CanvasNode[];
   nodesById: Map<string, CanvasNode>;
   onFitAll?: () => void;
-  onFitSelection?: () => void;
-  onDuplicateSelection?: () => void;
   openShortcuts: () => void;
   paletteCommands: any[];
   referenceDrawerOpen?: boolean;
@@ -144,8 +142,6 @@ export const CanvasRootView = ({
   nodesById,
   onChatToggle,
   onFitAll,
-  onFitSelection,
-  onDuplicateSelection,
   onOpenReferenceSource,
   onPinReferenceNode,
   onAddToChat,
@@ -349,27 +345,6 @@ export const CanvasRootView = ({
         paletteCommands={paletteCommands}
         onSearchSelect={handleNodeViewportFocus}
         onCloseSearch={() => setSearchOpen(false)}
-        selectedNodeIds={selectedNodeIds}
-        onFitSelection={onFitSelection}
-        onDuplicateSelection={onDuplicateSelection}
-        onGroupSelection={actions.groupSelectedNodes}
-        onWrapSelectionInFrame={actions.wrapSelectedNodesInFrame}
-        onPinReferenceSelection={onPinReferenceNode && selectedNodeIds.length === 1
-          ? () => {
-              const [nodeId] = selectedNodeIds;
-              if (nodeId) onPinReferenceNode(nodeId);
-            }
-          : undefined}
-        onAddSelectionToChat={onAddToChat && selectedNodeIds.length === 1
-          ? () => {
-              const [nodeId] = selectedNodeIds;
-              if (nodeId) onAddToChat(nodeId);
-            }
-          : undefined}
-        onDeleteSelection={() => { void actions.requestRemoveNodes(selectedNodeIds); }}
-        focusModeActive={focus.focusModeActive}
-        focusModeAvailable={focus.focusModeAvailable}
-        onToggleFocusMode={focus.toggleFocusMode}
         findSearch={search}
         findNodesById={nodesById}
         onFindMatchActivate={handleSearchMatchActivate}

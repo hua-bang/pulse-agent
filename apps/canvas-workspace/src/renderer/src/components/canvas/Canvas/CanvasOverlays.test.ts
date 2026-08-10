@@ -33,17 +33,6 @@ describe('CanvasOverlays movement gating', () => {
   });
 });
 
-describe('CanvasOverlays selection layout', () => {
-  it('places selection actions above the existing bottom chrome controls', () => {
-    expect(canvasCss).toMatch(
-      /\.canvas-bottom-chrome--selection \.selection-toolbar\s*\{[^}]*grid-column:\s*1\s*\/\s*-1;[^}]*grid-row:\s*1;/s,
-    );
-    expect(canvasCss).toMatch(
-      /\.canvas-bottom-chrome\.canvas-bottom-chrome--selection \.floating-toolbar,[^{]+canvas-bottom-chrome__right\s*\{[^}]*grid-row:\s*2;/s,
-    );
-  });
-});
-
 describe('CanvasOverlays edge drag projection', () => {
   const edge: CanvasEdge = {
     id: 'edge-1',

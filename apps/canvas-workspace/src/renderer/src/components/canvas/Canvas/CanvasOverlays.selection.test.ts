@@ -10,7 +10,7 @@ import { CanvasOverlays } from './CanvasOverlays';
 
 type CanvasOverlaysProps = ComponentProps<typeof CanvasOverlays>;
 
-const selectedNode = {
+const sampleNode = {
   id: 'node-1',
   type: 'text',
   title: 'Selected note',
@@ -23,7 +23,7 @@ const selectedNode = {
 } as CanvasOverlaysProps['nodes'][number];
 
 const baseProps = (): CanvasOverlaysProps => ({
-  nodes: [selectedNode],
+  nodes: [sampleNode],
   contextMenu: null,
   searchOpen: false,
   activeTool: 'select',
@@ -37,7 +37,6 @@ const baseProps = (): CanvasOverlaysProps => ({
   paletteCommands: [],
   onSearchSelect: vi.fn(),
   onCloseSearch: vi.fn(),
-  selectedNodeIds: [],
   findSearch: { open: false } as CanvasOverlaysProps['findSearch'],
   findNodesById: new Map(),
   onFindMatchActivate: vi.fn(),
@@ -77,34 +76,11 @@ describe('CanvasOverlays selection actions', () => {
     });
   };
 
-  it('stays hidden for a single selection', () => {
-    render({
-      selectedNodeIds: ['node-1'],
-      focusModeAvailable: true,
-      onFitSelection: vi.fn(),
-      onDuplicateSelection: vi.fn(),
-      onToggleFocusMode: vi.fn(),
-      onWrapSelectionInFrame: vi.fn(),
-      onPinReferenceSelection: vi.fn(),
-      onAddSelectionToChat: vi.fn(),
-      onDeleteSelection: vi.fn(),
-    });
-
-    expect(host.querySelector('[role="toolbar"][aria-label="Selection actions"]')).toBeNull();
-    expect(host.querySelector('.canvas-bottom-chrome--selection')).toBeNull();
-  });
-
-  it('stays hidden for a multi-selection', () => {
-    render({
-      selectedNodeIds: ['node-1', 'node-2'],
-      onGroupSelection: vi.fn(),
-    });
-
-    expect(host.querySelector('[role="toolbar"][aria-label="Selection actions"]')).toBeNull();
-  });
-
-  it('hides selection actions when the selection is empty', () => {
-    render({ selectedNodeIds: [] });
+  // The selection toolbar surface was removed on purpose (the SelectionToolbar
+  // component, its selection props, and the --selection chrome CSS are gone).
+  // This pins that the overlay tree does not grow it back silently.
+  it('renders no selection toolbar', () => {
+    render();
 
     expect(host.querySelector('[role="toolbar"][aria-label="Selection actions"]')).toBeNull();
     expect(host.querySelector('.canvas-bottom-chrome--selection')).toBeNull();

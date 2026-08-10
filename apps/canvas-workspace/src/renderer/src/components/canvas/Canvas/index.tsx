@@ -469,21 +469,6 @@ export const Canvas = ({
     fitAllNodes(visibleNodes);
   }, [fitAllNodes, visibleNodes]);
 
-  const handleFitSelection = useCallback(() => {
-    const selected = visibleNodes.filter((n) => selectedNodeIds.includes(n.id));
-    if (selected.length > 0) fitAllNodes(selected);
-  }, [fitAllNodes, selectedNodeIds, visibleNodes]);
-
-  const handleDuplicateSelection = useCallback(() => {
-    if (selectedNodeIds.length === 0) return;
-    const created: string[] = [];
-    for (const id of selectedNodeIds) {
-      const copy = duplicateNode(id);
-      if (copy) created.push(copy.id);
-    }
-    if (created.length > 0) setSelectedNodeIds(created);
-  }, [duplicateNode, selectedNodeIds, setSelectedNodeIds]);
-
   // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
   // because Find is iterative — the bar stays open while the user pages
   // through matches. See useCanvasSearch for details.
@@ -719,8 +704,6 @@ export const Canvas = ({
       onChatOpen={onChatOpen}
       onChatToggle={onChatToggle}
       onFitAll={handleFitAll}
-      onFitSelection={handleFitSelection}
-      onDuplicateSelection={handleDuplicateSelection}
       onOpenReferenceSource={onOpenReferenceSource}
       onPinReferenceNode={onPinReferenceNode} onAddToChat={onAddToChat} onAddDomSelectionToChat={onAddDomSelectionToChat} onSubmitDomReviewComments={onSubmitDomReviewComments}
       onReferenceToggle={onReferenceToggle}

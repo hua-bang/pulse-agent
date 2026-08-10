@@ -82,17 +82,6 @@ interface CanvasOverlaysProps {
   paletteCommands: PaletteCommand[];
   onSearchSelect: (node: CanvasNode) => void;
   onCloseSearch: () => void;
-  selectedNodeIds: string[];
-  onFitSelection?: () => void;
-  onDuplicateSelection?: () => void;
-  onGroupSelection?: () => void;
-  onWrapSelectionInFrame?: () => void;
-  onPinReferenceSelection?: () => void;
-  onAddSelectionToChat?: () => void;
-  onDeleteSelection?: () => void;
-  focusModeActive?: boolean;
-  focusModeAvailable?: boolean;
-  onToggleFocusMode?: () => void;
   /** Find-in-canvas (Ctrl/Cmd+F) state, owned by the parent so the
    *  keyboard hook and the bar share one source of truth. */
   findSearch: UseCanvasSearchReturn;
@@ -162,17 +151,6 @@ export const CanvasOverlays = ({
   paletteCommands,
   onSearchSelect,
   onCloseSearch,
-  selectedNodeIds,
-  onFitSelection,
-  onDuplicateSelection,
-  onGroupSelection,
-  onWrapSelectionInFrame,
-  onPinReferenceSelection,
-  onAddSelectionToChat,
-  onDeleteSelection,
-  focusModeActive,
-  focusModeAvailable,
-  onToggleFocusMode,
   findSearch,
   findNodesById,
   onFindMatchActivate,
