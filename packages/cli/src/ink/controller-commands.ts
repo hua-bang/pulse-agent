@@ -6,7 +6,7 @@ import type { CliInteractionMode } from './ink-app.js';
 import { HELP_FOOTER, HELP_ITEMS } from './controller-defs.js';
 import { applyModelOverride, currentContextWindow, describeConnection, modelRunOptions, restoreSessionModel } from './controller-model.js';
 import { openModelPicker, openSessionPicker, resumeSessionRef } from './controller-pickers.js';
-import { describeCacheHit, runExclusive } from './controller-run.js';
+import { describeCacheHit, runExclusive, startGoalLoop } from './controller-run.js';
 import { formatModelSpec, resolveModelSpec } from '../models/model-spec.js';
 import { loadModelRegistry } from '../models/model-registry.js';
 
@@ -153,6 +153,19 @@ export async function handleCommand(controller: InkCoderController, command: str
           `Max rounds: ${goal.maxRounds ?? 'unlimited'}`,
         ]);
         controller.ui.info('The agent keeps working toward this goal until it is met, verified, or you stop it.');
+        // Codex's continue_if_idle: setting a goal immediately starts the
+        // first round. The state machine lives in plugin-kit; here the host
+        // just runs it with its IO.
+        controller.ui.info('Starting goal…');
+        await runExclusive(controller, async () => {
+          const ac = new AbortController();
+          controller.currentAbortController = ac;
+          try {
+            await startGoalLoop(controller, ac);
+          } finally {
+            controller.currentAbortController = null;
+          }
+        });
         break;
       }
       case 'status':

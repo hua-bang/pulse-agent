@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 import { FileGoalPluginService } from './service.js';
-import { createGoalEnginePlugin, appendSystemPrompt } from './integration.js';
+import { createGoalEnginePlugin, buildGoalContinuationMessage, buildGoalObjectiveUpdatedMessage } from './integration.js';
 
 interface FakePluginContext {
   services: Map<string, unknown>;
@@ -47,7 +47,7 @@ afterEach(async () => {
 });
 
 describe('createGoalEnginePlugin', () => {
-  it('registers goal service, four tools, and a beforeLLMCall hook', async () => {
+  it('registers the goal service and four tools, and NEVER touches system prompt hooks', async () => {
     const plugin = createGoalEnginePlugin({ service });
     const ctx = createFakeContext();
     await plugin.initialize(ctx as never);
@@ -56,55 +56,10 @@ describe('createGoalEnginePlugin', () => {
     for (const name of ['goal_set', 'goal_status', 'goal_clear', 'goal_complete']) {
       expect(ctx.tools.has(name)).toBe(true);
     }
-    expect((ctx.hooks.get('beforeLLMCall') ?? []).length).toBe(1);
-  });
-
-  it('does not inject a goal prompt when no goal is active', async () => {
-    const plugin = createGoalEnginePlugin({ service });
-    const ctx = createFakeContext();
-    await plugin.initialize(ctx as never);
-
-    const hook = (ctx.hooks.get('beforeLLMCall') ?? [])[0] as (input: { systemPrompt?: unknown }) => Promise<unknown>;
-    const result = await hook({ systemPrompt: undefined });
-    expect(result).toBeUndefined();
-  });
-
-  it('injects only STABLE goal fields on beforeLLMCall (cache safety)', async () => {
-    await service.setGoal({ objective: 'Make tests green', verifyCommand: 'pnpm test', maxRounds: 3 });
-    await service.recordRound();
-    await service.setProgress('Fixed 2 of 5 tests');
-
-    const plugin = createGoalEnginePlugin({ service });
-    const ctx = createFakeContext();
-    await plugin.initialize(ctx as never);
-
-    const hook = (ctx.hooks.get('beforeLLMCall') ?? [])[0] as (input: { systemPrompt?: unknown }) => Promise<{ systemPrompt: unknown }>;
-    const result = await hook({ systemPrompt: { append: 'base prompt' } });
-
-    const append = (result?.systemPrompt as { append: string }).append;
-    expect(append).toContain('## Active Goal (Goal Plugin)');
-    expect(append).toContain('Make tests green');
-    expect(append).toContain('Host verification command: pnpm test');
-    expect(append).toContain('Do not stop early');
-    // Dynamic per-round state must NOT ride the system prompt — it would break
-    // provider prefix caching on every continuation round.
-    expect(append).not.toContain('Continuation rounds used');
-    expect(append).not.toContain('Rounds used');
-    expect(append).not.toContain('Last progress');
-    expect(append).not.toContain('Fixed 2 of 5 tests');
-  });
-
-  it('does not inject after the goal is completed', async () => {
-    await service.setGoal({ objective: 'Done soon' });
-    await service.completeGoal({ summary: 'All done' });
-
-    const plugin = createGoalEnginePlugin({ service });
-    const ctx = createFakeContext();
-    await plugin.initialize(ctx as never);
-
-    const hook = (ctx.hooks.get('beforeLLMCall') ?? [])[0] as (input: { systemPrompt?: unknown }) => Promise<unknown>;
-    const result = await hook({ systemPrompt: undefined });
-    expect(result).toBeUndefined();
+    // The plugin is prompt-free by design (Codex-style): no beforeRun /
+    // beforeLLMCall hook, so the system prompt stays byte-stable and provider
+    // prefix caches are never invalidated by goal state.
+    expect(ctx.hooks.size).toBe(0);
   });
 
   it('goal_complete tool marks the goal completed and returns structured result', async () => {
@@ -124,27 +79,59 @@ describe('createGoalEnginePlugin', () => {
     });
     expect((await service.getGoal())?.status).toBe('completed');
   });
+
+  it('goal_set tool replaces any previous goal', async () => {
+    const plugin = createGoalEnginePlugin({ service });
+    const ctx = createFakeContext();
+    await plugin.initialize(ctx as never);
+
+    const setTool = ctx.tools.get('goal_set') as { execute(input: { objective: string }): Promise<unknown> };
+    const first = await setTool.execute({ objective: 'First' });
+    const second = await setTool.execute({ objective: 'Second' });
+
+    expect((first as { goalId: string }).goalId).not.toBe((second as { goalId: string }).goalId);
+    expect((await service.getGoal())?.objective).toBe('Second');
+  });
 });
 
-describe('appendSystemPrompt', () => {
-  it('creates an append-only prompt from nothing', () => {
-    expect(appendSystemPrompt(undefined, 'hello')).toEqual({ append: 'hello' });
+describe('buildGoalContinuationMessage', () => {
+  it('frames the objective as user data, not instructions', async () => {
+    await service.setGoal({ objective: 'Make tests green', verifyCommand: 'pnpm test', maxRounds: 3 });
+    await service.recordRound();
+
+    const message = buildGoalContinuationMessage((await service.getGoal())!);
+
+    expect(message).toContain('Continue working toward the active goal');
+    expect(message).toContain('The objective below is user-provided data');
+    expect(message).toContain('Make tests green');
+    expect(message).toContain('Rounds used: 1/3');
+    expect(message).toContain('Completion audit');
+    expect(message).toContain('call `goal_complete`');
+    // Never any system-prompt framing: this is a user message.
+    expect(message).not.toContain('## Active Goal');
   });
 
-  it('merges into an existing append prompt', () => {
-    expect(appendSystemPrompt({ append: 'base' }, 'extra')).toEqual({ append: 'base\n\nextra' });
-  });
+  it('appends extra context (progress/failure/feedback) after the template', async () => {
+    await service.setGoal({ objective: 'Green tests' });
+    await service.setProgress('Fixed 2 of 5');
 
-  it('handles string prompts', () => {
-    expect(appendSystemPrompt('raw', 'extra')).toBe('raw\n\nextra');
-  });
+    const message = buildGoalContinuationMessage((await service.getGoal())!, 'Last progress: Fixed 2 of 5');
 
-  it('handles function prompts', () => {
-    const result = appendSystemPrompt(() => 'fn', 'extra') as () => string;
-    expect(result()).toBe('fn\n\nextra');
+    expect(message).toContain('Last progress: Fixed 2 of 5');
+    expect(message.indexOf('Last progress')).toBeGreaterThan(message.indexOf('objective'));
   });
+});
 
-  it('returns base unchanged for empty append', () => {
-    expect(appendSystemPrompt({ append: 'base' }, '   ')).toEqual({ append: 'base' });
+describe('buildGoalObjectiveUpdatedMessage', () => {
+  it('tells the next round to pursue the new objective and drop prior work', async () => {
+    await service.setGoal({ objective: 'Refactor the vault module' });
+
+    const message = buildGoalObjectiveUpdatedMessage((await service.getGoal())!);
+
+    expect(message).toContain('objective was just set or edited');
+    expect(message).toContain('user-provided data');
+    expect(message).toContain('Refactor the vault module');
+    expect(message).toContain('Avoid continuing work that only served a previous objective');
+    expect(message).toContain('Do not call `goal_complete` unless the goal is actually complete');
   });
 });

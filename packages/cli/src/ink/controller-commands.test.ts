@@ -7,12 +7,23 @@ import { FileGoalPluginService } from 'pulse-coder-plugin-kit/goal';
 import type { InkCoderController } from './ink-controller.js';
 import { handleCommand } from './controller-commands.js';
 
+// `/goal <objective>` auto-starts the goal loop (Codex's continue_if_idle).
+// The state machine is covered by plugin-kit's runner tests; here we stub it
+// so the command tests focus on the command surface, and assert it fired.
+const mocks = vi.hoisted(() => ({ startGoalLoop: vi.fn(async () => {}) }));
+vi.mock('./controller-run.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./controller-run.js')>()),
+  startGoalLoop: mocks.startGoalLoop,
+}));
+
 interface MockUi {
   info: ReturnType<typeof vi.fn>;
   warn: ReturnType<typeof vi.fn>;
   error: ReturnType<typeof vi.fn>;
   success: ReturnType<typeof vi.fn>;
   section: ReturnType<typeof vi.fn>;
+  startProcessing: ReturnType<typeof vi.fn>;
+  stopProcessing: ReturnType<typeof vi.fn>;
 }
 
 function buildMockController(service: FileGoalPluginService): InkCoderController {
@@ -22,6 +33,8 @@ function buildMockController(service: FileGoalPluginService): InkCoderController
     error: vi.fn(),
     success: vi.fn(),
     section: vi.fn(),
+    startProcessing: vi.fn(),
+    stopProcessing: vi.fn(),
   };
   const agent = {
     getService: vi.fn((name: string) => (name === 'goalService' ? service : undefined)),
@@ -29,6 +42,8 @@ function buildMockController(service: FileGoalPluginService): InkCoderController
   return {
     ui,
     agent,
+    isProcessing: false,
+    currentAbortController: null,
   } as unknown as InkCoderController;
 }
 
@@ -39,6 +54,7 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'goal-cmd-test-'));
   service = new FileGoalPluginService({ baseDir: dir, scope: 'scope' });
   await service.initialize();
+  mocks.startGoalLoop.mockClear();
 });
 
 afterEach(async () => {
@@ -55,6 +71,8 @@ describe('/goal command', () => {
     expect(goal?.status).toBe('active');
     expect(controller.ui.success).toHaveBeenCalledWith('Goal set.');
     expect(controller.ui.section).toHaveBeenCalledWith('Active goal', expect.arrayContaining(['Objective: Fix the bug']));
+    // Setting a goal auto-starts the first round (Codex's continue_if_idle).
+    expect(mocks.startGoalLoop).toHaveBeenCalledTimes(1);
   });
 
   it('parses --verify and --rounds flags', async () => {

@@ -33,7 +33,7 @@ Source layout: entry dispatch at the root (`src/index.ts`, `src/ui-mode.ts`); on
 | Skills and worktree slash commands | `src/commands/skill-commands.ts`, `src/readline/readline-host.ts`, `src/ink/ink-controller.ts` |
 | Retired team/ACP modules (unwired) | `src/commands/team-commands.ts`, `src/commands/acp-commands.ts` |
 | Memory integration | `src/shared/memory-integration.ts` |
-| Goal integration (`/goal`) | `src/shared/goal-integration.ts`, `src/ink/controller-goal.ts`, `src/ink/controller-commands.ts` (goal case), `src/ink/controller-run.ts` (continuation loop) |
+| Goal integration (`/goal`) | `harness/knowledge/goal.md`, `src/shared/goal-integration.ts`, `src/ink/controller-goal.ts` (host IO), `src/ink/controller-run.ts` (`runSingleTurn` + `startGoalLoop`), `src/ink/controller-commands.ts` (goal case); state machine in plugin-kit `src/goal/runner.ts` |
 | Host tool registration | `src/tools/runtime-tools.ts`, `src/tools/canvas-runtime-tools.ts`, `src/tools/sandbox/`, `../canvas-cli/AGENTS.md` |
 | Harbor/SWE-bench evaluation | `harness/tools/harbor/README.md`, `harness/tools/harbor/pulse_agent.py` |
 | Focused behavior tests | `src/**/*.test.ts` (beside the module under test) |
@@ -91,7 +91,7 @@ Source layout: entry dispatch at the root (`src/index.ts`, `src/ui-mode.ts`); on
   entries share `@pulse-coder/canvas-cli/core`; do not fork transport policy.
 - `run_js` registration imports `src/tools/sandbox/index.js`; `src/tools/sandbox/runner.ts` is never imported — it is the fork target `resolveRunnerPath()` locates next to the built bundle (`dist/runner.cjs`), so keep the tsup `runner` entry in sync. The executor↔runner IPC wire types live in `src/tools/sandbox/protocol.ts`, shared by both sides.
 - Known divergence, preserved as-is by the structure refactor: in the READLINE host a direct `/<skill-name> <message>` invocation transforms the message but then still falls through to `handleCommand`, which reports the command unknown — the transformed skill message never runs (`routeSlashInput` in `src/readline/command-surface.ts`, NOTE comment). The Ink host resolves the same input correctly; `/skills <name> <message>` works on both. Fix deliberately deferred: it is a behavior change and needs its own test.
-- `/goal` continuation is CLI-owned, not engine-owned: the goal plugin only injects prompt + tools; `runMessage`'s inner loop calls `decideGoalContinuation` after each round, and the engine's `MAX_STEPS` plus the goal's `maxRounds` are the two independent budgets. Model completion (`goal_complete`) is verified (optional `--verify <cmd>`, run through the shell because it is the user's own command) and then ALWAYS gated by user confirmation via `inputManager.requestInput` — never auto-accept a model's completion claim. The session scope is bound via `syncSessionGoalBinding` after create/resume on both interactive hosts; the goal store must stay a single service instance (`setScope`, mirroring the task-list binding).
+- `/goal` state machine lives in plugin-kit (`runGoalLoop`); the CLI only injects IO (`runOnce`/`confirm`/`verify`). Goal context is prompt-FREE (system stays byte-stable → provider caches keep hitting); completion is verified then ALWAYS user-confirmed. Detail: `harness/knowledge/goal.md`.
 - Contract changes with engine, ACP, teams, or plugin-kit (memory module) should use the affected workspace contracts/validation plus the root impact overlay.
 
 ## Common Commands
@@ -121,6 +121,7 @@ Run commands from the repository root. `pnpm start` maps to the built CLI packag
 - `src/commands/team-commands.ts`: `/team`, `/teams`, and `/solo` command surface.
 - `src/shared/memory-integration.ts`: memory plugin setup and per-run memory context.
 - `src/shared/goal-integration.ts`: goal plugin singleton and per-session scope binding.
-- `src/ink/controller-goal.ts`: post-run goal continuation decisions (verify, confirm, auto-continue, maxRounds guard).
+- `src/ink/controller-goal.ts`: host IO wiring for the goal runner (service resolution + verify command execution).
+- `src/ink/controller-run.ts`: `runSingleTurn` (one agent round) and `startGoalLoop` (injects runOnce/confirm/verify into the plugin-kit runner).
 - `src/tools/runtime-tools.ts`, `src/tools/canvas-runtime-tools.ts`: shared host-tool
   assembly and the structured Pulse Canvas capability adapter.

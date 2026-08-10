@@ -12,7 +12,7 @@
 - Devtools (`/devtools`): run, LLM, tool, compaction, hook timing, prompt snapshot, token/cost, tool-stat, error, and cache timeline diagnostics.
 - Memory (`/memory`): host-side memory service, engine plugin integration, daily-log extraction, semantic/keyword recall, embeddings (carries the `better-sqlite3` native dep). Formerly the standalone `memory-plugin` package.
 - Langfuse (`/langfuse`): optional observability engine plugin. Formerly `packages/langfuse-plugin`.
-- Goal (`/goal`): file-backed goal store, goal engine plugin (prompt injection + `goal_set`/`goal_status`/`goal_clear`/`goal_complete` tools), and integration factory. Hosts own the continuation budget: the plugin never loops the engine, the host decides what to do after each run based on goal state.
+- Goal (`/goal`): file-backed goal store, goal engine plugin (`goal_set`/`goal_status`/`goal_clear`/`goal_complete` tools), Codex-style user-message builders (`buildGoalContinuationMessage` / `buildGoalObjectiveUpdatedMessage`), and `runGoalLoop` — the full continuation state machine (auto-continue, verify, user-confirm gate, maxRounds, re-arm after failed verification). Hosts inject only three IO capabilities (`runOnce` / `confirm` / `verify`); the runner never touches the engine loop or the system prompt.
 
 This package should expose reusable infrastructure primitives and engine plugins. Host-specific policy should stay in the host app or plugin using the kit.
 
@@ -27,7 +27,7 @@ This package should expose reusable infrastructure primitives and engine plugins
 | Devtools contracts | `src/devtools/index.ts` |
 | Memory module (invariants, layered storage, embeddings) | `harness/knowledge/memory.md` |
 | Langfuse module (privacy defaults, flushing contract) | `harness/knowledge/langfuse.md` |
-| Goal module (store, plugin, continuation contract) | `src/goal/` (types/service/integration), `src/goal.ts` |
+| Goal module (store, plugin, continuation state machine) | `src/goal/` (types/service/integration/runner), `src/goal.ts` |
 | Build/export shape | `package.json`, `tsup.config.ts`, `tsconfig.json` |
 
 ## Local Constraints
@@ -41,7 +41,7 @@ This package should expose reusable infrastructure primitives and engine plugins
 - Services use file-backed JSON with queued writes in-process; do not assume cross-process locking without adding it deliberately.
 - Memory: semantic recall must degrade safely when embeddings/SQLite are unavailable; preserve daily-log quality gates/quotas/dedupe; layered storage layout and legacy `state.json` migration are compatibility contracts (detail: `harness/knowledge/memory.md`).
 - Langfuse: stays optional; credentials env-only; `saveUserText`/`saveLLMOutput` default ENABLED (privacy is a host decision); never block the loop on flushing (detail: `harness/knowledge/langfuse.md`).
-- Goal: the plugin is prompt/tool-only — it never auto-continues the engine loop. `setScope` must keep the same service instance bound (hosts switch session scope in place, like `TaskListService.setTaskListId`). Scope names are file names: dots excluded on purpose to keep `..` out of the storage path.
+- Goal: the plugin is prompt-free and tool-only — goal context rides USER messages (`buildGoalContinuationMessage`), never the system prompt, so provider prefix caches stay hit across the whole goal lifetime (Codex-style). `runGoalLoop` is the state machine and never calls the engine itself; hosts inject `runOnce`/`confirm`/`verify`. `setScope` must keep the same service instance bound (hosts switch session scope in place, like `TaskListService.setTaskListId`). Scope names are file names: dots excluded on purpose to keep `..` out of the storage path.
 
 ## Common Commands
 
@@ -67,6 +67,6 @@ pnpm --filter pulse-coder-plugin-kit test
 - `src/devtools.ts`, `src/devtools/index.ts`: devtools store, engine plugin, run lookup tool, stats, errors, prompt snapshots, and cache timeline analysis.
 - `src/memory/service.ts`, `src/memory/integration.ts`: memory service, engine hooks, and tools (see `harness/knowledge/memory.md`).
 - `src/langfuse/index.ts`: Langfuse plugin factory and options.
-- `src/goal/`: goal store (`service.ts`), engine plugin + integration factory (`integration.ts`), types (`types.ts`), subpath barrel (`index.ts`).
+- `src/goal/`: goal store (`service.ts`), engine plugin + message builders + integration factory (`integration.ts`), continuation state machine (`runner.ts`), types (`types.ts`), subpath barrel (`index.ts`).
 - `src/goal.ts`: top-level goal subpath export (mirrors `worktree.ts`/`vault.ts`).
 - `package.json`: package exports and build behavior.
