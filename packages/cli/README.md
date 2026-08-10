@@ -101,8 +101,8 @@ CLI 默认使用 Ink 渲染宿主；当终端不支持或显式选择时回退�
 - `PULSE_CODER_UI` 环境变量（`ink` / `readline` / `plain`）
 - 未指定时默认 `ink`
 
-Ink 路径：`ink-launcher.tsx` → `ink-controller.ts` + `ink-app.tsx` + `ink-ui-bridge.ts`。
-readline 路径：`index.ts` + `tui-renderer.ts`。
+Ink 路径：`ink-launcher.tsx` → `ink-controller.ts` + `ink-app.tsx` + `ink-ui-bridge.ts`（及各自的 controller-*/composer-*/bridge 模块簇）。
+readline 路径：`index.ts`（入口分发）→ `readline/readline-host.ts` + `tui-renderer.ts`。
 
 两个宿主处理同一套斜杠命令；少量命令的参数形态因宿主而异（见下文命令参考注记）。
 
@@ -320,24 +320,50 @@ pnpm --filter pulse-coder-cli start:debug # PULSE_CODER_DEBUG=1 重新构建并�
 src/
 ├── index.ts                  # 入口分发（arg parse → print / Ink / readline）
 ├── ui-mode.ts                # --ui/--tui/-p/--continue 与 PULSE_CODER_UI 解析
-├── ink/                      # 默认 Ink 宿主
+├── ink/                      # 默认 Ink 宿主（模块簇，每文件 <300 行）
 │   ├── ink-launcher.tsx      #   Ink 启动（exitOnCtrlC: false，历史存储装配）
-│   ├── ink-controller.ts     #   Ink 宿主控制器（命令处理、plan-mode 接线、会话同步、队列输入）
-│   ├── ink-app.tsx           #   Ink 渲染（Static transcript、composer、粘贴、命令建议、历史）
-│   └── ink-ui-bridge.ts      #   运行时回调与 Ink UI 的桥接（append-only 事件 + live 区、流式节流）
-├── readline/
-│   ├── readline-host.ts      # readline 回退宿主（命令循环、agent 运行接线、会话保存）
-│   └── tui-renderer.ts       # readline 回退宿主渲染器
+│   ├── ink-controller.ts     #   控制器装配 + 公共 API（委托 controller-* 模块）
+│   ├── controller-*.ts       #   defs/model/pickers/dispatch/commands/run/session 各职责模块
+│   ├── tool-payload.ts       #   AI-SDK 工具 payload 纯探测
+│   ├── ink-app.tsx           #   门面 + 组件装配（类型与 composer 工具 re-export）
+│   ├── ink-types.ts          #   共享类型、快照默认值、composer 常量
+│   ├── composer-edit.ts      #   游标安全编辑与词导航
+│   ├── composer-hints.ts     #   draft 行窗口、粘贴规范化、斜杠/picker 建议
+│   ├── composer-actions.ts   #   composer 动作工厂（提交、历史翻页、退出）
+│   ├── composer-keys.ts      #   编辑键处理（方向/词/删除/默认插入）
+│   ├── app-input.ts          #   useInput 回调工厂（Ctrl+C、picker、tab 等）
+│   ├── use-composer-layout.ts#   全部渲染派生值（行列预算、窗口、状态行）
+│   ├── app-view.tsx          #   整帧 JSX（transcript、live 区、picker/composer）
+│   ├── app-format.ts         #   状态行/token/时长格式化与 live 区行预算
+│   ├── transcript-event.tsx  #   <Static> transcript 单块渲染
+│   ├── ink-ui-bridge.ts      #   桥壳层（快照 + emit 节流，委托各组件）
+│   ├── bridge-surface.ts     #   桥的薄消息面（抽象基类）
+│   ├── live-run.ts           #   live 区运行态机（流式文本、工具行、abort 闩锁）
+│   ├── event-log.ts          #   append-only 事件存储 + ·×N trace 合并
+│   ├── event-text.ts         #   ANSI/fence/代理对安全的事件文本截断
+│   ├── tool-input-format.ts  #   工具输入摘要（shell/路径压缩、工具分类）
+│   └── tool-output-format.ts #   工具结果摘要/预览/错误检测
+├── readline/                 # readline 回退宿主
+│   ├── readline-host.ts      #   宿主装配 + 输入循环、Esc/SIGINT、会话保存
+│   ├── command-surface.ts    #   命令表常量 + 斜杠输入路由
+│   ├── host-commands.ts      #   handleCommand 分支 + /model
+│   ├── host-context.ts       #   协作者接口 + 会话/模型恢复等宿主辅助
+│   ├── agent-turn.ts         #   单条消息 → 一次引擎运行（摘要/保存/日志）
+│   ├── tui-renderer.ts       #   渲染器（委托 format/spinner）
+│   ├── tui-format.ts         #   ANSI/box/时长/工具输入纯格式化
+│   └── tui-spinner.ts        #   动画状态行组件
 ├── print/
 │   ├── print-mode.ts         # -p 非交互/benchmark 模式（隔离、预算、轨迹、信号处理）
 │   └── benchmark-trace.ts    # 有界 JSONL 事件输出与 trace-file sink
 ├── commands/                 # 两个宿主共享的斜杠命令面
 │   ├── session-commands.ts   #   会话斜杠命令（/resume 序号/前缀解析、resumeLatest）
+│   ├── session-listing.ts    #   /sessions、/search 与恢复预览的打印层
 │   ├── skill-commands.ts     #   /skills 命令
 │   ├── team-commands.ts      #   /team、/teams、/solo（已退役，模块保留）
 │   └── acp-commands.ts       #   /acp 子命令（已退役，模块保留）
 ├── models/
-│   ├── model-registry.ts     # models.json 加载/合并与 spec 解析
+│   ├── model-registry.ts     # models.json 加载与双作用域合并
+│   ├── model-spec.ts         # 注册表类型 + spec 解析/格式化
 │   ├── model-run-options.ts  # 模型选择 → 引擎 run options（两宿主共用）
 │   └── preferences.ts        # 用户偏好持久化（~/.pulse-coder/preferences.json，记住上次模型）
 ├── session/
@@ -346,11 +372,12 @@ src/
 ├── tools/                    # 宿主工具注册
 │   ├── runtime-tools.ts      #   两宿主共享的工具装配（run_js + 实验性 live-app 能力）
 │   ├── canvas-runtime-tools.ts #  Pulse Canvas 能力适配器
-│   └── sandbox/              #   run_js 沙箱执行（runner 构建为 dist/runner.cjs）
+│   └── sandbox/              #   run_js 沙箱执行（runner 构建为 dist/runner.cjs；protocol.ts 为双端 IPC 契约）
 ├── terminal/
 │   ├── markdown.ts           # 轻量 markdown → ANSI 渲染
 │   └── text-width.ts         # 终端显示宽度与码点级光标步进（CJK/emoji）
 └── shared/                   # 跨宿主共享的引擎接线
+    ├── tui-types.ts          #   两宿主共享的 TUI 数据类型
     ├── input-manager.ts      #   输入与 clarification 请求处理
     ├── file-reference.ts     #   @ 引用：索引、补全过滤、提交时内容注入
     ├── log-sink.ts           #   引擎日志层：console 捕获 → ~/.pulse-coder/logs/cli.log + /debug

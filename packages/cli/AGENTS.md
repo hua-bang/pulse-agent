@@ -9,7 +9,7 @@
 
 CLI behavior should remain a host layer over the engine. Engine runtime behavior belongs in `packages/engine`; ACP protocol behavior belongs in `packages/acp`; team coordination behavior belongs in `packages/agent-teams`; sandbox execution behavior lives locally in `src/tools/sandbox/` (executor + forked `runner` — built as `dist/runner.cjs`).
 
-Source layout: `src/index.ts` + `src/ui-mode.ts` at the root own entry dispatch (arg parse → print / Ink / readline); each host surface has a directory (`src/ink/`, `src/readline/`, `src/print/`); host-shared modules are grouped by role (`src/commands/`, `src/models/`, `src/session/`, `src/tools/`, `src/terminal/`, and `src/shared/` for cross-host engine wiring). Tests sit beside the module they cover.
+Source layout: entry dispatch at the root (`src/index.ts`, `src/ui-mode.ts`); one directory per host surface (`src/ink/`, `src/readline/`, `src/print/`); host-shared modules grouped by role; tests beside their modules; source files stay under ~300 lines. Full map + module-cluster rules: `harness/knowledge/source-layout.md`.
 
 ## Knowledge Navigation
 
@@ -17,13 +17,13 @@ Source layout: `src/index.ts` + `src/ui-mode.ts` at the root own entry dispatch 
 |---|---|
 | Package overview and scripts | `README.md`, `package.json` |
 | UI mode / CLI flag parsing | `src/ui-mode.ts` |
-| Default Ink host path | `src/ink/ink-launcher.tsx`, `src/ink/ink-controller.ts`, `src/ink/ink-app.tsx`, `src/ink/ink-ui-bridge.ts` |
-| Readline fallback host path | `src/readline/readline-host.ts`, `src/readline/tui-renderer.ts` |
+| Default Ink host path | `src/ink/ink-launcher.tsx`, `src/ink/ink-controller.ts` (+ `controller-*.ts`, `tool-payload.ts`), `src/ink/ink-app.tsx` (+ `ink-types.ts`, `composer-*.ts`, `app-*.ts(x)`, `use-composer-layout.ts`, `transcript-event.tsx`), `src/ink/ink-ui-bridge.ts` (+ `bridge-surface.ts`, `live-run.ts`, `event-log.ts`, `event-text.ts`, `tool-*-format.ts`) |
+| Readline fallback host path | `src/readline/readline-host.ts` (+ `command-surface.ts`, `host-commands.ts`, `host-context.ts`, `agent-turn.ts`), `src/readline/tui-renderer.ts` (+ `tui-format.ts`, `tui-spinner.ts`) |
 | Non-interactive `-p` mode | `src/print/print-mode.ts` |
 | Markdown-to-ANSI rendering | `src/terminal/markdown.ts` |
 | Prompt history persistence | `src/session/history-store.ts` |
 | Engine log layer (`/debug`) | `src/shared/log-sink.ts` |
-| Model registry (`/model`, `--model`) | `src/models/model-registry.ts` |
+| Model registry (`/model`, `--model`) | `src/models/model-registry.ts` (load/merge), `src/models/model-spec.ts` (types + spec resolution) |
 | Model → engine run options (shared) | `src/models/model-run-options.ts` |
 | `@` file references | `src/shared/file-reference.ts` |
 | User preferences (last model) | `src/models/preferences.ts` |
@@ -59,7 +59,7 @@ Source layout: `src/index.ts` + `src/ui-mode.ts` at the root own entry dispatch 
 - `resolveModelSpec` never returns null (a bare id always parses) — that leniency is right for a spec the user just typed and wrong for the silent startup restore, which uses `resolveKnownModelSpec` instead. A `provider:model` spec whose provider has left models.json must fail there, not come back as the literal id `"provider:model"`.
 - `saveSession` writes a temp file and renames over the target. A plain `writeFile` truncates first, so a process killed mid-save loses the whole conversation — never reduce this back to a direct write.
 - Signals: the Ink host runs stdin in raw mode, so a local Ctrl+C is a raw byte handled by the app's double-press exit, NOT a signal. `ink-launcher.tsx` registers SIGINT/SIGTERM only to catch externally delivered ones (`kill`, `docker stop`, CI cancel) and routes them to the idempotent `controller.shutdown()`, bounded so a hung save cannot make the CLI ignore SIGTERM. The readline host's handler is guarded against re-entry — an unguarded second Ctrl+C starts a concurrent `saveContext` and exits without waiting for it.
-- `EngineLogSink`'s write stream MUST keep its `'error'` listener: Node throws on an unhandled stream `'error'` and nothing in the process catches it, so a post-open write failure (disk full, log dir removed) would kill the host mid-run ahead of any save.
+- `EngineLogSink.restore()` must keep awaiting an in-flight rotation (`rotationSettled`): the rename+reopen ride on an async `end()` flush, and resolving mid-swap loses the `.old` swap the caller was told had settled — the rotation spec failed ~50% under full-suite load before this. Also `EngineLogSink`'s write stream MUST keep its `'error'` listener: Node throws on an unhandled stream `'error'` and nothing in the process catches it, so a post-open write failure (disk full, log dir removed) would kill the host mid-run ahead of any save.
 - models.json is provider-granular and committable: provider entries carry `baseUrl` + `apiKeyEnv` (an env var NAME); inline `apiKey` values are ignored with a warning — never let secrets into this file (root AGENTS §7). Provider-bound choices build their connection via the engine's `buildProvider(type, {baseURL, apiKey})` inside `modelRunOptions()`.
 - Provider entries may opt into `promptCacheKey: true`: both interactive hosts then send a stable per-session key (SHA-256 of `provider:model:sessionId`, `model-run-options.ts`) that the engine forwards as OpenAI `prompt_cache_key` — cache-node ROUTING AFFINITY for multi-upstream gateways, not cache isolation, so `/clear` keeps the session's key and rotation buys nothing. The provider is the SSOT for the flag (`applyProvider` drops a stale home-scope opt-in on rebase), print mode has no session and never sends one, and the engine's Claude path filters the key out.
 - Sessions record their creating `cwd` in metadata, and every listing path (`/sessions`, `/search`, the `/resume` picker, `--continue`, index/prefix resolution) is scoped to it. Sessions written before the field existed have no `cwd` and must keep passing the filter — never make the check exclusive.
@@ -88,7 +88,8 @@ Source layout: `src/index.ts` + `src/ui-mode.ts` at the root own entry dispatch 
   bundled Pulse Canvas skill must route the agent to native tools first;
   `pulse-canvas runtime` is the fallback for hosts without those tools. Both
   entries share `@pulse-coder/canvas-cli/core`; do not fork transport policy.
-- `run_js` registration imports `src/tools/sandbox/index.js`; `src/tools/sandbox/runner.ts` is never imported — it is the fork target `resolveRunnerPath()` locates next to the built bundle (`dist/runner.cjs`), so keep the tsup `runner` entry in sync.
+- `run_js` registration imports `src/tools/sandbox/index.js`; `src/tools/sandbox/runner.ts` is never imported — it is the fork target `resolveRunnerPath()` locates next to the built bundle (`dist/runner.cjs`), so keep the tsup `runner` entry in sync. The executor↔runner IPC wire types live in `src/tools/sandbox/protocol.ts`, shared by both sides.
+- Known divergence, preserved as-is by the structure refactor: in the READLINE host a direct `/<skill-name> <message>` invocation transforms the message but then still falls through to `handleCommand`, which reports the command unknown — the transformed skill message never runs (`routeSlashInput` in `src/readline/command-surface.ts`, NOTE comment). The Ink host resolves the same input correctly; `/skills <name> <message>` works on both. Fix deliberately deferred: it is a behavior change and needs its own test.
 - Contract changes with engine, ACP, teams, or plugin-kit (memory module) should use the affected workspace contracts/validation plus the root impact overlay.
 
 ## Common Commands
