@@ -5,6 +5,7 @@ import { SessionCommands } from '../commands/session-commands.js';
 import { InputManager } from '../shared/input-manager.js';
 import { SkillCommands } from '../commands/skill-commands.js';
 import { memoryIntegration } from '../shared/memory-integration.js';
+import { goalIntegration } from '../shared/goal-integration.js';
 import { TuiRenderer } from './tui-renderer.js';
 import { formatModelSpec, type ModelChoice } from '../models/model-spec.js';
 import { resolveModelChoice } from '../models/model-run-options.js';
@@ -12,7 +13,7 @@ import { createPulseCliTools } from '../tools/runtime-tools.js';
 import { executeAgentTurn } from './agent-turn.js';
 import { routeSlashInput } from './command-surface.js';
 import { ReadlineCommands } from './host-commands.js';
-import { restoreSessionModel, syncSessionTaskListBinding } from './host-context.js';
+import { restoreSessionModel, syncSessionGoalBinding, syncSessionTaskListBinding } from './host-context.js';
 
 export class CoderCLI {
   agent: PulseAgent;
@@ -28,7 +29,7 @@ export class CoderCLI {
     // 🎯 现在引擎自动包含内置插件，无需显式配置！
     this.agent = new PulseAgent({
       enginePlugins: {
-        plugins: [memoryIntegration.enginePlugin],
+        plugins: [memoryIntegration.enginePlugin, goalIntegration.enginePlugin],
         // 只配置扩展插件目录，内置插件会自动加载
         dirs: ['.pulse-coder/engine-plugins', '.coder/engine-plugins', '~/.pulse-coder/engine-plugins', '~/.coder/engine-plugins'],
         scan: true
@@ -64,6 +65,7 @@ export class CoderCLI {
 
     await this.sessionCommands.initialize();
     await memoryIntegration.initialize();
+    await goalIntegration.initialize();
     await this.agent.initialize();
 
     // 显示插件状态
@@ -78,6 +80,7 @@ export class CoderCLI {
       await this.sessionCommands.createSession();
     }
     await syncSessionTaskListBinding(this);
+    await syncSessionGoalBinding(this);
 
     const rl = readline.createInterface({
       input: process.stdin,

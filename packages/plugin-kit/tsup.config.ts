@@ -8,6 +8,7 @@ export default defineConfig({
     devtools: 'src/devtools/index.ts',
     memory: 'src/memory/index.ts',
     langfuse: 'src/langfuse/index.ts',
+    goal: 'src/goal/index.ts',
   },
   format: ['esm', 'cjs'],
   dts: false,

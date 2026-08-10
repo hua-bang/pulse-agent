@@ -52,6 +52,11 @@
       "import": "./dist/langfuse.js",
       "require": "./dist/langfuse.cjs"
     },
+    "./goal": {
+      "types": "./dist/goal.d.ts",
+      "import": "./dist/goal.js",
+      "require": "./dist/goal.cjs"
+    },
     "./src/memory": {
       "types": "./src/memory/index.ts",
       "import": "./src/memory/index.ts"
@@ -59,6 +64,10 @@
     "./src/langfuse": {
       "types": "./src/langfuse/index.ts",
       "import": "./src/langfuse/index.ts"
+    },
+    "./src/goal": {
+      "types": "./src/goal/index.ts",
+      "import": "./src/goal/index.ts"
     }
   },
   "publishConfig": {

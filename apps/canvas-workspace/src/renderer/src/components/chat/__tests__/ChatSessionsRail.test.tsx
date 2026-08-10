@@ -207,7 +207,7 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(folders[0].getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('always places Global Chat before workspace folders', async () => {
+  it('shows global sessions as an ungrouped list before workspace folders', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -224,7 +224,12 @@ describe('ChatSessionsRail workspace tree', () => {
       );
     });
 
-    expect(host.querySelector('.chat-page-rail-folder-name')?.textContent).toBe('Global Chat');
+    expect(host.querySelector('.chat-page-rail-group--global .chat-page-rail-item-text')?.textContent)
+      .toBe('Global conversation');
+    expect(Array.from(
+      host.querySelectorAll('.chat-page-rail-folder-name'),
+      node => node.textContent,
+    )).toEqual(['Workspace A', 'Workspace B']);
   });
 
   it('orders same-day sessions by their precise update time', async () => {
@@ -346,7 +351,7 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(host.querySelector('.chat-page-rail-item--active')?.textContent).toContain('Conversation 15');
   });
 
-  it('opens the active folder and collapses other folders by default', async () => {
+  it('keeps global sessions visible and collapses workspace folders when global chat is active', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -367,7 +372,7 @@ describe('ChatSessionsRail workspace tree', () => {
     });
 
     const folders = Array.from(host.querySelectorAll<HTMLButtonElement>('.chat-page-rail-folder'));
-    expect(folders[0].getAttribute('aria-expanded')).toBe('true');
+    expect(folders[0].getAttribute('aria-expanded')).toBe('false');
     expect(folders[1].getAttribute('aria-expanded')).toBe('false');
     expect(host.textContent).toContain('Global conversation');
     expect(host.textContent).not.toContain('First conversation');

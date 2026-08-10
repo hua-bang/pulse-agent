@@ -9,6 +9,7 @@ import { useI18n } from '../../i18n';
 import { ChatSessionRailItem } from './ChatSessionRailItem';
 
 const SESSION_PREVIEW_LIMIT = 10;
+const GLOBAL_CHAT_ID = '__global_chat__';
 
 export interface UnifiedSession {
   sessionId: string;
@@ -72,7 +73,7 @@ export const ChatSessionsRail = ({
     }
     return Array.from(groups.values())
       .sort((left, right) => {
-        const globalRank = (group: { id: string }) => group.id === '__global_chat__' ? 0 : 1;
+        const globalRank = (group: { id: string }) => group.id === GLOBAL_CHAT_ID ? 0 : 1;
         return globalRank(left) - globalRank(right)
           || left.name.localeCompare(right.name)
           || left.id.localeCompare(right.id);
@@ -177,7 +178,8 @@ export const ChatSessionsRail = ({
         ) : (
           sessionGroups.map((group, groupIndex) => {
             const listId = `${railId}-sessions-${groupIndex}`;
-            const collapsed = !normalizedQuery && collapsedGroupIds.has(group.id);
+            const isGlobalGroup = group.id === GLOBAL_CHAT_ID;
+            const collapsed = !isGlobalGroup && !normalizedQuery && collapsedGroupIds.has(group.id);
             const showsAllSessions = Boolean(normalizedQuery) || expandedSessionGroupIds.has(group.id);
             const sessionPreview = group.sessions.slice(0, SESSION_PREVIEW_LIMIT);
             const currentSession = group.sessions.find((session) => session.isCurrent);
@@ -188,23 +190,28 @@ export const ChatSessionsRail = ({
                 : sessionPreview;
             const hiddenSessionCount = group.sessions.length - visibleSessions.length;
             return (
-              <section className="chat-page-rail-group" key={group.id}>
-                <Button
-                  variant="secondary"
-                  size="xs"
-                  className="chat-page-rail-folder"
-                  onClick={() => toggleGroup(group.id)}
-                  aria-expanded={!collapsed}
-                  aria-controls={listId}
-                  disabled={disabled}
-                >
-                  <ChevronRightIcon
-                    size={11}
-                    className={`chat-page-rail-folder-chevron${collapsed ? '' : ' chat-page-rail-folder-chevron--expanded'}`}
-                  />
-                  <span className="chat-page-rail-folder-name">{group.name}</span>
-                  <span className="chat-page-rail-folder-count">{group.sessions.length}</span>
-                </Button>
+              <section
+                className={`chat-page-rail-group${isGlobalGroup ? ' chat-page-rail-group--global' : ''}`}
+                key={group.id}
+              >
+                {!isGlobalGroup && (
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    className="chat-page-rail-folder"
+                    onClick={() => toggleGroup(group.id)}
+                    aria-expanded={!collapsed}
+                    aria-controls={listId}
+                    disabled={disabled}
+                  >
+                    <ChevronRightIcon
+                      size={11}
+                      className={`chat-page-rail-folder-chevron${collapsed ? '' : ' chat-page-rail-folder-chevron--expanded'}`}
+                    />
+                    <span className="chat-page-rail-folder-name">{group.name}</span>
+                    <span className="chat-page-rail-folder-count">{group.sessions.length}</span>
+                  </Button>
+                )}
                 <div id={listId} className="chat-page-rail-list" role="list">
                   {!collapsed && visibleSessions.map((session) => (
                     <div

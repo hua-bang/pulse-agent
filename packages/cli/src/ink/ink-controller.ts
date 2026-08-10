@@ -1,5 +1,6 @@
 import { DEFAULT_MODEL, PulseAgent, type Context, type PlanMode, type TaskListService } from 'pulse-coder-engine';
 import { InputManager } from '../shared/input-manager.js';
+import { goalIntegration } from '../shared/goal-integration.js';
 import { memoryIntegration } from '../shared/memory-integration.js';
 import { SessionCommands } from '../commands/session-commands.js';
 import { SkillCommands } from '../commands/skill-commands.js';
@@ -15,7 +16,7 @@ import { applyModelOverride, currentContextWindow, describeConnection, resolveSt
 import { pickerCancel as pickerCancelFn, pickerSelect as pickerSelectFn } from './controller-pickers.js';
 import { dispatchInput, requestStop as requestStopFn, submitInput as submitInputFn } from './controller-dispatch.js';
 import { drainQueuedInput as drainQueuedInputFn, runMessage as runMessageFn } from './controller-run.js';
-import { publishSession, syncSessionTaskListBinding } from './controller-session.js';
+import { publishSession, syncSessionGoalBinding, syncSessionTaskListBinding } from './controller-session.js';
 
 export class InkCoderController implements InkCliController {
   readonly agent: PulseAgent;
@@ -56,7 +57,7 @@ export class InkCoderController implements InkCliController {
     }
     this.agent = new PulseAgent({
       enginePlugins: {
-        plugins: [memoryIntegration.enginePlugin],
+        plugins: [memoryIntegration.enginePlugin, goalIntegration.enginePlugin],
         dirs: ['.pulse-coder/engine-plugins', '.coder/engine-plugins', '~/.pulse-coder/engine-plugins', '~/.coder/engine-plugins'],
         scan: true
       },
@@ -112,6 +113,7 @@ export class InkCoderController implements InkCliController {
     this.ui.showWelcome({ cwd: process.cwd() });
     await this.sessionCommands.initialize();
     await memoryIntegration.initialize();
+    await goalIntegration.initialize();
     await this.agent.initialize();
 
     const pluginStatus = this.agent.getPluginStatus();
@@ -139,6 +141,7 @@ export class InkCoderController implements InkCliController {
       await this.sessionCommands.createSession();
     }
     await syncSessionTaskListBinding(this);
+    await syncSessionGoalBinding(this);
     publishSession(this, 'Ready');
   }
 

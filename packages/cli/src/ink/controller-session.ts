@@ -1,7 +1,9 @@
 import type { Context, TaskListService } from 'pulse-coder-engine';
+import type { FileGoalPluginService } from 'pulse-coder-plugin-kit/goal';
 import type { InkCoderController } from './ink-controller.js';
 import { currentContextWindow } from './controller-model.js';
 import { describeCacheHit } from './controller-run.js';
+import { goalIntegration } from '../shared/goal-integration.js';
 
 /** Session/task-list plumbing, status publishing, and context-size estimates. */
 
@@ -25,6 +27,37 @@ export async function syncSessionTaskListBinding(controller: InkCoderController)
     }
   } catch (error: any) {
     controller.ui.warn(`Failed to switch task list binding: ${error?.message ?? String(error)}`);
+  }
+}
+
+/**
+ * Rebinds the goal store to the current session's scope. `/goal` and the
+ * continuation loop then target the session's goal, so a resumed session picks
+ * up where its goal left off.
+ */
+export async function syncSessionGoalBinding(controller: InkCoderController): Promise<void> {
+  const sessionId = controller.sessionCommands.getCurrentSessionId();
+  const scope = sessionId ? `session-${sessionId}` : 'default';
+
+  try {
+    const service = controller.agent.getService<FileGoalPluginService>('goalService');
+    if (service?.setScope) {
+      const result = await service.setScope(scope);
+      if (result.switched) {
+        controller.ui.info(`Goal scope: ${result.scope}`);
+      }
+      return;
+    }
+  } catch (error: any) {
+    controller.ui.warn(`Failed to switch goal scope: ${error?.message ?? String(error)}`);
+  }
+
+  // Engine plugin unavailable (e.g. hand-assembled host without goal plugin):
+  // fall back to the CLI-side singleton so /goal still works.
+  await goalIntegration.initialize();
+  const result = await goalIntegration.service.setScope(scope);
+  if (result.switched) {
+    controller.ui.info(`Goal scope: ${result.scope}`);
   }
 }
 

@@ -106,6 +106,9 @@ export const ChatPageBody = ({
   // The dock's Tab strip lives beside this page (its chat tab is hidden here),
   // so the control is a plain show/hide — no navigation.
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+  const workspaceLabel = workspaceId
+    ? allWorkspaces.find(workspace => workspace.id === workspaceId)?.name ?? workspaceId
+    : undefined;
   const dockTabsVisible = isDockContentTabVisible(dockState);
   // The control is always actionable. With no content yet, prefer this
   // scope's canvas preview; global/scheduled/live-canvas scopes get a fresh
@@ -389,6 +392,7 @@ export const ChatPageBody = ({
       <div className="chat-page-main">
         <ChatPageTopbar
           fixedTitle={fixedChat?.title}
+          workspaceLabel={workspaceLabel}
           railCollapsed={railCollapsed}
           onToggleRail={onToggleRail}
           anchors={anchors}
