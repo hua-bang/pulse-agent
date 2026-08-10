@@ -106,7 +106,7 @@ export const MAX_TOOL_OUTPUT_LENGTH = 30_000;
  * turns / sub-agents read the file on demand via the `read` / `grep` tools.
  *
  * Override the threshold via TOOL_OFFLOAD_THRESHOLD. Override the storage dir via
- * TOOL_OFFLOAD_DIR (defaults to `<cwd>/.pulse-coder/offload`).
+ * TOOL_OFFLOAD_DIR (defaults to `~/.pulse-coder/offload`).
  */
 export const TOOL_OFFLOAD_THRESHOLD = Number(process.env.TOOL_OFFLOAD_THRESHOLD ?? 30_000);
 export const TOOL_OFFLOAD_DIR = (process.env.TOOL_OFFLOAD_DIR ?? '').trim();

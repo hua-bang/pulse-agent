@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import { homedir } from 'os';
 import path from 'path';
 
 import type { EnginePlugin, EnginePluginContext } from '../../plugin/EnginePlugin.js';
@@ -11,9 +12,10 @@ export type { OffloadStore, OffloadResult, OffloadOptions } from './offload.js';
 export interface ToolOffloadPluginOptions {
   /**
    * Absolute directory to store offloaded results under. Overrides the
-   * env/cwd-based default. Hosts that run the engine off the repo root (e.g.
-   * the Electron app, whose cwd is unpredictable) MUST pass an explicit
-   * user-scoped path so nothing is written into a source tree.
+   * env/user-dir default. Defaults to `TOOL_OFFLOAD_DIR` if set, otherwise
+   * `~/.pulse-coder/offload` — user-scoped so no host (even one with an
+   * unpredictable cwd) ever writes runtime data into a source tree. Hosts that
+   * want per-workspace isolation (e.g. the Canvas app) pass an explicit dir.
    */
   dir?: string;
   /** Payload-size threshold in chars. Defaults to TOOL_OFFLOAD_THRESHOLD. */
@@ -29,7 +31,7 @@ function resolveOffloadDir(dir?: string): string {
       ? TOOL_OFFLOAD_DIR
       : path.resolve(process.cwd(), TOOL_OFFLOAD_DIR);
   }
-  return path.resolve(process.cwd(), '.pulse-coder', 'offload');
+  return path.join(homedir(), '.pulse-coder', 'offload');
 }
 
 /**
@@ -126,9 +128,9 @@ export function createToolOffloadPlugin(options: ToolOffloadPluginOptions = {}):
 }
 
 /**
- * Default instance for the built-in plugin list (env/cwd-based dir). Hosts that
- * construct the engine off the repo root should use {@link createToolOffloadPlugin}
- * with an explicit `dir` instead.
+ * Default instance for the built-in plugin list (env/user-dir based). Hosts
+ * that want per-workspace isolation (e.g. the Canvas app) should use
+ * {@link createToolOffloadPlugin} with an explicit `dir` instead.
  */
 export const builtInToolOffloadPlugin: EnginePlugin = createToolOffloadPlugin();
 
