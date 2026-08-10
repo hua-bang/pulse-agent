@@ -62,8 +62,8 @@ export const SidebarHeader = ({
   onNewWorkspace,
   onNewFolder,
   onImportWorkspace,
-  enableScheduled,
-  enableSkills
+  enableScheduled = true,
+  enableSkills = true
 }: SidebarHeaderProps) => {
   const { t } = useI18n();
   const addButtonRef = useRef<HTMLButtonElement>(null);
