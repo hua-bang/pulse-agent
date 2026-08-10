@@ -4,7 +4,7 @@ import { InputManager } from '../shared/input-manager.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from '../shared/memory-integration.js';
 import { SessionCommands } from '../commands/session-commands.js';
 import { SkillCommands } from '../commands/skill-commands.js';
-import type { TuiHelpItem } from '../readline/tui-renderer.js';
+import type { TuiHelpItem } from '../shared/tui-types.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
 import { formatRelativeTime, truncateLabel, type InkCliController, type InkCliSnapshot, type CliInteractionMode } from './ink-app.js';
 import type { EngineLogSink } from '../shared/log-sink.js';

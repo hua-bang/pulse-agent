@@ -1,6 +1,6 @@
 import type { ClarificationRequest } from 'pulse-coder-engine';
 
-import type { TuiHelpItem, TuiRunSummary, TuiSessionSnapshot } from '../readline/tui-renderer.js';
+import type { TuiHelpItem, TuiRunSummary, TuiSessionSnapshot } from '../shared/tui-types.js';
 import type { InkCliEvent, InkCliSnapshot, InkLiveTool, InkPickerState } from './ink-app.js';
 
 export interface InkUiSnapshot extends Omit<InkCliSnapshot, 'events' | 'liveText' | 'liveTools'> {}

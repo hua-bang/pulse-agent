@@ -1,23 +1,6 @@
-export interface TuiHelpItem {
-  command: string;
-  description: string;
-}
-
-export interface TuiRunSummary {
-  elapsedMs: number;
-  toolCalls: number;
-  messages: number;
-  estimatedTokens: number;
-  mode?: string | null;
-}
-
-export interface TuiSessionSnapshot {
-  sessionId?: string | null;
-  taskListId?: string | null;
-  messages: number;
-  estimatedTokens: number;
-  mode?: string | null;
-}
+import { BOLD, CYAN, DIM, GREEN, MAGENTA, RED, RESET, YELLOW, formatDuration, formatToolInput, renderBox } from './tui-format.js';
+import { TuiSpinner } from './tui-spinner.js';
+import type { TuiHelpItem, TuiRunSummary, TuiSessionSnapshot } from '../shared/tui-types.js';
 
 interface OutputLike {
   isTTY?: boolean;
@@ -34,27 +17,12 @@ interface TuiRendererOptions {
   now?: () => number;
 }
 
-const RESET = '\u001b[0m';
-const DIM = '\u001b[2m';
-const BOLD = '\u001b[1m';
-const CYAN = '\u001b[36m';
-const GREEN = '\u001b[32m';
-const YELLOW = '\u001b[33m';
-const RED = '\u001b[31m';
-const MAGENTA = '\u001b[35m';
-
-const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
 export class TuiRenderer {
   private readonly output: OutputLike;
   private readonly canUseTui: boolean;
   private enabled: boolean;
   private readonly now: () => number;
-  private spinnerTimer: ReturnType<typeof setInterval> | null = null;
-  private spinnerIndex = 0;
-  private spinnerLabel = 'Processing';
-  private spinnerStartedAt = 0;
-  private statusLineActive = false;
+  private readonly spinner: TuiSpinner;
 
   constructor(options: TuiRendererOptions = {}) {
     this.output = options.output ?? process.stdout;
@@ -62,6 +30,12 @@ export class TuiRenderer {
     this.canUseTui = this.detectAvailable(env);
     this.enabled = options.enabled ?? this.detectDefaultEnabled(env);
     this.now = options.now ?? (() => Date.now());
+    this.spinner = new TuiSpinner({
+      write: chunk => this.write(chunk),
+      clearLine: () => this.clearLine(),
+      color: (value, code) => this.color(value, code),
+      now: () => this.now(),
+    });
   }
 
   isEnabled(): boolean {
@@ -102,7 +76,7 @@ export class TuiRenderer {
       return;
     }
 
-    this.writeLine(this.box('Pulse Coder CLI', [
+    this.writeLine(this.renderBoxWith('Pulse Coder CLI', [
       'Type a message and press Enter to run the agent.',
       'Use /help for commands, /status for session details, /tui to tune the interface.',
       'Esc stops the current response; Ctrl+C exits safely.',
@@ -126,7 +100,7 @@ export class TuiRenderer {
     if (footer.length > 0) {
       lines.push('', ...footer.map(line => this.color(line, DIM)));
     }
-    this.writeLine(`\n${this.box('Commands', lines)}`);
+    this.writeLine(`\n${this.renderBoxWith('Commands', lines)}`);
   }
 
   showPluginStatus(count: number): void {
@@ -164,7 +138,7 @@ export class TuiRenderer {
 
   runSummary(summary: TuiRunSummary): void {
     this.stopProcessing();
-    const elapsed = this.formatDuration(summary.elapsedMs);
+    const elapsed = formatDuration(summary.elapsedMs);
     const lines = [
       `Elapsed: ${elapsed}`,
       `Tools: ${summary.toolCalls}`,
@@ -178,7 +152,7 @@ export class TuiRenderer {
       return;
     }
 
-    this.writeLine(`\n${this.box('Run Summary', lines)}`);
+    this.writeLine(`\n${this.renderBoxWith('Run Summary', lines)}`);
   }
 
   section(title: string, lines: string[]): void {
@@ -191,7 +165,7 @@ export class TuiRenderer {
       return;
     }
 
-    this.writeLine(`\n${this.box(title, lines)}`);
+    this.writeLine(`\n${this.renderBoxWith(title, lines)}`);
   }
 
   plain(message = ''): void {
@@ -210,25 +184,11 @@ export class TuiRenderer {
       return;
     }
 
-    this.stopProcessing();
-    this.spinnerLabel = label;
-    this.spinnerStartedAt = this.now();
-    this.spinnerIndex = 0;
-    this.write('\n');
-    this.renderSpinner();
-    this.spinnerTimer = setInterval(() => this.renderSpinner(), 120);
+    this.spinner.start(label);
   }
 
   stopProcessing(): void {
-    if (this.spinnerTimer) {
-      clearInterval(this.spinnerTimer);
-      this.spinnerTimer = null;
-    }
-
-    if (this.statusLineActive) {
-      this.clearLine();
-      this.statusLineActive = false;
-    }
+    this.spinner.stop();
   }
 
   text(delta: string): void {
@@ -238,7 +198,7 @@ export class TuiRenderer {
 
   toolCall(name: string, input?: unknown): void {
     this.stopProcessing();
-    const preview = input === undefined ? [] : this.formatToolInput(input);
+    const preview = input === undefined ? [] : formatToolInput(input);
 
     if (!this.enabled) {
       const inputText = preview.length === 0 ? '' : ` ${preview.join(' ')}`;
@@ -305,29 +265,8 @@ export class TuiRenderer {
     return this.canUseTui && env.PULSE_CODER_PLAIN !== '1';
   }
 
-  private box(title: string, lines: string[]): string {
-    const visibleLines = lines.map(line => this.stripAnsi(line));
-    const maxLineLength = Math.max(title.length + 2, ...visibleLines.map(line => line.length));
-    const maxWidth = Math.max(42, Math.min(this.output.columns ?? 80, 96) - 4);
-    const width = Math.min(Math.max(maxLineLength, 42), maxWidth);
-    const top = `╭─ ${this.color(title, BOLD)} ${'─'.repeat(Math.max(0, width - title.length - 3))}╮`;
-    const bottom = `╰${'─'.repeat(width + 2)}╯`;
-    const body = lines.flatMap(line => this.wrapVisible(line, width)).map(line => {
-      const padding = width - this.stripAnsi(line).length;
-      return `│ ${line}${' '.repeat(Math.max(0, padding))} │`;
-    });
-
-    return [top, ...body, bottom].join('\n');
-  }
-
-  private renderSpinner(): void {
-    const frame = SPINNER_FRAMES[this.spinnerIndex % SPINNER_FRAMES.length];
-    this.spinnerIndex += 1;
-    const elapsed = Math.max(0, Math.floor((this.now() - this.spinnerStartedAt) / 1000));
-    const line = `${this.color(frame, CYAN)} ${this.spinnerLabel} ${this.color(`${elapsed}s`, DIM)} ${this.color('Esc to stop', DIM)}`;
-    this.clearLine();
-    this.write(line);
-    this.statusLineActive = true;
+  private renderBoxWith(title: string, lines: string[]): string {
+    return renderBox(title, lines, (value, code) => this.color(value, code), this.output.columns);
   }
 
   private clearLine(): void {
@@ -339,90 +278,8 @@ export class TuiRenderer {
     this.output.cursorTo?.(0);
   }
 
-  private wrapVisible(line: string, width: number): string[] {
-    if (this.stripAnsi(line).length <= width) {
-      return [line];
-    }
-
-    const plain = this.stripAnsi(line);
-    const wrapped: string[] = [];
-    for (let index = 0; index < plain.length; index += width) {
-      wrapped.push(plain.slice(index, index + width));
-    }
-    return wrapped;
-  }
-
-  private formatToolInput(value: unknown): string[] {
-    const maxLineLength = 96;
-    const maxLines = 4;
-    const json = this.safeJson(value);
-    const pretty = this.prettyJson(value) ?? json;
-    const sourceLines = pretty.split('\n');
-    const lines: string[] = [];
-
-    for (const sourceLine of sourceLines) {
-      const trimmed = sourceLine.trimEnd();
-      if (!trimmed) {
-        continue;
-      }
-      lines.push(this.truncate(trimmed, maxLineLength));
-      if (lines.length >= maxLines) {
-        break;
-      }
-    }
-
-    if (sourceLines.length > maxLines || json.length > lines.join('\n').length) {
-      const remaining = Math.max(0, json.length - lines.join('\n').length);
-      lines.push(`… truncated ${remaining} chars`);
-    }
-
-    return lines;
-  }
-
-  private safeJson(value: unknown): string {
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return String(value);
-    }
-  }
-
-  private prettyJson(value: unknown): string | null {
-    try {
-      return JSON.stringify(value, null, 2);
-    } catch {
-      return null;
-    }
-  }
-
-  private truncate(value: string, maxLength: number): string {
-    if (value.length <= maxLength) {
-      return value;
-    }
-    return `${value.slice(0, maxLength - 1)}…`;
-  }
-
-  private formatDuration(ms: number): string {
-    if (ms < 1_000) {
-      return `${Math.max(0, Math.round(ms))}ms`;
-    }
-
-    const seconds = ms / 1_000;
-    if (seconds < 60) {
-      return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
-    }
-
-    const minutes = Math.floor(seconds / 60);
-    const remainder = Math.round(seconds % 60);
-    return `${minutes}m ${remainder}s`;
-  }
-
   private color(value: string, code: string): string {
     return this.enabled ? `${code}${value}${RESET}` : value;
-  }
-
-  private stripAnsi(value: string): string {
-    return value.replace(/\u001b\[[0-9;]*m/g, '');
   }
 
   private writeLine(line: string): void {
