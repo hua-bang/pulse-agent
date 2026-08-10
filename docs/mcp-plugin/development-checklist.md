@@ -183,7 +183,7 @@ cd ../cli
 # 手动添加 "@pulse-coder/mcp-plugin": "workspace:*"
 
 # 注册插件到引擎
-# 在 packages/cli/src/index.ts 的 Engine 构造函数中
+# 在 packages/cli/src/readline/readline-host.ts 的 Engine 构造函数中
 # 添加 mcpPlugin 到 enginePlugins.plugins 数组
 ```
 

@@ -5,7 +5,7 @@ plugin-kit as the `pulse-coder-plugin-kit/memory` subpath export. Public
 API unchanged (`createMemoryIntegration`, `createMemoryIntegrationFromEnv`,
 `FileMemoryPluginService`, tools, types). Consumers: `apps/remote-server`
 (`src/core/memory-integration.ts`) and `packages/cli`
-(`src/memory-integration.ts`). Background design docs live at
+(`src/shared/memory-integration.ts`). Background design docs live at
 `../../../../docs/memory-plugin/`.
 
 ## Positioning
