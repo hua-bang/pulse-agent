@@ -3,12 +3,14 @@ import type { CanvasModelStatus } from '../../types';
 import { CheckIcon } from '../icons';
 import type { ModelSelection } from './modelSettingsTypes';
 import { providerLabel } from './modelSettingsTypes';
+import { matchesModelQuery } from './modelCatalogUtils';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { Popover } from '../ui/Popover';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { TextField } from '../ui/TextField';
 
-interface ModelSwitcherProps {
+interface Props {
   status?: CanvasModelStatus;
   selection: ModelSelection;
   label: string;
@@ -19,6 +21,7 @@ interface ModelSwitcherProps {
 
 const MODEL_MENU_GAP = 8;
 const MODEL_MENU_VIEWPORT_MARGIN = 12;
+const ALL_PROVIDERS = '';
 
 export const ModelSwitcher = ({
   status,
@@ -27,11 +30,12 @@ export const ModelSwitcher = ({
   disabled = false,
   onSelectModel,
   onOpenSettings,
-}: ModelSwitcherProps) => {
+}: Props) => {
   const { t } = useI18n();
   const menuId = useId();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [providerFilter, setProviderFilter] = useState(ALL_PROVIDERS);
   const [selectionError, setSelectionError] = useState<string>();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchBoxRef = useRef<HTMLDivElement>(null);
@@ -68,20 +72,26 @@ export const ModelSwitcher = ({
   // over provider name, model name, and model id.
   const normalizedQuery = query.trim().toLowerCase();
   const filteredProviders = useMemo(() => {
-    if (!normalizedQuery) return providers.map((provider) => ({ provider, models: provider.models }));
-    return providers
+    const scopedProviders = providerFilter === ALL_PROVIDERS
+      ? providers
+      : providers.filter((provider) => provider.id === providerFilter);
+    if (!normalizedQuery) return scopedProviders.map((provider) => ({ provider, models: provider.models }));
+    return scopedProviders
       .map((provider) => {
         // A provider-name hit keeps that provider's whole catalog, so typing
         // "openai" is a way to narrow to one provider rather than one model.
         const providerHit = provider.name.toLowerCase().includes(normalizedQuery);
-        const models = providerHit ? provider.models : provider.models.filter((model) => (
-          model.id.toLowerCase().includes(normalizedQuery)
-          || (model.name ?? '').toLowerCase().includes(normalizedQuery)
-        ));
+        const models = providerHit
+          ? provider.models
+          : provider.models.filter((model) => matchesModelQuery(model, normalizedQuery));
         return { provider, models };
       })
       .filter((entry) => entry.models.length > 0);
-  }, [providers, normalizedQuery]);
+  }, [normalizedQuery, providerFilter, providers]);
+  const visibleModelCount = useMemo(
+    () => filteredProviders.reduce((total, entry) => total + entry.models.length, 0),
+    [filteredProviders],
+  );
 
   const openMenuFromKeyboard = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -125,7 +135,10 @@ export const ModelSwitcher = ({
   }, [open]);
 
   useEffect(() => {
-    if (!open) setQuery('');
+    if (!open) {
+      setQuery('');
+      setProviderFilter(ALL_PROVIDERS);
+    }
   }, [open]);
 
   const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -196,15 +209,36 @@ export const ModelSwitcher = ({
           // claim it for the first menu button on mount.
           autoFocus={false}
         >
-          <div className="chat-model-menu-search" ref={searchBoxRef}>
-            <TextField
-              className="chat-model-menu-search-input"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={onSearchKeyDown}
-              placeholder={t('chat.model.searchPlaceholder')}
-              aria-label={t('chat.model.searchPlaceholder')}
-            />
+          <div className="chat-model-menu-controls">
+            <div className="chat-model-menu-search" ref={searchBoxRef}>
+              <TextField
+                className="chat-model-menu-search-input"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={onSearchKeyDown}
+                placeholder={t('chat.model.searchPlaceholder')}
+                aria-label={t('chat.model.searchPlaceholder')}
+              />
+            </div>
+            <div className="chat-model-menu-toolbar">
+              {providers.length > 1 && (
+                <SegmentedControl
+                  className="chat-model-menu-provider-filter"
+                  value={providerFilter}
+                  onChange={setProviderFilter}
+                  ariaLabel={t('chat.model.filterProviderAria')}
+                  options={[
+                    { id: ALL_PROVIDERS, label: t('chat.model.allProviders') },
+                    ...providers.map((provider) => ({ id: provider.id, label: provider.name })),
+                  ]}
+                />
+              )}
+              <span className="chat-model-menu-result-count">
+                {visibleModelCount === 1
+                  ? t('chat.model.resultCountOne')
+                  : t('chat.model.resultCount', { count: visibleModelCount })}
+              </span>
+            </div>
           </div>
           {filteredProviders.map(({ provider, models }) => (
             <div key={provider.id} className="chat-model-menu-provider">
@@ -227,7 +261,9 @@ export const ModelSwitcher = ({
                     <span className="chat-model-menu-check">{active ? <CheckIcon /> : null}</span>
                     <span className="chat-model-menu-main">
                       <span className="chat-model-menu-title">{model.name ?? model.id}</span>
-                      <span className="chat-model-menu-subtitle">{model.id}</span>
+                      {model.name && model.name !== model.id && (
+                        <span className="chat-model-menu-subtitle">{model.id}</span>
+                      )}
                     </span>
                   </button>
                 );

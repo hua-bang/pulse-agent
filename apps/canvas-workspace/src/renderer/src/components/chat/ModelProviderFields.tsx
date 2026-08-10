@@ -1,33 +1,36 @@
 import type { CanvasModelProviderConfig, CanvasModelProviderStatus } from '../../types';
 import { RefreshIcon } from '../icons';
 import { ApiKeyStatusHint } from './ApiKeyStatusHint';
+import { ModelCatalog } from './ModelCatalog';
 import { useI18n } from '../../i18n';
 
-interface ProviderFieldsProps {
+interface Props {
   activeProviderId: string;
   activeProviderStatus?: CanvasModelProviderStatus;
   addManualModel: () => void;
+  availableModels: CanvasModelProviderConfig['models'];
   draft: CanvasModelProviderConfig;
   fetching: boolean;
   fetchModels: () => Promise<void>;
   manualModel: string;
-  removeModel: (modelId: string) => void;
   setDraftField: <K extends keyof CanvasModelProviderConfig>(key: K, value: CanvasModelProviderConfig[K]) => void;
   setManualModel: (value: string) => void;
+  toggleModel: (model: NonNullable<CanvasModelProviderConfig['models']>[number], selected: boolean) => void;
 }
 
 export const ModelProviderFields = ({
   activeProviderId,
   activeProviderStatus,
   addManualModel,
+  availableModels = [],
   draft,
   fetching,
   fetchModels,
   manualModel,
-  removeModel,
   setDraftField,
   setManualModel,
-}: ProviderFieldsProps) => {
+  toggleModel,
+}: Props) => {
   const { t } = useI18n();
 
   return (
@@ -82,7 +85,7 @@ export const ModelProviderFields = ({
 
       <div className="chat-model-field-row">
         <label className="chat-model-field chat-model-field--grow">
-          <span>{t('models.models')}</span>
+          <span>{t('models.manualModel')}</span>
           <input
             value={manualModel}
             placeholder="deepseek-chat"
@@ -102,16 +105,12 @@ export const ModelProviderFields = ({
         </button>
       </div>
 
-      <div className="chat-model-model-list">
-        {(draft.models ?? []).length > 0 ? draft.models?.map((model) => (
-          <span key={model.id} className="chat-model-chip">
-            {model.name ?? model.id}
-            <button type="button" onClick={() => removeModel(model.id)} aria-label={t('models.removeModel', { id: model.id })}>×</button>
-          </span>
-        )) : (
-          <div className="chat-model-settings-empty">{t('models.emptyModelList')}</div>
-        )}
-      </div>
+      <ModelCatalog
+        activeProviderId={activeProviderId}
+        availableModels={availableModels}
+        selectedModels={draft.models ?? []}
+        onToggleModel={toggleModel}
+      />
     </>
   );
 };

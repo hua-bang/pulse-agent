@@ -356,43 +356,6 @@
   background: #9a1d13;
 }
 
-.chat-model-model-list {
-  min-height: 42px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.chat-model-chip {
-  max-width: 100%;
-  height: 28px;
-  border: 1px solid rgba(55, 53, 47, 0.1);
-  border-radius: var(--radius-pill);
-  padding: 0 5px 0 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(55, 53, 47, 0.04);
-  color: #4f4e49;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.chat-model-chip button {
-  width: 19px;
-  height: 19px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: rgba(55, 53, 47, 0.45);
-  cursor: pointer;
-}
-
-.chat-model-chip button:hover {
-  background: rgba(55, 53, 47, 0.1);
-  color: #37352f;
-}
-
 .chat-model-settings-empty {
   width: 100%;
   border: 1px dashed rgba(55, 53, 47, 0.14);
