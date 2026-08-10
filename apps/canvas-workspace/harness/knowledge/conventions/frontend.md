@@ -5,8 +5,33 @@ Applies to `src/renderer/src/**`. The renderer is a React 18 + wouter app. It ha
 
 ## Component layout
 
-Each non-trivial component lives in its own folder under
-`src/renderer/src/components/<ComponentName>/`:
+`src/renderer/src/components/` is grouped by domain (regrouped 2026-08-09;
+leaf folder names were kept, only a group level was inserted):
+
+| Group | Owns |
+|---|---|
+| `shell/` | App chrome + routing: `AppShellProvider`, `Sidebar`, `Workbench`, `router`, `RouteViews.ts`, `AppLazyBoundaries.tsx`, `MigrationSpinner` |
+| `canvas/` | Canvas surface + chrome: `Canvas`, `CanvasNodeView`, edges layer, alignment guides, node/edge context menus, `EdgeStylePanel`, toolbars, `SearchBar`, `ZoomIndicator`, `CommandPalette`, `CanvasEmptyHint` |
+| `node-bodies/` | One body per canvas node type (`*NodeBody`, incl. lazy wrappers) plus `AgentTeamFrame` and the terminal-surface `NodeMentionPicker` |
+| `note-editor/` | Rich-text editing surface for file/text nodes: `FileNodeEditorSurface`, `FileNodeBubbleMenu`, `SlashCommandMenu`, `EditorCommandIcon`, `Note*` pieces |
+| `dock/` | `RightDock`, `LinkDrawer`, `ReferenceDrawer`, `EmbeddedBrowser`, `WorkspaceTerminalDock` |
+| `settings/` | `Settings`, `WorkspaceSettings`, `settings-config` |
+| `chat/` | Canvas Agent chat panel + `ChatFloatingButton` |
+| `artifacts/`, `ui/`, `icons/` | Unchanged pre-existing domains (`ui/` is the blessed design-system set — governance and the ui-showcase reference it by path; do not move it) |
+
+Routed full-page surfaces that are their own domain live OUTSIDE
+`components/`, in `src/renderer/src/views/` (`Scheduled`, `SkillsLibrary`,
+`WorkspaceNodes`). The boundary: a page owned by a larger domain stays with
+that domain (`ChatPage` in `components/chat/`, the settings surfaces in
+`components/settings/`); a page domain whose only reason to exist is the
+route goes in `views/`. The lazy route tables (`shell/RouteViews.ts`,
+`shell/AppLazyBoundaries.tsx`) stay in `components/shell/` — they are
+routing infrastructure, not pages.
+
+Place a new component in the group that owns its surface; add a new group only
+when a domain genuinely has no home (see reuse-first rules in `AGENTS.md` §0).
+Within a group, each non-trivial component keeps its own folder
+`src/renderer/src/components/<group>/<ComponentName>/`:
 
 ```
 <ComponentName>/

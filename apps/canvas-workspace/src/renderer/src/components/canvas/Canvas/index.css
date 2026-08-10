@@ -1,0 +1,359 @@
+.canvas-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: default;
+  background: var(--bg-canvas);
+}
+
+.canvas-container--selecting,
+.canvas-container--selecting * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-user-drag: none;
+}
+
+.canvas-container--hand {
+  cursor: grab;
+}
+
+.canvas-container--hand:active {
+  cursor: grabbing;
+}
+
+.canvas-container--resizing {
+  cursor: nwse-resize;
+}
+
+.canvas-container--iframe-shielding .iframe-frame-wrapper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.canvas-container--iframe-shielding iframe,
+.canvas-container--iframe-shielding webview,
+.canvas-container--iframe-shielding .iframe-frame {
+  pointer-events: none;
+}
+
+.canvas-interaction-shield {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-interaction-shield);
+  background: transparent;
+  pointer-events: auto;
+  cursor: inherit;
+}
+
+/* Wheel pan/zoom only needs to keep subsequent input out of embedded guests.
+ * Bound that shield to the canvas and keep Canvas chrome above it; the global
+ * fixed shield remains reserved for direct drag/resize gestures. */
+.canvas-interaction-shield--canvas-motion {
+  position: absolute;
+  z-index: calc(var(--layer-canvas-chrome) - 1);
+}
+
+.canvas-workspace-interaction-active iframe,
+.canvas-workspace-interaction-active webview,
+.canvas-workspace-interaction-active .iframe-frame {
+  pointer-events: none !important;
+}
+
+.canvas-container--shape {
+  cursor: crosshair;
+}
+
+.canvas-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(0, 0, 0, 0.08) 0.7px, transparent 0.7px);
+  background-size: 24px 24px;
+  background-color: #eeecea;
+}
+
+.canvas-bottom-chrome {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  z-index: var(--layer-canvas-chrome);
+  pointer-events: none;
+  container-type: inline-size;
+}
+
+.canvas-bottom-chrome__left {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.canvas-bottom-chrome__right {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.canvas-bottom-chrome__left .zoom-indicator-group,
+.canvas-bottom-chrome__right .zoom-indicator-group {
+  grid-column: auto;
+  justify-self: auto;
+}
+
+.canvas-transform {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  z-index: 1;
+}
+
+/* Electron webviews must remain fully painted during gestures: changing an
+ * ancestor's layout or visibility can make Chromium drop the guest layer and
+ * reload it on restore. Pause only host-owned loading chrome here; embedded
+ * documents keep their stable layout boxes and compositor surfaces.
+ *
+ * The old `.canvas-transform--moving { will-change: transform }` layer
+ * promotion is intentionally gone: promoting the whole canvas subtree on the
+ * first wheel event synchronously allocates/rasterizes the entire painted
+ * canvas (stalling large workspaces before the gesture even starts) AND can
+ * make Chromium drop and reload embedded webview guests. That real-webview
+ * drop/reload effect is validated by the CI deep-zoom probe
+ * (apps/canvas-workspace/scripts/perf/zoom-gesture-probe.mjs). */
+.canvas-transform--moving .iframe-frame-wrapper--streaming,
+.canvas-transform--moving .iframe-shimmer-bar {
+  animation-play-state: paused;
+}
+
+.canvas-container[data-moving="on"] .edge-style-panel,
+.canvas-container[data-moving="on"] .edge-label:not(.edge-label--editing) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-header__actions,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-open-tab,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-add-to-chat,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-plugin-select,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-focus,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-fullscreen,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen)>.node-header .node-close {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── P4: flatten decoration during a heavy zoom-out ──────────────────────
+ * box-shadow and backdrop-filter force per-frame recompositing as the
+ * transform scales; across dozens of nodes in the zoomed-out viewport that
+ * is pure overhead (the shadows are sub-pixel and invisible at overview
+ * scale anyway). Kill them for the gesture only, keyed off the same
+ * data-motion signal as P2 (useCanvas writes it on .canvas-transform on the
+ * first wheel). The `.canvas-transform` prefix lifts specificity over the
+ * per-type `.canvas-node--file`/`--group` shadow rules so no !important is
+ * needed. NOT will-change — promoting the subtree to a layer is exactly
+ * what caused the tile-memory blank flashes (see useCanvas). Restored the
+ * instant the attr clears at settle; transition:none keeps the toggle from
+ * animating. Heavy-gated so small canvases never pay it. */
+.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node {
+  box-shadow: none;
+  transition: none;
+}
+
+.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node .node-header,
+.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--frame>.node-header,
+.canvas-transform[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--group>.node-header {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+.canvas-gesture-hud {
+  position: absolute;
+  z-index: var(--layer-canvas-chrome);
+  min-width: 126px;
+  padding: 6px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.16);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.2;
+  pointer-events: none;
+  transform-origin: top left;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.canvas-gesture-hud__main,
+.canvas-gesture-hud__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.canvas-gesture-hud__main {
+  font-weight: 650;
+}
+
+.canvas-gesture-hud__meta {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-gesture-hud__badge {
+  padding: 2px 5px;
+  border-radius: var(--radius-pill);
+  background: rgba(35, 131, 226, 0.1);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+/* Focus-mode backdrop. Lives inside `.canvas-transform` (see
+ * CanvasSurface) so it scales/pans with the canvas and sits below all
+ * nodes within the same stacking context. Sized at ±100k canvas units
+ * so the user never reaches its edge — at the slowest zoom-out we
+ * support (~0.05) that's still 10k screen pixels in every direction.
+ * The dark fill is what makes the focused node POP — without it,
+ * dimmed nodes just look like faded white over white. Its weight is
+ * --canvas-focus-dim, shared with the fullscreen backdrop. */
+.canvas-focus-backdrop {
+  position: absolute;
+  left: -100000px;
+  top: -100000px;
+  width: 200000px;
+  height: 200000px;
+  background: var(--canvas-focus-dim);
+  pointer-events: none;
+  z-index: 0;
+  animation: canvas-focus-backdrop-in 0.22s ease forwards;
+}
+
+@keyframes canvas-focus-backdrop-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* When a node is fullscreened we kill the canvas pan/zoom transform
+ * entirely so the fullscreen node can use `inset: 0` against the
+ * `.canvas-container` viewport without fighting an inverse-transform
+ * calculation. Other nodes "jump" to their raw canvas coords for the
+ * duration, but they're hidden behind the fullscreen backdrop so the
+ * jump isn't visible. The transform layer also gets explicit
+ * dimensions so the absolutely-positioned fullscreen node has a real
+ * containing block to fill, and its z-index is raised above the
+ * canvas chrome layer (floating toolbar, zoom indicator). */
+.canvas-container[data-fullscreen="on"] .canvas-transform {
+  transform: none !important;
+  transition: none !important;
+  width: 100%;
+  height: 100%;
+  z-index: var(--layer-fullscreen-node);
+  --canvas-fullscreen-inset: 12px;
+}
+
+.canvas-container[data-fullscreen="on"] .canvas-grid {
+  opacity: 0;
+}
+
+/* Fullscreen backdrop. With the parent transform killed, it sits at
+ * canvas-container coords directly — a simple `inset: 0` covers the
+ * viewport. Click anywhere to dismiss. */
+.canvas-fullscreen-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--canvas-focus-dim);
+  pointer-events: auto;
+  backdrop-filter: blur(10px);
+  z-index: 50;
+}
+
+/* Single control surface for fullscreen mode. It overlays the fullscreen
+ * node so the content can use the whole viewport instead of yielding a
+ * separate top chrome lane. */
+.canvas-fullscreen-chip {
+  position: absolute;
+  top: 8px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 9px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
+  z-index: var(--layer-fullscreen-chrome);
+}
+
+.canvas-fullscreen-chip__divider {
+  width: 1px;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.08);
+  margin: 0 2px;
+}
+
+.canvas-fullscreen-chip__btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.canvas-fullscreen-chip__btn img {
+  display: block;
+}
+
+.canvas-fullscreen-chip__btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+
+.canvas-fullscreen-chip__btn--active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.canvas-fullscreen-chip__btn--active:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}

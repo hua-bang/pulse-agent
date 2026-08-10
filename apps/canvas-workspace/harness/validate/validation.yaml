@@ -49,21 +49,21 @@ pathRules:
       - src/renderer/src/hooks/useAppShortcuts.ts
       - src/renderer/src/hooks/useWebviewShortcutBridge.ts
       - src/renderer/src/utils/keyboardShortcut.ts
-      - src/renderer/src/components/AppShellProvider/ShortcutsDialog.tsx
+      - src/renderer/src/components/shell/AppShellProvider/ShortcutsDialog.tsx
       - src/shared/webview-shortcuts.ts
       - src/main/webview/shortcut-forwarding.ts
       - src/main/app/menu.ts
-      - src/renderer/src/components/AgentNodeBody/utils/terminal.ts
-      - src/renderer/src/components/AgentNodeBody/utils/terminalFocus.ts
-      - src/renderer/src/components/AgentNodeBody/useAgentNodeController.ts
-      - src/renderer/src/components/TerminalNodeBody/index.tsx
-      - src/renderer/src/components/WorkspaceTerminalDock/index.tsx
-      - src/renderer/src/components/NodeMentionPicker/index.tsx
+      - src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminal.ts
+      - src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.ts
+      - src/renderer/src/components/node-bodies/AgentNodeBody/useAgentNodeController.ts
+      - src/renderer/src/components/node-bodies/TerminalNodeBody/index.tsx
+      - src/renderer/src/components/dock/WorkspaceTerminalDock/index.tsx
+      - src/renderer/src/components/node-bodies/NodeMentionPicker/index.tsx
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalFocus.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/components/AgentNodeBody/utils/terminalFocus.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.test.ts
 
   # The Coding Agent node's CLI roster is a cross-file contract: one registry
   # entry, but a usable agent also needs a brand mark, a dock identity, a
@@ -75,15 +75,15 @@ pathRules:
   - name: coding-agent-roster
     paths:
       - src/renderer/src/config/agentRegistry.ts
-      - src/renderer/src/components/AgentNodeBody/**
+      - src/renderer/src/components/node-bodies/AgentNodeBody/**
       - src/renderer/src/utils/codingAgentCommand.ts
-      - src/renderer/src/components/RightDock/DockAgentTabIcon.tsx
+      - src/renderer/src/components/dock/RightDock/DockAgentTabIcon.tsx
       - src/main/agent/codex-sessions.ts
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/components/AgentNodeBody src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/components/node-bodies/AgentNodeBody src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/dock/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/components/AgentNodeBody src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/components/node-bodies/AgentNodeBody src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/dock/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
 
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.
@@ -130,9 +130,9 @@ pathRules:
       - src/main/files/shell-path.test.ts
       - src/shared/settings-config.ts
       - src/preload/bridge/settings.ts
-      - src/renderer/src/components/Settings/AgentSection.tsx
-      - src/renderer/src/components/Settings/AgentShellPathCard.tsx
-      - src/renderer/src/components/Settings/AgentSection.css
+      - src/renderer/src/components/settings/Settings/AgentSection.tsx
+      - src/renderer/src/components/settings/Settings/AgentShellPathCard.tsx
+      - src/renderer/src/components/settings/Settings/AgentSection.css
       - src/main/__tests__/agent-tooling-package.test.ts
       - harness/tools/smoke-packaged-agent-tooling.mjs
     quick:

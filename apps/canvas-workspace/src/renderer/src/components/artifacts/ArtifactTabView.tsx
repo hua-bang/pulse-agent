@@ -1,7 +1,7 @@
 /**
  * Right-dock tab content that previews one artifact with live updates and
  * a pin-to-canvas control. Tab chrome (label, close, switching) lives in
- * components/RightDock; the loaded artifact's title is reported up via
+ * components/dock/RightDock; the loaded artifact's title is reported up via
  * `onTitleChange` so the tab label tracks renames.
  */
 
@@ -12,7 +12,7 @@ import {
   ARTIFACT_CAPABILITY_RESPONSE,
   type ArtifactCapabilityName,
 } from '../../../../shared/artifact-capabilities';
-import { useAppShell } from '../AppShellProvider';
+import { useAppShell } from '../shell/AppShellProvider';
 import { Select } from '../ui';
 import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
 import { buildCapabilityBridgeScript } from './capabilityBridge';

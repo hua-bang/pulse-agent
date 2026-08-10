@@ -131,7 +131,7 @@ const WEEKDAY_NAMES = [
 /**
  * English, machine-facing cadence summary for the scheduled-run prompt and
  * the agent tools. The localized UI label lives in the renderer's
- * `components/Scheduled/formatters.ts`.
+ * `views/Scheduled/formatters.ts`.
  */
 export const describeSchedule = (schedule: ScheduledSchedule): string => {
   if (schedule.kind === 'daily') return `Every day at ${schedule.timeOfDay} local time`;

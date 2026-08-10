@@ -121,7 +121,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // default-config row had no selectable meaning left.
   // 293→292 (sidebar chrome): the expanded collapse control now reuses the
   // blessed icon Button instead of adding another raw micro-button.
-  rawButtonTags: 292,
+  rawButtonTags: 284,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -393,7 +393,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // was needed a second time, opaquely restated for the sticky chat tab, so
   // the value became --dock-tab-hover-wash on .right-dock__tabs and both
   // rules now read var() — the fix itself cost zero literals.
-  hardcodedColorLiterals: 1784,
+  hardcodedColorLiterals: 1781,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

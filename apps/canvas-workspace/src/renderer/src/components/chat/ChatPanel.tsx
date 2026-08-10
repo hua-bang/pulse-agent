@@ -10,7 +10,7 @@ import { SessionBackBar } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useComposerRequest } from './hooks/useComposerRequest';
-import { useAppShell } from '../AppShellProvider';
+import { useAppShell } from '../shell/AppShellProvider';
 import type { AgentContextDomReviewComment, AgentRequestContext } from '../../types';
 import type { AgentScope, ChatPanelProps } from './types';
 import { useI18n } from '../../i18n';

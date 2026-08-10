@@ -49,21 +49,21 @@ const WATCHLIST = [
 ];
 
 const DYNAMIC_ONLY_MODULE_SUFFIXES = [
-  '/components/Settings/index.tsx',
-  '/components/WorkspaceSettings/index.tsx',
-  '/components/WorkspaceNodes/NodesPage.tsx',
-  '/components/WorkspaceNodes/NodeDetailPage.tsx',
-  '/components/FileNodeBody/index.tsx',
-  '/components/TextNodeBody/index.tsx',
-  '/components/IframeNodeBody/index.tsx',
+  '/components/settings/Settings/index.tsx',
+  '/components/settings/WorkspaceSettings/index.tsx',
+  '/views/WorkspaceNodes/NodesPage.tsx',
+  '/views/WorkspaceNodes/NodeDetailPage.tsx',
+  '/components/node-bodies/FileNodeBody/index.tsx',
+  '/components/node-bodies/TextNodeBody/index.tsx',
+  '/components/node-bodies/IframeNodeBody/index.tsx',
   '/components/chat/ChatPanel.tsx',
   '/components/chat/chatScope.ts',
   '/components/chat/useRegisterChatTarget.ts',
   '/components/chat/utils/sessionScope.ts',
-  '/components/ReferenceDrawer/index.tsx',
-  '/components/CommandPalette/index.tsx',
-  '/components/SearchBar/index.tsx',
-  '/components/EdgeStylePanel/index.tsx',
+  '/components/dock/ReferenceDrawer/index.tsx',
+  '/components/canvas/CommandPalette/index.tsx',
+  '/components/canvas/SearchBar/index.tsx',
+  '/components/canvas/EdgeStylePanel/index.tsx',
   '/components/artifacts/ArtifactTabView.tsx',
   '/plugins/renderer/devtools/AgentDebugPage.tsx',
   '/plugins/renderer/devtools/ChatDebugTrace.tsx',
@@ -186,9 +186,9 @@ describe('bundle boundaries (static import graph from renderer entry)', () => {
   });
 
   it.each([
-    'renderer/src/components/WorkspaceTerminalDock/index.tsx',
-    'renderer/src/components/AgentNodeBody/index.tsx',
-    'renderer/src/components/TerminalNodeBody/index.tsx',
+    'renderer/src/components/dock/WorkspaceTerminalDock/index.tsx',
+    'renderer/src/components/node-bodies/AgentNodeBody/index.tsx',
+    'renderer/src/components/node-bodies/TerminalNodeBody/index.tsx',
   ])('%s loads the xterm base styles with its lazy chunk', (path) => {
     const entry = readFileSync(join(srcRoot, path), 'utf-8');
     expect(entry).toContain("import '@xterm/xterm/css/xterm.css';");

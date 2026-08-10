@@ -12,17 +12,17 @@ const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx']);
 
 const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent-teams/service.ts': 2569,
-  'src/renderer/src/components/AgentTeamFrame/index.tsx': 2253,
+  'src/renderer/src/components/node-bodies/AgentTeamFrame/index.tsx': 2253,
   'src/renderer/src/types.ts': 1861,
   'src/main/canvas/store.ts': 1606,
-  'src/renderer/src/components/AgentNodeBody/useAgentNodeController.ts': 1286,
+  'src/renderer/src/components/node-bodies/AgentNodeBody/useAgentNodeController.ts': 1286,
   'src/main/agent/canvas-agent.ts': 1158,
   'src/main/canvas/storage.ts': 1156,
   'src/renderer/src/hooks/useNodes.ts': 918,
   'src/main/agent/context-builder.ts': 856,
-  'src/renderer/src/components/WorkspaceNodes/GraphPage.tsx': 812,
-  'src/renderer/src/components/settings-config/McpManager.tsx': 786,
-  'src/renderer/src/components/Canvas/index.tsx': 770,
+  'src/renderer/src/views/WorkspaceNodes/GraphPage.tsx': 812,
+  'src/renderer/src/components/settings/settings-config/McpManager.tsx': 786,
+  'src/renderer/src/components/canvas/Canvas/index.tsx': 770,
   'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 777,
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
@@ -42,12 +42,12 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/renderer/src/hooks/useFileNodeEditor.ts': 511,
   'src/main/agent/skills/config.ts': 511,
   'src/renderer/src/components/icons/index.tsx': 510,
-  'src/renderer/src/components/settings-config/SkillsManager.tsx': 510,
+  'src/renderer/src/components/settings/settings-config/SkillsManager.tsx': 510,
   'src/plugins/main/webview-page-control/js-primitives.ts': 506,
   // 512→516 (2026-07-10, drift recorded): grew via master work that never
   // ran this suite (no automatic trigger). Raised to measured;
   // must-not-grow applies from 516.
-  'src/renderer/src/components/Workbench/index.tsx': 516,
+  'src/renderer/src/components/shell/Workbench/index.tsx': 516,
 };
 
 const DOCUMENTED_EXCEPTIONS: Record<string, string> = {
