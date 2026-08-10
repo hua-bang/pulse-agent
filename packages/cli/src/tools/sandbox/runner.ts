@@ -1,30 +1,7 @@
 import vm from 'vm';
 import { inspect } from 'util';
 
-interface RunnerRequest {
-  code: string;
-  input: unknown;
-  maxOutputChars: number;
-}
-
-interface RunnerSuccessMessage {
-  type: 'success';
-  result: unknown;
-  stdout: string;
-  stderr: string;
-  outputTruncated: boolean;
-}
-
-interface RunnerErrorMessage {
-  type: 'error';
-  errorCode: 'RUNTIME_ERROR' | 'INTERNAL';
-  errorMessage: string;
-  stdout: string;
-  stderr: string;
-  outputTruncated: boolean;
-}
-
-type RunnerMessage = RunnerSuccessMessage | RunnerErrorMessage;
+import { appendWithLimit, type RunnerErrorMessage, type RunnerMessage, type RunnerRequest } from './protocol.js';
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -32,19 +9,6 @@ function toErrorMessage(error: unknown): string {
   }
 
   return String(error);
-}
-
-function appendWithLimit(buffer: string, chunk: string, maxChars: number): { value: string; truncated: boolean } {
-  const merged = buffer + chunk;
-
-  if (merged.length <= maxChars) {
-    return { value: merged, truncated: false };
-  }
-
-  return {
-    value: merged.slice(0, maxChars),
-    truncated: true
-  };
 }
 
 function formatLogArgs(args: unknown[]): string {

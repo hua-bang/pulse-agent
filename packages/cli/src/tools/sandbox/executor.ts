@@ -3,116 +3,19 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { appendWithLimit, clampText, mergeText, type RunnerMessage, type RunnerRequest } from './protocol.js';
+import { createErrorResult, inferExitErrorCode, toErrorMessage } from './result.js';
 import type {
-  JsExecutionErrorCode,
   JsExecutionRequest,
   JsExecutionResult,
   JsExecutor,
   JsExecutorOptions
 } from './types.js';
 
-interface RunnerRequest {
-  code: string;
-  input: unknown;
-  maxOutputChars: number;
-}
-
-interface RunnerSuccessMessage {
-  type: 'success';
-  result: unknown;
-  stdout: string;
-  stderr: string;
-  outputTruncated: boolean;
-}
-
-interface RunnerErrorMessage {
-  type: 'error';
-  errorCode: 'RUNTIME_ERROR' | 'INTERNAL';
-  errorMessage: string;
-  stdout: string;
-  stderr: string;
-  outputTruncated: boolean;
-}
-
-type RunnerMessage = RunnerSuccessMessage | RunnerErrorMessage;
-
 const DEFAULT_TIMEOUT_MS = 2_000;
 const DEFAULT_MEMORY_LIMIT_MB = 64;
 const DEFAULT_MAX_OUTPUT_CHARS = 20_000;
 const DEFAULT_MAX_CODE_LENGTH = 20_000;
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return String(error);
-}
-
-function appendWithLimit(buffer: string, chunk: string, maxChars: number): { value: string; truncated: boolean } {
-  const merged = buffer + chunk;
-
-  if (merged.length <= maxChars) {
-    return { value: merged, truncated: false };
-  }
-
-  return {
-    value: merged.slice(0, maxChars),
-    truncated: true
-  };
-}
-
-function clampText(value: string, maxChars: number): { value: string; truncated: boolean } {
-  if (value.length <= maxChars) {
-    return { value, truncated: false };
-  }
-
-  return {
-    value: value.slice(0, maxChars),
-    truncated: true
-  };
-}
-
-function mergeText(first: string, second: string): string {
-  if (!first) {
-    return second;
-  }
-
-  if (!second) {
-    return first;
-  }
-
-  return `${first}\n${second}`;
-}
-
-function inferExitErrorCode(signal: NodeJS.Signals | null, stderr: string): JsExecutionErrorCode {
-  if (signal === 'SIGABRT' || /heap out of memory/i.test(stderr)) {
-    return 'OOM';
-  }
-
-  return 'INTERNAL';
-}
-
-function createErrorResult(
-  startedAt: number,
-  stdout: string,
-  stderr: string,
-  errorCode: JsExecutionErrorCode,
-  errorMessage: string,
-  outputTruncated: boolean
-): JsExecutionResult {
-  return {
-    ok: false,
-    stdout,
-    stderr,
-    durationMs: Date.now() - startedAt,
-    outputTruncated,
-    error: {
-      code: errorCode,
-      message: errorMessage
-    }
-  };
-}
 
 function resolveRunnerPath(): string {
   const localDir = path.dirname(fileURLToPath(import.meta.url));
