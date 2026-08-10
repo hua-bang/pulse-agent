@@ -299,6 +299,7 @@
   width: 100%;
   margin: 0 auto;
   padding: 8px 24px 20px;
+  background: white;
 }
 
 /* ─── AI chat accessibility / responsive overrides ────────── */
@@ -320,7 +321,7 @@
     visibility 0s linear 0.2s;
 }
 
-.chat-page-rail > .ui-textfield {
+.chat-page-rail>.ui-textfield {
   flex-shrink: 0;
 }
 
@@ -415,7 +416,7 @@
   box-sizing: border-box;
 }
 
-.chat-page-rail-item-editor > .ui-textfield {
+.chat-page-rail-item-editor>.ui-textfield {
   flex: 1;
   min-width: 0;
 }
@@ -433,7 +434,7 @@
   font-size: 11px;
 }
 
-.chat-page-rail-item-confirm > span {
+.chat-page-rail-item-confirm>span {
   width: 100%;
   color: var(--chat-a11y-secondary);
 }
@@ -475,6 +476,7 @@
 /* Browser zoom reduces the CSS-pixel viewport. Keep the optional rail useful
    without squeezing the conversation into a gutter at 200–400% zoom. */
 @media (max-width: 720px) {
+
   .chat-page-rail-wrapper,
   .chat-page-rail {
     width: min(220px, 42vw);
@@ -511,6 +513,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .chat-page-rail-wrapper,
   .chat-page-rail-wrapper--collapsed,
   .chat-page-rail-folder-chevron,

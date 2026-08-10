@@ -124,6 +124,7 @@
   visibility: visible;
   overflow: visible;
   z-index: var(--layer-canvas-chrome);
+  background: white;
   transition:
     max-height 0.24s var(--tab-ease),
     padding 0.24s var(--tab-ease),
