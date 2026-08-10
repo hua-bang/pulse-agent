@@ -318,7 +318,7 @@ pnpm --filter pulse-coder-cli start:debug # PULSE_CODER_DEBUG=1 重新构建并�
 
 ```
 src/
-├── index.ts                  # 入口分发（arg parse → print / Ink / readline）+ readline 宿主命令循环、会话保存
+├── index.ts                  # 入口分发（arg parse → print / Ink / readline）
 ├── ui-mode.ts                # --ui/--tui/-p/--continue 与 PULSE_CODER_UI 解析
 ├── ink/                      # 默认 Ink 宿主
 │   ├── ink-launcher.tsx      #   Ink 启动（exitOnCtrlC: false，历史存储装配）
@@ -326,6 +326,7 @@ src/
 │   ├── ink-app.tsx           #   Ink 渲染（Static transcript、composer、粘贴、命令建议、历史）
 │   └── ink-ui-bridge.ts      #   运行时回调与 Ink UI 的桥接（append-only 事件 + live 区、流式节流）
 ├── readline/
+│   ├── readline-host.ts      # readline 回退宿主（命令循环、agent 运行接线、会话保存）
 │   └── tui-renderer.ts       # readline 回退宿主渲染器
 ├── print/
 │   ├── print-mode.ts         # -p 非交互/benchmark 模式（隔离、预算、轨迹、信号处理）

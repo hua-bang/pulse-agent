@@ -9,7 +9,7 @@
 
 CLI behavior should remain a host layer over the engine. Engine runtime behavior belongs in `packages/engine`; ACP protocol behavior belongs in `packages/acp`; team coordination behavior belongs in `packages/agent-teams`; sandbox execution behavior lives locally in `src/tools/sandbox/` (executor + forked `runner` — built as `dist/runner.cjs`).
 
-Source layout: `src/index.ts` + `src/ui-mode.ts` at the root own entry dispatch and the readline command loop; each host surface has a directory (`src/ink/`, `src/readline/`, `src/print/`); host-shared modules are grouped by role (`src/commands/`, `src/models/`, `src/session/`, `src/tools/`, `src/terminal/`, and `src/shared/` for cross-host engine wiring). Tests sit beside the module they cover.
+Source layout: `src/index.ts` + `src/ui-mode.ts` at the root own entry dispatch (arg parse → print / Ink / readline); each host surface has a directory (`src/ink/`, `src/readline/`, `src/print/`); host-shared modules are grouped by role (`src/commands/`, `src/models/`, `src/session/`, `src/tools/`, `src/terminal/`, and `src/shared/` for cross-host engine wiring). Tests sit beside the module they cover.
 
 ## Knowledge Navigation
 
@@ -18,7 +18,7 @@ Source layout: `src/index.ts` + `src/ui-mode.ts` at the root own entry dispatch 
 | Package overview and scripts | `README.md`, `package.json` |
 | UI mode / CLI flag parsing | `src/ui-mode.ts` |
 | Default Ink host path | `src/ink/ink-launcher.tsx`, `src/ink/ink-controller.ts`, `src/ink/ink-app.tsx`, `src/ink/ink-ui-bridge.ts` |
-| Readline fallback host path | `src/index.ts`, `src/readline/tui-renderer.ts` |
+| Readline fallback host path | `src/readline/readline-host.ts`, `src/readline/tui-renderer.ts` |
 | Non-interactive `-p` mode | `src/print/print-mode.ts` |
 | Markdown-to-ANSI rendering | `src/terminal/markdown.ts` |
 | Prompt history persistence | `src/session/history-store.ts` |
@@ -30,7 +30,7 @@ Source layout: `src/index.ts` + `src/ui-mode.ts` at the root own entry dispatch 
 | Terminal width / cursor stepping | `src/terminal/text-width.ts` |
 | Input handling | `src/shared/input-manager.ts` |
 | Sessions | `src/session/session.ts`, `src/commands/session-commands.ts` |
-| Skills and worktree slash commands | `src/commands/skill-commands.ts`, `src/index.ts`, `src/ink/ink-controller.ts` |
+| Skills and worktree slash commands | `src/commands/skill-commands.ts`, `src/readline/readline-host.ts`, `src/ink/ink-controller.ts` |
 | Retired team/ACP modules (unwired) | `src/commands/team-commands.ts`, `src/commands/acp-commands.ts` |
 | Memory integration | `src/shared/memory-integration.ts` |
 | Host tool registration | `src/tools/runtime-tools.ts`, `src/tools/canvas-runtime-tools.ts`, `src/tools/sandbox/`, `../canvas-cli/AGENTS.md` |
@@ -104,7 +104,8 @@ Run commands from the repository root. `pnpm start` maps to the built CLI packag
 
 ## Key Files
 
-- `src/index.ts`: shared entrypoint (arg parse → print mode / Ink / readline), readline command loop, agent run wiring, ACP routing, and session save path.
+- `src/index.ts`: entrypoint — arg parse and dispatch to print mode / Ink / readline.
+- `src/readline/readline-host.ts`: readline fallback host — command loop, agent run wiring, and session save path.
 - `src/ink/ink-controller.ts`: default Ink-mode controller with command handling, engine plan-mode wiring, agent/ACP routing, session sync, queued input, real token usage, and shutdown.
 - `src/ink/ink-app.tsx`: Ink rendering (Static transcript + live region), input composer, paste handling, command suggestions, history, and mode shortcuts.
 - `src/ink/ink-ui-bridge.ts`: append-only event + live-region bridge between runtime callbacks and the Ink UI; tool-result previews and streaming throttle live here.

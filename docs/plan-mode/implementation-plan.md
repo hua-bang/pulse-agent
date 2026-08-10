@@ -16,7 +16,7 @@
   - 新增私有 helper：获取 plan 服务实例（通过 `getService(...)`）。
   - 新增 `getMode(): PlanMode | undefined`。
   - 新增 `setMode(mode: PlanMode, reason?: string): boolean`（服务缺失时返回 `false`）。
-- `packages/cli/src/index.ts`
+- `packages/cli/src/readline/readline-host.ts`（原 `index.ts` 的 readline 宿主部分）
   - `help` 增加三条命令说明。
   - `handleCommand` 新增 case：`plan` / `execute` / `mode`。
   - 调用 agent 对应 mode API，并处理服务不可用时的提示。
