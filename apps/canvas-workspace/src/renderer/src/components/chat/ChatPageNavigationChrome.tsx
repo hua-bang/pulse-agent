@@ -1,6 +1,6 @@
 import { ColumnsPlusRight } from '@phosphor-icons/react';
 import { useI18n } from '../../i18n';
-import { PlusIcon } from '../icons';
+import { PlusIcon, WorkspaceIcon } from '../icons';
 import { Button } from '../ui';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type ChatSessionsRailProps } from './ChatSessionsRail';
@@ -25,6 +25,7 @@ export const ChatPageRail = ({
 
 interface ChatPageTopbarProps {
   fixedTitle?: string;
+  workspaceLabel?: string;
   railCollapsed: boolean;
   onToggleRail: () => void;
   anchors: ChatAnchor[];
@@ -37,6 +38,7 @@ interface ChatPageTopbarProps {
 
 export const ChatPageTopbar = ({
   fixedTitle,
+  workspaceLabel,
   railCollapsed,
   onToggleRail,
   anchors,
@@ -66,6 +68,12 @@ export const ChatPageTopbar = ({
         >
           <RailToggleIcon size={16} />
         </Button>
+      )}
+      {!fixedTitle && workspaceLabel && (
+        <div className="chat-page-topbar-workspace" title={workspaceLabel}>
+          <WorkspaceIcon size={14} />
+          <span>{workspaceLabel}</span>
+        </div>
       )}
       <div className="chat-page-topbar-spacer" />
       <ChatAnchors anchors={anchors} onJump={onJumpAnchor} />

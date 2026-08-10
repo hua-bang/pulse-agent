@@ -21,6 +21,7 @@ describe('ChatPage navigation chrome', () => {
       <I18nProvider>
         <ChatPageRail collapsed rail={rail} />
         <ChatPageTopbar
+          workspaceLabel="Workspace A"
           railCollapsed
           onToggleRail={vi.fn()}
           anchors={[]}
@@ -40,6 +41,7 @@ describe('ChatPage navigation chrome', () => {
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(host.querySelector('[aria-label="Settings"]')).toBeNull();
     expect(host.querySelectorAll('.chat-page-topbar > .chat-panel-action-btn')).toHaveLength(3);
+    expect(host.querySelector('.chat-page-topbar-workspace')?.textContent).toBe('Workspace A');
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Show the Tab panel"]')?.disabled).toBe(false);
 
     act(() => root.unmount());
