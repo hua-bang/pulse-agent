@@ -1,6 +1,8 @@
 import { DEFAULT_MODEL } from 'pulse-coder-engine';
+import type { FileGoalPluginService } from 'pulse-coder-plugin-kit/goal';
 import { formatModelSpec, resolveModelSpec, type ModelChoice } from '../models/model-spec.js';
 import { loadModelRegistry } from '../models/model-registry.js';
+import { parseGoalSetArgs } from '../ink/controller-commands.js';
 import { HELP_FOOTER, HELP_ITEMS } from './command-surface.js';
 import { estimateTokens, getKeepLastTurns, restoreSessionModel, syncSessionTaskListBinding, type ReadlineHost } from './host-context.js';
 
@@ -121,6 +123,74 @@ export class ReadlineCommands {
         case 'skills':
           this.host.tui.info('Use /skills <name|index> <message> directly in input for one-shot skill execution.');
           break;
+
+        case 'goal': {
+          const subcommand = (args[0] ?? '').toLowerCase();
+          const goalService = this.host.agent.getService<FileGoalPluginService>('goalService');
+          if (!goalService) {
+            this.host.tui.warn('Goal plugin unavailable.');
+            break;
+          }
+
+          if (subcommand === 'status') {
+            const snapshot = await goalService.snapshot();
+            if (snapshot.status === 'none') {
+              this.host.tui.info('No active goal. Set one with /goal <objective>');
+              break;
+            }
+            this.host.tui.section('Goal', [
+              `Status: ${snapshot.status}`,
+              `Objective: ${snapshot.objective ?? '(none)'}`,
+              `Rounds used: ${snapshot.roundsUsed}${snapshot.maxRounds ? `/${snapshot.maxRounds}` : ''}`,
+              snapshot.verifyCommand ? `Verify: ${snapshot.verifyCommand}` : null,
+              snapshot.lastProgress ? `Last progress: ${snapshot.lastProgress}` : null,
+              snapshot.completedSummary ? `Completed: ${snapshot.completedSummary}` : null,
+            ].filter((line): line is string => line !== null));
+            break;
+          }
+
+          if (subcommand === 'clear') {
+            const cleared = await goalService.clearGoal();
+            this.host.tui[cleared ? 'success' : 'info'](cleared ? 'Goal cleared.' : 'No active goal to clear.');
+            break;
+          }
+
+          if (subcommand === 'complete') {
+            const summary = args.slice(1).join(' ').trim() || 'Marked complete by user';
+            const goal = await goalService.completeGoal({ summary });
+            this.host.tui[goal ? 'success' : 'info'](goal ? 'Goal marked complete.' : 'No active goal to complete.');
+            break;
+          }
+
+          if (subcommand === 'help' || subcommand === '') {
+            this.host.tui.section('Goal usage', [
+              '/goal <objective>            Set a goal the agent keeps working toward',
+              '/goal <objective> --verify <cmd>  Also verify completion by running <cmd>',
+              '/goal <objective> --rounds <n>    Limit automatic continuation rounds to <n>',
+              '/goal status                  Show the current goal and progress',
+              '/goal complete [summary]      Mark the current goal complete',
+              '/goal clear                   Stop working toward the goal',
+            ]);
+            break;
+          }
+
+          const { objective, verifyCommand, maxRounds } = parseGoalSetArgs(args);
+          if (!objective) {
+            this.host.tui.error('Please provide a goal objective.');
+            this.host.tui.info('Usage: /goal <objective> [--verify <cmd>] [--rounds <n>]');
+            break;
+          }
+
+          const goal = await goalService.setGoal({ objective, verifyCommand, maxRounds });
+          this.host.tui.success('Goal set.');
+          this.host.tui.section('Active goal', [
+            `Objective: ${goal.objective}`,
+            goal.verifyCommand ? `Verify: ${goal.verifyCommand}` : 'Verify: none (declaration + user confirmation)',
+            `Max rounds: ${goal.maxRounds ?? 'unlimited'}`,
+          ]);
+          this.host.tui.info('The agent keeps working toward this goal until it is met, verified, or you stop it.');
+          break;
+        }
 
         case 'status':
           const currentId = this.host.sessionCommands.getCurrentSessionId();

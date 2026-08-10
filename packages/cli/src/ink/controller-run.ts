@@ -1,10 +1,13 @@
 import type { InkCoderController } from './ink-controller.js';
+import type { FileGoalPluginService } from 'pulse-coder-plugin-kit/goal';
 import { estimateTokens, publishSession, resolveCurrentSessionId, syncSessionTaskListBinding } from './controller-session.js';
 import { extractStepUsage } from '../shared/usage-metrics.js';
 import { buildMemoryRunContext, memoryIntegration, recordDailyLogFromSuccessPath } from '../shared/memory-integration.js';
+import { goalIntegration } from '../shared/goal-integration.js';
 import { expandFileReferences } from '../shared/file-reference.js';
 import { modelRunOptions, currentContextWindow } from './controller-model.js';
 import { dispatchInput } from './controller-dispatch.js';
+import { decideGoalContinuation } from './controller-goal.js';
 import { getToolCallId, getToolInput, getToolOutput, resolveToolName } from './tool-payload.js';
 
 /** Run machinery for the Ink host: the agent turn, exclusive commands,
@@ -22,7 +25,7 @@ export async function runMessage(controller: InkCoderController, rawInput: strin
   for (const skipped of expansion.skipped) {
     controller.ui.log(`[warn] @${skipped.ref} skipped — ${skipped.reason}`);
   }
-  const messageInput = expansion.text;
+  let messageInput = expansion.text;
 
   controller.ui.session({
     sessionId: controller.sessionCommands.getCurrentSessionId(),
@@ -134,49 +137,74 @@ export async function runMessage(controller: InkCoderController, rawInput: strin
       },
     });
 
-    const result = currentSessionId
-      ? await memoryIntegration.withRunContext(
-        buildMemoryRunContext({
-          sessionId: currentSessionId,
-          userText: messageInput,
-        }),
-        runAgent,
-      )
-      : await runAgent();
+    // Goal-driven continuation: after each round, the goal service decides
+    // whether to auto-continue, verify, or ask the user. The engine itself is
+    // never asked to loop — the CLI owns the budget.
+    let round = 0;
+    while (true) {
+      round += 1;
+      sawText = false;
+      toolCalls = 0;
 
-    // The engine does not throw on abort: once the signal fires, loop() returns
-    // the plain sentinel string 'Request aborted.' as an ordinary result, so the
-    // AbortError catch below never sees an engine-side cancellation. Without this
-    // check the success path would finalize the partial answer as final, write a
-    // "Done in Xs" summary, print the sentinel as the model's reply, and persist
-    // the cancelled turn to the session and the daily log.
-    if (ac.signal.aborted) {
-      controller.ui.abort('Operation cancelled.');
-      return;
-    }
+      const result = currentSessionId
+        ? await memoryIntegration.withRunContext(
+          buildMemoryRunContext({
+            sessionId: currentSessionId,
+            userText: messageInput,
+          }),
+          runAgent,
+        )
+        : await runAgent();
 
-    controller.ui.runSummary({
-      elapsedMs: Date.now() - runStartedAt,
-      toolCalls,
-      messages: controller.context.messages.length,
-      estimatedTokens: estimateTokens(controller, controller.context.messages),
-      mode: controller.interactionMode,
-    });
-
-    if (result) {
-      if (!sawText) {
-        controller.ui.plain(result);
+      // The engine does not throw on abort: once the signal fires, loop() returns
+      // the plain sentinel string 'Request aborted.' as an ordinary result, so the
+      // AbortError catch below never sees an engine-side cancellation. Without this
+      // check the success path would finalize the partial answer as final, write a
+      // "Done in Xs" summary, print the sentinel as the model's reply, and persist
+      // the cancelled turn to the session and the daily log.
+      if (ac.signal.aborted) {
+        controller.ui.abort('Operation cancelled.');
+        return;
       }
 
-      await controller.sessionCommands.saveContext(controller.context);
+      controller.ui.runSummary({
+        elapsedMs: Date.now() - runStartedAt,
+        toolCalls,
+        messages: controller.context.messages.length,
+        estimatedTokens: estimateTokens(controller, controller.context.messages),
+        mode: controller.interactionMode,
+      });
 
-      if (currentSessionId) {
-        await recordDailyLogFromSuccessPath({
-          sessionId: currentSessionId,
-          userText: messageInput,
-          assistantText: result,
-        });
+      if (result) {
+        if (!sawText) {
+          controller.ui.plain(result);
+        }
+
+        await controller.sessionCommands.saveContext(controller.context);
+
+        if (currentSessionId) {
+          await recordDailyLogFromSuccessPath({
+            sessionId: currentSessionId,
+            userText: messageInput,
+            assistantText: result,
+          });
+        }
       }
+
+      const decision = await decideGoalContinuation(controller, getGoalService(controller));
+      if (decision.action === 'stop') {
+        break;
+      }
+
+      // Continue: push the next round's instruction and loop. The message is a
+      // plain user turn, so the next round flows through the exact same
+      // pipeline (prompt injection, tool loop, session save) as the first.
+      controller.ui.info(`Goal continuation round ${round + 1}`);
+      controller.context.messages.push({
+        role: 'user',
+        content: decision.message,
+      });
+      messageInput = decision.message;
     }
   } catch (error: any) {
     if (error?.name === 'AbortError') {
@@ -263,6 +291,16 @@ export function recordStepUsage(controller: InkCoderController, step: unknown): 
     outputTokens: controller.totalOutputTokens,
     cachedInputTokens: controller.lastCachedTokens,
   });
+}
+
+function getGoalService(controller: InkCoderController): FileGoalPluginService {
+  const fromEngine = controller.agent.getService<FileGoalPluginService>('goalService');
+  if (fromEngine) {
+    return fromEngine;
+  }
+  // Engine plugin missing (e.g. a host that assembled plugins by hand): fall
+  // back to the CLI-side singleton so continuation still works.
+  return goalIntegration.service;
 }
 
 export function describeCacheHit(controller: InkCoderController): string {

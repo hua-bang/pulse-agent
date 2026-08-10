@@ -1,7 +1,9 @@
 import type { Context, TaskListService } from 'pulse-coder-engine';
 import type { PulseAgent } from 'pulse-coder-engine';
+import type { FileGoalPluginService } from 'pulse-coder-plugin-kit/goal';
 import { formatModelSpec, resolveKnownModelSpec, type ModelChoice } from '../models/model-spec.js';
 import { loadModelRegistry } from '../models/model-registry.js';
+import { goalIntegration } from '../shared/goal-integration.js';
 import type { SessionCommands } from '../commands/session-commands.js';
 import type { InputManager } from '../shared/input-manager.js';
 import type { SkillCommands } from '../commands/skill-commands.js';
@@ -81,6 +83,31 @@ export async function syncSessionTaskListBinding(host: ReadlineHost): Promise<vo
     }
   } catch (error: any) {
     host.tui.warn(`Failed to switch task list binding: ${error?.message ?? String(error)}`);
+  }
+}
+
+/** Binds the goal store to the current session so /goal targets this session. */
+export async function syncSessionGoalBinding(host: ReadlineHost): Promise<void> {
+  const sessionId = host.sessionCommands.getCurrentSessionId();
+  const scope = sessionId ? `session-${sessionId}` : 'default';
+
+  try {
+    const service = host.agent.getService<FileGoalPluginService>('goalService');
+    if (service?.setScope) {
+      const result = await service.setScope(scope);
+      if (result.switched) {
+        host.tui.info(`Goal scope: ${result.scope}`);
+      }
+      return;
+    }
+  } catch (error: any) {
+    host.tui.warn(`Failed to switch goal scope: ${error?.message ?? String(error)}`);
+  }
+
+  await goalIntegration.initialize();
+  const result = await goalIntegration.service.setScope(scope);
+  if (result.switched) {
+    host.tui.info(`Goal scope: ${result.scope}`);
   }
 }
 

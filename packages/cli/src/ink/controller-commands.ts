@@ -1,6 +1,7 @@
 import { DEFAULT_MODEL } from 'pulse-coder-engine';
+import type { FileGoalPluginService } from 'pulse-coder-plugin-kit/goal';
 import type { InkCoderController } from './ink-controller.js';
-import { estimateTokens, getKeepLastTurns, publishSession, resetUsageCounters, syncSessionTaskListBinding } from './controller-session.js';
+import { estimateTokens, getKeepLastTurns, publishSession, resetUsageCounters, syncSessionGoalBinding, syncSessionTaskListBinding } from './controller-session.js';
 import type { CliInteractionMode } from './ink-app.js';
 import { HELP_FOOTER, HELP_ITEMS } from './controller-defs.js';
 import { applyModelOverride, currentContextWindow, describeConnection, modelRunOptions, restoreSessionModel } from './controller-model.js';
@@ -85,6 +86,75 @@ export async function handleCommand(controller: InkCoderController, command: str
       case 'skills':
         controller.ui.info('Use /skills <name|index> <message> directly in input for one-shot skill execution.');
         break;
+      case 'goal': {
+        const subcommand = (args[0] ?? '').toLowerCase();
+        const goalService = resolveGoalService(controller);
+
+        if (subcommand === 'status') {
+          const snapshot = await goalService.snapshot();
+          if (snapshot.status === 'none') {
+            controller.ui.info('No active goal. Set one with /goal <objective>');
+            break;
+          }
+          controller.ui.section('Goal', [
+            `Status: ${snapshot.status}`,
+            `Objective: ${snapshot.objective ?? '(none)'}`,
+            `Rounds used: ${snapshot.roundsUsed}${snapshot.maxRounds ? `/${snapshot.maxRounds}` : ''}`,
+            snapshot.verifyCommand ? `Verify: ${snapshot.verifyCommand}` : null,
+            snapshot.lastProgress ? `Last progress: ${snapshot.lastProgress}` : null,
+            snapshot.completedSummary ? `Completed: ${snapshot.completedSummary}` : null,
+            `Storage: ${snapshot.storagePath}`,
+          ].filter((line): line is string => line !== null));
+          break;
+        }
+
+        if (subcommand === 'clear') {
+          const cleared = await goalService.clearGoal();
+          controller.ui[cleared ? 'success' : 'info'](cleared ? 'Goal cleared.' : 'No active goal to clear.');
+          break;
+        }
+
+        if (subcommand === 'complete') {
+          const summary = args.slice(1).join(' ').trim() || 'Marked complete by user';
+          const goal = await goalService.completeGoal({ summary });
+          if (goal) {
+            controller.ui.success('Goal marked complete.');
+          } else {
+            controller.ui.info('No active goal to complete.');
+          }
+          break;
+        }
+
+        if (subcommand === 'help' || subcommand === '') {
+          controller.ui.section('Goal usage', [
+            '/goal <objective>            Set a goal the agent keeps working toward',
+            '/goal <objective> --verify <cmd>  Also verify completion by running <cmd>',
+            '/goal <objective> --rounds <n>    Limit automatic continuation rounds to <n>',
+            '/goal status                  Show the current goal and progress',
+            '/goal complete [summary]      Mark the current goal complete',
+            '/goal clear                   Stop working toward the goal',
+          ]);
+          break;
+        }
+
+        // Set mode: everything after flags is the objective.
+        const { objective, verifyCommand, maxRounds } = parseGoalSetArgs(args);
+        if (!objective) {
+          controller.ui.error('Please provide a goal objective.');
+          controller.ui.info('Usage: /goal <objective> [--verify <cmd>] [--rounds <n>]');
+          break;
+        }
+
+        const goal = await goalService.setGoal({ objective, verifyCommand, maxRounds });
+        controller.ui.success('Goal set.');
+        controller.ui.section('Active goal', [
+          `Objective: ${goal.objective}`,
+          goal.verifyCommand ? `Verify: ${goal.verifyCommand}` : 'Verify: none (declaration + user confirmation)',
+          `Max rounds: ${goal.maxRounds ?? 'unlimited'}`,
+        ]);
+        controller.ui.info('The agent keeps working toward this goal until it is met, verified, or you stop it.');
+        break;
+      }
       case 'status':
         controller.ui.section('CLI Status', [
           `Session: ${controller.sessionCommands.getCurrentSessionId() || 'None (new session)'}`,
@@ -223,6 +293,54 @@ export async function handleCommand(controller: InkCoderController, command: str
   } catch (error) {
     controller.ui.error(`Error executing command: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+export interface ParsedGoalSetArgs {
+  objective: string;
+  verifyCommand?: string;
+  maxRounds?: number;
+}
+
+export function parseGoalSetArgs(args: string[]): ParsedGoalSetArgs {
+  let verifyCommand: string | undefined;
+  let maxRounds: number | undefined;
+  const objectiveParts: string[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--verify' || arg === '-v') {
+      const value = args[index + 1];
+      if (value) {
+        verifyCommand = value;
+        index += 1;
+      }
+      continue;
+    }
+    if (arg === '--rounds' || arg === '-r') {
+      const value = args[index + 1];
+      const parsed = Number(value);
+      if (value && Number.isInteger(parsed) && parsed > 0) {
+        maxRounds = parsed;
+        index += 1;
+      }
+      continue;
+    }
+    objectiveParts.push(arg);
+  }
+
+  return {
+    objective: objectiveParts.join(' ').trim(),
+    verifyCommand,
+    maxRounds,
+  };
+}
+
+function resolveGoalService(controller: InkCoderController): FileGoalPluginService {
+  const fromEngine = controller.agent.getService<FileGoalPluginService>('goalService');
+  if (fromEngine) {
+    return fromEngine;
+  }
+  throw new Error('Goal plugin unavailable');
 }
 
 export function parseInteractionMode(controller: InkCoderController, value: string | undefined): CliInteractionMode | null {
