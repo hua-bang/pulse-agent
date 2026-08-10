@@ -2766,8 +2766,8 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 292px;
-  max-height: min(420px, calc(100vh - 24px));
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(520px, calc(100vh - 24px));
   overflow-y: auto;
   background: #fff;
   border: 1px solid rgba(55, 53, 47, 0.1);
@@ -2781,20 +2781,53 @@
 /* Sticky because the panel itself is the scroll container: the filter has to
    stay reachable while a long catalog scrolls under it. The negative top
    cancels the panel's own 6px padding so nothing peeks above it. */
-.chat-model-menu-search {
+.chat-model-menu-controls {
   position: sticky;
   top: -6px;
   z-index: 1;
   margin: -6px -6px 2px;
-  padding: 8px 8px 6px;
   background: var(--surface);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.chat-model-menu-search {
+  padding: 8px 8px 6px;
 }
 
 /* ui/TextField owns the field chrome; only the menu's tighter metrics differ. */
 .chat-model-menu-search-input.ui-textfield__control {
   height: 30px;
   font-size: 12px;
+}
+
+.chat-model-menu-toolbar {
+  min-width: 0;
+  padding: 0 8px 7px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-model-menu-provider-filter {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: transparent;
+}
+
+.chat-model-menu-provider-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-model-menu-provider-filter .ui-segmented__option {
+  flex-shrink: 0;
+}
+
+.chat-model-menu-result-count {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .chat-model-menu-provider-head {
@@ -2856,6 +2889,7 @@
 
 .chat-model-menu-main {
   min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;

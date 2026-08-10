@@ -1,0 +1,123 @@
+.chat-model-catalog {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.chat-model-catalog-head {
+  min-height: 40px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chat-model-catalog-head strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chat-model-catalog-head span {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.chat-model-model-search-wrap {
+  padding: 0 10px 8px;
+}
+
+.chat-model-model-search.ui-textfield__control {
+  height: 32px;
+  font-size: 12px;
+}
+
+.chat-model-model-filters {
+  margin: 0 10px 8px;
+  background: transparent;
+}
+
+.chat-model-model-list {
+  min-height: 48px;
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+}
+
+.chat-model-model-row.ui-btn {
+  width: 100%;
+  height: auto;
+  min-height: 42px;
+  padding: 7px 12px;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.chat-model-model-row:last-child {
+  border-bottom: none;
+}
+
+.chat-model-model-row.ui-btn:hover {
+  background: var(--surface-subtle);
+}
+
+.chat-model-model-row--selected.ui-btn {
+  background: var(--accent-soft);
+}
+
+.chat-model-model-checkbox {
+  width: 15px;
+  height: 15px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.chat-model-model-row-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.chat-model-model-row-copy strong,
+.chat-model-model-row-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-model-model-row-copy strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.chat-model-model-row-copy small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.chat-model-catalog-empty {
+  width: 100%;
+  padding: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}

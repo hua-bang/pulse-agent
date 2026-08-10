@@ -52,6 +52,22 @@ const STATUS: CanvasModelStatus = {
 
 const AUTO_SELECTION: ModelSelection = { mode: 'auto' };
 const MODEL_SELECTION: ModelSelection = { mode: 'model', providerId: 'anthropic', modelId: 'claude-sonnet' };
+const MULTI_PROVIDER_STATUS: CanvasModelStatus = {
+  ...STATUS,
+  providers: [
+    ...STATUS.providers,
+    {
+      id: 'openai',
+      name: 'OpenAI',
+      provider_type: 'openai',
+      apiKeyPresent: true,
+      models: [
+        { id: 'gpt-4o', name: 'GPT-4o' },
+        { id: 'gpt-4o-mini' },
+      ],
+    },
+  ],
+};
 
 function renderSwitcher(overrides: Partial<Parameters<typeof ModelSwitcher>[0]> = {}) {
   const onSelectModel = vi.fn().mockResolvedValue(undefined);
@@ -128,6 +144,25 @@ describe('ModelSwitcher', () => {
     typeInSearch('nothing-matches-this');
     expect(document.querySelectorAll('.chat-model-menu-item--model').length).toBe(0);
     expect(document.querySelector('.chat-model-menu-empty')?.textContent).toBe('No matching models');
+  });
+
+  it('filters a long catalog by provider and avoids repeating a bare model id', () => {
+    renderSwitcher({ status: MULTI_PROVIDER_STATUS });
+    openMenu();
+
+    expect(document.querySelector('.chat-model-menu-result-count')?.textContent).toBe('4 models');
+    const openAiFilter = Array.from(document.querySelectorAll<HTMLButtonElement>('.chat-model-menu-provider-filter button'))
+      .find((button) => button.textContent?.includes('OpenAI'));
+    act(() => openAiFilter?.click());
+
+    expect(document.querySelectorAll('.chat-model-menu-item--model')).toHaveLength(2);
+    expect(document.querySelector('.chat-model-menu-provider-head')?.textContent).toContain('OpenAI');
+    const bareIdItem = Array.from(document.querySelectorAll('.chat-model-menu-item--model'))
+      .find((item) => item.textContent?.includes('gpt-4o-mini'));
+    expect(bareIdItem?.querySelector('.chat-model-menu-subtitle')).toBeNull();
+    typeInSearch('gpt-4o-mini');
+    expect(document.querySelector('.chat-model-menu-result-count')?.textContent).toBe('1 model');
+    expect(document.querySelector('.chat-model-menu-close')).toBeNull();
   });
 
   it('Enter in the search box picks the first match', () => {

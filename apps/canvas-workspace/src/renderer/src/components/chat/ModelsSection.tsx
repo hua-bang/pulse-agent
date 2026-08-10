@@ -8,6 +8,8 @@ import type {
 import { TrashIcon } from '../icons';
 import { ModelProviderFields } from './ModelProviderFields';
 import { ModelProviderRail } from './ModelProviderRail';
+import { useProviderModelActions } from './hooks/useProviderModelActions';
+import { useProviderModelSelection } from './hooks/useProviderModelSelection';
 import { useI18n } from '../../i18n';
 
 interface ModelsSectionProps {
@@ -115,10 +117,8 @@ export const ModelsSection = ({
   const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
   const [activeProviderId, setActiveProviderId] = useState<string>('new');
   const [draft, setDraft] = useState<CanvasModelProviderConfig>(emptyProvider());
+  const { availableModels, mergeModelCatalog, resetModelCatalog, toggleModel } = useProviderModelSelection(setDraft);
   const [manualModel, setManualModel] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [fetching, setFetching] = useState(false);
-  const [localError, setLocalError] = useState<string>();
   // Deleting a provider discards its saved API-key config with no undo, so
   // the trash button arms on the first click and deletes on the second.
   // Switching providers or pausing 3s disarms it.
@@ -138,6 +138,15 @@ export const ModelsSection = ({
     () => providers.find((item) => item.id === activeProviderId),
     [providers, activeProviderId],
   );
+  const { fetching, fetchModels, localError, save, saving, setLocalError } = useProviderModelActions({
+    activeProviderStatus,
+    draft,
+    mergeModelCatalog,
+    onFetchModels,
+    onSaveProvider,
+    setActiveProviderId,
+    setDraft,
+  });
   const initializedRef = useRef(false);
 
   useEffect(() => {
@@ -148,16 +157,19 @@ export const ModelsSection = ({
     setActiveProviderId(initial);
     const provider = providers.find((item) => item.id === initial);
     setDraft(providerToDraft(provider));
+    resetModelCatalog(provider?.models);
     setManualModel('');
     setLocalError(undefined);
-  }, [status, providers]);
+  }, [providers, resetModelCatalog, status]);
 
   const selectProvider = useCallback((providerId: string) => {
+    const provider = providers.find((item) => item.id === providerId);
     setActiveProviderId(providerId);
-    setDraft(providerToDraft(providers.find((item) => item.id === providerId)));
+    setDraft(providerToDraft(provider));
+    resetModelCatalog(provider?.models);
     setManualModel('');
     setLocalError(undefined);
-  }, [providers]);
+  }, [providers, resetModelCatalog]);
 
   const setDraftField = useCallback(<K extends keyof CanvasModelProviderConfig>(key: K, value: CanvasModelProviderConfig[K]) => {
     setDraft((current) => {
@@ -177,8 +189,9 @@ export const ModelsSection = ({
       if (models.some((model) => model.id === id)) return current;
       return { ...current, models: [...models, { id }] };
     });
+    mergeModelCatalog([{ id }]);
     setManualModel('');
-  }, [manualModel]);
+  }, [manualModel, mergeModelCatalog]);
 
   const applyPreset = useCallback((preset: (typeof PROVIDER_PRESETS)[number]) => {
     setActiveProviderId('new');
@@ -187,75 +200,10 @@ export const ModelsSection = ({
       ...preset.provider,
       models: [...preset.provider.models],
     });
+    resetModelCatalog(preset.provider.models);
     setManualModel('');
     setLocalError(undefined);
-  }, []);
-
-  const removeModel = useCallback((modelId: string) => {
-    setDraft((current) => ({
-      ...current,
-      models: (current.models ?? []).filter((model) => model.id !== modelId),
-    }));
-  }, []);
-
-  const fetchModels = useCallback(async () => {
-    setFetching(true);
-    setLocalError(undefined);
-    try {
-      const models = await onFetchModels(draft);
-      setDraft((current) => ({ ...current, models }));
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setFetching(false);
-    }
-  }, [draft, onFetchModels]);
-
-  const save = useCallback(async () => {
-    if (!draft.name.trim()) {
-      setLocalError(t('models.nameRequired'));
-      return;
-    }
-    if (!draft.id.trim()) {
-      setLocalError(t('models.invalidId'));
-      return;
-    }
-    if (!draft.base_url?.trim()) {
-      setLocalError(t('models.baseUrlRequired'));
-      return;
-    }
-    const hasSavedKey = Boolean(activeProviderStatus?.apiKeyPresent);
-    if (!draft.api_key?.trim() && !hasSavedKey) {
-      setLocalError(t('models.apiKeyRequired'));
-      return;
-    }
-
-    setSaving(true);
-    setLocalError(undefined);
-    try {
-      let fetchedModels: CanvasProviderModel[] = [];
-      try {
-        fetchedModels = await onFetchModels(draft);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setLocalError(t('models.connectionTestFailed', { message: msg }));
-        return;
-      }
-
-      const existingIds = new Set((draft.models ?? []).map((model) => model.id));
-      const mergedModels = [
-        ...(draft.models ?? []),
-        ...fetchedModels.filter((model) => !existingIds.has(model.id)),
-      ];
-      const saved = await onSaveProvider({ ...draft, models: mergedModels });
-      if (saved) {
-        setActiveProviderId(draft.id);
-        setDraft((current) => ({ ...current, models: mergedModels, api_key: '' }));
-      }
-    } finally {
-      setSaving(false);
-    }
-  }, [draft, activeProviderStatus, onSaveProvider, onFetchModels, t]);
+  }, [resetModelCatalog]);
 
   return (
     <>
@@ -326,13 +274,14 @@ export const ModelsSection = ({
             activeProviderId={activeProviderId}
             activeProviderStatus={activeProviderStatus}
             addManualModel={addManualModel}
+            availableModels={availableModels}
             draft={draft}
             fetching={fetching}
             fetchModels={fetchModels}
             manualModel={manualModel}
-            removeModel={removeModel}
             setDraftField={setDraftField}
             setManualModel={setManualModel}
+            toggleModel={toggleModel}
           />
         </div>
       </div>
