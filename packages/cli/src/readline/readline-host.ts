@@ -6,7 +6,8 @@ import { InputManager } from '../shared/input-manager.js';
 import { SkillCommands } from '../commands/skill-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from '../shared/memory-integration.js';
 import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
-import { formatModelSpec, loadModelRegistry, resolveKnownModelSpec, resolveModelSpec, type ModelChoice } from '../models/model-registry.js';
+import { loadModelRegistry } from '../models/model-registry.js';
+import { formatModelSpec, resolveKnownModelSpec, resolveModelSpec, type ModelChoice } from '../models/model-spec.js';
 import { buildModelRunOptions, resolveModelChoice } from '../models/model-run-options.js';
 import { createPulseCliTools } from '../tools/runtime-tools.js';
 

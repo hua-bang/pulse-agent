@@ -42,6 +42,8 @@ export class EngineLogSink {
   /** Bytes written by this process; drives mid-session rotation. */
   private writtenBytes = 0;
   private rotating = false;
+  /** Settles when the in-flight rotation's flush + swap has finished. */
+  private rotationSettled: Promise<void> | null = null;
 
   constructor(options: EngineLogSinkOptions = {}) {
     this.filePath = options.filePath ?? path.join(homedir(), '.pulse-coder', 'logs', 'cli.log');
@@ -96,10 +98,22 @@ export class EngineLogSink {
   }
 
   /** Restores console methods and flushes the log file. */
-  restore(): Promise<void> {
+  async restore(): Promise<void> {
     if (!this.installed) {
-      return Promise.resolve();
+      return;
     }
+
+    // A rotation's rename + reopen ride on an async end() flush; let it settle
+    // while still installed (so the swap completes instead of being skipped),
+    // or the caller's "flushed" promise can resolve mid-swap.
+    while (this.rotationSettled) {
+      const settled = this.rotationSettled;
+      await settled;
+      if (this.rotationSettled === settled) {
+        this.rotationSettled = null;
+      }
+    }
+
     this.installed = false;
     if (this.original.log) console.log = this.original.log;
     if (this.original.info) console.info = this.original.info;
@@ -111,9 +125,9 @@ export class EngineLogSink {
     const stream = this.stream;
     this.stream = null;
     if (!stream) {
-      return Promise.resolve();
+      return;
     }
-    return new Promise(resolve => stream.end(() => resolve()));
+    await new Promise<void>(resolve => stream.end(() => resolve()));
   }
 
   record(level: EngineLogLevel, args: unknown[]): void {
@@ -159,32 +173,36 @@ export class EngineLogSink {
     this.stream = null;
     this.writtenBytes = 0;
 
-    const reopen = () => {
-      this.rotating = false;
-      // restore() may have run while the flush was in flight; don't resurrect
-      // file logging after the sink was uninstalled.
-      if (!this.installed) {
-        return;
-      }
-      try {
-        fs.renameSync(this.filePath, `${this.filePath}.old`);
-        const next = fs.createWriteStream(this.filePath, { flags: 'a' });
-        next.on('error', () => {
+    this.rotationSettled = new Promise(resolve => {
+      const reopen = () => {
+        this.rotating = false;
+        // restore() may have run while the flush was in flight; don't resurrect
+        // file logging after the sink was uninstalled.
+        if (!this.installed) {
+          resolve();
+          return;
+        }
+        try {
+          fs.renameSync(this.filePath, `${this.filePath}.old`);
+          const next = fs.createWriteStream(this.filePath, { flags: 'a' });
+          next.on('error', () => {
+            this.stream = null;
+          });
+          this.stream = next;
+        } catch {
+          // Leave file logging off rather than take the host down; the ring buffer
+          // and /debug keep working.
           this.stream = null;
-        });
-        this.stream = next;
-      } catch {
-        // Leave file logging off rather than take the host down; the ring buffer
-        // and /debug keep working.
-        this.stream = null;
-      }
-    };
+        }
+        resolve();
+      };
 
-    if (stream) {
-      stream.end(reopen);
-    } else {
-      reopen();
-    }
+      if (stream) {
+        stream.end(reopen);
+      } else {
+        reopen();
+      }
+    });
   }
 
   subscribe(listener: (entry: EngineLogEntry) => void): () => void {

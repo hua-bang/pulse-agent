@@ -2,7 +2,8 @@ import { createHash } from 'crypto';
 
 import { buildProvider, type LLMProviderFactory } from 'pulse-coder-engine';
 
-import { loadModelRegistry, resolveModelSpec, type ModelChoice } from './model-registry.js';
+import { loadModelRegistry } from './model-registry.js';
+import { resolveModelSpec, type ModelChoice } from './model-spec.js';
 
 export interface ModelRunOptions {
   model?: string;

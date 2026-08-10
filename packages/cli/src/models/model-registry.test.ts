@@ -4,7 +4,8 @@ import * as path from 'path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveKnownModelSpec, resolveModelSpec, shortModelLabel, type ModelRegistry } from './model-registry.js';
+import { loadModelRegistry } from './model-registry.js';
+import { findDefaultModel, formatModelSpec, parseModelSpec, resolveKnownModelSpec, resolveModelSpec, shortModelLabel, type ModelRegistry } from './model-spec.js';
 
 describe('parseModelSpec', () => {
   it('pins the SDK channel from prefixed specs and passes bare ids through', () => {

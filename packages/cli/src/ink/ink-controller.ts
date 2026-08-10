@@ -10,7 +10,8 @@ import { formatRelativeTime, truncateLabel, type InkCliController, type InkCliSn
 import type { EngineLogSink } from '../shared/log-sink.js';
 import { createPulseCliTools } from '../tools/runtime-tools.js';
 import { extractStepUsage } from '../shared/usage-metrics.js';
-import { findDefaultModel, formatModelSpec, loadModelRegistry, parseModelSpec, resolveKnownModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from '../models/model-registry.js';
+import { loadModelRegistry } from '../models/model-registry.js';
+import { findDefaultModel, formatModelSpec, parseModelSpec, resolveKnownModelSpec, resolveModelSpec, shortModelLabel, type ModelChoice } from '../models/model-spec.js';
 import { buildModelRunOptions, type ModelRunOptions } from '../models/model-run-options.js';
 import { PreferencesStore } from '../models/preferences.js';
 import { expandFileReferences, indexWorkspaceFiles } from '../shared/file-reference.js';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildModelRunOptions, sessionPromptCacheKey } from './model-run-options.js';
-import type { ModelChoice } from './model-registry.js';
+import type { ModelChoice } from './model-spec.js';
 
 describe('buildModelRunOptions', () => {
   it('keeps model and context window aligned', () => {

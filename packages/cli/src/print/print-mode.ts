@@ -1,7 +1,8 @@
 import { builtInPlanModePlugin, DEFAULT_MODEL, PulseAgent, type Context, type EngineOptions } from 'pulse-coder-engine';
 
 import { BenchmarkTrace } from './benchmark-trace.js';
-import { loadModelRegistry, resolveModelSpec } from '../models/model-registry.js';
+import { loadModelRegistry } from '../models/model-registry.js';
+import { resolveModelSpec } from '../models/model-spec.js';
 import { buildModelRunOptions } from '../models/model-run-options.js';
 import { createPulseCliTools } from '../tools/runtime-tools.js';
 import { extractStepUsage } from '../shared/usage-metrics.js';

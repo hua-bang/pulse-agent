@@ -1,4 +1,5 @@
-import { extractMessageText, SessionManager, type Session, type SessionSummary } from '../session/session.js';
+import { SessionManager, type Session, type SessionSummary } from '../session/session.js';
+import { printRecentConversation, printSearchResults, printSessionList } from './session-listing.js';
 import type { Context } from 'pulse-coder-engine';
 
 export class SessionCommands {
@@ -144,19 +145,7 @@ export class SessionCommands {
     this.log(`🗂️ Task list: ${this.currentTaskListId}`);
     this.log(`📊 Loaded ${session.messages.length} messages`);
 
-    // Show the last few text-bearing turns as context (tool traffic skipped)
-    const recentMessages = session.messages
-      .filter(msg => (msg.role === 'user' || msg.role === 'assistant') && extractMessageText(msg.content).trim())
-      .slice(-5);
-    if (recentMessages.length > 0) {
-      this.log('\n💬 Recent conversation:');
-      recentMessages.forEach((msg, index) => {
-        const role = msg.role === 'user' ? '👤 You' : '🤖 Assistant';
-        const contentStr = extractMessageText(msg.content).replace(/\s+/g, ' ').trim();
-        const preview = contentStr.substring(0, 100) + (contentStr.length > 100 ? '…' : '');
-        this.log(`${index + 1}. ${role}: ${preview}`);
-      });
-    }
+    printRecentConversation(this.log, session);
 
     return true;
   }
@@ -168,36 +157,13 @@ export class SessionCommands {
       limit: Math.max(normalizedLimit, 200),
       ...(options.allDirectories ? {} : { cwd: this.cwd }),
     });
-    const sessions = allSessions.slice(0, normalizedLimit);
-
-    if (sessions.length === 0) {
-      this.log('\n📭 No saved sessions found.');
-      return;
-    }
-
-    const scope = options.allDirectories ? 'all directories' : this.cwd;
-    this.log(`\n📋 Saved sessions (showing ${sessions.length} of ${allSessions.length} · ${scope}):`);
-    this.log('='.repeat(80));
-
-    sessions.forEach((session, index) => {
-      const isActive = session.id === this.currentSessionId ? '✅' : '  ';
-      const date = new Date(session.updatedAt).toLocaleString();
-      this.log(`${index + 1}. ${isActive} ${session.title}`);
-      this.log(`   ID: ${session.id}`);
-      this.log(`   Messages: ${session.messageCount} | Updated: ${date}`);
-      if (session.taskListId) {
-        this.log(`   Task List: ${session.taskListId}`);
-      }
-      this.log(`   Preview: ${session.preview}`);
-      this.log();
+    printSessionList(this.log, {
+      sessions: allSessions.slice(0, normalizedLimit),
+      totalCount: allSessions.length,
+      scope: options.allDirectories ? 'all directories' : this.cwd,
+      allDirectories: Boolean(options.allDirectories),
+      currentSessionId: this.currentSessionId,
     });
-    if (allSessions.length > sessions.length) {
-      this.log(`… ${allSessions.length - sessions.length} older sessions hidden · /sessions <n> shows more`);
-    }
-    if (!options.allDirectories) {
-      this.log('Scoped to this directory · /sessions --all lists every directory.');
-    }
-    this.log('Resume with /resume <index>, a unique id prefix, or the full id.');
   }
 
   /**
@@ -269,18 +235,7 @@ export class SessionCommands {
 
   async searchSessions(query: string): Promise<void> {
     const sessions = await this.sessionManager.searchSessions(query, this.cwd);
-
-    if (sessions.length === 0) {
-      this.log(`\n🔍 No sessions found matching "${query}"`);
-      return;
-    }
-
-    this.log(`\n🔍 Search results for "${query}":`);
-    sessions.forEach((session, index) => {
-      this.log(`${index + 1}. ${session.title} (${session.id}) - ${session.messageCount} messages`);
-      this.log(`   Updated: ${new Date(session.updatedAt).toLocaleString()}`);
-      this.log(`   Preview: ${session.preview}`);
-    });
+    printSearchResults(this.log, query, sessions);
   }
 
   async deleteSession(id: string): Promise<boolean> {
