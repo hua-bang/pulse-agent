@@ -60,7 +60,8 @@ src/
     webview/        # Webview registry, CDP helpers, page reader
   preload/          # Context bridge (exposes window.canvasWorkspace API)
   renderer/src/
-    components/     # Grouped by domain: shell/, canvas/, node-bodies/, note-editor/, dock/, views/, settings/, chat/, artifacts/, ui/, icons/
+    components/     # Grouped by domain: shell/, canvas/, node-bodies/, note-editor/, dock/, settings/, chat/, artifacts/, ui/, icons/
+    views/          # Routed full-page surfaces: Scheduled, SkillsLibrary, WorkspaceNodes
     hooks/          # useWorkspaces, canvas interaction hooks
     editor/         # Tiptap editor setup
     config/ constants/ i18n/ utils/

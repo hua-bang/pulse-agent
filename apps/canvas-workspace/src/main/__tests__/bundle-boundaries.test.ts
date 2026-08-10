@@ -51,8 +51,8 @@ const WATCHLIST = [
 const DYNAMIC_ONLY_MODULE_SUFFIXES = [
   '/components/settings/Settings/index.tsx',
   '/components/settings/WorkspaceSettings/index.tsx',
-  '/components/views/WorkspaceNodes/NodesPage.tsx',
-  '/components/views/WorkspaceNodes/NodeDetailPage.tsx',
+  '/views/WorkspaceNodes/NodesPage.tsx',
+  '/views/WorkspaceNodes/NodeDetailPage.tsx',
   '/components/node-bodies/FileNodeBody/index.tsx',
   '/components/node-bodies/TextNodeBody/index.tsx',
   '/components/node-bodies/IframeNodeBody/index.tsx',

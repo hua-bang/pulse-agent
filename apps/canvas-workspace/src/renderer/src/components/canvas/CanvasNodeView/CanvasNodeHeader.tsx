@@ -21,7 +21,7 @@ import {
   PluginSelectElementButton,
 } from './NodeButtons';
 import { NodeTypeBadge } from './NodeTypeBadge';
-import { isKnowledgeNodeType } from '../../views/WorkspaceNodes/utils';
+import { isKnowledgeNodeType } from '../../../views/WorkspaceNodes/utils';
 import { isReferenceableNode } from '../../../utils/referenceNodes';
 
 interface CanvasNodeHeaderProps {

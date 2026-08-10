@@ -128,18 +128,18 @@ reason).
 ## IPC contract and UI rules
 
 IPC contract: `src/shared/scheduled.ts` → `src/preload/bridge/scheduled.ts`
-→ renderer `components/views/Scheduled/` (full path
-`src/renderer/src/components/views/Scheduled/`).
+→ renderer `views/Scheduled/` (full path
+`src/renderer/src/views/Scheduled/`).
 
 UI rules for that renderer surface:
 
 - List rows are presentational — every action is an explicit button. (The
   row used to be one big button, so a stray click on the title or the
   cadence text opened a chat; the current layout and the reasoning are in
-  `src/renderer/src/components/views/Scheduled/ScheduledPage.tsx`.)
+  `src/renderer/src/views/Scheduled/ScheduledPage.tsx`.)
 - The time picker is hour/minute `ui/Select`s, never a native
   `<input type="time">`
-  (`src/renderer/src/components/views/Scheduled/TimeOfDaySelect.tsx`).
+  (`src/renderer/src/views/Scheduled/TimeOfDaySelect.tsx`).
 
 ## Chat tool entry and the module-cycle note
 
@@ -164,13 +164,13 @@ Bound tests:
 - `src/main/__tests__/scheduled-task-service.test.ts`
 - `src/main/__tests__/scheduled-run-notify.test.ts` — completion push,
   success AND failure, and no OS notification
-- `src/renderer/src/components/views/Scheduled/__tests__/useScheduledRunToasts.test.tsx`
+- `src/renderer/src/views/Scheduled/__tests__/useScheduledRunToasts.test.tsx`
   — sticky toast
-- `src/renderer/src/components/views/Scheduled/__tests__/scheduledChatTarget.test.ts`
+- `src/renderer/src/views/Scheduled/__tests__/scheduledChatTarget.test.ts`
   — dock-by-default vs route fallback
 - `src/main/agent/__tests__/scheduled-tools.test.ts`
-- `src/renderer/src/components/views/Scheduled/__tests__/TaskEditorModal.test.tsx`
-- `src/renderer/src/components/views/Scheduled/__tests__/ScheduledPage.test.tsx`
+- `src/renderer/src/views/Scheduled/__tests__/TaskEditorModal.test.tsx`
+- `src/renderer/src/views/Scheduled/__tests__/ScheduledPage.test.tsx`
 - `src/main/agent/__tests__/service-history.test.ts` — scheduled-scope
   coverage, alongside its main subject
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-chat-availability.test.ts`

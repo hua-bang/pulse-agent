@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { NodeDetailPanel } from '../../views/WorkspaceNodes/NodeDetailPanel';
-import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from '../../views/WorkspaceNodes/useWorkspaceNodes';
-import { getNodeTitle } from '../../views/WorkspaceNodes/utils';
+import { NodeDetailPanel } from '../../../views/WorkspaceNodes/NodeDetailPanel';
+import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from '../../../views/WorkspaceNodes/useWorkspaceNodes';
+import { getNodeTitle } from '../../../views/WorkspaceNodes/utils';
 import { useI18n } from '../../../i18n';
 
 interface NodeDetailDockTabProps {

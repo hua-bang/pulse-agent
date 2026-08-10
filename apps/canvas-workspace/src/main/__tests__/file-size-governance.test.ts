@@ -20,7 +20,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/canvas/storage.ts': 1156,
   'src/renderer/src/hooks/useNodes.ts': 918,
   'src/main/agent/context-builder.ts': 856,
-  'src/renderer/src/components/views/WorkspaceNodes/GraphPage.tsx': 812,
+  'src/renderer/src/views/WorkspaceNodes/GraphPage.tsx': 812,
   'src/renderer/src/components/settings/settings-config/McpManager.tsx': 786,
   'src/renderer/src/components/canvas/Canvas/index.tsx': 770,
   'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 777,

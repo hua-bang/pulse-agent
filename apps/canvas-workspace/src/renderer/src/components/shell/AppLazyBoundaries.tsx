@@ -3,11 +3,11 @@ import type { SettingsSection } from '../settings/Settings';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 
 export const NodesPageLazy = lazy(() =>
-  import('../views/WorkspaceNodes/NodesPage').then((module) => ({ default: module.NodesPage })),
+  import('../../views/WorkspaceNodes/NodesPage').then((module) => ({ default: module.NodesPage })),
 );
 
 export const NodeDetailPageLazy = lazy(() =>
-  import('../views/WorkspaceNodes/NodeDetailPage').then((module) => ({ default: module.NodeDetailPage })),
+  import('../../views/WorkspaceNodes/NodeDetailPage').then((module) => ({ default: module.NodeDetailPage })),
 );
 
 const Settings = lazy(() =>

@@ -15,10 +15,18 @@ leaf folder names were kept, only a group level was inserted):
 | `node-bodies/` | One body per canvas node type (`*NodeBody`, incl. lazy wrappers) plus `AgentTeamFrame` and the terminal-surface `NodeMentionPicker` |
 | `note-editor/` | Rich-text editing surface for file/text nodes: `FileNodeEditorSurface`, `FileNodeBubbleMenu`, `SlashCommandMenu`, `EditorCommandIcon`, `Note*` pieces |
 | `dock/` | `RightDock`, `LinkDrawer`, `ReferenceDrawer`, `EmbeddedBrowser`, `WorkspaceTerminalDock` |
-| `views/` | Routed full-page surfaces: `Scheduled`, `SkillsLibrary`, `WorkspaceNodes` |
 | `settings/` | `Settings`, `WorkspaceSettings`, `settings-config` |
 | `chat/` | Canvas Agent chat panel + `ChatFloatingButton` |
 | `artifacts/`, `ui/`, `icons/` | Unchanged pre-existing domains (`ui/` is the blessed design-system set — governance and the ui-showcase reference it by path; do not move it) |
+
+Routed full-page surfaces that are their own domain live OUTSIDE
+`components/`, in `src/renderer/src/views/` (`Scheduled`, `SkillsLibrary`,
+`WorkspaceNodes`). The boundary: a page owned by a larger domain stays with
+that domain (`ChatPage` in `components/chat/`, the settings surfaces in
+`components/settings/`); a page domain whose only reason to exist is the
+route goes in `views/`. The lazy route tables (`shell/RouteViews.ts`,
+`shell/AppLazyBoundaries.tsx`) stay in `components/shell/` — they are
+routing infrastructure, not pages.
 
 Place a new component in the group that owns its surface; add a new group only
 when a domain genuinely has no home (see reuse-first rules in `AGENTS.md` §0).

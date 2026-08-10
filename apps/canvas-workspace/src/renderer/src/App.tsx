@@ -11,10 +11,10 @@ import { Sidebar } from './components/shell/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/shell/Workbench';
 import { resolveKnowledgeChatRouteContext } from './components/shell/Workbench/knowledgeChatContext';
-import { GraphPageLazy as GraphPage } from './components/views/WorkspaceNodes/GraphPageLazy';
-import { useKnowledgeAiContext } from './components/views/WorkspaceNodes/knowledgeAiContext';
-import { NodesRouteViews } from './components/views/WorkspaceNodes/NodesRouteViews';
-import { useNodeDetailBridges } from './components/views/WorkspaceNodes/useNodeDetailBridges';
+import { GraphPageLazy as GraphPage } from './views/WorkspaceNodes/GraphPageLazy';
+import { useKnowledgeAiContext } from './views/WorkspaceNodes/knowledgeAiContext';
+import { NodesRouteViews } from './views/WorkspaceNodes/NodesRouteViews';
+import { useNodeDetailBridges } from './views/WorkspaceNodes/useNodeDetailBridges';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { useAppShortcutBindings } from './hooks/useAppShortcuts';
 import { parseCanvasLocation } from './utils/canvasLinks';
@@ -23,7 +23,7 @@ import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } 
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
 import { ScheduledRouteViews, SkillsRouteView } from './components/shell/RouteViews';
-import { useScheduledRunChatOpener } from './components/views/Scheduled/useScheduledRunChatOpener';
+import { useScheduledRunChatOpener } from './views/Scheduled/useScheduledRunChatOpener';
 import {
   ChatTargetProvider,
   useActiveChatTarget,

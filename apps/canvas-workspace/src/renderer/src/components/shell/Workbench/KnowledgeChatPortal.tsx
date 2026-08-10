@@ -9,7 +9,7 @@ import type {
 import type { SettingsSection } from '../../settings/Settings';
 import { ChatPanelLazy as ChatPanel } from '../../chat/lazy';
 import type { AgentScope, ChatComposerRequest } from '../../chat/types';
-import { useAllWorkspaceNodeList } from '../../views/WorkspaceNodes/useWorkspaceNodes';
+import { useAllWorkspaceNodeList } from '../../../views/WorkspaceNodes/useWorkspaceNodes';
 import { buildKnowledgeChatContext } from './knowledgeChatContext';
 
 const GLOBAL_AGENT_SCOPE: AgentScope = { kind: 'global' };
