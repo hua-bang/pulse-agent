@@ -3,6 +3,10 @@
 
 import type { ComponentType } from 'react';
 import type { CanvasNode } from '../shared/canvas';
+import type {
+  AgentObservabilitySubscriber,
+  AgentTraceEvent,
+} from '../shared/agent-observability';
 
 export interface AgentTurn {
   runId: string;
@@ -201,6 +205,10 @@ export interface MainCtx {
   // existing host IPC.
   handle(channel: string, handler: PluginIpcHandler): void;
   onAgent(event: AgentEvent, handler: (turn: AgentTurn) => void): () => void;
+  /** Subscribe to runtime-neutral Canvas Agent telemetry events. */
+  onAgentTrace(handler: (event: AgentTraceEvent) => void | Promise<void>): () => void;
+  /** Register a named sink; later registration with the same id replaces it. */
+  registerAgentObservabilitySubscriber(subscriber: AgentObservabilitySubscriber): () => void;
   /**
    * Access the host's Canvas Agent service singleton. Lets a plugin *drive*
    * conversations (e.g. relay a chat turn from an external channel) rather

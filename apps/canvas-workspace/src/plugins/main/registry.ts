@@ -12,7 +12,7 @@ import { loadCanvas } from '../../main/agent/tools/_shared/canvas-io';
 import { resolveCanvasPluginConfigValue } from '../../main/settings/canvas-plugins-config';
 import { withCdp, type CdpSender } from '../../main/webview/cdp-session';
 import { getWebContentsForNode } from '../../main/webview/registry';
-import { agentBus } from './agent-bus';
+import { agentBus, drainAgentTraceEvents, subscribeAgentTrace } from './agent-bus';
 import { createPluginStore } from './plugin-store';
 
 const loaded = new Set<string>();
@@ -72,6 +72,7 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<s
 
 export async function deactivateCanvasPlugin(pluginId: string): Promise<void> {
   if (!loaded.has(pluginId)) return;
+  await drainAgentTraceEvents();
   loaded.delete(pluginId);
   canvasToolFactories.delete(pluginId);
   for (const [nodeType, entry] of Array.from(nodeCapabilities.entries())) {
@@ -97,6 +98,7 @@ export async function deactivateCanvasPlugin(pluginId: string): Promise<void> {
  * deactivator list is drained as it runs.
  */
 export async function teardownCanvasPlugins(): Promise<void> {
+  await drainAgentTraceEvents();
   const pending = deactivators.splice(0, deactivators.length);
   await Promise.all(
     pending.map(async ({ id, deactivate }) => {
@@ -171,6 +173,15 @@ function createMainCtx(pluginId: string): MainCtx {
       return () => {
         agentBus.off(event, handler);
       };
+    },
+    onAgentTrace(handler) {
+      return subscribeAgentTrace({ id: `${pluginId}:trace-listener`, onEvent: handler });
+    },
+    registerAgentObservabilitySubscriber(subscriber) {
+      return subscribeAgentTrace({
+        ...subscriber,
+        id: `${pluginId}:${subscriber.id}`,
+      });
     },
     getAgentService(): CanvasAgentServiceRef {
       if (!agentServiceAccessor) {

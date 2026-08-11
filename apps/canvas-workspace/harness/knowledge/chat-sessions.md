@@ -265,6 +265,28 @@ inside `RightDock/index.test.tsx`.
 one authoritative run and one session pointer per chat scope even when the
 renderer fires concurrent, overlapping requests at it.
 
+### Chat latency trace
+
+The existing `canvas-agent-debug-trace` experimental feature records a bounded
+performance breakdown for each native-runtime segment: session-lane wait, scope
+activation (including a cold engine initialization), Canvas context/prompt
+preparation, runtime-start delay, first stream activity, first text (TTFT),
+runtime execution, Canvas response processing, and end-to-end duration. The trace is created only when the
+feature is enabled and is shown in both the inline Debug Trace card and the
+Agent Debug page; it adds no prompt or response content beyond the snapshots
+that feature already owns. Timing starts in `CanvasAgentService.chatWithScope`,
+so renderer prepare/subscribe IPC and the prepared turn's model-resolution call
+are outside the reported end-to-end duration. Key contracts:
+`src/main/agent/debug-trace.ts`, `src/main/agent/service.ts`,
+`src/main/agent/canvas-agent.ts`, and
+`src/main/agent/engine-stream-callbacks.ts`. Guard:
+`src/main/agent/debug-trace.test.ts`.
+
+Each trace records the runtime selected at the segment boundary. DevTools labels
+the host-owned phases as `Canvas host` and the runtime-owned stream phases as
+`Engine` or `Pi`; this follows `resolveAgentRuntime`'s actual result, so Pi being
+enabled does not mislabel persona-role segments that still route to Engine.
+
 ### Single-flight scope activation
 
 Canvas Agent scope activation must stay single-flight in

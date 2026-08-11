@@ -8,7 +8,9 @@ export function createMessageDeltaBatcher(opts: {
   segment: SegmentState;
   setMessages: Dispatch<SetStateAction<AgentChatMessage[]>>;
   isCurrent: () => boolean;
+  onFirstCommit?: () => void;
 }) {
+  let didCommit = false;
   return createTextDeltaBatcher({
     schedule: callback => window.setTimeout(callback, 32),
     cancelScheduled: handle => window.clearTimeout(handle),
@@ -22,6 +24,10 @@ export function createMessageDeltaBatcher(opts: {
         next[index] = { ...next[index], content: next[index].content + delta };
         return next;
       });
+      if (!didCommit) {
+        didCommit = true;
+        opts.onFirstCommit?.();
+      }
     },
   });
 }

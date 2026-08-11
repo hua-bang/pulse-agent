@@ -13,6 +13,7 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 // to the ungated build. Enable via `pnpm perf:analyze`.
 const analyze = process.env.PULSE_CANVAS_ANALYZE === "1";
 const perfAnalyze = process.env.PULSE_CANVAS_PERF_ANALYZE === "1";
+const agentObservability = process.env.PULSE_CANVAS_AGENT_OBSERVABILITY === "1";
 
 type LocalPluginRendererAsset = {
   publicPath: string;
@@ -193,6 +194,9 @@ export default defineConfig({
   },
   renderer: {
     root: "src/renderer",
+    define: {
+      __PULSE_CANVAS_AGENT_OBSERVABILITY__: JSON.stringify(agentObservability),
+    },
     build: {
       outDir: "dist/renderer",
       minify: "terser",

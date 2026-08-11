@@ -31,6 +31,7 @@ describe('canvas engine plugin list', () => {
       expect(names).toContain('pulse-coder-engine/built-in-skills');
       expect(names).toContain('pulse-coder-engine/built-in-mcp');
       expect(names).toContain('pulse-coder-engine/built-in-tool-offload');
+      expect(names).toContain('canvas-agent-observability');
     });
   }
 });

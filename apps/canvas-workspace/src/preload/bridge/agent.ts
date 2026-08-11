@@ -12,6 +12,9 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
       attachments
     }),
 
+  markObservability: (input) =>
+    ipcRenderer.invoke('canvas-agent:observability-mark', input),
+
   startChat: (sessionId) =>
     ipcRenderer.invoke("canvas-agent:start-chat", { sessionId }),
 

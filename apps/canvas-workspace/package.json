@@ -129,7 +129,10 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.21",
+    "@langfuse/otel": "^5.10.0",
+    "@langfuse/tracing": "^5.10.0",
     "@larksuiteoapi/node-sdk": "^1.59.0",
+    "@opentelemetry/sdk-trace-node": "^2.10.0",
     "ai": "^6.0.57",
     "fflate": "^0.8.2",
     "happy-dom": "^20.10.6",

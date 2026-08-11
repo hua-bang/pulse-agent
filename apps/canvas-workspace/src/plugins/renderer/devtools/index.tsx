@@ -26,9 +26,13 @@ const DebugRoute = ({ invoke }: { invoke: RendererCtx['invoke'] }) => {
       <AgentDebugPage
         invoke={invoke}
         selectedRunId={runId}
-        onSelectRun={(r) =>
-          setLocation(`/debug?${new URLSearchParams({ runId: r }).toString()}`)
-        }
+        onSelectRun={(r) => {
+          // Wouter's hash hook may serialize a query passed to setLocation as
+          // `index.html?runId=…#/debug`, which leaves the registered hash route
+          // without the selected run. Writing the hash explicitly keeps route
+          // and query in the same location: `#/debug?runId=…`.
+          window.location.hash = `/debug?${new URLSearchParams({ runId: r }).toString()}`;
+        }}
         onBackToCanvas={() => setLocation('/')}
       />
     </Suspense>
@@ -44,7 +48,9 @@ const FLAG_ID = 'canvas-agent-debug-trace';
 export const DevtoolsRendererPlugin: RendererCanvasPlugin = {
   id: 'devtools',
   enabledWhen: () =>
-    (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
+    import.meta.env.DEV
+    && __PULSE_CANVAS_AGENT_OBSERVABILITY__
+    && (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
       .canvasWorkspace?.pluginFlags?.[FLAG_ID] === true,
   activate(ctx) {
     ctx.registerRoute('/debug', () => <DebugRoute invoke={ctx.invoke} />);

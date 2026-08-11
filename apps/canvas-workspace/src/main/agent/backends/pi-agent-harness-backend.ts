@@ -8,6 +8,7 @@ import type { ModelMessage } from 'ai';
 
 import { unwrapToolOutput } from '../engine-stream-callbacks';
 import type { CanvasAgentToolCall } from '../types';
+import { createPiGenerationObserver } from '../observability/pi-generation-events';
 import { createPiModelRuntime, type PiModelRuntime } from './pi-model-adapter';
 import { adaptEngineToolsForPi } from './pi-tool-adapter';
 import type { AgentRuntime, TurnSegmentRequest, TurnSegmentResult } from './types';
@@ -263,7 +264,12 @@ export function createPiAgentHarnessTurnBackend(
       const toolSession = await request.engine.createToolSession(
         request.context,
         {
-          runContext: { executionMode: request.executionMode },
+          runContext: {
+            executionMode: request.executionMode,
+            runId: request.observabilityRunId,
+            sessionId: request.chatSessionId,
+            runtimeId: 'pi-agent-harness',
+          },
           model: request.configuredModel ?? request.modelConfig.model,
           systemPrompt: request.systemPrompt,
         },
@@ -283,7 +289,12 @@ export function createPiAgentHarnessTurnBackend(
           executionContext: {
             abortSignal: request.abortSignal,
             onClarificationRequest: request.onClarificationRequest,
-            runContext: { executionMode: request.executionMode },
+            runContext: {
+              executionMode: request.executionMode,
+              runId: request.observabilityRunId,
+              sessionId: request.chatSessionId,
+              runtimeId: 'pi-agent-harness',
+            },
           },
         });
         await harness.setTools(next.tools, next.activeToolNames);
@@ -315,7 +326,12 @@ export function createPiAgentHarnessTurnBackend(
           executionContext: {
             abortSignal: request.abortSignal,
             onClarificationRequest: request.onClarificationRequest,
-            runContext: { executionMode: request.executionMode },
+            runContext: {
+              executionMode: request.executionMode,
+              runId: request.observabilityRunId,
+              sessionId: request.chatSessionId,
+              runtimeId: 'pi-agent-harness',
+            },
           },
         });
         harness = new AgentHarness({
@@ -341,7 +357,9 @@ export function createPiAgentHarnessTurnBackend(
       const toolCalls: CanvasAgentToolCall[] = [];
       const byId = new Map<string, CanvasAgentToolCall>();
       let currentPromptPending = true;
+      const generationObserver = createPiGenerationObserver(request.observabilityRunId);
       const unsubscribe = harness.subscribe((event) => {
+        generationObserver.onEvent(event);
         if (event.type === 'message_end') {
           if (
             currentPromptPending

@@ -23,6 +23,7 @@ interface CanvasAgentRequestContext {
 }
 
 interface StartTraceInput {
+  runId?: string;
   sessionId: string;
   userPrompt: string;
   attachmentCount: number;
@@ -31,6 +32,15 @@ interface StartTraceInput {
   summary: WorkspaceSummary | null;
   systemPrompt: string;
   currentCanvasSummary?: string;
+  performance?: CanvasAgentPerformanceTiming;
+}
+
+export interface CanvasAgentPerformanceTiming {
+  runId: string;
+  requestStartedAt: number;
+  laneEnteredAt: number;
+  scopeReadyAt: number;
+  contextReadyAt: number;
 }
 
 interface ToolResultInput {
@@ -40,8 +50,8 @@ interface ToolResultInput {
 }
 
 export function isCanvasAgentDebugTraceEnabled(): boolean {
-  // Two sources, OR'd together — matches preload's pluginFlags logic so
-  // main and renderer agree on whether the trace pipeline is on:
+  // Observability is development-only and requires an explicit master opt-in.
+  // Once enabled, two trace-detail sources are OR'd together:
   //   1. CANVAS_AGENT_DEBUG_TRACE env var (legacy escape hatch for CI /
   //      scripted runs that should not touch persisted state)
   //   2. The 'canvas-agent-debug-trace' experimental flag the user
@@ -49,6 +59,10 @@ export function isCanvasAgentDebugTraceEnabled(): boolean {
   //      ~/.pulse-coder/canvas/experimental-features.json)
   // Read each turn so toggling + window reload takes effect without an
   // app restart — main process keeps running across renderer reloads.
+  if (
+    process.env.NODE_ENV !== 'development'
+    || process.env.PULSE_CANVAS_AGENT_OBSERVABILITY !== '1'
+  ) return false;
   const value = process.env.CANVAS_AGENT_DEBUG_TRACE?.trim().toLowerCase();
   if (value !== undefined && ['1', 'true', 'on', 'yes'].includes(value)) return true;
   return getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE);
@@ -56,7 +70,7 @@ export function isCanvasAgentDebugTraceEnabled(): boolean {
 
 export function createCanvasAgentDebugTrace(input: StartTraceInput): CanvasAgentDebugTrace {
   const startedAt = Date.now();
-  const runId = randomUUID();
+  const runId = input.runId ?? randomUUID();
   const selectedNodes = (input.requestContext?.selectedNodes ?? []).map(node => ({
     id: node.id,
     title: node.title,
@@ -70,8 +84,8 @@ export function createCanvasAgentDebugTrace(input: StartTraceInput): CanvasAgent
     sessionId: input.sessionId,
     runId,
     turnId: runId,
-    createdAt: startedAt,
-    startedAt,
+    createdAt: input.performance?.requestStartedAt ?? startedAt,
+    startedAt: input.performance?.requestStartedAt ?? startedAt,
     request: {
       userPromptPreview: preview(input.userPrompt),
       attachmentCount: input.attachmentCount,
@@ -97,7 +111,33 @@ export function createCanvasAgentDebugTrace(input: StartTraceInput): CanvasAgent
     toolCalls: [],
     readNodes: [],
     contextReads: [],
+    performance: input.performance ? { ...input.performance } : undefined,
   };
+}
+
+export function markTraceModelStarted(trace: CanvasAgentDebugTrace | undefined): void {
+  if (!trace?.performance) return;
+  trace.performance.modelStartedAt = Date.now();
+}
+
+export function markTraceRuntimeCompleted(trace: CanvasAgentDebugTrace | undefined): void {
+  if (!trace?.performance) return;
+  trace.performance.runtimeCompletedAt = Date.now();
+}
+
+export function recordTraceStreamEvent(
+  trace: CanvasAgentDebugTrace | undefined,
+  type: 'text' | 'tool-input' | 'tool-call' | 'tool-result',
+): void {
+  if (!trace?.performance) return;
+  const now = Date.now();
+  if (trace.performance.firstEventAt == null) {
+    trace.performance.firstEventAt = now;
+    trace.performance.firstEventType = type;
+  }
+  if (type === 'text' && trace.performance.firstTextAt == null) {
+    trace.performance.firstTextAt = now;
+  }
 }
 
 export function attachTraceModel(
@@ -106,6 +146,14 @@ export function attachTraceModel(
 ): void {
   if (!trace) return;
   trace.model = model;
+}
+
+export function attachTraceRuntime(
+  trace: CanvasAgentDebugTrace | undefined,
+  runtimeId: string,
+): void {
+  if (!trace) return;
+  trace.runtime = { id: runtimeId };
 }
 
 export function recordTraceToolCall(
@@ -175,11 +223,34 @@ export function recordTraceMessageSnapshot(
   };
 }
 
-export function finalizeCanvasAgentDebugTrace(trace: CanvasAgentDebugTrace | undefined): CanvasAgentDebugTrace | undefined {
+export function finalizeCanvasAgentDebugTrace(
+  trace: CanvasAgentDebugTrace | undefined,
+  status: 'success' | 'stopped' = 'success',
+): CanvasAgentDebugTrace | undefined {
   if (!trace) return undefined;
   const finishedAt = Date.now();
   trace.finishedAt = finishedAt;
   trace.durationMs = finishedAt - trace.startedAt;
+  if (trace.performance) {
+    const timing = trace.performance;
+    timing.completedAt = finishedAt;
+    timing.queueMs = timing.laneEnteredAt - timing.requestStartedAt;
+    timing.scopeActivationMs = timing.scopeReadyAt - timing.laneEnteredAt;
+    timing.contextPreparationMs = timing.contextReadyAt - timing.scopeReadyAt;
+    if (timing.modelStartedAt != null) {
+      timing.modelStartDelayMs = timing.modelStartedAt - timing.contextReadyAt;
+      timing.timeToFirstEventMs = timing.firstEventAt == null
+        ? undefined
+        : timing.firstEventAt - timing.modelStartedAt;
+      timing.timeToFirstTextMs = timing.firstTextAt == null
+        ? undefined
+        : timing.firstTextAt - timing.modelStartedAt;
+      const runtimeCompletedAt = timing.runtimeCompletedAt ?? finishedAt;
+      timing.runtimeMs = runtimeCompletedAt - timing.modelStartedAt;
+      timing.responseProcessingMs = finishedAt - runtimeCompletedAt;
+    }
+    timing.totalMs = finishedAt - timing.requestStartedAt;
+  }
 
   if (JSON.stringify(trace).length <= TRACE_JSON_LIMIT_CHARS) {
     return trace;

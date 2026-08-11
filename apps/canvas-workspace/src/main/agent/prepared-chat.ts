@@ -176,6 +176,7 @@ export function startPreparedChat(
         event => send(turn, 'role-turn-end', event),
         abortSignal,
         modelConfig,
+        turn.sessionId,
       );
       send(turn, 'chat-complete', result);
     } catch (error) {

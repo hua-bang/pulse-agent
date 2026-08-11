@@ -31,6 +31,8 @@ function createCtx() {
     },
     handle: vi.fn(),
     onAgent: vi.fn(() => vi.fn()),
+    onAgentTrace: vi.fn(() => vi.fn()),
+    registerAgentObservabilitySubscriber: vi.fn(() => vi.fn()),
     getAgentService: vi.fn(() => ({} as ReturnType<MainCtx['getAgentService']>)),
     registerCanvasTool: vi.fn(),
     registerNodeCapabilities(nodeType, capabilities) {

@@ -29,7 +29,12 @@ export const engineTurnBackend: AgentRuntime = {
       maxSteps: CANVAS_AGENT_MAX_STEPS,
       errorMode: 'throw',
       abortSignal: request.abortSignal,
-      runContext: { executionMode: request.executionMode },
+      runContext: {
+        executionMode: request.executionMode,
+        runId: request.observabilityRunId,
+        sessionId: request.chatSessionId,
+        runtimeId: 'engine',
+      },
       onClarificationRequest: request.onClarificationRequest,
       ...buildEngineStreamCallbacks(request, request.debugTrace),
       onResponse: (messages: ModelMessage[]) => {
