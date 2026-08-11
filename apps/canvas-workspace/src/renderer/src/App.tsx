@@ -4,7 +4,7 @@ import './App.css';
 import { AppShellProvider, useAppShell } from './components/shell/AppShellProvider';
 import { DeferredSettings } from './components/shell/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
-import { isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useRightDock } from './components/dock/RightDock';
+import { isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from './components/dock/RightDock';
 import { GlobalChatLauncher } from './components/dock/RightDock/GlobalChatLauncher';
 import type { SettingsSection } from './components/settings/Settings';
 import { Sidebar } from './components/shell/Sidebar';
@@ -212,6 +212,7 @@ const AppContent = () => {
     isOverlayOpen,
     openShortcuts,
   });
+  const { dockWorkspaceId, reportChatWorkspace, activateDockWorkspace } = useChatDockWorkspace(activeView, activeId, chatEntryTarget?.scope, selectWorkspace);
   const openSessionInOwningScope = useCallback(async (
     scope: AgentScope,
     sessionId: string,
@@ -220,7 +221,6 @@ const AppContent = () => {
     const { createChatPageSessionTarget } = await import('./components/chat/utils/sessionScope');
     enterChatTarget(createChatPageSessionTarget(scope, sessionId, scopeLabel));
   }, [enterChatTarget]);
-
   const enterNodesView = useCallback(() => {
     if (!NODES_ENABLED) return;
     setSelectedNode(null);
@@ -483,7 +483,6 @@ const AppContent = () => {
     setLocation(`${ROUTE_NODES}/${encodeURIComponent(workspaceId)}/${encodeURIComponent(nodeId)}`);
   }, [location, setLocation]);
   useNodeDetailBridges({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, pageNode: detailNode, enterNodePage: dock.enterNodePage, openNodePage, focusNodeOnCanvas });
-
   return (
     <div className="app">
       <div className="app-body">
@@ -551,6 +550,7 @@ const AppContent = () => {
               getWorkspaceNodes={getWorkspaceNodes}
               getWorkspaceRootFolder={getWorkspaceRootFolder}
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
+              onWorkspaceScopeChange={reportChatWorkspace}
               onExit={exitChatView}
               onNodeFocus={focusNodeOnCanvas}
               onOpenAppSettings={openAppSettings}
@@ -580,7 +580,7 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
-      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} canvasTabEditingAllowed={isCanvasTabEditingAllowed(activeView)} onCanvasNodesChange={handleNodesChange} onCanvasSelectionChange={handleSelectionChange} reserveSpace={activeView !== 'skills'} capWidth={activeView !== 'canvas'} pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440} onOpenNodePage={openNodePage} onActivateWorkspace={selectWorkspace} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={dockWorkspaceId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} canvasTabEditingAllowed={isCanvasTabEditingAllowed(activeView)} onCanvasNodesChange={handleNodesChange} onCanvasSelectionChange={handleSelectionChange} reserveSpace={activeView !== 'skills'} capWidth={activeView !== 'canvas'} pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440} onOpenNodePage={openNodePage} onActivateWorkspace={activateDockWorkspace} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         appLoaded={appSettingsLoaded}

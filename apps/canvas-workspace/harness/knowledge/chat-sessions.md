@@ -174,13 +174,27 @@ Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 
 A content tab being visible beside Chat is never implicit model context. The
 user must add it through `@Tab` or the tab's Ask AI action. Full-page Chat
-builds those candidates from the dock's actual `activeTerminalWorkspaceId`,
-not from the conversation scope: global Chat and a historical cross-workspace
-conversation may both sit beside a different workspace's live dock.
+initially binds the dock to the visible conversation's workspace scope, so its
+Tabs are published under the same workspace that the Agent tools query. Global
+and scheduled conversations fall back to the active Canvas workspace. A
+qualified tab reference may explicitly move the dock to that tab's owning
+workspace without changing the conversation scope; the next conversation
+switch binds it to the newly selected conversation again. Candidates are built
+from the dock's actual `activeTerminalWorkspaceId`, including after that
+explicit override.
 
 Every node / DOM-selection / whole-tab dock-to-Chat action awaits a
 `ChatDeliveryReceipt` and reports delivered, queued, unavailable, or failed
 against its real target; a missing callback is never success.
+
+Session citation markers are atomic Markdown inputs: protect the complete
+`@[session:<storeId>:<sessionId>:<messageIndex?>|<label>]` marker before
+Markdown rendering, then restore it for chip conversion. Store ids such as
+`__global_chat__` and `__scheduled__-<taskId>` must reach the chip dataset
+verbatim; repairing rendered `<strong>` fragments after the fact is not a
+compatible parser. Guards: `utils/mentions.test.ts` and
+`__tests__/ChatMessages.accessibility.test.tsx`.
+
 If the visible page composer is temporarily busy or registering, its context
 insertion stays queued for that same composer instead of falling back to a
 hidden dock composer. Whole-tab actions reuse `AgentContextTabRef` and the

@@ -78,12 +78,20 @@ describe('ChatMessages accessibility', () => {
     ]);
   });
 
-  it('lets keyboard users activate a session mention chip', async () => {
+  it.each([
+    ['__global_chat__', 'session-global', 3],
+    ['__scheduled__-task-1', 'session-scheduled', 4],
+    ['workspace-2', 'session-workspace', 5],
+  ])('lets keyboard users activate a %s session mention chip', async (
+    workspaceId,
+    sessionId,
+    messageIndex,
+  ) => {
     const onSessionJump = vi.fn();
     const el = await renderMessages(
       [{
         role: 'assistant',
-        content: '@[session:workspace-2:session-2:4|Earlier decision]',
+        content: `@[session:${workspaceId}:${sessionId}:${messageIndex}|Earlier decision]`,
         timestamp: 1,
       }],
       { onSessionJump },
@@ -97,7 +105,7 @@ describe('ChatMessages accessibility', () => {
       chip?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     });
 
-    expect(onSessionJump).toHaveBeenCalledWith('session-2', 'workspace-2', 4);
+    expect(onSessionJump).toHaveBeenCalledWith(sessionId, workspaceId, messageIndex);
   });
 
   it('carries dock workspace identity when reopening a tab and exposes a stale result', async () => {

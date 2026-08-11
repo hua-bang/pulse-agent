@@ -6,6 +6,76 @@ import { serializeEditable } from './serializeEditable';
 const domLabel = 'header: Fancy Builder [...truncated]';
 
 describe('chat mention rendering', () => {
+  it.each([
+    {
+      marker: '@[session:__global_chat__:session-1:3|Global Chat 2026-08-11]',
+      workspaceId: '__global_chat__',
+      sessionId: 'session-1',
+      messageIndex: '3',
+      label: 'Global Chat 2026-08-11',
+    },
+    {
+      marker: '@[session:__scheduled__-task-1:session-2:4|Scheduled 2026-08-11]',
+      workspaceId: '__scheduled__-task-1',
+      sessionId: 'session-2',
+      messageIndex: '4',
+      label: 'Scheduled 2026-08-11',
+    },
+    {
+      marker: '@[session:workspace-1:session-3:5|Workspace 2026-08-11]',
+      workspaceId: 'workspace-1',
+      sessionId: 'session-3',
+      messageIndex: '5',
+      label: 'Workspace 2026-08-11',
+    },
+  ])('keeps $workspaceId session markers atomic through Markdown rendering', ({
+    marker,
+    workspaceId,
+    sessionId,
+    messageIndex,
+    label,
+  }) => {
+    const container = document.createElement('div');
+    container.innerHTML = renderMdWithMentions(marker);
+    const chip = container.querySelector<HTMLElement>('[data-action="session-jump"]');
+
+    expect(chip?.dataset.workspaceId).toBe(workspaceId);
+    expect(chip?.dataset.sessionId).toBe(sessionId);
+    expect(chip?.dataset.messageIndex).toBe(messageIndex);
+    expect(chip?.textContent).toContain(label);
+    expect(chip?.querySelector('strong')).toBeNull();
+    expect(chip?.innerHTML).not.toContain('&lt;strong&gt;');
+  });
+
+  it('never injects session chip markup into Markdown attributes', () => {
+    const marker = '@[session:__global_chat__:session-1:3|Global Chat]';
+    const container = document.createElement('div');
+    container.innerHTML = renderMdWithMentions(`[jump](${marker})`);
+    const link = container.querySelector('a');
+
+    expect(link?.querySelector('.chat-mention-chip')).toBeNull();
+    expect(link?.getAttribute('href')).toContain(encodeURIComponent(marker));
+    expect(link?.getAttribute('href')).not.toContain('<span');
+  });
+
+  it('handles multiple markers, streaming renders, and placeholder-like source text', () => {
+    const literal = 'PULSEMENTIONPLACEHOLDER0TOKEN';
+    const html = renderMdWithMentions(
+      `${literal} @[session:__global_chat__:session-1:3|Global] and @[session:workspace-1:session-2:4|Workspace]`,
+      undefined,
+      { streaming: true },
+    );
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    const chips = container.querySelectorAll<HTMLElement>('[data-action="session-jump"]');
+
+    expect(container.textContent).toContain(literal);
+    expect([...chips].map(chip => chip.dataset.workspaceId)).toEqual([
+      '__global_chat__',
+      'workspace-1',
+    ]);
+  });
+
   it('serializes DOM selection labels with bracket-safe encoding', () => {
     const chip = createMentionChipElement({
       type: 'dom',

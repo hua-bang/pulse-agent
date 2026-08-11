@@ -12,6 +12,9 @@ import type {
   ChatTarget,
 } from './ChatTargetContext';
 
+const workspaceIdFromScope = (scope: AgentScope): string | null =>
+  scope.kind === 'workspace' ? scope.workspaceId : null;
+
 interface ChatPageProps {
   allWorkspaces: WorkspaceOption[];
   /** Scheduled task whose chat should be opened on entry (route query). */
@@ -21,6 +24,9 @@ interface ChatPageProps {
   getWorkspaceNodes?: (workspaceId: string) => CanvasNode[];
   getWorkspaceRootFolder?: (workspaceId: string) => string | undefined;
   onWorkspaceContextRequest?: (workspaceId: string) => void;
+  /** Reports the workspace that owns the visible conversation. Global and
+   * scheduled conversations report null. */
+  onWorkspaceScopeChange?: (workspaceId: string | null) => void;
   onExit: () => void;
   onNodeFocus?: (workspaceId: string, nodeId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
@@ -47,6 +53,7 @@ export const ChatPage = ({
   getWorkspaceNodes,
   getWorkspaceRootFolder,
   onWorkspaceContextRequest,
+  onWorkspaceScopeChange,
   onExit,
   onNodeFocus,
   onOpenAppSettings,
@@ -91,6 +98,10 @@ export const ChatPage = ({
       ? `scheduled:${agentScope.taskId}`
       : 'global';
 
+  useEffect(() => {
+    onWorkspaceScopeChange?.(workspaceIdFromScope(agentScope));
+  }, [agentScope, onWorkspaceScopeChange]);
+
   // Entry from the run-finished toast: land on the task's own conversation
   // in this page's rail rather than a separate full-page route.
   useEffect(() => {
@@ -128,6 +139,7 @@ export const ChatPage = ({
       : nextScope.kind === 'scheduled'
         ? `scheduled:${nextScope.taskId}`
         : `workspace:${nextScope.workspaceId}`;
+    onWorkspaceScopeChange?.(workspaceIdFromScope(nextScope));
     scopeRollbackRef.current ??= {
       agentScope, selectedSessionKey, contextSnapshot, executionPolicy, sessionBackStack,
     };
@@ -137,7 +149,7 @@ export const ChatPage = ({
       return;
     }
     setAgentScope(nextScope);
-  }, [agentScope, contextSnapshot, executionPolicy, scopeKey, selectedSessionKey, sessionBackStack]);
+  }, [agentScope, contextSnapshot, executionPolicy, onWorkspaceScopeChange, scopeKey, selectedSessionKey, sessionBackStack]);
 
   // Manual rail pick resets the jump trail; chip jumps (onJumpToSession)
   // keep it so the back bar can walk home.
@@ -170,12 +182,13 @@ export const ChatPage = ({
     const rollback = scopeRollbackRef.current;
     scopeRollbackRef.current = null;
     if (loaded || !rollback) return;
+    onWorkspaceScopeChange?.(workspaceIdFromScope(rollback.agentScope));
     setAgentScope(rollback.agentScope);
     setSelectedSessionKey(rollback.selectedSessionKey);
     setContextSnapshot(rollback.contextSnapshot);
     setExecutionPolicy(rollback.executionPolicy);
     setSessionBackStack(rollback.sessionBackStack);
-  }, []);
+  }, [onWorkspaceScopeChange]);
   const handleActiveSessionResolved = useCallback((sessionId: string, workspaceId: string) => {
     setSelectedSessionKey(`${workspaceId}:${sessionId}`);
   }, []);
@@ -184,7 +197,7 @@ export const ChatPage = ({
     setRailCollapsed((v) => !v);
   }, []);
 
-  const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+  const workspaceId = workspaceIdFromScope(agentScope) ?? undefined;
   const nodes = workspaceId ? getWorkspaceNodes?.(workspaceId) : undefined;
   const rootFolder = workspaceId ? getWorkspaceRootFolder?.(workspaceId) : undefined;
 

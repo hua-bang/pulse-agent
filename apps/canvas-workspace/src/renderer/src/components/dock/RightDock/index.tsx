@@ -63,6 +63,7 @@ export {
   isDockChatTabEnabled,
   isGlobalChatLauncherVisible,
 } from './dock-chat-availability';
+export { useChatDockWorkspace } from './useChatDockWorkspace';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const RESIZING_CLASS = 'right-dock-resizing';

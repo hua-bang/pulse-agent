@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, useSyncExternalStore } from 'react';
+import { act, useLayoutEffect, useSyncExternalStore } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DockStore } from './dock-store';
@@ -29,6 +29,9 @@ const Harness = ({
   onActivateWorkspace: (workspaceId: string) => boolean;
 }) => {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  useLayoutEffect(() => {
+    store.setActiveWorkspace(activeWorkspaceId);
+  }, [activeWorkspaceId, store]);
   useDockAgentBridge(store, state, activeWorkspaceId, onActivateWorkspace);
   return null;
 };
@@ -85,6 +88,30 @@ afterEach(() => {
 });
 
 describe('useDockAgentBridge activation acknowledgement', () => {
+  it('publishes the visible tabs under the new workspace after a scope switch', async () => {
+    const store = new DockStore();
+    store.setActiveWorkspace('ws-1');
+    store.openNodeDetail('ws-1', 'node-1', 'Workspace one node');
+    store.openNodeDetail('ws-2', 'node-2', 'Workspace two node');
+    await render(store, 'ws-1');
+
+    expect(publishTabs).toHaveBeenLastCalledWith(
+      'ws-1',
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'node-detail:ws-1:node-1' }),
+      ]),
+    );
+
+    await render(store, 'ws-2');
+
+    expect(publishTabs).toHaveBeenLastCalledWith(
+      'ws-2',
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'node-detail:ws-2:node-2' }),
+      ]),
+    );
+  });
+
   it('acknowledges only after the requested tab is active', async () => {
     const store = new DockStore();
     store.setActiveWorkspace('ws-1');

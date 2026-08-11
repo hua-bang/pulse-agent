@@ -3,7 +3,7 @@ import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, ROLE_
 import type { MentionItem, WorkspaceOption } from '../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
-import { MENTION_RE, encodeMentionPart, pipedMentionLabel } from './mentionMarkers';
+import { MENTION_RE, encodeMentionPart, pipedMentionLabel, protectMentionMarkers, restoreMentionMarkersInAttributes, restoreMentionMarkersInText, transformHtmlText } from './mentionMarkers';
 import { writeDomSelectionDataset } from './domMentionData';
 import { roleColorSoft } from './roleColors';
 import { sessionTitleText } from './sessionTitle';
@@ -327,9 +327,13 @@ export function renderMdWithMentions(
     roleNames?: ReadonlyMap<string, string>;
   },
 ): string {
-  const html = renderMarkdown(content, options);
+  const protectedMentions = protectMentionMarkers(content);
+  const html = restoreMentionMarkersInText(
+    renderMarkdown(protectedMentions.content, options),
+    protectedMentions.markers,
+  );
 
-  const withMarkers = html.replace(MENTION_RE, (_match, rawLabel: string) => {
+  const withMarkers = transformHtmlText(html, text => text.replace(MENTION_RE, (_match, rawLabel: string) => {
     if (rawLabel.startsWith(CANVAS_MENTION_PREFIX)) {
       const workspaceLabel = rawLabel.slice(CANVAS_MENTION_PREFIX.length);
       return `<span class="chat-mention-chip chat-mention-chip--workspace" data-node-type="workspace"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('workspace')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(workspaceLabel)}</span></span>`;
@@ -396,7 +400,10 @@ export function renderMdWithMentions(
     const clickableClass = nodeId || filePath ? ' chat-mention-chip--clickable' : '';
     const interactiveAttrs = nodeId || filePath ? ' role="button" tabindex="0"' : '';
     return `<span class="chat-mention-chip${clickableClass}" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"${filePathAttrs}${interactiveAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(rawLabel)}</span></span>`;
-  });
+  }));
 
-  return options?.roleNames ? renderRoleNameMentions(withMarkers, options.roleNames) : withMarkers;
+  const withRoles = options?.roleNames
+    ? renderRoleNameMentions(withMarkers, options.roleNames)
+    : withMarkers;
+  return restoreMentionMarkersInAttributes(withRoles, protectedMentions.markers);
 }
