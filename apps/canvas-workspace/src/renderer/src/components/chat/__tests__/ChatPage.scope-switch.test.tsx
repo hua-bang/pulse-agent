@@ -118,6 +118,32 @@ describe('ChatPage scope switching', () => {
     expect(mockState.mountCount).toBe(1);
   });
 
+  it('reports the owning workspace when a cross-workspace session is selected', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const onWorkspaceScopeChange = vi.fn();
+
+    await act(async () => {
+      root?.render(
+        <ChatPage
+          allWorkspaces={[{ id: 'workspace-b', name: 'Workspace B' }]}
+          onWorkspaceScopeChange={onWorkspaceScopeChange}
+          onExit={vi.fn()}
+          onOpenAppSettings={vi.fn()}
+        />,
+      );
+    });
+
+    expect(onWorkspaceScopeChange).toHaveBeenLastCalledWith(null);
+
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>('[data-chat-body]')?.click();
+    });
+
+    expect(onWorkspaceScopeChange).toHaveBeenLastCalledWith('workspace-b');
+  });
+
   it('rolls scope and rail selection back when a cross-scope session load fails', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -147,6 +173,47 @@ describe('ChatPage scope switching', () => {
     const rolledBack = host.querySelector<HTMLButtonElement>('[data-chat-body]');
     expect(rolledBack?.textContent).toBe('global');
     expect(rolledBack?.dataset.selectedSession).toBe('');
+  });
+
+  it('restores the reported dock workspace when a cross-scope load fails', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const onWorkspaceScopeChange = vi.fn();
+    const initialTarget: ChatTarget = {
+      surface: 'dock',
+      scope: { kind: 'workspace', workspaceId: 'workspace-a' },
+      scopeId: 'workspace-a',
+      sessionId: 'session-a',
+      composerId: 'dock:workspace-a',
+      contextSnapshot: { label: 'Workspace A' },
+      executionPolicy: 'auto',
+    };
+
+    await act(async () => {
+      root?.render(
+        <ChatPage
+          allWorkspaces={[
+            { id: 'workspace-a', name: 'Workspace A' },
+            { id: 'workspace-b', name: 'Workspace B' },
+          ]}
+          initialTarget={initialTarget}
+          onWorkspaceScopeChange={onWorkspaceScopeChange}
+          onExit={vi.fn()}
+          onOpenAppSettings={vi.fn()}
+        />,
+      );
+    });
+
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>('[data-chat-body]')?.click();
+    });
+    expect(onWorkspaceScopeChange).toHaveBeenLastCalledWith('workspace-b');
+
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>('[data-fail-session-load]')?.click();
+    });
+    expect(onWorkspaceScopeChange).toHaveBeenLastCalledWith('workspace-a');
   });
 
   it('inherits the scope and context of the chat target that opened the page', async () => {

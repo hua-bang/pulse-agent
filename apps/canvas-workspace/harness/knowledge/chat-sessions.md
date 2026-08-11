@@ -174,9 +174,14 @@ Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 
 A content tab being visible beside Chat is never implicit model context. The
 user must add it through `@Tab` or the tab's Ask AI action. Full-page Chat
-builds those candidates from the dock's actual `activeTerminalWorkspaceId`,
-not from the conversation scope: global Chat and a historical cross-workspace
-conversation may both sit beside a different workspace's live dock.
+initially binds the dock to the visible conversation's workspace scope, so its
+Tabs are published under the same workspace that the Agent tools query. Global
+and scheduled conversations fall back to the active Canvas workspace. A
+qualified tab reference may explicitly move the dock to that tab's owning
+workspace without changing the conversation scope; the next conversation
+switch binds it to the newly selected conversation again. Candidates are built
+from the dock's actual `activeTerminalWorkspaceId`, including after that
+explicit override.
 
 Every node / DOM-selection / whole-tab dock-to-Chat action awaits a
 `ChatDeliveryReceipt` and reports delivered, queued, unavailable, or failed
