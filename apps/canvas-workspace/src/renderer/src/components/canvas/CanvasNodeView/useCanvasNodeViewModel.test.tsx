@@ -1,8 +1,11 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { CanvasNode } from '../../../types';
+import { I18nProvider } from '../../../i18n';
+import { AppShellProvider } from '../../shell/AppShellProvider';
+import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 import { useCanvasNodeViewModel } from './useCanvasNodeViewModel';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -15,6 +18,7 @@ describe('useCanvasNodeViewModel', () => {
   let onParentKeyDown: ReturnType<typeof vi.fn>;
   let onParentPaste: ReturnType<typeof vi.fn>;
   let execCommand: (commandId: string, showUI?: boolean, value?: string) => boolean;
+  let onAddToChat: Mock<[string], Promise<ChatDeliveryReceipt>>;
   let onResizeStart: ReturnType<typeof vi.fn>;
   let onUpdate: ReturnType<typeof vi.fn>;
 
@@ -41,6 +45,7 @@ describe('useCanvasNodeViewModel', () => {
       isResizing: false,
       isSelected: true,
       node,
+      onAddToChat,
       onDragStart: vi.fn(),
       onFocus: vi.fn(),
       onRemove: vi.fn(),
@@ -67,6 +72,7 @@ describe('useCanvasNodeViewModel', () => {
   beforeEach(() => {
     onParentKeyDown = vi.fn();
     onParentPaste = vi.fn();
+    onAddToChat = vi.fn();
     onResizeStart = vi.fn();
     onUpdate = vi.fn();
     execCommand = vi.fn(() => true);
@@ -78,7 +84,11 @@ describe('useCanvasNodeViewModel', () => {
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
-    act(() => root.render(<Probe />));
+    act(() => root.render(
+      <I18nProvider>
+        <AppShellProvider><Probe /></AppShellProvider>
+      </I18nProvider>,
+    ));
     titleElement = host.querySelector('span') as HTMLSpanElement;
   });
 
@@ -109,6 +119,34 @@ describe('useCanvasNodeViewModel', () => {
 
     expect(onUpdate).not.toHaveBeenCalled();
     expect(onResizeStart).toHaveBeenCalledWith(event, 'text-1', 240, 100, 'right', 40, 28);
+  });
+
+  it('awaits an add-to-chat receipt and announces the actual queued target', async () => {
+    let resolveReceipt!: (receipt: ChatDeliveryReceipt) => void;
+    onAddToChat.mockReturnValue(new Promise<ChatDeliveryReceipt>((resolve) => {
+      resolveReceipt = resolve;
+    }));
+    const event = { stopPropagation: vi.fn() } as unknown as React.MouseEvent;
+
+    const delivery = viewModel.handleAddToChat(event);
+    expect(document.body.textContent).not.toContain('Queued for Global chat');
+
+    resolveReceipt({
+      status: 'queued',
+      target: {
+        surface: 'page',
+        scope: { kind: 'global' },
+        scopeId: '__global_chat__',
+        sessionId: null,
+        composerId: 'page:global',
+        contextSnapshot: { label: 'Global chat' },
+        executionPolicy: 'auto',
+      },
+    });
+    await act(async () => delivery);
+
+    expect(onAddToChat).toHaveBeenCalledWith('text-1');
+    expect(document.body.textContent).toContain('Queued for Global chat');
   });
 
   it('commits a trimmed title with Enter', () => {

@@ -228,16 +228,18 @@ export class DockStore {
   }
 
   /** Switch to an existing tab (chat, workspace terminal, or preview). Viewing chat clears unread. */
-  activate(id: string): void {
+  activate(id: string): boolean {
     const activatingTerminal = this.state.terminalTabs.some((tab) => tab.id === id);
     if (
       id !== CHAT_TAB_ID
       && !activatingTerminal
       && !this.state.tabs.some((tab) => tab.id === id)
     ) {
-      return;
+      return false;
     }
-    if (this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) return;
+    if (this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) {
+      return true;
+    }
     if (activatingTerminal) {
       const workspaceId = this.state.activeTerminalWorkspaceId;
       const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
@@ -245,13 +247,14 @@ export class DockStore {
         expanded: true,
         activeTabId: id,
       });
-      return;
+      return true;
     }
     this.commit({
       expanded: true,
       activeTabId: id,
       ...(id === CHAT_TAB_ID ? { chatUnread: false } : {}),
     });
+    return true;
   }
 
   /** Pair the active content tab with the pinned Pulse AI pane. */

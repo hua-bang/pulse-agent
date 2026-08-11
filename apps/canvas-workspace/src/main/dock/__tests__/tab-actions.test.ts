@@ -2,39 +2,71 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   send: vi.fn(),
-  activateWorkspaceWindow: vi.fn(async (): Promise<{ ok: boolean; error?: string }> => ({ ok: true })),
+  ipcHandlers: new Map<string, (...args: any[]) => void>(),
+  windows: [{
+    isDestroyed: () => false,
+    webContents: { id: 7, send: vi.fn() },
+  }],
 }));
 
 vi.mock('electron', () => ({
   BrowserWindow: {
-    getAllWindows: () => [{ isDestroyed: () => false, webContents: { send: mocks.send } }],
+    getAllWindows: () => mocks.windows,
   },
-}));
-vi.mock('../../app/window-manager', () => ({
-  activateWorkspaceWindow: mocks.activateWorkspaceWindow,
+  ipcMain: {
+    on: (channel: string, handler: (...args: any[]) => void) => {
+      mocks.ipcHandlers.set(channel, handler);
+    },
+  },
 }));
 vi.mock('../tab-store', () => ({ getDockTabs: () => [] }));
 
-import { activateDockTab } from '../tab-actions';
+import { activateDockTab, setupDockTabActionsIpc } from '../tab-actions';
 
 describe('activateDockTab', () => {
   beforeEach(() => {
-    mocks.send.mockClear();
-    mocks.activateWorkspaceWindow.mockReset();
-    mocks.activateWorkspaceWindow.mockResolvedValue({ ok: true });
+    mocks.windows = [{
+      isDestroyed: () => false,
+      webContents: { id: 7, send: mocks.send },
+    }];
+    mocks.send.mockReset();
+    mocks.ipcHandlers.clear();
+    setupDockTabActionsIpc();
   });
 
-  it('activates the owning workspace before sending the scoped tab command', async () => {
-    await expect(activateDockTab('ws-1', 'terminal')).resolves.toBe(true);
-    expect(mocks.activateWorkspaceWindow).toHaveBeenCalledWith('ws-1');
+  it('preserves the current route and reports success only after renderer acknowledgement', async () => {
+    const activation = activateDockTab('ws-1', 'terminal');
+    const payload = mocks.send.mock.calls[0]?.[1];
     expect(mocks.send).toHaveBeenCalledWith('dock:activate-tab', {
+      requestId: expect.any(String),
       workspaceId: 'ws-1',
       tabId: 'terminal',
     });
+    mocks.ipcHandlers.get('dock:tab-activation-result')?.(
+      { sender: { id: 7 } },
+      { requestId: payload.requestId, workspaceId: 'ws-1', tabId: 'terminal', ok: true },
+    );
+    await expect(activation).resolves.toBe(true);
   });
 
-  it('does not report success when the target workspace cannot be activated', async () => {
-    mocks.activateWorkspaceWindow.mockResolvedValueOnce({ ok: false, error: 'window unavailable' });
+  it('reports failure when every renderer rejects a stale tab', async () => {
+    const activation = activateDockTab('ws-stale', 'terminal');
+    const payload = mocks.send.mock.calls[0]?.[1];
+    mocks.ipcHandlers.get('dock:tab-activation-result')?.(
+      { sender: { id: 7 } },
+      {
+        requestId: payload.requestId,
+        workspaceId: 'ws-stale',
+        tabId: 'terminal',
+        ok: false,
+        error: 'stale',
+      },
+    );
+    await expect(activation).resolves.toBe(false);
+  });
+
+  it('does not report success when no renderer can receive the command', async () => {
+    mocks.windows = [];
     await expect(activateDockTab('ws-stale', 'terminal')).resolves.toBe(false);
     expect(mocks.send).not.toHaveBeenCalled();
   });

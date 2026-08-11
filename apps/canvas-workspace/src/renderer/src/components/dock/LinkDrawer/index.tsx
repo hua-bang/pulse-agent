@@ -1,12 +1,7 @@
 /**
- * Right-dock tab content for external links intercepted from embedded
- * webviews and sandboxed iframes. Each open link preview owns its own
- * <webview>; the dock dedupes exact URLs while allowing different links
- * to stay open side by side.
- *
- * Tab chrome and switching live in components/dock/RightDock; link actions live
- * beside the address bar, and the resolved page title is reported up via
- * `onTitleChange`. Address-bar editing rules live in `useAddressBar`.
+ * Right-dock preview for links intercepted from embedded webviews and iframes.
+ * Each tab owns a sandboxed <webview>; exact URLs dedupe while distinct links
+ * stay open. RightDock owns tab chrome; this view owns page actions and title.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -38,13 +33,14 @@ import {
 } from '../RightDock/dock-browser-commands';
 import { pickFaviconUrl } from "../../node-bodies/IframeNodeBody/utils";
 import { useAppShell } from '../../shell/AppShellProvider';
-import type { AgentContextDomSelectionRef } from '../../../types';
+import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../../types';
 import { ExternalLinkIcon, PlusIcon } from "../../icons";
 import { Button, TextField } from "../../ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../../shared/experimental-features";
 import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import { useChatDeliveryNotifier } from '../../chat/useChatDeliveryNotifier';
+import { TabChatAction } from '../RightDock/TabChatAction';
 import "./index.css";
-
 /** Google blocks account sign-in inside embedded browsers (WebView policy);
  *  detect its sign-in host so we can steer the user to the system browser. */
 function isGoogleAuthUrl(raw: string | null | undefined): boolean {
@@ -80,6 +76,9 @@ interface LinkTabViewProps {
   onGuestNavigate: (url: string) => void;
   onAddToReference: (url: string, title?: string) => void;
   onAddDomSelectionToChat: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
+  tabRef?: AgentContextTabRef;
+  targetWorkspaceId?: string;
+  onAddTabToChat?: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
   /** Open a URL as a SEPARATE tab (right-click → open in new tab), placed
    *  next to this one. Distinct from `onNavigate`, which moves this tab. */
   onOpenLink: (url: string, options?: { background?: boolean }) => void;
@@ -100,12 +99,16 @@ export const LinkTabView = ({
   onGuestNavigate,
   onAddToReference,
   onAddDomSelectionToChat,
+  tabRef,
+  targetWorkspaceId,
+  onAddTabToChat,
   onOpenLink,
   activeWorkspaceId,
   onRequestClose,
 }: LinkTabViewProps) => {
   const { t } = useI18n();
   const { notify } = useAppShell();
+  const notifyChatDelivery = useChatDeliveryNotifier();
   const [domPickerActive, setDomPickerActive] = useState(false);
   // When Pulse Canvas is itself the default browser, the "open in system
   // browser" escape hatch loops back into this app — so steer the user to
@@ -270,21 +273,7 @@ export const LinkTabView = ({
           nodeTitle: title || browser.currentUrl,
           url: browser.currentUrl,
         });
-        notify({
-          tone: receipt.status === 'delivered' || receipt.status === 'queued' ? 'success' : 'error',
-          title: receipt.status === 'delivered' || receipt.status === 'queued'
-            ? t('linkDrawer.domSelectionAdded')
-            : t('linkDrawer.domSelectionFailed'),
-          description: receipt.target
-            ? t('linkDrawer.domSelectionTarget', {
-              selection: result.selection.label,
-              target: receipt.target.contextSnapshot.label,
-            })
-            : receipt.status === 'failed' && receipt.error
-              ? receipt.error
-              : t('linkDrawer.domSelectionMissing'),
-          autoCloseMs: 1800,
-        });
+        notifyChatDelivery(receipt, result.selection.label);
       } else if (!result.cancelled) {
         notify({
           tone: 'error',
@@ -303,7 +292,7 @@ export const LinkTabView = ({
     } finally {
       setDomPickerActive(false);
     }
-  }, [activeWorkspaceId, browser.currentUrl, notify, onAddDomSelectionToChat, t, tabId, title]);
+  }, [activeWorkspaceId, browser.currentUrl, notify, notifyChatDelivery, onAddDomSelectionToChat, t, tabId, title]);
 
   return (
     <>
@@ -356,6 +345,15 @@ export const LinkTabView = ({
           )}
         </form>
         <div className="link-drawer__actions">
+          {tabRef && targetWorkspaceId && onAddTabToChat && (
+            <TabChatAction
+              iconOnly
+              className="link-drawer__action"
+              tab={tabRef}
+              targetWorkspaceId={targetWorkspaceId}
+              onAddToChat={onAddTabToChat}
+            />
+          )}
           <Button
             variant="icon"
             size="xs"

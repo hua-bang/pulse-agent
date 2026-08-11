@@ -34,7 +34,7 @@ export { ROLE_MENTION_PREFIX } from '../../../../shared/agent-roles';
 export const FOLDER_MENTION_PREFIX = 'folder:';
 export const TAG_MENTION_PREFIX = 'tag:';
 export const DOM_MENTION_PREFIX = 'dom:';
-/** Right-dock tab mention: `@[tab:<id>|<kind>|<label>]`. */
+/** Tab mention; current markers append `|ref=<hex-json>` reopen identity. */
 export const TAB_MENTION_PREFIX = 'tab:';
 /** Assistant-emitted session citation: `@[session:<wsId>:<sessionId>:<msgIdx?>|<label>]`. */
 export const SESSION_MENTION_PREFIX = 'session:';

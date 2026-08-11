@@ -1,5 +1,6 @@
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../types';
 import type { BrowserLoadState } from '../../dock/EmbeddedBrowser/types';
+import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 
 export type EditMode = 'url' | 'html' | 'ai';
 export type LoadState = BrowserLoadState;
@@ -9,7 +10,7 @@ export interface IframeNodeBodyProps {
   workspaceId?: string;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   isResizing?: boolean;
-  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
+  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   // Read-only embeds can't persist the guest page title through onUpdate
   // (it's typically a noop there); this lets the host own persistence —

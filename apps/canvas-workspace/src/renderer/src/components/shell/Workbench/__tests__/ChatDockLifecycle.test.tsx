@@ -11,6 +11,7 @@ import {
 } from '../../../chat/ChatTargetContext';
 import type { WorkbenchController } from '../useWorkbenchState';
 import { Workbench } from '../index';
+import { AppShellProvider } from '../../../shell/AppShellProvider';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -231,13 +232,15 @@ describe('Workbench chat dock lifecycle', () => {
     await act(async () => {
       root.render(
         <I18nProvider>
-          <ChatTargetProvider>
-            <RightDockProvider>
-              <TestErrorBoundary>
-                <LifecycleHarness />
-              </TestErrorBoundary>
-            </RightDockProvider>
-          </ChatTargetProvider>
+          <AppShellProvider>
+            <ChatTargetProvider>
+              <RightDockProvider>
+                <TestErrorBoundary>
+                  <LifecycleHarness />
+                </TestErrorBoundary>
+              </RightDockProvider>
+            </ChatTargetProvider>
+          </AppShellProvider>
         </I18nProvider>,
       );
     });
@@ -274,13 +277,15 @@ describe('Workbench chat dock lifecycle', () => {
     await act(async () => {
       root.render(
         <I18nProvider>
-          <ChatTargetProvider>
-            <RightDockProvider>
-              <TestErrorBoundary>
-                <KnowledgeDetailLifecycleHarness />
-              </TestErrorBoundary>
-            </RightDockProvider>
-          </ChatTargetProvider>
+          <AppShellProvider>
+            <ChatTargetProvider>
+              <RightDockProvider>
+                <TestErrorBoundary>
+                  <KnowledgeDetailLifecycleHarness />
+                </TestErrorBoundary>
+              </RightDockProvider>
+            </ChatTargetProvider>
+          </AppShellProvider>
         </I18nProvider>,
       );
     });

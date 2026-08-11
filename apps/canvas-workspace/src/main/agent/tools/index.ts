@@ -63,11 +63,13 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
   const workspaceNodeTools = createWorkspaceNodeTools('');
   const layoutTools = createLayoutTools('');
   const tabTools = createTabTools('');
+  const webpageTools = createWebpageTools('');
 
   return {
     canvas_ask_user: nodeTools.canvas_ask_user,
     canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
     canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
+    canvas_read_dom_selection: requireWorkspaceId(webpageTools.canvas_read_dom_selection),
     canvas_list_tabs: requireWorkspaceId(tabTools.canvas_list_tabs),
     canvas_activate_tab: requireWorkspaceId(tabTools.canvas_activate_tab),
     canvas_read_tab: requireWorkspaceId(tabTools.canvas_read_tab),

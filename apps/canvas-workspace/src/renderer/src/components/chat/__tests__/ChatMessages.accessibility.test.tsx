@@ -100,6 +100,106 @@ describe('ChatMessages accessibility', () => {
     expect(onSessionJump).toHaveBeenCalledWith('session-2', 'workspace-2', 4);
   });
 
+  it('carries dock workspace identity when reopening a tab and exposes a stale result', async () => {
+    const onActivate = vi.fn((event: Event) => {
+      const detail = (event as CustomEvent<{
+        tabId: string;
+        dockWorkspaceId?: string;
+        respond: (result: { status: 'activated' | 'stale' }) => void;
+      }>).detail;
+      detail.respond({ status: 'stale' });
+    });
+    window.addEventListener('canvas:activate-dock-tab', onActivate);
+    const el = await renderMessages([{
+      role: 'user',
+      content: '@[tab:link%3Adocs|link|workspace-2|Product%20docs]',
+      timestamp: 1,
+    }]);
+    const chip = el.querySelector<HTMLElement>('[data-action="tab-jump"]');
+
+    await act(async () => {
+      chip?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+
+    expect(onActivate).toHaveBeenCalledOnce();
+    const detail = (onActivate.mock.calls[0]?.[0] as CustomEvent).detail;
+    expect(detail.tabId).toBe('link:docs');
+    expect(detail.dockWorkspaceId).toBe('workspace-2');
+    expect(chip?.getAttribute('aria-disabled')).toBe('true');
+    expect(chip?.classList.contains('chat-mention-chip--stale')).toBe(true);
+    expect(el.querySelector('.chat-tab-navigation-feedback')?.textContent)
+      .toBe('“Product docs” is no longer available. It may have been closed.');
+    window.removeEventListener('canvas:activate-dock-tab', onActivate);
+  });
+
+  it('carries a persisted link URL so a closed historical tab can be reopened', async () => {
+    const identity = Array.from(new TextEncoder().encode(JSON.stringify({
+      url: 'https://example.com/docs',
+      workspaceId: 'workspace-2',
+    })), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    const onActivate = vi.fn((event: Event) => {
+      const detail = (event as CustomEvent<{
+        tab?: { url?: string; workspaceId?: string };
+        respond: (result: { status: 'activated' | 'reopened' | 'stale' }) => void;
+      }>).detail;
+      detail.respond({ status: 'reopened' });
+    });
+    window.addEventListener('canvas:activate-dock-tab', onActivate);
+    const el = await renderMessages([{
+      role: 'user',
+      content: `@[tab:link%3Adocs|link|workspace-2|Product%20docs|ref=${identity}]`,
+      timestamp: 1,
+    }]);
+    const chip = el.querySelector<HTMLElement>('[data-action="tab-jump"]');
+    expect(chip?.dataset.tabUrl).toBe('https://example.com/docs');
+    expect(chip?.dataset.tabWorkspaceId).toBe('workspace-2');
+
+    await act(async () => { chip?.click(); });
+
+    const detail = (onActivate.mock.calls[0]?.[0] as CustomEvent).detail;
+    expect(detail.tab).toMatchObject({
+      id: 'link:docs',
+      kind: 'link',
+      title: 'Product docs',
+      url: 'https://example.com/docs',
+      workspaceId: 'workspace-2',
+      dockWorkspaceId: 'workspace-2',
+    });
+    expect(el.querySelector('.chat-tab-navigation-feedback')?.textContent)
+      .toBe('Reopened “Product docs”.');
+    expect(chip?.hasAttribute('aria-disabled')).toBe(false);
+    window.removeEventListener('canvas:activate-dock-tab', onActivate);
+  });
+
+  it('ignores a late tab-activation receipt after the user chooses another tab', async () => {
+    const responses: Array<(result: { status: 'activated' | 'stale' }) => void> = [];
+    const onActivate = (event: Event) => {
+      responses.push((event as CustomEvent<{ respond: typeof responses[number] }>).detail.respond);
+    };
+    window.addEventListener('canvas:activate-dock-tab', onActivate);
+    const el = await renderMessages([{
+      role: 'user',
+      content: [
+        '@[tab:link%3Afirst|link|workspace-1|First]',
+        '@[tab:link%3Asecond|link|workspace-1|Second]',
+      ].join(' '),
+      timestamp: 1,
+    }]);
+    const chips = Array.from(el.querySelectorAll<HTMLElement>('[data-action="tab-jump"]'));
+
+    await act(async () => {
+      chips[0]?.click();
+      chips[1]?.click();
+      responses[0]?.({ status: 'stale' });
+      responses[1]?.({ status: 'activated' });
+    });
+
+    expect(chips[0]?.classList.contains('chat-mention-chip--stale')).toBe(false);
+    expect(el.querySelector('.chat-tab-navigation-feedback')?.textContent)
+      .toBe('Opened “Second”.');
+    window.removeEventListener('canvas:activate-dock-tab', onActivate);
+  });
+
   it('moves to the latest message when a different session finishes loading', async () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {

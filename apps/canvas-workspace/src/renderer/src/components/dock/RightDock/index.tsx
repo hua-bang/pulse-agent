@@ -94,16 +94,14 @@ function persistWidth(value: number): void {
 
 interface RightDockProps {
   activeWorkspaceId: string;
-  /** False until `activeWorkspaceId` has resolved past its mount-time placeholder. */
   activeIdReady: boolean;
   chatTabEnabled: boolean;
-  /** Canvas reflows around the dock; library-style routes let it overlay. */
   reserveSpace: boolean;
-  /** Cap the rendered width so the route's own content stays usable. Canvas
-   *  opts out — see `dock-width.ts`. */
   capWidth: boolean;
+  pageMinAppWidth?: number;
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
+  onActivateWorkspace?: (workspaceId: string) => void;
 }
 
 export const RightDock = ({
@@ -112,10 +110,12 @@ export const RightDock = ({
   chatTabEnabled,
   reserveSpace,
   capWidth,
+  pageMinAppWidth,
   workspaces,
   onOpenNodePage,
+  onActivateWorkspace,
 }: RightDockProps) => {
-  const { store, setChatHost, setTerminalHost, pinUrlReference, addDomSelectionToChat, startSkillChat } = useDockContext();
+  const { store, setChatHost, setTerminalHost, pinUrlReference, addDomSelectionToChat, addTabToChat, startSkillChat } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
 
@@ -123,12 +123,16 @@ export const RightDock = ({
     store.setActiveWorkspace(activeWorkspaceId);
   }, [activeWorkspaceId, store]);
 
-  useDockLinkOpens(store);
-  useDockAgentBridge(store, state, activeWorkspaceId);
+  const activateKnownWorkspace = useCallback((workspaceId: string): boolean => {
+    if (!onActivateWorkspace || !workspaces.some(workspace => workspace.id === workspaceId)) return false;
+    onActivateWorkspace(workspaceId);
+    return true;
+  }, [onActivateWorkspace, workspaces]);
 
-  // Cold start: drain URLs the OS queued before this dock could subscribe.
-  // Gated on activeIdReady so the tab lands in the real workspace instead of
-  // the mount-time placeholder (see useConsumePendingLinks for why).
+  useDockLinkOpens(store);
+  useDockAgentBridge(store, state, activeWorkspaceId, activateKnownWorkspace);
+
+  // Drain cold-start URLs only after the real active id resolves; see the hook.
   useConsumePendingLinks((url) => store.openLink(url), activeIdReady);
 
   useEffect(() => {
@@ -176,18 +180,19 @@ export const RightDock = ({
     () => Math.max(DOCK_MIN_WIDTH, readStoredWidth() ?? DOCK_DEFAULT_WIDTH),
   );
   const [viewportWidth, setViewportWidth] = useState<number>(readViewportWidth);
-  const maxWidth = resolveDockMaxWidth(viewportWidth, capWidth);
-  const width = clampDockWidth(chosenWidth, viewportWidth, capWidth);
+  const maxWidth = resolveDockMaxWidth(viewportWidth, capWidth, pageMinAppWidth);
+  const width = clampDockWidth(chosenWidth, viewportWidth, capWidth, pageMinAppWidth);
   const tabWidth = resolveTabWidth(orderedTabIds.length, width);
   // Stable identity with live values: `useDockSplitView` keeps this in an
   // effect dep list, and a clamp that changed identity per route would re-run
   // (and re-clamp `chosenWidth`) on every navigation.
-  const widthPolicyRef = useRef({ viewportWidth, capWidth });
-  widthPolicyRef.current = { viewportWidth, capWidth };
+  const widthPolicyRef = useRef({ viewportWidth, capWidth, pageMinAppWidth });
+  widthPolicyRef.current = { viewportWidth, capWidth, pageMinAppWidth };
   const clampToPolicy = useCallback((value: number) => clampDockWidth(
     value,
     widthPolicyRef.current.viewportWidth,
     widthPolicyRef.current.capWidth,
+    widthPolicyRef.current.pageMinAppWidth,
   ), []);
   const splitView = useDockSplitView({
     active: splitViewActive,
@@ -472,6 +477,7 @@ export const RightDock = ({
         onOpenNodePage={onOpenNodePage}
         pinUrlReference={pinUrlReference}
         onAddDomSelectionToChat={addDomSelectionToChat}
+        onAddTabToChat={addTabToChat}
         onStartSkillChat={startSkillChat}
         onCloseTab={closeFromUser}
       />

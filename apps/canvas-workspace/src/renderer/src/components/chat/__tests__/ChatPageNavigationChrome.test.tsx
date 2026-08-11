@@ -22,6 +22,7 @@ describe('ChatPage navigation chrome', () => {
         <ChatPageRail collapsed rail={rail} />
         <ChatPageTopbar
           workspaceLabel="Workspace A"
+          sessionTitleSource="@[dom:dom-1|Quarterly%20plan] Summarize this"
           railCollapsed
           onToggleRail={vi.fn()}
           anchors={[]}
@@ -41,8 +42,39 @@ describe('ChatPage navigation chrome', () => {
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(host.querySelector('[aria-label="Settings"]')).toBeNull();
     expect(host.querySelectorAll('.chat-page-topbar > .chat-panel-action-btn')).toHaveLength(3);
+    expect(host.querySelector('.chat-page-topbar-session-title')?.textContent).toBe('Quarterly plan Summarize this');
     expect(host.querySelector('.chat-page-topbar-workspace')?.textContent).toBe('Workspace A');
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Show the Tab panel"]')?.disabled).toBe(false);
+
+    act(() => root.unmount());
+  });
+
+  it('falls back to New AI chat only while the session rail is collapsed', () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const renderTopbar = (railCollapsed: boolean) => (
+      <I18nProvider>
+        <ChatPageTopbar
+          workspaceLabel="Workspace A"
+          railCollapsed={railCollapsed}
+          onToggleRail={vi.fn()}
+          anchors={[]}
+          onJumpAnchor={vi.fn()}
+          onNewSession={vi.fn()}
+          newSessionDisabled={false}
+          dockTabsVisible={false}
+          onToggleDockTabs={vi.fn()}
+        />
+      </I18nProvider>
+    );
+
+    act(() => root.render(renderTopbar(true)));
+    expect(host.querySelector('.chat-page-topbar-session-title')?.textContent).toBe('New AI chat');
+    expect(host.querySelector('.chat-page-topbar-workspace')?.textContent).toBe('Workspace A');
+
+    act(() => root.render(renderTopbar(false)));
+    expect(host.querySelector('.chat-page-topbar-session-title')).toBeNull();
+    expect(host.querySelector('.chat-page-topbar-workspace')?.textContent).toBe('Workspace A');
 
     act(() => root.unmount());
   });

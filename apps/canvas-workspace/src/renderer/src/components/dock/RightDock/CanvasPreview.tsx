@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../../types';
+import type { AgentContextTabRef, CanvasEdge, CanvasNode, CanvasTransform } from '../../../types';
 import { useI18n } from '../../../i18n';
 import { useCanvas } from '../../../hooks/useCanvas';
 import { useCanvasFit } from '../../../hooks/useCanvasFit';
@@ -10,7 +10,6 @@ import { CanvasSurface } from '../../canvas/Canvas/CanvasSurface';
 // positioning) are styled by the Canvas stylesheet. Import it explicitly —
 // relying on the main Canvas having loaded it would be an implicit coupling.
 import '../../canvas/Canvas/index.css';
-import { Button } from '../../ui';
 import {
   PREVIEW_FOCUS_NODE_EVENT,
   consumePendingPreviewFocus,
@@ -19,12 +18,18 @@ import {
 } from '../../../utils/openNodeBridge';
 import { WorkspaceActiveProvider } from '../../../hooks/useWorkspaceActive';
 import { FileNodeEditorRegistryProvider } from '../../../hooks/useFileNodeEditorRegistry';
+import { CanvasPreviewChrome, CanvasPreviewState } from './CanvasPreviewChrome';
+import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import { TabChatAction } from './TabChatAction';
 import './canvas-preview.css';
 
 interface CanvasPreviewProps {
   workspaceId: string;
   canvasName?: string;
   rootFolder?: string;
+  tabRef?: AgentContextTabRef;
+  targetWorkspaceId?: string;
+  onAddTabToChat?: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
 }
 
 const NOOP = () => undefined;
@@ -43,6 +48,8 @@ const EMPTY_SNAPSHOT: Snapshot = {
   transform: { x: 0, y: 0, scale: 1 },
 };
 
+const PREVIEW_ZOOM_STEP = 1.2;
+
 /**
  * Read-only preview of another workspace's canvas, mounted as a right-dock
  * tab so two canvases can be viewed side by side. It loads the workspace
@@ -52,7 +59,7 @@ const EMPTY_SNAPSHOT: Snapshot = {
  * only pan (drag) and zoom (wheel) are allowed. All editing entry points are
  * disabled, so this view never mutates the previewed workspace.
  */
-export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPreviewProps) => {
+export const CanvasPreview = ({ workspaceId, canvasName, rootFolder, tabRef, targetWorkspaceId, onAddTabToChat }: CanvasPreviewProps) => {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const transformLayerRef = useRef<HTMLDivElement>(null);
@@ -69,7 +76,7 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
   const editClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
-    transform, setTransform, settledScale, moving,
+    transform, setTransform, settledScale, moving, zoomByStep,
     handleWheel, handleMouseDown, handleMouseMove, handleMouseUp,
   } = useCanvas(true, transformLayerRef);
   const { fitAllNodes, handleFocusNode } = useCanvasFit(containerRef, setTransform);
@@ -81,7 +88,14 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
       setLoaded(true);
       return;
     }
-    const result = await api.load(workspaceId);
+    let result: Awaited<ReturnType<typeof api.load>>;
+    try {
+      result = await api.load(workspaceId);
+    } catch {
+      setError(true);
+      setLoaded(true);
+      return;
+    }
     if (!result.ok || !result.data) {
       // A workspace that was never saved simply has no snapshot yet; that's an
       // empty canvas, not an error.
@@ -177,6 +191,29 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
     fitAllNodes(visibleNodes);
   }, [fitAllNodes, visibleNodes]);
 
+  const handleZoom = useCallback((factor: number) => {
+    userMovedRef.current = true;
+    zoomByStep(factor, containerRef.current);
+  }, [zoomByStep]);
+  const handleZoomOut = useCallback(() => handleZoom(1 / PREVIEW_ZOOM_STEP), [handleZoom]);
+  const handleZoomIn = useCallback(() => handleZoom(PREVIEW_ZOOM_STEP), [handleZoom]);
+  const handleRetry = useCallback(() => {
+    setError(false);
+    setLoaded(false);
+    void load();
+  }, [load]);
+  const previewLabel = t('rightDock.canvasPreviewRegion', {
+    name: canvasName ?? t('rightDock.canvasPreviewName'),
+  });
+  const tabChatAction = tabRef && targetWorkspaceId && onAddTabToChat ? (
+    <TabChatAction
+      className="canvas-preview__ask-ai"
+      tab={tabRef}
+      targetWorkspaceId={targetWorkspaceId}
+      onAddToChat={onAddTabToChat}
+    />
+  ) : null;
+
   // Reading actions stay available in the read-only preview: route them to
   // the Workbench via the window bridge (chat composer / reference panel of
   // the ACTIVE workspace), carrying the full node so no store read is needed.
@@ -219,19 +256,11 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
   }, [loaded, visibleNodes, visibleNodesById, focusRequest, fitAllNodes, handleFocusNode]);
 
   if (!loaded) {
-    return (
-      <div className="canvas-preview">
-        <div className="canvas-preview__hint">{t('rightDock.loadingCanvas')}</div>
-      </div>
-    );
+    return <CanvasPreviewState label={previewLabel} kind="loading" action={tabChatAction} />;
   }
 
   if (error) {
-    return (
-      <div className="canvas-preview">
-        <div className="canvas-preview__hint">{t('rightDock.loadCanvasFailed')}</div>
-      </div>
-    );
+    return <CanvasPreviewState label={previewLabel} kind="error" onRetry={handleRetry} action={tabChatAction} />;
   }
 
   return (
@@ -240,11 +269,13 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
         <div
           ref={containerRef}
           className="canvas-preview"
+          role="region"
+          aria-label={previewLabel}
           onWheel={(e) => { userMovedRef.current = true; handleWheel(e); }}
           onMouseDown={(e) => {
             // Header action buttons (reference / add-to-chat / fit) must
             // receive a clean click — don't let the hand-tool pan grab it.
-            if ((e.target as HTMLElement).closest?.('.node-header__actions, .canvas-preview__fit')) return;
+            if ((e.target as HTMLElement).closest?.('.node-header__actions, .canvas-preview__chrome')) return;
             userMovedRef.current = true;
             handleMouseDown(e);
           }}
@@ -256,59 +287,56 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder }: CanvasPre
         >
           <div className="canvas-grid" />
           {visibleNodes.length === 0 ? (
-            <div className="canvas-preview__hint">{t('rightDock.emptyCanvas')}</div>
+            <div className="canvas-preview__hint" role="status">{t('rightDock.emptyCanvas')}</div>
           ) : (
-            <>
-              <CanvasSurface
-                readOnly
-                transform={transform}
-                transformLayerRef={transformLayerRef}
-                settledScale={settledScale}
-                animating={false}
-                moving={moving}
-                renderGroups={renderGroups}
-                nodes={visibleNodes}
-                edges={visibleEdges}
-                rootFolder={rootFolder}
-                canvasId={workspaceId}
-                canvasName={canvasName}
-                draggingId={null}
-                draggingIds={EMPTY_STR_SET}
-                resizingId={null}
-                selectedNodeIdSet={EMPTY_STR_SET}
-                selectedEdgeId={null}
-                highlightedId={null}
-                externallyEditedIds={externallyEditedIds}
-                edgeInteractionState={null}
-                edgePreviewEndpoints={null}
-                onDragStart={NOOP}
-                onResizeStart={NOOP}
-                onUpdate={NOOP}
-                onAutoResize={NOOP}
-                onRemove={NOOP}
-                onExportMindmapImage={NOOP}
-                onSelect={NOOP}
-                onFocus={NOOP}
-                onReference={handlePinReference}
-                onAddToChat={handleAddToChat}
-                onAddToCanvas={handleAddToCanvas}
-                onSelectEdge={NOOP}
-                onEdgeHandleMouseDown={NOOP}
-                onEdgeBodyMouseDown={NOOP}
-                onEdgeBodyDoubleClick={NOOP}
-                getAllNodes={getAllNodes}
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                className="canvas-preview__fit"
-                onClick={handleFitAll}
-                title={t('rightDock.fitCanvas')}
-              >
-                {t('rightDock.fitCanvas')}
-              </Button>
-            </>
+            <CanvasSurface
+              readOnly
+              transform={transform}
+              transformLayerRef={transformLayerRef}
+              settledScale={settledScale}
+              animating={false}
+              moving={moving}
+              renderGroups={renderGroups}
+              nodes={visibleNodes}
+              edges={visibleEdges}
+              rootFolder={rootFolder}
+              canvasId={workspaceId}
+              canvasName={canvasName}
+              draggingId={null}
+              draggingIds={EMPTY_STR_SET}
+              resizingId={null}
+              selectedNodeIdSet={EMPTY_STR_SET}
+              selectedEdgeId={null}
+              highlightedId={null}
+              externallyEditedIds={externallyEditedIds}
+              edgeInteractionState={null}
+              edgePreviewEndpoints={null}
+              onDragStart={NOOP}
+              onResizeStart={NOOP}
+              onUpdate={NOOP}
+              onAutoResize={NOOP}
+              onRemove={NOOP}
+              onExportMindmapImage={NOOP}
+              onSelect={NOOP}
+              onFocus={NOOP}
+              onReference={handlePinReference}
+              onAddToChat={handleAddToChat}
+              onAddToCanvas={handleAddToCanvas}
+              onSelectEdge={NOOP}
+              onEdgeHandleMouseDown={NOOP}
+              onEdgeBodyMouseDown={NOOP}
+              onEdgeBodyDoubleClick={NOOP}
+              getAllNodes={getAllNodes}
+            />
           )}
+          <CanvasPreviewChrome
+            scale={transform.scale}
+            canFit={visibleNodes.length > 0}
+            onZoomOut={handleZoomOut}
+            onZoomIn={handleZoomIn}
+            onFit={handleFitAll}
+          />
+          {tabChatAction}
         </div>
       </FileNodeEditorRegistryProvider>
     </WorkspaceActiveProvider>

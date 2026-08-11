@@ -15,6 +15,10 @@
   cursor: grabbing;
 }
 
+.canvas-preview--state {
+  cursor: default;
+}
+
 .canvas-preview__hint {
   position: absolute;
   inset: 0;
@@ -28,12 +32,93 @@
   pointer-events: none;
 }
 
-/* Floating "fit to view" affordance — the read-only preview has no toolbar.
- * Visual styling comes from the blessed Button component; this only positions
- * it inside the surface. */
-.canvas-preview__fit {
+.canvas-preview__state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.canvas-preview__spinner {
+  display: inline-flex;
+  color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+.canvas-preview__read-only {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 5;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.canvas-preview__ask-ai.ui-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  box-shadow: var(--shadow-sm);
+}
+
+.canvas-preview__controls {
   position: absolute;
   right: 12px;
   bottom: 12px;
   z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.canvas-preview__zoom-button.ui-btn {
+  color: var(--text-secondary);
+}
+
+.canvas-preview__minus {
+  display: block;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.canvas-preview__zoom-value {
+  min-width: 44px;
+  padding: 0 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.canvas-preview__fit.ui-btn {
+  margin-left: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-preview__spinner {
+    animation: none;
+  }
 }

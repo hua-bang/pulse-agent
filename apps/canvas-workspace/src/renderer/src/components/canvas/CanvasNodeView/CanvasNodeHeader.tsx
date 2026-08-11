@@ -23,6 +23,7 @@ import {
 import { NodeTypeBadge } from './NodeTypeBadge';
 import { isKnowledgeNodeType } from '../../../views/WorkspaceNodes/utils';
 import { isReferenceableNode } from '../../../utils/referenceNodes';
+import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 
 interface CanvasNodeHeaderProps {
   fullscreenButton: ReactNode;
@@ -50,7 +51,7 @@ interface CanvasNodeHeaderProps {
   node: CanvasNode;
   pluginElementPickerActive: boolean;
   canOpenTab: boolean;
-  onAddToChat?: (nodeId: string) => void;
+  onAddToChat?: (nodeId: string) => void | Promise<ChatDeliveryReceipt>;
   onAddToCanvas?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;

@@ -9,6 +9,7 @@ import { IframeReviewLayer } from './IframeReviewLayer';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, IframeNodeData } from '../../../types';
 import type { IframeNodeBodyProps } from './types';
 import { useIframeNodeState } from './useIframeNodeState';
+import { useChatDeliveryNotifier } from '../../chat/useChatDeliveryNotifier';
 
 export const IframeNodeBody = ({
   node,
@@ -20,8 +21,9 @@ export const IframeNodeBody = ({
   onPageTitleChange,
   readOnly = false,
 }: IframeNodeBodyProps) => {
-  const { openArtifact } = useRightDock();
+  const { openArtifact, addDomSelectionToChat } = useRightDock();
   const { notify } = useAppShell();
+  const notifyChatDelivery = useChatDeliveryNotifier();
   const [domPickerActive, setDomPickerActive] = useState(false);
   const [reviewPickerActive, setReviewPickerActive] = useState(false);
   const [reviewComments, setReviewComments] = useState<AgentContextDomReviewComment[]>([]);
@@ -43,18 +45,16 @@ export const IframeNodeBody = ({
     try {
       const result = await state.pickDomElement();
       if (result.ok && result.selection) {
-        onAddDomSelectionToChat?.({
+        const selection = {
           ...result.selection,
           workspaceId,
           nodeId: node.id,
           nodeTitle: node.title,
-        });
-        notify({
-          tone: 'success',
-          title: 'DOM selection added',
-          description: result.selection.label,
-          autoCloseMs: 1800,
-        });
+        };
+        const receipt = await (onAddDomSelectionToChat
+          ? onAddDomSelectionToChat(selection)
+          : addDomSelectionToChat(workspaceId, selection));
+        notifyChatDelivery(receipt, result.selection.label);
       } else if (!result.cancelled) {
         notify({
           tone: 'error',
@@ -63,6 +63,12 @@ export const IframeNodeBody = ({
           autoCloseMs: 3600,
         });
       }
+    } catch (error) {
+      notifyChatDelivery({
+        status: 'failed',
+        target: null,
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setDomPickerActive(false);
     }

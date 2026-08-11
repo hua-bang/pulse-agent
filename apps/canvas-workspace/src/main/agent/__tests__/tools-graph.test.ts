@@ -312,6 +312,7 @@ describe('createGlobalCanvasTools', () => {
       'canvas_list_workspaces',
       'canvas_open_tab',
       'canvas_read_context',
+      'canvas_read_dom_selection',
       'canvas_read_layout',
       'canvas_read_node',
       'canvas_read_tab',
@@ -353,6 +354,12 @@ describe('createGlobalCanvasTools', () => {
 
     const missing = await tools.canvas_search_nodes.execute({ query: 'pipeline' });
     expect(missing).toContain('workspaceId is required in global chat');
+
+    const missingDomWorkspace = await tools.canvas_read_dom_selection.execute({
+      nodeId: 'n-iframe',
+      selector: '#main',
+    });
+    expect(missingDomWorkspace).toContain('workspaceId is required in global chat');
 
     const found = JSON.parse(await tools.canvas_search_nodes.execute({ workspaceId: wsId, query: 'pipeline' }));
     expect(found.ok).toBe(true);

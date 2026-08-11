@@ -529,11 +529,11 @@
   background: transparent;
   padding: 0;
   position: absolute;
-  top: 6px;
-  right: 5px;
+  top: 3px;
+  right: 2px;
   z-index: 2;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -675,7 +675,6 @@
   pointer-events: none;
 }
 
-.right-dock__new-link,
 .right-dock__collapse {
   appearance: none;
   border: none;
@@ -690,6 +689,10 @@
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
+}
+
+.right-dock__new-link,
+.right-dock__collapse {
   flex-shrink: 0;
   position: relative;
   z-index: 1;
@@ -752,6 +755,7 @@
 
 @media (prefers-reduced-motion: reduce) {
 
+  .right-dock,
   .right-dock__tabs,
   .right-dock__tabs[data-visible="true"],
   .right-dock__tab-scroll,
@@ -762,6 +766,8 @@
   .right-dock__tab-dot,
   .right-dock__tab-icon,
   .right-dock__tab-close,
+  .right-dock__new-link,
+  .right-dock__split-divider,
   .right-dock__collapse {
     transition: none;
   }
@@ -853,6 +859,16 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.node-detail-dock-tab__chat-action,
+.right-dock__pane-chat-action {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex: 0 0 auto;
 }
 
 /* Workspace/global ChatPanel instances portaled in by Workbench; the active

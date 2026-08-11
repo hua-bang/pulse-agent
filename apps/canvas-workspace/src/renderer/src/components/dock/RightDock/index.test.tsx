@@ -197,10 +197,11 @@ describe('RightDock page layout', () => {
     const host = await renderDock(true, true, true);
     const separator = host.querySelector<HTMLElement>('.right-dock__resize-handle')!;
 
-    // 1200px viewport → page cap 840 (70%).
-    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('840px');
-    expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('840px');
-    expect(separator.getAttribute('aria-valuemax')).toBe('840');
+    // 1200px viewport → preserve a fixed 520px app remainder, so the
+    // remainder cap (680) wins over the ratio-only cap (840).
+    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('680px');
+    expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('680px');
+    expect(separator.getAttribute('aria-valuemax')).toBe('680');
     expect(window.localStorage.getItem('canvas-workspace:right-dock-width')).toBe('1100');
   });
 });

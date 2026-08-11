@@ -17,12 +17,26 @@ import { useI18n } from '../../i18n';
 import { isVSCodeLink } from './utils/externalLinks';
 import { ChatClarificationCard } from './ChatClarificationCard';
 import { useChatMessagesStatus } from './hooks/useChatMessagesStatus';
+import { tabRefFromMentionElement } from './utils/tabMentions';
 
 /** How close (px) to the bottom still counts as "reading the tail" — within
  *  this band the view keeps following the stream; beyond it the user has
  *  scrolled up to read and auto-scroll must not yank them back. */
 const PIN_THRESHOLD_PX = 80;
 const CONVERSATION_SCROLL_CACHE_LIMIT = 50;
+// Dock workspace switching owns a 2.5s acknowledgement window. Chat waits a
+// little longer so a legitimate late switch cannot be mislabeled as stale.
+const TAB_ACTIVATION_TIMEOUT_MS = 3000;
+const TAB_ACTIVATION_SUCCESS_FEEDBACK_MS = 1600;
+
+type DockTabActivationResult = { status: 'activated' | 'reopened' | 'stale' };
+
+interface DockTabActivationRequestDetail {
+  tabId: string;
+  dockWorkspaceId?: string;
+  tab?: ReturnType<typeof tabRefFromMentionElement>;
+  respond: (result: DockTabActivationResult) => void;
+}
 
 // Session switches remount the transcript content, not the scroll container.
 // Keep a small LRU-like cache so returning to a conversation restores the
@@ -133,6 +147,12 @@ export const ChatMessages = ({
   // "jump to latest" affordance.
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
+  const [tabNavigationFeedback, setTabNavigationFeedback] = useState<{
+    message: string;
+    tone: 'progress' | 'success' | 'error';
+  } | null>(null);
+  const tabNavigationFeedbackTimerRef = useRef<number>();
+  const tabNavigationRequestRef = useRef(0);
   const prevCountRef = useRef(0);
   const prevSessionLoadingRef = useRef(sessionLoading);
   const previousConversationKeyRef = useRef(conversationKey);
@@ -150,6 +170,13 @@ export const ChatMessages = ({
     pendingLabel,
     sessionLoading,
   });
+
+  useEffect(() => () => {
+    tabNavigationRequestRef.current += 1;
+    if (tabNavigationFeedbackTimerRef.current !== undefined) {
+      window.clearTimeout(tabNavigationFeedbackTimerRef.current);
+    }
+  }, []);
 
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
@@ -287,7 +314,58 @@ export const ChatMessages = ({
     const tabChip = target.closest<HTMLElement>('[data-action="tab-jump"]');
     if (tabChip) {
       const tabId = tabChip.dataset.tabId;
-      if (tabId) window.dispatchEvent(new CustomEvent('canvas:activate-dock-tab', { detail: { tabId } }));
+      if (!tabId) return;
+      const name = tabChip.querySelector('.chat-mention-chip-label')?.textContent?.trim() || tabId;
+      const unavailableMessage = t('chat.tabNavigation.unavailable', { name });
+      if (tabChip.dataset.state === 'stale') {
+        setTabNavigationFeedback({ message: unavailableMessage, tone: 'error' });
+        return;
+      }
+
+      if (tabNavigationFeedbackTimerRef.current !== undefined) {
+        window.clearTimeout(tabNavigationFeedbackTimerRef.current);
+      }
+      setTabNavigationFeedback({
+        message: t('chat.tabNavigation.opening', { name }),
+        tone: 'progress',
+      });
+      const request = ++tabNavigationRequestRef.current;
+      let settled = false;
+      const respond = (result: DockTabActivationResult) => {
+        if (settled || request !== tabNavigationRequestRef.current) return;
+        settled = true;
+        if (tabNavigationFeedbackTimerRef.current !== undefined) {
+          window.clearTimeout(tabNavigationFeedbackTimerRef.current);
+        }
+        if (result.status === 'activated' || result.status === 'reopened') {
+          setTabNavigationFeedback({
+            message: t(result.status === 'reopened'
+              ? 'chat.tabNavigation.reopened'
+              : 'chat.tabNavigation.opened', { name }),
+            tone: 'success',
+          });
+          tabNavigationFeedbackTimerRef.current = window.setTimeout(() => {
+            setTabNavigationFeedback(null);
+          }, TAB_ACTIVATION_SUCCESS_FEEDBACK_MS);
+          return;
+        }
+        tabChip.dataset.state = 'stale';
+        tabChip.classList.add('chat-mention-chip--stale');
+        tabChip.setAttribute('aria-disabled', 'true');
+        tabChip.title = unavailableMessage;
+        setTabNavigationFeedback({ message: unavailableMessage, tone: 'error' });
+      };
+      tabNavigationFeedbackTimerRef.current = window.setTimeout(
+        () => respond({ status: 'stale' }),
+        TAB_ACTIVATION_TIMEOUT_MS,
+      );
+      const detail: DockTabActivationRequestDetail = {
+        tabId,
+        dockWorkspaceId: tabChip.dataset.dockWorkspaceId,
+        tab: tabRefFromMentionElement(tabChip),
+        respond,
+      };
+      window.dispatchEvent(new CustomEvent('canvas:activate-dock-tab', { detail }));
       return;
     }
 
@@ -318,6 +396,16 @@ export const ChatMessages = ({
 
   return (
     <div className="chat-messages-wrap">
+      {tabNavigationFeedback && (
+        <div
+          className="chat-tab-navigation-feedback"
+          data-tone={tabNavigationFeedback.tone}
+          role="status"
+          aria-live="polite"
+        >
+          {tabNavigationFeedback.message}
+        </div>
+      )}
       <span
         className="chat-turn-status"
         role="status"

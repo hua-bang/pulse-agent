@@ -53,8 +53,21 @@ afterEach(async () => {
 });
 
 describe('LinkTabView DOM selection', () => {
-  it('lets the user select a page element and adds it to the active workspace chat', async () => {
+  it('reports whether a selected page element was delivered or queued', async () => {
+    let deliveryStatus: 'delivered' | 'queued' = 'delivered';
     const onAddDomSelectionToChat = vi.fn(async () => ({
+      status: deliveryStatus,
+      target: {
+        surface: 'page' as const,
+        scope: { kind: 'global' as const },
+        scopeId: '__global_chat__',
+        sessionId: null,
+        composerId: 'page:global',
+        contextSnapshot: { label: 'Global chat' },
+        executionPolicy: 'auto' as const,
+      },
+    }));
+    const onAddTabToChat = vi.fn(async () => ({
       status: 'delivered' as const,
       target: {
         surface: 'page' as const,
@@ -91,6 +104,16 @@ describe('LinkTabView DOM selection', () => {
             onGuestNavigate={() => undefined}
             onAddToReference={() => undefined}
             onAddDomSelectionToChat={onAddDomSelectionToChat}
+            tabRef={{
+              id: 'link-tab-1',
+              kind: 'link',
+              title: 'Example page',
+              url: 'https://example.com/page',
+              workspaceId: 'workspace-1',
+              dockWorkspaceId: 'workspace-1',
+            }}
+            targetWorkspaceId="workspace-1"
+            onAddTabToChat={onAddTabToChat}
             onOpenLink={() => undefined}
             onRequestClose={() => undefined}
           />
@@ -100,6 +123,7 @@ describe('LinkTabView DOM selection', () => {
 
     const button = mount.querySelector<HTMLButtonElement>('[aria-label="Select page element for AI Chat"]');
     expect(button).not.toBeNull();
+    expect(mount.querySelector('[aria-label="Add Example page to the current conversation"]')).not.toBeNull();
     await act(async () => button?.click());
 
     expect(pickDomElement).toHaveBeenCalledWith('workspace-1', 'link-tab-1');
@@ -111,6 +135,11 @@ describe('LinkTabView DOM selection', () => {
       url: 'https://example.com/page',
       selector: '#primary-action',
     }));
-    expect(document.body.textContent).toContain('Global chat');
+    expect(document.body.textContent).toContain('Added to Global chat');
+
+    deliveryStatus = 'queued';
+    await act(async () => button?.click());
+
+    expect(document.body.textContent).toContain('Queued for Global chat');
   });
 });

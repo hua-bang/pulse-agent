@@ -8,6 +8,7 @@ import {
 import type {
   AgentContextDomReviewComment,
   AgentContextDomSelectionRef,
+  AgentContextTabRef,
   AgentRequestContext,
   CanvasNode,
 } from '../../types';
@@ -39,6 +40,7 @@ export interface ChatTarget {
 export type ChatInsertion =
   | { kind: 'node'; node: CanvasNode; sourceWorkspaceId?: string }
   | { kind: 'dom-selection'; selection: AgentContextDomSelectionRef }
+  | { kind: 'tab'; tab: AgentContextTabRef }
   | { kind: 'skill'; skillName: string }
   | { kind: 'dom-review'; comments: AgentContextDomReviewComment[] }
   | { kind: 'focus' };
@@ -46,6 +48,7 @@ export type ChatInsertion =
 export interface ChatTargetHandlers {
   insertNode?: (node: CanvasNode, sourceWorkspaceId?: string) => void;
   insertDomSelection?: (selection: AgentContextDomSelectionRef) => void;
+  insertTab?: (tab: AgentContextTabRef) => void;
   startSkillChat?: (skillName: string) => Promise<void>;
   submitDomReview?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   focus?: () => void;
@@ -77,9 +80,52 @@ const targetPriority = (target: ChatTarget): number => (
 
 export const createChatTargetBroker = (): ChatTargetBroker => {
   const registrations = new Map<string, RegisteredTarget>();
+  const pendingContextInsertions = new Map<string, ChatInsertion[]>();
   const listeners = new Set<() => void>();
   let registrationOrder = 0;
   let activeTarget: RegisteredTarget | null = null;
+
+  const tryInsertContext = (
+    registration: RegisteredTarget,
+    insertion: ChatInsertion,
+  ): boolean => {
+    if (insertion.kind === 'node' && registration.handlers.insertNode) {
+      registration.handlers.insertNode(insertion.node, insertion.sourceWorkspaceId);
+      return true;
+    }
+    if (insertion.kind === 'dom-selection' && registration.handlers.insertDomSelection) {
+      registration.handlers.insertDomSelection(insertion.selection);
+      return true;
+    }
+    if (insertion.kind === 'tab' && registration.handlers.insertTab) {
+      registration.handlers.insertTab(insertion.tab);
+      return true;
+    }
+    return false;
+  };
+
+  const queueContextInsertion = (composerId: string, insertion: ChatInsertion) => {
+    const pending = pendingContextInsertions.get(composerId) ?? [];
+    pendingContextInsertions.set(composerId, [...pending.slice(-31), insertion]);
+  };
+
+  const drainContextInsertions = (registration: RegisteredTarget) => {
+    const pending = pendingContextInsertions.get(registration.target.composerId);
+    if (!pending?.length) return;
+    const remaining: ChatInsertion[] = [];
+    for (const insertion of pending) {
+      try {
+        if (!tryInsertContext(registration, insertion)) remaining.push(insertion);
+      } catch {
+        remaining.push(insertion);
+      }
+    }
+    if (remaining.length > 0) {
+      pendingContextInsertions.set(registration.target.composerId, remaining);
+    } else {
+      pendingContextInsertions.delete(registration.target.composerId);
+    }
+  };
 
   const resolveActive = (): RegisteredTarget | null => {
     let next: RegisteredTarget | null = null;
@@ -107,17 +153,24 @@ export const createChatTargetBroker = (): ChatTargetBroker => {
 
   const register: ChatTargetBroker['register'] = (target, handlers) => {
     const token = Symbol(target.composerId);
-    registrations.set(target.composerId, {
+    const registration: RegisteredTarget = {
       target,
       handlers,
       order: ++registrationOrder,
       token,
-    });
+    };
+    registrations.set(target.composerId, registration);
     publish();
+    drainContextInsertions(registration);
     return () => {
       if (registrations.get(target.composerId)?.token !== token) return;
       registrations.delete(target.composerId);
       publish();
+      queueMicrotask(() => {
+        if (!registrations.has(target.composerId)) {
+          pendingContextInsertions.delete(target.composerId);
+        }
+      });
     };
   };
 
@@ -126,11 +179,18 @@ export const createChatTargetBroker = (): ChatTargetBroker => {
     if (!active) return { status: 'unavailable', target: null };
 
     try {
-      if (insertion.kind === 'node' && active.handlers.insertNode) {
-        active.handlers.insertNode(insertion.node, insertion.sourceWorkspaceId);
-      } else if (insertion.kind === 'dom-selection' && active.handlers.insertDomSelection) {
-        active.handlers.insertDomSelection(insertion.selection);
-      } else if (insertion.kind === 'skill' && active.handlers.startSkillChat) {
+      if (
+        insertion.kind === 'node'
+        || insertion.kind === 'dom-selection'
+        || insertion.kind === 'tab'
+      ) {
+        if (tryInsertContext(active, insertion)) {
+          return { status: 'delivered', target: active.target };
+        }
+        queueContextInsertion(active.target.composerId, insertion);
+        return { status: 'queued', target: active.target };
+      }
+      if (insertion.kind === 'skill' && active.handlers.startSkillChat) {
         await active.handlers.startSkillChat(insertion.skillName);
       } else if (insertion.kind === 'dom-review' && active.handlers.submitDomReview) {
         const submitted = await active.handlers.submitDomReview(insertion.comments);

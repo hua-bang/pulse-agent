@@ -12,6 +12,7 @@ import type { CanvasNode } from '../../../types';
 import type { ResizeEdge } from '../../../hooks/useNodeResize';
 import { isImeComposing } from '../../../utils/ime';
 import { collectContainerDescendants } from '../../../utils/frameHierarchy';
+import { useChatDeliveryNotifier } from '../../chat/useChatDeliveryNotifier';
 import { FULLSCREEN_NODE_TYPES } from './constants';
 import type { CanvasNodeViewProps } from './types';
 import {
@@ -117,6 +118,7 @@ export const useCanvasNodeViewModel = ({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [, setTick] = useState(0);
   const titleRef = useRef<HTMLSpanElement>(null);
+  const notifyChatDelivery = useChatDeliveryNotifier();
 
   useEffect(() => {
     if (!node.updatedAt) return;
@@ -177,11 +179,21 @@ export const useCanvasNodeViewModel = ({
   );
 
   const handleAddToChat = useCallback(
-    (e: MouseEvent) => {
+    async (e: MouseEvent) => {
       e.stopPropagation();
-      onAddToChat?.(node.id);
+      if (!onAddToChat) return;
+      try {
+        const receipt = await onAddToChat(node.id);
+        if (receipt) notifyChatDelivery(receipt, node.title);
+      } catch (error) {
+        notifyChatDelivery({
+          status: 'failed',
+          target: null,
+          error: error instanceof Error ? error.message : String(error),
+        }, node.title);
+      }
     },
-    [onAddToChat, node.id],
+    [node.id, node.title, notifyChatDelivery, onAddToChat],
   );
 
   const handleAddToCanvas = useCallback(

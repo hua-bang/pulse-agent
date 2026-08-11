@@ -26,6 +26,7 @@ import { ChatConversationStatus } from './ChatConversationStatus';
 import { useChatPanelContext } from './hooks/useChatPanelContext';
 import { useChatPanelSessionNavigation } from './hooks/useChatPanelSessionNavigation';
 import { submitQuickAction } from './hooks/submitQuickAction';
+import { chatScopeCapability } from './utils/chatScopeCapability';
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
@@ -51,6 +52,7 @@ export const ChatPanel = ({
   onRegisterInsertMention,
   onRegisterStartSkillChat,
   onRegisterInsertDomSelectionMention,
+  onRegisterInsertTabMention,
   onRegisterSubmitDomReviewComments,
   onTurnComplete,
   chatTargetActive = true,
@@ -119,6 +121,7 @@ export const ChatPanel = ({
     insertDomSelectionMention,
     insertNodeMention,
     insertSkillMention,
+    insertTabMention,
     loading,
     mentionIndex,
     mentionItems,
@@ -174,6 +177,11 @@ export const ChatPanel = ({
     if (!onRegisterInsertDomSelectionMention || busyElsewhere || sessionLoading) return;
     return onRegisterInsertDomSelectionMention(insertDomSelectionMention);
   }, [busyElsewhere, insertDomSelectionMention, onRegisterInsertDomSelectionMention, sessionLoading]);
+
+  useEffect(() => {
+    if (!onRegisterInsertTabMention || busyElsewhere || sessionLoading) return;
+    return onRegisterInsertTabMention(insertTabMention);
+  }, [busyElsewhere, insertTabMention, onRegisterInsertTabMention, sessionLoading]);
 
   const onTurnCompleteRef = useRef(onTurnComplete);
   onTurnCompleteRef.current = onTurnComplete;
@@ -264,6 +272,7 @@ export const ChatPanel = ({
   useRegisterChatTarget(chatTargetActive ? chatTarget : null, {
     insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,
     insertDomSelection: busyElsewhere || sessionLoading ? undefined : insertDomSelectionMention,
+    insertTab: busyElsewhere || sessionLoading ? undefined : insertTabMention,
     submitDomReview: submitDomReviewComments,
     focus: focusInput,
   });
@@ -478,6 +487,8 @@ export const ChatPanel = ({
       onOpenModelSettings={openModelSettingsFromSwitcher}
       contextComposer
       knowledgeMode={knowledgeMode}
+      scopeLabel={scopeLabel}
+      scopeCapability={chatScopeCapability(agentScope)}
       executionMode={agentScope.kind === 'scheduled' ? 'scheduled' : executionMode}
       onToggleExecutionMode={agentScope.kind === 'scheduled' ? undefined : handleToggleExecutionMode}
       conversationKey={activeSessionId ?? scopeId}

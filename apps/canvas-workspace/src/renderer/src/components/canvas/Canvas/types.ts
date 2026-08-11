@@ -1,6 +1,7 @@
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../types';
 import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../../types/ui-interaction';
 import type { NodeReferenceEntryForCanvas } from '../../dock/ReferenceDrawer';
+import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 
 export interface CanvasProps {
   canvasId: string;
@@ -21,8 +22,8 @@ export interface CanvasProps {
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
   onPinReferenceNode?: (nodeId: string) => void;
-  onAddToChat?: (nodeId: string) => void;
-  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
+  onAddToChat?: (nodeId: string) => Promise<ChatDeliveryReceipt>;
+  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;

@@ -180,6 +180,10 @@ menu and can make viewport clamping push it far away from the click.
   app-level `dock:open-tab` push behind `canvas_open_tab`, and the app-level
   `dock:open-artifact` push used by the scheduled memory report — artifact
   `workspaceId` is a storage scope and may be the `__global_chat__` sentinel.
+  Activation does not call `activateWorkspaceWindow`: the renderer selects the
+  owning dock workspace while preserving the current host route (notably
+  `#/chat`), then replies on `dock:tab-activation-result`. Main reports success
+  only after that acknowledgement; missing/stale tabs time out as failure.
 - `history-store.ts` holds web-tab browsing history behind
   `canvas_search_history`.
 
@@ -198,6 +202,8 @@ Primary regression suites live in:
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-store.test.ts`
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-browser-commands.test.ts`
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-link-opens.test.ts`
+- `src/main/dock/__tests__/tab-actions.test.ts`
+- `src/renderer/src/components/dock/RightDock/useDockAgentBridge.test.tsx`
 - `src/renderer/src/components/dock/RightDock/__tests__/DockTabSwitcher.test.tsx`
 - `src/renderer/src/components/dock/LinkDrawer/__tests__/address-bar.test.tsx`
 - `src/renderer/src/components/dock/LinkDrawer/__tests__/find-in-page.test.tsx`

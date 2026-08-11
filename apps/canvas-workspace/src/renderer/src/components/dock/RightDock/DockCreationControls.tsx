@@ -39,10 +39,9 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
   const anchorRef = useRef<HTMLSpanElement>(null);
   const panelId = useId();
 
-  // Hover-triggered menu: entering the trigger (or the panel) opens/keeps it,
-  // leaving either schedules a delayed close so the pointer can travel
-  // between them. Click still opens for keyboard/tap users; dismissal is
-  // Escape, an outside press, or moving the pointer away.
+  // Every activation path means the same thing: reveal the creation menu.
+  // Hover keeps the fast pointer path, while click (and therefore native
+  // Enter/Space button activation) plus ArrowUp/Down serve tap and keyboard.
   const closeTimerRef = useRef<number | null>(null);
   const cancelScheduledClose = useCallback(() => {
     if (closeTimerRef.current !== null) {
@@ -75,17 +74,14 @@ export const DockCreationControls = ({ store, workspaces, activeWorkspaceId, sho
       >
         <Button
           variant="icon"
-          size="sm"
+          size="md"
           className="right-dock__new-link"
-          aria-label={t('rightDock.newWebTab')}
-          title={t('rightDock.newWebTab')}
+          aria-label={t('rightDock.newTab')}
+          title={t('rightDock.newTab')}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-controls={menuOpen ? panelId : undefined}
-          onClick={() => {
-            setMenuOpen(false);
-            store.newLink(newTabTitle);
-          }}
+          onClick={openMenu}
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
               event.preventDefault();

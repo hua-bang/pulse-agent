@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
+import type { AgentContextTabRef } from '../../../types';
 import type { AgentScope } from '../types';
 import { resetChatComposerDraftsForTests } from './chatComposerDraftStore';
 import { useMentions } from './useMentions';
@@ -68,6 +69,24 @@ const openSkillMentions = async () => {
 };
 
 describe('scope-keyed composer state', () => {
+  it('inserts a dock tab as a structured composer mention', async () => {
+    const tab: AgentContextTabRef = {
+      id: 'canvas:workspace-a',
+      kind: 'canvas',
+      title: 'Workspace A',
+      workspaceId: 'workspace-a',
+      dockWorkspaceId: 'workspace-a',
+    };
+    await renderScope({ kind: 'global' });
+
+    act(() => latest?.insertTabMention(tab));
+
+    const chip = latest?.editableRef.current?.querySelector<HTMLElement>('[data-mention-kind="tab"]');
+    expect(chip?.dataset.tabId).toBe(tab.id);
+    expect(chip?.textContent).toContain('Workspace A');
+    expect(latest?.input).toContain('@[tab:');
+  });
+
   it('keeps each scope draft isolated and restores it when returning', async () => {
     await renderScope({ kind: 'global' });
     act(() => latest?.replaceInput('global draft'));

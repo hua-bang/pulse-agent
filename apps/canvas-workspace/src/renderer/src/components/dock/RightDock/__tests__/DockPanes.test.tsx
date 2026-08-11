@@ -6,6 +6,18 @@ import { DockPanes } from '../DockPanes';
 import { CHAT_TAB_ID, DockStore, TERMINAL_TAB_ID } from '../dock-store';
 import { dockPaneElementId, dockTabElementId } from '../dock-tab-ids';
 import { I18nProvider } from '../../../../i18n';
+import type { AgentContextTabRef } from '../../../../types';
+
+const latestTabChatActionProps = vi.hoisted(() => new Map<string, {
+  tab: AgentContextTabRef;
+  targetWorkspaceId: string;
+}>());
+vi.mock('../TabChatAction', () => ({
+  TabChatAction: (props: { tab: AgentContextTabRef; targetWorkspaceId: string }) => {
+    latestTabChatActionProps.set(props.tab.id, props);
+    return <button type="button" data-tab-chat-action={props.tab.id}>Ask AI</button>;
+  },
+}));
 
 // Capture the props each LinkTabView renders with (the real one lazy-loads a
 // live <webview>, which has no place in a happy-dom test).
@@ -36,6 +48,7 @@ let mount: HTMLDivElement | null = null;
 
 beforeEach(() => {
   latestLinkTabProps.clear();
+  latestTabChatActionProps.clear();
 });
 
 afterEach(() => {
@@ -373,5 +386,72 @@ describe('DockPanes tabpanel relationships', () => {
     expect(firstPane.getAttribute('aria-labelledby')).toBe(dockTabElementId(first.id));
     expect(firstPane.getAttribute('aria-hidden')).toBe('true');
     expect(secondPane.getAttribute('aria-hidden')).toBe('false');
+  });
+});
+
+describe('DockPanes whole-tab Chat actions', () => {
+  it('offers exact artifact and split-terminal refs without covering terminal content', () => {
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openArtifact('artifact-scope', 'artifact-1');
+    const artifactId = store.getSnapshot().tabs[0]!.id;
+    store.openTerminal();
+    store.renameTerminal(TERMINAL_TAB_ID, 'Build shell');
+    store.toggleSplitView();
+    store.activate(CHAT_TAB_ID);
+    const state = store.getSnapshot();
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+
+    flushSync(() => root?.render(
+      <I18nProvider><DockPanes
+        store={store}
+        state={state}
+        activePaneId={CHAT_TAB_ID}
+        dockVisible
+        splitTabId={state.splitTabId}
+        chatTabEnabled
+        splitContentWidth={320}
+        splitDividerWidth={6}
+        onDividerMouseDown={() => undefined}
+        setChatHost={() => undefined}
+        setTerminalHost={() => undefined}
+        terminalHostMounted
+        activeWorkspaceId="ws1"
+        workspaces={[]}
+        onOpenNodePage={() => undefined}
+        pinUrlReference={() => undefined}
+        onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
+        onAddTabToChat={async () => ({ status: 'unavailable', target: null })}
+      /></I18nProvider>,
+    ));
+
+    expect(latestTabChatActionProps.get(artifactId)).toMatchObject({
+      targetWorkspaceId: 'ws1',
+      tab: {
+        id: artifactId,
+        kind: 'artifact',
+        workspaceId: 'artifact-scope',
+        dockWorkspaceId: 'ws1',
+        artifactId: 'artifact-1',
+      },
+    });
+    expect(latestTabChatActionProps.get(TERMINAL_TAB_ID)).toMatchObject({
+      targetWorkspaceId: 'ws1',
+      tab: {
+        id: TERMINAL_TAB_ID,
+        kind: 'terminal',
+        title: 'Build shell',
+        workspaceId: 'ws1',
+        dockWorkspaceId: 'ws1',
+        sessionId: 'workspace-terminal:ws1',
+        isSplit: true,
+      },
+    });
+    expect(mount.querySelector('.right-dock__pane--terminal [data-tab-chat-action]')).not.toBeNull();
+    expect(mount.querySelector('.right-dock__terminal-host--with-chat-action')).not.toBeNull();
+    expect(document.getElementById(dockPaneElementId(artifactId))
+      ?.querySelector('[data-tab-chat-action]')).not.toBeNull();
   });
 });

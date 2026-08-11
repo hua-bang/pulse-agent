@@ -117,11 +117,13 @@ export const Workbench: React.FC<WorkbenchProps> = ({
 
   const {
     handleAddDomSelectionToChat,
+    handleAddTabToChat,
     handleStartSkillChat,
     handleAddNodeToChat,
     handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
+    registerInsertTabMention,
     registerInsertMention,
     registerStartSkillChat,
     registerSubmitDomReviewComments,
@@ -134,6 +136,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   useEffect(() => dock.registerPinUrlReference(pinReferenceUrl), [dock, pinReferenceUrl]);
 
   useEffect(() => dock.registerAddDomSelectionToChat(handleAddDomSelectionToChat), [dock, handleAddDomSelectionToChat]);
+  useEffect(() => dock.registerAddTabToChat(handleAddTabToChat), [dock, handleAddTabToChat]);
   useEffect(() => dock.registerStartSkillChat((workspaceId, skillName) => {
     if (workspaceId !== activeWorkspaceId) onActivateWorkspace(workspaceId);
     // The bridge invokes an already mounted target composer immediately and
@@ -427,6 +430,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
                   onRegisterStartSkillChat={(fn) => registerStartSkillChat(ws.id, fn)}
                   onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
+                  onRegisterInsertTabMention={(fn) => registerInsertTabMention(ws.id, fn)}
                   onRegisterSubmitDomReviewComments={(fn) => registerSubmitDomReviewComments(ws.id, fn)}
                   onTurnComplete={dock.notifyChatActivity}
                   chatTargetActive={chatPanelOpen

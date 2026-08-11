@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextTabRef, CanvasNode } from '../../../../types';
 import type { ChatTargetBroker } from '../../../chat/ChatTargetContext';
 import { useChatInsertionBridge } from '../useChatInsertionBridge';
 
@@ -102,6 +102,32 @@ describe('useChatInsertionBridge', () => {
 
     act(() => bridge.registerInsertDomSelectionMention('workspace-1', insert));
     expect(insert).toHaveBeenCalledWith({ ...selection, workspaceId: 'workspace-1' });
+  });
+
+  it('holds a tab mention until the workspace composer registers', async () => {
+    const tab: AgentContextTabRef = {
+      id: 'canvas:workspace-2',
+      kind: 'canvas',
+      title: 'Workspace 2',
+      workspaceId: 'workspace-2',
+      dockWorkspaceId: 'workspace-1',
+    };
+    const insert = vi.fn();
+
+    let receipt;
+    await act(async () => {
+      receipt = await bridge.handleAddTabToChat('workspace-1', tab);
+    });
+
+    expect(openChat).toHaveBeenCalledOnce();
+    expect(receipt).toMatchObject({
+      status: 'queued',
+      target: { composerId: 'dock:workspace-1' },
+    });
+    expect(insert).not.toHaveBeenCalled();
+
+    act(() => bridge.registerInsertTabMention('workspace-1', insert));
+    expect(insert).toHaveBeenCalledWith(tab);
   });
 
   it('holds DOM review submission until a cold composer actually registers', async () => {
