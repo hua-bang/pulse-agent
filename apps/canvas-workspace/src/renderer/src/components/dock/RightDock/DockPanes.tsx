@@ -8,7 +8,12 @@ import {
 } from 'react';
 import { useI18n } from '../../../i18n';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
-import type { AgentContextDomSelectionRef, AgentContextTabRef, CanvasNode } from '../../../types';
+import type {
+  AgentContextDomReviewComment,
+  AgentContextDomSelectionRef,
+  AgentContextTabRef,
+  CanvasNode,
+} from '../../../types';
 import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './dock-store';
 import { linkPaneKey } from './dock-link-tabs';
 import { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
@@ -59,6 +64,10 @@ interface Props {
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
   pinUrlReference: (url: string, title?: string) => void;
   onAddDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
+  onSubmitDomReviewComments?: (
+    workspaceId: string,
+    comments: AgentContextDomReviewComment[],
+  ) => Promise<boolean>;
   onAddTabToChat?: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
   onStartSkillChat?: (workspaceId: string, skillName: string) => void;
   onCloseTab?: (tabId: string) => void;
@@ -88,6 +97,7 @@ export const DockPanes = ({
   onOpenNodePage,
   pinUrlReference,
   onAddDomSelectionToChat,
+  onSubmitDomReviewComments = async () => false,
   onAddTabToChat = async () => ({ status: 'unavailable', target: null }),
   onStartSkillChat = () => undefined,
   onCloseTab = (tabId) => store.close(tabId),
@@ -279,6 +289,7 @@ export const DockPanes = ({
                 onNodesChange={onCanvasNodesChange}
                 onSelectionChange={onCanvasSelectionChange}
                 onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(tab.workspaceId, selection)}
+                onSubmitDomReviewComments={onSubmitDomReviewComments}
               />
             </Suspense>
           ) : tab.kind === 'skill' ? (

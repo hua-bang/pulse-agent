@@ -110,7 +110,8 @@ export const RightDock = ({
   onOpenNodePage,
   onActivateWorkspace,
 }: RightDockProps) => {
-  const { store, setChatHost, setTerminalHost, pinUrlReference, addDomSelectionToChat, addTabToChat, startSkillChat } = useDockContext();
+  const { store, setChatHost, setTerminalHost, pinUrlReference,
+    addDomSelectionToChat, submitDomReviewComments, addTabToChat, startSkillChat } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
 
@@ -475,6 +476,7 @@ export const RightDock = ({
         onOpenNodePage={onOpenNodePage}
         pinUrlReference={pinUrlReference}
         onAddDomSelectionToChat={addDomSelectionToChat}
+        onSubmitDomReviewComments={submitDomReviewComments}
         onAddTabToChat={addTabToChat}
         onStartSkillChat={startSkillChat}
         onCloseTab={closeFromUser}

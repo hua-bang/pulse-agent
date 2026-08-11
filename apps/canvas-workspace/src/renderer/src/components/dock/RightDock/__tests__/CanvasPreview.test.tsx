@@ -2,17 +2,34 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentContextTabRef, CanvasNode } from '../../../../types';
+import type {
+  AgentContextDomReviewComment,
+  AgentContextTabRef,
+  CanvasEdge,
+  CanvasNode,
+} from '../../../../types';
 import { I18nProvider } from '../../../../i18n';
 import { AppShellProvider } from '../../../shell/AppShellProvider';
 import type { ChatDeliveryReceipt } from '../../../chat/ChatTargetContext';
+import type { CanvasClipboard } from '../../../../types/ui-interaction';
 
 const controls = vi.hoisted(() => ({
   fitAllNodes: vi.fn(),
   zoomByStep: vi.fn(),
 }));
 const rendered = vi.hoisted(() => ({
-  canvasProps: null as null | { isActive?: boolean; persistViewport?: boolean },
+  canvasProps: null as null | {
+    isActive?: boolean;
+    keyboardActive?: boolean;
+    persistViewport?: boolean;
+    clipboard?: CanvasClipboard | null;
+    onClipboardChange?: (clipboard: CanvasClipboard | null) => void;
+    onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
+    onEdgesChange?: (canvasId: string, edges: CanvasEdge[]) => void;
+    onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
+  },
+  surfaceNodes: undefined as CanvasNode[] | undefined,
+  surfaceEdges: undefined as CanvasEdge[] | undefined,
   surfaceReadOnly: undefined as boolean | undefined,
 }));
 
@@ -38,14 +55,25 @@ vi.mock('../../../../hooks/useCanvasFit', () => ({
 }));
 
 vi.mock('../../../canvas/Canvas/CanvasSurface', () => ({
-  CanvasSurface: (props: { readOnly?: boolean }) => {
+  CanvasSurface: (props: { nodes?: CanvasNode[]; edges?: CanvasEdge[]; readOnly?: boolean }) => {
+    rendered.surfaceNodes = props.nodes;
+    rendered.surfaceEdges = props.edges;
     rendered.surfaceReadOnly = props.readOnly;
     return <div data-testid="canvas-surface" />;
   },
 }));
 
 vi.mock('../../../canvas/Canvas', () => ({
-  Canvas: (props: { isActive?: boolean; persistViewport?: boolean }) => {
+  Canvas: (props: {
+    isActive?: boolean;
+    keyboardActive?: boolean;
+    persistViewport?: boolean;
+    clipboard?: CanvasClipboard | null;
+    onClipboardChange?: (clipboard: CanvasClipboard | null) => void;
+    onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
+    onEdgesChange?: (canvasId: string, edges: CanvasEdge[]) => void;
+    onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
+  }) => {
     rendered.canvasProps = props;
     return <div data-testid="editable-canvas" />;
   },
@@ -69,6 +97,11 @@ const NODE = {
 let root: Root | null = null;
 let mount: HTMLDivElement | null = null;
 let load: ReturnType<typeof vi.fn>;
+let externalUpdateListener: ((event: {
+  workspaceId: string;
+  nodeIds?: string[];
+  edgeIds?: string[];
+}) => void) | undefined;
 
 const installStore = () => {
   Object.defineProperty(window, 'canvasWorkspace', {
@@ -77,15 +110,25 @@ const installStore = () => {
       store: {
         load,
         watchWorkspace: vi.fn(),
-        onExternalUpdate: vi.fn(() => () => undefined),
+        onExternalUpdate: vi.fn((listener) => {
+          externalUpdateListener = listener;
+          return () => {
+            if (externalUpdateListener === listener) externalUpdateListener = undefined;
+          };
+        }),
       },
     },
   });
 };
 
 interface PreviewTestProps {
+  workspaceId?: string;
   tabRef?: AgentContextTabRef;
   onAddTabToChat?: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
+  onSubmitDomReviewComments?: (
+    workspaceId: string,
+    comments: AgentContextDomReviewComment[],
+  ) => Promise<boolean>;
   editingAllowed?: boolean;
   active?: boolean;
 }
@@ -94,11 +137,12 @@ const previewTree = (props?: PreviewTestProps) => (
   <I18nProvider>
     <AppShellProvider>
       <CanvasPreview
-        workspaceId="workspace-1"
+        workspaceId={props?.workspaceId ?? 'workspace-1'}
         canvasName="Research"
         tabRef={props?.tabRef}
         targetWorkspaceId={props?.tabRef ? 'workspace-1' : undefined}
         onAddTabToChat={props?.onAddTabToChat}
+        onSubmitDomReviewComments={props?.onSubmitDomReviewComments}
         editingAllowed={props?.editingAllowed}
         active={props?.active}
       />
@@ -128,6 +172,8 @@ beforeEach(() => {
   controls.fitAllNodes.mockReset();
   controls.zoomByStep.mockReset();
   rendered.canvasProps = null;
+  rendered.surfaceNodes = undefined;
+  rendered.surfaceEdges = undefined;
   rendered.surfaceReadOnly = undefined;
   installStore();
   Object.defineProperty(globalThis, 'ResizeObserver', {
@@ -150,6 +196,236 @@ afterEach(() => {
 });
 
 describe('CanvasPreview accessible read-only chrome', () => {
+  it('does not let a previous workspace load overwrite the current preview', async () => {
+    let resolvePreviousWorkspace: ((value: unknown) => void) | undefined;
+    const previousNode = { ...NODE, id: 'previous-node', title: 'Previous workspace' };
+    const currentNode = { ...NODE, id: 'current-node', title: 'Current workspace' };
+    load
+      .mockImplementationOnce(() => new Promise((resolve) => { resolvePreviousWorkspace = resolve; }))
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { nodes: [currentNode], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+      });
+    await renderPreview({ workspaceId: 'workspace-previous' });
+
+    await rerenderPreview({ workspaceId: 'workspace-current' });
+    await vi.waitFor(() => expect(rendered.surfaceNodes).toEqual([currentNode]));
+    await act(async () => resolvePreviousWorkspace?.({
+      ok: true,
+      data: { nodes: [previousNode], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    }));
+
+    expect(rendered.surfaceNodes).toEqual([currentNode]);
+  });
+
+  it('ignores a stale preview reload that started before Edit and resolves during editing', async () => {
+    let resolveStaleReload: ((value: unknown) => void) | undefined;
+    const staleNode = { ...NODE, title: 'Stale disk title' };
+    const editedNode = { ...NODE, title: 'Edited in AI Chat' };
+    const editedEdge: CanvasEdge = {
+      id: 'edge-edited',
+      source: { kind: 'point', x: 20, y: 30 },
+      target: { kind: 'point', x: 160, y: 180 },
+    };
+    load
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+      })
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveStaleReload = resolve; }));
+    await renderPreview({ editingAllowed: true, active: true });
+    await vi.waitFor(() => expect(mount?.querySelector('[data-testid="canvas-surface"]')).not.toBeNull());
+
+    act(() => externalUpdateListener?.({ workspaceId: 'workspace-1', nodeIds: [NODE.id] }));
+    expect(load).toHaveBeenCalledTimes(2);
+    const edit = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Edit canvas');
+    await act(async () => edit?.click());
+    act(() => {
+      rendered.canvasProps?.onNodesChange?.('workspace-1', [editedNode]);
+      rendered.canvasProps?.onEdgesChange?.('workspace-1', [editedEdge]);
+    });
+
+    await act(async () => resolveStaleReload?.({
+      ok: true,
+      data: { nodes: [staleNode], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    }));
+    expect(mount?.querySelector('[data-testid="editable-canvas"]')).not.toBeNull();
+
+    const done = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Done');
+    await act(async () => done?.click());
+
+    expect(rendered.surfaceNodes).toEqual([editedNode]);
+    expect(rendered.surfaceEdges).toEqual([editedEdge]);
+  });
+
+  it('keeps Edit mounted when an older reload fails and resumes preview reloads after Done', async () => {
+    let rejectStaleReload: ((error: Error) => void) | undefined;
+    const refreshedNode = { ...NODE, title: 'Reloaded after Done' };
+    load
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+      })
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectStaleReload = reject; }))
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { nodes: [refreshedNode], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+      });
+    await renderPreview({ editingAllowed: true, active: true });
+    await vi.waitFor(() => expect(mount?.querySelector('[data-testid="canvas-surface"]')).not.toBeNull());
+
+    act(() => externalUpdateListener?.({ workspaceId: 'workspace-1', nodeIds: [NODE.id] }));
+    expect(load).toHaveBeenCalledTimes(2);
+    const edit = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Edit canvas');
+    await act(async () => edit?.click());
+
+    // The canonical Canvas now owns this update; the preview must not launch a
+    // competing disk read while editing.
+    act(() => externalUpdateListener?.({ workspaceId: 'workspace-1', edgeIds: ['edge-1'] }));
+    expect(load).toHaveBeenCalledTimes(2);
+    await act(async () => rejectStaleReload?.(new Error('stale read failed')));
+    expect(mount?.querySelector('[data-testid="editable-canvas"]')).not.toBeNull();
+    expect(mount?.querySelector('[role="alert"]')).toBeNull();
+
+    const done = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Done');
+    await act(async () => done?.click());
+    await act(async () => {
+      externalUpdateListener?.({ workspaceId: 'workspace-1', nodeIds: [NODE.id] });
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => expect(rendered.surfaceNodes).toEqual([refreshedNode]));
+    expect(load).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps edited connections in the immediate preview after Done', async () => {
+    load.mockResolvedValue({
+      ok: true,
+      data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    });
+    const edge: CanvasEdge = {
+      id: 'edge-1',
+      source: { kind: 'point', x: 20, y: 30 },
+      target: { kind: 'point', x: 160, y: 180 },
+    };
+    await renderPreview({ editingAllowed: true, active: true });
+    await vi.waitFor(() => expect(mount?.querySelector('[data-testid="canvas-surface"]')).not.toBeNull());
+
+    const edit = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Edit canvas');
+    await act(async () => edit?.click());
+    act(() => rendered.canvasProps?.onEdgesChange?.('workspace-1', [edge]));
+
+    const done = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Done');
+    await act(async () => done?.click());
+
+    expect(rendered.surfaceEdges).toEqual([edge]);
+  });
+
+  it('routes iframe review comments from the editable canvas to Chat', async () => {
+    load.mockResolvedValue({
+      ok: true,
+      data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    });
+    const comments: AgentContextDomReviewComment[] = [{
+      id: 'review-1',
+      text: 'Increase contrast',
+      selection: { id: 'dom-1', label: 'Button', nodeId: 'node-1', selector: '#button' },
+    }];
+    const onSubmitDomReviewComments = vi.fn(async () => true);
+    await renderPreview({ editingAllowed: true, active: true, onSubmitDomReviewComments });
+    await vi.waitFor(() => expect(mount?.querySelector('[data-testid="canvas-surface"]')).not.toBeNull());
+
+    const edit = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Edit canvas');
+    await act(async () => edit?.click());
+    const submitted = await rendered.canvasProps?.onSubmitDomReviewComments?.(comments);
+
+    expect(submitted).toBe(true);
+    expect(onSubmitDomReviewComments).toHaveBeenCalledWith('workspace-1', comments);
+  });
+
+  it('owns canvas shortcuts only after interaction inside the editable pane', async () => {
+    load.mockResolvedValue({
+      ok: true,
+      data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    });
+    await renderPreview({ editingAllowed: true, active: true });
+    await vi.waitFor(() => expect(mount?.querySelector('[data-testid="canvas-surface"]')).not.toBeNull());
+
+    const edit = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Edit canvas');
+    await act(async () => edit?.click());
+    expect(rendered.canvasProps?.isActive).toBe(true);
+    expect(rendered.canvasProps?.keyboardActive).toBe(true);
+
+    act(() => document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+    expect(rendered.canvasProps?.isActive).toBe(true);
+    expect(rendered.canvasProps?.keyboardActive).toBe(false);
+
+    act(() => mount?.querySelector('.canvas-preview')?.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true }),
+    ));
+    expect(rendered.canvasProps?.isActive).toBe(true);
+    expect(rendered.canvasProps?.keyboardActive).toBe(true);
+
+    await rerenderPreview({ editingAllowed: true, active: false });
+    expect(rendered.canvasProps?.isActive).toBe(false);
+    expect(rendered.canvasProps?.keyboardActive).toBe(false);
+
+    await rerenderPreview({ editingAllowed: true, active: true });
+    expect(rendered.canvasProps?.isActive).toBe(true);
+    expect(rendered.canvasProps?.keyboardActive).toBe(false);
+  });
+
+  it('restores canvas shortcut and paste ownership after the app regains focus', async () => {
+    load.mockResolvedValue({
+      ok: true,
+      data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    });
+    await renderPreview({ editingAllowed: true, active: true });
+    await vi.waitFor(() => expect(mount?.querySelector('[data-testid="canvas-surface"]')).not.toBeNull());
+
+    const edit = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Edit canvas');
+    await act(async () => edit?.click());
+    expect(rendered.canvasProps?.keyboardActive).toBe(true);
+
+    act(() => window.dispatchEvent(new Event('blur')));
+    expect(rendered.canvasProps?.keyboardActive).toBe(false);
+
+    act(() => window.dispatchEvent(new Event('focus')));
+    expect(rendered.canvasProps?.keyboardActive).toBe(true);
+  });
+
+  it('keeps a same-workspace node clipboard inside the editable tab', async () => {
+    load.mockResolvedValue({
+      ok: true,
+      data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    });
+    await renderPreview({ editingAllowed: true, active: true });
+    await vi.waitFor(() => expect(mount?.querySelector('[data-testid="canvas-surface"]')).not.toBeNull());
+
+    const edit = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Edit canvas');
+    await act(async () => edit?.click());
+    expect(rendered.canvasProps?.clipboard).toBeNull();
+
+    const clipboard: CanvasClipboard = {
+      sourceWorkspaceId: 'workspace-1',
+      nodes: [NODE],
+      systemText: NODE.title,
+    };
+    act(() => rendered.canvasProps?.onClipboardChange?.(clipboard));
+
+    expect(rendered.canvasProps?.clipboard).toEqual(clipboard);
+  });
+
   it('offers editing only while the current host grants it, and never revives an old edit session', async () => {
     load.mockResolvedValue({
       ok: true,

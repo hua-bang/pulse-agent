@@ -145,17 +145,30 @@ the snapshot preview to mutate. This preserves nodes+edges history, save
 failure handling, updatedAt merging, flush-on-unmount, and undo/redo. The dock
 viewport is local: it auto-fits the pane and never overwrites the workspace's
 main-canvas transform; node-only saves retain the transform loaded from disk.
+The editor reports both full node and edge snapshots back to the preview so
+leaving Edit never flashes stale structure while the persisted reload lands.
 The existing mounted-workspace guard remains the one-writer boundary: a live
 Workbench canvas cannot also open as a dock canvas, and mounting that workspace
 closes its dock tab. Because Workbench is route-keep-alive, off-route canvases
 must also receive `isActive=false` so their global keyboard/paste handlers do
-not compete with the visible dock editor.
+not compete with the visible dock editor. Inside AI Chat, a visible dock Canvas
+keeps `isActive=true` for node lifecycles but owns keyboard/paste only after the
+latest pointer or focus interaction occurred inside it; focusing Chat releases
+those document-level handlers without unmounting the editor.
+
+DOM review comments created inside an editable iframe node use the same active
+Chat-target broker as node, DOM-selection, and Tab context. The full-page Chat
+composer registers the review submission handler, so reviews never fall through
+to a hidden workspace composer while `/chat` is visible.
 
 Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 `RightDock/index.test.tsx`, `RightDock/__tests__/DockPanes.test.tsx`,
 `RightDock/__tests__/CanvasPreview.test.tsx`,
 `Canvas/hooks/useCanvasSyncEffects.test.ts`, `hooks/useNodes.test.tsx`, and
-`Workbench/__tests__/ChatDockLifecycle.test.tsx`.
+`Workbench/__tests__/ChatDockLifecycle.test.tsx`. Review routing is pinned by
+`chat/__tests__/ChatPage.dom-review.test.tsx`,
+`chat/hooks/useSubmitDomReviewComments.test.tsx`, and
+`Workbench/__tests__/useChatInsertionBridge.test.tsx`.
 
 ### Explicit Chat ↔ dock-tab context
 

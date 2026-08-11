@@ -255,6 +255,51 @@ describe('useChatInsertionBridge', () => {
     });
   });
 
+  it('submits a DOM review to the visible page target without opening hidden dock chat', async () => {
+    const comments: AgentContextDomReviewComment[] = [{
+      id: 'comment-1',
+      text: 'Increase contrast',
+      selection: {
+        id: 'dom-1',
+        label: 'Primary action',
+        nodeId: 'link-tab-1',
+        selector: '#primary-action',
+      },
+    }];
+    const deliver: ChatTargetBroker['deliver'] = vi.fn(async () => ({
+      status: 'delivered' as const,
+      target: {
+        surface: 'page' as const,
+        scope: { kind: 'global' as const },
+        scopeId: '__global_chat__',
+        sessionId: null,
+        composerId: 'page:global',
+        contextSnapshot: { label: 'Global chat' },
+        executionPolicy: 'auto' as const,
+      },
+    }));
+    act(() => root.unmount());
+    const TargetHarness = () => {
+      bridge = useChatInsertionBridge({
+        allNodes: { 'workspace-1': [node] },
+        openChat,
+        deliverToActiveTarget: deliver,
+      });
+      return null;
+    };
+    root = createRoot(container);
+    act(() => root.render(<TargetHarness />));
+
+    let submitted: boolean | undefined;
+    await act(async () => {
+      submitted = await bridge.handleSubmitDomReviewComments('workspace-1', comments);
+    });
+
+    expect(deliver).toHaveBeenCalledWith({ kind: 'dom-review', comments });
+    expect(submitted).toBe(true);
+    expect(openChat).not.toHaveBeenCalled();
+  });
+
   it('falls back when the visible target does not support that insertion kind', async () => {
     const deliver: ChatTargetBroker['deliver'] = vi.fn(async () => ({
       status: 'unavailable' as const,

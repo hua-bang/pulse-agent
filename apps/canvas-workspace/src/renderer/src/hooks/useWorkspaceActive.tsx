@@ -16,6 +16,19 @@ import { createContext, useContext } from 'react';
  */
 const WorkspaceActiveContext = createContext(true);
 
+/**
+ * Whether the enclosing canvas currently owns document-level keyboard input.
+ * This is intentionally narrower than workspace visibility: an editable
+ * Canvas can stay live beside Chat while its node-level window listeners yield
+ * as soon as the user moves interaction outside the Canvas region.
+ *
+ * Default `true` preserves standalone node surfaces and existing tests that
+ * render outside a Canvas root.
+ */
+const CanvasKeyboardActiveContext = createContext(true);
+
 export const WorkspaceActiveProvider = WorkspaceActiveContext.Provider;
+export const CanvasKeyboardActiveProvider = CanvasKeyboardActiveContext.Provider;
 
 export const useWorkspaceActive = (): boolean => useContext(WorkspaceActiveContext);
+export const useCanvasKeyboardActive = (): boolean => useContext(CanvasKeyboardActiveContext);

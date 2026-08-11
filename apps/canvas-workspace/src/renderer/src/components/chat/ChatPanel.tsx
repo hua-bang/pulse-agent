@@ -11,12 +11,12 @@ import { useChatComposerState } from './hooks/useChatComposerState';
 import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useComposerRequest } from './hooks/useComposerRequest';
 import { useAppShell } from '../shell/AppShellProvider';
-import type { AgentContextDomReviewComment, AgentRequestContext } from '../../types';
+import type { AgentRequestContext } from '../../types';
 import type { AgentScope, ChatPanelProps } from './types';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { useStartSkillChat } from './hooks/useStartSkillChat';
-import { buildDomReviewPrompt } from './utils/domReviewPrompt';
+import { useSubmitDomReviewComments } from './hooks/useSubmitDomReviewComments';
 import {
   type ChatTarget,
 } from './ChatTargetContext';
@@ -225,26 +225,10 @@ export const ChatPanel = ({
     });
   }, [notify, onOpenAppSettings, t]);
 
-  const submitDomReviewComments = useCallback(async (comments: AgentContextDomReviewComment[]) => {
-    if (loading || sessionLoading || busyElsewhere || sessionError) return false;
-    const validComments = comments.filter((comment) => comment.text.trim());
-    if (validComments.length === 0) {
-      focusInput();
-      return false;
-    }
-    if (notConfigured) {
-      openModelSettingsWithHint();
-      return false;
-    }
-
-    const domSelections = validComments.map((comment) => comment.selection);
-    const context: AgentRequestContext = {
-      ...requestContext,
-      domSelections: [...(requestContext.domSelections ?? []), ...domSelections],
-      scope: 'selected_nodes',
-    };
-    return sendMessage(buildDomReviewPrompt(validComments), context);
-  }, [busyElsewhere, focusInput, loading, notConfigured, openModelSettingsWithHint, requestContext, sendMessage, sessionError, sessionLoading]);
+  const submitDomReviewComments = useSubmitDomReviewComments({
+    blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
+    focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
+  });
 
   useEffect(() => {
     if (

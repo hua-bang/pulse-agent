@@ -6,7 +6,7 @@ import { DockPanes } from '../DockPanes';
 import { CHAT_TAB_ID, DockStore, TERMINAL_TAB_ID } from '../dock-store';
 import { dockPaneElementId, dockTabElementId } from '../dock-tab-ids';
 import { I18nProvider } from '../../../../i18n';
-import type { AgentContextTabRef } from '../../../../types';
+import type { AgentContextDomReviewComment, AgentContextTabRef } from '../../../../types';
 
 const latestTabChatActionProps = vi.hoisted(() => new Map<string, {
   tab: AgentContextTabRef;
@@ -44,6 +44,10 @@ const latestCanvasPreviewProps = vi.hoisted(() => new Map<string, {
   active?: boolean;
   onNodesChange?: unknown;
   onSelectionChange?: unknown;
+  onSubmitDomReviewComments?: (
+    workspaceId: string,
+    comments: AgentContextDomReviewComment[],
+  ) => Promise<boolean>;
 }>());
 vi.mock('../CanvasPreview', () => ({
   CanvasPreview: (props: {
@@ -52,6 +56,10 @@ vi.mock('../CanvasPreview', () => ({
     active?: boolean;
     onNodesChange?: unknown;
     onSelectionChange?: unknown;
+    onSubmitDomReviewComments?: (
+      workspaceId: string,
+      comments: AgentContextDomReviewComment[],
+    ) => Promise<boolean>;
   }) => {
     latestCanvasPreviewProps.set(props.workspaceId, props);
     return <div data-canvas-preview={props.workspaceId} />;
@@ -417,6 +425,7 @@ describe('DockPanes canvas editing host capability', () => {
     const tab = store.getSnapshot().tabs[0]!;
     const onCanvasNodesChange = vi.fn();
     const onCanvasSelectionChange = vi.fn();
+    const onSubmitDomReviewComments = vi.fn(async () => true);
     mount = document.createElement('div');
     document.body.appendChild(mount);
     root = createRoot(mount);
@@ -431,6 +440,7 @@ describe('DockPanes canvas editing host capability', () => {
         canvasTabEditingAllowed
         onCanvasNodesChange={onCanvasNodesChange}
         onCanvasSelectionChange={onCanvasSelectionChange}
+        onSubmitDomReviewComments={onSubmitDomReviewComments}
         splitContentWidth={320}
         splitDividerWidth={6}
         onDividerMouseDown={() => undefined}
@@ -454,6 +464,15 @@ describe('DockPanes canvas editing host capability', () => {
       onSelectionChange: onCanvasSelectionChange,
     });
     expect(store.getSnapshot().tabs[0]).not.toHaveProperty('editingAllowed');
+
+    const comments: AgentContextDomReviewComment[] = [{
+      id: 'review-1',
+      text: 'Increase contrast',
+      selection: { id: 'dom-1', label: 'Button', nodeId: 'node-1', selector: '#button' },
+    }];
+    await expect(latestCanvasPreviewProps.get('ws2')?.onSubmitDomReviewComments?.('ws2', comments))
+      .resolves.toBe(true);
+    expect(onSubmitDomReviewComments).toHaveBeenCalledWith('ws2', comments);
 
     render(false);
     expect(latestCanvasPreviewProps.get('ws2')?.active).toBe(false);

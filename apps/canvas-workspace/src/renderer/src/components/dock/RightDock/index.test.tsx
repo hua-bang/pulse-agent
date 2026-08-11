@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, useRef } from 'react';
+import { act, useEffect, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
@@ -7,6 +7,7 @@ import { RightDockProvider, useDockContext } from './context';
 import { RightDock } from './index';
 import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
 import { FOCUS_DOCK_PAGE_EVENT } from './dock-browser-commands';
+import type { AgentContextDomReviewComment } from '../../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -18,10 +19,23 @@ vi.mock('./useDockAgentBridge', () => ({
   useDockAgentBridge: () => undefined,
 }));
 
-const latestDockPanesProps = vi.hoisted(() => ({ canvasTabEditingAllowed: undefined as boolean | undefined }));
+const latestDockPanesProps = vi.hoisted(() => ({
+  canvasTabEditingAllowed: undefined as boolean | undefined,
+  onSubmitDomReviewComments: undefined as undefined | ((
+    workspaceId: string,
+    comments: AgentContextDomReviewComment[],
+  ) => Promise<boolean>),
+}));
 vi.mock('./DockPanes', () => ({
-  DockPanes: (props: { canvasTabEditingAllowed?: boolean }) => {
+  DockPanes: (props: {
+    canvasTabEditingAllowed?: boolean;
+    onSubmitDomReviewComments?: (
+      workspaceId: string,
+      comments: AgentContextDomReviewComment[],
+    ) => Promise<boolean>;
+  }) => {
     latestDockPanesProps.canvasTabEditingAllowed = props.canvasTabEditingAllowed;
+    latestDockPanesProps.onSubmitDomReviewComments = props.onSubmitDomReviewComments;
     return <div data-testid="dock-panes" />;
   },
 }));
@@ -61,6 +75,33 @@ const SeededDock = ({ reserveSpace = true, chatTabEnabled = true, capWidth = fal
   );
 };
 
+const reviewSubmit = vi.fn(async () => true);
+const ReviewBridgeDock = () => {
+  const { store, registerSubmitDomReviewComments } = useDockContext();
+  const seededRef = useRef(false);
+  if (!seededRef.current) {
+    seededRef.current = true;
+    store.setActiveWorkspace('ws-1');
+    store.openCanvasPreview('ws-2', 'Research');
+  }
+  useEffect(
+    () => registerSubmitDomReviewComments(reviewSubmit),
+    [registerSubmitDomReviewComments],
+  );
+  return (
+    <RightDock
+      activeWorkspaceId="ws-1"
+      activeIdReady
+      chatTabEnabled={false}
+      reserveSpace
+      capWidth={false}
+      canvasTabEditingAllowed
+      workspaces={[{ id: 'ws-2', name: 'Research' }]}
+      onOpenNodePage={() => undefined}
+    />
+  );
+};
+
 const renderDock = async (
   reserveSpace = true,
   chatTabEnabled = true,
@@ -89,6 +130,7 @@ const renderDock = async (
 };
 
 beforeEach(() => {
+  reviewSubmit.mockClear();
   window.localStorage.clear();
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,
@@ -195,6 +237,29 @@ describe('RightDock keyboard resize separator', () => {
 });
 
 describe('RightDock page layout', () => {
+  it('routes editable-canvas review comments through the registered Chat bridge', async () => {
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <RightDockProvider><ReviewBridgeDock /></RightDockProvider>
+        </I18nProvider>,
+      );
+      await Promise.resolve();
+    });
+    const comments: AgentContextDomReviewComment[] = [{
+      id: 'review-1',
+      text: 'Increase contrast',
+      selection: { id: 'dom-1', label: 'Button', nodeId: 'node-1', selector: '#button' },
+    }];
+
+    await expect(latestDockPanesProps.onSubmitDomReviewComments?.('ws-2', comments))
+      .resolves.toBe(true);
+    expect(reviewSubmit).toHaveBeenCalledWith('ws-2', comments);
+  });
+
   it('passes the transient AI Chat canvas-editing capability to its panes', async () => {
     await renderDock(true, false, true, true);
 

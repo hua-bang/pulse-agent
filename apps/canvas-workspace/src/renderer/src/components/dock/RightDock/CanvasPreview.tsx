@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentContextTabRef, CanvasEdge, CanvasNode, CanvasTransform } from '../../../types';
+import type { AgentContextDomReviewComment, AgentContextTabRef, CanvasNode } from '../../../types';
 import { useI18n } from '../../../i18n';
 import { useCanvas } from '../../../hooks/useCanvas';
 import { useCanvasFit } from '../../../hooks/useCanvasFit';
@@ -22,6 +22,10 @@ import { FileNodeEditorRegistryProvider } from '../../../hooks/useFileNodeEditor
 import { CanvasPreviewChrome, CanvasPreviewState } from './CanvasPreviewChrome';
 import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 import { TabChatAction } from './TabChatAction';
+import {
+  EMPTY_CANVAS_PREVIEW_SNAPSHOT,
+  useCanvasPreviewEditorController,
+} from './useCanvasPreviewEditorController';
 import './canvas-preview.css';
 
 interface CanvasPreviewProps {
@@ -33,28 +37,21 @@ interface CanvasPreviewProps {
   onAddTabToChat?: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
   /** Transient host capability. Only the dedicated AI Chat route grants it. */
   editingAllowed?: boolean;
-  /** Whether this pane is currently visible/focused enough to own shortcuts. */
+  /** Whether this pane is visible. Keyboard ownership is narrowed further by
+   * the latest interaction between the editable pane and adjacent Chat. */
   active?: boolean;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
   onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   onAddDomSelectionToChat?: Parameters<typeof Canvas>[0]['onAddDomSelectionToChat'];
+  onSubmitDomReviewComments?: (
+    workspaceId: string,
+    comments: AgentContextDomReviewComment[],
+  ) => Promise<boolean>;
 }
 
 const NOOP = () => undefined;
 const NOOP_DISPATCH = () => undefined;
 const EMPTY_STR_SET: Set<string> = new Set();
-
-interface Snapshot {
-  nodes: CanvasNode[];
-  edges: CanvasEdge[];
-  transform: CanvasTransform;
-}
-
-const EMPTY_SNAPSHOT: Snapshot = {
-  nodes: [],
-  edges: [],
-  transform: { x: 0, y: 0, scale: 1 },
-};
 
 const PREVIEW_ZOOM_STEP = 1.2;
 
@@ -78,17 +75,47 @@ export const CanvasPreview = ({
   onNodesChange,
   onSelectionChange,
   onAddDomSelectionToChat,
+  onSubmitDomReviewComments,
 }: CanvasPreviewProps) => {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const transformLayerRef = useRef<HTMLDivElement>(null);
-  const [snapshot, setSnapshot] = useState<Snapshot>(EMPTY_SNAPSHOT);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
-  // Store the workspace that requested editing instead of a bare boolean so
-  // a retained Tab changing resources drops editability synchronously.
-  const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
-  const editing = editingAllowed && editingWorkspaceId === workspaceId;
+  const editor = useCanvasPreviewEditorController({
+    active,
+    editingAllowed,
+    workspaceId,
+    onNodesChange,
+    onSubmitDomReviewComments,
+  });
+  const {
+    clipboard,
+    editing,
+    editorRegionRef,
+    handleClipboardChange,
+    handleEdgesChange,
+    handleEditToggle,
+    handleNodesChange,
+    handleSubmitDomReviewComments,
+    keyboardActive,
+    replaceSnapshot,
+    snapshot,
+  } = editor;
+  // Preview reads are advisory while the canonical Canvas editor is mounted.
+  // Track the current workspace/edit boundary synchronously so a request that
+  // started before Edit (or for a previous workspace) cannot commit after an
+  // await. A monotonically increasing generation also makes concurrent preview
+  // reloads latest-wins.
+  const loadCommitStateRef = useRef({ workspaceId, editing, generation: 0 });
+  const loadCommitState = loadCommitStateRef.current;
+  if (loadCommitState.workspaceId !== workspaceId || loadCommitState.editing !== editing) {
+    loadCommitStateRef.current = {
+      workspaceId,
+      editing,
+      generation: loadCommitState.generation + 1,
+    };
+  }
   // Once the user pans/zooms the preview, stop auto-framing it.
   const userMovedRef = useRef(false);
   // Node the preview was asked to frame (reference "peek at source").
@@ -98,10 +125,6 @@ export const CanvasPreview = ({
   const [externallyEditedIds, setExternallyEditedIds] = useState<Set<string>>(EMPTY_STR_SET);
   const editClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (!editingAllowed) setEditingWorkspaceId(null);
-  }, [editingAllowed]);
-
   const {
     transform, setTransform, settledScale, moving, zoomByStep,
     handleWheel, handleMouseDown, handleMouseMove, handleMouseUp,
@@ -109,8 +132,24 @@ export const CanvasPreview = ({
   const { fitAllNodes, handleFocusNode } = useCanvasFit(containerRef, setTransform);
 
   const load = useCallback(async () => {
+    // The canonical Canvas owns external synchronization in Edit mode and
+    // mirrors its merged node/edge snapshots back through the controller.
+    if (loadCommitStateRef.current.editing) return;
+    const requestedWorkspaceId = workspaceId;
+    const requestGeneration = loadCommitStateRef.current.generation + 1;
+    loadCommitStateRef.current = {
+      ...loadCommitStateRef.current,
+      generation: requestGeneration,
+    };
+    const canCommit = () => {
+      const current = loadCommitStateRef.current;
+      return current.generation === requestGeneration
+        && current.workspaceId === requestedWorkspaceId
+        && !current.editing;
+    };
     const api = window.canvasWorkspace?.store;
     if (!api) {
+      if (!canCommit()) return;
       setError(true);
       setLoaded(true);
       return;
@@ -119,27 +158,29 @@ export const CanvasPreview = ({
     try {
       result = await api.load(workspaceId);
     } catch {
+      if (!canCommit()) return;
       setError(true);
       setLoaded(true);
       return;
     }
+    if (!canCommit()) return;
     if (!result.ok || !result.data) {
       // A workspace that was never saved simply has no snapshot yet; that's an
       // empty canvas, not an error.
-      setSnapshot(EMPTY_SNAPSHOT);
+      replaceSnapshot(EMPTY_CANVAS_PREVIEW_SNAPSHOT);
       setError(!result.ok);
       setLoaded(true);
       return;
     }
     const data = result.data;
-    setSnapshot({
+    replaceSnapshot({
       nodes: Array.isArray(data.nodes) ? data.nodes : [],
       edges: Array.isArray(data.edges) ? data.edges : [],
-      transform: data.transform ?? EMPTY_SNAPSHOT.transform,
+      transform: data.transform ?? EMPTY_CANVAS_PREVIEW_SNAPSHOT.transform,
     });
     setError(false);
     setLoaded(true);
-  }, [workspaceId]);
+  }, [replaceSnapshot, workspaceId]);
 
   // Initial load (and reset when the previewed workspace changes).
   useEffect(() => {
@@ -251,15 +292,6 @@ export const CanvasPreview = ({
   const handleAddToChat = useCallback((nodeId: string) => dispatchNodeAction('add-to-chat', nodeId), [dispatchNodeAction]);
   const handlePinReference = useCallback((nodeId: string) => dispatchNodeAction('pin-reference', nodeId), [dispatchNodeAction]);
   const handleAddToCanvas = useCallback((nodeId: string) => dispatchNodeAction('add-to-canvas', nodeId), [dispatchNodeAction]);
-  const handleEditableNodesChange = useCallback((canvasId: string, nodes: CanvasNode[]) => {
-    setSnapshot((current) => ({ ...current, nodes }));
-    onNodesChange?.(canvasId, nodes);
-  }, [onNodesChange]);
-  const handleEditToggle = useCallback(() => {
-    if (!editingAllowed) return;
-    setEditingWorkspaceId((current) => current === workspaceId ? null : workspaceId);
-  }, [editingAllowed, workspaceId]);
-
   // Frame the whole canvas into the dock pane (fit-to-content). The pane is a
   // different shape from the main window and — crucially — animates its width
   // when the dock expands on open, so a single fit would land at a transient
@@ -304,6 +336,7 @@ export const CanvasPreview = ({
     });
     return (
       <div
+        ref={editorRegionRef}
         className="canvas-preview"
         data-mode="edit"
         role="region"
@@ -315,12 +348,17 @@ export const CanvasPreview = ({
             canvasName={canvasName}
             rootFolder={rootFolder}
             isActive={active}
+            keyboardActive={keyboardActive}
             persistViewport={false}
-            onNodesChange={handleEditableNodesChange}
+            clipboard={clipboard}
+            onClipboardChange={handleClipboardChange}
+            onNodesChange={handleNodesChange}
+            onEdgesChange={handleEdgesChange}
             onSelectionChange={onSelectionChange}
             onPinReferenceNode={handlePinReference}
             onAddToChat={handleAddToChat}
             onAddDomSelectionToChat={onAddDomSelectionToChat}
+            onSubmitDomReviewComments={handleSubmitDomReviewComments}
           />
         </FileNodeEditorRegistryProvider>
         <CanvasPreviewChrome

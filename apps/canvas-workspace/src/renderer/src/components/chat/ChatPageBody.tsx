@@ -14,11 +14,7 @@ import { useAppShell } from '../shell/AppShellProvider';
 import type { AgentScope, WorkspaceOption } from './types';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
-import {
-  type ChatContextSnapshot,
-  type ChatExecutionPolicy,
-  type ChatTarget,
-} from './ChatTargetContext';
+import type { ChatContextSnapshot, ChatExecutionPolicy, ChatTarget } from './ChatTargetContext';
 import { chatScopeId } from './chatScope';
 import { useRegisterChatTarget } from './useRegisterChatTarget';
 import { ChatConversationStatus } from './ChatConversationStatus';
@@ -26,6 +22,7 @@ import { useChatPageTargetContext } from './hooks/useChatPageTargetContext';
 import { useChatPageJumpNavigation } from './hooks/useChatPageJumpNavigation';
 import { useChatPageSessionRail } from './hooks/useChatPageSessionRail';
 import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
+import { useSubmitDomReviewComments } from './hooks/useSubmitDomReviewComments';
 import { submitQuickAction } from './hooks/submitQuickAction';
 import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
 import { scopeSessionStoreId } from '../../../../shared/agent-chat';
@@ -233,14 +230,6 @@ export const ChatPageBody = ({
     executionPolicy,
   }), [activeSessionId, agentScope, executionPolicy, resolvedContextSnapshot, scopeId]);
 
-  useRegisterChatTarget(target, {
-    insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,
-    insertDomSelection: busyElsewhere || sessionLoading ? undefined : insertDomSelectionMention,
-    insertTab: busyElsewhere || sessionLoading ? undefined : insertTabMention,
-    startSkillChat: handleTargetSkillChat,
-    focus: focusInput,
-  });
-
   useEffect(() => {
     if (!workspaceId) return;
     onWorkspaceContextRequest?.(workspaceId);
@@ -272,6 +261,17 @@ export const ChatPageBody = ({
       autoCloseMs: 2200,
     });
   }, [notify, onOpenAppSettings, t]);
+
+  const submitDomReviewComments = useSubmitDomReviewComments({
+    blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
+    focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
+  });
+  useRegisterChatTarget(target, {
+    insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,
+    insertDomSelection: busyElsewhere || sessionLoading ? undefined : insertDomSelectionMention,
+    insertTab: busyElsewhere || sessionLoading ? undefined : insertTabMention,
+    startSkillChat: handleTargetSkillChat, submitDomReview: submitDomReviewComments, focus: focusInput,
+  });
 
   const openModelSettingsFromSwitcher = useCallback(() => {
     if (notConfigured) {

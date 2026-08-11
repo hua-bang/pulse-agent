@@ -140,6 +140,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   useEffect(() => dock.registerPinUrlReference(pinReferenceUrl), [dock, pinReferenceUrl]);
 
   useEffect(() => dock.registerAddDomSelectionToChat(handleAddDomSelectionToChat), [dock, handleAddDomSelectionToChat]);
+  useEffect(() => dock.registerSubmitDomReviewComments(handleSubmitDomReviewComments), [dock, handleSubmitDomReviewComments]);
   useEffect(() => dock.registerAddTabToChat(handleAddTabToChat), [dock, handleAddTabToChat]);
   useEffect(() => dock.registerStartSkillChat((workspaceId, skillName) => {
     if (workspaceId !== activeWorkspaceId) onActivateWorkspace(workspaceId);

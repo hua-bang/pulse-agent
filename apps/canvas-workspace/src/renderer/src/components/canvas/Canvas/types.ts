@@ -1,4 +1,4 @@
-import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasEdge, CanvasNode } from '../../../types';
 import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../../types/ui-interaction';
 import type { NodeReferenceEntryForCanvas } from '../../dock/ReferenceDrawer';
 import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
@@ -7,11 +7,18 @@ export interface CanvasProps {
   canvasId: string;
   canvasName?: string;
   rootFolder?: string;
+  /** Whether the canvas is visible/live. This also drives workspace-scoped
+   * node lifecycles; embedded hosts should not use it for focus ownership. */
   isActive?: boolean;
+  /** Whether this Canvas currently owns document-level shortcuts and paste.
+   * Defaults to `isActive`; split hosts can keep a visible canvas live while
+   * the adjacent surface owns the keyboard. */
+  keyboardActive?: boolean;
   /** Keep pan/zoom local to this Canvas instance instead of overwriting the
    * workspace's canonical viewport. Used by the AI Chat dock editor. */
   persistViewport?: boolean;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
+  onEdgesChange?: (canvasId: string, edges: CanvasEdge[]) => void;
   onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   focusNodeId?: string;
   onFocusComplete?: () => void;
