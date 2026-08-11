@@ -186,6 +186,15 @@ explicit override.
 Every node / DOM-selection / whole-tab dock-to-Chat action awaits a
 `ChatDeliveryReceipt` and reports delivered, queued, unavailable, or failed
 against its real target; a missing callback is never success.
+
+Session citation markers are atomic Markdown inputs: protect the complete
+`@[session:<storeId>:<sessionId>:<messageIndex?>|<label>]` marker before
+Markdown rendering, then restore it for chip conversion. Store ids such as
+`__global_chat__` and `__scheduled__-<taskId>` must reach the chip dataset
+verbatim; repairing rendered `<strong>` fragments after the fact is not a
+compatible parser. Guards: `utils/mentions.test.ts` and
+`__tests__/ChatMessages.accessibility.test.tsx`.
+
 If the visible page composer is temporarily busy or registering, its context
 insertion stays queued for that same composer instead of falling back to a
 hidden dock composer. Whole-tab actions reuse `AgentContextTabRef` and the

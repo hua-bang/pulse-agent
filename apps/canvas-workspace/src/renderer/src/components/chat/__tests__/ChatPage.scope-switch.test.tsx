@@ -88,6 +88,41 @@ afterEach(() => {
 });
 
 describe('ChatPage scope switching', () => {
+  it.each([
+    ['__global_chat__', 'global'],
+    ['__scheduled__-task-1', 'scheduled'],
+  ])('routes a %s session reference to its special scope', async (workspaceId, expectedScope) => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <ChatPage
+          allWorkspaces={[]}
+          onExit={vi.fn()}
+          onOpenAppSettings={vi.fn()}
+        />,
+      );
+    });
+
+    act(() => mockState.latestProps?.onJumpToSession?.({
+      sessionId: 'referenced-session',
+      workspaceId,
+    }));
+
+    const body = host.querySelector<HTMLButtonElement>('[data-chat-body]');
+    expect(body?.textContent).toBe(expectedScope);
+    expect(body?.dataset.selectedSession).toBe(`${workspaceId}:referenced-session`);
+
+    const intentId = mockState.latestProps?.pendingSessionIntentId as number;
+    act(() => mockState.latestProps?.onSessionConsumed(intentId, true));
+    expect(host.querySelector<HTMLButtonElement>('[data-chat-body]')?.textContent)
+      .toBe(expectedScope);
+    expect(host.querySelector<HTMLButtonElement>('[data-chat-body]')?.dataset.selectedSession)
+      .toBe(`${workspaceId}:referenced-session`);
+  });
+
   it('keeps ChatPageBody mounted when selecting a session in another workspace', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
