@@ -140,7 +140,8 @@ export class DockStore {
     });
   }
 
-  /** Open a read-only preview of a workspace's canvas as a dock tab. Deduped
+  /** Open a canvas preview tab. It defaults to read-only; the dedicated AI
+   *  Chat host may grant a transient, explicit edit mode. Deduped
    *  by workspace so re-opening the same canvas re-activates its tab. Returns
    *  false when refused (the workspace is live in the main Workbench). */
   openCanvasPreview(workspaceId: string, title: string): boolean {
@@ -162,7 +163,7 @@ export class DockStore {
   }
 
   /** Publish the set of workspaces the main Workbench has mounted (live). Any
-   *  read-only canvas preview whose workspace just became mounted is closed, so
+   *  canvas preview whose workspace just became mounted is closed, so
    *  the same canvas is never both live and previewed at once. */
   setMountedWorkspaces(ids: Iterable<string>): void {
     const next = new Set(ids);
@@ -174,7 +175,7 @@ export class DockStore {
     }
   }
 
-  /** Whether a read-only canvas preview may be opened for this workspace. */
+  /** Whether a canvas preview may be opened without violating one-writer. */
   canPreviewCanvas(workspaceId: string): boolean {
     return !this.state.mountedWorkspaceIds.has(workspaceId);
   }
@@ -228,16 +229,18 @@ export class DockStore {
   }
 
   /** Switch to an existing tab (chat, workspace terminal, or preview). Viewing chat clears unread. */
-  activate(id: string): void {
+  activate(id: string): boolean {
     const activatingTerminal = this.state.terminalTabs.some((tab) => tab.id === id);
     if (
       id !== CHAT_TAB_ID
       && !activatingTerminal
       && !this.state.tabs.some((tab) => tab.id === id)
     ) {
-      return;
+      return false;
     }
-    if (this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) return;
+    if (this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) {
+      return true;
+    }
     if (activatingTerminal) {
       const workspaceId = this.state.activeTerminalWorkspaceId;
       const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
@@ -245,13 +248,14 @@ export class DockStore {
         expanded: true,
         activeTabId: id,
       });
-      return;
+      return true;
     }
     this.commit({
       expanded: true,
       activeTabId: id,
       ...(id === CHAT_TAB_ID ? { chatUnread: false } : {}),
     });
+    return true;
   }
 
   /** Pair the active content tab with the pinned Pulse AI pane. */

@@ -20,6 +20,7 @@ import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
 import { dispatchOpenNodePage } from '../../../utils/openNodeBridge';
+import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 
 // Non-trivial node bodies are React.lazy so xterm (terminal/agent bodies),
 // tiptap/prosemirror + lowlight (text/file bodies), and the embedded-browser
@@ -62,9 +63,9 @@ interface DefaultCanvasNodeProps {
   makeResizeHandler: ResizeHandlerFactory;
   node: CanvasNode;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
-  onAddToChat?: (nodeId: string) => void;
+  onAddToChat?: (nodeId: string) => void | Promise<ChatDeliveryReceipt>;
   onAddToCanvas?: (nodeId: string) => void;
-  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
+  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onRemoveNodes?: (ids: string[]) => void;

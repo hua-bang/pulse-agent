@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasNode } from '../../../../types';
 import { consumePendingPreviewFocus, dispatchPreviewNodeAction } from '../../../../utils/openNodeBridge';
 import { useEvictAndPreview, usePeekNode, usePreviewNodeActionBridge } from '../usePreviewNodeActionBridge';
+import { I18nProvider } from '../../../../i18n';
+import { AppShellProvider } from '../../../shell/AppShellProvider';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -35,10 +37,26 @@ describe('usePreviewNodeActionBridge', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    addPreviewNodeToChat.mockResolvedValue({
+      status: 'delivered',
+      target: {
+        surface: 'dock',
+        scope: { kind: 'workspace', workspaceId: 'active-ws' },
+        scopeId: 'active-ws',
+        sessionId: null,
+        composerId: 'dock:active-ws',
+        contextSnapshot: { label: 'Active workspace' },
+        executionPolicy: 'auto',
+      },
+    });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    act(() => root.render(<Harness />));
+    act(() => root.render(
+      <I18nProvider>
+        <AppShellProvider><Harness /></AppShellProvider>
+      </I18nProvider>,
+    ));
   });
 
   afterEach(() => {
@@ -46,11 +64,31 @@ describe('usePreviewNodeActionBridge', () => {
     container.remove();
   });
 
-  it('routes add-to-chat to the active workspace composer with the source workspace', () => {
-    act(() => dispatchPreviewNodeAction({ action: 'add-to-chat', workspaceId: 'preview-ws', node }));
+  it('routes add-to-chat to the active workspace composer with the source workspace', async () => {
+    await act(async () => dispatchPreviewNodeAction({ action: 'add-to-chat', workspaceId: 'preview-ws', node }));
     expect(ensureWorkspaceNodesLoaded).toHaveBeenCalledWith('preview-ws');
     expect(addPreviewNodeToChat).toHaveBeenCalledWith('active-ws', 'preview-ws', node);
     expect(pinReferenceNode).not.toHaveBeenCalled();
+  });
+
+  it('announces the real queued target instead of discarding the async receipt', async () => {
+    addPreviewNodeToChat.mockResolvedValueOnce({
+      status: 'queued',
+      target: {
+        surface: 'page',
+        scope: { kind: 'global' },
+        scopeId: '__global_chat__',
+        sessionId: null,
+        composerId: 'page:global',
+        contextSnapshot: { label: 'Global chat' },
+        executionPolicy: 'auto',
+      },
+    });
+
+    await act(async () => dispatchPreviewNodeAction({ action: 'add-to-chat', workspaceId: 'preview-ws', node }));
+
+    expect(document.body.textContent).toContain('Queued for Global chat');
+    expect(document.querySelector('.shell-toast-region')?.getAttribute('aria-live')).toBe('polite');
   });
 
   it('routes pin-reference with the node snapshot', () => {

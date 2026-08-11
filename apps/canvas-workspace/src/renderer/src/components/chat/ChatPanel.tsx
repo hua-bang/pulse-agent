@@ -11,12 +11,12 @@ import { useChatComposerState } from './hooks/useChatComposerState';
 import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useComposerRequest } from './hooks/useComposerRequest';
 import { useAppShell } from '../shell/AppShellProvider';
-import type { AgentContextDomReviewComment, AgentRequestContext } from '../../types';
+import type { AgentRequestContext } from '../../types';
 import type { AgentScope, ChatPanelProps } from './types';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { useStartSkillChat } from './hooks/useStartSkillChat';
-import { buildDomReviewPrompt } from './utils/domReviewPrompt';
+import { useSubmitDomReviewComments } from './hooks/useSubmitDomReviewComments';
 import {
   type ChatTarget,
 } from './ChatTargetContext';
@@ -26,6 +26,7 @@ import { ChatConversationStatus } from './ChatConversationStatus';
 import { useChatPanelContext } from './hooks/useChatPanelContext';
 import { useChatPanelSessionNavigation } from './hooks/useChatPanelSessionNavigation';
 import { submitQuickAction } from './hooks/submitQuickAction';
+import { chatScopeCapability } from './utils/chatScopeCapability';
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
@@ -51,6 +52,7 @@ export const ChatPanel = ({
   onRegisterInsertMention,
   onRegisterStartSkillChat,
   onRegisterInsertDomSelectionMention,
+  onRegisterInsertTabMention,
   onRegisterSubmitDomReviewComments,
   onTurnComplete,
   chatTargetActive = true,
@@ -119,6 +121,7 @@ export const ChatPanel = ({
     insertDomSelectionMention,
     insertNodeMention,
     insertSkillMention,
+    insertTabMention,
     loading,
     mentionIndex,
     mentionItems,
@@ -175,6 +178,11 @@ export const ChatPanel = ({
     return onRegisterInsertDomSelectionMention(insertDomSelectionMention);
   }, [busyElsewhere, insertDomSelectionMention, onRegisterInsertDomSelectionMention, sessionLoading]);
 
+  useEffect(() => {
+    if (!onRegisterInsertTabMention || busyElsewhere || sessionLoading) return;
+    return onRegisterInsertTabMention(insertTabMention);
+  }, [busyElsewhere, insertTabMention, onRegisterInsertTabMention, sessionLoading]);
+
   const onTurnCompleteRef = useRef(onTurnComplete);
   onTurnCompleteRef.current = onTurnComplete;
   const prevLoadingRef = useRef(false);
@@ -217,26 +225,10 @@ export const ChatPanel = ({
     });
   }, [notify, onOpenAppSettings, t]);
 
-  const submitDomReviewComments = useCallback(async (comments: AgentContextDomReviewComment[]) => {
-    if (loading || sessionLoading || busyElsewhere || sessionError) return false;
-    const validComments = comments.filter((comment) => comment.text.trim());
-    if (validComments.length === 0) {
-      focusInput();
-      return false;
-    }
-    if (notConfigured) {
-      openModelSettingsWithHint();
-      return false;
-    }
-
-    const domSelections = validComments.map((comment) => comment.selection);
-    const context: AgentRequestContext = {
-      ...requestContext,
-      domSelections: [...(requestContext.domSelections ?? []), ...domSelections],
-      scope: 'selected_nodes',
-    };
-    return sendMessage(buildDomReviewPrompt(validComments), context);
-  }, [busyElsewhere, focusInput, loading, notConfigured, openModelSettingsWithHint, requestContext, sendMessage, sessionError, sessionLoading]);
+  const submitDomReviewComments = useSubmitDomReviewComments({
+    blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
+    focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
+  });
 
   useEffect(() => {
     if (
@@ -264,6 +256,7 @@ export const ChatPanel = ({
   useRegisterChatTarget(chatTargetActive ? chatTarget : null, {
     insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,
     insertDomSelection: busyElsewhere || sessionLoading ? undefined : insertDomSelectionMention,
+    insertTab: busyElsewhere || sessionLoading ? undefined : insertTabMention,
     submitDomReview: submitDomReviewComments,
     focus: focusInput,
   });
@@ -478,6 +471,8 @@ export const ChatPanel = ({
       onOpenModelSettings={openModelSettingsFromSwitcher}
       contextComposer
       knowledgeMode={knowledgeMode}
+      scopeLabel={scopeLabel}
+      scopeCapability={chatScopeCapability(agentScope)}
       executionMode={agentScope.kind === 'scheduled' ? 'scheduled' : executionMode}
       onToggleExecutionMode={agentScope.kind === 'scheduled' ? undefined : handleToggleExecutionMode}
       conversationKey={activeSessionId ?? scopeId}

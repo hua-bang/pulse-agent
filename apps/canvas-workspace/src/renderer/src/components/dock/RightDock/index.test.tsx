@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, useRef } from 'react';
+import { act, useEffect, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
@@ -7,6 +7,7 @@ import { RightDockProvider, useDockContext } from './context';
 import { RightDock } from './index';
 import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
 import { FOCUS_DOCK_PAGE_EVENT } from './dock-browser-commands';
+import type { AgentContextDomReviewComment } from '../../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -18,8 +19,25 @@ vi.mock('./useDockAgentBridge', () => ({
   useDockAgentBridge: () => undefined,
 }));
 
+const latestDockPanesProps = vi.hoisted(() => ({
+  canvasTabEditingAllowed: undefined as boolean | undefined,
+  onSubmitDomReviewComments: undefined as undefined | ((
+    workspaceId: string,
+    comments: AgentContextDomReviewComment[],
+  ) => Promise<boolean>),
+}));
 vi.mock('./DockPanes', () => ({
-  DockPanes: () => <div data-testid="dock-panes" />,
+  DockPanes: (props: {
+    canvasTabEditingAllowed?: boolean;
+    onSubmitDomReviewComments?: (
+      workspaceId: string,
+      comments: AgentContextDomReviewComment[],
+    ) => Promise<boolean>;
+  }) => {
+    latestDockPanesProps.canvasTabEditingAllowed = props.canvasTabEditingAllowed;
+    latestDockPanesProps.onSubmitDomReviewComments = props.onSubmitDomReviewComments;
+    return <div data-testid="dock-panes" />;
+  },
 }));
 
 vi.mock('./DockCreationControls', () => ({
@@ -29,10 +47,11 @@ vi.mock('./DockCreationControls', () => ({
 let root: Root | null = null;
 let mount: HTMLDivElement | null = null;
 
-const SeededDock = ({ reserveSpace = true, chatTabEnabled = true, capWidth = false }: {
+const SeededDock = ({ reserveSpace = true, chatTabEnabled = true, capWidth = false, canvasTabEditingAllowed = false }: {
   reserveSpace?: boolean;
   chatTabEnabled?: boolean;
   capWidth?: boolean;
+  canvasTabEditingAllowed?: boolean;
 }) => {
   const { store } = useDockContext();
   const seededRef = useRef(false);
@@ -49,13 +68,46 @@ const SeededDock = ({ reserveSpace = true, chatTabEnabled = true, capWidth = fal
       chatTabEnabled={chatTabEnabled}
       reserveSpace={reserveSpace}
       capWidth={capWidth}
+      canvasTabEditingAllowed={canvasTabEditingAllowed}
       workspaces={[]}
       onOpenNodePage={() => undefined}
     />
   );
 };
 
-const renderDock = async (reserveSpace = true, chatTabEnabled = true, capWidth = false) => {
+const reviewSubmit = vi.fn(async () => true);
+const ReviewBridgeDock = () => {
+  const { store, registerSubmitDomReviewComments } = useDockContext();
+  const seededRef = useRef(false);
+  if (!seededRef.current) {
+    seededRef.current = true;
+    store.setActiveWorkspace('ws-1');
+    store.openCanvasPreview('ws-2', 'Research');
+  }
+  useEffect(
+    () => registerSubmitDomReviewComments(reviewSubmit),
+    [registerSubmitDomReviewComments],
+  );
+  return (
+    <RightDock
+      activeWorkspaceId="ws-1"
+      activeIdReady
+      chatTabEnabled={false}
+      reserveSpace
+      capWidth={false}
+      canvasTabEditingAllowed
+      workspaces={[{ id: 'ws-2', name: 'Research' }]}
+      onOpenNodePage={() => undefined}
+    />
+  );
+};
+
+const renderDock = async (
+  reserveSpace = true,
+  chatTabEnabled = true,
+  capWidth = false,
+  canvasTabEditingAllowed = false,
+) => {
   mount = document.createElement('div');
   document.body.appendChild(mount);
   root = createRoot(mount);
@@ -63,7 +115,12 @@ const renderDock = async (reserveSpace = true, chatTabEnabled = true, capWidth =
     root?.render(
       <I18nProvider>
         <RightDockProvider>
-          <SeededDock reserveSpace={reserveSpace} chatTabEnabled={chatTabEnabled} capWidth={capWidth} />
+          <SeededDock
+            reserveSpace={reserveSpace}
+            chatTabEnabled={chatTabEnabled}
+            capWidth={capWidth}
+            canvasTabEditingAllowed={canvasTabEditingAllowed}
+          />
         </RightDockProvider>
       </I18nProvider>,
     );
@@ -73,6 +130,7 @@ const renderDock = async (reserveSpace = true, chatTabEnabled = true, capWidth =
 };
 
 beforeEach(() => {
+  reviewSubmit.mockClear();
   window.localStorage.clear();
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,
@@ -179,6 +237,35 @@ describe('RightDock keyboard resize separator', () => {
 });
 
 describe('RightDock page layout', () => {
+  it('routes editable-canvas review comments through the registered Chat bridge', async () => {
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <RightDockProvider><ReviewBridgeDock /></RightDockProvider>
+        </I18nProvider>,
+      );
+      await Promise.resolve();
+    });
+    const comments: AgentContextDomReviewComment[] = [{
+      id: 'review-1',
+      text: 'Increase contrast',
+      selection: { id: 'dom-1', label: 'Button', nodeId: 'node-1', selector: '#button' },
+    }];
+
+    await expect(latestDockPanesProps.onSubmitDomReviewComments?.('ws-2', comments))
+      .resolves.toBe(true);
+    expect(reviewSubmit).toHaveBeenCalledWith('ws-2', comments);
+  });
+
+  it('passes the transient AI Chat canvas-editing capability to its panes', async () => {
+    await renderDock(true, false, true, true);
+
+    expect(latestDockPanesProps.canvasTabEditingAllowed).toBe(true);
+  });
+
   it('does not reserve shell width when the dock overlays a library page', async () => {
     await renderDock(false);
 
@@ -197,10 +284,11 @@ describe('RightDock page layout', () => {
     const host = await renderDock(true, true, true);
     const separator = host.querySelector<HTMLElement>('.right-dock__resize-handle')!;
 
-    // 1200px viewport → page cap 840 (70%).
-    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('840px');
-    expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('840px');
-    expect(separator.getAttribute('aria-valuemax')).toBe('840');
+    // 1200px viewport → preserve a fixed 520px app remainder, so the
+    // remainder cap (680) wins over the ratio-only cap (840).
+    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('680px');
+    expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('680px');
+    expect(separator.getAttribute('aria-valuemax')).toBe('680');
     expect(window.localStorage.getItem('canvas-workspace:right-dock-width')).toBe('1100');
   });
 });

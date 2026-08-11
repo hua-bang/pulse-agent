@@ -3,6 +3,7 @@ import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasN
 import type { ResizeEdge } from '../../../hooks/useNodeResize';
 import type { NodeDragOffset } from '../../../hooks/useNodeDrag';
 import type { MergeMindmapTopicRequest } from '../../../utils/mindmapTransfer';
+import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 
 export type CanvasNodeRenderMode = 'full' | 'frame-body' | 'frame-title';
 
@@ -58,10 +59,10 @@ export interface CanvasNodeViewProps {
     title: string;
   };
   onReference?: (nodeId: string) => void;
-  onAddToChat?: (nodeId: string) => void;
+  onAddToChat?: (nodeId: string) => void | Promise<ChatDeliveryReceipt>;
   /** Place this node on the main canvas as a reference (dock preview only). */
   onAddToCanvas?: (nodeId: string) => void;
-  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
+  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;

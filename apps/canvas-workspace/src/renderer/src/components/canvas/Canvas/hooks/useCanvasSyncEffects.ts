@@ -1,11 +1,12 @@
 import { useEffect, type MutableRefObject } from 'react';
-import type { CanvasNode, CanvasTransform } from '../../../../types';
+import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../../../types';
 import type { CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../../../types/ui-interaction';
 
 interface Options {
   canvasId: string;
   loaded: boolean;
   nodes: CanvasNode[];
+  edges: CanvasEdge[];
   /** Nodes to use for viewport auto-fit. Defaults to `nodes`; callers can
    *  pass visible-only nodes while still syncing full canvas data upward. */
   autoFitNodes?: CanvasNode[];
@@ -13,6 +14,8 @@ interface Options {
   /** True while pan/zoom is active. Viewport persistence should wait until
    *  the gesture settles so wheel ticks only move the compositor transform. */
   moving?: boolean;
+  /** False for embedded editors whose viewport is local to their pane. */
+  persistViewport?: boolean;
   selectedNodeIds: string[];
   nodesRef: MutableRefObject<CanvasNode[]>;
   /** True while a node drag/resize is in flight. Used to defer the
@@ -31,6 +34,7 @@ interface Options {
   updateNode: (id: string, patch: Partial<CanvasNode>) => void;
   handleExternalDelete: (deleteNodeId: string) => void;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
+  onEdgesChange?: (canvasId: string, edges: CanvasEdge[]) => void;
   onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   focusNodeId?: string;
   onFocusComplete?: () => void;
@@ -42,13 +46,16 @@ interface Options {
   onNodePatchComplete?: (requestId: number) => void;
 }
 
-export const shouldPersistViewportTransform = (loaded: boolean, moving: boolean): boolean =>
-  loaded && !moving;
+export const shouldPersistViewportTransform = (
+  loaded: boolean,
+  moving: boolean,
+  persistViewport = true,
+): boolean => loaded && !moving && persistViewport;
 
 /**
  * Collects the canvas's lifecycle / parent-sync effects in one place:
  * flushing pending saves on unmount, persisting the viewport transform,
- * auto-fitting on first load, propagating nodes/selection to the parent
+ * auto-fitting on first load, propagating nodes/edges/selection to the parent
  * (with drag-pause), and consuming external focus / delete / rename
  * requests from the sidebar layers panel.
  */
@@ -56,9 +63,11 @@ export const useCanvasSyncEffects = ({
   canvasId,
   loaded,
   nodes,
+  edges,
   autoFitNodes = nodes,
   transform,
   moving = false,
+  persistViewport = true,
   selectedNodeIds,
   nodesRef,
   isDraggingRef,
@@ -71,6 +80,7 @@ export const useCanvasSyncEffects = ({
   updateNode,
   handleExternalDelete,
   onNodesChange,
+  onEdgesChange,
   onSelectionChange,
   focusNodeId,
   onFocusComplete,
@@ -93,9 +103,9 @@ export const useCanvasSyncEffects = ({
 
   // Only persist transform after data has loaded to avoid saving empty nodes
   useEffect(() => {
-    if (!shouldPersistViewportTransform(loaded, moving)) return;
+    if (!shouldPersistViewportTransform(loaded, moving, persistViewport)) return;
     setTransformForSave(transform);
-  }, [loaded, moving, transform, setTransformForSave]);
+  }, [loaded, moving, persistViewport, transform, setTransformForSave]);
 
   // Auto-fit all nodes into view on initial load
   useEffect(() => {
@@ -116,6 +126,14 @@ export const useCanvasSyncEffects = ({
     }
     onNodesChange?.(canvasId, nodes);
   }, [canvasId, nodes, loaded, onNodesChange, isDraggingRef, pendingParentNodesRef]);
+
+  // Edge gestures keep their geometry render-only until commit, so every
+  // canonical edge-array replacement is already an appropriate parent sync
+  // boundary. Report the full array (not the visibility-filtered subset).
+  useEffect(() => {
+    if (!loaded) return;
+    onEdgesChange?.(canvasId, edges);
+  }, [canvasId, edges, loaded, onEdgesChange]);
 
   // Report selection so adjacent UI, such as the Agent panel, can scope work
   // to the same nodes the user has visually selected.

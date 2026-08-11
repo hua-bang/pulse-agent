@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode } from '../../../types';
 import type { NodeReferenceEntry } from '../../dock/ReferenceDrawer/types';
+import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import { useChatDeliveryNotifier } from '../../chat/useChatDeliveryNotifier';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import {
   PREVIEW_EVICT_OPEN_EVENT,
@@ -14,7 +16,7 @@ interface Options {
   activeWorkspaceId: string;
   workspaces: ReadonlyArray<{ id: string; name: string }>;
   /** Insert a cross-workspace mention into the active workspace's composer. */
-  addPreviewNodeToChat: (activeWorkspaceId: string, sourceWorkspaceId: string, node: CanvasNode) => void;
+  addPreviewNodeToChat: (activeWorkspaceId: string, sourceWorkspaceId: string, node: CanvasNode) => Promise<ChatDeliveryReceipt>;
   /** Pin a node into the active workspace's reference panel. */
   pinReferenceNode: (workspaceId: string, nodeId: string, sourceNode?: CanvasNode) => void;
   /** Start the click-to-place flow that drops a reference node on the main canvas. */
@@ -32,6 +34,9 @@ interface Options {
 export function usePreviewNodeActionBridge(options: Options): void {
   const optionsRef = useRef(options);
   optionsRef.current = options;
+  const notifyChatDelivery = useChatDeliveryNotifier();
+  const notifyChatDeliveryRef = useRef(notifyChatDelivery);
+  notifyChatDeliveryRef.current = notifyChatDelivery;
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -42,7 +47,14 @@ export function usePreviewNodeActionBridge(options: Options): void {
       // and mention focus can find the node without another disk read.
       ensureWorkspaceNodesLoaded(detail.workspaceId);
       if (detail.action === 'add-to-chat') {
-        addPreviewNodeToChat(activeWorkspaceId, detail.workspaceId, detail.node);
+        void addPreviewNodeToChat(activeWorkspaceId, detail.workspaceId, detail.node).then(
+          receipt => notifyChatDeliveryRef.current(receipt, getNodeDisplayLabel(detail.node)),
+          error => notifyChatDeliveryRef.current({
+            status: 'failed',
+            target: null,
+            error: error instanceof Error ? error.message : String(error),
+          }, getNodeDisplayLabel(detail.node)),
+        );
       } else if (detail.action === 'pin-reference') {
         pinReferenceNode(detail.workspaceId, detail.node.id, detail.node);
       } else if (detail.action === 'add-to-canvas') {
@@ -107,7 +119,7 @@ interface EvictPreviewOptions {
 
 /**
  * Picker "In use" rows: tear down a background-mounted workspace and open it
- * as a read-only preview instead. Two-phase because the store refuses to
+ * as a default read-only preview instead. Two-phase because the store refuses to
  * preview a mounted workspace: evict first, then open once the Workbench has
  * published the shrunken mounted set to the dock store (the publish effect
  * runs before this hook's, so ordering holds; a refused open just stays

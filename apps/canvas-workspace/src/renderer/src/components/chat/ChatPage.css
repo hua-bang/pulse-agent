@@ -2,6 +2,8 @@
 
 .chat-page {
   position: relative;
+  container-type: inline-size;
+  container-name: chat-page;
   flex: 1;
   min-width: 0;
   height: 100%;
@@ -270,6 +272,11 @@
   white-space: nowrap;
 }
 
+.chat-page-topbar-session-title {
+  min-width: 0;
+  max-width: min(420px, 45%);
+}
+
 .chat-page-topbar-workspace {
   display: flex;
   align-items: center;
@@ -503,9 +510,9 @@
   color: var(--chat-a11y-secondary);
 }
 
-/* Below a laptop-width viewport the optional rail becomes a drawer. Keeping
-   it out of flex sizing preserves a readable conversation column. */
-@media (max-width: 1040px) {
+/* The page may be narrowed by RightDock while the window itself stays wide.
+   Use the actual chat container before the optional rail can squeeze it. */
+@container chat-page (max-width: 760px) {
   .chat-page-rail-wrapper {
     position: absolute;
     inset: var(--app-topbar-height) auto 0 0;
@@ -539,15 +546,15 @@
 
 /* Browser zoom reduces the CSS-pixel viewport. Keep the optional rail useful
    without squeezing the conversation into a gutter at 200–400% zoom. */
-@media (max-width: 720px) {
+@container chat-page (max-width: 520px) {
 
   .chat-page-rail-wrapper,
   .chat-page-rail {
-    width: min(220px, 42vw);
+    width: min(220px, 42cqw);
   }
 
   .chat-page-rail-wrapper--collapsed {
-    width: min(220px, 42vw);
+    width: min(220px, 42cqw);
   }
 
   .chat-page-rail {

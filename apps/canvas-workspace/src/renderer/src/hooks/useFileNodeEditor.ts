@@ -30,6 +30,7 @@ import { useNoteInteractionController } from './useNoteInteractionController';
 import { MarkdownSafeImage } from './fileNodeMarkdownImage';
 import { syntaxHighlightLanguages } from '../utils/syntaxHighlightLanguages';
 import { useI18n } from '../i18n';
+import { useCanvasKeyboardActive } from './useWorkspaceActive';
 import {
   insertImageAtPos,
   insertImageAtSelection,
@@ -105,6 +106,7 @@ export const useFileNodeEditor = ({
   readOnly = false,
 }: Options) => {
   const { t } = useI18n();
+  const canvasKeyboardActive = useCanvasKeyboardActive();
   const interactions = useNoteInteractionController();
   const {
     slashMenu,
@@ -112,6 +114,7 @@ export const useFileNodeEditor = ({
     openSlashMenu,
     closeSlashMenu,
     moveSlashSelection,
+    closeMentionMenu,
     bubble,
     openBubble,
     closeBubble,
@@ -319,6 +322,8 @@ export const useFileNodeEditor = ({
     },
     onBlur: ({ event }) => {
       commitContent(true); // flush pending debounced edit before focus leaves
+      closeSlashMenu();
+      closeMentionMenu();
       const nextFocus = event.relatedTarget;
       if (
         nextFocus instanceof Element
@@ -354,10 +359,17 @@ export const useFileNodeEditor = ({
 
   // Slash menu keyboard navigation — capture phase so we intercept before ProseMirror
   useEffect(() => {
-    if (!editor || readOnly) return;
+    if (!canvasKeyboardActive) {
+      closeSlashMenu();
+      closeMentionMenu();
+    }
+  }, [canvasKeyboardActive, closeMentionMenu, closeSlashMenu]);
+
+  useEffect(() => {
+    if (!editor || readOnly || !canvasKeyboardActive) return;
     const handler = (e: KeyboardEvent) => {
       const menu = slashMenuRef.current;
-      if (!menu) return;
+      if (!menu || !editor.isFocused) return;
       // Arrow/Enter/Escape during IME composition steer the candidate
       // window (e.g. a Chinese query after the slash) — leave them alone.
       if (isImeComposing(e)) return;
@@ -386,7 +398,7 @@ export const useFileNodeEditor = ({
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [editor, readOnly, closeSlashMenu, moveSlashSelection]);
+  }, [canvasKeyboardActive, editor, readOnly, closeSlashMenu, moveSlashSelection]);
 
   const slashCtx: SlashCmdContext = {
     requestLink: (initial: string) => {

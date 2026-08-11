@@ -36,7 +36,10 @@ import { getUrlHostname, normalizeReferenceUrl } from '../../dock/ReferenceDrawe
 import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../../types';
 import type { CanvasProps } from './types';
 import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../../shared/experimental-features';
-import { WorkspaceActiveProvider } from '../../../hooks/useWorkspaceActive';
+import {
+  CanvasKeyboardActiveProvider,
+  WorkspaceActiveProvider,
+} from '../../../hooks/useWorkspaceActive';
 import {
   getSelectionAfterMindmapMerge,
   type MergeMindmapTopicRequest,
@@ -58,7 +61,10 @@ export const Canvas = ({
   canvasName,
   rootFolder,
   isActive = true,
+  keyboardActive,
+  persistViewport = true,
   onNodesChange,
+  onEdgesChange,
   onSelectionChange,
   focusNodeId,
   onFocusComplete,
@@ -116,7 +122,8 @@ export const Canvas = ({
   const renameNode = useCallback((nodeId: string) => {
     setRenameSignal((prev) => ({ nodeId, token: (prev?.token ?? 0) + 1 }));
   }, []);
-  const keyboardLocked = !isActive || isOverlayOpen;
+  const ownsKeyboard = keyboardActive ?? isActive;
+  const keyboardLocked = !ownsKeyboard || isOverlayOpen;
   const temporaryHandTool = useTemporaryHandTool(!keyboardLocked);
   const effectiveActiveTool = temporaryHandTool ? 'hand' : activeTool;
 
@@ -188,10 +195,12 @@ export const Canvas = ({
     mergeMindmapTopic, splitMindmapTopic,
   } = useNodes(
     canvasId,
-    (savedTransform) => {
-      hasAutoFittedRef.current = true;
-      setTransform(savedTransform);
-    },
+    persistViewport
+      ? (savedTransform) => {
+          hasAutoFittedRef.current = true;
+          setTransform(savedTransform);
+        }
+      : undefined,
     handleAgentCreated,
     handleSaveError,
   );
@@ -596,7 +605,7 @@ export const Canvas = ({
   });
 
   useCanvasImagePaste({
-    canvasId, active: isActive, containerRef, screenToCanvas,
+    canvasId, active: ownsKeyboard, containerRef, screenToCanvas,
     addNode, updateNode,
     onCreated: (node) => setSelectedNodeIds([node.id]),
     onPasteUrl: handleCreateUrlNode,
@@ -645,8 +654,9 @@ export const Canvas = ({
   });
 
   useCanvasSyncEffects({
-    canvasId, loaded, nodes, transform, selectedNodeIds,
+    canvasId, loaded, nodes, edges, transform, selectedNodeIds,
     moving,
+    persistViewport,
     autoFitNodes: visibleNodes,
     nodesRef,
     isDraggingRef: mouse.isDraggingRef,
@@ -655,7 +665,7 @@ export const Canvas = ({
     setTransformForSave, flushSave, fitAllNodes,
     handleNodeViewportFocus, updateNode,
     handleExternalDelete: actions.handleExternalDelete,
-    onNodesChange, onSelectionChange,
+    onNodesChange, onEdgesChange, onSelectionChange,
     focusNodeId, onFocusComplete,
     deleteNodeId, onDeleteComplete,
     renameRequest, onRenameComplete,
@@ -664,6 +674,7 @@ export const Canvas = ({
 
   return (
     <WorkspaceActiveProvider value={isActive}>
+    <CanvasKeyboardActiveProvider value={ownsKeyboard}>
     <CanvasRootView
       actions={actions}
       activeTool={effectiveActiveTool}
@@ -740,6 +751,7 @@ export const Canvas = ({
       updateNode={updateNode}
       onSetRootFolder={onSetRootFolder}
     />
+    </CanvasKeyboardActiveProvider>
     </WorkspaceActiveProvider>
   );
 };

@@ -6,6 +6,7 @@ import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type ChatSessionsRailProps } from './ChatSessionsRail';
 import { RailToggleIcon } from './RailToggleIcon';
 import type { ChatAnchor } from './utils/anchors';
+import { sessionTitleText } from './utils/sessionTitle';
 
 export const ChatPageRail = ({
   collapsed,
@@ -25,6 +26,7 @@ export const ChatPageRail = ({
 
 interface ChatPageTopbarProps {
   fixedTitle?: string;
+  sessionTitleSource?: string;
   workspaceLabel?: string;
   railCollapsed: boolean;
   onToggleRail: () => void;
@@ -38,6 +40,7 @@ interface ChatPageTopbarProps {
 
 export const ChatPageTopbar = ({
   fixedTitle,
+  sessionTitleSource,
   workspaceLabel,
   railCollapsed,
   onToggleRail,
@@ -50,24 +53,32 @@ export const ChatPageTopbar = ({
 }: ChatPageTopbarProps) => {
   const { t } = useI18n();
   const dockTabsLabel = dockTabsVisible ? t('chat.hideDockTabs') : t('chat.showDockTabs');
+  const sessionTitle = sessionTitleText(sessionTitleSource ?? '') || t('chat.newAiChat');
 
   return (
     <div className="chat-page-topbar">
       {fixedTitle ? (
         <strong className="chat-page-topbar-title">{fixedTitle}</strong>
       ) : (
-        <Button
-          variant="icon"
-          size="md"
-          className="chat-panel-action-btn"
-          onClick={onToggleRail}
-          aria-expanded={!railCollapsed}
-          aria-controls="chat-page-session-rail"
-          title={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
-          aria-label={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
-        >
-          <RailToggleIcon size={16} />
-        </Button>
+        <>
+          <Button
+            variant="icon"
+            size="md"
+            className="chat-panel-action-btn"
+            onClick={onToggleRail}
+            aria-expanded={!railCollapsed}
+            aria-controls="chat-page-session-rail"
+            title={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
+            aria-label={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
+          >
+            <RailToggleIcon size={16} />
+          </Button>
+          {railCollapsed && (
+            <strong className="chat-page-topbar-title chat-page-topbar-session-title" title={sessionTitle}>
+              {sessionTitle}
+            </strong>
+          )}
+        </>
       )}
       {!fixedTitle && workspaceLabel && (
         <div className="chat-page-topbar-workspace" title={workspaceLabel}>

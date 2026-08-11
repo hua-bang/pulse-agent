@@ -33,6 +33,13 @@
   transition: none;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .app-body,
+  .chat-floating-button.app-global-chat-launcher {
+    transition: none;
+  }
+}
+
 .canvas-viewport {
   flex: 1;
   position: relative;

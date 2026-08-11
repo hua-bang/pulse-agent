@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentContextDomSelectionRef } from '../../../types';
+import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../../types';
 import {
   createChatTargetBroker,
   type ChatTarget,
@@ -91,5 +91,29 @@ describe('ChatTarget broker', () => {
       status: 'unavailable',
       target: null,
     });
+  });
+
+  it('queues context for the visible busy target and drains it back to that same composer', async () => {
+    const broker = createChatTargetBroker();
+    const tab: AgentContextTabRef = {
+      id: 'canvas:workspace-a',
+      kind: 'canvas',
+      title: 'Workspace A',
+      workspaceId: 'workspace-a',
+      dockWorkspaceId: 'workspace-a',
+    };
+
+    const unregisterBusyPage = broker.register(pageTarget, {});
+    const receipt = await broker.deliver({ kind: 'tab', tab });
+
+    expect(receipt).toEqual({ status: 'queued', target: pageTarget });
+
+    const insertTab = vi.fn();
+    const unregisterReadyPage = broker.register(pageTarget, { insertTab });
+    expect(insertTab).toHaveBeenCalledOnce();
+    expect(insertTab).toHaveBeenCalledWith(tab);
+
+    unregisterReadyPage();
+    unregisterBusyPage();
   });
 });

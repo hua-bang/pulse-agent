@@ -3,6 +3,9 @@ import { NodeDetailPanel } from '../../../views/WorkspaceNodes/NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from '../../../views/WorkspaceNodes/useWorkspaceNodes';
 import { getNodeTitle } from '../../../views/WorkspaceNodes/utils';
 import { useI18n } from '../../../i18n';
+import type { AgentContextTabRef } from '../../../types';
+import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import { TabChatAction } from './TabChatAction';
 
 interface NodeDetailDockTabProps {
   workspaceId: string;
@@ -10,6 +13,9 @@ interface NodeDetailDockTabProps {
   onTitleChange: (title: string) => void;
   onOpenPage: () => void;
   onClose: () => void;
+  tabRef?: AgentContextTabRef;
+  targetWorkspaceId?: string;
+  onAddTabToChat?: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
 }
 
 export const NodeDetailDockTab = ({
@@ -18,6 +24,9 @@ export const NodeDetailDockTab = ({
   onTitleChange,
   onOpenPage,
   onClose,
+  tabRef,
+  targetWorkspaceId,
+  onAddTabToChat,
 }: NodeDetailDockTabProps) => {
   const { t } = useI18n();
   const { node, loading, error, missing, setNode, reload } = useWorkspaceNode(workspaceId, nodeId);
@@ -43,6 +52,15 @@ export const NodeDetailDockTab = ({
 
   return (
     <section className="node-detail-dock-tab">
+      {tabRef && targetWorkspaceId && onAddTabToChat && (
+        <div className="node-detail-dock-tab__chat-action">
+          <TabChatAction
+            tab={tabRef}
+            targetWorkspaceId={targetWorkspaceId}
+            onAddToChat={onAddTabToChat}
+          />
+        </div>
+      )}
       <NodeDetailPanel
         node={node}
         workspaceId={workspaceId}

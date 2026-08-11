@@ -10,10 +10,19 @@ import {
 } from 'react';
 import { DockStore, type DockState } from './dock-store';
 import { createDockSessionPersistence } from './dock-session-persistence';
-import type { AgentContextDomSelectionRef } from '../../../types';
+import type {
+  AgentContextDomReviewComment,
+  AgentContextDomSelectionRef,
+  AgentContextTabRef,
+} from '../../../types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../../types';
 import { skillTabId } from './dock-tab-ids';
 import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+
+type SubmitDomReviewComments = (
+  workspaceId: string,
+  comments: AgentContextDomReviewComment[],
+) => Promise<boolean>;
 
 interface RightDockContextValue {
   store: DockStore;
@@ -25,6 +34,10 @@ interface RightDockContextValue {
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
   addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>) => () => void;
+  submitDomReviewComments: SubmitDomReviewComments;
+  registerSubmitDomReviewComments: (handler: SubmitDomReviewComments) => () => void;
+  addTabToChat: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
+  registerAddTabToChat: (handler: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>) => () => void;
   startSkillChat: (workspaceId: string, skillName: string) => void;
   registerStartSkillChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
 }
@@ -39,6 +52,8 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
   const pinUrlReferenceRef = useRef<((url: string, title?: string) => void) | null>(null);
   const addDomSelectionToChatRef = useRef<((workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>) | null>(null);
+  const submitDomReviewCommentsRef = useRef<SubmitDomReviewComments | null>(null);
+  const addTabToChatRef = useRef<((workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>) | null>(null);
   const startSkillChatRef = useRef<((workspaceId: string, skillName: string) => void) | null>(null);
   const pinUrlReference = useCallback((url: string, title?: string) => {
     pinUrlReferenceRef.current?.(url, title);
@@ -57,6 +72,26 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
     addDomSelectionToChatRef.current = handler;
     return () => {
       if (addDomSelectionToChatRef.current === handler) addDomSelectionToChatRef.current = null;
+    };
+  }, []);
+  const submitDomReviewComments = useCallback(async (
+    workspaceId: string,
+    comments: AgentContextDomReviewComment[],
+  ) => await submitDomReviewCommentsRef.current?.(workspaceId, comments) ?? false, []);
+  const registerSubmitDomReviewComments = useCallback((handler: SubmitDomReviewComments) => {
+    submitDomReviewCommentsRef.current = handler;
+    return () => {
+      if (submitDomReviewCommentsRef.current === handler) submitDomReviewCommentsRef.current = null;
+    };
+  }, []);
+  const addTabToChat = useCallback(async (workspaceId: string, tab: AgentContextTabRef) => {
+    return await addTabToChatRef.current?.(workspaceId, tab)
+      ?? { status: 'unavailable', target: null };
+  }, []);
+  const registerAddTabToChat = useCallback((handler: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>) => {
+    addTabToChatRef.current = handler;
+    return () => {
+      if (addTabToChatRef.current === handler) addTabToChatRef.current = null;
     };
   }, []);
   const startSkillChat = useCallback((workspaceId: string, skillName: string) => {
@@ -78,9 +113,13 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
     registerPinUrlReference,
     addDomSelectionToChat,
     registerAddDomSelectionToChat,
+    submitDomReviewComments,
+    registerSubmitDomReviewComments,
+    addTabToChat,
+    registerAddTabToChat,
     startSkillChat,
     registerStartSkillChat,
-  }), [store, chatHost, terminalHost, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, startSkillChat, registerStartSkillChat]);
+  }), [store, chatHost, terminalHost, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, submitDomReviewComments, registerSubmitDomReviewComments, addTabToChat, registerAddTabToChat, startSkillChat, registerStartSkillChat]);
   return <RightDockContext.Provider value={value}>{children}</RightDockContext.Provider>;
 };
 
@@ -116,6 +155,10 @@ export function useRightDock(): {
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
   addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   registerAddDomSelectionToChat: (handler: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>) => () => void;
+  submitDomReviewComments: SubmitDomReviewComments;
+  registerSubmitDomReviewComments: (handler: SubmitDomReviewComments) => () => void;
+  addTabToChat: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
+  registerAddTabToChat: (handler: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>) => () => void;
   startSkillChat: (workspaceId: string, skillName: string) => void;
   registerStartSkillChat: (handler: (workspaceId: string, skillName: string) => void) => () => void;
 } {
@@ -125,6 +168,10 @@ export function useRightDock(): {
     registerPinUrlReference,
     addDomSelectionToChat,
     registerAddDomSelectionToChat,
+    submitDomReviewComments,
+    registerSubmitDomReviewComments,
+    addTabToChat,
+    registerAddTabToChat,
     startSkillChat,
     registerStartSkillChat,
   } = useDockContext();
@@ -157,9 +204,13 @@ export function useRightDock(): {
     registerPinUrlReference,
     addDomSelectionToChat,
     registerAddDomSelectionToChat,
+    submitDomReviewComments,
+    registerSubmitDomReviewComments,
+    addTabToChat,
+    registerAddTabToChat,
     startSkillChat,
     registerStartSkillChat,
-  }), [store, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, startSkillChat, registerStartSkillChat]);
+  }), [store, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, submitDomReviewComments, registerSubmitDomReviewComments, addTabToChat, registerAddTabToChat, startSkillChat, registerStartSkillChat]);
 }
 
 export const useRightDockState = (): DockState => {

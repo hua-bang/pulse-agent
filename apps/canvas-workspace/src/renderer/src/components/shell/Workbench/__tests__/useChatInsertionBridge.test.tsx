@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextTabRef, CanvasNode } from '../../../../types';
 import type { ChatTargetBroker } from '../../../chat/ChatTargetContext';
 import { useChatInsertionBridge } from '../useChatInsertionBridge';
 
@@ -102,6 +102,32 @@ describe('useChatInsertionBridge', () => {
 
     act(() => bridge.registerInsertDomSelectionMention('workspace-1', insert));
     expect(insert).toHaveBeenCalledWith({ ...selection, workspaceId: 'workspace-1' });
+  });
+
+  it('holds a tab mention until the workspace composer registers', async () => {
+    const tab: AgentContextTabRef = {
+      id: 'canvas:workspace-2',
+      kind: 'canvas',
+      title: 'Workspace 2',
+      workspaceId: 'workspace-2',
+      dockWorkspaceId: 'workspace-1',
+    };
+    const insert = vi.fn();
+
+    let receipt;
+    await act(async () => {
+      receipt = await bridge.handleAddTabToChat('workspace-1', tab);
+    });
+
+    expect(openChat).toHaveBeenCalledOnce();
+    expect(receipt).toMatchObject({
+      status: 'queued',
+      target: { composerId: 'dock:workspace-1' },
+    });
+    expect(insert).not.toHaveBeenCalled();
+
+    act(() => bridge.registerInsertTabMention('workspace-1', insert));
+    expect(insert).toHaveBeenCalledWith(tab);
   });
 
   it('holds DOM review submission until a cold composer actually registers', async () => {
@@ -227,6 +253,51 @@ describe('useChatInsertionBridge', () => {
       status: 'delivered',
       target: { composerId: 'page:global' },
     });
+  });
+
+  it('submits a DOM review to the visible page target without opening hidden dock chat', async () => {
+    const comments: AgentContextDomReviewComment[] = [{
+      id: 'comment-1',
+      text: 'Increase contrast',
+      selection: {
+        id: 'dom-1',
+        label: 'Primary action',
+        nodeId: 'link-tab-1',
+        selector: '#primary-action',
+      },
+    }];
+    const deliver: ChatTargetBroker['deliver'] = vi.fn(async () => ({
+      status: 'delivered' as const,
+      target: {
+        surface: 'page' as const,
+        scope: { kind: 'global' as const },
+        scopeId: '__global_chat__',
+        sessionId: null,
+        composerId: 'page:global',
+        contextSnapshot: { label: 'Global chat' },
+        executionPolicy: 'auto' as const,
+      },
+    }));
+    act(() => root.unmount());
+    const TargetHarness = () => {
+      bridge = useChatInsertionBridge({
+        allNodes: { 'workspace-1': [node] },
+        openChat,
+        deliverToActiveTarget: deliver,
+      });
+      return null;
+    };
+    root = createRoot(container);
+    act(() => root.render(<TargetHarness />));
+
+    let submitted: boolean | undefined;
+    await act(async () => {
+      submitted = await bridge.handleSubmitDomReviewComments('workspace-1', comments);
+    });
+
+    expect(deliver).toHaveBeenCalledWith({ kind: 'dom-review', comments });
+    expect(submitted).toBe(true);
+    expect(openChat).not.toHaveBeenCalled();
   });
 
   it('falls back when the visible target does not support that insertion kind', async () => {

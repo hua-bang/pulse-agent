@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, type KeyboardEventHandler, type ReactN
 import type { CanvasNode } from '../../types';
 import { useRightDock, useRightDockState } from '../dock/RightDock/context';
 import { isDockContentTabVisible, toggleFullPageDockContentTabs } from '../dock/RightDock/dock-content-tabs';
-import { buildDockTabRefs } from '../dock/RightDock/tabRefs';
 import type { SettingsSection } from '../settings/Settings';
 import './ChatPage.css';
 import './ChatPanel.css';
@@ -15,11 +14,7 @@ import { useAppShell } from '../shell/AppShellProvider';
 import type { AgentScope, WorkspaceOption } from './types';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
-import {
-  type ChatContextSnapshot,
-  type ChatExecutionPolicy,
-  type ChatTarget,
-} from './ChatTargetContext';
+import type { ChatContextSnapshot, ChatExecutionPolicy, ChatTarget } from './ChatTargetContext';
 import { chatScopeId } from './chatScope';
 import { useRegisterChatTarget } from './useRegisterChatTarget';
 import { ChatConversationStatus } from './ChatConversationStatus';
@@ -27,9 +22,12 @@ import { useChatPageTargetContext } from './hooks/useChatPageTargetContext';
 import { useChatPageJumpNavigation } from './hooks/useChatPageJumpNavigation';
 import { useChatPageSessionRail } from './hooks/useChatPageSessionRail';
 import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
+import { useSubmitDomReviewComments } from './hooks/useSubmitDomReviewComments';
 import { submitQuickAction } from './hooks/submitQuickAction';
 import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
 import { scopeSessionStoreId } from '../../../../shared/agent-chat';
+import { buildChatPageDockTabRefs } from './utils/chatPageDockTabs';
+import { chatScopeCapability } from './utils/chatScopeCapability';
 
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
@@ -110,6 +108,7 @@ export const ChatPageBody = ({
     ? allWorkspaces.find(workspace => workspace.id === workspaceId)?.name ?? workspaceId
     : undefined;
   const dockTabsVisible = isDockContentTabVisible(dockState);
+  const dockTabs = useMemo(() => buildChatPageDockTabRefs(dockState), [dockState]);
   // The control is always actionable. With no content yet, prefer this
   // scope's canvas preview; global/scheduled/live-canvas scopes get a fresh
   // browser tab so the panel still opens on the first click.
@@ -168,6 +167,7 @@ export const ChatPageBody = ({
     insertDomSelectionMention,
     insertNodeMention,
     insertSkillMention,
+    insertTabMention,
     loading,
     mentionIndex,
     mentionItems,
@@ -201,7 +201,7 @@ export const ChatPageBody = ({
     allWorkspaces,
     nodes,
     rootFolder,
-    dockTabs: workspaceId ? buildDockTabRefs(dockState, workspaceId) : undefined,
+    dockTabs,
     collectStructuredContext: true,
     eagerLoad: true,
     getRequestContext: () => requestContext,
@@ -229,13 +229,6 @@ export const ChatPageBody = ({
     contextSnapshot: resolvedContextSnapshot,
     executionPolicy,
   }), [activeSessionId, agentScope, executionPolicy, resolvedContextSnapshot, scopeId]);
-
-  useRegisterChatTarget(target, {
-    insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,
-    insertDomSelection: busyElsewhere || sessionLoading ? undefined : insertDomSelectionMention,
-    startSkillChat: handleTargetSkillChat,
-    focus: focusInput,
-  });
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -268,6 +261,17 @@ export const ChatPageBody = ({
       autoCloseMs: 2200,
     });
   }, [notify, onOpenAppSettings, t]);
+
+  const submitDomReviewComments = useSubmitDomReviewComments({
+    blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
+    focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
+  });
+  useRegisterChatTarget(target, {
+    insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,
+    insertDomSelection: busyElsewhere || sessionLoading ? undefined : insertDomSelectionMention,
+    insertTab: busyElsewhere || sessionLoading ? undefined : insertTabMention,
+    startSkillChat: handleTargetSkillChat, submitDomReview: submitDomReviewComments, focus: focusInput,
+  });
 
   const openModelSettingsFromSwitcher = useCallback(() => {
     if (notConfigured) {
@@ -392,6 +396,7 @@ export const ChatPageBody = ({
       <div className="chat-page-main">
         <ChatPageTopbar
           fixedTitle={fixedChat?.title}
+          sessionTitleSource={sessionRail.allSessions.find(session => session.isCurrent)?.preview ?? messages.find(message => message.role === 'user')?.content}
           workspaceLabel={workspaceLabel}
           railCollapsed={railCollapsed}
           onToggleRail={onToggleRail}
@@ -474,6 +479,8 @@ export const ChatPageBody = ({
           onSelectModel={canvasModels.selectModel}
           onOpenModelSettings={openModelSettingsFromSwitcher}
           contextComposer
+          scopeLabel={scopeLabel}
+          scopeCapability={chatScopeCapability(agentScope)}
           executionMode={executionPolicy}
           onToggleExecutionMode={executionPolicy === 'scheduled' ? undefined : handleToggleExecutionPolicy}
           conversationKey={activeSessionId ?? scopeId}

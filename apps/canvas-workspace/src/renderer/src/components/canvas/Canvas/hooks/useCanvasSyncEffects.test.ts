@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import type { CanvasNode } from '../../../../types';
+import type { CanvasEdge, CanvasNode } from '../../../../types';
 import { shouldPersistViewportTransform, useCanvasSyncEffects } from './useCanvasSyncEffects';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -19,9 +19,54 @@ describe('shouldPersistViewportTransform', () => {
   it('persists the settled viewport once the gesture is idle', () => {
     expect(shouldPersistViewportTransform(true, false)).toBe(true);
   });
+
+  it('keeps an embedded editor viewport local even after it settles', () => {
+    expect(shouldPersistViewportTransform(true, false, false)).toBe(false);
+  });
 });
 
 describe('useCanvasSyncEffects', () => {
+  it('reports loaded edge snapshots to an embedded parent', () => {
+    const edge: CanvasEdge = {
+      id: 'edge-1',
+      source: { kind: 'point', x: 10, y: 20 },
+      target: { kind: 'point', x: 80, y: 90 },
+    };
+    const onEdgesChange = vi.fn();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const Harness = () => {
+      useCanvasSyncEffects({
+        canvasId: 'canvas-1',
+        loaded: true,
+        nodes: [],
+        edges: [edge],
+        transform: { x: 0, y: 0, scale: 1 },
+        selectedNodeIds: [],
+        nodesRef: { current: [] },
+        isDraggingRef: { current: false },
+        pendingParentNodesRef: { current: null },
+        hasAutoFittedRef: { current: true },
+        setTransformForSave: vi.fn(),
+        flushSave: vi.fn(),
+        fitAllNodes: vi.fn(),
+        handleNodeViewportFocus: vi.fn(),
+        updateNode: vi.fn(),
+        handleExternalDelete: vi.fn(),
+        onEdgesChange,
+      });
+      return null;
+    };
+
+    act(() => root.render(createElement(Harness)));
+
+    expect(onEdgesChange).toHaveBeenCalledWith('canvas-1', [edge]);
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
   it('routes an external node focus request through the public viewport-focus callback', () => {
     const node: CanvasNode = {
       id: 'node-1',
@@ -44,6 +89,7 @@ describe('useCanvasSyncEffects', () => {
         canvasId: 'canvas-1',
         loaded: true,
         nodes: [node],
+        edges: [],
         transform: { x: 0, y: 0, scale: 1 },
         selectedNodeIds: [],
         nodesRef: { current: [node] },

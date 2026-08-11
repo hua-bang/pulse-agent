@@ -1,6 +1,28 @@
 import { useEffect, useRef } from 'react';
+import type {
+  DockActivateTabRequest,
+  DockActivateTabResult,
+} from '../../../../../shared/dock-tab-commands';
+import type { AgentContextTabRef } from '../../../types';
 import { buildDockTabRefs } from './tabRefs';
 import type { DockState, DockStore } from './dock-store';
+import { activateOrReopenDockTab, type DockTabActivationOutcome } from './dock-tab-reopen';
+
+type LocalActivationResult = { status: DockTabActivationOutcome };
+type PendingActivation = {
+  workspaceId: string;
+  tabId: string;
+  tab?: AgentContextTabRef;
+  finish: (outcome: DockTabActivationOutcome, error?: DockActivateTabResult['error']) => void;
+  timeout: ReturnType<typeof setTimeout>;
+};
+
+interface LocalActivationDetail {
+  tabId?: string;
+  dockWorkspaceId?: string;
+  tab?: AgentContextTabRef;
+  respond?: (result: LocalActivationResult) => void;
+}
 
 /**
  * Bridges the right dock to the Canvas Agent:
@@ -12,26 +34,66 @@ import type { DockState, DockStore } from './dock-store';
  *  - publishes the active workspace's open tabs to main so the
  *    `canvas_list_tabs` agent tool can enumerate them.
  */
-export function useDockAgentBridge(store: DockStore, state: DockState, activeWorkspaceId: string): void {
-  const pendingActivation = useRef<{ workspaceId: string; tabId: string } | null>(null);
+export function useDockAgentBridge(
+  store: DockStore,
+  state: DockState,
+  activeWorkspaceId: string,
+  onActivateWorkspace?: (workspaceId: string) => boolean | void,
+): void {
+  const pendingActivation = useRef<PendingActivation | null>(null);
+  const queueActivation = (
+    workspaceId: string,
+    tabId: string,
+    tab: AgentContextTabRef | undefined,
+    finish: PendingActivation['finish'],
+  ) => {
+    const previous = pendingActivation.current;
+    if (previous) {
+      clearTimeout(previous.timeout);
+      previous.finish('stale', 'superseded');
+    }
+    if (workspaceId === activeWorkspaceId) {
+      const outcome = activateOrReopenDockTab(store, tabId, tab);
+      finish(outcome, outcome === 'stale' ? 'stale' : undefined);
+      return;
+    }
+    if (!onActivateWorkspace || onActivateWorkspace(workspaceId) === false) {
+      finish('stale', 'workspace-unavailable');
+      return;
+    }
+    const timeout = setTimeout(() => {
+      const pending = pendingActivation.current;
+      if (!pending || pending.workspaceId !== workspaceId || pending.tabId !== tabId) return;
+      pendingActivation.current = null;
+      pending.finish('stale', 'workspace-unavailable');
+    }, 2_500);
+    pendingActivation.current = { workspaceId, tabId, tab, finish, timeout };
+  };
+
   useEffect(() => {
     const onJump = (e: Event) => {
-      const tabId = (e as CustomEvent<{ tabId?: string }>).detail?.tabId;
-      if (tabId) store.activate(tabId);
+      const detail = (e as CustomEvent<LocalActivationDetail>).detail;
+      const tabId = detail?.tabId;
+      if (!tabId) return;
+      queueActivation(detail.dockWorkspaceId || activeWorkspaceId, tabId, detail.tab, (status) => {
+        detail.respond?.({ status });
+      });
     };
     window.addEventListener('canvas:activate-dock-tab', onJump);
     return () => window.removeEventListener('canvas:activate-dock-tab', onJump);
-  }, [store]);
+  }, [activeWorkspaceId, onActivateWorkspace, store]);
 
   useEffect(() => {
-    const offActivate = window.canvasWorkspace.dock.onActivateTab(({ workspaceId, tabId }) => {
-      if (!tabId) return;
-      if (workspaceId === activeWorkspaceId) {
-        pendingActivation.current = null;
-        store.activate(tabId);
-      } else {
-        pendingActivation.current = { workspaceId, tabId };
-      }
+    const offActivate = window.canvasWorkspace.dock.onActivateTab((request: DockActivateTabRequest) => {
+      if (!request.requestId || !request.workspaceId || !request.tabId) return;
+      queueActivation(request.workspaceId, request.tabId, undefined, (status, error) => {
+        const ok = status !== 'stale';
+        window.canvasWorkspace.dock.reportTabActivation({
+          ...request,
+          ok,
+          ...(!ok ? { error: error ?? 'stale' } : {}),
+        });
+      });
     });
     const offOpen = window.canvasWorkspace.dock.onOpenTab(({ url, tabId }) => {
       if (!url) return;
@@ -55,14 +117,24 @@ export function useDockAgentBridge(store: DockStore, state: DockState, activeWor
       offOpen();
       offOpenArtifact();
     };
-  }, [store, activeWorkspaceId]);
+  }, [store, activeWorkspaceId, onActivateWorkspace]);
 
   useEffect(() => {
     const pending = pendingActivation.current;
     if (!pending || pending.workspaceId !== activeWorkspaceId) return;
     pendingActivation.current = null;
-    store.activate(pending.tabId);
-  }, [store, activeWorkspaceId]);
+    clearTimeout(pending.timeout);
+    const outcome = activateOrReopenDockTab(store, pending.tabId, pending.tab);
+    pending.finish(outcome, outcome === 'stale' ? 'stale' : undefined);
+  }, [store, state.tabs, state.terminalTabs, activeWorkspaceId]);
+
+  useEffect(() => () => {
+    const pending = pendingActivation.current;
+    if (!pending) return;
+    pendingActivation.current = null;
+    clearTimeout(pending.timeout);
+    pending.finish('stale', 'workspace-unavailable');
+  }, []);
 
   useEffect(() => {
     if (!activeWorkspaceId) return;

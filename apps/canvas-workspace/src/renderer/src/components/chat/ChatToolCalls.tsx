@@ -49,6 +49,11 @@ function formatToolSignature(name: string, args: any): string {
 const TOOL_LABEL_SLUGS: Record<string, string> = {
   canvas_read_context: 'readCanvasContext',
   canvas_read_node: 'readNode',
+  canvas_list_tabs: 'listTabs',
+  canvas_read_tab: 'readTab',
+  canvas_activate_tab: 'activateTab',
+  canvas_open_tab: 'openTab',
+  canvas_read_dom_selection: 'readDomSelection',
   knowledge_search_nodes: 'searchKnowledgeNodes',
   knowledge_read_node: 'readKnowledgeNode',
   knowledge_analyze_image: 'analyzeKnowledgeImage',
@@ -69,8 +74,22 @@ const TOOL_LABEL_SLUGS: Record<string, string> = {
   session_summary: 'summarizeSession',
 };
 
+function displayToolStatus(tool: ToolCallStatus): ToolCallStatus['status'] {
+  if (tool.status !== 'succeeded' || !tool.result) return tool.status;
+  try {
+    const result = JSON.parse(tool.result) as { ok?: unknown } | null;
+    return result?.ok === false ? 'failed' : tool.status;
+  } catch {
+    return tool.status;
+  }
+}
+
 function formatToolLabel(name: string, status: ToolCallStatus['status'], t: (key: I18nKey) => string): string {
-  if (status === 'failed') return t('chat.toolCalls.failed');
+  if (status === 'failed') {
+    return name === 'canvas_activate_tab'
+      ? t('toolCall.activateTab.failed')
+      : t('chat.toolCalls.failed');
+  }
   if (status === 'cancelled') return t('chat.toolCalls.cancelled');
   if (status === 'queued') return t('chat.toolCalls.queued');
   const slug = TOOL_LABEL_SLUGS[name];
@@ -91,13 +110,17 @@ export const ChatToolCalls = ({
   onSessionJump,
 }: ChatToolCallsProps) => {
   const { t } = useI18n();
+  const displayTools = useMemo(() => tools.map(tool => ({
+    tool,
+    status: displayToolStatus(tool),
+  })), [tools]);
   const counts = useMemo(() => ({
-    queued: tools.filter(tool => tool.status === 'queued').length,
-    running: tools.filter(tool => tool.status === 'running').length,
-    succeeded: tools.filter(tool => tool.status === 'succeeded').length,
-    failed: tools.filter(tool => tool.status === 'failed').length,
-    cancelled: tools.filter(tool => tool.status === 'cancelled').length,
-  }), [tools]);
+    queued: displayTools.filter(({ status }) => status === 'queued').length,
+    running: displayTools.filter(({ status }) => status === 'running').length,
+    succeeded: displayTools.filter(({ status }) => status === 'succeeded').length,
+    failed: displayTools.filter(({ status }) => status === 'failed').length,
+    cancelled: displayTools.filter(({ status }) => status === 'cancelled').length,
+  }), [displayTools]);
   const completedLabel = counts.running > 0 || counts.queued > 0
     ? t('chat.toolCalls.runningSummary', {
         running: counts.running + counts.queued,
@@ -150,19 +173,19 @@ export const ChatToolCalls = ({
           </span>
         </button>
       )}
-      {tools.map(tool => {
-        const canToggle = tool.status !== 'running'
-          && tool.status !== 'queued'
+      {displayTools.map(({ tool, status }) => {
+        const canToggle = status !== 'running'
+          && status !== 'queued'
           && !!(tool.result || tool.error || tool.args !== undefined);
-        const expanded = tool.status === 'failed' || expandedTools.has(tool.id);
+        const expanded = status === 'failed' || expandedTools.has(tool.id);
         const headerContent = (
           <>
             <span className="chat-tool-call-icon">
-              {tool.status === 'running' || tool.status === 'queued' ? (
+              {status === 'running' || status === 'queued' ? (
                 <SpinnerIcon size={12} className="chat-tool-call-spinner" />
-              ) : tool.status === 'failed' ? (
+              ) : status === 'failed' ? (
                 <span aria-hidden="true">!</span>
-              ) : tool.status === 'cancelled' ? (
+              ) : status === 'cancelled' ? (
                 <span aria-hidden="true">×</span>
               ) : (
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -171,7 +194,7 @@ export const ChatToolCalls = ({
               )}
             </span>
             <span className="chat-tool-call-sig" title={formatToolSignature(tool.name, tool.args)}>
-              <span className="chat-tool-call-label">{formatToolLabel(tool.name, tool.status, t)}</span>
+              <span className="chat-tool-call-label">{formatToolLabel(tool.name, status, t)}</span>
               <span className="chat-tool-call-name">{tool.name}</span>
             </span>
             {canToggle && (
@@ -185,7 +208,7 @@ export const ChatToolCalls = ({
         );
 
         return (
-          <div key={tool.id} className={`chat-tool-call chat-tool-call--${tool.status}`}>
+          <div key={tool.id} className={`chat-tool-call chat-tool-call--${status}`}>
             {canToggle ? (
               <button
                 type="button"

@@ -6,7 +6,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import type { AgentContextDomSelectionRef, AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment } from '../../../types';
+import type { AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment } from '../../../types';
 import { isImeComposing } from '../../../utils/ime';
 import {
   MENTION_MAX_ITEMS,
@@ -15,8 +15,6 @@ import {
 import type { MentionItem, WorkspaceOption } from '../types';
 import type { AgentScope } from '../types';
 import { buildTabMentionItems, collectContextRefsFromEditable, createMentionChipElement, serializeEditable, withCollectedTabs } from '../utils/mentions';
-import { appendMentionChipToEditable } from '../utils/editableMentions';
-import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { flattenEntries } from './fileMentionItems';
 import { loadRoleMentionItems } from './roleMentionItems';
 import { useEditableInputControl } from './useEditableInputControl';
@@ -29,6 +27,18 @@ import {
 } from './chatComposerDraftStore';
 import { useChatAttachments } from './useChatAttachments';
 import { buildStaticMentionItems } from './staticMentionItems';
+import { useI18n, type I18nKey } from '../../../i18n';
+import { useContextMentionInsertions } from './useContextMentionInsertions';
+
+const tabKindLabelKey = (kind: AgentContextTabRef['kind']): I18nKey => {
+  switch (kind) {
+    case 'link': return 'chat.tabKind.link';
+    case 'artifact': return 'chat.tabKind.artifact';
+    case 'node-detail': return 'chat.tabKind.nodeDetail';
+    case 'canvas': return 'chat.tabKind.canvas';
+    case 'terminal': return 'chat.tabKind.terminal';
+  }
+};
 interface UseMentionsOptions {
   allWorkspaces?: WorkspaceOption[];
   agentScope: AgentScope;
@@ -69,6 +79,7 @@ export function useMentions({
   getRequestContext,
   isSubmitBlocked,
 }: UseMentionsOptions) {
+  const { t } = useI18n();
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -126,40 +137,22 @@ export function useMentions({
   /** Prevents stale async popup builds from repainting or reopening. */
   const mentionBuildSeqRef = useRef(0);
 
-  const insertNodeMention = useCallback((node: CanvasNode, sourceWorkspaceId?: string) => {
-    const element = editableRef.current;
-    if (!element) return;
-
-    const item: MentionItem = {
-      type: 'node', nodeId: node.id,
-      label: getNodeDisplayLabel(node), nodeType: node.type,
-      path: (node.data as any)?.filePath,
-      // Cross-workspace insert (dock canvas preview): the chip carries the owning workspace.
-      ...(sourceWorkspaceId && sourceWorkspaceId !== workspaceId ? { workspaceId: sourceWorkspaceId } : {}),
-    };
-    const chip = createMentionChipElement(item, nodes);
-
-    appendMentionChipToEditable(element, chip);
-    setInput(serializeEditable(element));
-    element.focus();
-  }, [nodes, workspaceId]);
-
-  const insertDomSelectionMention = useCallback((domSelection: AgentContextDomSelectionRef) => {
-    const element = editableRef.current;
-    if (!element) return;
-
-    const item: MentionItem = {
-      type: 'dom',
-      label: domSelection.label,
-      nodeType: 'iframe',
-      domSelection,
-    };
-    const chip = createMentionChipElement(item, nodes);
-
-    appendMentionChipToEditable(element, chip);
-    setInput(serializeEditable(element));
-    element.focus();
-  }, [nodes]);
+  const describeTab = useCallback((tab: AgentContextTabRef): string => {
+    const type = t(tabKindLabelKey(tab.kind));
+    const owningWorkspaceId = tab.workspaceId ?? tab.dockWorkspaceId;
+    const workspace = owningWorkspaceId
+      ? allWorkspaces?.find(item => item.id === owningWorkspaceId)?.name ?? owningWorkspaceId
+      : undefined;
+    const description = workspace
+      ? t('chat.tabMention.description', { type, workspace })
+      : type;
+    return tab.isActive
+      ? t('chat.tabMention.current', { description })
+      : description;
+  }, [allWorkspaces, t]);
+  const { insertNodeMention, insertDomSelectionMention, insertTabMention } = useContextMentionInsertions({
+    editableRef, nodes, workspaceId, setInput, describeTab,
+  });
 
   const insertSkillMention = useSkillMentionInsertion({ editableRef, nodes, setInput });
   const { clearInput, focusInput, replaceInput } = useEditableInputControl({
@@ -206,7 +199,7 @@ export function useMentions({
     // to type `@` in a role-enabled conversation.
     items.push(...await loadRoleMentionItems());
 
-    if (dockTabs) items.push(...buildTabMentionItems(dockTabs));
+    if (dockTabs) items.push(...buildTabMentionItems(dockTabs, describeTab));
 
     items.push(...buildStaticMentionItems({
       allWorkspaces,
@@ -234,7 +227,8 @@ export function useMentions({
 
     const normalizedQuery = query.toLowerCase();
     const filtered = normalizedQuery
-      ? items.filter(item => item.label.toLowerCase().includes(normalizedQuery))
+      ? items.filter(item => item.label.toLowerCase().includes(normalizedQuery)
+        || item.description?.toLowerCase().includes(normalizedQuery))
       : items;
 
     // Session search is query-only; the empty popup stays focused on context.
@@ -258,7 +252,7 @@ export function useMentions({
     }
 
     return sortAndCapMentionItems(filtered);
-  }, [allWorkspaces, dockTabs, knowledgeNodes, knowledgeTags, loadSkillItems, nodes, rootFolder, scopeId, workspaceId]);
+  }, [allWorkspaces, describeTab, dockTabs, knowledgeNodes, knowledgeTags, loadSkillItems, nodes, rootFolder, scopeId, workspaceId]);
 
   const handleInput = useCallback(() => {
     const element = editableRef.current;
@@ -463,6 +457,7 @@ export function useMentions({
     insertDomSelectionMention,
     insertNodeMention,
     insertSkillMention,
+    insertTabMention,
     mentionIndex,
     mentionItems,
     mentionOpen,

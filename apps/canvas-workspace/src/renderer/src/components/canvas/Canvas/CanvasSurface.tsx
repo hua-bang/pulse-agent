@@ -22,6 +22,7 @@ import type { CanvasNodeRenderMode } from '../CanvasNodeView/types';
 import type { MindmapTransferHandlers } from '../../../utils/mindmapTransfer';
 import { markOnce } from '../../../perf/monitor';
 import { CanvasGestureHud, MarqueePreview, ShapeDraftPreview } from './CanvasGestureOverlays';
+import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 
 const FIT_TRANSITION =
   'transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94), --canvas-scale 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
@@ -154,9 +155,9 @@ interface CanvasSurfaceProps extends MindmapTransferHandlers {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
-  onAddToChat?: (nodeId: string) => void;
+  onAddToChat?: (nodeId: string) => void | Promise<ChatDeliveryReceipt>;
   onAddToCanvas?: (nodeId: string) => void;
-  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
+  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;

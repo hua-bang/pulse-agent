@@ -116,7 +116,7 @@ toggle.
   re-pointed at a content tab rather than collapsed — collapsing instead
   would make the first click read as a no-op.
 - The button stays visible and actionable even when no content tab exists.
-  Its first click opens the scoped workspace canvas as a read-only preview
+  Its first click opens the scoped workspace canvas in preview mode
   when possible; global/scheduled scopes and an already-mounted canvas create
   a blank browser tab instead. Its topbar position must not jump as tabs land.
 
@@ -130,16 +130,97 @@ the AI Chat page.
 Tests: `RightDock/__tests__/dock-content-tabs.test.ts`, plus the no-chat-tab
 inset case inside `RightDock/index.test.tsx`.
 
+### Canvas-tab editing host boundary
+
+Canvas tabs always open in preview mode. Only the dedicated `/chat` AI Chat
+route may show an explicit Edit action; canvas tabs in the workspace dock,
+scheduled-task chat, Nodes, Skills, and plugin routes remain read-only. The
+capability is derived from the current route and passed through App →
+RightDock → DockPanes → CanvasPreview. It is never persisted on the tab, so a
+retained tab drops back to preview synchronously when its host changes and a
+later return to AI Chat does not revive the old edit session.
+
+Edit mode mounts the canonical `Canvas` implementation rather than teaching
+the snapshot preview to mutate. This preserves nodes+edges history, save
+failure handling, updatedAt merging, flush-on-unmount, and undo/redo. The dock
+viewport is local: it auto-fits the pane and never overwrites the workspace's
+main-canvas transform; node-only saves retain the transform loaded from disk.
+The editor reports both full node and edge snapshots back to the preview so
+leaving Edit never flashes stale structure while the persisted reload lands.
+The existing mounted-workspace guard remains the one-writer boundary: a live
+Workbench canvas cannot also open as a dock canvas, and mounting that workspace
+closes its dock tab. Because Workbench is route-keep-alive, off-route canvases
+must also receive `isActive=false` so their global keyboard/paste handlers do
+not compete with the visible dock editor. Inside AI Chat, a visible dock Canvas
+keeps `isActive=true` for node lifecycles but owns keyboard/paste only after the
+latest pointer or focus interaction occurred inside it; focusing Chat releases
+those document-level handlers without unmounting the editor.
+
+DOM review comments created inside an editable iframe node use the same active
+Chat-target broker as node, DOM-selection, and Tab context. The full-page Chat
+composer registers the review submission handler, so reviews never fall through
+to a hidden workspace composer while `/chat` is visible.
+
+Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
+`RightDock/index.test.tsx`, `RightDock/__tests__/DockPanes.test.tsx`,
+`RightDock/__tests__/CanvasPreview.test.tsx`,
+`Canvas/hooks/useCanvasSyncEffects.test.ts`, `hooks/useNodes.test.tsx`, and
+`Workbench/__tests__/ChatDockLifecycle.test.tsx`. Review routing is pinned by
+`chat/__tests__/ChatPage.dom-review.test.tsx`,
+`chat/hooks/useSubmitDomReviewComments.test.tsx`, and
+`Workbench/__tests__/useChatInsertionBridge.test.tsx`.
+
+### Explicit Chat ↔ dock-tab context
+
+A content tab being visible beside Chat is never implicit model context. The
+user must add it through `@Tab` or the tab's Ask AI action. Full-page Chat
+builds those candidates from the dock's actual `activeTerminalWorkspaceId`,
+not from the conversation scope: global Chat and a historical cross-workspace
+conversation may both sit beside a different workspace's live dock.
+
+Every node / DOM-selection / whole-tab dock-to-Chat action awaits a
+`ChatDeliveryReceipt` and reports delivered, queued, unavailable, or failed
+against its real target; a missing callback is never success.
+If the visible page composer is temporarily busy or registering, its context
+insertion stays queued for that same composer instead of falling back to a
+hidden dock composer. Whole-tab actions reuse `AgentContextTabRef` and the
+shared `TabChatAction` rather than creating a second insertion path.
+
+Tab mention markers retain `dockWorkspaceId` plus kind-specific resource
+identity. Transcript chips switch to the owning workspace before activation;
+if a cited web tab was closed, the dock deterministically reopens its persisted
+URL and returns a distinct `reopened` receipt. Legacy or unsupported references
+remain visibly stale rather than falling back to whichever tab is active.
+Activation is acknowledged by the dock, so Chat shows progress/success instead
+of failing silently. The composer also states its canvas capability:
+global scope is canvas-read-only, while workspace scope can edit its canvas.
+Editable composers expose `Automatic` / `Ask first`; Ask first is not advisory
+copy — the main-process tool policy permits reads but gates mutating/command
+tools through the clarification approval lane before execution.
+
+Guards: `utils/chatPageDockTabs.test.ts`, `utils/mentions.test.ts`,
+`__tests__/ChatMessages.accessibility.test.tsx`, and
+`__tests__/ChatInput.execution-attachments.test.tsx` under
+`src/renderer/src/components/chat/`, plus
+`RightDock/useDockAgentBridge.test.tsx`.
+
 ## Dock width policy
 
 `RightDock/dock-width.ts` (`src/renderer/src/components/dock/RightDock/dock-width.ts`).
 
 - On the canvas, the dock may grow to ~95% of the viewport — the canvas
   reflows behind it, so a near-full-screen dock is legitimate there.
-- Every page route caps it at 70% via `capWidth`
-  (`PAGE_MAX_VIEWPORT_RATIO = 0.7`; born at 0.5, widened in #893), because a
-  page IS the content and a 95%-wide dock would leave a chat thread in a
-  gutter.
+- Every page route caps it by both the 70% ratio and a shell-aware remainder
+  (`min(viewport * PAGE_MAX_VIEWPORT_RATIO, viewport - pageMinAppWidth)`).
+  `App` supplies the current sidebar width plus a 440px route-content floor.
+  At a 1200px viewport the maximum is therefore 520px with the 240px sidebar
+  open, or 712px with its 48px rail; the page itself keeps about 440px in both
+  states. Ratio-only clamping used to permit an 840px dock and leave the app
+  in a 312px gutter even with the sidebar collapsed.
+- Full-page Chat changes its session rail to an overlay with a ChatPage
+  **container query**, not a window media query. The dock changes the page's
+  actual inline size without changing `window.innerWidth`; viewport-only
+  breakpoints therefore miss exactly the squeezed side-by-side state.
 
 **Two layers, kept separate.**
 

@@ -44,6 +44,7 @@ describe('useFileNodeEditor slash ownership', () => {
     expect(hookState?.editor?.view.dom.getAttribute('aria-multiline')).toBe('true');
 
     await act(async () => {
+      hookState?.editor?.commands.focus();
       hookState?.interactions.openSlashMenu({
         x: 20,
         y: 20,

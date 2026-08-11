@@ -8,13 +8,20 @@ import {
 } from 'react';
 import { useI18n } from '../../../i18n';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
-import type { AgentContextDomSelectionRef } from '../../../types';
+import type {
+  AgentContextDomReviewComment,
+  AgentContextDomSelectionRef,
+  AgentContextTabRef,
+  CanvasNode,
+} from '../../../types';
 import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './dock-store';
 import { linkPaneKey } from './dock-link-tabs';
 import { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
 import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId } from './dock-tab-ids';
 import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 import { focusActiveDockTarget } from './dock-browser-commands';
+import { buildDockTabRefs } from './tabRefs';
+import { TabChatAction } from './TabChatAction';
 
 const skillWorkspaceName = (
   tab: Extract<DockPreviewTab, { kind: 'skill' }>,
@@ -40,6 +47,9 @@ interface Props {
   dockVisible: boolean;
   splitTabId?: string;
   chatTabEnabled: boolean;
+  canvasTabEditingAllowed?: boolean;
+  onCanvasNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
+  onCanvasSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   splitContentWidth: number;
   splitDividerWidth: number;
   splitMinContentWidth?: number;
@@ -54,6 +64,11 @@ interface Props {
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
   pinUrlReference: (url: string, title?: string) => void;
   onAddDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
+  onSubmitDomReviewComments?: (
+    workspaceId: string,
+    comments: AgentContextDomReviewComment[],
+  ) => Promise<boolean>;
+  onAddTabToChat?: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
   onStartSkillChat?: (workspaceId: string, skillName: string) => void;
   onCloseTab?: (tabId: string) => void;
 }
@@ -65,6 +80,9 @@ export const DockPanes = ({
   dockVisible,
   splitTabId,
   chatTabEnabled,
+  canvasTabEditingAllowed = false,
+  onCanvasNodesChange,
+  onCanvasSelectionChange,
   splitContentWidth,
   splitDividerWidth,
   splitMinContentWidth,
@@ -79,6 +97,8 @@ export const DockPanes = ({
   onOpenNodePage,
   pinUrlReference,
   onAddDomSelectionToChat,
+  onSubmitDomReviewComments = async () => false,
+  onAddTabToChat = async () => ({ status: 'unavailable', target: null }),
   onStartSkillChat = () => undefined,
   onCloseTab = (tabId) => store.close(tabId),
 }: Props) => {
@@ -117,6 +137,19 @@ export const DockPanes = ({
   // unmounted — the guests die and retention silently does nothing.
   // Confirmed on a real workspace switch.
   const ownerWorkspaceId = state.activeTerminalWorkspaceId;
+  const tabRefsById = new Map(buildDockTabRefs(state, ownerWorkspaceId).map(tab => [tab.id, tab]));
+  const terminalTabRef = labelledTerminalTabId
+    ? tabRefsById.get(labelledTerminalTabId)
+    : undefined;
+  const renderTabChatAction = (tabRef?: AgentContextTabRef) => tabRef ? (
+    <div className="right-dock__pane-chat-action">
+      <TabChatAction
+        tab={tabRef}
+        targetWorkspaceId={activeWorkspaceId}
+        onAddToChat={onAddTabToChat}
+      />
+    </div>
+  ) : null;
   const liveKeys = new Set([
     ...state.tabs.map((tab) => linkPaneKey(ownerWorkspaceId, tab.id)),
     ...state.retainedLinkTabs.flatMap(
@@ -197,7 +230,11 @@ export const DockPanes = ({
             if (splitTabId && isTerminalTabId(splitTabId)) store.activate(splitTabId);
           }}
         >
-          <div ref={setTerminalHost} className="right-dock__terminal-host" />
+          {renderTabChatAction(terminalTabRef)}
+          <div
+            ref={setTerminalHost}
+            className={`right-dock__terminal-host${terminalTabRef ? ' right-dock__terminal-host--with-chat-action' : ''}`}
+          />
         </div>
       )}
       {state.tabs.filter((tab) => tab.kind !== 'link').map((tab) => (
@@ -217,14 +254,20 @@ export const DockPanes = ({
           }}
         >
           {tab.kind === 'artifact' ? (
-            <Suspense fallback={null}>
-              <ArtifactTabView workspaceId={tab.workspaceId} artifactId={tab.artifactId} onTitleChange={(title) => store.setTitle(tab.id, title)} />
-            </Suspense>
+            <>
+              {renderTabChatAction(tabRefsById.get(tab.id))}
+              <Suspense fallback={null}>
+                <ArtifactTabView workspaceId={tab.workspaceId} artifactId={tab.artifactId} onTitleChange={(title) => store.setTitle(tab.id, title)} />
+              </Suspense>
+            </>
           ) : tab.kind === 'node-detail' ? (
             <Suspense fallback={null}>
               <NodeDetailDockTab
                 workspaceId={tab.workspaceId}
                 nodeId={tab.nodeId}
+                tabRef={tabRefsById.get(tab.id)}
+                targetWorkspaceId={activeWorkspaceId}
+                onAddTabToChat={onAddTabToChat}
                 onTitleChange={(title) => store.setTitle(tab.id, title)}
                 onOpenPage={() => {
                   onOpenNodePage(tab.workspaceId, tab.nodeId);
@@ -234,7 +277,20 @@ export const DockPanes = ({
             </Suspense>
           ) : tab.kind === 'canvas' ? (
             <Suspense fallback={null}>
-              <CanvasPreview workspaceId={tab.workspaceId} canvasName={tab.title} rootFolder={workspaces.find((workspace) => workspace.id === tab.workspaceId)?.rootFolder} />
+              <CanvasPreview
+                workspaceId={tab.workspaceId}
+                canvasName={tab.title}
+                rootFolder={workspaces.find((workspace) => workspace.id === tab.workspaceId)?.rootFolder}
+                tabRef={tabRefsById.get(tab.id)}
+                targetWorkspaceId={activeWorkspaceId}
+                onAddTabToChat={onAddTabToChat}
+                editingAllowed={canvasTabEditingAllowed}
+                active={dockVisible && (tab.id === activePaneId || tab.id === splitTabId)}
+                onNodesChange={onCanvasNodesChange}
+                onSelectionChange={onCanvasSelectionChange}
+                onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(tab.workspaceId, selection)}
+                onSubmitDomReviewComments={onSubmitDomReviewComments}
+              />
             </Suspense>
           ) : tab.kind === 'skill' ? (
             <Suspense fallback={null}>
@@ -313,6 +369,9 @@ export const DockPanes = ({
                   : store.updateRetainedLinkTab(workspaceId, tab.id, { url }))}
                 onAddToReference={pinUrlReference}
                 onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(workspaceId, selection)}
+                tabRef={live ? tabRefsById.get(tab.id) : undefined}
+                targetWorkspaceId={activeWorkspaceId}
+                onAddTabToChat={onAddTabToChat}
                 onOpenLink={(url, options) => {
                   if (!live) {
                     store.openLinkInWorkspace(workspaceId, url, options);

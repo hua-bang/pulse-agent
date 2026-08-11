@@ -6,6 +6,18 @@ import { DockPanes } from '../DockPanes';
 import { CHAT_TAB_ID, DockStore, TERMINAL_TAB_ID } from '../dock-store';
 import { dockPaneElementId, dockTabElementId } from '../dock-tab-ids';
 import { I18nProvider } from '../../../../i18n';
+import type { AgentContextDomReviewComment, AgentContextTabRef } from '../../../../types';
+
+const latestTabChatActionProps = vi.hoisted(() => new Map<string, {
+  tab: AgentContextTabRef;
+  targetWorkspaceId: string;
+}>());
+vi.mock('../TabChatAction', () => ({
+  TabChatAction: (props: { tab: AgentContextTabRef; targetWorkspaceId: string }) => {
+    latestTabChatActionProps.set(props.tab.id, props);
+    return <button type="button" data-tab-chat-action={props.tab.id}>Ask AI</button>;
+  },
+}));
 
 // Capture the props each LinkTabView renders with (the real one lazy-loads a
 // live <webview>, which has no place in a happy-dom test).
@@ -27,6 +39,33 @@ vi.mock('../../LinkDrawer', () => ({
   },
 }));
 
+const latestCanvasPreviewProps = vi.hoisted(() => new Map<string, {
+  editingAllowed?: boolean;
+  active?: boolean;
+  onNodesChange?: unknown;
+  onSelectionChange?: unknown;
+  onSubmitDomReviewComments?: (
+    workspaceId: string,
+    comments: AgentContextDomReviewComment[],
+  ) => Promise<boolean>;
+}>());
+vi.mock('../CanvasPreview', () => ({
+  CanvasPreview: (props: {
+    workspaceId: string;
+    editingAllowed?: boolean;
+    active?: boolean;
+    onNodesChange?: unknown;
+    onSelectionChange?: unknown;
+    onSubmitDomReviewComments?: (
+      workspaceId: string,
+      comments: AgentContextDomReviewComment[],
+    ) => Promise<boolean>;
+  }) => {
+    latestCanvasPreviewProps.set(props.workspaceId, props);
+    return <div data-canvas-preview={props.workspaceId} />;
+  },
+}));
+
 /** Props the LinkTabView for `tabId` last rendered with, in `workspaceId`. */
 const propsFor = (tabId: string, workspaceId = 'ws1') =>
   latestLinkTabProps.get(`${workspaceId}::${tabId}`);
@@ -36,6 +75,8 @@ let mount: HTMLDivElement | null = null;
 
 beforeEach(() => {
   latestLinkTabProps.clear();
+  latestTabChatActionProps.clear();
+  latestCanvasPreviewProps.clear();
 });
 
 afterEach(() => {
@@ -373,5 +414,134 @@ describe('DockPanes tabpanel relationships', () => {
     expect(firstPane.getAttribute('aria-labelledby')).toBe(dockTabElementId(first.id));
     expect(firstPane.getAttribute('aria-hidden')).toBe('true');
     expect(secondPane.getAttribute('aria-hidden')).toBe('false');
+  });
+});
+
+describe('DockPanes canvas editing host capability', () => {
+  it('passes AI Chat permission and visible-pane activity without persisting either on the tab', async () => {
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openCanvasPreview('ws2', 'Research');
+    const tab = store.getSnapshot().tabs[0]!;
+    const onCanvasNodesChange = vi.fn();
+    const onCanvasSelectionChange = vi.fn();
+    const onSubmitDomReviewComments = vi.fn(async () => true);
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+
+    const render = (dockVisible: boolean) => flushSync(() => root?.render(
+      <I18nProvider><DockPanes
+        store={store}
+        state={store.getSnapshot()}
+        activePaneId={tab.id}
+        dockVisible={dockVisible}
+        chatTabEnabled={false}
+        canvasTabEditingAllowed
+        onCanvasNodesChange={onCanvasNodesChange}
+        onCanvasSelectionChange={onCanvasSelectionChange}
+        onSubmitDomReviewComments={onSubmitDomReviewComments}
+        splitContentWidth={320}
+        splitDividerWidth={6}
+        onDividerMouseDown={() => undefined}
+        setChatHost={() => undefined}
+        setTerminalHost={() => undefined}
+        terminalHostMounted={false}
+        activeWorkspaceId="ws1"
+        workspaces={[{ id: 'ws2', name: 'Research' }]}
+        onOpenNodePage={() => undefined}
+        pinUrlReference={() => undefined}
+        onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
+      /></I18nProvider>,
+    ));
+
+    render(true);
+    await vi.waitFor(() => expect(latestCanvasPreviewProps.get('ws2')).toBeDefined());
+    expect(latestCanvasPreviewProps.get('ws2')).toMatchObject({
+      editingAllowed: true,
+      active: true,
+      onNodesChange: onCanvasNodesChange,
+      onSelectionChange: onCanvasSelectionChange,
+    });
+    expect(store.getSnapshot().tabs[0]).not.toHaveProperty('editingAllowed');
+
+    const comments: AgentContextDomReviewComment[] = [{
+      id: 'review-1',
+      text: 'Increase contrast',
+      selection: { id: 'dom-1', label: 'Button', nodeId: 'node-1', selector: '#button' },
+    }];
+    await expect(latestCanvasPreviewProps.get('ws2')?.onSubmitDomReviewComments?.('ws2', comments))
+      .resolves.toBe(true);
+    expect(onSubmitDomReviewComments).toHaveBeenCalledWith('ws2', comments);
+
+    render(false);
+    expect(latestCanvasPreviewProps.get('ws2')?.active).toBe(false);
+  });
+});
+
+describe('DockPanes whole-tab Chat actions', () => {
+  it('offers exact artifact and split-terminal refs without covering terminal content', () => {
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openArtifact('artifact-scope', 'artifact-1');
+    const artifactId = store.getSnapshot().tabs[0]!.id;
+    store.openTerminal();
+    store.renameTerminal(TERMINAL_TAB_ID, 'Build shell');
+    store.toggleSplitView();
+    store.activate(CHAT_TAB_ID);
+    const state = store.getSnapshot();
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+
+    flushSync(() => root?.render(
+      <I18nProvider><DockPanes
+        store={store}
+        state={state}
+        activePaneId={CHAT_TAB_ID}
+        dockVisible
+        splitTabId={state.splitTabId}
+        chatTabEnabled
+        splitContentWidth={320}
+        splitDividerWidth={6}
+        onDividerMouseDown={() => undefined}
+        setChatHost={() => undefined}
+        setTerminalHost={() => undefined}
+        terminalHostMounted
+        activeWorkspaceId="ws1"
+        workspaces={[]}
+        onOpenNodePage={() => undefined}
+        pinUrlReference={() => undefined}
+        onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
+        onAddTabToChat={async () => ({ status: 'unavailable', target: null })}
+      /></I18nProvider>,
+    ));
+
+    expect(latestTabChatActionProps.get(artifactId)).toMatchObject({
+      targetWorkspaceId: 'ws1',
+      tab: {
+        id: artifactId,
+        kind: 'artifact',
+        workspaceId: 'artifact-scope',
+        dockWorkspaceId: 'ws1',
+        artifactId: 'artifact-1',
+      },
+    });
+    expect(latestTabChatActionProps.get(TERMINAL_TAB_ID)).toMatchObject({
+      targetWorkspaceId: 'ws1',
+      tab: {
+        id: TERMINAL_TAB_ID,
+        kind: 'terminal',
+        title: 'Build shell',
+        workspaceId: 'ws1',
+        dockWorkspaceId: 'ws1',
+        sessionId: 'workspace-terminal:ws1',
+        isSplit: true,
+      },
+    });
+    expect(mount.querySelector('.right-dock__pane--terminal [data-tab-chat-action]')).not.toBeNull();
+    expect(mount.querySelector('.right-dock__terminal-host--with-chat-action')).not.toBeNull();
+    expect(document.getElementById(dockPaneElementId(artifactId))
+      ?.querySelector('[data-tab-chat-action]')).not.toBeNull();
   });
 });

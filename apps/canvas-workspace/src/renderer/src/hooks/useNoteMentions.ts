@@ -5,6 +5,7 @@ import { isImeComposing } from '../utils/ime';
 import { detectMention, filterMentionCandidates } from '../utils/noteMention';
 import { nodeLinkHref } from '../utils/openNodeBridge';
 import type { NoteInteractionController } from './useNoteInteractionController';
+import { useCanvasKeyboardActive } from './useWorkspaceActive';
 
 interface Options {
   editor: Editor | null;
@@ -32,6 +33,7 @@ const triggerBeforeCaret = (editor: Editor) => {
  * made clickable by the note's link handler).
  */
 export const useNoteMentions = ({ editor, candidates, readOnly, workspaceId, interactions }: Options) => {
+  const canvasKeyboardActive = useCanvasKeyboardActive();
   const {
     mentionMenu,
     mentionMenuRef,
@@ -48,7 +50,7 @@ export const useNoteMentions = ({ editor, candidates, readOnly, workspaceId, int
   filteredRef.current = filtered;
 
   const recompute = useCallback(() => {
-    if (!editor || readOnly) return;
+    if (!editor || readOnly || !canvasKeyboardActive) return;
     const hit = triggerBeforeCaret(editor);
     if (!hit) {
       if (mentionMenuRef.current) closeMentionMenu();
@@ -66,7 +68,11 @@ export const useNoteMentions = ({ editor, candidates, readOnly, workspaceId, int
       query: hit.trigger.query,
       index: prev && prev.query === hit.trigger.query ? prev.index : 0,
     }));
-  }, [editor, readOnly, mentionMenuRef, openMentionMenu, closeMentionMenu]);
+  }, [canvasKeyboardActive, editor, readOnly, mentionMenuRef, openMentionMenu, closeMentionMenu]);
+
+  useEffect(() => {
+    if (!canvasKeyboardActive) closeMentionMenu();
+  }, [canvasKeyboardActive, closeMentionMenu]);
 
   useEffect(() => {
     if (!editor) return;
@@ -106,10 +112,10 @@ export const useNoteMentions = ({ editor, candidates, readOnly, workspaceId, int
 
   // Keyboard navigation — capture phase so we steer before ProseMirror.
   useEffect(() => {
-    if (!editor || readOnly) return;
+    if (!editor || readOnly || !canvasKeyboardActive) return;
     const handler = (e: KeyboardEvent) => {
       const menu = mentionMenuRef.current;
-      if (!menu || isImeComposing(e)) return;
+      if (!menu || !editor.isFocused || isImeComposing(e)) return;
       const items = filteredRef.current;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -133,7 +139,7 @@ export const useNoteMentions = ({ editor, candidates, readOnly, workspaceId, int
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [editor, readOnly, insertMention, mentionMenuRef, moveMentionSelection, closeMentionMenu]);
+  }, [canvasKeyboardActive, editor, readOnly, insertMention, mentionMenuRef, moveMentionSelection, closeMentionMenu]);
 
   return { mentionMenu, filteredMentions: filtered, insertMention, closeMention };
 };

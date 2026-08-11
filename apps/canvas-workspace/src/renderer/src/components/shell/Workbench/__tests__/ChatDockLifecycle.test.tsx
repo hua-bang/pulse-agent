@@ -11,6 +11,7 @@ import {
 } from '../../../chat/ChatTargetContext';
 import type { WorkbenchController } from '../useWorkbenchState';
 import { Workbench } from '../index';
+import { AppShellProvider } from '../../../shell/AppShellProvider';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -18,14 +19,17 @@ vi.mock('../../../canvas/Canvas', () => ({
   Canvas: ({
     chatPanelOpen,
     onChatToggle,
+    isActive,
   }: {
     chatPanelOpen?: boolean;
     onChatToggle?: () => void;
+    isActive?: boolean;
   }) => (
     <button
       type="button"
       data-testid="canvas-chat-toggle"
       aria-pressed={chatPanelOpen}
+      data-canvas-active={isActive ? 'true' : 'false'}
       onClick={onChatToggle}
     >
       Toggle AI chat
@@ -111,7 +115,7 @@ const controller = {
   clearRenameRequest: noOp,
 } satisfies WorkbenchController;
 
-const LifecycleHarness = () => {
+const LifecycleHarness = ({ canvasHostActive = true }: { canvasHostActive?: boolean }) => {
   const activeTarget = useActiveChatTarget();
   const knowledgeChatContext = useMemo(
     () => ({ active: false, selectedNode: null }),
@@ -127,6 +131,7 @@ const LifecycleHarness = () => {
         activeWorkspaceId={workspace.id}
         workspaces={[workspace]}
         controller={controller}
+        canvasHostActive={canvasHostActive}
         knowledgeChatContext={knowledgeChatContext}
         onSelectWorkspace={noOp}
         onActivateWorkspace={noOp}
@@ -231,13 +236,15 @@ describe('Workbench chat dock lifecycle', () => {
     await act(async () => {
       root.render(
         <I18nProvider>
-          <ChatTargetProvider>
-            <RightDockProvider>
-              <TestErrorBoundary>
-                <LifecycleHarness />
-              </TestErrorBoundary>
-            </RightDockProvider>
-          </ChatTargetProvider>
+          <AppShellProvider>
+            <ChatTargetProvider>
+              <RightDockProvider>
+                <TestErrorBoundary>
+                  <LifecycleHarness />
+                </TestErrorBoundary>
+              </RightDockProvider>
+            </ChatTargetProvider>
+          </AppShellProvider>
         </I18nProvider>,
       );
     });
@@ -270,17 +277,38 @@ describe('Workbench chat dock lifecycle', () => {
       .toBe('dock:workspace-a');
   });
 
+  it('locks the keep-alive main canvas while another route owns the surface', async () => {
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <AppShellProvider>
+            <ChatTargetProvider>
+              <RightDockProvider>
+                <LifecycleHarness canvasHostActive={false} />
+              </RightDockProvider>
+            </ChatTargetProvider>
+          </AppShellProvider>
+        </I18nProvider>,
+      );
+    });
+
+    expect(host.querySelector('[data-testid="canvas-chat-toggle"]')?.getAttribute('data-canvas-active'))
+      .toBe('false');
+  });
+
   it('keeps the knowledge-detail chat target stable across broker renders', async () => {
     await act(async () => {
       root.render(
         <I18nProvider>
-          <ChatTargetProvider>
-            <RightDockProvider>
-              <TestErrorBoundary>
-                <KnowledgeDetailLifecycleHarness />
-              </TestErrorBoundary>
-            </RightDockProvider>
-          </ChatTargetProvider>
+          <AppShellProvider>
+            <ChatTargetProvider>
+              <RightDockProvider>
+                <TestErrorBoundary>
+                  <KnowledgeDetailLifecycleHarness />
+                </TestErrorBoundary>
+              </RightDockProvider>
+            </ChatTargetProvider>
+          </AppShellProvider>
         </I18nProvider>,
       );
     });

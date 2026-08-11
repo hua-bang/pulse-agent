@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextTabRef, CanvasNode } from '../../../types';
 import type {
   ChatDeliveryReceipt,
   ChatInsertion,
@@ -36,6 +36,8 @@ export function useChatInsertionBridge({
   const pendingNodeMentionsByWorkspaceRef = useRef<Map<string, PendingNodeMention[]>>(new Map());
   const insertDomSelectionByWorkspaceRef = useRef<Map<string, (selection: AgentContextDomSelectionRef) => void>>(new Map());
   const pendingDomSelectionsByWorkspaceRef = useRef<Map<string, AgentContextDomSelectionRef[]>>(new Map());
+  const insertTabByWorkspaceRef = useRef<Map<string, (tab: AgentContextTabRef) => void>>(new Map());
+  const pendingTabsByWorkspaceRef = useRef<Map<string, AgentContextTabRef[]>>(new Map());
   const submitDomReviewByWorkspaceRef = useRef<Map<string, (comments: AgentContextDomReviewComment[]) => Promise<boolean>>>(new Map());
   const pendingDomReviewsByWorkspaceRef = useRef<Map<string, PendingDomReview[]>>(new Map());
   const startSkillChatByWorkspaceRef = useRef<Map<string, (skillName: string) => Promise<void>>>(new Map());
@@ -94,6 +96,18 @@ export function useChatInsertionBridge({
     for (const selection of pending) fn(selection);
     return () => {
       insertDomSelectionByWorkspaceRef.current.delete(workspaceId);
+    };
+  }, []);
+
+  const registerInsertTabMention = useCallback((workspaceId: string, fn: (tab: AgentContextTabRef) => void) => {
+    insertTabByWorkspaceRef.current.set(workspaceId, fn);
+    const pending = pendingTabsByWorkspaceRef.current.get(workspaceId) ?? [];
+    pendingTabsByWorkspaceRef.current.delete(workspaceId);
+    for (const tab of pending) fn(tab);
+    return () => {
+      if (insertTabByWorkspaceRef.current.get(workspaceId) === fn) {
+        insertTabByWorkspaceRef.current.delete(workspaceId);
+      }
     };
   }, []);
 
@@ -198,6 +212,27 @@ export function useChatInsertionBridge({
     };
   }, [deliverToActiveTarget, dockTarget, openChat, tryVisibleTarget]);
 
+  const handleAddTabToChat = useCallback(async (
+    workspaceId: string,
+    tab: AgentContextTabRef,
+  ): Promise<ChatDeliveryReceipt> => {
+    if (deliverToActiveTarget) {
+      const visibleReceipt = await tryVisibleTarget({ kind: 'tab', tab });
+      if (visibleReceipt) return visibleReceipt;
+    }
+    openChat();
+    const fn = insertTabByWorkspaceRef.current.get(workspaceId);
+    if (fn) fn(tab);
+    else pendingTabsByWorkspaceRef.current.set(workspaceId, [
+      ...(pendingTabsByWorkspaceRef.current.get(workspaceId) ?? []),
+      tab,
+    ]);
+    return {
+      status: fn ? 'delivered' : 'queued',
+      target: dockTarget(workspaceId),
+    };
+  }, [deliverToActiveTarget, dockTarget, openChat, tryVisibleTarget]);
+
   const handleStartSkillChat = useCallback(async (
     workspaceId: string,
     skillName: string,
@@ -251,11 +286,13 @@ export function useChatInsertionBridge({
 
   return {
     handleAddDomSelectionToChat,
+    handleAddTabToChat,
     handleStartSkillChat,
     handleAddNodeToChat,
     handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
+    registerInsertTabMention,
     registerInsertMention,
     registerStartSkillChat,
     registerSubmitDomReviewComments,

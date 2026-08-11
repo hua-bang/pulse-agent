@@ -15,6 +15,7 @@ import { RelayBar } from './RelayBar';
 import type { RelayProgress } from './hooks/relayTurnHandlers';
 import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
 import { restoreComposerFocusAfterRender } from './utils/focusRecovery';
+import type { ChatScopeCapability } from './utils/chatScopeCapability';
 
 interface ChatViewProps {
   className?: string;
@@ -86,6 +87,8 @@ interface ChatViewProps {
   onAbort: () => Promise<boolean>;
   contextComposer?: boolean;
   knowledgeMode?: boolean;
+  scopeLabel?: string;
+  scopeCapability?: ChatScopeCapability;
   emptyStateVariant?: ChatEmptyStateVariant;
   modelStatus?: CanvasModelStatus;
   modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
@@ -168,6 +171,8 @@ export const ChatView = ({
   onAbort,
   contextComposer = false,
   knowledgeMode = false,
+  scopeLabel,
+  scopeCapability,
   emptyStateVariant,
   modelStatus,
   modelSelection,
@@ -257,6 +262,8 @@ export const ChatView = ({
         onRemoveContext={onRemoveContext}
         contextComposer={contextComposer}
         knowledgeMode={knowledgeMode}
+        scopeLabel={scopeLabel}
+        scopeCapability={scopeCapability}
         placeholder={inputPlaceholder}
         executionMode={executionMode}
         modelStatus={modelStatus}

@@ -20,6 +20,38 @@ const baseProps = {
 };
 
 describe('ChatInput execution and attachment states', () => {
+  it('shows the chat scope and canvas capability beside the composer', () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    act(() => root.render(
+      <I18nProvider>
+        <ChatInput
+          {...baseProps}
+          scopeLabel="Global chat"
+          scopeCapability="read-only"
+        />
+      </I18nProvider>,
+    ));
+
+    const status = host.querySelector<HTMLElement>('.chat-scope-capability');
+    expect(status?.textContent).toBe('Global chat · AI access: read-only');
+    expect(status?.getAttribute('aria-label')).toBe('Global chat · AI access: read-only');
+
+    act(() => root.render(
+      <I18nProvider>
+        <ChatInput
+          {...baseProps}
+          scopeLabel="Product canvas"
+          scopeCapability="editable"
+        />
+      </I18nProvider>,
+    ));
+    expect(host.querySelector('.chat-scope-capability')?.textContent)
+      .toBe('Product canvas · Can edit canvas');
+
+    act(() => root.unmount());
+  });
+
   it('exposes the multiline contenteditable as the mention combobox', () => {
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -44,7 +76,7 @@ describe('ChatInput execution and attachment states', () => {
     act(() => root.unmount());
   });
 
-  it('hides the Auto/Ask toggle regardless of executionMode — ask mode is not exposed yet', () => {
+  it('exposes Auto/Ask as an actionable execution policy and keeps scheduled mode read-only', () => {
     const toggle = vi.fn();
     for (const executionMode of ['auto', 'ask', 'scheduled'] as const) {
       const host = document.createElement('div');
@@ -59,11 +91,25 @@ describe('ChatInput execution and attachment states', () => {
         </I18nProvider>,
       ));
 
-      expect(host.querySelector('.chat-execution-mode-btn')).toBeNull();
+      const control = host.querySelector<HTMLElement>('.chat-execution-mode-btn');
+      expect(control?.textContent).toBe(executionMode === 'auto'
+        ? 'Automatic'
+        : executionMode === 'ask'
+          ? 'Ask first'
+          : 'Scheduled · Automatic');
+      expect(control?.getAttribute('aria-label')).toBe(`Execution mode: ${control?.textContent}`);
+      if (executionMode === 'scheduled') {
+        expect(control?.tagName).toBe('SPAN');
+        expect(control?.classList.contains('chat-execution-mode-btn--readonly')).toBe(true);
+      } else {
+        expect(control?.tagName).toBe('BUTTON');
+        expect(control?.getAttribute('aria-pressed')).toBe(String(executionMode === 'ask'));
+        act(() => control?.click());
+      }
 
       act(() => root.unmount());
     }
-    expect(toggle).not.toHaveBeenCalled();
+    expect(toggle).toHaveBeenCalledTimes(2);
   });
 
   it('shows upload failure with retry and prevents sending until every image is ready', () => {

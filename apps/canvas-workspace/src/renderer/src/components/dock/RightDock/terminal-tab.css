@@ -11,6 +11,13 @@
   min-height: 0;
 }
 
+.right-dock__terminal-host--with-chat-action {
+  position: relative;
+  inset: auto;
+  flex: 1 1 auto;
+  width: 100%;
+}
+
 .right-dock__tab-title--editing {
   visibility: hidden;
 }

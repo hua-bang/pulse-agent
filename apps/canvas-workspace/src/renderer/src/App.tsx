@@ -4,7 +4,7 @@ import './App.css';
 import { AppShellProvider, useAppShell } from './components/shell/AppShellProvider';
 import { DeferredSettings } from './components/shell/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
-import { isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useRightDock } from './components/dock/RightDock';
+import { isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useRightDock } from './components/dock/RightDock';
 import { GlobalChatLauncher } from './components/dock/RightDock/GlobalChatLauncher';
 import type { SettingsSection } from './components/settings/Settings';
 import { Sidebar } from './components/shell/Sidebar';
@@ -159,6 +159,7 @@ const AppContent = () => {
     selectedNodeIdsByWorkspace,
     ensureWorkspaceNodesLoaded,
     getWorkspaceNodes,
+    handleNodesChange, handleSelectionChange,
     requestNodeFocus,
     requestActiveNodeFocus,
     requestActiveNodeDelete,
@@ -528,6 +529,7 @@ const AppContent = () => {
           <PulseRouterView name='canvas' keepAlive>
             <Workbench
               activeWorkspaceId={activeId}
+              canvasHostActive={activeView === 'canvas'}
               workspaces={workspaces}
               controller={workbench}
               knowledgeChatContext={knowledgeChatContext}
@@ -578,7 +580,7 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
-      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} reserveSpace={activeView !== 'skills'} capWidth={activeView !== 'canvas'} onOpenNodePage={openNodePage} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={activeId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} canvasTabEditingAllowed={isCanvasTabEditingAllowed(activeView)} onCanvasNodesChange={handleNodesChange} onCanvasSelectionChange={handleSelectionChange} reserveSpace={activeView !== 'skills'} capWidth={activeView !== 'canvas'} pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440} onOpenNodePage={openNodePage} onActivateWorkspace={selectWorkspace} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         appLoaded={appSettingsLoaded}

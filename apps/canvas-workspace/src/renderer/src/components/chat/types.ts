@@ -90,6 +90,8 @@ export interface ChatPanelProps {
   onRegisterStartSkillChat?: (fn: (skillName: string) => Promise<void>) => () => void;
   /** Called once the DOM-selection mention inserter is ready; returns a cleanup fn. */
   onRegisterInsertDomSelectionMention?: (fn: (selection: AgentContextDomSelectionRef) => void) => () => void;
+  /** Called once the right-dock Tab mention inserter is ready. */
+  onRegisterInsertTabMention?: (fn: (tab: AgentContextTabRef) => void) => () => void;
   /** Called once the batch DOM review submitter is ready; returns a cleanup fn. */
   onRegisterSubmitDomReviewComments?: (fn: (comments: AgentContextDomReviewComment[]) => Promise<boolean>) => () => void;
   /** Fires when a streaming turn finishes — hosts use it for unread badges. */

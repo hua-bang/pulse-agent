@@ -39,7 +39,7 @@ export function formatReferencedTabsBlock(
         how = `terminal — read recent output with \`canvas_read_tab({ kind: "terminal", sessionId: "${tab.sessionId ?? ''}" })\``;
         break;
       case 'node-detail':
-        how = `canvas node detail — read with \`canvas_read_node({ nodeId: "${tab.nodeId ?? ''}"${wsArg} })\``;
+        how = `workspace node detail — read with \`workspace_node_get({ nodeId: "${tab.nodeId ?? ''}"${wsArg} })\``;
         break;
       case 'canvas':
         how = `canvas preview — inspect with \`canvas_read_context(${ws ? `{ workspaceId: "${ws}" }` : '{}'})\``;

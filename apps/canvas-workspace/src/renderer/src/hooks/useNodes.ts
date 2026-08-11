@@ -349,6 +349,11 @@ export const useNodes = (
         edgesRef.current = loadedEdges;
         historyRef.current = [{ nodes: loadedNodes, edges: loadedEdges }];
         historyIndexRef.current = 0;
+        // Keep the persisted viewport as the save baseline even when the
+        // caller intentionally renders a local-only viewport (for example,
+        // the AI Chat dock editor). A later node-only save must not replace
+        // the main canvas viewport with the hook's default transform.
+        if (saved.transform) transformRef.current = saved.transform;
         // Every node we loaded is on disk — seed the persisted set so
         // the external-update handler can tell future deletes apart
         // from locally-added unsaved nodes.

@@ -6,10 +6,8 @@
  * On the page routes (AI Chat, Nodes, Skills, Scheduled, plugin pages) the
  * page itself is the content — letting the dock eat 95% of the viewport
  * squeezes a chat thread or a task list into an unusable gutter, which is why
- * those routes cap it. The cap still leaves the page a working strip (30% of
- * a 1600px viewport is ~480px, the dock's own default width) rather than
- * letting a wide docked link tab (a Feishu doc, a code diff) push it to a
- * sliver.
+ * those routes cap it. The cap preserves a fixed working remainder as well as
+ * a viewport ratio, so a medium window cannot leave the route in a sliver.
  *
  * The cap applies to the RENDERED width only. `RightDock` keeps the user's
  * chosen width untouched and derives the effective width per route, so
@@ -21,14 +19,28 @@ export const DOCK_DEFAULT_WIDTH = 480;
 
 const CANVAS_MAX_VIEWPORT_RATIO = 0.95;
 const PAGE_MAX_VIEWPORT_RATIO = 0.7;
+const DEFAULT_PAGE_MIN_APP_WIDTH = 520;
 
-export const resolveDockMaxWidth = (viewportWidth: number, capped: boolean): number => {
-  const ratio = capped ? PAGE_MAX_VIEWPORT_RATIO : CANVAS_MAX_VIEWPORT_RATIO;
-  return Math.max(DOCK_MIN_WIDTH, Math.round(viewportWidth * ratio));
+export const resolveDockMaxWidth = (
+  viewportWidth: number,
+  capped: boolean,
+  pageMinAppWidth = DEFAULT_PAGE_MIN_APP_WIDTH,
+): number => {
+  if (!capped) {
+    return Math.max(DOCK_MIN_WIDTH, Math.round(viewportWidth * CANVAS_MAX_VIEWPORT_RATIO));
+  }
+  const ratioCap = Math.round(viewportWidth * PAGE_MAX_VIEWPORT_RATIO);
+  const remainderCap = Math.round(viewportWidth - pageMinAppWidth);
+  return Math.max(DOCK_MIN_WIDTH, Math.min(ratioCap, remainderCap));
 };
 
-export const clampDockWidth = (value: number, viewportWidth: number, capped: boolean): number => (
-  Math.min(resolveDockMaxWidth(viewportWidth, capped), Math.max(DOCK_MIN_WIDTH, Math.round(value)))
+export const clampDockWidth = (
+  value: number,
+  viewportWidth: number,
+  capped: boolean,
+  pageMinAppWidth = DEFAULT_PAGE_MIN_APP_WIDTH,
+): number => (
+  Math.min(resolveDockMaxWidth(viewportWidth, capped, pageMinAppWidth), Math.max(DOCK_MIN_WIDTH, Math.round(value)))
 );
 
 /** Roomy width for a tab when the strip is not crowded (CSS `max-width`). */

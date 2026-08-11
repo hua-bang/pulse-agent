@@ -6,9 +6,12 @@ const rightDockCss = readFileSync(new URL('../../dock/RightDock/index.css', impo
 const rendererCss = readFileSync(new URL('../../../styles.css', import.meta.url), 'utf8');
 
 describe('ChatPage narrow-window layout', () => {
-  it('overlays the optional session rail before it can squeeze the conversation column', () => {
-    const breakpoint = chatPageCss.indexOf('@media (max-width: 1040px)');
-    const nextBreakpoint = chatPageCss.indexOf('@media (max-width: 720px)', breakpoint);
+  it('uses the chat container, not the full window, before the rail can squeeze the conversation', () => {
+    expect(chatPageCss).toMatch(
+      /\.chat-page\s*\{[^}]*container-type:\s*inline-size;[^}]*container-name:\s*chat-page;/s,
+    );
+    const breakpoint = chatPageCss.indexOf('@container chat-page (max-width: 760px)');
+    const nextBreakpoint = chatPageCss.indexOf('@container chat-page (max-width: 520px)', breakpoint);
     const narrowRules = chatPageCss.slice(
       breakpoint,
       nextBreakpoint === -1 ? undefined : nextBreakpoint,

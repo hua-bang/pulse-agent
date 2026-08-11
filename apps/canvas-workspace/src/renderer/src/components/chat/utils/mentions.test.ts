@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import { collectTabRefsFromEditable, createMentionChipElement, renderMdWithMentions } from './mentions';
+import { buildTabMentionItems, collectTabRefsFromEditable, createMentionChipElement, parseTabMention, renderMdWithMentions } from './mentions';
 import { serializeEditable } from './serializeEditable';
 
 const domLabel = 'header: Fancy Builder [...truncated]';
@@ -88,14 +88,24 @@ describe('chat mention rendering', () => {
         title: 'Pulse Canvas Docs',
         url: 'https://example.com/docs',
         workspaceId: 'ws-1',
+        dockWorkspaceId: 'dock-ws-2',
       },
     });
     const editable = document.createElement('div');
     editable.appendChild(chip);
 
-    expect(serializeEditable(editable)).toBe(
-      `@[tab:${encodeURIComponent('link:ab:cd')}|link|${encodeURIComponent('Pulse Canvas Docs')}]`,
+    const serialized = serializeEditable(editable);
+    expect(serialized).toContain(
+      `@[tab:${encodeURIComponent('link:ab:cd')}|link|${encodeURIComponent('dock-ws-2')}|${encodeURIComponent('Pulse Canvas Docs')}|ref=`,
     );
+    expect(parseTabMention(serialized.slice(2, -1))).toEqual({
+      id: 'link:ab:cd',
+      kind: 'link',
+      label: 'Pulse Canvas Docs',
+      url: 'https://example.com/docs',
+      workspaceId: 'ws-1',
+      dockWorkspaceId: 'dock-ws-2',
+    });
 
     const refs = collectTabRefsFromEditable(editable);
     expect(refs).toEqual([
@@ -105,6 +115,7 @@ describe('chat mention rendering', () => {
         title: 'Pulse Canvas Docs',
         url: 'https://example.com/docs',
         workspaceId: 'ws-1',
+        dockWorkspaceId: 'dock-ws-2',
         nodeId: undefined,
         artifactId: undefined,
         sessionId: undefined,
@@ -132,14 +143,86 @@ describe('chat mention rendering', () => {
     ]);
   });
 
+  it('round-trips persisted identity when a legacy caller has no dock workspace', () => {
+    const chip = createMentionChipElement({
+      type: 'tab',
+      label: 'Docs',
+      tab: {
+        id: 'link:docs',
+        kind: 'link',
+        title: 'Docs',
+        url: 'https://example.com/docs',
+      },
+    });
+    const editable = document.createElement('div');
+    editable.appendChild(chip);
+
+    const serialized = serializeEditable(editable);
+    expect(parseTabMention(serialized.slice(2, -1))).toEqual({
+      id: 'link:docs',
+      kind: 'link',
+      label: 'Docs',
+      dockWorkspaceId: undefined,
+      url: 'https://example.com/docs',
+    });
+  });
+
+  it('keeps a localized disambiguation label on a tab candidate and its composer chip', () => {
+    const [item] = buildTabMentionItems([{
+      id: 'canvas:workspace-2',
+      kind: 'canvas',
+      title: 'Roadmap',
+      workspaceId: 'workspace-2',
+      dockWorkspaceId: 'workspace-1',
+      isActive: true,
+    }], () => 'Canvas · Product · Current tab');
+
+    expect(item.description).toBe('Canvas · Product · Current tab');
+    const chip = createMentionChipElement(item);
+    expect(chip.dataset.nodeType).toBe('workspace');
+    expect(chip.querySelector('.chat-mention-chip-meta')?.textContent)
+      .toBe('Canvas · Product · Current tab');
+    expect(chip.getAttribute('aria-label'))
+      .toBe('Roadmap · Canvas · Product · Current tab');
+  });
+
   it('renders a tab marker back into a clickable jump chip in the transcript', () => {
-    const html = renderMdWithMentions(`@[tab:${encodeURIComponent('link:ab:cd')}|link|${encodeURIComponent('Docs')}] 说说这个`);
+    const html = renderMdWithMentions(`@[tab:${encodeURIComponent('link:ab:cd')}|link|${encodeURIComponent('dock-ws-2')}|${encodeURIComponent('Docs')}] 说说这个`);
     expect(html).toContain('chat-mention-chip--tab');
     expect(html).toContain('chat-mention-chip--clickable');
     expect(html).toContain('data-action="tab-jump"');
     expect(html).toContain('data-tab-id="link:ab:cd"');
+    expect(html).toContain('data-dock-workspace-id="dock-ws-2"');
     expect(html).toContain('Docs');
     expect(html).toContain('说说这个');
+  });
+
+  it('keeps legacy tab markers readable without inventing reopen identity', () => {
+    expect(parseTabMention('tab:link%3Alegacy|link|Legacy%20docs')).toEqual({
+      id: 'link:legacy',
+      kind: 'link',
+      label: 'Legacy docs',
+      dockWorkspaceId: undefined,
+    });
+    expect(parseTabMention('tab:link%3Acurrent|link|dock-ws|Current%20docs')).toEqual({
+      id: 'link:current',
+      kind: 'link',
+      label: 'Current docs',
+      dockWorkspaceId: 'dock-ws',
+    });
+  });
+
+  it('renders persisted tab identity as transcript data attributes', () => {
+    const identity = Array.from(new TextEncoder().encode(JSON.stringify({
+      url: 'https://example.com/docs',
+      workspaceId: 'workspace-2',
+    })), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    const html = renderMdWithMentions(
+      `@[tab:link%3Adocs|link|workspace-2|Product%20docs|ref=${identity}]`,
+    );
+
+    expect(html).toContain('data-tab-url="https://example.com/docs"');
+    expect(html).toContain('data-tab-workspace-id="workspace-2"');
   });
 
   it('colors a transcript role chip from roleColors and falls back to the violet tokens otherwise', () => {
