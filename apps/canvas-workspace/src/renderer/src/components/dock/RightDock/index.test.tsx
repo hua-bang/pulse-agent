@@ -18,8 +18,12 @@ vi.mock('./useDockAgentBridge', () => ({
   useDockAgentBridge: () => undefined,
 }));
 
+const latestDockPanesProps = vi.hoisted(() => ({ canvasTabEditingAllowed: undefined as boolean | undefined }));
 vi.mock('./DockPanes', () => ({
-  DockPanes: () => <div data-testid="dock-panes" />,
+  DockPanes: (props: { canvasTabEditingAllowed?: boolean }) => {
+    latestDockPanesProps.canvasTabEditingAllowed = props.canvasTabEditingAllowed;
+    return <div data-testid="dock-panes" />;
+  },
 }));
 
 vi.mock('./DockCreationControls', () => ({
@@ -29,10 +33,11 @@ vi.mock('./DockCreationControls', () => ({
 let root: Root | null = null;
 let mount: HTMLDivElement | null = null;
 
-const SeededDock = ({ reserveSpace = true, chatTabEnabled = true, capWidth = false }: {
+const SeededDock = ({ reserveSpace = true, chatTabEnabled = true, capWidth = false, canvasTabEditingAllowed = false }: {
   reserveSpace?: boolean;
   chatTabEnabled?: boolean;
   capWidth?: boolean;
+  canvasTabEditingAllowed?: boolean;
 }) => {
   const { store } = useDockContext();
   const seededRef = useRef(false);
@@ -49,13 +54,19 @@ const SeededDock = ({ reserveSpace = true, chatTabEnabled = true, capWidth = fal
       chatTabEnabled={chatTabEnabled}
       reserveSpace={reserveSpace}
       capWidth={capWidth}
+      canvasTabEditingAllowed={canvasTabEditingAllowed}
       workspaces={[]}
       onOpenNodePage={() => undefined}
     />
   );
 };
 
-const renderDock = async (reserveSpace = true, chatTabEnabled = true, capWidth = false) => {
+const renderDock = async (
+  reserveSpace = true,
+  chatTabEnabled = true,
+  capWidth = false,
+  canvasTabEditingAllowed = false,
+) => {
   mount = document.createElement('div');
   document.body.appendChild(mount);
   root = createRoot(mount);
@@ -63,7 +74,12 @@ const renderDock = async (reserveSpace = true, chatTabEnabled = true, capWidth =
     root?.render(
       <I18nProvider>
         <RightDockProvider>
-          <SeededDock reserveSpace={reserveSpace} chatTabEnabled={chatTabEnabled} capWidth={capWidth} />
+          <SeededDock
+            reserveSpace={reserveSpace}
+            chatTabEnabled={chatTabEnabled}
+            capWidth={capWidth}
+            canvasTabEditingAllowed={canvasTabEditingAllowed}
+          />
         </RightDockProvider>
       </I18nProvider>,
     );
@@ -179,6 +195,12 @@ describe('RightDock keyboard resize separator', () => {
 });
 
 describe('RightDock page layout', () => {
+  it('passes the transient AI Chat canvas-editing capability to its panes', async () => {
+    await renderDock(true, false, true, true);
+
+    expect(latestDockPanesProps.canvasTabEditingAllowed).toBe(true);
+  });
+
   it('does not reserve shell width when the dock overlays a library page', async () => {
     await renderDock(false);
 

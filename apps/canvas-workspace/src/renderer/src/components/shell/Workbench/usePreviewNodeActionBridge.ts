@@ -119,7 +119,7 @@ interface EvictPreviewOptions {
 
 /**
  * Picker "In use" rows: tear down a background-mounted workspace and open it
- * as a read-only preview instead. Two-phase because the store refuses to
+ * as a default read-only preview instead. Two-phase because the store refuses to
  * preview a mounted workspace: evict first, then open once the Workbench has
  * published the shrunken mounted set to the dock store (the publish effect
  * runs before this hook's, so ordering holds; a refused open just stays

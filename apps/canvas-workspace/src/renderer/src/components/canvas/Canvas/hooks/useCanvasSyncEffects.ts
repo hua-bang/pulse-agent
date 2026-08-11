@@ -13,6 +13,8 @@ interface Options {
   /** True while pan/zoom is active. Viewport persistence should wait until
    *  the gesture settles so wheel ticks only move the compositor transform. */
   moving?: boolean;
+  /** False for embedded editors whose viewport is local to their pane. */
+  persistViewport?: boolean;
   selectedNodeIds: string[];
   nodesRef: MutableRefObject<CanvasNode[]>;
   /** True while a node drag/resize is in flight. Used to defer the
@@ -42,8 +44,11 @@ interface Options {
   onNodePatchComplete?: (requestId: number) => void;
 }
 
-export const shouldPersistViewportTransform = (loaded: boolean, moving: boolean): boolean =>
-  loaded && !moving;
+export const shouldPersistViewportTransform = (
+  loaded: boolean,
+  moving: boolean,
+  persistViewport = true,
+): boolean => loaded && !moving && persistViewport;
 
 /**
  * Collects the canvas's lifecycle / parent-sync effects in one place:
@@ -59,6 +64,7 @@ export const useCanvasSyncEffects = ({
   autoFitNodes = nodes,
   transform,
   moving = false,
+  persistViewport = true,
   selectedNodeIds,
   nodesRef,
   isDraggingRef,
@@ -93,9 +99,9 @@ export const useCanvasSyncEffects = ({
 
   // Only persist transform after data has loaded to avoid saving empty nodes
   useEffect(() => {
-    if (!shouldPersistViewportTransform(loaded, moving)) return;
+    if (!shouldPersistViewportTransform(loaded, moving, persistViewport)) return;
     setTransformForSave(transform);
-  }, [loaded, moving, transform, setTransformForSave]);
+  }, [loaded, moving, persistViewport, transform, setTransformForSave]);
 
   // Auto-fit all nodes into view on initial load
   useEffect(() => {

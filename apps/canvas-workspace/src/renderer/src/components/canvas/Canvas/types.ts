@@ -8,6 +8,9 @@ export interface CanvasProps {
   canvasName?: string;
   rootFolder?: string;
   isActive?: boolean;
+  /** Keep pan/zoom local to this Canvas instance instead of overwriting the
+   * workspace's canonical viewport. Used by the AI Chat dock editor. */
+  persistViewport?: boolean;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
   onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   focusNodeId?: string;
@@ -22,7 +25,7 @@ export interface CanvasProps {
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
   onPinReferenceNode?: (nodeId: string) => void;
-  onAddToChat?: (nodeId: string) => Promise<ChatDeliveryReceipt>;
+  onAddToChat?: (nodeId: string) => void | Promise<ChatDeliveryReceipt>;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };

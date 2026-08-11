@@ -19,14 +19,17 @@ vi.mock('../../../canvas/Canvas', () => ({
   Canvas: ({
     chatPanelOpen,
     onChatToggle,
+    isActive,
   }: {
     chatPanelOpen?: boolean;
     onChatToggle?: () => void;
+    isActive?: boolean;
   }) => (
     <button
       type="button"
       data-testid="canvas-chat-toggle"
       aria-pressed={chatPanelOpen}
+      data-canvas-active={isActive ? 'true' : 'false'}
       onClick={onChatToggle}
     >
       Toggle AI chat
@@ -112,7 +115,7 @@ const controller = {
   clearRenameRequest: noOp,
 } satisfies WorkbenchController;
 
-const LifecycleHarness = () => {
+const LifecycleHarness = ({ canvasHostActive = true }: { canvasHostActive?: boolean }) => {
   const activeTarget = useActiveChatTarget();
   const knowledgeChatContext = useMemo(
     () => ({ active: false, selectedNode: null }),
@@ -128,6 +131,7 @@ const LifecycleHarness = () => {
         activeWorkspaceId={workspace.id}
         workspaces={[workspace]}
         controller={controller}
+        canvasHostActive={canvasHostActive}
         knowledgeChatContext={knowledgeChatContext}
         onSelectWorkspace={noOp}
         onActivateWorkspace={noOp}
@@ -271,6 +275,25 @@ describe('Workbench chat dock lifecycle', () => {
     expect(host.querySelector('.right-dock')?.getAttribute('data-expanded')).toBe('true');
     expect(host.querySelector('[data-testid="active-chat-target"]')?.textContent)
       .toBe('dock:workspace-a');
+  });
+
+  it('locks the keep-alive main canvas while another route owns the surface', async () => {
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <AppShellProvider>
+            <ChatTargetProvider>
+              <RightDockProvider>
+                <LifecycleHarness canvasHostActive={false} />
+              </RightDockProvider>
+            </ChatTargetProvider>
+          </AppShellProvider>
+        </I18nProvider>,
+      );
+    });
+
+    expect(host.querySelector('[data-testid="canvas-chat-toggle"]')?.getAttribute('data-canvas-active'))
+      .toBe('false');
   });
 
   it('keeps the knowledge-detail chat target stable across broker renders', async () => {

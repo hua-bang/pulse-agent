@@ -19,6 +19,10 @@ describe('shouldPersistViewportTransform', () => {
   it('persists the settled viewport once the gesture is idle', () => {
     expect(shouldPersistViewportTransform(true, false)).toBe(true);
   });
+
+  it('keeps an embedded editor viewport local even after it settles', () => {
+    expect(shouldPersistViewportTransform(true, false, false)).toBe(false);
+  });
 });
 
 describe('useCanvasSyncEffects', () => {

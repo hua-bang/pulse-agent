@@ -46,62 +46,89 @@ export const CanvasPreviewState = ({ label, kind, onRetry, action }: StateProps)
 interface ControlsProps {
   scale: number;
   canFit: boolean;
+  editingAllowed?: boolean;
+  editing?: boolean;
+  onEditToggle?: () => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
   onFit: () => void;
 }
 
-export const CanvasPreviewChrome = ({ scale, canFit, onZoomOut, onZoomIn, onFit }: ControlsProps) => {
+export const CanvasPreviewChrome = ({
+  scale,
+  canFit,
+  editingAllowed = false,
+  editing = false,
+  onEditToggle,
+  onZoomOut,
+  onZoomIn,
+  onFit,
+}: ControlsProps) => {
   const { t } = useI18n();
   const zoomPercent = Math.round(scale * 100);
   return (
     <>
-      <div className="canvas-preview__read-only canvas-preview__chrome">
-        {t('rightDock.readOnlyCanvasPreview')}
+      <div className="canvas-preview__mode-control canvas-preview__chrome">
+        <span className={editing ? 'canvas-preview__editing' : 'canvas-preview__read-only'}>
+          {t(editing ? 'rightDock.editingCanvas' : 'rightDock.readOnlyCanvasPreview')}
+        </span>
+        {editingAllowed && onEditToggle && (
+          <Button
+            variant="secondary"
+            size="xs"
+            className="canvas-preview__edit-toggle"
+            aria-pressed={editing}
+            onClick={onEditToggle}
+          >
+            {t(editing ? 'rightDock.finishEditingCanvas' : 'rightDock.editCanvas')}
+          </Button>
+        )}
       </div>
-      <div
-        className="canvas-preview__controls canvas-preview__chrome"
-        role="toolbar"
-        aria-label={t('rightDock.canvasPreviewZoom')}
-      >
-        <Button
-          variant="icon"
-          size="md"
-          className="canvas-preview__zoom-button"
-          aria-label={t('rightDock.zoomOut')}
-          title={t('rightDock.zoomOut')}
-          onClick={onZoomOut}
+      {!editing && (
+        <div
+          className="canvas-preview__controls canvas-preview__chrome"
+          role="toolbar"
+          aria-label={t('rightDock.canvasPreviewZoom')}
         >
-          <span className="canvas-preview__minus" aria-hidden="true">−</span>
-        </Button>
-        <output
-          className="canvas-preview__zoom-value"
-          aria-live="polite"
-          aria-label={t('rightDock.zoomLevel', { value: zoomPercent })}
-        >
-          {zoomPercent}%
-        </output>
-        <Button
-          variant="icon"
-          size="md"
-          className="canvas-preview__zoom-button"
-          aria-label={t('rightDock.zoomIn')}
-          title={t('rightDock.zoomIn')}
-          onClick={onZoomIn}
-        >
-          <PlusIcon size={14} />
-        </Button>
-        <Button
-          variant="secondary"
-          size="xs"
-          className="canvas-preview__fit"
-          disabled={!canFit}
-          onClick={onFit}
-          title={t('rightDock.fitCanvas')}
-        >
-          {t('rightDock.fitCanvas')}
-        </Button>
-      </div>
+          <Button
+            variant="icon"
+            size="md"
+            className="canvas-preview__zoom-button"
+            aria-label={t('rightDock.zoomOut')}
+            title={t('rightDock.zoomOut')}
+            onClick={onZoomOut}
+          >
+            <span className="canvas-preview__minus" aria-hidden="true">−</span>
+          </Button>
+          <output
+            className="canvas-preview__zoom-value"
+            aria-live="polite"
+            aria-label={t('rightDock.zoomLevel', { value: zoomPercent })}
+          >
+            {zoomPercent}%
+          </output>
+          <Button
+            variant="icon"
+            size="md"
+            className="canvas-preview__zoom-button"
+            aria-label={t('rightDock.zoomIn')}
+            title={t('rightDock.zoomIn')}
+            onClick={onZoomIn}
+          >
+            <PlusIcon size={14} />
+          </Button>
+          <Button
+            variant="secondary"
+            size="xs"
+            className="canvas-preview__fit"
+            disabled={!canFit}
+            onClick={onFit}
+            title={t('rightDock.fitCanvas')}
+          >
+            {t('rightDock.fitCanvas')}
+          </Button>
+        </div>
+      )}
     </>
   );
 };

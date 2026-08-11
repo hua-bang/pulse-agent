@@ -6,6 +6,7 @@ import { useCanvasFit } from '../../../hooks/useCanvasFit';
 import { useCanvasVisibility } from '../../canvas/Canvas/hooks/useCanvasVisibility';
 import { useCanvasRenderOrder } from '../../canvas/Canvas/hooks/useCanvasRenderOrder';
 import { CanvasSurface } from '../../canvas/Canvas/CanvasSurface';
+import { Canvas } from '../../canvas/Canvas';
 // The reused surface pieces (.canvas-transform / .canvas-grid / node chrome
 // positioning) are styled by the Canvas stylesheet. Import it explicitly —
 // relying on the main Canvas having loaded it would be an implicit coupling.
@@ -30,6 +31,13 @@ interface CanvasPreviewProps {
   tabRef?: AgentContextTabRef;
   targetWorkspaceId?: string;
   onAddTabToChat?: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
+  /** Transient host capability. Only the dedicated AI Chat route grants it. */
+  editingAllowed?: boolean;
+  /** Whether this pane is currently visible/focused enough to own shortcuts. */
+  active?: boolean;
+  onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
+  onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
+  onAddDomSelectionToChat?: Parameters<typeof Canvas>[0]['onAddDomSelectionToChat'];
 }
 
 const NOOP = () => undefined;
@@ -51,21 +59,36 @@ const EMPTY_SNAPSHOT: Snapshot = {
 const PREVIEW_ZOOM_STEP = 1.2;
 
 /**
- * Read-only preview of another workspace's canvas, mounted as a right-dock
- * tab so two canvases can be viewed side by side. It loads the workspace
- * snapshot straight from the store and re-loads on external updates (agent /
- * CLI writes, or edits made in the main canvas). Rendering reuses the real
- * `CanvasSurface` in `readOnly` mode — nodes are faithful but non-interactive;
- * only pan (drag) and zoom (wheel) are allowed. All editing entry points are
- * disabled, so this view never mutates the previewed workspace.
+ * Canvas tab for another workspace. It starts as a read-only snapshot that
+ * stays live with external writes. Only the dedicated AI Chat host may offer
+ * an explicit Edit mode; that branch mounts the real Canvas so persistence,
+ * edge/node history and undo retain their canonical behavior. Every other
+ * host remains read-only, and host permission is transient rather than part
+ * of the persisted tab.
  */
-export const CanvasPreview = ({ workspaceId, canvasName, rootFolder, tabRef, targetWorkspaceId, onAddTabToChat }: CanvasPreviewProps) => {
+export const CanvasPreview = ({
+  workspaceId,
+  canvasName,
+  rootFolder,
+  tabRef,
+  targetWorkspaceId,
+  onAddTabToChat,
+  editingAllowed = false,
+  active = false,
+  onNodesChange,
+  onSelectionChange,
+  onAddDomSelectionToChat,
+}: CanvasPreviewProps) => {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const transformLayerRef = useRef<HTMLDivElement>(null);
   const [snapshot, setSnapshot] = useState<Snapshot>(EMPTY_SNAPSHOT);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  // Store the workspace that requested editing instead of a bare boolean so
+  // a retained Tab changing resources drops editability synchronously.
+  const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
+  const editing = editingAllowed && editingWorkspaceId === workspaceId;
   // Once the user pans/zooms the preview, stop auto-framing it.
   const userMovedRef = useRef(false);
   // Node the preview was asked to frame (reference "peek at source").
@@ -74,6 +97,10 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder, tabRef, tar
   // rendered with the same purple ring the main canvas uses.
   const [externallyEditedIds, setExternallyEditedIds] = useState<Set<string>>(EMPTY_STR_SET);
   const editClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!editingAllowed) setEditingWorkspaceId(null);
+  }, [editingAllowed]);
 
   const {
     transform, setTransform, settledScale, moving, zoomByStep,
@@ -214,7 +241,7 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder, tabRef, tar
     />
   ) : null;
 
-  // Reading actions stay available in the read-only preview: route them to
+  // Reading actions stay available in preview and edit modes: route them to
   // the Workbench via the window bridge (chat composer / reference panel of
   // the ACTIVE workspace), carrying the full node so no store read is needed.
   const dispatchNodeAction = useCallback((action: 'add-to-chat' | 'pin-reference' | 'add-to-canvas', nodeId: string) => {
@@ -224,6 +251,14 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder, tabRef, tar
   const handleAddToChat = useCallback((nodeId: string) => dispatchNodeAction('add-to-chat', nodeId), [dispatchNodeAction]);
   const handlePinReference = useCallback((nodeId: string) => dispatchNodeAction('pin-reference', nodeId), [dispatchNodeAction]);
   const handleAddToCanvas = useCallback((nodeId: string) => dispatchNodeAction('add-to-canvas', nodeId), [dispatchNodeAction]);
+  const handleEditableNodesChange = useCallback((canvasId: string, nodes: CanvasNode[]) => {
+    setSnapshot((current) => ({ ...current, nodes }));
+    onNodesChange?.(canvasId, nodes);
+  }, [onNodesChange]);
+  const handleEditToggle = useCallback(() => {
+    if (!editingAllowed) return;
+    setEditingWorkspaceId((current) => current === workspaceId ? null : workspaceId);
+  }, [editingAllowed, workspaceId]);
 
   // Frame the whole canvas into the dock pane (fit-to-content). The pane is a
   // different shape from the main window and — crucially — animates its width
@@ -263,12 +298,53 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder, tabRef, tar
     return <CanvasPreviewState label={previewLabel} kind="error" onRetry={handleRetry} action={tabChatAction} />;
   }
 
+  if (editing) {
+    const editableLabel = t('rightDock.editableCanvasRegion', {
+      name: canvasName ?? t('rightDock.canvasPreviewName'),
+    });
+    return (
+      <div
+        className="canvas-preview"
+        data-mode="edit"
+        role="region"
+        aria-label={editableLabel}
+      >
+        <FileNodeEditorRegistryProvider>
+          <Canvas
+            canvasId={workspaceId}
+            canvasName={canvasName}
+            rootFolder={rootFolder}
+            isActive={active}
+            persistViewport={false}
+            onNodesChange={handleEditableNodesChange}
+            onSelectionChange={onSelectionChange}
+            onPinReferenceNode={handlePinReference}
+            onAddToChat={handleAddToChat}
+            onAddDomSelectionToChat={onAddDomSelectionToChat}
+          />
+        </FileNodeEditorRegistryProvider>
+        <CanvasPreviewChrome
+          scale={transform.scale}
+          canFit={false}
+          editingAllowed
+          editing
+          onEditToggle={handleEditToggle}
+          onZoomOut={handleZoomOut}
+          onZoomIn={handleZoomIn}
+          onFit={handleFitAll}
+        />
+        {tabChatAction}
+      </div>
+    );
+  }
+
   return (
     <WorkspaceActiveProvider value={false}>
       <FileNodeEditorRegistryProvider>
         <div
           ref={containerRef}
           className="canvas-preview"
+          data-mode="preview"
           role="region"
           aria-label={previewLabel}
           onWheel={(e) => { userMovedRef.current = true; handleWheel(e); }}
@@ -332,6 +408,9 @@ export const CanvasPreview = ({ workspaceId, canvasName, rootFolder, tabRef, tar
           <CanvasPreviewChrome
             scale={transform.scale}
             canFit={visibleNodes.length > 0}
+            editingAllowed={editingAllowed}
+            editing={false}
+            onEditToggle={handleEditToggle}
             onZoomOut={handleZoomOut}
             onZoomIn={handleZoomIn}
             onFit={handleFitAll}

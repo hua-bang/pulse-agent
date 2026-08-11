@@ -34,8 +34,8 @@ describe('ChatInput execution and attachment states', () => {
     ));
 
     const status = host.querySelector<HTMLElement>('.chat-scope-capability');
-    expect(status?.textContent).toBe('Global chat · Canvas read-only');
-    expect(status?.getAttribute('aria-label')).toBe('Global chat · Canvas read-only');
+    expect(status?.textContent).toBe('Global chat · AI canvas: read-only');
+    expect(status?.getAttribute('aria-label')).toBe('Global chat · AI canvas: read-only');
 
     act(() => root.render(
       <I18nProvider>

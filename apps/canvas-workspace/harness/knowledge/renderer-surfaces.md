@@ -90,6 +90,10 @@ The workbench has exactly two side regions plus a modal tier:
   which portals its per-workspace `ChatPanel` instances into the dock's
   chat pane (`useRightDockChatHost`) — the portal escapes the keep-alive
   router's `display:none` wrapper, so chat state survives route switches.
+  Canvas tabs default to read-only in every host. The dedicated `/chat` route
+  alone may expose an explicit edit mode backed by the canonical `Canvas`;
+  ordinary workspace docks remain read-only and direct editing to the main
+  canvas. Route-derived permission is transient and never part of DockStore.
 - **Modal tier.** Settings drawers (`ui/Drawer` shell, formerly
   `SettingsDrawer`), the command palette, and app-shell dialogs/toasts (the
   centered ones now share the `ui/Modal` shell). These are modal with

@@ -11,6 +11,10 @@ const controls = vi.hoisted(() => ({
   fitAllNodes: vi.fn(),
   zoomByStep: vi.fn(),
 }));
+const rendered = vi.hoisted(() => ({
+  canvasProps: null as null | { isActive?: boolean; persistViewport?: boolean },
+  surfaceReadOnly: undefined as boolean | undefined,
+}));
 
 vi.mock('../../../../hooks/useCanvas', () => ({
   useCanvas: () => ({
@@ -34,7 +38,17 @@ vi.mock('../../../../hooks/useCanvasFit', () => ({
 }));
 
 vi.mock('../../../canvas/Canvas/CanvasSurface', () => ({
-  CanvasSurface: () => <div data-testid="canvas-surface" />,
+  CanvasSurface: (props: { readOnly?: boolean }) => {
+    rendered.surfaceReadOnly = props.readOnly;
+    return <div data-testid="canvas-surface" />;
+  },
+}));
+
+vi.mock('../../../canvas/Canvas', () => ({
+  Canvas: (props: { isActive?: boolean; persistViewport?: boolean }) => {
+    rendered.canvasProps = props;
+    return <div data-testid="editable-canvas" />;
+  },
 }));
 
 import { CanvasPreview } from '../CanvasPreview';
@@ -69,27 +83,42 @@ const installStore = () => {
   });
 };
 
-const renderPreview = async (props?: {
+interface PreviewTestProps {
   tabRef?: AgentContextTabRef;
   onAddTabToChat?: (workspaceId: string, tab: AgentContextTabRef) => Promise<ChatDeliveryReceipt>;
-}) => {
+  editingAllowed?: boolean;
+  active?: boolean;
+}
+
+const previewTree = (props?: PreviewTestProps) => (
+  <I18nProvider>
+    <AppShellProvider>
+      <CanvasPreview
+        workspaceId="workspace-1"
+        canvasName="Research"
+        tabRef={props?.tabRef}
+        targetWorkspaceId={props?.tabRef ? 'workspace-1' : undefined}
+        onAddTabToChat={props?.onAddTabToChat}
+        editingAllowed={props?.editingAllowed}
+        active={props?.active}
+      />
+    </AppShellProvider>
+  </I18nProvider>
+);
+
+const renderPreview = async (props?: PreviewTestProps) => {
   mount = document.createElement('div');
   document.body.appendChild(mount);
   root = createRoot(mount);
   await act(async () => {
-    root?.render(
-      <I18nProvider>
-        <AppShellProvider>
-          <CanvasPreview
-            workspaceId="workspace-1"
-            canvasName="Research"
-            tabRef={props?.tabRef}
-            targetWorkspaceId={props?.tabRef ? 'workspace-1' : undefined}
-            onAddTabToChat={props?.onAddTabToChat}
-          />
-        </AppShellProvider>
-      </I18nProvider>,
-    );
+    root?.render(previewTree(props));
+    await Promise.resolve();
+  });
+};
+
+const rerenderPreview = async (props?: PreviewTestProps) => {
+  await act(async () => {
+    root?.render(previewTree(props));
     await Promise.resolve();
   });
 };
@@ -98,6 +127,8 @@ beforeEach(() => {
   load = vi.fn();
   controls.fitAllNodes.mockReset();
   controls.zoomByStep.mockReset();
+  rendered.canvasProps = null;
+  rendered.surfaceReadOnly = undefined;
   installStore();
   Object.defineProperty(globalThis, 'ResizeObserver', {
     configurable: true,
@@ -119,6 +150,35 @@ afterEach(() => {
 });
 
 describe('CanvasPreview accessible read-only chrome', () => {
+  it('offers editing only while the current host grants it, and never revives an old edit session', async () => {
+    load.mockResolvedValue({
+      ok: true,
+      data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    });
+    await renderPreview({ editingAllowed: true, active: true });
+
+    await vi.waitFor(() => expect(mount?.querySelector('[data-testid="canvas-surface"]')).not.toBeNull());
+    const edit = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Edit canvas');
+    expect(edit).toBeDefined();
+    expect(rendered.surfaceReadOnly).toBe(true);
+
+    await act(async () => edit?.click());
+    expect(mount?.querySelector('[data-testid="editable-canvas"]')).not.toBeNull();
+    expect(mount?.querySelector('.canvas-preview')?.getAttribute('data-mode')).toBe('edit');
+    expect(rendered.canvasProps).toMatchObject({ isActive: true, persistViewport: false });
+
+    await rerenderPreview({ editingAllowed: false, active: true });
+    expect(mount?.querySelector('[data-testid="editable-canvas"]')).toBeNull();
+    expect(mount?.querySelector('.canvas-preview__read-only')?.textContent).toBe('Read-only preview');
+    expect([...mount!.querySelectorAll('button')].some((button) => button.textContent === 'Edit canvas')).toBe(false);
+    expect(rendered.surfaceReadOnly).toBe(true);
+
+    await rerenderPreview({ editingAllowed: true, active: true });
+    expect(mount?.querySelector('[data-testid="editable-canvas"]')).toBeNull();
+    expect([...mount!.querySelectorAll('button')].some((button) => button.textContent === 'Edit canvas')).toBe(true);
+  });
+
   it('labels the region and exposes local zoom controls without implying editability', async () => {
     load.mockResolvedValue({
       ok: true,

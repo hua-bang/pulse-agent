@@ -116,7 +116,7 @@ toggle.
   re-pointed at a content tab rather than collapsed — collapsing instead
   would make the first click read as a no-op.
 - The button stays visible and actionable even when no content tab exists.
-  Its first click opens the scoped workspace canvas as a read-only preview
+  Its first click opens the scoped workspace canvas in preview mode
   when possible; global/scheduled scopes and an already-mounted canvas create
   a blank browser tab instead. Its topbar position must not jump as tabs land.
 
@@ -129,6 +129,33 @@ the AI Chat page.
 
 Tests: `RightDock/__tests__/dock-content-tabs.test.ts`, plus the no-chat-tab
 inset case inside `RightDock/index.test.tsx`.
+
+### Canvas-tab editing host boundary
+
+Canvas tabs always open in preview mode. Only the dedicated `/chat` AI Chat
+route may show an explicit Edit action; canvas tabs in the workspace dock,
+scheduled-task chat, Nodes, Skills, and plugin routes remain read-only. The
+capability is derived from the current route and passed through App →
+RightDock → DockPanes → CanvasPreview. It is never persisted on the tab, so a
+retained tab drops back to preview synchronously when its host changes and a
+later return to AI Chat does not revive the old edit session.
+
+Edit mode mounts the canonical `Canvas` implementation rather than teaching
+the snapshot preview to mutate. This preserves nodes+edges history, save
+failure handling, updatedAt merging, flush-on-unmount, and undo/redo. The dock
+viewport is local: it auto-fits the pane and never overwrites the workspace's
+main-canvas transform; node-only saves retain the transform loaded from disk.
+The existing mounted-workspace guard remains the one-writer boundary: a live
+Workbench canvas cannot also open as a dock canvas, and mounting that workspace
+closes its dock tab. Because Workbench is route-keep-alive, off-route canvases
+must also receive `isActive=false` so their global keyboard/paste handlers do
+not compete with the visible dock editor.
+
+Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
+`RightDock/index.test.tsx`, `RightDock/__tests__/DockPanes.test.tsx`,
+`RightDock/__tests__/CanvasPreview.test.tsx`,
+`Canvas/hooks/useCanvasSyncEffects.test.ts`, `hooks/useNodes.test.tsx`, and
+`Workbench/__tests__/ChatDockLifecycle.test.tsx`.
 
 ### Explicit Chat ↔ dock-tab context
 

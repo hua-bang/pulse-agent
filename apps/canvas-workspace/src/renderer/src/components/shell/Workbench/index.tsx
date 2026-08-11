@@ -32,6 +32,9 @@ const ReferenceDrawer = lazy(() => import('../../dock/ReferenceDrawer').then((m)
 const KnowledgeChatPortal = lazy(() => import('./KnowledgeChatPortal').then((m) => ({ default: m.KnowledgeChatPortal })));
 interface WorkbenchProps {
   activeWorkspaceId: string;
+  /** PulseRouter keeps Workbench mounted off-route; only the visible canvas
+   * route may own global canvas keyboard and paste handlers. */
+  canvasHostActive?: boolean;
   workspaces: WorkspaceEntry[];
   controller: WorkbenchController;
   knowledgeChatContext: KnowledgeChatRouteContext;
@@ -47,6 +50,7 @@ interface WorkbenchProps {
 }
 export const Workbench: React.FC<WorkbenchProps> = ({
   activeWorkspaceId,
+  canvasHostActive = true,
   workspaces,
   controller,
   knowledgeChatContext,
@@ -372,7 +376,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                     canvasId={ws.id}
                     canvasName={ws.name}
                     rootFolder={ws.rootFolder}
-                    isActive={isActive}
+                    isActive={canvasHostActive && isActive}
                     onNodesChange={handleNodesChange}
                     onSelectionChange={handleSelectionChange}
                     focusNodeId={ws.id === focusRequest?.workspaceId ? focusRequest.nodeId : undefined}

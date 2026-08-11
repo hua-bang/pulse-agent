@@ -13,7 +13,7 @@ import { useDragResize } from '../../ui';
 import { useI18n } from '../../../i18n';
 import { CHAT_TAB_ID, isTerminalTabId } from './dock-store';
 import { useDockContext, useRightDockState } from './context';
-import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import type { RightDockProps } from './dock-types';
 import { useConsumePendingLinks } from '../../../hooks/useConsumePendingLinks';
 import { useDockLinkOpens } from './useDockLinkOpens';
 import { useDockAgentBridge } from './useDockAgentBridge';
@@ -58,7 +58,11 @@ export {
   useRightDockTerminalHost,
 } from './context';
 export { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
-export { isDockChatTabEnabled, isGlobalChatLauncherVisible } from './dock-chat-availability';
+export {
+  isCanvasTabEditingAllowed,
+  isDockChatTabEnabled,
+  isGlobalChatLauncherVisible,
+} from './dock-chat-availability';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const RESIZING_CLASS = 'right-dock-resizing';
@@ -92,24 +96,15 @@ function persistWidth(value: number): void {
   }
 }
 
-interface RightDockProps {
-  activeWorkspaceId: string;
-  activeIdReady: boolean;
-  chatTabEnabled: boolean;
-  reserveSpace: boolean;
-  capWidth: boolean;
-  pageMinAppWidth?: number;
-  workspaces: WorkspaceEntry[];
-  onOpenNodePage: (workspaceId: string, nodeId: string) => void;
-  onActivateWorkspace?: (workspaceId: string) => void;
-}
-
 export const RightDock = ({
   activeWorkspaceId,
   activeIdReady,
   chatTabEnabled,
   reserveSpace,
   capWidth,
+  canvasTabEditingAllowed = false,
+  onCanvasNodesChange,
+  onCanvasSelectionChange,
   pageMinAppWidth,
   workspaces,
   onOpenNodePage,
@@ -463,6 +458,9 @@ export const RightDock = ({
         dockVisible={visible}
         splitTabId={splitTabId}
         chatTabEnabled={chatTabEnabled}
+        canvasTabEditingAllowed={canvasTabEditingAllowed}
+        onCanvasNodesChange={onCanvasNodesChange}
+        onCanvasSelectionChange={onCanvasSelectionChange}
         splitContentWidth={splitView.contentWidth}
         splitDividerWidth={splitView.dividerWidth}
         splitMinContentWidth={splitView.minContentWidth}

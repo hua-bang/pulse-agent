@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isDockChatTabEnabled, isGlobalChatLauncherVisible } from '../dock-chat-availability';
+import {
+  isCanvasTabEditingAllowed,
+  isDockChatTabEnabled,
+  isGlobalChatLauncherVisible,
+} from '../dock-chat-availability';
 
 describe('dock chat availability', () => {
   it('hides the dock chat tab only where a full-page chat owns the surface', () => {
@@ -21,5 +25,12 @@ describe('dock chat availability', () => {
     expect(isGlobalChatLauncherVisible('canvas')).toBe(false);
     expect(isGlobalChatLauncherVisible('chat')).toBe(false);
     expect(isGlobalChatLauncherVisible('scheduled-task')).toBe(false);
+  });
+
+  it('allows dock canvas editing only on the dedicated AI Chat page', () => {
+    expect(isCanvasTabEditingAllowed('chat')).toBe(true);
+    for (const view of ['canvas', 'scheduled-task', 'scheduled', 'nodes', 'skills', '/plugin']) {
+      expect(isCanvasTabEditingAllowed(view)).toBe(false);
+    }
   });
 });

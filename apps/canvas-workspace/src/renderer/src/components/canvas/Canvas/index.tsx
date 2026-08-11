@@ -58,6 +58,7 @@ export const Canvas = ({
   canvasName,
   rootFolder,
   isActive = true,
+  persistViewport = true,
   onNodesChange,
   onSelectionChange,
   focusNodeId,
@@ -188,10 +189,12 @@ export const Canvas = ({
     mergeMindmapTopic, splitMindmapTopic,
   } = useNodes(
     canvasId,
-    (savedTransform) => {
-      hasAutoFittedRef.current = true;
-      setTransform(savedTransform);
-    },
+    persistViewport
+      ? (savedTransform) => {
+          hasAutoFittedRef.current = true;
+          setTransform(savedTransform);
+        }
+      : undefined,
     handleAgentCreated,
     handleSaveError,
   );
@@ -647,6 +650,7 @@ export const Canvas = ({
   useCanvasSyncEffects({
     canvasId, loaded, nodes, transform, selectedNodeIds,
     moving,
+    persistViewport,
     autoFitNodes: visibleNodes,
     nodesRef,
     isDraggingRef: mouse.isDraggingRef,

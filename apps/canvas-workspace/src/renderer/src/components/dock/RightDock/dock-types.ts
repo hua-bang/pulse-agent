@@ -1,4 +1,22 @@
-import type { CanvasConfigScope, CanvasSkillEntry } from '../../../types';
+import type { CanvasConfigScope, CanvasNode, CanvasSkillEntry } from '../../../types';
+import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+
+export interface RightDockProps {
+  activeWorkspaceId: string;
+  activeIdReady: boolean;
+  chatTabEnabled: boolean;
+  reserveSpace: boolean;
+  capWidth: boolean;
+  /** User editing for canvas tabs is a host capability, granted only by the
+   * dedicated AI Chat route. It is never persisted with a tab. */
+  canvasTabEditingAllowed?: boolean;
+  onCanvasNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
+  onCanvasSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
+  pageMinAppWidth?: number;
+  workspaces: WorkspaceEntry[];
+  onOpenNodePage: (workspaceId: string, nodeId: string) => void;
+  onActivateWorkspace?: (workspaceId: string) => void;
+}
 
 export type DockPreviewTab =
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }

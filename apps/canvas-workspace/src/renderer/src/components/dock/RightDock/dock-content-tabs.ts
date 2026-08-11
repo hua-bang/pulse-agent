@@ -39,7 +39,9 @@ export const getToggleContentTabsPatch = (state: DockState): Partial<DockState> 
 
 /**
  * Whether `workspaceId`'s own canvas could be opened as a fresh content tab
- * right now, as a read-only preview (`RightDockContext.openCanvasPreview`).
+ * right now, as a default read-only preview (`RightDockContext.openCanvasPreview`).
+ * The dedicated AI Chat host may then offer an explicit edit mode; other
+ * hosts never do.
  * False when there's no workspace to preview (global chat, a scheduled task)
  * or that canvas is already live in the main Workbench — previewing it
  * there too would show two copies of the same editable state. Same

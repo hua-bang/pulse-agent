@@ -11,6 +11,7 @@ describe('useNodes text resize commit', () => {
   let root: Root;
   let host: HTMLElement;
   let hook: ReturnType<typeof useNodes>;
+  let save: ReturnType<typeof vi.fn>;
   let originalCanvasWorkspace: typeof window.canvasWorkspace;
 
   const node = {
@@ -32,13 +33,21 @@ describe('useNodes text resize commit', () => {
 
   beforeEach(async () => {
     vi.useFakeTimers();
+    save = vi.fn().mockResolvedValue({ ok: true });
     originalCanvasWorkspace = window.canvasWorkspace;
     Object.defineProperty(window, 'canvasWorkspace', {
       configurable: true,
       value: {
         store: {
-          load: vi.fn().mockResolvedValue({ ok: true, data: { nodes: [node], edges: [] } }),
-          save: vi.fn().mockResolvedValue({ ok: true }),
+          load: vi.fn().mockResolvedValue({
+            ok: true,
+            data: {
+              nodes: [node],
+              edges: [],
+              transform: { x: 91, y: -37, scale: 0.75 },
+            },
+          }),
+          save,
         },
       },
     });
@@ -114,5 +123,20 @@ describe('useNodes text resize commit', () => {
       expect(hook.undo()).toBe(true);
     });
     expect((hook.nodes[0].data as { content?: string }).content).toBe('hello');
+  });
+
+  it('preserves the loaded viewport when an embedded editor saves only node changes', async () => {
+    act(() => {
+      hook.updateNode('text-1', { title: 'Edited in AI Chat' });
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+
+    expect(save).toHaveBeenCalled();
+    expect(save.mock.calls.at(-1)?.[1]).toMatchObject({
+      transform: { x: 91, y: -37, scale: 0.75 },
+    });
   });
 });

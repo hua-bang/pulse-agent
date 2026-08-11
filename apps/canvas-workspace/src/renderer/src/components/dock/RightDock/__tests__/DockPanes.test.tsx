@@ -39,6 +39,25 @@ vi.mock('../../LinkDrawer', () => ({
   },
 }));
 
+const latestCanvasPreviewProps = vi.hoisted(() => new Map<string, {
+  editingAllowed?: boolean;
+  active?: boolean;
+  onNodesChange?: unknown;
+  onSelectionChange?: unknown;
+}>());
+vi.mock('../CanvasPreview', () => ({
+  CanvasPreview: (props: {
+    workspaceId: string;
+    editingAllowed?: boolean;
+    active?: boolean;
+    onNodesChange?: unknown;
+    onSelectionChange?: unknown;
+  }) => {
+    latestCanvasPreviewProps.set(props.workspaceId, props);
+    return <div data-canvas-preview={props.workspaceId} />;
+  },
+}));
+
 /** Props the LinkTabView for `tabId` last rendered with, in `workspaceId`. */
 const propsFor = (tabId: string, workspaceId = 'ws1') =>
   latestLinkTabProps.get(`${workspaceId}::${tabId}`);
@@ -49,6 +68,7 @@ let mount: HTMLDivElement | null = null;
 beforeEach(() => {
   latestLinkTabProps.clear();
   latestTabChatActionProps.clear();
+  latestCanvasPreviewProps.clear();
 });
 
 afterEach(() => {
@@ -386,6 +406,57 @@ describe('DockPanes tabpanel relationships', () => {
     expect(firstPane.getAttribute('aria-labelledby')).toBe(dockTabElementId(first.id));
     expect(firstPane.getAttribute('aria-hidden')).toBe('true');
     expect(secondPane.getAttribute('aria-hidden')).toBe('false');
+  });
+});
+
+describe('DockPanes canvas editing host capability', () => {
+  it('passes AI Chat permission and visible-pane activity without persisting either on the tab', async () => {
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openCanvasPreview('ws2', 'Research');
+    const tab = store.getSnapshot().tabs[0]!;
+    const onCanvasNodesChange = vi.fn();
+    const onCanvasSelectionChange = vi.fn();
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+
+    const render = (dockVisible: boolean) => flushSync(() => root?.render(
+      <I18nProvider><DockPanes
+        store={store}
+        state={store.getSnapshot()}
+        activePaneId={tab.id}
+        dockVisible={dockVisible}
+        chatTabEnabled={false}
+        canvasTabEditingAllowed
+        onCanvasNodesChange={onCanvasNodesChange}
+        onCanvasSelectionChange={onCanvasSelectionChange}
+        splitContentWidth={320}
+        splitDividerWidth={6}
+        onDividerMouseDown={() => undefined}
+        setChatHost={() => undefined}
+        setTerminalHost={() => undefined}
+        terminalHostMounted={false}
+        activeWorkspaceId="ws1"
+        workspaces={[{ id: 'ws2', name: 'Research' }]}
+        onOpenNodePage={() => undefined}
+        pinUrlReference={() => undefined}
+        onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
+      /></I18nProvider>,
+    ));
+
+    render(true);
+    await vi.waitFor(() => expect(latestCanvasPreviewProps.get('ws2')).toBeDefined());
+    expect(latestCanvasPreviewProps.get('ws2')).toMatchObject({
+      editingAllowed: true,
+      active: true,
+      onNodesChange: onCanvasNodesChange,
+      onSelectionChange: onCanvasSelectionChange,
+    });
+    expect(store.getSnapshot().tabs[0]).not.toHaveProperty('editingAllowed');
+
+    render(false);
+    expect(latestCanvasPreviewProps.get('ws2')?.active).toBe(false);
   });
 });
 

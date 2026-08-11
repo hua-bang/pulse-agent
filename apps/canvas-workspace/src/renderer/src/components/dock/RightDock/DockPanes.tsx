@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { useI18n } from '../../../i18n';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
-import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../../types';
+import type { AgentContextDomSelectionRef, AgentContextTabRef, CanvasNode } from '../../../types';
 import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './dock-store';
 import { linkPaneKey } from './dock-link-tabs';
 import { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
@@ -42,6 +42,9 @@ interface Props {
   dockVisible: boolean;
   splitTabId?: string;
   chatTabEnabled: boolean;
+  canvasTabEditingAllowed?: boolean;
+  onCanvasNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
+  onCanvasSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   splitContentWidth: number;
   splitDividerWidth: number;
   splitMinContentWidth?: number;
@@ -68,6 +71,9 @@ export const DockPanes = ({
   dockVisible,
   splitTabId,
   chatTabEnabled,
+  canvasTabEditingAllowed = false,
+  onCanvasNodesChange,
+  onCanvasSelectionChange,
   splitContentWidth,
   splitDividerWidth,
   splitMinContentWidth,
@@ -268,6 +274,11 @@ export const DockPanes = ({
                 tabRef={tabRefsById.get(tab.id)}
                 targetWorkspaceId={activeWorkspaceId}
                 onAddTabToChat={onAddTabToChat}
+                editingAllowed={canvasTabEditingAllowed}
+                active={dockVisible && (tab.id === activePaneId || tab.id === splitTabId)}
+                onNodesChange={onCanvasNodesChange}
+                onSelectionChange={onCanvasSelectionChange}
+                onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(tab.workspaceId, selection)}
               />
             </Suspense>
           ) : tab.kind === 'skill' ? (
