@@ -18,7 +18,6 @@ vi.mock('../ChatPageBody', async () => {
       agentScope: { kind: string; workspaceId?: string };
       contextSnapshot?: { label: string };
       executionPolicy?: 'auto' | 'ask' | 'scheduled';
-      onExecutionPolicyChange?: (policy: 'auto' | 'ask') => void;
       pendingSessionId: string | null;
       pendingSessionIntentId: number | null;
       onSessionConsumed: (intentId: number, loaded: boolean) => void;
@@ -51,7 +50,6 @@ vi.mock('../ChatPageBody', async () => {
                 workspaceId: props.agentScope.workspaceId ?? '__global_chat__',
               });
             },
-            onDoubleClick: () => props.onExecutionPolicyChange?.('auto'),
             onClick: () => props.onSelectSession({
               sessionId: 'session-b',
               workspaceId: 'workspace-b',

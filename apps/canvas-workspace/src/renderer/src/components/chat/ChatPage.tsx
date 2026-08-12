@@ -206,7 +206,6 @@ export const ChatPage = ({
       agentScope={agentScope}
       contextSnapshot={contextSnapshot}
       executionPolicy={executionPolicy}
-      onExecutionPolicyChange={setExecutionPolicy}
       initialPendingSessionId={pendingSessionId}
       pendingSessionId={pendingSessionId}
       pendingSessionIntentId={pendingSessionIntent?.id ?? null}

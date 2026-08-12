@@ -203,7 +203,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // configure banner removed its bespoke radius literal.
   // 116→115 (model picker): removing the old chip close control retired its
   // one remaining 50% radius literal; the replacement uses radius tokens.
-  borderRadiusLiterals: 115,
+  borderRadiusLiterals: 114,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -399,7 +399,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // rules now read var() — the fix itself cost zero literals.
   // 1781→1775 (model picker): the searchable model catalog uses shared
   // palette tokens instead of repeating chip-specific color literals.
-  hardcodedColorLiterals: 1775,
+  hardcodedColorLiterals: 1771,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

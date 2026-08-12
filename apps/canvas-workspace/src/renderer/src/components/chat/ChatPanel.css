@@ -728,46 +728,6 @@
   color: #37352f;
 }
 
-.chat-execution-mode-btn {
-  box-sizing: border-box;
-  height: 28px;
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  font-weight: 600;
-  color: #6f6e69;
-  line-height: 1;
-  padding: 0 6px;
-  border-radius: 7px;
-  user-select: none;
-  cursor: pointer;
-  transition: background 0.1s, color 0.1s;
-}
-
-.chat-execution-mode-btn:not(.chat-execution-mode-btn--readonly):hover:not(:disabled) {
-  background: rgba(55, 53, 47, 0.06);
-  color: #37352f;
-}
-
-.chat-execution-mode-btn:focus-visible {
-  outline: 2px solid rgba(35, 131, 226, 0.45);
-  outline-offset: 1px;
-}
-
-.chat-execution-mode-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-/* Not interactive: the label is two facts joined by a separator, so it must
-   never wrap in a narrow dock composer, and it must not offer a hover
-   affordance the way the auto/ask toggle does. */
-.chat-execution-mode-btn--readonly {
-  cursor: default;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
 .chat-send-btn {
   width: 28px;
   height: 28px;
@@ -840,29 +800,6 @@
   color: #8a8986;
   font-size: 12px;
   line-height: 1.2;
-}
-
-.chat-scope-capability {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 4px 6px;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.chat-scope-capability-dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 auto;
-  border-radius: var(--radius-pill);
-  background: var(--text-muted);
-}
-
-.chat-scope-capability[data-capability='editable'] .chat-scope-capability-dot {
-  background: var(--accent);
 }
 
 .chat-context-chips {

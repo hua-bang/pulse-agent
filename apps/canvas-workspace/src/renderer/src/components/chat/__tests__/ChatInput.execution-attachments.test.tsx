@@ -20,34 +20,17 @@ const baseProps = {
 };
 
 describe('ChatInput execution and attachment states', () => {
-  it('shows the chat scope and canvas capability beside the composer', () => {
+  it('keeps scope and execution policy out of the composer chrome', () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     act(() => root.render(
       <I18nProvider>
-        <ChatInput
-          {...baseProps}
-          scopeLabel="Global chat"
-          scopeCapability="read-only"
-        />
+        <ChatInput {...baseProps} />
       </I18nProvider>,
     ));
 
-    const status = host.querySelector<HTMLElement>('.chat-scope-capability');
-    expect(status?.textContent).toBe('Global chat · AI access: read-only');
-    expect(status?.getAttribute('aria-label')).toBe('Global chat · AI access: read-only');
-
-    act(() => root.render(
-      <I18nProvider>
-        <ChatInput
-          {...baseProps}
-          scopeLabel="Product canvas"
-          scopeCapability="editable"
-        />
-      </I18nProvider>,
-    ));
-    expect(host.querySelector('.chat-scope-capability')?.textContent)
-      .toBe('Product canvas · Can edit canvas');
+    expect(host.querySelector('.chat-scope-capability')).toBeNull();
+    expect(host.querySelector('.chat-execution-mode-btn')).toBeNull();
 
     act(() => root.unmount());
   });
@@ -74,42 +57,6 @@ describe('ChatInput execution and attachment states', () => {
     expect(editor?.getAttribute('aria-activedescendant')).toBe('chat-mention-option-2');
 
     act(() => root.unmount());
-  });
-
-  it('exposes Auto/Ask as an actionable execution policy and keeps scheduled mode read-only', () => {
-    const toggle = vi.fn();
-    for (const executionMode of ['auto', 'ask', 'scheduled'] as const) {
-      const host = document.createElement('div');
-      const root = createRoot(host);
-      act(() => root.render(
-        <I18nProvider>
-          <ChatInput
-            {...baseProps}
-            executionMode={executionMode}
-            onToggleExecutionMode={toggle}
-          />
-        </I18nProvider>,
-      ));
-
-      const control = host.querySelector<HTMLElement>('.chat-execution-mode-btn');
-      expect(control?.textContent).toBe(executionMode === 'auto'
-        ? 'Automatic'
-        : executionMode === 'ask'
-          ? 'Ask first'
-          : 'Scheduled · Automatic');
-      expect(control?.getAttribute('aria-label')).toBe(`Execution mode: ${control?.textContent}`);
-      if (executionMode === 'scheduled') {
-        expect(control?.tagName).toBe('SPAN');
-        expect(control?.classList.contains('chat-execution-mode-btn--readonly')).toBe(true);
-      } else {
-        expect(control?.tagName).toBe('BUTTON');
-        expect(control?.getAttribute('aria-pressed')).toBe(String(executionMode === 'ask'));
-        act(() => control?.click());
-      }
-
-      act(() => root.unmount());
-    }
-    expect(toggle).toHaveBeenCalledTimes(2);
   });
 
   it('shows upload failure with retry and prevents sending until every image is ready', () => {
@@ -228,7 +175,6 @@ describe('ChatInput execution and attachment states', () => {
           {...baseProps}
           interactionDisabled
           onAttachFiles={vi.fn()}
-          onToggleExecutionMode={vi.fn()}
           onSelectModel={vi.fn(async () => undefined)}
           onOpenModelSettings={vi.fn()}
         />
@@ -283,10 +229,6 @@ describe('ChatInput execution and attachment states', () => {
         <ChatInput
           {...baseProps}
           loading
-          scopeLabel="Product canvas"
-          scopeCapability="editable"
-          executionMode="auto"
-          onToggleExecutionMode={vi.fn()}
         />
       </I18nProvider>,
     ));

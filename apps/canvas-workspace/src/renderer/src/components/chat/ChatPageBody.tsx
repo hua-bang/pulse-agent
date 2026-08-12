@@ -27,14 +27,12 @@ import { submitQuickAction } from './hooks/submitQuickAction';
 import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
 import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from './utils/chatPageDockTabs';
-import { chatScopeCapability } from './utils/chatScopeCapability';
 
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
   /** Context inherited from the visible target that opened this page. */
   contextSnapshot?: ChatContextSnapshot;
   executionPolicy?: ChatExecutionPolicy;
-  onExecutionPolicyChange?: (policy: Exclude<ChatExecutionPolicy, 'scheduled'>) => void;
   /** Session selected while entering a different scope. */
   initialPendingSessionId: string | null;
   /** Reactive pendingSessionId for same-workspace clicks after mount. */
@@ -73,7 +71,6 @@ export const ChatPageBody = ({
   agentScope,
   contextSnapshot,
   executionPolicy = agentScope.kind === 'scheduled' ? 'scheduled' : 'auto',
-  onExecutionPolicyChange,
   initialPendingSessionId,
   pendingSessionId,
   pendingSessionIntentId,
@@ -360,11 +357,6 @@ export const ChatPageBody = ({
     [regenerateAssistantMessage, sessionError],
   );
 
-  const handleToggleExecutionPolicy = useCallback(() => {
-    if (executionPolicy === 'scheduled') return;
-    onExecutionPolicyChange?.(executionPolicy === 'ask' ? 'auto' : 'ask');
-  }, [executionPolicy, onExecutionPolicyChange]);
-
   const sessionInteractionDisabled = loading || sessionLoading || busyElsewhere;
   const sessionRailDisabled = loading || busyElsewhere;
   const sessionRail = useChatPageSessionRail({
@@ -479,10 +471,6 @@ export const ChatPageBody = ({
           onSelectModel={canvasModels.selectModel}
           onOpenModelSettings={openModelSettingsFromSwitcher}
           contextComposer
-          scopeLabel={scopeLabel}
-          scopeCapability={chatScopeCapability(agentScope)}
-          executionMode={executionPolicy}
-          onToggleExecutionMode={executionPolicy === 'scheduled' ? undefined : handleToggleExecutionPolicy}
           conversationKey={activeSessionId ?? scopeId}
           onEditUserMessage={handleEditUserMessage}
           onRegenerate={handleRegenerate}
