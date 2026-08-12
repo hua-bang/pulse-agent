@@ -23,18 +23,9 @@ importers:
       '@ai-sdk/openai':
         specifier: ^3.0.21
         version: 3.0.21(zod@4.3.6)
-      '@langfuse/otel':
-        specifier: ^5.10.0
-        version: 5.10.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.0))(@opentelemetry/exporter-trace-otlp-http@0.221.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.0))
-      '@langfuse/tracing':
-        specifier: ^5.10.0
-        version: 5.10.0(@opentelemetry/api@1.9.0)
       '@larksuiteoapi/node-sdk':
         specifier: ^1.59.0
         version: 1.59.0
-      '@opentelemetry/sdk-trace-node':
-        specifier: ^2.10.0
-        version: 2.10.0(@opentelemetry/api@1.9.0)
       ai:
         specifier: ^6.0.57
         version: 6.0.57(zod@4.3.6)
@@ -66,9 +57,18 @@ importers:
       '@electron/rebuild':
         specifier: ^4.0.3
         version: 4.0.3
+      '@langfuse/otel':
+        specifier: ^5.10.0
+        version: 5.10.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.0))(@opentelemetry/exporter-trace-otlp-http@0.221.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.0))
+      '@langfuse/tracing':
+        specifier: ^5.10.0
+        version: 5.10.0(@opentelemetry/api@1.9.0)
       '@module-federation/runtime':
         specifier: 2.5.1
         version: 2.5.1(node-fetch@3.3.2)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2.10.0
+        version: 2.10.0(@opentelemetry/api@1.9.0)
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
