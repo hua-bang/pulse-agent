@@ -15,7 +15,6 @@ import { RelayBar } from './RelayBar';
 import type { RelayProgress } from './hooks/relayTurnHandlers';
 import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
 import { restoreComposerFocusAfterRender } from './utils/focusRecovery';
-import type { ChatScopeCapability } from './utils/chatScopeCapability';
 
 interface ChatViewProps {
   className?: string;
@@ -87,16 +86,12 @@ interface ChatViewProps {
   onAbort: () => Promise<boolean>;
   contextComposer?: boolean;
   knowledgeMode?: boolean;
-  scopeLabel?: string;
-  scopeCapability?: ChatScopeCapability;
   emptyStateVariant?: ChatEmptyStateVariant;
   modelStatus?: CanvasModelStatus;
   modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
   modelLabel?: string;
   onSelectModel?: (providerId: string, modelId: string) => Promise<void>;
   onOpenModelSettings?: () => void;
-  executionMode?: 'auto' | 'ask' | 'scheduled';
-  onToggleExecutionMode?: () => void;
   /** Stable identity for retaining per-conversation scroll position. */
   conversationKey?: string;
 
@@ -171,16 +166,12 @@ export const ChatView = ({
   onAbort,
   contextComposer = false,
   knowledgeMode = false,
-  scopeLabel,
-  scopeCapability,
   emptyStateVariant,
   modelStatus,
   modelSelection,
   modelLabel,
   onSelectModel,
   onOpenModelSettings,
-  executionMode = 'auto',
-  onToggleExecutionMode,
   conversationKey,
   onEditUserMessage,
   onRegenerate,
@@ -262,10 +253,7 @@ export const ChatView = ({
         onRemoveContext={onRemoveContext}
         contextComposer={contextComposer}
         knowledgeMode={knowledgeMode}
-        scopeLabel={scopeLabel}
-        scopeCapability={scopeCapability}
         placeholder={inputPlaceholder}
-        executionMode={executionMode}
         modelStatus={modelStatus}
         modelSelection={modelSelection}
         modelLabel={modelLabel}
@@ -301,7 +289,6 @@ export const ChatView = ({
         interactionDisabled={interactionDisabled || sessionLoading}
         onSend={onSubmit}
         onAbort={onAbort}
-        onToggleExecutionMode={onToggleExecutionMode}
       />
     </div>
   );

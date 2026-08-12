@@ -11,6 +11,7 @@ import { scopeMcpConfigPath, scopeRootDir, skillSourceDirs } from './config-scop
 import { getCanvasPluginSkillScanPathsSync } from '../settings/canvas-plugins-config';
 import { createCanvasMcpOAuthProvider } from './mcp/oauth';
 import type { AgentScope } from './types';
+import { canvasAgentObservabilityEnginePlugin } from './observability/engine-plugin';
 
 /**
  * Engine plugin list for a Canvas Agent scope.
@@ -61,5 +62,6 @@ export function createCanvasEnginePlugins(scope: AgentScope): unknown[] {
       },
     }),
     createToolOffloadPlugin({ dir: offloadDir }),
+    canvasAgentObservabilityEnginePlugin,
   ];
 }

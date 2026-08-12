@@ -1,4 +1,5 @@
 import type { CanvasNode } from './canvas';
+import type { AgentTraceEvent } from './agent-observability';
 
 export interface ChatImageAttachment {
   id: string;
@@ -130,6 +131,28 @@ export interface AgentDebugTraceMessageSnapshot {
   truncated?: boolean;
 }
 
+export interface AgentDebugTracePerformance {
+  requestStartedAt: number;
+  laneEnteredAt: number;
+  scopeReadyAt: number;
+  contextReadyAt: number;
+  modelStartedAt?: number;
+  firstEventAt?: number;
+  firstEventType?: 'text' | 'tool-input' | 'tool-call' | 'tool-result';
+  firstTextAt?: number;
+  runtimeCompletedAt?: number;
+  completedAt?: number;
+  queueMs?: number;
+  scopeActivationMs?: number;
+  contextPreparationMs?: number;
+  modelStartDelayMs?: number;
+  timeToFirstEventMs?: number;
+  timeToFirstTextMs?: number;
+  runtimeMs?: number;
+  responseProcessingMs?: number;
+  totalMs?: number;
+}
+
 export interface AgentDebugTrace {
   sessionId: string;
   runId: string;
@@ -165,9 +188,14 @@ export interface AgentDebugTrace {
     model?: string;
     modelType?: string;
   };
+  runtime?: {
+    id: string;
+  };
+  performance?: AgentDebugTracePerformance;
   toolCalls: AgentDebugTraceToolCall[];
   readNodes: AgentDebugTraceNodeRef[];
   contextReads: AgentDebugTraceContextRead[];
+  observabilityEvents?: AgentTraceEvent[];
   truncated?: boolean;
 }
 
@@ -185,6 +213,7 @@ export interface AgentDebugRunSummary {
   toolCount: number;
   readNodeCount: number;
   modelLabel?: string;
+  runtimeId?: string;
   isCurrent: boolean;
 }
 

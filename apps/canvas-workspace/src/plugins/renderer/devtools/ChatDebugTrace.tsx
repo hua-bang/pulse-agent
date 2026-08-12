@@ -14,6 +14,14 @@ const formatDuration = (durationMs?: number) => {
   return `${(durationMs / 1000).toFixed(1)}s`;
 };
 
+const formatLatency = (durationMs?: number) => durationMs == null ? '—' : formatDuration(durationMs);
+
+const runtimeLabel = (runtimeId?: string) => runtimeId === 'pi-agent-harness'
+  ? 'Pi'
+  : runtimeId === 'engine'
+    ? 'Engine'
+    : runtimeId ?? 'Unknown runtime';
+
 const formatTime = (timestamp?: number) => {
   if (!timestamp) return '—';
   return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -49,6 +57,7 @@ export const ChatDebugTrace = ({ trace }: ChatDebugTraceProps) => {
         <span className="chat-debug-pill">run {shortId(trace.runId)}</span>
         <span className="chat-debug-pill">{toolCount} tools</span>
         <span className="chat-debug-pill">read {readNodeCount} nodes</span>
+        {trace.runtime && <span className="chat-debug-pill">runtime {runtimeLabel(trace.runtime.id)}</span>}
         <span className="chat-debug-pill">{formatDuration(trace.durationMs)}</span>
         <span className="chat-debug-chevron">{open ? '▴' : '▾'}</span>
       </button>
@@ -78,6 +87,51 @@ export const ChatDebugTrace = ({ trace }: ChatDebugTraceProps) => {
               Open debugger
             </a>
           </section>
+
+          {trace.performance && (
+            <section className="chat-debug-section">
+              <div className="chat-debug-section-title">Performance</div>
+              <div className="chat-debug-subtitle">Canvas host</div>
+              <div className="chat-debug-grid">
+                <span>session queue</span>
+                <code>{formatLatency(trace.performance.queueMs)}</code>
+                <span />
+                <span>scope activation</span>
+                <code>{formatLatency(trace.performance.scopeActivationMs)}</code>
+                <span />
+                <span>context preparation</span>
+                <code>{formatLatency(trace.performance.contextPreparationMs)}</code>
+                <span />
+                <span>runtime start delay</span>
+                <code>{formatLatency(trace.performance.modelStartDelayMs)}</code>
+                <span />
+              </div>
+              <div className="chat-debug-subtitle">Runtime · {runtimeLabel(trace.runtime?.id)}</div>
+              <div className="chat-debug-grid">
+                <span>first activity{trace.performance.firstEventType ? ` (${trace.performance.firstEventType})` : ''}</span>
+                <code>{formatLatency(trace.performance.timeToFirstEventMs)}</code>
+                <span />
+                <span>first text (TTFT)</span>
+                <code>{formatLatency(trace.performance.timeToFirstTextMs)}</code>
+                <span />
+                <span>runtime execution</span>
+                <code>{formatLatency(trace.performance.runtimeMs)}</code>
+                <span />
+              </div>
+              <div className="chat-debug-subtitle">Canvas host · response</div>
+              <div className="chat-debug-grid">
+                <span>response processing</span>
+                <code>{formatLatency(trace.performance.responseProcessingMs)}</code>
+                <span />
+              </div>
+              <div className="chat-debug-subtitle">Total</div>
+              <div className="chat-debug-grid">
+                <span>end to end</span>
+                <code>{formatLatency(trace.performance.totalMs)}</code>
+                <span />
+              </div>
+            </section>
+          )}
 
           <section className="chat-debug-section">
             <div className="chat-debug-section-title">Context</div>

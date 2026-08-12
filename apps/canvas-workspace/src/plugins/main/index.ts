@@ -1,4 +1,9 @@
-export { agentBus } from './agent-bus';
+export {
+  agentBus,
+  agentObservabilityBus,
+  publishAgentTraceEvent,
+  subscribeAgentTrace,
+} from './agent-bus';
 export {
   setupCanvasPlugins,
   teardownCanvasPlugins,

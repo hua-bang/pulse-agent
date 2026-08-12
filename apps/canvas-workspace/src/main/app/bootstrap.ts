@@ -256,6 +256,18 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     startupMark("ipcWired");
     await setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
     await reloadConfiguredExternalMainPlugins();
+    let pluginTeardownComplete = false;
+    let pluginTeardownStarted = false;
+    app.on('before-quit', (event) => {
+      if (pluginTeardownComplete) return;
+      event.preventDefault();
+      if (pluginTeardownStarted) return;
+      pluginTeardownStarted = true;
+      void teardownCanvasPlugins().finally(() => {
+        pluginTeardownComplete = true;
+        app.quit();
+      });
+    });
     startupMark("pluginsActivated");
     void ensureRuntimeControlServer(writeLog).then((ok) => {
       if (!ok) {
@@ -307,7 +319,6 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     teardownFileWatcher();
     teardownCanvasWatchers();
     teardownCanvasAgent();
-    void teardownCanvasPlugins();
     if (process.platform !== "darwin") {
       // Only on platforms where closing all windows quits the app do we tear
       // down the runtime server. On macOS the process keeps running in the

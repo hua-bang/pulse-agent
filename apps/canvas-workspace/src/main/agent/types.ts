@@ -6,6 +6,8 @@
  * can perform canvas operations, file I/O, and coding tasks directly.
  */
 
+import type { AgentTraceEvent } from '../../shared/agent-observability';
+
 export type {
   AgentClarificationRequest,
   AgentRequestContext,
@@ -96,6 +98,28 @@ export interface CanvasAgentDebugTraceMessageSnapshot {
   truncated?: boolean;
 }
 
+export interface CanvasAgentDebugTracePerformance {
+  requestStartedAt: number;
+  laneEnteredAt: number;
+  scopeReadyAt: number;
+  contextReadyAt: number;
+  modelStartedAt?: number;
+  firstEventAt?: number;
+  firstEventType?: 'text' | 'tool-input' | 'tool-call' | 'tool-result';
+  firstTextAt?: number;
+  runtimeCompletedAt?: number;
+  completedAt?: number;
+  queueMs?: number;
+  scopeActivationMs?: number;
+  contextPreparationMs?: number;
+  modelStartDelayMs?: number;
+  timeToFirstEventMs?: number;
+  timeToFirstTextMs?: number;
+  runtimeMs?: number;
+  responseProcessingMs?: number;
+  totalMs?: number;
+}
+
 export interface CanvasAgentDebugTrace {
   sessionId: string;
   runId: string;
@@ -131,9 +155,14 @@ export interface CanvasAgentDebugTrace {
     model?: string;
     modelType?: string;
   };
+  runtime?: {
+    id: string;
+  };
+  performance?: CanvasAgentDebugTracePerformance;
   toolCalls: CanvasAgentDebugTraceToolCall[];
   readNodes: CanvasAgentDebugTraceNodeRef[];
   contextReads: CanvasAgentDebugTraceContextRead[];
+  observabilityEvents?: AgentTraceEvent[];
   truncated?: boolean;
 }
 
@@ -185,6 +214,7 @@ export interface CanvasAgentDebugRunSummary {
   toolCount: number;
   readNodeCount: number;
   modelLabel?: string;
+  runtimeId?: string;
   isCurrent: boolean;
 }
 

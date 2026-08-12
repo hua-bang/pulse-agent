@@ -7,7 +7,7 @@
 
 import type { ModelMessage } from 'ai';
 import type { CanvasAgentDebugTrace, CanvasAgentToolCall } from './types';
-import { recordTraceToolCall, recordTraceToolResult } from './debug-trace';
+import { recordTraceStreamEvent, recordTraceToolCall, recordTraceToolResult } from './debug-trace';
 
 // AI SDK v6 wraps tool execute return values into a tagged `ToolResultOutput`
 // — `{ type: 'text'|'json'|'error-text'|'error-json'|..., value }` — on the
@@ -167,6 +167,7 @@ export function buildEngineStreamCallbacks(
     onText,
     onToolCall: (onToolCall || debugTrace)
       ? (chunk: any) => {
+          recordTraceStreamEvent(debugTrace, 'tool-call');
           const args = chunk.input ?? chunk.args;
           console.info('[canvas-agent] tool-call chunk keys:', Object.keys(chunk), 'input:', chunk.input, 'args:', chunk.args);
           recordTraceToolCall(debugTrace, { name: chunk.toolName, args, toolCallId: chunk.toolCallId });
@@ -175,6 +176,7 @@ export function buildEngineStreamCallbacks(
       : undefined,
     onToolResult: (onToolResult || debugTrace)
       ? (chunk: any) => {
+          recordTraceStreamEvent(debugTrace, 'tool-result');
           const raw = chunk.output ?? chunk.result;
           const outcome = normalizeToolResult(raw, {
             name: chunk.toolName,
@@ -187,6 +189,7 @@ export function buildEngineStreamCallbacks(
       : undefined,
     onToolInputStart: onToolInputStart
       ? (chunk: { id: string; toolName: string }) => {
+          recordTraceStreamEvent(debugTrace, 'tool-input');
           console.info('[canvas-agent] tool-input-start', chunk.toolName, chunk.id);
           onToolInputStart(chunk);
         }

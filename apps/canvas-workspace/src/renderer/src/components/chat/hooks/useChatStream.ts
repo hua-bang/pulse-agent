@@ -19,6 +19,7 @@ import { useChatScopeActivity } from './useChatScopeActivity';
 import { useChatMessageActions } from './useChatMessageActions';
 import { useChatRunControls } from './useChatRunControls';
 import { createMessageDeltaBatcher } from './createMessageDeltaBatcher';
+import { markAgentMilestone } from './markAgentMilestone';
 import { recoverChangedChatSession } from './recoverChangedChatSession';
 import { useI18n } from '../../../i18n';
 import {
@@ -194,7 +195,6 @@ export function useChatStream({
         persistedRequestContext,
         attachments.length > 0 ? attachments : undefined,
       );
-
       if (!result.ok || !result.sessionId) {
         if (isCurrent()) appendTurnFailure(result.error ?? t('chat.turn.startFailed'));
         turn.retire();
@@ -202,6 +202,7 @@ export function useChatStream({
       }
 
       const sessionId = result.sessionId;
+      markAgentMilestone(sessionId, 'ui.request-dispatched', userMessage.timestamp);
       if (!isCurrent()) {
         await window.canvasWorkspace.agent.cancelPreparedChat(sessionId).catch(() => undefined);
         turn.retire();
@@ -243,10 +244,9 @@ export function useChatStream({
         }
       };
 
-      const textDeltaBatcher = createMessageDeltaBatcher({
-        segment,
-        setMessages,
-        isCurrent,
+      const textDeltaBatcher = createMessageDeltaBatcher({ segment, setMessages, isCurrent,
+        onFirstCommit: () => window.requestAnimationFrame(() =>
+          markAgentMilestone(sessionId, 'ui.first-content-rendered')),
       });
 
       const findTool = (toolCallId: string | undefined, name?: string) => {

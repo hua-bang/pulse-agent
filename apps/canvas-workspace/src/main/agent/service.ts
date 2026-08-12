@@ -33,6 +33,7 @@ import type {
   SessionSearchHit,
 } from './types';
 import { rejectChangedChatSession } from './chat-session-cas';
+import { beginCanvasHostRun, failCanvasHostRun, markCanvasHostLaneEntered, markCanvasHostScopeReady } from './observability/host-run';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
@@ -104,19 +105,9 @@ export class CanvasAgentService {
     onRoleTurnEnd?: (event: RoleTurnEndEvent) => void,
   ): Promise<ChatResponse> {
     return this.chatWithScope(
-      workspaceScope(workspaceId),
-      message,
-      onText,
-      onToolCall,
-      onToolResult,
-      mentionedWorkspaceIds,
-      onClarificationRequest,
-      requestContext,
-      attachments,
-      onToolInputStart,
-      onToolInputDelta,
-      onToolInputEnd,
-      onRoleTurnStart,
+      workspaceScope(workspaceId), message, onText, onToolCall, onToolResult,
+      mentionedWorkspaceIds, onClarificationRequest, requestContext, attachments,
+      onToolInputStart, onToolInputDelta, onToolInputEnd, onRoleTurnStart,
       onRoleTurnEnd,
     );
   }
@@ -138,10 +129,15 @@ export class CanvasAgentService {
     onRoleTurnEnd?: (event: RoleTurnEndEvent) => void,
     runAbortSignal?: AbortSignal,
     modelConfig?: ResolvedCanvasModel,
+    observabilityRunId?: string,
   ): Promise<ChatResponse> {
+    const timing = beginCanvasHostRun(scope.kind, observabilityRunId, requestContext?.expectedConversationSessionId ?? undefined);
+    const runId = timing.runId;
     const result = await this.sessionMutations.runChat(scope, async () => {
+      markCanvasHostLaneEntered(timing);
       try {
         await this.activateScope(scope);
+        markCanvasHostScopeReady(timing);
         const agent = this.getAgent(scope)!;
         const sessionChanged = rejectChangedChatSession(
           requestContext?.expectedConversationSessionId,
@@ -153,6 +149,7 @@ export class CanvasAgentService {
           onClarificationRequest, requestContext, attachments, onToolInputStart,
           onToolInputDelta, onToolInputEnd, onRoleTurnStart, onRoleTurnEnd,
           runAbortSignal, modelConfig,
+          timing,
         );
         return {
           ok: true,
@@ -163,6 +160,7 @@ export class CanvasAgentService {
         };
       } catch (err) {
         console.error(`[canvas-agent-service] chat error for ${scopeKey(scope)}:`, err);
+        failCanvasHostRun(timing, err);
         return { ok: false, error: String(err) };
       }
     });

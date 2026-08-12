@@ -9,6 +9,7 @@ import type {
   SessionSearchHit,
 } from '../../../shared/agent-chat';
 import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../../shared/agent-roles';
+import type { AgentObservabilityMarkInput } from '../../../shared/agent-observability';
 
 export type * from '../../../shared/agent-chat';
 
@@ -20,6 +21,9 @@ export interface AgentApi {
     requestContext?: AgentRequestContext,
     attachments?: ChatImageAttachment[],
   ) => Promise<{ ok: boolean; sessionId?: string; code?: string; error?: string }>;
+  markObservability: (
+    input: AgentObservabilityMarkInput,
+  ) => Promise<{ ok: boolean; error?: string }>;
   /** Start a prepared turn only after run-scoped listeners are installed. */
   startChat: (sessionId: string) => Promise<{
     ok: boolean;

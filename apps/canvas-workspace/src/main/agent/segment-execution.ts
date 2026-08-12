@@ -12,6 +12,8 @@ import type {
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
 import { resolveAgentRuntime } from './backends';
 import { ENGINE_ABORT_SENTINEL } from './chat-stop';
+import { attachTraceRuntime, recordTraceStreamEvent } from './debug-trace';
+import { publishAgentTraceEvent } from '../../plugins/main';
 
 type ClarificationHandler = (request: AgentClarificationRequest) => Promise<string>;
 
@@ -36,6 +38,8 @@ interface ExecuteCanvasAgentSegmentOptions {
   modelConfig: ResolvedCanvasModel;
   configuredModel?: string;
   systemPrompt: string;
+  observabilityRunId?: string;
+  observeFirstActivity?: boolean;
   debugTrace?: CanvasAgentDebugTrace;
   appendMessages: (messages: ModelMessage[]) => void;
   replaceMessages: (messages: ModelMessage[]) => void;
@@ -62,11 +66,31 @@ export async function executeCanvasAgentSegment(
   streamedText: string;
   responseMessages: ModelMessage[];
   externalToolCalls?: CanvasAgentToolCall[];
+  runtimeOwner: 'engine' | 'pi';
 }> {
   const responseMessages: ModelMessage[] = [];
+  const backend = resolveAgentRuntime(options.role);
+  const runtimeOwner = backend.id === 'pi-agent-harness' ? 'pi' : 'engine';
   let externalToolCalls: CanvasAgentToolCall[] | undefined;
   let streamedText = '';
+  let firstActivityRecorded = false;
+  let firstTextRecorded = false;
+  const markMilestone = (milestone: 'runtime.first-activity' | 'runtime.first-text') => {
+    if (!options.observabilityRunId || !options.observeFirstActivity) return;
+    if (milestone === 'runtime.first-activity' && firstActivityRecorded) return;
+    if (milestone === 'runtime.first-text' && firstTextRecorded) return;
+    if (milestone === 'runtime.first-activity') firstActivityRecorded = true;
+    if (milestone === 'runtime.first-text') firstTextRecorded = true;
+    publishAgentTraceEvent({
+      type: 'milestone', runId: options.observabilityRunId,
+      timestamp: Date.now(), milestone, owner: runtimeOwner,
+    });
+  };
+  const markActivity = () => markMilestone('runtime.first-activity');
   const handleText = (delta: string) => {
+    recordTraceStreamEvent(options.debugTrace, 'text');
+    markActivity();
+    markMilestone('runtime.first-text');
     streamedText += delta;
     options.onText?.(delta);
   };
@@ -75,15 +99,25 @@ export async function executeCanvasAgentSegment(
     responseMessages.push(...messages);
   };
 
-  const backend = resolveAgentRuntime(options.role);
+  attachTraceRuntime(options.debugTrace, backend.id);
+  if (options.observabilityRunId) {
+    publishAgentTraceEvent({
+      type: 'runtime.resolved', runId: options.observabilityRunId,
+      timestamp: Date.now(), runtimeId: backend.id,
+      owner: runtimeOwner,
+    });
+  }
   try {
     const result = await backend.runSegment({
       ...options,
       onText: handleText,
+      onToolCall: data => { markActivity(); options.onToolCall?.(data); },
+      onToolResult: data => { markActivity(); options.onToolResult?.(data); },
+      onToolInputStart: data => { markActivity(); options.onToolInputStart?.(data); },
       recordResponseMessages,
     });
     externalToolCalls = result.toolCalls;
-    return { resultText: result.resultText, streamedText, responseMessages, externalToolCalls };
+    return { resultText: result.resultText, streamedText, responseMessages, externalToolCalls, runtimeOwner };
   } catch (error) {
     if (!options.abortSignal.aborted) throw error;
     return {
@@ -91,6 +125,7 @@ export async function executeCanvasAgentSegment(
       streamedText,
       responseMessages,
       externalToolCalls,
+      runtimeOwner,
     };
   }
 }

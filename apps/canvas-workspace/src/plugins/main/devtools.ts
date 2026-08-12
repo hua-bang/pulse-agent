@@ -4,6 +4,7 @@ import type {
   CanvasAgentDebugTrace,
 } from '../../main/agent/types';
 import type { MainCanvasPlugin } from '../types';
+import { LocalAgentTraceSink } from './local-agent-trace-sink';
 
 interface StoredRun {
   summary: CanvasAgentDebugRunSummary;
@@ -41,6 +42,7 @@ function buildStoredRun(payload: TurnTracePayload): StoredRun {
     toolCount: trace.toolCalls.length,
     readNodeCount: trace.readNodes.length,
     modelLabel,
+    runtimeId: trace.runtime?.id,
     // Per-run "is current session" was meaningful when runs were derived
     // by walking session files. Plugin-stored runs have no such notion.
     isCurrent: false,
@@ -69,9 +71,22 @@ function buildStoredRun(payload: TurnTracePayload): StoredRun {
 export const DevtoolsMainPlugin: MainCanvasPlugin = {
   id: 'devtools',
   activate(ctx) {
+    const traceSink = new LocalAgentTraceSink();
+    ctx.registerAgentObservabilitySubscriber({
+      id: traceSink.id,
+      async onEvent(event) {
+        traceSink.onEvent(event);
+        if (event.type !== 'run.completed') return;
+        const stored = await ctx.store.get<StoredRun>(runKey(event.runId));
+        if (!stored) return;
+        stored.detail.trace.observabilityEvents = traceSink.snapshot(event.runId);
+        await ctx.store.set(runKey(event.runId), stored);
+      },
+    });
     ctx.onAgent('turnEnd', async (turn) => {
       const payload = turn.data as TurnTracePayload | undefined;
       if (!payload?.trace) return;
+      payload.trace.observabilityEvents = traceSink.snapshot(payload.trace.runId);
       const stored = buildStoredRun(payload);
       try {
         await ctx.store.set(runKey(turn.runId), stored);
@@ -97,6 +112,8 @@ export const DevtoolsMainPlugin: MainCanvasPlugin = {
       }
       const stored = await ctx.store.get<StoredRun>(runKey(runId));
       if (!stored) throw new Error(`devtools.get-run: ${runId} not found`);
+      const latestEvents = traceSink.snapshot(runId);
+      if (latestEvents.length > 0) stored.detail.trace.observabilityEvents = latestEvents;
       return stored.detail;
     });
   },

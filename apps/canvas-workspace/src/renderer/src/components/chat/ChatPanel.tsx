@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEventHandler } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type KeyboardEventHandler } from 'react';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import { SessionTitle } from './SessionTitle';
@@ -26,7 +26,6 @@ import { ChatConversationStatus } from './ChatConversationStatus';
 import { useChatPanelContext } from './hooks/useChatPanelContext';
 import { useChatPanelSessionNavigation } from './hooks/useChatPanelSessionNavigation';
 import { submitQuickAction } from './hooks/submitQuickAction';
-import { chatScopeCapability } from './utils/chatScopeCapability';
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
@@ -62,7 +61,7 @@ export const ChatPanel = ({
 }: ChatPanelProps) => {
   const { t } = useI18n();
   const { notify } = useAppShell();
-  const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
+  const executionMode = 'auto' as const;
   const requestContextRef = useRef<AgentRequestContext>();
 
   const agentScope = useMemo<AgentScope>(
@@ -321,10 +320,6 @@ export const ChatPanel = ({
     handleKeyDown(event);
   }, [attachments.length, handleKeyDown, input, mentionItems.length, mentionOpen, notConfigured, openModelSettingsWithHint]);
 
-  const handleToggleExecutionMode = useCallback(() => {
-    setExecutionMode(mode => mode === 'auto' ? 'ask' : 'auto');
-  }, []);
-
   const handleEditUserMessage = useCallback(
     (index: number, newContent: string) => (
       sessionError
@@ -471,10 +466,6 @@ export const ChatPanel = ({
       onOpenModelSettings={openModelSettingsFromSwitcher}
       contextComposer
       knowledgeMode={knowledgeMode}
-      scopeLabel={scopeLabel}
-      scopeCapability={chatScopeCapability(agentScope)}
-      executionMode={agentScope.kind === 'scheduled' ? 'scheduled' : executionMode}
-      onToggleExecutionMode={agentScope.kind === 'scheduled' ? undefined : handleToggleExecutionMode}
       conversationKey={activeSessionId ?? scopeId}
       onEditUserMessage={handleEditUserMessage}
       onRegenerate={handleRegenerate}

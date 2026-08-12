@@ -7,8 +7,6 @@ import type { SelectedContextChip } from './types';
 import { useI18n } from '../../i18n';
 import { CHAT_MENTION_LISTBOX_ID, chatMentionOptionId } from './ChatMentionPopup';
 import { ChatInputAttachments } from './ChatInputAttachments';
-import type { ChatScopeCapability } from './utils/chatScopeCapability';
-import { Button } from '../ui';
 
 interface ChatInputProps {
   loading: boolean;
@@ -19,11 +17,7 @@ interface ChatInputProps {
   attachments?: ChatImageAttachment[];
   contextComposer?: boolean;
   knowledgeMode?: boolean;
-  /** Visible scope/capability contract for this composer. */
-  scopeLabel?: string;
-  scopeCapability?: ChatScopeCapability;
   placeholder?: string;
-  executionMode?: 'auto' | 'ask' | 'scheduled';
   /** Blocks submitting the current draft, for example while a session opens. */
   sendDisabled?: boolean;
   /** Blocks controls that could mutate the conversation while a session opens. */
@@ -45,7 +39,6 @@ interface ChatInputProps {
   onRetryAttachment?: (id: string) => void;
   onSend: () => Promise<boolean>;
   onAbort: () => Promise<boolean>;
-  onToggleExecutionMode?: () => void;
   /** Focus/navigate to a clicked mention chip's target (node or workspace). */
   onMentionNavigate?: (chip: HTMLElement) => void;
 }
@@ -59,10 +52,7 @@ export const ChatInput = ({
   attachments = [],
   contextComposer = false,
   knowledgeMode = false,
-  scopeLabel,
-  scopeCapability,
   placeholder,
-  executionMode = 'auto',
   sendDisabled = false,
   interactionDisabled = false,
   modelStatus,
@@ -82,7 +72,6 @@ export const ChatInput = ({
   onRetryAttachment,
   onSend,
   onAbort,
-  onToggleExecutionMode,
   onMentionNavigate,
 }: ChatInputProps) => {
   const { t } = useI18n();
@@ -99,34 +88,11 @@ export const ChatInput = ({
   );
   const hasSendableContent = Boolean(input.trim() || readyAttachments.length > 0);
   const canSend = hasSendableContent && !sendDisabled && !attachmentSendBlocked;
-  const executionLabel = executionMode === 'scheduled'
-    ? t('chat.execution.scheduledAuto')
-    : executionMode === 'ask'
-      ? t('chat.execution.ask')
-      : t('chat.execution.auto');
-  const scopeCapabilityLabel = scopeLabel && scopeCapability
-    ? t(scopeCapability === 'read-only'
-      ? 'chat.scopeCapability.readOnly'
-      : scopeCapability === 'editable'
-        ? 'chat.scopeCapability.editable'
-        : 'chat.scopeCapability.scheduled', { scope: scopeLabel })
-    : undefined;
-
   return (
     <div className="chat-input-container">
       {mentionPopup}
       {contextComposer && loading && (
         <div className="chat-generating-status">{t('chat.generatingCanContinue')}</div>
-      )}
-      {scopeCapabilityLabel && (
-        <div
-          className="chat-scope-capability"
-          data-capability={scopeCapability}
-          aria-label={scopeCapabilityLabel}
-        >
-          <span className="chat-scope-capability-dot" aria-hidden="true" />
-          {scopeCapabilityLabel}
-        </div>
       )}
       <div className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}>
         {showContextChips && (
@@ -257,27 +223,6 @@ export const ChatInput = ({
                 onOpenSettings={onOpenModelSettings}
               />
             )}
-            {executionMode === 'scheduled' ? (
-              <span
-                className="chat-execution-mode-btn chat-execution-mode-btn--readonly"
-                aria-label={t('chat.executionModeLabel', { mode: executionLabel })}
-              >
-                {executionLabel}
-              </span>
-            ) : onToggleExecutionMode ? (
-              <Button
-                variant="secondary"
-                size="xs"
-                className="chat-execution-mode-btn"
-                disabled={interactionDisabled || loading}
-                aria-pressed={executionMode === 'ask'}
-                aria-label={t('chat.executionModeLabel', { mode: executionLabel })}
-                title={t('chat.executionModeLabel', { mode: executionLabel })}
-                onClick={onToggleExecutionMode}
-              >
-                {executionLabel}
-              </Button>
-            ) : null}
             {loading ? (
               <button
                 className="chat-send-btn chat-send-btn--stop"

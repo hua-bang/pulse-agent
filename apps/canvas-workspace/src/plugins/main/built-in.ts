@@ -1,5 +1,5 @@
+import { app } from 'electron';
 import type { MainCanvasPlugin } from '../types';
-import { DevtoolsMainPlugin } from './devtools';
 import { MockNodeMainPlugin } from '../mock-node/main';
 import { getExperimentalFlagSync } from '../../main/settings/experimental-ipc';
 import {
@@ -28,6 +28,18 @@ const lazyPlugin = (
   };
 };
 
+const isAgentObservabilityEnabled = (): boolean => (
+  !app.isPackaged
+  && process.env.NODE_ENV === 'development'
+  && process.env.PULSE_CANVAS_AGENT_OBSERVABILITY === '1'
+);
+
+const DevtoolsMainPlugin = lazyPlugin(
+  'devtools',
+  isAgentObservabilityEnabled,
+  async () => (await import('./devtools')).DevtoolsMainPlugin,
+);
+
 const DynamicAppPlugin = lazyPlugin(
   'dynamic-app',
   () => getExperimentalFlagSync(EXPERIMENTAL_FLAG_DYNAMIC_APP),
@@ -49,9 +61,18 @@ const ChannelMainPlugin = lazyPlugin(
     && Boolean(process.env.FEISHU_APP_ID?.trim() && process.env.FEISHU_APP_SECRET?.trim()),
   async () => (await import('./channel')).ChannelMainPlugin,
 );
+const LangfuseObservabilityMainPlugin = lazyPlugin(
+  'langfuse-observability',
+  () => isAgentObservabilityEnabled() && Boolean(
+    process.env.LANGFUSE_PUBLIC_KEY?.trim()
+      && process.env.LANGFUSE_SECRET_KEY?.trim(),
+  ),
+  async () => (await import('./langfuse-observability')).LangfuseObservabilityMainPlugin,
+);
 
 // Main-side halves of built-in Canvas plugins.
 export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [
+  LangfuseObservabilityMainPlugin,
   DevtoolsMainPlugin,
   WebviewPageControlPlugin,
   HostRendererControlPlugin,

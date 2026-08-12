@@ -50,6 +50,8 @@ export interface TurnSegmentRequest {
   modelConfig: ResolvedCanvasModel;
   configuredModel?: string;
   systemPrompt: string;
+  observabilityRunId?: string;
+  observeFirstActivity?: boolean;
   debugTrace?: CanvasAgentDebugTrace;
   /**
    * Record messages the segment produced: appends to the live model history

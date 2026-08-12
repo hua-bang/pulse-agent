@@ -1,5 +1,10 @@
 import { EventEmitter } from 'events';
+import type {
+  AgentObservabilitySubscriber,
+  AgentTraceEvent,
+} from '../../shared/agent-observability';
 import type { AgentEvent, AgentTurn } from '../types';
+import { AgentObservabilityBus } from './agent-observability-bus';
 
 class CanvasAgentBus extends EventEmitter {
   emitTurn(event: AgentEvent, turn: AgentTurn): void {
@@ -27,3 +32,16 @@ class CanvasAgentBus extends EventEmitter {
 // canvas-agent calls agentBus.emitTurn(...) or emitTurnAsync(...) at its
 // lifecycle points; plugins subscribe via MainCtx.onAgent.
 export const agentBus = new CanvasAgentBus();
+export const agentObservabilityBus = new AgentObservabilityBus();
+
+export const publishAgentTraceEvent = (event: AgentTraceEvent): void => {
+  agentObservabilityBus.publish(event);
+};
+
+export const subscribeAgentTrace = (
+  subscriber: AgentObservabilitySubscriber,
+): (() => void) => agentObservabilityBus.subscribe(subscriber);
+
+export const drainAgentTraceEvents = async (): Promise<void> => {
+  await agentObservabilityBus.drain();
+};

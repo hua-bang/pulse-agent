@@ -35,8 +35,8 @@ import {
   attachTraceModel,
   createCanvasAgentDebugTrace,
   finalizeCanvasAgentDebugTrace,
-  isCanvasAgentDebugTraceEnabled,
-  recordTraceMessageSnapshot,
+  isCanvasAgentDebugTraceEnabled, markTraceModelStarted, markTraceRuntimeCompleted,
+  recordTraceMessageSnapshot, type CanvasAgentPerformanceTiming,
 } from './debug-trace';
 import type {
   AgentClarificationRequest,
@@ -49,15 +49,14 @@ import type {
   WorkspaceSummary,
 } from './types';
 import { createFailedTurnToolTracker, failedAssistantMessage } from './chat-failure-persistence';
+import { completeCanvasHostRun, markCanvasRuntimeCompleted, markCanvasRuntimeStarted } from './observability/host-run';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
 import { formatSelectionFocusBlock } from './selection-focus-context';
 import { formatReferencedTabsBlock } from './referenced-tabs-context';
 import {
   ROLE_RELAY_MAX_SEGMENTS,
   stripRoleMentionMarkers,
-  type AgentRoleDefinition,
-  type RoleTurnStartEvent,
-  type RoleTurnEndEvent,
+  type AgentRoleDefinition, type RoleTurnStartEvent, type RoleTurnEndEvent,
 } from '../../shared/agent-roles';
 import {
   applySpeakerLabelToResponseMessages,
@@ -78,6 +77,7 @@ import {
   type CanvasToolResultEvent,
 } from './engine-stream-callbacks';
 import { executeCanvasAgentSegment } from './segment-execution';
+import { markCanvasHostContextReady } from './observability/host-run';
 import { ClarificationRegistry, type PendingClarificationRequest } from './clarification-registry';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
@@ -652,7 +652,7 @@ export class CanvasAgent {
     onRoleTurnStart?: (event: RoleTurnStartEvent) => void,
     onRoleTurnEnd?: (event: RoleTurnEndEvent) => void,
     runAbortSignal?: AbortSignal,
-    modelConfigOverride?: ResolvedCanvasModel,
+    modelConfigOverride?: ResolvedCanvasModel, performanceTiming?: CanvasAgentPerformanceTiming,
   ): Promise<{ response: string; runId?: string; stopped?: boolean; speakerRole?: { id: string; name: string; color: string } }> {
     const workspaceId = this.config.scope.kind === 'workspace'
       ? this.config.scope.workspaceId
@@ -774,6 +774,7 @@ export class CanvasAgent {
 
     // Build the context — pass a mutable reference so onResponse/onCompacted can update it
     const context = { messages: this.messages };
+    markCanvasHostContextReady(performanceTiming);
 
     // One AbortController per chat turn (hard stop, exposed via abort());
     // relayStop is the graceful boundary stop exposed via stopRelay().
@@ -798,6 +799,7 @@ export class CanvasAgent {
     const segments: Array<AgentRoleDefinition | null> = activeRoles.length > 0 ? activeRoles : [null];
     const queue = segments.map(roleTurnRef);
     let last: { response: string; runId?: string; role: AgentRoleDefinition | null; stopped?: boolean } | null = null;
+    let observabilityCursor = performanceTiming?.contextReadyAt ?? Date.now();
     const finishStoppedBeforeSegment = () => persistStoppedBeforeSegment(this.sessionStore);
 
     try {
@@ -819,6 +821,7 @@ export class CanvasAgent {
         // External segments produce no engine trace (no model config of ours).
         const debugTrace = !role?.external && isCanvasAgentDebugTraceEnabled()
           ? createCanvasAgentDebugTrace({
+              runId: index === 0 ? performanceTiming?.runId : undefined,
               sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
               userPrompt: message,
               attachmentCount: attachments.length,
@@ -827,6 +830,7 @@ export class CanvasAgent {
               summary,
               systemPrompt: segmentPrompt,
               currentCanvasSummary,
+              performance: performanceTiming,
             })
           : undefined;
         attachTraceModel(debugTrace, {
@@ -836,13 +840,10 @@ export class CanvasAgent {
         });
         failedTurnTools.reset();
         onRoleTurnStart?.({ index, total: segments.length, speakerRole: roleTurnRef(role), queue });
+        const runtimeStartedAt = markCanvasRuntimeStarted(performanceTiming, observabilityCursor);
+        markTraceModelStarted(debugTrace);
 
-        const {
-          responseMessages,
-          externalToolCalls,
-          resultText,
-          streamedText,
-        } = await executeCanvasAgentSegment({
+        const { responseMessages, externalToolCalls, resultText, runtimeOwner, streamedText } = await executeCanvasAgentSegment({
           engine: this.engine,
           context,
           role,
@@ -859,12 +860,15 @@ export class CanvasAgent {
           modelConfig,
           configuredModel: this.config.model,
           systemPrompt: segmentPrompt,
+          observabilityRunId: performanceTiming?.runId, observeFirstActivity: index === 0,
           debugTrace,
           appendMessages: messages => this.messages.push(...messages),
           replaceMessages: messages => {
             this.messages = messages;
           },
         });
+        observabilityCursor = markCanvasRuntimeCompleted(performanceTiming, runtimeStartedAt, runtimeOwner);
+        markTraceRuntimeCompleted(debugTrace);
 
         // Impersonation guard (sanitizeRoleSegmentText) runs BEFORE persisting,
         // labeling, and the handoff scan — all consumers see one speaker.
@@ -903,7 +907,7 @@ export class CanvasAgent {
           if (responseText !== rawText) replaceFinalAssistantText(responseMessages, responseText);
           applySpeakerLabelToResponseMessages(responseMessages, role.name);
         }
-        const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace);
+        const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace, stopped ? 'stopped' : 'success');
         this.sessionStore.addMessage({
           role: 'assistant',
           content: responseText,
@@ -964,6 +968,8 @@ export class CanvasAgent {
           speakerRole: roleTurnRef(role),
         });
       }
+
+      completeCanvasHostRun(performanceTiming, observabilityCursor, last?.stopped ? 'stopped' : 'success');
 
       return {
         response: last?.response ?? '(no response)',

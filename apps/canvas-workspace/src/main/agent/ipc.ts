@@ -8,6 +8,7 @@
  *   canvas-agent:run-status        — report whether main still owns the run
  *   canvas-agent:scope-run-status  — reconnect to a scope run and pending clarification
  *   canvas-agent:chat              — backwards-compatible prepare + start
+ *   canvas-agent:observability-mark — record a renderer-owned UI milestone
  *   canvas-agent:abort             — interrupt the currently-running chat turn (hard stop)
  *   canvas-agent:stop-relay        — graceful multi-role relay stop: current segment
  *                                    finishes, queued segments are skipped
@@ -54,8 +55,10 @@ import {
 } from './prepared-chat';
 import { ActiveChatRegistry } from './active-chat-registry';
 import { prepareChatTurn, startChatTurn } from './chat-protocol';
+import type { AgentObservabilityMarkInput } from '../../shared/agent-observability';
+import { publishAgentTraceEvent } from '../../plugins/main';
+import { isAgentObservabilityMark } from './observability/renderer-mark';
 let service: CanvasAgentService | null = null;
-
 const activeChats = new ActiveChatRegistry();
 const preparedChats = new PreparedChatRegistry();
 function resolveAgentScope(payload: AgentScopeRef): AgentScope {
@@ -124,6 +127,16 @@ export function setupCanvasAgentIpc(): void {
   });
 
   ipcMain.handle('canvas-agent:prepare-chat', (event, payload) => prepare(event, payload));
+  ipcMain.handle(
+    'canvas-agent:observability-mark',
+    (_event, payload: AgentObservabilityMarkInput) => {
+      if (!isAgentObservabilityMark(payload)) {
+        return { ok: false, error: 'Invalid observability milestone' };
+      }
+      publishAgentTraceEvent({ type: 'milestone', owner: 'renderer', ...payload });
+      return { ok: true };
+    },
+  );
   ipcMain.handle(
     'canvas-agent:start-chat',
     (event, payload: { sessionId: string }) => start(event, payload.sessionId),

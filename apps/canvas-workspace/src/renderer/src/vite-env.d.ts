@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+declare const __PULSE_CANVAS_AGENT_OBSERVABILITY__: boolean;
 declare module '*.css';
 
 declare module 'markdown-it-task-lists' {
