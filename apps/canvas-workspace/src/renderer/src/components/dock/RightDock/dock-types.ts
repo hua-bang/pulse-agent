@@ -3,6 +3,8 @@ import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
 
 export interface RightDockProps {
   activeWorkspaceId: string;
+  /** Canvas destination for write actions. Null in global/scheduled Chat. */
+  canvasWorkspaceId?: string | null;
   activeIdReady: boolean;
   chatTabEnabled: boolean;
   reserveSpace: boolean;

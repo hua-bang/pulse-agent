@@ -60,9 +60,9 @@ interface Props {
   setTerminalHost: (element: HTMLDivElement | null) => void;
   terminalHostMounted: boolean;
   activeWorkspaceId: string;
+  canvasWorkspaceId?: string | null;
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
-  pinUrlReference: (url: string, title?: string) => void;
   onAddDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onSubmitDomReviewComments?: (
     workspaceId: string,
@@ -93,9 +93,9 @@ export const DockPanes = ({
   setTerminalHost,
   terminalHostMounted,
   activeWorkspaceId,
+  canvasWorkspaceId = activeWorkspaceId,
   workspaces,
   onOpenNodePage,
-  pinUrlReference,
   onAddDomSelectionToChat,
   onSubmitDomReviewComments = async () => false,
   onAddTabToChat = async () => ({ status: 'unavailable', target: null }),
@@ -354,6 +354,7 @@ export const DockPanes = ({
                 mountWebview={isMounted(workspaceId, tab.id)}
                 active={visible}
                 activeWorkspaceId={workspaceId}
+                canvasWorkspaceId={canvasWorkspaceId}
                 onActivate={live ? () => store.activate(tab.id) : undefined}
                 onTitleChange={(title) => (live
                   ? store.setTitle(tab.id, title)
@@ -367,7 +368,6 @@ export const DockPanes = ({
                 onGuestNavigate={(url) => (live
                   ? store.syncLinkUrl(tab.id, url)
                   : store.updateRetainedLinkTab(workspaceId, tab.id, { url }))}
-                onAddToReference={pinUrlReference}
                 onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(workspaceId, selection)}
                 tabRef={live ? tabRefsById.get(tab.id) : undefined}
                 targetWorkspaceId={activeWorkspaceId}

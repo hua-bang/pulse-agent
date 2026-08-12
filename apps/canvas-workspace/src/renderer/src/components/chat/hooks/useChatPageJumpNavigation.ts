@@ -6,6 +6,7 @@ import type { SessionBackEntry } from '../SessionBackBar';
 import { buildAnchorElementId, buildChatAnchors } from '../utils/anchors';
 import { sessionTitleText } from '../utils/sessionTitle';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
+import { scopeFromSessionStoreId } from '../utils/sessionScope';
 
 const flashAnchor = (scopeId: string, messageIndex: number, delay = 0) => {
   window.setTimeout(() => {
@@ -23,7 +24,7 @@ interface Options {
   messages: AgentChatMessage[];
   scopeId: string;
   handleLoadSession: (sessionId: string) => Promise<boolean | undefined>;
-  onJumpToSession?: (session: { sessionId: string; workspaceId: string }) => void;
+  onJumpToSession?: (session: { sessionId: string; scope: AgentScope }) => void;
   onPushBackEntry?: (entry: SessionBackEntry) => void;
   onSelectSession: (session: UnifiedSession) => void;
 }
@@ -56,7 +57,7 @@ export const useChatPageJumpNavigation = ({
       if (current.ok && current.sessionId && current.sessionId !== sessionId) {
         onPushBackEntry?.({
           sessionId: current.sessionId,
-          workspaceId: currentSessionStoreId,
+          scope: agentScope,
           label: currentSessionLabel,
         });
       }
@@ -65,14 +66,14 @@ export const useChatPageJumpNavigation = ({
     }
 
     if (onJumpToSession) {
-      onJumpToSession({ sessionId, workspaceId: targetScopeId });
+      onJumpToSession({ sessionId, scope: scopeFromSessionStoreId(targetScopeId) });
     } else if (targetScopeId === currentSessionStoreId) {
       await handleLoadSession(sessionId);
     } else {
       onSelectSession({
         sessionId,
-        workspaceId: targetScopeId,
-        workspaceName: allWorkspaces.find(workspace => workspace.id === targetScopeId)?.name ?? targetScopeId,
+        scope: scopeFromSessionStoreId(targetScopeId),
+        scopeName: allWorkspaces.find(workspace => workspace.id === targetScopeId)?.name ?? targetScopeId,
         date: '',
         messageCount: 0,
         preview: '',

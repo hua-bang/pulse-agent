@@ -96,7 +96,7 @@ const AppContent = () => {
   const routeQuery = routeParams.toString();
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
   const chatTargetBroker = useChatTargetBroker();
-  const activeChatTarget = useActiveChatTarget();
+  const registeredChatTarget = useActiveChatTarget();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
@@ -197,22 +197,18 @@ const AppContent = () => {
     }
   }, [routePath, detailNodeMatch, setLocation]);
 
-  const {
-    enterChatTarget,
-    enterChatView,
-    exitChatView,
-    initialTarget: chatEntryTarget,
-  } = useChatNavigation({
+  const { activeChatTarget, enterChatTarget, enterChatView, exitChatView, setActiveChatTarget } = useChatNavigation({
     activeView,
     location,
+    scheduledTaskId: routeParams.get('scheduledTask'),
     setLocation,
-    activeTarget: activeChatTarget,
+    activeTarget: registeredChatTarget,
     broker: chatTargetBroker,
     openDockChat: dock.openChat,
     isOverlayOpen,
     openShortcuts,
   });
-  const { dockWorkspaceId, reportChatWorkspace, activateDockWorkspace } = useChatDockWorkspace(activeView, activeId, chatEntryTarget?.scope, selectWorkspace);
+  const { dockWorkspaceId, dockOwnerWorkspaceId, activateDockWorkspace } = useChatDockWorkspace(activeView, activeId, activeChatTarget, selectWorkspace);
   const openSessionInOwningScope = useCallback(async (
     scope: AgentScope,
     sessionId: string,
@@ -544,13 +540,12 @@ const AppContent = () => {
           </PulseRouterView>
           <PulseRouterView name="chat">
             <ChatPage
+              activeChatTarget={activeChatTarget}
+              setActiveChatTarget={setActiveChatTarget}
               allWorkspaces={workspaces}
-              openScheduledTaskId={routeParams.get('scheduledTask')}
-              initialTarget={chatEntryTarget}
               getWorkspaceNodes={getWorkspaceNodes}
               getWorkspaceRootFolder={getWorkspaceRootFolder}
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
-              onWorkspaceScopeChange={reportChatWorkspace}
               onExit={exitChatView}
               onNodeFocus={focusNodeOnCanvas}
               onOpenAppSettings={openAppSettings}
@@ -580,7 +575,7 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
-      <RightDock workspaces={workspaces} activeWorkspaceId={dockWorkspaceId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} canvasTabEditingAllowed={isCanvasTabEditingAllowed(activeView)} onCanvasNodesChange={handleNodesChange} onCanvasSelectionChange={handleSelectionChange} reserveSpace={activeView !== 'skills'} capWidth={activeView !== 'canvas'} pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440} onOpenNodePage={openNodePage} onActivateWorkspace={activateDockWorkspace} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={dockOwnerWorkspaceId} canvasWorkspaceId={dockWorkspaceId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} canvasTabEditingAllowed={isCanvasTabEditingAllowed(activeView, dockWorkspaceId)} onCanvasNodesChange={handleNodesChange} onCanvasSelectionChange={handleSelectionChange} reserveSpace={activeView !== 'skills'} capWidth={activeView !== 'canvas'} pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440} onOpenNodePage={openNodePage} onActivateWorkspace={activateDockWorkspace} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         appLoaded={appSettingsLoaded}

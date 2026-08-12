@@ -26,7 +26,7 @@ interface ChatHeaderProps {
   onToggleSessionMenu: () => Promise<void>;
   onCloseSessionMenu: () => void;
   onNewSession: () => Promise<void>;
-  onLoadSession: (sessionId: string, sourceWorkspaceId?: string) => Promise<void>;
+  onLoadSession: (sessionId: string) => Promise<void>;
   onOpenOriginalSession?: (session: OtherWorkspaceSession) => void;
   onCopyOtherSession?: (session: OtherWorkspaceSession) => Promise<void>;
   onOpenSettings: () => void;

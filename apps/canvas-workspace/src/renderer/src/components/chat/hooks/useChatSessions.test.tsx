@@ -120,6 +120,21 @@ afterEach(() => {
 });
 
 describe('useChatSessions — session detail loading', () => {
+  it('imports a global session into a workspace through the storage adapter boundary', async () => {
+    await mount(true);
+    await rerender(true, { kind: 'workspace', workspaceId: 'workspace-a' });
+
+    await act(async () => {
+      await latest!.handleLoadSession('global-session', { kind: 'global' });
+    });
+
+    expect(agent.loadCrossWorkspaceSession).toHaveBeenCalledWith(
+      'workspace-a',
+      '__global_chat__',
+      'global-session',
+    );
+    expect(agent.loadSession).not.toHaveBeenCalled();
+  });
 
   it('keeps the unified rail grouped by its committed scopes during a cross-scope thread load', async () => {
     const workspace = { id: 'workspace-a', name: 'Workspace A' };
@@ -138,8 +153,8 @@ describe('useChatSessions — session detail loading', () => {
       ok: true,
       groups: [
         {
-          workspaceId: '__global_chat__',
-          workspaceName: 'Global Chat',
+          scope: { kind: 'global' },
+          scopeName: 'Global Chat',
           sessions: [{
             sessionId: 'global-session',
             date: '2026-08-08',
@@ -149,8 +164,8 @@ describe('useChatSessions — session detail loading', () => {
           }],
         },
         {
-          workspaceId: workspace.id,
-          workspaceName: workspace.name,
+          scope: { kind: 'workspace', workspaceId: workspace.id },
+          scopeName: workspace.name,
           sessions: [{
             sessionId: 'workspace-session',
             date: '2026-08-07',
@@ -181,9 +196,9 @@ describe('useChatSessions — session detail loading', () => {
         currentScopeName: state.currentScopeName,
         sessionsLoading: state.sessionsLoading,
         otherSessions: state.otherSessions,
-        selectedSessionKey: pending ? `${workspace.id}:workspace-session` : '__global_chat__:global-session',
+        selectedSessionKey: pending ? `workspace:${workspace.id}:workspace-session` : 'global:global-session',
         sessions: state.sessions,
-        sessionsStoreId: state.sessionsStoreId,
+        sessionsScope: state.sessionsScope,
         disabled: false,
         focusInput,
         handleNewSession: state.handleNewSession,
@@ -192,7 +207,9 @@ describe('useChatSessions — session detail loading', () => {
         deleteSession: state.deleteSession,
         toggleSessionPinned: state.toggleSessionPinned,
       });
-      latestRailWorkspaceIds = [...new Set(rail.allSessions.map((session) => session.workspaceId))];
+      latestRailWorkspaceIds = [...new Set(rail.allSessions.map((session) => (
+        session.scope.kind === 'workspace' ? session.scope.workspaceId : session.scope.kind
+      )))];
       return null;
     };
 
@@ -206,7 +223,7 @@ describe('useChatSessions — session detail loading', () => {
         </I18nProvider>,
       );
     });
-    expect(latestRailWorkspaceIds.sort()).toEqual(['__global_chat__', workspace.id].sort());
+    expect(latestRailWorkspaceIds.sort()).toEqual(['global', workspace.id].sort());
 
     await act(async () => {
       root?.render(
@@ -217,7 +234,7 @@ describe('useChatSessions — session detail loading', () => {
     });
     act(() => { void latest!.handleLoadSession('workspace-session'); });
 
-    expect(latestRailWorkspaceIds.sort()).toEqual(['__global_chat__', workspace.id].sort());
+    expect(latestRailWorkspaceIds.sort()).toEqual(['global', workspace.id].sort());
 
     await act(async () => {
       thread.resolve({
@@ -423,8 +440,8 @@ describe('useChatSessions — session detail loading', () => {
       ok: true,
       groups: [
         {
-          workspaceId: '__global_chat__',
-          workspaceName: 'Global Chat',
+          scope: { kind: 'global' },
+          scopeName: 'Global Chat',
           sessions: [{
             sessionId: 'global-current',
             date: '2026-08-08',
@@ -434,8 +451,8 @@ describe('useChatSessions — session detail loading', () => {
           }],
         },
         {
-          workspaceId: 'workspace-a',
-          workspaceName: 'Workspace A',
+          scope: { kind: 'workspace', workspaceId: 'workspace-a' },
+          scopeName: 'Workspace A',
           sessions: [{
             sessionId: 'workspace-session',
             date: '2026-08-07',
@@ -658,8 +675,8 @@ describe('useChatSessions — session detail loading', () => {
         ok: true,
         groups: [
           {
-            workspaceId: '__global_chat__',
-            workspaceName: 'Global Chat',
+            scope: { kind: 'global' },
+            scopeName: 'Global Chat',
             sessions: [{
               sessionId: 'global-a',
               date: '2026-07-29',
@@ -669,8 +686,8 @@ describe('useChatSessions — session detail loading', () => {
             }],
           },
           {
-            workspaceId: 'workspace-a',
-            workspaceName: 'Workspace A',
+            scope: { kind: 'workspace', workspaceId: 'workspace-a' },
+            scopeName: 'Workspace A',
             sessions: [{
               sessionId: 'workspace-a-1',
               date: '2026-07-29',

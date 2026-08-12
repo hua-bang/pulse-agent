@@ -3,9 +3,7 @@ import type { ArtifactSummary } from '../../../types';
 import { Button, Popover, SegmentedControl } from '../../ui';
 import { useRightDock } from '../RightDock';
 import { useI18n } from '../../../i18n';
-
-/** Storage scope of global-chat artifacts (not a canvas workspace). */
-const GLOBAL_ARTIFACT_SCOPE = '__global_chat__';
+import { GLOBAL_CHAT_STORE_ID } from '../../../../../shared/agent-chat';
 
 type ArtifactScope = 'current' | 'all';
 
@@ -110,7 +108,7 @@ export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById, onPrevie
   }, [activeWorkspaceId]);
 
   const scopeName = (workspaceId: string): string => (
-    workspaceId === GLOBAL_ARTIFACT_SCOPE
+    workspaceId === GLOBAL_CHAT_STORE_ID
       ? t('reference.artifactScopeGlobal')
       : workspaceNameById.get(workspaceId) ?? workspaceId
   );

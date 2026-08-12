@@ -38,7 +38,7 @@ describe('useChatPageJumpNavigation', () => {
 
     expect(onJumpToSession).toHaveBeenCalledWith({
       sessionId: 'target',
-      workspaceId: 'workspace-a',
+      scope: { kind: 'workspace', workspaceId: 'workspace-a' },
     });
     expect(handleLoadSession).not.toHaveBeenCalled();
     act(() => root.unmount());

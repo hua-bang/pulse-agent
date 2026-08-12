@@ -28,7 +28,8 @@ describe('dock chat availability', () => {
   });
 
   it('allows dock canvas editing only on the dedicated AI Chat page', () => {
-    expect(isCanvasTabEditingAllowed('chat')).toBe(true);
+    expect(isCanvasTabEditingAllowed('chat', 'workspace-a')).toBe(true);
+    expect(isCanvasTabEditingAllowed('chat', null)).toBe(false);
     for (const view of ['canvas', 'scheduled-task', 'scheduled', 'nodes', 'skills', '/plugin']) {
       expect(isCanvasTabEditingAllowed(view)).toBe(false);
     }

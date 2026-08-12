@@ -21,19 +21,25 @@ vi.mock('../TabChatAction', () => ({
 
 // Capture the props each LinkTabView renders with (the real one lazy-loads a
 // live <webview>, which has no place in a happy-dom test).
-const latestLinkTabProps = vi.hoisted(() => new Map<string, { mountWebview?: boolean; active?: boolean }>());
+const latestLinkTabProps = vi.hoisted(() => new Map<string, {
+  mountWebview?: boolean;
+  active?: boolean;
+  canvasWorkspaceId?: string | null;
+}>());
 vi.mock('../../LinkDrawer', () => ({
   LinkTabView: (props: {
     tabId?: string;
     mountWebview?: boolean;
     active?: boolean;
     activeWorkspaceId?: string;
+    canvasWorkspaceId?: string | null;
   }) => {
     // Keyed by workspace too: the same tab id can exist in two workspaces, and
     // retained panes render alongside the live ones.
     if (props.tabId) latestLinkTabProps.set(`${props.activeWorkspaceId}::${props.tabId}`, {
       mountWebview: props.mountWebview,
       active: props.active,
+      canvasWorkspaceId: props.canvasWorkspaceId,
     });
     return null;
   },
@@ -116,7 +122,6 @@ describe('DockPanes split focus', () => {
         activeWorkspaceId="ws1"
         workspaces={[]}
         onOpenNodePage={() => undefined}
-        pinUrlReference={() => undefined}
         onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
       /></I18nProvider>,
     ));
@@ -150,6 +155,7 @@ describe('DockPanes lazy link-tab webview mount', () => {
     activePaneId: string | null,
     activeWorkspaceId = 'ws1',
     dockVisible = true,
+    canvasWorkspaceId: string | null = activeWorkspaceId,
   ) => {
     flushSync(() => root?.render(
       <I18nProvider><DockPanes
@@ -165,13 +171,28 @@ describe('DockPanes lazy link-tab webview mount', () => {
         setTerminalHost={() => undefined}
         terminalHostMounted={false}
         activeWorkspaceId={activeWorkspaceId}
+        canvasWorkspaceId={canvasWorkspaceId}
         workspaces={[]}
         onOpenNodePage={() => undefined}
-        pinUrlReference={() => undefined}
         onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
       /></I18nProvider>,
     ));
   };
+
+  it('keeps global Chat link tabs unbound from Canvas actions', async () => {
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openLink('https://example.com');
+    const [tab] = store.getSnapshot().tabs;
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+
+    renderPanes(store, tab.id, 'ws1', true, null);
+
+    await vi.waitFor(() => expect(propsFor(tab.id)).toBeDefined());
+    expect(propsFor(tab.id)?.canvasWorkspaceId).toBeNull();
+  });
 
   it('mounts the webview only for tabs that have been active, and never unmounts', async () => {
     const store = new DockStore();
@@ -357,7 +378,6 @@ describe('DockPanes tabpanel relationships', () => {
         activeWorkspaceId="ws1"
         workspaces={[]}
         onOpenNodePage={() => undefined}
-        pinUrlReference={() => undefined}
         onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
       /></I18nProvider>,
     ));
@@ -403,7 +423,6 @@ describe('DockPanes tabpanel relationships', () => {
         activeWorkspaceId="ws1"
         workspaces={[]}
         onOpenNodePage={() => undefined}
-        pinUrlReference={() => undefined}
         onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
       /></I18nProvider>,
     ));
@@ -430,14 +449,14 @@ describe('DockPanes canvas editing host capability', () => {
     document.body.appendChild(mount);
     root = createRoot(mount);
 
-    const render = (dockVisible: boolean) => flushSync(() => root?.render(
+    const render = (dockVisible: boolean, editingAllowed = true) => flushSync(() => root?.render(
       <I18nProvider><DockPanes
         store={store}
         state={store.getSnapshot()}
         activePaneId={tab.id}
         dockVisible={dockVisible}
         chatTabEnabled={false}
-        canvasTabEditingAllowed
+        canvasTabEditingAllowed={editingAllowed}
         onCanvasNodesChange={onCanvasNodesChange}
         onCanvasSelectionChange={onCanvasSelectionChange}
         onSubmitDomReviewComments={onSubmitDomReviewComments}
@@ -450,7 +469,6 @@ describe('DockPanes canvas editing host capability', () => {
         activeWorkspaceId="ws1"
         workspaces={[{ id: 'ws2', name: 'Research' }]}
         onOpenNodePage={() => undefined}
-        pinUrlReference={() => undefined}
         onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
       /></I18nProvider>,
     ));
@@ -464,6 +482,12 @@ describe('DockPanes canvas editing host capability', () => {
       onSelectionChange: onCanvasSelectionChange,
     });
     expect(store.getSnapshot().tabs[0]).not.toHaveProperty('editingAllowed');
+
+    render(true, false);
+    expect(latestCanvasPreviewProps.get('ws2')).toMatchObject({
+      editingAllowed: false,
+      active: true,
+    });
 
     const comments: AgentContextDomReviewComment[] = [{
       id: 'review-1',
@@ -511,7 +535,6 @@ describe('DockPanes whole-tab Chat actions', () => {
         activeWorkspaceId="ws1"
         workspaces={[]}
         onOpenNodePage={() => undefined}
-        pinUrlReference={() => undefined}
         onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
         onAddTabToChat={async () => ({ status: 'unavailable', target: null })}
       /></I18nProvider>,

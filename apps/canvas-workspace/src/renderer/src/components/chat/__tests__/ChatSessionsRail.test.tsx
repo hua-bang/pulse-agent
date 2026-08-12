@@ -20,24 +20,24 @@ afterEach(() => {
 const sessions: UnifiedSession[] = [
   {
     sessionId: 'session-a',
-    workspaceId: 'workspace-a',
-    workspaceName: 'Workspace A',
+    scope: { kind: 'workspace', workspaceId: 'workspace-a' },
+    scopeName: 'Workspace A',
     date: '2026-07-29',
     messageCount: 2,
     preview: 'First conversation',
   },
   {
     sessionId: 'session-b',
-    workspaceId: 'workspace-a',
-    workspaceName: 'Workspace A',
+    scope: { kind: 'workspace', workspaceId: 'workspace-a' },
+    scopeName: 'Workspace A',
     date: '2026-07-28',
     messageCount: 1,
     preview: 'Second conversation',
   },
   {
     sessionId: 'session-c',
-    workspaceId: 'workspace-b',
-    workspaceName: 'Workspace B',
+    scope: { kind: 'workspace', workspaceId: 'workspace-b' },
+    scopeName: 'Workspace B',
     date: '2026-07-27',
     messageCount: 1,
     preview: 'Third conversation',
@@ -46,8 +46,8 @@ const sessions: UnifiedSession[] = [
 
 const globalSession: UnifiedSession = {
   sessionId: 'global-session',
-  workspaceId: '__global_chat__',
-  workspaceName: 'Global Chat',
+  scope: { kind: 'global' },
+  scopeName: 'Global Chat',
   date: '2026-07-29',
   messageCount: 1,
   preview: 'Global conversation',
@@ -289,8 +289,8 @@ describe('ChatSessionsRail workspace tree', () => {
     root = createRoot(host);
     const manySessions = Array.from({ length: 15 }, (_, index): UnifiedSession => ({
       sessionId: `session-${index}`,
-      workspaceId: 'workspace-a',
-      workspaceName: 'Workspace A',
+      scope: { kind: 'workspace', workspaceId: 'workspace-a' },
+      scopeName: 'Workspace A',
       date: `2026-07-${String(30 - index).padStart(2, '0')}`,
       messageCount: 1,
       preview: `Conversation ${index + 1}`,
@@ -327,8 +327,8 @@ describe('ChatSessionsRail workspace tree', () => {
     root = createRoot(host);
     const manySessions = Array.from({ length: 15 }, (_, index): UnifiedSession => ({
       sessionId: `session-${index}`,
-      workspaceId: 'workspace-a',
-      workspaceName: 'Workspace A',
+      scope: { kind: 'workspace', workspaceId: 'workspace-a' },
+      scopeName: 'Workspace A',
       date: `2026-07-${String(30 - index).padStart(2, '0')}`,
       messageCount: 1,
       preview: `Conversation ${index + 1}`,
@@ -534,7 +534,7 @@ describe('ChatSessionsRail workspace tree', () => {
               ...session,
               isCurrent: session.sessionId === 'session-a',
             }))}
-            pendingSessionKey="workspace-a:session-a"
+            pendingSessionKey="workspace:workspace-a:session-a"
             onNewSession={vi.fn()}
             onSelectSession={vi.fn()}
           />

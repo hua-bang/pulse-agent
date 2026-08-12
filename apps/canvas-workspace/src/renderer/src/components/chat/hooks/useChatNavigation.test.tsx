@@ -18,6 +18,41 @@ const target: ChatTarget = {
 };
 
 describe('useChatNavigation', () => {
+  it('exposes a scheduled route target on the first render', () => {
+    let firstTarget: ReturnType<typeof useChatNavigation>['activeChatTarget'] | undefined;
+    const broker = {
+      deliver: vi.fn(async () => ({ status: 'unavailable' as const, target: null })),
+      getActiveTarget: () => null,
+      register: vi.fn(),
+      subscribe: vi.fn(),
+    } satisfies ChatTargetBroker;
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const Harness = () => {
+      const navigation = useChatNavigation({
+        activeView: 'chat',
+        location: '/chat?scheduledTask=daily-brief',
+        scheduledTaskId: 'daily-brief',
+        setLocation: vi.fn(),
+        activeTarget: null,
+        broker,
+        openDockChat: vi.fn(),
+        isOverlayOpen: false,
+        openShortcuts: vi.fn(),
+      });
+      firstTarget ??= navigation.activeChatTarget;
+      return null;
+    };
+
+    act(() => root.render(<Harness />));
+    expect(firstTarget).toEqual({
+      scope: { kind: 'scheduled', taskId: 'daily-brief' },
+      sessionId: null,
+      executionPolicy: 'scheduled',
+    });
+    act(() => root.unmount());
+  });
+
   it('toggles full-page chat back to its source and restores focus', async () => {
     let latest: ReturnType<typeof useChatNavigation> | undefined;
     const deliver: ChatTargetBroker['deliver'] = vi.fn(async () => ({
@@ -59,7 +94,12 @@ describe('useChatNavigation', () => {
         shiftKey: true,
       }));
     });
-    expect(latest?.initialTarget).toEqual(target);
+    expect(latest?.activeChatTarget).toEqual({
+      scope: target.scope,
+      sessionId: target.sessionId,
+      contextSnapshot: target.contextSnapshot,
+      executionPolicy: target.executionPolicy,
+    });
     expect(latest?.isChatView).toBe(true);
 
     await act(async () => {
@@ -163,7 +203,22 @@ describe('useChatNavigation', () => {
     act(() => latest?.enterChatTarget(pageTarget));
 
     expect(location).toBe('/chat');
-    expect(latest?.initialTarget).toEqual(pageTarget);
+    expect(latest?.activeChatTarget).toEqual({
+      scope: pageTarget.scope,
+      sessionId: pageTarget.sessionId,
+      contextSnapshot: pageTarget.contextSnapshot,
+      executionPolicy: pageTarget.executionPolicy,
+    });
+
+    act(() => latest?.setActiveChatTarget((current) => ({
+      ...current,
+      scope: { kind: 'workspace', workspaceId: 'workspace-b' },
+      sessionId: 'session-b',
+    })));
+    expect(latest?.activeChatTarget).toMatchObject({
+      scope: { kind: 'workspace', workspaceId: 'workspace-b' },
+      sessionId: 'session-b',
+    });
 
     act(() => root.unmount());
   });

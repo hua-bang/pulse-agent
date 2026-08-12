@@ -1,8 +1,12 @@
 // @vitest-environment happy-dom
-import { act } from 'react';
+import { act, useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChatTarget } from '../ChatTargetContext';
+import {
+  activeChatTargetFromRegisteredTarget,
+  type ActiveChatTarget,
+  type ChatTarget,
+} from '../ChatTargetContext';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -21,12 +25,12 @@ vi.mock('../ChatPageBody', async () => {
       pendingSessionId: string | null;
       pendingSessionIntentId: number | null;
       onSessionConsumed: (intentId: number, loaded: boolean) => void;
-      onJumpToSession?: (session: { sessionId: string; workspaceId: string }) => void;
+      onJumpToSession?: (session: { sessionId: string; scope: { kind: string; workspaceId?: string; taskId?: string } }) => void;
       selectedSessionKey?: string | null;
       onSelectSession: (session: {
         sessionId: string;
-        workspaceId: string;
-        workspaceName: string;
+        scope: { kind: string; workspaceId?: string };
+        scopeName: string;
         date: string;
         messageCount: number;
       }) => void;
@@ -47,13 +51,13 @@ vi.mock('../ChatPageBody', async () => {
               event.preventDefault();
               props.onJumpToSession?.({
                 sessionId: 'session-jump',
-                workspaceId: props.agentScope.workspaceId ?? '__global_chat__',
+                scope: props.agentScope,
               });
             },
             onClick: () => props.onSelectSession({
               sessionId: 'session-b',
-              workspaceId: 'workspace-b',
-              workspaceName: 'Workspace B',
+              scope: { kind: 'workspace', workspaceId: 'workspace-b' },
+              scopeName: 'Workspace B',
               date: '2026-07-29',
               messageCount: 1,
             }),
@@ -73,6 +77,27 @@ vi.mock('../ChatPageBody', async () => {
 
 import { ChatPage } from '../ChatPage';
 
+const TestChatPage = ({
+  initialTarget,
+  onTargetChange,
+  ...props
+}: Omit<React.ComponentProps<typeof ChatPage>, 'activeChatTarget' | 'setActiveChatTarget'> & {
+  initialTarget?: ChatTarget | null;
+  onTargetChange?: (target: ActiveChatTarget) => void;
+}) => {
+  const [activeChatTarget, setActiveChatTarget] = useState(
+    () => activeChatTargetFromRegisteredTarget(initialTarget ?? null),
+  );
+  useEffect(() => onTargetChange?.(activeChatTarget), [activeChatTarget, onTargetChange]);
+  return (
+    <ChatPage
+      {...props}
+      activeChatTarget={activeChatTarget}
+      setActiveChatTarget={setActiveChatTarget}
+    />
+  );
+};
+
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
@@ -87,16 +112,16 @@ afterEach(() => {
 
 describe('ChatPage scope switching', () => {
   it.each([
-    ['__global_chat__', 'global'],
-    ['__scheduled__-task-1', 'scheduled'],
-  ])('routes a %s session reference to its special scope', async (workspaceId, expectedScope) => {
+    [{ kind: 'global' } as const, 'global', 'global'],
+    [{ kind: 'scheduled', taskId: 'task-1' } as const, 'scheduled', 'scheduled:task-1'],
+  ])('routes a $expectedScope session reference to its special scope', async (scope, expectedScope, expectedScopeKey) => {
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
 
     await act(async () => {
       root?.render(
-        <ChatPage
+        <TestChatPage
           allWorkspaces={[]}
           onExit={vi.fn()}
           onOpenAppSettings={vi.fn()}
@@ -106,19 +131,19 @@ describe('ChatPage scope switching', () => {
 
     act(() => mockState.latestProps?.onJumpToSession?.({
       sessionId: 'referenced-session',
-      workspaceId,
+      scope,
     }));
 
     const body = host.querySelector<HTMLButtonElement>('[data-chat-body]');
     expect(body?.textContent).toBe(expectedScope);
-    expect(body?.dataset.selectedSession).toBe(`${workspaceId}:referenced-session`);
+    expect(body?.dataset.selectedSession).toBe(`${expectedScopeKey}:referenced-session`);
 
     const intentId = mockState.latestProps?.pendingSessionIntentId as number;
     act(() => mockState.latestProps?.onSessionConsumed(intentId, true));
     expect(host.querySelector<HTMLButtonElement>('[data-chat-body]')?.textContent)
       .toBe(expectedScope);
     expect(host.querySelector<HTMLButtonElement>('[data-chat-body]')?.dataset.selectedSession)
-      .toBe(`${workspaceId}:referenced-session`);
+      .toBe(`${expectedScopeKey}:referenced-session`);
   });
 
   it('keeps ChatPageBody mounted when selecting a session in another workspace', async () => {
@@ -128,7 +153,7 @@ describe('ChatPage scope switching', () => {
 
     await act(async () => {
       root?.render(
-        <ChatPage
+        <TestChatPage
           allWorkspaces={[{ id: 'workspace-b', name: 'Workspace B' }]}
           onExit={vi.fn()}
           onOpenAppSettings={vi.fn()}
@@ -147,34 +172,39 @@ describe('ChatPage scope switching', () => {
     const switchedBody = host.querySelector('button');
     expect(switchedBody?.textContent).toBe('workspace-b');
     expect(switchedBody?.dataset.mountId).toBe('1');
-    expect(switchedBody?.dataset.selectedSession).toBe('workspace-b:session-b');
+    expect(switchedBody?.dataset.selectedSession).toBe('workspace:workspace-b:session-b');
     expect(mockState.mountCount).toBe(1);
   });
 
-  it('reports the owning workspace when a cross-workspace session is selected', async () => {
+  it('updates the active Chat target when a cross-workspace session is selected', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
-    const onWorkspaceScopeChange = vi.fn();
+    const onTargetChange = vi.fn();
 
     await act(async () => {
       root?.render(
-        <ChatPage
+        <TestChatPage
           allWorkspaces={[{ id: 'workspace-b', name: 'Workspace B' }]}
-          onWorkspaceScopeChange={onWorkspaceScopeChange}
+          onTargetChange={onTargetChange}
           onExit={vi.fn()}
           onOpenAppSettings={vi.fn()}
         />,
       );
     });
 
-    expect(onWorkspaceScopeChange).toHaveBeenLastCalledWith(null);
+    expect(onTargetChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      scope: { kind: 'global' },
+    }));
 
     await act(async () => {
       host?.querySelector<HTMLButtonElement>('[data-chat-body]')?.click();
     });
 
-    expect(onWorkspaceScopeChange).toHaveBeenLastCalledWith('workspace-b');
+    expect(onTargetChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      scope: { kind: 'workspace', workspaceId: 'workspace-b' },
+      sessionId: 'session-b',
+    }));
   });
 
   it('rolls scope and rail selection back when a cross-scope session load fails', async () => {
@@ -183,7 +213,7 @@ describe('ChatPage scope switching', () => {
     root = createRoot(host);
     await act(async () => {
       root?.render(
-        <ChatPage
+        <TestChatPage
           allWorkspaces={[{ id: 'workspace-b', name: 'Workspace B' }]}
           onExit={vi.fn()}
           onOpenAppSettings={vi.fn()}
@@ -208,11 +238,11 @@ describe('ChatPage scope switching', () => {
     expect(rolledBack?.dataset.selectedSession).toBe('');
   });
 
-  it('restores the reported dock workspace when a cross-scope load fails', async () => {
+  it('restores the active Chat target when a cross-scope load fails', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
-    const onWorkspaceScopeChange = vi.fn();
+    const onTargetChange = vi.fn();
     const initialTarget: ChatTarget = {
       surface: 'dock',
       scope: { kind: 'workspace', workspaceId: 'workspace-a' },
@@ -225,13 +255,13 @@ describe('ChatPage scope switching', () => {
 
     await act(async () => {
       root?.render(
-        <ChatPage
+        <TestChatPage
           allWorkspaces={[
             { id: 'workspace-a', name: 'Workspace A' },
             { id: 'workspace-b', name: 'Workspace B' },
           ]}
           initialTarget={initialTarget}
-          onWorkspaceScopeChange={onWorkspaceScopeChange}
+          onTargetChange={onTargetChange}
           onExit={vi.fn()}
           onOpenAppSettings={vi.fn()}
         />,
@@ -241,12 +271,17 @@ describe('ChatPage scope switching', () => {
     await act(async () => {
       host?.querySelector<HTMLButtonElement>('[data-chat-body]')?.click();
     });
-    expect(onWorkspaceScopeChange).toHaveBeenLastCalledWith('workspace-b');
+    expect(onTargetChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      scope: { kind: 'workspace', workspaceId: 'workspace-b' },
+    }));
 
     await act(async () => {
       host?.querySelector<HTMLButtonElement>('[data-fail-session-load]')?.click();
     });
-    expect(onWorkspaceScopeChange).toHaveBeenLastCalledWith('workspace-a');
+    expect(onTargetChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      scope: { kind: 'workspace', workspaceId: 'workspace-a' },
+      sessionId: 'session-a',
+    }));
   });
 
   it('inherits the scope and context of the chat target that opened the page', async () => {
@@ -265,7 +300,7 @@ describe('ChatPage scope switching', () => {
 
     await act(async () => {
       root?.render(
-        <ChatPage
+        <TestChatPage
           allWorkspaces={[{ id: 'workspace-a', name: 'Workspace A' }]}
           initialTarget={initialTarget}
           onExit={vi.fn()}
@@ -285,45 +320,9 @@ describe('ChatPage scope switching', () => {
       host?.querySelector<HTMLButtonElement>('[data-fail-session-load]')?.click();
     });
     const restored = host.querySelector<HTMLButtonElement>('[data-chat-body]');
-    expect(restored?.dataset.selectedSession).toBe('workspace-a:session-a');
+    expect(restored?.dataset.selectedSession).toBe('workspace:workspace-a:session-a');
     expect(restored?.dataset.contextLabel).toBe('Workspace A');
     expect(restored?.dataset.executionPolicy).toBe('ask');
-  });
-
-  it('clears stale rail selection when an external scheduled target opens', async () => {
-    host = document.createElement('div');
-    document.body.appendChild(host);
-    root = createRoot(host);
-
-    await act(async () => {
-      root?.render(
-        <ChatPage
-          allWorkspaces={[{ id: 'workspace-b', name: 'Workspace B' }]}
-          onExit={vi.fn()}
-          onOpenAppSettings={vi.fn()}
-        />,
-      );
-    });
-    await act(async () => {
-      host?.querySelector('button')?.click();
-    });
-    expect(host.querySelector('button')?.dataset.selectedSession).toBe('workspace-b:session-b');
-
-    await act(async () => {
-      root?.render(
-        <ChatPage
-          allWorkspaces={[{ id: 'workspace-b', name: 'Workspace B' }]}
-          openScheduledTaskId="daily-brief"
-          onExit={vi.fn()}
-          onOpenAppSettings={vi.fn()}
-        />,
-      );
-    });
-
-    const body = host.querySelector('button');
-    expect(body?.textContent).toBe('scheduled');
-    expect(body?.dataset.selectedSession).toBe('');
-    expect(body?.dataset.executionPolicy).toBe('scheduled');
   });
 
   it('ignores a stale completion after a newer parent session intent wins', async () => {
@@ -332,7 +331,7 @@ describe('ChatPage scope switching', () => {
     root = createRoot(host);
     await act(async () => {
       root?.render(
-        <ChatPage
+        <TestChatPage
           allWorkspaces={[
             { id: 'workspace-b', name: 'Workspace B' },
             { id: 'workspace-c', name: 'Workspace C' },
@@ -344,12 +343,12 @@ describe('ChatPage scope switching', () => {
     });
     act(() => mockState.latestProps?.onJumpToSession({
       sessionId: 'session-b',
-      workspaceId: 'workspace-b',
+      scope: { kind: 'workspace', workspaceId: 'workspace-b' },
     }));
     const staleIntent = mockState.latestProps?.pendingSessionIntentId as number;
     act(() => mockState.latestProps?.onJumpToSession({
       sessionId: 'session-c',
-      workspaceId: 'workspace-c',
+      scope: { kind: 'workspace', workspaceId: 'workspace-c' },
     }));
     const newestIntent = mockState.latestProps?.pendingSessionIntentId as number;
     expect(newestIntent).toBeGreaterThan(staleIntent);

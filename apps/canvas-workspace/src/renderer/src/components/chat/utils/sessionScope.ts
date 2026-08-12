@@ -1,10 +1,15 @@
 import {
+  chatScopeKey,
   GLOBAL_CHAT_STORE_ID,
   scheduledTaskIdFromStoreId,
   scopeSessionStoreId,
 } from '../../../../../shared/agent-chat';
+export { chatScopeKey } from '../../../../../shared/agent-chat';
 import type { AgentScope } from '../types';
 import type { ChatTarget } from '../ChatTargetContext';
+
+export const chatSessionKey = (scope: AgentScope, sessionId: string): string =>
+  `${chatScopeKey(scope)}:${sessionId}`;
 
 /** Maps the session rail's storage identity back to the owning agent scope. */
 export const scopeFromSessionStoreId = (storeId: string): AgentScope => {

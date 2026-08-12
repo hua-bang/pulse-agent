@@ -172,6 +172,16 @@ Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 
 ### Explicit Chat ↔ dock-tab context
 
+Full-page Chat has one semantic owner: App's `ActiveChatTarget` carries the
+conversation `AgentScope`, session id, inherited context, and execution policy.
+The selected Canvas workspace remains separate. Global and scheduled Chat have
+no Canvas write destination; RightDock may retain a real workspace internally
+to host tabs, but that owner never grants Add-to-Canvas or Canvas edit access.
+Session-store sentinels stay behind `scopeSessionStoreId` / storage adapters —
+renderer navigation and unified session groups carry `AgentScope` directly.
+This is an in-memory/IPC contract cleanup only: existing on-disk directories,
+session pointers, and sentinel names remain unchanged.
+
 A content tab being visible beside Chat is never implicit model context. The
 user must add it through `@Tab` or the tab's Ask AI action. Full-page Chat
 initially binds the dock to the visible conversation's workspace scope, so its

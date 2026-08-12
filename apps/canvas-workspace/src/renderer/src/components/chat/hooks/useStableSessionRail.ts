@@ -1,8 +1,8 @@
 import { useMemo, useRef } from 'react';
-import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import type { AgentSessionInfo } from '../../../types';
 import type { UnifiedSession } from '../ChatSessionsRail';
 import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
+import { chatScopeKey, chatSessionKey } from '../utils/sessionScope';
 
 interface UseStableSessionRailOptions {
   agentScope: AgentScope;
@@ -12,7 +12,7 @@ interface UseStableSessionRailOptions {
   otherSessions: OtherWorkspaceSession[];
   selectedSessionKey: string | null;
   sessions: AgentSessionInfo[];
-  sessionsStoreId: string;
+  sessionsScope: AgentScope;
 }
 
 /**
@@ -29,41 +29,40 @@ export function useStableSessionRail({
   otherSessions,
   selectedSessionKey,
   sessions,
-  sessionsStoreId,
+  sessionsScope,
 }: UseStableSessionRailOptions): UnifiedSession[] {
   const stableSessionsRef = useRef<UnifiedSession[]>([]);
-  const stableScopeRef = useRef(scopeSessionStoreId(agentScope));
+  const stableScopeRef = useRef(chatScopeKey(agentScope));
   const computedSessions = useMemo(() => {
-    const activeStoreId = scopeSessionStoreId(agentScope);
-    const workspaceId = sessionsStoreId === activeStoreId && agentScope.kind === 'workspace'
-      ? agentScope.workspaceId
-      : sessionsStoreId;
     const workspaceName = currentScopeName
-      ?? (sessionsStoreId === '__global_chat__'
+      ?? (sessionsScope.kind === 'global'
         ? 'Global Chat'
-        : allWorkspaces.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId);
+        : sessionsScope.kind === 'scheduled'
+          ? sessionsScope.taskId
+          : allWorkspaces.find((workspace) => workspace.id === sessionsScope.workspaceId)?.name
+            ?? sessionsScope.workspaceId);
     const unified: UnifiedSession[] = [
       ...sessions.map((session) => ({
         ...session,
         preview: session.title ?? session.preview,
         isPinned: session.pinned,
-        workspaceId: sessionsStoreId,
-        workspaceName,
+        scope: sessionsScope,
+        scopeName: workspaceName,
         isCurrent: selectedSessionKey
-          ? selectedSessionKey === `${sessionsStoreId}:${session.sessionId}`
+          ? selectedSessionKey === chatSessionKey(sessionsScope, session.sessionId)
           : session.isCurrent,
       })),
       ...otherSessions.map((session) => ({
         sessionId: session.sessionId,
-        workspaceId: session.sourceWorkspaceId,
-        workspaceName: session.workspaceName,
+        scope: session.sourceScope,
+        scopeName: session.workspaceName,
         date: session.date,
         updatedAt: session.updatedAt,
         messageCount: session.messageCount,
         preview: session.title ?? session.preview,
         isPinned: session.pinned,
         isCurrent: selectedSessionKey
-          === `${session.sourceWorkspaceId}:${session.sessionId}`,
+          === chatSessionKey(session.sourceScope, session.sessionId),
       })),
     ];
     return unified.sort((left, right) => (
@@ -71,17 +70,17 @@ export function useStableSessionRail({
       || right.date.localeCompare(left.date)
       || right.sessionId.localeCompare(left.sessionId)
     ));
-  }, [agentScope, allWorkspaces, currentScopeName, otherSessions, selectedSessionKey, sessions, sessionsStoreId]);
+  }, [allWorkspaces, currentScopeName, otherSessions, selectedSessionKey, sessions, sessionsScope]);
 
   return useMemo(() => {
-    const nextScopeId = scopeSessionStoreId(agentScope);
+    const nextScopeId = chatScopeKey(agentScope);
     const scopeChanged = stableScopeRef.current !== nextScopeId;
     if (scopeChanged) stableScopeRef.current = nextScopeId;
     if ((scopeChanged || loading) && stableSessionsRef.current.length > 0) {
       return stableSessionsRef.current.map((session) => ({
         ...session,
         isCurrent: selectedSessionKey
-          ? selectedSessionKey === `${session.workspaceId}:${session.sessionId}`
+          ? selectedSessionKey === chatSessionKey(session.scope, session.sessionId)
           : session.isCurrent,
       }));
     }

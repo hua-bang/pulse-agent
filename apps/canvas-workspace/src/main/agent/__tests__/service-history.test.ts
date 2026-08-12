@@ -95,8 +95,8 @@ describe('CanvasAgentService history', () => {
     expect(scan).toHaveBeenCalledWith(new Set(['__global_chat__']));
 
     expect(groups).toEqual([{
-      workspaceId: '__global_chat__',
-      workspaceName: 'Global Chat',
+      scope: { kind: 'global' },
+      scopeName: 'Global Chat',
       sessions: [{
         sessionId: 'session-current',
         date: '2026-07-29',

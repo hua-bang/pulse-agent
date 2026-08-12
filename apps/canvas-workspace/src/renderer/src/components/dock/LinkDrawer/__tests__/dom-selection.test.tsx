@@ -102,7 +102,6 @@ describe('LinkTabView DOM selection', () => {
             activeWorkspaceId="workspace-1"
             onNavigate={() => undefined}
             onGuestNavigate={() => undefined}
-            onAddToReference={() => undefined}
             onAddDomSelectionToChat={onAddDomSelectionToChat}
             tabRef={{
               id: 'link-tab-1',

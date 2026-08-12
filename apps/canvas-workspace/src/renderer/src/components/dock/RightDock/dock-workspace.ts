@@ -2,8 +2,8 @@ export function resolveDockWorkspaceId(
   activeView: string,
   activeCanvasWorkspaceId: string,
   chatWorkspaceId: string | null,
-): string {
-  return activeView === 'chat' && chatWorkspaceId
+): string | null {
+  return activeView === 'chat'
     ? chatWorkspaceId
     : activeCanvasWorkspaceId;
 }

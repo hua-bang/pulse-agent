@@ -1,10 +1,10 @@
 import { useI18n } from '../../i18n';
+import type { AgentScope } from './types';
 
 /** One entry in the session back-navigation stack (where a jump started). */
 export interface SessionBackEntry {
   sessionId: string;
-  /** Session-store id — `__global_chat__` for global chat. */
-  workspaceId: string;
+  scope: AgentScope;
   /** Short human label for the session (first user message, trimmed). */
   label: string;
 }

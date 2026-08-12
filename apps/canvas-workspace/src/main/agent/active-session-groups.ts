@@ -51,8 +51,8 @@ export async function appendActiveSessionGroups({
     if (sessions.length === 0) continue;
     includedStoreIds.add(storeId);
     groups.push({
-      workspaceId: storeId,
-      workspaceName: scopeDisplayName(scope, scheduledTitles, workspaceNames),
+      scope,
+      scopeName: scopeDisplayName(scope, scheduledTitles, workspaceNames),
       sessions,
     });
   }
