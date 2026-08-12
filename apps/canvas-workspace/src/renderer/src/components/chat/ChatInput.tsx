@@ -118,7 +118,7 @@ export const ChatInput = ({
       {contextComposer && loading && (
         <div className="chat-generating-status">{t('chat.generatingCanContinue')}</div>
       )}
-      {scopeCapabilityLabel && (
+      {!loading && scopeCapabilityLabel && (
         <div
           className="chat-scope-capability"
           data-capability={scopeCapability}
@@ -257,7 +257,7 @@ export const ChatInput = ({
                 onOpenSettings={onOpenModelSettings}
               />
             )}
-            {executionMode === 'scheduled' ? (
+            {!loading && (executionMode === 'scheduled' ? (
               <span
                 className="chat-execution-mode-btn chat-execution-mode-btn--readonly"
                 aria-label={t('chat.executionModeLabel', { mode: executionLabel })}
@@ -277,7 +277,7 @@ export const ChatInput = ({
               >
                 {executionLabel}
               </Button>
-            ) : null}
+            ) : null)}
             {loading ? (
               <button
                 className="chat-send-btn chat-send-btn--stop"

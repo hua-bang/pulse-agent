@@ -280,11 +280,20 @@ describe('ChatInput execution and attachment states', () => {
     const root = createRoot(host);
     act(() => root.render(
       <I18nProvider>
-        <ChatInput {...baseProps} loading />
+        <ChatInput
+          {...baseProps}
+          loading
+          scopeLabel="Product canvas"
+          scopeCapability="editable"
+          executionMode="auto"
+          onToggleExecutionMode={vi.fn()}
+        />
       </I18nProvider>,
     ));
 
     expect(host.textContent).toContain('Generating. You can keep typing.');
+    expect(host.querySelector('.chat-scope-capability')).toBeNull();
+    expect(host.querySelector('.chat-execution-mode-btn')).toBeNull();
     expect(host.querySelector('[aria-live]')).toBeNull();
 
     act(() => root.unmount());
