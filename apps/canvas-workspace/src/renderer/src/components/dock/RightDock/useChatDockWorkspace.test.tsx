@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ActiveChatTarget } from '../../chat/ChatTargetContext';
+import { GLOBAL_DOCK_SCOPE_KEY } from './dock-workspace';
 import { useChatDockWorkspace } from './useChatDockWorkspace';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -63,7 +64,7 @@ describe('useChatDockWorkspace', () => {
 
     act(() => latest?.activateDockWorkspace('tab-d'));
     expect(latest?.dockWorkspaceId).toBe('chat-b');
-    expect(latest?.dockOwnerWorkspaceId).toBe('tab-d');
+    expect(latest?.dockScopeKey).toBe('tab-d');
     expect(selectCanvasWorkspace).not.toHaveBeenCalled();
 
     act(() => root?.render(
@@ -78,10 +79,10 @@ describe('useChatDockWorkspace', () => {
         selectCanvasWorkspace={selectCanvasWorkspace}
       />,
     ));
-    expect(latest?.dockOwnerWorkspaceId).toBe('chat-c');
+    expect(latest?.dockScopeKey).toBe('chat-c');
   });
 
-  it('keeps global Chat unbound while retaining the Canvas workspace as an internal dock owner', async () => {
+  it('binds global Chat to the workspace-independent Dock session', async () => {
     host = document.createElement('div');
     root = createRoot(host);
 
@@ -101,10 +102,33 @@ describe('useChatDockWorkspace', () => {
     });
 
     expect(latest?.dockWorkspaceId).toBeNull();
-    expect(latest?.dockOwnerWorkspaceId).toBe('canvas-a');
+    expect(latest?.dockScopeKey).toBe(GLOBAL_DOCK_SCOPE_KEY);
 
     act(() => latest?.activateDockWorkspace('tab-d'));
     expect(latest?.dockWorkspaceId).toBeNull();
-    expect(latest?.dockOwnerWorkspaceId).toBe('tab-d');
+    expect(latest?.dockScopeKey).toBe('tab-d');
+  });
+
+  it('binds scheduled Chat to the same workspace-independent Dock session', async () => {
+    host = document.createElement('div');
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <Harness
+          activeView="scheduled-task"
+          activeCanvasWorkspaceId="canvas-a"
+          activeChatTarget={{
+            scope: { kind: 'scheduled', taskId: 'task-1' },
+            sessionId: null,
+            executionPolicy: 'scheduled',
+          }}
+          selectCanvasWorkspace={vi.fn()}
+        />,
+      );
+    });
+
+    expect(latest?.dockWorkspaceId).toBeNull();
+    expect(latest?.dockScopeKey).toBe(GLOBAL_DOCK_SCOPE_KEY);
   });
 });

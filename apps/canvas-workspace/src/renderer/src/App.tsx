@@ -208,7 +208,7 @@ const AppContent = () => {
     isOverlayOpen,
     openShortcuts,
   });
-  const { dockWorkspaceId, dockOwnerWorkspaceId, activateDockWorkspace } = useChatDockWorkspace(activeView, activeId, activeChatTarget, selectWorkspace);
+  const { dockWorkspaceId, dockScopeKey, activateDockWorkspace } = useChatDockWorkspace(activeView, activeId, activeChatTarget, selectWorkspace);
   const openSessionInOwningScope = useCallback(async (
     scope: AgentScope,
     sessionId: string,
@@ -575,7 +575,7 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
-      <RightDock workspaces={workspaces} activeWorkspaceId={dockOwnerWorkspaceId} canvasWorkspaceId={dockWorkspaceId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} canvasTabEditingAllowed={isCanvasTabEditingAllowed(activeView, dockWorkspaceId)} onCanvasNodesChange={handleNodesChange} onCanvasSelectionChange={handleSelectionChange} reserveSpace={activeView !== 'skills'} capWidth={activeView !== 'canvas'} pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440} onOpenNodePage={openNodePage} onActivateWorkspace={activateDockWorkspace} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={dockScopeKey} canvasWorkspaceId={dockWorkspaceId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} canvasTabEditingAllowed={isCanvasTabEditingAllowed(activeView, dockWorkspaceId)} onCanvasNodesChange={handleNodesChange} onCanvasSelectionChange={handleSelectionChange} reserveSpace={activeView !== 'skills'} capWidth={activeView !== 'canvas'} pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440} onOpenNodePage={openNodePage} onActivateWorkspace={activateDockWorkspace} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         appLoaded={appSettingsLoaded}

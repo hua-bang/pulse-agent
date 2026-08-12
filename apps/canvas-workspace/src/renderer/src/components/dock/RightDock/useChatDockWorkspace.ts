@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ActiveChatTarget } from '../../chat/ChatTargetContext';
 import { chatScopeKey } from '../../../../../shared/agent-chat';
-import { resolveDockWorkspaceId } from './dock-workspace';
+import { dockScopeKey, resolveDockScope } from './dock-workspace';
 
 /** Keeps the full-page Chat dock aligned with its conversation while leaving
  * qualified cross-workspace tab activation as an explicit override. */
@@ -21,30 +21,33 @@ export function useChatDockWorkspace(
     setDockWorkspaceOverride(null);
   }, [activeScopeKey, activeView]);
 
-  const chatWorkspaceId = activeChatTarget.scope.kind === 'workspace'
-    ? activeChatTarget.scope.workspaceId
-    : null;
-  const dockWorkspaceId = resolveDockWorkspaceId(
+  const dockScope = resolveDockScope(
     activeView,
     activeCanvasWorkspaceId,
-    chatWorkspaceId,
+    activeChatTarget.scope,
   );
-  const dockOwnerWorkspaceId = activeView === 'chat'
+  const dockWorkspaceId = dockScope.kind === 'workspace'
+    ? dockScope.workspaceId
+    : null;
+  const resolvedDockScopeKey = dockScopeKey(dockScope);
+  const isFullPageChat = activeView === 'chat' || activeView === 'scheduled-task';
+  const activeDockScopeKey = isFullPageChat
     ? (dockWorkspaceOverride?.scopeKey === activeScopeKey
         ? dockWorkspaceOverride.workspaceId
-        : null) ?? dockWorkspaceId ?? activeCanvasWorkspaceId
-    : dockWorkspaceId ?? activeCanvasWorkspaceId;
+        : null) ?? resolvedDockScopeKey
+    : resolvedDockScopeKey;
   const activateDockWorkspace = useCallback((workspaceId: string) => {
-    if (activeView === 'chat') {
+    if (isFullPageChat) {
       setDockWorkspaceOverride({ scopeKey: activeScopeKey, workspaceId });
       return;
     }
     selectCanvasWorkspace(workspaceId);
-  }, [activeScopeKey, activeView, selectCanvasWorkspace]);
+  }, [activeScopeKey, isFullPageChat, selectCanvasWorkspace]);
 
   return {
+    dockScope,
     dockWorkspaceId,
-    dockOwnerWorkspaceId,
+    dockScopeKey: activeDockScopeKey,
     activateDockWorkspace,
   };
 }

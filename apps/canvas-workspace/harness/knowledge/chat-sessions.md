@@ -175,18 +175,21 @@ Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 Full-page Chat has one semantic owner: App's `ActiveChatTarget` carries the
 conversation `AgentScope`, session id, inherited context, and execution policy.
 The selected Canvas workspace remains separate. Global and scheduled Chat have
-no Canvas write destination; RightDock may retain a real workspace internally
-to host tabs, but that owner never grants Add-to-Canvas or Canvas edit access.
+no Canvas write destination; RightDock gives them the shared global Dock scope
+instead of retaining or guessing a real workspace. That scope never grants
+Add-to-Canvas or Canvas edit access.
 Session-store sentinels stay behind `scopeSessionStoreId` / storage adapters —
 renderer navigation and unified session groups carry `AgentScope` directly.
-This is an in-memory/IPC contract cleanup only: existing on-disk directories,
-session pointers, and sentinel names remain unchanged.
+Existing on-disk chat directories, session pointers, and sentinel names remain
+unchanged. Dock web-tab persistence keeps its v1 schema and lazily adds the
+global Dock scope as one more key in the existing session record.
 
 A content tab being visible beside Chat is never implicit model context. The
 user must add it through `@Tab` or the tab's Ask AI action. Full-page Chat
-initially binds the dock to the visible conversation's workspace scope, so its
-Tabs are published under the same workspace that the Agent tools query. Global
-and scheduled conversations fall back to the active Canvas workspace. A
+binds the dock through the single `resolveDockScope` policy: workspace
+conversations use that workspace's Tabs, while global and scheduled
+conversations share a workspace-independent global Dock session. They never
+fall back to the last active Canvas workspace. A
 qualified tab reference may explicitly move the dock to that tab's owning
 workspace without changing the conversation scope; the next conversation
 switch binds it to the newly selected conversation again. Candidates are built

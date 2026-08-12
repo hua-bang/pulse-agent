@@ -12,6 +12,7 @@ import {
   type DockLinkSessions,
   type DockSessionPersistence,
 } from '../dock-store';
+import { GLOBAL_DOCK_SCOPE_KEY } from '../dock-workspace';
 
 const createSessionPersistence = (initial: DockLinkSessions = {}): {
   persistence: DockSessionPersistence;
@@ -868,6 +869,30 @@ describe('DockStore', () => {
       { kind: 'link', url: 'https://other.example' },
     ]);
     expect(restored.getSnapshot().activeTabId).toBe(linkTabId('https://other.example'));
+  });
+
+  it('keeps global web tabs in a session separate from every workspace', () => {
+    const saved = createSessionPersistence();
+    const dock = new DockStore(saved.persistence);
+    dock.setActiveWorkspace('ws-a');
+    dock.openLink('https://workspace.example');
+
+    dock.setActiveWorkspace(GLOBAL_DOCK_SCOPE_KEY);
+    dock.openLink('https://global.example');
+
+    dock.setActiveWorkspace('ws-a');
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { kind: 'link', url: 'https://workspace.example' },
+    ]);
+
+    dock.setActiveWorkspace(GLOBAL_DOCK_SCOPE_KEY);
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { kind: 'link', url: 'https://global.example' },
+    ]);
+    expect(saved.read()).toMatchObject({
+      'ws-a': { tabs: [{ url: 'https://workspace.example' }] },
+      [GLOBAL_DOCK_SCOPE_KEY]: { tabs: [{ url: 'https://global.example' }] },
+    });
   });
 
   it('keeps the last active web tab when a transient preview becomes active', () => {

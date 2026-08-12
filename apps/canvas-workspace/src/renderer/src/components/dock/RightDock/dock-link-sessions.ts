@@ -8,6 +8,8 @@ export interface DockLinkSession {
   expanded?: boolean;
 }
 
+/** Link-tab sessions keyed by a Dock scope key: a real workspace id or the
+ * workspace-independent global Dock key. */
 export type DockLinkSessions = Record<string, DockLinkSession>;
 
 export interface DockSessionPersistence {
@@ -26,14 +28,14 @@ export class DockLinkSessionStore {
     }
   }
 
-  get(workspaceId: string): DockLinkSession | undefined {
-    return this.sessions[workspaceId];
+  get(scopeKey: string): DockLinkSession | undefined {
+    return this.sessions[scopeKey];
   }
 
-  capture(workspaceId: string, tabs: DockPreviewTab[], activeTabId: string, expanded?: boolean): void {
-    if (!workspaceId || workspaceId === '__default__') return;
+  capture(scopeKey: string, tabs: DockPreviewTab[], activeTabId: string, expanded?: boolean): void {
+    if (!scopeKey || scopeKey === '__default__') return;
     const linkTabs = tabs.filter((tab): tab is DockLinkTab => tab.kind === 'link');
-    const previous = this.sessions[workspaceId];
+    const previous = this.sessions[scopeKey];
     const activeLinkId = linkTabs.some((tab) => tab.id === activeTabId)
       ? activeTabId
       : previous?.activeTabId && linkTabs.some((tab) => tab.id === previous.activeTabId)
@@ -41,7 +43,7 @@ export class DockLinkSessionStore {
         : undefined;
     this.sessions = {
       ...this.sessions,
-      [workspaceId]: {
+      [scopeKey]: {
         tabs: linkTabs,
         activeTabId: activeLinkId,
         expanded: expanded ?? previous?.expanded,
