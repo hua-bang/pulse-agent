@@ -138,9 +138,6 @@ export const DockPanes = ({
   // Confirmed on a real workspace switch.
   const ownerWorkspaceId = state.activeTerminalWorkspaceId;
   const tabRefsById = new Map(buildDockTabRefs(state, ownerWorkspaceId).map(tab => [tab.id, tab]));
-  const terminalTabRef = labelledTerminalTabId
-    ? tabRefsById.get(labelledTerminalTabId)
-    : undefined;
   const renderTabChatAction = (tabRef?: AgentContextTabRef) => tabRef ? (
     <div className="right-dock__pane-chat-action">
       <TabChatAction
@@ -230,10 +227,9 @@ export const DockPanes = ({
             if (splitTabId && isTerminalTabId(splitTabId)) store.activate(splitTabId);
           }}
         >
-          {renderTabChatAction(terminalTabRef)}
           <div
             ref={setTerminalHost}
-            className={`right-dock__terminal-host${terminalTabRef ? ' right-dock__terminal-host--with-chat-action' : ''}`}
+            className="right-dock__terminal-host"
           />
         </div>
       )}
