@@ -480,7 +480,7 @@ describe('DockPanes canvas editing host capability', () => {
 });
 
 describe('DockPanes whole-tab Chat actions', () => {
-  it('offers exact artifact and split-terminal refs without covering terminal content', () => {
+  it('offers exact artifact refs without adding a terminal banner', () => {
     const store = new DockStore();
     store.setActiveWorkspace('ws1');
     store.openArtifact('artifact-scope', 'artifact-1');
@@ -527,20 +527,8 @@ describe('DockPanes whole-tab Chat actions', () => {
         artifactId: 'artifact-1',
       },
     });
-    expect(latestTabChatActionProps.get(TERMINAL_TAB_ID)).toMatchObject({
-      targetWorkspaceId: 'ws1',
-      tab: {
-        id: TERMINAL_TAB_ID,
-        kind: 'terminal',
-        title: 'Build shell',
-        workspaceId: 'ws1',
-        dockWorkspaceId: 'ws1',
-        sessionId: 'workspace-terminal:ws1',
-        isSplit: true,
-      },
-    });
-    expect(mount.querySelector('.right-dock__pane--terminal [data-tab-chat-action]')).not.toBeNull();
-    expect(mount.querySelector('.right-dock__terminal-host--with-chat-action')).not.toBeNull();
+    expect(latestTabChatActionProps.get(TERMINAL_TAB_ID)).toBeUndefined();
+    expect(mount.querySelector('.right-dock__pane--terminal [data-tab-chat-action]')).toBeNull();
     expect(document.getElementById(dockPaneElementId(artifactId))
       ?.querySelector('[data-tab-chat-action]')).not.toBeNull();
   });
