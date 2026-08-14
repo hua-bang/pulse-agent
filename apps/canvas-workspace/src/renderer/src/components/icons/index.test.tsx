@@ -39,8 +39,10 @@ describe('NodeTypeIcon', () => {
   it('stays monochrome by default and exposes opt-in semantic color classes', () => {
     const defaultIcon = renderIcon('terminal');
     expect(defaultIcon.getAttribute('class')).toBe('canvas-node-icon');
+    expect(defaultIcon.getAttribute('style')).toBeNull();
 
     const coloredIcon = renderIcon('terminal', true);
     expect(coloredIcon.getAttribute('class')).toBe('canvas-node-icon canvas-node-icon--colorized canvas-node-icon--terminal');
+    expect(coloredIcon.getAttribute('style')).toBe('color: var(--accent-term);');
   });
 });

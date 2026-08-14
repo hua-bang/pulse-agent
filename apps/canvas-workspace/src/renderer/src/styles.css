@@ -165,23 +165,6 @@
   /* app-shell toasts */
 }
 
-/* Shared node glyphs stay monochrome by default so the FloatingToolbar keeps
- * its quiet reference treatment. Detail surfaces can opt into these semantic
- * accents with NodeTypeIcon's `colorize` prop. */
-.canvas-node-icon--colorized.canvas-node-icon--file { color: var(--accent-file); }
-.canvas-node-icon--colorized.canvas-node-icon--terminal { color: var(--accent-term); }
-.canvas-node-icon--colorized.canvas-node-icon--frame { color: var(--accent-frame); }
-.canvas-node-icon--colorized.canvas-node-icon--group { color: var(--group-color, var(--accent-frame)); }
-.canvas-node-icon--colorized.canvas-node-icon--agent { color: var(--accent); }
-.canvas-node-icon--colorized.canvas-node-icon--text { color: var(--accent-text); }
-.canvas-node-icon--colorized.canvas-node-icon--iframe { color: var(--accent); }
-.canvas-node-icon--colorized.canvas-node-icon--image { color: var(--accent-image); }
-.canvas-node-icon--colorized.canvas-node-icon--mindmap { color: var(--accent-mindmap); }
-.canvas-node-icon--colorized.canvas-node-icon--reference { color: var(--accent); }
-.canvas-node-icon--colorized.canvas-node-icon--shape,
-.canvas-node-icon--colorized.canvas-node-icon--dynamic-app,
-.canvas-node-icon--colorized.canvas-node-icon--plugin { color: var(--accent); }
-
 * {
   box-sizing: border-box;
   margin: 0;

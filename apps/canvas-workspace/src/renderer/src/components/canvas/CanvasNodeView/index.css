@@ -643,14 +643,6 @@
   border-radius: 5px;
 }
 
-.node-type-badge--iframe {
-  color: var(--accent);
-}
-
-.node-type-badge--text { color: var(--accent-text); }
-.node-type-badge--image { color: var(--accent-image); }
-.node-type-badge--mindmap { color: var(--accent-mindmap); }
-
 .node-favicon {
   width: 14px;
   height: 14px;

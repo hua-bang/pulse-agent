@@ -7,12 +7,14 @@
  * plugin glyphs) can stay inline when their path data is tuned for that
  * control, while canonical node/library glyphs should use the shared paths.
  */
+import type { CSSProperties } from 'react';
 import type { CanvasNode } from '../../types';
 
 interface IconProps {
   size?: number;
   className?: string;
   strokeWidth?: number;
+  style?: CSSProperties;
 }
 
 const APP_ICON_SRC = new URL('../../../public/icon.png', import.meta.url).href;
@@ -36,8 +38,8 @@ export const AppLogoIcon = ({ size = 18, className }: IconProps) => (
   />
 );
 
-export const CodingAgentIcon = ({ size = 18, className, strokeWidth = 1.35 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 18 18" fill="none" className={className}>
+export const CodingAgentIcon = ({ size = 18, className, strokeWidth = 1.35, style }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 18 18" fill="none" className={className} style={style}>
     <path
       d="M6.5 5L3 9l3.5 4M11.5 5L15 9l-3.5 4M9.8 4.5l-1.6 9"
       stroke="currentColor"
@@ -348,8 +350,8 @@ export const CopyIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps)
 );
 
 /** Landscape / image attachment icon. */
-export const ImageIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+export const ImageIcon = ({ size = 16, className, strokeWidth = 1.3, style }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className} style={style}>
     <rect
       x="2.5"
       y="3"
@@ -388,8 +390,8 @@ export const BookmarkIcon = ({ size = 16, className, strokeWidth = 1.35 }: IconP
   </svg>
 );
 
-export const ReferenceLinkIcon = ({ size = 16, className, strokeWidth = 1.35 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+export const ReferenceLinkIcon = ({ size = 16, className, strokeWidth = 1.35, style }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className} style={style}>
     <path
       d="M6.4 5.2l1.1-1.1a3 3 0 014.2 4.2l-1.2 1.2M9.6 10.8l-1.1 1.1a3 3 0 01-4.2-4.2l1.2-1.2M6.4 9.6l3.2-3.2"
       stroke="currentColor"
@@ -407,6 +409,22 @@ interface NodeTypeIconProps {
   colorize?: boolean;
 }
 
+const NODE_TYPE_ACCENTS: Record<CanvasNode['type'], string> = {
+  file: 'var(--accent-file)',
+  terminal: 'var(--accent-term)',
+  frame: 'var(--accent-frame)',
+  group: 'var(--group-color, var(--accent-frame))',
+  agent: 'var(--accent)',
+  text: 'var(--accent-text)',
+  iframe: 'var(--accent)',
+  image: 'var(--accent-image)',
+  shape: 'var(--accent)',
+  mindmap: 'var(--accent-mindmap)',
+  reference: 'var(--accent)',
+  'dynamic-app': 'var(--accent)',
+  plugin: 'var(--accent)',
+};
+
 /** Canonical node glyphs. The default is monochrome; surfaces opt into color. */
 export const NodeTypeIcon = ({ type, size = 14, className, colorize = false }: NodeTypeIconProps) => {
   const iconClassName = [
@@ -415,8 +433,9 @@ export const NodeTypeIcon = ({ type, size = 14, className, colorize = false }: N
     colorize ? `canvas-node-icon--${type}` : '',
     className ?? '',
   ].filter(Boolean).join(' ');
-  const props18 = { width: size, height: size, viewBox: '0 0 18 18', fill: 'none', className: iconClassName };
-  const props16 = { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', className: iconClassName };
+  const style = colorize ? { color: NODE_TYPE_ACCENTS[type] } : undefined;
+  const props18 = { width: size, height: size, viewBox: '0 0 18 18', fill: 'none', className: iconClassName, style };
+  const props16 = { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', className: iconClassName, style };
 
   switch (type) {
     case 'file':
@@ -443,7 +462,7 @@ export const NodeTypeIcon = ({ type, size = 14, className, colorize = false }: N
     case 'group':
       return <svg {...props16}><rect x="2.5" y="3" width="11" height="10" rx="2" stroke="currentColor" strokeWidth="1.25" strokeDasharray="2 2" /><path d="M5 6h6M5 10h6" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" /></svg>;
     case 'agent':
-      return <CodingAgentIcon size={size} className={iconClassName} strokeWidth={1.25} />;
+      return <CodingAgentIcon size={size} className={iconClassName} strokeWidth={1.25} style={style} />;
     case 'text':
       return (
         <svg {...props18}>
@@ -458,7 +477,7 @@ export const NodeTypeIcon = ({ type, size = 14, className, colorize = false }: N
         </svg>
       );
     case 'image':
-      return <ImageIcon size={size} className={iconClassName} />;
+      return <ImageIcon size={size} className={iconClassName} style={style} />;
     case 'mindmap':
       return (
         <svg {...props18}>
@@ -470,7 +489,7 @@ export const NodeTypeIcon = ({ type, size = 14, className, colorize = false }: N
         </svg>
       );
     case 'reference':
-      return <ReferenceLinkIcon size={size} className={iconClassName} />;
+      return <ReferenceLinkIcon size={size} className={iconClassName} style={style} />;
     default:
       return <svg {...props16}><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.2" strokeDasharray="2 2" /></svg>;
   }

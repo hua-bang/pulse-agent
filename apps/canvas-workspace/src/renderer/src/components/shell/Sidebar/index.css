@@ -680,19 +680,6 @@
   color: var(--text-secondary);
 }
 
-.sidebar-layer-icon--file { color: var(--accent-file); }
-.sidebar-layer-icon--terminal { color: var(--accent-term); }
-.sidebar-layer-icon--frame,
-.sidebar-layer-icon--group { color: var(--accent-frame); }
-.sidebar-layer-icon--agent,
-.sidebar-layer-icon--iframe,
-.sidebar-layer-icon--reference,
-.sidebar-layer-icon--dynamic-app,
-.sidebar-layer-icon--plugin { color: var(--accent); }
-.sidebar-layer-icon--text { color: var(--accent-text); }
-.sidebar-layer-icon--image { color: var(--accent-image); }
-.sidebar-layer-icon--mindmap { color: var(--accent-mindmap); }
-
 .sidebar-layer-name {
   flex: 1;
   min-width: 0;

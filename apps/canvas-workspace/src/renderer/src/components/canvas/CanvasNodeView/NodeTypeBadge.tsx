@@ -4,6 +4,7 @@ import { NodeTypeIcon } from '../../icons';
 // Plugin-owned and shape nodes keep their bespoke fallback until their own
 // icon contracts are promoted into the shared canvas icon family.
 const LEGACY_BADGE_TYPES = new Set<CanvasNode['type']>(['shape', 'dynamic-app', 'plugin']);
+const COLORIZED_BADGE_TYPES = new Set<CanvasNode['type']>(['iframe', 'text', 'image', 'mindmap']);
 
 export const NodeTypeBadge = ({ type }: { type: CanvasNode['type'] }) => (
   <span className={`node-type-badge node-type-badge--${type}`}>
@@ -20,7 +21,7 @@ export const NodeTypeBadge = ({ type }: { type: CanvasNode['type'] }) => (
         />
       </svg>
     ) : (
-      <NodeTypeIcon type={type} size={type === 'frame' ? 15 : 12} />
+      <NodeTypeIcon type={type} size={type === 'frame' ? 15 : 12} colorize={COLORIZED_BADGE_TYPES.has(type)} />
     )}
   </span>
 );
