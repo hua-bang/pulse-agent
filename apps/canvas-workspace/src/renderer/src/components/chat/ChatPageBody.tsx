@@ -458,7 +458,7 @@ export const ChatPageBody = ({
           onInput={handleInput}
           onKeyDown={handleComposerKeyDown}
           onPaste={handlePaste}
-          onAttachFiles={agentScope.kind === 'workspace' ? handleAttachFiles : undefined}
+          onAttachFiles={handleAttachFiles}
           onRemoveAttachment={removeAttachment}
           onRetryAttachment={retryAttachment}
           sendDisabled={attachmentSendBlocked || busyElsewhere || Boolean(sessionError)}

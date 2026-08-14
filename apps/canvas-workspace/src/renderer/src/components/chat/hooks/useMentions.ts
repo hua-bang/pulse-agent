@@ -87,7 +87,6 @@ export function useMentions({
   const filesCacheRef = useRef(new Map<string, MentionItem[]>());
   const skillsCacheRef = useRef(new Map<string, MentionItem[]>());
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
-  const attachmentsEnabled = agentScope.kind === 'workspace';
   const scopeId = chatScopeId(agentScope);
   const subscribeDraft = useCallback(
     (listener: () => void) => subscribeChatComposerDraft(scopeId, listener),
@@ -118,8 +117,8 @@ export function useMentions({
     setAttachments,
   });
   const handleAttachFiles = useCallback((files: FileList | File[]) => {
-    if (attachmentsEnabled) chatAttachments.handleAttachFiles(files);
-  }, [attachmentsEnabled, chatAttachments.handleAttachFiles]);
+    chatAttachments.handleAttachFiles(files);
+  }, [chatAttachments.handleAttachFiles]);
 
   useLayoutEffect(() => {
     const element = editableRef.current;
@@ -362,7 +361,7 @@ export function useMentions({
 
   const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {
     if (isSubmitBlocked?.()) return false;
-    if (attachmentsEnabled && chatAttachments.sendBlocked) return false;
+    if (chatAttachments.sendBlocked) return false;
     let ctx = requestContext ?? getRequestContext?.();
     // Tab mentions are collected for both hosts (see withCollectedTabs).
     if (editableRef.current) ctx = withCollectedTabs(editableRef.current, ctx);
@@ -380,17 +379,15 @@ export function useMentions({
         };
       }
     }
-    const readyAttachments = attachmentsEnabled
-      ? attachments.filter(attachment => (
-        attachment.status === undefined || attachment.status === 'ready'
-      ))
-      : [];
+    const readyAttachments = attachments.filter(attachment => (
+      attachment.status === undefined || attachment.status === 'ready'
+    ));
     const ok = await onSubmit(input, ctx, readyAttachments);
     if (ok) {
       clearInput();
     }
     return ok;
-  }, [attachments, attachmentsEnabled, chatAttachments.sendBlocked, clearInput, collectStructuredContext, getRequestContext, input, isSubmitBlocked, onSubmit]);
+  }, [attachments, chatAttachments.sendBlocked, clearInput, collectStructuredContext, getRequestContext, input, isSubmitBlocked, onSubmit]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     // While an IME composition is active (Chinese/Japanese/Korean input),
@@ -433,7 +430,7 @@ export function useMentions({
 
   const handlePaste = useCallback((event: React.ClipboardEvent) => {
     const imageFiles = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'));
-    if (attachmentsEnabled && imageFiles.length > 0) {
+    if (imageFiles.length > 0) {
       event.preventDefault();
       handleAttachFiles(imageFiles);
       return;
@@ -441,12 +438,12 @@ export function useMentions({
     event.preventDefault();
     const text = event.clipboardData.getData('text/plain');
     document.execCommand('insertText', false, text);
-  }, [attachmentsEnabled, handleAttachFiles]);
+  }, [handleAttachFiles]);
 
   return {
     clearInput,
-    attachments: attachmentsEnabled ? attachments : [],
-    attachmentSendBlocked: attachmentsEnabled && chatAttachments.sendBlocked,
+    attachments,
+    attachmentSendBlocked: chatAttachments.sendBlocked,
     editableRef,
     focusInput,
     handleAttachFiles,

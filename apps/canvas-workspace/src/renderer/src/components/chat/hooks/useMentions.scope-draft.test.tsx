@@ -104,10 +104,10 @@ describe('scope-keyed composer state', () => {
     expect(latest?.editableRef.current?.textContent).toBe('global draft');
   });
 
-  it('keeps workspace attachments isolated and rejects them in global scope', async () => {
-    const saveImage = vi.fn(async () => ({
+  it('keeps attachments isolated per scope and accepts images in global chat', async () => {
+    const saveImage = vi.fn(async (scopeId: string) => ({
       ok: true,
-      filePath: '/tmp/workspace-image.png',
+      filePath: `/tmp/${scopeId}-image.png`,
     }));
     Object.defineProperty(window, 'canvasWorkspace', {
       configurable: true,
@@ -126,17 +126,26 @@ describe('scope-keyed composer state', () => {
       await vi.waitFor(() => expect(saveImage).toHaveBeenCalledTimes(1));
       await Promise.resolve();
     });
+    expect(saveImage).toHaveBeenLastCalledWith('workspace-a', expect.any(String), 'png');
+    expect(latest?.attachments).toHaveLength(1);
 
     await renderScope({ kind: 'global' });
     expect(latest?.attachments).toEqual([]);
-    act(() => latest?.handleAttachFiles([
-      new File(['image'], 'unsupported.png', { type: 'image/png' }),
-    ]));
-    expect(latest?.attachments).toEqual([]);
+    await act(async () => {
+      latest?.handleAttachFiles([
+        new File(['image'], 'global.png', { type: 'image/png' }),
+      ]);
+    });
+    await act(async () => {
+      await vi.waitFor(() => expect(saveImage).toHaveBeenCalledTimes(2));
+      await Promise.resolve();
+    });
+    expect(saveImage).toHaveBeenLastCalledWith('__global_chat__', expect.any(String), 'png');
+    expect(latest?.attachments).toHaveLength(1);
 
     await renderScope({ kind: 'workspace', workspaceId: 'workspace-a' });
     expect(latest?.attachments).toHaveLength(1);
-    expect(saveImage).toHaveBeenCalledTimes(1);
+    expect(latest?.attachments[0]?.fileName).toBe('context.png');
   });
 
   it('loads Skill candidates per scope instead of reusing another scope cache', async () => {
