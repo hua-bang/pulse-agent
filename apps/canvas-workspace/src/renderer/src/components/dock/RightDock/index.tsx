@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { useDragResize } from '../../ui';
 import { useI18n } from '../../../i18n';
-import { CHAT_TAB_ID, isTerminalTabId } from './dock-store';
+import { CHAT_TAB_ID } from './dock-store';
 import { useDockContext, useRightDockState } from './context';
 import type { RightDockProps } from './dock-types';
 import { useConsumePendingLinks } from '../../../hooks/useConsumePendingLinks';
@@ -135,28 +135,23 @@ export const RightDock = ({
   useEffect(() => {
     if (chatTabEnabled) return;
     if (state.splitTabId) store.toggleSplitView();
-    if (
-      (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId))
-      && state.tabs.length > 0
-    ) {
+    if (state.activeTabId === CHAT_TAB_ID && state.tabs.length > 0) {
       store.activate(state.tabs[0].id);
       return;
     }
-    if (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId)) {
+    if (state.activeTabId === CHAT_TAB_ID) {
       store.collapse();
     }
   }, [chatTabEnabled, state.activeTabId, state.splitTabId, state.tabs, store]);
 
   const hasPreviews = state.tabs.length > 0;
-  const terminalTabsVisible = chatTabEnabled && state.terminalTabs.length > 0;
-  const terminalHostMounted = chatTabEnabled
-    && Object.values(state.terminalTabsByWorkspace).some((workspace) => workspace.tabs.length > 0);
+  const terminalTabsVisible = state.terminalTabs.length > 0;
+  const terminalHostMounted = Object.values(state.terminalTabsByWorkspace).some((workspace) => workspace.tabs.length > 0);
   const tabStripVisible = chatTabEnabled || hasPreviews || terminalTabsVisible;
-  const visible = state.expanded && (chatTabEnabled || hasPreviews);
+  const visible = state.expanded && (chatTabEnabled || hasPreviews || terminalTabsVisible);
   // While the chat tab is unavailable a transient 'chat' active pointer
   // (route guard hasn't run yet) should highlight nothing.
-  const activePaneId = !chatTabEnabled
-    && (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId))
+  const activePaneId = !chatTabEnabled && state.activeTabId === CHAT_TAB_ID
     ? null
     : state.activeTabId;
   const splitTabId = chatTabEnabled ? state.splitTabId : undefined;
@@ -427,7 +422,7 @@ export const RightDock = ({
               store={store}
               workspaces={workspaces}
               activeWorkspaceId={activeWorkspaceId}
-              showTerminal={chatTabEnabled}
+              showTerminal
               newTabTitle={t('rightDock.newTabTitle')}
               mountedWorkspaceIds={state.mountedWorkspaceIds}
               terminalWorkspaceIds={new Set(Object.keys(state.terminalTabsByWorkspace))}

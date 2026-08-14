@@ -28,6 +28,7 @@ afterEach(() => {
 const renderControls = () => {
   const store = new DockStore();
   const newLink = vi.spyOn(store, 'newLink');
+  const newTerminal = vi.spyOn(store, 'newTerminal');
   mount = document.createElement('div');
   document.body.appendChild(mount);
   root = createRoot(mount);
@@ -46,7 +47,7 @@ const renderControls = () => {
   ));
   const trigger = mount.querySelector<HTMLButtonElement>('[aria-label="New tab"]');
   if (!trigger) throw new Error('Expected the new-tab menu trigger');
-  return { trigger, newLink };
+  return { trigger, newLink, newTerminal };
 };
 
 const waitForMenu = async () => {
@@ -62,7 +63,7 @@ const waitForMenu = async () => {
 
 describe('DockCreationControls new-tab trigger', () => {
   it('uses one menu-button contract for pointer and native keyboard activation', async () => {
-    const { trigger, newLink } = renderControls();
+    const { trigger, newLink, newTerminal } = renderControls();
 
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
@@ -76,7 +77,22 @@ describe('DockCreationControls new-tab trigger', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     expect(trigger.getAttribute('aria-controls')).toBe(menu.id);
 
-    const newWebTab = [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+    const menuItems = [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+    expect(menuItems.map((item) => item.textContent)).toEqual([
+      'Open node',
+      'Open canvas',
+      'New terminal',
+      'New web tab',
+    ]);
+
+    const newTerminalTab = menuItems.find((item) => item.textContent === 'New terminal');
+    if (!newTerminalTab) throw new Error('Expected the New terminal menu item');
+    act(() => newTerminalTab.click());
+    expect(newTerminal).toHaveBeenCalledTimes(1);
+
+    act(() => trigger.click());
+    const reopenedMenu = await waitForMenu();
+    const newWebTab = [...reopenedMenu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
       .find((item) => item.textContent === 'New web tab');
     if (!newWebTab) throw new Error('Expected the New web tab menu item');
     act(() => newWebTab.click());

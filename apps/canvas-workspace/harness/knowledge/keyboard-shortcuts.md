@@ -193,9 +193,10 @@ listener and `useAppShortcuts`'s) check `match.definition.editable !==
 definition defaults to `'block'` (the `EditablePolicy` default) and is
 dropped while an editable element is focused. `canvas.find` is a case where
 the handler adds its own narrower guard on top of `editable: 'allow'`: it
-explicitly excludes focus inside `.note-card`, because note cards own their
-own find flow and must not have canvas-level search steal focus from note
-editing, note panels, or note toolbar controls.
+explicitly excludes focus inside `.note-card`, iframe-node chrome, and Link
+Drawer browser/find surfaces, because those areas own their own find flow and
+must not have canvas-level search steal focus from note editing, embedded page
+controls, or browser find-in-page.
 
 ## Menu-accelerator precedence
 

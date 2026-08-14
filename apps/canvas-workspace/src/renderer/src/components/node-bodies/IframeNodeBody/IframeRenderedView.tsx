@@ -59,6 +59,8 @@ interface IframeRenderedViewProps {
   workspaceId?: string;
 }
 
+const SHOW_REVIEW_COMMENT_ACTION = false;
+
 export const IframeRenderedView = ({
   artifact,
   artifactHtml,
@@ -188,7 +190,7 @@ export const IframeRenderedView = ({
             <InspectIcon />
           </Button>
 
-          {mode === 'url' && (
+          {SHOW_REVIEW_COMMENT_ACTION && mode === 'url' && (
             <Button
               type="button"
               variant="icon"

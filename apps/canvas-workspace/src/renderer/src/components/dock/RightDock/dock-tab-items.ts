@@ -24,7 +24,7 @@ export function getDockTabSwitcherItems(
     ...(chatTabEnabled
       ? [{ id: CHAT_TAB_ID, title: chatTitle, kind: 'chat' as const }]
       : []),
-    ...(chatTabEnabled ? state.terminalTabs : []).map((tab) => ({
+    ...state.terminalTabs.map((tab) => ({
       id: tab.id,
       title: tab.title ?? `${terminalTitle} ${tab.ordinal}`,
       kind: 'terminal' as const,
