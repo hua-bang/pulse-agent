@@ -28,8 +28,16 @@ const isEditableElement = (active: ActiveElementLike | null): boolean => !!activ
   active.isContentEditable === true
 );
 
-const isInsideNoteCard = (active: ActiveElementLike | null): boolean =>
-  !!active?.closest?.('.note-card');
+const CANVAS_FIND_EXCLUDED_SURFACE_SELECTOR = [
+  '.note-card',
+  '.iframe-body',
+  '.link-drawer__header',
+  '.link-drawer__webview-surface',
+  '.link-drawer__find',
+].join(', ');
+
+const isInsideCanvasFindExcludedSurface = (active: ActiveElementLike | null): boolean =>
+  !!active?.closest?.(CANVAS_FIND_EXCLUDED_SURFACE_SELECTOR);
 
 export const shouldHandleCanvasFindShortcut = (
   event: KeyboardShortcutLike,
@@ -39,7 +47,7 @@ export const shouldHandleCanvasFindShortcut = (
   if (!(event.metaKey || event.ctrlKey)) return false;
   if (event.shiftKey) return false;
   if (event.key.toLowerCase() !== 'f') return false;
-  return !isInsideNoteCard(active);
+  return !isInsideCanvasFindExcludedSurface(active);
 };
 
 /** Zoom multiplier per Cmd/Ctrl +/- press. */
@@ -218,9 +226,9 @@ export const useCanvasKeyboard = ({
       setSearchOpen((prev) => !prev);
     },
     'canvas.find': (event) => {
-      // Note cards own their own find flow, so don't let the canvas-level
-      // search steal focus from note editing, note panels, or note toolbar
-      // controls.
+      // Notes and embedded pages own their own find flows, so don't let the
+      // canvas-level search steal focus from their editors, toolbars, or page
+      // chrome.
       if (!shouldHandleCanvasFindShortcut(event, document.activeElement)) return;
       event.preventDefault();
       toggleFindBar();

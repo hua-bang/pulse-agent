@@ -3,7 +3,7 @@ import { getDockTabSwitcherItems } from '../dock-tab-items';
 import { DockStore } from '../dock-store';
 
 describe('getDockTabSwitcherItems', () => {
-  it('uses the same visible tab set as the strip when chat and terminals are unavailable', () => {
+  it('keeps terminal tabs in the switcher even when the chat tab is unavailable', () => {
     const store = new DockStore();
     store.setActiveWorkspace('ws-a');
     store.openTerminal();
@@ -15,7 +15,7 @@ describe('getDockTabSwitcherItems', () => {
       terminalTitle: 'Terminal',
     });
 
-    expect(items.map((item) => item.kind)).toEqual(['link']);
+    expect(items.map((item) => item.kind)).toEqual(['terminal', 'link']);
   });
 
   it('preserves the exact icon metadata used by the tab strip', () => {

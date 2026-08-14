@@ -25,32 +25,40 @@ const modF = (overrides: Partial<Parameters<typeof shouldHandleCanvasFindShortcu
   ...overrides,
 });
 
-const elementInNote = () => ({
+const elementInsideSelector = (matchingSelector: string) => ({
   tagName: 'DIV',
-  closest: (selector: string) => (selector === '.note-card' ? { tagName: 'DIV' } : null),
+  closest: (selector: string) => selector.split(',').map((item) => item.trim()).includes(matchingSelector)
+    ? { tagName: 'DIV' }
+    : null,
 });
 
-const elementOutsideNote = (tagName = 'DIV') => ({
+const elementOutsideExcludedSurfaces = (tagName = 'DIV') => ({
   tagName,
   closest: () => null,
 });
 
 describe('shouldHandleCanvasFindShortcut', () => {
-  it('lets note-local find own Cmd/Ctrl+F while focus is inside a note card', () => {
-    expect(shouldHandleCanvasFindShortcut(modF(), elementInNote())).toBe(false);
+  it.each([
+    ['note card', '.note-card'],
+    ['iframe node chrome', '.iframe-body'],
+    ['link drawer header', '.link-drawer__header'],
+    ['link drawer page surface', '.link-drawer__webview-surface'],
+    ['link drawer find bar', '.link-drawer__find'],
+  ])('lets %s own Cmd/Ctrl+F', (_label, selector) => {
+    expect(shouldHandleCanvasFindShortcut(modF(), elementInsideSelector(selector))).toBe(false);
   });
 
-  it('handles Cmd/Ctrl+F outside note cards, including regular editable controls', () => {
-    expect(shouldHandleCanvasFindShortcut(modF(), elementOutsideNote())).toBe(true);
-    expect(shouldHandleCanvasFindShortcut(modF({ ctrlKey: true, metaKey: false }), elementOutsideNote('INPUT')))
+  it('handles Cmd/Ctrl+F outside excluded surfaces, including regular editable controls', () => {
+    expect(shouldHandleCanvasFindShortcut(modF(), elementOutsideExcludedSurfaces())).toBe(true);
+    expect(shouldHandleCanvasFindShortcut(modF({ ctrlKey: true, metaKey: false }), elementOutsideExcludedSurfaces('INPUT')))
       .toBe(true);
   });
 
   it('ignores unrelated or already-handled key events', () => {
-    expect(shouldHandleCanvasFindShortcut(modF({ defaultPrevented: true }), elementOutsideNote()))
+    expect(shouldHandleCanvasFindShortcut(modF({ defaultPrevented: true }), elementOutsideExcludedSurfaces()))
       .toBe(false);
-    expect(shouldHandleCanvasFindShortcut(modF({ key: 'k' }), elementOutsideNote())).toBe(false);
-    expect(shouldHandleCanvasFindShortcut(modF({ shiftKey: true }), elementOutsideNote())).toBe(false);
+    expect(shouldHandleCanvasFindShortcut(modF({ key: 'k' }), elementOutsideExcludedSurfaces())).toBe(false);
+    expect(shouldHandleCanvasFindShortcut(modF({ shiftKey: true }), elementOutsideExcludedSurfaces())).toBe(false);
   });
 });
 
