@@ -65,4 +65,26 @@ describe('ChatWorkspacePicker', () => {
     expect(onConfirm).toHaveBeenCalledWith({ kind: 'global' });
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it('keeps scheduled chats out of the new-chat destinations', () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    act(() => root?.render(
+      <I18nProvider>
+        <ChatWorkspacePicker
+          open
+          currentScope={{ kind: 'scheduled', taskId: 'task-1' }}
+          workspaces={[{ id: 'workspace-a', name: 'Alpha' }]}
+          onClose={vi.fn()}
+          onConfirm={vi.fn(async () => true)}
+        />
+      </I18nProvider>,
+    ));
+
+    expect(Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
+      .map(option => option.textContent?.trim()))
+      .toEqual(['Global chat', 'Alpha']);
+  });
 });

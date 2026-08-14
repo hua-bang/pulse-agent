@@ -11,7 +11,7 @@ import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useAppShell } from '../shell/AppShellProvider';
-import type { AgentScope, ChatSessionMutationResult, WorkspaceOption } from './types';
+import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from './types';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import type { ChatContextSnapshot, ChatExecutionPolicy, ChatTarget } from './ChatTargetContext';
@@ -44,7 +44,7 @@ export interface ChatPageBodyProps {
   selectedSessionKey?: string | null;
   onSessionConsumed: (intentId: number, loaded: boolean) => void;
   /** Creates a new session after the user selects another scope. */
-  onCreateNewSessionInScope?: (scope: AgentScope) => Promise<ChatSessionMutationResult>;
+  onCreateNewSessionInScope?: (scope: AgentScope) => Promise<AgentNewSessionResult>;
   /** Clears inherited context when the user explicitly starts a new chat. */
   onNewSessionCreated?: (scope: AgentScope) => void;
   onActiveSessionResolved?: (sessionId: string, workspaceId: string) => void;

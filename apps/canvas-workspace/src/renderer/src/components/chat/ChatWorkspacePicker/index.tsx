@@ -3,9 +3,8 @@ import type { AgentScope, WorkspaceOption } from '../types';
 import { CheckIcon, KnowledgeStoreIcon, WorkspaceIcon } from '../../icons';
 import { useI18n } from '../../../i18n';
 import { Button, Modal, TextField, useIndexNav } from '../../ui';
+import { GLOBAL_CHAT_STORE_ID, scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import './index.css';
-
-const GLOBAL_SCOPE_ID = '__global_chat__';
 
 interface WorkspacePickerOption {
   id: string;
@@ -22,17 +21,9 @@ interface Props {
   onConfirm: (scope: AgentScope) => Promise<boolean>;
 }
 
-const scopeKey = (scope: AgentScope): string => {
-  if (scope.kind === 'workspace') return `workspace:${scope.workspaceId}`;
-  if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
-  return 'global';
-};
-
-const defaultScope = (scope: AgentScope): AgentScope => scope.kind === 'scheduled'
+const defaultScope = (scope: AgentScope): AgentScope => scope.kind === 'workspace'
   ? scope
-  : scope.kind === 'workspace'
-    ? scope
-    : { kind: 'global' };
+  : { kind: 'global' };
 
 export const ChatWorkspacePicker = ({
   open,
@@ -72,22 +63,11 @@ export const ChatWorkspacePicker = ({
         return left.name.localeCompare(right.name);
       });
     const global: WorkspacePickerOption = {
-      id: GLOBAL_SCOPE_ID,
+      id: GLOBAL_CHAT_STORE_ID,
       name: t('chat.scope.global'),
       scope: { kind: 'global' },
       isGlobal: true,
     };
-    const currentScheduled = currentScope.kind === 'scheduled'
-      ? [{
-        id: `scheduled:${currentScope.taskId}`,
-        name: currentScope.taskId,
-        scope: currentScope,
-      }]
-      : [];
-
-    if (currentScope.kind === 'scheduled') {
-      return [...currentScheduled, global, ...otherWorkspaces];
-    }
     if (currentWorkspaceId && otherWorkspaces[0]) {
       return [otherWorkspaces[0], global, ...otherWorkspaces.slice(1)];
     }
@@ -112,8 +92,8 @@ export const ChatWorkspacePicker = ({
     reset(0);
   }, [query, reset]);
 
-  const selectedKey = scopeKey(selectedScope);
-  const selectedOption = options.find(option => scopeKey(option.scope) === selectedKey);
+  const selectedKey = scopeSessionStoreId(selectedScope);
+  const selectedOption = options.find(option => scopeSessionStoreId(option.scope) === selectedKey);
   const submit = async () => {
     if (!selectedOption || submitting) return;
     setSubmitting(true);
@@ -155,7 +135,7 @@ export const ChatWorkspacePicker = ({
         {filteredOptions.length === 0 ? (
           <div className="chat-workspace-picker__empty">{t('chat.newChatDestinationNoResults')}</div>
         ) : filteredOptions.map((option, optionIndex) => {
-          const selected = scopeKey(option.scope) === selectedKey;
+          const selected = scopeSessionStoreId(option.scope) === selectedKey;
           return (
             <Button
               key={option.id}

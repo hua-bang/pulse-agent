@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
-import type { AgentScope, ChatSessionMutationResult } from '../types';
+import type { AgentNewSessionResult, AgentScope } from '../types';
 import { clearChatComposerDraft } from './chatComposerDraftStore';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 
@@ -15,7 +15,7 @@ interface Options {
   clearInput: () => void;
   handleNewSession: () => Promise<{ ok: boolean }>;
   onClearBackStack?: () => void;
-  onCreateNewSessionInScope?: (scope: AgentScope) => Promise<ChatSessionMutationResult>;
+  onCreateNewSessionInScope?: (scope: AgentScope) => Promise<AgentNewSessionResult>;
   onNewSessionCreated?: (scope: AgentScope) => void;
 }
 
@@ -61,11 +61,11 @@ export const useChatPageNewSession = ({
       return result.ok;
     }
 
-    clearInput();
-    clearChatComposerDraft(targetStoreId);
     if (!onCreateNewSessionInScope) return false;
     const result = await onCreateNewSessionInScope(targetScope);
     if (result.ok) {
+      clearInput();
+      clearChatComposerDraft(targetStoreId);
       onNewSessionCreated?.(targetScope);
       pendingNewSessionFocusRef.current = trigger;
     }
@@ -93,9 +93,9 @@ export const useChatPageNewSession = ({
     if (loading || sessionLoading || busyElsewhere) return;
     const trigger = document.activeElement;
     // The top-right plus is the fast path: once a workspace is active, keep
-    // the new conversation in that workspace. Global Chat still asks for a
-    // destination because it has no implicit workspace to inherit.
-    if (agentScope.kind === 'workspace' || agentScope.kind === 'scheduled') {
+    // the new conversation in that workspace. Global Chat and scheduled
+    // views ask for a workspace or Global Chat destination explicitly.
+    if (agentScope.kind === 'workspace') {
       void startNewSessionInScope(agentScope, trigger);
       return;
     }

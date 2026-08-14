@@ -4,14 +4,17 @@ import type { SettingsSection } from '../settings/Settings';
 import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatPageBody } from './ChatPageBody';
 import type { SessionBackEntry } from './SessionBackBar';
-import type { AgentScope, WorkspaceOption } from './types';
-import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../../../shared/agent-chat';
+import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from './types';
+import {
+  GLOBAL_CHAT_STORE_ID,
+  scheduledTaskIdFromStoreId,
+  scopeSessionStoreId,
+} from '../../../../shared/agent-chat';
 import type {
   ChatContextSnapshot,
   ChatExecutionPolicy,
   ChatTarget,
 } from './ChatTargetContext';
-import type { ChatSessionMutationResult } from './types';
 
 const workspaceIdFromScope = (scope: AgentScope): string | null =>
   scope.kind === 'workspace' ? scope.workspaceId : null;
@@ -94,11 +97,7 @@ export const ChatPage = ({
   // Jump trail for session-ref chip navigation. Owned here so scope changes
   // and thread replacement cannot disturb it.
   const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
-  const scopeKey = agentScope.kind === 'workspace'
-    ? `workspace:${agentScope.workspaceId}`
-    : agentScope.kind === 'scheduled'
-      ? `scheduled:${agentScope.taskId}`
-      : 'global';
+  const scopeKey = scopeSessionStoreId(agentScope);
 
   useEffect(() => {
     onWorkspaceScopeChange?.(workspaceIdFromScope(agentScope));
@@ -133,14 +132,10 @@ export const ChatPage = ({
     const scheduledTaskId = scheduledTaskIdFromStoreId(session.workspaceId);
     const nextScope: AgentScope = scheduledTaskId
       ? { kind: 'scheduled', taskId: scheduledTaskId }
-      : session.workspaceId === '__global_chat__'
+      : session.workspaceId === GLOBAL_CHAT_STORE_ID
         ? { kind: 'global' }
         : { kind: 'workspace', workspaceId: session.workspaceId };
-    const nextScopeKey = nextScope.kind === 'global'
-      ? 'global'
-      : nextScope.kind === 'scheduled'
-        ? `scheduled:${nextScope.taskId}`
-        : `workspace:${nextScope.workspaceId}`;
+    const nextScopeKey = scopeSessionStoreId(nextScope);
     onWorkspaceScopeChange?.(workspaceIdFromScope(nextScope));
     scopeRollbackRef.current ??= {
       agentScope, selectedSessionKey, contextSnapshot, executionPolicy, sessionBackStack,
@@ -186,8 +181,8 @@ export const ChatPage = ({
 
   const handleCreateNewSessionInScope = useCallback(async (
     scope: AgentScope,
-  ): Promise<ChatSessionMutationResult> => {
-    let result: ChatSessionMutationResult;
+  ): Promise<AgentNewSessionResult> => {
+    let result: AgentNewSessionResult;
     try {
       result = await window.canvasWorkspace.agent.newSession({ scope });
     } catch (error) {
@@ -202,7 +197,6 @@ export const ChatPage = ({
       return {
         ok: false,
         code: 'SESSION_ACK_MISMATCH',
-        error: 'New session did not become active',
       };
     }
 
@@ -210,10 +204,6 @@ export const ChatPage = ({
     pendingSessionIntentRef.current = intentId;
     setPendingSessionIntent({ id: intentId, sessionId: result.activeSessionId });
     setSelectedSessionKey(`${scopeSessionStoreId(scope)}:${result.activeSessionId}`);
-    setContextSnapshot(undefined);
-    setExecutionPolicy(scope.kind === 'scheduled' ? 'scheduled' : 'auto');
-    setSessionBackStack([]);
-    scopeRollbackRef.current = null;
     onWorkspaceScopeChange?.(workspaceIdFromScope(scope));
     setAgentScope(scope);
     return result;

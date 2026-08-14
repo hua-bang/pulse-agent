@@ -2,6 +2,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 import type { SettingsSection } from '../settings/Settings';
 import type { I18nKey } from '../../i18n';
+export type { AgentNewSessionResult } from '../../types/agent-chat';
 
 export interface WorkspaceOption {
   id: string;
@@ -9,14 +10,6 @@ export interface WorkspaceOption {
 }
 
 export type { AgentScope };
-
-/** Result returned by a main-process session-pointer mutation. */
-export interface ChatSessionMutationResult {
-  ok: boolean;
-  activeSessionId?: string | null;
-  code?: string;
-  error?: string;
-}
 
 /**
  * Pre-resolved descriptor for a "current context" chip in the composer.
