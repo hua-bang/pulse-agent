@@ -35,7 +35,7 @@ export const useChatPageNewSession = ({
   onNewSessionCreated,
 }: Options) => {
   const [newSessionPickerOpen, setNewSessionPickerOpen] = useState(false);
-  const newSessionTriggerRef = useRef<Element | null>(null);
+  const newSessionTriggerRef = useRef<HTMLElement | null>(null);
   const pendingNewSessionFocusRef = useRef<Element | null>(null);
 
   const closeNewSessionPicker = useCallback(() => {
@@ -85,9 +85,13 @@ export const useChatPageNewSession = ({
 
   const openNewSessionPicker = useCallback((trigger: Element | null) => {
     if (loading || sessionLoading || busyElsewhere) return;
-    newSessionTriggerRef.current = trigger;
+    newSessionTriggerRef.current = trigger instanceof HTMLElement ? trigger : null;
     setNewSessionPickerOpen(true);
   }, [busyElsewhere, loading, sessionLoading]);
+
+  const newSessionPickerTrigger = newSessionTriggerRef.current
+    ?.closest<HTMLElement>('[data-chat-new-session-trigger]')
+    ?.dataset.chatNewSessionTrigger ?? null;
 
   const handleNewSessionFromTopbar = useCallback(() => {
     if (loading || sessionLoading || busyElsewhere) return;
@@ -119,7 +123,9 @@ export const useChatPageNewSession = ({
     closeNewSessionPicker,
     handleNewSessionDestination,
     handleNewSessionFromTopbar,
+    newSessionAnchorRef: newSessionTriggerRef,
     newSessionPickerOpen,
+    newSessionPickerTrigger,
     openNewSessionPicker,
   };
 };

@@ -4,6 +4,7 @@ import { PlusIcon, WorkspaceIcon } from '../icons';
 import { Button } from '../ui';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type ChatSessionsRailProps } from './ChatSessionsRail';
+import { CHAT_WORKSPACE_PICKER_ID } from './ChatWorkspacePicker';
 import { RailToggleIcon } from './RailToggleIcon';
 import type { ChatAnchor } from './utils/anchors';
 import { sessionTitleText } from './utils/sessionTitle';
@@ -34,6 +35,8 @@ interface ChatPageTopbarProps {
   onJumpAnchor: (index: number) => void;
   onNewSession: () => void;
   newSessionDisabled: boolean;
+  newSessionPickerOpen?: boolean;
+  newSessionPickerAvailable?: boolean;
   dockTabsVisible: boolean;
   onToggleDockTabs: () => void;
 }
@@ -48,6 +51,8 @@ export const ChatPageTopbar = ({
   onJumpAnchor,
   onNewSession,
   newSessionDisabled,
+  newSessionPickerOpen = false,
+  newSessionPickerAvailable = false,
   dockTabsVisible,
   onToggleDockTabs,
 }: ChatPageTopbarProps) => {
@@ -95,6 +100,9 @@ export const ChatPageTopbar = ({
           className="chat-panel-action-btn"
           onClick={onNewSession}
           disabled={newSessionDisabled}
+          data-chat-new-session-trigger="topbar"
+          aria-expanded={newSessionPickerAvailable ? newSessionPickerOpen : undefined}
+          aria-controls={newSessionPickerAvailable ? CHAT_WORKSPACE_PICKER_ID : undefined}
           title={t('chat.newAiChat')}
           aria-label={t('chat.newAiChat')}
         >

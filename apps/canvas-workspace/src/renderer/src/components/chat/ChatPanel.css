@@ -802,32 +802,6 @@
   line-height: 1.2;
 }
 
-.chat-scope-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: calc(100% - 32px);
-  margin: 10px 16px 0;
-  padding: 5px 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface-alt);
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1;
-}
-
-.chat-scope-chip svg {
-  flex: 0 0 auto;
-}
-
-.chat-scope-chip span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .chat-context-chips {
   display: flex;
   align-items: flex-start;

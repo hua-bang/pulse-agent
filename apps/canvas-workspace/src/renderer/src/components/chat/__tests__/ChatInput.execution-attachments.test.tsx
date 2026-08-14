@@ -21,14 +21,16 @@ const baseProps = {
 
 describe('ChatInput execution and attachment states', () => {
   it('keeps scope and execution policy out of the composer chrome', () => {
+    const legacyScopeProps = { ...baseProps, workspaceLabel: 'Pulse Canvas' };
     const host = document.createElement('div');
     const root = createRoot(host);
     act(() => root.render(
       <I18nProvider>
-        <ChatInput {...baseProps} />
+        <ChatInput {...legacyScopeProps} />
       </I18nProvider>,
     ));
 
+    expect(host.querySelector('.chat-scope-chip')).toBeNull();
     expect(host.querySelector('.chat-scope-capability')).toBeNull();
     expect(host.querySelector('.chat-execution-mode-btn')).toBeNull();
 

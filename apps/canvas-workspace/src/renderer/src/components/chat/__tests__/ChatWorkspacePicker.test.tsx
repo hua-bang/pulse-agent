@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from 'react';
+import { act, createRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
@@ -21,14 +21,17 @@ describe('ChatWorkspacePicker', () => {
   it('preselects the current workspace and creates a global chat when chosen', async () => {
     const onClose = vi.fn();
     const onConfirm = vi.fn(async () => true);
+    const anchorRef = createRef<HTMLButtonElement>();
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
 
     act(() => root?.render(
       <I18nProvider>
+        <button ref={anchorRef}>New chat</button>
         <ChatWorkspacePicker
           open
+          anchorRef={anchorRef}
           currentScope={{ kind: 'workspace', workspaceId: 'workspace-a' }}
           workspaces={[
             { id: 'workspace-a', name: 'Alpha' },
@@ -40,6 +43,7 @@ describe('ChatWorkspacePicker', () => {
       </I18nProvider>,
     ));
 
+    expect(document.querySelector('.ui-modal-backdrop')).toBeNull();
     const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'));
     expect(options.map(option => option.textContent?.trim())).toEqual([
       'AlphaCurrent workspace',
@@ -48,17 +52,16 @@ describe('ChatWorkspacePicker', () => {
     ]);
     expect(options[0]?.getAttribute('aria-selected')).toBe('true');
 
+    const search = document.querySelector<HTMLInputElement>('[role="combobox"]');
+    act(() => search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })));
+    expect(options[1]?.classList.contains('chat-workspace-picker__option--active')).toBe(true);
+
     const globalOption = document.querySelector<HTMLButtonElement>(
       '#chat-new-destination-option-__global_chat__',
     );
     expect(globalOption).not.toBeNull();
-    act(() => globalOption?.click());
-
-    const confirmButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
-      .find(button => button.textContent?.trim() === 'Start new chat');
-    expect(confirmButton).not.toBeUndefined();
     await act(async () => {
-      confirmButton?.click();
+      globalOption?.click();
       await Promise.resolve();
     });
 
@@ -67,14 +70,17 @@ describe('ChatWorkspacePicker', () => {
   });
 
   it('keeps scheduled chats out of the new-chat destinations', () => {
+    const anchorRef = createRef<HTMLButtonElement>();
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
 
     act(() => root?.render(
       <I18nProvider>
+        <button ref={anchorRef}>New chat</button>
         <ChatWorkspacePicker
           open
+          anchorRef={anchorRef}
           currentScope={{ kind: 'scheduled', taskId: 'task-1' }}
           workspaces={[{ id: 'workspace-a', name: 'Alpha' }]}
           onClose={vi.fn()}

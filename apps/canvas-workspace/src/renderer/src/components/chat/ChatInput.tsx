@@ -1,6 +1,6 @@
 import { useMemo, type ClipboardEventHandler, type KeyboardEventHandler, type ReactNode, type RefObject } from 'react';
 import type { CanvasModelStatus, ChatImageAttachment } from '../../types';
-import { ImageIcon, PlusIcon, WorkspaceIcon } from '../icons';
+import { ImageIcon, PlusIcon } from '../icons';
 import { MentionNodeIcon } from './utils/mentions';
 import { ModelSwitcher } from './ModelSettings';
 import type { SelectedContextChip } from './types';
@@ -11,8 +11,6 @@ import { ChatInputAttachments } from './ChatInputAttachments';
 interface ChatInputProps {
   loading: boolean;
   input: string;
-  /** User-visible workspace / scope that owns this new conversation. */
-  workspaceLabel?: string;
   selectedContext?: SelectedContextChip[];
   showContextChips?: boolean;
   onRemoveContext?: (key: string) => void;
@@ -48,7 +46,6 @@ interface ChatInputProps {
 export const ChatInput = ({
   loading,
   input,
-  workspaceLabel,
   selectedContext,
   showContextChips: showContextChipsProp = true,
   onRemoveContext,
@@ -98,12 +95,6 @@ export const ChatInput = ({
         <div className="chat-generating-status">{t('chat.generatingCanContinue')}</div>
       )}
       <div className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}>
-        {workspaceLabel && (
-          <div className="chat-scope-chip" aria-label={t('chat.scopeLabel')}>
-            <WorkspaceIcon size={14} />
-            <span>{workspaceLabel}</span>
-          </div>
-        )}
         {showContextChips && (
           <div className="chat-context-chips" aria-label={t('chat.currentContext')}>
             {contextChips.map(chip => (

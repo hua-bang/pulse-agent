@@ -380,6 +380,7 @@ export const ChatPageBody = ({
     sessions,
     sessionsStoreId,
     pendingSessionKey: sessionLoading ? selectedSessionKey : null,
+    newSessionPickerOpen: newSession.newSessionPickerOpen && newSession.newSessionPickerTrigger === 'rail',
     disabled: sessionRailDisabled,
     focusInput,
     handleNewSession,
@@ -393,7 +394,7 @@ export const ChatPageBody = ({
 
   return (
     <div className="chat-page">
-      <ChatWorkspacePicker open={newSession.newSessionPickerOpen} currentScope={agentScope} workspaces={allWorkspaces}
+      <ChatWorkspacePicker open={newSession.newSessionPickerOpen} anchorRef={newSession.newSessionAnchorRef} currentScope={agentScope} workspaces={allWorkspaces}
         onClose={newSession.closeNewSessionPicker} onConfirm={newSession.handleNewSessionDestination} />
       {!fixedChat && (
         <ChatPageRail collapsed={railCollapsed} rail={sessionRail} />
@@ -410,6 +411,8 @@ export const ChatPageBody = ({
           onJumpAnchor={handleJumpAnchor}
           onNewSession={newSession.handleNewSessionFromTopbar}
           newSessionDisabled={sessionInteractionDisabled}
+          newSessionPickerOpen={newSession.newSessionPickerOpen && newSession.newSessionPickerTrigger === 'topbar'}
+          newSessionPickerAvailable={agentScope.kind !== 'workspace'}
           dockTabsVisible={dockTabsVisible}
           onToggleDockTabs={handleToggleDockTabs}
         />
@@ -432,7 +435,6 @@ export const ChatPageBody = ({
           messages={messages}
           loading={loading} sessionLoading={sessionLoading}
           workspaceId={scopeId}
-          workspaceLabel={chatDestinationLabel}
           rootFolder={rootFolder}
           streamingTools={streamingTools}
           messageTools={messageTools}

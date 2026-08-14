@@ -7,6 +7,7 @@ import {
 import { Button, TextField } from '../ui';
 import { useI18n } from '../../i18n';
 import { ChatSessionRailItem } from './ChatSessionRailItem';
+import { CHAT_WORKSPACE_PICKER_ID } from './ChatWorkspacePicker';
 
 const SESSION_PREVIEW_LIMIT = 10;
 const GLOBAL_CHAT_ID = '__global_chat__';
@@ -31,6 +32,7 @@ export interface ChatSessionsRailProps {
   disabled?: boolean;
   /** Selected conversation whose thread is currently being opened. */
   pendingSessionKey?: string | null;
+  newSessionPickerOpen?: boolean;
   onNewSession: () => void | Promise<void>;
   onSelectSession: (session: UnifiedSession) => void;
   onRenameSession?: (session: UnifiedSession, title: string) => void | Promise<void>;
@@ -50,6 +52,7 @@ export const ChatSessionsRail = ({
   loading = false,
   disabled = false,
   pendingSessionKey = null,
+  newSessionPickerOpen = false,
   onNewSession,
   onSelectSession,
   onRenameSession,
@@ -155,6 +158,9 @@ export const ChatSessionsRail = ({
           void onNewSession();
         }}
         aria-disabled={disabled ? true : undefined}
+        data-chat-new-session-trigger="rail"
+        aria-expanded={newSessionPickerOpen}
+        aria-controls={CHAT_WORKSPACE_PICKER_ID}
       >
         <PlusIcon size={14} strokeWidth={1.3} />
         <span>{t('chat.newChat')}</span>

@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { AgentScope, WorkspaceOption } from '../types';
-import { CheckIcon, KnowledgeStoreIcon, WorkspaceIcon } from '../../icons';
-import { useI18n } from '../../../i18n';
-import { Button, Modal, TextField, useIndexNav } from '../../ui';
+import { useEffect, useMemo, useState, type RefObject } from 'react';
 import { GLOBAL_CHAT_STORE_ID, scopeSessionStoreId } from '../../../../../shared/agent-chat';
+import { useI18n } from '../../../i18n';
+import { Button, Popover, TextField, useIndexNav } from '../../ui';
+import { CheckIcon, KnowledgeStoreIcon, WorkspaceIcon } from '../../icons';
+import type { AgentScope, WorkspaceOption } from '../types';
 import './index.css';
+
+export const CHAT_WORKSPACE_PICKER_ID = 'chat-workspace-picker';
 
 interface WorkspacePickerOption {
   id: string;
@@ -15,6 +17,7 @@ interface WorkspacePickerOption {
 
 interface Props {
   open: boolean;
+  anchorRef: RefObject<HTMLElement>;
   currentScope: AgentScope;
   workspaces: WorkspaceOption[];
   onClose: () => void;
@@ -27,6 +30,7 @@ const defaultScope = (scope: AgentScope): AgentScope => scope.kind === 'workspac
 
 export const ChatWorkspacePicker = ({
   open,
+  anchorRef,
   currentScope,
   workspaces,
   onClose,
@@ -34,8 +38,7 @@ export const ChatWorkspacePicker = ({
 }: Props) => {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
-  const [selectedScope, setSelectedScope] = useState<AgentScope>(() => defaultScope(currentScope));
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingScopeKey, setSubmittingScopeKey] = useState<string | null>(null);
   const { index, setIndex, move, reset } = useIndexNav();
 
   const options = useMemo<WorkspacePickerOption[]>(() => {
@@ -46,11 +49,7 @@ export const ChatWorkspacePicker = ({
     }));
     const currentWorkspace = currentScope.kind === 'workspace'
       && !workspaceEntries.some((workspace) => workspace.id === currentScope.workspaceId)
-      ? [{
-        id: currentScope.workspaceId,
-        name: currentScope.workspaceId,
-        scope: currentScope,
-      }]
+      ? [{ id: currentScope.workspaceId, name: currentScope.workspaceId, scope: currentScope }]
       : [];
     const currentWorkspaceId = currentScope.kind === 'workspace' ? currentScope.workspaceId : null;
     const otherWorkspaces = [...currentWorkspace, ...workspaceEntries]
@@ -83,35 +82,54 @@ export const ChatWorkspacePicker = ({
   useEffect(() => {
     if (!open) return;
     setQuery('');
-    setSelectedScope(defaultScope(currentScope));
+    setSubmittingScopeKey(null);
     reset(0);
-    setSubmitting(false);
-  }, [currentScope, open, reset]);
+  }, [open, reset]);
 
   useEffect(() => {
     reset(0);
   }, [query, reset]);
 
-  const selectedKey = scopeSessionStoreId(selectedScope);
-  const selectedOption = options.find(option => scopeSessionStoreId(option.scope) === selectedKey);
-  const submit = async () => {
-    if (!selectedOption || submitting) return;
-    setSubmitting(true);
+  useEffect(() => {
+    if (!open) return;
+    const activeOption = document.getElementById(`chat-new-destination-option-${filteredOptions[index]?.id}`);
+    activeOption?.scrollIntoView?.({ block: 'nearest' });
+  }, [filteredOptions, index, open]);
+
+  const chooseScope = async (scope: AgentScope) => {
+    if (submittingScopeKey) return;
+    const scopeKey = scopeSessionStoreId(scope);
+    setSubmittingScopeKey(scopeKey);
     try {
-      if (await onConfirm(selectedOption.scope)) onClose();
+      if (await onConfirm(scope)) onClose();
     } finally {
-      setSubmitting(false);
+      setSubmittingScopeKey(null);
     }
   };
-  const close = () => {
-    if (!submitting) onClose();
-  };
+
+  if (!open) return null;
+  const currentScopeKey = scopeSessionStoreId(defaultScope(currentScope));
 
   return (
-    <Modal open={open} onClose={close} width={520} labelledBy="chat-new-destination-title" className="chat-workspace-picker">
-      <div className="chat-workspace-picker__header">
-        <h2 id="chat-new-destination-title">{t('chat.newChatDestinationTitle')}</h2>
-        <p>{t('chat.newChatDestinationDescription')}</p>
+    <Popover
+      anchorRef={anchorRef}
+      placement="bottom"
+      align="start"
+      gap={6}
+      viewportMargin={8}
+      onClose={(reason) => {
+        if (submittingScopeKey) return;
+        if (reason === 'escape') anchorRef.current?.focus();
+        onClose();
+      }}
+      role="group"
+      ariaLabel={t('chat.newChatDestinationTitle')}
+      panelId={CHAT_WORKSPACE_PICKER_ID}
+      className="chat-workspace-picker"
+      autoFocus={false}
+      keyboardNavigation={false}
+    >
+      <div className="chat-workspace-picker__search">
         <TextField
           autoFocus
           value={query}
@@ -121,12 +139,12 @@ export const ChatWorkspacePicker = ({
             if (event.key === 'ArrowUp') { event.preventDefault(); move(-1, filteredOptions.length); }
             if (event.key === 'Enter' && filteredOptions[index]) {
               event.preventDefault();
-              setSelectedScope(filteredOptions[index].scope);
+              void chooseScope(filteredOptions[index].scope);
             }
           }}
           placeholder={t('chat.newChatDestinationSearch')}
           role="combobox"
-          aria-expanded={filteredOptions.length > 0}
+          aria-expanded
           aria-controls="chat-new-destination-options"
           aria-activedescendant={filteredOptions[index] ? `chat-new-destination-option-${filteredOptions[index].id}` : undefined}
         />
@@ -135,7 +153,7 @@ export const ChatWorkspacePicker = ({
         {filteredOptions.length === 0 ? (
           <div className="chat-workspace-picker__empty">{t('chat.newChatDestinationNoResults')}</div>
         ) : filteredOptions.map((option, optionIndex) => {
-          const selected = scopeSessionStoreId(option.scope) === selectedKey;
+          const current = scopeSessionStoreId(option.scope) === currentScopeKey;
           return (
             <Button
               key={option.id}
@@ -143,35 +161,27 @@ export const ChatWorkspacePicker = ({
               variant="secondary"
               size="sm"
               role="option"
-              aria-selected={selected}
-              data-chat-destination-index={optionIndex}
-              className={`chat-workspace-picker__option${selected ? ' chat-workspace-picker__option--selected' : ''}`}
+              aria-selected={current}
+              disabled={submittingScopeKey !== null}
+              className={`chat-workspace-picker__option${current ? ' chat-workspace-picker__option--current' : ''}${optionIndex === index ? ' chat-workspace-picker__option--active' : ''}`}
               onMouseEnter={() => setIndex(optionIndex)}
               onFocus={() => setIndex(optionIndex)}
-              onClick={() => setSelectedScope(option.scope)}
+              onClick={() => void chooseScope(option.scope)}
             >
               <span className="chat-workspace-picker__icon">
-                {option.isGlobal ? <KnowledgeStoreIcon size={16} /> : <WorkspaceIcon size={16} />}
+                {option.isGlobal ? <KnowledgeStoreIcon size={15} /> : <WorkspaceIcon size={15} />}
               </span>
               <span className="chat-workspace-picker__copy">
                 <strong>{option.name}</strong>
-                {option.id === (currentScope.kind === 'workspace' ? currentScope.workspaceId : null) && (
+                {current && currentScope.kind === 'workspace' && (
                   <small>{t('chat.newChatDestinationCurrent')}</small>
                 )}
               </span>
-              {selected && <CheckIcon size={16} className="chat-workspace-picker__check" />}
+              {current && <CheckIcon size={15} className="chat-workspace-picker__check" />}
             </Button>
           );
         })}
       </div>
-      <div className="chat-workspace-picker__footer">
-        <Button variant="secondary" size="sm" onClick={close} disabled={submitting}>
-          {t('chat.newChatDestinationCancel')}
-        </Button>
-        <Button variant="primary" size="sm" onClick={() => void submit()} disabled={!selectedOption || submitting}>
-          {t('chat.newChatDestinationConfirm')}
-        </Button>
-      </div>
-    </Modal>
+    </Popover>
   );
 };

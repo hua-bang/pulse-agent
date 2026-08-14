@@ -20,6 +20,7 @@ interface Options {
   sessions: AgentSessionInfo[];
   sessionsStoreId: string;
   pendingSessionKey?: string | null;
+  newSessionPickerOpen?: boolean;
   disabled: boolean;
   focusInput: () => void;
   handleNewSession: () => Promise<{ ok: boolean }>;
@@ -42,6 +43,7 @@ export const useChatPageSessionRail = ({
   sessions,
   sessionsStoreId,
   pendingSessionKey,
+  newSessionPickerOpen,
   disabled,
   focusInput,
   handleNewSession,
@@ -95,6 +97,7 @@ export const useChatPageSessionRail = ({
     loading: sessionsLoading,
     disabled,
     pendingSessionKey,
+    newSessionPickerOpen,
     onNewSession,
     onSelectSession: onSelect,
     onRenameSession: onRename,
