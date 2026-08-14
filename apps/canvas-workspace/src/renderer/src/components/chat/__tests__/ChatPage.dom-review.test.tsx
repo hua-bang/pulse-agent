@@ -8,7 +8,12 @@ import { ChatTargetProvider, useChatTargetBroker } from '../ChatTargetContext';
 
 const composer = vi.hoisted(() => ({
   focusInput: vi.fn(),
+  handleAttachFiles: vi.fn(),
   sendMessage: vi.fn(async () => true),
+}));
+
+const chatView = vi.hoisted(() => ({
+  latestProps: null as null | Record<string, unknown>,
 }));
 
 vi.mock('../hooks/useChatComposerState', () => ({
@@ -24,6 +29,7 @@ vi.mock('../hooks/useChatComposerState', () => ({
     conversationError: null,
     currentScopeName: null,
     focusInput: composer.focusInput,
+    handleAttachFiles: composer.handleAttachFiles,
     input: '',
     loading: false,
     mentionItems: [],
@@ -65,7 +71,12 @@ vi.mock('../ChatPageNavigationChrome', () => ({
   ChatPageTopbar: () => null,
 }));
 vi.mock('../ChatConversationStatus', () => ({ ChatConversationStatus: () => null }));
-vi.mock('../ChatView', () => ({ ChatView: () => null }));
+vi.mock('../ChatView', () => ({
+  ChatView: (props: Record<string, unknown>) => {
+    chatView.latestProps = props;
+    return null;
+  },
+}));
 
 import { ChatPageBody } from '../ChatPageBody';
 
@@ -130,6 +141,34 @@ describe('ChatPage DOM review delivery', () => {
         ],
       }),
     );
+    act(() => root.unmount());
+  });
+
+  it('keeps image upload available for global AI chat', async () => {
+    chatView.latestProps = null;
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    await act(async () => root.render(
+      <I18nProvider>
+        <ChatTargetProvider>
+          <ChatPageBody
+            agentScope={{ kind: 'global' }}
+            initialPendingSessionId={null}
+            pendingSessionId={null}
+            pendingSessionIntentId={null}
+            onSessionConsumed={vi.fn()}
+            onSelectSession={vi.fn()}
+            allWorkspaces={[]}
+            onExit={vi.fn()}
+            railCollapsed
+            onToggleRail={vi.fn()}
+            onOpenAppSettings={vi.fn()}
+          />
+        </ChatTargetProvider>
+      </I18nProvider>,
+    ));
+
+    expect(chatView.latestProps?.onAttachFiles).toBe(composer.handleAttachFiles);
     act(() => root.unmount());
   });
 });
