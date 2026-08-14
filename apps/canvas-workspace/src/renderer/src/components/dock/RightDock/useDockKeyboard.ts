@@ -68,19 +68,24 @@ export const useDockKeyboard = ({
       if (event.defaultPrevented || isImeComposing(event)) return;
       const command = resolveDockBrowserCommand(event);
       if (command) {
-        // ⌘F means find-in-page here and find-on-canvas there. Listener order
-        // between the two window handlers is not a contract, so resolve it on
-        // the only unambiguous signal: where focus already is.
+        // ⌘F means find-in-page for the active web tab and find-on-canvas
+        // elsewhere. If focus is already inside dock chrome, the dock owns it.
+        // If the visible active dock tab is a web page, keep browser muscle
+        // memory working even when the host focus is still on the canvas after
+        // a tab activation; otherwise leave it to the canvas search handler.
+        const state = store.getSnapshot();
+        const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
         if (
           DOCK_FOCUS_SCOPED_COMMANDS.has(command)
           && !isDockFocusOwner(dockRef)
+          && !(command === 'find' && activeTab?.kind === 'link')
         ) {
           return;
         }
         if (applyDockBrowserCommand(
           command,
           store,
-          store.getSnapshot(),
+          state,
           newTabTitle,
           orderedTabIds,
         )) {
