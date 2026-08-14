@@ -50,7 +50,7 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
               onOpenNode();
             }}
           >
-            <NodeTypeIcon type="file" size={15} />
+            <NodeTypeIcon type="file" size={15} colorize />
             {t('rightDock.openNode')}
           </Button>
           <Button
@@ -62,7 +62,7 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
               onOpenCanvas();
             }}
           >
-            <NodeTypeIcon type="frame" size={15} />
+            <NodeTypeIcon type="frame" size={15} colorize />
             {t('rightDock.openCanvas')}
           </Button>
           {showTerminal && (
@@ -75,7 +75,7 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
                 onNewTerminalTab();
               }}
             >
-              <NodeTypeIcon type="terminal" size={15} />
+              <NodeTypeIcon type="terminal" size={15} colorize />
               {t('rightDock.newTerminalTab')}
             </Button>
           )}
@@ -88,7 +88,7 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
               onNewWebTab();
             }}
           >
-            <NodeTypeIcon type="iframe" size={15} />
+            <NodeTypeIcon type="iframe" size={15} colorize />
             {t('rightDock.newWebTab')}
           </Button>
         </Popover>

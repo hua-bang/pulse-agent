@@ -87,7 +87,7 @@ export const NodeDockPicker = ({ workspaces, onSelect, onClose }: Props) => {
             onFocus={() => setIndex(nodeIndex)}
             onClick={() => choose(node)}
           >
-            <NodeTypeIcon type={isKnowledgeNodeType(node.type) ? node.type : 'file'} size={16} />
+            <NodeTypeIcon type={isKnowledgeNodeType(node.type) ? node.type : 'file'} size={16} colorize />
             <span className="node-dock-picker__copy">
               <strong>{getNodeTitle(node, t('workspaceNodes.untitled'))}</strong>
               <small>{node.workspaceName}</small>

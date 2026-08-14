@@ -202,7 +202,7 @@ export const NodeCardPreview = ({
     return (
       <span className="knowledge-card-preview knowledge-card-preview--web" data-preview-kind="iframe">
         <span className="knowledge-card-preview__web-source">
-          <NodeTypeIcon type="iframe" size={15} />
+          <NodeTypeIcon type="iframe" size={15} colorize />
           <span>{model.source}</span>
           <span aria-hidden="true">↗</span>
         </span>
@@ -243,7 +243,7 @@ export const NodeCardPreview = ({
           })}
         </svg>
         <span className="knowledge-card-preview__mindmap-root">
-          <NodeTypeIcon type="mindmap" size={14} />
+          <NodeTypeIcon type="mindmap" size={14} colorize />
           <span>{model.root}</span>
         </span>
         <span className="knowledge-card-preview__mindmap-branches">

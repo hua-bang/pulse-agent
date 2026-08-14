@@ -106,7 +106,7 @@ export const LayerItem = ({
           ) : (
             <span className="sidebar-layer-spacer" aria-hidden="true" />
           )}
-          <span className="sidebar-layer-icon">
+          <span className={`sidebar-layer-icon sidebar-layer-icon--${node.type}`}>
             <NodeTypeIcon type={node.type} />
           </span>
           <input
@@ -144,7 +144,7 @@ export const LayerItem = ({
           ) : (
             <span className="sidebar-layer-spacer" aria-hidden="true" />
           )}
-          <span className="sidebar-layer-icon">
+          <span className={`sidebar-layer-icon sidebar-layer-icon--${node.type}`}>
             <NodeTypeIcon type={node.type} />
           </span>
           <span className="sidebar-layer-name">

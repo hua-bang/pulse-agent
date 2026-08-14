@@ -3,11 +3,12 @@
  *
  * Scope: only icons that are either (a) duplicated in ≥2 places with the
  * same underlying path, or (b) represent a canonical brand concept like a
- * canvas node type. Context-specific icons (e.g. 18×18 FloatingToolbar
- * glyphs, 12×12 CanvasNodeView badges) intentionally stay inline because
- * their path data has been tuned for that context.
+ * canvas node type. Context-specific controls (e.g. select, connect, and
+ * plugin glyphs) can stay inline when their path data is tuned for that
+ * control, while canonical node/library glyphs should use the shared paths.
  */
 import type { CanvasNode } from '../../types';
+
 interface IconProps {
   size?: number;
   className?: string;
@@ -369,142 +370,108 @@ export const ImageIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProps
   </svg>
 );
 
+/** Bookmark/library icon used by the canvas reference entry points. */
+export const BookmarkIcon = ({ size = 16, className, strokeWidth = 1.35 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 18 18" fill="none" className={className}>
+    <path
+      d="M5.2 2.8h7.6a1.4 1.4 0 011.4 1.4v10.6L9 11.8l-5.2 3V4.2a1.4 1.4 0 011.4-1.4z"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinejoin="round"
+    />
+    <path
+      d="M6.6 6.2h4.8M6.6 8.7h3"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+export const ReferenceLinkIcon = ({ size = 16, className, strokeWidth = 1.35 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path
+      d="M6.4 5.2l1.1-1.1a3 3 0 014.2 4.2l-1.2 1.2M9.6 10.8l-1.1 1.1a3 3 0 01-4.2-4.2l1.2-1.2M6.4 9.6l3.2-3.2"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 interface NodeTypeIconProps {
   type: CanvasNode['type'];
   size?: number;
   className?: string;
+  /** Apply the node accent outside the monochrome FloatingToolbar. */
+  colorize?: boolean;
 }
 
-/**
- * Canonical 16×16 icon for a canvas node type. Used anywhere that
- * surfaces the node's type (sidebar Layers, future contexts).
- */
-export const NodeTypeIcon = ({ type, size = 14, className }: NodeTypeIconProps) => {
+/** Canonical node glyphs. The default is monochrome; surfaces opt into color. */
+export const NodeTypeIcon = ({ type, size = 14, className, colorize = false }: NodeTypeIconProps) => {
+  const iconClassName = [
+    'canvas-node-icon',
+    colorize ? 'canvas-node-icon--colorized' : '',
+    colorize ? `canvas-node-icon--${type}` : '',
+    className ?? '',
+  ].filter(Boolean).join(' ');
+  const props18 = { width: size, height: size, viewBox: '0 0 18 18', fill: 'none', className: iconClassName };
+  const props16 = { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', className: iconClassName };
+
   switch (type) {
     case 'file':
       return (
-        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-          <path
-            d="M4 2h5l3 3v9H4V2z"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M9 2v3h3"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+        <svg {...props18}>
+          <rect x="3" y="3" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M7 9h4M9 7v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
         </svg>
       );
     case 'terminal':
       return (
-        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-          <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-          <path
-            d="M5 7l2 1.5L5 10"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path d="M9 10h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <svg {...props18}>
+          <rect x="2.5" y="3" width="13" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M5.5 8l2 1.5-2 1.5M9 11h3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     case 'frame':
-      // Four corner brackets — conveys "container / crop frame"
       return (
-        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-          <path
-            d="M3 6V4a1 1 0 011-1h2M10 3h2a1 1 0 011 1v2M13 10v2a1 1 0 01-1 1h-2M6 13H4a1 1 0 01-1-1v-2"
-            stroke="currentColor"
-            strokeWidth="1.3"
-            strokeLinecap="round"
-          />
+        <svg {...props18}>
+          <rect x="2" y="2" width="14" height="14" rx="2.5" stroke="currentColor" strokeWidth="1.3" />
+          <rect x="5" y="5" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1" strokeDasharray="2 1.5" />
         </svg>
       );
     case 'group':
-      return (
-        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-          <rect
-            x="2.5"
-            y="3"
-            width="11"
-            height="10"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.25"
-            strokeDasharray="2 2"
-          />
-          <path
-            d="M5 6h6M5 10h6"
-            stroke="currentColor"
-            strokeWidth="1.15"
-            strokeLinecap="round"
-          />
-        </svg>
-      );
+      return <svg {...props16}><rect x="2.5" y="3" width="11" height="10" rx="2" stroke="currentColor" strokeWidth="1.25" strokeDasharray="2 2" /><path d="M5 6h6M5 10h6" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" /></svg>;
     case 'agent':
-      return <CodingAgentIcon size={size} className={className} strokeWidth={1.25} />;
+      return <CodingAgentIcon size={size} className={iconClassName} strokeWidth={1.25} />;
     case 'text':
-      // Serif-style "A" drawn as a capital letter glyph to read as "text"
       return (
-        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-          <path
-            d="M3 3h10M8 3v10M6 13h4"
-            stroke="currentColor"
-            strokeWidth="1.3"
-            strokeLinecap="round"
-          />
+        <svg {...props18}>
+          <path d="M4 5h10M9 5v9M7 14h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         </svg>
       );
     case 'iframe':
-      // Globe — evokes "web page"
       return (
-        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
-          <path
-            d="M2 8h12M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12"
-            stroke="currentColor"
-            strokeWidth="1.1"
-            strokeLinecap="round"
-          />
+        <svg {...props18}>
+          <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M2.5 9h13M9 2.5c2.2 2.2 2.2 10.8 0 13M9 2.5c-2.2 2.2-2.2 10.8 0 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
       );
     case 'image':
-      return <ImageIcon size={size} className={className} />;
+      return <ImageIcon size={size} className={iconClassName} />;
     case 'mindmap':
-      // Root node on the left with three children branching to the right
       return (
-        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-          <circle cx="4" cy="8" r="1.6" stroke="currentColor" strokeWidth="1.2" />
-          <circle cx="12" cy="3.5" r="1.4" stroke="currentColor" strokeWidth="1.2" />
-          <circle cx="12" cy="8" r="1.4" stroke="currentColor" strokeWidth="1.2" />
-          <circle cx="12" cy="12.5" r="1.4" stroke="currentColor" strokeWidth="1.2" />
-          <path
-            d="M5.6 8L10.6 3.7M5.6 8H10.6M5.6 8L10.6 12.3"
-            stroke="currentColor"
-            strokeWidth="1.1"
-            strokeLinecap="round"
-          />
+        <svg {...props18}>
+          <circle cx="4.5" cy="9" r="2" stroke="currentColor" strokeWidth="1.3" />
+          <circle cx="14" cy="4.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+          <circle cx="14" cy="9" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+          <circle cx="14" cy="13.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M6.5 8.2L12.5 5M6.5 9h6M6.5 9.8L12.5 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
       );
+    case 'reference':
+      return <ReferenceLinkIcon size={size} className={iconClassName} />;
     default:
-      return (
-        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-          <rect
-            x="2"
-            y="2"
-            width="12"
-            height="12"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            strokeDasharray="2 2"
-          />
-        </svg>
-      );
+      return <svg {...props16}><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.2" strokeDasharray="2 2" /></svg>;
   }
 };

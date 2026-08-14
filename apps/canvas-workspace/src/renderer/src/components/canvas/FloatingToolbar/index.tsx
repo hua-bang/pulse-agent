@@ -3,7 +3,7 @@ import './index.css';
 import { inferPluginIcon, PluginNodeIcon } from './PluginNodeIcon';
 import { ShapeToolButton } from './ShapeToolButton';
 import { TerminalToolSplitButton } from './TerminalToolSplitButton';
-import { AppLogoIcon, CodingAgentIcon } from '../../icons';
+import { AppLogoIcon, BookmarkIcon, NodeTypeIcon } from '../../icons';
 import { DropdownShell } from '../../ui';
 import { useI18n, type I18nKey } from '../../../i18n';
 import type { CreatableCanvasNodeType } from '../../../utils/nodeFactory';
@@ -262,20 +262,7 @@ export const FloatingToolbar = ({
               aria-label={t('canvas.toolbar.toggleReference')}
               aria-pressed={referenceDrawerOpen}
             >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path
-                  d="M5.2 2.8h7.6a1.4 1.4 0 011.4 1.4v10.6L9 11.8l-5.2 3V4.2a1.4 1.4 0 011.4-1.4z"
-                  stroke="currentColor"
-                  strokeWidth="1.35"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M6.6 6.2h4.8M6.6 8.7h3"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <BookmarkIcon size={18} />
             </button>
           </div>
           <div className="toolbar-divider" />
@@ -317,12 +304,7 @@ export const FloatingToolbar = ({
           aria-label={t('canvas.toolbar.addText')}
           data-tooltip={t('canvas.toolbar.text')}
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path
-              d="M4 5h10M9 5v9M7 14h4"
-              stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"
-            />
-          </svg>
+          <NodeTypeIcon type="text" size={18} />
           <span className="toolbar-btn-label">{t('canvas.toolbar.text')}</span>
         </button>
         <button
@@ -331,16 +313,7 @@ export const FloatingToolbar = ({
           aria-label={t('canvas.toolbar.addNote')}
           data-tooltip={t('canvas.toolbar.note')}
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <rect
-              x="3" y="3" width="12" height="12" rx="2"
-              stroke="currentColor" strokeWidth="1.3"
-            />
-            <path
-              d="M7 9h4M9 7v4"
-              stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"
-            />
-          </svg>
+          <NodeTypeIcon type="file" size={18} />
           <span className="toolbar-btn-label">{t('canvas.toolbar.note')}</span>
         </button>
         <button
@@ -349,16 +322,7 @@ export const FloatingToolbar = ({
           aria-label={t('canvas.toolbar.addFrame')}
           data-tooltip={t('canvas.toolbar.frame')}
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <rect
-              x="2" y="2" width="14" height="14" rx="2.5"
-              stroke="currentColor" strokeWidth="1.3"
-            />
-            <rect
-              x="5" y="5" width="8" height="8" rx="1"
-              stroke="currentColor" strokeWidth="1" strokeDasharray="2 1.5"
-            />
-          </svg>
+          <NodeTypeIcon type="frame" size={18} />
           <span className="toolbar-btn-label">{t('canvas.toolbar.frame')}</span>
         </button>
         <button
@@ -367,13 +331,7 @@ export const FloatingToolbar = ({
           aria-label={t('canvas.toolbar.addWeb')}
           data-tooltip={t('canvas.toolbar.web')}
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.3" />
-            <path
-              d="M2.5 9h13M9 2.5c2.2 2.2 2.2 10.8 0 13M9 2.5c-2.2 2.2-2.2 10.8 0 13"
-              stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"
-            />
-          </svg>
+          <NodeTypeIcon type="iframe" size={18} />
           <span className="toolbar-btn-label">{t('canvas.toolbar.web')}</span>
         </button>
         <button
@@ -382,7 +340,7 @@ export const FloatingToolbar = ({
           aria-label={t('canvas.toolbar.addCodingAgent')}
           data-tooltip={t('canvas.toolbar.coding')}
         >
-          <CodingAgentIcon size={18} />
+          <NodeTypeIcon type="agent" size={18} />
           <span className="toolbar-btn-label">{t('canvas.toolbar.coding')}</span>
         </button>
         <TerminalToolSplitButton
@@ -397,16 +355,7 @@ export const FloatingToolbar = ({
           aria-label={t('canvas.toolbar.addMindmap')}
           data-tooltip={t('canvas.toolbar.mindmap')}
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="4.5" cy="9" r="2" stroke="currentColor" strokeWidth="1.3" />
-            <circle cx="14" cy="4.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
-            <circle cx="14" cy="9" r="1.5" stroke="currentColor" strokeWidth="1.2" />
-            <circle cx="14" cy="13.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
-            <path
-              d="M6.5 8.2 L12.5 5 M6.5 9 L12.5 9 M6.5 9.8 L12.5 13"
-              stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"
-            />
-          </svg>
+          <NodeTypeIcon type="mindmap" size={18} />
           <span className="toolbar-btn-label">{t('canvas.toolbar.mindmap')}</span>
         </button>
         {TOOLBAR_SECONDARY_VISIBLE.agentTeams && onCreateAgentTeam && (

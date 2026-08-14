@@ -138,7 +138,7 @@ export const NodeDetailHeader = ({
         </div>
         <div className="node-detail-panel__document-meta">
           <span className="node-detail-panel__type">
-            {isKnowledgeNodeType(node.type) && <NodeTypeIcon type={node.type} size={14} />}
+            {isKnowledgeNodeType(node.type) && <NodeTypeIcon type={node.type} size={14} colorize />}
             <span>{getNodeTypeLabel(node.type, t, t('workspaceNodes.genericNode'))}</span>
           </span>
           <span className="node-detail-panel__meta-divider" aria-hidden="true" />
