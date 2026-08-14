@@ -23,7 +23,7 @@ export type { AgentSessionListEntry } from './session-store-scan';
 const storeDir = (): string =>
   process.env.PULSE_CANVAS_SESSION_STORE_DIR || join(homedir(), '.pulse-coder', 'canvas');
 export const GLOBAL_CHAT_SESSION_STORE_ID = '__global_chat__';
-export const GLOBAL_CHAT_WORKSPACE_NAME = 'Global Chat';
+export const GLOBAL_CHAT_WORKSPACE_NAME = 'No workspace';
 
 interface WorkspaceManifest {
   workspaces: Array<{ id: string; name: string }>;

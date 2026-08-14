@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe('ChatWorkspacePicker', () => {
-  it('preselects the current workspace and creates a global chat when chosen', async () => {
+  it('marks the current workspace and creates a chat without a workspace when chosen', async () => {
     const onClose = vi.fn();
     const onConfirm = vi.fn(async () => true);
     const anchorRef = createRef<HTMLButtonElement>();
@@ -47,14 +47,11 @@ describe('ChatWorkspacePicker', () => {
     const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'));
     expect(options.map(option => option.textContent?.trim())).toEqual([
       'AlphaCurrent workspace',
-      'Global chat',
+      'No workspace',
       'Beta',
     ]);
     expect(options[0]?.getAttribute('aria-selected')).toBe('true');
-
-    const search = document.querySelector<HTMLInputElement>('[role="combobox"]');
-    act(() => search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })));
-    expect(options[1]?.classList.contains('chat-workspace-picker__option--active')).toBe(true);
+    expect(document.querySelector('[role="combobox"]')).toBeNull();
 
     const globalOption = document.querySelector<HTMLButtonElement>(
       '#chat-new-destination-option-__global_chat__',
@@ -91,6 +88,47 @@ describe('ChatWorkspacePicker', () => {
 
     expect(Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
       .map(option => option.textContent?.trim()))
-      .toEqual(['Global chat', 'Alpha']);
+      .toEqual(['No workspace', 'Alpha']);
+  });
+
+  it('adds search and keyboard selection when the workspace list is long', async () => {
+    const onConfirm = vi.fn(async () => true);
+    const anchorRef = createRef<HTMLButtonElement>();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const workspaces = Array.from({ length: 8 }, (_, index) => ({
+      id: `workspace-${index + 1}`,
+      name: `Workspace ${index + 1}`,
+    }));
+
+    act(() => root?.render(
+      <I18nProvider>
+        <button ref={anchorRef}>New chat</button>
+        <ChatWorkspacePicker
+          open
+          anchorRef={anchorRef}
+          currentScope={{ kind: 'global' }}
+          workspaces={workspaces}
+          onClose={vi.fn()}
+          onConfirm={onConfirm}
+        />
+      </I18nProvider>,
+    ));
+
+    const search = document.querySelector<HTMLInputElement>('[role="combobox"]');
+    expect(search).not.toBeNull();
+    act(() => {
+      if (!search) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(search, 'Workspace 8');
+      search.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    });
+    expect(document.querySelectorAll('[role="option"]')).toHaveLength(1);
+
+    await act(async () => {
+      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(onConfirm).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'workspace-8' });
   });
 });

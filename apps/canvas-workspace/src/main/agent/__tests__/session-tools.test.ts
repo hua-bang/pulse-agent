@@ -126,7 +126,7 @@ describe('session_search', () => {
     expect(research.ref).toMatch(/^@\[session:ws-research:s-research-now:\d*\|调研 \d{4}-\d{2}-\d{2}\]$/);
 
     const global = out.sessions.find((s: { sessionId: string }) => s.sessionId === 's-global-1');
-    expect(global.workspaceName).toBe('Global Chat');
+    expect(global.workspaceName).toBe('No workspace');
   });
 
   it('restricts to one workspace when workspaceId is given', async () => {

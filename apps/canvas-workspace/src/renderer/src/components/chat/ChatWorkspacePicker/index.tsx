@@ -72,6 +72,7 @@ export const ChatWorkspacePicker = ({
     }
     return [global, ...otherWorkspaces];
   }, [currentScope, t, workspaces]);
+  const searchable = options.length > 8;
 
   const filteredOptions = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -126,29 +127,31 @@ export const ChatWorkspacePicker = ({
       ariaLabel={t('chat.newChatDestinationTitle')}
       panelId={CHAT_WORKSPACE_PICKER_ID}
       className="chat-workspace-picker"
-      autoFocus={false}
-      keyboardNavigation={false}
+      autoFocus={!searchable}
+      keyboardNavigation={!searchable}
     >
-      <div className="chat-workspace-picker__search">
-        <TextField
-          autoFocus
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowDown') { event.preventDefault(); move(1, filteredOptions.length); }
-            if (event.key === 'ArrowUp') { event.preventDefault(); move(-1, filteredOptions.length); }
-            if (event.key === 'Enter' && filteredOptions[index]) {
-              event.preventDefault();
-              void chooseScope(filteredOptions[index].scope);
-            }
-          }}
-          placeholder={t('chat.newChatDestinationSearch')}
-          role="combobox"
-          aria-expanded
-          aria-controls="chat-new-destination-options"
-          aria-activedescendant={filteredOptions[index] ? `chat-new-destination-option-${filteredOptions[index].id}` : undefined}
-        />
-      </div>
+      {searchable && (
+        <div className="chat-workspace-picker__search">
+          <TextField
+            autoFocus
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown') { event.preventDefault(); move(1, filteredOptions.length); }
+              if (event.key === 'ArrowUp') { event.preventDefault(); move(-1, filteredOptions.length); }
+              if (event.key === 'Enter' && filteredOptions[index]) {
+                event.preventDefault();
+                void chooseScope(filteredOptions[index].scope);
+              }
+            }}
+            placeholder={t('chat.newChatDestinationSearch')}
+            role="combobox"
+            aria-expanded
+            aria-controls="chat-new-destination-options"
+            aria-activedescendant={filteredOptions[index] ? `chat-new-destination-option-${filteredOptions[index].id}` : undefined}
+          />
+        </div>
+      )}
       <div id="chat-new-destination-options" className="chat-workspace-picker__options" role="listbox" aria-label={t('chat.newChatDestinationOptions')}>
         {filteredOptions.length === 0 ? (
           <div className="chat-workspace-picker__empty">{t('chat.newChatDestinationNoResults')}</div>

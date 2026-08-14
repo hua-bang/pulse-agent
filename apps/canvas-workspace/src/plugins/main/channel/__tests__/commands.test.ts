@@ -199,7 +199,7 @@ describe('handleCommand', () => {
     const out = await handleCommand(msg('/new'), deps);
     expect(newSessionForScope).toHaveBeenCalledWith({ kind: 'global' });
     expect(await deps.sessionRouter.getConversationSessionId({ kind: 'global' }, 'chatA')).toBe('fresh-global');
-    expect(text(out)).toMatch(/Global chat/i);
+    expect(text(out)).toMatch(/No workspace/i);
   });
 
   it('/stop aborts the resolved workspace', async () => {
@@ -424,7 +424,7 @@ describe('handleCommand', () => {
     ]);
     const out = await handleCommand(msg('/sessions'), makeDeps(fakeService({ listSessionsForScope })));
     expect(listSessionsForScope).toHaveBeenCalledWith({ kind: 'global' });
-    expect(text(out)).toMatch(/Global chat/i);
+    expect(text(out)).toMatch(/No workspace/i);
     expect(text(out)).toContain('2026-06-01');
   });
 

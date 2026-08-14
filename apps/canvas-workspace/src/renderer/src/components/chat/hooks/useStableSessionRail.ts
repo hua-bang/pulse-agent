@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
+import { useI18n } from '../../../i18n';
 import type { AgentSessionInfo } from '../../../types';
 import type { UnifiedSession } from '../ChatSessionsRail';
 import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
@@ -31,6 +32,7 @@ export function useStableSessionRail({
   sessions,
   sessionsStoreId,
 }: UseStableSessionRailOptions): UnifiedSession[] {
+  const { t } = useI18n();
   const stableSessionsRef = useRef<UnifiedSession[]>([]);
   const stableScopeRef = useRef(scopeSessionStoreId(agentScope));
   const computedSessions = useMemo(() => {
@@ -40,7 +42,7 @@ export function useStableSessionRail({
       : sessionsStoreId;
     const workspaceName = currentScopeName
       ?? (sessionsStoreId === '__global_chat__'
-        ? 'Global Chat'
+        ? t('chat.scope.global')
         : allWorkspaces.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId);
     const unified: UnifiedSession[] = [
       ...sessions.map((session) => ({
@@ -71,7 +73,7 @@ export function useStableSessionRail({
       || right.date.localeCompare(left.date)
       || right.sessionId.localeCompare(left.sessionId)
     ));
-  }, [agentScope, allWorkspaces, currentScopeName, otherSessions, selectedSessionKey, sessions, sessionsStoreId]);
+  }, [agentScope, allWorkspaces, currentScopeName, otherSessions, selectedSessionKey, sessions, sessionsStoreId, t]);
 
   return useMemo(() => {
     const nextScopeId = scopeSessionStoreId(agentScope);
