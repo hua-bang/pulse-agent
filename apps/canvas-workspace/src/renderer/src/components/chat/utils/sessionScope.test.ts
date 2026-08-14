@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createChatPageSessionTarget, scopeFromSessionStoreId } from './sessionScope';
+import { chatScopeKey, createChatPageSessionTarget, scopeFromSessionStoreId } from './sessionScope';
 
 describe('scopeFromSessionStoreId', () => {
   it('keeps workspace, global, and scheduled session ownership distinct', () => {
@@ -26,5 +26,12 @@ describe('scopeFromSessionStoreId', () => {
       contextSnapshot: { label: 'Daily brief' },
       executionPolicy: 'scheduled',
     });
+  });
+
+  it('uses semantic renderer keys without leaking storage sentinels', () => {
+    expect(chatScopeKey({ kind: 'global' })).toBe('global');
+    expect(chatScopeKey({ kind: 'scheduled', taskId: 'task-1' })).toBe('scheduled:task-1');
+    expect(chatScopeKey({ kind: 'workspace', workspaceId: 'workspace-1' }))
+      .toBe('workspace:workspace-1');
   });
 });

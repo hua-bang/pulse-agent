@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
+  ActiveChatTarget,
   ChatTarget,
   ChatTargetBroker,
 } from '../ChatTargetContext';
+import { activeChatTargetFromRegisteredTarget } from '../ChatTargetContext';
 import { isImeComposing } from '../../../utils/ime';
 
 interface UseChatNavigationOptions {
   activeView: string;
   location: string;
+  scheduledTaskId?: string | null;
   setLocation: (path: string) => void;
   activeTarget: ChatTarget | null;
   broker: ChatTargetBroker;
@@ -33,6 +36,7 @@ const isEditableTarget = (target: EventTarget | null): boolean => {
 export const useChatNavigation = ({
   activeView,
   location,
+  scheduledTaskId,
   setLocation,
   activeTarget,
   broker,
@@ -40,9 +44,35 @@ export const useChatNavigation = ({
   isOverlayOpen,
   openShortcuts,
 }: UseChatNavigationOptions) => {
-  const [initialTarget, setInitialTarget] = useState<ChatTarget | null>(null);
+  const scheduledTarget = (taskId: string): ActiveChatTarget => ({
+    scope: { kind: 'scheduled', taskId },
+    sessionId: null,
+    executionPolicy: 'scheduled',
+  });
+  const [storedChatTarget, setActiveChatTarget] = useState<ActiveChatTarget>(
+    () => scheduledTaskId
+      ? scheduledTarget(scheduledTaskId)
+      : activeChatTargetFromRegisteredTarget(null),
+  );
+  const appliedScheduledTaskRef = useRef(scheduledTaskId ?? null);
+  const hasPendingScheduledRoute = Boolean(
+    scheduledTaskId && appliedScheduledTaskRef.current !== scheduledTaskId,
+  );
+  const activeChatTarget = hasPendingScheduledRoute
+    ? scheduledTarget(scheduledTaskId!)
+    : storedChatTarget;
   const returnPointRef = useRef<ChatReturnPoint | null>(null);
   const isChatView = activeView === 'chat';
+
+  useLayoutEffect(() => {
+    if (!scheduledTaskId) {
+      appliedScheduledTaskRef.current = null;
+      return;
+    }
+    if (appliedScheduledTaskRef.current === scheduledTaskId) return;
+    appliedScheduledTaskRef.current = scheduledTaskId;
+    setActiveChatTarget(scheduledTarget(scheduledTaskId));
+  }, [scheduledTaskId]);
 
   const enterChatTarget = useCallback((target: ChatTarget | null) => {
     if (activeView === 'chat') return;
@@ -52,7 +82,7 @@ export const useChatNavigation = ({
         ? document.activeElement
         : null,
     };
-    setInitialTarget(target);
+    setActiveChatTarget(activeChatTargetFromRegisteredTarget(target));
     setLocation('/chat');
   }, [activeView, location, setLocation]);
 
@@ -134,7 +164,8 @@ export const useChatNavigation = ({
     enterChatTarget,
     enterChatView,
     exitChatView,
-    initialTarget,
+    activeChatTarget,
+    setActiveChatTarget,
     isChatView,
     openAndFocusDockChat,
   };

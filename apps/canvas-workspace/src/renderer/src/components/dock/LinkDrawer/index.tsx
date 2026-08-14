@@ -14,7 +14,7 @@ import { AddressSuggestionList } from './AddressSuggestions';
 import { LinkTabLoadError } from './LinkTabLoadError';
 import { PageContextMenu } from './PageContextMenu';
 import { FindInPageBar } from './FindInPageBar';
-import { InspectIcon, ReferenceIcon } from './icons';
+import { InspectIcon } from './icons';
 import { useAddressBar } from './useAddressBar';
 import { useFindInPage } from './useFindInPage';
 import { usePageContextMenu } from './usePageContextMenu';
@@ -74,7 +74,6 @@ interface LinkTabViewProps {
   onNavigate: (url: string) => void;
   /** Mirror a guest navigation without resetting a resolved page title. */
   onGuestNavigate: (url: string) => void;
-  onAddToReference: (url: string, title?: string) => void;
   onAddDomSelectionToChat: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   tabRef?: AgentContextTabRef;
   targetWorkspaceId?: string;
@@ -83,6 +82,8 @@ interface LinkTabViewProps {
    *  next to this one. Distinct from `onNavigate`, which moves this tab. */
   onOpenLink: (url: string, options?: { background?: boolean }) => void;
   activeWorkspaceId: string;
+  /** Canvas write destination. Global/scheduled Chat intentionally passes null. */
+  canvasWorkspaceId?: string | null;
   onRequestClose: () => void;
 }
 
@@ -97,13 +98,13 @@ export const LinkTabView = ({
   onFaviconChange,
   onNavigate,
   onGuestNavigate,
-  onAddToReference,
   onAddDomSelectionToChat,
   tabRef,
   targetWorkspaceId,
   onAddTabToChat,
   onOpenLink,
   activeWorkspaceId,
+  canvasWorkspaceId = activeWorkspaceId,
   onRequestClose,
 }: LinkTabViewProps) => {
   const { t } = useI18n();
@@ -246,19 +247,14 @@ export const LinkTabView = ({
   }, [browser.currentUrl]);
 
   const handleAddToCanvas = useCallback(() => {
-    if (!browser.currentUrl || !activeWorkspaceId) return;
+    if (!browser.currentUrl || !canvasWorkspaceId) return;
     window.dispatchEvent(
       new CustomEvent('canvas:add-iframe-from-url', {
-        detail: { workspaceId: activeWorkspaceId, url: browser.currentUrl },
+        detail: { workspaceId: canvasWorkspaceId, url: browser.currentUrl },
       }),
     );
     onRequestClose();
-  }, [browser.currentUrl, activeWorkspaceId, onRequestClose]);
-
-  const handleAddToReference = useCallback(() => {
-    if (!browser.currentUrl) return;
-    onAddToReference(browser.currentUrl, title);
-  }, [browser.currentUrl, onAddToReference, title]);
+  }, [browser.currentUrl, canvasWorkspaceId, onRequestClose]);
 
   const handlePickDomElement = useCallback(async () => {
     if (!activeWorkspaceId || !tabId || !browser.currentUrl) return;
@@ -369,17 +365,6 @@ export const LinkTabView = ({
             variant="icon"
             size="xs"
             className="link-drawer__action"
-            aria-label={t('linkDrawer.addToReference')}
-            title={t('linkDrawer.addToReference')}
-            onClick={handleAddToReference}
-            disabled={!browser.currentUrl}
-          >
-            <ReferenceIcon />
-          </Button>
-          <Button
-            variant="icon"
-            size="xs"
-            className="link-drawer__action"
             aria-label={t('linkDrawer.openInBrowser')}
             title={t('linkDrawer.openInBrowser')}
             onClick={handleOpenInBrowser}
@@ -387,17 +372,19 @@ export const LinkTabView = ({
           >
             <ExternalLinkIcon />
           </Button>
-          <Button
-            variant="icon"
-            size="xs"
-            className="link-drawer__action"
-            aria-label={t('linkDrawer.addToCanvas')}
-            onClick={handleAddToCanvas}
-            disabled={!activeWorkspaceId || !browser.currentUrl}
-            title={activeWorkspaceId ? t('linkDrawer.addToCanvas') : t('linkDrawer.noActiveCanvas')}
-          >
-            <PlusIcon size={12} strokeWidth={1.2} />
-          </Button>
+          {canvasWorkspaceId ? (
+            <Button
+              variant="icon"
+              size="xs"
+              className="link-drawer__action"
+              aria-label={t('linkDrawer.addToCanvas')}
+              onClick={handleAddToCanvas}
+              disabled={!browser.currentUrl}
+              title={t('linkDrawer.addToCanvas')}
+            >
+              <PlusIcon size={12} strokeWidth={1.2} />
+            </Button>
+          ) : null}
         </div>
       </header>
       {loading && (

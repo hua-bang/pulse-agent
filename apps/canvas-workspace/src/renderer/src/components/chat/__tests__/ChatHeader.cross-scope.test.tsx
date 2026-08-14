@@ -22,7 +22,7 @@ describe('ChatHeader cross-scope sessions', () => {
           sessions={[]}
           otherSessions={[{
             sessionId: 'other-session',
-            sourceWorkspaceId: 'workspace-b',
+            sourceScope: { kind: 'workspace', workspaceId: 'workspace-b' },
             workspaceName: 'Workspace B',
             date: '2026-07-31',
             messageCount: 3,

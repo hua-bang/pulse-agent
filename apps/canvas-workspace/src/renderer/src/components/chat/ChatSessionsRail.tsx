@@ -7,14 +7,14 @@ import {
 import { Button, TextField } from '../ui';
 import { useI18n } from '../../i18n';
 import { ChatSessionRailItem } from './ChatSessionRailItem';
+import type { AgentScope } from './types';
+import { chatScopeKey, chatSessionKey } from './utils/sessionScope';
 
 const SESSION_PREVIEW_LIMIT = 10;
-const GLOBAL_CHAT_ID = '__global_chat__';
-
 export interface UnifiedSession {
   sessionId: string;
-  workspaceId: string;
-  workspaceName: string;
+  scope: AgentScope;
+  scopeName: string;
   date: string;
   updatedAt?: number;
   messageCount: number;
@@ -61,19 +61,21 @@ export const ChatSessionsRail = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSessionGroupIds, setExpandedSessionGroupIds] = useState<Set<string>>(new Set());
   const allSessionGroups = useMemo(() => {
-    const groups = new Map<string, { id: string; name: string; sessions: UnifiedSession[] }>();
+    const groups = new Map<string, { id: string; name: string; scope: AgentScope; sessions: UnifiedSession[] }>();
     for (const session of allSessions) {
-      const group = groups.get(session.workspaceId);
+      const scopeId = chatScopeKey(session.scope);
+      const group = groups.get(scopeId);
       if (group) group.sessions.push(session);
-      else groups.set(session.workspaceId, {
-        id: session.workspaceId,
-        name: session.workspaceName,
+      else groups.set(scopeId, {
+        id: scopeId,
+        name: session.scopeName,
+        scope: session.scope,
         sessions: [session],
       });
     }
     return Array.from(groups.values())
       .sort((left, right) => {
-        const globalRank = (group: { id: string }) => group.id === GLOBAL_CHAT_ID ? 0 : 1;
+        const globalRank = (group: { scope: AgentScope }) => group.scope.kind === 'global' ? 0 : 1;
         return globalRank(left) - globalRank(right)
           || left.name.localeCompare(right.name)
           || left.id.localeCompare(right.id);
@@ -178,7 +180,7 @@ export const ChatSessionsRail = ({
         ) : (
           sessionGroups.map((group, groupIndex) => {
             const listId = `${railId}-sessions-${groupIndex}`;
-            const isGlobalGroup = group.id === GLOBAL_CHAT_ID;
+            const isGlobalGroup = group.scope.kind === 'global';
             const collapsed = !isGlobalGroup && !normalizedQuery && collapsedGroupIds.has(group.id);
             const showsAllSessions = Boolean(normalizedQuery) || expandedSessionGroupIds.has(group.id);
             const sessionPreview = group.sessions.slice(0, SESSION_PREVIEW_LIMIT);
@@ -215,7 +217,7 @@ export const ChatSessionsRail = ({
                 <div id={listId} className="chat-page-rail-list" role="list">
                   {!collapsed && visibleSessions.map((session) => (
                     <div
-                      key={`${session.workspaceId}:${session.sessionId}`}
+                      key={chatSessionKey(session.scope, session.sessionId)}
                       className="chat-page-rail-item-row"
                       role="listitem"
                     >
@@ -226,7 +228,7 @@ export const ChatSessionsRail = ({
                         onDeleteSession={onDeleteSession}
                         onTogglePinSession={onTogglePinSession}
                         disabled={disabled}
-                        pending={pendingSessionKey === `${session.workspaceId}:${session.sessionId}`}
+                        pending={pendingSessionKey === chatSessionKey(session.scope, session.sessionId)}
                       />
                     </div>
                   ))}

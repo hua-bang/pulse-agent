@@ -98,7 +98,7 @@ function persistWidth(value: number): void {
 }
 
 export const RightDock = ({
-  activeWorkspaceId,
+  activeWorkspaceId, canvasWorkspaceId = activeWorkspaceId,
   activeIdReady,
   chatTabEnabled,
   reserveSpace,
@@ -111,7 +111,7 @@ export const RightDock = ({
   onOpenNodePage,
   onActivateWorkspace,
 }: RightDockProps) => {
-  const { store, setChatHost, setTerminalHost, pinUrlReference,
+  const { store, setChatHost, setTerminalHost,
     addDomSelectionToChat, submitDomReviewComments, addTabToChat, startSkillChat } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
@@ -467,10 +467,9 @@ export const RightDock = ({
         setChatHost={setChatHost}
         setTerminalHost={setTerminalHost}
         terminalHostMounted={terminalHostMounted}
-        activeWorkspaceId={activeWorkspaceId}
+        activeWorkspaceId={activeWorkspaceId} canvasWorkspaceId={canvasWorkspaceId}
         workspaces={workspaces}
         onOpenNodePage={onOpenNodePage}
-        pinUrlReference={pinUrlReference}
         onAddDomSelectionToChat={addDomSelectionToChat}
         onSubmitDomReviewComments={submitDomReviewComments}
         onAddTabToChat={addTabToChat}

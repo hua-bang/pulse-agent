@@ -3,7 +3,9 @@ import {
   useContext,
   useRef,
   useSyncExternalStore,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from 'react';
 import type {
   AgentContextDomReviewComment,
@@ -22,6 +24,33 @@ export interface ChatContextSnapshot {
   label: string;
   requestContext?: AgentRequestContext;
 }
+
+/**
+ * The conversation selected by the full-page Chat surface. Unlike
+ * `ChatTarget`, this is product state rather than a mounted-composer
+ * registration: it deliberately has no surface/composer/storage identity.
+ */
+export interface ActiveChatTarget {
+  scope: AgentScope;
+  sessionId: string | null;
+  contextSnapshot?: ChatContextSnapshot;
+  executionPolicy: ChatExecutionPolicy;
+}
+
+export type SetActiveChatTarget = Dispatch<SetStateAction<ActiveChatTarget>>;
+
+export const activeChatTargetFromRegisteredTarget = (
+  target: ChatTarget | null,
+): ActiveChatTarget => target ? {
+  scope: target.scope,
+  sessionId: target.sessionId,
+  contextSnapshot: target.contextSnapshot,
+  executionPolicy: target.executionPolicy,
+} : {
+  scope: { kind: 'global' },
+  sessionId: null,
+  executionPolicy: 'auto',
+};
 
 /**
  * Renderer-owned description of the composer a cross-surface action targets.

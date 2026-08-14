@@ -358,8 +358,8 @@ export interface SessionSearchHit {
 }
 
 export interface CrossWorkspaceSessionGroup {
-  workspaceId: string;
-  workspaceName: string;
+  scope: AgentScope;
+  scopeName: string;
   sessions: Array<{
     sessionId: string;
     date: string;

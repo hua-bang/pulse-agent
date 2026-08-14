@@ -315,7 +315,7 @@ export class CanvasAgentService {
   }
 
   /**
-   * List sessions from ALL workspaces, grouped by workspace.
+   * List sessions from every chat scope, grouped by semantic scope.
    * @param workspaceNames — map of workspaceId → display name (from renderer manifest)
    */
   async listAllSessions(
@@ -345,8 +345,8 @@ export class CanvasAgentService {
         : g.sessions;
 
       groups.push({
-        workspaceId: g.workspaceId,
-        workspaceName: scheduledTaskId
+        scope,
+        scopeName: scheduledTaskId
           ? scheduledTitles.get(scheduledTaskId) || scheduledTaskId
           : g.workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
             ? GLOBAL_CHAT_WORKSPACE_NAME

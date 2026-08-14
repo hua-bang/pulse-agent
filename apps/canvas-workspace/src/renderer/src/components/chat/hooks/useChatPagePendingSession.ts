@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef } from 'react';
+import type { AgentScope } from '../types';
 
 interface Options {
   busyElsewhere: boolean;
   handleLoadSession: (sessionId: string) => Promise<boolean | undefined>;
-  onJumpToSession?: (session: { sessionId: string; workspaceId: string }) => void;
+  onJumpToSession?: (session: { sessionId: string; scope: AgentScope }) => void;
   onSessionConsumed: (intentId: number, loaded: boolean) => void;
   pendingSessionId: string | null;
   pendingSessionIntentId: number | null;
   retrySession: () => Promise<void>;
-  sessionStoreId: string;
+  sessionScope: AgentScope;
 }
 
 export const useChatPagePendingSession = ({
@@ -19,13 +20,13 @@ export const useChatPagePendingSession = ({
   pendingSessionId,
   pendingSessionIntentId,
   retrySession,
-  sessionStoreId,
+  sessionScope,
 }: Options) => {
-  const failedIntentRef = useRef<{ sessionId: string; workspaceId: string } | null>(null);
+  const failedIntentRef = useRef<{ sessionId: string; scope: AgentScope } | null>(null);
 
   useEffect(() => {
     if (pendingSessionId === null || pendingSessionIntentId === null) return;
-    const intent = { sessionId: pendingSessionId, workspaceId: sessionStoreId };
+    const intent = { sessionId: pendingSessionId, scope: sessionScope };
     if (busyElsewhere) {
       failedIntentRef.current = intent;
       onSessionConsumed(pendingSessionIntentId, false);
@@ -41,7 +42,7 @@ export const useChatPagePendingSession = ({
     });
     return () => { cancelled = true; };
     // busyElsewhere is sampled per intent; a later flip must not abandon the fetch.
-  }, [handleLoadSession, onSessionConsumed, pendingSessionId, pendingSessionIntentId, sessionStoreId]);
+  }, [handleLoadSession, onSessionConsumed, pendingSessionId, pendingSessionIntentId, sessionScope]);
 
   return useCallback(async () => {
     const failedIntent = failedIntentRef.current;

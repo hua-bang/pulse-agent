@@ -2,7 +2,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AgentScope } from '../../chat/types';
+import type { ActiveChatTarget } from '../../chat/ChatTargetContext';
+import { GLOBAL_DOCK_SCOPE_KEY } from './dock-workspace';
 import { useChatDockWorkspace } from './useChatDockWorkspace';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -14,18 +15,18 @@ let latest: ReturnType<typeof useChatDockWorkspace> | null = null;
 const Harness = ({
   activeView,
   activeCanvasWorkspaceId,
-  entryScope,
+  activeChatTarget,
   selectCanvasWorkspace,
 }: {
   activeView: string;
   activeCanvasWorkspaceId: string;
-  entryScope?: AgentScope;
+  activeChatTarget: ActiveChatTarget;
   selectCanvasWorkspace: (workspaceId: string) => void;
 }) => {
   latest = useChatDockWorkspace(
     activeView,
     activeCanvasWorkspaceId,
-    entryScope,
+    activeChatTarget,
     selectCanvasWorkspace,
   );
   return null;
@@ -40,7 +41,7 @@ afterEach(() => {
 });
 
 describe('useChatDockWorkspace', () => {
-  it('tracks the Chat conversation scope and permits an explicit dock override', async () => {
+  it('keeps the Chat canvas target stable while permitting an internal dock-owner override', async () => {
     host = document.createElement('div');
     root = createRoot(host);
     const selectCanvasWorkspace = vi.fn();
@@ -50,18 +51,84 @@ describe('useChatDockWorkspace', () => {
         <Harness
           activeView="chat"
           activeCanvasWorkspaceId="canvas-a"
-          entryScope={{ kind: 'workspace', workspaceId: 'chat-b' }}
+          activeChatTarget={{
+            scope: { kind: 'workspace', workspaceId: 'chat-b' },
+            sessionId: 'session-b',
+            executionPolicy: 'auto',
+          }}
           selectCanvasWorkspace={selectCanvasWorkspace}
         />,
       );
     });
     expect(latest?.dockWorkspaceId).toBe('chat-b');
 
-    act(() => latest?.reportChatWorkspace('chat-c'));
-    expect(latest?.dockWorkspaceId).toBe('chat-c');
+    act(() => latest?.activateDockWorkspace('tab-d'));
+    expect(latest?.dockWorkspaceId).toBe('chat-b');
+    expect(latest?.dockScopeKey).toBe('tab-d');
+    expect(selectCanvasWorkspace).not.toHaveBeenCalled();
+
+    act(() => root?.render(
+      <Harness
+        activeView="chat"
+        activeCanvasWorkspaceId="canvas-a"
+        activeChatTarget={{
+          scope: { kind: 'workspace', workspaceId: 'chat-c' },
+          sessionId: 'session-c',
+          executionPolicy: 'auto',
+        }}
+        selectCanvasWorkspace={selectCanvasWorkspace}
+      />,
+    ));
+    expect(latest?.dockScopeKey).toBe('chat-c');
+  });
+
+  it('binds global Chat to the workspace-independent Dock session', async () => {
+    host = document.createElement('div');
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <Harness
+          activeView="chat"
+          activeCanvasWorkspaceId="canvas-a"
+          activeChatTarget={{
+            scope: { kind: 'global' },
+            sessionId: null,
+            executionPolicy: 'auto',
+          }}
+          selectCanvasWorkspace={vi.fn()}
+        />,
+      );
+    });
+
+    expect(latest?.dockWorkspaceId).toBeNull();
+    expect(latest?.dockScopeKey).toBe(GLOBAL_DOCK_SCOPE_KEY);
 
     act(() => latest?.activateDockWorkspace('tab-d'));
-    expect(latest?.dockWorkspaceId).toBe('tab-d');
-    expect(selectCanvasWorkspace).not.toHaveBeenCalled();
+    expect(latest?.dockWorkspaceId).toBeNull();
+    expect(latest?.dockScopeKey).toBe('tab-d');
+  });
+
+  it('binds scheduled Chat to the same workspace-independent Dock session', async () => {
+    host = document.createElement('div');
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <Harness
+          activeView="scheduled-task"
+          activeCanvasWorkspaceId="canvas-a"
+          activeChatTarget={{
+            scope: { kind: 'scheduled', taskId: 'task-1' },
+            sessionId: null,
+            executionPolicy: 'scheduled',
+          }}
+          selectCanvasWorkspace={vi.fn()}
+        />,
+      );
+    });
+
+    expect(latest?.dockWorkspaceId).toBeNull();
+    expect(latest?.dockScopeKey).toBe(GLOBAL_DOCK_SCOPE_KEY);
   });
 });

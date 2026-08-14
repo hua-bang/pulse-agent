@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { AgentChatMessage, AgentSessionInfo } from '../../../types';
 import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
 import { useClickOutside } from '../../../hooks/useClickOutside';
-import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
+import { chatScopeKey, scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import { useI18n } from '../../../i18n';
 import {
   beginChatConversationMutation,
@@ -67,11 +67,7 @@ export function useChatSessions({
 }: UseChatSessionsOptions) {
   const { t } = useI18n();
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
-  const scopeKey = agentScope.kind === 'workspace'
-    ? `workspace:${agentScope.workspaceId}`
-    : agentScope.kind === 'scheduled'
-      ? `scheduled:${agentScope.taskId}`
-      : 'global';
+  const scopeKey = chatScopeKey(agentScope);
 
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   // Revisited scopes repaint their cached rail immediately.
@@ -82,9 +78,7 @@ export function useChatSessions({
     () => sessionsCache.get(scopeKey)?.otherSessions ?? [],
   );
   // Keep list ownership explicit while a cross-scope thread is opening.
-  const [sessionsStoreId, setSessionsStoreId] = useState(
-    () => scopeSessionStoreId(agentScope),
-  );
+  const [sessionsScope, setSessionsScope] = useState<AgentScope>(agentScope);
   const [currentScopeName, setCurrentScopeName] = useState<string | null>(null);
   // Avoid an empty-state flash before an eager first list fetch.
   const [sessionsLoading, setSessionsLoading] = useState(
@@ -222,7 +216,6 @@ export function useChatSessions({
     const token = ++sessionListRequestRef.current;
     setSessionsLoading(true);
     try {
-      const currentStoreId = scopeSessionStoreId(agentScope);
       const workspaceNameMap: Record<string, string> = {};
       for (const workspace of allWorkspaces ?? []) {
         workspaceNameMap[workspace.id] = workspace.name;
@@ -248,7 +241,7 @@ export function useChatSessions({
 
       if (allResult) {
         if (allResult.ok && allResult.groups) {
-          const partitioned = partitionSessionGroups(allResult.groups, currentStoreId);
+          const partitioned = partitionSessionGroups(allResult.groups, agentScope);
           nextSessions = partitioned.sessions;
           nextOtherSessions = partitioned.otherSessions;
           nextCurrentScopeName = partitioned.currentScopeName;
@@ -263,7 +256,7 @@ export function useChatSessions({
       // the folder tree around the pointer.
       if (nextSessions) {
         setSessions(nextSessions);
-        setSessionsStoreId(scopeSessionStoreId(agentScope));
+        setSessionsScope(agentScope);
       }
       if (nextOtherSessions) setOtherSessions(nextOtherSessions);
       if (nextCurrentScopeName !== undefined) {
@@ -346,23 +339,27 @@ export function useChatSessions({
     }
   }, [agentScope, mutationRef, onConversationMutationStart, onMessagesLoaded, t]);
 
-  const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
+  const handleLoadSession = useCallback(async (sessionId: string, sourceScope?: AgentScope) => {
     setSessionMenuOpen(false);
 
     const crossWorkspace = !!(
-      sourceWorkspaceId
-      && workspaceId
-      && sourceWorkspaceId !== workspaceId
+      sourceScope
+      && agentScope.kind === 'workspace'
+      && chatScopeKey(sourceScope) !== chatScopeKey(agentScope)
     );
     return await runThreadFetch(
       () => (
         crossWorkspace
-          ? window.canvasWorkspace.agent.loadCrossWorkspaceSession(workspaceId!, sourceWorkspaceId!, sessionId)
+          ? window.canvasWorkspace.agent.loadCrossWorkspaceSession(
+              agentScope.workspaceId,
+              scopeSessionStoreId(sourceScope),
+              sessionId,
+            )
           : window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId)
       ),
       crossWorkspace ? undefined : sessionId,
     );
-  }, [agentScope, runThreadFetch, workspaceId]);
+  }, [agentScope, runThreadFetch]);
 
   /** Adopt the session created by an authoritative main-process branch mutation. */
   const adoptActiveSession = useCallback((sessionId: string) => {
@@ -473,7 +470,7 @@ export function useChatSessions({
   return {
     adoptActiveSession,
     otherSessions,
-    sessionsStoreId,
+    sessionsScope,
     activeSessionId,
     currentScopeName,
     deleteSession,

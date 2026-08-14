@@ -107,7 +107,7 @@ export interface ChatPanelProps {
 }
 
 export interface OtherWorkspaceSession extends AgentSessionInfo {
-  sourceWorkspaceId: string;
+  sourceScope: AgentScope;
   workspaceName: string;
 }
 

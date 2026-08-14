@@ -6,7 +6,6 @@ import type {
   WorkspaceOption,
 } from '../types';
 import type { ChatSessionsRailProps, UnifiedSession } from '../ChatSessionsRail';
-import { scopeFromSessionStoreId } from '../utils/sessionScope';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 import { useStableSessionRail } from './useStableSessionRail';
 
@@ -18,7 +17,7 @@ interface Options {
   otherSessions: OtherWorkspaceSession[];
   selectedSessionKey: string | null;
   sessions: AgentSessionInfo[];
-  sessionsStoreId: string;
+  sessionsScope: AgentScope;
   pendingSessionKey?: string | null;
   disabled: boolean;
   focusInput: () => void;
@@ -38,7 +37,7 @@ export const useChatPageSessionRail = ({
   otherSessions,
   selectedSessionKey,
   sessions,
-  sessionsStoreId,
+  sessionsScope,
   pendingSessionKey,
   disabled,
   focusInput,
@@ -57,7 +56,7 @@ export const useChatPageSessionRail = ({
     otherSessions,
     selectedSessionKey,
     sessions,
-    sessionsStoreId,
+    sessionsScope,
   });
   const onNewSession = useCallback(async () => {
     if (disabled) return;
@@ -70,16 +69,16 @@ export const useChatPageSessionRail = ({
     if (!disabled) onSelectSession(session);
   }, [disabled, onSelectSession]);
   const onRename = useCallback(async (session: UnifiedSession, title: string) => {
-    await renameSession(session.sessionId, title, scopeFromSessionStoreId(session.workspaceId));
+    await renameSession(session.sessionId, title, session.scope);
   }, [renameSession]);
   const onDelete = useCallback(async (session: UnifiedSession) => {
-    await deleteSession(session.sessionId, scopeFromSessionStoreId(session.workspaceId));
+    await deleteSession(session.sessionId, session.scope);
   }, [deleteSession]);
   const onTogglePin = useCallback(async (session: UnifiedSession) => {
     await toggleSessionPinned(
       session.sessionId,
       !session.isPinned,
-      scopeFromSessionStoreId(session.workspaceId),
+      session.scope,
     );
   }, [toggleSessionPinned]);
 

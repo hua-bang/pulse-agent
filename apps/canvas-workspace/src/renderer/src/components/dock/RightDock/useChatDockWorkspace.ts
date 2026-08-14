@@ -1,40 +1,53 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AgentScope } from '../../chat/types';
-import { resolveDockWorkspaceId } from './dock-workspace';
+import type { ActiveChatTarget } from '../../chat/ChatTargetContext';
+import { chatScopeKey } from '../../../../../shared/agent-chat';
+import { dockScopeKey, resolveDockScope } from './dock-workspace';
 
 /** Keeps the full-page Chat dock aligned with its conversation while leaving
  * qualified cross-workspace tab activation as an explicit override. */
 export function useChatDockWorkspace(
   activeView: string,
   activeCanvasWorkspaceId: string,
-  entryScope: AgentScope | undefined,
+  activeChatTarget: ActiveChatTarget,
   selectCanvasWorkspace: (workspaceId: string) => void,
 ) {
-  // undefined means ChatPage has not reported yet, so the entry target seeds
-  // the dock without publishing one frame under the previous Canvas scope.
-  const [reportedWorkspaceId, setReportedWorkspaceId] = useState<string | null | undefined>();
+  const [dockWorkspaceOverride, setDockWorkspaceOverride] = useState<{
+    scopeKey: string;
+    workspaceId: string;
+  } | null>(null);
+  const activeScopeKey = chatScopeKey(activeChatTarget.scope);
 
   useEffect(() => {
-    if (activeView !== 'chat') setReportedWorkspaceId(undefined);
-  }, [activeView]);
+    setDockWorkspaceOverride(null);
+  }, [activeScopeKey, activeView]);
 
-  const entryWorkspaceId = entryScope?.kind === 'workspace' ? entryScope.workspaceId : null;
-  const dockWorkspaceId = resolveDockWorkspaceId(
+  const dockScope = resolveDockScope(
     activeView,
     activeCanvasWorkspaceId,
-    reportedWorkspaceId === undefined ? entryWorkspaceId : reportedWorkspaceId,
+    activeChatTarget.scope,
   );
+  const dockWorkspaceId = dockScope.kind === 'workspace'
+    ? dockScope.workspaceId
+    : null;
+  const resolvedDockScopeKey = dockScopeKey(dockScope);
+  const isFullPageChat = activeView === 'chat' || activeView === 'scheduled-task';
+  const activeDockScopeKey = isFullPageChat
+    ? (dockWorkspaceOverride?.scopeKey === activeScopeKey
+        ? dockWorkspaceOverride.workspaceId
+        : null) ?? resolvedDockScopeKey
+    : resolvedDockScopeKey;
   const activateDockWorkspace = useCallback((workspaceId: string) => {
-    if (activeView === 'chat') {
-      setReportedWorkspaceId(workspaceId);
+    if (isFullPageChat) {
+      setDockWorkspaceOverride({ scopeKey: activeScopeKey, workspaceId });
       return;
     }
     selectCanvasWorkspace(workspaceId);
-  }, [activeView, selectCanvasWorkspace]);
+  }, [activeScopeKey, isFullPageChat, selectCanvasWorkspace]);
 
   return {
+    dockScope,
     dockWorkspaceId,
-    reportChatWorkspace: setReportedWorkspaceId,
+    dockScopeKey: activeDockScopeKey,
     activateDockWorkspace,
   };
 }

@@ -1,19 +1,21 @@
 import type { CrossWorkspaceSessionGroup } from '../../../../../shared/agent-chat';
-import type { OtherWorkspaceSession } from '../types';
+import type { AgentScope, OtherWorkspaceSession } from '../types';
+import { chatScopeKey } from '../utils/sessionScope';
 
 export function partitionSessionGroups(
   groups: CrossWorkspaceSessionGroup[],
-  currentStoreId: string,
+  currentScope: AgentScope,
 ) {
   const otherSessions: OtherWorkspaceSession[] = [];
-  const currentGroup = groups.find(group => group.workspaceId === currentStoreId);
+  const currentScopeKey = chatScopeKey(currentScope);
+  const currentGroup = groups.find(group => chatScopeKey(group.scope) === currentScopeKey);
   for (const group of groups) {
     if (group === currentGroup) continue;
     for (const session of group.sessions) {
       otherSessions.push({
         ...session,
-        sourceWorkspaceId: group.workspaceId,
-        workspaceName: group.workspaceName,
+        sourceScope: group.scope,
+        workspaceName: group.scopeName,
       });
     }
   }
@@ -24,7 +26,7 @@ export function partitionSessionGroups(
   });
   return {
     sessions: currentGroup?.sessions ?? [],
-    currentScopeName: currentGroup?.workspaceName ?? null,
+    currentScopeName: currentGroup?.scopeName ?? null,
     otherSessions,
   };
 }

@@ -18,6 +18,12 @@ export type AgentScope =
   | { kind: 'scheduled'; taskId: string }
   | { kind: 'global' };
 
+export const chatScopeKey = (scope: AgentScope): string => {
+  if (scope.kind === 'global') return 'global';
+  if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
+  return `workspace:${scope.workspaceId}`;
+};
+
 export interface AgentScopeRef {
   scope: AgentScope;
 }
@@ -435,8 +441,8 @@ export interface AgentSessionInfo {
 }
 
 export interface CrossWorkspaceSessionGroup {
-  workspaceId: string;
-  workspaceName: string;
+  scope: AgentScope;
+  scopeName: string;
   sessions: AgentSessionInfo[];
 }
 

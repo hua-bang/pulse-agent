@@ -10,6 +10,7 @@ import type { SessionBackEntry } from '../SessionBackBar';
 import { buildAnchorElementId, buildChatAnchors } from '../utils/anchors';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 import { scopeFromSessionStoreId } from '../utils/sessionScope';
+import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 
 const flashAnchor = (scopeId: string, messageIndex: number, delay = 0) => {
   window.setTimeout(() => {
@@ -33,7 +34,7 @@ interface Options {
   handleNewSession: () => Promise<{ ok: boolean }>;
   handleLoadSession: (
     sessionId: string,
-    sourceWorkspaceId?: string,
+    sourceScope?: AgentScope,
   ) => Promise<boolean | undefined>;
   onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }
@@ -90,7 +91,7 @@ export const useChatPanelSessionNavigation = ({
       if (current.ok && currentSessionId && currentSessionId !== sessionId) {
         setBackStack(previous => [...previous, {
           sessionId: currentSessionId,
-          workspaceId: scopeId,
+          scope: agentScope,
           label: sessionTitle,
         }]);
       }
@@ -103,7 +104,7 @@ export const useChatPanelSessionNavigation = ({
     const entry = backStack[backStack.length - 1];
     if (!entry) return;
     setBackStack(previous => previous.slice(0, -1));
-    await jumpToSession(entry.sessionId, entry.workspaceId);
+    await jumpToSession(entry.sessionId, scopeSessionStoreId(entry.scope));
   }, [backStack, jumpToSession]);
   const onNewSession = useCallback(async () => {
     if (busy) return;
@@ -121,7 +122,7 @@ export const useChatPanelSessionNavigation = ({
     if (!onOpenSessionInScope) return;
     closeSessionMenu();
     onOpenSessionInScope(
-      scopeFromSessionStoreId(session.sourceWorkspaceId),
+      session.sourceScope,
       session.sessionId,
       session.workspaceName,
     );
@@ -129,7 +130,7 @@ export const useChatPanelSessionNavigation = ({
   const onCopyOtherSession = useCallback(async (session: OtherWorkspaceSession) => {
     if (busy) return;
     setBackStack([]);
-    await handleLoadSession(session.sessionId, session.sourceWorkspaceId);
+    await handleLoadSession(session.sessionId, session.sourceScope);
   }, [busy, handleLoadSession]);
   const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
   const onJumpAnchor = useCallback(

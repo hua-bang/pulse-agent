@@ -41,10 +41,10 @@ export interface ChatPageBodyProps {
   /** Session chosen by the user, updated synchronously before its thread loads. */
   selectedSessionKey?: string | null;
   onSessionConsumed: (intentId: number, loaded: boolean) => void;
-  onActiveSessionResolved?: (sessionId: string, workspaceId: string) => void;
+  onActiveSessionResolved?: (sessionId: string, scope: AgentScope) => void;
   onSelectSession: (session: UnifiedSession) => void;
   /** Like onSelectSession but for chip jumps — does NOT reset the back stack. */
-  onJumpToSession?: (session: { sessionId: string; workspaceId: string }) => void;
+  onJumpToSession?: (session: { sessionId: string; scope: AgentScope }) => void;
   /** Top of the parent-owned session back stack (newest jump origin). */
   backEntry?: SessionBackEntry | null;
   onPushBackEntry?: (entry: SessionBackEntry) => void;
@@ -183,7 +183,7 @@ export const ChatPageBody = ({
     retrySession,
     selectMention,
     sendMessage,
-    sessions, sessionsLoading, sessionsStoreId, sessionLoading,
+    sessions, sessionsLoading, sessionsScope, sessionLoading,
     sessionError,
     setClarifyInput,
     setMentionIndex,
@@ -237,12 +237,12 @@ export const ChatPageBody = ({
     // selected rail key in that render gap. Once the intent is consumed, the
     // committed list owner is the authoritative store for this id.
     if (!pendingSessionId && !sessionLoading && activeSessionId) {
-      onActiveSessionResolved?.(activeSessionId, sessionsStoreId);
+      onActiveSessionResolved?.(activeSessionId, sessionsScope);
     }
-  }, [activeSessionId, onActiveSessionResolved, pendingSessionId, sessionLoading, sessionsStoreId]);
+  }, [activeSessionId, onActiveSessionResolved, pendingSessionId, sessionLoading, sessionsScope]);
   const retrySessionTransition = useChatPagePendingSession({
     busyElsewhere, handleLoadSession, onJumpToSession, onSessionConsumed,
-    pendingSessionId, pendingSessionIntentId, retrySession, sessionStoreId,
+    pendingSessionId, pendingSessionIntentId, retrySession, sessionScope: agentScope,
   });
 
   // See ChatPanel for the rationale; treat loading state as configured to
@@ -367,7 +367,7 @@ export const ChatPageBody = ({
     otherSessions,
     selectedSessionKey,
     sessions,
-    sessionsStoreId,
+    sessionsScope,
     pendingSessionKey: sessionLoading ? selectedSessionKey : null,
     disabled: sessionRailDisabled,
     focusInput,

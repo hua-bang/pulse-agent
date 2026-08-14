@@ -21,7 +21,7 @@ describe('useChatPagePendingSession', () => {
         pendingSessionId: 'session-a',
         pendingSessionIntentId: 7,
         retrySession,
-        sessionStoreId: 'workspace-a',
+        sessionScope: { kind: 'workspace', workspaceId: 'workspace-a' },
       });
       return null;
     };
@@ -36,7 +36,7 @@ describe('useChatPagePendingSession', () => {
     await act(async () => { await retry(); });
     expect(onJumpToSession).toHaveBeenCalledWith({
       sessionId: 'session-a',
-      workspaceId: 'workspace-a',
+      scope: { kind: 'workspace', workspaceId: 'workspace-a' },
     });
     expect(retrySession).not.toHaveBeenCalled();
     act(() => root.unmount());

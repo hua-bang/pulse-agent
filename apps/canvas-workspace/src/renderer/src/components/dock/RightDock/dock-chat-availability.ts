@@ -13,8 +13,10 @@ export const isDockChatTabEnabled = (activeView: string): boolean =>
  * This is deliberately narrower than "no dock chat tab": scheduled-task also
  * owns a full-page conversation, but only the dedicated AI Chat page is an
  * editing host. Keep the capability route-derived and fail-closed. */
-export const isCanvasTabEditingAllowed = (activeView: string): boolean =>
-  activeView === 'chat';
+export const isCanvasTabEditingAllowed = (
+  activeView: string,
+  canvasWorkspaceId?: string | null,
+): boolean => activeView === 'chat' && Boolean(canvasWorkspaceId);
 
 /** Whether the route-level Pulse launcher (the floating logo button) renders.
  *
