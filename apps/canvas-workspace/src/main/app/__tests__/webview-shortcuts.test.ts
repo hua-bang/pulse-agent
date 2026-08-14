@@ -84,6 +84,27 @@ describe('webview shortcut relay', () => {
     });
   });
 
+  it('relays find from a dock page to the embedder find bar', async () => {
+    registerGuest('dock-browser');
+    const created = await install();
+    const { contents, hostWebContents } = createGuest();
+    created({}, contents);
+
+    const preventDefault = vi.fn();
+    inputHandlerOf(contents)({ preventDefault }, { type: 'keyDown', key: 'f', control: true });
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(hostWebContents.send).toHaveBeenCalledWith('dock:shortcut', {
+      command: 'find',
+      source: {
+        workspaceId: 'ws-1',
+        nodeId: 'dock-tab-1',
+        webContentsId: 42,
+        surfaceKind: 'dock-browser',
+      },
+    });
+  });
+
   it('leaves browser chords inside canvas-node guests untouched', async () => {
     registerGuest('canvas-node');
     const created = await install();

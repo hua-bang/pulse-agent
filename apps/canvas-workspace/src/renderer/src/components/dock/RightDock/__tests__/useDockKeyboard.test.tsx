@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { act, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DockShortcutRequest } from '../../../../../../shared/dock-shortcuts';
 import { registerMountedWebviewIdentity } from '../../../node-bodies/IframeNodeBody/webview-identities';
+import { FIND_IN_DOCK_TAB_EVENT } from '../dock-browser-commands';
 import { DockStore } from '../dock-store';
 import { dockTabElementId } from '../dock-tab-ids';
 import { useDockKeyboard } from '../useDockKeyboard';
@@ -82,6 +83,95 @@ describe('useDockKeyboard guest shortcut ownership', () => {
 
     act(() => shortcutListener?.({ command: 'close-tab', source: identity }));
     expect(store.getSnapshot().tabs).toHaveLength(0);
+    unregister();
+  });
+
+  it('opens the active web tab find bar even when host focus is outside the dock', () => {
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openLink('https://a.example/');
+    const tabId = store.getSnapshot().activeTabId;
+    const onFind = vi.fn();
+
+    const Harness = () => {
+      const dockRef = useRef<HTMLElement>(null);
+      useDockKeyboard({
+        store,
+        visible: true,
+        newTabTitle: 'New tab',
+        dockRef,
+        orderedTabIds: [tabId],
+        onCollapse: () => store.collapse(),
+      });
+      return (
+        <>
+          <button id="outside-dock">Outside</button>
+          <aside ref={dockRef} />
+        </>
+      );
+    };
+
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    window.addEventListener(FIND_IN_DOCK_TAB_EVENT, onFind);
+    root = createRoot(mount);
+    act(() => root?.render(<Harness />));
+    mount.querySelector<HTMLButtonElement>('#outside-dock')?.focus();
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'f',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => window.dispatchEvent(event));
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(onFind).toHaveBeenCalledWith(expect.objectContaining({
+      detail: { workspaceId: 'ws1', tabId },
+    }));
+    window.removeEventListener(FIND_IN_DOCK_TAB_EVENT, onFind);
+  });
+
+  it('opens the active tab find bar from a focused guest Ctrl+F relay', () => {
+    const store = new DockStore();
+    store.setActiveWorkspace('ws1');
+    store.openLink('https://a.example/');
+    const tabId = store.getSnapshot().activeTabId;
+    const identity = {
+      workspaceId: 'ws1',
+      nodeId: tabId,
+      webContentsId: 42,
+      surfaceKind: 'dock-browser' as const,
+    };
+    const unregister = registerMountedWebviewIdentity(identity);
+    const onFind = vi.fn();
+
+    const Harness = () => {
+      const dockRef = useRef<HTMLElement>(null);
+      useDockKeyboard({
+        store,
+        visible: true,
+        newTabTitle: 'New tab',
+        dockRef,
+        orderedTabIds: [tabId],
+        onCollapse: () => store.collapse(),
+      });
+      return <aside ref={dockRef} />;
+    };
+
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    window.addEventListener(FIND_IN_DOCK_TAB_EVENT, onFind);
+    root = createRoot(mount);
+    act(() => root?.render(<Harness />));
+
+    act(() => shortcutListener?.({ command: 'find', source: identity }));
+
+    expect(onFind).toHaveBeenCalledWith(expect.objectContaining({
+      detail: { workspaceId: 'ws1', tabId },
+    }));
+    window.removeEventListener(FIND_IN_DOCK_TAB_EVENT, onFind);
     unregister();
   });
 
