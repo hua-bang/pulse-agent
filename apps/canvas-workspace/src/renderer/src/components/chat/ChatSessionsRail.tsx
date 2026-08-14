@@ -139,17 +139,22 @@ export const ChatSessionsRail = ({
     });
   };
 
+  const railBusy = disabled || Boolean(pendingSessionKey);
+
   return (
     <aside
-      className="chat-page-rail"
+      className={`chat-page-rail${disabled ? ' chat-page-rail--interaction-paused' : ''}`}
       aria-label={t('chat.sessionList')}
-      aria-busy={pendingSessionKey ? true : undefined}
+      aria-busy={railBusy ? true : undefined}
     >
       <button
         type="button"
         className="chat-page-rail-new"
-        onClick={() => void onNewSession()}
-        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          void onNewSession();
+        }}
+        aria-disabled={disabled ? true : undefined}
       >
         <PlusIcon size={14} strokeWidth={1.3} />
         <span>{t('chat.newChat')}</span>
@@ -162,7 +167,6 @@ export const ChatSessionsRail = ({
         onChange={(event) => setSearchQuery(event.target.value)}
         aria-label={t('chat.searchSessions')}
         placeholder={t('chat.searchSessions')}
-        disabled={disabled}
       />
 
       <div className="chat-page-rail-scroll">
@@ -202,7 +206,6 @@ export const ChatSessionsRail = ({
                     onClick={() => toggleGroup(group.id)}
                     aria-expanded={!collapsed}
                     aria-controls={listId}
-                    disabled={disabled}
                   >
                     <ChevronRightIcon
                       size={11}
@@ -241,7 +244,6 @@ export const ChatSessionsRail = ({
                         else next.add(group.id);
                         return next;
                       })}
-                      disabled={disabled}
                     >
                       {showsAllSessions
                         ? t('chat.showFewerSessions')

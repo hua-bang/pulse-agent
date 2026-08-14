@@ -166,11 +166,14 @@ export const ChatSessionRailItem = ({
       <button
         type="button"
         className={`chat-page-rail-item${session.isCurrent ? ' chat-page-rail-item--active' : ''}`}
-        onClick={() => onSelectSession(session)}
+        onClick={() => {
+          if (disabled) return;
+          onSelectSession(session);
+        }}
         title={title}
         aria-current={session.isCurrent ? 'page' : undefined}
         aria-busy={pending ? true : undefined}
-        disabled={disabled}
+        aria-disabled={disabled ? true : undefined}
       >
         <span className="chat-page-rail-item-content">
           <span className="chat-page-rail-item-text">

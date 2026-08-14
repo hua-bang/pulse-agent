@@ -32,6 +32,8 @@
 
 .chat-page-rail {
   --chat-a11y-secondary: #73726e;
+  --chat-rail-busy-accent: var(--accent);
+  position: relative;
   width: 260px;
   height: 100%;
   flex-shrink: 0;
@@ -42,6 +44,59 @@
   overflow: hidden;
   background: #fff;
   box-sizing: border-box;
+}
+
+.chat-page-rail--interaction-paused::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--chat-rail-busy-accent) 16%, transparent) 24%,
+    var(--chat-rail-busy-accent) 50%,
+    color-mix(in srgb, var(--chat-rail-busy-accent) 16%, transparent) 76%,
+    transparent 100%
+  );
+  opacity: 0.72;
+  pointer-events: none;
+  animation: chat-page-rail-busy-line 1.4s ease-in-out infinite;
+}
+
+@keyframes chat-page-rail-busy-line {
+  0%, 100% {
+    transform: scaleX(0.45);
+  }
+
+  50% {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-page-rail--interaction-paused::before {
+    animation: none;
+  }
+}
+
+.chat-page-rail-new[aria-disabled="true"] {
+  background: var(--surface-alt);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  outline: 1px solid color-mix(in srgb, var(--chat-rail-busy-accent) 14%, transparent);
+  outline-offset: -1px;
+}
+
+.chat-page-rail-new[aria-disabled="true"]:hover {
+  background: var(--surface-alt);
+}
+
+.chat-page-rail-new[aria-disabled="true"] svg {
+  color: var(--text-muted);
 }
 
 .chat-page-rail-new {
@@ -196,6 +251,31 @@
 
 .chat-page-rail-item--active {
   background: rgba(55, 53, 47, 0.08);
+}
+
+.chat-page-rail-item[aria-disabled="true"] {
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+.chat-page-rail-item[aria-disabled="true"]:hover {
+  background: transparent;
+}
+
+.chat-page-rail-item--active[aria-disabled="true"],
+.chat-page-rail-item--active[aria-disabled="true"]:hover {
+  background: color-mix(in srgb, var(--chat-rail-busy-accent) 8%, var(--surface));
+  color: var(--text);
+  outline: 1px solid color-mix(in srgb, var(--chat-rail-busy-accent) 22%, transparent);
+  outline-offset: -1px;
+}
+
+.chat-page-rail--interaction-paused .chat-page-rail-folder-name {
+  color: var(--text-secondary);
+}
+
+.chat-page-rail--interaction-paused .chat-page-rail-folder-count {
+  color: var(--chat-a11y-secondary);
 }
 
 .chat-page-rail-item svg {
