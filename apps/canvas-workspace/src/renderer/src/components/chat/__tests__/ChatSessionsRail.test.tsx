@@ -495,7 +495,7 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(testHost.querySelector('.chat-page-rail-item-actions')).toBeNull();
   });
 
-  it('disables new, search, folder, and session controls while a thread is opening', async () => {
+  it('keeps session rail readable while preventing session changes during generation', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -515,10 +515,31 @@ describe('ChatSessionsRail workspace tree', () => {
       );
     });
 
-    expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-new')?.disabled).toBe(true);
-    expect(host.querySelector<HTMLInputElement>('.chat-page-rail-search')?.disabled).toBe(true);
-    expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-folder')?.disabled).toBe(true);
-    expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-item')?.disabled).toBe(true);
+    const rail = host.querySelector<HTMLElement>('.chat-page-rail');
+    const newSession = host.querySelector<HTMLButtonElement>('.chat-page-rail-new');
+    const search = host.querySelector<HTMLInputElement>('.chat-page-rail-search');
+    const folders = Array.from(host.querySelectorAll<HTMLButtonElement>('.chat-page-rail-folder'));
+    const firstSession = host.querySelector<HTMLButtonElement>('.chat-page-rail-item');
+
+    expect(rail?.getAttribute('aria-busy')).toBe('true');
+    expect(rail?.classList.contains('chat-page-rail--interaction-paused')).toBe(true);
+    expect(newSession?.disabled).toBe(false);
+    expect(newSession?.getAttribute('aria-disabled')).toBe('true');
+    expect(search?.disabled).toBe(false);
+    expect(folders[0].disabled).toBe(false);
+    expect(firstSession?.disabled).toBe(false);
+    expect(firstSession?.getAttribute('aria-disabled')).toBe('true');
+
+    await act(async () => {
+      newSession?.click();
+      firstSession?.click();
+      folders[1].click();
+    });
+
+    expect(onNewSession).not.toHaveBeenCalled();
+    expect(onSelectSession).not.toHaveBeenCalled();
+    expect(folders[1].getAttribute('aria-expanded')).toBe('true');
+    expect(host.textContent).toContain('Third conversation');
   });
 
   it('keeps the list visible and marks the selected conversation busy while it opens', async () => {
