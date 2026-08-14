@@ -35,6 +35,7 @@ interface ChatViewProps {
    */
   sessionLoading?: boolean;
   workspaceId: string;
+  workspaceLabel?: string;
   rootFolder?: string;
   streamingTools: ToolCallStatus[];
   messageTools: Map<number, ToolCallStatus[]>;
@@ -122,6 +123,7 @@ export const ChatView = ({
   loading,
   sessionLoading = false,
   workspaceId,
+  workspaceLabel,
   rootFolder,
   streamingTools,
   messageTools,
@@ -247,6 +249,7 @@ export const ChatView = ({
       <ChatInput
         loading={loading}
         input={input}
+        workspaceLabel={workspaceLabel}
         attachments={attachments}
         selectedContext={selectedContext}
         showContextChips={showContextChips}

@@ -40,8 +40,8 @@ export interface ChatSessionsRailProps {
 
 /**
  * Always-visible sessions rail for ChatPage. Shows a single unified list of
- * sessions from all workspaces — the chat page does not have a "selected
- * workspace" concept, each session carries its own workspace as metadata.
+ * sessions from all workspaces. The active chat still has an owning scope;
+ * each history row carries that scope as metadata.
  *
  * Layout: "New chat" stays pinned at the top while the session list scrolls.
  */

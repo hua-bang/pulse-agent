@@ -23,6 +23,8 @@ interface Options {
   disabled: boolean;
   focusInput: () => void;
   handleNewSession: () => Promise<{ ok: boolean }>;
+  /** Lets the page choose a destination before creating the session. */
+  onNewSessionRequest?: (trigger: Element | null) => void;
   onClearBackStack?: () => void;
   onSelectSession: (session: UnifiedSession) => void;
   renameSession: (sessionId: string, title: string, scope: AgentScope) => Promise<unknown>;
@@ -43,6 +45,7 @@ export const useChatPageSessionRail = ({
   disabled,
   focusInput,
   handleNewSession,
+  onNewSessionRequest,
   onClearBackStack,
   onSelectSession,
   renameSession,
@@ -62,10 +65,14 @@ export const useChatPageSessionRail = ({
   const onNewSession = useCallback(async () => {
     if (disabled) return;
     const trigger = document.activeElement;
+    if (onNewSessionRequest) {
+      onNewSessionRequest(trigger);
+      return;
+    }
     onClearBackStack?.();
     const result = await handleNewSession();
     if (result.ok) restoreComposerFocusAfterRender(focusInput, trigger);
-  }, [disabled, focusInput, handleNewSession, onClearBackStack]);
+  }, [disabled, focusInput, handleNewSession, onClearBackStack, onNewSessionRequest]);
   const onSelect = useCallback((session: UnifiedSession) => {
     if (!disabled) onSelectSession(session);
   }, [disabled, onSelectSession]);

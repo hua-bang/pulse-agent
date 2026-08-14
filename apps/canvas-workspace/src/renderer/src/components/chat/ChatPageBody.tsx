@@ -11,7 +11,7 @@ import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useAppShell } from '../shell/AppShellProvider';
-import type { AgentScope, WorkspaceOption } from './types';
+import type { AgentScope, ChatSessionMutationResult, WorkspaceOption } from './types';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import type { ChatContextSnapshot, ChatExecutionPolicy, ChatTarget } from './ChatTargetContext';
@@ -25,8 +25,10 @@ import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
 import { useSubmitDomReviewComments } from './hooks/useSubmitDomReviewComments';
 import { submitQuickAction } from './hooks/submitQuickAction';
 import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
+import { ChatWorkspacePicker } from './ChatWorkspacePicker';
 import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from './utils/chatPageDockTabs';
+import { useChatPageNewSession } from './hooks/useChatPageNewSession';
 
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
@@ -41,6 +43,10 @@ export interface ChatPageBodyProps {
   /** Session chosen by the user, updated synchronously before its thread loads. */
   selectedSessionKey?: string | null;
   onSessionConsumed: (intentId: number, loaded: boolean) => void;
+  /** Creates a new session after the user selects another scope. */
+  onCreateNewSessionInScope?: (scope: AgentScope) => Promise<ChatSessionMutationResult>;
+  /** Clears inherited context when the user explicitly starts a new chat. */
+  onNewSessionCreated?: (scope: AgentScope) => void;
   onActiveSessionResolved?: (sessionId: string, workspaceId: string) => void;
   onSelectSession: (session: UnifiedSession) => void;
   /** Like onSelectSession but for chip jumps — does NOT reset the back stack. */
@@ -76,6 +82,8 @@ export const ChatPageBody = ({
   pendingSessionIntentId,
   selectedSessionKey = null,
   onSessionConsumed,
+  onCreateNewSessionInScope,
+  onNewSessionCreated,
   onActiveSessionResolved,
   onSelectSession,
   onJumpToSession,
@@ -207,6 +215,9 @@ export const ChatPageBody = ({
     // so this must follow the prop rather than a mount-time snapshot.
     skipInitialHistory: initialPendingSessionId !== null || pendingSessionId !== null,
   });
+
+  const chatDestinationLabel = agentScope.kind === 'workspace' ? workspaceLabel ?? agentScope.workspaceId : agentScope.kind === 'scheduled' ? fixedChat?.title ?? t('chat.scope.scheduled') : t('chat.scope.global');
+  const newSession = useChatPageNewSession({ agentScope, sessionStoreId, loading, sessionLoading, busyElsewhere, pendingSessionId, focusInput, clearInput, handleNewSession, onClearBackStack, onCreateNewSessionInScope, onNewSessionCreated });
 
   const handleTargetSkillChat = useCallback(async (skillName: string) => {
     if (loading || sessionLoading || busyElsewhere) throw new Error(t('chat.generating'));
@@ -372,6 +383,7 @@ export const ChatPageBody = ({
     disabled: sessionRailDisabled,
     focusInput,
     handleNewSession,
+    onNewSessionRequest: newSession.openNewSessionPicker,
     onClearBackStack,
     onSelectSession,
     renameSession,
@@ -381,6 +393,8 @@ export const ChatPageBody = ({
 
   return (
     <div className="chat-page">
+      <ChatWorkspacePicker open={newSession.newSessionPickerOpen} currentScope={agentScope} workspaces={allWorkspaces}
+        onClose={newSession.closeNewSessionPicker} onConfirm={newSession.handleNewSessionDestination} />
       {!fixedChat && (
         <ChatPageRail collapsed={railCollapsed} rail={sessionRail} />
       )}
@@ -389,12 +403,12 @@ export const ChatPageBody = ({
         <ChatPageTopbar
           fixedTitle={fixedChat?.title}
           sessionTitleSource={sessionRail.allSessions.find(session => session.isCurrent)?.preview ?? messages.find(message => message.role === 'user')?.content}
-          workspaceLabel={workspaceLabel}
+          workspaceLabel={chatDestinationLabel}
           railCollapsed={railCollapsed}
           onToggleRail={onToggleRail}
           anchors={anchors}
           onJumpAnchor={handleJumpAnchor}
-          onNewSession={() => void sessionRail.onNewSession()}
+          onNewSession={newSession.handleNewSessionFromTopbar}
           newSessionDisabled={sessionInteractionDisabled}
           dockTabsVisible={dockTabsVisible}
           onToggleDockTabs={handleToggleDockTabs}
@@ -418,6 +432,7 @@ export const ChatPageBody = ({
           messages={messages}
           loading={loading} sessionLoading={sessionLoading}
           workspaceId={scopeId}
+          workspaceLabel={chatDestinationLabel}
           rootFolder={rootFolder}
           streamingTools={streamingTools}
           messageTools={messageTools}

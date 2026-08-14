@@ -91,6 +91,14 @@ structurally stable while the selected conversation changes scope.
 - Session and group recency use exact `updatedAt`; the calendar date is only a
   compatibility fallback. Main excludes active session stores from the global
   disk scan because their live agents supply the authoritative list.
+- An empty current pointer is a composer draft, not history: `listSessions`,
+  active-agent group reconciliation, and disk scans omit it. Starting New chat
+  while that pointer is empty reuses it, so repeated clicks do not manufacture
+  invisible rows.
+- The full-page rail's New chat opens a destination picker because the page
+  spans workspaces; the top-right plus is the fast path within the active
+  workspace. A cross-scope new chat creates the target pointer before the body
+  switches scope, and the composer shows the resulting destination.
 
 Guards: `hooks/useChatSessions.test.tsx` composes cross-scope loading with the
 unified rail and pins the one-source list contract;

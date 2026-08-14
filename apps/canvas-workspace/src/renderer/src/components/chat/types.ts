@@ -10,6 +10,14 @@ export interface WorkspaceOption {
 
 export type { AgentScope };
 
+/** Result returned by a main-process session-pointer mutation. */
+export interface ChatSessionMutationResult {
+  ok: boolean;
+  activeSessionId?: string | null;
+  code?: string;
+  error?: string;
+}
+
 /**
  * Pre-resolved descriptor for a "current context" chip in the composer.
  * Decouples the chip strip from `CanvasNode` so a cross-workspace host (the

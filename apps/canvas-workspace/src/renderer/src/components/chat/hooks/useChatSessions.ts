@@ -243,7 +243,11 @@ export function useChatSessions({
 
       if (result?.ok && result.sessions) {
         nextSessions = result.sessions;
-        setActiveSessionId(result.sessions.find(session => session.isCurrent)?.sessionId ?? null);
+        const listedCurrent = result.sessions.find(session => session.isCurrent);
+        // An empty current pointer is intentionally omitted from history. Do
+        // not erase the live pointer just because the list has no listable
+        // current row while a new chat is being composed.
+        if (listedCurrent) setActiveSessionId(listedCurrent.sessionId);
       }
 
       if (allResult) {
@@ -252,7 +256,8 @@ export function useChatSessions({
           nextSessions = partitioned.sessions;
           nextOtherSessions = partitioned.otherSessions;
           nextCurrentScopeName = partitioned.currentScopeName;
-          setActiveSessionId(nextSessions.find(session => session.isCurrent)?.sessionId ?? null);
+          const listedCurrent = nextSessions.find(session => session.isCurrent);
+          if (listedCurrent) setActiveSessionId(listedCurrent.sessionId);
         }
       } else {
         nextOtherSessions = [];

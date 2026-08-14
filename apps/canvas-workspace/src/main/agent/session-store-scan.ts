@@ -20,6 +20,10 @@ export interface AgentSessionListEntry {
   isCurrent: boolean;
 }
 
+/** Empty drafts are runtime pointers, not user-visible conversation history. */
+export const isListableSession = (session: CanvasAgentSession): boolean =>
+  Array.isArray(session.messages) && session.messages.length > 0;
+
 export function sessionUpdatedAt(session: CanvasAgentSession, fileTimestamp = 0): number {
   const messageTimestamp = (session.messages ?? []).reduce(
     (latest, message) => Number.isFinite(message.timestamp)
@@ -73,7 +77,7 @@ export async function scanAllWorkspaceSessions(
       const currentPath = join(sessionsDir, 'current.json');
       const raw = await fs.readFile(currentPath, 'utf-8');
       const data = JSON.parse(raw) as CanvasAgentSession;
-      if (data.messages?.length > 0) {
+      if (isListableSession(data)) {
         const firstUserMessage = data.messages.find((message) => message.role === 'user');
         sessions.push({
           sessionId: data.sessionId,
@@ -99,6 +103,7 @@ export async function scanAllWorkspaceSessions(
           const archivePath = join(archiveDir, file);
           const raw = await fs.readFile(archivePath, 'utf-8');
           const data = JSON.parse(raw) as CanvasAgentSession;
+          if (!isListableSession(data)) continue;
           if (currentIds.has(data.sessionId)) continue;
           const firstUserMessage = data.messages.find((message) => message.role === 'user');
           const sortKey = await archiveSortKey(archivePath, file);

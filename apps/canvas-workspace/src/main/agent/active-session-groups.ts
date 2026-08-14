@@ -32,9 +32,9 @@ const scopeDisplayName = (
 };
 
 /**
- * The disk scan omits empty current sessions, while an active scope can own
- * exactly such a new chat. Add active scopes absent from the disk result so
- * switching scopes cannot make their folder vanish from the unified rail.
+ * Add active scopes that have listable history but are absent from the disk
+ * result. Empty current pointers are deliberately omitted by both the store
+ * and the active agent, so a just-opened draft never creates a history folder.
  */
 export async function appendActiveSessionGroups({
   agents,

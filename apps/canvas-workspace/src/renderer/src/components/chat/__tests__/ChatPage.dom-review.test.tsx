@@ -168,7 +168,8 @@ describe('ChatPage DOM review delivery', () => {
       </I18nProvider>,
     ));
 
-    expect(chatView.latestProps?.onAttachFiles).toBe(composer.handleAttachFiles);
+    expect((chatView.latestProps as Record<string, unknown> | null)?.onAttachFiles)
+      .toBe(composer.handleAttachFiles);
     act(() => root.unmount());
   });
 });
