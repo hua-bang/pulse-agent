@@ -98,6 +98,52 @@ interface CdpActionHost extends CdpHost, PageRunner {
    * forces the guest to become the focused widget.
    */
   focus?(): void;
+  /** The embedder renderer that owns a `<webview>` guest. */
+  hostWebContents?: {
+    executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
+    isDestroyed(): boolean;
+  };
+  /** Stable id used to find this guest's `<webview>` element in the embedder. */
+  id?: number;
+}
+
+/**
+ * Focus the embedder's `<webview>` element, not only the guest document.
+ *
+ * `WebContents.focus()` and a DOM `focus()` inside the guest can disagree
+ * about Chromium's actual input route for an embedded guest. In that state
+ * CDP `Input.insertText` / `dispatchKeyEvent` can still land in a focused
+ * host input (most visibly the chat composer). The host renderer is the only
+ * place that can focus the `<webview>` widget itself, so resolve it by the
+ * guest id and focus that exact element before sending input.
+ */
+async function focusOwningWebview(host: CdpActionHost): Promise<void> {
+  const embedder = host.hostWebContents;
+  const webContentsId = host.id;
+  if (!embedder || embedder.isDestroyed() || typeof webContentsId !== 'number') return;
+
+  const script = `(function(){
+  try {
+    var id = ${webContentsId};
+    var guests = document.querySelectorAll('webview');
+    for (var i = 0; i < guests.length; i += 1) {
+      var guest = guests[i];
+      try {
+        if (guest.getWebContentsId() !== id) continue;
+        guest.focus();
+        return true;
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return false;
+})()`;
+
+  try {
+    await embedder.executeJavaScript(script, false);
+  } catch {
+    // The guest may be tearing down or the host may be navigating. The CDP
+    // action still has its existing best-effort focus path below.
+  }
 }
 
 interface CenterResult {
@@ -272,6 +318,7 @@ export async function cdpPressKey(
     return await runWithTimeout(
       withCdp(wc, async (send: CdpSender) => {
         await bringPageTargetToFront(send);
+        await focusOwningWebview(wc);
         const baseInit: Record<string, unknown> = {
           key: spec.key,
           code: spec.code,
@@ -389,6 +436,7 @@ export async function cdpFillSelector(
     return await runWithTimeout(
       withCdp(wc, async (send: CdpSender) => {
         await bringPageTargetToFront(send);
+        await focusOwningWebview(wc);
         await send('Input.insertText', { text: value });
         return {
           ok: true,

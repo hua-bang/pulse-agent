@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
 import { activateWorkspaceWindow } from '../../app/window-manager';
+import { findDockLinkTab } from '../../dock/tab-actions';
 import { readA11y, readDOM, captureScreenshot } from '../../webview/reader';
 import {
   cdpClickSelector,
@@ -138,16 +139,25 @@ async function readLivePage(workspaceId: string, input: PageReadInput): Promise<
   const strategy = input.strategy ?? 'auto';
   const maxChars = input.maxChars ?? 12_000;
   const sparseThreshold = input.sparseThreshold ?? 200;
-  const wc = await ensureOperable({
-    lookup: () => getWebContentsForNode(workspaceId, input.nodeId),
-    activate: () => activateWorkspaceWindow(workspaceId),
-    mode: strategy === 'screenshot' ? 'operate' : 'read',
-  });
+  const dockTab = findDockLinkTab(workspaceId, input.nodeId);
+  const isDockTab = Boolean(dockTab || input.nodeId.startsWith('link:'));
+  // A dock link tab is already an app-level surface. Do not activate its
+  // workspace just because the guest is temporarily unmounted; that changes
+  // the user's current route while a read is in flight.
+  const wc = isDockTab
+    ? getWebContentsForNode(workspaceId, input.nodeId)
+    : await ensureOperable({
+        lookup: () => getWebContentsForNode(workspaceId, input.nodeId),
+        activate: () => activateWorkspaceWindow(workspaceId),
+        mode: strategy === 'screenshot' ? 'operate' : 'read',
+      });
   if (!wc) {
     throw new CapabilityError(
       'webview_not_found',
       `No active webview for node ${input.nodeId} in workspace ${workspaceId} ` +
-        '(auto-activation attempted). Make sure the iframe node exists and is in URL mode.',
+        (isDockTab
+          ? '(the dock tab is not mounted or is still loading).'
+          : '(auto-activation attempted). Make sure the iframe node exists and is in URL mode.'),
       { strategy },
     );
   }

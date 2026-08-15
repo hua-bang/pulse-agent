@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
 import { activateWorkspaceWindow } from '../../app/window-manager';
+import { findDockLinkTab } from '../../dock/tab-actions';
 import { readDOMElement } from '../../webview/reader';
 import {
   getCanvasCapabilityRuntime,
@@ -33,17 +34,26 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
         const selector = input.selector as string;
         const maxChars = (input.maxChars as number) ?? 12_000;
-        const wc = await ensureOperable({
-          lookup: () => getWebContentsForNode(targetWorkspaceId, nodeId),
-          activate: () => activateWorkspaceWindow(targetWorkspaceId),
-          mode: 'read',
-        });
+        const dockTab = findDockLinkTab(targetWorkspaceId, nodeId);
+        const isDockTab = Boolean(dockTab || nodeId.startsWith('link:'));
+        // A dock tab is already an app-level surface. If its guest is being
+        // remounted, report the stale target instead of activating its
+        // workspace and changing the user's current route just to read it.
+        const wc = isDockTab
+          ? getWebContentsForNode(targetWorkspaceId, nodeId)
+          : await ensureOperable({
+              lookup: () => getWebContentsForNode(targetWorkspaceId, nodeId),
+              activate: () => activateWorkspaceWindow(targetWorkspaceId),
+              mode: 'read',
+            });
         if (!wc) {
           return JSON.stringify({
             ok: false,
             error:
-              `No active webview for node ${nodeId} in workspace ${targetWorkspaceId} ` +
-              `(auto-activation attempted). Make sure the iframe node or web tab still exists and is loaded.`,
+              `No live webview for ${isDockTab ? 'dock link tab' : 'node'} ${nodeId} in workspace ${targetWorkspaceId}. ` +
+              (isDockTab
+                ? 'The tab is not mounted or is being restored; retry after it finishes loading.'
+                : '(auto-activation attempted). Make sure the iframe node still exists and is loaded.'),
           });
         }
         const r = await readDOMElement(wc, selector, maxChars);

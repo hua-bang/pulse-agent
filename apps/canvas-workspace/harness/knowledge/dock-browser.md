@@ -126,6 +126,17 @@ content/terminal tab, and leaves the pinned chat alone. Escape inside a web
 page stays page-owned so sites can close their own dialogs or exit modes.
 Dock-owned portals count as dock focus for scoped commands such as Find.
 
+Main-process page-control input has one additional focus boundary: after
+`Page.bringToFront`, CDP fill/press actions must focus the owning host
+`<webview>` by the guest WebContents id. Guest DOM focus and `WebContents.focus()`
+alone can leave Chromium's input route on the chat composer, causing
+`Input.insertText` or key events to leak into host UI.
+
+Read-only operations on a dock link tab must use its live registry entry
+directly. They must not call `ensureOperable` when the guest is temporarily
+unmounted, because its fallback activation changes the current workspace hash
+route; return a retryable not-mounted result instead.
+
 ## Page-element selection bridge
 
 Page-element selection in a dock browser tab must reuse the shared iframe

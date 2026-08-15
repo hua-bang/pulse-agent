@@ -37,7 +37,7 @@ import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../../t
 import { ExternalLinkIcon, PlusIcon } from "../../icons";
 import { Button, TextField } from "../../ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../../shared/experimental-features";
-import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import { useActiveChatTarget, type ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 import { useChatDeliveryNotifier } from '../../chat/useChatDeliveryNotifier';
 import { TabChatAction } from '../RightDock/TabChatAction';
 import "./index.css";
@@ -109,6 +109,8 @@ export const LinkTabView = ({
   const { t } = useI18n();
   const { notify } = useAppShell();
   const notifyChatDelivery = useChatDeliveryNotifier();
+  const scopeKind = useActiveChatTarget()?.scope?.kind;
+
   const [domPickerActive, setDomPickerActive] = useState(false);
   // When Pulse Canvas is itself the default browser, the "open in system
   // browser" escape hatch loops back into this app — so steer the user to
@@ -365,17 +367,19 @@ export const LinkTabView = ({
           >
             <InspectIcon />
           </Button>
-          <Button
-            variant="icon"
-            size="xs"
-            className="link-drawer__action"
-            aria-label={t('linkDrawer.addToReference')}
-            title={t('linkDrawer.addToReference')}
-            onClick={handleAddToReference}
-            disabled={!browser.currentUrl}
-          >
-            <ReferenceIcon />
-          </Button>
+          {
+            scopeKind === 'workspace' ? <Button
+              variant="icon"
+              size="xs"
+              className="link-drawer__action"
+              aria-label={t('linkDrawer.addToReference')}
+              title={t('linkDrawer.addToReference')}
+              onClick={handleAddToReference}
+              disabled={!browser.currentUrl}
+            >
+              <ReferenceIcon />
+            </Button> : null
+          }
           <Button
             variant="icon"
             size="xs"
@@ -387,17 +391,20 @@ export const LinkTabView = ({
           >
             <ExternalLinkIcon />
           </Button>
-          <Button
-            variant="icon"
-            size="xs"
-            className="link-drawer__action"
-            aria-label={t('linkDrawer.addToCanvas')}
-            onClick={handleAddToCanvas}
-            disabled={!activeWorkspaceId || !browser.currentUrl}
-            title={activeWorkspaceId ? t('linkDrawer.addToCanvas') : t('linkDrawer.noActiveCanvas')}
-          >
-            <PlusIcon size={12} strokeWidth={1.2} />
-          </Button>
+          {
+            scopeKind === 'workspace' ? <Button
+              variant="icon"
+              size="xs"
+              className="link-drawer__action"
+              aria-label={t('linkDrawer.addToCanvas')}
+              onClick={handleAddToCanvas}
+              disabled={!activeWorkspaceId || !browser.currentUrl}
+              title={activeWorkspaceId ? t('linkDrawer.addToCanvas') : t('linkDrawer.noActiveCanvas')}
+            >
+              <PlusIcon size={12} strokeWidth={1.2} />
+            </Button> : null
+          }
+
         </div>
       </header>
       {loading && (
