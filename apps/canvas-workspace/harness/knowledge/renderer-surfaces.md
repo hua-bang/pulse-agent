@@ -82,9 +82,11 @@ The workbench has exactly two side regions plus a modal tier:
   Workspace ChatPanels remain mounted but hidden while that global instance
   is visible, and the Nodes route itself is kept alive so filters and scroll
   survive a detail-page round trip.
-  Global knowledge-node context is read-only. AI Summary writes the generated
-  summary through the dedicated metadata update path; global chat has no
-  general-purpose node-content mutation tool or review-card flow.
+  Global knowledge-node context is read-only by default. AI Summary writes the
+  generated summary through the dedicated metadata update path; interactive
+  global chat may mutate a selected workspace only through explicit-target
+  tools carrying a workspaceId, while the global knowledge context itself
+  remains read-only.
   The dedicated `/chat` route hides the dock chat tab to avoid duplicating
   the full-page chat surface. Chat internals stay owned by `Workbench`,
   which portals its per-workspace `ChatPanel` instances into the dock's

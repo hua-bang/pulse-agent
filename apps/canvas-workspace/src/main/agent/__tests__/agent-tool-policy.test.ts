@@ -10,7 +10,7 @@ import {
 } from '../tool-policy';
 
 describe('Canvas Agent tool policy', () => {
-  it('gives global chat the reviewed built-in allowlist and canvas readers', () => {
+  it('gives interactive global chat file/image tools and explicit-target canvas tools', () => {
     const policy = createCanvasAgentToolPolicy({ kind: 'global' });
     const finalNames = Object.keys({
       ...policy.builtInTools,
@@ -20,6 +20,8 @@ describe('Canvas Agent tool policy', () => {
     expect(Object.keys(policy.builtInTools ?? {}).sort()).toEqual([
       'bash',
       'clarify',
+      'edit',
+      'generate_image',
       'grep',
       'ls',
       'read',
@@ -27,26 +29,34 @@ describe('Canvas Agent tool policy', () => {
       'tavily_crawl',
       'tavily_extract',
       'tavily_map',
+      'write',
     ]);
+    expect(finalNames).toContain('canvas_create_node');
+    expect(finalNames).toContain('canvas_update_node');
+    expect(finalNames).toContain('canvas_tag_node');
+    expect(finalNames).toContain('workspace_node_upsert');
     expect(finalNames).not.toContain('canvas_propose_node_change');
     expect(finalNames).toContain('knowledge_search_nodes');
     expect(finalNames).toContain('knowledge_read_node');
     expect(finalNames).toContain('knowledge_analyze_image');
-    // `bash` is in by explicit decision; the filesystem writers stay out.
+    // Global file/image tools are available; target-dependent Canvas tools
+    // carry an explicit workspaceId in their schema.
     expect(finalNames).toContain('bash');
-    expect(finalNames).not.toContain('edit');
-    expect(finalNames).not.toContain('generate_image');
-    expect(finalNames).not.toContain('write');
-    expect(finalNames).not.toContain('canvas_tag_node');
+    expect(finalNames).toContain('edit');
+    expect(finalNames).toContain('generate_image');
+    expect(finalNames).toContain('write');
   });
 
-  it('gives a scheduled run the same allowlist, shell included', () => {
+  it('keeps scheduled runs on the narrower shell/read allowlist', () => {
     const policy = createCanvasAgentToolPolicy({ kind: 'scheduled', taskId: 'memory-report' });
 
-    // Scheduled runs share global chat's boundary, so a task that shells out
-    // in workspace chat keeps working once it is scheduled.
+    // Scheduled runs keep shell access for existing automation, but do not
+    // inherit interactive Global's file/image or Canvas mutation surface.
     expect(Object.keys(policy.builtInTools ?? {})).toContain('bash');
+    expect(Object.keys(policy.builtInTools ?? {})).not.toContain('edit');
+    expect(Object.keys(policy.builtInTools ?? {})).not.toContain('generate_image');
     expect(Object.keys(policy.builtInTools ?? {})).not.toContain('write');
+    expect(Object.keys(policy.canvasTools ?? {})).not.toContain('canvas_create_node');
   });
 
   it('keeps the full engine built-ins and direct canvas tools in workspace chat', () => {
@@ -198,11 +208,13 @@ describe('Canvas Agent tool policy', () => {
     );
     expect(builtIns).toContain('bash');
 
-    // Whatever the wording, the prompt must name bash as available and must
-    // not carry back the "cannot … execute shell commands" claim that made
-    // the model refuse. (Kept narrow on purpose: a looser pattern matches the
-    // prompt's own instruction NOT to claim shell is unavailable.)
+    // Whatever the wording, the prompt must name the now-available global
+    // file tools and bash, and must not carry back the old unavailable-tools
+    // claims that made the model refuse valid calls.
     expect(prompt).toMatch(/`bash`/);
+    expect(prompt).toMatch(/`write`/);
+    expect(prompt).toMatch(/`edit`/);
     expect(prompt).not.toMatch(/cannot[^.]*execute shell/i);
+    expect(prompt).not.toMatch(/There are no `write`\/`edit` tools/i);
   });
 });

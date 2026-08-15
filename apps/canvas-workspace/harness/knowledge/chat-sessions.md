@@ -222,7 +222,8 @@ URL and returns a distinct `reopened` receipt. Legacy or unsupported references
 remain visibly stale rather than falling back to whichever tab is active.
 Activation is acknowledged by the dock, so Chat shows progress/success instead
 of failing silently. The composer also states its canvas capability:
-global scope is canvas-read-only, while workspace scope can edit its canvas.
+global scope can edit a canvas only through explicit-target tools carrying a
+workspaceId, while workspace scope has an ambient canvas target.
 Editable composers expose `Automatic` / `Ask first`; Ask first is not advisory
 copy — the main-process tool policy permits reads but gates mutating/command
 tools through the clarification approval lane before execution.

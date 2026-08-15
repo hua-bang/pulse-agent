@@ -3,17 +3,18 @@
  *
  * Produces the same report shape as the interactive `memory-review` skill
  * (per-workspace activity + numbered scope-labeled candidates) but WITHOUT
- * the adoption step: the run only gets read-only session tools, so it cannot
- * write memory, files, or canvas state. Adoption stays an interactive act —
+ * the adoption step: the run gets the bounded global baseline, without
+ * target-workspace mutation tools, so it cannot write memory, files, or canvas
+ * state through those paths. Adoption stays an interactive act —
  * the report tells the user to confirm candidates in chat, where the agent
  * uses `memory_adopt`.
  *
  * Runs a REAL agent loop (product decision 2026-07-20, revisiting an earlier
  * single-call design): report quality comes from the agent surveying the
  * period, drilling into the threads that matter, and cross-checking canvas
- * knowledge — so it gets the same read-only tool family as the global chat
- * agent, minus only the interactive clarify tool and memory writes (see
- * HEADLESS_EXCLUDED_TOOLS). Unattended-run reliability is enforced by
+ * knowledge — so it gets the safe baseline tool family used by global chat,
+ * without interactive target-workspace mutations, the clarify tool, or
+ * memory writes (see HEADLESS_EXCLUDED_TOOLS). Unattended-run reliability is enforced by
  * guardrails, not by capability cuts: output validation (a run that ends
  * without an HTML document is a failure, never published), a wall-clock
  * timeout, user-visible progress (tool-call counts), and cancellation.
@@ -56,9 +57,10 @@ export interface MemoryReportOptions {
 const MAX_EXISTING_ENTRIES_PER_SCOPE = 50;
 
 /**
- * The headless toolset IS the global chat agent's toolset (deliberate
- * alignment — future complex background tasks reuse it as-is), with exactly
- * two categories of exceptions:
+ * The headless toolset is the safe baseline returned by
+ * `createGlobalCanvasTools()` (deliberate alignment with the non-interactive
+ * global boundary — future complex background tasks reuse it as-is), with
+ * exactly two categories of exceptions:
  * - `canvas_ask_user`: an unattended run has no user to answer.
  * - memory writes (`memory_save`/`memory_forget`/`memory_adopt`): the memory
  *   product's invariant is that writes happen only with the user's explicit
@@ -162,8 +164,8 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
         label: 'memory-report',
         systemPrompt: buildSystemPrompt(days, workspaces, existingBlocks),
         prompt: `Generate the memory report for the last ${days} days.`,
-        // Full agent loop with the global agent's read-only tool family
-        // (curated for unattended use). Same generous step ceiling as chat;
+        // Full agent loop with the safe global baseline tool family (curated
+        // for unattended use). Same generous step ceiling as chat;
         // the wall clock, output validation, progress visibility, and the
         // cancel button are the reliability guardrails.
         tools: buildReportTools(),

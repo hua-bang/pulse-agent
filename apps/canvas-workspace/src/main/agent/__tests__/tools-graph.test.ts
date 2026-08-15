@@ -365,6 +365,32 @@ describe('createGlobalCanvasTools', () => {
     expect(found.ok).toBe(true);
     expect(found.matches.map((m: { id: string }) => m.id)).toEqual(['n-text']);
   });
+
+  it('can expose workspace operations behind an explicit workspaceId', async () => {
+    const tools = createGlobalCanvasTools({ allowWorkspaceTargetedTools: true });
+    await setupCanvas();
+
+    expect(tools.canvas_create_node).toBeDefined();
+    expect(tools.canvas_update_node).toBeDefined();
+    expect(tools.canvas_tag_node).toBeDefined();
+    expect(tools.workspace_node_upsert).toBeDefined();
+
+    const missing = await tools.canvas_update_node.execute({
+      nodeId: 'n-text',
+      content: 'should not run without a target',
+    });
+    expect(missing).toContain('workspaceId is required in global chat');
+
+    const result = JSON.parse(await tools.canvas_update_node.execute({
+      workspaceId: wsId,
+      nodeId: 'n-text',
+      content: 'updated from global chat',
+    }));
+    expect(result.ok).toBe(true);
+
+    const { data } = await readCanvasFull(wsId);
+    expect(data?.nodes?.find((node) => node.id === 'n-text')?.data?.content).toBe('updated from global chat');
+  });
 });
 
 describe('memory_adopt', () => {

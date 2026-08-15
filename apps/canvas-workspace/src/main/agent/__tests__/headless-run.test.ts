@@ -197,8 +197,9 @@ describe('generateMemoryReport', () => {
     expect(systemPrompt).toContain('VERBATIM');
     expect((captured.runOptions as { maxSteps: number }).maxSteps).toBe(200);
 
-    // Deliberate alignment: exactly the global chat agent's toolset minus
-    // the interactive clarify tool and the memory write paths.
+    // Deliberate alignment: exactly the safe global baseline toolset minus
+    // the interactive clarify tool and the memory write paths. Interactive
+    // Global chat opts into explicit-target workspace mutations separately.
     const { createGlobalCanvasTools } = await import('../tools');
     const { HEADLESS_EXCLUDED_TOOLS } = await import('../memory-report');
     const expected = Object.keys(createGlobalCanvasTools())

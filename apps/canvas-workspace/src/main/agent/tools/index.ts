@@ -51,12 +51,69 @@ const requireWorkspaceId = (tool: CanvasTool): CanvasTool => {
   };
 };
 
+const explicitWorkspaceIdSchema = z
+  .string()
+  .min(1)
+  .describe('Target workspace ID. Required in global chat; obtain it from canvas_list_workspaces or an explicit workspace mention.');
+
+/**
+ * Turn a workspace-bound tool into a Global-chat tool without binding it to
+ * the empty-string workspace. The target tool set is resolved lazily from the
+ * explicit workspaceId supplied by the model, so the same public tool can
+ * safely operate on any selected canvas.
+ */
+function requireExplicitWorkspaceId(
+  tool: CanvasTool,
+  targetToolSets: Map<string, Record<string, CanvasTool>>,
+): CanvasTool | undefined {
+  if (!(tool.inputSchema instanceof z.ZodObject)) return undefined;
+
+  return {
+    ...tool,
+    description:
+      `${tool.description}\n\nGlobal chat note: pass an explicit workspaceId for the canvas this operation should affect. ` +
+      'Do not guess a workspaceId; resolve it with canvas_list_workspaces or use the user-provided workspace mention.',
+    inputSchema: tool.inputSchema.extend({ workspaceId: explicitWorkspaceIdSchema }),
+    execute: async (input, ctx) => {
+      const workspaceId = typeof input?.workspaceId === 'string' ? input.workspaceId.trim() : '';
+      if (!workspaceId) {
+        return 'Error: workspaceId is required in global chat. Ask the user which workspace to affect, or use canvas_list_workspaces to identify it.';
+      }
+
+      let targetTools = targetToolSets.get(workspaceId);
+      if (!targetTools) {
+        targetTools = createCanvasTools(workspaceId);
+        targetToolSets.set(workspaceId, targetTools);
+      }
+      const targetTool = targetTools[tool.name];
+      if (!targetTool) {
+        return `Error: ${tool.name} is unavailable for workspace ${workspaceId}.`;
+      }
+      return targetTool.execute({ ...input, workspaceId }, ctx);
+    },
+  };
+}
+
+export interface GlobalCanvasToolsOptions {
+  /**
+   * Interactive Global chat may opt into workspace-bound operations, but
+   * every such tool still requires an explicit workspaceId. Keep this false
+   * for scheduled/headless runs, which must remain read-only for canvas state.
+   */
+  allowWorkspaceTargetedTools?: boolean;
+}
+
 /**
  * Tool set for global chat (no current workspace). Read/search canvas tools
  * are wrapped to require an explicit workspaceId; the cross-workspace knowledge
- * index is eager. Global chat remains read-only for node data.
+ * index is eager. Interactive Global chat can additionally opt into the full
+ * workspace tool surface through explicit-target wrappers. The default stays
+ * without target-workspace mutations so scheduled/headless callers cannot
+ * inherit those mutations.
  */
-export function createGlobalCanvasTools(): Record<string, CanvasTool> {
+export function createGlobalCanvasTools(
+  options: GlobalCanvasToolsOptions = {},
+): Record<string, CanvasTool> {
   const nodeTools = createNodeTools('');
   const searchTools = createSearchTools('');
   const edgeTools = createEdgeTools('');
@@ -65,7 +122,7 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
   const tabTools = createTabTools('');
   const webpageTools = createWebpageTools('');
 
-  return {
+  const tools: Record<string, CanvasTool> = {
     canvas_ask_user: nodeTools.canvas_ask_user,
     canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
     canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
@@ -102,6 +159,23 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     // Group-chat roles live in one app-level library — same posture.
     ...createRoleTools(),
   };
+
+  if (options.allowWorkspaceTargetedTools) {
+    const targetToolSets = new Map<string, Record<string, CanvasTool>>();
+    const directGlobalToolNames = new Set(Object.keys(tools));
+    const workspaceToolPrototypes = createCanvasTools('');
+
+    // Keep app-level/cross-workspace tools from being shadowed. Every other
+    // tool is made targetable and receives a required workspaceId in its
+    // Global schema, including plugin-contributed tools.
+    for (const [name, tool] of Object.entries(workspaceToolPrototypes)) {
+      if (directGlobalToolNames.has(name)) continue;
+      const targeted = requireExplicitWorkspaceId(tool, targetToolSets);
+      if (targeted) tools[name] = targeted;
+    }
+  }
+
+  return tools;
 }
 
 export function createCanvasTools(workspaceId: string): Record<string, CanvasTool> {
