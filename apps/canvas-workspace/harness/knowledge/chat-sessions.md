@@ -95,15 +95,22 @@ structurally stable while the selected conversation changes scope.
   active-agent group reconciliation, and disk scans omit it. Starting New chat
   while that pointer is empty reuses it, so repeated clicks do not manufacture
   invisible rows.
-- The full-page rail's New chat opens a destination picker because the page
-  spans workspaces; the top-right plus is the fast path within the active
-  workspace. A cross-scope new chat creates the target pointer before the body
-  switches scope, and the composer shows the resulting destination.
+- The full-page rail and top-right New chat controls immediately start an
+  unassigned draft; they never ask for workspace metadata before the user can
+  type. Only a real workspace row's `+` starts a workspace-owned draft. An
+  unassigned draft has no placeholder workspace label in the topbar, while a
+  workspace-owned draft shows that workspace's real name. Delivery feedback
+  calls the unassigned destination AI Chat rather than exposing the internal
+  `No workspace` scope label. A cross-scope draft creates the target pointer
+  before the body switches scope and focuses the composer after adoption;
+  intent ordering prevents a slower earlier request from replacing a newer
+  destination click.
 
 Guards: `hooks/useChatSessions.test.tsx` composes cross-scope loading with the
 unified rail and pins the one-source list contract;
 `__tests__/ChatSessionsRail.test.tsx` pins expansion preservation, pending-row
-feedback, the title-only row layout, and precise recency ordering;
+feedback, the title-only row layout, precise recency ordering, and workspace
+row draft actions;
 `src/main/agent/__tests__/service-history.test.ts` pins active-store exclusion.
 
 ## Full-page chat topbar vs dock content tabs

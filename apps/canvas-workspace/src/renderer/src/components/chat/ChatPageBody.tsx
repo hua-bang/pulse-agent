@@ -25,7 +25,6 @@ import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
 import { useSubmitDomReviewComments } from './hooks/useSubmitDomReviewComments';
 import { submitQuickAction } from './hooks/submitQuickAction';
 import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
-import { ChatWorkspacePicker } from './ChatWorkspacePicker';
 import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from './utils/chatPageDockTabs';
 import { useChatPageNewSession } from './hooks/useChatPageNewSession';
@@ -110,7 +109,7 @@ export const ChatPageBody = ({
   // so the control is a plain show/hide — no navigation.
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const workspaceLabel = workspaceId
-    ? allWorkspaces.find(workspace => workspace.id === workspaceId)?.name ?? workspaceId
+    ? allWorkspaces.find(workspace => workspace.id === workspaceId)?.name
     : undefined;
   const dockTabsVisible = isDockContentTabVisible(dockState);
   const dockTabs = useMemo(() => buildChatPageDockTabRefs(dockState), [dockState]);
@@ -216,7 +215,7 @@ export const ChatPageBody = ({
     skipInitialHistory: initialPendingSessionId !== null || pendingSessionId !== null,
   });
 
-  const chatDestinationLabel = agentScope.kind === 'workspace' ? workspaceLabel ?? agentScope.workspaceId : agentScope.kind === 'scheduled' ? fixedChat?.title ?? t('chat.scope.scheduled') : t('chat.scope.global');
+  const chatDestinationLabel = agentScope.kind === 'workspace' ? workspaceLabel : undefined;
   const newSession = useChatPageNewSession({ agentScope, sessionStoreId, loading, sessionLoading, busyElsewhere, pendingSessionId, focusInput, clearInput, handleNewSession, onClearBackStack, onCreateNewSessionInScope, onNewSessionCreated });
 
   const handleTargetSkillChat = useCallback(async (skillName: string) => {
@@ -380,11 +379,12 @@ export const ChatPageBody = ({
     sessions,
     sessionsStoreId,
     pendingSessionKey: sessionLoading ? selectedSessionKey : null,
-    newSessionPickerOpen: newSession.newSessionPickerOpen && newSession.newSessionPickerTrigger === 'rail',
     disabled: sessionRailDisabled,
+    newSessionDisabled: sessionInteractionDisabled,
     focusInput,
     handleNewSession,
-    onNewSessionRequest: newSession.openNewSessionPicker,
+    onNewSessionDraft: newSession.handleNewSessionFromRail,
+    onNewSessionInWorkspace: newSession.handleNewSessionInWorkspace,
     onClearBackStack,
     onSelectSession,
     renameSession,
@@ -394,8 +394,6 @@ export const ChatPageBody = ({
 
   return (
     <div className="chat-page">
-      <ChatWorkspacePicker open={newSession.newSessionPickerOpen} anchorRef={newSession.newSessionAnchorRef} currentScope={agentScope} workspaces={allWorkspaces}
-        onClose={newSession.closeNewSessionPicker} onConfirm={newSession.handleNewSessionDestination} />
       {!fixedChat && (
         <ChatPageRail collapsed={railCollapsed} rail={sessionRail} />
       )}
@@ -411,8 +409,6 @@ export const ChatPageBody = ({
           onJumpAnchor={handleJumpAnchor}
           onNewSession={newSession.handleNewSessionFromTopbar}
           newSessionDisabled={sessionInteractionDisabled}
-          newSessionPickerOpen={newSession.newSessionPickerOpen && newSession.newSessionPickerTrigger === 'topbar'}
-          newSessionPickerAvailable={agentScope.kind !== 'workspace'}
           dockTabsVisible={dockTabsVisible}
           onToggleDockTabs={handleToggleDockTabs}
         />

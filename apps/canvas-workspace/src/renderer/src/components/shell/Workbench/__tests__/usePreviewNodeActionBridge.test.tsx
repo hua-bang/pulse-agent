@@ -87,7 +87,7 @@ describe('usePreviewNodeActionBridge', () => {
 
     await act(async () => dispatchPreviewNodeAction({ action: 'add-to-chat', workspaceId: 'preview-ws', node }));
 
-    expect(document.body.textContent).toContain('Queued for Global chat');
+    expect(document.body.textContent).toContain('Queued for AI Chat');
     expect(document.querySelector('.shell-toast-region')?.getAttribute('aria-live')).toBe('polite');
   });
 

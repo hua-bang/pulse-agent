@@ -149,12 +149,21 @@
   margin-left: 2px;
 }
 
-.ui-btn.chat-page-rail-folder {
-  appearance: none;
+.chat-page-rail-folder-row {
   position: sticky;
   top: 0;
   z-index: 1;
   width: 100%;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+}
+
+.ui-btn.chat-page-rail-folder {
+  appearance: none;
+  min-width: 0;
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -162,11 +171,33 @@
   height: auto;
   border: 0;
   border-radius: var(--radius-xs);
-  background: var(--surface);
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   font: inherit;
   text-align: left;
+}
+
+.ui-btn.chat-page-rail-folder-new {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  margin-right: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0;
+}
+
+.chat-page-rail-folder-row:hover .ui-btn.chat-page-rail-folder-new,
+.ui-btn.chat-page-rail-folder-new:focus-visible {
+  opacity: 1;
+}
+
+.ui-btn.chat-page-rail-folder-new:hover {
+  background: var(--surface-alt);
+  color: var(--text-primary);
 }
 
 .ui-btn.chat-page-rail-folder:hover,

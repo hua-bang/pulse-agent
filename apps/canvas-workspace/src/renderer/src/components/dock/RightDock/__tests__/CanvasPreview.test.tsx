@@ -564,6 +564,6 @@ describe('CanvasPreview accessible read-only chrome', () => {
     await act(async () => button?.click());
 
     expect(onAddTabToChat).toHaveBeenCalledWith('workspace-1', tabRef);
-    expect(document.body.textContent).toContain('Added to Global chat');
+    expect(document.body.textContent).toContain('Added to AI Chat');
   });
 });

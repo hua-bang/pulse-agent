@@ -20,12 +20,12 @@ interface Options {
   sessions: AgentSessionInfo[];
   sessionsStoreId: string;
   pendingSessionKey?: string | null;
-  newSessionPickerOpen?: boolean;
   disabled: boolean;
+  newSessionDisabled?: boolean;
   focusInput: () => void;
   handleNewSession: () => Promise<{ ok: boolean }>;
-  /** Lets the page choose a destination before creating the session. */
-  onNewSessionRequest?: (trigger: Element | null) => void;
+  onNewSessionDraft?: (trigger: Element | null) => void;
+  onNewSessionInWorkspace?: (workspaceId: string, trigger: Element | null) => void;
   onClearBackStack?: () => void;
   onSelectSession: (session: UnifiedSession) => void;
   renameSession: (sessionId: string, title: string, scope: AgentScope) => Promise<unknown>;
@@ -43,11 +43,12 @@ export const useChatPageSessionRail = ({
   sessions,
   sessionsStoreId,
   pendingSessionKey,
-  newSessionPickerOpen,
   disabled,
+  newSessionDisabled = disabled,
   focusInput,
   handleNewSession,
-  onNewSessionRequest,
+  onNewSessionDraft,
+  onNewSessionInWorkspace,
   onClearBackStack,
   onSelectSession,
   renameSession,
@@ -65,16 +66,16 @@ export const useChatPageSessionRail = ({
     sessionsStoreId,
   });
   const onNewSession = useCallback(async () => {
-    if (disabled) return;
+    if (newSessionDisabled) return;
     const trigger = document.activeElement;
-    if (onNewSessionRequest) {
-      onNewSessionRequest(trigger);
+    if (onNewSessionDraft) {
+      onNewSessionDraft(trigger);
       return;
     }
     onClearBackStack?.();
     const result = await handleNewSession();
     if (result.ok) restoreComposerFocusAfterRender(focusInput, trigger);
-  }, [disabled, focusInput, handleNewSession, onClearBackStack, onNewSessionRequest]);
+  }, [focusInput, handleNewSession, newSessionDisabled, onClearBackStack, onNewSessionDraft]);
   const onSelect = useCallback((session: UnifiedSession) => {
     if (!disabled) onSelectSession(session);
   }, [disabled, onSelectSession]);
@@ -94,11 +95,13 @@ export const useChatPageSessionRail = ({
 
   return {
     allSessions,
+    workspaces: allWorkspaces,
     loading: sessionsLoading,
     disabled,
+    newSessionDisabled,
     pendingSessionKey,
-    newSessionPickerOpen,
     onNewSession,
+    onNewSessionInWorkspace,
     onSelectSession: onSelect,
     onRenameSession: onRename,
     onDeleteSession: onDelete,

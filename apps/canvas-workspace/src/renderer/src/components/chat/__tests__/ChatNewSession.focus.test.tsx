@@ -22,9 +22,10 @@ afterEach(() => {
 interface RailHarnessProps {
   createSession: () => Promise<{ ok: boolean }>;
   initiallyAdopted?: boolean;
+  onNewSessionDraft?: (trigger: Element | null) => void;
 }
 
-const RailHarness = ({ createSession, initiallyAdopted = false }: RailHarnessProps) => {
+const RailHarness = ({ createSession, initiallyAdopted = false, onNewSessionDraft }: RailHarnessProps) => {
   const composerRef = useRef<HTMLDivElement>(null);
   const [sessionAdopted, setSessionAdopted] = useState(initiallyAdopted);
   const handleNewSession = useCallback(async () => {
@@ -44,6 +45,7 @@ const RailHarness = ({ createSession, initiallyAdopted = false }: RailHarnessPro
     disabled: false,
     focusInput: () => composerRef.current?.focus(),
     handleNewSession,
+    onNewSessionDraft,
     onSelectSession: vi.fn(),
     renameSession: vi.fn(async () => undefined),
     deleteSession: vi.fn(async () => undefined),
@@ -60,6 +62,26 @@ const RailHarness = ({ createSession, initiallyAdopted = false }: RailHarnessPro
 };
 
 describe('New chat focus recovery', () => {
+  it('delegates the primary New chat action directly to the draft coordinator', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const createSession = vi.fn(async () => ({ ok: true }));
+    const onNewSessionDraft = vi.fn();
+    await act(async () => root?.render(
+      <I18nProvider>
+        <RailHarness createSession={createSession} onNewSessionDraft={onNewSessionDraft} />
+      </I18nProvider>,
+    ));
+
+    const newChat = host.querySelector<HTMLButtonElement>('.chat-page-rail-new');
+    newChat?.focus();
+    act(() => newChat?.click());
+
+    expect(onNewSessionDraft).toHaveBeenCalledWith(newChat);
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
   it('focuses the composer after the new session has been adopted and rendered', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);

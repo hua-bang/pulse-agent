@@ -7,10 +7,11 @@ import {
 import { Button, TextField } from '../ui';
 import { useI18n } from '../../i18n';
 import { ChatSessionRailItem } from './ChatSessionRailItem';
-import { CHAT_WORKSPACE_PICKER_ID } from './ChatWorkspacePicker';
+import type { WorkspaceOption } from './types';
 
 const SESSION_PREVIEW_LIMIT = 10;
 const GLOBAL_CHAT_ID = '__global_chat__';
+const EMPTY_WORKSPACES: WorkspaceOption[] = [];
 
 export interface UnifiedSession {
   sessionId: string;
@@ -26,14 +27,18 @@ export interface UnifiedSession {
 
 export interface ChatSessionsRailProps {
   allSessions: UnifiedSession[];
+  /** Real workspace destinations, including those without any saved chats. */
+  workspaces?: WorkspaceOption[];
   /** True while the session list is being (re)fetched, e.g. after a scope switch. */
   loading?: boolean;
   /** Prevents session mutations/navigation while a thread pointer is changing. */
   disabled?: boolean;
+  /** Disables draft creation without blocking history navigation. */
+  newSessionDisabled?: boolean;
   /** Selected conversation whose thread is currently being opened. */
   pendingSessionKey?: string | null;
-  newSessionPickerOpen?: boolean;
   onNewSession: () => void | Promise<void>;
+  onNewSessionInWorkspace?: (workspaceId: string, trigger: Element | null) => void;
   onSelectSession: (session: UnifiedSession) => void;
   onRenameSession?: (session: UnifiedSession, title: string) => void | Promise<void>;
   onDeleteSession?: (session: UnifiedSession) => void | Promise<void>;
@@ -49,11 +54,13 @@ export interface ChatSessionsRailProps {
  */
 export const ChatSessionsRail = ({
   allSessions,
+  workspaces = EMPTY_WORKSPACES,
   loading = false,
   disabled = false,
+  newSessionDisabled = disabled,
   pendingSessionKey = null,
-  newSessionPickerOpen = false,
   onNewSession,
+  onNewSessionInWorkspace,
   onSelectSession,
   onRenameSession,
   onDeleteSession,
@@ -64,7 +71,20 @@ export const ChatSessionsRail = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSessionGroupIds, setExpandedSessionGroupIds] = useState<Set<string>>(new Set());
   const allSessionGroups = useMemo(() => {
-    const groups = new Map<string, { id: string; name: string; sessions: UnifiedSession[] }>();
+    const groups = new Map<string, {
+      id: string;
+      name: string;
+      sessions: UnifiedSession[];
+      canCreateDraft: boolean;
+    }>();
+    for (const workspace of workspaces) {
+      groups.set(workspace.id, {
+        id: workspace.id,
+        name: workspace.name,
+        sessions: [],
+        canCreateDraft: true,
+      });
+    }
     for (const session of allSessions) {
       const group = groups.get(session.workspaceId);
       if (group) group.sessions.push(session);
@@ -72,6 +92,7 @@ export const ChatSessionsRail = ({
         id: session.workspaceId,
         name: session.workspaceName,
         sessions: [session],
+        canCreateDraft: false,
       });
     }
     return Array.from(groups.values())
@@ -90,7 +111,7 @@ export const ChatSessionsRail = ({
           || right.sessionId.localeCompare(left.sessionId)
         )),
       }));
-  }, [allSessions]);
+  }, [allSessions, workspaces]);
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
   const sessionGroups = useMemo(() => {
     if (!normalizedQuery) return allSessionGroups;
@@ -102,7 +123,7 @@ export const ChatSessionsRail = ({
             session.preview?.toLocaleLowerCase().includes(normalizedQuery)
             || session.date.toLocaleLowerCase().includes(normalizedQuery)
           ));
-      return sessions.length > 0 ? [{ ...group, sessions }] : [];
+      return sessions.length > 0 || groupMatches ? [{ ...group, sessions }] : [];
     });
   }, [allSessionGroups, normalizedQuery]);
   const activeGroupId = allSessionGroups.find((group) => group.sessions.some((session) => session.isCurrent))?.id;
@@ -154,13 +175,10 @@ export const ChatSessionsRail = ({
         type="button"
         className="chat-page-rail-new"
         onClick={() => {
-          if (disabled) return;
+          if (newSessionDisabled) return;
           void onNewSession();
         }}
-        aria-disabled={disabled ? true : undefined}
-        data-chat-new-session-trigger="rail"
-        aria-expanded={newSessionPickerOpen}
-        aria-controls={CHAT_WORKSPACE_PICKER_ID}
+        aria-disabled={newSessionDisabled ? true : undefined}
       >
         <PlusIcon size={14} strokeWidth={1.3} />
         <span>{t('chat.newChat')}</span>
@@ -181,7 +199,7 @@ export const ChatSessionsRail = ({
             <SpinnerIcon size={14} className="chat-spin" />
             <span>{t('chat.loadingSessions')}</span>
           </div>
-        ) : allSessions.length === 0 ? (
+        ) : allSessionGroups.length === 0 ? (
           <div className="chat-page-rail-empty" role="status">{t('chat.noPreviousChats')}</div>
         ) : sessionGroups.length === 0 ? (
           <div className="chat-page-rail-empty" role="status">{t('chat.noMatchingSessions')}</div>
@@ -205,21 +223,38 @@ export const ChatSessionsRail = ({
                 key={group.id}
               >
                 {!isGlobalGroup && (
-                  <Button
-                    variant="secondary"
-                    size="xs"
-                    className="chat-page-rail-folder"
-                    onClick={() => toggleGroup(group.id)}
-                    aria-expanded={!collapsed}
-                    aria-controls={listId}
-                  >
-                    <ChevronRightIcon
-                      size={11}
-                      className={`chat-page-rail-folder-chevron${collapsed ? '' : ' chat-page-rail-folder-chevron--expanded'}`}
-                    />
-                    <span className="chat-page-rail-folder-name">{group.name}</span>
-                    <span className="chat-page-rail-folder-count">{group.sessions.length}</span>
-                  </Button>
+                  <div className="chat-page-rail-folder-row">
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      className="chat-page-rail-folder"
+                      onClick={() => toggleGroup(group.id)}
+                      aria-expanded={!collapsed}
+                      aria-controls={listId}
+                    >
+                      <ChevronRightIcon
+                        size={11}
+                        className={`chat-page-rail-folder-chevron${collapsed ? '' : ' chat-page-rail-folder-chevron--expanded'}`}
+                      />
+                      <span className="chat-page-rail-folder-name">{group.name}</span>
+                      {group.sessions.length > 0 && (
+                        <span className="chat-page-rail-folder-count">{group.sessions.length}</span>
+                      )}
+                    </Button>
+                    {group.canCreateDraft && onNewSessionInWorkspace && (
+                      <Button
+                        variant="icon"
+                        size="xs"
+                        className="chat-page-rail-folder-new"
+                        disabled={newSessionDisabled}
+                        onClick={(event) => onNewSessionInWorkspace(group.id, event.currentTarget)}
+                        title={t('chat.newChatInWorkspace', { name: group.name })}
+                        aria-label={t('chat.newChatInWorkspace', { name: group.name })}
+                      >
+                        <PlusIcon size={13} strokeWidth={1.4} />
+                      </Button>
+                    )}
+                  </div>
                 )}
                 <div id={listId} className="chat-page-rail-list" role="list">
                   {!collapsed && visibleSessions.map((session) => (

@@ -29,8 +29,6 @@ describe('ChatPage navigation chrome', () => {
           onJumpAnchor={vi.fn()}
           onNewSession={vi.fn()}
           newSessionDisabled={false}
-          newSessionPickerOpen
-          newSessionPickerAvailable
           dockTabsVisible={false}
           onToggleDockTabs={vi.fn()}
         />
@@ -46,8 +44,8 @@ describe('ChatPage navigation chrome', () => {
     expect(host.querySelectorAll('.chat-page-topbar > .chat-panel-action-btn')).toHaveLength(3);
     expect(host.querySelector('.chat-page-topbar-session-title')?.textContent).toBe('Quarterly plan Summarize this');
     expect(host.querySelector('.chat-page-topbar-workspace')?.textContent).toBe('Workspace A');
-    const newChat = host.querySelector<HTMLButtonElement>('[aria-controls="chat-workspace-picker"]');
-    expect(newChat?.getAttribute('aria-expanded')).toBe('true');
+    const newChat = host.querySelector<HTMLButtonElement>('[aria-label="New AI chat"]');
+    expect(newChat?.hasAttribute('aria-controls')).toBe(false);
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Show the Tab panel"]')?.disabled).toBe(false);
 
     act(() => root.unmount());

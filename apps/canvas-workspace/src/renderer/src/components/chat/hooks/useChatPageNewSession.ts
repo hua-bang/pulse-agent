@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import type { AgentNewSessionResult, AgentScope } from '../types';
 import { clearChatComposerDraft } from './chatComposerDraftStore';
@@ -34,14 +34,7 @@ export const useChatPageNewSession = ({
   onCreateNewSessionInScope,
   onNewSessionCreated,
 }: Options) => {
-  const [newSessionPickerOpen, setNewSessionPickerOpen] = useState(false);
-  const newSessionTriggerRef = useRef<HTMLElement | null>(null);
   const pendingNewSessionFocusRef = useRef<Element | null>(null);
-
-  const closeNewSessionPicker = useCallback(() => {
-    setNewSessionPickerOpen(false);
-    newSessionTriggerRef.current = null;
-  }, []);
 
   const startNewSessionInScope = useCallback(async (
     targetScope: AgentScope,
@@ -83,33 +76,16 @@ export const useChatPageNewSession = ({
     sessionStoreId,
   ]);
 
-  const openNewSessionPicker = useCallback((trigger: Element | null) => {
-    if (loading || sessionLoading || busyElsewhere) return;
-    newSessionTriggerRef.current = trigger instanceof HTMLElement ? trigger : null;
-    setNewSessionPickerOpen(true);
-  }, [busyElsewhere, loading, sessionLoading]);
-
-  const newSessionPickerTrigger = newSessionTriggerRef.current
-    ?.closest<HTMLElement>('[data-chat-new-session-trigger]')
-    ?.dataset.chatNewSessionTrigger ?? null;
-
   const handleNewSessionFromTopbar = useCallback(() => {
-    if (loading || sessionLoading || busyElsewhere) return;
-    const trigger = document.activeElement;
-    // The top-right plus is the fast path: once a workspace is active, keep
-    // the new conversation in that workspace. Global Chat and scheduled
-    // views ask for a workspace or Global Chat destination explicitly.
-    if (agentScope.kind === 'workspace') {
-      void startNewSessionInScope(agentScope, trigger);
-      return;
-    }
-    openNewSessionPicker(trigger);
-  }, [agentScope, busyElsewhere, loading, openNewSessionPicker, sessionLoading, startNewSessionInScope]);
+    void startNewSessionInScope({ kind: 'global' }, document.activeElement);
+  }, [startNewSessionInScope]);
 
-  const handleNewSessionDestination = useCallback(async (targetScope: AgentScope) => {
-    const success = await startNewSessionInScope(targetScope, newSessionTriggerRef.current);
-    if (success) newSessionTriggerRef.current = null;
-    return success;
+  const handleNewSessionFromRail = useCallback((trigger: Element | null) => {
+    void startNewSessionInScope({ kind: 'global' }, trigger);
+  }, [startNewSessionInScope]);
+
+  const handleNewSessionInWorkspace = useCallback((workspaceId: string, trigger: Element | null) => {
+    void startNewSessionInScope({ kind: 'workspace', workspaceId }, trigger);
   }, [startNewSessionInScope]);
 
   useEffect(() => {
@@ -120,12 +96,8 @@ export const useChatPageNewSession = ({
   }, [focusInput, pendingSessionId, sessionLoading]);
 
   return {
-    closeNewSessionPicker,
-    handleNewSessionDestination,
+    handleNewSessionFromRail,
     handleNewSessionFromTopbar,
-    newSessionAnchorRef: newSessionTriggerRef,
-    newSessionPickerOpen,
-    newSessionPickerTrigger,
-    openNewSessionPicker,
+    handleNewSessionInWorkspace,
   };
 };

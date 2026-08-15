@@ -182,6 +182,7 @@ export const ChatPage = ({
   const handleCreateNewSessionInScope = useCallback(async (
     scope: AgentScope,
   ): Promise<AgentNewSessionResult> => {
+    const intentId = ++sessionIntentSequenceRef.current;
     let result: AgentNewSessionResult;
     try {
       result = await window.canvasWorkspace.agent.newSession({ scope });
@@ -192,6 +193,9 @@ export const ChatPage = ({
         error: error instanceof Error ? error.message : String(error),
       };
     }
+    if (intentId !== sessionIntentSequenceRef.current) {
+      return { ok: false, code: 'SESSION_MUTATION_SUPERSEDED' };
+    }
     if (!result.ok) return result;
     if (!result.activeSessionId) {
       return {
@@ -200,7 +204,6 @@ export const ChatPage = ({
       };
     }
 
-    const intentId = ++sessionIntentSequenceRef.current;
     pendingSessionIntentRef.current = intentId;
     setPendingSessionIntent({ id: intentId, sessionId: result.activeSessionId });
     setSelectedSessionKey(`${scopeSessionStoreId(scope)}:${result.activeSessionId}`);
