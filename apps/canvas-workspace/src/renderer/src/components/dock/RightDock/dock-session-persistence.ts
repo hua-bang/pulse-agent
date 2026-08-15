@@ -1,8 +1,7 @@
 import type { DockLinkSession, DockLinkSessions, DockLinkTab, DockSessionPersistence } from './dock-link-sessions';
 
 export const DOCK_SESSION_STORAGE_KEY = 'pulse-canvas.right-dock-link-sessions';
-const SESSION_VERSION = 2;
-const LEGACY_SESSION_VERSION = 1;
+const SESSION_VERSION = 1;
 const MAX_WORKSPACES = 100;
 const MAX_TABS_PER_WORKSPACE = 50;
 
@@ -53,11 +52,7 @@ const parseSession = (value: unknown): DockLinkSession | null => {
 };
 
 const parseSessions = (value: unknown): DockLinkSessions => {
-  if (
-    !isRecord(value)
-    || (value.version !== SESSION_VERSION && value.version !== LEGACY_SESSION_VERSION)
-    || !isRecord(value.sessions)
-  ) return {};
+  if (!isRecord(value) || value.version !== SESSION_VERSION || !isRecord(value.sessions)) return {};
   const sessions: DockLinkSessions = {};
   for (const [workspaceId, rawSession] of Object.entries(value.sessions).slice(0, MAX_WORKSPACES)) {
     if (!workspaceId) continue;

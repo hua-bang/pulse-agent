@@ -11,8 +11,7 @@ Every mounted guest registers a `WebviewRegistration` from
 `src/shared/webview-registration.ts` with all of:
 
 - `surfaceKind`: `dock-browser` or `canvas-node`;
-- `workspaceId` — the renderer mount route for the guest, not Link Tab
-  ownership;
+- `workspaceId`;
 - `nodeId` (the dock tab id for a dock browser);
 - `webContentsId`.
 
@@ -38,24 +37,22 @@ Only a registered `dock-browser` guest receives browser shortcut interception
 from `main/app/webview-shortcuts.ts`. Canvas-node pages keep owning their
 keystrokes.
 
-## Link-open identity and renderer routing
+## Link-open identity and workspace routing
 
 `link:open` carries both the legacy `sourceWebContentsId` and the full source
 registration. The renderer accepts it only when the full identity exactly
 matches a currently mounted guest in `IframeNodeBody/webview-identities.ts`.
 It must not guess the active workspace or resolve a tab from a bare id.
 
-The source registration is used to validate the event and choose browser-style
-focus behavior, but Link Tabs are application-global. The source workspace is
-only a renderer mount/focus hint, even if another workspace became active
+The source workspace owns the new tab even if another workspace became active
 before the event arrived:
 
-- active source workspace: open normally, beside its global dock opener when
-  one exists;
-- inactive source workspace: add to the global tab strip in the background so
-  it cannot steal focus from the visible workspace;
-- switching workspaces: keep the same Link Tab id and WebView pane, changing
-  only the renderer mount route recorded in its registration.
+- active source workspace: open normally, beside its dock opener when one
+  exists;
+- retained source workspace: update its retained session without activating
+  it;
+- persisted-only source workspace: update its persisted dock session, then
+  restore it when that workspace becomes active.
 
 Chromium `background-tab` disposition never steals focus. Foreground opens
 activate the resulting tab and focus that tab, while source-restoring menu
@@ -66,7 +63,7 @@ actions focus the opener only when they do not navigate away from it.
 Restored/cold link tabs mount lazily: only a visible dock page is mounted for
 the first time. Collapsing the dock must not cold-mount hidden pages. Once a
 guest has mounted it remains resident through tab switches, dock collapse,
-and Workspace switches because its Link Tab is global. L3 Memory Saver may later discard an
+and bounded cross-workspace retention. L3 Memory Saver may later discard an
 eligible long-frozen guest: clean reloadable pages restore their freeze-time
 URL and scroll position, while dirty or non-reloadable pages fail closed and
 remain resident.
@@ -88,11 +85,11 @@ all future sweeps. Every capture now goes through the 2 s-bounded
 never-settling-capture regression test. Never await Electron `capturePage`
 unbounded on a possibly-hidden or occluded webContents.
 
-`DockPanes` renders global Link Tabs from one stable list keyed by the
-application-unique tab id. Do not split them into workspace-owned sibling
-lists or move a `<webview>` within its parent; either operation can cause
-Chromium to recreate the guest. Hidden guest navigations write through to the
-global tab record, so the persisted URL never drifts from the live page.
+`DockPanes` renders live and retained pages from one stable, key-sorted list.
+Do not split them into separate sibling lists or move a `<webview>` within its
+parent; either operation can cause Chromium to recreate the guest. Hidden
+guest navigations must write through to retained state so restore does not
+navigate back to a stale URL.
 
 `DockPanes` gates `LinkTabView`'s `mountWebview` prop on that same visibility
 check — the concrete mechanism behind first-mount laziness, so a restored
@@ -102,12 +99,11 @@ tools that activate a tab before reading it must poll for registration via
 
 ## Focus and keyboard ownership
 
-`RightDock/dock-browser-commands.ts` owns mount-workspace-and-tab-qualified
-focus intents. A focus request persists until the exact guest exists; it is
-canceled when a different target becomes active or the dock is hidden. The
-workspace qualifier identifies the current renderer mount route, not Link Tab
-ownership. This is needed for blank-tab address commits and WebView
-registration handoff, where a short-lived timeout races normal mounting.
+`RightDock/dock-browser-commands.ts` owns workspace-and-tab-qualified focus
+intents. A focus request persists until the exact guest exists; it is canceled
+when a different target becomes active or the dock is hidden. This is needed
+for blank-tab address commits and retained guest replacement, where a
+short-lived timeout races normal mounting.
 
 Address, reload, and find commands are also qualified by workspace and tab.
 The active `LinkTabView` ignores commands for another guest. Find keeps a
@@ -153,13 +149,14 @@ titles read as double-printed. Those chat-tab rules also have to restate the
 whole `background` shorthand, because the generic `.right-dock__tab` rules
 they override are more specific and a shorthand resets `background-color`.
 
-Closed web tabs enter one bounded, application-global reopen stack. Reopen must
+Closed web tabs enter the bounded, workspace-scoped reopen stack. Reopen must
 allocate a fresh id if the original id already exists; duplicate React keys or
 guest identities are never permitted.
 
-Dock expansion is persisted with the application-global Link Tab session.
-Switching workspaces therefore does not replace the visible Link Tab strip or
-its expanded/collapsed state.
+Dock expansion is workspace-scoped as well. Switching workspaces saves the
+current workspace's expanded state and restores the target workspace's last
+state from the same persisted dock session; a workspace without saved state
+starts collapsed.
 
 Menus or suggestions above a guest must hold `useGuestInteractionShield`,
 because guest clicks do not reach the host document. The shield observes guests
@@ -177,17 +174,16 @@ menu and can make viewport clamping push it far away from the click.
 
 `src/main/dock/` is the main-process side of right-dock tab support:
 
-- `tab-store.ts` keeps two renderer mirrors: a global Link Tab projection for
-  Global Agent calls and a workspace projection for resource tabs.
-- `tab-actions.ts` sends the main→renderer workspace-scoped
-  `dock:activate-tab` push behind resource activation and page_* targeting;
-  global Link Tab activation first resolves the tab's current renderer mount
-  workspace from the global mirror. The app-level `dock:open-tab` push powers
-  `canvas_open_tab`, and the app-level `dock:open-artifact` push is used by the
-  scheduled memory report — artifact `workspaceId` is a storage scope and may
-  be the `__global_chat__` sentinel. Activation does not navigate away from
-  the current host route (notably `#/chat`); the renderer acknowledges only
-  after the requested tab is observably active.
+- `tab-store.ts` is the renderer tab mirror behind `canvas_list_tabs`.
+- `tab-actions.ts` sends the main→renderer workspace-scoped `dock:activate-tab`
+  push behind `canvas_activate_tab` and the page_* tools' tab targeting, the
+  app-level `dock:open-tab` push behind `canvas_open_tab`, and the app-level
+  `dock:open-artifact` push used by the scheduled memory report — artifact
+  `workspaceId` is a storage scope and may be the `__global_chat__` sentinel.
+  Activation does not call `activateWorkspaceWindow`: the renderer selects the
+  owning dock workspace while preserving the current host route (notably
+  `#/chat`), then replies on `dock:tab-activation-result`. Main reports success
+  only after that acknowledgement; missing/stale tabs time out as failure.
 - `history-store.ts` holds web-tab browsing history behind
   `canvas_search_history`.
 

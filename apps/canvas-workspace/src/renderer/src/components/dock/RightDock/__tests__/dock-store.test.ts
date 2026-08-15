@@ -32,6 +32,7 @@ describe('DockStore', () => {
     const dock = new DockStore();
     expect(dock.getSnapshot()).toEqual({
       tabs: [],
+      retainedLinkTabs: [],
       activeTabId: CHAT_TAB_ID,
       expanded: false,
       chatUnread: false,
@@ -351,21 +352,22 @@ describe('DockStore', () => {
     ]);
   });
 
-  it('reopens a closed global tab after switching workspaces', () => {
+  it('never resurfaces a closed tab in a different workspace', () => {
     const dock = new DockStore();
     dock.setActiveWorkspace('ws1');
     dock.openLink('https://a.example');
     dock.close(dock.getSnapshot().activeTabId);
 
     dock.setActiveWorkspace('ws2');
-    expect(dock.canReopenClosedTab()).toBe(true);
+    expect(dock.canReopenClosedTab()).toBe(false);
     dock.reopenClosedTab();
-    expect(dock.getSnapshot().tabs).toMatchObject([
-      { kind: 'link', url: 'https://a.example' },
-    ]);
+    expect(dock.getSnapshot().tabs).toHaveLength(0);
+
+    dock.setActiveWorkspace('ws1');
+    expect(dock.canReopenClosedTab()).toBe(true);
   });
 
-  it('keeps Link Tabs global across workspace switches', () => {
+  it('retains the left workspace\'s web tabs, and hands them back on return', () => {
     const dock = new DockStore();
     dock.setActiveWorkspace('ws1');
     dock.openLink('https://a.example/');
@@ -373,19 +375,26 @@ describe('DockStore', () => {
 
     dock.setActiveWorkspace('ws2');
     const away = dock.getSnapshot();
-    expect(away.tabs.map((tab) => (tab.kind === 'link' ? tab.url : tab.id))).toEqual([
+    // Out of the strip, but still held so their guests stay mounted.
+    expect(away.tabs.filter((tab) => tab.kind === 'link')).toHaveLength(0);
+    expect(away.retainedLinkTabs).toHaveLength(1);
+    expect(away.retainedLinkTabs[0].workspaceId).toBe('ws1');
+    expect(away.retainedLinkTabs[0].tabs.map((tab) => tab.url)).toEqual([
       'https://a.example/',
       'https://b.example/',
     ]);
 
     dock.setActiveWorkspace('ws1');
-    expect(dock.getSnapshot().tabs.map((tab) => (tab.kind === 'link' ? tab.url : tab.id))).toEqual([
+    const back = dock.getSnapshot();
+    expect(back.tabs.map((tab) => (tab.kind === 'link' ? tab.url : tab.id))).toEqual([
       'https://a.example/',
       'https://b.example/',
     ]);
+    // No longer retained — it is live again.
+    expect(back.retainedLinkTabs).toHaveLength(0);
   });
 
-  it('remembers Link Tab dock expansion globally', () => {
+  it('remembers whether the dock is expanded independently for each workspace', () => {
     const dock = new DockStore();
 
     dock.setActiveWorkspace('ws-a');
@@ -393,28 +402,41 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().expanded).toBe(true);
 
     dock.setActiveWorkspace('ws-b');
+    expect(dock.getSnapshot().expanded).toBe(false);
+
+    dock.openChat();
+    dock.setActiveWorkspace('ws-a');
     expect(dock.getSnapshot().expanded).toBe(true);
 
     dock.collapse();
     dock.setActiveWorkspace('ws-b');
+    expect(dock.getSnapshot().expanded).toBe(true);
+
+    dock.setActiveWorkspace('ws-a');
     expect(dock.getSnapshot().expanded).toBe(false);
   });
 
-  it('restores global dock expansion after restarting the store', () => {
+  it('restores a workspace dock expansion after restarting the store', () => {
     const saved = createSessionPersistence();
     const firstRun = new DockStore(saved.persistence);
     firstRun.setActiveWorkspace('ws-a');
     firstRun.openChat();
 
     const restored = new DockStore(saved.persistence);
+    restored.setActiveWorkspace('ws-a');
     expect(restored.getSnapshot().expanded).toBe(true);
 
     restored.collapse();
     const restoredAgain = new DockStore(saved.persistence);
+    restoredAgain.setActiveWorkspace('ws-a');
     expect(restoredAgain.getSnapshot().expanded).toBe(false);
   });
 
-  it('persists Link Tab navigation independent of the active workspace', () => {
+  it('restores a hidden tab at the URL it navigated to, not the one it left at', () => {
+    // `useEmbeddedBrowser` treats a stored URL that differs from the live
+    // guest as a navigation COMMAND, so a stale record would yank a
+    // background-navigated page back — the state loss retention exists to
+    // prevent.
     const { persistence, read } = createSessionPersistence();
     const dock = new DockStore(persistence);
     dock.setActiveWorkspace('ws1');
@@ -422,16 +444,31 @@ describe('DockStore', () => {
     const tabId = dock.getSnapshot().activeTabId;
 
     dock.setActiveWorkspace('ws2');
-    dock.navigateLink(tabId, 'https://app.example/thread/42');
+    dock.updateRetainedLinkTab('ws1', tabId, { url: 'https://app.example/thread/42' });
 
+    dock.setActiveWorkspace('ws1');
     expect(dock.getSnapshot().tabs[0]).toMatchObject({
       id: tabId,
       url: 'https://app.example/thread/42',
     });
-    expect(read().__global__.tabs[0].url).toBe('https://app.example/thread/42');
+    // …and it survives a restart, not just the switch back.
+    expect(read().ws1.tabs[0].url).toBe('https://app.example/thread/42');
   });
 
-  it('adds links opened by another workspace to the global tab strip', () => {
+  it('ignores a retained update aimed at a workspace that is not retained', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws1');
+    dock.openLink('https://a.example/');
+    const tabId = dock.getSnapshot().activeTabId;
+    const before = dock.getSnapshot();
+
+    // ws1 is LIVE, not retained — this must not touch the visible tab.
+    dock.updateRetainedLinkTab('ws1', tabId, { url: 'https://hijacked.example/' });
+
+    expect(dock.getSnapshot()).toBe(before);
+  });
+
+  it('routes a retained guest new tab back to its owning workspace', () => {
     const dock = new DockStore();
     dock.setActiveWorkspace('ws-a');
     dock.openLink('https://a.example/');
@@ -444,15 +481,25 @@ describe('DockStore', () => {
     dock.openLinkInWorkspace('ws-a', 'https://popup.example/', { openerTabId: openerId });
 
     expect(dock.getSnapshot().activeTerminalWorkspaceId).toBe('ws-b');
+    expect(dock.getSnapshot().tabs).toEqual(visibleTabsBefore);
+    expect(dock.getSnapshot().retainedLinkTabs).toMatchObject([{
+      workspaceId: 'ws-a',
+      activeTabId: openerId,
+      tabs: [
+        { id: openerId, url: 'https://a.example/' },
+        { url: 'https://popup.example/' },
+      ],
+    }]);
+
+    dock.setActiveWorkspace('ws-a');
     expect(dock.getSnapshot().tabs).toMatchObject([
       { id: openerId, url: 'https://a.example/' },
       { url: 'https://popup.example/' },
-      { url: 'https://b.example/' },
     ]);
-    expect(dock.getSnapshot().activeTabId).toBe(visibleTabsBefore[1].id);
+    expect(dock.getSnapshot().activeTabId).toBe(openerId);
   });
 
-  it('persists a link opened by an inactive workspace in the global session', () => {
+  it('persists a link opened by an inactive workspace even without a retained browser tab', () => {
     const saved = createSessionPersistence();
     const dock = new DockStore(saved.persistence);
     dock.setActiveWorkspace('ws-a');
@@ -461,9 +508,7 @@ describe('DockStore', () => {
     dock.openLinkInWorkspace('ws-a', 'https://from-canvas-node.example/');
 
     expect(dock.getSnapshot().activeTerminalWorkspaceId).toBe('ws-b');
-    expect(dock.getSnapshot().tabs).toMatchObject([
-      { kind: 'link', url: 'https://from-canvas-node.example/' },
-    ]);
+    expect(dock.getSnapshot().tabs).toHaveLength(0);
     dock.setActiveWorkspace('ws-a');
     expect(dock.getSnapshot().tabs).toMatchObject([
       { kind: 'link', url: 'https://from-canvas-node.example/' },
@@ -622,7 +667,7 @@ describe('DockStore', () => {
       'before',
     );
 
-    expect(saved.read().__global__.tabs.map((tab) => tab.url)).toEqual([
+    expect(saved.read()['ws-a'].tabs.map((tab) => tab.url)).toEqual([
       'https://c.example',
       'https://a.example',
       'https://b.example',
@@ -777,7 +822,7 @@ describe('DockStore', () => {
       activeTerminalWorkspaceId: 'ws-b',
       activeTabId: CHAT_TAB_ID,
       activeTerminalTabId: undefined,
-      expanded: true,
+      expanded: false,
       terminalOpen: false,
       terminalTabs: [],
       nextTerminalOrdinal: 1,
@@ -796,7 +841,7 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().terminalTabs.map((tab) => tab.title)).toEqual(['Claude', 'Codex']);
   });
 
-  it('restores the global web session and last active tab after restarting', () => {
+  it('restores persisted web tabs and the last active tab per workspace', () => {
     const saved = createSessionPersistence();
     const firstRun = new DockStore(saved.persistence);
     firstRun.setActiveWorkspace('ws-a');
@@ -808,68 +853,21 @@ describe('DockStore', () => {
     firstRun.openLink('https://other.example');
 
     const restored = new DockStore(saved.persistence);
+    restored.setActiveWorkspace('ws-a');
     expect(restored.getSnapshot()).toMatchObject({
-      activeTabId: linkTabId('https://other.example'),
+      activeTabId: linkTabId('https://a.example'),
       expanded: true,
     });
     expect(restored.getSnapshot().tabs).toMatchObject([
       { kind: 'link', url: 'https://a.example' },
       { kind: 'link', url: 'https://b.example' },
+    ]);
+
+    restored.setActiveWorkspace('ws-b');
+    expect(restored.getSnapshot().tabs).toMatchObject([
       { kind: 'link', url: 'https://other.example' },
     ]);
-  });
-
-  it('flattens legacy workspace link sessions into the global session on first write', () => {
-    const saved = createSessionPersistence({
-      'ws-a': {
-        tabs: [{ id: 'link:a', kind: 'link', title: 'A', url: 'https://a.example' }],
-        activeTabId: 'link:a',
-      },
-      'ws-b': {
-        tabs: [
-          { id: 'link:a', kind: 'link', title: 'A again', url: 'https://a.example' },
-          { id: 'link:b', kind: 'link', title: 'B', url: 'https://b.example' },
-        ],
-        activeTabId: 'link:b',
-      },
-    });
-
-    const dock = new DockStore(saved.persistence);
-    expect(dock.getSnapshot().tabs.map((tab) => (tab.kind === 'link' ? tab.url : tab.id))).toEqual([
-      'https://a.example',
-      'https://b.example',
-    ]);
-
-    dock.openLink('https://c.example');
-    expect(saved.read()).toEqual({
-      __global__: expect.objectContaining({
-        tabs: expect.arrayContaining([
-          expect.objectContaining({ url: 'https://a.example' }),
-          expect.objectContaining({ url: 'https://b.example' }),
-          expect.objectContaining({ url: 'https://c.example' }),
-        ]),
-      }),
-    });
-  });
-
-  it('keeps the first migrated active tab when legacy ids collide', () => {
-    const saved = createSessionPersistence({
-      __global__: {
-        tabs: [{ id: 'link:1', kind: 'link', title: 'Global', url: 'https://global.example' }],
-        activeTabId: 'link:1',
-      },
-      'ws-a': {
-        tabs: [{ id: 'link:1', kind: 'link', title: 'Legacy', url: 'https://legacy.example' }],
-        activeTabId: 'link:1',
-      },
-    });
-
-    const dock = new DockStore(saved.persistence);
-    expect(dock.getSnapshot().activeTabId).toBe('link:1');
-    expect(dock.getSnapshot().tabs).toMatchObject([
-      { id: 'link:1', url: 'https://global.example' },
-      { id: 'link:1:2', url: 'https://legacy.example' },
-    ]);
+    expect(restored.getSnapshot().activeTabId).toBe(linkTabId('https://other.example'));
   });
 
   it('keeps the last active web tab when a transient preview becomes active', () => {
@@ -902,7 +900,7 @@ describe('DockStore', () => {
     dock.setTitle(id, 'Example');
     dock.setFavicon(id, 'https://example.com/favicon.ico');
 
-    expect(saved.read().__global__).toEqual({
+    expect(saved.read()['ws-a']).toEqual({
       tabs: [{
         id,
         kind: 'link',
@@ -915,7 +913,7 @@ describe('DockStore', () => {
     });
 
     dock.close(id);
-    expect(saved.read().__global__).toEqual({ tabs: [], activeTabId: undefined, expanded: true });
+    expect(saved.read()['ws-a']).toEqual({ tabs: [], activeTabId: undefined, expanded: true });
   });
 
   it('persists dock expansion without persisting transient non-web previews', () => {
@@ -927,7 +925,7 @@ describe('DockStore', () => {
     dock.openCanvasPreview('ws-b', 'Other workspace');
 
     expect(saved.read()).toEqual({
-      __global__: { tabs: [], activeTabId: undefined, expanded: true },
+      'ws-a': { tabs: [], activeTabId: undefined, expanded: true },
     });
   });
 

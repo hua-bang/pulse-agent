@@ -13,20 +13,20 @@ const createStorage = (initial?: string) => {
 };
 
 describe('dock session persistence', () => {
-  it('round-trips the application-global link session', () => {
+  it('round-trips workspace-scoped link tabs', () => {
     const storage = createStorage();
     const persistence = createDockSessionPersistence(storage);
     persistence.save({
-      __global__: {
+      'ws-a': {
         tabs: [{ id: 'link:1', kind: 'link', title: 'Example', url: 'https://example.com' }],
         activeTabId: 'link:1',
         expanded: true,
       },
     });
 
-    expect(JSON.parse(storage.read() ?? '')).toMatchObject({ version: 2 });
+    expect(JSON.parse(storage.read() ?? '')).toMatchObject({ version: 1 });
     expect(persistence.load()).toEqual({
-      __global__: {
+      'ws-a': {
         tabs: [{ id: 'link:1', kind: 'link', title: 'Example', url: 'https://example.com' }],
         activeTabId: 'link:1',
         expanded: true,
@@ -53,27 +53,6 @@ describe('dock session persistence', () => {
       'ws-a': {
         tabs: [{ id: 'link:ok', kind: 'link', title: 'Safe', url: 'https://example.com' }],
         activeTabId: undefined,
-      },
-    });
-  });
-
-  it('still reads version-1 workspace sessions for the global migration', () => {
-    const storage = createStorage(JSON.stringify({
-      version: 1,
-      sessions: {
-        'ws-a': {
-          tabs: [{ id: 'link:legacy', kind: 'link', title: 'Legacy', url: 'https://legacy.example' }],
-          activeTabId: 'link:legacy',
-          expanded: true,
-        },
-      },
-    }));
-
-    expect(createDockSessionPersistence(storage).load()).toEqual({
-      'ws-a': {
-        tabs: [{ id: 'link:legacy', kind: 'link', title: 'Legacy', url: 'https://legacy.example' }],
-        activeTabId: 'link:legacy',
-        expanded: true,
       },
     });
   });

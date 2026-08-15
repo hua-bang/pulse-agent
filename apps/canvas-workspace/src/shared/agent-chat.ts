@@ -365,18 +365,13 @@ export interface AgentContextTabRef {
   id: string;
   kind: 'link' | 'node-detail' | 'artifact' | 'canvas' | 'terminal';
   title: string;
-  /**
-   * Ownership scope. Link tabs are application-global; resource tabs remain
-   * workspace-scoped. Optional for transcript compatibility with older refs.
-   */
-  scope?: 'global' | 'workspace';
   /** For kind === 'link': the current page URL. */
   url?: string;
-  /** Owning workspace for workspace-scoped resource reads. Link tabs omit
-   *  this field; their dock mount route is carried separately below. */
+  /** Owning workspace for node-detail / artifact / terminal reads, and the
+   *  registry workspaceId used to read a link tab's live webview. */
   workspaceId?: string;
-  /** Renderer workspace currently mounting the tab. It is a routing detail
-   *  and can differ from the tab's ownership scope. */
+  /** Workspace whose dock session owns this tab. It can differ from the
+   *  content workspace for canvas, artifact, and node-detail previews. */
   dockWorkspaceId?: string;
   /** For kind === 'node-detail': the referenced canvas node id. */
   nodeId?: string;

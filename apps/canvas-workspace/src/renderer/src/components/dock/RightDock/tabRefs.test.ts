@@ -4,6 +4,7 @@ import type { DockState } from './dock-store';
 
 const baseState = (overrides: Partial<DockState>): DockState => ({
   tabs: [],
+  retainedLinkTabs: [],
   activeTabId: 'chat',
   expanded: true,
   chatUnread: false,
@@ -41,7 +42,7 @@ describe('buildDockTabRefs', () => {
     const refs = buildDockTabRefs(state, 'ws-1');
     // Blank link tab (no url) is skipped — nothing to read yet.
     expect(refs.map((r) => r.id)).toEqual(['link:1', 'art', 'nd', 'canvas']);
-    expect(refs[0]).toMatchObject({ kind: 'link', scope: 'global', url: 'https://x.dev', dockWorkspaceId: 'ws-1', isActive: false, isVisible: false, isSplit: false });
+    expect(refs[0]).toMatchObject({ kind: 'link', url: 'https://x.dev', workspaceId: 'ws-1', dockWorkspaceId: 'ws-1', isActive: false, isVisible: false, isSplit: false });
     expect(refs[1]).toMatchObject({ kind: 'artifact', artifactId: 'a1', workspaceId: 'ws-2' });
     expect(refs[2]).toMatchObject({ kind: 'node-detail', nodeId: 'node-9', workspaceId: 'ws-2' });
     expect(refs[3]).toEqual({

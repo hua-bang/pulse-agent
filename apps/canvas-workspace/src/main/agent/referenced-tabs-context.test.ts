@@ -20,19 +20,18 @@ describe('formatReferencedTabsBlock', () => {
     );
 
     expect(block).toContain('Referenced Tabs — 5 tabs');
-    expect(block).toContain('canvas_read_tab({ kind: "link", tabId: "link:1" })');
+    expect(block).toContain('canvas_read_tab({ kind: "link", tabId: "link:1", workspaceId: "ws-1" })');
     expect(block).toContain('canvas_read_tab({ kind: "artifact", artifactId: "a1", workspaceId: "ws-1" })');
     expect(block).toContain('canvas_read_tab({ kind: "terminal", sessionId: "workspace-terminal:ws-1" })');
     expect(block).toContain('workspace_node_get({ nodeId: "node-9", workspaceId: "ws-1" })');
     expect(block).toContain('canvas_read_context({ workspaceId: "ws-2" })');
   });
 
-  it('keeps a link tab global when its legacy ref omits workspaceId', () => {
+  it('falls back to the current workspace id when a tab omits its own', () => {
     const block = formatReferencedTabsBlock(
       [{ id: 'link:1', kind: 'link', title: 'Docs', url: 'https://x.dev' }],
       'ws-current',
     );
-    expect(block).toContain('canvas_read_tab({ kind: "link", tabId: "link:1" })');
-    expect(block).not.toContain('workspaceId: "ws-current"');
+    expect(block).toContain('workspaceId: "ws-current"');
   });
 });

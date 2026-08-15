@@ -41,7 +41,7 @@ export const useCanvasPreviewEditorController = ({
   const editorRegionRef = useRef<HTMLDivElement>(null);
   const [snapshot, setSnapshot] = useState<CanvasPreviewSnapshot>(EMPTY_CANVAS_PREVIEW_SNAPSHOT);
   // Store the workspace that requested editing instead of a bare boolean so
-  // a canvas preview changing resources drops editability synchronously.
+  // a retained Tab changing resources drops editability synchronously.
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
   const editing = editingAllowed && editingWorkspaceId === workspaceId;
   // Visibility keeps embedded node lifecycles live; keyboard ownership is

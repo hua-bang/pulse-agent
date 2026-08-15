@@ -152,7 +152,7 @@ route may show an explicit Edit action; canvas tabs in the workspace dock,
 scheduled-task chat, Nodes, Skills, and plugin routes remain read-only. The
 capability is derived from the current route and passed through App →
 RightDock → DockPanes → CanvasPreview. It is never persisted on the tab, so a
-canvas tab drops back to preview synchronously when its host changes and a
+retained tab drops back to preview synchronously when its host changes and a
 later return to AI Chat does not revive the old edit session.
 
 Edit mode mounts the canonical `Canvas` implementation rather than teaching
@@ -188,17 +188,15 @@ Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 ### Explicit Chat ↔ dock-tab context
 
 A content tab being visible beside Chat is never implicit model context. The
-user must add it through `@Tab` or the tab's Ask AI action. Link Tabs are
-application-global: their refs omit `workspaceId` and carry only the current
-renderer `dockWorkspaceId` needed for mounting/activation. Artifact,
-node-detail, canvas-preview, and terminal tabs remain Workspace-owned and keep
-their explicit `workspaceId`. The dock publishes both the current workspace
-resource projection and the global Link Tab projection. A qualified
-resource-tab reference may explicitly move the dock to that tab's owning
+user must add it through `@Tab` or the tab's Ask AI action. Full-page Chat
+initially binds the dock to the visible conversation's workspace scope, so its
+Tabs are published under the same workspace that the Agent tools query. Global
+and scheduled conversations fall back to the active Canvas workspace. A
+qualified tab reference may explicitly move the dock to that tab's owning
 workspace without changing the conversation scope; the next conversation
-switch binds the resource projection to the newly selected conversation again.
-Candidates are built from the dock's actual `activeTerminalWorkspaceId`,
-including after that explicit override.
+switch binds it to the newly selected conversation again. Candidates are built
+from the dock's actual `activeTerminalWorkspaceId`, including after that
+explicit override.
 
 Every node / DOM-selection / whole-tab dock-to-Chat action awaits a
 `ChatDeliveryReceipt` and reports delivered, queued, unavailable, or failed
@@ -218,12 +216,10 @@ hidden dock composer. Whole-tab actions reuse `AgentContextTabRef` and the
 shared `TabChatAction` rather than creating a second insertion path.
 
 Tab mention markers retain `dockWorkspaceId` plus kind-specific resource
-identity. Transcript chips switch to the owning workspace only for
-Workspace-owned resources; a cited global web tab activates through its
-current renderer mount route. If a cited web tab was closed, the dock
-deterministically reopens its persisted URL and returns a distinct `reopened`
-receipt. Legacy or unsupported references remain visibly stale rather than
-falling back to whichever tab is active.
+identity. Transcript chips switch to the owning workspace before activation;
+if a cited web tab was closed, the dock deterministically reopens its persisted
+URL and returns a distinct `reopened` receipt. Legacy or unsupported references
+remain visibly stale rather than falling back to whichever tab is active.
 Activation is acknowledged by the dock, so Chat shows progress/success instead
 of failing silently. The composer also states its canvas capability:
 global scope can edit a canvas only through explicit-target tools carrying a

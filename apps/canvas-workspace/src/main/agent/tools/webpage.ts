@@ -1,8 +1,7 @@
 import { z } from 'zod';
-import { getWebContentsForDockTab, getWebContentsForNode } from '../../webview/registry';
+import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
 import { activateWorkspaceWindow } from '../../app/window-manager';
-import { activateGlobalDockTab } from '../../dock/tab-actions';
 import { readDOMElement } from '../../webview/reader';
 import {
   getCanvasCapabilityRuntime,
@@ -18,16 +17,10 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
       description:
         'Read one DOM element inside a canvas iframe/webview node or right-dock web tab using a CSS selector. ' +
         'Use this when the user picked a DOM region and the current request is about that specific region. ' +
-        'The selector usually comes from the domSelections block in the request context. ' +
-        'For a global Link Tab, omit workspaceId; iframe nodes require workspaceId in Global chat. ' +
-        'Returns text, capped HTML, rect, structured descendant tree, controls, title, and URL.',
+        'The selector usually comes from the domSelections block in the request context. Returns text, capped HTML, rect, structured descendant tree, controls, title, and URL.',
       inputSchema: z.object({
         nodeId: z.string().describe('ID of the iframe canvas node or right-dock web tab.'),
         selector: z.string().describe('CSS selector for the selected DOM element.'),
-        workspaceId: z
-          .string()
-          .optional()
-          .describe('Workspace target for an iframe node; omit for a global Link Tab.'),
         maxChars: z
           .number()
           .int()
@@ -37,24 +30,19 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
       }),
       execute: async (input) => {
         const nodeId = input.nodeId as string;
-        const targetWorkspaceId = ((input.workspaceId as string | undefined) ?? '').trim() || workspaceId;
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
         const selector = input.selector as string;
         const maxChars = (input.maxChars as number) ?? 12_000;
         const wc = await ensureOperable({
-          lookup: () => targetWorkspaceId
-            ? getWebContentsForNode(targetWorkspaceId, nodeId)
-            : getWebContentsForDockTab(nodeId),
-          activate: () => targetWorkspaceId
-            ? activateWorkspaceWindow(targetWorkspaceId)
-            : activateGlobalDockTab(nodeId).then((ok) => ({ ok })),
+          lookup: () => getWebContentsForNode(targetWorkspaceId, nodeId),
+          activate: () => activateWorkspaceWindow(targetWorkspaceId),
           mode: 'read',
         });
         if (!wc) {
-          const scope = targetWorkspaceId ? `workspace ${targetWorkspaceId}` : 'global';
           return JSON.stringify({
             ok: false,
             error:
-              `No active webview for node ${nodeId} in ${scope} ` +
+              `No active webview for node ${nodeId} in workspace ${targetWorkspaceId} ` +
               `(auto-activation attempted). Make sure the iframe node or web tab still exists and is loaded.`,
           });
         }

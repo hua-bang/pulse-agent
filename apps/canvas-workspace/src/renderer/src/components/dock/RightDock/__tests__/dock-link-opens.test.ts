@@ -25,16 +25,14 @@ afterEach(() => {
 });
 
 describe('routeDockLinkOpen', () => {
-  it('adds an inactive canvas-node link to the global tab strip without switching workspace', () => {
+  it('routes an inactive canvas-node link to its owning workspace', () => {
     const store = new DockStore();
     store.setActiveWorkspace('ws-a');
     store.setActiveWorkspace('ws-b');
     cleanups.push(registerMountedWebviewIdentity(request().source!));
 
     expect(routeDockLinkOpen(store, request())).toBe(true);
-    expect(store.getSnapshot().tabs).toMatchObject([
-      { kind: 'link', url: 'https://opened.example/' },
-    ]);
+    expect(store.getSnapshot().tabs).toHaveLength(0);
 
     store.setActiveWorkspace('ws-a');
     expect(store.getSnapshot().tabs).toMatchObject([

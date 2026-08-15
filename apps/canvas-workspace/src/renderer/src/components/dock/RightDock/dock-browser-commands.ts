@@ -21,7 +21,7 @@ export const FIND_IN_DOCK_TAB_EVENT = 'canvas:find-in-dock-tab';
  * Window event asking a web tab to move keyboard focus into its page.
  * Raised only for a user browsing action (tab click/shortcut/menu/address
  * commit), never for an agent-driven activation. The workspace-qualified
- * detail identifies the current renderer mount route for the global Link Tab.
+ * detail prevents a retained same-id tab from claiming it.
  */
 export const FOCUS_DOCK_PAGE_EVENT = 'canvas:focus-dock-page';
 

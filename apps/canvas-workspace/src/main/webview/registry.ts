@@ -97,7 +97,7 @@ function unregister(k: WebviewRegistrationKey, expectedWebContentsId?: number): 
 }
 
 function lookup(k: WebviewRegistrationKey): number | undefined {
-  return (k.workspaceId ? registry.getByNode(k) : [...registry.values()].reverse().find((candidate) => candidate.surfaceKind === 'dock-browser' && candidate.nodeId === k.nodeId))?.webContentsId;
+  return registry.getByNode(k)?.webContentsId;
 }
 
 /** Full renderer-declared identity for a guest, queried in O(1) by Electron id. */
@@ -138,10 +138,10 @@ export function getWebContentsForNode(
   if (id === undefined) return null;
   const wc = allWebContents.fromId(id);
   if (wc && !wc.isDestroyed()) return wc;
-  return unregister(workspaceId ? { workspaceId, nodeId } : [...registry.values()].reverse().find((candidate) => candidate.webContentsId === id) ?? { workspaceId, nodeId }, id) ? getWebContentsForNode(workspaceId, nodeId) : null;
+  return unregister({ workspaceId, nodeId }, id)
+    ? getWebContentsForNode(workspaceId, nodeId)
+    : null;
 }
-
-export const getWebContentsForDockTab = (tabId: string) => getWebContentsForNode('', tabId);
 
 /**
  * Enumerate every registered, still-live webview with its node identity —

@@ -156,7 +156,7 @@ The following intent groups include tools that may be loaded directly or discove
 - **Chat session history (会话检索/总结)**: \`session_search\` (keyword search over past chat sessions — current + archived, every workspace + global chat), \`session_summary\` (compact transcript excerpts for one session or the last N days so you can write the summary). Use these when the user asks "我们之前聊过 X 吗 / 找一下上次关于 X 的对话 / 总结一下今天的会话"; they search chat history, not canvas nodes. When you mention a found session in your reply, copy that result's \`ref\` marker (\`@[session:...|label]\`) verbatim into the sentence — it renders as a clickable link that jumps straight to that conversation. When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>|<label>]\`, they are referencing that past chat session — call \`session_summary\` with that exact sessionId to read it before answering.
 - **Webpage scraping**: \`canvas_read_webpage\` (DOM / a11y / screenshot from an open iframe node).
 - UI: \`page_*\` / \`canvas_host_eval\`.
-- **Right-dock tabs**: \`canvas_list_tabs\` discovers link, artifact, node-detail, canvas-preview, and terminal tabs; \`canvas_activate_tab\` brings one to the front; \`canvas_execute_terminal_tab\` runs a command in an open Dock terminal. Link Tabs are application-global: list/read/activate them without workspaceId, and use \`page_*\` controls with their tab id. Artifact, node-detail, canvas-preview, and terminal tabs remain workspace-scoped and require their explicit workspaceId. Continue to use the resource-specific tools for artifact, node, and canvas content changes.
+- **Right-dock tabs**: \`canvas_list_tabs\` discovers link, artifact, node-detail, canvas-preview, and terminal tabs; \`canvas_activate_tab\` brings one to the front; \`canvas_execute_terminal_tab\` runs a command in an open Dock terminal. Continue to use the resource-specific tools for page, artifact, node, and canvas content changes.
 
 **When to open a tab (strict) — \`canvas_open_tab\`:** opening a tab is a **user-visible UI action** — it pops a new tab into the user's dock and spawns a live webview. Do NOT open a tab just to read or research a URL. To get content from a web page, use \`tavily_extract\` (fetch a specific URL) or \`tavily\` (search), and \`canvas_read_webpage\` / \`canvas_read_tab\` for pages already open on the canvas or dock. Only call \`canvas_open_tab\` when the user **explicitly** asks to open / show / pull up a page in their dock, or when they want to interact with a live page (click / fill / navigate via \`page_*\`) that isn't open yet. When in doubt, fetch silently instead of opening a tab.
 
@@ -736,7 +736,7 @@ export class CanvasAgent {
         + memorySection
       : GLOBAL_AGENT_SYSTEM_PROMPT
         + formatSelectionFocusBlock(requestContext?.selectedNodes ?? [], { requireWorkspaceId: true })
-        + formatDomSelectionFocusBlock(requestContext?.domSelections ?? [], { requireWorkspaceId: true, allowGlobalLinkTab: true })
+        + formatDomSelectionFocusBlock(requestContext?.domSelections ?? [], { requireWorkspaceId: true })
         + formatScopeContextBlock(requestContext?.tags ?? [], requestContext?.canvases ?? [])
         + formatReferencedTabsBlock(requestContext?.tabs ?? [])
         + formatMentionedCanvasesSection(mentionedCanvases)
