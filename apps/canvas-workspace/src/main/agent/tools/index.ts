@@ -1,4 +1,5 @@
 import { getRegisteredCanvasToolFactories } from '../../../plugins/main';
+import { getActiveDockWorkspaceId } from '../../dock/tab-store';
 import { z } from 'zod';
 import type { CanvasTool } from './types';
 import { createNodeTools } from './nodes';
@@ -56,28 +57,68 @@ const explicitWorkspaceIdSchema = z
   .min(1)
   .describe('Target workspace ID. Required in global chat; obtain it from canvas_list_workspaces or an explicit workspace mention.');
 
-/**
- * Turn a workspace-bound tool into a Global-chat tool without binding it to
- * the empty-string workspace. The target tool set is resolved lazily from the
- * explicit workspaceId supplied by the model, so the same public tool can
- * safely operate on any selected canvas.
- */
-function requireExplicitWorkspaceId(
-  tool: CanvasTool,
-  targetToolSets: Map<string, Record<string, CanvasTool>>,
-): CanvasTool | undefined {
+const activeDockWorkspaceIdSchema = z
+  .string()
+  .min(1)
+  .optional()
+  .describe('Target workspace ID. Omit to use the workspace currently hosting the visible Dock.');
+
+/** Allow Global chat to operate the visible Dock without turning its
+ * conversation into a workspace conversation. An explicit workspace remains
+ * available when the user intentionally targets another isolated Dock. */
+function requireWorkspaceIdOrActiveDock(tool: CanvasTool): CanvasTool | undefined {
   if (!(tool.inputSchema instanceof z.ZodObject)) return undefined;
 
   return {
     ...tool,
     description:
-      `${tool.description}\n\nGlobal chat note: pass an explicit workspaceId for the canvas this operation should affect. ` +
-      'Do not guess a workspaceId; resolve it with canvas_list_workspaces or use the user-provided workspace mention.',
-    inputSchema: tool.inputSchema.extend({ workspaceId: explicitWorkspaceIdSchema }),
+      `${tool.description}\n\nGlobal chat note: workspaceId is optional for the visible Dock; ` +
+      'if omitted, the current Dock workspace is used. Pass it explicitly to target another workspace.',
+    inputSchema: tool.inputSchema.extend({ workspaceId: activeDockWorkspaceIdSchema }),
     execute: async (input, ctx) => {
-      const workspaceId = typeof input?.workspaceId === 'string' ? input.workspaceId.trim() : '';
+      const explicitWorkspaceId = typeof input?.workspaceId === 'string' ? input.workspaceId.trim() : '';
+      const workspaceId = explicitWorkspaceId || getActiveDockWorkspaceId();
       if (!workspaceId) {
-        return 'Error: workspaceId is required in global chat. Ask the user which workspace to affect, or use canvas_list_workspaces to identify it.';
+        return 'Error: no active Dock workspace is available. Select a Workspace or pass workspaceId explicitly.';
+      }
+      return tool.execute({ ...input, workspaceId }, ctx);
+    },
+  };
+}
+
+/**
+ * Turn a workspace-bound tool into a Global-chat tool without binding it to
+ * the empty-string workspace. The target tool set is resolved lazily from the
+ * selected workspace (or, for interactive browser tools, the visible Dock
+ * route), so the same public tool can safely operate on an isolated target.
+ */
+function requireExplicitWorkspaceId(
+  tool: CanvasTool,
+  targetToolSets: Map<string, Record<string, CanvasTool>>,
+  options: { allowActiveDock?: boolean } = {},
+): CanvasTool | undefined {
+  if (!(tool.inputSchema instanceof z.ZodObject)) return undefined;
+  const allowActiveDock = options.allowActiveDock === true;
+
+  return {
+    ...tool,
+    description:
+      `${tool.description}\n\nGlobal chat note: ${allowActiveDock
+        ? 'workspaceId is optional for the visible Dock; if omitted, the current Dock workspace is used. '
+        : 'pass an explicit workspaceId for the canvas this operation should affect. '
+      }` + (allowActiveDock
+        ? 'Pass workspaceId explicitly to target another workspace.'
+        : 'Do not guess a workspaceId; resolve it with canvas_list_workspaces or use the user-provided workspace mention.'),
+    inputSchema: tool.inputSchema.extend({
+      workspaceId: allowActiveDock ? activeDockWorkspaceIdSchema : explicitWorkspaceIdSchema,
+    }),
+    execute: async (input, ctx) => {
+      const explicitWorkspaceId = typeof input?.workspaceId === 'string' ? input.workspaceId.trim() : '';
+      const workspaceId = explicitWorkspaceId || (allowActiveDock ? getActiveDockWorkspaceId() : '');
+      if (!workspaceId) {
+        return allowActiveDock
+          ? 'Error: no active Dock workspace is available. Select a Workspace or pass workspaceId explicitly.'
+          : 'Error: workspaceId is required in global chat. Ask the user which workspace to affect, or use canvas_list_workspaces to identify it.';
       }
 
       let targetTools = targetToolSets.get(workspaceId);
@@ -97,17 +138,20 @@ function requireExplicitWorkspaceId(
 export interface GlobalCanvasToolsOptions {
   /**
    * Interactive Global chat may opt into workspace-bound operations, but
-   * every such tool still requires an explicit workspaceId. Keep this false
-   * for scheduled/headless runs, which must remain read-only for canvas state.
+   * canvas/node/resource operations still require an explicit workspaceId.
+   * Browser tab/page operations may additionally use the visible Dock route.
+   * Keep this false for scheduled/headless runs, which must retain the narrow
+   * explicit-target surface.
    */
   allowWorkspaceTargetedTools?: boolean;
 }
 
 /**
- * Tool set for global chat (no current workspace). Read/search canvas tools
- * are wrapped to require an explicit workspaceId; the cross-workspace knowledge
- * index is eager. Interactive Global chat can additionally opt into the full
- * workspace tool surface through explicit-target wrappers. The default stays
+ * Tool set for global chat (no current canvas workspace). Read/search canvas
+ * tools are wrapped to require an explicit workspaceId, while interactive
+ * browser tools can route to the visible Dock Workspace. The cross-workspace
+ * knowledge index is eager. Interactive Global chat can additionally opt into
+ * the full workspace tool surface through target wrappers. The default stays
  * without target-workspace mutations so scheduled/headless callers cannot
  * inherit those mutations.
  */
@@ -122,14 +166,23 @@ export function createGlobalCanvasTools(
   const tabTools = createTabTools('');
   const webpageTools = createWebpageTools('');
 
+  const targetToolSets = new Map<string, Record<string, CanvasTool>>();
   const tools: Record<string, CanvasTool> = {
     canvas_ask_user: nodeTools.canvas_ask_user,
     canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
     canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
-    canvas_read_dom_selection: requireWorkspaceId(webpageTools.canvas_read_dom_selection),
-    canvas_list_tabs: requireWorkspaceId(tabTools.canvas_list_tabs),
-    canvas_activate_tab: requireWorkspaceId(tabTools.canvas_activate_tab),
-    canvas_read_tab: requireWorkspaceId(tabTools.canvas_read_tab),
+    canvas_read_dom_selection: options.allowWorkspaceTargetedTools
+      ? requireWorkspaceIdOrActiveDock(webpageTools.canvas_read_dom_selection)!
+      : requireWorkspaceId(webpageTools.canvas_read_dom_selection),
+    canvas_list_tabs: options.allowWorkspaceTargetedTools
+      ? requireWorkspaceIdOrActiveDock(tabTools.canvas_list_tabs)!
+      : requireWorkspaceId(tabTools.canvas_list_tabs),
+    canvas_activate_tab: options.allowWorkspaceTargetedTools
+      ? requireWorkspaceIdOrActiveDock(tabTools.canvas_activate_tab)!
+      : requireWorkspaceId(tabTools.canvas_activate_tab),
+    canvas_read_tab: options.allowWorkspaceTargetedTools
+      ? requireWorkspaceIdOrActiveDock(tabTools.canvas_read_tab)!
+      : requireWorkspaceId(tabTools.canvas_read_tab),
     // Dock-tab open + browsing-history search work without an ambient
     // workspace (the dock and history are app-level), so they stay unwrapped.
     canvas_open_tab: tabTools.canvas_open_tab,
@@ -161,16 +214,18 @@ export function createGlobalCanvasTools(
   };
 
   if (options.allowWorkspaceTargetedTools) {
-    const targetToolSets = new Map<string, Record<string, CanvasTool>>();
     const directGlobalToolNames = new Set(Object.keys(tools));
     const workspaceToolPrototypes = createCanvasTools('');
 
     // Keep app-level/cross-workspace tools from being shadowed. Every other
-    // tool is made targetable and receives a required workspaceId in its
-    // Global schema, including plugin-contributed tools.
+    // tool is made targetable and receives a workspaceId in its Global schema;
+    // browser reads/controls may resolve it from the visible Dock route,
+    // including plugin-contributed page tools.
     for (const [name, tool] of Object.entries(workspaceToolPrototypes)) {
       if (directGlobalToolNames.has(name)) continue;
-      const targeted = requireExplicitWorkspaceId(tool, targetToolSets);
+      const targeted = name === 'canvas_read_webpage' || name.startsWith('page_')
+        ? requireExplicitWorkspaceId(tool, targetToolSets, { allowActiveDock: true })
+        : requireExplicitWorkspaceId(tool, targetToolSets);
       if (targeted) tools[name] = targeted;
     }
   }

@@ -6,8 +6,9 @@ import type { CanvasTool, CanvasToolExecutionContext } from './tools';
 
 /**
  * Built-ins available in interactive global chat. Global chat has no ambient
- * workspace, but file paths and image generation are independently targetable
- * capabilities; Canvas mutations use explicit workspaceId-bearing tools.
+ * Canvas workspace; browser tab/page tools may use the visible Dock route,
+ * while file paths and image generation are independently targetable
+ * capabilities and Canvas mutations use explicit workspaceId-bearing tools.
  *
  * Scheduled runs deliberately use the narrower list below. In particular,
  * they do not inherit filesystem writes, image generation, or targeted Canvas

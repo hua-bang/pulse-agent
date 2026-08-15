@@ -58,6 +58,14 @@ Chromium `background-tab` disposition never steals focus. Foreground opens
 activate the resulting tab and focus that tab, while source-restoring menu
 actions focus the opener only when they do not navigate away from it.
 
+Right-dock link-tab sessions are isolated per Workspace. The main-process tab
+mirror is keyed by `workspaceId`, and the renderer keeps each Workspace's link
+session, retained guests, persisted tabs, and reopen stack separate. Global
+Chat does not create a shared tab pool: its interactive browser tools use the
+latest visible Dock Workspace as an ambient route when `workspaceId` is
+omitted, while an explicit `workspaceId` targets that Workspace's own tab
+session. A tab list is never assembled by merging Workspaces.
+
 ## Guest lifetime
 
 Restored/cold link tabs mount lazily: only a visible dock page is mounted for
@@ -186,6 +194,12 @@ menu and can make viewport clamping push it far away from the click.
   only after that acknowledgement; missing/stale tabs time out as failure.
 - `history-store.ts` holds web-tab browsing history behind
   `canvas_search_history`.
+
+`tab-store.ts` also records the latest Dock Workspace published by the visible
+renderer. Interactive Global browser tools use that value only as a default
+route for the current Dock; it is not a storage scope and does not relax the
+workspace-qualified registry lookup. Canvas/node/resource operations in Global
+Chat continue to require an explicit `workspaceId`.
 
 `RightDock/tabRefs.ts` is the renderer-side tab-discovery SSOT: it covers
 link, artifact, node-detail, canvas-preview, and terminal tabs plus

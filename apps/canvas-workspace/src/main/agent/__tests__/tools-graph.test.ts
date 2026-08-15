@@ -8,13 +8,15 @@ import { tmpdir } from 'os';
 // reads/writes under the per-test sandbox rather than the developer's real
 // ~/.pulse-coder/canvas tree. `vi.hoisted` is the only safe way to share state
 // with `vi.mock` factories, which Vitest hoists above the rest of the file.
-const { sandboxHome } = vi.hoisted(() => {
+const { sandboxHome, activeDockWorkspaceId, dockTabsByWorkspace } = vi.hoisted(() => {
   // `vi.hoisted` runs above all imports, so we cannot use `os.tmpdir()` /
   // `path.join` here. Build the path with environment + string concat instead.
   const base = process.env.TMPDIR || process.env.TEMP || '/tmp';
   const trailing = base.endsWith('/') ? '' : '/';
   return {
     sandboxHome: `${base}${trailing}canvas-tools-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    activeDockWorkspaceId: { value: '' },
+    dockTabsByWorkspace: { value: new Map<string, Array<Record<string, unknown>>>() },
   };
 });
 
@@ -60,6 +62,10 @@ vi.mock('pulse-coder-engine', () => ({
 vi.mock('../../../plugins/main', () => ({
   getRegisteredCanvasToolFactories: () => new Map(),
 }));
+vi.mock('../../dock/tab-store', () => ({
+  getActiveDockWorkspaceId: () => activeDockWorkspaceId.value,
+  getDockTabs: (workspaceId: string) => dockTabsByWorkspace.value.get(workspaceId) ?? [],
+}));
 
 import { createCanvasTools, createGlobalCanvasTools } from '../tools';
 import {
@@ -95,6 +101,8 @@ async function setupCanvas(data: Partial<CanvasSaveData> = {}): Promise<CanvasSa
 }
 
 beforeEach(async () => {
+  activeDockWorkspaceId.value = '';
+  dockTabsByWorkspace.value.clear();
   // Each test gets a fresh sandbox subdirectory so default-rooted helpers
   // (which use `homedir()/.pulse-coder/canvas`) don't see leftover state.
   await fs.mkdir(join(sandboxHome, '.pulse-coder', 'canvas'), { recursive: true });
@@ -390,6 +398,46 @@ describe('createGlobalCanvasTools', () => {
 
     const { data } = await readCanvasFull(wsId);
     expect(data?.nodes?.find((node) => node.id === 'n-text')?.data?.content).toBe('updated from global chat');
+  });
+
+  it('uses the current Dock workspace for browser reads without weakening canvas write targeting', async () => {
+    const tools = createGlobalCanvasTools({ allowWorkspaceTargetedTools: true });
+    activeDockWorkspaceId.value = wsId;
+    const currentTabs = [{
+      id: 'link:current',
+      kind: 'link',
+      title: 'Current page',
+      url: 'https://example.com/current',
+      workspaceId: wsId,
+    }];
+    dockTabsByWorkspace.value.set(wsId, currentTabs);
+    dockTabsByWorkspace.value.set('ws-other', [{
+      id: 'link:other',
+      kind: 'link',
+      title: 'Other page',
+      url: 'https://example.com/other',
+      workspaceId: 'ws-other',
+    }]);
+
+    const listed = JSON.parse(await tools.canvas_list_tabs.execute({}));
+    expect(listed).toMatchObject({
+      count: 1,
+      tabs: [expect.objectContaining({ id: 'link:current', workspaceId: wsId })],
+    });
+    const explicitlyListed = JSON.parse(await tools.canvas_list_tabs.execute({ workspaceId: 'ws-other' }));
+    expect(explicitlyListed).toMatchObject({
+      count: 1,
+      tabs: [expect.objectContaining({ id: 'link:other', workspaceId: 'ws-other' })],
+    });
+    expect(tools.canvas_read_webpage.inputSchema.parse({ nodeId: 'link:current' })).toEqual({
+      nodeId: 'link:current',
+    });
+
+    const missingWriteTarget = await tools.canvas_update_node.execute({
+      nodeId: 'n-text',
+      content: 'must still name a workspace',
+    });
+    expect(missingWriteTarget).toContain('workspaceId is required in global chat');
   });
 });
 
