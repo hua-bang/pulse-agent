@@ -18,9 +18,9 @@ function canvasGenerateImageResult(overrides: Record<string, unknown> = {}): str
 }
 
 describe('extractGeneratedImageResult', () => {
-  it('relays the canvas_generate_image payload (known tool)', () => {
+  it('relays the image_generate payload (known tool)', () => {
     const image = extractGeneratedImageResult({
-      name: 'canvas_generate_image',
+      name: 'image_generate',
       result: canvasGenerateImageResult(),
     });
     expect(image).toEqual({
@@ -29,9 +29,9 @@ describe('extractGeneratedImageResult', () => {
     });
   });
 
-  it('relays a canvas_screenshot result so the bot sends the capture', () => {
+  it('relays a screen_capture result so the bot sends the capture', () => {
     const image = extractGeneratedImageResult({
-      name: 'canvas_screenshot',
+      name: 'screen_capture',
       result: JSON.stringify({
         ok: true,
         type: 'screenshot',
@@ -47,9 +47,9 @@ describe('extractGeneratedImageResult', () => {
     });
   });
 
-  it('relays canvas_generate_mindmap_image', () => {
+  it('relays image_generate_from_mindmap', () => {
     const image = extractGeneratedImageResult({
-      name: 'canvas_generate_mindmap_image',
+      name: 'image_generate_from_mindmap',
       result: canvasGenerateImageResult({ type: 'generated_image' }),
     });
     expect(image?.outputPath).toBe('/tmp/canvas/ws1/images/generated-1.png');
@@ -59,7 +59,7 @@ describe('extractGeneratedImageResult', () => {
     // looksLikeImagePayload() would reject this (no image/* mime), but trusting
     // the tool name keeps the image flowing — sendImageMessage defaults the mime.
     const image = extractGeneratedImageResult({
-      name: 'canvas_generate_image',
+      name: 'image_generate',
       result: JSON.stringify({ ok: true, outputPath: '/tmp/x.png' }),
     });
     expect(image).toEqual({ outputPath: '/tmp/x.png', mimeType: undefined });
@@ -84,15 +84,15 @@ describe('extractGeneratedImageResult', () => {
   it('ignores non-image tool results (no outputPath)', () => {
     expect(
       extractGeneratedImageResult({
-        name: 'canvas_analyze_image',
+        name: 'image_analyze',
         result: JSON.stringify({ ok: true, imageCount: 2, imagePaths: ['/a.png', '/b.png'] }),
       }),
     ).toBeNull();
   });
 
   it('returns null for non-JSON or empty results', () => {
-    expect(extractGeneratedImageResult({ name: 'canvas_generate_image', result: 'done' })).toBeNull();
-    expect(extractGeneratedImageResult({ name: 'canvas_generate_image' })).toBeNull();
+    expect(extractGeneratedImageResult({ name: 'image_generate', result: 'done' })).toBeNull();
+    expect(extractGeneratedImageResult({ name: 'image_generate' })).toBeNull();
     expect(extractGeneratedImageResult({})).toBeNull();
   });
 });

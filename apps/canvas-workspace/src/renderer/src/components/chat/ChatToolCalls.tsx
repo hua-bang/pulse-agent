@@ -49,11 +49,11 @@ function formatToolSignature(name: string, args: any): string {
 const TOOL_LABEL_SLUGS: Record<string, string> = {
   canvas_read_context: 'readCanvasContext',
   canvas_read_node: 'readNode',
-  canvas_list_tabs: 'listTabs',
-  canvas_read_tab: 'readTab',
-  canvas_activate_tab: 'activateTab',
-  canvas_open_tab: 'openTab',
-  canvas_read_dom_selection: 'readDomSelection',
+  dock_list_tabs: 'listTabs',
+  dock_read_tab: 'readTab',
+  dock_activate_tab: 'activateTab',
+  dock_open_tab: 'openTab',
+  browser_read_dom_selection: 'readDomSelection',
   knowledge_search_nodes: 'searchKnowledgeNodes',
   knowledge_read_node: 'readKnowledgeNode',
   knowledge_analyze_image: 'analyzeKnowledgeImage',
@@ -86,7 +86,7 @@ function displayToolStatus(tool: ToolCallStatus): ToolCallStatus['status'] {
 
 function formatToolLabel(name: string, status: ToolCallStatus['status'], t: (key: I18nKey) => string): string {
   if (status === 'failed') {
-    return name === 'canvas_activate_tab'
+    return name === 'dock_activate_tab'
       ? t('toolCall.activateTab.failed')
       : t('chat.toolCalls.failed');
   }

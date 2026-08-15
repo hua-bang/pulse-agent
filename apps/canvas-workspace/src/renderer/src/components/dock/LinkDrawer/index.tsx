@@ -56,7 +56,7 @@ interface LinkTabViewProps {
   url: string;
   title?: string;
   /** Dock tab id — used as the webview registry key so the Canvas Agent can
-   *  read this tab's live page via `canvas_read_tab`. */
+   *  read this tab's live page via `dock_read_tab`. */
   tabId?: string;
   /** Gate the <webview> mount. Restored docks render every tab's pane stacked
    *  (only the active one is visible), so mounting unconditionally spins up a
@@ -179,7 +179,7 @@ export const LinkTabView = ({
   });
 
   // Register this tab's <webview> with main so the Canvas Agent can read the
-  // live page (via canvas_read_tab), keyed by the dock tab id. The same
+  // live page (via dock_read_tab), keyed by the dock tab id. The same
   // handshake feeds the renderer-side guest→tab index, which is how a link
   // opened from this page knows to land next to this tab.
   useWebviewRegistration({

@@ -6,7 +6,7 @@
  * advisory workflow. All three are plain SKILL.md files in
  * the global scope — the agent's behavior is defined by these (user-editable)
  * markdown files, not by hard-coded prompts. Each one leans on a companion
- * tool for the resulting action (`canvas_save_skill` / `canvas_promote_skill`
+ * tool for the resulting action (`skill_save` / `skill_promote`
  * in `tools/skills.ts`); the SKILL.md tells the agent *when* and *how* to call it.
  *
  * On every app start we write them only if absent. The one obsolete bundled
@@ -53,11 +53,11 @@ Use this when the user explicitly asks to turn what just happened in the convers
 
 4. **Show the draft to the user** as a chat message — all three fields plus the chosen scope. End with a question like "保存吗?要改哪里?" so they can adjust the name, edit a step, change scope, or cancel.
 
-5. **Apply their edits**, then call the \`canvas_save_skill\` tool with the final \`{ name, description, body, scope }\`. Confirm the path it landed at.
+5. **Apply their edits**, then call the \`skill_save\` tool with the final \`{ name, description, body, scope }\`. Confirm the path it landed at.
 
 ## Rules
 
-- **Never call \`canvas_save_skill\` without explicit user confirmation in the conversation.** A "looks good" or "保存吧" counts; silence does not.
+- **Never call \`skill_save\` without explicit user confirmation in the conversation.** A "looks good" or "保存吧" counts; silence does not.
 - **Don't auto-save in the same turn the user asked.** Always show the draft first, then save on the next turn.
 - If the user pushes back ("no, drop step 3", "rename to foo"), apply the change and re-show the draft before saving.
 - If the conversation didn't actually accomplish anything useful (just exploration, no concrete steps that worked), say so and suggest the user invoke this later when there's something concrete to save.
@@ -81,7 +81,7 @@ Use this when the user wants a workspace-only skill to be available across every
 
 3. **Warn if a global skill with the same name already exists** — promoting overwrites it. Confirm before proceeding.
 
-4. **Call \`canvas_promote_skill\` with \`{ name }\`.** The tool moves the file from the workspace's skills dir to the global one and removes the workspace copy. Confirm the result.
+4. **Call \`skill_promote\` with \`{ name }\`.** The tool moves the file from the workspace's skills dir to the global one and removes the workspace copy. Confirm the result.
 `,
 };
 
@@ -100,10 +100,10 @@ Works in global chat (the whole system) and inside a single workspace. It is adv
 
 ## Steps
 
-1. **Pin down the tag and its meaning.** Call \`canvas_list_tags\` for the exact name/id and the tag's **description** — that description is your rubric. If the tag is new, or its meaning is vague, ask the user one line about what it should cover BEFORE judging. (A new tag is created only if the user later applies a proposal.)
-   - *Scope:* default all workspaces; pass a \`workspaceId\` (resolve via \`canvas_list_workspaces\`) only if the user scoped it.
+1. **Pin down the tag and its meaning.** Call \`knowledge_list_tags\` for the exact name/id and the tag's **description** — that description is your rubric. If the tag is new, or its meaning is vague, ask the user one line about what it should cover BEFORE judging. (A new tag is created only if the user later applies a proposal.)
+   - *Scope:* default all workspaces; pass a \`workspaceId\` (resolve via \`workspace_list\`) only if the user scoped it.
 
-2. **Shortlist (don't decide yet).** \`canvas_list_nodes({ untaggedOnly: true })\` — add \`query\` with the tag's keywords to keep the shortlist tight on a big canvas. Use \`title\` + \`summary\` ONLY to narrow down to plausible candidates; **do not tag based on the title/summary alone.**
+2. **Shortlist (don't decide yet).** \`knowledge_list_nodes({ untaggedOnly: true })\` — add \`query\` with the tag's keywords to keep the shortlist tight on a big canvas. Use \`title\` + \`summary\` ONLY to narrow down to plausible candidates; **do not tag based on the title/summary alone.**
 
 3. **Read the full content before suggesting — mandatory.** For EVERY node you intend to suggest, call \`canvas_read_node({ workspaceId, nodeId })\` and judge from the **actual content**, not the title or snippet. Do not put a node in the result you haven't read.
 
@@ -139,7 +139,7 @@ Build a period report from chat history, propose memory candidates, and persist 
 2. **Gather (read-only).**
    - \`session_summary\` for that period — omit \`workspaceId\` for the full sweep, pass it for a scoped review.
    - \`memory_list\` — existing entries are your dedupe rubric.
-   - \`canvas_list_workspaces\` — id↔name mapping for scope labels and \`memory_adopt\`.
+   - \`workspace_list\` — id↔name mapping for scope labels and \`memory_adopt\`.
 
 3. **Draft the report in chat:**
    - Per-workspace: 2-4 lines of what happened, decisions made, problems solved. Skip idle workspaces.
@@ -152,13 +152,13 @@ Build a period report from chat history, propose memory candidates, and persist 
 
 5. **Persist approved items:**
    - Memory → \`memory_adopt\` with only the approved candidates — \`workspaceId\` from step 2's mapping, omitted for 全局. If a confirmed candidate replaces a stale entry, \`memory_forget\` that entry's id afterwards.
-   - Skills → follow the save-as-skill procedure: draft name/description/body from the evidenced conversations, show the draft, then \`canvas_save_skill\` with the confirmed scope.
+   - Skills → follow the save-as-skill procedure: draft name/description/body from the evidenced conversations, show the draft, then \`skill_save\` with the confirmed scope.
 
 6. **Report back**: what was written to which scope (ids/paths), what was skipped.
 
 ## Rules
 
-- **Never call \`memory_adopt\` or \`canvas_save_skill\` without the user's explicit approval of those exact candidates in this conversation.**
+- **Never call \`memory_adopt\` or \`skill_save\` without the user's explicit approval of those exact candidates in this conversation.**
 - \`memory_adopt\` is the ONLY cross-workspace write path, and only for this flow; routine remembering stays on \`memory_save\`.
 - Never copy raw transcript excerpts into a candidate — always distill to a standalone statement.
 `,

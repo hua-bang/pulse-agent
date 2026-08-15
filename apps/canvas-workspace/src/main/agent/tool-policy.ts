@@ -5,20 +5,36 @@ import { createCanvasTools, createGlobalCanvasTools } from './tools';
 import type { CanvasTool, CanvasToolExecutionContext } from './tools';
 
 /**
- * Built-ins available outside workspace chat (global chat and scheduled
- * runs). Reads, web fetch, clarification — plus `bash`.
+ * Built-ins available in interactive global chat. Global chat has no ambient
+ * Canvas workspace; browser tab/page tools may use the visible Dock route,
+ * while file paths and image generation are independently targetable
+ * capabilities and Canvas mutations use explicit workspaceId-bearing tools.
  *
- * `bash` is a deliberate exception to the otherwise read-only shape, added
- * because the useful global/scheduled work (pulling data through `lark-cli`,
- * `ntn`, and friends) is shell work: without it a task that runs fine in
- * workspace chat fails the moment it is scheduled. It is genuinely wider
- * than the rest of this list — arbitrary process execution at main-process
- * privilege, unattended in the scheduled case — see
- * `harness/knowledge/security-posture.md`.
+ * Scheduled runs deliberately use the narrower list below. In particular,
+ * they do not inherit filesystem writes, image generation, or targeted Canvas
+ * mutations merely because they share the global scope shape.
  *
- * The filesystem WRITE tools (`write`, `edit`) and `generate_image` stay out.
+ * `bash` remains available in both lists because the useful global/scheduled
+ * work (pulling data through `lark-cli`, `ntn`, and friends) is shell work.
+ * It is a main-process privilege and is still subject to the existing Ask
+ * mode policy; scheduled runs remain unattended by design.
  */
 const GLOBAL_BUILTIN_TOOL_NAMES = [
+  'read',
+  'grep',
+  'ls',
+  'bash',
+  'tavily',
+  'tavily_extract',
+  'tavily_crawl',
+  'tavily_map',
+  'clarify',
+  'write',
+  'edit',
+  'generate_image',
+] as const;
+
+const SCHEDULED_BUILTIN_TOOL_NAMES = [
   'read',
   'grep',
   'ls',
@@ -48,8 +64,9 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'tavily_crawl',
   'tavily_map',
   'clarify',
-  'canvas_ask_user',
+  'user_ask',
   'visual_render',
+  'screen_capture',
 ]);
 
 const READ_ONLY_NAME_PARTS = [
@@ -218,9 +235,9 @@ export function createCanvasAskModeToolPolicyPlugin() {
   };
 }
 
-function createGlobalBuiltInTools(): EngineToolMap {
+function createBuiltInTools(names: readonly string[]): EngineToolMap {
   const tools: EngineToolMap = {};
-  for (const name of GLOBAL_BUILTIN_TOOL_NAMES) {
+  for (const name of names) {
     const tool = BuiltinToolsMap[name];
     if (!tool) {
       throw new Error(`Missing required global Canvas Agent built-in tool: ${name}`);
@@ -232,9 +249,9 @@ function createGlobalBuiltInTools(): EngineToolMap {
 
 /**
  * Select the host-side tool boundary before constructing an Engine.
- * Workspace chat preserves the Engine defaults; global chat and scheduled
- * runs opt into a reviewed allowlist and expose canvas mutations only as
- * proposals.
+ * Workspace chat preserves the Engine defaults. Interactive Global chat gets
+ * independently useful built-ins plus explicit-target Canvas operations;
+ * scheduled runs keep the narrower unattended boundary.
  */
 export function createCanvasAgentToolPolicy(scope: AgentScope): CanvasAgentToolPolicy {
   if (scope.kind === 'workspace') {
@@ -244,8 +261,15 @@ export function createCanvasAgentToolPolicy(scope: AgentScope): CanvasAgentToolP
     };
   }
 
+  if (scope.kind === 'global') {
+    return {
+      builtInTools: createBuiltInTools(GLOBAL_BUILTIN_TOOL_NAMES),
+      canvasTools: createGlobalCanvasTools({ allowWorkspaceTargetedTools: true }),
+    };
+  }
+
   return {
-    builtInTools: createGlobalBuiltInTools(),
+    builtInTools: createBuiltInTools(SCHEDULED_BUILTIN_TOOL_NAMES),
     canvasTools: createGlobalCanvasTools(),
   };
 }

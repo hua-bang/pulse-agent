@@ -103,7 +103,7 @@ Do NOT use `node write` for agent nodes — `node write` only modifies file/fram
 
 Choose the most direct runtime interface available:
 
-1. Prefer task-specific native Canvas tools such as `canvas_read_webpage`, `page_click`,
+1. Prefer task-specific native Canvas tools such as `browser_read_page`, `page_click`,
    `page_fill`, or `page_eval` when the host provides them.
 2. Otherwise, prefer the native `app_capabilities_list` and `app_capability_call` tools
    when they are available.

@@ -29,10 +29,10 @@ interface LocalActivationDetail {
  *  - listens for `canvas:activate-dock-tab` (emitted by tab-mention chips in
  *    chat) and activates the referenced tab;
  *  - listens for main-process dock commands (`dock:activate-tab` /
- *    `dock:open-tab`, sent by the `canvas_open_tab` tool and the webview
+ *    `dock:open-tab`, sent by the `dock_open_tab` tool and the webview
  *    page-control plugin) and applies them to the store;
  *  - publishes the active workspace's open tabs to main so the
- *    `canvas_list_tabs` agent tool can enumerate them.
+ *    `dock_list_tabs` agent tool can enumerate them.
  */
 export function useDockAgentBridge(
   store: DockStore,

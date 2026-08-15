@@ -3,7 +3,7 @@ import { TERMINAL_TAB_ID, type DockState } from './dock-store';
 
 /**
  * The PTY session id a workspace terminal tab writes to. Mirrors the mapping
- * in WorkspaceTerminalDock so terminal-tab reads (`canvas_read_tab`) hit the
+ * in WorkspaceTerminalDock so terminal-tab reads (`dock_read_tab`) hit the
  * right scrollback buffer: the primary tab has no ordinal suffix.
  */
 export function terminalSessionId(workspaceId: string, terminalTabId: string): string {

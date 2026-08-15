@@ -4,8 +4,8 @@ import type { CanvasTool } from '../../../main/agent/tools/types';
 
 export function createHostRendererControlTools(workspaceId: string): Record<string, CanvasTool> {
   return {
-    canvas_host_eval: {
-      name: 'canvas_host_eval',
+    host_renderer_eval: {
+      name: 'host_renderer_eval',
       defer_loading: true,
       description:
         'Experimental: execute JavaScript in the Pulse Canvas host renderer UI. ' +

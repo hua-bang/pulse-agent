@@ -34,7 +34,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
       description:
         'Create a new node on the canvas.\n' +
         '- **file**: Creates a markdown note with a backing file. Use `content` for initial text. If `content` is full HTML, or `data.contentType: "text/html"` / `data.renderAs: "html"` is provided, it is automatically created as a renderable iframe HTML node instead. Use `data.renderAs: "note"` to force a markdown note.\n' +
-        '- **image**: Creates an image node from `data.filePath` (absolute local path). Prefer `canvas_generate_image` when the user asks AI to create an image.\n' +
+        '- **image**: Creates an image node from `data.filePath` (absolute local path). Prefer `image_generate` when the user asks AI to create an image.\n' +
         '- **terminal**: Spawns an interactive shell session on the canvas. The PTY starts automatically. Use `data.cwd` to set the working directory.\n' +
         '- **frame**: Creates a named spatial container. Use `data.color` (hex) and `data.label`.\n' +
         '- **group**: Creates a lightweight grouping relationship. Use `data.childIds` for members, plus optional `data.color` (hex) and `data.label`.\n' +

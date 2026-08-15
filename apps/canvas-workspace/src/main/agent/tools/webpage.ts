@@ -11,8 +11,8 @@ import type { CanvasTool } from './types';
 
 export function createWebpageTools(workspaceId: string): Record<string, CanvasTool> {
   return {
-    canvas_read_dom_selection: {
-      name: 'canvas_read_dom_selection',
+    browser_read_dom_selection: {
+      name: 'browser_read_dom_selection',
       defer_loading: true,
       description:
         'Read one DOM element inside a canvas iframe/webview node or right-dock web tab using a CSS selector. ' +
@@ -70,8 +70,8 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
       },
     },
 
-    canvas_read_webpage: {
-      name: 'canvas_read_webpage',
+    browser_read_page: {
+      name: 'browser_read_page',
       defer_loading: true,
       description:
         'Read a webpage that is currently open in a canvas iframe node using the richest available strategy.\n' +
@@ -83,7 +83,7 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
         '- dom: innerText extraction — fast, safe, works for any text-heavy page.\n' +
         '- a11y: Chrome accessibility tree (roles, names, descriptions) — richer semantic structure.\n' +
         '- screenshot: saves the exact viewport as a PNG file and returns imagePath. ' +
-        'Then call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description.\n\n' +
+        'Then call image_analyze({ imagePaths: [imagePath] }) to get a vision description.\n\n' +
         'Prefer this over canvas_read_node for iframe nodes when you need a11y structure or a screenshot.',
       inputSchema: z.object({
         nodeId: z.string().describe('ID of the iframe canvas node to read.'),

@@ -12,7 +12,7 @@
  *    采纳 button click IS the confirmation; the renderer bridge additionally
  *    gates on a real user gesture).
  *  - skill.save — save ONE user-confirmed skill draft via the same
- *    upsertCanvasSkill path canvas_save_skill uses.
+ *    upsertCanvasSkill path skill_save uses.
  */
 
 import { ipcMain } from 'electron';

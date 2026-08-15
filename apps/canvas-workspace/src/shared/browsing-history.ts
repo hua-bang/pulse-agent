@@ -3,7 +3,7 @@
  *
  * Contract between main (`src/main/dock/history-store.ts`), preload
  * (`src/preload/bridge/history.ts`), and the renderer (LinkTabView records
- * visits; the Canvas Agent searches them via `canvas_search_history`).
+ * visits; the Canvas Agent searches them via `browser_search_history`).
  * JSON-safe and runtime-neutral — no Electron/Node imports.
  */
 

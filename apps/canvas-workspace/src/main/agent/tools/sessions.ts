@@ -89,7 +89,7 @@ async function loadSessions(workspaceId?: string): Promise<SessionWithMeta[]> {
 export function createSessionTools(currentWorkspaceId?: string): Record<string, CanvasTool> {
   const workspaceIdDescription = currentWorkspaceId
     ? 'Restrict to one workspace\'s sessions (the session-store id; use the current workspaceId for "this workspace"). Omit to search EVERY workspace plus global chat.'
-    : 'Restrict to one workspace\'s sessions (the session-store id, from `canvas_list_workspaces`). Omit to search EVERY workspace plus global chat.';
+    : 'Restrict to one workspace\'s sessions (the session-store id, from `workspace_list`). Omit to search EVERY workspace plus global chat.';
 
   return {
     session_search: {

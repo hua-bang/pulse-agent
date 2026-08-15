@@ -13,8 +13,8 @@ import {
 
 export function createImageTools(workspaceId: string): Record<string, CanvasTool> {
   return {
-    canvas_analyze_image: {
-      name: 'canvas_analyze_image',
+    image_analyze: {
+      name: 'image_analyze',
       defer_loading: true,
       description:
         'Read/analyze one or more image nodes or local image paths using a vision model. ' +
@@ -66,8 +66,8 @@ export function createImageTools(workspaceId: string): Record<string, CanvasTool
       },
     },
 
-    canvas_generate_image: {
-      name: 'canvas_generate_image',
+    image_generate: {
+      name: 'image_generate',
       defer_loading: true,
       description:
         'Generate an image with the engine generate_image implementation and return it to the chat. ' +
@@ -138,8 +138,8 @@ ${outline}`;
       },
     },
 
-    canvas_generate_mindmap_image: {
-      name: 'canvas_generate_mindmap_image',
+    image_generate_from_mindmap: {
+      name: 'image_generate_from_mindmap',
       defer_loading: true,
       description:
         'Generate a visual image from an existing mindmap node and return it to the chat. ' +

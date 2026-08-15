@@ -97,12 +97,12 @@ afterEach(async () => {
   await fs.rm(join(sandboxHome, '.pulse-coder'), { recursive: true, force: true });
 });
 
-describe('canvas_list_workspaces', () => {
+describe('workspace_list', () => {
   it('lists every workspace with node + tag-coverage counts', async () => {
     await seed();
     const tools = createKnowledgeTools();
 
-    const out = JSON.parse(await tools.canvas_list_workspaces.execute({}));
+    const out = JSON.parse(await tools.workspace_list.execute({}));
     expect(out.ok).toBe(true);
     expect(out.activeWorkspaceId).toBe('ws-research');
     const byId = new Map(out.workspaces.map((w: { workspaceId: string }) => [w.workspaceId, w]));
@@ -118,19 +118,19 @@ describe('canvas_list_workspaces', () => {
   it('skips the tag scan when includeTagStats is false', async () => {
     await seed();
     const tools = createKnowledgeTools();
-    const out = JSON.parse(await tools.canvas_list_workspaces.execute({ includeTagStats: false }));
+    const out = JSON.parse(await tools.workspace_list.execute({ includeTagStats: false }));
     const ws = out.workspaces.find((w: { workspaceId: string }) => w.workspaceId === 'ws-research');
     expect(ws.canvasNodeCount).toBe(3);
     expect(ws.taggedNodeCount).toBeUndefined();
   });
 });
 
-describe('canvas_list_tags', () => {
+describe('knowledge_list_tags', () => {
   it('returns all tags with cross-workspace usage counts, resolving name/id storage', async () => {
     await seed();
     const tools = createKnowledgeTools();
 
-    const out = JSON.parse(await tools.canvas_list_tags.execute({}));
+    const out = JSON.parse(await tools.knowledge_list_tags.execute({}));
     expect(out.ok).toBe(true);
     expect(out.totalKnowledgeNodes).toBe(5); // n1, n2, n3, w1, w2
     expect(out.untaggedKnowledgeNodes).toBe(2); // n2, w1
@@ -142,18 +142,18 @@ describe('canvas_list_tags', () => {
   it('skips usage counts when includeUsage is false', async () => {
     await seed();
     const tools = createKnowledgeTools();
-    const out = JSON.parse(await tools.canvas_list_tags.execute({ includeUsage: false }));
+    const out = JSON.parse(await tools.knowledge_list_tags.execute({ includeUsage: false }));
     expect(out.tags.map((t: { id: string }) => t.id).sort()).toEqual(['ai-agent', 'rag']);
     expect(out.tags[0].nodeCount).toBeUndefined();
     expect(out.totalKnowledgeNodes).toBeUndefined();
   });
 });
 
-describe('canvas_list_nodes', () => {
+describe('knowledge_list_nodes', () => {
   it('lists nodes across all workspaces with their tags + summary', async () => {
     await seed();
     const tools = createKnowledgeTools();
-    const out = JSON.parse(await tools.canvas_list_nodes.execute({}));
+    const out = JSON.parse(await tools.knowledge_list_nodes.execute({}));
     expect(out.ok).toBe(true);
     expect(out.total).toBe(5); // n1, n2, n3, w1, w2
     const n1 = out.nodes.find((n: { id: string }) => n.id === 'n1');
@@ -164,7 +164,7 @@ describe('canvas_list_nodes', () => {
   it('filters to untagged nodes (records with no tags AND nodes with no record)', async () => {
     await seed();
     const tools = createKnowledgeTools();
-    const out = JSON.parse(await tools.canvas_list_nodes.execute({ untaggedOnly: true }));
+    const out = JSON.parse(await tools.knowledge_list_nodes.execute({ untaggedOnly: true }));
     expect(new Set(out.nodes.map((n: { id: string }) => n.id))).toEqual(new Set(['n2', 'w1']));
   });
 
@@ -172,13 +172,13 @@ describe('canvas_list_nodes', () => {
     await seed();
     const tools = createKnowledgeTools();
 
-    const byName = JSON.parse(await tools.canvas_list_nodes.execute({ tag: 'AI Agent' }));
+    const byName = JSON.parse(await tools.knowledge_list_nodes.execute({ tag: 'AI Agent' }));
     expect(new Set(byName.nodes.map((n: { id: string }) => n.id))).toEqual(new Set(['n1', 'w2']));
 
-    const byId = JSON.parse(await tools.canvas_list_nodes.execute({ tag: 'ai-agent' }));
+    const byId = JSON.parse(await tools.knowledge_list_nodes.execute({ tag: 'ai-agent' }));
     expect(new Set(byId.nodes.map((n: { id: string }) => n.id))).toEqual(new Set(['n1', 'w2']));
 
-    const rag = JSON.parse(await tools.canvas_list_nodes.execute({ tag: 'rag' }));
+    const rag = JSON.parse(await tools.knowledge_list_nodes.execute({ tag: 'rag' }));
     expect(rag.nodes.map((n: { id: string }) => n.id)).toEqual(['n3']);
   });
 
@@ -186,13 +186,13 @@ describe('canvas_list_nodes', () => {
     await seed();
     const tools = createKnowledgeTools();
 
-    const scoped = JSON.parse(await tools.canvas_list_nodes.execute({ workspaceId: 'ws-weekly' }));
+    const scoped = JSON.parse(await tools.knowledge_list_nodes.execute({ workspaceId: 'ws-weekly' }));
     expect(new Set(scoped.nodes.map((n: { id: string }) => n.id))).toEqual(new Set(['w1', 'w2']));
 
-    const queried = JSON.parse(await tools.canvas_list_nodes.execute({ query: 'week' }));
+    const queried = JSON.parse(await tools.knowledge_list_nodes.execute({ query: 'week' }));
     expect(queried.nodes.map((n: { id: string }) => n.id)).toEqual(['w1']);
 
-    const capped = JSON.parse(await tools.canvas_list_nodes.execute({ limit: 2 }));
+    const capped = JSON.parse(await tools.knowledge_list_nodes.execute({ limit: 2 }));
     expect(capped.returned).toBe(2);
     expect(capped.total).toBe(5);
     expect(capped.truncated).toBe(true);

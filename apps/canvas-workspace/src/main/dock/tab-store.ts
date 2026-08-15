@@ -3,7 +3,7 @@
  *
  * The dock's tabs live in the renderer (RightDock DockStore). The renderer
  * publishes a snapshot per workspace via `dock:publish-tabs`; the Canvas Agent
- * reads it through the `canvas_list_tabs` tool. Read-only from main — this is
+ * reads it through the `dock_list_tabs` tool. Read-only from main — this is
  * a view of renderer state, not a source of truth.
  */
 import { ipcMain } from 'electron';
@@ -11,6 +11,7 @@ import type { AgentContextTabRef } from '../../shared/agent-chat';
 
 const dockTabsByWorkspace = new Map<string, AgentContextTabRef[]>();
 const publishedWorkspaceByWebContents = new Map<number, string>();
+let latestPublishedDockWorkspaceId = '';
 
 /** Open dock tabs last published for a workspace (empty if none/unknown). */
 export function getDockTabs(workspaceId: string): AgentContextTabRef[] {
@@ -22,6 +23,12 @@ export function getPublishedDockWorkspaceId(webContentsId: number): string {
   return publishedWorkspaceByWebContents.get(webContentsId) ?? '';
 }
 
+/** Current renderer workspace hosting the visible Dock. Global Chat uses this
+ * route when operating a tab without binding the conversation to a workspace. */
+export function getActiveDockWorkspaceId(): string {
+  return latestPublishedDockWorkspaceId;
+}
+
 export function setupDockTabsIpc(): void {
   ipcMain.on(
     'dock:publish-tabs',
@@ -29,6 +36,7 @@ export function setupDockTabsIpc(): void {
       if (!payload?.workspaceId || !Array.isArray(payload.tabs)) return;
       dockTabsByWorkspace.set(payload.workspaceId, payload.tabs);
       publishedWorkspaceByWebContents.set(event.sender.id, payload.workspaceId);
+      latestPublishedDockWorkspaceId = payload.workspaceId;
     },
   );
 }

@@ -9,25 +9,26 @@ host actually does and does not gate. Facts verified against source
 
 ## Execution reach of the Canvas Agent
 
-- **Workspace chat keeps full-privilege engine built-ins; global chat and
-  scheduled runs get a narrower allowlist — but it now includes `bash`.**
-  Workspace scope still receives `read`, `write`, `edit`, `grep`, `ls`, and
-  `bash` in the Electron **main process**, with no sandbox or path
-  confinement. Every non-workspace scope (global chat AND every scheduled
-  task — one `if` in `tool-policy.ts` covers both) passes an explicit
-  `builtInTools` allowlist: `read`, `grep`, `ls`, `bash`, Tavily read tools,
-  and `clarify`. `write`, `edit`, node-content mutation, and disk-writing
-  image generation stay absent.
-  `bash` was added there deliberately (owner decision, 2026-07-27) because
-  the useful global/scheduled work is shell work — `lark-cli`, `ntn` and
-  friends — and without it a task that runs fine in workspace chat breaks the
-  moment it is scheduled. Understand what it costs: arbitrary process
-  execution at main-process privilege is now reachable from a scope with no
-  ambient workspace, and in the scheduled case **with nobody watching**, on a
-  prompt that may have been shaped by injected web/page content. Anything
-  that narrows this again should narrow `bash` specifically, not re-describe
-  the list as read-only. This boundary does not classify user-configured
-  MCP/plugin tools, which remain separate trust surfaces described below.
+- **Workspace chat keeps full-privilege engine built-ins; interactive global
+  chat now has useful file/image capabilities plus explicit-target Canvas
+  operations; scheduled runs stay narrower.** Workspace scope receives
+  `read`, `write`, `edit`, `grep`, `ls`, and `bash` in the Electron **main
+  process**, with no sandbox or path confinement. Interactive global chat gets
+  those file/image tools plus the web/clarification tools, while every
+  workspace-bound Canvas tool added to Global chat requires an explicit
+  `workspaceId`; the target tool set is resolved lazily for that id. Scheduled
+  runs continue to use the narrower `read`, `grep`, `ls`, `bash`, Tavily, and
+  `clarify` allowlist and the Global Canvas factory without target-workspace
+  mutations. This split is
+  deliberate: Global is useful as a cross-workspace router without giving an
+  unattended task a Canvas mutation path. All of these built-ins still run in
+  the main process without a sandbox. This boundary does not classify
+  user-configured MCP/plugin tools, which remain separate trust surfaces
+  described below.
+  `bash` remains available because useful global/scheduled work is shell work
+  — `lark-cli`, `ntn` and friends — but it is arbitrary process execution at
+  main-process privilege, and scheduled runs reach it with nobody watching on
+  a prompt that may have been shaped by injected web/page content.
 - **A second command-execution path exists besides `bash`:**
   `canvas_create_terminal_node` (`src/main/agent/tools/terminals.ts:16`)
   accepts a `command` input that auto-executes once the PTY shell is ready.
@@ -159,7 +160,7 @@ to everything below.
   access: `agent-runtime-control` to reach `/capabilities/*` externally at
   all, and `webview-page-control` for the capability's own policy check.
 - **`host.renderer.eval`** is the separate `unsafe` capability for arbitrary
-  host-renderer JavaScript, behind the deferred `canvas_host_eval` Canvas
+  host-renderer JavaScript, behind the deferred `host_renderer_eval` Canvas
   Agent tool and the `pulse-canvas runtime host-eval` CLI command. It
   requires `agent-runtime-control`, checks the selected workspace route
   before executing, and runs in the host page's main world — see the
@@ -204,10 +205,10 @@ to everything below.
   tools.
 - A tool that schedules FUTURE unattended runs is a persistence mechanism, not
   a one-shot side effect: injected content that reaches it survives the turn.
-  `scheduled_task_*` is the current precedent, including the accepted
-  consequence that a scheduled run itself carries these tools (its scope
-  resolves to the global tool set in `agent/tool-policy.ts`) so the user can
-  retune a task from its own chat.
+  `scheduled_task_*` is the current precedent. Scheduled task chat keeps the
+  app-level scheduling tools, but its Agent scope uses the unattended-safe
+  built-in/Canvas boundary rather than interactive Global's explicit-target
+  mutation surface.
 - Anything that reads web/iframe content into agent context inherits the
   prompt-injection amplification above — treat page text like attacker input.
 - If you touch `buildEngine()`, decide the engine-plugin `scan` question

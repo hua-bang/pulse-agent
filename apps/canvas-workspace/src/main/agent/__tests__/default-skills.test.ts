@@ -42,13 +42,13 @@ describe('ensureDefaultSkillsSeeded', () => {
     expect(byName['memory-review'].body).toMatch(/memory_adopt/);
     expect(byName['memory-review'].body).toMatch(/session_summary/);
     expect(byName['memory-review'].body).toMatch(/候选 skills/);
-    expect(byName['memory-review'].body).toMatch(/canvas_save_skill/);
+    expect(byName['memory-review'].body).toMatch(/skill_save/);
     expect(byName['save-as-skill'].description).toMatch(/save.*conversation|reusable skill/i);
-    expect(byName['save-as-skill'].body).toMatch(/canvas_save_skill/);
-    expect(byName['promote-skill'].body).toMatch(/canvas_promote_skill/);
+    expect(byName['save-as-skill'].body).toMatch(/skill_save/);
+    expect(byName['promote-skill'].body).toMatch(/skill_promote/);
     expect(byName['suggest-tags'].body).not.toMatch(/canvas_propose_node_change/);
     expect(byName['suggest-tags'].body).not.toMatch(/canvas_tag_node/);
-    expect(byName['suggest-tags'].body).toMatch(/canvas_list_nodes/);
+    expect(byName['suggest-tags'].body).toMatch(/knowledge_list_nodes/);
     expect(byName['save-as-skill'].scope).toBe('global');
   });
 

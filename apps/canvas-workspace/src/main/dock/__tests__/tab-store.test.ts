@@ -6,6 +6,7 @@ vi.mock('electron', () => ({
 }));
 
 import {
+  getActiveDockWorkspaceId,
   getDockTabs,
   getPublishedDockWorkspaceId,
   setupDockTabsIpc,
@@ -27,6 +28,7 @@ describe('dock tab-store', () => {
     ];
     handler!({ sender: { id: 101 } }, { workspaceId: 'ws-1', tabs });
     expect(getDockTabs('ws-1')).toEqual(tabs);
+    expect(getActiveDockWorkspaceId()).toBe('ws-1');
     expect(getPublishedDockWorkspaceId(101)).toBe('ws-1');
     expect(getPublishedDockWorkspaceId(202)).toBe('');
 
@@ -37,6 +39,7 @@ describe('dock tab-store', () => {
     // No workspaceId → ignored (no crash, nothing stored).
     handler!({ sender: { id: 101 } }, { tabs: [] });
     expect(getDockTabs('')).toEqual([]);
+    expect(getActiveDockWorkspaceId()).toBe('ws-1');
     expect(getPublishedDockWorkspaceId(101)).toBe('ws-1');
   });
 });

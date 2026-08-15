@@ -187,8 +187,8 @@ async function captureScreen(workspaceId: string, displayInput: unknown): Promis
 
 export function createScreenshotTools(workspaceId: string): Record<string, CanvasTool> {
   return {
-    canvas_screenshot: {
-      name: 'canvas_screenshot',
+    screen_capture: {
+      name: 'screen_capture',
       defer_loading: true,
       description:
         'Take a screenshot (截图 / 截屏 / capture) and return it as a PNG so it can be sent back in chat ' +

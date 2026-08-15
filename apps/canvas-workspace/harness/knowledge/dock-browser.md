@@ -58,6 +58,14 @@ Chromium `background-tab` disposition never steals focus. Foreground opens
 activate the resulting tab and focus that tab, while source-restoring menu
 actions focus the opener only when they do not navigate away from it.
 
+Right-dock link-tab sessions are isolated per Workspace. The main-process tab
+mirror is keyed by `workspaceId`, and the renderer keeps each Workspace's link
+session, retained guests, persisted tabs, and reopen stack separate. Global
+Chat does not create a shared tab pool: its interactive browser tools use the
+latest visible Dock Workspace as an ambient route when `workspaceId` is
+omitted, while an explicit `workspaceId` targets that Workspace's own tab
+session. A tab list is never assembled by merging Workspaces.
+
 ## Guest lifetime
 
 Restored/cold link tabs mount lazily: only a visible dock page is mounted for
@@ -174,10 +182,10 @@ menu and can make viewport clamping push it far away from the click.
 
 `src/main/dock/` is the main-process side of right-dock tab support:
 
-- `tab-store.ts` is the renderer tab mirror behind `canvas_list_tabs`.
+- `tab-store.ts` is the renderer tab mirror behind `dock_list_tabs`.
 - `tab-actions.ts` sends the main→renderer workspace-scoped `dock:activate-tab`
-  push behind `canvas_activate_tab` and the page_* tools' tab targeting, the
-  app-level `dock:open-tab` push behind `canvas_open_tab`, and the app-level
+  push behind `dock_activate_tab` and the page_* tools' tab targeting, the
+  app-level `dock:open-tab` push behind `dock_open_tab`, and the app-level
   `dock:open-artifact` push used by the scheduled memory report — artifact
   `workspaceId` is a storage scope and may be the `__global_chat__` sentinel.
   Activation does not call `activateWorkspaceWindow`: the renderer selects the
@@ -185,11 +193,17 @@ menu and can make viewport clamping push it far away from the click.
   `#/chat`), then replies on `dock:tab-activation-result`. Main reports success
   only after that acknowledgement; missing/stale tabs time out as failure.
 - `history-store.ts` holds web-tab browsing history behind
-  `canvas_search_history`.
+  `browser_search_history`.
+
+`tab-store.ts` also records the latest Dock Workspace published by the visible
+renderer. Interactive Global browser tools use that value only as a default
+route for the current Dock; it is not a storage scope and does not relax the
+workspace-qualified registry lookup. Canvas/node/resource operations in Global
+Chat continue to require an explicit `workspaceId`.
 
 `RightDock/tabRefs.ts` is the renderer-side tab-discovery SSOT: it covers
 link, artifact, node-detail, canvas-preview, and terminal tabs plus
-active/visible/split state. Terminal commands use `canvas_execute_terminal_tab`.
+active/visible/split state. Terminal commands use `dock_execute_terminal`.
 
 ## Evidence
 

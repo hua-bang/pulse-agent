@@ -94,7 +94,7 @@ async function executeStructuredPageCapability(
 const baseDescription =
   'Requires the `webview-page-control` capability. ' +
   'Operates on iframe canvas nodes in URL mode AND right-dock web tabs — ' +
-  'pass the iframe node id or the link-tab id (from canvas_list_tabs) as `nodeId`. ' +
+  'pass the iframe node id or the link-tab id (from dock_list_tabs) as `nodeId`. ' +
   'Blocked on file://, chrome://, devtools://, view-source://, and a ' +
   'built-in sensitive-domain deny list (banks, payments, mainstream auth). ' +
   'Customize the policy via ~/.pulse-coder/canvas/webview-action-policy.json.';
@@ -139,7 +139,7 @@ export function createWebviewPageControlTools(
         'and button (left / middle / right). ' +
         baseDescription,
       inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
+        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from dock_list_tabs.'),
         selector: z.string().describe('CSS selector for the element to click.'),
         button: z.enum(['left', 'middle', 'right']).optional().describe('Mouse button. Default "left".'),
         clickCount: z.number().int().positive().optional().describe('1 for click, 2 for double-click.'),
@@ -163,12 +163,12 @@ export function createWebviewPageControlTools(
       defer_loading: true,
       description:
         'Click at absolute viewport coordinates (x, y) via CDP. Use this when paired ' +
-        'with `canvas_read_webpage({ strategy: "screenshot" })` + vision — the agent ' +
+        'with `browser_read_page({ strategy: "screenshot" })` + vision — the agent ' +
         'sees a screenshot, picks a pixel, then clicks there. Coordinates are in CSS ' +
         'pixels relative to the visual viewport top-left. ' +
         baseDescription,
       inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
+        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from dock_list_tabs.'),
         x: z.number().describe('Viewport x coordinate (CSS pixels).'),
         y: z.number().describe('Viewport y coordinate (CSS pixels).'),
         button: z.enum(['left', 'middle', 'right']).optional(),
@@ -207,7 +207,7 @@ export function createWebviewPageControlTools(
         'or page_click on a submit button. ' +
         baseDescription,
       inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
+        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from dock_list_tabs.'),
         selector: z.string().describe('CSS selector for the editable element.'),
         value: z.string().describe('Replacement value. Replaces the entire current value by default.'),
         clearFirst: z
@@ -238,7 +238,7 @@ export function createWebviewPageControlTools(
         'For multi-character text input, prefer page_fill. ' +
         baseDescription,
       inputSchema: z.object({
-        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
+        nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from dock_list_tabs.'),
         key: z.string().describe('Key name (e.g. "Enter", "ArrowDown") or a single character.'),
         selector: z
           .string()
@@ -275,7 +275,7 @@ export function createWebviewPageControlTools(
         baseDescription,
       inputSchema: z
         .object({
-          nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
+          nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from dock_list_tabs.'),
           top: z.boolean().optional().describe('Scroll to the top of the page.'),
           bottom: z.boolean().optional().describe('Scroll to the bottom of the page.'),
           selector: z
@@ -335,7 +335,7 @@ export function createWebviewPageControlTools(
         baseDescription,
       inputSchema: z
         .object({
-          nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from canvas_list_tabs.'),
+          nodeId: z.string().describe('ID of the iframe canvas node, or a dock link-tab id from dock_list_tabs.'),
           selector: z.string().optional().describe('CSS selector to wait for.'),
           predicate: z
             .string()

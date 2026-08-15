@@ -44,11 +44,11 @@ export const BUILT_IN_TOOL_CREDENTIALS: BuiltInToolCredentialDef[] = [
   {
     id: 'openai',
     name: 'OpenAI Images & Vision',
-    description: 'Used by canvas_analyze_image, canvas_generate_image, and canvas_generate_mindmap_image when using OpenAI/GPT.',
+    description: 'Used by image_analyze, image_generate, and image_generate_from_mindmap when using OpenAI/GPT.',
     envKey: 'OPENAI_API_KEY',
     baseUrlEnvKey: 'OPENAI_API_URL',
     defaultBaseUrl: 'https://api.openai.com/v1',
-    tools: ['canvas_analyze_image', 'canvas_generate_image', 'canvas_generate_mindmap_image'],
+    tools: ['image_analyze', 'image_generate', 'image_generate_from_mindmap'],
   },
   {
     id: 'gemini',
@@ -57,7 +57,7 @@ export const BUILT_IN_TOOL_CREDENTIALS: BuiltInToolCredentialDef[] = [
     envKey: 'GEMINI_API_KEY',
     baseUrlEnvKey: 'GEMINI_API_BASE_URL',
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    tools: ['canvas_analyze_image', 'canvas_generate_image', 'canvas_generate_mindmap_image'],
+    tools: ['image_analyze', 'image_generate', 'image_generate_from_mindmap'],
   },
   {
     id: 'tavily',

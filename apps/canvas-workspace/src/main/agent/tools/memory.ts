@@ -196,7 +196,7 @@ export function createMemoryTools(workspaceId: string): Record<string, CanvasToo
           results.push({
             ok: false,
             content: candidate.content,
-            error: `Unknown workspaceId "${targetWs}" — verify it with canvas_list_workspaces.`,
+            error: `Unknown workspaceId "${targetWs}" — verify it with workspace_list.`,
           });
           continue;
         }

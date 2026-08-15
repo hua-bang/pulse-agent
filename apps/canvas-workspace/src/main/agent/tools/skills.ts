@@ -42,8 +42,8 @@ export function createSkillTools(workspaceId: string): Record<string, CanvasTool
   const globalScope: CanvasConfigScope = { level: 'global' };
 
   return {
-    canvas_save_skill: {
-      name: 'canvas_save_skill',
+    skill_save: {
+      name: 'skill_save',
       defer_loading: true,
       description:
         'Persist a reusable skill as a SKILL.md. The agent should ONLY call ' +
@@ -81,8 +81,8 @@ export function createSkillTools(workspaceId: string): Record<string, CanvasTool
       },
     },
 
-    canvas_promote_skill: {
-      name: 'canvas_promote_skill',
+    skill_promote: {
+      name: 'skill_promote',
       defer_loading: true,
       description:
         'Move a workspace-scoped skill to global scope so every canvas can ' +

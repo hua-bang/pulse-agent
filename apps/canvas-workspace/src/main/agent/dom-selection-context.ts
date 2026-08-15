@@ -59,8 +59,8 @@ export function formatDomSelectionFocusBlock(
   lines.push('');
   lines.push(
     options.requireWorkspaceId
-      ? 'When you need fresh or exact content for a selected DOM element, call `canvas_read_dom_selection` with the listed `workspaceId`, `nodeId`, and `selector`.'
-      : 'When you need fresh or exact content for a selected DOM element, call `canvas_read_dom_selection` with the listed `nodeId` and `selector`.',
+      ? 'When you need fresh or exact content for a selected DOM element, call `browser_read_dom_selection` with the listed `workspaceId`, `nodeId`, and `selector`.'
+      : 'When you need fresh or exact content for a selected DOM element, call `browser_read_dom_selection` with the listed `nodeId` and `selector`.',
   );
   return lines.join('\n') + '\n';
 }

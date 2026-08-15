@@ -775,7 +775,7 @@ export function formatSummaryForPrompt(summary: WorkspaceSummary): string {
 
   if (byType.image?.length) {
     lines.push('## Image Nodes');
-    lines.push('_Use `canvas_analyze_image` with the node id to read/OCR image contents._');
+    lines.push('_Use `image_analyze` with the node id to read/OCR image contents._');
     for (const n of byType.image) {
       const pathHint = n.imagePath ? ` (${n.imagePath})` : '';
       lines.push(`- [${n.id}] **${n.title}**${pathHint}`);

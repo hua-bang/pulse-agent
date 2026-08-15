@@ -529,7 +529,7 @@ describe('buildAgentPrompt', () => {
   it('appends an image note with the local paths and tool hint', () => {
     const prompt = buildAgentPrompt(withImages('what is this?', ['/tmp/a.png', '/tmp/b.jpg']));
     expect(prompt).toContain('what is this?');
-    expect(prompt).toContain('canvas_analyze_image');
+    expect(prompt).toContain('image_analyze');
     expect(prompt).toContain('/tmp/a.png');
     expect(prompt).toContain('/tmp/b.jpg');
     expect(prompt).toContain('2 image(s)');

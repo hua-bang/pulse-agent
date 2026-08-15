@@ -356,7 +356,7 @@ export interface AgentContextDomSnapshotMeta {
  * browser-like previews in the dock strip (open web pages, node detail,
  * artifacts, canvas previews, workspace terminals). Like other mentions this is a lightweight
  * pointer — the agent reads the tab's live content on demand with
- * `canvas_read_tab` (link/artifact/terminal), `workspace_node_get`
+ * `dock_read_tab` (link/artifact/terminal), `workspace_node_get`
  * (node-detail), or canvas context tools (canvas), rather than the content
  * being dumped into the prompt.
  */

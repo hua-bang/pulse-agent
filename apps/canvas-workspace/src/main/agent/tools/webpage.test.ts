@@ -10,7 +10,7 @@ vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }));
 
 import { createWebpageTools } from './webpage';
 
-describe('canvas_read_webpage capability adapter', () => {
+describe('browser_read_page capability adapter', () => {
   beforeEach(() => runtimeCall.mockReset());
 
   it('preserves the legacy success payload', async () => {
@@ -26,7 +26,7 @@ describe('canvas_read_webpage capability adapter', () => {
       },
     });
 
-    const output = JSON.parse(await createWebpageTools('ws-1').canvas_read_webpage.execute({
+    const output = JSON.parse(await createWebpageTools('ws-1').browser_read_page.execute({
       nodeId: 'web-1',
       strategy: 'dom',
     }));
@@ -49,7 +49,7 @@ describe('canvas_read_webpage capability adapter', () => {
   it('uses the legacy workspace override without leaking it into capability input', async () => {
     runtimeCall.mockResolvedValue({ ok: true, value: { strategy: 'dom', text: '' } });
 
-    await createWebpageTools('ws-1').canvas_read_webpage.execute({
+    await createWebpageTools('ws-1').browser_read_page.execute({
       nodeId: 'web-1',
       workspaceId: 'ws-2',
       strategy: 'dom',
@@ -72,7 +72,7 @@ describe('canvas_read_webpage capability adapter', () => {
       },
     });
 
-    const output = JSON.parse(await createWebpageTools('ws-1').canvas_read_webpage.execute({
+    const output = JSON.parse(await createWebpageTools('ws-1').browser_read_page.execute({
       nodeId: 'web-1',
       strategy: 'dom',
     }));

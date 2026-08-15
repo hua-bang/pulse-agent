@@ -8,13 +8,15 @@ import { tmpdir } from 'os';
 // reads/writes under the per-test sandbox rather than the developer's real
 // ~/.pulse-coder/canvas tree. `vi.hoisted` is the only safe way to share state
 // with `vi.mock` factories, which Vitest hoists above the rest of the file.
-const { sandboxHome } = vi.hoisted(() => {
+const { sandboxHome, activeDockWorkspaceId, dockTabsByWorkspace } = vi.hoisted(() => {
   // `vi.hoisted` runs above all imports, so we cannot use `os.tmpdir()` /
   // `path.join` here. Build the path with environment + string concat instead.
   const base = process.env.TMPDIR || process.env.TEMP || '/tmp';
   const trailing = base.endsWith('/') ? '' : '/';
   return {
     sandboxHome: `${base}${trailing}canvas-tools-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    activeDockWorkspaceId: { value: '' },
+    dockTabsByWorkspace: { value: new Map<string, Array<Record<string, unknown>>>() },
   };
 });
 
@@ -44,7 +46,7 @@ vi.mock('../../terminal/pty-manager', () => ({
 }));
 
 // Stub the engine's GenerateImageTool import — the tools module pulls it in at
-// the top level for `canvas_generate_image`, but instantiating it requires
+// the top level for `image_generate`, but instantiating it requires
 // API keys we don't have in unit tests.
 vi.mock('pulse-coder-engine', () => ({
   GenerateImageTool: class StubGenerateImageTool {
@@ -59,6 +61,10 @@ vi.mock('pulse-coder-engine', () => ({
 // don't pick up plugin-contributed tools from the real registry.
 vi.mock('../../../plugins/main', () => ({
   getRegisteredCanvasToolFactories: () => new Map(),
+}));
+vi.mock('../../dock/tab-store', () => ({
+  getActiveDockWorkspaceId: () => activeDockWorkspaceId.value,
+  getDockTabs: (workspaceId: string) => dockTabsByWorkspace.value.get(workspaceId) ?? [],
 }));
 
 import { createCanvasTools, createGlobalCanvasTools } from '../tools';
@@ -95,6 +101,8 @@ async function setupCanvas(data: Partial<CanvasSaveData> = {}): Promise<CanvasSa
 }
 
 beforeEach(async () => {
+  activeDockWorkspaceId.value = '';
+  dockTabsByWorkspace.value.clear();
   // Each test gets a fresh sandbox subdirectory so default-rooted helpers
   // (which use `homedir()/.pulse-coder/canvas`) don't see leftover state.
   await fs.mkdir(join(sandboxHome, '.pulse-coder', 'canvas'), { recursive: true });
@@ -303,25 +311,22 @@ describe('createGlobalCanvasTools', () => {
   it('exposes read/search tools without any node mutation', async () => {
     const tools = createGlobalCanvasTools();
     expect(Object.keys(tools).sort()).toEqual([
-      'canvas_activate_tab',
-      'canvas_ask_user',
+      'browser_read_dom_selection',
+      'browser_search_history',
       'canvas_list_edges',
-      'canvas_list_nodes',
-      'canvas_list_tabs',
-      'canvas_list_tags',
-      'canvas_list_workspaces',
-      'canvas_open_tab',
       'canvas_read_context',
-      'canvas_read_dom_selection',
       'canvas_read_layout',
       'canvas_read_node',
-      'canvas_read_tab',
-      'canvas_screenshot',
-      'canvas_search_history',
       'canvas_search_nodes',
       'chat_role_list',
       'chat_role_save',
+      'dock_activate_tab',
+      'dock_list_tabs',
+      'dock_open_tab',
+      'dock_read_tab',
       'knowledge_analyze_image',
+      'knowledge_list_nodes',
+      'knowledge_list_tags',
       'knowledge_read_node',
       'knowledge_search_nodes',
       'memory_adopt',
@@ -331,8 +336,11 @@ describe('createGlobalCanvasTools', () => {
       'scheduled_task_create',
       'scheduled_task_list',
       'scheduled_task_update',
+      'screen_capture',
       'session_search',
       'session_summary',
+      'user_ask',
+      'workspace_list',
       'workspace_node_get',
       'workspace_node_list',
     ]);
@@ -355,7 +363,7 @@ describe('createGlobalCanvasTools', () => {
     const missing = await tools.canvas_search_nodes.execute({ query: 'pipeline' });
     expect(missing).toContain('workspaceId is required in global chat');
 
-    const missingDomWorkspace = await tools.canvas_read_dom_selection.execute({
+    const missingDomWorkspace = await tools.browser_read_dom_selection.execute({
       nodeId: 'n-iframe',
       selector: '#main',
     });
@@ -364,6 +372,72 @@ describe('createGlobalCanvasTools', () => {
     const found = JSON.parse(await tools.canvas_search_nodes.execute({ workspaceId: wsId, query: 'pipeline' }));
     expect(found.ok).toBe(true);
     expect(found.matches.map((m: { id: string }) => m.id)).toEqual(['n-text']);
+  });
+
+  it('can expose workspace operations behind an explicit workspaceId', async () => {
+    const tools = createGlobalCanvasTools({ allowWorkspaceTargetedTools: true });
+    await setupCanvas();
+
+    expect(tools.canvas_create_node).toBeDefined();
+    expect(tools.canvas_update_node).toBeDefined();
+    expect(tools.canvas_tag_node).toBeDefined();
+    expect(tools.workspace_node_upsert).toBeDefined();
+
+    const missing = await tools.canvas_update_node.execute({
+      nodeId: 'n-text',
+      content: 'should not run without a target',
+    });
+    expect(missing).toContain('workspaceId is required in global chat');
+
+    const result = JSON.parse(await tools.canvas_update_node.execute({
+      workspaceId: wsId,
+      nodeId: 'n-text',
+      content: 'updated from global chat',
+    }));
+    expect(result.ok).toBe(true);
+
+    const { data } = await readCanvasFull(wsId);
+    expect(data?.nodes?.find((node) => node.id === 'n-text')?.data?.content).toBe('updated from global chat');
+  });
+
+  it('uses the current Dock workspace for browser reads without weakening canvas write targeting', async () => {
+    const tools = createGlobalCanvasTools({ allowWorkspaceTargetedTools: true });
+    activeDockWorkspaceId.value = wsId;
+    const currentTabs = [{
+      id: 'link:current',
+      kind: 'link',
+      title: 'Current page',
+      url: 'https://example.com/current',
+      workspaceId: wsId,
+    }];
+    dockTabsByWorkspace.value.set(wsId, currentTabs);
+    dockTabsByWorkspace.value.set('ws-other', [{
+      id: 'link:other',
+      kind: 'link',
+      title: 'Other page',
+      url: 'https://example.com/other',
+      workspaceId: 'ws-other',
+    }]);
+
+    const listed = JSON.parse(await tools.dock_list_tabs.execute({}));
+    expect(listed).toMatchObject({
+      count: 1,
+      tabs: [expect.objectContaining({ id: 'link:current', workspaceId: wsId })],
+    });
+    const explicitlyListed = JSON.parse(await tools.dock_list_tabs.execute({ workspaceId: 'ws-other' }));
+    expect(explicitlyListed).toMatchObject({
+      count: 1,
+      tabs: [expect.objectContaining({ id: 'link:other', workspaceId: 'ws-other' })],
+    });
+    expect(tools.browser_read_page.inputSchema.parse({ nodeId: 'link:current' })).toEqual({
+      nodeId: 'link:current',
+    });
+
+    const missingWriteTarget = await tools.canvas_update_node.execute({
+      nodeId: 'n-text',
+      content: 'must still name a workspace',
+    });
+    expect(missingWriteTarget).toContain('workspaceId is required in global chat');
   });
 });
 
@@ -584,28 +658,29 @@ describe('deferred tool partition', () => {
 
     expect(eager).toEqual([
       'artifact_create',
-      'canvas_ask_user',
       'canvas_create_node',
       'canvas_list_edges',
-      'canvas_list_nodes',
-      'canvas_list_tags',
-      'canvas_list_workspaces',
       'canvas_read_context',
       'canvas_read_node',
       'canvas_search_nodes',
       'canvas_update_node',
       'knowledge_analyze_image',
+      'knowledge_list_nodes',
+      'knowledge_list_tags',
       'knowledge_read_node',
       'knowledge_search_nodes',
       'memory_save',
+      'user_ask',
       'visual_render',
+      'workspace_list',
     ]);
     expect(deferred).toEqual([
       'artifact_pin_to_canvas',
       'artifact_update',
-      'canvas_activate_tab',
+      'browser_read_dom_selection',
+      'browser_read_page',
+      'browser_search_history',
       'canvas_add_to_group',
-      'canvas_analyze_image',
       'canvas_apply_layout',
       'canvas_create_agent_node',
       'canvas_create_edge',
@@ -613,39 +688,38 @@ describe('deferred tool partition', () => {
       'canvas_create_terminal_node',
       'canvas_delete_edge',
       'canvas_delete_node',
-      'canvas_execute_terminal_tab',
-      'canvas_generate_image',
-      'canvas_generate_mindmap_image',
-      'canvas_list_tabs',
       'canvas_move_node',
-      'canvas_open_tab',
       'canvas_patch_html_node',
       'canvas_plugin_node_action',
       'canvas_plugin_node_read',
       'canvas_plugin_node_write',
-      'canvas_promote_skill',
-      'canvas_read_dom_selection',
       'canvas_read_layout',
-      'canvas_read_tab',
-      'canvas_read_webpage',
       'canvas_remove_from_group',
       'canvas_resize_node',
-      'canvas_save_skill',
-      'canvas_screenshot',
-      'canvas_search_history',
       'canvas_send_to_agent',
       'canvas_tag_node',
       'canvas_update_edge',
       'chat_role_list',
       'chat_role_save',
+      'dock_activate_tab',
+      'dock_execute_terminal',
+      'dock_list_tabs',
+      'dock_open_tab',
+      'dock_read_tab',
+      'image_analyze',
+      'image_generate',
+      'image_generate_from_mindmap',
       'memory_adopt',
       'memory_forget',
       'memory_list',
       'scheduled_task_create',
       'scheduled_task_list',
       'scheduled_task_update',
+      'screen_capture',
       'session_search',
       'session_summary',
+      'skill_promote',
+      'skill_save',
       'workspace_node_get',
       'workspace_node_list',
       'workspace_node_upsert',

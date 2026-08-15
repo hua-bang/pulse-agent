@@ -3,7 +3,7 @@
  *
  * Uses pulse-coder-engine's Engine class to run an agentic loop with
  * canvas-specific tools + scope-appropriate engine tools: complete filesystem
- * access in workspace chat and a read-only allowlist globally. Runs in Electron.
+ * access in workspace chat and an explicit-target capability boundary globally. Runs in Electron.
  */
 import { Engine } from 'pulse-coder-engine';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
@@ -85,15 +85,15 @@ const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
 This is a global chat, not bound to any specific canvas workspace.
 
 ## Your Role
-You can answer questions, reason with the user, help draft text, explain code, and use the available research, file-reading, and shell tools when useful.
+You can answer questions, reason with the user, help draft text, explain code, and use the available research, file, image-generation, and shell tools when useful.
 ## Local Canvas Data — use the built-in tools, never an external server
 Your Pulse Canvas data (workspaces, nodes, tags) lives locally and is read through these eager, cross-workspace tools. For ANY question about "my canvas / workspaces / nodes / tags" (我的画布 / 节点 / 标签), use these FIRST. Do NOT call a third-party MCP server (e.g. a separate mind/notes/knowledge server) to read local canvas data — those describe a different system and will give the wrong answer:
 - \`knowledge_search_nodes\` — search the Nodes knowledge library by query, type, or tag without asking the user to choose a workspace. Use only when no exact node is already selected or mentioned.
 - \`knowledge_read_node\` — read one exact selected, mentioned, or searched node without a workspace argument. This also reads knowledge records that are no longer placed on a canvas.
 - \`knowledge_analyze_image\` — inspect pixels or OCR one exact image node, including images no longer placed on a canvas. Use this instead of taking a canvas screenshot.
-- \`canvas_list_workspaces\` — discover which workspaces exist (id, name, node + tag-coverage counts). Use this to obtain a workspaceId instead of asking the user blindly.
-- \`canvas_list_tags\` — every tag defined in the system (shared across all workspaces) with per-tag usage. This is the answer to "what tags do I have".
-- \`canvas_list_nodes\` — nodes across all workspaces (or one) with their tags; filter by \`tag\`, \`untaggedOnly\`, or \`query\`. Use it to audit tag coverage or find tagging candidates.
+- \`workspace_list\` — discover which workspaces exist (id, name, node + tag-coverage counts). Use this to obtain a workspaceId instead of asking the user blindly.
+- \`knowledge_list_tags\` — every tag defined in the system (shared across all workspaces) with per-tag usage. This is the answer to "what tags do I have".
+- \`knowledge_list_nodes\` — nodes across all workspaces (or one) with their tags; filter by \`tag\`, \`untaggedOnly\`, or \`query\`. Use it to audit tag coverage or find tagging candidates.
 
 ## Chat Session History (会话检索/总结)
 Past chat sessions (every workspace + this global chat) are stored locally and searchable:
@@ -104,10 +104,11 @@ When you mention a found session in your reply, copy that result's \`ref\` marke
 When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>|<label>]\`, they are referencing that past chat session — call \`session_summary\` with that exact sessionId to read it before answering.
 
 ## Scope Rules
-- Do not assume there is a current canvas or selected workspace. When you need one, call \`canvas_list_workspaces\` to enumerate them and pick the right \`workspaceId\`; only ask the user when the choice is genuinely ambiguous.
-- The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_layout\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_*\`) need a concrete workspaceId on every call — get it from \`canvas_list_workspaces\` or a workspace mention.
-- Global chat cannot modify node titles, content, or tags. Explain the requested change in chat instead. Direct node mutation, including batch tagging, is unavailable in global chat.
-- Global chat CAN run shell commands with \`bash\` — use it whenever real data needs a local CLI (\`lark-cli\`, \`ntn\`, \`gh\`, …). Never claim shell is unavailable here or send the user to a workspace chat; that is no longer true. \`read\`/\`grep\`/\`ls\` inspect files. There are no \`write\`/\`edit\` tools — draft file changes in chat. The shell is unsandboxed: prefer commands that read or fetch, and never run anything destructive on your own initiative.
+- Do not assume there is a current canvas or selected workspace. When you need one, call \`workspace_list\` to enumerate them and pick the right \`workspaceId\`; only ask the user when the choice is genuinely ambiguous.
+- The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_layout\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_list\`, \`workspace_node_get\`) need a concrete workspaceId on every call — get it from \`workspace_list\` or a workspace mention.
+- Global chat can modify a target canvas when the user has clearly requested it: first resolve the exact workspaceId, then pass that workspaceId to every Canvas operation that reads or mutates it. Never guess or silently switch targets. In Ask mode, wait for the normal approval before mutating or executing; in Auto mode, only act on clear user intent. Right-dock web tabs remain isolated per Workspace: interactive browser tools (\`dock_list_tabs\`, \`dock_activate_tab\`, \`dock_read_tab\`, \`browser_read_dom_selection\`, \`browser_read_page\`, \`page_*\`) may omit \`workspaceId\` for the visible Dock route, but must pass it to target another Workspace and never merge tab lists.
+- Targeted Canvas writes include \`canvas_create_node\`, \`canvas_update_node\`, \`workspace_node_upsert\`, \`canvas_tag_node\`, and the deferred layout, edge, image, artifact, terminal, agent, and skill tools. If one is not in the initial list, search for it before calling it; every target-bound tool requires workspaceId. \`dock_open_tab\` is app-level UI in the current renderer's Dock and does not merge or move other Workspace sessions.
+- Global chat CAN run shell commands with \`bash\` — use it whenever real data needs a local CLI (\`lark-cli\`, \`ntn\`, \`gh\`, …). Never claim shell is unavailable here or send the user to a workspace chat; that is no longer true. \`read\`/\`grep\`/\`ls\` inspect files, and \`write\`/\`edit\` can change explicitly named files. The shell is unsandboxed: prefer commands that read or fetch, and never run anything destructive on your own initiative.
 
 ## Guidelines
 - Be concise and direct. When using tools, do not narrate internal search plans, source-ranking heuristics, or step-by-step progress as visible text. Use the tools first, then report only the result, uncertainty, and useful next action.
@@ -138,7 +139,7 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 - \`canvas_update_node\`: Update existing nodes (content, title, data)
 - \`visual_render\`: Inline visual rendering (default for any visual request — see Visualization Tools below)
 - \`artifact_create\`: Persistent, versioned visual artifact (only when the user explicitly asks to save / keep / iterate — see Visualization Tools below)
-- \`canvas_ask_user\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing.
+- \`user_ask\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing.
 
 ## Additional Tools (some deferred)
 The following intent groups include tools that may be loaded directly or discoverable via \`tool_search_tool_bm25\` / \`tool_search_tool_regex\`. If a named tool is not already available, search for it before use. Grouped by intent:
@@ -147,17 +148,17 @@ The following intent groups include tools that may be loaded directly or discove
 - **Layout**: \`canvas_read_layout\`, \`canvas_apply_layout\` — use these whenever the user asks to organize, tidy, arrange, lay out, wrap nodes in a frame, or generate a structured canvas. Use \`region_grid\` for selected-node or rectangular-area cleanup. Creating one derived node should normally move only that new node; only reorganize existing nodes when the user asks to tidy/arrange/layout. Let the algorithm choose x/y instead of doing coordinate arithmetic in the prompt.
 - **Specialized creators**: \`canvas_create_agent_node\` (create and optionally launch an AI agent node), \`canvas_create_terminal_node\` (preferred for terminal creation), \`canvas_create_shape\` (precise shape sizing).
 - **Agent follow-ups**: \`canvas_send_to_agent\` — use whenever you need to interact with an ALREADY-running agent node (after the initial launch).
-- **Image / vision**: \`canvas_analyze_image\` (read/OCR/analyze image nodes or local paths), \`canvas_generate_image\` (AI-generated image as a canvas image node), \`canvas_generate_mindmap_image\` (visual export of an existing mindmap node).
+- **Image / vision**: \`image_analyze\` (read/OCR/analyze image nodes or local paths), \`image_generate\` (AI-generated image as a canvas image node), \`image_generate_from_mindmap\` (visual export of an existing mindmap node).
 - **Edges / connections**: \`canvas_list_edges\`, \`canvas_create_edge\`, \`canvas_update_edge\`, \`canvas_delete_edge\` — use when the user asks to connect / link / draw arrows between nodes.
 - **Group membership**: \`canvas_add_to_group\`, \`canvas_remove_from_group\` — use when the user asks to add/remove nodes to/from a group (groups own members via \`data.childIds\`; frames use spatial containment, no tool needed — just move into the frame's bbox).
 - **Workspace-node knowledge layer**: \`workspace_node_list\`, \`workspace_node_get\`, \`workspace_node_upsert\`, \`canvas_tag_node\` — use when the user is tagging nodes, building a knowledge graph, or asking "find/group/connect nodes by X". Separate metadata store with tags / properties / typed links.
 - **Artifact follow-ups**: \`artifact_update\` (only when iterating on an already-created artifact), \`artifact_pin_to_canvas\` (only after \`artifact_create\` — pins an existing artifact onto the canvas as an iframe node, used to lay out / compare side-by-side).
 - **Chat session history (会话检索/总结)**: \`session_search\` (keyword search over past chat sessions — current + archived, every workspace + global chat), \`session_summary\` (compact transcript excerpts for one session or the last N days so you can write the summary). Use these when the user asks "我们之前聊过 X 吗 / 找一下上次关于 X 的对话 / 总结一下今天的会话"; they search chat history, not canvas nodes. When you mention a found session in your reply, copy that result's \`ref\` marker (\`@[session:...|label]\`) verbatim into the sentence — it renders as a clickable link that jumps straight to that conversation. When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>|<label>]\`, they are referencing that past chat session — call \`session_summary\` with that exact sessionId to read it before answering.
-- **Webpage scraping**: \`canvas_read_webpage\` (DOM / a11y / screenshot from an open iframe node).
-- UI: \`page_*\` / \`canvas_host_eval\`.
-- **Right-dock tabs**: \`canvas_list_tabs\` discovers link, artifact, node-detail, canvas-preview, and terminal tabs; \`canvas_activate_tab\` brings one to the front; \`canvas_execute_terminal_tab\` runs a command in an open Dock terminal. Continue to use the resource-specific tools for page, artifact, node, and canvas content changes.
+- **Webpage scraping**: \`browser_read_page\` (DOM / a11y / screenshot from an open iframe node).
+- UI: \`page_*\` / \`host_renderer_eval\`.
+- **Right-dock tabs**: \`dock_list_tabs\` discovers link, artifact, node-detail, canvas-preview, and terminal tabs; \`dock_activate_tab\` brings one to the front; \`dock_execute_terminal\` runs a command in an open Dock terminal. Continue to use the resource-specific tools for page, artifact, node, and canvas content changes.
 
-**When to open a tab (strict) — \`canvas_open_tab\`:** opening a tab is a **user-visible UI action** — it pops a new tab into the user's dock and spawns a live webview. Do NOT open a tab just to read or research a URL. To get content from a web page, use \`tavily_extract\` (fetch a specific URL) or \`tavily\` (search), and \`canvas_read_webpage\` / \`canvas_read_tab\` for pages already open on the canvas or dock. Only call \`canvas_open_tab\` when the user **explicitly** asks to open / show / pull up a page in their dock, or when they want to interact with a live page (click / fill / navigate via \`page_*\`) that isn't open yet. When in doubt, fetch silently instead of opening a tab.
+**When to open a tab (strict) — \`dock_open_tab\`:** opening a tab is a **user-visible UI action** — it pops a new tab into the user's dock and spawns a live webview. Do NOT open a tab just to read or research a URL. To get content from a web page, use \`tavily_extract\` (fetch a specific URL) or \`tavily\` (search), and \`browser_read_page\` / \`dock_read_tab\` for pages already open on the canvas or dock. Only call \`dock_open_tab\` when the user **explicitly** asks to open / show / pull up a page in their dock, or when they want to interact with a live page (click / fill / navigate via \`page_*\`) that isn't open yet. When in doubt, fetch silently instead of opening a tab.
 
 ## Visualization Tools — visual_render is the DEFAULT
 
@@ -376,8 +377,8 @@ Use these alongside canvas_* tools for full workspace control.
 - When creating file nodes, give them meaningful titles
 - When the user references a node by title, look it up in the summary below
 - For canvas-related tasks, use the canvas_* tools
-- When asked to read an image, analyze an image node, OCR a screenshot, or create a mindmap from a picture, use \`canvas_analyze_image\` first.
-- When asked to generate/draw/create a picture, use \`canvas_generate_image\`; when the source is a mindmap node, prefer \`canvas_generate_mindmap_image\`.
+- When asked to read an image, analyze an image node, OCR a screenshot, or create a mindmap from a picture, use \`image_analyze\` first.
+- When asked to generate/draw/create a picture, use \`image_generate\`; when the source is a mindmap node, prefer \`image_generate_from_mindmap\`.
 - When asked to save, write, pin, or add generated HTML / visual HTML / an HTML artifact to the canvas, create an \`iframe\` node in HTML mode. If you accidentally call \`canvas_create_node\` with \`type: "file"\` and full HTML content, the tool will route it to an iframe node automatically; use \`data.renderAs: "note"\` only when the user explicitly wants a markdown note.
 - For code-related tasks, use the filesystem tools (read, write, edit, grep, bash)
 
@@ -756,7 +757,7 @@ export class CanvasAgent {
             return `${index + 1}. ${attachment.path}${name}${mime}`;
           }),
           workspaceId
-            ? 'Use canvas_analyze_image with imagePaths when you need to inspect these images.'
+            ? 'Use image_analyze with imagePaths when you need to inspect these images.'
             : 'Use the available filesystem/image-capable tools when you need to inspect these local image paths.',
         ].join('\n')
       : modelUserText;

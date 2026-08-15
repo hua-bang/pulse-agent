@@ -22,7 +22,7 @@ describe('searchToolsBm25', () => {
     // returned the tool nowhere in its results.
     const tools = {
       canvas_create_edge: tool('canvas_create_edge', 'Connect two nodes on the canvas with an arrow.'),
-      canvas_screenshot: tool('canvas_screenshot', 'Capture the current window.'),
+      screen_capture: tool('screen_capture', 'Capture the current window.'),
     };
 
     const names = searchToolsBm25(tools, 'create edge').map((r) => r.toolName);

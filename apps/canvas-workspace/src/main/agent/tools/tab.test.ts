@@ -54,10 +54,10 @@ describe('dock tab interaction tools', () => {
   it('preserves list and open tool output while routing through capabilities', async () => {
     const tools = createTabTools('ws-1');
 
-    const listed = JSON.parse(await tools.canvas_list_tabs.execute({}));
+    const listed = JSON.parse(await tools.dock_list_tabs.execute({}));
     expect(listed).toMatchObject({ ok: true, count: 2, tabs: mocks.tabs });
 
-    const opened = JSON.parse(await tools.canvas_open_tab.execute({
+    const opened = JSON.parse(await tools.dock_open_tab.execute({
       url: 'https://example.com/docs',
     }));
     expect(opened).toMatchObject({ ok: true, url: 'https://example.com/docs' });
@@ -67,21 +67,21 @@ describe('dock tab interaction tools', () => {
   it('activates a listed tab and rejects stale tab ids', async () => {
     const tools = createTabTools('ws-1');
 
-    expect(JSON.parse(await tools.canvas_activate_tab.execute({ tabId: 'canvas:ws-2' }))).toMatchObject({
+    expect(JSON.parse(await tools.dock_activate_tab.execute({ tabId: 'canvas:ws-2' }))).toMatchObject({
       ok: true,
       tabId: 'canvas:ws-2',
       kind: 'canvas',
     });
     expect(mocks.activateDockTab).toHaveBeenCalledWith('ws-1', 'canvas:ws-2');
 
-    const stale = JSON.parse(await tools.canvas_activate_tab.execute({ tabId: 'missing' }));
+    const stale = JSON.parse(await tools.dock_activate_tab.execute({ tabId: 'missing' }));
     expect(stale).toMatchObject({ ok: false, error: expect.stringContaining('not open') });
     expect(mocks.activateDockTab).toHaveBeenCalledTimes(1);
   });
 
   it('executes a command in the PTY session owned by a listed terminal tab', async () => {
     const tools = createTabTools('ws-1');
-    const result = JSON.parse(await tools.canvas_execute_terminal_tab.execute({
+    const result = JSON.parse(await tools.dock_execute_terminal.execute({
       tabId: 'terminal:2',
       command: 'pnpm test',
       timeoutMs: 45_000,
@@ -103,7 +103,7 @@ describe('dock tab interaction tools', () => {
   it('requires an affirmative clarification before terminal execution in ask mode', async () => {
     const tools = createTabTools('ws-1');
     const onClarificationRequest = vi.fn(async () => 'no');
-    const denied = JSON.parse(await tools.canvas_execute_terminal_tab.execute(
+    const denied = JSON.parse(await tools.dock_execute_terminal.execute(
       { tabId: 'terminal:2', command: 'pnpm test' },
       { runContext: { executionMode: 'ask' }, onClarificationRequest },
     ));
@@ -116,7 +116,7 @@ describe('dock tab interaction tools', () => {
     expect(mocks.execInSession).not.toHaveBeenCalled();
 
     onClarificationRequest.mockResolvedValueOnce('yes');
-    const approved = JSON.parse(await tools.canvas_execute_terminal_tab.execute(
+    const approved = JSON.parse(await tools.dock_execute_terminal.execute(
       { tabId: 'terminal:2', command: 'pnpm test' },
       { runContext: { executionMode: 'ask' }, onClarificationRequest },
     ));
@@ -125,11 +125,11 @@ describe('dock tab interaction tools', () => {
 
   it('keeps the preview workspace id when routing a canvas tab read', async () => {
     const tools = createTabTools('ws-1');
-    const parsed = tools.canvas_read_tab.inputSchema.parse({
+    const parsed = tools.dock_read_tab.inputSchema.parse({
       kind: 'canvas',
       workspaceId: 'ws-2',
     });
-    const result = JSON.parse(await tools.canvas_read_tab.execute(parsed));
+    const result = JSON.parse(await tools.dock_read_tab.execute(parsed));
     expect(result).toMatchObject({
       ok: false,
       kind: 'canvas',
@@ -140,13 +140,13 @@ describe('dock tab interaction tools', () => {
   it('does not execute against a non-terminal or stale tab', async () => {
     const tools = createTabTools('ws-1');
 
-    const wrongKind = JSON.parse(await tools.canvas_execute_terminal_tab.execute({
+    const wrongKind = JSON.parse(await tools.dock_execute_terminal.execute({
       tabId: 'canvas:ws-2',
       command: 'pwd',
     }));
     expect(wrongKind).toMatchObject({ ok: false, error: expect.stringContaining('not a terminal') });
 
-    const stale = JSON.parse(await tools.canvas_execute_terminal_tab.execute({
+    const stale = JSON.parse(await tools.dock_execute_terminal.execute({
       tabId: 'missing',
       command: 'pwd',
     }));

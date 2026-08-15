@@ -20,9 +20,9 @@ describe('formatReferencedTabsBlock', () => {
     );
 
     expect(block).toContain('Referenced Tabs — 5 tabs');
-    expect(block).toContain('canvas_read_tab({ kind: "link", tabId: "link:1", workspaceId: "ws-1" })');
-    expect(block).toContain('canvas_read_tab({ kind: "artifact", artifactId: "a1", workspaceId: "ws-1" })');
-    expect(block).toContain('canvas_read_tab({ kind: "terminal", sessionId: "workspace-terminal:ws-1" })');
+    expect(block).toContain('dock_read_tab({ kind: "link", tabId: "link:1", workspaceId: "ws-1" })');
+    expect(block).toContain('dock_read_tab({ kind: "artifact", artifactId: "a1", workspaceId: "ws-1" })');
+    expect(block).toContain('dock_read_tab({ kind: "terminal", sessionId: "workspace-terminal:ws-1" })');
     expect(block).toContain('workspace_node_get({ nodeId: "node-9", workspaceId: "ws-1" })');
     expect(block).toContain('canvas_read_context({ workspaceId: "ws-2" })');
   });
