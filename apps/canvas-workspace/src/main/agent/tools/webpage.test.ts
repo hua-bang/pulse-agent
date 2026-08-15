@@ -1,20 +1,50 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const runtimeCall = vi.hoisted(() => vi.fn());
+const mocks = vi.hoisted(() => ({
+  runtimeCall: vi.fn(),
+  getWebContentsForNode: vi.fn(),
+  findDockLinkTab: vi.fn(),
+  ensureOperable: vi.fn(),
+  activateWorkspaceWindow: vi.fn(),
+  readDOMElement: vi.fn(),
+}));
+
+vi.mock('../../webview/registry', () => ({
+  getWebContentsForNode: mocks.getWebContentsForNode,
+}));
+vi.mock('../../dock/tab-actions', () => ({
+  findDockLinkTab: mocks.findDockLinkTab,
+}));
+vi.mock('../../webview/ensure-operable', () => ({
+  ensureOperable: mocks.ensureOperable,
+}));
+vi.mock('../../app/window-manager', () => ({
+  activateWorkspaceWindow: mocks.activateWorkspaceWindow,
+}));
+vi.mock('../../webview/reader', () => ({
+  readDOMElement: mocks.readDOMElement,
+}));
 
 vi.mock('../../runtime/capabilities', () => ({
   PAGE_READINESS_HINT: 'readiness hint',
-  getCanvasCapabilityRuntime: () => ({ call: runtimeCall }),
+  getCanvasCapabilityRuntime: () => ({ call: mocks.runtimeCall }),
 }));
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }));
 
 import { createWebpageTools } from './webpage';
 
 describe('browser_read_page capability adapter', () => {
-  beforeEach(() => runtimeCall.mockReset());
+  beforeEach(() => {
+    mocks.runtimeCall.mockReset();
+    mocks.getWebContentsForNode.mockReset();
+    mocks.findDockLinkTab.mockReset();
+    mocks.ensureOperable.mockReset();
+    mocks.activateWorkspaceWindow.mockReset();
+    mocks.readDOMElement.mockReset();
+  });
 
   it('preserves the legacy success payload', async () => {
-    runtimeCall.mockResolvedValue({
+    mocks.runtimeCall.mockResolvedValue({
       ok: true,
       value: {
         strategy: 'dom',
@@ -39,7 +69,7 @@ describe('browser_read_page capability adapter', () => {
       textLength: 5,
       hint: 'readiness hint',
     });
-    expect(runtimeCall).toHaveBeenCalledWith(
+    expect(mocks.runtimeCall).toHaveBeenCalledWith(
       'browser.page.read',
       { nodeId: 'web-1', strategy: 'dom' },
       expect.objectContaining({ workspaceId: 'ws-1' }),
@@ -47,7 +77,7 @@ describe('browser_read_page capability adapter', () => {
   });
 
   it('uses the legacy workspace override without leaking it into capability input', async () => {
-    runtimeCall.mockResolvedValue({ ok: true, value: { strategy: 'dom', text: '' } });
+    mocks.runtimeCall.mockResolvedValue({ ok: true, value: { strategy: 'dom', text: '' } });
 
     await createWebpageTools('ws-1').browser_read_page.execute({
       nodeId: 'web-1',
@@ -55,7 +85,7 @@ describe('browser_read_page capability adapter', () => {
       strategy: 'dom',
     });
 
-    expect(runtimeCall).toHaveBeenCalledWith(
+    expect(mocks.runtimeCall).toHaveBeenCalledWith(
       'browser.page.read',
       { nodeId: 'web-1', strategy: 'dom' },
       expect.objectContaining({ workspaceId: 'ws-2' }),
@@ -63,7 +93,7 @@ describe('browser_read_page capability adapter', () => {
   });
 
   it('preserves strategy on read failures', async () => {
-    runtimeCall.mockResolvedValue({
+    mocks.runtimeCall.mockResolvedValue({
       ok: false,
       error: {
         code: 'page_read_failed',
@@ -81,5 +111,27 @@ describe('browser_read_page capability adapter', () => {
       strategy: 'dom',
       error: 'DOM extraction timed out',
     });
+  });
+});
+
+describe('browser_read_dom_selection', () => {
+  it('does not activate a workspace when a dock tab guest is temporarily unavailable', async () => {
+    // The tab can be stale in the current published tab list while its
+    // selection context is still being processed.
+    mocks.findDockLinkTab.mockReturnValue(undefined);
+    mocks.getWebContentsForNode.mockReturnValue(null);
+    mocks.ensureOperable.mockImplementation(async (options: { activate: () => Promise<unknown> }) => {
+      await options.activate();
+      return null;
+    });
+
+    const output = JSON.parse(await createWebpageTools('ws-1').browser_read_dom_selection.execute({
+      nodeId: 'link:youtube',
+      selector: '#video',
+    }));
+
+    expect(output.ok).toBe(false);
+    expect(mocks.activateWorkspaceWindow).not.toHaveBeenCalled();
+    expect(mocks.ensureOperable).not.toHaveBeenCalled();
   });
 });

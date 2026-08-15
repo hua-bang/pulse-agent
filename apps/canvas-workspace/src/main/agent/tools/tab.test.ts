@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   tabs: [] as Array<Record<string, unknown>>,
   activateDockTab: vi.fn(async () => true),
+  findDockLinkTab: vi.fn(),
+  getWebContentsForNode: vi.fn(),
+  ensureOperable: vi.fn(),
+  activateWorkspaceWindow: vi.fn(),
   openDockTab: vi.fn(() => true),
   execInSession: vi.fn(async () => ({ ok: true, output: 'tests passed' })),
 }));
@@ -12,7 +16,7 @@ vi.mock('../../dock/tab-store', () => ({
 }));
 vi.mock('../../dock/tab-actions', () => ({
   activateDockTab: mocks.activateDockTab,
-  findDockLinkTab: vi.fn(),
+  findDockLinkTab: mocks.findDockLinkTab,
   openDockTab: mocks.openDockTab,
 }));
 vi.mock('../../terminal/pty-manager', () => ({
@@ -21,9 +25,9 @@ vi.mock('../../terminal/pty-manager', () => ({
 vi.mock('../../terminal/scrollback', () => ({
   getSessionScrollback: vi.fn(),
 }));
-vi.mock('../../webview/registry', () => ({ getWebContentsForNode: vi.fn() }));
-vi.mock('../../webview/ensure-operable', () => ({ ensureOperable: vi.fn() }));
-vi.mock('../../app/window-manager', () => ({ activateWorkspaceWindow: vi.fn() }));
+vi.mock('../../webview/registry', () => ({ getWebContentsForNode: mocks.getWebContentsForNode }));
+vi.mock('../../webview/ensure-operable', () => ({ ensureOperable: mocks.ensureOperable }));
+vi.mock('../../app/window-manager', () => ({ activateWorkspaceWindow: mocks.activateWorkspaceWindow }));
 vi.mock('../../webview/reader', () => ({
   readDOM: vi.fn(),
   readA11y: vi.fn(),
@@ -47,6 +51,9 @@ describe('dock tab interaction tools', () => {
       },
     ];
     mocks.activateDockTab.mockClear();
+    mocks.getWebContentsForNode.mockReset();
+    mocks.ensureOperable.mockReset();
+    mocks.activateWorkspaceWindow.mockReset();
     mocks.openDockTab.mockClear();
     mocks.execInSession.mockClear();
   });
@@ -135,6 +142,21 @@ describe('dock tab interaction tools', () => {
       kind: 'canvas',
       error: expect.stringContaining('workspaceId: "ws-2"'),
     });
+  });
+
+  it('does not activate a workspace when a link tab guest is temporarily unavailable', async () => {
+    mocks.getWebContentsForNode.mockReturnValue(null);
+    mocks.ensureOperable.mockResolvedValue(null);
+
+    const result = JSON.parse(await createTabTools('ws-1').dock_read_tab.execute({
+      kind: 'link',
+      tabId: 'link:youtube',
+      strategy: 'dom',
+    }));
+
+    expect(result).toMatchObject({ ok: false, kind: 'link' });
+    expect(mocks.ensureOperable).not.toHaveBeenCalled();
+    expect(mocks.activateWorkspaceWindow).not.toHaveBeenCalled();
   });
 
   it('does not execute against a non-terminal or stale tab', async () => {

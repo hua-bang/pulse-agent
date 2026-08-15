@@ -10,9 +10,15 @@ import type { CdpHost } from '../../../../main/webview/cdp-session';
 
 interface FakeHost extends CdpHost {
   executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
+  hostWebContents: {
+    executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
+    isDestroyed(): boolean;
+  };
+  id: number;
   focus(): void;
   focusCount: number;
   cdpCalls: Array<{ method: string; params?: Record<string, unknown> }>;
+  hostJsCalls: string[];
   jsCalls: string[];
 }
 
@@ -22,11 +28,21 @@ function makeHost(opts: {
 } = {}): FakeHost {
   let attached = false;
   const cdpCalls: Array<{ method: string; params?: Record<string, unknown> }> = [];
+  const hostJsCalls: string[] = [];
   const jsCalls: string[] = [];
   const host: FakeHost = {
     cdpCalls,
+    hostJsCalls,
     jsCalls,
     focusCount: 0,
+    hostWebContents: {
+      isDestroyed: () => false,
+      async executeJavaScript(code: string) {
+        hostJsCalls.push(code);
+        return true;
+      },
+    },
+    id: 42,
     focus() {
       this.focusCount++;
     },
@@ -206,6 +222,7 @@ describe('cdpPressKey', () => {
     const host = makeHost();
     await cdpPressKey(host, 'a');
     expect(host.focusCount).toBe(1);
+    expect(host.hostJsCalls).toHaveLength(1);
   });
 });
 
@@ -239,6 +256,18 @@ describe('cdpFillSelector', () => {
     });
     await cdpFillSelector(host, 'input#q', 'hello');
     expect(host.focusCount).toBe(1);
+  });
+
+  it('focuses the owning webview element in the embedder before inserting text', async () => {
+    const host = makeHost({
+      jsResponse: { ok: true, tag: 'input', editable: true },
+    });
+
+    await cdpFillSelector(host, 'input#q', 'hello');
+
+    expect(host.hostJsCalls).toHaveLength(1);
+    expect(host.hostJsCalls[0]).toContain('getWebContentsId');
+    expect(host.hostJsCalls[0]).toContain('42');
   });
 
   it('reports JS-side selector failure without touching CDP', async () => {

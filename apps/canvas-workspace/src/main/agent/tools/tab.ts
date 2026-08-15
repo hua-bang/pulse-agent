@@ -1,8 +1,6 @@
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { getWebContentsForNode } from '../../webview/registry';
-import { ensureOperable } from '../../webview/ensure-operable';
-import { activateWorkspaceWindow } from '../../app/window-manager';
 import { readDOM, readA11y, captureScreenshot } from '../../webview/reader';
 import { getCurrentVersionContent } from '../../artifacts/store';
 import { getSessionScrollback } from '../../terminal/scrollback';
@@ -284,18 +282,17 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         const maxChars = (input.maxChars as number) ?? 12_000;
         const sparseThreshold = 200;
 
-        const wc = await ensureOperable({
-          lookup: () => getWebContentsForNode(targetWorkspaceId, tabId),
-          activate: () => activateWorkspaceWindow(targetWorkspaceId),
-          mode: strategy === 'screenshot' ? 'operate' : 'read',
-        });
+        // A right-dock link tab is already an app-level surface. Reading it
+        // must not activate its workspace when the guest is being remounted;
+        // that would change the user's current route just to inspect a tab.
+        const wc = getWebContentsForNode(targetWorkspaceId, tabId);
         if (!wc) {
           return JSON.stringify({
             ok: false,
             kind,
             error:
               `No active webview for link tab ${tabId} in workspace ${targetWorkspaceId}. ` +
-              'Make sure the tab is open in the dock and has finished loading.',
+              'The tab may be unmounted or still loading; retry after it finishes mounting.',
           });
         }
 
