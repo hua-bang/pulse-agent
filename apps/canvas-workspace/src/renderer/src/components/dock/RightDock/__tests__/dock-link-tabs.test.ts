@@ -2,11 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   ClosedLinkTabStack,
   allocateTabId,
-  applyRetainedTabPatch,
   insertLinkTab,
   isSameOrigin,
   linkPaneKey,
-  updateRetainedLinkTabs,
 } from '../dock-link-tabs';
 import type { DockPreviewTab } from '../dock-types';
 
@@ -76,112 +74,41 @@ describe('insertLinkTab', () => {
   });
 });
 
-describe('updateRetainedLinkTabs', () => {
-  const entry = (workspaceId: string, ids: string[]) => ({
-    workspaceId,
-    tabs: ids.map((id) => link(id)) as never[],
-    activeTabId: ids[0],
-  });
-
-  it('retains the workspace being left, most recent first', () => {
-    const next = updateRetainedLinkTabs([], entry('ws1', ['a']), 'ws2');
-    expect(next.map((item) => item.workspaceId)).toEqual(['ws1']);
-
-    const after = updateRetainedLinkTabs(next, entry('ws2', ['b']), 'ws3');
-    expect(after.map((item) => item.workspaceId)).toEqual(['ws2', 'ws1']);
-  });
-
-  it('drops the workspace being entered — its tabs become live again', () => {
-    const current = [entry('ws1', ['a']), entry('ws2', ['b'])];
-    const next = updateRetainedLinkTabs(current, entry('ws3', ['c']), 'ws1');
-    expect(next.map((item) => item.workspaceId)).toEqual(['ws3', 'ws2']);
-  });
-
-  it('retains nothing for a workspace with no web tabs', () => {
-    // An empty canvas holds no guests, so it must not push a useful entry
-    // off the tail just by being visited.
-    const current = [entry('ws1', ['a'])];
-    const next = updateRetainedLinkTabs(current, entry('ws2', []), 'ws3');
-    expect(next.map((item) => item.workspaceId)).toEqual(['ws1']);
-  });
-
-  it('evicts past the limit, oldest first', () => {
-    let retained = updateRetainedLinkTabs([], entry('ws1', ['a']), 'ws2');
-    retained = updateRetainedLinkTabs(retained, entry('ws2', ['b']), 'ws3');
-    retained = updateRetainedLinkTabs(retained, entry('ws3', ['c']), 'ws4');
-    expect(retained.map((item) => item.workspaceId)).toEqual(['ws3', 'ws2']);
-  });
-
-  it('refreshes an entry instead of duplicating it', () => {
-    const current = [entry('ws1', ['a'])];
-    const next = updateRetainedLinkTabs(current, entry('ws1', ['a', 'b']), 'ws2');
-    expect(next).toHaveLength(1);
-    expect(next[0].tabs.map((tab) => tab.id)).toEqual(['a', 'b']);
-  });
-});
-
-describe('applyRetainedTabPatch', () => {
-  const retained = () => [{
-    workspaceId: 'ws1',
-    tabs: [link('a'), link('b')] as never[],
-    activeTabId: 'a',
-  }];
-
-  it('records a background navigation on the right tab', () => {
-    // The stored URL is what the tab is restored to; letting it drift from
-    // the live guest makes the restore a navigation command that yanks the
-    // page back.
-    const next = applyRetainedTabPatch(retained(), 'ws1', 'b', { url: 'https://moved.example/' });
-    expect(next?.[0].tabs.map((tab) => tab.url)).toEqual([
-      'https://example.com/a',
-      'https://moved.example/',
-    ]);
-  });
-
-  it('is a no-op for an unknown workspace, unknown tab, or unchanged value', () => {
-    expect(applyRetainedTabPatch(retained(), 'other', 'a', { title: 'x' })).toBeNull();
-    expect(applyRetainedTabPatch(retained(), 'ws1', 'zzz', { title: 'x' })).toBeNull();
-    expect(applyRetainedTabPatch(retained(), 'ws1', 'a', { url: 'https://example.com/a' })).toBeNull();
-  });
-});
-
 describe('linkPaneKey', () => {
-  it('keeps same-id tabs in different workspaces apart', () => {
-    // Tab ids are derived from the URL, so two canvases holding the same page
-    // produce the same id — the mounted-pane bookkeeping must not conflate them.
-    expect(linkPaneKey('ws1', 'link:x')).not.toBe(linkPaneKey('ws2', 'link:x'));
+  it('uses the tab id as a stable application-global pane key', () => {
+    expect(linkPaneKey('link:x')).toBe('link:x');
   });
 });
 
 describe('ClosedLinkTabStack', () => {
-  it('pops most-recent-first within a workspace', () => {
+  it('pops most-recent-first globally', () => {
     const stack = new ClosedLinkTabStack();
-    stack.push({ tab: link('a') as never, index: 0, workspaceId: 'ws1' });
-    stack.push({ tab: link('b') as never, index: 1, workspaceId: 'ws1' });
+    stack.push({ tab: link('a') as never, index: 0 });
+    stack.push({ tab: link('b') as never, index: 1 });
 
-    expect(stack.pop('ws1')?.tab.id).toBe('b');
-    expect(stack.pop('ws1')?.tab.id).toBe('a');
-    expect(stack.pop('ws1')).toBeUndefined();
+    expect(stack.pop()?.tab.id).toBe('b');
+    expect(stack.pop()?.tab.id).toBe('a');
+    expect(stack.pop()).toBeUndefined();
   });
 
-  it('never hands a tab to a different workspace', () => {
+  it('reports whether a global entry exists', () => {
     const stack = new ClosedLinkTabStack();
-    stack.push({ tab: link('a') as never, index: 0, workspaceId: 'ws1' });
+    expect(stack.has()).toBe(false);
+    stack.push({ tab: link('a') as never, index: 0 });
 
-    expect(stack.has('ws2')).toBe(false);
-    expect(stack.pop('ws2')).toBeUndefined();
-    // ws1's entry is untouched by the miss.
-    expect(stack.pop('ws1')?.tab.id).toBe('a');
+    expect(stack.has()).toBe(true);
+    expect(stack.pop()?.tab.id).toBe('a');
+    expect(stack.has()).toBe(false);
   });
 
   it('drops the oldest entry past the limit', () => {
     const stack = new ClosedLinkTabStack(2);
-    stack.push({ tab: link('a') as never, index: 0, workspaceId: 'ws1' });
-    stack.push({ tab: link('b') as never, index: 0, workspaceId: 'ws1' });
-    stack.push({ tab: link('c') as never, index: 0, workspaceId: 'ws1' });
+    stack.push({ tab: link('a') as never, index: 0 });
+    stack.push({ tab: link('b') as never, index: 0 });
+    stack.push({ tab: link('c') as never, index: 0 });
 
-    expect(stack.pop('ws1')?.tab.id).toBe('c');
-    expect(stack.pop('ws1')?.tab.id).toBe('b');
-    expect(stack.pop('ws1')).toBeUndefined();
+    expect(stack.pop()?.tab.id).toBe('c');
+    expect(stack.pop()?.tab.id).toBe('b');
+    expect(stack.pop()).toBeUndefined();
   });
 });

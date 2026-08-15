@@ -805,14 +805,6 @@
   pointer-events: auto;
 }
 
-/* A pane belonging to a workspace the user has LEFT: mounted so its guest
-   keeps running (scroll, form state, sign-in survive the switch), never
-   shown. It can never gain --active, so this only states the intent. */
-.right-dock__pane--retained {
-  visibility: hidden;
-  pointer-events: none;
-}
-
 .right-dock__panes[data-split="true"] .right-dock__pane--split-content {
   right: auto;
   width: var(--split-content-width);

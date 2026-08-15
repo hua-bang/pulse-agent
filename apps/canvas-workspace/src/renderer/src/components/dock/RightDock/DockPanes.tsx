@@ -120,22 +120,12 @@ export const DockPanes = ({
   // split); after that it stays mounted, so switching back never reloads.
   // Agent tools that activate a tab before reading it already poll for the
   // webview registration (main/webview/ensure-operable.ts).
-  // A tab that left the dock took its guest with it — closed, or evicted past
-  // the retention limit. Dropping its key restores the "mount on first
-  // visible" rule for the NEXT time it appears; without this the set only
-  // ever grew, so returning to a workspace remounted every tab the user had
-  // ever looked at, in one commit — the exact cold-start burst this gate
-  // exists to prevent. Keys are workspace-qualified: tab ids are derived from
-  // the URL, so the same id can exist in two workspaces.
+  // A closed tab drops its key and restores the "mount on first visible" rule
+  // if the user opens it again. Link tabs are global, so their keys survive a
+  // Workspace switch and the live guest keeps its page state.
   const mountedLinkTabsRef = useRef(new Set<string>());
-  // Key against the STORE's active workspace, not the `activeWorkspaceId`
-  // prop. `RightDock` forwards the prop to `setActiveWorkspace` in a layout
-  // effect, so there is one render where the prop has already advanced to the
-  // new workspace while `state` still describes the old one. Keying off the
-  // prop there rewrites every live key, prunes the real ones as "not live",
-  // and the retained panes that arrive on the next render come back
-  // unmounted — the guests die and retention silently does nothing.
-  // Confirmed on a real workspace switch.
+  // The WebView registration still uses the active Workspace as its renderer
+  // mount route. That is a routing detail, not Link Tab ownership.
   const ownerWorkspaceId = state.activeTerminalWorkspaceId;
   const tabRefsById = new Map(buildDockTabRefs(state, ownerWorkspaceId).map(tab => [tab.id, tab]));
   const renderTabChatAction = (tabRef?: AgentContextTabRef) => tabRef ? (
@@ -147,34 +137,25 @@ export const DockPanes = ({
       />
     </div>
   ) : null;
-  const liveKeys = new Set([
-    ...state.tabs.map((tab) => linkPaneKey(ownerWorkspaceId, tab.id)),
-    ...state.retainedLinkTabs.flatMap(
-      (entry) => entry.tabs.map((tab) => linkPaneKey(entry.workspaceId, tab.id)),
-    ),
-  ]);
+  const liveKeys = new Set(
+    state.tabs
+      .filter((tab) => tab.kind === 'link')
+      .map((tab) => linkPaneKey(tab.id)),
+  );
   for (const key of mountedLinkTabsRef.current) {
     if (!liveKeys.has(key)) mountedLinkTabsRef.current.delete(key);
   }
   if (dockVisible && activePaneId) {
-    mountedLinkTabsRef.current.add(linkPaneKey(ownerWorkspaceId, activePaneId));
+    mountedLinkTabsRef.current.add(linkPaneKey(activePaneId));
   }
   if (dockVisible && splitTabId) {
-    mountedLinkTabsRef.current.add(linkPaneKey(ownerWorkspaceId, splitTabId));
+    mountedLinkTabsRef.current.add(linkPaneKey(splitTabId));
   }
-  const isMounted = (workspaceId: string, tabId: string): boolean => (
-    mountedLinkTabsRef.current.has(linkPaneKey(workspaceId, tabId))
+  const isMounted = (tabId: string): boolean => (
+    mountedLinkTabsRef.current.has(linkPaneKey(tabId))
   );
-  const linkPanes = [
-    ...state.tabs
-      .filter((tab): tab is Extract<DockPreviewTab, { kind: 'link' }> => tab.kind === 'link')
-      .map((tab) => ({ workspaceId: ownerWorkspaceId, tab, live: true })),
-    ...state.retainedLinkTabs.flatMap(
-      (entry) => entry.tabs.map((tab) => ({ workspaceId: entry.workspaceId, tab, live: false })),
-    ),
-  ].sort((a, b) => (
-    linkPaneKey(a.workspaceId, a.tab.id) < linkPaneKey(b.workspaceId, b.tab.id) ? -1 : 1
-  ));
+  const linkPanes = state.tabs
+    .filter((tab): tab is Extract<DockPreviewTab, { kind: 'link' }> => tab.kind === 'link');
   const style = {
     '--split-content-width': `${splitContentWidth}px`,
     '--split-divider-width': `${splitDividerWidth}px`,
@@ -304,42 +285,25 @@ export const DockPanes = ({
           ) : null}
         </div>
       ))}
-      {/* ONE list for every web tab, live and retained, in a stable
-          key order.
-
-          Both properties are load-bearing. React remounts a component that
-          moves between two sibling arrays, and Chromium reloads a <webview>
-          whose element is moved within its parent — either one destroys the
-          guest and its page state, which is exactly what retention exists to
-          preserve. Sorting by the workspace-qualified key keeps a tab in the
-          same slot whether it is live or retained, so a workspace switch
-          rewrites attributes and nothing else. Verified on a real switch:
-          without this the page silently reloaded even though the pane stayed
-          "mounted".
-
-          Retained panes carry no pane id or tabpanel role (no tab control
-          points at them, and tab ids are not unique across workspaces), and
-          their callbacks route to the workspace-scoped store method — a
-          hidden guest that navigates must not rename a same-id tab in the
-          workspace the user is actually looking at. */}
-      {linkPanes.map(({ workspaceId, tab, live }) => {
-        const visible = dockVisible
-          && live
-          && (tab.id === activePaneId || tab.id === splitTabId);
+      {/* Keep one stable list of global Link Tab panes. Moving a webview
+          between sibling lists remounts Chromium guests; keeping the same
+          keyed list across Workspace switches preserves page state. */}
+      {linkPanes.map((tab) => {
+        const visible = dockVisible && (tab.id === activePaneId || tab.id === splitTabId);
         return (
           <div
-            key={linkPaneKey(workspaceId, tab.id)}
-            id={live ? dockPaneElementId(tab.id) : undefined}
-            role={live ? 'tabpanel' : undefined}
-            aria-labelledby={live ? dockTabElementId(tab.id) : undefined}
+            key={linkPaneKey(tab.id)}
+            id={dockPaneElementId(tab.id)}
+            role="tabpanel"
+            aria-labelledby={dockTabElementId(tab.id)}
             aria-hidden={!visible}
-            className={`right-dock__pane${visible ? ' right-dock__pane--active' : ''}${live && tab.id === splitTabId ? ' right-dock__pane--split-content' : ''}${live ? '' : ' right-dock__pane--retained'}`}
-            data-focused={live && tab.id === activePaneId}
+            className={`right-dock__pane${visible ? ' right-dock__pane--active' : ''}${tab.id === splitTabId ? ' right-dock__pane--split-content' : ''}`}
+            data-focused={tab.id === activePaneId}
             onFocusCapture={() => {
-              if (live && tab.id === splitTabId) store.activate(tab.id);
+              if (tab.id === splitTabId) store.activate(tab.id);
             }}
             onMouseDown={() => {
-              if (live && tab.id === splitTabId) store.activate(tab.id);
+              if (tab.id === splitTabId) store.activate(tab.id);
             }}
           >
             <Suspense fallback={null}>
@@ -347,36 +311,24 @@ export const DockPanes = ({
                 url={tab.url}
                 title={tab.title}
                 tabId={tab.id}
-                mountWebview={isMounted(workspaceId, tab.id)}
+                mountWebview={isMounted(tab.id)}
                 active={visible}
-                activeWorkspaceId={workspaceId}
-                onActivate={live ? () => store.activate(tab.id) : undefined}
-                onTitleChange={(title) => (live
-                  ? store.setTitle(tab.id, title)
-                  : store.updateRetainedLinkTab(workspaceId, tab.id, { title }))}
-                onFaviconChange={(faviconUrl) => (live
-                  ? store.setFavicon(tab.id, faviconUrl)
-                  : store.updateRetainedLinkTab(workspaceId, tab.id, { faviconUrl }))}
-                onNavigate={(url) => (live
-                  ? store.navigateLink(tab.id, url)
-                  : store.updateRetainedLinkTab(workspaceId, tab.id, { url }))}
-                onGuestNavigate={(url) => (live
-                  ? store.syncLinkUrl(tab.id, url)
-                  : store.updateRetainedLinkTab(workspaceId, tab.id, { url }))}
+                activeWorkspaceId={ownerWorkspaceId}
+                onActivate={() => store.activate(tab.id)}
+                onTitleChange={(title) => store.setTitle(tab.id, title)}
+                onFaviconChange={(faviconUrl) => store.setFavicon(tab.id, faviconUrl)}
+                onNavigate={(url) => store.navigateLink(tab.id, url)}
+                onGuestNavigate={(url) => store.syncLinkUrl(tab.id, url)}
                 onAddToReference={pinUrlReference}
-                onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(workspaceId, selection)}
-                tabRef={live ? tabRefsById.get(tab.id) : undefined}
+                onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(ownerWorkspaceId, selection)}
+                tabRef={tabRefsById.get(tab.id)}
                 targetWorkspaceId={activeWorkspaceId}
                 onAddTabToChat={onAddTabToChat}
                 onOpenLink={(url, options) => {
-                  if (!live) {
-                    store.openLinkInWorkspace(workspaceId, url, options);
-                    return;
-                  }
                   store.openLink(url, { ...options, openerTabId: tab.id });
                   if (!options?.background) focusActiveDockTarget(store);
                 }}
-                onRequestClose={live ? () => onCloseTab(tab.id) : () => undefined}
+                onRequestClose={() => onCloseTab(tab.id)}
               />
             </Suspense>
           </div>

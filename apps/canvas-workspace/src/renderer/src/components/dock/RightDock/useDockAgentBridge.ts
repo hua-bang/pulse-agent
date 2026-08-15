@@ -4,7 +4,7 @@ import type {
   DockActivateTabResult,
 } from '../../../../../shared/dock-tab-commands';
 import type { AgentContextTabRef } from '../../../types';
-import { buildDockTabRefs } from './tabRefs';
+import { buildDockTabRefs, buildGlobalDockTabRefs } from './tabRefs';
 import type { DockState, DockStore } from './dock-store';
 import { activateOrReopenDockTab, type DockTabActivationOutcome } from './dock-tab-reopen';
 
@@ -31,8 +31,9 @@ interface LocalActivationDetail {
  *  - listens for main-process dock commands (`dock:activate-tab` /
  *    `dock:open-tab`, sent by the `canvas_open_tab` tool and the webview
  *    page-control plugin) and applies them to the store;
- *  - publishes the active workspace's open tabs to main so the
- *    `canvas_list_tabs` agent tool can enumerate them.
+ *  - publishes the active workspace's resource-tab projection plus the
+ *    application-global Link Tab projection so `canvas_list_tabs` can serve
+ *    both Global and Workspace callers.
  */
 export function useDockAgentBridge(
   store: DockStore,
@@ -138,6 +139,15 @@ export function useDockAgentBridge(
 
   useEffect(() => {
     if (!activeWorkspaceId) return;
-    window.canvasWorkspace.dock.publishTabs(activeWorkspaceId, buildDockTabRefs(state, activeWorkspaceId));
+    window.canvasWorkspace.dock.publishTabs(
+      activeWorkspaceId,
+      buildDockTabRefs(state, activeWorkspaceId),
+      'workspace',
+    );
+    window.canvasWorkspace.dock.publishTabs(
+      activeWorkspaceId,
+      buildGlobalDockTabRefs(state, activeWorkspaceId),
+      'global',
+    );
   }, [state.tabs, state.terminalTabsByWorkspace, state.activeTabId, state.expanded, state.splitTabId, activeWorkspaceId]);
 }

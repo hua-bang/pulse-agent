@@ -1,13 +1,14 @@
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
-import { getWebContentsForNode } from '../../webview/registry';
+import { getWebContentsForDockTab, getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
 import { activateWorkspaceWindow } from '../../app/window-manager';
 import { readDOM, readA11y, captureScreenshot } from '../../webview/reader';
 import { getCurrentVersionContent } from '../../artifacts/store';
 import { getSessionScrollback } from '../../terminal/scrollback';
 import { execInSession } from '../../terminal/pty-manager';
-import { getDockTabs } from '../../dock/tab-store';
+import { activateGlobalDockTab, openDockTab } from '../../dock/tab-actions';
+import { getDockTabs, getGlobalDockTabs } from '../../dock/tab-store';
 import { searchHistory } from '../../dock/history-store';
 import {
   executeCapabilityAsCanvasTool,
@@ -66,10 +67,20 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       description:
         'List open right-dock tabs: link, node-detail, artifact, canvas preview, and terminal. ' +
         'Returns ids for `canvas_read_tab`, `canvas_activate_tab`, and resource-specific tools. ' +
+        'Link tabs are application-global: omit workspaceId for them. Resource tabs use workspaceId. ' +
         'For a link tab already open here, read it with `canvas_read_tab` (or drive it with enabled page_* controls).',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        workspaceId: z.string().optional().describe('Workspace target for resource tabs. Omit to list global link tabs.'),
+      }),
       execute: async (input, ctx) => {
-        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const targetWorkspaceId = ((input.workspaceId as string | undefined) ?? '').trim() || workspaceId;
+        if (!targetWorkspaceId) {
+          const tabs = getGlobalDockTabs().map((tab) => {
+            const { workspaceId: _workspaceId, dockWorkspaceId: _dockWorkspaceId, ...publicTab } = tab;
+            return publicTab;
+          });
+          return JSON.stringify({ ok: true, count: tabs.length, tabs });
+        }
         return executeCapabilityAsCanvasTool(
           getCanvasCapabilityRuntime(),
           'browser.tabs.list',
@@ -85,12 +96,23 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       defer_loading: true,
       description:
         'Bring an open right-dock tab to the front by tabId from canvas_list_tabs. ' +
+        'Omit workspaceId for a global Link Tab; pass it for a workspace resource tab. ' +
         'This changes focus only; it cannot close, rename, or reorder tabs.',
       inputSchema: z.object({
         tabId: z.string().min(1).describe('Open dock tab id from canvas_list_tabs.'),
+        workspaceId: z.string().optional().describe('Workspace target for a resource tab. Omit for a global link tab.'),
       }),
       execute: async (input, ctx) => {
-        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const targetWorkspaceId = ((input.workspaceId as string | undefined) ?? '').trim() || workspaceId;
+        if (!targetWorkspaceId) {
+          const tabId = (input.tabId as string).trim();
+          const tab = getGlobalDockTabs().find((candidate) => candidate.id === tabId);
+          if (!tab) return JSON.stringify({ ok: false, error: `Global link tab ${tabId} is not open.` });
+          const ok = await activateGlobalDockTab(tabId);
+          return JSON.stringify(ok
+            ? { ok: true, tabId, kind: tab.kind, title: tab.title }
+            : { ok: false, error: `Global link tab ${tabId} is unavailable.` });
+        }
         return executeCapabilityAsCanvasTool(
           getCanvasCapabilityRuntime(),
           'browser.tabs.activate',
@@ -118,7 +140,29 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
           .describe('Existing link tab to navigate (from canvas_list_tabs). Omit to open a new tab.'),
       }),
       execute: async (input, ctx) => {
-        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        if (!workspaceId) {
+          const url = (input.url as string).trim();
+          let parsedUrl: URL;
+          try {
+            parsedUrl = new URL(url);
+          } catch {
+            return JSON.stringify({ ok: false, error: `Not a valid URL: ${url}` });
+          }
+          if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+            return JSON.stringify({ ok: false, error: `Only http(s) URLs can be opened in a tab (got ${parsedUrl.protocol}).` });
+          }
+          const tabId = typeof input.tabId === 'string' ? input.tabId.trim() : undefined;
+          if (!openDockTab(url, tabId)) {
+            return JSON.stringify({ ok: false, error: 'No canvas window is open to receive the tab.' });
+          }
+          return JSON.stringify({
+            ok: true,
+            url,
+            ...(tabId ? { tabId } : {}),
+            hint: 'Call canvas_list_tabs() to get the global tab id, then canvas_read_tab({ kind: "link", tabId }) to read it.',
+          });
+        }
+        const targetWorkspaceId = ((input.workspaceId as string | undefined) ?? '').trim() || workspaceId;
         return executeCapabilityAsCanvasTool(
           getCanvasCapabilityRuntime(),
           'browser.tabs.open',
@@ -204,7 +248,8 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       defer_loading: true,
       description:
         'Read live right-dock tab content. Use fields from Referenced Tabs or canvas_list_tabs. ' +
-        'link requires tabId (dom/a11y/screenshot); artifact requires artifactId; terminal requires sessionId. ' +
+        'Global link tabs require only tabId (dom/a11y/screenshot); workspace resource tabs require workspaceId. ' +
+        'Artifact requires artifactId; terminal requires sessionId. ' +
         'For node-detail use canvas_read_node, and for canvas preview use canvas_read_context. ' +
         'Analyze screenshot results with canvas_analyze_image.',
       inputSchema: z.object({
@@ -230,9 +275,10 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       }),
       execute: async (input) => {
         const kind = input.kind as AgentContextTabRef['kind'];
-        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const targetWorkspaceId = ((input.workspaceId as string | undefined) ?? '').trim() || workspaceId;
 
         if (kind === 'node-detail') {
+          if (!targetWorkspaceId) return JSON.stringify({ ok: false, kind, error: 'workspaceId is required for a node-detail tab.' });
           const nodeId = (input.nodeId as string) || '';
           return JSON.stringify({
             ok: false,
@@ -244,6 +290,7 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         }
 
         if (kind === 'canvas') {
+          if (!targetWorkspaceId) return JSON.stringify({ ok: false, kind, error: 'workspaceId is required for a canvas-preview tab.' });
           return JSON.stringify({
             ok: false,
             kind,
@@ -254,6 +301,7 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         }
 
         if (kind === 'artifact') {
+          if (!targetWorkspaceId) return JSON.stringify({ ok: false, kind, error: 'workspaceId is required for an artifact tab.' });
           const artifactId = (input.artifactId as string) || '';
           if (!artifactId) return JSON.stringify({ ok: false, kind, error: 'artifactId is required for an artifact tab.' });
           const artifact = await getCurrentVersionContent(targetWorkspaceId, artifactId);
@@ -268,6 +316,7 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         }
 
         if (kind === 'terminal') {
+          if (!targetWorkspaceId) return JSON.stringify({ ok: false, kind, error: 'workspaceId is required for a terminal tab.' });
           const sessionId = (input.sessionId as string) || '';
           if (!sessionId) return JSON.stringify({ ok: false, kind, error: 'sessionId is required for a terminal tab.' });
           const maxChars = input.maxChars as number | undefined;
@@ -285,16 +334,21 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
         const sparseThreshold = 200;
 
         const wc = await ensureOperable({
-          lookup: () => getWebContentsForNode(targetWorkspaceId, tabId),
-          activate: () => activateWorkspaceWindow(targetWorkspaceId),
+          lookup: () => targetWorkspaceId
+            ? getWebContentsForNode(targetWorkspaceId, tabId)
+            : getWebContentsForDockTab(tabId),
+          activate: () => targetWorkspaceId
+            ? activateWorkspaceWindow(targetWorkspaceId)
+            : activateGlobalDockTab(tabId).then((ok) => ({ ok })),
           mode: strategy === 'screenshot' ? 'operate' : 'read',
         });
         if (!wc) {
+          const scope = targetWorkspaceId ? `workspace ${targetWorkspaceId}` : 'global';
           return JSON.stringify({
             ok: false,
             kind,
             error:
-              `No active webview for link tab ${tabId} in workspace ${targetWorkspaceId}. ` +
+              `No active webview for ${scope} link tab ${tabId}. ` +
               'Make sure the tab is open in the dock and has finished loading.',
           });
         }

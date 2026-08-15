@@ -361,6 +361,9 @@ describe('createGlobalCanvasTools', () => {
     });
     expect(missingDomWorkspace).toContain('workspaceId is required in global chat');
 
+    const missingTabWorkspace = await tools.canvas_list_tabs.execute({});
+    expect(missingTabWorkspace).toContain('workspaceId is required in global chat');
+
     const found = JSON.parse(await tools.canvas_search_nodes.execute({ workspaceId: wsId, query: 'pipeline' }));
     expect(found.ok).toBe(true);
     expect(found.matches.map((m: { id: string }) => m.id)).toEqual(['n-text']);
@@ -387,6 +390,11 @@ describe('createGlobalCanvasTools', () => {
       content: 'updated from global chat',
     }));
     expect(result.ok).toBe(true);
+
+    // Interactive Global's application-global browser tools do not need an
+    // ambient workspace. Resource tabs can still be targeted explicitly.
+    const tabs = await tools.canvas_list_tabs.execute({});
+    expect(JSON.parse(tabs)).toMatchObject({ ok: true, count: expect.any(Number) });
 
     const { data } = await readCanvasFull(wsId);
     expect(data?.nodes?.find((node) => node.id === 'n-text')?.data?.content).toBe('updated from global chat');

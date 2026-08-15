@@ -2,16 +2,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   tabs: [] as Array<Record<string, unknown>>,
+  globalTabs: [] as Array<Record<string, unknown>>,
   activateDockTab: vi.fn(async () => true),
+  activateGlobalDockTab: vi.fn(async () => true),
   openDockTab: vi.fn(() => true),
   execInSession: vi.fn(async () => ({ ok: true, output: 'tests passed' })),
+  getWebContentsForDockTab: vi.fn(() => ({ id: 'global-link-webview' })),
+  ensureOperable: vi.fn(async (options: { lookup: () => unknown }) => options.lookup()),
+  readDOM: vi.fn(async () => ({
+    ok: true,
+    title: 'Global page',
+    url: 'https://global.example/',
+    text: 'Global page content',
+  })),
 }));
 
 vi.mock('../../dock/tab-store', () => ({
   getDockTabs: () => mocks.tabs,
+  getGlobalDockTabs: () => mocks.globalTabs,
 }));
 vi.mock('../../dock/tab-actions', () => ({
   activateDockTab: mocks.activateDockTab,
+  activateGlobalDockTab: mocks.activateGlobalDockTab,
   findDockLinkTab: vi.fn(),
   openDockTab: mocks.openDockTab,
 }));
@@ -21,11 +33,14 @@ vi.mock('../../terminal/pty-manager', () => ({
 vi.mock('../../terminal/scrollback', () => ({
   getSessionScrollback: vi.fn(),
 }));
-vi.mock('../../webview/registry', () => ({ getWebContentsForNode: vi.fn() }));
-vi.mock('../../webview/ensure-operable', () => ({ ensureOperable: vi.fn() }));
+vi.mock('../../webview/registry', () => ({
+  getWebContentsForDockTab: mocks.getWebContentsForDockTab,
+  getWebContentsForNode: vi.fn(),
+}));
+vi.mock('../../webview/ensure-operable', () => ({ ensureOperable: mocks.ensureOperable }));
 vi.mock('../../app/window-manager', () => ({ activateWorkspaceWindow: vi.fn() }));
 vi.mock('../../webview/reader', () => ({
-  readDOM: vi.fn(),
+  readDOM: mocks.readDOM,
   readA11y: vi.fn(),
   captureScreenshot: vi.fn(),
 }));
@@ -47,8 +62,19 @@ describe('dock tab interaction tools', () => {
       },
     ];
     mocks.activateDockTab.mockClear();
+    mocks.activateGlobalDockTab.mockClear();
     mocks.openDockTab.mockClear();
     mocks.execInSession.mockClear();
+    mocks.globalTabs = [
+      {
+        id: 'link:global',
+        kind: 'link',
+        scope: 'global',
+        title: 'Global page',
+        url: 'https://global.example/',
+        dockWorkspaceId: 'mount-only-ws',
+      },
+    ];
   });
 
   it('preserves list and open tool output while routing through capabilities', async () => {
@@ -62,6 +88,39 @@ describe('dock tab interaction tools', () => {
     }));
     expect(opened).toMatchObject({ ok: true, url: 'https://example.com/docs' });
     expect(mocks.openDockTab).toHaveBeenCalledWith('https://example.com/docs', undefined);
+  });
+
+  it('lists, activates, reads, and opens a global Link Tab without workspaceId', async () => {
+    const tools = createTabTools('');
+
+    const listed = JSON.parse(await tools.canvas_list_tabs.execute({}));
+    expect(listed).toEqual({
+      ok: true,
+      count: 1,
+      tabs: [{
+        id: 'link:global',
+        kind: 'link',
+        scope: 'global',
+        title: 'Global page',
+        url: 'https://global.example/',
+      }],
+    });
+
+    const activated = JSON.parse(await tools.canvas_activate_tab.execute({ tabId: 'link:global' }));
+    expect(activated).toMatchObject({ ok: true, tabId: 'link:global', kind: 'link' });
+    expect(mocks.activateGlobalDockTab).toHaveBeenCalledWith('link:global');
+
+    const read = JSON.parse(await tools.canvas_read_tab.execute({
+      kind: 'link',
+      tabId: 'link:global',
+      strategy: 'dom',
+    }));
+    expect(read).toMatchObject({ ok: true, kind: 'link', strategy: 'dom', text: 'Global page content' });
+    expect(mocks.getWebContentsForDockTab).toHaveBeenCalledWith('link:global');
+
+    const opened = JSON.parse(await tools.canvas_open_tab.execute({ url: 'https://new.example/' }));
+    expect(opened).toMatchObject({ ok: true, url: 'https://new.example/' });
+    expect(mocks.openDockTab).toHaveBeenCalledWith('https://new.example/', undefined);
   });
 
   it('activates a listed tab and rejects stale tab ids', async () => {

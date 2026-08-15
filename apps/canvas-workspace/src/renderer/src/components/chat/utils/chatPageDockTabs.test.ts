@@ -4,7 +4,6 @@ import { buildChatPageDockTabRefs } from './chatPageDockTabs';
 
 const state = (overrides: Partial<DockState> = {}): DockState => ({
   tabs: [],
-  retainedLinkTabs: [],
   activeTabId: 'chat',
   expanded: false,
   chatUnread: false,
@@ -31,7 +30,7 @@ describe('buildChatPageDockTabRefs', () => {
       expanded: true,
     }))).toEqual([expect.objectContaining({
       id: 'link:docs',
-      workspaceId: 'workspace-live',
+      scope: 'global',
       dockWorkspaceId: 'workspace-live',
       isActive: true,
       isVisible: true,

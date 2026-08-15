@@ -39,6 +39,7 @@ vi.mock('electron', () => ({
 }));
 
 import {
+  getWebContentsForDockTab,
   getWebContentsForNode,
   getWebContentsForInstance,
   getWebviewRegistration,
@@ -117,6 +118,37 @@ describe('webview registry generations', () => {
       surfaceKind: 'dock-browser',
     });
     expect(getWebviewRegistration(999)).toBeNull();
+  });
+
+  it('resolves a global dock tab by id across renderer workspace mount routes', () => {
+    invoke('iframe:register-webview', {
+      workspaceId: 'ws-1',
+      nodeId: 'global-link-1',
+      webContentsId: 101,
+      surfaceKind: 'dock-browser',
+    });
+    invoke('iframe:register-webview', {
+      workspaceId: 'ws-2',
+      nodeId: 'global-link-1',
+      webContentsId: 202,
+      surfaceKind: 'dock-browser',
+    });
+
+    expect(getWebContentsForDockTab('global-link-1')).toMatchObject({ id: 202 });
+
+    invoke('iframe:unregister-webview', {
+      workspaceId: 'ws-2',
+      nodeId: 'global-link-1',
+      webContentsId: 202,
+    });
+    expect(getWebContentsForDockTab('global-link-1')).toMatchObject({ id: 101 });
+
+    invoke('iframe:unregister-webview', {
+      workspaceId: 'ws-1',
+      nodeId: 'global-link-1',
+      webContentsId: 101,
+    });
+    expect(getWebContentsForDockTab('global-link-1')).toBeNull();
   });
 
   it('returns a complete non-retryable lifecycle result for invalid payloads', async () => {

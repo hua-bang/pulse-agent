@@ -7,6 +7,7 @@ vi.mock('electron', () => ({
 
 import {
   getDockTabs,
+  getGlobalDockTabs,
   getPublishedDockWorkspaceId,
   setupDockTabsIpc,
 } from '../tab-store';
@@ -38,5 +39,38 @@ describe('dock tab-store', () => {
     handler!({ sender: { id: 101 } }, { tabs: [] });
     expect(getDockTabs('')).toEqual([]);
     expect(getPublishedDockWorkspaceId(101)).toBe('ws-1');
+  });
+
+  it('keeps global Link Tabs in a separate mirror from workspace resources', () => {
+    setupDockTabsIpc();
+    const handler = handlers.get('dock:publish-tabs');
+    expect(handler).toBeTypeOf('function');
+
+    const globalTabs: AgentContextTabRef[] = [
+      {
+        id: 'link:global',
+        kind: 'link',
+        scope: 'global',
+        title: 'Global docs',
+        url: 'https://global.example/',
+        dockWorkspaceId: 'ws-2',
+      },
+      {
+        id: 'artifact:ws-2:a1',
+        kind: 'artifact',
+        title: 'Resource artifact',
+        workspaceId: 'ws-2',
+        artifactId: 'a1',
+      },
+    ];
+    handler!({ sender: { id: 303 } }, {
+      workspaceId: 'ws-2',
+      tabs: globalTabs,
+      scope: 'global',
+    });
+
+    expect(getGlobalDockTabs()).toEqual([globalTabs[0]]);
+    expect(getDockTabs('ws-2')).toEqual([]);
+    expect(getPublishedDockWorkspaceId(303)).toBe('ws-2');
   });
 });

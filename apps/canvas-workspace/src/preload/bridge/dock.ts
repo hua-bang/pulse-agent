@@ -8,8 +8,11 @@ import type {
 import { subscribe, type Unsubscribe } from "./ipc";
 
 export const createDockApi = (ipcRenderer: IpcRenderer) => ({
-  publishTabs: (workspaceId: string, tabs: AgentContextTabRef[]) =>
-    ipcRenderer.send("dock:publish-tabs", { workspaceId, tabs }),
+  publishTabs: (
+    workspaceId: string,
+    tabs: AgentContextTabRef[],
+    scope: "global" | "workspace" = "workspace",
+  ) => ipcRenderer.send("dock:publish-tabs", { workspaceId, tabs, scope }),
 
   onActivateTab: (callback: (payload: DockActivateTabRequest) => void): Unsubscribe =>
     subscribe(ipcRenderer, "dock:activate-tab", callback),

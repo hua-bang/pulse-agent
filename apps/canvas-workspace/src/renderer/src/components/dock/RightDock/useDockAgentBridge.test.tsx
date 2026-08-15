@@ -93,22 +93,32 @@ describe('useDockAgentBridge activation acknowledgement', () => {
     store.setActiveWorkspace('ws-1');
     store.openNodeDetail('ws-1', 'node-1', 'Workspace one node');
     store.openNodeDetail('ws-2', 'node-2', 'Workspace two node');
+    store.openLink('https://global.example/');
     await render(store, 'ws-1');
 
-    expect(publishTabs).toHaveBeenLastCalledWith(
+    expect(publishTabs).toHaveBeenCalledWith(
       'ws-1',
       expect.arrayContaining([
         expect.objectContaining({ id: 'node-detail:ws-1:node-1' }),
       ]),
+      'workspace',
+    );
+    expect(publishTabs).toHaveBeenCalledWith(
+      'ws-1',
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'link', scope: 'global', url: 'https://global.example/' }),
+      ]),
+      'global',
     );
 
     await render(store, 'ws-2');
 
-    expect(publishTabs).toHaveBeenLastCalledWith(
+    expect(publishTabs).toHaveBeenCalledWith(
       'ws-2',
       expect.arrayContaining([
         expect.objectContaining({ id: 'node-detail:ws-2:node-2' }),
       ]),
+      'workspace',
     );
   });
 
@@ -225,7 +235,7 @@ describe('useDockAgentBridge activation acknowledgement', () => {
           kind: 'link',
           title: 'Product docs',
           url: 'https://example.com/docs',
-          workspaceId: 'ws-1',
+          scope: 'global',
           dockWorkspaceId: 'ws-1',
         },
         respond,

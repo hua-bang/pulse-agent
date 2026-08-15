@@ -14,10 +14,10 @@ export function terminalSessionId(workspaceId: string, terminalTabId: string): s
 
 /**
  * Project the open right-dock tabs into `@`-mentionable tab refs for a given
- * workspace's chat. The state contains only the active workspace's restored
- * link session; artifact/node-detail previews remain shared, and terminal
- * tabs are per-workspace. Link tabs read through the webview registered under
- * the active chat's workspaceId.
+ * workspace's chat. Link tabs are application-global; `dockWorkspaceId` only
+ * tells the host which renderer workspace currently mounts their WebView.
+ * Artifact/node-detail previews remain shared, and terminal tabs are
+ * per-workspace.
  */
 export function buildDockTabRefs(state: DockState, workspaceId: string): AgentContextTabRef[] {
   const refs: AgentContextTabRef[] = [];
@@ -30,7 +30,7 @@ export function buildDockTabRefs(state: DockState, workspaceId: string): AgentCo
   for (const tab of state.tabs) {
     if (tab.kind === 'link') {
       if (!tab.url) continue; // blank "New tab" — nothing to read yet
-      refs.push({ id: tab.id, kind: 'link', title: tab.title, url: tab.url, workspaceId, dockWorkspaceId: workspaceId, ...presentation(tab.id) });
+      refs.push({ id: tab.id, kind: 'link', scope: 'global', title: tab.title, url: tab.url, dockWorkspaceId: workspaceId, ...presentation(tab.id) });
     } else if (tab.kind === 'artifact') {
       refs.push({ id: tab.id, kind: 'artifact', title: tab.title, workspaceId: tab.workspaceId, dockWorkspaceId: workspaceId, artifactId: tab.artifactId, ...presentation(tab.id) });
     } else if (tab.kind === 'node-detail') {
@@ -54,4 +54,13 @@ export function buildDockTabRefs(state: DockState, workspaceId: string): AgentCo
   }
 
   return refs;
+}
+
+/**
+ * Project only the global browser tabs for the main-process Agent mirror.
+ * The mirror keeps these separate from workspace-owned resource tabs so
+ * Global chat can enumerate and operate them without a workspaceId.
+ */
+export function buildGlobalDockTabRefs(state: DockState, workspaceId: string): AgentContextTabRef[] {
+  return buildDockTabRefs(state, workspaceId).filter((tab) => tab.kind === 'link');
 }

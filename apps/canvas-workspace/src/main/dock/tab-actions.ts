@@ -25,7 +25,7 @@ import type {
   DockActivateTabRequest,
   DockActivateTabResult,
 } from '../../shared/dock-tab-commands';
-import { getDockTabs } from './tab-store';
+import { getDockTabs, getGlobalDockTabWorkspaceId } from './tab-store';
 
 const TAB_ACTIVATION_TIMEOUT_MS = 3_000;
 let activationSequence = 0;
@@ -107,6 +107,12 @@ export async function activateDockTab(workspaceId: string, tabId: string): Promi
   });
   for (const wc of targets) wc.send('dock:activate-tab', request);
   return await result;
+}
+
+/** Activate a global link tab without asking the caller for its mount route. */
+export async function activateGlobalDockTab(tabId: string): Promise<boolean> {
+  const workspaceId = getGlobalDockTabWorkspaceId(tabId);
+  return workspaceId ? activateDockTab(workspaceId, tabId) : false;
 }
 
 /**

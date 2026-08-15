@@ -23,7 +23,7 @@ function promptJsonExcerpt(value: unknown, maxChars = 1500): string {
 
 export function formatDomSelectionFocusBlock(
   domSelections: CanvasAgentDomSelection[] = [],
-  options: { requireWorkspaceId: boolean },
+  options: { requireWorkspaceId: boolean; allowGlobalLinkTab?: boolean },
 ): string {
   if (domSelections.length === 0) return '';
   const count = domSelections.length;
@@ -59,7 +59,9 @@ export function formatDomSelectionFocusBlock(
   lines.push('');
   lines.push(
     options.requireWorkspaceId
-      ? 'When you need fresh or exact content for a selected DOM element, call `canvas_read_dom_selection` with the listed `workspaceId`, `nodeId`, and `selector`.'
+      ? options.allowGlobalLinkTab
+        ? 'When you need fresh or exact content for a selected DOM element, call `canvas_read_dom_selection`. For a global Link Tab, pass the listed `nodeId` and `selector` without workspaceId; for an iframe node, include its listed workspaceId.'
+        : 'When you need fresh or exact content for a selected DOM element, call `canvas_read_dom_selection` with the listed `workspaceId`, `nodeId`, and `selector`.'
       : 'When you need fresh or exact content for a selected DOM element, call `canvas_read_dom_selection` with the listed `nodeId` and `selector`.',
   );
   return lines.join('\n') + '\n';

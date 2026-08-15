@@ -1,4 +1,5 @@
 import { getRegisteredCanvasToolFactories } from '../../../plugins/main';
+import { getGlobalDockTabWorkspaceId } from '../../dock/tab-store';
 import { z } from 'zod';
 import type { CanvasTool } from './types';
 import { createNodeTools } from './nodes';
@@ -94,6 +95,47 @@ function requireExplicitWorkspaceId(
   };
 }
 
+/**
+ * Page-control tools can target either a workspace iframe or an application-
+ * global Link Tab. Resolve the latter's current renderer mount route from the
+ * main-process dock mirror, keeping workspaceId out of the Global tool call.
+ */
+function requireWorkspaceIdOrGlobalTab(
+  tool: CanvasTool,
+  targetToolSets: Map<string, Record<string, CanvasTool>>,
+): CanvasTool | undefined {
+  if (!(tool.inputSchema instanceof z.ZodObject)) return undefined;
+
+  return {
+    ...tool,
+    description:
+      `${tool.description}\n\nGlobal chat note: omit workspaceId when nodeId is a global Link Tab from canvas_list_tabs; ` +
+      'pass workspaceId when nodeId is a workspace iframe node.',
+    inputSchema: tool.inputSchema.extend({
+      workspaceId: z.string().optional().describe('Workspace target for an iframe node; omit for a global Link Tab.'),
+    }),
+    execute: async (input, ctx) => {
+      const explicitWorkspaceId = typeof input?.workspaceId === 'string'
+        ? input.workspaceId.trim()
+        : '';
+      const nodeId = typeof input?.nodeId === 'string' ? input.nodeId.trim() : '';
+      const workspaceId = explicitWorkspaceId || (nodeId ? getGlobalDockTabWorkspaceId(nodeId) : '');
+      if (!workspaceId) {
+        return 'Error: provide workspaceId for an iframe node, or use nodeId from a global Link Tab listed by canvas_list_tabs.';
+      }
+
+      let targetTools = targetToolSets.get(workspaceId);
+      if (!targetTools) {
+        targetTools = createCanvasTools(workspaceId);
+        targetToolSets.set(workspaceId, targetTools);
+      }
+      const targetTool = targetTools[tool.name];
+      if (!targetTool) return `Error: ${tool.name} is unavailable for workspace ${workspaceId}.`;
+      return targetTool.execute({ ...input, workspaceId }, ctx);
+    },
+  };
+}
+
 export interface GlobalCanvasToolsOptions {
   /**
    * Interactive Global chat may opt into workspace-bound operations, but
@@ -104,12 +146,12 @@ export interface GlobalCanvasToolsOptions {
 }
 
 /**
- * Tool set for global chat (no current workspace). Read/search canvas tools
- * are wrapped to require an explicit workspaceId; the cross-workspace knowledge
- * index is eager. Interactive Global chat can additionally opt into the full
- * workspace tool surface through explicit-target wrappers. The default stays
- * without target-workspace mutations so scheduled/headless callers cannot
- * inherit those mutations.
+ * Tool set for global chat (no current workspace). Workspace resources still
+ * require an explicit workspaceId, while application-global link tabs are
+ * addressable by tabId alone. Interactive Global chat can additionally opt
+ * into the full workspace tool surface through explicit-target wrappers.
+ * The default stays without target-workspace mutations for scheduled/headless
+ * callers.
  */
 export function createGlobalCanvasTools(
   options: GlobalCanvasToolsOptions = {},
@@ -122,14 +164,29 @@ export function createGlobalCanvasTools(
   const tabTools = createTabTools('');
   const webpageTools = createWebpageTools('');
 
+  const tabToolsForScope = options.allowWorkspaceTargetedTools
+    ? tabTools
+    : {
+        ...tabTools,
+        canvas_list_tabs: requireWorkspaceId(tabTools.canvas_list_tabs),
+        canvas_activate_tab: requireWorkspaceId(tabTools.canvas_activate_tab),
+        canvas_read_tab: requireWorkspaceId(tabTools.canvas_read_tab),
+      };
+
+  const domSelectionToolForScope = options.allowWorkspaceTargetedTools
+    ? webpageTools.canvas_read_dom_selection
+    : requireWorkspaceId(webpageTools.canvas_read_dom_selection);
+
   const tools: Record<string, CanvasTool> = {
     canvas_ask_user: nodeTools.canvas_ask_user,
     canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
     canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
-    canvas_read_dom_selection: requireWorkspaceId(webpageTools.canvas_read_dom_selection),
-    canvas_list_tabs: requireWorkspaceId(tabTools.canvas_list_tabs),
-    canvas_activate_tab: requireWorkspaceId(tabTools.canvas_activate_tab),
-    canvas_read_tab: requireWorkspaceId(tabTools.canvas_read_tab),
+    canvas_read_dom_selection: domSelectionToolForScope,
+    // Link Tabs are application-global. Their tools accept an optional
+    // workspaceId only when the caller intentionally targets a resource tab.
+    canvas_list_tabs: tabToolsForScope.canvas_list_tabs,
+    canvas_activate_tab: tabToolsForScope.canvas_activate_tab,
+    canvas_read_tab: tabToolsForScope.canvas_read_tab,
     // Dock-tab open + browsing-history search work without an ambient
     // workspace (the dock and history are app-level), so they stay unwrapped.
     canvas_open_tab: tabTools.canvas_open_tab,
@@ -170,7 +227,9 @@ export function createGlobalCanvasTools(
     // Global schema, including plugin-contributed tools.
     for (const [name, tool] of Object.entries(workspaceToolPrototypes)) {
       if (directGlobalToolNames.has(name)) continue;
-      const targeted = requireExplicitWorkspaceId(tool, targetToolSets);
+      const targeted = name.startsWith('page_')
+        ? requireWorkspaceIdOrGlobalTab(tool, targetToolSets)
+        : requireExplicitWorkspaceId(tool, targetToolSets);
       if (targeted) tools[name] = targeted;
     }
   }

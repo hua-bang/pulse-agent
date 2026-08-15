@@ -6,8 +6,9 @@ import type { AgentContextTabRef } from '../../shared/agent-chat';
  * plus the exact tool call to read each tab on demand — content is NOT dumped
  * into the prompt.
  *
- * `currentWorkspaceId` is the chat's own workspace; when a tab omits its
- * workspaceId we fall back to it so link/artifact/terminal reads resolve.
+ * `currentWorkspaceId` is the chat's own workspace. Global Link Tabs omit
+ * workspaceId intentionally; resource tabs still fall back to the chat's
+ * workspace when their ref came from an older transcript.
  */
 export function formatReferencedTabsBlock(
   tabs: AgentContextTabRef[] = [],
@@ -25,7 +26,8 @@ export function formatReferencedTabsBlock(
   ];
 
   for (const tab of tabs) {
-    const ws = tab.workspaceId || currentWorkspaceId;
+    const isGlobalLink = tab.kind === 'link';
+    const ws = isGlobalLink ? undefined : (tab.workspaceId || currentWorkspaceId);
     const wsArg = ws ? `, workspaceId: "${ws}"` : '';
     let how: string;
     switch (tab.kind) {

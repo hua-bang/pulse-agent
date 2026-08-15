@@ -34,16 +34,6 @@ export type DockPreviewTab =
   | { id: string; kind: 'canvas'; title: string; workspaceId: string }
   | { id: string; kind: 'skill'; title: string; scope: CanvasConfigScope; skill: CanvasSkillEntry };
 
-/** A workspace whose web tabs stay mounted (hidden) after switching away.
- *  Declared here rather than beside the link helpers so the state shape has
- *  no import cycle with them. */
-export interface RetainedLinkWorkspace {
-  workspaceId: string;
-  tabs: Extract<DockPreviewTab, { kind: 'link' }>[];
-  /** Which tab was in front, so switching back restores the same view. */
-  activeTabId?: string;
-}
-
 export interface DockTerminalTab {
   id: string;
   title?: string;
@@ -60,14 +50,6 @@ export interface DockTerminalWorkspaceState {
 export interface DockState {
   /** Preview tabs only — chat is pinned and implicit. */
   tabs: DockPreviewTab[];
-  /**
-   * Web tabs of recently-left workspaces, kept MOUNTED but hidden so
-   * switching canvases does not reload every page and lose its scroll
-   * position, form state and sign-in. Bounded — see
-   * `RETAINED_WORKSPACE_LIMIT`. Never rendered in the tab strip; only
-   * `DockPanes` reads it.
-   */
-  retainedLinkTabs: readonly RetainedLinkWorkspace[];
   /** `CHAT_TAB_ID`, a terminal tab id, or a preview tab id. */
   activeTabId: string;
   /** Content tab shown beside the pinned chat pane in split view. */

@@ -11,8 +11,12 @@ import type {
  * `canvas_list_tabs` agent tool enumerate open tabs.
  */
 export interface DockApi {
-  /** Push the current workspace's open dock tabs to main (fire-and-forget). */
-  publishTabs: (workspaceId: string, tabs: AgentContextTabRef[]) => void;
+  /** Push a dock-tab projection to main (fire-and-forget). */
+  publishTabs: (
+    workspaceId: string,
+    tabs: AgentContextTabRef[],
+    scope?: 'global' | 'workspace',
+  ) => void;
   /** Main asks the dock to bring a tab to the front (Canvas Agent tab ops). Returns unsubscribe fn. */
   onActivateTab: (callback: (payload: DockActivateTabRequest) => void) => () => void;
   /** Renderer confirms whether the requested tab became active. */
