@@ -30,13 +30,13 @@ export function formatReferencedTabsBlock(
     let how: string;
     switch (tab.kind) {
       case 'link':
-        how = `web page${tab.url ? ` (${tab.url})` : ''} — read with \`canvas_read_tab({ kind: "link", tabId: "${tab.id}"${wsArg} })\``;
+        how = `web page${tab.url ? ` (${tab.url})` : ''} — read with \`dock_read_tab({ kind: "link", tabId: "${tab.id}"${wsArg} })\``;
         break;
       case 'artifact':
-        how = `artifact — read with \`canvas_read_tab({ kind: "artifact", artifactId: "${tab.artifactId ?? ''}"${wsArg} })\``;
+        how = `artifact — read with \`dock_read_tab({ kind: "artifact", artifactId: "${tab.artifactId ?? ''}"${wsArg} })\``;
         break;
       case 'terminal':
-        how = `terminal — read recent output with \`canvas_read_tab({ kind: "terminal", sessionId: "${tab.sessionId ?? ''}" })\``;
+        how = `terminal — read recent output with \`dock_read_tab({ kind: "terminal", sessionId: "${tab.sessionId ?? ''}" })\``;
         break;
       case 'node-detail':
         how = `workspace node detail — read with \`workspace_node_get({ nodeId: "${tab.nodeId ?? ''}"${wsArg} })\``;

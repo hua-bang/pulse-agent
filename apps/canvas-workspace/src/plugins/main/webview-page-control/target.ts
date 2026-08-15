@@ -29,7 +29,7 @@ export async function resolvePageControlTarget(
   // user's active dock tab (the "agent keeps jumping me to the web tab"
   // complaint). When the webview isn't mounted (tab never activated, or
   // L3-discarded), refuse rather than auto-switching the user's tab - the
-  // agent should canvas_open_tab or ask the user to open it first.
+  // agent should dock_open_tab or ask the user to open it first.
   if (dockTab) {
     const existing = lookup();
     if (existing && !existing.isDestroyed()) {
@@ -45,7 +45,7 @@ export async function resolvePageControlTarget(
       error:
         `No live webview for link tab ${nodeId} in workspace ${workspaceId} ` +
         '(the tab is not mounted or was discarded). ' +
-        'Call canvas_open_tab to open it, or ask the user to activate the tab, then retry.',
+        'Call dock_open_tab to open it, or ask the user to activate the tab, then retry.',
     };
   }
 

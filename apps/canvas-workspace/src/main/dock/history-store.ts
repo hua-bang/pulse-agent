@@ -3,7 +3,7 @@
  *
  * The renderer records visits as its tab webviews navigate (LinkTabView →
  * `history:record`); the Canvas Agent searches them through the
- * `canvas_search_history` tool, and the renderer can query over
+ * `browser_search_history` tool, and the renderer can query over
  * `history:search` (address-bar suggestions later).
  *
  * IPC channels (registered in `setupBrowsingHistoryIpc`):

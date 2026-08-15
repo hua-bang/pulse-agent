@@ -3,7 +3,7 @@
  *
  * The renderer's xterm instance owns the visible buffer; main keeps a capped
  * tail per session so the Canvas Agent can read what a terminal tab is showing
- * (via `canvas_read_tab`) without a renderer round trip. Implemented as a PTY
+ * (via `dock_read_tab`) without a renderer round trip. Implemented as a PTY
  * observer so it stays out of the pty-manager hot path — call
  * `setupScrollbackCapture()` once at startup.
  */

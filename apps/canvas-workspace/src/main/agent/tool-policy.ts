@@ -64,8 +64,9 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'tavily_crawl',
   'tavily_map',
   'clarify',
-  'canvas_ask_user',
+  'user_ask',
   'visual_render',
+  'screen_capture',
 ]);
 
 const READ_ONLY_NAME_PARTS = [

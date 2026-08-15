@@ -86,7 +86,7 @@ const tagNodeSchema = z.object({
   nodes: z
     .array(
       z.object({
-        nodeId: z.string().describe('The canvas node id to tag — use the EXACT id from canvas_list_nodes, never a guess/title.'),
+        nodeId: z.string().describe('The canvas node id to tag — use the EXACT id from knowledge_list_nodes, never a guess/title.'),
         workspaceId: z.string().optional().describe('Workspace of this node. Falls back to the top-level workspaceId.'),
         addTags: tagListSchema.describe('Tags to add for THIS node. A NON-EMPTY array overrides top-level addTags; an empty array [] is IGNORED.'),
         removeTags: tagListSchema.describe('Tags to remove for THIS node. Non-empty overrides top-level; [] is IGNORED.'),
@@ -118,7 +118,7 @@ export function createTaggingTools(): Record<string, CanvasTool> {
         '`addTags` merges, `removeTags` drops, `setTags` replaces, `clearTags:true` clears. ' +
         'IMPORTANT semantics: empty arrays ([]) are IGNORED (treated as "not provided") — they do NOT override the top-level and do NOT clear; to clear use `clearTags:true`. A non-empty node-level field overrides the top-level for that node. ' +
         'The result reports per-node `changed` (and a top-level `changed` count) — a node can be `ok` but `changed:false` (e.g. the tag was already there or the op resolved to nothing), so do NOT treat `ok` alone as "applied". ' +
-        'Use the EXACT nodeId/workspaceId from `canvas_list_nodes`; run `canvas_list_tags` first for exact tag names.',
+        'Use the EXACT nodeId/workspaceId from `knowledge_list_nodes`; run `knowledge_list_tags` first for exact tag names.',
       inputSchema: tagNodeSchema,
       execute: async (input: TagNodeInput) => {
         const top = input ?? ({} as TagNodeInput);

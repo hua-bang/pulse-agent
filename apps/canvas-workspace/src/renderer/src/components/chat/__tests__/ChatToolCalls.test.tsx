@@ -39,11 +39,11 @@ const renderToolCalls = (tools: ToolCallStatus[], expandedTools = new Set<number
 };
 
 const tabToolNames = [
-  'canvas_list_tabs',
-  'canvas_read_tab',
-  'canvas_activate_tab',
-  'canvas_open_tab',
-  'canvas_read_dom_selection',
+  'dock_list_tabs',
+  'dock_read_tab',
+  'dock_activate_tab',
+  'dock_open_tab',
+  'browser_read_dom_selection',
 ] as const;
 
 describe('ChatToolCalls tab tool labels', () => {
@@ -96,7 +96,7 @@ describe('ChatToolCalls tab tool labels', () => {
   it('keeps a completed tab result persistently expandable without an undo claim', () => {
     renderToolCalls([{
       id: 42,
-      name: 'canvas_read_tab',
+      name: 'dock_read_tab',
       status: 'succeeded',
       args: { tabId: 'tab-1' },
       result: 'Readable tab contents',
@@ -110,7 +110,7 @@ describe('ChatToolCalls tab tool labels', () => {
   it('shows a capability-level tab activation failure instead of a successful switch', () => {
     renderToolCalls([{
       id: 43,
-      name: 'canvas_activate_tab',
+      name: 'dock_activate_tab',
       status: 'succeeded',
       args: { tabId: 'closed-tab' },
       result: JSON.stringify({ ok: false, error: 'Tab closed-tab is not open' }),

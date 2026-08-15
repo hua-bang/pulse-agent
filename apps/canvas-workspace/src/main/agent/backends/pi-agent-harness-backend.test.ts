@@ -148,7 +148,7 @@ describe('pi AgentHarness turn backend', () => {
       '',
       'User attached image files for this turn:',
       '1. /tmp/pi-attachment.png (pi-attachment.png, mime=image/png)',
-      'Use canvas_analyze_image with imagePaths when you need to inspect these images.',
+      'Use image_analyze with imagePaths when you need to inspect these images.',
     ].join('\n');
     const backend = createPiAgentHarnessTurnBackend({
       createModelRuntime: () => ({ models, model: faux.getModel() }),

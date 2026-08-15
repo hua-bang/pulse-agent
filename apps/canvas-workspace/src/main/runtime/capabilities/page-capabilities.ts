@@ -209,11 +209,11 @@ async function readLivePage(workspaceId: string, input: PageReadInput): Promise<
           hint:
             'DOM and a11y text were sparse, so this fell back to a screenshot. ' +
             'The page may still be loading. ' +
-            'Call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description; ' +
+            'Call image_analyze({ imagePaths: [imagePath] }) to get a vision description; ' +
             'if the expected content is missing, page_wait_for it and read again.',
         }
       : {
-          hint: 'Call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description.',
+          hint: 'Call image_analyze({ imagePaths: [imagePath] }) to get a vision description.',
         }),
   };
 }

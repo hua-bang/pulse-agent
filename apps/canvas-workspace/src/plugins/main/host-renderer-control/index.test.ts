@@ -25,6 +25,6 @@ describe('HostRendererControlPlugin', () => {
     getExperimentalFlagSync.mockReturnValue(false);
     expect(factory('ws-1')).toEqual({});
     getExperimentalFlagSync.mockReturnValue(true);
-    expect(factory('ws-1')).toHaveProperty('canvas_host_eval');
+    expect(factory('ws-1')).toHaveProperty('host_renderer_eval');
   });
 });

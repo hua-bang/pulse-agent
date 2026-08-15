@@ -48,7 +48,7 @@ export function createTabCapabilities(
         if (!tab) {
           throw new CapabilityError(
             'tab_not_found',
-            `Tab ${normalizedTabId} is not open in workspace ${context.workspaceId}. Call canvas_list_tabs to refresh stale ids.`,
+            `Tab ${normalizedTabId} is not open in workspace ${context.workspaceId}. Call dock_list_tabs to refresh stale ids.`,
           );
         }
         if (!await dependencies.activateDockTab(context.workspaceId, normalizedTabId)) {
@@ -108,7 +108,7 @@ export function createTabCapabilities(
               }
             : {}),
           hint:
-            'Call canvas_list_tabs to get the tab id and confirm it is open, then canvas_read_tab to read the page.',
+            'Call dock_list_tabs to get the tab id and confirm it is open, then dock_read_tab to read the page.',
         };
       },
     },

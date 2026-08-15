@@ -56,14 +56,14 @@ function nativeImage(png: Buffer, width = 8, height = 8) {
 }
 
 function run(input: Record<string, unknown>): Promise<string> {
-  return createScreenshotTools('ws-1').canvas_screenshot.execute(input);
+  return createScreenshotTools('ws-1').screen_capture.execute(input);
 }
 
 afterAll(async () => {
   await fs.rm(h.storeDir, { recursive: true, force: true }).catch(() => undefined);
 });
 
-describe('canvas_screenshot', () => {
+describe('screen_capture', () => {
   it('captures this app window (target: "app") via capturePage and writes a PNG', async () => {
     let shown = false;
     h.state.win = {

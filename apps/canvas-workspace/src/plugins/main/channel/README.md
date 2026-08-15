@@ -160,7 +160,7 @@ surface — screenshots come back blank and clicks can't hit-test.
 before acting (`ensureOperable` in `main/webview/ensure-operable.ts`), so you
 don't have to send `/open` first:
 
-- **Read tools** (`canvas_read_webpage` dom/a11y) work even on a `display:none`
+- **Read tools** (`browser_read_page` dom/a11y) work even on a `display:none`
   node — they read the live guest DOM directly — so they only activate when
   nothing is registered yet, and never steal the active-workspace slot just to
   read text.

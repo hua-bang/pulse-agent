@@ -209,7 +209,7 @@ describe('generateMemoryReport', () => {
     expect(toolNames).toEqual(expected);
     expect(toolNames).toContain('session_summary');
     expect(toolNames).toContain('knowledge_search_nodes');
-    expect(toolNames).not.toContain('canvas_ask_user');
+    expect(toolNames).not.toContain('user_ask');
     expect(toolNames).not.toContain('memory_save');
     expect(toolNames).not.toContain('memory_adopt');
   });

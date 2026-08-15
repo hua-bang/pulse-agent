@@ -264,8 +264,8 @@ export function createKnowledgeTools(): Record<string, CanvasTool> {
       },
     },
 
-    canvas_list_workspaces: {
-      name: 'canvas_list_workspaces',
+    workspace_list: {
+      name: 'workspace_list',
       description:
         'List every workspace (canvas) in this local Pulse Canvas system: id, name, node count, and tag coverage (how many nodes are tagged vs. untagged). ' +
         'Use this FIRST in global chat to discover which workspaces exist and to pick a `workspaceId` — there is no current/default workspace in global chat, so prefer this over asking the user. ' +
@@ -310,8 +310,8 @@ export function createKnowledgeTools(): Record<string, CanvasTool> {
       },
     },
 
-    canvas_list_tags: {
-      name: 'canvas_list_tags',
+    knowledge_list_tags: {
+      name: 'knowledge_list_tags',
       description:
         'List all knowledge tags defined in this local Pulse Canvas system. Tags are shared across every workspace. ' +
         'This is the canonical answer to "what tags do I have / 我有哪些标签". With usage stats it also reports how many nodes use each tag and how many knowledge nodes are still untagged. ' +
@@ -374,8 +374,8 @@ export function createKnowledgeTools(): Record<string, CanvasTool> {
       },
     },
 
-    canvas_list_nodes: {
-      name: 'canvas_list_nodes',
+    knowledge_list_nodes: {
+      name: 'knowledge_list_nodes',
       description:
         'List canvas nodes across the whole system (or one workspace) together with each node\'s knowledge tags. ' +
         'The cross-workspace, tag-aware node index — use it to audit tag coverage ("which nodes have no tags / 哪些节点没打标签") or to find candidates for a tag. ' +

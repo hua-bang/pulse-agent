@@ -8,7 +8,7 @@ vi.mock('../../../main/runtime/capabilities', () => ({
 
 import { createHostRendererControlTools } from './tools';
 
-describe('canvas_host_eval capability adapter', () => {
+describe('host_renderer_eval capability adapter', () => {
   beforeEach(() => runtimeCall.mockReset());
 
   it('routes host scripts through host.renderer.eval with workspace and abort context', async () => {
@@ -18,7 +18,7 @@ describe('canvas_host_eval capability adapter', () => {
     });
     const abortController = new AbortController();
 
-    const output = JSON.parse(await createHostRendererControlTools('ws-1').canvas_host_eval.execute(
+    const output = JSON.parse(await createHostRendererControlTools('ws-1').host_renderer_eval.execute(
       { code: 'return { sent: true }', timeoutMs: 1_500 },
       { abortSignal: abortController.signal },
     ));

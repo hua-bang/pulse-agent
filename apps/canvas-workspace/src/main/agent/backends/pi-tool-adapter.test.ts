@@ -127,8 +127,8 @@ describe('adaptEngineToolsForPi', () => {
   it('preserves image content returned by Canvas tools', async () => {
     const adapted = adaptEngineToolsForPi({
       tools: {
-        canvas_screenshot: {
-          name: 'canvas_screenshot',
+        screen_capture: {
+          name: 'screen_capture',
           description: 'Capture the canvas.',
           inputSchema: z.object({}),
           execute: vi.fn(),

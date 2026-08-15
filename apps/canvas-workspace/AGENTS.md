@@ -168,7 +168,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   and stale saves merge edges by `updatedAt` without dropping unsaved local
   edges. Guards: `src/main/__tests__/canvas-store-merge.test.ts` and
   `src/renderer/src/hooks/useNodes.external-update.test.ts`.
-- Live-app capabilities live under `src/main/runtime/capabilities/` behind tiered access (`read`/`operate`/`unsafe`) and the runtime server's bearer-auth boundary; Pulse CLI gets `read`/`operate` by default, with `browser.page.eval` (`page_eval` tool) and `host.renderer.eval` (`canvas_host_eval` tool / `pulse-canvas runtime host-eval`) as the only `unsafe` exceptions, each independently flag-gated; external Canvas node updates stay limited to title/content.
+- Live-app capabilities live under `src/main/runtime/capabilities/` behind tiered access (`read`/`operate`/`unsafe`) and the runtime server's bearer-auth boundary; Pulse CLI gets `read`/`operate` by default, with `browser.page.eval` (`page_eval` tool) and `host.renderer.eval` (`host_renderer_eval` tool / `pulse-canvas runtime host-eval`) as the only `unsafe` exceptions, each independently flag-gated; external Canvas node updates stay limited to title/content.
   Guard: `src/main/runtime/capabilities/*.test.ts`, `src/main/runtime/__tests__/control-server.test.ts`.
   Detail: `harness/knowledge/security-posture.md` ("Runtime-control capability tiers and registry").
 - Canvas node and edge shapes are sourced from `src/shared/canvas.ts`, not the

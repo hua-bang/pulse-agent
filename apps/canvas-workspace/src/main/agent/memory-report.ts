@@ -61,13 +61,13 @@ const MAX_EXISTING_ENTRIES_PER_SCOPE = 50;
  * `createGlobalCanvasTools()` (deliberate alignment with the non-interactive
  * global boundary — future complex background tasks reuse it as-is), with
  * exactly two categories of exceptions:
- * - `canvas_ask_user`: an unattended run has no user to answer.
+ * - `user_ask`: an unattended run has no user to answer.
  * - memory writes (`memory_save`/`memory_forget`/`memory_adopt`): the memory
  *   product's invariant is that writes happen only with the user's explicit
  *   confirmation in chat — a background run must not hold a write path.
  */
 export const HEADLESS_EXCLUDED_TOOLS = new Set([
-  'canvas_ask_user',
+  'user_ask',
   'memory_save',
   'memory_forget',
   'memory_adopt',

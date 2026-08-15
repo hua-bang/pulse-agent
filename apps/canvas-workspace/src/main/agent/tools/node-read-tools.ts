@@ -10,8 +10,8 @@ import type { CanvasTool } from './types';
 
 export function createNodeReadTools(workspaceId: string): Record<string, CanvasTool> {
   return {
-    canvas_ask_user: {
-      name: 'canvas_ask_user',
+    user_ask: {
+      name: 'user_ask',
       description:
         'Ask the user a clarifying question and wait for their reply. Use this whenever you need more information, a choice between options, or confirmation before proceeding. Do NOT guess — ask.',
       inputSchema: z.object({

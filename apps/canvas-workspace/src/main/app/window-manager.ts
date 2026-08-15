@@ -31,7 +31,7 @@ function liveWindow(): BrowserWindow | null {
 
 /**
  * The live canvas window, or null if none is open. Used by capture tools
- * (e.g. `canvas_screenshot`) that need to grab this app's own window. Prefers
+ * (e.g. `screen_capture`) that need to grab this app's own window. Prefers
  * the focused window so a multi-window setup screenshots the one in front.
  */
 export function getCanvasWindow(): BrowserWindow | null {

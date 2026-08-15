@@ -3,7 +3,7 @@
  *
  * The dock's tabs live in the renderer (RightDock DockStore). The renderer
  * publishes a snapshot per workspace via `dock:publish-tabs`; the Canvas Agent
- * reads it through the `canvas_list_tabs` tool. Read-only from main — this is
+ * reads it through the `dock_list_tabs` tool. Read-only from main — this is
  * a view of renderer state, not a source of truth.
  */
 import { ipcMain } from 'electron';

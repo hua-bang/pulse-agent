@@ -160,7 +160,7 @@ to everything below.
   access: `agent-runtime-control` to reach `/capabilities/*` externally at
   all, and `webview-page-control` for the capability's own policy check.
 - **`host.renderer.eval`** is the separate `unsafe` capability for arbitrary
-  host-renderer JavaScript, behind the deferred `canvas_host_eval` Canvas
+  host-renderer JavaScript, behind the deferred `host_renderer_eval` Canvas
   Agent tool and the `pulse-canvas runtime host-eval` CLI command. It
   requires `agent-runtime-control`, checks the selected workspace route
   before executing, and runs in the host page's main world — see the

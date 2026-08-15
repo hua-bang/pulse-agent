@@ -55,7 +55,7 @@ const requireWorkspaceId = (tool: CanvasTool): CanvasTool => {
 const explicitWorkspaceIdSchema = z
   .string()
   .min(1)
-  .describe('Target workspace ID. Required in global chat; obtain it from canvas_list_workspaces or an explicit workspace mention.');
+  .describe('Target workspace ID. Required in global chat; obtain it from workspace_list or an explicit workspace mention.');
 
 const activeDockWorkspaceIdSchema = z
   .string()
@@ -108,7 +108,7 @@ function requireExplicitWorkspaceId(
         : 'pass an explicit workspaceId for the canvas this operation should affect. '
       }` + (allowActiveDock
         ? 'Pass workspaceId explicitly to target another workspace.'
-        : 'Do not guess a workspaceId; resolve it with canvas_list_workspaces or use the user-provided workspace mention.'),
+        : 'Do not guess a workspaceId; resolve it with workspace_list or use the user-provided workspace mention.'),
     inputSchema: tool.inputSchema.extend({
       workspaceId: allowActiveDock ? activeDockWorkspaceIdSchema : explicitWorkspaceIdSchema,
     }),
@@ -118,7 +118,7 @@ function requireExplicitWorkspaceId(
       if (!workspaceId) {
         return allowActiveDock
           ? 'Error: no active Dock workspace is available. Select a Workspace or pass workspaceId explicitly.'
-          : 'Error: workspaceId is required in global chat. Ask the user which workspace to affect, or use canvas_list_workspaces to identify it.';
+          : 'Error: workspaceId is required in global chat. Ask the user which workspace to affect, or use workspace_list to identify it.';
       }
 
       let targetTools = targetToolSets.get(workspaceId);
@@ -168,25 +168,25 @@ export function createGlobalCanvasTools(
 
   const targetToolSets = new Map<string, Record<string, CanvasTool>>();
   const tools: Record<string, CanvasTool> = {
-    canvas_ask_user: nodeTools.canvas_ask_user,
+    user_ask: nodeTools.user_ask,
     canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
     canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
-    canvas_read_dom_selection: options.allowWorkspaceTargetedTools
-      ? requireWorkspaceIdOrActiveDock(webpageTools.canvas_read_dom_selection)!
-      : requireWorkspaceId(webpageTools.canvas_read_dom_selection),
-    canvas_list_tabs: options.allowWorkspaceTargetedTools
-      ? requireWorkspaceIdOrActiveDock(tabTools.canvas_list_tabs)!
-      : requireWorkspaceId(tabTools.canvas_list_tabs),
-    canvas_activate_tab: options.allowWorkspaceTargetedTools
-      ? requireWorkspaceIdOrActiveDock(tabTools.canvas_activate_tab)!
-      : requireWorkspaceId(tabTools.canvas_activate_tab),
-    canvas_read_tab: options.allowWorkspaceTargetedTools
-      ? requireWorkspaceIdOrActiveDock(tabTools.canvas_read_tab)!
-      : requireWorkspaceId(tabTools.canvas_read_tab),
+    browser_read_dom_selection: options.allowWorkspaceTargetedTools
+      ? requireWorkspaceIdOrActiveDock(webpageTools.browser_read_dom_selection)!
+      : requireWorkspaceId(webpageTools.browser_read_dom_selection),
+    dock_list_tabs: options.allowWorkspaceTargetedTools
+      ? requireWorkspaceIdOrActiveDock(tabTools.dock_list_tabs)!
+      : requireWorkspaceId(tabTools.dock_list_tabs),
+    dock_activate_tab: options.allowWorkspaceTargetedTools
+      ? requireWorkspaceIdOrActiveDock(tabTools.dock_activate_tab)!
+      : requireWorkspaceId(tabTools.dock_activate_tab),
+    dock_read_tab: options.allowWorkspaceTargetedTools
+      ? requireWorkspaceIdOrActiveDock(tabTools.dock_read_tab)!
+      : requireWorkspaceId(tabTools.dock_read_tab),
     // Dock-tab open + browsing-history search work without an ambient
     // workspace (the dock and history are app-level), so they stay unwrapped.
-    canvas_open_tab: tabTools.canvas_open_tab,
-    canvas_search_history: tabTools.canvas_search_history,
+    dock_open_tab: tabTools.dock_open_tab,
+    browser_search_history: tabTools.browser_search_history,
     canvas_read_layout: requireWorkspaceId(layoutTools.canvas_read_layout),
     canvas_search_nodes: requireWorkspaceId(searchTools.canvas_search_nodes),
     canvas_list_edges: requireWorkspaceId(edgeTools.canvas_list_edges),
@@ -223,7 +223,7 @@ export function createGlobalCanvasTools(
     // including plugin-contributed page tools.
     for (const [name, tool] of Object.entries(workspaceToolPrototypes)) {
       if (directGlobalToolNames.has(name)) continue;
-      const targeted = name === 'canvas_read_webpage' || name.startsWith('page_')
+      const targeted = name === 'browser_read_page' || name.startsWith('page_')
         ? requireExplicitWorkspaceId(tool, targetToolSets, { allowActiveDock: true })
         : requireExplicitWorkspaceId(tool, targetToolSets);
       if (targeted) tools[name] = targeted;
