@@ -125,7 +125,7 @@ export const KnowledgeNodeCard = ({
       <span className="knowledge-node-card__identity">
         <span className="knowledge-node-card__type" aria-label={typeLabel} title={typeLabel}>
           {isPreviewKind(node.type)
-            ? <NodeTypeIcon type={node.type} size={14} />
+            ? <NodeTypeIcon type={node.type} size={14} colorize />
             : <ListLinesIcon size={14} />}
         </span>
         <span className="knowledge-node-card__title">{title}</span>

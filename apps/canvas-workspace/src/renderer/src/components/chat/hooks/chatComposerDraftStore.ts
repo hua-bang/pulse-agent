@@ -38,6 +38,11 @@ export const updateChatComposerDraft = (
   for (const listener of listeners.get(scopeId) ?? []) listener();
 };
 
+/** Drop an unsent draft when a new conversation is created in this scope. */
+export const clearChatComposerDraft = (scopeId: string): void => {
+  updateChatComposerDraft(scopeId, () => emptyDraft());
+};
+
 export const subscribeChatComposerDraft = (
   scopeId: string,
   listener: () => void,

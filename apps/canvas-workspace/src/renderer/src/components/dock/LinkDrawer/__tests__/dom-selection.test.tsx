@@ -135,11 +135,11 @@ describe('LinkTabView DOM selection', () => {
       url: 'https://example.com/page',
       selector: '#primary-action',
     }));
-    expect(document.body.textContent).toContain('Added to Global chat');
+    expect(document.body.textContent).toContain('Added to AI Chat');
 
     deliveryStatus = 'queued';
     await act(async () => button?.click());
 
-    expect(document.body.textContent).toContain('Queued for Global chat');
+    expect(document.body.textContent).toContain('Queued for AI Chat');
   });
 });

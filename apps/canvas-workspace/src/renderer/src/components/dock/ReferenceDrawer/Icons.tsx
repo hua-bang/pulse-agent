@@ -1,3 +1,5 @@
+import { ReferenceLinkIcon } from '../../icons';
+
 export const ListIcon = () => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
     <path d="M3 6h10M3 10h7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
@@ -22,7 +24,5 @@ export const SearchIcon = () => (
 );
 
 export const LinkIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-    <path d="M6.4 5.2l1.1-1.1a3 3 0 014.2 4.2l-1.2 1.2M9.6 10.8l-1.1 1.1a3 3 0 01-4.2-4.2l1.2-1.2M6.4 9.6l3.2-3.2" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-  </svg>
+  <ReferenceLinkIcon size={13} />
 );

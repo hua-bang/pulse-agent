@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { NodeTypeIcon } from '../../icons';
 
 /**
  * Overview-zoom identity badge: favicon + title + hostname for url embeds, a
@@ -57,9 +58,9 @@ export const IframeOverviewBadge = ({
             alt=""
           />
         ) : mode === 'url' ? (
-          <GlobeIcon />
+          <NodeTypeIcon type="iframe" size={16} colorize />
         ) : (
-          <CodeIcon />
+          <NodeTypeIcon type="agent" size={16} colorize />
         )}
       </span>
       <span className="iframe-overview-badge-label">
@@ -71,23 +72,3 @@ export const IframeOverviewBadge = ({
     </div>
   );
 };
-
-const GlobeIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.2" />
-    <ellipse cx="8" cy="8" rx="2.8" ry="6.2" stroke="currentColor" strokeWidth="1.2" />
-    <path d="M2 8h12M2.8 5h10.4M2.8 11h10.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-  </svg>
-);
-
-const CodeIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <path
-      d="M6 4.5L2.5 8 6 11.5M10 4.5L13.5 8 10 11.5"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);

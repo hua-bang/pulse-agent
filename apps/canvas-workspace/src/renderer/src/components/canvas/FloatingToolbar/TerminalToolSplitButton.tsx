@@ -1,4 +1,5 @@
 import { useI18n } from '../../../i18n';
+import { NodeTypeIcon } from '../../icons';
 
 interface TerminalToolSplitButtonProps {
   open: boolean;
@@ -30,16 +31,7 @@ export const TerminalToolSplitButton = ({
         data-tooltip={t('canvas.toolbar.terminal')}
         aria-pressed={open}
       >
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect
-            x="2.5" y="3" width="13" height="12" rx="2"
-            stroke="currentColor" strokeWidth="1.3"
-          />
-          <path
-            d="M5.5 8l2 1.5-2 1.5M9 11h3.5"
-            stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"
-          />
-        </svg>
+        <NodeTypeIcon type="terminal" size={18} />
         <span className="toolbar-btn-label">{t('canvas.toolbar.terminal')}</span>
       </button>
       {showAdd && (

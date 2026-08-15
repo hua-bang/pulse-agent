@@ -85,26 +85,17 @@ describe('CanvasAgentService history', () => {
     expect(canvasAgentState.configs).toHaveLength(initialConfigCount + 1);
   });
 
-  it('keeps an active empty-chat scope in the unified session groups', async () => {
+  it('hides an active empty-chat scope from the unified session groups', async () => {
     const scan = vi.spyOn(SessionStore, 'listAllWorkspaceSessions').mockResolvedValue([]);
     const service = new CanvasAgentService();
     await service.getHistoryForScope({ kind: 'global' });
+    canvasAgentState.listSessions.mockResolvedValueOnce([]);
 
     const groups = await service.listAllSessions({});
 
     expect(scan).toHaveBeenCalledWith(new Set(['__global_chat__']));
 
-    expect(groups).toEqual([{
-      workspaceId: '__global_chat__',
-      workspaceName: 'Global Chat',
-      sessions: [{
-        sessionId: 'session-current',
-        date: '2026-07-29',
-        messageCount: 0,
-        isCurrent: true,
-        preview: '',
-      }],
-    }]);
+    expect(groups).toEqual([]);
   });
 
   it('forwards an abort that arrives while scope activation is still pending', async () => {

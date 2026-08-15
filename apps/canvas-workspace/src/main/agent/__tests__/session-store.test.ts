@@ -26,6 +26,33 @@ describe('SessionStore', () => {
     await fs.rm(root, { recursive: true, force: true });
   });
 
+  it('reuses an empty current draft and keeps it out of history', async () => {
+    const store = new SessionStore('ws-empty-draft');
+
+    await store.startSession();
+    const firstSessionId = store.getCurrentSession()?.sessionId;
+    expect(await store.listSessions()).toEqual([]);
+
+    await store.startSession();
+
+    expect(store.getCurrentSession()?.sessionId).toBe(firstSessionId);
+    expect(await store.listSessions()).toEqual([]);
+    expect(await store.listArchivedSessions()).toEqual([]);
+  });
+
+  it('keeps archived history visible beside an empty current draft', async () => {
+    const store = new SessionStore('ws-empty-current-with-history');
+    await store.startSession();
+    const archivedSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+
+    const sessions = await SessionStore.readAllSessionsWithMeta();
+
+    expect(sessions.map(entry => entry.session.sessionId)).toContain(archivedSessionId);
+    expect(sessions.some(entry => entry.session.messages.length === 0)).toBe(false);
+  });
+
   it('persists many concurrent addMessage calls without racing the temp-file rename', async () => {
     const store = new SessionStore('ws-1');
     await store.startSession();

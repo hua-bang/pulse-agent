@@ -21,7 +21,7 @@ import {
   createCanvasAgentToolPolicy,
   createCanvasAskModeToolPolicyPlugin,
 } from './tool-policy';
-import { SessionStore } from './session-store';
+import { GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import {
   formatWorkspaceContextSection,
@@ -931,7 +931,7 @@ export class CanvasAgent {
               trace: finalizedTrace,
               assistantPreview: responseText.slice(0, 180),
               workspaceId: workspaceId ?? 'global',
-              workspaceName: summary?.workspaceName ?? 'Global Chat',
+              workspaceName: summary?.workspaceName ?? GLOBAL_CHAT_WORKSPACE_NAME,
             },
           });
         }

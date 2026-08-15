@@ -54,6 +54,43 @@ const globalSession: UnifiedSession = {
 };
 
 describe('ChatSessionsRail workspace tree', () => {
+  it('shows every real workspace and starts a draft from its row action', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const onNewSessionInWorkspace = vi.fn();
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={[]}
+            workspaces={[
+              { id: 'workspace-a', name: 'Workspace A' },
+              { id: 'workspace-empty', name: 'Empty workspace' },
+            ]}
+            onNewSession={vi.fn()}
+            onNewSessionInWorkspace={onNewSessionInWorkspace}
+            onSelectSession={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(Array.from(
+      host.querySelectorAll('.chat-page-rail-folder-name'),
+      node => node.textContent,
+    )).toEqual(['Empty workspace', 'Workspace A']);
+
+    const newChat = host.querySelector<HTMLButtonElement>(
+      '[aria-label="New chat in Empty workspace"]',
+    );
+    expect(newChat).not.toBeNull();
+    await act(async () => newChat?.click());
+
+    expect(onNewSessionInWorkspace).toHaveBeenCalledWith('workspace-empty', newChat);
+  });
+
   it('groups sessions by workspace and lets each folder collapse independently', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -569,5 +606,37 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-folder')?.disabled).toBe(false);
     expect(host.querySelector<HTMLButtonElement>('.chat-page-rail-item')?.disabled).toBe(false);
     expect(host.textContent).toContain('Second conversation');
+  });
+
+  it('can pause draft creation without blocking history navigation', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const onNewSession = vi.fn();
+    const onSelectSession = vi.fn();
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={[sessions[0]]}
+            newSessionDisabled
+            onNewSession={onNewSession}
+            onSelectSession={onSelectSession}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    const newSession = host.querySelector<HTMLButtonElement>('.chat-page-rail-new');
+    const existingSession = host.querySelector<HTMLButtonElement>('.chat-page-rail-item');
+    await act(async () => {
+      newSession?.click();
+      existingSession?.click();
+    });
+
+    expect(newSession?.getAttribute('aria-disabled')).toBe('true');
+    expect(onNewSession).not.toHaveBeenCalled();
+    expect(onSelectSession).toHaveBeenCalledWith(sessions[0]);
   });
 });

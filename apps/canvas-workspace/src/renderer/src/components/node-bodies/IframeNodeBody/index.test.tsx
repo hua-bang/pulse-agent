@@ -136,6 +136,6 @@ describe('IframeNodeBody DOM selection delivery', () => {
     await act(async () => host?.querySelector<HTMLButtonElement>('button')?.click());
 
     expect(onAddDomSelectionToChat).toHaveBeenCalledOnce();
-    expect(document.body.textContent).toContain('Queued for Global chat');
+    expect(document.body.textContent).toContain('Queued for AI Chat');
   });
 });

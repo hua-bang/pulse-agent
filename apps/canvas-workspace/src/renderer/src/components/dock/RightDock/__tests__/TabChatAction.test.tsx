@@ -55,6 +55,6 @@ describe('TabChatAction', () => {
     await act(async () => button?.click());
 
     expect(onAddToChat).toHaveBeenCalledWith('active', tab);
-    expect(document.body.textContent).toContain('Added to Global chat');
+    expect(document.body.textContent).toContain('Added to AI Chat');
   });
 });

@@ -26,9 +26,9 @@ const HELP = [
   '🛠️ Canvas channel commands:',
   '/use [number|name|id] [--carry|--fresh] — choose or use a workspace here',
   '/list — choose a workspace',
-  '/ws — show whether this chat is global or bound to a workspace',
+  '/ws — show whether this chat has no workspace or is bound to one',
   '/bind <number|name|id> — bind this chat to a workspace',
-  '/unbind — clear this chat’s binding and return to global chat',
+  '/unbind — clear this chat’s workspace binding',
   '/default <name|id> — set the workspace suggested for /use and /bind',
   '/new — start a fresh session',
   '/stop — abort the current run',
@@ -69,7 +69,7 @@ function sameScope(a: AgentScope, b: AgentScope): boolean {
 }
 
 async function scopeLabel(scope: AgentScope): Promise<string> {
-  return scope.kind === 'global' ? 'Global chat' : workspaceLabelById(scope.workspaceId);
+  return scope.kind === 'global' ? 'No workspace' : workspaceLabelById(scope.workspaceId);
 }
 
 async function migrateConversationSession(

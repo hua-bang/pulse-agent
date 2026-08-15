@@ -4,8 +4,12 @@ import type { SettingsSection } from '../settings/Settings';
 import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatPageBody } from './ChatPageBody';
 import type { SessionBackEntry } from './SessionBackBar';
-import type { AgentScope, WorkspaceOption } from './types';
-import { scheduledTaskIdFromStoreId } from '../../../../shared/agent-chat';
+import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from './types';
+import {
+  GLOBAL_CHAT_STORE_ID,
+  scheduledTaskIdFromStoreId,
+  scopeSessionStoreId,
+} from '../../../../shared/agent-chat';
 import type {
   ChatContextSnapshot,
   ChatExecutionPolicy,
@@ -35,8 +39,9 @@ interface ChatPageProps {
 
 /**
  * Full-screen AI Chat page. Decoupled from the app-level activeId — the
- * default page is global / unbound. Workspace is only entered when the user
- * selects a workspace-owned historical session.
+ * default page is global / unbound. A new chat can explicitly choose a
+ * workspace, while the top-right plus inherits the active workspace when one
+ * is already selected.
  *
  * Structure:
  *   - Outer ChatPage: owns currentWorkspaceId + pendingSessionId state.
@@ -92,11 +97,7 @@ export const ChatPage = ({
   // Jump trail for session-ref chip navigation. Owned here so scope changes
   // and thread replacement cannot disturb it.
   const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
-  const scopeKey = agentScope.kind === 'workspace'
-    ? `workspace:${agentScope.workspaceId}`
-    : agentScope.kind === 'scheduled'
-      ? `scheduled:${agentScope.taskId}`
-      : 'global';
+  const scopeKey = scopeSessionStoreId(agentScope);
 
   useEffect(() => {
     onWorkspaceScopeChange?.(workspaceIdFromScope(agentScope));
@@ -131,14 +132,10 @@ export const ChatPage = ({
     const scheduledTaskId = scheduledTaskIdFromStoreId(session.workspaceId);
     const nextScope: AgentScope = scheduledTaskId
       ? { kind: 'scheduled', taskId: scheduledTaskId }
-      : session.workspaceId === '__global_chat__'
+      : session.workspaceId === GLOBAL_CHAT_STORE_ID
         ? { kind: 'global' }
         : { kind: 'workspace', workspaceId: session.workspaceId };
-    const nextScopeKey = nextScope.kind === 'global'
-      ? 'global'
-      : nextScope.kind === 'scheduled'
-        ? `scheduled:${nextScope.taskId}`
-        : `workspace:${nextScope.workspaceId}`;
+    const nextScopeKey = scopeSessionStoreId(nextScope);
     onWorkspaceScopeChange?.(workspaceIdFromScope(nextScope));
     scopeRollbackRef.current ??= {
       agentScope, selectedSessionKey, contextSnapshot, executionPolicy, sessionBackStack,
@@ -174,6 +171,46 @@ export const ChatPage = ({
   const handleClearBackStack = useCallback(() => {
     setSessionBackStack([]);
   }, []);
+
+  const handleNewSessionCreated = useCallback((scope: AgentScope) => {
+    setContextSnapshot(undefined);
+    setExecutionPolicy(scope.kind === 'scheduled' ? 'scheduled' : 'auto');
+    setSessionBackStack([]);
+    scopeRollbackRef.current = null;
+  }, []);
+
+  const handleCreateNewSessionInScope = useCallback(async (
+    scope: AgentScope,
+  ): Promise<AgentNewSessionResult> => {
+    const intentId = ++sessionIntentSequenceRef.current;
+    let result: AgentNewSessionResult;
+    try {
+      result = await window.canvasWorkspace.agent.newSession({ scope });
+    } catch (error) {
+      return {
+        ok: false,
+        code: 'SESSION_MUTATION_FAILED',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+    if (intentId !== sessionIntentSequenceRef.current) {
+      return { ok: false, code: 'SESSION_MUTATION_SUPERSEDED' };
+    }
+    if (!result.ok) return result;
+    if (!result.activeSessionId) {
+      return {
+        ok: false,
+        code: 'SESSION_ACK_MISMATCH',
+      };
+    }
+
+    pendingSessionIntentRef.current = intentId;
+    setPendingSessionIntent({ id: intentId, sessionId: result.activeSessionId });
+    setSelectedSessionKey(`${scopeSessionStoreId(scope)}:${result.activeSessionId}`);
+    onWorkspaceScopeChange?.(workspaceIdFromScope(scope));
+    setAgentScope(scope);
+    return result;
+  }, [onWorkspaceScopeChange]);
 
   const handleSessionConsumed = useCallback((intentId: number, loaded: boolean) => {
     if (pendingSessionIntentRef.current !== intentId) return;
@@ -211,6 +248,8 @@ export const ChatPage = ({
       pendingSessionIntentId={pendingSessionIntent?.id ?? null}
       selectedSessionKey={selectedSessionKey}
       onSessionConsumed={handleSessionConsumed}
+      onCreateNewSessionInScope={handleCreateNewSessionInScope}
+      onNewSessionCreated={handleNewSessionCreated}
       onActiveSessionResolved={handleActiveSessionResolved}
       onSelectSession={handleSelectSession}
       onJumpToSession={navigateToSession}

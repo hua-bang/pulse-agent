@@ -21,6 +21,7 @@ vi.mock('../ChatPageBody', async () => {
       pendingSessionId: string | null;
       pendingSessionIntentId: number | null;
       onSessionConsumed: (intentId: number, loaded: boolean) => void;
+      onCreateNewSessionInScope?: (scope: { kind: 'workspace'; workspaceId: string }) => Promise<{ ok: boolean }>;
       onJumpToSession?: (session: { sessionId: string; workspaceId: string }) => void;
       selectedSessionKey?: string | null;
       onSelectSession: (session: {
@@ -66,6 +67,14 @@ vi.mock('../ChatPageBody', async () => {
           'data-fail-session-load': true,
           onClick: () => props.onSessionConsumed(props.pendingSessionIntentId ?? -1, false),
         }, 'fail'),
+        React.createElement('button', {
+          'data-new-session-a': true,
+          onClick: () => void props.onCreateNewSessionInScope?.({ kind: 'workspace', workspaceId: 'workspace-a' }),
+        }, 'new A'),
+        React.createElement('button', {
+          'data-new-session-b': true,
+          onClick: () => void props.onCreateNewSessionInScope?.({ kind: 'workspace', workspaceId: 'workspace-b' }),
+        }, 'new B'),
       );
     },
   };
@@ -358,5 +367,55 @@ describe('ChatPage scope switching', () => {
     const body = host.querySelector<HTMLButtonElement>('[data-chat-body]');
     expect(body?.textContent).toBe('workspace-c');
     expect(body?.dataset.pendingIntent).toBe(String(newestIntent));
+  });
+
+  it('keeps the latest workspace draft when cross-scope creation resolves out of order', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const resolvers = new Map<string, (result: { ok: boolean; activeSessionId: string }) => void>();
+    const previousCanvasWorkspace = window.canvasWorkspace;
+    window.canvasWorkspace = {
+      ...previousCanvasWorkspace,
+      agent: {
+        ...previousCanvasWorkspace?.agent,
+        newSession: vi.fn(({ scope }: { scope: { workspaceId?: string } }) => (
+          new Promise(resolve => resolvers.set(scope.workspaceId ?? '', resolve))
+        )),
+      },
+    } as typeof window.canvasWorkspace;
+
+    await act(async () => {
+      root?.render(
+        <ChatPage
+          allWorkspaces={[
+            { id: 'workspace-a', name: 'Workspace A' },
+            { id: 'workspace-b', name: 'Workspace B' },
+          ]}
+          onExit={vi.fn()}
+          onOpenAppSettings={vi.fn()}
+        />,
+      );
+    });
+
+    act(() => {
+      host?.querySelector<HTMLButtonElement>('[data-new-session-a]')?.click();
+      host?.querySelector<HTMLButtonElement>('[data-new-session-b]')?.click();
+    });
+    await act(async () => {
+      resolvers.get('workspace-b')?.({ ok: true, activeSessionId: 'draft-b' });
+      await Promise.resolve();
+    });
+    expect(host.querySelector<HTMLButtonElement>('[data-chat-body]')?.textContent).toBe('workspace-b');
+
+    await act(async () => {
+      resolvers.get('workspace-a')?.({ ok: true, activeSessionId: 'draft-a' });
+      await Promise.resolve();
+    });
+    expect(host.querySelector<HTMLButtonElement>('[data-chat-body]')?.textContent).toBe('workspace-b');
+    expect(host.querySelector<HTMLButtonElement>('[data-chat-body]')?.dataset.selectedSession)
+      .toBe('workspace-b:draft-b');
+
+    window.canvasWorkspace = previousCanvasWorkspace;
   });
 });

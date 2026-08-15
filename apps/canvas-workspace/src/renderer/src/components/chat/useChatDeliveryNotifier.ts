@@ -34,6 +34,7 @@ export const useChatDeliveryNotifier = () => {
     }
 
     const target = receipt.target.contextSnapshot.label;
+    const isUnassigned = receipt.target.scope.kind === 'global';
     notify({
       tone: receipt.status === 'delivered'
         ? 'success'
@@ -41,11 +42,17 @@ export const useChatDeliveryNotifier = () => {
           ? 'info'
           : 'error',
       title: t(
-        receipt.status === 'delivered'
-          ? 'chat.delivery.delivered'
-          : receipt.status === 'queued'
-            ? 'chat.delivery.queued'
-            : 'chat.delivery.failed',
+        isUnassigned
+          ? receipt.status === 'delivered'
+            ? 'chat.delivery.deliveredAiChat'
+            : receipt.status === 'queued'
+              ? 'chat.delivery.queuedAiChat'
+              : 'chat.delivery.failedGeneric'
+          : receipt.status === 'delivered'
+            ? 'chat.delivery.delivered'
+            : receipt.status === 'queued'
+              ? 'chat.delivery.queued'
+              : 'chat.delivery.failed',
         { target },
       ),
       description: receipt.status === 'failed' ? receipt.error ?? subject : subject,

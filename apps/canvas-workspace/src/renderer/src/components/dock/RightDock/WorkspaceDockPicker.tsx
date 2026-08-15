@@ -105,7 +105,7 @@ export const WorkspaceDockPicker = ({ workspaces, activeWorkspaceId, mountedWork
               onFocus={() => setIndex(wsIndex)}
               onClick={() => choose(workspace)}
             >
-              <NodeTypeIcon type="frame" size={16} />
+              <NodeTypeIcon type="frame" size={16} colorize />
               <span className="node-dock-picker__copy">
                 <strong>{workspace.name}</strong>
                 {workspace.rootFolder && <small>{workspace.rootFolder}</small>}

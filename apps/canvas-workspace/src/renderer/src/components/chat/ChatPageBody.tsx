@@ -11,7 +11,7 @@ import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useAppShell } from '../shell/AppShellProvider';
-import type { AgentScope, WorkspaceOption } from './types';
+import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from './types';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import type { ChatContextSnapshot, ChatExecutionPolicy, ChatTarget } from './ChatTargetContext';
@@ -27,6 +27,7 @@ import { submitQuickAction } from './hooks/submitQuickAction';
 import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
 import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from './utils/chatPageDockTabs';
+import { useChatPageNewSession } from './hooks/useChatPageNewSession';
 
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
@@ -41,6 +42,10 @@ export interface ChatPageBodyProps {
   /** Session chosen by the user, updated synchronously before its thread loads. */
   selectedSessionKey?: string | null;
   onSessionConsumed: (intentId: number, loaded: boolean) => void;
+  /** Creates a new session after the user selects another scope. */
+  onCreateNewSessionInScope?: (scope: AgentScope) => Promise<AgentNewSessionResult>;
+  /** Clears inherited context when the user explicitly starts a new chat. */
+  onNewSessionCreated?: (scope: AgentScope) => void;
   onActiveSessionResolved?: (sessionId: string, workspaceId: string) => void;
   onSelectSession: (session: UnifiedSession) => void;
   /** Like onSelectSession but for chip jumps — does NOT reset the back stack. */
@@ -76,6 +81,8 @@ export const ChatPageBody = ({
   pendingSessionIntentId,
   selectedSessionKey = null,
   onSessionConsumed,
+  onCreateNewSessionInScope,
+  onNewSessionCreated,
   onActiveSessionResolved,
   onSelectSession,
   onJumpToSession,
@@ -102,7 +109,7 @@ export const ChatPageBody = ({
   // so the control is a plain show/hide — no navigation.
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const workspaceLabel = workspaceId
-    ? allWorkspaces.find(workspace => workspace.id === workspaceId)?.name ?? workspaceId
+    ? allWorkspaces.find(workspace => workspace.id === workspaceId)?.name
     : undefined;
   const dockTabsVisible = isDockContentTabVisible(dockState);
   const dockTabs = useMemo(() => buildChatPageDockTabRefs(dockState), [dockState]);
@@ -207,6 +214,9 @@ export const ChatPageBody = ({
     // so this must follow the prop rather than a mount-time snapshot.
     skipInitialHistory: initialPendingSessionId !== null || pendingSessionId !== null,
   });
+
+  const chatDestinationLabel = agentScope.kind === 'workspace' ? workspaceLabel : undefined;
+  const newSession = useChatPageNewSession({ agentScope, sessionStoreId, loading, sessionLoading, busyElsewhere, pendingSessionId, focusInput, clearInput, handleNewSession, onClearBackStack, onCreateNewSessionInScope, onNewSessionCreated });
 
   const handleTargetSkillChat = useCallback(async (skillName: string) => {
     if (loading || sessionLoading || busyElsewhere) throw new Error(t('chat.generating'));
@@ -370,8 +380,11 @@ export const ChatPageBody = ({
     sessionsStoreId,
     pendingSessionKey: sessionLoading ? selectedSessionKey : null,
     disabled: sessionRailDisabled,
+    newSessionDisabled: sessionInteractionDisabled,
     focusInput,
     handleNewSession,
+    onNewSessionDraft: newSession.handleNewSessionFromRail,
+    onNewSessionInWorkspace: newSession.handleNewSessionInWorkspace,
     onClearBackStack,
     onSelectSession,
     renameSession,
@@ -389,12 +402,12 @@ export const ChatPageBody = ({
         <ChatPageTopbar
           fixedTitle={fixedChat?.title}
           sessionTitleSource={sessionRail.allSessions.find(session => session.isCurrent)?.preview ?? messages.find(message => message.role === 'user')?.content}
-          workspaceLabel={workspaceLabel}
+          workspaceLabel={chatDestinationLabel}
           railCollapsed={railCollapsed}
           onToggleRail={onToggleRail}
           anchors={anchors}
           onJumpAnchor={handleJumpAnchor}
-          onNewSession={() => void sessionRail.onNewSession()}
+          onNewSession={newSession.handleNewSessionFromTopbar}
           newSessionDisabled={sessionInteractionDisabled}
           dockTabsVisible={dockTabsVisible}
           onToggleDockTabs={handleToggleDockTabs}

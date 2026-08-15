@@ -13,6 +13,13 @@ import type { AgentObservabilityMarkInput } from '../../../shared/agent-observab
 
 export type * from '../../../shared/agent-chat';
 
+export interface AgentNewSessionResult {
+  ok: boolean;
+  activeSessionId?: string | null;
+  code?: string;
+  error?: string;
+}
+
 export interface AgentApi {
   prepareChat: (
     scopeRef: AgentScopeRef,
@@ -151,12 +158,7 @@ export interface AgentApi {
   ) => Promise<{ ok: boolean; sessions?: AgentSessionInfo[]; error?: string }>;
   newSession: (
     scopeRef: AgentScopeRef,
-  ) => Promise<{
-    ok: boolean;
-    activeSessionId?: string | null;
-    code?: string;
-    error?: string;
-  }>;
+  ) => Promise<AgentNewSessionResult>;
   branchSession: (
     scopeRef: AgentScopeRef,
     fromIndex: number,

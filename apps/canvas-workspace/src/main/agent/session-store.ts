@@ -17,13 +17,13 @@ import {
   readSessionMetadata,
   removeSessionMetadata,
 } from './session-metadata';
-import { archiveSortKey, scanAllWorkspaceSessions, sessionUpdatedAt, type AgentSessionListEntry } from './session-store-scan';
+import { archiveSortKey, isListableSession, scanAllWorkspaceSessions, sessionUpdatedAt, type AgentSessionListEntry } from './session-store-scan';
 export type { AgentSessionListEntry } from './session-store-scan';
 // Lazy so tests can redirect storage through the environment.
 const storeDir = (): string =>
   process.env.PULSE_CANVAS_SESSION_STORE_DIR || join(homedir(), '.pulse-coder', 'canvas');
 export const GLOBAL_CHAT_SESSION_STORE_ID = '__global_chat__';
-export const GLOBAL_CHAT_WORKSPACE_NAME = 'Global Chat';
+export const GLOBAL_CHAT_WORKSPACE_NAME = 'No workspace';
 
 interface WorkspaceManifest {
   workspaces: Array<{ id: string; name: string }>;
@@ -64,6 +64,7 @@ export class SessionStore {
   async startSession(): Promise<void> {
     await fs.mkdir(this.sessionsDir, { recursive: true });
     await fs.mkdir(this.archiveDir, { recursive: true });
+    if (this.session?.messages.length === 0 && (await this.restoreCurrentSession())?.messages.length === 0) return;
 
     // Archive any existing current session
     await this.archiveCurrentIfExists();
@@ -163,7 +164,7 @@ export class SessionStore {
   async listSessions(): Promise<AgentSessionListEntry[]> {
     const archived = await this.listArchivedSessions();
     const current = this.session;
-    if (!current) return archived.map((session) => ({ ...session, isCurrent: false }));
+    if (!current || !isListableSession(current)) return archived.map((session) => ({ ...session, isCurrent: false }));
     const metadata = await readSessionMetadata(this.metadataPath);
     const firstUserMessage = current.messages.find((message) => message.role === 'user');
     return [{
@@ -220,11 +221,10 @@ export class SessionStore {
           const archivePath = join(this.archiveDir, file);
           const raw = await fs.readFile(archivePath, 'utf-8');
           const data = JSON.parse(raw) as CanvasAgentSession;
-
           // A session restored from archive becomes current. Hide any stale
           // archived copy so the session list does not show the same thread
           // twice while the user continues chatting in it.
-          if (currentSessionId && data.sessionId === currentSessionId) continue;
+          if (!isListableSession(data) || (currentSessionId && data.sessionId === currentSessionId)) continue;
 
           const firstUserMsg = data.messages.find(m => m.role === 'user');
           const sortKey = await archiveSortKey(archivePath, file);
@@ -410,7 +410,7 @@ export class SessionStore {
         const raw = await fs.readFile(currentPath, 'utf-8');
         const session = JSON.parse(raw) as CanvasAgentSession;
         seen.add(session.sessionId);
-        results.push({ session, workspaceName, isCurrent: true, sortKey: Date.now() });
+        if (isListableSession(session)) results.push({ session, workspaceName, isCurrent: true, sortKey: Date.now() });
       } catch {
         // No current session
       }
@@ -423,7 +423,7 @@ export class SessionStore {
           try {
             const raw = await fs.readFile(archivePath, 'utf-8');
             const session = JSON.parse(raw) as CanvasAgentSession;
-            if (seen.has(session.sessionId)) continue;
+            if (!isListableSession(session) || seen.has(session.sessionId)) continue;
             seen.add(session.sessionId);
             results.push({
               session,

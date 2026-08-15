@@ -19,6 +19,15 @@ leaf folder names were kept, only a group level was inserted):
 | `chat/` | Canvas Agent chat panel + `ChatFloatingButton` |
 | `artifacts/`, `ui/`, `icons/` | Unchanged pre-existing domains (`ui/` is the blessed design-system set — governance and the ui-showcase reference it by path; do not move it) |
 
+### Canvas icon family
+
+`components/icons/index.tsx` is the source of truth for canonical canvas node
+and library glyphs. Use `NodeTypeIcon` for node types and keep its default
+monochrome treatment in `FloatingToolbar`; other surfaces may opt into the
+semantic node accent with `colorize`. Select/connect controls and plugin-owned
+glyphs can remain local when they have a surface-specific or plugin-specific
+contract.
+
 Routed full-page surfaces that are their own domain live OUTSIDE
 `components/`, in `src/renderer/src/views/` (`Scheduled`, `SkillsLibrary`,
 `WorkspaceNodes`). The boundary: a page owned by a larger domain stays with

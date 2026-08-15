@@ -146,7 +146,7 @@ describe('useCanvasNodeViewModel', () => {
     await act(async () => delivery);
 
     expect(onAddToChat).toHaveBeenCalledWith('text-1');
-    expect(document.body.textContent).toContain('Queued for Global chat');
+    expect(document.body.textContent).toContain('Queued for AI Chat');
   });
 
   it('commits a trimmed title with Enter', () => {

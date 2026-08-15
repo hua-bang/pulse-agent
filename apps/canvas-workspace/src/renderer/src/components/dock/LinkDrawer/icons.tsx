@@ -1,7 +1,7 @@
+import { BookmarkIcon } from '../../icons';
+
 export const ReferenceIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-    <path d="M3 1.75h6v8.5L6 8.3l-3 1.95v-8.5z" stroke="currentColor" strokeWidth="1.15" strokeLinejoin="round" />
-  </svg>
+  <BookmarkIcon size={12} />
 );
 
 export const InspectIcon = () => (
