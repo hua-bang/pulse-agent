@@ -1,4 +1,5 @@
 import { asSchema } from 'ai';
+import type { EventEmitter } from 'events';
 import type { Context, Tool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ToolHooks, ILogger, PulseEngineInstance, ModelType } from './shared/types';
 import type { LoopOptions, LoopHooks } from './core/loop';
 import type { EnginePluginLoadOptions } from './plugin/EnginePlugin.js';
@@ -161,6 +162,14 @@ export class Engine {
     return {
       tools: this.tools,
     };
+  }
+
+  /**
+   * Shared EventEmitter used by built-in plugins (plan-mode events,
+   * hook timing, ...). Hosts can subscribe to surface events to the user.
+   */
+  get events(): EventEmitter {
+    return this.pluginManager.getEvents();
   }
 
   constructor(options?: EngineOptions) {

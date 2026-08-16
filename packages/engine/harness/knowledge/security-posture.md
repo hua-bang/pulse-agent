@@ -22,7 +22,7 @@ These make on-disk config an execution surface, not just data:
 
 ## What little gating exists (and its limits)
 
-- **plan-mode** removes only `write`/`edit` from the tool list in planning mode — `bash`, MCP, and sub-agent tools remain callable. It is an LLM-instruction mechanism, not a security boundary.
+- **plan-mode** (since 2026-08-16) hard-blocks mutating tools in planning mode at the `beforeToolCall` boundary: any tool classified `write`/`execute` is short-circuited with a synthetic rejection, and `bash` runs a read-only command classifier (`plan-mode-plugin/readonly-command.ts`) so only the built-in read-only set (`ls`, `cat`, `echo`, `pwd`, `head`, `tail`, `grep`, `find`, `wc`, `which`, `diff`, `stat`, `du`, `cd`, read-only `git`) executes. It is a *policy boundary for the LLM loop*, still not a sandbox: it assumes the engine process itself is trusted, and its mutating classification falls back to name inference for unknown tools (`KNOWN_TOOL_META` + regex). It is not human-in-the-loop and does not cover executing mode.
 - **ptc `allowed_callers`** is an exposure filter, not an approval gate, and it UNIONS typed + untyped allowlists (declaring both broadens access). Registered last in the pipeline, so it only sees tools earlier stages left.
 - Neither is human-in-the-loop.
 

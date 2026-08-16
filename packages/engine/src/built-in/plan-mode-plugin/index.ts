@@ -3,6 +3,7 @@ import type { ModelMessage } from 'ai';
 
 import type { SystemPromptOption } from '../../shared/types';
 import type { EnginePlugin, EnginePluginContext } from '../../plugin/EnginePlugin';
+import { isReadonlyBashCommand } from './readonly-command.js';
 
 export type PlanMode = 'planning' | 'executing';
 export type PlanIntentLabel = 'PLAN_ONLY' | 'EXECUTE_NOW' | 'UNCLEAR';
@@ -100,23 +101,6 @@ const NEGATIVE_PATTERNS: RegExp[] = [
 
 const PLAN_PATTERNS: RegExp[] = [/先计划/i, /先分析/i, /先出方案/i, /plan\s+first/i, /analysis\s+first/i];
 
-const DISALLOWED_TOOLS_IN_PLANNING = new Set(['write', 'edit']);
-
-function filterPlanningTools(tools: Record<string, any>): Record<string, any> {
-  let removed = false;
-  const filtered: Record<string, any> = {};
-
-  for (const [name, tool] of Object.entries(tools)) {
-    if (DISALLOWED_TOOLS_IN_PLANNING.has(name)) {
-      removed = true;
-      continue;
-    }
-    filtered[name] = tool;
-  }
-
-  return removed ? filtered : tools;
-}
-
 function appendSystemPrompt(base: SystemPromptOption | undefined, append: string): SystemPromptOption {
   if (!append.trim()) {
     return base ?? { append: '' };
@@ -137,6 +121,26 @@ function appendSystemPrompt(base: SystemPromptOption | undefined, append: string
   const currentAppend = base.append.trim();
   return {
     append: currentAppend ? `${currentAppend}\n\n${append}` : append
+  };
+}
+
+/** Synthetic tool result for a non-bash mutating tool blocked in planning mode. */
+function buildBlockedToolResult(toolName: string, category: ToolCategory): unknown {
+  return {
+    success: false,
+    blockedByPlanMode: true,
+    error: `Tool "${toolName}" (${category}) is blocked in planning mode. ` +
+      'Planning mode allows read/search only. Switch to executing mode to run this tool.',
+  };
+}
+
+/** Synthetic bash tool result for a non-read-only command blocked in planning mode. */
+function buildBlockedBashResult(reason: string): unknown {
+  return {
+    output: '',
+    error: `Blocked by planning mode: ${reason}. ` +
+      'Only the built-in read-only command set (ls, cat, echo, pwd, head, tail, grep, find, wc, which, diff, stat, du, cd, read-only git) is available while planning.',
+    exitCode: 1,
   };
 }
 
@@ -185,6 +189,11 @@ const KNOWN_TOOL_META: Record<string, Omit<ToolMeta, 'name'>> = {
     category: 'other',
     risk: 'low',
     description: 'Ask the user a targeted clarification question.'
+  },
+  generate_image: {
+    category: 'write',
+    risk: 'medium',
+    description: 'Generate an image and write it to local disk.'
   },
   task_create: {
     category: 'other',
@@ -520,7 +529,10 @@ export const builtInPlanModePlugin: EnginePlugin = {
   async initialize(context: EnginePluginContext): Promise<void> {
     const service = new BuiltInPlanModeService(context.logger, context.events, 'executing');
 
-    // Inject plan-mode system prompt before each LLM call
+    // Inject plan-mode system prompt before each LLM call. Top-level tools
+    // stay stable — the hard boundary is beforeToolCall below, not tool
+    // removal, so write/edit remain visible and the model learns from the
+    // synthetic rejection why a mutating call is not allowed.
     context.registerHook('beforeLLMCall', ({ context: runContext, tools, systemPrompt }) => {
       const mode = service.getMode();
       if (mode === 'executing') {
@@ -528,23 +540,49 @@ export const builtInPlanModePlugin: EnginePlugin = {
       }
 
       const transition = service.processContextMessages(runContext.messages);
-      const filteredTools = filterPlanningTools(tools);
-      const append = service.buildPromptAppend(Object.keys(filteredTools), transition);
+      const append = service.buildPromptAppend(Object.keys(tools), transition);
       const finalSystemPrompt = appendSystemPrompt(systemPrompt, append);
 
-      if (filteredTools === tools) {
-        return { systemPrompt: finalSystemPrompt };
-      }
-
-      return {
-        systemPrompt: finalSystemPrompt,
-        tools: filteredTools
-      };
+      return { systemPrompt: finalSystemPrompt };
     });
 
-    // Observe tool calls for policy violations in planning mode
+    // Hard-block mutating tools in planning mode. The hook returns a synthetic
+    // tool result (short-circuit) instead of throwing, so the model sees WHY
+    // the call was rejected and can self-correct (switch to read-only tools or
+    // ask to enter executing mode). The same boundary covers tool-search
+    // invocations, MCP tools, and sub-agent tools because every execution path
+    // (loop.ts wrapToolsWithHooks, Engine.executeResolvedTool) passes through
+    // beforeToolCall hooks.
     context.registerHook('beforeToolCall', ({ name, input }) => {
-      service.observePotentialPolicyViolation(name, input);
+      if (service.getMode() !== 'planning') {
+        return;
+      }
+
+      const meta = service.getToolMetadata([name])[0];
+      const policy = service.getModePolicy('planning');
+
+      // bash is special: read-only commands (ls, grep, find, git status, ...)
+      // stay available for exploration; anything else is blocked.
+      if (name === 'bash') {
+        const command = (input as { command?: unknown } | undefined)?.command;
+        if (typeof command !== 'string' || command.trim() === '') {
+          service.observePotentialPolicyViolation(name, input);
+          return { output: buildBlockedBashResult('command is missing or empty') };
+        }
+        const verdict = isReadonlyBashCommand(command);
+        if (!verdict.allowed) {
+          service.observePotentialPolicyViolation(name, input);
+          return { output: buildBlockedBashResult(verdict.reason ?? 'not provably read-only') };
+        }
+        return;
+      }
+
+      if (policy.disallowedCategories.includes(meta.category)) {
+        service.observePotentialPolicyViolation(name, input);
+        return {
+          output: buildBlockedToolResult(name, meta.category),
+        };
+      }
     });
 
     context.registerService('planMode', service);

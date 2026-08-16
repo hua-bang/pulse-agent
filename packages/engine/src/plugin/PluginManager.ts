@@ -472,6 +472,13 @@ export class PluginManager {
   }
 
   /**
+   * 事件发射器（插件上下文共享同一个实例）
+   */
+  getEvents(): EventEmitter {
+    return this.events;
+  }
+
+  /**
    * 获取插件状态
    */
   getStatus() {
