@@ -99,6 +99,30 @@ const WRITE_NAME_PARTS = [
   'apply',
 ];
 
+/**
+ * Node creation is a user-visible canvas mutation even in Auto mode. Keep the
+ * list explicit because some creators are contributed by deferred plugins and
+ * do not share the `canvas_create_*` naming pattern (for example dynamic apps
+ * and artifact pinning).
+ */
+const ALWAYS_CONFIRM_CANVAS_NODE_CREATION_TOOLS = new Set([
+  'canvas_create',
+  'canvas_create_node',
+  'canvas_create_agent_node',
+  'canvas_create_terminal_node',
+  'canvas_create_shape',
+  'dynamic_app_create',
+  'artifact_pin_to_canvas',
+]);
+
+export function requiresCanvasNodeCreationApproval(name: string): boolean {
+  const normalized = name.trim().toLowerCase();
+  return ALWAYS_CONFIRM_CANVAS_NODE_CREATION_TOOLS.has(normalized)
+    || Array.from(ALWAYS_CONFIRM_CANVAS_NODE_CREATION_TOOLS).some(toolName =>
+      normalized.endsWith(`_${toolName}`),
+    );
+}
+
 export function classifyCanvasToolOperation(name: string): CanvasToolOperationKind {
   const normalized = name.toLowerCase();
   // Mutating words win over reader-like words: `get_or_create` and
@@ -140,24 +164,31 @@ export async function requestAskModeApproval(options: {
   context?: CanvasToolExecutionContext;
 }): Promise<AskModeApprovalDecision> {
   const { name, input, context } = options;
-  if (context?.runContext?.executionMode !== 'ask') return { approved: true, toolContext: context };
+  const nodeCreationRequiresApproval = requiresCanvasNodeCreationApproval(name);
+  const askMode = context?.runContext?.executionMode === 'ask';
+  if (!askMode && !nodeCreationRequiresApproval) return { approved: true, toolContext: context };
 
   const operation = options.operation ?? classifyCanvasToolOperation(name);
-  if (operation === 'read') return { approved: true, toolContext: context };
+  if (operation === 'read' && !nodeCreationRequiresApproval) {
+    return { approved: true, toolContext: context };
+  }
 
-  const requestApproval = context.onClarificationRequest;
-  if (!requestApproval) {
+  if (!context?.onClarificationRequest) {
     return {
       approved: false,
       error: `Approval unavailable; ${name} was not executed.`,
     };
   }
+  const requestApproval = context.onClarificationRequest;
 
   const toolCallId = context.toolCallId || `${name}-${Date.now()}`;
+  const question = nodeCreationRequiresApproval
+    ? `Confirm creating a new node on the canvas via “${name}”?`
+    : `Allow ${operation} operation “${name}”?`;
   const answer = await requestApproval({
     id: `tool-approval:${toolCallId}`,
     kind: 'approval',
-    question: `Allow ${operation} operation “${name}”?`,
+    question,
     context: `Proposed input:\n${previewToolInput(input)}`,
     defaultAnswer: 'No',
     timeout: 300_000,
@@ -192,7 +223,11 @@ type BeforeToolCallResult = {
   output?: unknown;
 };
 
-/** Final host boundary: applies after plugin/deferred tools join the run tool table. */
+/**
+ * Final host boundary: applies after plugin/deferred tools join the run tool
+ * table. Ask mode gates all mutations; node creation is also gated in Auto
+ * mode so the model cannot add a visible canvas node without user consent.
+ */
 export async function enforceCanvasAskModeToolPolicy(
   input: BeforeToolCallInput,
 ): Promise<BeforeToolCallResult | undefined> {
@@ -218,7 +253,7 @@ export async function enforceCanvasAskModeToolPolicy(
 /**
  * Installed after the Canvas Agent's skills/MCP/tool-search plugins. The
  * engine invokes this hook against its final per-run tool table, so tools
- * registered by plugins cannot bypass Ask mode.
+ * registered by plugins cannot bypass Ask mode or the node-creation gate.
  */
 export function createCanvasAskModeToolPolicyPlugin() {
   return {

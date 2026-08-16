@@ -7,6 +7,8 @@ import {
   createCanvasAgentToolPolicy,
   createCanvasAskModeToolPolicyPlugin,
   enforceCanvasAskModeToolPolicy,
+  requestAskModeApproval,
+  requiresCanvasNodeCreationApproval,
 } from '../tool-policy';
 
 describe('Canvas Agent tool policy', () => {
@@ -92,6 +94,99 @@ describe('Canvas Agent tool policy', () => {
         ok: false,
         cancelled: true,
         error: expect.stringContaining('did not run'),
+      },
+    });
+  });
+
+  it.each([
+    'canvas_create',
+    'mcp_runtime_canvas_create',
+    'canvas_create_node',
+    'canvas_create_agent_node',
+    'canvas_create_terminal_node',
+    'canvas_create_shape',
+    'dynamic_app_create',
+    'artifact_pin_to_canvas',
+  ])('requires approval before %s even in Auto mode', async (name) => {
+    const onClarificationRequest = vi.fn(async () => 'No');
+
+    expect(requiresCanvasNodeCreationApproval(name)).toBe(true);
+    const result = await enforceCanvasAskModeToolPolicy({
+      name,
+      input: { title: 'Proposed node' },
+      toolContext: {
+        runContext: { executionMode: 'auto' },
+        toolCallId: `tool-${name}`,
+        onClarificationRequest,
+      },
+    });
+
+    expect(onClarificationRequest).toHaveBeenCalledWith(expect.objectContaining({
+      id: `tool-approval:tool-${name}`,
+      kind: 'approval',
+      question: expect.stringContaining('creating a new node'),
+      defaultAnswer: 'No',
+    }));
+    expect(result).toMatchObject({
+      output: {
+        ok: false,
+        cancelled: true,
+        error: expect.stringContaining('did not run'),
+      },
+    });
+  });
+
+  it('allows a confirmed Auto-mode node creation and carries the receipt forward', async () => {
+    const onClarificationRequest = vi.fn(async () => 'Yes');
+    const result = await enforceCanvasAskModeToolPolicy({
+      name: 'canvas_create_node',
+      input: { type: 'text', title: 'Approved node' },
+      toolContext: {
+        runContext: { executionMode: 'auto' },
+        toolCallId: 'tool-create-node-1',
+        onClarificationRequest,
+      },
+    });
+
+    expect(result).toMatchObject({
+      toolContext: {
+        runContext: {
+          executionMode: 'auto',
+          approvalGrantedFor: 'tool-create-node-1',
+        },
+      },
+    });
+  });
+
+  it('does not let a read classification bypass node-creation approval', async () => {
+    const onClarificationRequest = vi.fn(async () => 'No');
+    const result = await requestAskModeApproval({
+      name: 'canvas_create_node',
+      operation: 'read',
+      input: { type: 'text', title: 'Still a new node' },
+      context: {
+        runContext: { executionMode: 'auto' },
+        toolCallId: 'tool-create-node-read-classified',
+        onClarificationRequest,
+      },
+    });
+
+    expect(onClarificationRequest).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ approved: false, error: expect.stringContaining('did not run') });
+  });
+
+  it('fails closed when Auto-mode node creation has no approval channel', async () => {
+    const result = await enforceCanvasAskModeToolPolicy({
+      name: 'canvas_create_node',
+      input: { type: 'text', title: 'Should not be created' },
+      toolContext: { runContext: { executionMode: 'auto' } },
+    });
+
+    expect(result).toMatchObject({
+      output: {
+        ok: false,
+        cancelled: true,
+        error: expect.stringContaining('Approval unavailable'),
       },
     });
   });
@@ -214,6 +309,8 @@ describe('Canvas Agent tool policy', () => {
     expect(prompt).toMatch(/`bash`/);
     expect(prompt).toMatch(/`write`/);
     expect(prompt).toMatch(/`edit`/);
+    expect(prompt).toContain('Before calling any node-creating tool');
+    expect(prompt).toContain('do not call `user_ask` for a second confirmation');
     expect(prompt).not.toMatch(/cannot[^.]*execute shell/i);
     expect(prompt).not.toMatch(/There are no `write`\/`edit` tools/i);
   });
