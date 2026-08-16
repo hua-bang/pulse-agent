@@ -180,7 +180,9 @@ describe('Engine built-in tool policy', () => {
     expect(closeAfterRun).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps deferred tools hidden until an external tool session searches for them', async () => {
+  it('keeps deferred tools hidden until an external tool session searches for them (threshold=0 forces defer)', async () => {
+    const prevThreshold = process.env.PULSE_CODER_TOOL_SEARCH_THRESHOLD;
+    process.env.PULSE_CODER_TOOL_SEARCH_THRESHOLD = '0';
     const deferredExecute = vi.fn(async () => 'created');
     const engine = new Engine({
       disableBuiltInPlugins: true,
@@ -222,6 +224,49 @@ describe('Engine built-in tool policy', () => {
       tool_references: [{ tool_name: 'artifact_create' }],
     });
     expect(session.getTools()).toHaveProperty('artifact_create');
+    await expect(session.executeTool('artifact_create', { title: 'Ready' }))
+      .resolves.toBe('created');
+    await session.dispose('done');
+
+    if (prevThreshold === undefined) {
+      delete process.env.PULSE_CODER_TOOL_SEARCH_THRESHOLD;
+    } else {
+      process.env.PULSE_CODER_TOOL_SEARCH_THRESHOLD = prevThreshold;
+    }
+  });
+
+  it('loads small deferred tool sets upfront (auto threshold, no search tools)', async () => {
+    const engine = new Engine({
+      disableBuiltInPlugins: true,
+      enginePlugins: { plugins: [builtInToolSearchPlugin], scan: false },
+      userConfigPlugins: { scan: false },
+      builtInTools: {},
+      tools: {
+        immediate_read: {
+          name: 'immediate_read',
+          description: 'Read immediate context.',
+          inputSchema: z.object({}),
+          execute: async () => 'read',
+        },
+        artifact_create: {
+          name: 'artifact_create',
+          description: 'Create an artifact.',
+          inputSchema: z.object({ title: z.string() }),
+          execute: async () => 'created',
+          defer_loading: true,
+        },
+      },
+      logger: createLogger(),
+    });
+    await engine.initialize();
+
+    const session = await engine.createToolSession({ messages: [] });
+    // Default threshold (10% of 64k = 6400 tokens) is way above this tiny
+    // deferred schema, so the plugin goes upfront: the deferred tool is
+    // directly visible and executable, and no search tools are exposed.
+    expect(session.getTools()).toHaveProperty('artifact_create');
+    expect(session.getTools()).not.toHaveProperty('tool_search_tool_bm25');
+    expect(session.getTools()).not.toHaveProperty('tool_search_tool_regex');
     await expect(session.executeTool('artifact_create', { title: 'Ready' }))
       .resolves.toBe('created');
     await session.dispose('done');
