@@ -32,7 +32,7 @@ Every tunable the engine reads, with defaults and read sites. All `config/index.
 | `GEMINI_API_KEY` / `GEMINI_IMAGE_MODEL` / `GEMINI_API_BASE_URL` | required / gemini-2.0-flash-preview-image-generation / v1beta | Gemini image gen (no PULSE_ fallback) |
 | `OPENAI_IMAGE_MODEL` / `OPENAI_IMAGE_RESPONSES_MODEL` / `OPENAI_IMAGE_API_MODE` | gpt-image-2 / = image model / `responses` | OpenAI image gen model + call mode |
 | `PULSE_CODER_PTC_ENABLED` `_STRICT` `_APPEND_PROMPT` `_APPEND_PROMPT_MAX_TOOLS` | true / false / false / 12 | PTC plugin |
-| `PULSE_CODER_TOOL_SEARCH_ENABLED` `_VARIANT` `_LIMIT` `_CANDIDATES` `_MAX_REGEX_LENGTH` `_SUMMARY` | true / bm25 / 10 / 20 / 200 / true | tool-search plugin |
+| `PULSE_CODER_TOOL_SEARCH_ENABLED` `_VARIANT` `_LIMIT` `_CANDIDATES` `_MAX_REGEX_LENGTH` `_SUMMARY` `_THRESHOLD` | true / bm25 / 10 / 20 / 200 / true / 10 | tool-search plugin. `_THRESHOLD` is the auto mode percent of `CONTEXT_WINDOW_TOKENS`: when all deferred-tool schemas total less than that, tools load upfront (no search tools exposed); at/above it, defer + search (search → load → direct call). 0 forces search always. Default 10 mirrors Claude Code `ENABLE_TOOL_SEARCH=auto`. |
 | `PULSE_CODER_TASK_LIST_ID` (or `CLAUDE_CODE_TASK_LIST_ID`) / `PULSE_CODER_TASKS_DIR` | default / `~/.pulse-coder/tasks` | task-tracking plugin |
 | `PULSE_CODER_SOUL_STATE_DIR` / `PULSE_CODER_SOUL_PERSIST` | internal / on unless `'0'` | role-soul plugin |
 
