@@ -35,17 +35,20 @@ host actually does and does not gate. Facts verified against source
   PTYs are real shells (`pty-manager.ts` spawns `powershell.exe`/`$SHELL`);
   output is forwarded only to the renderer webContents that spawned the
   session (`src/main/terminal/pty-manager.ts:15`).
-- **Approval exists only in interactive Ask mode; Auto and Scheduled remain
-  ungated.** Ask mode installs `createCanvasAskModeToolPolicyPlugin` at the
-  engine's final `beforeToolCall` boundary, after MCP, deferred, and other
-  plugin tools have joined the run. Classified reads proceed; every write,
-  execute, destructive, or unknown operation pauses for an explicit
-  Allow/Reject request. Missing renderer delivery, abort, and the five-minute
-  timeout resolve to `No`, and externally-driven Claude/Codex roles require
-  approval before their process starts. This is a consent prompt, not a
-  sandbox: an approved call still has main-process privilege. Auto mode does
-  not prompt, and Scheduled maps deliberately to Auto because no user may be
-  present; the unattended `bash` risk above therefore remains.
+- **Canvas node creation is approval-gated in both interactive modes; other
+  Auto and Scheduled operations remain ungated.** The host installs
+  `createCanvasAskModeToolPolicyPlugin` at the engine's final
+  `beforeToolCall` boundary, after MCP, deferred, and other plugin tools have
+  joined the run. In Ask mode, classified reads proceed; every write, execute,
+  destructive, or unknown operation pauses for an explicit Allow/Reject
+  request. In Auto mode, the known node-creation tools
+  (`canvas_create_node`, the specialized node creators, `dynamic_app_create`,
+  and `artifact_pin_to_canvas`) still pause before execution. Missing renderer
+  delivery, abort, and the five-minute timeout resolve to `No`, and
+  externally-driven Claude/Codex roles require approval before their process
+  starts. This is a consent prompt, not a sandbox: an approved call still has
+  main-process privilege. Scheduled runs do not expose Canvas node-creation
+  tools and remain unattended by design.
 
 ## Auto-loaded disk surfaces (evaluated when an agent is built)
 

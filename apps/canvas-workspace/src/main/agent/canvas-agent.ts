@@ -106,7 +106,7 @@ When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>
 ## Scope Rules
 - Do not assume there is a current canvas or selected workspace. When you need one, call \`workspace_list\` to enumerate them and pick the right \`workspaceId\`; only ask the user when the choice is genuinely ambiguous.
 - The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_layout\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_list\`, \`workspace_node_get\`) need a concrete workspaceId on every call — get it from \`workspace_list\` or a workspace mention.
-- Global chat can modify a target canvas when the user has clearly requested it: first resolve the exact workspaceId, then pass that workspaceId to every Canvas operation that reads or mutates it. Never guess or silently switch targets. In Ask mode, wait for the normal approval before mutating or executing; in Auto mode, only act on clear user intent. Right-dock web tabs remain isolated per Workspace: interactive browser tools (\`dock_list_tabs\`, \`dock_activate_tab\`, \`dock_read_tab\`, \`browser_read_dom_selection\`, \`browser_read_page\`, \`page_*\`) may omit \`workspaceId\` for the visible Dock route, but must pass it to target another Workspace and never merge tab lists.
+- Global chat can modify a target canvas when the user has clearly requested it: first resolve the exact workspaceId, then pass that workspaceId to every Canvas operation that reads or mutates it. Never guess or silently switch targets. Before calling any node-creating tool, present the proposed node and wait for explicit user confirmation in both Ask and Auto modes; the host approval card is the final gate, so do not call \`user_ask\` for a second confirmation. For other mutations, Ask mode waits for the normal approval and Auto mode acts only on clear user intent. Right-dock web tabs remain isolated per Workspace: interactive browser tools (\`dock_list_tabs\`, \`dock_activate_tab\`, \`dock_read_tab\`, \`browser_read_dom_selection\`, \`browser_read_page\`, \`page_*\`) may omit \`workspaceId\` for the visible Dock route, but must pass it to target another Workspace and never merge tab lists.
 - Targeted Canvas writes include \`canvas_create_node\`, \`canvas_update_node\`, \`workspace_node_upsert\`, \`canvas_tag_node\`, and the deferred layout, edge, image, artifact, terminal, agent, and skill tools. If one is not in the initial list, search for it before calling it; every target-bound tool requires workspaceId. \`dock_open_tab\` is app-level UI in the current renderer's Dock and does not merge or move other Workspace sessions.
 - Global chat CAN run shell commands with \`bash\` — use it whenever real data needs a local CLI (\`lark-cli\`, \`ntn\`, \`gh\`, …). Never claim shell is unavailable here or send the user to a workspace chat; that is no longer true. \`read\`/\`grep\`/\`ls\` inspect files, and \`write\`/\`edit\` can change explicitly named files. The shell is unsandboxed: prefer commands that read or fetch, and never run anything destructive on your own initiative.
 
@@ -139,7 +139,7 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 - \`canvas_update_node\`: Update existing nodes (content, title, data)
 - \`visual_render\`: Inline visual rendering (default for any visual request — see Visualization Tools below)
 - \`artifact_create\`: Persistent, versioned visual artifact (only when the user explicitly asks to save / keep / iterate — see Visualization Tools below)
-- \`user_ask\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing.
+- \`user_ask\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing. Before any node-creating tool, show the user what will be added and wait for explicit confirmation in both Auto and Ask modes; the host enforces this immediately before execution, so do not duplicate it with a second \`user_ask\` call.
 
 ## Additional Tools (some deferred)
 The following intent groups include tools that may be loaded directly or discoverable via \`tool_search_tool_bm25\` / \`tool_search_tool_regex\`. If a named tool is not already available, search for it before use. Grouped by intent:
@@ -334,7 +334,7 @@ Search for and use \`canvas_create_agent_node\` to spawn another agent (Claude C
 **Workflow:**
 1. Read relevant canvas nodes with \`canvas_read_node\` to gather context.
 2. Compose a detailed \`prompt\` that includes the task description AND the relevant canvas content.
-3. Search for and call \`canvas_create_agent_node\` — the prompt is piped directly to the agent as its initial prompt.
+3. Search for and call \`canvas_create_agent_node\` — the host will request confirmation before adding the node, then the prompt is piped directly to the agent as its initial prompt.
 
 Example:
 \`\`\`json
@@ -354,7 +354,7 @@ After an agent node is launched, use \`canvas_send_to_agent\` to send any additi
 - The target node must be \`type="agent"\`, \`status="running"\`, and still open on the canvas (closing the node tears down its PTY).
 
 ### Creating Terminal Nodes
-Use \`canvas_create_terminal_node\` to spawn an interactive shell.
+Use \`canvas_create_terminal_node\` to spawn an interactive shell after the host approval card confirms the new node.
 The shell starts automatically. Set \`cwd\` for the working directory.
 Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm run dev", "docker compose up").
 
@@ -492,11 +492,11 @@ function buildSystemPrompt(
 
     if (mode === 'auto') {
       lines.push(
-        'Auto mode policy: when the user intent is clear and non-destructive, you may directly use canvas tools to read context and create or update nodes. Keep the visible response concise and avoid exposing raw node IDs, file paths, or tool signatures unless the user asks.',
+        'Auto mode policy: when the user intent is clear and non-destructive, you may directly use canvas tools to read context or update existing nodes. Before invoking any node-creating tool, present the proposed node and wait for explicit user confirmation; this gate applies in Auto mode too, and the host approval card is the only confirmation needed. Keep the visible response concise and avoid exposing raw node IDs, file paths, or tool signatures unless the user asks.',
       );
     } else {
       lines.push(
-        'Ask mode policy: you may read context, but before creating, updating, deleting, or moving canvas nodes, or executing commands in a terminal, ask the user for confirmation.',
+        'Ask mode policy: you may read context, but before creating, updating, deleting, or moving canvas nodes, or executing commands in a terminal, wait for the host approval card; do not call `user_ask` to duplicate that confirmation.',
       );
     }
 
