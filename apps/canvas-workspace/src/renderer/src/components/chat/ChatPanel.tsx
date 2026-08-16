@@ -341,7 +341,6 @@ export const ChatPanel = ({
   const {
     anchors,
     backEntry,
-    onCopyOtherSession: handleCopyOtherSession,
     onJumpAnchor: handleJumpAnchor,
     onLoadSession: handleLoadSessionFromMenu,
     onNewSession: handleNewSessionFromMenu,
@@ -384,6 +383,7 @@ export const ChatPanel = ({
           sessionsLoading={sessionsLoading}
           disabled={loading || sessionLoading || busyElsewhere}
           otherSessions={otherSessions}
+          scopeLabel={scopeLabel}
           title={firstUserMessage ? <SessionTitle value={firstUserMessage} /> : sessionTitle}
           onToggleSessionMenu={openSessionMenu}
           onCloseSessionMenu={closeSessionMenu}
@@ -394,7 +394,6 @@ export const ChatPanel = ({
           onOpenRolesSettings={() => onOpenAppSettings('chat-roles')}
           onLoadSession={handleLoadSessionFromMenu}
           onOpenOriginalSession={onOpenSessionInScope ? handleOpenOriginalSession : undefined}
-          onCopyOtherSession={scopeWorkspaceId ? handleCopyOtherSession : undefined}
           onClose={onClose}
           anchors={<ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />}
         />

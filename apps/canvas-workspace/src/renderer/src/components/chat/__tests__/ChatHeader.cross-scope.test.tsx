@@ -8,9 +8,8 @@ import { ChatHeader } from '../ChatHeader';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe('ChatHeader cross-scope sessions', () => {
-  it('requires an explicit choice between opening the owning scope and copying here', () => {
+  it('reveals other-workspace conversations in a separate view and opens them in their owning scope', () => {
     const openInScope = vi.fn();
-    const copyHere = vi.fn(async () => undefined);
     const host = document.createElement('div');
     const root = createRoot(host);
     act(() => root.render(
@@ -34,7 +33,6 @@ describe('ChatHeader cross-scope sessions', () => {
           onNewSession={vi.fn(async () => undefined)}
           onLoadSession={vi.fn(async () => undefined)}
           onOpenOriginalSession={openInScope}
-          onCopyOtherSession={copyHere}
           onOpenSettings={vi.fn()}
           settingsLabel="Settings"
           onOpenPromptSettings={vi.fn()}
@@ -43,18 +41,17 @@ describe('ChatHeader cross-scope sessions', () => {
       </I18nProvider>,
     ));
 
-    expect(host.textContent).toContain('Release review');
-    // Icon-only actions (no visible label — the dropdown is too narrow to
-    // fit text buttons alongside the workspace tag and message count), so
-    // the tooltip/aria-label is the only way to find them.
-    const openButton = host.querySelector<HTMLButtonElement>('[aria-label="Open in its scope"]');
-    const copyButton = host.querySelector<HTMLButtonElement>('[aria-label="Copy here"]');
-    expect(openButton).not.toBeNull();
-    expect(copyButton).not.toBeNull();
-    act(() => openButton?.click());
-    act(() => copyButton?.click());
+    const allConversationsButton = Array.from(host.querySelectorAll('button'))
+      .find(button => button.textContent?.includes('All conversations'));
+    expect(allConversationsButton).not.toBeUndefined();
+    act(() => allConversationsButton?.click());
+
+    const releaseReview = Array.from(host.querySelectorAll('button'))
+      .find(button => button.textContent?.includes('Release review'));
+    expect(releaseReview).not.toBeUndefined();
+    act(() => releaseReview?.click());
     expect(openInScope).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'other-session' }));
-    expect(copyHere).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'other-session' }));
+    expect(host.textContent).not.toContain('Copy here');
 
     act(() => root.unmount());
   });

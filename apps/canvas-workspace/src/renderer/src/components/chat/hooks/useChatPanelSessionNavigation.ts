@@ -126,11 +126,6 @@ export const useChatPanelSessionNavigation = ({
       session.workspaceName,
     );
   }, [closeSessionMenu, onOpenSessionInScope]);
-  const onCopyOtherSession = useCallback(async (session: OtherWorkspaceSession) => {
-    if (busy) return;
-    setBackStack([]);
-    await handleLoadSession(session.sessionId, session.sourceWorkspaceId);
-  }, [busy, handleLoadSession]);
   const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
   const onJumpAnchor = useCallback(
     (messageIndex: number) => flashAnchor(scopeId, messageIndex),
@@ -140,7 +135,6 @@ export const useChatPanelSessionNavigation = ({
   return {
     anchors,
     backEntry: backStack[backStack.length - 1],
-    onCopyOtherSession,
     onJumpAnchor,
     onLoadSession,
     onNewSession,

@@ -1,0 +1,787 @@
+<!doctype html>
+<!--
+  PROTOTYPE ONLY. Conversation switching with an explicit all-workspaces view.
+  Run: python3 -m http.server 4173 -d apps/canvas-workspace/design
+  Open: http://localhost:4173/chat-switcher-interaction-prototype.html
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pulse Canvas · Chat switcher prototype</title>
+  <style>
+    :root {
+      --ink: #2e2d2a;
+      --muted: #74716c;
+      --faint: #a4a19b;
+      --line: #e9e6e0;
+      --paper: #fffefa;
+      --canvas: #f4f2ef;
+      --soft: #f7f6f3;
+      --blue: #4f8bdc;
+      --blue-soft: #edf5ff;
+      --green: #16a574;
+      --shadow: 0 16px 44px rgba(53, 49, 42, .14);
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; margin: 0; }
+    body {
+      overflow: hidden;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit; color: inherit; }
+    button { border: 0; cursor: pointer; }
+    button:focus-visible, input:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--blue) 68%, white);
+      outline-offset: 2px;
+    }
+    [data-lucide] { width: 16px; height: 16px; stroke-width: 1.8; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 58px minmax(360px, 1fr) minmax(540px, 52vw);
+      min-height: 100vh;
+    }
+
+    .rail {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 22px;
+      padding: 22px 0;
+      background: #fbfaf8;
+      border-right: 1px solid var(--line);
+    }
+    .rail button {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+    }
+    .rail button.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+    .rail-spacer { flex: 1; }
+
+    .canvas {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      background-color: var(--canvas);
+      background-image: radial-gradient(#dedbd5 1px, transparent 1px);
+      background-size: 26px 26px;
+    }
+    .canvas-title {
+      position: absolute;
+      top: 26px;
+      left: 32px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .02em;
+    }
+    .agent-card {
+      position: absolute;
+      top: 104px;
+      left: 13%;
+      width: min(590px, 76%);
+      min-height: 500px;
+      overflow: hidden;
+      border: 1px solid rgba(60, 55, 48, .08);
+      border-radius: 15px;
+      background: rgba(255, 254, 250, .95);
+      box-shadow: 0 20px 48px rgba(60, 55, 48, .12);
+    }
+    .agent-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 0 17px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .agent-mark {
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 7px;
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+    .agent-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .agent-status::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      content: "";
+    }
+    .agent-copy {
+      padding: 26px 30px;
+      color: #5e5a54;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.75;
+    }
+    .agent-copy p { margin: 0 0 22px; }
+    .agent-copy strong { color: var(--ink); }
+    .agent-copy .blue { color: #597b9d; }
+    .agent-copy .green { color: #4d8b57; }
+    .agent-copy .prompt {
+      margin-top: 108px;
+      padding-top: 13px;
+      border-top: 1px solid #d7d3cb;
+      color: #278a84;
+    }
+
+    .chat {
+      position: relative;
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      background: var(--paper);
+      border-left: 1px solid var(--line);
+    }
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      height: 58px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 254, 250, .92);
+    }
+    .tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      height: 38px;
+      max-width: 160px;
+      padding: 0 13px;
+      border-radius: 10px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 13px;
+    }
+    .tab.active {
+      background: #f4f3f0;
+      color: var(--ink);
+      font-weight: 720;
+    }
+    .tab-close { color: var(--faint); }
+    .tabs-spacer { flex: 1; }
+    .tab-action {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+    }
+    .tab-action:hover, .rail button:hover { background: var(--soft); color: var(--ink); }
+
+    .chat-header {
+      position: relative;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 74px;
+      padding: 0 25px;
+      border-bottom: 1px solid var(--line);
+    }
+    .title-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+      max-width: 72%;
+      padding: 9px 10px;
+      border-radius: 9px;
+      background: transparent;
+      text-align: left;
+    }
+    .title-button:hover { background: var(--soft); }
+    .title-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 18px;
+      font-weight: 720;
+    }
+    .title-scope {
+      flex: 0 0 auto;
+      padding: 4px 7px;
+      border-radius: 5px;
+      background: var(--blue-soft);
+      color: #5a82b0;
+      font-size: 11px;
+      font-weight: 650;
+    }
+    .header-actions { display: flex; align-items: center; gap: 3px; }
+    .header-actions button {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+    }
+    .header-actions button:hover { background: var(--soft); color: var(--ink); }
+
+    .session-menu {
+      position: absolute;
+      top: 63px;
+      left: 25px;
+      z-index: 10;
+      width: min(480px, calc(100% - 50px));
+      max-height: min(620px, calc(100vh - 172px));
+      overflow: hidden;
+      border: 1px solid rgba(49, 45, 40, .1);
+      border-radius: 14px;
+      background: rgba(255, 254, 250, .98);
+      box-shadow: var(--shadow);
+    }
+    .session-menu[hidden] { display: none; }
+    .menu-scroll { max-height: inherit; overflow: auto; padding: 9px; }
+    .menu-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      padding: 0 7px;
+    }
+    .menu-head h2 { margin: 0; font-size: 12px; font-weight: 750; }
+    .menu-head p { margin: 0 0 0 auto; color: var(--faint); font-size: 11px; }
+    .back-button {
+      display: inline-grid;
+      place-items: center;
+      width: 27px;
+      height: 27px;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--muted);
+    }
+    .back-button:hover { background: var(--soft); color: var(--ink); }
+    .menu-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      margin: 3px 0 7px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--faint);
+    }
+    .menu-search input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      font-size: 12px;
+    }
+    .menu-search input::placeholder { color: var(--faint); }
+    .menu-divider { height: 1px; margin: 8px 0; background: var(--line); }
+    .menu-label {
+      padding: 6px 10px 5px;
+      color: var(--faint);
+      font-size: 10px;
+      font-weight: 750;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .menu-label .label-detail {
+      margin-left: 5px;
+      color: #aaa6a0;
+      font-weight: 550;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    .menu-row {
+      display: grid;
+      grid-template-columns: 20px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 42px;
+      padding: 0 10px;
+      border-radius: 8px;
+      background: transparent;
+      text-align: left;
+    }
+    .menu-row:hover { background: var(--soft); }
+    .menu-row.active { background: #f3f3f1; }
+    .menu-row .row-icon { color: var(--faint); }
+    .menu-row.active .row-icon { color: var(--blue); }
+    .row-main {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+    .row-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--faint);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .scope-badge {
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 4px 6px;
+      border-radius: 5px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .new-row { color: var(--ink); font-weight: 650; }
+    .new-row .row-icon { color: var(--ink); }
+    .all-row {
+      color: var(--blue);
+      font-weight: 650;
+    }
+    .all-row .row-icon { color: var(--blue); }
+    .empty-row {
+      padding: 15px 10px;
+      color: var(--faint);
+      font-size: 12px;
+    }
+
+    .chat-body {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 37px 35px 130px;
+    }
+    .article { max-width: 690px; margin: 0 auto; }
+    .article .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 15px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .article .eyebrow::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--blue);
+      content: "";
+    }
+    .article h1 {
+      margin: 0 0 24px;
+      font-size: clamp(25px, 3vw, 38px);
+      line-height: 1.2;
+      letter-spacing: -.02em;
+    }
+    .article h2 { margin: 30px 0 11px; font-size: 18px; }
+    .article p { margin: 12px 0; color: #57534d; font-size: 15px; line-height: 1.8; }
+    .article code { padding: 2px 5px; border-radius: 4px; background: var(--soft); font-size: .92em; }
+    .article .info-card {
+      margin: 27px 0;
+      padding: 15px 17px;
+      border-left: 3px solid var(--blue);
+      border-radius: 7px;
+      background: var(--blue-soft);
+      color: #45627e;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .composer {
+      position: absolute;
+      right: 25px;
+      bottom: 20px;
+      left: 25px;
+      z-index: 4;
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      min-height: 72px;
+      padding: 13px 15px;
+      border: 1px solid #e2dfd9;
+      border-radius: 16px;
+      background: rgba(255, 254, 250, .97);
+      box-shadow: 0 8px 22px rgba(53, 49, 42, .06);
+    }
+    .composer textarea {
+      flex: 1;
+      min-height: 39px;
+      resize: none;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .composer textarea::placeholder { color: var(--faint); }
+    .composer button {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--soft);
+      color: var(--faint);
+    }
+    .composer .send { background: #f0efed; }
+    .prototype-note {
+      position: fixed;
+      right: 16px;
+      bottom: 14px;
+      z-index: 20;
+      padding: 6px 9px;
+      border: 1px solid rgba(60, 55, 48, .08);
+      border-radius: 6px;
+      background: rgba(255, 254, 250, .82);
+      color: var(--faint);
+      font-size: 10px;
+    }
+    .toast {
+      position: fixed;
+      bottom: 104px;
+      left: 50%;
+      z-index: 30;
+      transform: translate(-50%, 12px);
+      padding: 9px 13px;
+      border-radius: 8px;
+      background: var(--ink);
+      color: #fff;
+      box-shadow: var(--shadow);
+      font-size: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+    .toast.show { transform: translate(-50%, 0); opacity: 1; }
+
+    @media (max-width: 900px) {
+      body { overflow: auto; }
+      .app { grid-template-columns: 48px 1fr; }
+      .canvas { display: none; }
+      .chat { min-height: 100vh; }
+    }
+    @media (max-width: 560px) {
+      .chat-header { padding: 0 15px; }
+      .session-menu { left: 15px; width: calc(100% - 30px); }
+      .chat-body { padding-right: 20px; padding-left: 20px; }
+      .composer { right: 15px; left: 15px; }
+      .title-scope { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <nav class="rail" aria-label="主导航">
+      <button class="active" type="button" aria-label="画布"><i data-lucide="panel-left"></i></button>
+      <button type="button" aria-label="Pulse AI"><i data-lucide="sparkles"></i></button>
+      <button type="button" aria-label="工作区"><i data-lucide="briefcase-business"></i></button>
+      <button type="button" aria-label="日历"><i data-lucide="calendar-days"></i></button>
+      <span class="rail-spacer"></span>
+      <button type="button" aria-label="设置"><i data-lucide="settings"></i></button>
+    </nav>
+
+    <section class="canvas" aria-label="当前工作区画布">
+      <div class="canvas-title">Pulse Canvas · Workspace A</div>
+      <article class="agent-card" aria-label="Coding Agent 原型窗口">
+        <header class="agent-header">
+          <span class="agent-mark"><i data-lucide="code-2"></i></span>
+          <span>Coding Agent</span>
+          <span class="agent-status">Running</span>
+        </header>
+        <div class="agent-copy">
+          <p><strong>当前工作区：</strong> <span class="blue">/Users/jasperhu/project/pulse-agent</span></p>
+          <p><span class="green">●</span> 我正在整理当前工作区的界面交互。这里的对话切换只应该改变当前对话，不应该隐式复制消息。</p>
+          <p><strong>待验证：</strong> 点击右侧标题，查看当前工作区对话；选择“查看全部对话”后，再显式切换到 Workspace B。</p>
+          <p class="prompt">Model: gpt-5.6 · Context: 146.8k · Prototype state visible</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="chat" aria-label="Pulse AI 对话">
+      <div class="tabs" aria-label="对话标签">
+        <div class="tab active"><i data-lucide="sparkles"></i><span>Pulse AI</span></div>
+        <div class="tab"><i data-lucide="github"></i><span>fix(canvas)</span><span class="tab-close">×</span></div>
+        <div class="tab"><i data-lucide="github"></i><span>Improve UI</span><span class="tab-close">×</span></div>
+        <div class="tabs-spacer"></div>
+        <button class="tab-action" type="button" aria-label="新建标签"><i data-lucide="plus"></i></button>
+        <button class="tab-action" type="button" aria-label="切换面板"><i data-lucide="panel-right"></i></button>
+      </div>
+
+      <header class="chat-header">
+        <button id="titleButton" class="title-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="sessionMenu" aria-label="切换对话">
+          <span id="titleText" class="title-text">你知道 web skills 么</span>
+          <span id="scopeBadge" class="title-scope">Workspace A</span>
+          <i data-lucide="chevron-down"></i>
+        </button>
+        <div class="header-actions">
+          <button type="button" aria-label="回复风格"><i data-lucide="sparkles"></i></button>
+          <button type="button" aria-label="设置"><i data-lucide="settings-2"></i></button>
+          <button id="newChatButton" type="button" aria-label="新建对话"><i data-lucide="plus"></i></button>
+        </div>
+
+        <div id="sessionMenu" class="session-menu" role="menu" aria-label="切换对话" hidden></div>
+      </header>
+
+      <div class="chat-body">
+        <article class="article">
+          <div id="articleEyebrow" class="eyebrow">Workspace A · 当前对话</div>
+          <h1 id="articleTitle">你知道 web skills 么</h1>
+          <p id="articleIntro">这是一个用于验证对话切换边界的示例。当前工作区菜单只显示 Workspace A 的对话；其他工作区的对话通过“查看全部对话”进入。</p>
+          <div class="info-card"><strong>当前交互原则</strong><br />切换对话会切换所属工作区上下文，不会把消息复制到当前工作区。</div>
+          <h2>为什么要单独区分“全部对话”</h2>
+          <p>对话会携带工作区、文件和 Agent 工具上下文。如果从 Workspace A 直接加载 Workspace B 的消息，却仍然显示 A 的上下文，后续操作会让用户误判作用范围。</p>
+          <p>因此这个原型把跨工作区入口放在一个明确的全局列表里，并在标题旁持续显示当前工作区。</p>
+        </article>
+      </div>
+
+      <form class="composer" onsubmit="return false" aria-label="对话输入">
+        <textarea aria-label="输入消息" placeholder="Ask about this canvas..." rows="1"></textarea>
+        <button type="button" aria-label="添加附件"><i data-lucide="plus"></i></button>
+        <button class="send" type="button" aria-label="发送"><i data-lucide="arrow-up"></i></button>
+      </form>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div class="prototype-note">PROTOTYPE · 只验证对话切换</div>
+
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.js"></script>
+  <script>
+    const localSessions = {
+      'Workspace A': [
+        { title: '你知道 web skills 么', messages: 6, active: true },
+        { title: '目前 canvas-workspace 这里...', messages: 20 },
+        { title: '总结我今天做了啥', messages: 2 },
+        { title: '如何理解工作区和对话', messages: 8 },
+      ],
+      'Workspace B': [
+        { title: '版本发布复盘', messages: 12, active: true },
+        { title: '整理设计系统', messages: 18 },
+        { title: '下周迭代计划', messages: 4 },
+      ],
+      'AI Chat': [
+        { title: '早上好呀', messages: 4, active: true },
+        { title: '帮我整理一个学习路径', messages: 9 },
+      ],
+    };
+
+    const allSessions = [
+      { workspace: 'Workspace A', title: '你知道 web skills 么', messages: 6, active: true },
+      { workspace: 'Workspace A', title: '目前 canvas-workspace 这里...', messages: 20 },
+      { workspace: 'Workspace B', title: '版本发布复盘', messages: 12 },
+      { workspace: 'Workspace B', title: '整理设计系统', messages: 18 },
+      { workspace: 'AI Chat', title: '早上好呀', messages: 4 },
+    ];
+
+    const state = {
+      menuView: 'local',
+      workspace: 'Workspace A',
+      title: '你知道 web skills 么',
+      query: '',
+    };
+
+    const titleButton = document.getElementById('titleButton');
+    const sessionMenu = document.getElementById('sessionMenu');
+    const titleText = document.getElementById('titleText');
+    const scopeBadge = document.getElementById('scopeBadge');
+    const articleTitle = document.getElementById('articleTitle');
+    const articleEyebrow = document.getElementById('articleEyebrow');
+    const articleIntro = document.getElementById('articleIntro');
+    const toast = document.getElementById('toast');
+    let toastTimer;
+
+    function icon(name) {
+      return `<i data-lucide="${name}"></i>`;
+    }
+
+    function refreshIcons() {
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => toast.classList.remove('show'), 1900);
+    }
+
+    function sessionRow(session, options = {}) {
+      const workspaceMeta = options.showWorkspace
+        ? `<span class="scope-badge">${session.workspace}</span>`
+        : '';
+      return `
+        <button class="menu-row${session.active ? ' active' : ''}" type="button" role="menuitem"
+          data-action="select-session" data-workspace="${session.workspace || state.workspace}" data-title="${session.title}">
+          <span class="row-icon">${icon('list-3')}</span>
+          <span class="row-main">${session.title}</span>
+          <span class="row-meta">${workspaceMeta}<span>${session.messages} 条消息</span></span>
+        </button>`;
+    }
+
+    function renderLocalMenu() {
+      const sessions = localSessions[state.workspace] || [];
+      sessionMenu.innerHTML = `
+        <div class="menu-scroll">
+          <button class="menu-row new-row" type="button" role="menuitem" data-action="new-session">
+            <span class="row-icon">${icon('plus')}</span>
+            <span class="row-main">新建对话</span>
+            <span class="row-meta">⌘ N</span>
+          </button>
+          <div class="menu-divider"></div>
+          <div class="menu-label">当前工作区<span class="label-detail">· ${state.workspace}</span></div>
+          ${sessions.map(session => sessionRow({ ...session, workspace: state.workspace })).join('')}
+          <div class="menu-divider"></div>
+          <button class="menu-row all-row" type="button" role="menuitem" data-action="show-all">
+            <span class="row-icon">${icon('layers-2')}</span>
+            <span class="row-main">查看全部对话</span>
+            <span class="row-meta">${icon('arrow-right')}</span>
+          </button>
+        </div>`;
+    }
+
+    function renderAllMenu() {
+      const filtered = allSessions.filter(session => {
+        const query = state.query.trim().toLowerCase();
+        return !query || `${session.workspace} ${session.title}`.toLowerCase().includes(query);
+      });
+      const grouped = ['Workspace A', 'Workspace B', 'AI Chat'].map(workspace => ({
+        workspace,
+        sessions: filtered.filter(session => session.workspace === workspace),
+      })).filter(group => group.sessions.length > 0);
+      sessionMenu.innerHTML = `
+        <div class="menu-scroll">
+          <div class="menu-head">
+            <button class="back-button" type="button" aria-label="返回当前工作区" data-action="show-local">${icon('arrow-left')}</button>
+            <h2>全部对话</h2>
+            <p>选择后切换所属工作区</p>
+          </div>
+          <label class="menu-search">
+            ${icon('search')}
+            <input id="sessionSearch" type="search" value="${state.query}" placeholder="搜索对话或工作区" aria-label="搜索对话或工作区" />
+          </label>
+          ${grouped.map(group => `
+            <div class="menu-label">${group.workspace === state.workspace ? '当前工作区' : '其他工作区'}<span class="label-detail">· ${group.workspace}</span></div>
+            ${group.sessions.map(session => sessionRow(session, { showWorkspace: false })).join('')}
+          `).join('<div class="menu-divider"></div>') || '<div class="empty-row">没有匹配的对话</div>'}
+        </div>`;
+      const search = document.getElementById('sessionSearch');
+      search?.addEventListener('input', event => {
+        state.query = event.target.value;
+        renderAllMenu();
+        document.getElementById('sessionSearch')?.focus();
+      });
+    }
+
+    function renderMenu() {
+      if (state.menuView === 'all') renderAllMenu();
+      else renderLocalMenu();
+      refreshIcons();
+    }
+
+    function setMenu(open) {
+      sessionMenu.hidden = !open;
+      titleButton.setAttribute('aria-expanded', String(open));
+      if (open) {
+        state.menuView = 'local';
+        state.query = '';
+        renderMenu();
+      }
+    }
+
+    function updateConversation(workspace, title) {
+      state.workspace = workspace;
+      state.title = title;
+      titleText.textContent = title;
+      scopeBadge.textContent = workspace;
+      articleEyebrow.textContent = `${workspace} · 当前对话`;
+      articleTitle.textContent = title;
+      articleIntro.textContent = workspace === 'Workspace A'
+        ? '这是一个用于验证对话切换边界的示例。当前工作区菜单只显示 Workspace A 的对话；其他工作区的对话通过“查看全部对话”进入。'
+        : `你正在查看 ${workspace} 中的对话。切换发生在所属工作区上下文中，不会把这段消息复制到原来的工作区。`;
+      document.querySelectorAll('[data-action="select-session"]').forEach(row => {
+        row.classList.toggle('active', row.dataset.workspace === workspace && row.dataset.title === title);
+      });
+    }
+
+    sessionMenu.addEventListener('click', event => {
+      const target = event.target.closest('[data-action]');
+      if (!target) return;
+      const action = target.dataset.action;
+      if (action === 'show-all') {
+        state.menuView = 'all';
+        state.query = '';
+        renderMenu();
+        return;
+      }
+      if (action === 'show-local') {
+        state.menuView = 'local';
+        state.query = '';
+        renderMenu();
+        return;
+      }
+      if (action === 'new-session') {
+        updateConversation(state.workspace, '新建对话');
+        setMenu(false);
+        showToast(`已在 ${state.workspace} 创建新对话`);
+        return;
+      }
+      if (action === 'select-session') {
+        const workspace = target.dataset.workspace;
+        const title = target.dataset.title;
+        const switchedWorkspace = workspace !== state.workspace;
+        updateConversation(workspace, title);
+        setMenu(false);
+        showToast(switchedWorkspace ? `已切换到 ${workspace} · ${title}` : `已切换到 ${title}`);
+      }
+    });
+
+    titleButton.addEventListener('click', () => setMenu(sessionMenu.hidden));
+    document.getElementById('newChatButton').addEventListener('click', () => {
+      updateConversation(state.workspace, '新建对话');
+      setMenu(false);
+      showToast(`已在 ${state.workspace} 创建新对话`);
+    });
+    document.addEventListener('click', event => {
+      if (!event.target.closest('.chat-header')) setMenu(false);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') setMenu(false);
+    });
+
+    refreshIcons();
+  </script>
+</body>
+</html>

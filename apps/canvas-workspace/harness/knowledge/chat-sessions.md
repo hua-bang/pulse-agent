@@ -113,6 +113,19 @@ feedback, the title-only row layout, precise recency ordering, and workspace
 row draft actions;
 `src/main/agent/__tests__/service-history.test.ts` pins active-store exclusion.
 
+### Dock chat session switcher
+
+The dock header's session menu is scoped in two layers. Its default view shows
+only the current scope's recent sessions and New chat. When cross-scope rows
+and `onOpenSessionInScope` are available, `All conversations` opens an internal
+secondary view that labels the current scope and lists conversations owned by
+other workspaces. Selecting an other-workspace row closes the menu and
+delegates to `onOpenSessionInScope`, which switches to that conversation's
+owning scope; it must not call `handleLoadSession` with the source workspace
+id, because that path imports the conversation into the current scope. Copy is
+intentionally not exposed in this menu for now. Guard:
+`__tests__/ChatHeader.cross-scope.test.tsx`.
+
 ## Full-page chat topbar vs dock content tabs
 
 The full-page chat topbar (`chat/ChatPageBody.tsx`, shared by the AI Chat
