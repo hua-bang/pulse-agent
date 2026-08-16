@@ -10,13 +10,11 @@ The engine's *current* containment story is fully described in `knowledge/securi
 
 **Why it needs a decision.** This is the single most load-bearing assumption for every embedder. If it is a contract, it should be stated as one (and the skills/knowledge can point embedders at it with confidence). If it is a gap, adding an approval hook later changes the tool-execution path for all hosts and is a breaking behavior change — better decided before more consumers hard-code "no gate exists." Either answer is legitimate; leaving it implicit means each host re-derives it by reading source.
 
-## 2. plan-mode: declared policy ≠ enforced policy
+## 2. plan-mode: declared policy ≠ enforced policy — RESOLVED 2026-08-16
 
-**Current state.** The planning-mode policy object declares `disallowedCategories: ['write', 'execute']` (`src/built-in/plan-mode-plugin/index.ts:64`). But the code that actually removes tools keys off a hardcoded name set `DISALLOWED_TOOLS_IN_PLANNING = new Set(['write', 'edit'])` (`:103`, applied at `:110`) — tool *names*, not categories. So in planning mode `write` and `edit` are removed, while `bash` and other `execute`-category tools stay callable, even though the declared policy says `execute` is disallowed. The `disallowedCategories` value is consumed only by `observePotentialPolicyViolation` (`:370`), which merely *emits an event* — it blocks nothing.
+**Resolved.** Planning mode now hard-blocks by `disallowedCategories`: `beforeToolCall` short-circuits any tool whose category is `write`/`execute` with a synthetic rejected result, and `bash` additionally runs a read-only command classifier (`src/built-in/plan-mode-plugin/readonly-command.ts`) so read-only commands (`ls`, `grep`, `find`, `git status`, ...) stay available while everything else is blocked. Top-level tools stay stable (no more name-based removal of `write`/`edit`). `disallowedToolAttemptInPlanning` events are still emitted for hosts (CLI prints a warning). The declared policy is now the enforced policy.
 
-**Open question.** Which is the intended planning-mode policy — the declared one (`execute` should also be withheld, so the enforcement set is wrong) or the enforced one (only `write`/`edit` should go, so the declared `disallowedCategories` is misleading)?
-
-**Why it needs a decision.** The two are contradictory and both are shipped. A host reading `disallowedCategories: ['write','execute']` reasonably believes `bash` is blocked in planning mode; it is not. This is a divergence between spec-as-written-in-code and behavior — resolving it is a policy call (how locked-down should planning mode be?), not an obvious bug fix, because either side could be the intended truth.
+**Remaining nuance (documented, not a divergence):** mutating vs read-only is a category call for every tool. Tools without explicit metadata fall back to name-inference (`KNOWN_TOOL_META` + regex); `generate_image` was added explicitly as `write`. A future tool whose name does not hint at mutation will be classified `other` and NOT blocked in planning mode — add it to `KNOWN_TOOL_META` when that is wrong.
 
 ## 3. ptc `allowed_callers` unions typed + untyped allowlists
 
@@ -28,4 +26,4 @@ The engine's *current* containment story is fully described in `knowledge/securi
 
 ---
 
-**Verification.** Confirmed against source on the working branch (2026-07-07): plan-mode declared vs enforced (`plan-mode-plugin/index.ts:64` vs `:103,110`; observation-only consumer at `:370`); ptc union (`ptc-plugin.ts:71,183-184`, `addCallerToken` into a shared `Set`). The zero-gating posture is the standing description in `knowledge/security-posture.md`.
+**Verification.** Confirmed against source on the working branch (2026-07-07): plan-mode declared vs enforced (`plan-mode-plugin/index.ts:64` vs `:103,110`; observation-only consumer at `:370`); ptc union (`ptc-plugin.ts:71,183-184`, `addCallerToken` into a shared `Set`). The zero-gating posture is the standing description in `knowledge/security-posture.md`. Plan-mode item #2 was resolved 2026-08-16 with the hard-blocking beforeToolCall + read-only bash classifier; ptc union and the zero-gating posture questions remain open.

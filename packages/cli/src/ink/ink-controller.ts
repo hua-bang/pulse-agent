@@ -116,6 +116,15 @@ export class InkCoderController implements InkCliController {
     await goalIntegration.initialize();
     await this.agent.initialize();
 
+    // Surface planning-mode tool rejections (hard-blocked mutating tools /
+    // non-read-only bash commands) so the user knows why nothing happened.
+    this.agent.events.on('disallowed_tool_attempt_in_planning', (event: any) => {
+      const { toolName, category } = event?.payload ?? {};
+      if (toolName) {
+        this.ui.warn(`Planning mode blocked ${toolName}${category ? ` (${category})` : ''}`);
+      }
+    });
+
     const pluginStatus = this.agent.getPluginStatus();
     this.ui.showPluginStatus(pluginStatus.enginePlugins.length);
 
