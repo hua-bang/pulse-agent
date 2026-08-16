@@ -154,8 +154,10 @@
   top: 0;
   z-index: 1;
   width: 100%;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 26px;
   align-items: center;
+  padding-right: 2px;
   border-radius: var(--radius-xs);
   background: var(--surface);
 }
@@ -163,7 +165,7 @@
 .ui-btn.chat-page-rail-folder {
   appearance: none;
   min-width: 0;
-  flex: 1;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -178,21 +180,31 @@
   text-align: left;
 }
 
+.chat-page-rail-folder-action-slot {
+  position: relative;
+  width: 26px;
+  height: 26px;
+}
+
 .ui-btn.chat-page-rail-folder-new {
-  flex: 0 0 26px;
+  position: absolute;
+  inset: 0;
   width: 26px;
   height: 26px;
   min-height: 26px;
-  margin-right: 2px;
   border: 0;
   background: transparent;
   color: var(--text-muted);
   opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
 }
 
-.chat-page-rail-folder-row:hover .ui-btn.chat-page-rail-folder-new,
+.chat-page-rail-folder-row--actionable:hover .ui-btn.chat-page-rail-folder-new,
+.chat-page-rail-folder-row--actionable:focus-within .ui-btn.chat-page-rail-folder-new,
 .ui-btn.chat-page-rail-folder-new:focus-visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .ui-btn.chat-page-rail-folder-new:hover {
@@ -231,9 +243,19 @@
 }
 
 .chat-page-rail-folder-count {
-  flex-shrink: 0;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
   color: var(--text-muted);
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  transition: opacity 0.12s ease;
+}
+
+.chat-page-rail-folder-row--actionable:hover .chat-page-rail-folder-count,
+.chat-page-rail-folder-row--actionable:focus-within .chat-page-rail-folder-count {
+  opacity: 0;
 }
 
 .chat-page-rail-list {
@@ -683,6 +705,15 @@
 }
 
 @media (hover: none) {
+  .chat-page-rail-folder-row--actionable .chat-page-rail-folder-count {
+    opacity: 0;
+  }
+
+  .chat-page-rail-folder-row--actionable .ui-btn.chat-page-rail-folder-new {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
   .chat-page-rail-item-actions {
     position: static;
     flex-shrink: 0;
@@ -699,6 +730,8 @@
   .chat-page-rail-wrapper,
   .chat-page-rail-wrapper--collapsed,
   .chat-page-rail-folder-chevron,
+  .chat-page-rail-folder-count,
+  .ui-btn.chat-page-rail-folder-new,
   .chat-page-rail-item,
   .chat-page-rail-new,
   .chat-page-rail-item-actions {

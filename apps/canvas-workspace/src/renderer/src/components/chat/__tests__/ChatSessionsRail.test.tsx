@@ -91,6 +91,40 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(onNewSessionInWorkspace).toHaveBeenCalledWith('workspace-empty', newChat);
   });
 
+  it('uses one fixed trailing slot for the session count and workspace action', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={sessions}
+            workspaces={[
+              { id: 'workspace-a', name: 'Workspace A' },
+              { id: 'workspace-b', name: 'Workspace B' },
+            ]}
+            onNewSession={vi.fn()}
+            onNewSessionInWorkspace={vi.fn()}
+            onSelectSession={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    const rows = Array.from(host.querySelectorAll('.chat-page-rail-folder-row'));
+    expect(rows).toHaveLength(2);
+
+    for (const row of rows) {
+      const slot = row.querySelector('.chat-page-rail-folder-action-slot');
+      expect(slot).not.toBeNull();
+      expect(slot?.querySelector('.chat-page-rail-folder-count')).not.toBeNull();
+      expect(slot?.querySelector('.chat-page-rail-folder-new')).not.toBeNull();
+      expect(row.querySelector('.chat-page-rail-folder > .chat-page-rail-folder-count')).toBeNull();
+    }
+  });
+
   it('groups sessions by workspace and lets each folder collapse independently', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -111,7 +145,7 @@ describe('ChatSessionsRail workspace tree', () => {
     const folders = Array.from(host.querySelectorAll<HTMLButtonElement>('.chat-page-rail-folder'));
     expect(folders).toHaveLength(2);
     expect(folders[0].textContent).toContain('Workspace A');
-    expect(folders[0].textContent).toContain('2');
+    expect(folders[0].closest('.chat-page-rail-folder-row')?.querySelector('.chat-page-rail-folder-count')?.textContent).toBe('2');
     expect(host.textContent).toContain('First conversation');
     expect(host.textContent).not.toContain('Third conversation');
 
