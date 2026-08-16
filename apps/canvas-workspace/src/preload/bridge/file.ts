@@ -23,6 +23,9 @@ export const createFileApi = (ipcRenderer: IpcRenderer): FileApi => ({
   openInVSCode: (filePath) =>
     ipcRenderer.invoke("file:openInVSCode", { filePath }),
 
+  openPath: (filePath) =>
+    ipcRenderer.invoke("file:openPath", { filePath }),
+
   openDialog: () => ipcRenderer.invoke("file:openDialog"),
 
   saveAsDialog: (defaultName, content) =>

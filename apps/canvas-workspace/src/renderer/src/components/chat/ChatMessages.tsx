@@ -15,6 +15,7 @@ import type { PendingClarification, ToolCallStatus } from './types';
 import { buildAnchorElementId } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isVSCodeLink } from './utils/externalLinks';
+import { localPathFromHref } from './utils/localFileLinks';
 import { ChatClarificationCard } from './ChatClarificationCard';
 import { useChatMessagesStatus } from './hooks/useChatMessagesStatus';
 import { tabRefFromMentionElement } from './utils/tabMentions';
@@ -285,6 +286,13 @@ export const ChatMessages = ({
     // Electron to create a BrowserWindow for a custom scheme.
     const link = target.closest<HTMLAnchorElement>('a[href]');
     const href = link?.getAttribute('href') ?? '';
+    const localPath = localPathFromHref(href);
+    if (localPath) {
+      event.preventDefault();
+      event.stopPropagation();
+      void window.canvasWorkspace.file.openPath(localPath);
+      return;
+    }
     if (href && isVSCodeLink(href)) {
       event.preventDefault();
       event.stopPropagation();

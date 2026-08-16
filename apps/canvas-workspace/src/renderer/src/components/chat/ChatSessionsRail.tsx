@@ -223,7 +223,7 @@ export const ChatSessionsRail = ({
                 key={group.id}
               >
                 {!isGlobalGroup && (
-                  <div className="chat-page-rail-folder-row">
+                  <div className={`chat-page-rail-folder-row${group.canCreateDraft && onNewSessionInWorkspace ? ' chat-page-rail-folder-row--actionable' : ''}`}>
                     <Button
                       variant="secondary"
                       size="xs"
@@ -237,23 +237,25 @@ export const ChatSessionsRail = ({
                         className={`chat-page-rail-folder-chevron${collapsed ? '' : ' chat-page-rail-folder-chevron--expanded'}`}
                       />
                       <span className="chat-page-rail-folder-name">{group.name}</span>
+                    </Button>
+                    <span className="chat-page-rail-folder-action-slot">
                       {group.sessions.length > 0 && (
                         <span className="chat-page-rail-folder-count">{group.sessions.length}</span>
                       )}
-                    </Button>
-                    {group.canCreateDraft && onNewSessionInWorkspace && (
-                      <Button
-                        variant="icon"
-                        size="xs"
-                        className="chat-page-rail-folder-new"
-                        disabled={newSessionDisabled}
-                        onClick={(event) => onNewSessionInWorkspace(group.id, event.currentTarget)}
-                        title={t('chat.newChatInWorkspace', { name: group.name })}
-                        aria-label={t('chat.newChatInWorkspace', { name: group.name })}
-                      >
-                        <PlusIcon size={13} strokeWidth={1.4} />
-                      </Button>
-                    )}
+                      {group.canCreateDraft && onNewSessionInWorkspace && (
+                        <Button
+                          variant="icon"
+                          size="xs"
+                          className="chat-page-rail-folder-new"
+                          disabled={newSessionDisabled}
+                          onClick={(event) => onNewSessionInWorkspace(group.id, event.currentTarget)}
+                          title={t('chat.newChatInWorkspace', { name: group.name })}
+                          aria-label={t('chat.newChatInWorkspace', { name: group.name })}
+                        >
+                          <PlusIcon size={13} strokeWidth={1.4} />
+                        </Button>
+                      )}
+                    </span>
                   </div>
                 )}
                 <div id={listId} className="chat-page-rail-list" role="list">

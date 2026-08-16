@@ -21,6 +21,9 @@ export interface FileApi {
   openInVSCode: (
     filePath: string,
   ) => Promise<{ ok: boolean; filePath?: string; command?: string; error?: string }>;
+  openPath: (
+    filePath: string,
+  ) => Promise<{ ok: boolean; filePath?: string; error?: string }>;
   openDialog: () => Promise<{
     ok: boolean;
     canceled?: boolean;
