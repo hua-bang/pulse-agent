@@ -1,7 +1,7 @@
 import { execFile } from "child_process";
 import { ipcMain, dialog, BrowserWindow, clipboard, nativeImage, shell } from "electron";
 import { promises as fs } from "fs";
-import { join, basename, resolve } from "path";
+import { join, basename, resolve, isAbsolute } from "path";
 import { homedir } from "os";
 import { promisify } from "util";
 import { ensureImagePreview } from './image-preview';
@@ -158,6 +158,30 @@ export const setupFileManagerIpc = () => {
       } catch (err) {
         return { ok: false, filePath, error: formatError(err) || lastError || "Unable to open VS Code" };
       }
+    }
+  );
+
+  // Open an explicit absolute local path with its system-default application.
+  // The renderer only calls this after a user clicks a local Markdown link.
+  ipcMain.handle(
+    "file:openPath",
+    async (_event, payload: { filePath?: string }) => {
+      const rawPath = payload.filePath?.trim();
+      if (!rawPath || !isAbsolute(rawPath)) {
+        return { ok: false, error: "Expected an absolute file path" };
+      }
+
+      const filePath = resolve(rawPath);
+      try {
+        await fs.access(filePath);
+      } catch (err) {
+        return { ok: false, filePath, error: `Path is not accessible: ${formatError(err)}` };
+      }
+
+      const error = await shell.openPath(filePath);
+      return error
+        ? { ok: false, filePath, error }
+        : { ok: true, filePath };
     }
   );
 

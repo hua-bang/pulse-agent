@@ -52,6 +52,29 @@ async function renderMessages(
 }
 
 describe('ChatMessages accessibility', () => {
+  it('opens an absolute local Markdown link with the system file handler', async () => {
+    const openPath = vi.fn().mockResolvedValue({ ok: true });
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { file: { openPath } },
+    });
+
+    try {
+      const el = await renderMessages([{
+        role: 'assistant',
+        content: '[Harness screenshot](/Users/example/My%20Image.png)',
+        timestamp: 1,
+      }]);
+      const link = el.querySelector<HTMLAnchorElement>('a[href]');
+
+      await act(async () => link?.click());
+
+      expect(openPath).toHaveBeenCalledWith('/Users/example/My Image.png');
+    } finally {
+      delete (window as unknown as { canvasWorkspace?: unknown }).canvasWorkspace;
+    }
+  });
+
   it('exposes a polite conversation log with labelled message speakers', async () => {
     const el = await renderMessages([
       { role: 'user', content: 'Can you review this?', timestamp: 1 },
