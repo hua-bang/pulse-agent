@@ -374,20 +374,16 @@ Guards: `active-chat-registry.test.ts`, `prepared-chat.test.ts`,
 
 ### Input during a running turn
 
-The prepared-turn start acknowledgement advertises the active runtime's
-supported run-input modes. Pi exposes `steer` (apply at the next safe boundary)
-and `follow-up` (run after current work); runtimes without native support keep
-the controls hidden. Delivery is bound to the main-owned run id, so stale or
-cross-run input fails closed. Native continuation messages are persisted in
-their emitted user/assistant order, and the renderer reloads authoritative
-history at completion so the transient combined stream cannot become the
-stored transcript. Run input is text-only; draft attachments remain untouched.
-
-Guards: `src/main/agent/chat-protocol.test.ts`,
-`src/main/agent/continued-turn-persistence.test.ts`,
-`src/main/agent/backends/pi-agent-harness-backend.test.ts`,
-`hooks/useChatStream.protocol.test.tsx`, and
-`__tests__/ChatInput.execution-attachments.test.tsx`.
+Run input is host-managed and therefore works for every runtime, including
+Engine and Pi. Queue waits for the active turn to settle, then sends the text
+through the ordinary prepared-turn path. Steer puts its text ahead of queued
+follow-ups, stops the active turn, and sends normally after stop completion.
+Pending text and its context snapshot are kept by scope + conversation across
+chat-surface remounts. Delivery pauses while that conversation has no mounted
+chat host and resumes when it returns; it is not a durable app-restart queue.
+Manual Stop clears pending input. Draft attachments stay untouched because run
+input is text-only. Guards: `hooks/useChatRunQueue.test.tsx` and
+`hooks/useChatStream.protocol.test.tsx`.
 
 ### Clarification serialization
 

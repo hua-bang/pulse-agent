@@ -419,14 +419,13 @@ describe('pi AgentHarness turn backend', () => {
       context: { messages: [{ role: 'user', content: 'initial ask' }] },
       role: null,
       chatSessionId: 'session-steer',
-      observabilityRunId: 'run-steer',
       history: [],
       currentAsk: 'initial ask',
       handoffNames: [],
       abortSignal: new AbortController().signal,
       executionMode: 'auto',
       onText: () => {
-        steerResult ??= backend.steer!('run-steer', 'please revise');
+        steerResult ??= backend.steer!('session-steer', 'please revise');
       },
       modelConfig: {
         providerType: 'openai',

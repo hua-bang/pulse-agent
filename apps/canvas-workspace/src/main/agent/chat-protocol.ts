@@ -10,9 +10,6 @@ import {
   type PreparedChatPayload,
 } from './prepared-chat';
 import { resolveCanvasModel } from './model/config';
-import type { ChatRunInputMode } from '../../shared/agent-chat';
-import { resolveAgentRuntime } from './backends';
-import { parseRoleMentions } from '../../shared/agent-roles';
 
 const MAX_ATTACHMENT_COUNT = 6;
 const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;
@@ -23,38 +20,6 @@ type ProtocolFailure = {
   code?: string;
   error: string;
 };
-
-interface ChatRunInputService {
-  submitRunInput(
-    runId: string,
-    scope: AgentScope,
-    mode: ChatRunInputMode,
-    text: string,
-  ): Promise<{ ok: boolean; code?: string; error?: string }>;
-}
-
-export async function submitChatRunInput(opts: {
-  sessionId: string;
-  text: string;
-  mode: ChatRunInputMode;
-  activeChats: ActiveChatRegistry;
-  service: ChatRunInputService;
-}) {
-  const text = opts.text.trim();
-  if (!text) return { ok: false as const, code: 'CHAT_INPUT_EMPTY', error: 'Message is required' };
-  if (opts.mode !== 'steer' && opts.mode !== 'follow-up') {
-    return { ok: false as const, code: 'CHAT_INPUT_MODE_INVALID', error: 'Unknown run input mode' };
-  }
-  const scope = opts.activeChats.scopeOf(opts.sessionId);
-  if (!scope) {
-    return {
-      ok: false as const,
-      code: 'CHAT_RUN_NOT_ACTIVE',
-      error: 'The chat run is no longer active.',
-    };
-  }
-  return opts.service.submitRunInput(opts.sessionId, scope, opts.mode, text);
-}
 
 export async function validatePreparedChatPayload(
   payload: PreparedChatPayload,
@@ -150,7 +115,6 @@ export async function startChatTurn(opts: {
   try {
     const modelConfig = await resolveCanvasModel();
     const resolution = freezePreparedChatModel(turn, modelConfig);
-    const runtime = resolveAgentRuntime(null);
     startPreparedChat(
       opts.service,
       turn,
@@ -158,11 +122,7 @@ export async function startChatTurn(opts: {
       () => opts.activeChats.settle(turn.sessionId),
       modelConfig,
     );
-    const runInputModes: ChatRunInputMode[] = runtime.capabilities.steering === 'native'
-      && parseRoleMentions(turn.payload.message).length === 0
-      ? ['steer', 'follow-up']
-      : [];
-    return { ok: true as const, ...resolution, runInputModes };
+    return { ok: true as const, ...resolution };
   } catch (error) {
     opts.activeChats.settle(turn.sessionId);
     return { ok: false as const, error: String(error) };

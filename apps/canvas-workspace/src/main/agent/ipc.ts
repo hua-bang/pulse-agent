@@ -10,8 +10,10 @@
  *   canvas-agent:chat              — backwards-compatible prepare + start
  *   canvas-agent:observability-mark — record a renderer-owned UI milestone
  *   canvas-agent:abort             — interrupt the currently-running chat turn (hard stop)
- *   canvas-agent:stop-relay        — graceful multi-role relay stop
+ *   canvas-agent:stop-relay        — graceful multi-role relay stop: current segment
+ *                                    finishes, queued segments are skipped
  *   canvas-agent:clarify-answer    — deliver a user reply to a pending clarification
+ *   canvas-agent:status            — check if agent is active
  *   canvas-agent:list-skills       — list skills (name + description) for the / popup
  *   canvas-agent:history           — get current session messages
  *   canvas-agent:sessions          — list all sessions (current + archived)
@@ -56,7 +58,6 @@ import { prepareChatTurn, startChatTurn } from './chat-protocol';
 import type { AgentObservabilityMarkInput } from '../../shared/agent-observability';
 import { publishAgentTraceEvent } from '../../plugins/main';
 import { isAgentObservabilityMark } from './observability/renderer-mark';
-import { registerChatRunInputIpc } from './run-input-ipc';
 let service: CanvasAgentService | null = null;
 const activeChats = new ActiveChatRegistry();
 const preparedChats = new PreparedChatRegistry();
@@ -93,7 +94,6 @@ function getService(): CanvasAgentService {
 
 export function setupCanvasAgentIpc(): void {
   const svc = getService();
-  registerChatRunInputIpc(svc, activeChats);
 
   ipcMain.handle(
     'canvas-agent:polish-scheduled-prompt',

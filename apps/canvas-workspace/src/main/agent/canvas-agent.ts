@@ -79,7 +79,6 @@ import {
 import { executeCanvasAgentSegment } from './segment-execution';
 import { markCanvasHostContextReady } from './observability/host-run';
 import { ClarificationRegistry, type PendingClarificationRequest } from './clarification-registry';
-import { persistContinuedTurn, persistFailedContinuedTurn } from './continued-turn-persistence';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
 
@@ -655,7 +654,7 @@ export class CanvasAgent {
     onRoleTurnEnd?: (event: RoleTurnEndEvent) => void,
     runAbortSignal?: AbortSignal,
     modelConfigOverride?: ResolvedCanvasModel, performanceTiming?: CanvasAgentPerformanceTiming,
-  ): Promise<{ response: string; runId?: string; stopped?: boolean; continued?: boolean; speakerRole?: { id: string; name: string; color: string } }> {
+  ): Promise<{ response: string; runId?: string; stopped?: boolean; speakerRole?: { id: string; name: string; color: string } }> {
     const workspaceId = this.config.scope.kind === 'workspace'
       ? this.config.scope.workspaceId
       : undefined;
@@ -801,8 +800,6 @@ export class CanvasAgent {
     const segments: Array<AgentRoleDefinition | null> = activeRoles.length > 0 ? activeRoles : [null];
     const queue = segments.map(roleTurnRef);
     let last: { response: string; runId?: string; role: AgentRoleDefinition | null; stopped?: boolean } | null = null;
-    let continued = false;
-    let activeResponseMessages: ModelMessage[] = [];
     let observabilityCursor = performanceTiming?.contextReadyAt ?? Date.now();
     const finishStoppedBeforeSegment = () => persistStoppedBeforeSegment(this.sessionStore);
 
@@ -847,7 +844,6 @@ export class CanvasAgent {
         const runtimeStartedAt = markCanvasRuntimeStarted(performanceTiming, observabilityCursor);
         markTraceModelStarted(debugTrace);
 
-        activeResponseMessages = [];
         const { responseMessages, externalToolCalls, resultText, runtimeOwner, streamedText } = await executeCanvasAgentSegment({
           engine: this.engine,
           context,
@@ -867,7 +863,7 @@ export class CanvasAgent {
           systemPrompt: segmentPrompt,
           observabilityRunId: performanceTiming?.runId, observeFirstActivity: index === 0,
           debugTrace,
-          appendMessages: messages => { this.messages.push(...messages); activeResponseMessages.push(...messages); },
+          appendMessages: messages => this.messages.push(...messages),
           replaceMessages: messages => {
             this.messages = messages;
           },
@@ -887,11 +883,15 @@ export class CanvasAgent {
           : rawText;
         recordTraceMessageSnapshot(debugTrace, { systemPrompt: segmentPrompt, messages: context.messages });
 
-        // Persist tool frames for reload (external segments collect their own).
+        // Tool frames persist so a reloaded session keeps its chips, inline
+        // visuals, and artifacts (external segments collect their own).
         const toolCalls = externalToolCalls ?? modelMessagesToToolCalls(responseMessages);
         if (stopped) {
           settleStoppedToolCalls(toolCalls, failedTurnTools.snapshot());
-          // Preserve streamed partial text instead of the engine abort sentinel.
+          // The engine deliberately returns a sentinel on abort and may not
+          // emit an onResponse frame for the in-flight partial. Preserve the
+          // exact text the renderer already saw in model history instead of
+          // ever inserting the sentinel.
           if (responseText && !responseMessages.some(messageEntry => (
             messageEntry.role === 'assistant'
             && messageEntry.content === responseText
@@ -901,18 +901,15 @@ export class CanvasAgent {
             responseMessages.push(partialMessage);
           }
         }
-        // Live-push speaker label MUST mirror `sessionMessageToModelMessage`.
+        // Live-push speaker label — MUST mirror `sessionMessageToModelMessage`;
+        // it is what lets segment N+1 read segment N's reply with attribution.
         if (role) {
+          // Trimmed? sync the live history or the next speaker reads the cut part.
           if (responseText !== rawText) replaceFinalAssistantText(responseMessages, responseText);
           applySpeakerLabelToResponseMessages(responseMessages, role.name);
         }
         const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace, stopped ? 'stopped' : 'success');
-        const segmentContinued = persistContinuedTurn(this.sessionStore, responseMessages, {
-          runId: finalizedTrace?.runId,
-          finalAssistant: stopped ? { turnStatus: 'stopped', retryable: true } : undefined,
-        });
-        continued ||= segmentContinued;
-        if (!segmentContinued) this.sessionStore.addMessage({
+        this.sessionStore.addMessage({
           role: 'assistant',
           content: responseText,
           timestamp: Date.now(),
@@ -924,7 +921,9 @@ export class CanvasAgent {
           turnStatus: stopped ? 'stopped' : undefined,
           retryable: stopped ? true : undefined,
         });
-        activeResponseMessages = [];
+
+        // Notify subscribed plugins (devtools persists the trace). Awaited so
+        // plugin storage is flushed before the renderer fetches it by runId.
         if (finalizedTrace) {
           await agentBus.emitTurnAsync('turnEnd', {
             runId: finalizedTrace.runId,
@@ -938,7 +937,10 @@ export class CanvasAgent {
           });
         }
 
-        // Grow the handoff queue before the end event announces its total.
+        // Agent@agent: scan this role's reply for @Name handoffs and grow the
+        // queue in place (policy + cap in resolveHandoffRoles). Done BEFORE
+        // the end event so its `total` already announces the new speakers.
+        // Skipped once a stop is pending — the queue is frozen at that point.
         if (handoffEnabled && role && !relayStop.stopped && !stopped) {
           const handoffs = resolveHandoffRoles(responseText, {
             speaker: role,
@@ -974,11 +976,10 @@ export class CanvasAgent {
         response: last?.response ?? '(no response)',
         runId: last?.runId,
         stopped: last?.stopped,
-        continued: continued || undefined,
         speakerRole: roleTurnRef(last?.role ?? null) ?? undefined,
       };
     } catch (error) {
-      persistFailedContinuedTurn(this.sessionStore, activeResponseMessages, failedAssistantMessage(error, failedTurnTools.snapshot()));
+      this.sessionStore.addMessage(failedAssistantMessage(error, failedTurnTools.snapshot()));
       throw error;
     } finally {
       unlinkRunAbort();

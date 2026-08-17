@@ -17,13 +17,11 @@ let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 let latest: Hook | null = null;
 const conversationSessionIdRef = { current: 'conversation-visible' as string | null };
-const onContinuedTurn = vi.fn();
 
 const HookProbe = () => {
   latest = useChatStream({
     agentScope: { kind: 'global' },
     conversationSessionIdRef,
-    onContinuedTurn,
   });
   return null;
 };
@@ -39,22 +37,30 @@ afterEach(() => {
   cacheThread(chatScopeId({ kind: 'global' }), []);
   vi.useRealTimers();
   vi.restoreAllMocks();
-  onContinuedTurn.mockReset();
 });
 
 describe('chat stream startup protocol', () => {
-  it('submits run input and requests guarded history reconciliation on completion', async () => {
-    let complete: ((result: { ok: boolean; continued?: boolean; response?: string }) => void) | undefined;
+  it('queues follow-up input and prioritizes steer after stopping the active run', async () => {
+    const completions = new Map<string, (result: { ok: boolean; response?: string }) => void>();
+    let runCount = 0;
     const unsubscribe = () => vi.fn();
     const agent = {
-      prepareChat: vi.fn(async () => ({ ok: true, sessionId: 'run-input' })),
+      prepareChat: vi.fn(async (
+        _scope: unknown,
+        _message: string,
+        _mentioned?: unknown,
+        _requestContext?: unknown,
+      ) => ({
+        ok: true,
+        sessionId: `run-${++runCount}`,
+      })),
       startChat: vi.fn(async () => ({ ok: true })),
-      submitRunInput: vi.fn(async () => ({ ok: true })),
+      abort: vi.fn(async () => ({ ok: true })),
       getRunStatus: vi.fn(async () => ({ ok: true, active: true })),
       getScopeRunStatus: vi.fn(async () => ({ ok: true, active: false })),
       onTextDelta: unsubscribe,
-      onChatComplete: (_sessionId: string, callback: typeof complete) => {
-        complete = callback;
+      onChatComplete: (sessionId: string, callback: (result: { ok: boolean; response?: string }) => void) => {
+        completions.set(sessionId, callback);
         return vi.fn();
       },
       onToolCall: unsubscribe,
@@ -73,14 +79,44 @@ describe('chat stream startup protocol', () => {
     await act(async () => root?.render(<Probe />));
     await act(async () => { await latest?.sendMessage('first'); });
 
-    await act(async () => { await latest?.submitRunInput('follow-up', 'next'); });
-    expect(agent.submitRunInput).toHaveBeenCalledWith('run-input', 'follow-up', 'next');
+    const queuedContext = { scope: 'selected_nodes' as const, selectedNodes: [{ id: 'node-1', type: 'text' as const, title: 'Context' }] };
+    await act(async () => { await latest?.submitRunInput('follow-up', 'next', queuedContext); });
+    await act(async () => { await latest?.submitRunInput('steer', 'change now'); });
+    await act(async () => { await latest?.submitRunInput('steer', 'latest direction'); });
+    expect(agent.prepareChat).toHaveBeenCalledTimes(1);
+    expect(agent.abort).toHaveBeenCalledWith('run-1');
 
     await act(async () => {
-      complete?.({ ok: true, continued: true, response: 'continued' });
+      completions.get('run-1')?.({ ok: true, response: 'first answer' });
+      await Promise.resolve();
       await Promise.resolve();
     });
-    expect(onContinuedTurn).toHaveBeenCalledOnce();
+    expect(agent.prepareChat).toHaveBeenCalledTimes(2);
+    expect(agent.prepareChat.mock.calls[1]?.[1]).toBe('change now');
+
+    await act(async () => {
+      completions.get('run-2')?.({ ok: true, response: 'changed' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(agent.prepareChat.mock.calls[2]?.[1]).toBe('latest direction');
+
+    await act(async () => {
+      completions.get('run-3')?.({ ok: true, response: 'changed again' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(agent.prepareChat.mock.calls[3]?.[1]).toBe('next');
+    expect(agent.prepareChat.mock.calls[3]?.[3]).toMatchObject(queuedContext);
+
+    await act(async () => { await latest?.submitRunInput('follow-up', 'discard me'); });
+    await act(async () => { await latest?.abort(); });
+    await act(async () => {
+      completions.get('run-4')?.({ ok: true, response: 'stopped' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(agent.prepareChat).toHaveBeenCalledTimes(4);
   });
 
   it('subscribes to every run channel before main starts the prepared turn', async () => {

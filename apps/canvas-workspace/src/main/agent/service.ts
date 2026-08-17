@@ -3,7 +3,7 @@ import { homedir } from 'os';
 import { CanvasAgent, type CanvasClarificationRequest } from './canvas-agent';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore, type AgentSessionListEntry } from './session-store';
-import { scheduledTaskIdFromStoreId, scopeSessionStoreId, type ChatRunInputMode } from '../../shared/agent-chat';
+import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
 import { scheduledTaskTitles } from './scheduled-session-names';
 import { searchSessionTitles } from './session-title-search';
 import { appendActiveSessionGroups, scopeFromServiceKey } from './active-session-groups';
@@ -34,7 +34,6 @@ import type {
 } from './types';
 import { rejectChangedChatSession } from './chat-session-cas';
 import { beginCanvasHostRun, failCanvasHostRun, markCanvasHostLaneEntered, markCanvasHostScopeReady } from './observability/host-run';
-import { deliverRunInput } from './run-input-delivery';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
@@ -157,7 +156,6 @@ export class CanvasAgentService {
           response: turn.response,
           runId: turn.runId,
           stopped: turn.stopped,
-          continued: turn.continued,
           speakerRole: turn.speakerRole,
         };
       } catch (err) {
@@ -173,10 +171,10 @@ export class CanvasAgentService {
     };
   }
 
-  async submitRunInput(runId: string, _scope: AgentScope, mode: ChatRunInputMode, text: string) {
-    return deliverRunInput(runId, mode, text);
-  }
-
+  /**
+   * Abort the workspace's currently-running chat turn (if any). No-op when
+   * the agent is idle or not activated.
+   */
   abort(workspaceId: string): void {
     this.abortScope(workspaceScope(workspaceId));
   }

@@ -55,8 +55,6 @@ export function useChatComposerState({
   const canvasModels = useCanvasModels();
   const activeSessionChangeRef = useRef<((sessionId: string) => void) | null>(null);
   const conversationSessionIdRef = useRef<string | null>(null);
-  const refreshContinuedTurnRef = useRef<(() => void) | null>(null);
-  const refreshContinuedTurn = useCallback(() => refreshContinuedTurnRef.current?.(), []);
   const conversationEpochRef = useRef(0);
   const conversationMutationRef = useRef(createChatConversationMutationState());
   const adoptConversationSession = useCallback((sessionId: string | null) => {
@@ -81,7 +79,6 @@ export function useChatComposerState({
     conversationSessionIdRef,
     conversationEpochRef,
     conversationMutationRef,
-    onContinuedTurn: refreshContinuedTurn,
   });
 
   const chatSessions = useChatSessions({
@@ -94,7 +91,6 @@ export function useChatComposerState({
     onConversationMutationStart: chatStream.retireCurrentTurn,
   });
   activeSessionChangeRef.current = chatSessions.adoptActiveSession;
-  refreshContinuedTurnRef.current = () => { void chatSessions.refreshHistory(); };
   useLayoutEffect(() => {
     adoptConversationSession(chatSessions.activeSessionId);
   }, [adoptConversationSession, chatSessions.activeSessionId]);

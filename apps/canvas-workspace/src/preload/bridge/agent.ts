@@ -24,9 +24,6 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   getRunStatus: (sessionId) =>
     ipcRenderer.invoke("canvas-agent:run-status", { sessionId }),
 
-  submitRunInput: (sessionId, mode, text) =>
-    ipcRenderer.invoke('canvas-agent:run-input', { sessionId, mode, text }),
-
   getScopeRunStatus: (scopeRef) =>
     ipcRenderer.invoke("canvas-agent:scope-run-status", scopeRef),
 

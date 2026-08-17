@@ -134,7 +134,6 @@ export const ChatPanel = ({
     removeAttachment,
     retryAttachment,
     retrySession,
-    runInputModes,
     runInputSubmitting,
     replaceInput,
     selectMention,
@@ -461,8 +460,8 @@ export const ChatPanel = ({
       interactionDisabled={busyElsewhere}
       runInputDisabled={runInputSubmitting}
       onSubmit={handleSubmit}
-      onQueue={runInputModes?.includes('follow-up') ? () => submitCurrentInputDuringRun('follow-up') : undefined}
-      onSteer={runInputModes?.includes('steer') ? () => submitCurrentInputDuringRun('steer') : undefined}
+      onQueue={() => submitCurrentInputDuringRun('follow-up')}
+      onSteer={() => submitCurrentInputDuringRun('steer')}
       onAbort={abort}
       modelStatus={canvasModels.status}
       modelSelection={canvasModels.selection}

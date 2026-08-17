@@ -5,7 +5,6 @@ import type {
   AgentScopeRef,
   AgentSessionInfo,
   ChatImageAttachment,
-  ChatRunInputMode,
   CrossWorkspaceSessionGroup,
   SessionSearchHit,
 } from '../../../shared/agent-chat';
@@ -38,18 +37,12 @@ export interface AgentApi {
     modelProvider?: string;
     modelId?: string;
     modelLabel?: string;
-    runInputModes?: ChatRunInputMode[];
     error?: string;
   }>;
   /** Release a prepared turn when its originating surface changes scope. */
   cancelPreparedChat: (sessionId: string) => Promise<{ ok: boolean }>;
   /** Check whether main still owns a prepared run when completion was not observed. */
   getRunStatus: (sessionId: string) => Promise<{ ok: boolean; active: boolean }>;
-  submitRunInput: (
-    sessionId: string,
-    mode: ChatRunInputMode,
-    text: string,
-  ) => Promise<{ ok: boolean; code?: string; error?: string }>;
   /** Detect a run started from another chat surface or renderer window. */
   getScopeRunStatus: (
     scopeRef: AgentScopeRef,
@@ -81,7 +74,6 @@ export interface AgentApi {
       runId?: string;
       error?: string;
       stopped?: boolean;
-      continued?: boolean;
       speakerRole?: { id: string; name: string; color: string };
     }) => void,
   ) => () => void;

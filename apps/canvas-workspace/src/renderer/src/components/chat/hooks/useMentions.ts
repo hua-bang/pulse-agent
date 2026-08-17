@@ -6,7 +6,8 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import type { AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment, ChatRunInputMode } from '../../../types';
+import type { AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment } from '../../../types';
+import type { ChatRunInputMode } from '../types';
 import { isImeComposing } from '../../../utils/ime';
 import {
   MENTION_MAX_ITEMS,
@@ -56,7 +57,11 @@ interface UseMentionsOptions {
    */
   collectStructuredContext?: boolean;
   onSubmit: (text: string, requestContext?: AgentRequestContext, attachments?: ChatImageAttachment[]) => Promise<boolean>;
-  onSubmitDuringRun?: (mode: ChatRunInputMode, text: string) => Promise<boolean>;
+  onSubmitDuringRun?: (
+    mode: ChatRunInputMode,
+    text: string,
+    requestContext?: AgentRequestContext,
+  ) => Promise<boolean>;
   getRequestContext?: () => AgentRequestContext | undefined;
   /**
    * Veto checked immediately before a send, keeping the draft intact. Lives
@@ -363,9 +368,7 @@ export function useMentions({
     element.focus();
   }, [nodes]);
 
-  const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {
-    if (isSubmitBlocked?.()) return false;
-    if (chatAttachments.sendBlocked) return false;
+  const collectRequestContext = useCallback((requestContext?: AgentRequestContext) => {
     let ctx = requestContext ?? getRequestContext?.();
     // Tab mentions are collected for both hosts (see withCollectedTabs).
     if (editableRef.current) ctx = withCollectedTabs(editableRef.current, ctx);
@@ -383,6 +386,12 @@ export function useMentions({
         };
       }
     }
+    return ctx;
+  }, [collectStructuredContext, getRequestContext]);
+
+  const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {
+    if (isSubmitBlocked?.() || chatAttachments.sendBlocked) return false;
+    const ctx = collectRequestContext(requestContext);
     const readyAttachments = attachments.filter(attachment => (
       attachment.status === undefined || attachment.status === 'ready'
     ));
@@ -391,21 +400,21 @@ export function useMentions({
       clearInput();
     }
     return ok;
-  }, [attachments, chatAttachments.sendBlocked, clearInput, collectStructuredContext, getRequestContext, input, isSubmitBlocked, onSubmit]);
+  }, [attachments, chatAttachments.sendBlocked, clearInput, collectRequestContext, input, isSubmitBlocked, onSubmit]);
 
   const submitCurrentInputDuringRun = useCallback(async (mode: ChatRunInputMode) => {
     if (!onSubmitDuringRun || runInputSubmittingRef.current || chatAttachments.sendBlocked || attachments.length > 0) return false;
     runInputSubmittingRef.current = true;
     setRunInputSubmitting(true);
     try {
-      const ok = await onSubmitDuringRun(mode, input);
+      const ok = await onSubmitDuringRun(mode, input, collectRequestContext());
       if (ok) clearInput();
       return ok;
     } finally {
       runInputSubmittingRef.current = false;
       setRunInputSubmitting(false);
     }
-  }, [attachments.length, chatAttachments.sendBlocked, clearInput, input, onSubmitDuringRun]);
+  }, [attachments.length, chatAttachments.sendBlocked, clearInput, collectRequestContext, input, onSubmitDuringRun]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     // While an IME composition is active (Chinese/Japanese/Korean input),
