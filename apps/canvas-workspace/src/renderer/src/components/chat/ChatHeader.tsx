@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { AvatarIcon, ChevronRightIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
+import { useCallback, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { AvatarIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 import { SessionTitle } from './SessionTitle';
 import { Button } from '../ui';
-
-type SessionMenuView = 'current' | 'all';
 
 interface ChatHeaderProps {
   title: ReactNode;
@@ -25,7 +23,7 @@ interface ChatHeaderProps {
     title?: string;
   }>;
   otherSessions: OtherWorkspaceSession[];
-  /** User-facing owner label used in the all-conversations view. */
+  /** User-facing owner label used to distinguish the current scope. */
   scopeLabel?: string;
   onToggleSessionMenu: () => Promise<void>;
   onCloseSessionMenu: () => void;
@@ -67,11 +65,6 @@ export const ChatHeader = ({
   const menuId = useId();
   const titleButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [menuView, setMenuView] = useState<SessionMenuView>('current');
-
-  useEffect(() => {
-    if (!sessionMenuOpen) setMenuView('current');
-  }, [sessionMenuOpen]);
 
   const closeSessionMenuAndRestoreFocus = useCallback(() => {
     onCloseSessionMenu();
@@ -97,8 +90,6 @@ export const ChatHeader = ({
     },
     [onToggleSessionMenu, sessionMenuOpen],
   );
-
-  const canOpenAllConversations = otherSessions.length > 0 && Boolean(onOpenOriginalSession);
 
   const handleOpenOriginalSession = useCallback((session: OtherWorkspaceSession) => {
     if (disabled || !onOpenOriginalSession) return;
@@ -160,113 +151,65 @@ export const ChatHeader = ({
           <div
             ref={menuRef}
             id={menuId}
-            className={`chat-session-menu${menuView === 'all' ? ' chat-session-menu--all' : ''}`}
+            className="chat-session-menu"
             role="menu"
             aria-label={t('chat.showSessionList')}
           >
-            {menuView === 'current' ? (
+            <button
+              type="button"
+              className="chat-session-menu-new"
+              role="menuitem"
+              onClick={() => void onNewSession()}
+              disabled={disabled}
+            >
+              <PlusIcon size={14} strokeWidth={1.3} />
+              <span>{t('chat.newAiChat')}</span>
+            </button>
+            {sessionsLoading && sessions.length === 0 && (
+              <div className="chat-session-menu-loading">
+                <SpinnerIcon size={14} className="chat-spin" />
+                <span>{t('chat.loadingSessions')}</span>
+              </div>
+            )}
+            {sessions.length > 0 && (
               <>
-                <button
-                  type="button"
-                  className="chat-session-menu-new"
-                  role="menuitem"
-                  onClick={() => void onNewSession()}
-                  disabled={disabled}
-                >
-                  <PlusIcon size={14} strokeWidth={1.3} />
-                  <span>{t('chat.newAiChat')}</span>
-                </button>
-                {sessionsLoading && sessions.length === 0 && (
-                  <div className="chat-session-menu-loading">
-                    <SpinnerIcon size={14} className="chat-spin" />
-                    <span>{t('chat.loadingSessions')}</span>
-                  </div>
-                )}
-                {sessions.length > 0 && (
-                  <>
-                    <div className="chat-session-menu-divider" />
-                    <div className="chat-session-menu-label">{t('chat.recent')}</div>
-                    <div className="chat-session-menu-list">
-                      {renderSessionRows(sessions)}
-                    </div>
-                  </>
-                )}
-                {canOpenAllConversations && (
-                  <>
-                    <div className="chat-session-menu-divider" />
+                <div className="chat-session-menu-divider" />
+                <div className="chat-session-menu-label">
+                  {t('chat.currentWorkspace')}
+                  {scopeLabel && <span className="chat-session-menu-label-detail"> · {scopeLabel}</span>}
+                </div>
+                <div className="chat-session-menu-list">
+                  {renderSessionRows(sessions)}
+                </div>
+              </>
+            )}
+            {otherSessions.length > 0 && onOpenOriginalSession && (
+              <>
+                <div className="chat-session-menu-divider" />
+                <div className="chat-session-menu-label">{t('chat.otherWorkspaces')}</div>
+                <div className="chat-session-menu-list chat-session-menu-list--other">
+                  {otherSessions.map(session => (
                     <Button
+                      key={session.sessionId}
                       variant="secondary"
                       size="sm"
-                      className="chat-session-menu-all"
+                      className="chat-session-menu-item chat-session-menu-item--other-ws"
                       role="menuitem"
                       disabled={disabled}
-                      onClick={() => setMenuView('all')}
+                      onClick={() => handleOpenOriginalSession(session)}
+                      title={t('chat.openInScope')}
                     >
                       <ListLinesIcon size={14} />
-                      <span>{t('chat.allConversations')}</span>
-                      <ChevronRightIcon size={12} />
+                      <span className="chat-session-menu-item-text">
+                        {session.title || session.preview
+                          ? <SessionTitle value={session.title ?? session.preview ?? ''} />
+                          : session.date}
+                      </span>
+                      <span className="chat-session-menu-item-ws">{session.workspaceName}</span>
+                      <span className="chat-session-menu-item-count">{session.messageCount}</span>
                     </Button>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="chat-session-menu-all-header">
-                  <Button
-                    variant="icon"
-                    size="sm"
-                    className="chat-session-menu-back"
-                    role="menuitem"
-                    aria-label={t('chat.backToCurrentWorkspace')}
-                    onClick={() => setMenuView('current')}
-                  >
-                    <ChevronRightIcon size={13} />
-                  </Button>
-                  <div>
-                    <div className="chat-session-menu-all-title">{t('chat.allConversations')}</div>
-                    <div className="chat-session-menu-all-subtitle">{t('chat.switchesConversationScope')}</div>
-                  </div>
+                  ))}
                 </div>
-                <div className="chat-session-menu-divider" />
-                {sessions.length > 0 && (
-                  <>
-                    <div className="chat-session-menu-label">
-                      {t('chat.currentWorkspace')}
-                      {scopeLabel && <span className="chat-session-menu-label-detail"> · {scopeLabel}</span>}
-                    </div>
-                    <div className="chat-session-menu-list">
-                      {renderSessionRows(sessions)}
-                    </div>
-                  </>
-                )}
-                {otherSessions.length > 0 && (
-                  <>
-                    <div className="chat-session-menu-label">{t('chat.otherWorkspaces')}</div>
-                    <div className="chat-session-menu-list chat-session-menu-list--other">
-                      {otherSessions.map(session => (
-                        <Button
-                          key={session.sessionId}
-                          variant="secondary"
-                          size="sm"
-                          className="chat-session-menu-item chat-session-menu-item--other-ws"
-                          role="menuitem"
-                          disabled={disabled}
-                          onClick={() => handleOpenOriginalSession(session)}
-                          title={t('chat.openInScope')}
-                        >
-                          <ListLinesIcon size={14} />
-                          <span className="chat-session-menu-item-text">
-                            {session.title || session.preview
-                              ? <SessionTitle value={session.title ?? session.preview ?? ''} />
-                              : session.date}
-                          </span>
-                          <span className="chat-session-menu-item-ws">{session.workspaceName}</span>
-                          <span className="chat-session-menu-item-count">{session.messageCount}</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </>
-                )}
               </>
             )}
           </div>

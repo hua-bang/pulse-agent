@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  PROTOTYPE ONLY. Conversation switching with an explicit all-workspaces view.
+  PROTOTYPE ONLY. Conversation switching with current and cross-workspace rows in one menu.
   Run: python3 -m http.server 4173 -d apps/canvas-workspace/design
   Open: http://localhost:4173/chat-switcher-interaction-prototype.html
 -->
@@ -267,46 +267,6 @@
     }
     .session-menu[hidden] { display: none; }
     .menu-scroll { max-height: inherit; overflow: auto; padding: 9px; }
-    .menu-head {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 36px;
-      padding: 0 7px;
-    }
-    .menu-head h2 { margin: 0; font-size: 12px; font-weight: 750; }
-    .menu-head p { margin: 0 0 0 auto; color: var(--faint); font-size: 11px; }
-    .back-button {
-      display: inline-grid;
-      place-items: center;
-      width: 27px;
-      height: 27px;
-      border-radius: 7px;
-      background: transparent;
-      color: var(--muted);
-    }
-    .back-button:hover { background: var(--soft); color: var(--ink); }
-    .menu-search {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      height: 36px;
-      margin: 3px 0 7px;
-      padding: 0 10px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #fff;
-      color: var(--faint);
-    }
-    .menu-search input {
-      width: 100%;
-      min-width: 0;
-      border: 0;
-      outline: 0;
-      background: transparent;
-      font-size: 12px;
-    }
-    .menu-search input::placeholder { color: var(--faint); }
     .menu-divider { height: 1px; margin: 8px 0; background: var(--line); }
     .menu-label {
       padding: 6px 10px 5px;
@@ -367,17 +327,6 @@
     }
     .new-row { color: var(--ink); font-weight: 650; }
     .new-row .row-icon { color: var(--ink); }
-    .all-row {
-      color: var(--blue);
-      font-weight: 650;
-    }
-    .all-row .row-icon { color: var(--blue); }
-    .empty-row {
-      padding: 15px 10px;
-      color: var(--faint);
-      font-size: 12px;
-    }
-
     .chat-body {
       position: relative;
       flex: 1;
@@ -524,7 +473,7 @@
         <div class="agent-copy">
           <p><strong>当前工作区：</strong> <span class="blue">/Users/jasperhu/project/pulse-agent</span></p>
           <p><span class="green">●</span> 我正在整理当前工作区的界面交互。这里的对话切换只应该改变当前对话，不应该隐式复制消息。</p>
-          <p><strong>待验证：</strong> 点击右侧标题，查看当前工作区对话；选择“查看全部对话”后，再显式切换到 Workspace B。</p>
+          <p><strong>待验证：</strong> 点击右侧标题，直接选择当前工作区或其他工作区的对话。</p>
           <p class="prompt">Model: gpt-5.6 · Context: 146.8k · Prototype state visible</p>
         </div>
       </article>
@@ -559,11 +508,11 @@
         <article class="article">
           <div id="articleEyebrow" class="eyebrow">Workspace A · 当前对话</div>
           <h1 id="articleTitle">你知道 web skills 么</h1>
-          <p id="articleIntro">这是一个用于验证对话切换边界的示例。当前工作区菜单只显示 Workspace A 的对话；其他工作区的对话通过“查看全部对话”进入。</p>
+          <p id="articleIntro">这是一个用于验证对话切换边界的示例。打开菜单后，当前工作区和其他工作区的对话会直接展开。</p>
           <div class="info-card"><strong>当前交互原则</strong><br />切换对话会切换所属工作区上下文，不会把消息复制到当前工作区。</div>
-          <h2>为什么要单独区分“全部对话”</h2>
-          <p>对话会携带工作区、文件和 Agent 工具上下文。如果从 Workspace A 直接加载 Workspace B 的消息，却仍然显示 A 的上下文，后续操作会让用户误判作用范围。</p>
-          <p>因此这个原型把跨工作区入口放在一个明确的全局列表里，并在标题旁持续显示当前工作区。</p>
+          <h2>为什么选择后要切到所属工作区</h2>
+          <p>对话会携带工作区、文件和 Agent 工具上下文。选择 Workspace B 的对话后，界面会先切换到 B，再加载这条对话。</p>
+          <p>这样用户看到的对话内容和后续操作上下文始终属于同一个工作区。</p>
         </article>
       </div>
 
@@ -607,10 +556,8 @@
     ];
 
     const state = {
-      menuView: 'local',
       workspace: 'Workspace A',
       title: '你知道 web skills 么',
-      query: '',
     };
 
     const titleButton = document.getElementById('titleButton');
@@ -653,6 +600,7 @@
 
     function renderLocalMenu() {
       const sessions = localSessions[state.workspace] || [];
+      const otherSessions = allSessions.filter(session => session.workspace !== state.workspace);
       sessionMenu.innerHTML = `
         <div class="menu-scroll">
           <button class="menu-row new-row" type="button" role="menuitem" data-action="new-session">
@@ -664,50 +612,13 @@
           <div class="menu-label">当前工作区<span class="label-detail">· ${state.workspace}</span></div>
           ${sessions.map(session => sessionRow({ ...session, workspace: state.workspace })).join('')}
           <div class="menu-divider"></div>
-          <button class="menu-row all-row" type="button" role="menuitem" data-action="show-all">
-            <span class="row-icon">${icon('layers-2')}</span>
-            <span class="row-main">查看全部对话</span>
-            <span class="row-meta">${icon('arrow-right')}</span>
-          </button>
+          <div class="menu-label">其他工作区</div>
+          ${otherSessions.map(session => sessionRow(session, { showWorkspace: true })).join('')}
         </div>`;
-    }
-
-    function renderAllMenu() {
-      const filtered = allSessions.filter(session => {
-        const query = state.query.trim().toLowerCase();
-        return !query || `${session.workspace} ${session.title}`.toLowerCase().includes(query);
-      });
-      const grouped = ['Workspace A', 'Workspace B', 'AI Chat'].map(workspace => ({
-        workspace,
-        sessions: filtered.filter(session => session.workspace === workspace),
-      })).filter(group => group.sessions.length > 0);
-      sessionMenu.innerHTML = `
-        <div class="menu-scroll">
-          <div class="menu-head">
-            <button class="back-button" type="button" aria-label="返回当前工作区" data-action="show-local">${icon('arrow-left')}</button>
-            <h2>全部对话</h2>
-            <p>选择后切换所属工作区</p>
-          </div>
-          <label class="menu-search">
-            ${icon('search')}
-            <input id="sessionSearch" type="search" value="${state.query}" placeholder="搜索对话或工作区" aria-label="搜索对话或工作区" />
-          </label>
-          ${grouped.map(group => `
-            <div class="menu-label">${group.workspace === state.workspace ? '当前工作区' : '其他工作区'}<span class="label-detail">· ${group.workspace}</span></div>
-            ${group.sessions.map(session => sessionRow(session, { showWorkspace: false })).join('')}
-          `).join('<div class="menu-divider"></div>') || '<div class="empty-row">没有匹配的对话</div>'}
-        </div>`;
-      const search = document.getElementById('sessionSearch');
-      search?.addEventListener('input', event => {
-        state.query = event.target.value;
-        renderAllMenu();
-        document.getElementById('sessionSearch')?.focus();
-      });
     }
 
     function renderMenu() {
-      if (state.menuView === 'all') renderAllMenu();
-      else renderLocalMenu();
+      renderLocalMenu();
       refreshIcons();
     }
 
@@ -715,8 +626,6 @@
       sessionMenu.hidden = !open;
       titleButton.setAttribute('aria-expanded', String(open));
       if (open) {
-        state.menuView = 'local';
-        state.query = '';
         renderMenu();
       }
     }
@@ -729,8 +638,8 @@
       articleEyebrow.textContent = `${workspace} · 当前对话`;
       articleTitle.textContent = title;
       articleIntro.textContent = workspace === 'Workspace A'
-        ? '这是一个用于验证对话切换边界的示例。当前工作区菜单只显示 Workspace A 的对话；其他工作区的对话通过“查看全部对话”进入。'
-        : `你正在查看 ${workspace} 中的对话。切换发生在所属工作区上下文中，不会把这段消息复制到原来的工作区。`;
+        ? '这是一个用于验证对话切换边界的示例。打开菜单后，当前工作区和其他工作区的对话会直接展开。'
+        : `你正在查看 ${workspace} 中的对话。界面先切换所属工作区，再加载当前对话，不会复制消息。`;
       document.querySelectorAll('[data-action="select-session"]').forEach(row => {
         row.classList.toggle('active', row.dataset.workspace === workspace && row.dataset.title === title);
       });
@@ -740,18 +649,6 @@
       const target = event.target.closest('[data-action]');
       if (!target) return;
       const action = target.dataset.action;
-      if (action === 'show-all') {
-        state.menuView = 'all';
-        state.query = '';
-        renderMenu();
-        return;
-      }
-      if (action === 'show-local') {
-        state.menuView = 'local';
-        state.query = '';
-        renderMenu();
-        return;
-      }
       if (action === 'new-session') {
         updateConversation(state.workspace, '新建对话');
         setMenu(false);

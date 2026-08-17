@@ -8,7 +8,7 @@ import { ChatHeader } from '../ChatHeader';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe('ChatHeader cross-scope sessions', () => {
-  it('reveals other-workspace conversations in a separate view and opens them in their owning scope', () => {
+  it('shows other-workspace conversations directly and opens them in their owning scope', () => {
     const openInScope = vi.fn();
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -41,16 +41,12 @@ describe('ChatHeader cross-scope sessions', () => {
       </I18nProvider>,
     ));
 
-    const allConversationsButton = Array.from(host.querySelectorAll('button'))
-      .find(button => button.textContent?.includes('All conversations'));
-    expect(allConversationsButton).not.toBeUndefined();
-    act(() => allConversationsButton?.click());
-
     const releaseReview = Array.from(host.querySelectorAll('button'))
       .find(button => button.textContent?.includes('Release review'));
     expect(releaseReview).not.toBeUndefined();
     act(() => releaseReview?.click());
     expect(openInScope).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'other-session' }));
+    expect(host.textContent).not.toContain('All conversations');
     expect(host.textContent).not.toContain('Copy here');
 
     act(() => root.unmount());
