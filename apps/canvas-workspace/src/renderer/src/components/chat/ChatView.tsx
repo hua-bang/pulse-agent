@@ -82,7 +82,10 @@ interface ChatViewProps {
   onRetryAttachment?: (id: string) => void;
   sendDisabled?: boolean;
   interactionDisabled?: boolean;
+  runInputDisabled?: boolean;
   onSubmit: () => Promise<boolean>;
+  onQueue?: () => Promise<boolean>;
+  onSteer?: () => Promise<boolean>;
   onAbort: () => Promise<boolean>;
   contextComposer?: boolean;
   knowledgeMode?: boolean;
@@ -162,7 +165,10 @@ export const ChatView = ({
   onRetryAttachment,
   sendDisabled = false,
   interactionDisabled = false,
+  runInputDisabled = false,
   onSubmit,
+  onQueue,
+  onSteer,
   onAbort,
   contextComposer = false,
   knowledgeMode = false,
@@ -287,7 +293,10 @@ export const ChatView = ({
         onRetryAttachment={onRetryAttachment}
         sendDisabled={sendDisabled || sessionLoading}
         interactionDisabled={interactionDisabled || sessionLoading}
+        runInputDisabled={runInputDisabled}
         onSend={onSubmit}
+        onQueue={onQueue}
+        onSteer={onSteer}
         onAbort={onAbort}
       />
     </div>

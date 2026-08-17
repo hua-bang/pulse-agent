@@ -7,6 +7,7 @@ import type { SelectedContextChip } from './types';
 import { useI18n } from '../../i18n';
 import { CHAT_MENTION_LISTBOX_ID, chatMentionOptionId } from './ChatMentionPopup';
 import { ChatInputAttachments } from './ChatInputAttachments';
+import { Button } from '../ui';
 
 interface ChatInputProps {
   loading: boolean;
@@ -22,6 +23,7 @@ interface ChatInputProps {
   sendDisabled?: boolean;
   /** Blocks controls that could mutate the conversation while a session opens. */
   interactionDisabled?: boolean;
+  runInputDisabled?: boolean;
   modelStatus?: CanvasModelStatus;
   modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
   modelLabel?: string;
@@ -38,6 +40,8 @@ interface ChatInputProps {
   onRemoveAttachment?: (id: string) => void;
   onRetryAttachment?: (id: string) => void;
   onSend: () => Promise<boolean>;
+  onQueue?: () => Promise<boolean>;
+  onSteer?: () => Promise<boolean>;
   onAbort: () => Promise<boolean>;
   /** Focus/navigate to a clicked mention chip's target (node or workspace). */
   onMentionNavigate?: (chip: HTMLElement) => void;
@@ -55,6 +59,7 @@ export const ChatInput = ({
   placeholder,
   sendDisabled = false,
   interactionDisabled = false,
+  runInputDisabled = false,
   modelStatus,
   modelSelection = { mode: 'auto' },
   modelLabel,
@@ -71,6 +76,8 @@ export const ChatInput = ({
   onRemoveAttachment,
   onRetryAttachment,
   onSend,
+  onQueue,
+  onSteer,
   onAbort,
   onMentionNavigate,
 }: ChatInputProps) => {
@@ -223,7 +230,23 @@ export const ChatInput = ({
                 onOpenSettings={onOpenModelSettings}
               />
             )}
-            {loading ? (
+            {loading ? (<>
+              {onQueue && <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void onQueue()}
+                disabled={runInputDisabled || !canSend || attachments.length > 0}
+                title={t('chat.queueMessage')}
+                aria-label={t('chat.queueMessage')}
+              >{t('chat.queue')}</Button>}
+              {onSteer && <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void onSteer()}
+                disabled={runInputDisabled || !canSend || attachments.length > 0}
+                title={t('chat.steerCurrentResponse')}
+                aria-label={t('chat.steerCurrentResponse')}
+              >{t('chat.steer')}</Button>}
               <button
                 className="chat-send-btn chat-send-btn--stop"
                 onClick={async (event) => {
@@ -243,7 +266,7 @@ export const ChatInput = ({
                   <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor" />
                 </svg>
               </button>
-            ) : (
+            </>) : (
               <button
                 className={`chat-send-btn${canSend ? ' chat-send-btn--active' : ''}`}
                 onClick={() => void onSend()}

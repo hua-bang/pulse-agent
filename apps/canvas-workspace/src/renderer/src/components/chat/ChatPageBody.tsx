@@ -188,6 +188,8 @@ export const ChatPageBody = ({
     renameSession,
     retryAttachment,
     retrySession,
+    runInputModes,
+    runInputSubmitting,
     selectMention,
     sendMessage,
     sessions, sessionsLoading, sessionsStoreId, sessionLoading,
@@ -196,6 +198,7 @@ export const ChatPageBody = ({
     setMentionIndex,
     streamingTools,
     submitCurrentInput,
+    submitCurrentInputDuringRun,
     toggleSection,
     toggleSessionPinned,
     toggleToolExpand,
@@ -209,9 +212,7 @@ export const ChatPageBody = ({
     collectStructuredContext: true,
     eagerLoad: true,
     getRequestContext: () => requestContext,
-    // If a specific session is being selected, don't also fetch the scope's
-    // current active history. ChatPageBody now stays mounted across scopes,
-    // so this must follow the prop rather than a mount-time snapshot.
+    // A pending selection owns the initial history fetch.
     skipInitialHistory: initialPendingSessionId !== null || pendingSessionId !== null,
   });
 
@@ -331,7 +332,6 @@ export const ChatPageBody = ({
     handleKeyDown(event);
   }, [attachments.length, handleKeyDown, input, mentionItems.length, mentionOpen, notConfigured, openModelSettingsWithHint]);
 
-  // Clicking a mention chip should jump back to the canvas and focus the node.
   const handleNodeFocus = useCallback((nodeId: string) => {
     if (!workspaceId) return;
     onNodeFocus?.(workspaceId, nodeId);
@@ -476,7 +476,10 @@ export const ChatPageBody = ({
           onRetryAttachment={retryAttachment}
           sendDisabled={attachmentSendBlocked || busyElsewhere || Boolean(sessionError)}
           interactionDisabled={busyElsewhere}
+          runInputDisabled={runInputSubmitting}
           onSubmit={handleSubmit}
+          onQueue={runInputModes?.includes('follow-up') ? () => submitCurrentInputDuringRun('follow-up') : undefined}
+          onSteer={runInputModes?.includes('steer') ? () => submitCurrentInputDuringRun('steer') : undefined}
           onAbort={abort}
           modelStatus={canvasModels.status}
           modelSelection={canvasModels.selection}

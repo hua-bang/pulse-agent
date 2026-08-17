@@ -137,12 +137,7 @@ export function useChatSessions({
   const agentScopeRef = useRef(agentScope);
   agentScopeRef.current = agentScope;
 
-  // Reload history only when the scope actually changes. We key on `scopeKey`
-  // (a stable string) rather than the `agentScope` object: a caller that
-  // recreates the scope object on every render would otherwise re-fire this
-  // effect on each streaming setState, and `onMessagesLoaded` (replaceMessages)
-  // would clobber the in-flight assistant message — making intermediate tool
-  // calls / streamed text disappear and the view flicker mid-turn.
+  // Key history reloads on stable scopeKey so streaming renders cannot refetch.
   /** Runs a latest-wins thread replacement behind `sessionLoading`. */
   const runThreadFetch = useCallback(async (
     fetchThread: () => Promise<ThreadFetchResult>,
@@ -201,7 +196,8 @@ export function useChatSessions({
       }
     }
   }, [mutationRef, onConversationMutationStart, onMessagesLoaded, scopeKey, t]);
-
+  const refreshHistory = useCallback(() => runThreadFetch(() =>
+    window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current })), [runThreadFetch]);
   useEffect(() => {
     // Keep the loading state continuous until the caller loads its session.
     if (skipInitialHistory) {
@@ -213,8 +209,8 @@ export function useChatSessions({
     // back to false; do not immediately fetch the same history a second time.
     if (historyHandledScopeRef.current === scopeKey) return;
     historyHandledScopeRef.current = scopeKey;
-    void runThreadFetch(() => window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current }));
-  }, [runThreadFetch, skipInitialHistory, scopeKey]);
+    void refreshHistory();
+  }, [refreshHistory, skipInitialHistory, scopeKey]);
 
   useClickOutside(sessionMenuRef, () => setSessionMenuOpen(false), sessionMenuOpen);
   const closeSessionMenu = useCallback(() => setSessionMenuOpen(false), []);
@@ -488,6 +484,7 @@ export function useChatSessions({
     closeSessionMenu,
     openSessionMenu,
     renameSession,
+    refreshHistory,
     retrySession,
     sessionMenuOpen,
     sessionMenuRef,

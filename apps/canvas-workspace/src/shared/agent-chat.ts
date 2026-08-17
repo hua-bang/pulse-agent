@@ -31,6 +31,8 @@ export interface AgentClarificationRequest {
   timeout?: number;
 }
 
+export type ChatRunInputMode = 'steer' | 'follow-up';
+
 /**
  * Session-store directory id for a scheduled task's isolated chat scope.
  *

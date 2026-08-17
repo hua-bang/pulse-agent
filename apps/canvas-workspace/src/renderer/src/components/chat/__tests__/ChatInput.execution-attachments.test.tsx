@@ -223,6 +223,28 @@ describe('ChatInput execution and attachment states', () => {
     host.remove();
   });
 
+  it('offers queue and steer actions for a draft while generation is active', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const onQueue = vi.fn(async () => true);
+    const onSteer = vi.fn(async () => true);
+    await act(async () => root.render(
+      <I18nProvider>
+        <ChatInput {...baseProps} loading onQueue={onQueue} onSteer={onSteer} />
+      </I18nProvider>,
+    ));
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('[aria-label="Queue message"]')?.click();
+      host.querySelector<HTMLButtonElement>('[aria-label="Steer current response"]')?.click();
+    });
+
+    expect(onQueue).toHaveBeenCalledOnce();
+    expect(onSteer).toHaveBeenCalledOnce();
+    expect(host.querySelector('[aria-label="Stop generating"]')).not.toBeNull();
+    act(() => root.unmount());
+  });
+
   it('keeps generating guidance visual without creating a second live region', () => {
     const host = document.createElement('div');
     const root = createRoot(host);

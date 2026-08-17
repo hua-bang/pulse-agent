@@ -2,9 +2,13 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { WebContents } from 'electron';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ActiveChatRegistry } from './active-chat-registry';
-import { prepareChatTurn, validatePreparedChatPayload } from './chat-protocol';
+import {
+  prepareChatTurn,
+  submitChatRunInput,
+  validatePreparedChatPayload,
+} from './chat-protocol';
 import { PreparedChatRegistry } from './prepared-chat';
 
 const dirs: string[] = [];
@@ -15,6 +19,41 @@ afterEach(async () => {
 });
 
 describe('chat protocol', () => {
+  it('delivers steer and follow-up input only to the matching active run', async () => {
+    const activeChats = new ActiveChatRegistry();
+    const scope = { kind: 'global' } as const;
+    expect(activeChats.register('run-active', scope)).not.toBeNull();
+    const submitRunInput = vi.fn(async () => ({ ok: true as const }));
+    const service = { submitRunInput };
+
+    await expect(submitChatRunInput({
+      sessionId: 'run-active',
+      text: 'change direction',
+      mode: 'steer',
+      activeChats,
+      service: service as never,
+    })).resolves.toEqual({ ok: true });
+    expect(submitRunInput).toHaveBeenCalledWith('run-active', scope, 'steer', 'change direction');
+
+    await expect(submitChatRunInput({
+      sessionId: 'run-missing',
+      text: 'later',
+      mode: 'follow-up',
+      activeChats,
+      service: service as never,
+    })).resolves.toMatchObject({ ok: false, code: 'CHAT_RUN_NOT_ACTIVE' });
+    expect(submitRunInput).toHaveBeenCalledTimes(1);
+
+    await expect(submitChatRunInput({
+      sessionId: 'run-active',
+      text: 'invalid mode',
+      mode: 'later' as never,
+      activeChats,
+      service: service as never,
+    })).resolves.toMatchObject({ ok: false, code: 'CHAT_INPUT_MODE_INVALID' });
+    expect(submitRunInput).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects attachment count and real on-disk total before reserving a run', async () => {
     const tooMany = Array.from({ length: 7 }, (_, index) => ({
       id: `a-${index}`,

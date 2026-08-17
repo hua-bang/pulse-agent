@@ -372,6 +372,23 @@ Guards: `active-chat-registry.test.ts`, `prepared-chat.test.ts`,
 `useChatComposerState.session-handoff.test.tsx` and
 `useConversationBranching.test.tsx` under renderer chat hooks.
 
+### Input during a running turn
+
+The prepared-turn start acknowledgement advertises the active runtime's
+supported run-input modes. Pi exposes `steer` (apply at the next safe boundary)
+and `follow-up` (run after current work); runtimes without native support keep
+the controls hidden. Delivery is bound to the main-owned run id, so stale or
+cross-run input fails closed. Native continuation messages are persisted in
+their emitted user/assistant order, and the renderer reloads authoritative
+history at completion so the transient combined stream cannot become the
+stored transcript. Run input is text-only; draft attachments remain untouched.
+
+Guards: `src/main/agent/chat-protocol.test.ts`,
+`src/main/agent/continued-turn-persistence.test.ts`,
+`src/main/agent/backends/pi-agent-harness-backend.test.ts`,
+`hooks/useChatStream.protocol.test.tsx`, and
+`__tests__/ChatInput.execution-attachments.test.tsx`.
+
 ### Clarification serialization
 
 The renderer has one visible approval card, so main must serialize

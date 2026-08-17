@@ -134,6 +134,8 @@ export const ChatPanel = ({
     removeAttachment,
     retryAttachment,
     retrySession,
+    runInputModes,
+    runInputSubmitting,
     replaceInput,
     selectMention,
     sendMessage,
@@ -147,6 +149,7 @@ export const ChatPanel = ({
     setMentionIndex,
     streamingTools,
     submitCurrentInput,
+    submitCurrentInputDuringRun,
     toggleSection,
     toggleToolExpand,
   } = useChatComposerState({
@@ -456,7 +459,10 @@ export const ChatPanel = ({
       onRetryAttachment={retryAttachment}
       sendDisabled={attachmentSendBlocked || busyElsewhere || Boolean(sessionError)}
       interactionDisabled={busyElsewhere}
+      runInputDisabled={runInputSubmitting}
       onSubmit={handleSubmit}
+      onQueue={runInputModes?.includes('follow-up') ? () => submitCurrentInputDuringRun('follow-up') : undefined}
+      onSteer={runInputModes?.includes('steer') ? () => submitCurrentInputDuringRun('steer') : undefined}
       onAbort={abort}
       modelStatus={canvasModels.status}
       modelSelection={canvasModels.selection}

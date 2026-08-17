@@ -353,7 +353,8 @@ export function createPiAgentHarnessTurnBackend(
         }
         throw error;
       }
-      activeHarnesses.set(request.chatSessionId, harness);
+      const runInputId = request.observabilityRunId ?? request.chatSessionId;
+      activeHarnesses.set(runInputId, harness);
       const toolCalls: CanvasAgentToolCall[] = [];
       const byId = new Map<string, CanvasAgentToolCall>();
       let currentPromptPending = true;
@@ -434,8 +435,8 @@ export function createPiAgentHarnessTurnBackend(
       } finally {
         request.abortSignal.removeEventListener('abort', abort);
         unsubscribe();
-        if (activeHarnesses.get(request.chatSessionId) === harness) {
-          activeHarnesses.delete(request.chatSessionId);
+        if (activeHarnesses.get(runInputId) === harness) {
+          activeHarnesses.delete(runInputId);
         }
         try {
           await toolSession.dispose(resultText);

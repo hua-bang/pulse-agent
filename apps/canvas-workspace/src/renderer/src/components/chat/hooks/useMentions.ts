@@ -6,7 +6,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import type { AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment } from '../../../types';
+import type { AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment, ChatRunInputMode } from '../../../types';
 import { isImeComposing } from '../../../utils/ime';
 import {
   MENTION_MAX_ITEMS,
@@ -56,6 +56,7 @@ interface UseMentionsOptions {
    */
   collectStructuredContext?: boolean;
   onSubmit: (text: string, requestContext?: AgentRequestContext, attachments?: ChatImageAttachment[]) => Promise<boolean>;
+  onSubmitDuringRun?: (mode: ChatRunInputMode, text: string) => Promise<boolean>;
   getRequestContext?: () => AgentRequestContext | undefined;
   /**
    * Veto checked immediately before a send, keeping the draft intact. Lives
@@ -76,6 +77,7 @@ export function useMentions({
   dockTabs,
   collectStructuredContext,
   onSubmit,
+  onSubmitDuringRun,
   getRequestContext,
   isSubmitBlocked,
 }: UseMentionsOptions) {
@@ -83,6 +85,8 @@ export function useMentions({
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [runInputSubmitting, setRunInputSubmitting] = useState(false);
+  const runInputSubmittingRef = useRef(false);
   const editableRef = useRef<HTMLDivElement>(null);
   const filesCacheRef = useRef(new Map<string, MentionItem[]>());
   const skillsCacheRef = useRef(new Map<string, MentionItem[]>());
@@ -389,6 +393,20 @@ export function useMentions({
     return ok;
   }, [attachments, chatAttachments.sendBlocked, clearInput, collectStructuredContext, getRequestContext, input, isSubmitBlocked, onSubmit]);
 
+  const submitCurrentInputDuringRun = useCallback(async (mode: ChatRunInputMode) => {
+    if (!onSubmitDuringRun || runInputSubmittingRef.current || chatAttachments.sendBlocked || attachments.length > 0) return false;
+    runInputSubmittingRef.current = true;
+    setRunInputSubmitting(true);
+    try {
+      const ok = await onSubmitDuringRun(mode, input);
+      if (ok) clearInput();
+      return ok;
+    } finally {
+      runInputSubmittingRef.current = false;
+      setRunInputSubmitting(false);
+    }
+  }, [attachments.length, chatAttachments.sendBlocked, clearInput, input, onSubmitDuringRun]);
+
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     // While an IME composition is active (Chinese/Japanese/Korean input),
     // Enter confirms the candidate and arrows navigate the candidate list —
@@ -460,9 +478,11 @@ export function useMentions({
     mentionOpen,
     removeAttachment: chatAttachments.removeAttachment,
     retryAttachment: chatAttachments.retryAttachment,
+    runInputSubmitting,
     replaceInput,
     selectMention,
     setMentionIndex,
     submitCurrentInput,
+    submitCurrentInputDuringRun,
   };
 }

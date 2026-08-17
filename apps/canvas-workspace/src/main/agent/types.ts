@@ -326,6 +326,8 @@ export interface ChatResponse {
   error?: string;
   /** The user intentionally stopped this turn; partial output remains valid. */
   stopped?: boolean;
+  /** Native steer/follow-up added extra transcript turns during this run. */
+  continued?: boolean;
   /** Multi-role chat: the role that spoke this turn (absent → default assistant). */
   speakerRole?: { id: string; name: string; color: string };
 }

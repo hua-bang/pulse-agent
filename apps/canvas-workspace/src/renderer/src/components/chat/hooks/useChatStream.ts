@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react';
-import type { AgentChatMessage, AgentRequestContext, ChatImageAttachment } from '../../../types';
+import type { AgentChatMessage, AgentRequestContext, ChatImageAttachment, ChatRunInputMode } from '../../../types';
 import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
 import { markToolResult, settleRunningTools, upsertToolInputStart } from './toolStreamState';
@@ -29,6 +29,7 @@ import {
 import { useChatTurnLease } from './useChatTurnLease';
 import { useChatMutationSenders } from './useChatMutationSenders';
 import { chatScopeId } from '../chatScope';
+import { useChatRunInput } from './useChatRunInput';
 
 interface UseChatStreamOptions {
   agentScope: AgentScope;
@@ -39,8 +40,8 @@ interface UseChatStreamOptions {
   conversationSessionIdRef?: MutableRefObject<string | null>;
   conversationEpochRef?: MutableRefObject<number>;
   conversationMutationRef?: ChatConversationMutationRef;
+  onContinuedTurn?: () => void;
 }
-
 export function useChatStream({
   agentScope,
   allWorkspaces,
@@ -50,6 +51,7 @@ export function useChatStream({
   conversationSessionIdRef,
   conversationEpochRef,
   conversationMutationRef,
+  onContinuedTurn,
 }: UseChatStreamOptions) {
   const { t } = useI18n();
   const scopeKey = chatScopeId(agentScope);
@@ -62,6 +64,7 @@ export function useChatStream({
   const [messageTools, setMessageTools] = useState<Map<number, ToolCallStatus[]>>(new Map());
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [runInputModes, setRunInputModes] = useState<ChatRunInputMode[]>([]);
   const [relay, setRelay] = useState<RelayProgress | null>(null);
   const [pendingClarify, setPendingClarify] = useState<PendingClarification | null>(null);
   const [clarifyInput, setClarifyInput] = useState('');
@@ -80,6 +83,7 @@ export function useChatStream({
     setRelay(null);
     streamingMsgIdx.current = -1;
     setActiveSessionId(null);
+    setRunInputModes([]);
     setPendingClarify(null);
     setClarifyInput('');
     setClarificationAnswering(false);
@@ -116,7 +120,7 @@ export function useChatStream({
     setExpandedTools(new Set());
     setStreamingTools([]);
   }, [scopeKey]);
-
+  const submitRunInput = useChatRunInput(activeSessionId);
   const handleRemoteRunState = useCallback((state: {
     active: boolean;
     sessionId?: string;
@@ -143,10 +147,7 @@ export function useChatStream({
     resetTurnState();
     return disposeCurrentTurn;
   }, [resetTurnState, disposeCurrentTurn, scopeKey]);
-  const { addImageToCanvas, appendTurnFailure, applyResolvedModel } = useChatMessageActions(
-    workspaceId,
-    setMessages,
-  );
+  const { addImageToCanvas, appendTurnFailure, applyResolvedModel } = useChatMessageActions(workspaceId, setMessages);
   const sendMessageInternal = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
     const text = rawText.trim();
     if (
@@ -180,7 +181,6 @@ export function useChatStream({
       attachments: attachments.length > 0 ? attachments : undefined,
       contextSnapshot,
     };
-
     setMessages(prev => [...prev, userMessage]);
     setLoading(true);
 
@@ -374,6 +374,7 @@ export function useChatStream({
         }
 
         applyTurnCompletion({ completeResult, segment, toolSnapshot, setMessages, failureFallback: t('chat.turn.failure.unknown') });
+        if (completeResult.continued) onContinuedTurn?.();
         turn.retire();
       }));
 
@@ -410,6 +411,7 @@ export function useChatStream({
         modelId: startResult.modelId,
         modelLabel: startResult.modelLabel ?? contextSnapshot.modelLabel,
       });
+      setRunInputModes(startResult.runInputModes ?? []);
       trackScopeRun(sessionId);
       if (!turnClosed) {
         cancelWatchdog = startChatRunWatchdog({
@@ -425,7 +427,6 @@ export function useChatStream({
           }),
         });
       }
-
       return true;
     } catch (error) {
       if (isCurrent()) appendTurnFailure(error);
@@ -445,15 +446,14 @@ export function useChatStream({
     loading,
     modelLabel,
     onActiveSessionChange,
+    onContinuedTurn,
     replaceMessages,
     releaseScope,
     scopeLabel, t,
     trackScopeRun,
     workspaceId,
   ]);
-  const { sendMessage, sendMessageForMutation } = useChatMutationSenders(
-    sendMessageInternal, conversationMutationRef,
-  );
+  const { sendMessage, sendMessageForMutation } = useChatMutationSenders(sendMessageInternal, conversationMutationRef);
   const { abort, stopRelay } = useChatRunControls({
     activeSessionId,
     setRelay,
@@ -532,6 +532,8 @@ export function useChatStream({
     replaceMessages,
     retireCurrentTurn,
     sendMessage,
+    runInputModes,
+    submitRunInput,
     setClarifyInput,
     streamingTools,
     toggleSection,

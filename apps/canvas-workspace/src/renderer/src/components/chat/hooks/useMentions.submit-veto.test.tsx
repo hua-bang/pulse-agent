@@ -25,11 +25,13 @@ afterEach(() => {
 async function mount(options: {
   onSubmit: (text: string) => Promise<boolean>;
   isSubmitBlocked: () => boolean;
+  onSubmitDuringRun?: (mode: 'steer' | 'follow-up', text: string) => Promise<boolean>;
 }): Promise<void> {
   const Probe = () => {
     latest = useMentions({
       agentScope: { kind: 'global' },
       onSubmit: options.onSubmit,
+      onSubmitDuringRun: options.onSubmitDuringRun,
       isSubmitBlocked: options.isSubmitBlocked,
     });
     return null;
@@ -87,5 +89,25 @@ describe('composer submit veto', () => {
     await act(async () => { sent = await latest!.submitCurrentInput(); });
 
     expect(sent).toBe(false);
+  });
+
+  it('accepts only one run-input submission while delivery is pending', async () => {
+    let resolveDelivery!: (value: boolean) => void;
+    const onSubmitDuringRun = vi.fn(() => new Promise<boolean>((resolve) => {
+      resolveDelivery = resolve;
+    }));
+    await mount({ onSubmit: vi.fn(), isSubmitBlocked: () => false, onSubmitDuringRun });
+    act(() => latest?.replaceInput('continue'));
+
+    let first!: Promise<boolean>;
+    let second!: Promise<boolean>;
+    act(() => {
+      first = latest!.submitCurrentInputDuringRun('follow-up');
+      second = latest!.submitCurrentInputDuringRun('follow-up');
+    });
+    expect(onSubmitDuringRun).toHaveBeenCalledOnce();
+    expect(await second).toBe(false);
+    await act(async () => { resolveDelivery(true); await first; });
+    expect(latest?.runInputSubmitting).toBe(false);
   });
 });

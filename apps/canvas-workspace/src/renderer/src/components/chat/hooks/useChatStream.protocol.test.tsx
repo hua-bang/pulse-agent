@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useChatStream } from './useChatStream';
 import { resetChatScopeActivityForTests } from './chatScopeActivityStore';
 import { I18nProvider } from '../../../i18n';
+import { cacheThread } from './chatThreadCache';
+import { chatScopeId } from '../chatScope';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -15,11 +17,13 @@ let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 let latest: Hook | null = null;
 const conversationSessionIdRef = { current: 'conversation-visible' as string | null };
+const onContinuedTurn = vi.fn();
 
 const HookProbe = () => {
   latest = useChatStream({
     agentScope: { kind: 'global' },
     conversationSessionIdRef,
+    onContinuedTurn,
   });
   return null;
 };
@@ -32,11 +36,53 @@ afterEach(() => {
   host = null;
   latest = null;
   resetChatScopeActivityForTests();
+  cacheThread(chatScopeId({ kind: 'global' }), []);
   vi.useRealTimers();
   vi.restoreAllMocks();
+  onContinuedTurn.mockReset();
 });
 
 describe('chat stream startup protocol', () => {
+  it('submits run input and requests guarded history reconciliation on completion', async () => {
+    let complete: ((result: { ok: boolean; continued?: boolean; response?: string }) => void) | undefined;
+    const unsubscribe = () => vi.fn();
+    const agent = {
+      prepareChat: vi.fn(async () => ({ ok: true, sessionId: 'run-input' })),
+      startChat: vi.fn(async () => ({ ok: true })),
+      submitRunInput: vi.fn(async () => ({ ok: true })),
+      getRunStatus: vi.fn(async () => ({ ok: true, active: true })),
+      getScopeRunStatus: vi.fn(async () => ({ ok: true, active: false })),
+      onTextDelta: unsubscribe,
+      onChatComplete: (_sessionId: string, callback: typeof complete) => {
+        complete = callback;
+        return vi.fn();
+      },
+      onToolCall: unsubscribe,
+      onToolResult: unsubscribe,
+      onToolInputStart: unsubscribe,
+      onToolInputDelta: unsubscribe,
+      onToolInputEnd: unsubscribe,
+      onVisualStream: unsubscribe,
+      onClarifyRequest: unsubscribe,
+      onRoleTurnStart: unsubscribe,
+      onRoleTurnEnd: unsubscribe,
+    };
+    Object.defineProperty(window, 'canvasWorkspace', { configurable: true, value: { agent } });
+    host = document.createElement('div');
+    root = createRoot(host);
+    await act(async () => root?.render(<Probe />));
+    await act(async () => { await latest?.sendMessage('first'); });
+
+    await act(async () => { await latest?.submitRunInput('follow-up', 'next'); });
+    expect(agent.submitRunInput).toHaveBeenCalledWith('run-input', 'follow-up', 'next');
+
+    await act(async () => {
+      complete?.({ ok: true, continued: true, response: 'continued' });
+      await Promise.resolve();
+    });
+    expect(onContinuedTurn).toHaveBeenCalledOnce();
+  });
+
   it('subscribes to every run channel before main starts the prepared turn', async () => {
     const order: string[] = [];
     const subscribe = (channel: string) => {
