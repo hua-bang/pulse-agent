@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { delimiter, join } from 'path';
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
+import { mkdir, mkdtemp, rm } from 'fs/promises';
 
 /**
  * A GUI-launched Electron app inherits a stripped PATH, and the engine's
@@ -27,6 +28,7 @@ vi.mock('child_process', () => ({
 }));
 
 import {
+  discoverNodeVersionManagerBinDirs,
   applyLoginShellPath,
   augmentProcessPath,
   mergePath,
@@ -62,6 +64,28 @@ describe('mergePath', () => {
 
   it('drops empty segments', () => {
     expect(uniquePath(['', '/usr/bin', '', '/usr/bin'])).toEqual(['/usr/bin']);
+  });
+});
+
+describe('node version manager bin dirs', () => {
+  it('discovers nvm and fnm global npm bin directories synchronously', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'pulse-shell-path-home-'));
+    try {
+      const nvmV20 = join(home, '.nvm', 'versions', 'node', 'v20.18.1', 'bin');
+      const nvmV22 = join(home, '.nvm', 'versions', 'node', 'v22.22.0', 'bin');
+      const fnmV21 = join(home, '.fnm', 'node-versions', 'v21.7.3', 'installation', 'bin');
+      await mkdir(nvmV20, { recursive: true });
+      await mkdir(nvmV22, { recursive: true });
+      await mkdir(fnmV21, { recursive: true });
+
+      expect(discoverNodeVersionManagerBinDirs(home)).toEqual([
+        nvmV22,
+        nvmV20,
+        fnmV21,
+      ]);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
   });
 });
 
