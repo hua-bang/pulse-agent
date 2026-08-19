@@ -22,6 +22,7 @@
 import { execFile } from 'child_process';
 import { delimiter, join } from 'path';
 import { homedir, platform } from 'os';
+import { existsSync, readdirSync } from 'fs';
 
 const LOGIN_SHELL_TIMEOUT_MS = 3000;
 
@@ -51,6 +52,9 @@ export const commonPosixBinDirs = (): string[] => {
     join(home, '.yarn', 'bin'),
     join(home, '.bun', 'bin'),
     join(home, '.cargo', 'bin'),
+    join(home, '.volta', 'bin'),
+    join(home, '.asdf', 'shims'),
+    ...discoverNodeVersionManagerBinDirs(home),
     join(home, 'Library', 'pnpm'),
     '/opt/homebrew/bin',
     '/opt/homebrew/sbin',
@@ -58,6 +62,47 @@ export const commonPosixBinDirs = (): string[] => {
     '/usr/local/sbin',
   ];
 };
+
+export const discoverNodeVersionManagerBinDirs = (home: string): string[] => [
+  ...listVersionedBinDirs(join(home, '.nvm', 'versions', 'node'), ['bin']),
+  ...listVersionedBinDirs(join(home, '.fnm', 'node-versions'), ['installation/bin', 'bin']),
+];
+
+function listVersionedBinDirs(root: string, suffixes: string[]): string[] {
+  let entries: string[];
+  try {
+    entries = readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort(compareVersionDirDesc);
+  } catch {
+    return [];
+  }
+
+  const dirs: string[] = [];
+  for (const entry of entries) {
+    for (const suffix of suffixes) {
+      const dir = join(root, entry, suffix);
+      if (existsSync(dir)) dirs.push(dir);
+    }
+  }
+  return dirs;
+}
+
+function compareVersionDirDesc(a: string, b: string): number {
+  const left = parseVersionDir(a);
+  const right = parseVersionDir(b);
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const diff = (right[index] ?? 0) - (left[index] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return b.localeCompare(a);
+}
+
+function parseVersionDir(value: string): number[] {
+  const match = value.match(/\d+(?:\.\d+)*/);
+  return match ? match[0].split('.').map((part) => Number(part) || 0) : [];
+}
 
 /** Existing PATH first, so a user-configured entry always wins a conflict. */
 export const mergePath = (existing: string | undefined, extra: string[]): string =>
