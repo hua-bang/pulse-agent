@@ -117,6 +117,11 @@ The workbench has exactly two side regions plus a modal tier:
    keeps local values.
 3. **Docks are non-modal; settings are modal.** Backdrops only exist in
    the modal tier.
+4. **Canvas chrome owns its pointer events.** Root canvas gesture handlers
+   must let `.canvas-bottom-chrome` targets return before the hand/pan branch;
+   otherwise a bubbling `mousedown` can call `preventDefault()` and suppress
+   the toolbar button's follow-up `click`. The regression lives in
+   `Canvas/hooks/useCanvasMouseHandlers.test.tsx`.
 
 ## Layering scale
 

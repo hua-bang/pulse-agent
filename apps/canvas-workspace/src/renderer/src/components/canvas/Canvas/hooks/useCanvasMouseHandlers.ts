@@ -60,6 +60,9 @@ const isEdgeDragging = (state: EdgeInteractionState | null) =>
   || state?.kind === 'move-bend'
   || state?.kind === 'move-edge';
 
+const isCanvasChromeTarget = (target: EventTarget | null): boolean =>
+  target instanceof Element && target.closest('.canvas-bottom-chrome') !== null;
+
 export const getCanvasInteractionShieldState = ({
   activeTool,
   directInteractionActive,
@@ -181,6 +184,11 @@ export const useCanvasMouseHandlers = ({
 
   const handleRootMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      // Bottom chrome owns its buttons, but the mousedown still bubbles to
+      // the canvas root. In hand mode, routing that event into useCanvas
+      // calls preventDefault() and suppresses the button's follow-up click.
+      if (isCanvasChromeTarget(e.target)) return;
+
       // Pan gestures (middle-click, alt-drag, hand tool) take priority
       // over marquee — useCanvas owns those flows and they should keep
       // working from anywhere on the canvas, blank or not.
