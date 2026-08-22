@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useChatStream } from './useChatStream';
 import { resetChatScopeActivityForTests } from './chatScopeActivityStore';
 import { I18nProvider } from '../../../i18n';
+import { cacheThread } from './chatThreadCache';
+import { chatScopeId } from '../chatScope';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -32,11 +34,91 @@ afterEach(() => {
   host = null;
   latest = null;
   resetChatScopeActivityForTests();
+  cacheThread(chatScopeId({ kind: 'global' }), []);
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe('chat stream startup protocol', () => {
+  it('queues follow-up input and prioritizes steer after stopping the active run', async () => {
+    const completions = new Map<string, (result: { ok: boolean; response?: string }) => void>();
+    let runCount = 0;
+    const unsubscribe = () => vi.fn();
+    const agent = {
+      prepareChat: vi.fn(async (
+        _scope: unknown,
+        _message: string,
+        _mentioned?: unknown,
+        _requestContext?: unknown,
+      ) => ({
+        ok: true,
+        sessionId: `run-${++runCount}`,
+      })),
+      startChat: vi.fn(async () => ({ ok: true })),
+      abort: vi.fn(async () => ({ ok: true })),
+      getRunStatus: vi.fn(async () => ({ ok: true, active: true })),
+      getScopeRunStatus: vi.fn(async () => ({ ok: true, active: false })),
+      onTextDelta: unsubscribe,
+      onChatComplete: (sessionId: string, callback: (result: { ok: boolean; response?: string }) => void) => {
+        completions.set(sessionId, callback);
+        return vi.fn();
+      },
+      onToolCall: unsubscribe,
+      onToolResult: unsubscribe,
+      onToolInputStart: unsubscribe,
+      onToolInputDelta: unsubscribe,
+      onToolInputEnd: unsubscribe,
+      onVisualStream: unsubscribe,
+      onClarifyRequest: unsubscribe,
+      onRoleTurnStart: unsubscribe,
+      onRoleTurnEnd: unsubscribe,
+    };
+    Object.defineProperty(window, 'canvasWorkspace', { configurable: true, value: { agent } });
+    host = document.createElement('div');
+    root = createRoot(host);
+    await act(async () => root?.render(<Probe />));
+    await act(async () => { await latest?.sendMessage('first'); });
+
+    const queuedContext = { scope: 'selected_nodes' as const, selectedNodes: [{ id: 'node-1', type: 'text' as const, title: 'Context' }] };
+    await act(async () => { await latest?.submitRunInput('follow-up', 'next', queuedContext); });
+    await act(async () => { await latest?.submitRunInput('steer', 'change now'); });
+    await act(async () => { await latest?.submitRunInput('steer', 'latest direction'); });
+    expect(agent.prepareChat).toHaveBeenCalledTimes(1);
+    expect(agent.abort).toHaveBeenCalledWith('run-1');
+
+    await act(async () => {
+      completions.get('run-1')?.({ ok: true, response: 'first answer' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(agent.prepareChat).toHaveBeenCalledTimes(2);
+    expect(agent.prepareChat.mock.calls[1]?.[1]).toBe('change now');
+
+    await act(async () => {
+      completions.get('run-2')?.({ ok: true, response: 'changed' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(agent.prepareChat.mock.calls[2]?.[1]).toBe('latest direction');
+
+    await act(async () => {
+      completions.get('run-3')?.({ ok: true, response: 'changed again' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(agent.prepareChat.mock.calls[3]?.[1]).toBe('next');
+    expect(agent.prepareChat.mock.calls[3]?.[3]).toMatchObject(queuedContext);
+
+    await act(async () => { await latest?.submitRunInput('follow-up', 'discard me'); });
+    await act(async () => { await latest?.abort(); });
+    await act(async () => {
+      completions.get('run-4')?.({ ok: true, response: 'stopped' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(agent.prepareChat).toHaveBeenCalledTimes(4);
+  });
+
   it('subscribes to every run channel before main starts the prepared turn', async () => {
     const order: string[] = [];
     const subscribe = (channel: string) => {

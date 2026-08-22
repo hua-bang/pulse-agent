@@ -113,6 +113,19 @@ feedback, the title-only row layout, precise recency ordering, and workspace
 row draft actions;
 `src/main/agent/__tests__/service-history.test.ts` pins active-store exclusion.
 
+### Dock chat session switcher
+
+The dock header's session menu shows the current scope's recent sessions and,
+when cross-scope rows plus `onOpenSessionInScope` are available, lists
+conversations owned by other workspaces directly below them. Selecting an
+other-workspace row closes the menu and delegates to
+`onOpenSessionInScope`, which switches to that conversation's owning scope and
+lets the target scope load the selected session; it must not call
+`handleLoadSession` with the source workspace id, because that path imports the
+conversation into the current scope. Copy is intentionally not exposed in this
+menu for now. Guard:
+`__tests__/ChatHeader.cross-scope.test.tsx`.
+
 ## Full-page chat topbar vs dock content tabs
 
 The full-page chat topbar (`chat/ChatPageBody.tsx`, shared by the AI Chat
@@ -358,6 +371,21 @@ Guards: `active-chat-registry.test.ts`, `prepared-chat.test.ts`,
 `__tests__/service-session-mutation.test.ts` (all under `src/main/agent/`), plus
 `useChatComposerState.session-handoff.test.tsx` and
 `useConversationBranching.test.tsx` under renderer chat hooks.
+
+### Input during a running turn
+
+Run input is host-managed and therefore works for every runtime, including
+Engine and Pi. While a turn runs, the normal send arrow queues the draft and
+the accepted message appears in a compact row above the composer. Each row can
+be removed or Steered; Steer moves it ahead of follow-ups, stops the active
+turn, and sends normally after stop completion. Queue otherwise waits for the
+active turn to settle, then uses the ordinary prepared-turn path.
+Pending text and its context snapshot are kept by scope + conversation across
+chat-surface remounts. Delivery pauses while that conversation has no mounted
+chat host and resumes when it returns; it is not a durable app-restart queue.
+Manual Stop clears pending input. Draft attachments stay untouched because run
+input is text-only. Guards: `hooks/useChatRunQueue.test.tsx` and
+`hooks/useChatStream.protocol.test.tsx`.
 
 ### Clarification serialization
 

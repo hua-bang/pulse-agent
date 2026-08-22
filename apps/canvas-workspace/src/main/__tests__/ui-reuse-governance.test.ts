@@ -123,7 +123,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // blessed icon Button instead of adding another raw micro-button.
   // 284→283 (model picker): model rows and filters reuse Button and
   // SegmentedControl after the removable chip control was retired.
-  rawButtonTags: 283,
+  // 283→280 (chat header): removed the redundant roles, reply-style, and
+  // settings action buttons while retaining the New chat action.
+  rawButtonTags: 280,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

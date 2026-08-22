@@ -223,6 +223,40 @@ describe('ChatInput execution and attachment states', () => {
     host.remove();
   });
 
+  it('uses the send arrow to queue during generation and puts Steer on the queued row', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const onQueue = vi.fn(async () => true);
+    const onSteerQueued = vi.fn(async () => true);
+    const onRemoveQueued = vi.fn();
+    await act(async () => root.render(
+      <I18nProvider>
+        <ChatInput
+          {...baseProps}
+          loading
+          onQueue={onQueue}
+          queuedInputs={[{ id: 7, mode: 'follow-up', text: 'Change direction' }]}
+          onSteerQueued={onSteerQueued}
+          onRemoveQueued={onRemoveQueued}
+        />
+      </I18nProvider>,
+    ));
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('[aria-label="Queue message"]')?.click();
+      host.querySelector<HTMLButtonElement>('[aria-label="Steer queued message"]')?.click();
+      host.querySelector<HTMLButtonElement>('[aria-label="Remove queued message"]')?.click();
+    });
+
+    expect(onQueue).toHaveBeenCalledOnce();
+    expect(onSteerQueued).toHaveBeenCalledWith(7);
+    expect(onRemoveQueued).toHaveBeenCalledWith(7);
+    expect(host.textContent).toContain('Change direction');
+    expect(host.querySelector('[aria-label="Steer current response"]')).toBeNull();
+    expect(host.querySelector('[aria-label="Stop generating"]')).not.toBeNull();
+    act(() => root.unmount());
+  });
+
   it('keeps generating guidance visual without creating a second live region', () => {
     const host = document.createElement('div');
     const root = createRoot(host);

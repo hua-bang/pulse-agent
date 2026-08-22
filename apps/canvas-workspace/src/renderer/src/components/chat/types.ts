@@ -10,6 +10,7 @@ export interface WorkspaceOption {
 }
 
 export type { AgentScope };
+export type ChatRunInputMode = 'steer' | 'follow-up';
 
 /**
  * Pre-resolved descriptor for a "current context" chip in the composer.

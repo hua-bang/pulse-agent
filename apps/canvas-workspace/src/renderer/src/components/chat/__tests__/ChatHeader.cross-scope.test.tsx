@@ -44,9 +44,6 @@ describe('ChatHeader cross-scope sessions', () => {
     ));
 
     expect(host.textContent).toContain('Release review');
-    // Icon-only actions (no visible label — the dropdown is too narrow to
-    // fit text buttons alongside the workspace tag and message count), so
-    // the tooltip/aria-label is the only way to find them.
     const openButton = host.querySelector<HTMLButtonElement>('[aria-label="Open in its scope"]');
     const copyButton = host.querySelector<HTMLButtonElement>('[aria-label="Copy here"]');
     expect(openButton).not.toBeNull();

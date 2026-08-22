@@ -13,6 +13,7 @@ import { ChatMentionPopup } from './ChatMentionPopup';
 import { ChatMessages } from './ChatMessages';
 import { RelayBar } from './RelayBar';
 import type { RelayProgress } from './hooks/relayTurnHandlers';
+import type { QueuedInput } from './hooks/useChatRunQueue';
 import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
 import { restoreComposerFocusAfterRender } from './utils/focusRecovery';
 
@@ -82,7 +83,13 @@ interface ChatViewProps {
   onRetryAttachment?: (id: string) => void;
   sendDisabled?: boolean;
   interactionDisabled?: boolean;
+  runInputDisabled?: boolean;
   onSubmit: () => Promise<boolean>;
+  onQueue?: () => Promise<boolean>;
+  queuedInputs?: QueuedInput[];
+  steeringInputId?: number;
+  onSteerQueued?: (id: number) => Promise<boolean>;
+  onRemoveQueued?: (id: number) => void;
   onAbort: () => Promise<boolean>;
   contextComposer?: boolean;
   knowledgeMode?: boolean;
@@ -162,7 +169,13 @@ export const ChatView = ({
   onRetryAttachment,
   sendDisabled = false,
   interactionDisabled = false,
+  runInputDisabled = false,
   onSubmit,
+  onQueue,
+  queuedInputs,
+  steeringInputId,
+  onSteerQueued,
+  onRemoveQueued,
   onAbort,
   contextComposer = false,
   knowledgeMode = false,
@@ -287,7 +300,13 @@ export const ChatView = ({
         onRetryAttachment={onRetryAttachment}
         sendDisabled={sendDisabled || sessionLoading}
         interactionDisabled={interactionDisabled || sessionLoading}
+        runInputDisabled={runInputDisabled}
         onSend={onSubmit}
+        onQueue={onQueue}
+        queuedInputs={queuedInputs}
+        steeringInputId={steeringInputId}
+        onSteerQueued={onSteerQueued}
+        onRemoveQueued={onRemoveQueued}
         onAbort={onAbort}
       />
     </div>

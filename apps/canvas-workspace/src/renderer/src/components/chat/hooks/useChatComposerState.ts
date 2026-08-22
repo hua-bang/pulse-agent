@@ -124,6 +124,7 @@ export function useChatComposerState({
     dockTabs,
     collectStructuredContext,
     onSubmit: chatStream.sendMessage,
+    onSubmitDuringRun: chatStream.submitRunInput,
     getRequestContext,
     isSubmitBlocked,
   });

@@ -23,6 +23,8 @@ interface ChatHeaderProps {
     title?: string;
   }>;
   otherSessions: OtherWorkspaceSession[];
+  /** User-facing owner label used to distinguish the current scope. */
+  scopeLabel?: string;
   onToggleSessionMenu: () => Promise<void>;
   onCloseSessionMenu: () => void;
   onNewSession: () => Promise<void>;
@@ -47,6 +49,7 @@ export const ChatHeader = ({
   disabled = false,
   sessions,
   otherSessions,
+  scopeLabel,
   onToggleSessionMenu,
   onCloseSessionMenu,
   onNewSession,
@@ -137,7 +140,10 @@ export const ChatHeader = ({
             {sessions.length > 0 && (
               <>
                 <div className="chat-session-menu-divider" />
-                <div className="chat-session-menu-label">{t('chat.recent')}</div>
+                <div className="chat-session-menu-label">
+                  {t('chat.recent')}
+                  {scopeLabel && <span className="chat-session-menu-label-detail"> · {scopeLabel}</span>}
+                </div>
                 <div className="chat-session-menu-list">
                   {sessions.map(session => (
                     <button

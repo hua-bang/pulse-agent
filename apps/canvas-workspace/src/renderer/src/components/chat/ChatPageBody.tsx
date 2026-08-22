@@ -188,6 +188,8 @@ export const ChatPageBody = ({
     renameSession,
     retryAttachment,
     retrySession,
+    runInputSubmitting,
+    runQueue,
     selectMention,
     sendMessage,
     sessions, sessionsLoading, sessionsStoreId, sessionLoading,
@@ -196,6 +198,7 @@ export const ChatPageBody = ({
     setMentionIndex,
     streamingTools,
     submitCurrentInput,
+    submitCurrentInputDuringRun,
     toggleSection,
     toggleSessionPinned,
     toggleToolExpand,
@@ -209,9 +212,7 @@ export const ChatPageBody = ({
     collectStructuredContext: true,
     eagerLoad: true,
     getRequestContext: () => requestContext,
-    // If a specific session is being selected, don't also fetch the scope's
-    // current active history. ChatPageBody now stays mounted across scopes,
-    // so this must follow the prop rather than a mount-time snapshot.
+    // A pending selection owns the initial history fetch across kept-alive scopes.
     skipInitialHistory: initialPendingSessionId !== null || pendingSessionId !== null,
   });
 
@@ -243,9 +244,7 @@ export const ChatPageBody = ({
   }, [onWorkspaceContextRequest, workspaceId]);
 
   useEffect(() => {
-    // Do not let the previous scope's active id overwrite the synchronously
-    // selected rail key in that render gap. Once the intent is consumed, the
-    // committed list owner is the authoritative store for this id.
+    // Keep the synchronous rail intent authoritative until it is consumed.
     if (!pendingSessionId && !sessionLoading && activeSessionId) {
       onActiveSessionResolved?.(activeSessionId, sessionsStoreId);
     }
@@ -476,7 +475,13 @@ export const ChatPageBody = ({
           onRetryAttachment={retryAttachment}
           sendDisabled={attachmentSendBlocked || busyElsewhere || Boolean(sessionError)}
           interactionDisabled={busyElsewhere}
+          runInputDisabled={runInputSubmitting}
           onSubmit={handleSubmit}
+          onQueue={() => submitCurrentInputDuringRun('follow-up')}
+          queuedInputs={runQueue?.queuedInputs}
+          steeringInputId={runQueue?.steeringInputId}
+          onSteerQueued={runQueue?.steerQueuedInput}
+          onRemoveQueued={runQueue?.removeQueuedInput}
           onAbort={abort}
           modelStatus={canvasModels.status}
           modelSelection={canvasModels.selection}

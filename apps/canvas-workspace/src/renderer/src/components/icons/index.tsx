@@ -326,6 +326,14 @@ export const ListLinesIcon = ({ size = 14, className }: IconProps) => (
   </svg>
 );
 
+/** Bent arrow used to promote a queued chat message into the active turn. */
+export const SteerIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path d="M3 4v3.5A2.5 2.5 0 005.5 10H13" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+    <path d="M10.5 7.5L13 10l-2.5 2.5" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 /** Two overlapping squares — duplicate / copy. */
 export const CopyIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 14 14" fill="none" className={className}>

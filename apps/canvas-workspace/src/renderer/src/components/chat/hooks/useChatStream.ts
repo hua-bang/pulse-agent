@@ -29,6 +29,7 @@ import {
 import { useChatTurnLease } from './useChatTurnLease';
 import { useChatMutationSenders } from './useChatMutationSenders';
 import { chatScopeId } from '../chatScope';
+import { useChatRunQueue } from './useChatRunQueue';
 
 interface UseChatStreamOptions {
   agentScope: AgentScope;
@@ -40,7 +41,6 @@ interface UseChatStreamOptions {
   conversationEpochRef?: MutableRefObject<number>;
   conversationMutationRef?: ChatConversationMutationRef;
 }
-
 export function useChatStream({
   agentScope,
   allWorkspaces,
@@ -116,7 +116,6 @@ export function useChatStream({
     setExpandedTools(new Set());
     setStreamingTools([]);
   }, [scopeKey]);
-
   const handleRemoteRunState = useCallback((state: {
     active: boolean;
     sessionId?: string;
@@ -143,11 +142,13 @@ export function useChatStream({
     resetTurnState();
     return disposeCurrentTurn;
   }, [resetTurnState, disposeCurrentTurn, scopeKey]);
-  const { addImageToCanvas, appendTurnFailure, applyResolvedModel } = useChatMessageActions(
-    workspaceId,
-    setMessages,
-  );
-  const sendMessageInternal = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
+  const { addImageToCanvas, appendTurnFailure, applyResolvedModel } = useChatMessageActions(workspaceId, setMessages);
+  const sendMessageInternal = useCallback(async (
+    rawText: string,
+    requestContext?: AgentRequestContext,
+    attachments: ChatImageAttachment[] = [],
+    attempt?: { started: boolean },
+  ) => {
     const text = rawText.trim();
     if (
       (!text && attachments.length === 0)
@@ -159,6 +160,7 @@ export function useChatStream({
       turn?.retire();
       return false;
     }
+    if (attempt) attempt.started = true;
     const { isCurrent, guard } = createChatConversationGuard(
       scopeEpochRef, conversationEpochRef, conversationMutationRef, turn.isCurrent,
     );
@@ -180,10 +182,8 @@ export function useChatStream({
       attachments: attachments.length > 0 ? attachments : undefined,
       contextSnapshot,
     };
-
     setMessages(prev => [...prev, userMessage]);
     setLoading(true);
-
     try {
       const mentionedWorkspaceIds = workspaceId
         ? extractMentionedWorkspaceIds(text, allWorkspaces, workspaceId)
@@ -200,7 +200,6 @@ export function useChatStream({
         turn.retire();
         return false;
       }
-
       const sessionId = result.sessionId;
       markAgentMilestone(sessionId, 'ui.request-dispatched', userMessage.timestamp);
       if (!isCurrent()) {
@@ -214,7 +213,6 @@ export function useChatStream({
       let turnCompleted = false;
       let cancelWatchdog: () => void = () => undefined;
       let turnUnsubs: Array<() => void> = [];
-
       const ensureAssistantMessage = () => {
         if (segment.msgIndex >= 0) return;
         setMessages(prev => {
@@ -224,7 +222,6 @@ export function useChatStream({
           return [...prev, { role: 'assistant', content: '', timestamp: Date.now() }];
         });
       };
-
       const cleanupTurn = () => {
         if (turnClosed) return;
         turnClosed = true;
@@ -235,7 +232,6 @@ export function useChatStream({
         );
       };
       turn.registerCleanup(cleanupTurn);
-
       const publishTools = () => {
         const snapshot = [...segment.tools];
         setStreamingTools(snapshot);
@@ -243,12 +239,10 @@ export function useChatStream({
           setMessageTools(prev => new Map(prev).set(segment.msgIndex, snapshot));
         }
       };
-
       const textDeltaBatcher = createMessageDeltaBatcher({ segment, setMessages, isCurrent,
         onFirstCommit: () => window.requestAnimationFrame(() =>
           markAgentMilestone(sessionId, 'ui.first-content-rendered')),
       });
-
       const findTool = (toolCallId: string | undefined, name?: string) => {
         if (toolCallId) {
           const byId = segment.tools.find(t => t.toolCallId === toolCallId);
@@ -259,13 +253,11 @@ export function useChatStream({
         }
         return undefined;
       };
-
       const unsubscribeToolInputStart = window.canvasWorkspace.agent.onToolInputStart(sessionId, guard(data => {
         ensureAssistantMessage();
         upsertToolInputStart(segment.tools, data, () => ++toolIdCounter.current);
         publishTools();
       }));
-
       const unsubscribeToolInputDelta = window.canvasWorkspace.agent.onToolInputDelta(sessionId, guard(data => {
         const tool = findTool(data.id);
         if (!tool) return;
@@ -425,7 +417,6 @@ export function useChatStream({
           }),
         });
       }
-
       return true;
     } catch (error) {
       if (isCurrent()) appendTurnFailure(error);
@@ -451,14 +442,23 @@ export function useChatStream({
     trackScopeRun,
     workspaceId,
   ]);
-  const { sendMessage, sendMessageForMutation } = useChatMutationSenders(
-    sendMessageInternal, conversationMutationRef,
-  );
+  const { sendMessage, sendMessageForMutation } = useChatMutationSenders(sendMessageInternal, conversationMutationRef);
   const { abort, stopRelay } = useChatRunControls({
     activeSessionId,
     setRelay,
     setPendingClarify,
     setClarifyInput,
+  });
+  const sendQueuedMessage = useCallback(async (text: string, context?: AgentRequestContext) => {
+    if (conversationMutationRef?.current.busy) return 'blocked' as const;
+    const attempt = { started: false };
+    const accepted = await sendMessageInternal(text, context, [], attempt);
+    return accepted ? 'accepted' as const : attempt.started ? 'failed' as const : 'blocked' as const;
+  }, [conversationMutationRef, sendMessageInternal]);
+  const getConversationSessionId = useCallback(() => conversationSessionIdRef?.current, [conversationSessionIdRef]);
+  const runQueue = useChatRunQueue({
+    scopeKey, loading, busyElsewhere, abort, getConversationSessionId,
+    sendMessage: sendQueuedMessage,
   });
   const answerClarification = useCallback(async (answerOverride?: string) => {
     const pending = pendingClarify;
@@ -511,7 +511,7 @@ export function useChatStream({
   }, []);
 
   return {
-    abort,
+    abort: runQueue.abortAndClearQueue,
     relay,
     stopRelay,
     addImageToCanvas,
@@ -532,6 +532,8 @@ export function useChatStream({
     replaceMessages,
     retireCurrentTurn,
     sendMessage,
+    runQueue,
+    submitRunInput: runQueue.submitRunInput,
     setClarifyInput,
     streamingTools,
     toggleSection,

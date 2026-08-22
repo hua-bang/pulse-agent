@@ -134,6 +134,8 @@ export const ChatPanel = ({
     removeAttachment,
     retryAttachment,
     retrySession,
+    runInputSubmitting,
+    runQueue,
     replaceInput,
     selectMention,
     sendMessage,
@@ -147,6 +149,7 @@ export const ChatPanel = ({
     setMentionIndex,
     streamingTools,
     submitCurrentInput,
+    submitCurrentInputDuringRun,
     toggleSection,
     toggleToolExpand,
   } = useChatComposerState({
@@ -384,6 +387,7 @@ export const ChatPanel = ({
           sessionsLoading={sessionsLoading}
           disabled={loading || sessionLoading || busyElsewhere}
           otherSessions={otherSessions}
+          scopeLabel={scopeLabel}
           title={firstUserMessage ? <SessionTitle value={firstUserMessage} /> : sessionTitle}
           onToggleSessionMenu={openSessionMenu}
           onCloseSessionMenu={closeSessionMenu}
@@ -457,7 +461,13 @@ export const ChatPanel = ({
       onRetryAttachment={retryAttachment}
       sendDisabled={attachmentSendBlocked || busyElsewhere || Boolean(sessionError)}
       interactionDisabled={busyElsewhere}
+      runInputDisabled={runInputSubmitting}
       onSubmit={handleSubmit}
+      onQueue={() => submitCurrentInputDuringRun('follow-up')}
+      queuedInputs={runQueue?.queuedInputs}
+      steeringInputId={runQueue?.steeringInputId}
+      onSteerQueued={runQueue?.steerQueuedInput}
+      onRemoveQueued={runQueue?.removeQueuedInput}
       onAbort={abort}
       modelStatus={canvasModels.status}
       modelSelection={canvasModels.selection}
