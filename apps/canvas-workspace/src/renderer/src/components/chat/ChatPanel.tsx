@@ -344,6 +344,7 @@ export const ChatPanel = ({
   const {
     anchors,
     backEntry,
+    onCopyOtherSession: handleCopyOtherSession,
     onJumpAnchor: handleJumpAnchor,
     onLoadSession: handleLoadSessionFromMenu,
     onNewSession: handleNewSessionFromMenu,
@@ -397,6 +398,7 @@ export const ChatPanel = ({
           onOpenRolesSettings={() => onOpenAppSettings('chat-roles')}
           onLoadSession={handleLoadSessionFromMenu}
           onOpenOriginalSession={onOpenSessionInScope ? handleOpenOriginalSession : undefined}
+          onCopyOtherSession={scopeWorkspaceId ? handleCopyOtherSession : undefined}
           onClose={onClose}
           anchors={<ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />}
         />
@@ -462,10 +464,10 @@ export const ChatPanel = ({
       runInputDisabled={runInputSubmitting}
       onSubmit={handleSubmit}
       onQueue={() => submitCurrentInputDuringRun('follow-up')}
-      queuedInputs={runQueue.queuedInputs}
-      steeringInputId={runQueue.steeringInputId}
-      onSteerQueued={runQueue.steerQueuedInput}
-      onRemoveQueued={runQueue.removeQueuedInput}
+      queuedInputs={runQueue?.queuedInputs}
+      steeringInputId={runQueue?.steeringInputId}
+      onSteerQueued={runQueue?.steerQueuedInput}
+      onRemoveQueued={runQueue?.removeQueuedInput}
       onAbort={abort}
       modelStatus={canvasModels.status}
       modelSelection={canvasModels.selection}

@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShellProvider } from '../../../shell/AppShellProvider';
 import { I18nProvider } from '../../../../i18n';
+import { ChatTargetProvider } from '../../../chat/ChatTargetContext';
 import { LinkTabView } from '..';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -94,8 +95,9 @@ describe('LinkTabView DOM selection', () => {
 
     await act(async () => root?.render(
       <I18nProvider>
-        <AppShellProvider>
-          <LinkTabView
+        <ChatTargetProvider>
+          <AppShellProvider>
+            <LinkTabView
             url="https://example.com/page"
             title="Example page"
             tabId="link-tab-1"
@@ -116,8 +118,9 @@ describe('LinkTabView DOM selection', () => {
             onAddTabToChat={onAddTabToChat}
             onOpenLink={() => undefined}
             onRequestClose={() => undefined}
-          />
-        </AppShellProvider>
+            />
+          </AppShellProvider>
+        </ChatTargetProvider>
       </I18nProvider>,
     ));
 

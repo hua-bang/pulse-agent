@@ -478,10 +478,10 @@ export const ChatPageBody = ({
           runInputDisabled={runInputSubmitting}
           onSubmit={handleSubmit}
           onQueue={() => submitCurrentInputDuringRun('follow-up')}
-          queuedInputs={runQueue.queuedInputs}
-          steeringInputId={runQueue.steeringInputId}
-          onSteerQueued={runQueue.steerQueuedInput}
-          onRemoveQueued={runQueue.removeQueuedInput}
+          queuedInputs={runQueue?.queuedInputs}
+          steeringInputId={runQueue?.steeringInputId}
+          onSteerQueued={runQueue?.steerQueuedInput}
+          onRemoveQueued={runQueue?.removeQueuedInput}
           onAbort={abort}
           modelStatus={canvasModels.status}
           modelSelection={canvasModels.selection}

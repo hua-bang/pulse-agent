@@ -151,6 +151,7 @@ export const ReferenceDrawer = ({
             </div>
 
             <ReferencePreviewPanel
+              activeWorkspaceId={activeWorkspaceId}
               references={references}
               activeReference={activeReference}
               activeReferenceNode={activeReferenceNode}

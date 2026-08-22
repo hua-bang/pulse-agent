@@ -1,5 +1,5 @@
 import { useCallback, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { AvatarIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
+import { CopyIcon, ExternalLinkIcon, ListLinesIcon, PlusIcon, SpinnerIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
@@ -30,6 +30,7 @@ interface ChatHeaderProps {
   onNewSession: () => Promise<void>;
   onLoadSession: (sessionId: string, sourceWorkspaceId?: string) => Promise<void>;
   onOpenOriginalSession?: (session: OtherWorkspaceSession) => void;
+  onCopyOtherSession?: (session: OtherWorkspaceSession) => Promise<void>;
   onOpenSettings: () => void;
   settingsLabel: string;
   onOpenPromptSettings: () => void;
@@ -54,10 +55,7 @@ export const ChatHeader = ({
   onNewSession,
   onLoadSession,
   onOpenOriginalSession,
-  onOpenSettings,
-  settingsLabel,
-  onOpenPromptSettings,
-  onOpenRolesSettings,
+  onCopyOtherSession,
   onClose,
   anchors,
 }: ChatHeaderProps) => {
@@ -90,38 +88,6 @@ export const ChatHeader = ({
     },
     [onToggleSessionMenu, sessionMenuOpen],
   );
-
-  const handleOpenOriginalSession = useCallback((session: OtherWorkspaceSession) => {
-    if (disabled || !onOpenOriginalSession) return;
-    onOpenOriginalSession(session);
-  }, [disabled, onOpenOriginalSession]);
-
-  const renderSessionRows = (items: typeof sessions) => items.map(session => (
-    <button
-      key={session.sessionId}
-      type="button"
-      className={`chat-session-menu-item${session.isCurrent ? ' chat-session-menu-item--active' : ''}`}
-      role="menuitem"
-      aria-current={session.isCurrent ? 'true' : undefined}
-      data-menu-autofocus={session.isCurrent ? 'true' : undefined}
-      disabled={disabled}
-      onClick={() => {
-        if (!session.isCurrent) {
-          void onLoadSession(session.sessionId);
-          return;
-        }
-        onCloseSessionMenu();
-      }}
-    >
-      <ListLinesIcon size={14} />
-      <span className="chat-session-menu-item-text">
-        {session.title || session.preview
-          ? <SessionTitle value={session.title ?? session.preview ?? ''} />
-          : (session.isCurrent ? t('chat.currentChat') : session.date)}
-      </span>
-      <span className="chat-session-menu-item-count">{session.messageCount}</span>
-    </button>
-  ));
 
   return (
     <div className="chat-panel-header">
@@ -165,7 +131,7 @@ export const ChatHeader = ({
               <PlusIcon size={14} strokeWidth={1.3} />
               <span>{t('chat.newAiChat')}</span>
             </button>
-            {sessionsLoading && sessions.length === 0 && (
+            {sessionsLoading && sessions.length === 0 && otherSessions.length === 0 && (
               <div className="chat-session-menu-loading">
                 <SpinnerIcon size={14} className="chat-spin" />
                 <span>{t('chat.loadingSessions')}</span>
@@ -175,29 +141,50 @@ export const ChatHeader = ({
               <>
                 <div className="chat-session-menu-divider" />
                 <div className="chat-session-menu-label">
-                  {t('chat.currentWorkspace')}
+                  {t('chat.recent')}
                   {scopeLabel && <span className="chat-session-menu-label-detail"> · {scopeLabel}</span>}
                 </div>
                 <div className="chat-session-menu-list">
-                  {renderSessionRows(sessions)}
+                  {sessions.map(session => (
+                    <button
+                      key={session.sessionId}
+                      type="button"
+                      className={`chat-session-menu-item${session.isCurrent ? ' chat-session-menu-item--active' : ''}`}
+                      role="menuitem"
+                      aria-current={session.isCurrent ? 'true' : undefined}
+                      data-menu-autofocus={session.isCurrent ? 'true' : undefined}
+                      disabled={disabled}
+                      onClick={() => {
+                        if (!session.isCurrent) {
+                          void onLoadSession(session.sessionId);
+                          return;
+                        }
+                        onCloseSessionMenu();
+                      }}
+                    >
+                      <ListLinesIcon size={14} />
+                      <span className="chat-session-menu-item-text">
+                        {session.title || session.preview
+                          ? <SessionTitle value={session.title ?? session.preview ?? ''} />
+                          : (session.isCurrent ? t('chat.currentChat') : session.date)}
+                      </span>
+                      <span className="chat-session-menu-item-count">{session.messageCount}</span>
+                    </button>
+                  ))}
                 </div>
               </>
             )}
-            {otherSessions.length > 0 && onOpenOriginalSession && (
+            {otherSessions.length > 0 && (onOpenOriginalSession || onCopyOtherSession) && (
               <>
                 <div className="chat-session-menu-divider" />
-                <div className="chat-session-menu-label">{t('chat.otherWorkspaces')}</div>
-                <div className="chat-session-menu-list chat-session-menu-list--other">
+                <div className="chat-session-menu-label">{t('chat.otherConversations')}</div>
+                <div className="chat-session-menu-list">
                   {otherSessions.map(session => (
-                    <Button
+                    <div
                       key={session.sessionId}
-                      variant="secondary"
-                      size="sm"
-                      className="chat-session-menu-item chat-session-menu-item--other-ws"
-                      role="menuitem"
-                      disabled={disabled}
-                      onClick={() => handleOpenOriginalSession(session)}
-                      title={t('chat.openInScope')}
+                      className="chat-session-menu-item chat-session-menu-item--other-ws chat-session-menu-item--actions"
+                      role="group"
+                      aria-label={session.workspaceName}
                     >
                       <ListLinesIcon size={14} />
                       <span className="chat-session-menu-item-text">
@@ -207,7 +194,35 @@ export const ChatHeader = ({
                       </span>
                       <span className="chat-session-menu-item-ws">{session.workspaceName}</span>
                       <span className="chat-session-menu-item-count">{session.messageCount}</span>
-                    </Button>
+                      <span className="chat-session-menu-item-actions">
+                        {onOpenOriginalSession && (
+                          <Button
+                            variant="icon"
+                            size="xs"
+                            role="menuitem"
+                            title={t('chat.openInScope')}
+                            aria-label={t('chat.openInScope')}
+                            disabled={disabled}
+                            onClick={() => onOpenOriginalSession(session)}
+                          >
+                            <ExternalLinkIcon size={13} />
+                          </Button>
+                        )}
+                        {onCopyOtherSession && (
+                          <Button
+                            variant="icon"
+                            size="xs"
+                            role="menuitem"
+                            title={t('chat.copyToCurrent')}
+                            aria-label={t('chat.copyToCurrent')}
+                            disabled={disabled}
+                            onClick={() => void onCopyOtherSession(session)}
+                          >
+                            <CopyIcon size={13} />
+                          </Button>
+                        )}
+                      </span>
+                    </div>
                   ))}
                 </div>
               </>
@@ -217,32 +232,6 @@ export const ChatHeader = ({
       </div>
       <div className="chat-panel-actions">
         {anchors}
-        {onOpenRolesSettings && (
-          <button
-            className="chat-panel-action-btn"
-            onClick={onOpenRolesSettings}
-            title={t('chat.rolesSettings')}
-            aria-label={t('chat.rolesSettings')}
-          >
-            <AvatarIcon size={16} strokeWidth={1.25} />
-          </button>
-        )}
-        <button
-          className="chat-panel-action-btn"
-          onClick={onOpenPromptSettings}
-          title={t('chat.replyStyleSettings')}
-          aria-label={t('chat.replyStyleSettings')}
-        >
-          <SparklesIcon size={16} strokeWidth={1.25} />
-        </button>
-        <button
-          className="chat-panel-action-btn"
-          onClick={onOpenSettings}
-          title={settingsLabel}
-          aria-label={settingsLabel}
-        >
-          <SettingsIcon size={16} strokeWidth={1.25} />
-        </button>
         <button
           className="chat-panel-action-btn"
           onClick={() => void onNewSession()}
