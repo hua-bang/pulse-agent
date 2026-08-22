@@ -11,6 +11,7 @@ import type { ArtifactReferenceEntry, NodeReferenceEntry, ReferenceEntry, UrlRef
 import { createArtifactPreviewNode, createUrlPreviewNode, getReferenceId, isArtifactReference, isUrlReference } from './utils';
 
 interface ReferencePreviewPanelProps {
+  activeWorkspaceId: string;
   references: ReferenceEntry[];
   activeReference?: ReferenceEntry;
   activeReferenceNode?: CanvasNode;
@@ -46,6 +47,7 @@ const ACTIVE_SLOT_STYLE: CSSProperties = {
 // card stays at z-index 1 with all its webviews fully alive underneath.
 
 export const ReferencePreviewPanel = ({
+  activeWorkspaceId,
   references,
   activeReference,
   activeReferenceNode,
@@ -180,6 +182,7 @@ export const ReferencePreviewPanel = ({
               >
                 <ReferenceUrlWebPreview
                   reference={ref}
+                  activeWorkspaceId={activeWorkspaceId}
                   drawerWidth={drawerWidth}
                   onPageTitleChange={onUrlReferenceTitle}
                 />
@@ -328,11 +331,12 @@ const NodeReferenceFooter = ({
 
 interface ReferenceUrlWebPreviewProps {
   reference: UrlReferenceEntry;
+  activeWorkspaceId: string;
   drawerWidth: number;
   onPageTitleChange?: (referenceId: string, title: string) => void;
 }
 
-const ReferenceUrlWebPreview = memo(({ reference, drawerWidth, onPageTitleChange }: ReferenceUrlWebPreviewProps) => {
+const ReferenceUrlWebPreview = memo(({ reference, activeWorkspaceId, drawerWidth, onPageTitleChange }: ReferenceUrlWebPreviewProps) => {
   const previewNode = useMemo(
     () => createUrlPreviewNode(reference, drawerWidth),
     [reference, drawerWidth],
@@ -349,6 +353,7 @@ const ReferenceUrlWebPreview = memo(({ reference, drawerWidth, onPageTitleChange
     <div className="reference-url-preview">
       <IframeNodeBody
         node={previewNode}
+        workspaceId={activeWorkspaceId}
         onUpdate={() => undefined}
         isResizing={false}
         onPageTitleChange={handlePageTitleChange}
