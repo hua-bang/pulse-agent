@@ -155,11 +155,17 @@
   z-index: 1;
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 26px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   padding-right: 2px;
   border-radius: var(--radius-xs);
-  background: var(--surface);
+  background: transparent;
+  transition: background-color 0.12s ease;
+}
+
+.chat-page-rail-folder-row:hover,
+.chat-page-rail-folder-row:focus-within {
+  background: var(--surface-alt);
 }
 
 .ui-btn.chat-page-rail-folder {
@@ -182,8 +188,10 @@
 
 .chat-page-rail-folder-action-slot {
   position: relative;
-  width: 26px;
+  width: 30px;
   height: 26px;
+  display: grid;
+  place-items: center;
 }
 
 .ui-btn.chat-page-rail-folder-new {
@@ -214,7 +222,7 @@
 
 .ui-btn.chat-page-rail-folder:hover,
 .ui-btn.chat-page-rail-folder:focus-visible {
-  background: var(--surface-alt);
+  background: transparent;
 }
 
 .ui-btn.chat-page-rail-folder:focus-visible {
@@ -243,12 +251,19 @@
 }
 
 .chat-page-rail-folder-count {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
   font-size: 10px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   transition: opacity 0.12s ease;
 }
