@@ -1,5 +1,5 @@
 import { useCallback, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { AvatarIcon, CopyIcon, ExternalLinkIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
+import { CopyIcon, ExternalLinkIcon, ListLinesIcon, PlusIcon, SpinnerIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
@@ -53,10 +53,6 @@ export const ChatHeader = ({
   onLoadSession,
   onOpenOriginalSession,
   onCopyOtherSession,
-  onOpenSettings,
-  settingsLabel,
-  onOpenPromptSettings,
-  onOpenRolesSettings,
   onClose,
   anchors,
 }: ChatHeaderProps) => {
@@ -230,32 +226,6 @@ export const ChatHeader = ({
       </div>
       <div className="chat-panel-actions">
         {anchors}
-        {onOpenRolesSettings && (
-          <button
-            className="chat-panel-action-btn"
-            onClick={onOpenRolesSettings}
-            title={t('chat.rolesSettings')}
-            aria-label={t('chat.rolesSettings')}
-          >
-            <AvatarIcon size={16} strokeWidth={1.25} />
-          </button>
-        )}
-        <button
-          className="chat-panel-action-btn"
-          onClick={onOpenPromptSettings}
-          title={t('chat.replyStyleSettings')}
-          aria-label={t('chat.replyStyleSettings')}
-        >
-          <SparklesIcon size={16} strokeWidth={1.25} />
-        </button>
-        <button
-          className="chat-panel-action-btn"
-          onClick={onOpenSettings}
-          title={settingsLabel}
-          aria-label={settingsLabel}
-        >
-          <SettingsIcon size={16} strokeWidth={1.25} />
-        </button>
         <button
           className="chat-panel-action-btn"
           onClick={() => void onNewSession()}
