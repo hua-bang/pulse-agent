@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentRequestContext } from '../../../types';
 import type { ChatRunInputMode } from '../types';
 
-interface QueuedInput {
+export interface QueuedInput {
   id: number;
   mode: ChatRunInputMode;
   text: string;
@@ -40,6 +40,7 @@ export function useChatRunQueue(options: {
 }) {
   const { abort, busyElsewhere, getConversationSessionId, loading, scopeKey, sendMessage } = options;
   const [revision, setRevision] = useState(0);
+  const [steeringInputId, setSteeringInputId] = useState<number>();
   const retryRef = useRef<number>();
   const refresh = () => setRevision(value => value + 1);
 
@@ -70,6 +71,35 @@ export function useChatRunQueue(options: {
     return abort();
   }, [abort, getConversationSessionId, scopeKey]);
 
+  const removeQueuedInput = useCallback((id: number) => {
+    const queueKey = conversationQueueKey(scopeKey, getConversationSessionId());
+    const rest = (queues.get(queueKey) ?? []).filter(input => input.id !== id);
+    if (rest.length > 0) queues.set(queueKey, rest);
+    else clear(queueKey);
+    refresh();
+  }, [getConversationSessionId, scopeKey]);
+
+  const steerQueuedInput = useCallback(async (id: number) => {
+    if (!loading) return false;
+    const queueKey = conversationQueueKey(scopeKey, getConversationSessionId());
+    const current = queues.get(queueKey) ?? [];
+    const target = current.find(input => input.id === id);
+    if (!target) return false;
+    queues.set(queueKey, [
+      { ...target, mode: 'steer' },
+      ...current.filter(input => input.id !== id),
+    ]);
+    setSteeringInputId(id);
+    refresh();
+    const stopped = await abort();
+    setSteeringInputId(undefined);
+    if (!stopped) {
+      queues.set(queueKey, current);
+      refresh();
+    }
+    return stopped;
+  }, [abort, getConversationSessionId, loading, scopeKey]);
+
   useEffect(() => {
     const queueKey = conversationQueueKey(scopeKey, getConversationSessionId());
     const next = queues.get(queueKey)?.[0];
@@ -92,5 +122,13 @@ export function useChatRunQueue(options: {
   }, [busyElsewhere, getConversationSessionId, loading, revision, scopeKey, sendMessage]);
 
   useEffect(() => () => { if (retryRef.current) window.clearTimeout(retryRef.current); }, []);
-  return { abortAndClearQueue, submitRunInput };
+  const queueKey = conversationQueueKey(scopeKey, getConversationSessionId());
+  return {
+    abortAndClearQueue,
+    queuedInputs: queues.get(queueKey) ?? [],
+    removeQueuedInput,
+    steeringInputId,
+    steerQueuedInput,
+    submitRunInput,
+  };
 }

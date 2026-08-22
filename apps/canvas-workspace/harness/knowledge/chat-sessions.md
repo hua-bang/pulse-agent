@@ -375,9 +375,11 @@ Guards: `active-chat-registry.test.ts`, `prepared-chat.test.ts`,
 ### Input during a running turn
 
 Run input is host-managed and therefore works for every runtime, including
-Engine and Pi. Queue waits for the active turn to settle, then sends the text
-through the ordinary prepared-turn path. Steer puts its text ahead of queued
-follow-ups, stops the active turn, and sends normally after stop completion.
+Engine and Pi. While a turn runs, the normal send arrow queues the draft and
+the accepted message appears in a compact row above the composer. Each row can
+be removed or Steered; Steer moves it ahead of follow-ups, stops the active
+turn, and sends normally after stop completion. Queue otherwise waits for the
+active turn to settle, then uses the ordinary prepared-turn path.
 Pending text and its context snapshot are kept by scope + conversation across
 chat-surface remounts. Delivery pauses while that conversation has no mounted
 chat host and resumes when it returns; it is not a durable app-restart queue.

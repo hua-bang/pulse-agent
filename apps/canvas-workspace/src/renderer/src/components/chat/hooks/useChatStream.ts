@@ -258,7 +258,6 @@ export function useChatStream({
         upsertToolInputStart(segment.tools, data, () => ++toolIdCounter.current);
         publishTools();
       }));
-
       const unsubscribeToolInputDelta = window.canvasWorkspace.agent.onToolInputDelta(sessionId, guard(data => {
         const tool = findTool(data.id);
         if (!tool) return;
@@ -457,7 +456,7 @@ export function useChatStream({
     return accepted ? 'accepted' as const : attempt.started ? 'failed' as const : 'blocked' as const;
   }, [conversationMutationRef, sendMessageInternal]);
   const getConversationSessionId = useCallback(() => conversationSessionIdRef?.current, [conversationSessionIdRef]);
-  const { abortAndClearQueue, submitRunInput } = useChatRunQueue({
+  const runQueue = useChatRunQueue({
     scopeKey, loading, busyElsewhere, abort, getConversationSessionId,
     sendMessage: sendQueuedMessage,
   });
@@ -512,7 +511,7 @@ export function useChatStream({
   }, []);
 
   return {
-    abort: abortAndClearQueue,
+    abort: runQueue.abortAndClearQueue,
     relay,
     stopRelay,
     addImageToCanvas,
@@ -533,7 +532,8 @@ export function useChatStream({
     replaceMessages,
     retireCurrentTurn,
     sendMessage,
-    submitRunInput,
+    runQueue,
+    submitRunInput: runQueue.submitRunInput,
     setClarifyInput,
     streamingTools,
     toggleSection,

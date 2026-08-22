@@ -7,6 +7,8 @@ import type { SelectedContextChip } from './types';
 import { useI18n } from '../../i18n';
 import { CHAT_MENTION_LISTBOX_ID, chatMentionOptionId } from './ChatMentionPopup';
 import { ChatInputAttachments } from './ChatInputAttachments';
+import { ChatRunQueue } from './ChatRunQueue';
+import type { QueuedInput } from './hooks/useChatRunQueue';
 import { Button } from '../ui';
 
 interface ChatInputProps {
@@ -41,7 +43,10 @@ interface ChatInputProps {
   onRetryAttachment?: (id: string) => void;
   onSend: () => Promise<boolean>;
   onQueue?: () => Promise<boolean>;
-  onSteer?: () => Promise<boolean>;
+  queuedInputs?: QueuedInput[];
+  steeringInputId?: number;
+  onSteerQueued?: (id: number) => Promise<boolean>;
+  onRemoveQueued?: (id: number) => void;
   onAbort: () => Promise<boolean>;
   /** Focus/navigate to a clicked mention chip's target (node or workspace). */
   onMentionNavigate?: (chip: HTMLElement) => void;
@@ -77,7 +82,10 @@ export const ChatInput = ({
   onRetryAttachment,
   onSend,
   onQueue,
-  onSteer,
+  queuedInputs = [],
+  steeringInputId,
+  onSteerQueued,
+  onRemoveQueued,
   onAbort,
   onMentionNavigate,
 }: ChatInputProps) => {
@@ -100,6 +108,14 @@ export const ChatInput = ({
       {mentionPopup}
       {contextComposer && loading && (
         <div className="chat-generating-status">{t('chat.generatingCanContinue')}</div>
+      )}
+      {onSteerQueued && onRemoveQueued && (
+        <ChatRunQueue
+          inputs={queuedInputs}
+          steeringInputId={steeringInputId}
+          onSteer={onSteerQueued}
+          onRemove={onRemoveQueued}
+        />
       )}
       <div className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}>
         {showContextChips && (
@@ -232,21 +248,18 @@ export const ChatInput = ({
             )}
             {loading ? (<>
               {onQueue && <Button
-                variant="secondary"
-                size="sm"
+                variant="icon"
+                size="md"
+                className={`chat-send-btn${canSend ? ' chat-send-btn--active' : ''}`}
                 onClick={() => void onQueue()}
                 disabled={runInputDisabled || !canSend || attachments.length > 0}
                 title={t('chat.queueMessage')}
                 aria-label={t('chat.queueMessage')}
-              >{t('chat.queue')}</Button>}
-              {onSteer && <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void onSteer()}
-                disabled={runInputDisabled || !canSend || attachments.length > 0}
-                title={t('chat.steerCurrentResponse')}
-                aria-label={t('chat.steerCurrentResponse')}
-              >{t('chat.steer')}</Button>}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 13V4.5M8 4.5l-3.5 3.5M8 4.5l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Button>}
               <button
                 className="chat-send-btn chat-send-btn--stop"
                 onClick={async (event) => {

@@ -97,4 +97,29 @@ describe('useChatRunQueue', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(500); });
     expect(sendMessage).toHaveBeenCalledOnce();
   });
+
+  it('exposes queued rows that can be steered or removed', async () => {
+    const abort = vi.fn(async () => true);
+    await mount({
+      scopeKey: 'queue-actions-scope',
+      loading: true,
+      sendMessage: vi.fn(async () => 'accepted'),
+      abort,
+    });
+    await act(async () => {
+      await latest?.submitRunInput('follow-up', 'first');
+      await latest?.submitRunInput('follow-up', 'second');
+    });
+    const firstId = latest?.queuedInputs[0]?.id;
+    const secondId = latest?.queuedInputs[1]?.id;
+    expect(firstId).toBeTypeOf('number');
+    expect(secondId).toBeTypeOf('number');
+
+    await act(async () => { await latest?.steerQueuedInput(secondId!); });
+    expect(abort).toHaveBeenCalledOnce();
+    expect(latest?.queuedInputs.map(input => input.text)).toEqual(['second', 'first']);
+
+    act(() => latest?.removeQueuedInput(firstId!));
+    expect(latest?.queuedInputs.map(input => input.text)).toEqual(['second']);
+  });
 });

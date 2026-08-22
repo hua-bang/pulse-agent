@@ -135,6 +135,7 @@ export const ChatPanel = ({
     retryAttachment,
     retrySession,
     runInputSubmitting,
+    runQueue,
     replaceInput,
     selectMention,
     sendMessage,
@@ -461,7 +462,10 @@ export const ChatPanel = ({
       runInputDisabled={runInputSubmitting}
       onSubmit={handleSubmit}
       onQueue={() => submitCurrentInputDuringRun('follow-up')}
-      onSteer={() => submitCurrentInputDuringRun('steer')}
+      queuedInputs={runQueue.queuedInputs}
+      steeringInputId={runQueue.steeringInputId}
+      onSteerQueued={runQueue.steerQueuedInput}
+      onRemoveQueued={runQueue.removeQueuedInput}
       onAbort={abort}
       modelStatus={canvasModels.status}
       modelSelection={canvasModels.selection}
