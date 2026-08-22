@@ -80,6 +80,41 @@ function matchesAny(relPath, globs) {
   return (globs || []).some((glob) => globToRegExp(String(glob)).test(relPath));
 }
 
+/**
+ * Expand a repo-relative `--path` that names a DIRECTORY into every file under
+ * it (excluding `.git`). Rule globs like `src/**` compile to `^src/.*$`, which
+ * only matches files BENEATH `src` — a bare directory arg otherwise matches no
+ * rule and silently reports "No bound checks" even though the intent is "every
+ * file under here". File paths pass through unchanged.
+ */
+function expandDirectoryPaths(repoPaths) {
+  const expanded = [];
+  for (const p of repoPaths) {
+    const posix = p.split(path.sep).join('/');
+    const abs = path.join(repoRoot, posix);
+    let isDir = false;
+    try {
+      isDir = fs.statSync(abs).isDirectory();
+    } catch {
+      // Not on disk (e.g. a deleted path) — keep the literal path.
+    }
+    if (!isDir) {
+      expanded.push(posix);
+      continue;
+    }
+    const walk = (dirAbs) => {
+      for (const entry of fs.readdirSync(dirAbs, { withFileTypes: true })) {
+        if (entry.name === '.git') continue;
+        const childAbs = path.join(dirAbs, entry.name);
+        if (entry.isDirectory()) walk(childAbs);
+        else expanded.push(path.relative(repoRoot, childAbs).split(path.sep).join('/'));
+      }
+    };
+    walk(abs);
+  }
+  return expanded;
+}
+
 // --- changed-path sources ---
 
 function git(args) {
@@ -181,7 +216,11 @@ function main() {
   const workspaces = listWorkspaces();
 
   let changed = options.paths;
-  if (!options.all && changed.length === 0) {
+  if (options.paths.length > 0) {
+    // A `--path` that names a directory means "every file under here", so rule
+    // globs (src/**) can bind. Git-status paths are already individual files.
+    changed = expandDirectoryPaths(options.paths);
+  } else if (!options.all) {
     changed = options.since ? pathsFromRange(options.since) : pathsFromStatus();
     if (changed.length === 0) {
       console.log('Working tree clean and no --path given. Use --since <ref>, --path, or --all.');

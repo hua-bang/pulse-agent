@@ -139,8 +139,8 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 - Canvas Agent scope activation must stay single-flight in `src/main/agent/service.ts`, or an unguarded check-then-initialize creates duplicate engines for one scope and session switching visibly stalls.
   Guard: `src/main/agent/__tests__/service-history.test.ts`.
   Detail: `harness/knowledge/chat-sessions.md`.
-- One chat scope has one authoritative run (`ActiveChatRegistry`) and one session-mutation lane (`SessionMutationCoordinator`); senders must use prepare → subscribe → start, and main must CAS the renderer's session pointer before replying.
-  Guard: `active-chat-registry.test.ts`, `prepared-chat.test.ts`, `chat-protocol.test.ts`, `chat-session-cas.test.ts`, `__tests__/service-session-mutation.test.ts` (all under `src/main/agent/`).
+- Runs are session-anchored: two different conversations in one workspace may stream concurrently (`ActiveChatRegistry` + `SessionMutationCoordinator` gate by `(scope, conversationSessionId)`), while a second run against the SAME conversation — or any run against a conversation-less legacy scope — is rejected. Each run reads/persists its own conversation (no pointer CAS; a deleted conversation returns `CHAT_SESSION_CHANGED`), and switching sessions during a run abandons the surface's UI lease so the new conversation can send. Senders must use prepare → subscribe → start.
+  Guard: `active-chat-registry.test.ts`, `prepared-chat.test.ts`, `chat-protocol.test.ts`, `__tests__/service-session-mutation.test.ts`, `useChatScopeActivity.test.tsx`, `useChatPagePendingSession.test.tsx`.
   Detail: `harness/knowledge/chat-sessions.md`.
 - The renderer has one visible approval card, so main must serialize concurrent clarification requests, starting each timeout only once visible; answering one must reveal, not clear, the next queued request.
   Guard: `clarification-registry.test.ts`.

@@ -90,6 +90,7 @@ describe('useChatComposerState session handoff', () => {
       prepareChat,
       startChat: vi.fn(async () => ({ ok: true })),
       getRunStatus: vi.fn(async () => ({ ok: true, active: true })),
+      listSessions: vi.fn(async () => ({ ok: true, sessions: [] })),
       ...listeners,
     };
     Object.defineProperty(window, 'canvasWorkspace', {

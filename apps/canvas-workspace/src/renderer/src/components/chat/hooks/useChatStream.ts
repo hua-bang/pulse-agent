@@ -30,6 +30,7 @@ import { useChatTurnLease } from './useChatTurnLease';
 import { useChatMutationSenders } from './useChatMutationSenders';
 import { chatScopeId } from '../chatScope';
 import { useChatRunQueue } from './useChatRunQueue';
+import { useChatRunReattach } from './useChatRunReattach';
 
 interface UseChatStreamOptions {
   agentScope: AgentScope;
@@ -40,6 +41,8 @@ interface UseChatStreamOptions {
   conversationSessionIdRef?: MutableRefObject<string | null>;
   conversationEpochRef?: MutableRefObject<number>;
   conversationMutationRef?: ChatConversationMutationRef;
+  /** Fired on turn complete so the session rail refreshes previews. */
+  onTurnComplete?: () => void;
 }
 export function useChatStream({
   agentScope,
@@ -50,12 +53,11 @@ export function useChatStream({
   conversationSessionIdRef,
   conversationEpochRef,
   conversationMutationRef,
+  onTurnComplete,
 }: UseChatStreamOptions) {
   const { t } = useI18n();
   const scopeKey = chatScopeId(agentScope);
-  const [messages, setMessages] = useState<AgentChatMessage[]>(
-    () => getCachedThread(scopeKey),
-  );
+  const [messages, setMessages] = useState<AgentChatMessage[]>(() => getCachedThread(scopeKey));
   const [loading, setLoading] = useState(false);
   const [streamingTools, setStreamingTools] = useState<ToolCallStatus[]>([]);
   const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
@@ -71,8 +73,8 @@ export function useChatStream({
   const activeUnsubsRef = useRef<(() => void)[]>([]);
   const streamingMsgIdx = useRef(-1);
   const messagesRef = useRef(messages);
-  const scopeEpochRef = useRef(0);
-  messagesRef.current = messages;
+  const onTurnCompleteRef = useRef(onTurnComplete); onTurnCompleteRef.current = onTurnComplete;
+  const scopeEpochRef = useRef(0); messagesRef.current = messages;
   const resetTurnState = useCallback(() => {
     setLoading(false);
     setStreamingTools([]);
@@ -116,32 +118,60 @@ export function useChatStream({
     setExpandedTools(new Set());
     setStreamingTools([]);
   }, [scopeKey]);
-  const handleRemoteRunState = useCallback((state: {
+  const { detachReattachedRun, reattachToRun } = useChatRunReattach({
+    agentScope,
+    setMessages,
+    setStreamingTools,
+    setMessageTools,
+    setCollapsedSections,
+    setPendingClarify,
+    setClarifyInput,
+    setClarificationAnswering,
+    setClarificationError,
+    setLoading,
+    streamingMsgIdx,
+    toolIdCounter,
+    activeUnsubsRef,
+    replaceMessages,
+    onTurnComplete: () => onTurnCompleteRef.current?.(),
+  });
+  const reattachToRunRef = useRef(reattachToRun); reattachToRunRef.current = reattachToRun;
+  const claimScopeRef = useRef<() => boolean>(() => false); const handleRemoteRunState = useCallback((state: {
     active: boolean;
     sessionId?: string;
     pendingClarification?: PendingClarification;
   }) => {
-    setLoading(state.active);
-    setActiveSessionId(state.active ? state.sessionId ?? null : null);
-    setPendingClarify(state.active ? state.pendingClarification ?? null : null);
-    if (!state.active || !state.pendingClarification) {
+    if (state.active) {
+      setLoading(true);
+      setActiveSessionId(state.sessionId ?? null);
+      setPendingClarify(state.pendingClarification ?? null);
+      // Switch-back view: re-claim scope (clears the banner) then re-attach.
+      claimScopeRef.current?.();
+      if (state.sessionId) reattachToRunRef.current?.(state.sessionId);
+    } else {
+      setLoading(false);
+      detachReattachedRun();
+      setPendingClarify(null);
       setClarifyInput('');
       setClarificationAnswering(false);
       setClarificationError(null);
     }
-  }, []);
+  }, [detachReattachedRun]);
   const { busyElsewhere, claimScope, releaseScope, trackScopeRun } = useChatScopeActivity({
     scope: agentScope,
     scopeKey,
+    getConversationSessionId: () => conversationSessionIdRef?.current,
     onExternalRunComplete: replaceMessages,
     onRemoteRunState: handleRemoteRunState,
   });
+  claimScopeRef.current = claimScope;
   const finishActiveTurn = useCallback(() => { releaseScope(); resetTurnState(); }, [releaseScope, resetTurnState]);
   const { beginTurn, disposeCurrentTurn, retireCurrentTurn } = useChatTurnLease(finishActiveTurn);
   useEffect(() => {
     resetTurnState();
-    return disposeCurrentTurn;
-  }, [resetTurnState, disposeCurrentTurn, scopeKey]);
+    detachReattachedRun();
+    return () => disposeCurrentTurn();
+  }, [resetTurnState, disposeCurrentTurn, detachReattachedRun, scopeKey]);
   const { addImageToCanvas, appendTurnFailure, applyResolvedModel } = useChatMessageActions(workspaceId, setMessages);
   const sendMessageInternal = useCallback(async (
     rawText: string,
@@ -160,6 +190,7 @@ export function useChatStream({
       turn?.retire();
       return false;
     }
+    detachReattachedRun();
     if (attempt) attempt.started = true;
     const { isCurrent, guard } = createChatConversationGuard(
       scopeEpochRef, conversationEpochRef, conversationMutationRef, turn.isCurrent,
@@ -336,6 +367,7 @@ export function useChatStream({
         turnCompleted = true;
         textDeltaBatcher.flush();
         cleanupTurn();
+        onTurnCompleteRef.current?.();
         if (completeResult.code === 'CHAT_SESSION_CHANGED') {
           releaseScope();
           void recoverChangedChatSession({
@@ -402,6 +434,7 @@ export function useChatStream({
         modelId: startResult.modelId,
         modelLabel: startResult.modelLabel ?? contextSnapshot.modelLabel,
       });
+      onTurnCompleteRef.current?.(); // row appears with the first message
       trackScopeRun(sessionId);
       if (!turnClosed) {
         cancelWatchdog = startChatRunWatchdog({
@@ -522,6 +555,7 @@ export function useChatStream({
     clarificationError,
     conversationError: branching.conversationError,
     collapsedSections,
+    disposeCurrentTurn,
     editUserMessage: branching.editUserMessage,
     expandedTools,
     loading,

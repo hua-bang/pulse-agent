@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import type { AgentContextTabRef, AgentRequestContext, CanvasNode } from '../../../types';
 import { useCanvasModels } from '../ModelSettings';
 import type { AgentScope, WorkspaceOption } from '../types';
@@ -79,6 +79,18 @@ export function useChatComposerState({
     conversationSessionIdRef,
     conversationEpochRef,
     conversationMutationRef,
+    // Refresh the session rail when a turn starts (first message durable →
+    // row appears immediately) and when it completes (preview / ordering /
+    // count settle). loadSessions identity lives in a ref (filled after
+    // chatSessions mounts) to avoid a hooks-order cycle; debounced so a
+    // start+complete pair in one send coalesces into a single refresh.
+    onTurnComplete: () => {
+      if (sessionListRefreshTimerRef.current) window.clearTimeout(sessionListRefreshTimerRef.current);
+      sessionListRefreshTimerRef.current = window.setTimeout(() => {
+        sessionListRefreshTimerRef.current = undefined;
+        loadSessionsRef.current?.();
+      }, 150);
+    },
   });
 
   const chatSessions = useChatSessions({
@@ -90,6 +102,12 @@ export function useChatComposerState({
     conversationMutationRef,
     onConversationMutationStart: chatStream.retireCurrentTurn,
   });
+  const loadSessionsRef = useRef(chatSessions.loadSessions);
+  loadSessionsRef.current = chatSessions.loadSessions;
+  const sessionListRefreshTimerRef = useRef<number | undefined>(undefined);
+  useEffect(() => () => {
+    if (sessionListRefreshTimerRef.current) window.clearTimeout(sessionListRefreshTimerRef.current);
+  }, []);
   activeSessionChangeRef.current = chatSessions.adoptActiveSession;
   useLayoutEffect(() => {
     adoptConversationSession(chatSessions.activeSessionId);

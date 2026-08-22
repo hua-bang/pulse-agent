@@ -40,6 +40,86 @@ describe('SessionStore', () => {
     expect(await store.listArchivedSessions()).toEqual([]);
   });
 
+  it('reads an archived session without moving the current pointer', async () => {
+    const store = new SessionStore('ws-read-session');
+    await store.startSession();
+    const currentId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    const archivedId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(1));
+    await store.startSession();
+    const newestId = store.getCurrentSession()!.sessionId;
+
+    const archived = await store.readSession(archivedId);
+    const current = await store.readSession(currentId);
+
+    expect(archived?.sessionId).toBe(archivedId);
+    expect(archived?.messages.map(m => m.content)).toEqual(['message 1']);
+    expect(current?.sessionId).toBe(currentId);
+    expect(current?.messages.map(m => m.content)).toEqual(['message 0']);
+    // Pointer is untouched: the newest session stays current.
+    expect(store.getCurrentSession()?.sessionId).toBe(newestId);
+    expect(await store.readSession('missing-session')).toBeNull();
+  });
+
+  it('appends to the current session through the fast path', async () => {
+    const store = new SessionStore('ws-append-current');
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+
+    await store.appendToSession(sessionId, [makeMessage(0), makeMessage(1)]);
+
+    expect(store.getMessages().map(m => m.content)).toEqual(['message 0', 'message 1']);
+    const reloaded = await store.readSession(sessionId);
+    expect(reloaded?.messages.map(m => m.content)).toEqual(['message 0', 'message 1']);
+  });
+
+  it('appends to an archived session and persists to its newest copy', async () => {
+    const store = new SessionStore('ws-append-archived');
+    await store.startSession();
+    const archivedId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    const liveId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(1));
+
+    // The run is anchored to the archived conversation while the pointer
+    // lives on another session.
+    await store.appendToSession(archivedId, [makeMessage(2)]);
+
+    const archived = await store.readSession(archivedId);
+    expect(archived?.sessionId).toBe(archivedId);
+    expect(archived?.messages.map(m => m.content)).toEqual(['message 0', 'message 2']);
+    // The live pointer session is untouched.
+    expect(store.getCurrentSession()?.sessionId).toBe(liveId);
+    expect(store.getMessages().map(m => m.content)).toEqual(['message 1']);
+  });
+
+  it('drops appends for a session that no longer exists', async () => {
+    const store = new SessionStore('ws-append-missing');
+    await store.startSession();
+
+    await expect(store.appendToSession('does-not-exist', [makeMessage(0)])).resolves.toBeUndefined();
+    expect(store.getMessages()).toEqual([]);
+  });
+
+  it('materializes an anchored-but-unpersisted draft instead of dropping messages', async () => {
+    const store = new SessionStore('ws-append-draft');
+    await store.startSession();
+    const liveId = store.getCurrentSession()!.sessionId;
+    // A run anchored to a conversation the UI created but never persisted
+    // (no current/archive file for it). Messages must not be lost.
+    const draftId = 'session-draft-not-on-disk';
+    await store.appendToSession(draftId, [makeMessage(0)]);
+
+    const materialized = await store.readSession(draftId);
+    expect(materialized?.sessionId).toBe(draftId);
+    expect(materialized?.messages.map(m => m.content)).toEqual(['message 0']);
+    // Pointer untouched — the live session stays current.
+    expect(store.getCurrentSession()?.sessionId).toBe(liveId);
+  });
+
   it('keeps archived history visible beside an empty current draft', async () => {
     const store = new SessionStore('ws-empty-current-with-history');
     await store.startSession();

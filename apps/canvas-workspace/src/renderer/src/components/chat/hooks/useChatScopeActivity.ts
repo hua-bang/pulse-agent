@@ -19,10 +19,13 @@ import {
 interface UseChatScopeActivityOptions {
   scope: AgentScope;
   scopeKey: string;
+  /** Latest conversation session id; runs on OTHER sessions do not make this one busy. */
+  getConversationSessionId: () => string | null | undefined;
   onExternalRunComplete: (messages: AgentChatMessage[]) => void;
   onRemoteRunState?: (state: {
     active: boolean;
     sessionId?: string;
+    conversationSessionId?: string;
     pendingClarification?: AgentClarificationRequest;
   }) => void;
 }
@@ -30,14 +33,16 @@ interface UseChatScopeActivityOptions {
 export function useChatScopeActivity({
   scope,
   scopeKey,
+  getConversationSessionId,
   onExternalRunComplete,
   onRemoteRunState,
 }: UseChatScopeActivityOptions) {
   const ownerRef = useRef(Symbol('chat-surface'));
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
-  const observedExternalRunRef = useRef<string | null>(null);
-  const reportedRemoteRunRef = useRef(false);
+  const sessionIdRef = useRef<string | null | undefined>(undefined);
+  sessionIdRef.current = getConversationSessionId();
+  const reportedRemoteRunRef = useRef<string | null>(null);
   const subscribe = useCallback(
     (listener: () => void) => subscribeChatScope(scopeKey, listener),
     [scopeKey],
@@ -75,30 +80,71 @@ export function useChatScopeActivity({
     const poll = async () => {
       const agent = window.canvasWorkspace?.agent;
       if (!agent) return;
+      const currentSessionId = sessionIdRef.current;
       const result = await agent
-        .getScopeRunStatus({ scope: scopeRef.current })
-        .catch(() => ({ ok: false, active: false }));
+        .getScopeRunStatus({ scope: scopeRef.current }, currentSessionId ?? undefined)
+        .catch(() => ({
+          ok: false,
+          active: false,
+          conversationSessionId: undefined,
+        }));
       if (cancelled) return;
       if (!result.ok) {
         timer = window.setTimeout(() => void poll(), 1_000);
         return;
       }
+      // Per-session busy: only a run on the conversation this surface is
+      // currently showing counts. A different conversation streaming in the
+      // same workspace must NOT block this one (parallel conversations).
+      // `conversationSessionId === undefined` means a legacy scope-exclusive
+      // run, which conservatively counts as busy for every session.
+      const sameConversation = (
+        result.conversationSessionId === undefined
+        || result.conversationSessionId === currentSessionId
+      );
       const activeElsewhere = result.ok
         && result.active
+        && sameConversation
         && !isChatScopeOwnedBy(scopeKey, ownerRef.current);
       setRemoteBusyElsewhere(activeElsewhere);
       if (activeElsewhere) {
-        reportedRemoteRunRef.current = true;
+        reportedRemoteRunRef.current = result.conversationSessionId
+          ?? currentSessionId
+          ?? '__legacy__';
         onRemoteRunState?.({
           active: true,
           sessionId: 'sessionId' in result ? result.sessionId : undefined,
+          conversationSessionId: 'conversationSessionId' in result
+            ? result.conversationSessionId
+            : undefined,
           pendingClarification: 'pendingClarification' in result
             ? result.pendingClarification
             : undefined,
         });
       } else if (reportedRemoteRunRef.current) {
-        reportedRemoteRunRef.current = false;
-        onRemoteRunState?.({ active: false });
+        const currentConversationKey = currentSessionId ?? '__legacy__';
+        if (reportedRemoteRunRef.current !== currentConversationKey) {
+          // The surface moved to another conversation. Its turn lease already
+          // reset the visible state; an inactive status for the NEW session is
+          // not evidence that the previously observed run completed.
+          reportedRemoteRunRef.current = null;
+        } else if (!result.active) {
+          // Only main's explicit inactive status is completion. Reclaiming an
+          // active run also flips busyElsewhere true → false, but must not load
+          // durable history over the replayed in-flight assistant message.
+          reportedRemoteRunRef.current = null;
+          onRemoteRunState?.({ active: false });
+          const expectedSessionId = currentSessionId;
+          void agent.getHistory({ scope: scopeRef.current }).then(history => {
+            if (
+              history.ok
+              && history.messages
+              && sessionIdRef.current === expectedSessionId
+            ) {
+              onExternalRunComplete(history.messages);
+            }
+          }).catch(() => undefined);
+        }
       }
       timer = window.setTimeout(
         () => void poll(),
@@ -114,27 +160,6 @@ export function useChatScopeActivity({
   }, [onRemoteRunState, scopeKey]);
 
   const busyElsewhere = localBusyElsewhere || remoteBusyElsewhere;
-
-  useEffect(() => {
-    if (busyElsewhere) {
-      observedExternalRunRef.current = scopeKey;
-      return;
-    }
-    if (observedExternalRunRef.current !== scopeKey) return;
-    observedExternalRunRef.current = null;
-    let cancelled = false;
-    void window.canvasWorkspace.agent
-      .getHistory({ scope: scopeRef.current })
-      .then(result => {
-        if (!cancelled && result.ok && result.messages) {
-          onExternalRunComplete(result.messages);
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [busyElsewhere, onExternalRunComplete, scopeKey]);
 
   return { busyElsewhere, claimScope, releaseScope, trackScopeRun };
 }

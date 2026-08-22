@@ -137,12 +137,9 @@ export function useChatSessions({
   const agentScopeRef = useRef(agentScope);
   agentScopeRef.current = agentScope;
 
-  // Reload history only when the scope actually changes. We key on `scopeKey`
-  // (a stable string) rather than the `agentScope` object: a caller that
-  // recreates the scope object on every render would otherwise re-fire this
-  // effect on each streaming setState, and `onMessagesLoaded` (replaceMessages)
-  // would clobber the in-flight assistant message — making intermediate tool
-  // calls / streamed text disappear and the view flicker mid-turn.
+  // Reload history only when the scope changes. Key on the stable `scopeKey`,
+  // not the `agentScope` object (recreated each render would re-fire this
+  // effect and clobber the in-flight stream).
   /** Runs a latest-wins thread replacement behind `sessionLoading`. */
   const runThreadFetch = useCallback(async (
     fetchThread: () => Promise<ThreadFetchResult>,
@@ -280,6 +277,8 @@ export function useChatSessions({
           ...(nextOtherSessions ? { otherSessions: nextOtherSessions } : {}),
         });
       }
+    } catch {
+      // Best-effort refresh; never surface an unhandled rejection.
     } finally {
       if (token === sessionListRequestRef.current) {
         setSessionsLoading(false);

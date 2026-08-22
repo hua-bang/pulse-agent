@@ -363,6 +363,28 @@
   flex: 1;
 }
 
+.chat-page-rail-item-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--chat-rail-busy-accent);
+}
+
+.chat-page-rail-item-running-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  animation: chat-page-rail-running-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes chat-page-rail-running-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
 .chat-page-rail-item-count {
   font-size: 11px;
   color: #b4b4b0;

@@ -78,7 +78,9 @@ import {
 } from './engine-stream-callbacks';
 import { executeCanvasAgentSegment } from './segment-execution';
 import { markCanvasHostContextReady } from './observability/host-run';
-import { ClarificationRegistry, type PendingClarificationRequest } from './clarification-registry';
+import type { PendingClarificationRequest } from './clarification-registry';
+import { CanvasRunRegistry } from './canvas-run-registry';
+import { prepareRunSession } from './run-session-context';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
 
@@ -516,12 +518,8 @@ export class CanvasAgent {
   private messages: ModelMessage[] = [];
   private sessionStore: SessionStore;
   private config: CanvasAgentConfig;
-
-  /** AbortController for the currently-running chat turn, if any. */
-  private currentAbortController: AbortController | null = null;
-  /** Graceful relay-stop flag for the currently-running turn, if any. */
-  private currentRelayStop: { stopped: boolean } | null = null;
-  private pendingClarifications = new ClarificationRegistry();
+  /** Per-conversation run controls (see canvas-run-registry). */
+  private runs = new CanvasRunRegistry();
 
   constructor(config: CanvasAgentConfig) {
     this.config = config;
@@ -627,16 +625,10 @@ export class CanvasAgent {
   }
 
   /**
-   * Send a user message and get the agent's response.
-   *
-   * @param onText — optional callback receiving streaming text deltas
-   * @param onToolCall — optional callback when a tool call starts
-   * @param onToolResult — optional callback when a tool call completes
-   * @param mentionedWorkspaceIds — workspaces the user @-mentioned
-   * @param onClarificationRequest — optional callback invoked when the agent
-   *   wants to ask the user a clarifying question. The caller is responsible
-   *   for displaying it and eventually calling `answerClarification` with the
-   *   user's reply (or `abort()` to cancel the run).
+   * Send a user message and get the agent's response. Streaming/text/tool
+   * callbacks feed the renderer; `onClarificationRequest` asks the user a
+   * question (answered later via `answerClarification` or cancelled via
+   * `abort()`). The run anchors to `requestContext.expectedConversationSessionId`.
    */
   async chat(
     message: string,
@@ -654,11 +646,30 @@ export class CanvasAgent {
     onRoleTurnEnd?: (event: RoleTurnEndEvent) => void,
     runAbortSignal?: AbortSignal,
     modelConfigOverride?: ResolvedCanvasModel, performanceTiming?: CanvasAgentPerformanceTiming,
-  ): Promise<{ response: string; runId?: string; stopped?: boolean; speakerRole?: { id: string; name: string; color: string } }> {
+    persistMessages?: (sessionId: string, messages: CanvasAgentMessage[]) => void,
+  ): Promise<{ response: string; runId?: string; stopped?: boolean; speakerRole?: { id: string; name: string; color: string }; sessionChanged?: { activeSessionId: string | null; error: string } }> {
     const workspaceId = this.config.scope.kind === 'workspace'
       ? this.config.scope.workspaceId
       : undefined;
     const summary = workspaceId ? await buildWorkspaceSummary(workspaceId) : null;
+
+    // Anchor to the conversation the renderer showed; other conversations in
+    // the same workspace stay free to run concurrently.
+    const runContext = await prepareRunSession(
+      this.sessionStore,
+      requestContext?.expectedConversationSessionId,
+      persistMessages,
+    );
+    if (!runContext.ok) {
+      return {
+        response: '',
+        sessionChanged: {
+          activeSessionId: runContext.activeSessionId,
+          error: 'This conversation no longer exists. The latest thread was restored.',
+        },
+      };
+    }
+    const { targetSession, runMessages, runStoreMessages, appendRunMessages } = runContext;
 
     // For any other canvases the user @-mentioned, we only inject the
     // `{ id, name }` pair into the system prompt — the agent is expected to
@@ -693,25 +704,17 @@ export class CanvasAgent {
       }
     }
 
-    // Long-term memory: global entries in every chat, plus this workspace's
-    // entries in workspace chat. Never throws (degrades to empty string).
+    // Long-term memory (global + workspace entries); never throws.
     const memorySection = await buildMemoryPromptSection(workspaceId);
 
-    // Multi-role chat: role markers pick this turn's speakers, in mention
-    // order. None (or all stale) → the default assistant. Several → a RELAY:
-    // each role runs as its own segment against the shared history, so later
-    // speakers see earlier speakers' labeled replies from this very turn.
+    // Multi-role chat: role markers pick speakers (none → default assistant;
+    // several → RELAY segments against the shared history).
     const activeRoles = await resolveActiveRoles(message);
     const hasLabeledRoleHistory = activeRoles.length === 0
-      && (this.sessionStore.getCurrentSession()?.messages.some(m => !!m.speakerRoleName) ?? false);
+      && (targetSession.messages.some(m => !!m.speakerRoleName) ?? false);
 
-    // Agent@agent handoff (opt-in library switch, read per turn): when ON, a
-    // role's reply may @-mention other roles by NAME to append them to this
-    // very turn's queue. Only role segments hand off — default-assistant
-    // turns never grow a queue. Failure degrades to handoff-off.
-    // Externally-driven roles are excluded as TARGETS (and from the advertised
-    // names): a coding agent with real side effects only ever speaks when the
-    // USER @-mentions it directly. They may still hand off TO persona roles.
+    // Agent@agent handoff (opt-in): a role's reply may @-mention other roles
+    // to append them to this turn's queue; external roles never speak unasked.
     let handoffLibrary: AgentRoleDefinition[] = [];
     if (activeRoles.length > 0) {
       try {
@@ -722,9 +725,7 @@ export class CanvasAgent {
         console.warn('[canvas-agent] failed to read role-handoff settings, handoff off this turn:', err);
       }
     }
-    // >0 (not >1): the speaker may be an external role that is itself
-    // filtered out of the target library; per-segment self-filtering already
-    // collapses the empty case (no note, nothing to scan into).
+    // >0 (not >1): an external speaker may be filtered from the library.
     const handoffEnabled = handoffLibrary.length > 0;
     // Speaker labels the impersonation guard recognizes; other 【...】 is text.
     const knownRoleNames = new Set([...activeRoles, ...handoffLibrary].map(entry => entry.name));
@@ -762,36 +763,29 @@ export class CanvasAgent {
         ].join('\n')
       : modelUserText;
 
-    // Add user message. The model sees local paths; session history keeps
-    // structured attachments so the renderer can show image previews.
-    this.messages.push({ role: 'user', content: attachmentPrompt } as ModelMessage);
-    this.sessionStore.addMessage({
+    // Add user message: model sees local paths; history keeps structured attachments.
+    runMessages.push({ role: 'user', content: attachmentPrompt } as ModelMessage);
+    appendRunMessages([{
       role: 'user',
       content: message,
       timestamp: Date.now(),
       attachments: attachments.length > 0 ? attachments : undefined,
       contextSnapshot: requestContext?.contextSnapshot,
-    });
+    }]);
 
     // Build the context — pass a mutable reference so onResponse/onCompacted can update it
-    const context = { messages: this.messages };
+    const context = { messages: runMessages };
     markCanvasHostContextReady(performanceTiming);
 
-    // One AbortController per chat turn (hard stop, exposed via abort());
-    // relayStop is the graceful boundary stop exposed via stopRelay().
+    // One AbortController per turn (hard stop); relayStop is the graceful boundary stop.
     const abortController = new AbortController();
-    this.currentAbortController = abortController;
+    const runState = this.runs.start(targetSession.sessionId, abortController);
     const unlinkRunAbort = linkRunAbortSignal(runAbortSignal, abortController);
-    const relayStop = { stopped: false };
-    this.currentRelayStop = relayStop;
 
-    // Wire the clarify tool through: each clarification request gets a
-    // resolver stashed in `pendingClarifications` keyed by request id. The
-    // caller (IPC handler) dispatches the request to the renderer and calls
-    // `answerClarification(id, answer)` when the user replies.
+    // Wire the clarify tool through the run's per-session registry.
     const engineClarificationHandler = onClarificationRequest
       ? (req: PendingClarificationRequest) =>
-          this.pendingClarifications.wait(req, onClarificationRequest, abortController.signal)
+          runState.clarifications.wait(req, onClarificationRequest, abortController.signal)
       : undefined;
     const failedTurnTools = createFailedTurnToolTracker({
       onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd,
@@ -801,13 +795,15 @@ export class CanvasAgent {
     const queue = segments.map(roleTurnRef);
     let last: { response: string; runId?: string; role: AgentRoleDefinition | null; stopped?: boolean } | null = null;
     let observabilityCursor = performanceTiming?.contextReadyAt ?? Date.now();
-    const finishStoppedBeforeSegment = () => persistStoppedBeforeSegment(this.sessionStore);
+    const finishStoppedBeforeSegment = () => persistStoppedBeforeSegment({
+      addMessage: (message) => appendRunMessages([message]),
+    });
 
     try {
       if (abortController.signal.aborted) return finishStoppedBeforeSegment();
       const modelConfig = modelConfigOverride ?? await resolveCanvasModel();
       for (let index = 0; index < segments.length; index++) {
-        if (!shouldRunRelaySegment(index, { aborted: abortController.signal.aborted, stopRequested: relayStop.stopped })) {
+        if (!shouldRunRelaySegment(index, { aborted: abortController.signal.aborted, stopRequested: runState.relayStop.stopped })) {
           if (abortController.signal.aborted) return finishStoppedBeforeSegment();
           break;
         }
@@ -823,7 +819,7 @@ export class CanvasAgent {
         const debugTrace = !role?.external && isCanvasAgentDebugTraceEnabled()
           ? createCanvasAgentDebugTrace({
               runId: index === 0 ? performanceTiming?.runId : undefined,
-              sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
+              sessionId: targetSession.sessionId,
               userPrompt: message,
               attachmentCount: attachments.length,
               requestContext,
@@ -848,9 +844,9 @@ export class CanvasAgent {
           engine: this.engine,
           context,
           role,
-          chatSessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
+          chatSessionId: targetSession.sessionId,
           workspaceRootFolder,
-          history: this.sessionStore.getCurrentSession()?.messages ?? [],
+          history: runStoreMessages,
           currentAsk: modelUserText,
           handoffNames: handoffEnabled ? handoffLibrary.map(entry => entry.name) : [],
           abortSignal: abortController.signal,
@@ -863,16 +859,15 @@ export class CanvasAgent {
           systemPrompt: segmentPrompt,
           observabilityRunId: performanceTiming?.runId, observeFirstActivity: index === 0,
           debugTrace,
-          appendMessages: messages => this.messages.push(...messages),
+          appendMessages: messages => runMessages.push(...messages),
           replaceMessages: messages => {
-            this.messages = messages;
+            runMessages.splice(0, runMessages.length, ...messages);
           },
         });
         observabilityCursor = markCanvasRuntimeCompleted(performanceTiming, runtimeStartedAt, runtimeOwner);
         markTraceRuntimeCompleted(debugTrace);
 
-        // Impersonation guard (sanitizeRoleSegmentText) runs BEFORE persisting,
-        // labeling, and the handoff scan — all consumers see one speaker.
+        // Impersonation guard runs before persist/label/handoff.
         const { stopped, rawText } = resolveSegmentOutcome({
           signalAborted: abortController.signal.aborted,
           resultText,
@@ -883,21 +878,18 @@ export class CanvasAgent {
           : rawText;
         recordTraceMessageSnapshot(debugTrace, { systemPrompt: segmentPrompt, messages: context.messages });
 
-        // Tool frames persist so a reloaded session keeps its chips, inline
-        // visuals, and artifacts (external segments collect their own).
+        // Tool frames persist so reloaded sessions keep chips/artifacts.
         const toolCalls = externalToolCalls ?? modelMessagesToToolCalls(responseMessages);
         if (stopped) {
           settleStoppedToolCalls(toolCalls, failedTurnTools.snapshot());
-          // The engine deliberately returns a sentinel on abort and may not
-          // emit an onResponse frame for the in-flight partial. Preserve the
-          // exact text the renderer already saw in model history instead of
-          // ever inserting the sentinel.
+          // Engine returns a sentinel on abort; preserve the exact text the
+          // renderer saw instead of ever inserting the sentinel.
           if (responseText && !responseMessages.some(messageEntry => (
             messageEntry.role === 'assistant'
             && messageEntry.content === responseText
           ))) {
             const partialMessage = { role: 'assistant', content: responseText } as ModelMessage;
-            this.messages.push(partialMessage);
+            runMessages.push(partialMessage);
             responseMessages.push(partialMessage);
           }
         }
@@ -909,7 +901,7 @@ export class CanvasAgent {
           applySpeakerLabelToResponseMessages(responseMessages, role.name);
         }
         const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace, stopped ? 'stopped' : 'success');
-        this.sessionStore.addMessage({
+        appendRunMessages([{
           role: 'assistant',
           content: responseText,
           timestamp: Date.now(),
@@ -920,10 +912,9 @@ export class CanvasAgent {
           speakerRoleColor: role?.color,
           turnStatus: stopped ? 'stopped' : undefined,
           retryable: stopped ? true : undefined,
-        });
+        }]);
 
-        // Notify subscribed plugins (devtools persists the trace). Awaited so
-        // plugin storage is flushed before the renderer fetches it by runId.
+        // Notify plugins (devtools persists the trace); awaited so storage flushes first.
         if (finalizedTrace) {
           await agentBus.emitTurnAsync('turnEnd', {
             runId: finalizedTrace.runId,
@@ -937,11 +928,9 @@ export class CanvasAgent {
           });
         }
 
-        // Agent@agent: scan this role's reply for @Name handoffs and grow the
-        // queue in place (policy + cap in resolveHandoffRoles). Done BEFORE
-        // the end event so its `total` already announces the new speakers.
-        // Skipped once a stop is pending — the queue is frozen at that point.
-        if (handoffEnabled && role && !relayStop.stopped && !stopped) {
+        // Agent@agent: scan reply for @Name handoffs, grow the queue before
+        // the end event; frozen once a stop is pending.
+        if (handoffEnabled && role && !runState.relayStop.stopped && !stopped) {
           const handoffs = resolveHandoffRoles(responseText, {
             speaker: role,
             libraryRoles: handoffLibrary,
@@ -979,26 +968,21 @@ export class CanvasAgent {
         speakerRole: roleTurnRef(last?.role ?? null) ?? undefined,
       };
     } catch (error) {
-      this.sessionStore.addMessage(failedAssistantMessage(error, failedTurnTools.snapshot()));
+      appendRunMessages([failedAssistantMessage(error, failedTurnTools.snapshot())]);
       throw error;
     } finally {
       unlinkRunAbort();
-      if (this.currentAbortController === abortController) {
-        this.currentAbortController = null;
-      }
-      if (this.currentRelayStop === relayStop) {
-        this.currentRelayStop = null;
-      }
-      this.pendingClarifications.cancelAll();
+      this.runs.stop(targetSession.sessionId, runState);
     }
   }
 
   /**
-   * Abort the current chat turn if one is running. Safe to call when no
+   * Abort the chat turn anchored to `sessionId`, or the most recent turn when
+   * no session is given (legacy scope-level controls). Safe to call when no
    * turn is active — it becomes a no-op.
    */
-  abort(): void {
-    this.currentAbortController?.abort();
+  abort(sessionId?: string): void {
+    this.runs.abort(sessionId);
   }
 
   /**
@@ -1006,10 +990,8 @@ export class CanvasAgent {
    * queued segments are skipped (see `shouldRunRelaySegment`). Returns false
    * when no turn is running.
    */
-  stopRelay(): boolean {
-    if (!this.currentRelayStop) return false;
-    this.currentRelayStop.stopped = true;
-    return true;
+  stopRelay(sessionId?: string): boolean {
+    return this.runs.stopRelay(sessionId);
   }
 
   /**
@@ -1017,11 +999,11 @@ export class CanvasAgent {
    * true if the answer matched a pending request, false otherwise.
    */
   answerClarification(requestId: string, answer: string): boolean {
-    return this.pendingClarifications.answer(requestId, answer);
+    return this.runs.answerClarification(requestId, answer);
   }
 
-  getPendingClarification(): CanvasClarificationRequest | null {
-    return this.pendingClarifications.latest();
+  getPendingClarification(sessionId?: string): CanvasClarificationRequest | null {
+    return this.runs.getPendingClarification(sessionId);
   }
 
   /**
@@ -1138,10 +1120,22 @@ export class CanvasAgent {
   }
 
   /**
+   * Session-addressed append, called from the coordinator's per-scope tail
+   * queue so it never races an archive/load of the same session files.
+   */
+  async appendToSession(
+    sessionId: string,
+    messages: CanvasAgentMessage[],
+  ): Promise<void> {
+    await this.sessionStore.appendToSession(sessionId, messages);
+  }
+
+  /**
    * Destroy the agent (called when workspace is closed).
    */
   async destroy(): Promise<void> {
     console.info(`[canvas-agent] Destroying for ${this.label}`);
+    this.runs.abortAll();
     const manager = this.engine?.getService?.('mcp:__manager__') as
       | { closeAll: () => Promise<void> }
       | undefined;

@@ -17,14 +17,33 @@ const agentState = vi.hoisted(() => ({
 vi.mock('../canvas-agent', () => ({
   CanvasAgent: vi.fn().mockImplementation(() => ({
     initialize: vi.fn(async () => undefined),
-    chat: async () => {
+    chat: async (
+      _message: string,
+      _onText?: (delta: string) => void,
+      _onToolCall?: unknown,
+      _onToolResult?: unknown,
+      _mentionedWorkspaceIds?: string[],
+      _onClarificationRequest?: unknown,
+      requestContext?: { expectedConversationSessionId?: string },
+    ) => {
       agentState.chatCalls += 1;
+      const expected = requestContext?.expectedConversationSessionId;
+      if (expected && !agentState.sessions.has(expected)) {
+        return {
+          response: '',
+          sessionChanged: {
+            activeSessionId: agentState.currentSessionId,
+            error: 'This conversation no longer exists. The latest thread was restored.',
+          },
+        };
+      }
       await agentState.chatGate;
       return { response: 'done' };
     },
     getCurrentSessionId: () => agentState.currentSessionId,
     newSession: async () => {
       agentState.currentSessionId = agentState.nextSessionId;
+      agentState.sessions.set(agentState.nextSessionId, makeSession(agentState.nextSessionId, ''));
       return agentState.nextSessionId;
     },
     branchSession: async (fromIndex: number) => {
@@ -80,6 +99,12 @@ vi.mock('../canvas-agent', () => ({
       imported.messages = messages;
       agentState.sessions.set(imported.sessionId, imported);
       agentState.currentSessionId = imported.sessionId;
+    },
+    appendToSession: async (sessionId: string, messages: CanvasAgentMessage[]) => {
+      const existing = agentState.sessions.get(sessionId);
+      const session = existing ?? makeSession(sessionId, '');
+      session.messages = [...session.messages, ...messages];
+      agentState.sessions.set(sessionId, session);
     },
   })),
 }));
@@ -178,7 +203,7 @@ describe('CanvasAgentService session mutations', () => {
     expect(agentState.chatCalls).toBe(1);
   });
 
-  it('rejects a chat when an earlier mutation changed the renderer-visible session', async () => {
+  it('anchors a chat to the renderer-visible session even when the pointer moved first', async () => {
     let releaseSlowLoad: (() => void) | undefined;
     agentState.loadGates.set('session-a', new Promise<void>((resolve) => {
       releaseSlowLoad = resolve;
@@ -191,7 +216,7 @@ describe('CanvasAgentService session mutations', () => {
     await vi.waitFor(() => expect(agentState.loadCalls).toEqual(['session-a']));
     const chat = service.chatWithScope(
       scope,
-      'stale follow up',
+      'follow up for the session that was on screen',
       undefined,
       undefined,
       undefined,
@@ -202,15 +227,13 @@ describe('CanvasAgentService session mutations', () => {
     releaseSlowLoad?.();
 
     await slowLoad;
-    await expect(chat).resolves.toMatchObject({
-      ok: false,
-      code: 'CHAT_SESSION_CHANGED',
-      activeSessionId: 'session-a',
-    });
-    expect(agentState.chatCalls).toBe(0);
+    await chat;
+    // The run targets session-current (what the renderer showed), not the
+    // pointer that an unrelated load moved to session-a.
+    expect(agentState.chatCalls).toBe(1);
   });
 
-  it('rejects session pointer mutations while a chat run owns the scope', async () => {
+  it('allows pointer mutations for other sessions while a chat run owns the scope', async () => {
     let releaseChat: (() => void) | undefined;
     agentState.chatGate = new Promise<void>((resolve) => {
       releaseChat = resolve;
@@ -221,15 +244,46 @@ describe('CanvasAgentService session mutations', () => {
 
     const chat = service.chatWithScope(scope, 'keep this context');
     await vi.waitFor(() => expect(agentState.chatCalls).toBe(1));
+    // Loading a different conversation while another one streams is the
+    // parallel-conversations feature, not a conflict.
     const load = await service.loadSessionForScope(scope, 'session-a');
 
-    expect(load).toEqual({
-      ok: false,
-      activeSessionId: 'session-current',
-      code: 'CHAT_SCOPE_BUSY',
-      error: 'Another reply is already running for this chat scope.',
+    expect(load.ok).toBe(true);
+    expect(agentState.loadCalls).toEqual(['session-a']);
+    releaseChat?.();
+    await chat;
+  });
+
+  it('creates a new session while a run streams and lets the run keep writing its archived copy', async () => {
+    let releaseChat: (() => void) | undefined;
+    agentState.chatGate = new Promise<void>((resolve) => {
+      releaseChat = resolve;
     });
-    expect(agentState.loadCalls).toEqual([]);
+    agentState.sessions.set('session-current', makeSession('session-current', ''));
+    agentState.sessions.set('session-a', makeSession('session-a', 'A'));
+    const service = new CanvasAgentService();
+    const scope = { kind: 'workspace', workspaceId: 'ws-session-mutation' } as const;
+
+    const chat = service.chatWithScope(
+      scope,
+      'keep this context',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { expectedConversationSessionId: 'session-current' },
+    );
+    await vi.waitFor(() => expect(agentState.chatCalls).toBe(1));
+    // newSession archives the running session and points at a fresh one; the
+    // run (session-anchored) is NOT rejected because it keeps writing to its
+    // archived copy.
+    const fresh = await service.newSessionForScope(scope);
+    // deleteSession of a different (unrunning) session is still allowed.
+    const deleted = await service.deleteSessionForScope(scope, 'session-a');
+
+    expect(fresh).toMatchObject({ ok: true, activeSessionId: 'session-new' });
+    expect(deleted.ok).toBe(true);
     releaseChat?.();
     await chat;
   });
@@ -254,6 +308,77 @@ describe('CanvasAgentService session mutations', () => {
     expect(agentState.chatCalls).toBe(1);
     releaseChat?.();
     await first;
+  });
+
+  it('rejects a chat whose anchored conversation was deleted in flight', async () => {
+    agentState.sessions.set('session-current', makeSession('session-current', ''));
+    const service = new CanvasAgentService();
+    const scope = { kind: 'workspace', workspaceId: 'ws-session-mutation' } as const;
+
+    const result = await service.chatWithScope(
+      scope,
+      'follow up to a deleted thread',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { expectedConversationSessionId: 'session-gone' },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'CHAT_SESSION_CHANGED',
+      activeSessionId: 'session-current',
+      error: 'This conversation no longer exists. The latest thread was restored.',
+    });
+    expect(agentState.chatCalls).toBe(1);
+  });
+
+  it('runs two chat turns concurrently for different conversations in one scope', async () => {
+    let releaseFirst: (() => void) | undefined;
+    let releaseSecond: (() => void) | undefined;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const secondGate = new Promise<void>((resolve) => {
+      releaseSecond = resolve;
+    });
+    agentState.chatGate = firstGate;
+    agentState.sessions.set('session-a', makeSession('session-a', 'A'));
+    agentState.sessions.set('session-b', makeSession('session-b', 'B'));
+    const service = new CanvasAgentService();
+    const scope = { kind: 'workspace', workspaceId: 'ws-session-mutation' } as const;
+
+    const first = service.chatWithScope(
+      scope,
+      'first run',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { expectedConversationSessionId: 'session-a' },
+    );
+    await vi.waitFor(() => expect(agentState.chatCalls).toBe(1));
+    agentState.chatGate = secondGate;
+    const second = service.chatWithScope(
+      scope,
+      'second run',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { expectedConversationSessionId: 'session-b' },
+    );
+    // Both conversations are in flight at the same time.
+    await vi.waitFor(() => expect(agentState.chatCalls).toBe(2));
+    releaseFirst?.();
+    releaseSecond?.();
+    await Promise.all([first, second]);
+    expect((await first).ok).toBe(true);
+    expect((await second).ok).toBe(true);
   });
 
   it('acknowledges a new session with the active session id', async () => {

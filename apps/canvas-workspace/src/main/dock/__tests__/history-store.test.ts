@@ -93,9 +93,16 @@ describe('browsing history store', () => {
     expect(search).toBeTypeOf('function');
 
     record!({}, { url: 'https://ipc.example.com', title: 'Via IPC' });
-    // record is fire-and-forget; give its async body a beat.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const results = (await search!({}, { query: 'ipc' })) as Array<{ url: string }>;
+    // record is fire-and-forget (ipcMain.on → void recordVisit), and
+    // recordVisit awaits a file-backed store load. setTimeout(0) ticks are
+    // NOT a reliable signal under a full-suite load (fs callbacks queue
+    // behind other workers' macrotasks), so poll on REAL time: 100 × 15ms
+    // ≈ 1.5s window is far more than enough for one file read + write.
+    let results: Array<{ url: string }> = [];
+    for (let attempt = 0; attempt < 100 && results.length === 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      results = (await search!({}, { query: 'ipc' })) as Array<{ url: string }>;
+    }
     expect(results.map((e) => e.url)).toEqual(['https://ipc.example.com']);
   });
 });

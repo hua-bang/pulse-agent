@@ -21,11 +21,17 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   cancelPreparedChat: (sessionId) =>
     ipcRenderer.invoke("canvas-agent:cancel-prepared-chat", { sessionId }),
 
-  getRunStatus: (sessionId) =>
-    ipcRenderer.invoke("canvas-agent:run-status", { sessionId }),
+  getRunStatus: (sessionId, afterSequence) =>
+    ipcRenderer.invoke("canvas-agent:run-status", { sessionId, afterSequence }),
 
-  getScopeRunStatus: (scopeRef) =>
-    ipcRenderer.invoke("canvas-agent:scope-run-status", scopeRef),
+  getScopeRunStatus: (scopeRef, sessionId) =>
+    ipcRenderer.invoke("canvas-agent:scope-run-status", {
+      ...scopeRef,
+      sessionId,
+    }),
+
+  getScopeRunningSessions: (scopeRef) =>
+    ipcRenderer.invoke("canvas-agent:scope-run-sessions", scopeRef),
 
   chat: (scopeRef, message, mentionedWorkspaceIds, requestContext, attachments) =>
     ipcRenderer.invoke("canvas-agent:chat", {

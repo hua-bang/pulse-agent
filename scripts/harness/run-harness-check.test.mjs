@@ -37,4 +37,21 @@ describe('run-harness-check validation levels', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('Invalid --level: turbo');
   });
+
+  it('expands a DIRECTORY --path so src/** rules bind instead of reporting no bound checks', () => {
+    const output = run('--path', 'apps/canvas-workspace/src');
+    expect(output).not.toContain('No bound checks');
+    expect(output).toContain('canvas-workspace typecheck');
+    expect(output).toContain('ui-reuse-governance.test.ts');
+    // Directory expansion reaches nested rule trees (keyboard shortcuts live
+    // under src/renderer/src/shortcuts/**) as well as the default src/** rule.
+    expect(output).toContain('keyboard-shortcuts');
+  });
+
+  it('keeps a FILE --path binding to its exact rule without expansion', () => {
+    const output = run('--path', 'apps/canvas-workspace/src/main/agent/service.ts');
+    expect(output).not.toContain('No bound checks');
+    expect(output).toContain('canvas-workspace typecheck');
+    expect(output).toContain('canvas-contract-snapshot');
+  });
 });

@@ -42,16 +42,51 @@ export interface AgentApi {
   /** Release a prepared turn when its originating surface changes scope. */
   cancelPreparedChat: (sessionId: string) => Promise<{ ok: boolean }>;
   /** Check whether main still owns a prepared run when completion was not observed. */
-  getRunStatus: (sessionId: string) => Promise<{ ok: boolean; active: boolean }>;
-  /** Detect a run started from another chat surface or renderer window. */
+  getRunStatus: (
+    sessionId: string,
+    afterSequence?: number,
+  ) => Promise<{
+    ok: boolean;
+    active: boolean;
+    replay?: {
+      active: boolean;
+      cursor: number;
+      events: Array<{
+        sequence: number;
+        channel:
+          | 'text-delta'
+          | 'chat-complete'
+          | 'tool-call'
+          | 'tool-result'
+          | 'tool-input-start'
+          | 'tool-input-delta'
+          | 'tool-input-end'
+          | 'clarify-request'
+          | 'role-turn-start'
+          | 'role-turn-end';
+        data: unknown;
+      }>;
+    };
+  }>;
+  /**
+   * Detect whether the conversation `sessionId` has an active run owned by
+   * another surface. Runs in the same workspace on a DIFFERENT conversation
+   * do not count — that is the parallel-conversations feature.
+   */
   getScopeRunStatus: (
     scopeRef: AgentScopeRef,
+    sessionId?: string,
   ) => Promise<{
     ok: boolean;
     active: boolean;
     sessionId?: string;
+    conversationSessionId?: string;
     pendingClarification?: AgentClarificationRequest;
   }>;
+  /** All conversation session ids with an active run in the scope (parallel). */
+  getScopeRunningSessions: (
+    scopeRef: AgentScopeRef,
+  ) => Promise<{ ok: boolean; conversationSessionIds: string[] }>;
   /** @deprecated Compatibility path; new code must use prepareChat/startChat. */
   chat: (
     scopeRef: AgentScopeRef,
