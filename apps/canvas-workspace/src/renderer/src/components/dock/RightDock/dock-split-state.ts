@@ -9,7 +9,7 @@ export const hasDockTab = (state: DockState, id: string): boolean => (
 
 export const isDockTabPresented = (
   activeTabId: string | null,
-  comparisonPair: readonly [string, string] | undefined,
+  comparisonPair: Readonly<DockComparisonPair> | undefined,
   tabId: string,
 ): boolean => comparisonPair?.includes(tabId) ?? activeTabId === tabId;
 
