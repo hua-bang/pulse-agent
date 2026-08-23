@@ -18,6 +18,7 @@ import { markAgentMilestone } from './markAgentMilestone';
 import { count } from '../../../perf/counters';
 import { useChatRunQueue } from './useChatRunQueue';
 import type { RelayProgress } from './relayTurnHandlers';
+import { createConversationTextBatcher } from './conversationTextBatcher';
 import { friendlyChatFailure } from './chatTurnOutcome';
 import { clearConversationCompletion, recordConversationCompletion, useConversationVisibility } from './conversationCompletionStore';
 
@@ -43,15 +44,7 @@ const toPending = (c: { id: string; question: string; context?: string; kind?: s
 
 const EMPTY_KEY: ConversationKey = { storeId: '', sessionId: '' };
 
-/**
- * Phase-3 conversation-keyed chat stream. Owns a conversation's live run state
- * in the conversation store (single source of truth) and drives the engine
- * through the same preload IPC the legacy `useChatStream` uses.
- *
- * Two surfaces (Dock chat + full-page chat) mounting the same `conversationKey`
- * subscribe to the same snapshot: switching conversations is only changing the
- * selector, and a sibling's stream keeps advancing without cache/replay/lease.
- */
+/** Conversation-keyed stream backed by the shared renderer conversation store. */
 export function useConversationRuntimeStream({
   agentScope,
   allWorkspaces,
@@ -150,16 +143,22 @@ export function useConversationRuntimeStream({
         }
       };
 
+      const flushAssistantText = (delta: string) => {
+        if (assistantIndex < 0) return;
+        if (!appendConversationTextAt(key, assistantIndex, delta)) {
+          assistantIndex = -1;
+          ensureAssistant();
+          appendConversationTextAt(key, assistantIndex, delta);
+        }
+      };
+      const textBatcher = createConversationTextBatcher(flushAssistantText);
+
       unsubs = [
         window.canvasWorkspace.agent.onTextDelta(sessionId, delta => {
           ensureAssistant();
           count('chat-stream-delta');
-          if (!appendConversationTextAt(key, assistantIndex, delta)) {
-            assistantIndex = -1;
-            ensureAssistant();
-            appendConversationTextAt(key, assistantIndex, delta);
-          }
           assistantText += delta;
+          textBatcher.push(delta);
         }),
         window.canvasWorkspace.agent.onToolCall(sessionId, data => {
           ensureAssistant();
@@ -239,6 +238,7 @@ export function useConversationRuntimeStream({
             cleanupRunListeners();
             return;
           }
+          textBatcher.flush();
           // Settle unfinished tools.
           for (const tool of segmentTools) {
             if (tool.status === 'running' || tool.status === 'queued') {
