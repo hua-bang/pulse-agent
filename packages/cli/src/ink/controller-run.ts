@@ -2,7 +2,7 @@ import type { InkCoderController } from './ink-controller.js';
 import { estimateTokens, publishSession, resolveCurrentSessionId, syncSessionTaskListBinding } from './controller-session.js';
 import { extractStepUsage } from '../shared/usage-metrics.js';
 import { buildMemoryRunContext, memoryIntegration, recordDailyLogFromSuccessPath } from '../shared/memory-integration.js';
-import { expandFileReferences } from '../shared/file-reference.js';
+import { buildUserContent, expandFileReferences } from '../shared/file-reference.js';
 import { modelRunOptions, currentContextWindow } from './controller-model.js';
 import { dispatchInput } from './controller-dispatch.js';
 import { getGoalService, runGoalVerify } from './controller-goal.js';
@@ -19,7 +19,9 @@ export async function runMessage(controller: InkCoderController, rawInput: strin
 
   const expansion = await expandFileReferences(rawInput);
   if (expansion.attached.length > 0) {
-    controller.ui.log(`Attached ${expansion.attached.length} reference${expansion.attached.length === 1 ? '' : 's'}: ${expansion.attached.join(', ')}`);
+    const imageRefs = new Set(expansion.images.map(image => image.ref));
+    const labelled = expansion.attached.map(ref => `${ref}${imageRefs.has(ref) ? ' (image)' : ''}`).join(', ');
+    controller.ui.log(`Attached ${expansion.attached.length} reference${expansion.attached.length === 1 ? '' : 's'}: ${labelled}`);
   }
   for (const skipped of expansion.skipped) {
     controller.ui.log(`[warn] @${skipped.ref} skipped — ${skipped.reason}`);
@@ -41,7 +43,7 @@ export async function runMessage(controller: InkCoderController, rawInput: strin
 
   controller.context.messages.push({
     role: 'user',
-    content: messageInput,
+    content: buildUserContent(messageInput, expansion.images),
   });
 
   controller.ui.startProcessing('Running agent');

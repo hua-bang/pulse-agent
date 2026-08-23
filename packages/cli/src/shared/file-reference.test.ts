@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   applyFileReference,
+  buildUserContent,
   detectFileReferenceQuery,
   expandFileReferences,
   extractFileReferences,
@@ -150,16 +151,33 @@ describe('indexWorkspaceFiles / expandFileReferences', () => {
     expect(result.text).not.toContain('debug.log');
   });
 
-  it('skips binaries, missing paths, and escapes outside the workspace', async () => {
+  it('attaches images as vision input and skips other binaries, missing paths, and escapes', async () => {
     const result = await expandFileReferences('@image.png @nope.ts @../outside.ts', root);
 
-    expect(result.attached).toEqual([]);
+    expect(result.attached).toEqual(['image.png']);
+    expect(result.images).toHaveLength(1);
+    expect(result.images[0]).toMatchObject({ ref: 'image.png', mimeType: 'image/png' });
+    expect(result.images[0].dataUrl.startsWith('data:image/png;base64,')).toBe(true);
+    // Images are not appended as text blocks — the @ref token stays put and
+    // the model receives the picture as a content part instead.
     expect(result.text).toBe('@image.png @nope.ts @../outside.ts');
     expect(result.skipped).toEqual([
-      { ref: 'image.png', reason: 'binary file' },
       { ref: 'nope.ts', reason: 'not found' },
       { ref: '../outside.ts', reason: 'outside the workspace' },
     ]);
+  });
+
+  it('refuses images over the byte cap and empty image files', async () => {
+    await fs.writeFile(path.join(root, 'huge.png'), Buffer.alloc(2048));
+    const capped = await expandFileReferences('@huge.png', root, { maxImageBytes: 1024 });
+    expect(capped.attached).toEqual([]);
+    expect(capped.images).toEqual([]);
+    expect(capped.skipped[0].reason).toContain('image too large');
+
+    await fs.writeFile(path.join(root, 'empty.png'), Buffer.alloc(0));
+    const empty = await expandFileReferences('@empty.png', root);
+    expect(empty.images).toEqual([]);
+    expect(empty.skipped[0].reason).toBe('empty image file');
   });
 
   it('skips a sibling directory whose name merely extends the workspace basename', async () => {
@@ -192,6 +210,24 @@ describe('indexWorkspaceFiles / expandFileReferences', () => {
 
   it('leaves messages without references untouched', async () => {
     const result = await expandFileReferences('nothing to attach', root);
-    expect(result).toEqual({ text: 'nothing to attach', attached: [], skipped: [] });
+    expect(result).toEqual({ text: 'nothing to attach', attached: [], images: [], skipped: [] });
+  });
+});
+
+describe('buildUserContent', () => {
+  it('stays a plain string when there are no images', () => {
+    expect(buildUserContent('hello')).toBe('hello');
+    expect(buildUserContent('hello', [])).toBe('hello');
+  });
+
+  it('becomes a text part followed by image parts when images are attached', () => {
+    const content = buildUserContent('what is this @shot.png', [
+      { ref: 'shot.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,AAAA' },
+    ]);
+
+    expect(content).toEqual([
+      { type: 'text', text: 'what is this @shot.png' },
+      { type: 'image', image: 'data:image/png;base64,AAAA' },
+    ]);
   });
 });

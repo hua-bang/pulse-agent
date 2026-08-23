@@ -10,21 +10,38 @@ export interface FileEntry {
 export interface ExpansionLimits {
   /** Max bytes read per referenced file. */
   maxFileBytes?: number;
+  /** Max bytes read per referenced image (data URLs grow ~1.37x in base64). */
+  maxImageBytes?: number;
   /** Max files attached in a single message (directories expand to their direct children). */
   maxFiles?: number;
   /** Max direct children pulled in per referenced directory. */
   maxDirEntries?: number;
 }
 
+export interface ImageAttachment {
+  /** The `@ref` the user typed. */
+  ref: string;
+  /** MIME type derived from the file extension. */
+  mimeType: string;
+  /** `data:` URL ready for an AI SDK image part. */
+  dataUrl: string;
+}
+
 export interface ExpansionResult {
   /** The message with `@path` tokens kept, plus attached file contents appended. */
   text: string;
+  /** Referenced files/directories attached as text AND referenced images. */
   attached: string[];
+  /** Referenced images, ready to become AI SDK `{ type: 'image' }` content parts. */
+  images: ImageAttachment[];
   skipped: Array<{ ref: string; reason: string }>;
 }
 
 const DEFAULT_LIMITS: Required<ExpansionLimits> = {
   maxFileBytes: 64 * 1024,
+  // 5MB matches Anthropic's per-image input cap; larger images are refused
+  // rather than sent to a provider that would reject them.
+  maxImageBytes: 5 * 1024 * 1024,
   maxFiles: 20,
   maxDirEntries: 40,
 };
@@ -42,6 +59,20 @@ const BINARY_EXTENSIONS = new Set([
   '.so', '.dylib', '.dll', '.exe', '.bin', '.wasm', '.node',
   '.sqlite', '.db', '.lock',
 ]);
+
+/**
+ * Image extensions the CLI can attach as vision input. Deliberately limited
+ * to what OpenAI/Anthropic-compatible providers accept as image parts
+ * (png/jpeg/gif/webp); other image types stay in BINARY_EXTENSIONS and are
+ * skipped rather than sent to a provider that would reject them.
+ */
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+};
 
 /**
  * Detects an in-progress `@` reference immediately before the cursor.
@@ -208,13 +239,14 @@ export async function expandFileReferences(
   root = process.cwd(),
   limits: ExpansionLimits = {},
 ): Promise<ExpansionResult> {
-  const { maxFileBytes, maxFiles, maxDirEntries } = { ...DEFAULT_LIMITS, ...limits };
+  const { maxFileBytes, maxImageBytes, maxFiles, maxDirEntries } = { ...DEFAULT_LIMITS, ...limits };
   const refs = extractFileReferences(input);
   if (refs.length === 0) {
-    return { text: input, attached: [], skipped: [] };
+    return { text: input, attached: [], images: [], skipped: [] };
   }
 
   const attached: string[] = [];
+  const images: ImageAttachment[] = [];
   const skipped: Array<{ ref: string; reason: string }> = [];
   const blocks: string[] = [];
   const ignorePatterns = await loadIgnorePatterns(root);
@@ -265,6 +297,32 @@ export async function expandFileReferences(
       continue;
     }
 
+    // Image references become vision input: a bounded base64 data URL rather
+    // than a text block, so the model can actually see the picture.
+    const mimeType = IMAGE_MIME_TYPES[path.extname(ref).toLowerCase()];
+    if (mimeType) {
+      if (stat.size === 0) {
+        skipped.push({ ref, reason: 'empty image file' });
+        continue;
+      }
+      if (stat.size > maxImageBytes) {
+        skipped.push({ ref, reason: `image too large (${stat.size} bytes, limit ${maxImageBytes})` });
+        continue;
+      }
+      try {
+        const buffer = await fs.readFile(absolute);
+        images.push({
+          ref,
+          mimeType,
+          dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
+        });
+        attached.push(ref);
+      } catch {
+        skipped.push({ ref, reason: 'unreadable file' });
+      }
+      continue;
+    }
+
     try {
       const handle = await fs.open(absolute, 'r');
       try {
@@ -288,12 +346,45 @@ export async function expandFileReferences(
   }
 
   if (blocks.length === 0) {
-    return { text: input, attached, skipped };
+    return { text: input, attached, images, skipped };
   }
 
   return {
     text: `${input}\n\n${blocks.join('\n\n')}`,
     attached,
+    images,
     skipped,
   };
+}
+
+/** Text part of an AI SDK user message. */
+export interface UserTextPart {
+  type: 'text';
+  text: string;
+}
+
+/** Image part of an AI SDK user message (data URL form). */
+export interface UserImagePart {
+  type: 'image';
+  image: string;
+}
+
+/**
+ * Builds the `content` for a user message. Without images this stays the
+ * plain string (byte-identical history for text-only turns); with images it
+ * becomes an AI SDK content-part array: the expanded text first, then one
+ * `{ type: 'image', image: <dataUrl> }` part per attachment. The `@ref`
+ * tokens stay in the text so the model still sees what the user pointed at.
+ */
+export function buildUserContent(
+  text: string,
+  images: ImageAttachment[] = [],
+): string | Array<UserTextPart | UserImagePart> {
+  if (images.length === 0) {
+    return text;
+  }
+  return [
+    { type: 'text', text },
+    ...images.map(image => ({ type: 'image' as const, image: image.dataUrl })),
+  ];
 }

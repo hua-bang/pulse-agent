@@ -1,5 +1,6 @@
 import { buildModelRunOptions } from '../models/model-run-options.js';
 import { buildMemoryRunContext, memoryIntegration, recordDailyLogFromSuccessPath } from '../shared/memory-integration.js';
+import { buildUserContent, expandFileReferences } from '../shared/file-reference.js';
 import { estimateTokens, resolveCurrentSessionId, syncSessionTaskListBinding, type ReadlineHost } from './host-context.js';
 
 /**
@@ -21,9 +22,23 @@ export async function executeAgentTurn(host: ReadlineHost, messageInput: string,
     await host.sessionCommands.maybeAutoTitle(messageInput);
   }
 
+  // Same `@` reference expansion the Ink host uses: text files append their
+  // contents below the message, images become vision input parts. The raw
+  // text (with the @ref tokens) is preserved so the model still sees what the
+  // user pointed at.
+  const expansion = await expandFileReferences(messageInput);
+  if (expansion.attached.length > 0) {
+    const imageRefs = new Set(expansion.images.map(image => image.ref));
+    const labelled = expansion.attached.map(ref => `${ref}${imageRefs.has(ref) ? ' (image)' : ''}`).join(', ');
+    host.tui.info(`Attached ${expansion.attached.length} reference${expansion.attached.length === 1 ? '' : 's'}: ${labelled}`);
+  }
+  for (const skipped of expansion.skipped) {
+    host.tui.warn(`@${skipped.ref} skipped — ${skipped.reason}`);
+  }
+
   host.context.messages.push({
     role: 'user',
-    content: messageInput,
+    content: buildUserContent(expansion.text, expansion.images),
   });
 
 
