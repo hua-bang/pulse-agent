@@ -160,6 +160,7 @@ describe('PluginMarketRouteView', () => {
 
     expect(host?.querySelector('[data-plugin-id="exa"] .plugin-market__glyph img')).not.toBeNull();
     act(() => host?.querySelector<HTMLButtonElement>('.plugin-market__listing-main')?.click());
+    expect(document.querySelector('.ui-modal-backdrop')).not.toBeNull();
     expect(document.querySelector('.plugin-market-detail__metadata')?.textContent)
       .toContain('MIT');
   });
@@ -273,7 +274,11 @@ describe('PluginMarketRouteView', () => {
     const disconnected = listing({ installState: 'installed', mcpAuthState: 'connectable' });
     const connected = listing({ installState: 'installed', mcpAuthState: 'connected' });
     const api = createApi(snapshot([disconnected]));
-    vi.mocked(api.connectMcp).mockResolvedValue({ ok: true, snapshot: snapshot([connected]) });
+    let modalVisibleAtConnect: boolean | undefined;
+    vi.mocked(api.connectMcp).mockImplementation(async () => {
+      modalVisibleAtConnect = document.querySelector('.plugin-market-detail') !== null;
+      return { ok: true, snapshot: snapshot([connected]) };
+    });
     await render(api);
 
     act(() => host?.querySelector<HTMLButtonElement>('.plugin-market__listing-main')?.click());
@@ -281,11 +286,11 @@ describe('PluginMarketRouteView', () => {
       .find((button) => button.textContent?.includes('pluginMarket.connect'));
     await act(async () => {
       connect?.click();
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 24));
     });
 
     expect(api.connectMcp).toHaveBeenCalledWith('computer-use');
-    expect(document.querySelector('.plugin-market-detail__connection')?.textContent)
-      .toContain('pluginMarket.connected');
+    expect(modalVisibleAtConnect).toBe(false);
+    expect(document.querySelector('.plugin-market-detail')).toBeNull();
   });
 });

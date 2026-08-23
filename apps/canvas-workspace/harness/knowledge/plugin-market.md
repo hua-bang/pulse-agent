@@ -68,6 +68,8 @@ The market is a Canvas application feature, not the engine's `EnginePlugin` or `
 
 Every operation returns JSON-safe data from `src/shared/plugin-market.ts`. Renderer code has no Electron/Node access; browsing a source uses the existing typed shell preload API.
 
+The Plugins and Skills library routes reserve the expanded RightDock width instead of letting it overlay page content. Plugin rows use a container query against the remaining page width, so the catalog is two columns when space permits and one column beside a wide dock. Plugin details remain a modal; `Connect` closes that modal before starting MCP OAuth so any link tab opened by the handoff is not hidden under the higher modal layer.
+
 ## Catalog semantics
 
 `PluginMarketListing.installState` is authoritative for the UI:

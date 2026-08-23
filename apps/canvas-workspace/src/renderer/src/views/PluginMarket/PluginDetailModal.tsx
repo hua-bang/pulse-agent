@@ -152,7 +152,11 @@ export const PluginDetailModal = ({
         {listing.installState === 'installed' && (
           <>
             {listing.mcpAuthState === 'connectable' && (
-              <Button variant="primary" disabled={connecting} onClick={() => onConnectMcp(listing.id)}>
+              <Button
+                variant="primary"
+                disabled={connecting}
+                onClick={() => onConnectMcp(listing.id)}
+              >
                 {connecting ? t(keys.connecting) : t(keys.connect)}
               </Button>
             )}
