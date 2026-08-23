@@ -16,7 +16,6 @@ import type {
 } from '../../../types';
 import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './dock-store';
 import { linkPaneKey } from './dock-link-tabs';
-import { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
 import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId } from './dock-tab-ids';
 import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 import { focusActiveDockTarget } from './dock-browser-commands';
@@ -45,7 +44,7 @@ interface Props {
   /** Whether the dock is actually on screen. The selected tab remains in
    *  state while collapsed, but its guest must be treated as background. */
   dockVisible: boolean;
-  splitTabId?: string;
+  splitTabIds?: readonly [string, string];
   chatTabEnabled: boolean;
   canvasTabEditingAllowed?: boolean;
   onCanvasNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
@@ -78,7 +77,7 @@ export const DockPanes = ({
   state,
   activePaneId,
   dockVisible,
-  splitTabId,
+  splitTabIds,
   chatTabEnabled,
   canvasTabEditingAllowed = false,
   onCanvasNodesChange,
@@ -103,14 +102,24 @@ export const DockPanes = ({
   onCloseTab = (tabId) => store.close(tabId),
 }: Props) => {
   const { t } = useI18n();
-  const splitActive = Boolean(splitTabId);
-  const chatVisible = chatTabEnabled && isDockChatVisible(state);
-  const terminalVisible = terminalHostMounted && isDockTerminalVisible(state);
+  const splitActive = Boolean(splitTabIds);
+  const isPaneVisible = (id: string): boolean => dockVisible && (
+    splitTabIds?.includes(id) ?? id === activePaneId
+  );
+  const splitPaneClass = (id: string): string => {
+    const index = splitTabIds?.indexOf(id) ?? -1;
+    if (index === 0) return ' right-dock__pane--split-left';
+    if (index === 1) return ' right-dock__pane--split-right';
+    return '';
+  };
+  const chatVisible = chatTabEnabled && isPaneVisible(CHAT_TAB_ID);
+  const visibleTerminalId = state.terminalTabs.find((tab) => isPaneVisible(tab.id))?.id;
+  const terminalVisible = terminalHostMounted && Boolean(visibleTerminalId);
   const terminalPanelAvailable = state.terminalTabs.length > 0;
   const labelledTerminalTabId = activePaneId && isTerminalTabId(activePaneId)
     ? activePaneId
-    : splitTabId && isTerminalTabId(splitTabId)
-      ? splitTabId
+    : visibleTerminalId
+      ? visibleTerminalId
       : state.activeTerminalTabId ?? state.terminalTabs[0]?.id;
   // Lazy-mount link-tab webviews. Every tab's pane renders stacked (inactive
   // ones are `visibility: hidden`), so mounting each LinkTabView's <webview>
@@ -159,8 +168,8 @@ export const DockPanes = ({
   if (dockVisible && activePaneId) {
     mountedLinkTabsRef.current.add(linkPaneKey(ownerWorkspaceId, activePaneId));
   }
-  if (dockVisible && splitTabId) {
-    mountedLinkTabsRef.current.add(linkPaneKey(ownerWorkspaceId, splitTabId));
+  for (const splitTabId of splitTabIds ?? []) {
+    if (dockVisible) mountedLinkTabsRef.current.add(linkPaneKey(ownerWorkspaceId, splitTabId));
   }
   const isMounted = (workspaceId: string, tabId: string): boolean => (
     mountedLinkTabsRef.current.has(linkPaneKey(workspaceId, tabId))
@@ -187,13 +196,13 @@ export const DockPanes = ({
         role={chatTabEnabled ? 'tabpanel' : undefined}
         aria-labelledby={chatTabEnabled ? dockTabElementId(CHAT_TAB_ID) : undefined}
         aria-hidden={chatTabEnabled ? !chatVisible : true}
-        className={`right-dock__pane right-dock__pane--chat${chatVisible ? ' right-dock__pane--active' : ''}${splitActive ? ' right-dock__pane--split-chat' : ''}`}
+        className={`right-dock__pane right-dock__pane--chat${chatVisible ? ' right-dock__pane--active' : ''}${splitPaneClass(CHAT_TAB_ID)}`}
         data-focused={activePaneId === 'chat'}
         onFocusCapture={() => {
-          if (splitActive) store.openChat();
+          if (splitActive) store.activate(CHAT_TAB_ID);
         }}
         onMouseDown={() => {
-          if (splitActive) store.openChat();
+          if (splitActive) store.activate(CHAT_TAB_ID);
         }}
       />
       {splitActive && (
@@ -218,13 +227,13 @@ export const DockPanes = ({
             ? dockTabElementId(labelledTerminalTabId)
             : undefined}
           aria-hidden={!terminalVisible}
-          className={`right-dock__pane right-dock__pane--terminal${terminalVisible ? ' right-dock__pane--active' : ''}${splitTabId && isTerminalTabId(splitTabId) ? ' right-dock__pane--split-content' : ''}`}
+          className={`right-dock__pane right-dock__pane--terminal${terminalVisible ? ' right-dock__pane--active' : ''}${visibleTerminalId ? splitPaneClass(visibleTerminalId) : ''}`}
           data-focused={state.terminalTabs.some((tab) => tab.id === activePaneId)}
           onFocusCapture={() => {
-            if (splitTabId && isTerminalTabId(splitTabId)) store.activate(splitTabId);
+            if (splitActive && visibleTerminalId) store.activate(visibleTerminalId);
           }}
           onMouseDown={() => {
-            if (splitTabId && isTerminalTabId(splitTabId)) store.activate(splitTabId);
+            if (splitActive && visibleTerminalId) store.activate(visibleTerminalId);
           }}
         >
           <div
@@ -233,22 +242,24 @@ export const DockPanes = ({
           />
         </div>
       )}
-      {state.tabs.filter((tab) => tab.kind !== 'link').map((tab) => (
-        <div
-          key={tab.id}
-          id={dockPaneElementId(tab.id)}
-          role="tabpanel"
-          aria-labelledby={dockTabElementId(tab.id)}
-          aria-hidden={tab.id !== activePaneId && tab.id !== splitTabId}
-          className={`right-dock__pane${tab.id === activePaneId || tab.id === splitTabId ? ' right-dock__pane--active' : ''}${tab.id === splitTabId ? ' right-dock__pane--split-content' : ''}`}
-          data-focused={tab.id === activePaneId}
-          onFocusCapture={() => {
-            if (tab.id === splitTabId) store.activate(tab.id);
-          }}
-          onMouseDown={() => {
-            if (tab.id === splitTabId) store.activate(tab.id);
-          }}
-        >
+      {state.tabs.filter((tab) => tab.kind !== 'link').map((tab) => {
+        const visible = isPaneVisible(tab.id);
+        return (
+          <div
+            key={tab.id}
+            id={dockPaneElementId(tab.id)}
+            role="tabpanel"
+            aria-labelledby={dockTabElementId(tab.id)}
+            aria-hidden={!visible}
+            className={`right-dock__pane${visible ? ' right-dock__pane--active' : ''}${splitPaneClass(tab.id)}`}
+            data-focused={tab.id === activePaneId}
+            onFocusCapture={() => {
+              if (splitActive) store.activate(tab.id);
+            }}
+            onMouseDown={() => {
+              if (splitActive) store.activate(tab.id);
+            }}
+          >
           {tab.kind === 'artifact' ? (
             <>
               {renderTabChatAction(tabRefsById.get(tab.id))}
@@ -281,7 +292,7 @@ export const DockPanes = ({
                 targetWorkspaceId={activeWorkspaceId}
                 onAddTabToChat={onAddTabToChat}
                 editingAllowed={canvasTabEditingAllowed}
-                active={dockVisible && (tab.id === activePaneId || tab.id === splitTabId)}
+                active={visible}
                 onNodesChange={onCanvasNodesChange}
                 onSelectionChange={onCanvasSelectionChange}
                 onAddDomSelectionToChat={(selection) => onAddDomSelectionToChat(tab.workspaceId, selection)}
@@ -302,8 +313,9 @@ export const DockPanes = ({
               />
             </Suspense>
           ) : null}
-        </div>
-      ))}
+          </div>
+        );
+      })}
       {/* ONE list for every web tab, live and retained, in a stable
           key order.
 
@@ -323,9 +335,7 @@ export const DockPanes = ({
           hidden guest that navigates must not rename a same-id tab in the
           workspace the user is actually looking at. */}
       {linkPanes.map(({ workspaceId, tab, live }) => {
-        const visible = dockVisible
-          && live
-          && (tab.id === activePaneId || tab.id === splitTabId);
+        const visible = live && isPaneVisible(tab.id);
         return (
           <div
             key={linkPaneKey(workspaceId, tab.id)}
@@ -333,13 +343,13 @@ export const DockPanes = ({
             role={live ? 'tabpanel' : undefined}
             aria-labelledby={live ? dockTabElementId(tab.id) : undefined}
             aria-hidden={!visible}
-            className={`right-dock__pane${visible ? ' right-dock__pane--active' : ''}${live && tab.id === splitTabId ? ' right-dock__pane--split-content' : ''}${live ? '' : ' right-dock__pane--retained'}`}
+            className={`right-dock__pane${visible ? ' right-dock__pane--active' : ''}${live ? splitPaneClass(tab.id) : ''}${live ? '' : ' right-dock__pane--retained'}`}
             data-focused={live && tab.id === activePaneId}
             onFocusCapture={() => {
-              if (live && tab.id === splitTabId) store.activate(tab.id);
+              if (live && splitActive) store.activate(tab.id);
             }}
             onMouseDown={() => {
-              if (live && tab.id === splitTabId) store.activate(tab.id);
+              if (live && splitActive) store.activate(tab.id);
             }}
           >
             <Suspense fallback={null}>

@@ -29,7 +29,7 @@ describe('buildDockTabRefs', () => {
   it('projects every content preview tab and exposes active / visible state', () => {
     const state = baseState({
       activeTabId: 'canvas',
-      splitTabId: 'canvas',
+      splitTabIds: ['canvas', 'chat'],
       tabs: [
         { id: 'link:1', kind: 'link', title: 'Docs', url: 'https://x.dev' },
         { id: 'blank', kind: 'link', title: 'New tab', url: '' },

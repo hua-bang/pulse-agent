@@ -383,7 +383,7 @@ export interface AgentContextTabRef {
   isActive?: boolean;
   /** Whether this tab is currently rendered as a visible dock pane. */
   isVisible?: boolean;
-  /** Whether this tab is paired beside chat in split view. */
+  /** Whether this tab occupies either pane in the two-tab comparison view. */
   isSplit?: boolean;
 }
 

@@ -70,8 +70,10 @@ export interface DockState {
   retainedLinkTabs: readonly RetainedLinkWorkspace[];
   /** `CHAT_TAB_ID`, a terminal tab id, or a preview tab id. */
   activeTabId: string;
-  /** Content tab shown beside the pinned chat pane in split view. */
-  splitTabId?: string;
+  /** Stable left/right tab ids in the two-pane comparison view. The focused
+   *  tab remains `activeTabId`; selecting a hidden tab replaces that focused
+   *  slot rather than moving the other pane. */
+  splitTabIds?: [string, string];
   expanded: boolean;
   chatUnread: boolean;
   /** When set, Pulse AI renders the dedicated conversation for this task

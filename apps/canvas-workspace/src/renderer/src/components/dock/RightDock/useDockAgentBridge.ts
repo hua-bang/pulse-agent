@@ -139,5 +139,5 @@ export function useDockAgentBridge(
   useEffect(() => {
     if (!activeWorkspaceId) return;
     window.canvasWorkspace.dock.publishTabs(activeWorkspaceId, buildDockTabRefs(state, activeWorkspaceId));
-  }, [state.tabs, state.terminalTabsByWorkspace, state.activeTabId, state.expanded, state.splitTabId, activeWorkspaceId]);
+  }, [state.tabs, state.terminalTabsByWorkspace, state.activeTabId, state.expanded, state.splitTabIds, activeWorkspaceId]);
 }

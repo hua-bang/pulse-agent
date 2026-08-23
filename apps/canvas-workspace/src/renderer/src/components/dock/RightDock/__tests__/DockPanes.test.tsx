@@ -19,6 +19,12 @@ vi.mock('../TabChatAction', () => ({
   },
 }));
 
+vi.mock('../../../artifacts/ArtifactTabView', () => ({
+  ArtifactTabView: ({ artifactId }: { artifactId: string }) => (
+    <div data-artifact-view={artifactId} />
+  ),
+}));
+
 // Capture the props each LinkTabView renders with (the real one lazy-loads a
 // live <webview>, which has no place in a happy-dom test).
 const latestLinkTabProps = vi.hoisted(() => new Map<string, { mountWebview?: boolean; active?: boolean }>());
@@ -87,6 +93,52 @@ afterEach(() => {
 });
 
 describe('DockPanes split focus', () => {
+  it('renders two non-chat content tabs on stable left and right panes', () => {
+    const store = new DockStore();
+    store.openArtifact('ws1', 'artifact-1');
+    store.toggleSplitView();
+    store.activate(CHAT_TAB_ID);
+    store.openArtifact('ws1', 'artifact-2');
+    const [leftTab, rightTab] = store.getSnapshot().tabs;
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+
+    flushSync(() => root?.render(
+      <I18nProvider><DockPanes
+        store={store}
+        state={store.getSnapshot()}
+        activePaneId={rightTab.id}
+        dockVisible
+        splitTabIds={store.getSnapshot().splitTabIds}
+        chatTabEnabled
+        splitContentWidth={320}
+        splitDividerWidth={6}
+        onDividerMouseDown={() => undefined}
+        setChatHost={() => undefined}
+        setTerminalHost={() => undefined}
+        terminalHostMounted={false}
+        activeWorkspaceId="ws1"
+        workspaces={[]}
+        onOpenNodePage={() => undefined}
+        pinUrlReference={() => undefined}
+        onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
+      /></I18nProvider>,
+    ));
+
+    const leftPane = document.getElementById(dockPaneElementId(leftTab.id))!;
+    const rightPane = document.getElementById(dockPaneElementId(rightTab.id))!;
+    expect(leftPane.getAttribute('aria-hidden')).toBe('false');
+    expect(rightPane.getAttribute('aria-hidden')).toBe('false');
+    expect(leftPane.classList.contains('right-dock__pane--split-left')).toBe(true);
+    expect(rightPane.classList.contains('right-dock__pane--split-right')).toBe(true);
+    expect(mount.querySelector('.right-dock__pane--chat')?.getAttribute('aria-hidden')).toBe('true');
+
+    leftPane.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(store.getSnapshot().activeTabId).toBe(leftTab.id);
+    expect(store.getSnapshot().splitTabIds).toEqual([leftTab.id, rightTab.id]);
+  });
+
   it('moves active-view focus between Pulse AI and Terminal for keyboard focus', () => {
     const store = new DockStore();
     store.openTerminal();
@@ -102,7 +154,7 @@ describe('DockPanes split focus', () => {
         state={store.getSnapshot()}
         activePaneId={CHAT_TAB_ID}
         dockVisible
-        splitTabId={TERMINAL_TAB_ID}
+        splitTabIds={[TERMINAL_TAB_ID, CHAT_TAB_ID]}
         chatTabEnabled
         splitContentWidth={320}
         splitDividerWidth={6}
@@ -346,7 +398,7 @@ describe('DockPanes tabpanel relationships', () => {
         state={store.getSnapshot()}
         activePaneId={CHAT_TAB_ID}
         dockVisible
-        splitTabId={TERMINAL_TAB_ID}
+        splitTabIds={[TERMINAL_TAB_ID, CHAT_TAB_ID]}
         chatTabEnabled
         splitContentWidth={320}
         splitDividerWidth={6}
@@ -500,7 +552,7 @@ describe('DockPanes whole-tab Chat actions', () => {
         state={state}
         activePaneId={CHAT_TAB_ID}
         dockVisible
-        splitTabId={state.splitTabId}
+        splitTabIds={state.splitTabIds}
         chatTabEnabled
         splitContentWidth={320}
         splitDividerWidth={6}

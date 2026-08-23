@@ -312,18 +312,6 @@
   animation: none;
 }
 
-/* Join the pair only when it is already adjacent in DOM order. This keeps
- * visual, keyboard, and drag-reorder order aligned when other tabs exist. */
-.right-dock__tab[data-split-part="chat"]:has(+ .right-dock__tab-shell[data-split-part="content"]) {
-  margin-right: -6px;
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
-  border-right-color: transparent;
-}
-
-.right-dock__tab[data-split-part="chat"]+.right-dock__tab-shell[data-split-part="content"] .right-dock__tab {
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-}
-
 .right-dock__tab[data-split-visible="true"]::before {
   opacity: 0.32;
 }
@@ -813,13 +801,13 @@
   pointer-events: none;
 }
 
-.right-dock__panes[data-split="true"] .right-dock__pane--split-content {
+.right-dock__panes[data-split="true"] .right-dock__pane--split-left {
   right: auto;
   width: var(--split-content-width);
   border-right: 1px solid var(--border);
 }
 
-.right-dock__panes[data-split="true"] .right-dock__pane--split-chat {
+.right-dock__panes[data-split="true"] .right-dock__pane--split-right {
   left: calc(var(--split-content-width) + var(--split-divider-width));
 }
 

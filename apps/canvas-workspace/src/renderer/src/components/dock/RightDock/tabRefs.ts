@@ -23,8 +23,8 @@ export function buildDockTabRefs(state: DockState, workspaceId: string): AgentCo
   const refs: AgentContextTabRef[] = [];
   const presentation = (id: string): Pick<AgentContextTabRef, 'isActive' | 'isVisible' | 'isSplit'> => ({
     isActive: state.activeTabId === id,
-    isVisible: state.expanded && (state.activeTabId === id || state.splitTabId === id),
-    isSplit: state.splitTabId === id,
+    isVisible: state.expanded && (state.activeTabId === id || state.splitTabIds?.includes(id) === true),
+    isSplit: state.splitTabIds?.includes(id) === true,
   });
 
   for (const tab of state.tabs) {

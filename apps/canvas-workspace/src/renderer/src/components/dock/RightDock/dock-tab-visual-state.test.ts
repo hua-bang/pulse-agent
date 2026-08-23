@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { CHAT_TAB_ID } from './dock-store';
 import { getDockTabVisualState } from './dock-tab-visual-state';
 
 describe('getDockTabVisualState', () => {
-  it('marks chat and split content as a visible pair while preserving focus', () => {
-    expect(getDockTabVisualState(CHAT_TAB_ID, CHAT_TAB_ID, 'link-1')).toEqual({
-      focused: true,
-      selected: true,
-      splitActive: true,
-      splitVisible: true,
-      splitPart: 'chat',
-    });
-    expect(getDockTabVisualState('link-1', CHAT_TAB_ID, 'link-1')).toEqual({
+  it('marks any two comparison tabs as visible while preserving their stable sides and focus', () => {
+    const pair: [string, string] = ['artifact-1', 'link-1'];
+    expect(getDockTabVisualState('artifact-1', 'link-1', pair)).toEqual({
       focused: false,
       selected: true,
       splitActive: true,
       splitVisible: true,
-      splitPart: 'content',
+      splitPart: 'left',
+    });
+    expect(getDockTabVisualState('link-1', 'link-1', pair)).toEqual({
+      focused: true,
+      selected: true,
+      splitActive: true,
+      splitVisible: true,
+      splitPart: 'right',
     });
   });
 
@@ -31,7 +31,7 @@ describe('getDockTabVisualState', () => {
   });
 
   it('does not mark unrelated tabs as visible in split view', () => {
-    expect(getDockTabVisualState('link-2', CHAT_TAB_ID, 'link-1')).toEqual({
+    expect(getDockTabVisualState('link-2', 'artifact-1', ['artifact-1', 'link-1'])).toEqual({
       focused: false,
       selected: false,
       splitActive: true,

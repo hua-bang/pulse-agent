@@ -37,7 +37,7 @@ import { DockContentTab } from './DockContentTab';
 import { DockTabIcon } from './DockTabIcon';
 import { getDockTabSwitcherItems } from './dock-tab-items';
 import { DockPanes } from './DockPanes';
-import { hasDockSplitContentTab } from './dock-split-state';
+import { hasDockTab } from './dock-split-state';
 import { useDockTabIndicator } from './useDockTabIndicator';
 import { getDockTabVisualState } from './dock-tab-visual-state';
 import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
@@ -134,7 +134,7 @@ export const RightDock = ({
 
   useEffect(() => {
     if (chatTabEnabled) return;
-    if (state.splitTabId) store.toggleSplitView();
+    if (state.splitTabIds?.includes(CHAT_TAB_ID)) store.toggleSplitView();
     if (state.activeTabId === CHAT_TAB_ID && state.tabs.length > 0) {
       store.activate(state.tabs[0].id);
       return;
@@ -142,7 +142,7 @@ export const RightDock = ({
     if (state.activeTabId === CHAT_TAB_ID) {
       store.collapse();
     }
-  }, [chatTabEnabled, state.activeTabId, state.splitTabId, state.tabs, store]);
+  }, [chatTabEnabled, state.activeTabId, state.splitTabIds, state.tabs, store]);
 
   const hasPreviews = state.tabs.length > 0;
   const terminalTabsVisible = state.terminalTabs.length > 0;
@@ -154,9 +154,11 @@ export const RightDock = ({
   const activePaneId = !chatTabEnabled && state.activeTabId === CHAT_TAB_ID
     ? null
     : state.activeTabId;
-  const splitTabId = chatTabEnabled ? state.splitTabId : undefined;
-  const splitViewActive = Boolean(splitTabId);
-  const chatVisual = getDockTabVisualState(CHAT_TAB_ID, activePaneId, splitTabId);
+  const splitTabIds = chatTabEnabled || !state.splitTabIds?.includes(CHAT_TAB_ID)
+    ? state.splitTabIds
+    : undefined;
+  const splitViewActive = Boolean(splitTabIds);
+  const chatVisual = getDockTabVisualState(CHAT_TAB_ID, activePaneId, splitTabIds);
   const allTabItems = useMemo(() => getDockTabSwitcherItems(state, {
     chatTabEnabled,
     chatTitle: t('rightDock.chat'),
@@ -362,7 +364,7 @@ export const RightDock = ({
           {terminalTabsVisible && (
             <Suspense fallback={null}>
               {state.terminalTabs.map((tab) => {
-                const visual = getDockTabVisualState(tab.id, activePaneId, splitTabId);
+                const visual = getDockTabVisualState(tab.id, activePaneId, splitTabIds);
                 return (
                   <TerminalDockTab
                     key={tab.id}
@@ -389,7 +391,7 @@ export const RightDock = ({
             <DockContentTab
               key={tab.id}
               tab={tab}
-              visual={getDockTabVisualState(tab.id, activePaneId, splitTabId)}
+              visual={getDockTabVisualState(tab.id, activePaneId, splitTabIds)}
               tabIndex={rovingTabId === tab.id ? 0 : -1}
               registerTab={tabIndicator.registerTab}
               onActivate={(id) => store.activate(id)}
@@ -433,7 +435,7 @@ export const RightDock = ({
           <SplitViewToggle
             store={store}
             active={splitViewActive}
-            canOpen={Boolean(activePaneId && hasDockSplitContentTab(state, activePaneId))}
+            canOpen={Boolean(activePaneId && activePaneId !== CHAT_TAB_ID && hasDockTab(state, activePaneId))}
           />
         )}
         <span data-tooltip={t('rightDock.collapse')} className="right-dock__tooltip-wrapper right-dock__tooltip-wrapper--right">
@@ -453,7 +455,7 @@ export const RightDock = ({
         state={state}
         activePaneId={activePaneId}
         dockVisible={visible}
-        splitTabId={splitTabId}
+        splitTabIds={splitTabIds}
         chatTabEnabled={chatTabEnabled}
         canvasTabEditingAllowed={canvasTabEditingAllowed}
         onCanvasNodesChange={onCanvasNodesChange}

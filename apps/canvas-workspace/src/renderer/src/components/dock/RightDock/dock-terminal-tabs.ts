@@ -105,7 +105,7 @@ export function closeTerminalCommit(
     workspace: { tabs, activeTabId: activeTerminalTabId, nextOrdinal: workspace.nextOrdinal },
     patch: {
       activeTabId,
-      ...(state.splitTabId === id ? { splitTabId: undefined } : {}),
+      ...(state.splitTabIds?.includes(id) ? { splitTabIds: undefined } : {}),
       expanded: closingActive && tabs.length === 0 && state.tabs.length === 0
         ? false
         : state.expanded,

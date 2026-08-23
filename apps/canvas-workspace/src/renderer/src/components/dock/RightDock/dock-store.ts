@@ -1,5 +1,5 @@
 /** Framework-free state for the pinned chat plus preview/terminal tabs.
- * Owns activation, dedupe, workspace sessions, closing order, split pairing,
+ * Owns activation, dedupe, workspace sessions, closing order, comparison pairing,
  * collapse retention, and chat unread policy. React binds with
  * `useSyncExternalStore` in components/dock/RightDock. */
 import { CHAT_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, nodeDetailTabId } from './dock-tab-ids';
@@ -258,7 +258,8 @@ export class DockStore {
     return true;
   }
 
-  /** Pair the active content tab with the pinned Pulse AI pane. */
+  /** Open/close the two-pane comparison view. It starts with Pulse AI as the
+   *  second pane; subsequent tab activation may replace either focused pane. */
   toggleSplitView(): void { const next = getSplitViewToggle(this.state); if (next) this.commit(next); }
 
   openChat(): void { const next = getOpenChatPatch(this.state); if (next) this.commit(next); }
@@ -462,7 +463,7 @@ export class DockStore {
       tabs,
       activeTabId,
       chatUnread,
-      ...(this.state.splitTabId === id ? { splitTabId: undefined } : {}),
+      ...(this.state.splitTabIds?.includes(id) ? { splitTabIds: undefined } : {}),
     });
   }
 
