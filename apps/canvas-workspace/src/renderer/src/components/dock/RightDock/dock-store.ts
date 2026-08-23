@@ -1,5 +1,5 @@
 /** Framework-free state for the pinned chat plus preview/terminal tabs.
- * Owns activation, dedupe, workspace sessions, closing order, split pairing,
+ * Owns activation, dedupe, workspace sessions, closing order, comparison pairing,
  * collapse retention, and chat unread policy. React binds with
  * `useSyncExternalStore` in components/dock/RightDock. */
 import { CHAT_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, nodeDetailTabId } from './dock-tab-ids';
@@ -20,7 +20,7 @@ import {
   type DockOpenLinkOptions,
 } from './dock-link-commands';
 import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
-import { applyDockSplitState, getSplitViewToggle } from './dock-split-state';
+import { applyDockSplitState, getComparisonSurvivorId, getSplitViewToggle } from './dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
 import { openSkillTab } from './dock-skill-tabs';
 import { getOpenChatPatch, getOpenScheduledChatPatch, getRefreshScheduledChatPatch } from './dock-chat-state';
@@ -258,7 +258,8 @@ export class DockStore {
     return true;
   }
 
-  /** Pair the active content tab with the pinned Pulse AI pane. */
+  /** Open/close the two-pane comparison view. It starts with Pulse AI as the
+   *  second pane; subsequent tab activation may replace either focused pane. */
   toggleSplitView(): void { const next = getSplitViewToggle(this.state); if (next) this.commit(next); }
 
   openChat(): void { const next = getOpenChatPatch(this.state); if (next) this.commit(next); }
@@ -440,6 +441,7 @@ export class DockStore {
   close(id: string): void {
     const index = this.state.tabs.findIndex((tab) => tab.id === id);
     if (index === -1) return;
+    const comparisonSurvivorId = getComparisonSurvivorId(this.state, id);
     const closed = this.state.tabs[index];
     const closingLink = closed.kind === 'link';
     // A web tab carries browsing state (history, scroll, sign-in); closing one
@@ -455,14 +457,15 @@ export class DockStore {
     let activeTabId = this.state.activeTabId;
     let chatUnread = this.state.chatUnread;
     if (activeTabId === id) {
-      activeTabId = tabs.length === 0 ? CHAT_TAB_ID : tabs[Math.min(index, tabs.length - 1)].id;
+      activeTabId = comparisonSurvivorId
+        ?? (tabs.length === 0 ? CHAT_TAB_ID : tabs[Math.min(index, tabs.length - 1)].id);
       if (activeTabId === CHAT_TAB_ID) chatUnread = false;
     }
     this.commit({
       tabs,
       activeTabId,
       chatUnread,
-      ...(this.state.splitTabId === id ? { splitTabId: undefined } : {}),
+      ...(this.state.splitTabIds?.includes(id) ? { splitTabIds: undefined } : {}),
     });
   }
 

@@ -563,7 +563,7 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().activeTabId).toBe(artifactTabId('ws1', 'a1'));
   });
 
-  it('keeps Pulse AI paired with the active content tab in split view', () => {
+  it('opens comparison with Pulse AI, then replaces the focused pane with any dock tab', () => {
     const dock = new DockStore();
     dock.openLink('https://a.example');
     const linkId = linkTabId('https://a.example');
@@ -571,43 +571,133 @@ describe('DockStore', () => {
     dock.toggleSplitView();
     expect(dock.getSnapshot()).toMatchObject({
       activeTabId: linkId,
-      splitTabId: linkId,
+      splitTabIds: [linkId, CHAT_TAB_ID],
       expanded: true,
     });
 
     dock.activate(CHAT_TAB_ID);
     expect(dock.getSnapshot()).toMatchObject({
       activeTabId: CHAT_TAB_ID,
-      splitTabId: linkId,
+      splitTabIds: [linkId, CHAT_TAB_ID],
     });
 
     dock.openArtifact('ws1', 'a1');
     expect(dock.getSnapshot()).toMatchObject({
       activeTabId: artifactTabId('ws1', 'a1'),
+      splitTabIds: [linkId, artifactTabId('ws1', 'a1')],
     });
-    expect(dock.getSnapshot().splitTabId).toBeUndefined();
 
+    // Focusing the already-visible left pane chooses which side the next tab
+    // replaces; it must not move either visible tab by itself.
     dock.activate(linkId);
+    expect(dock.getSnapshot().splitTabIds).toEqual([linkId, artifactTabId('ws1', 'a1')]);
+    dock.openNodeDetail('ws1', 'node-1', 'Node one');
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: nodeDetailTabId('ws1', 'node-1'),
+      splitTabIds: [nodeDetailTabId('ws1', 'node-1'), artifactTabId('ws1', 'a1')],
+    });
+
     dock.toggleSplitView();
-    dock.toggleSplitView();
-    expect(dock.getSnapshot().splitTabId).toBeUndefined();
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: nodeDetailTabId('ws1', 'node-1'),
+    });
+    expect(dock.getSnapshot().splitTabIds).toBeUndefined();
   });
 
-  it('only enters split view from a content tab and exits when that tab closes', () => {
+  it('enters comparison from any non-chat tab and collapses when either visible tab closes', () => {
     const dock = new DockStore();
     dock.toggleSplitView();
-    expect(dock.getSnapshot().splitTabId).toBeUndefined();
+    expect(dock.getSnapshot().splitTabIds).toBeUndefined();
 
     dock.openArtifact('ws1', 'a1');
     dock.toggleSplitView();
-    expect(dock.getSnapshot().splitTabId).toBeUndefined();
+    expect(dock.getSnapshot().splitTabIds).toEqual([artifactTabId('ws1', 'a1'), CHAT_TAB_ID]);
+    dock.close(artifactTabId('ws1', 'a1'));
+    expect(dock.getSnapshot()).toMatchObject({ activeTabId: CHAT_TAB_ID });
+    expect(dock.getSnapshot().splitTabIds).toBeUndefined();
 
     dock.openTerminal();
     dock.toggleSplitView();
-    expect(dock.getSnapshot().splitTabId).toBe(TERMINAL_TAB_ID);
+    expect(dock.getSnapshot().splitTabIds).toEqual([TERMINAL_TAB_ID, CHAT_TAB_ID]);
 
     dock.closeTerminal();
-    expect(dock.getSnapshot().splitTabId).toBeUndefined();
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: CHAT_TAB_ID,
+      expanded: true,
+    });
+    expect(dock.getSnapshot().splitTabIds).toBeUndefined();
+  });
+
+  it('replaces an already-visible terminal instead of creating a two-terminal comparison', () => {
+    const dock = new DockStore();
+    dock.openTerminal();
+    dock.toggleSplitView();
+    dock.activate(CHAT_TAB_ID);
+
+    dock.newTerminal();
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: 'terminal:2',
+      splitTabIds: ['terminal:2', CHAT_TAB_ID],
+    });
+  });
+
+  it('replaces the stale workspace pane instead of the focused chat pane on workspace switch', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws-2');
+    dock.openLink('https://two.example');
+    const workspaceTwoLinkId = linkTabId('https://two.example');
+    dock.setActiveWorkspace('ws-1');
+    dock.openLink('https://one.example');
+    dock.toggleSplitView();
+    dock.activate(CHAT_TAB_ID);
+
+    dock.setActiveWorkspace('ws-2');
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: workspaceTwoLinkId,
+      splitTabIds: [workspaceTwoLinkId, CHAT_TAB_ID],
+    });
+  });
+
+  it('keeps the compared survivor when closing the focused preview instead of selecting a hidden neighbour', () => {
+    const dock = new DockStore();
+    dock.openArtifact('ws1', 'a1');
+    const firstId = artifactTabId('ws1', 'a1');
+    dock.openArtifact('ws1', 'a2');
+    dock.openArtifact('ws1', 'a3');
+    const thirdId = artifactTabId('ws1', 'a3');
+    dock.toggleSplitView();
+    dock.activate(CHAT_TAB_ID);
+    dock.activate(firstId);
+
+    dock.close(firstId);
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: thirdId,
+      expanded: true,
+    });
+    expect(dock.getSnapshot().splitTabIds).toBeUndefined();
+  });
+
+  it('keeps the compared survivor when closing a focused terminal instead of another hidden terminal', () => {
+    const dock = new DockStore();
+    dock.openTerminal();
+    dock.newTerminal();
+    dock.activate(TERMINAL_TAB_ID);
+    dock.toggleSplitView();
+    dock.activate(CHAT_TAB_ID);
+    dock.openArtifact('ws1', 'a1');
+    const survivorId = artifactTabId('ws1', 'a1');
+    dock.activate(TERMINAL_TAB_ID);
+
+    dock.closeTerminal(TERMINAL_TAB_ID);
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: survivorId,
+      expanded: true,
+    });
+    expect(dock.getSnapshot().splitTabIds).toBeUndefined();
   });
 
   it('closing the active preview activates the right neighbour, falling back to chat', () => {

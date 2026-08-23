@@ -4,6 +4,7 @@
  * patch it implies (or null for a no-op); `DockStore` only commits them.
  */
 import { CHAT_TAB_ID, terminalTabId } from './dock-tab-ids';
+import { getComparisonSurvivorId } from './dock-split-state';
 import type { DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 
 const EMPTY_TERMINAL_TABS: DockTerminalTab[] = [];
@@ -97,16 +98,20 @@ export function closeTerminalCommit(
   if (index === -1) return null;
   const tabs = workspace.tabs.filter((tab) => tab.id !== id);
   const closingActive = state.activeTabId === id;
+  const comparisonSurvivorId = getComparisonSurvivorId(state, id);
   const activeTerminalTabId = tabs[Math.min(index, tabs.length - 1)]?.id ?? tabs[tabs.length - 1]?.id;
   const activeTabId = closingActive
-    ? (activeTerminalTabId ?? state.tabs[0]?.id ?? CHAT_TAB_ID)
+    ? (comparisonSurvivorId ?? activeTerminalTabId ?? state.tabs[0]?.id ?? CHAT_TAB_ID)
     : state.activeTabId;
   return {
     workspace: { tabs, activeTabId: activeTerminalTabId, nextOrdinal: workspace.nextOrdinal },
     patch: {
       activeTabId,
-      ...(state.splitTabId === id ? { splitTabId: undefined } : {}),
-      expanded: closingActive && tabs.length === 0 && state.tabs.length === 0
+      ...(state.splitTabIds?.includes(id) ? { splitTabIds: undefined } : {}),
+      expanded: closingActive
+        && !state.splitTabIds?.includes(id)
+        && tabs.length === 0
+        && state.tabs.length === 0
         ? false
         : state.expanded,
       ...(activeTabId === CHAT_TAB_ID ? { chatUnread: false } : {}),

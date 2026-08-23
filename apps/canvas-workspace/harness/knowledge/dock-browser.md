@@ -177,6 +177,15 @@ current workspace's expanded state and restores the target workspace's last
 state from the same persisted dock session; a workspace without saved state
 starts collapsed.
 
+The dock comparison view is exactly two stable left/right panes, not a layout
+tree. It opens with the focused non-chat tab on the left and Pulse AI on the
+right. Selecting an already-visible tab changes focus; selecting any other
+dock tab replaces the focused pane without moving the other one. Closing
+either visible content tab exits comparison and keeps the survivor. Two
+terminal tabs are deliberately not paired because the renderer still owns one
+shared terminal portal host; selecting another terminal replaces the visible
+terminal pane instead.
+
 Menus or suggestions above a guest must hold `useGuestInteractionShield`,
 because guest clicks do not reach the host document. The shield observes guests
 mounted while an overlay is already open; a one-time query silently misses a
