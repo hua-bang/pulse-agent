@@ -25,6 +25,10 @@ export const useChatPagePendingSession = ({
   const failedIntentRef = useRef<{ sessionId: string; workspaceId: string } | null>(null);
   const abandonRef = useRef(onAbandonCurrentTurn);
   abandonRef.current = onAbandonCurrentTurn;
+  const loadSessionRef = useRef(handleLoadSession);
+  loadSessionRef.current = handleLoadSession;
+  const consumedRef = useRef(onSessionConsumed);
+  consumedRef.current = onSessionConsumed;
 
   useEffect(() => {
     if (pendingSessionId === null || pendingSessionIntentId === null) return;
@@ -35,14 +39,14 @@ export const useChatPagePendingSession = ({
     // session-anchored) and the newly shown conversation can send immediately.
     abandonRef.current?.();
     let cancelled = false;
-    void handleLoadSession(pendingSessionId).then((result) => {
+    void loadSessionRef.current(pendingSessionId).then((result) => {
       if (cancelled) return;
       const loaded = result !== false;
       failedIntentRef.current = loaded ? null : intent;
-      onSessionConsumed(pendingSessionIntentId, loaded);
+      consumedRef.current(pendingSessionIntentId, loaded);
     });
     return () => { cancelled = true; };
-  }, [handleLoadSession, onSessionConsumed, pendingSessionId, pendingSessionIntentId, sessionStoreId]);
+  }, [pendingSessionId, pendingSessionIntentId, sessionStoreId]);
 
   return useCallback(async () => {
     const failedIntent = failedIntentRef.current;

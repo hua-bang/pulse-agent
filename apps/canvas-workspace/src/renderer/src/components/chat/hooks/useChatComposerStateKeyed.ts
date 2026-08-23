@@ -83,14 +83,15 @@ export function useChatComposerStateKeyed({
       loaded.expectedSequence,
     );
   }, []);
+  const handleConversationLoadStart = useCallback((scope: AgentScope) => (
+    captureConversationSequences(conversationKeyFromScope(scope, '').storeId)
+  ), []);
 
   const chatSessions = useChatSessions({
     agentScope,
     allWorkspaces,
     onConversationLoaded: handleConversationLoaded,
-    onConversationLoadStart: scope => captureConversationSequences(
-      conversationKeyFromScope(scope, '').storeId,
-    ),
+    onConversationLoadStart: handleConversationLoadStart,
     eagerLoad,
     skipInitialHistory,
   });

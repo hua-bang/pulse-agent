@@ -91,8 +91,10 @@ Key invariants and their guards:
   assistant index rather than whichever assistant happens to be last.
 - Navigation keeps requested and committed conversation keys separate. Rail
   selection and the visible body commit together only after hydration; failed
-  loads retain the previous committed conversation. Per-turn IPC listeners are
-  released on every terminal path.
+  loads retain the previous committed conversation. A pending navigation
+  effect is keyed by its intent, not by callback identity: renderer state
+  updates during hydration must not restart the same `loadSession` request.
+  Per-turn IPC listeners are released on every terminal path.
 - The conversation input contract carries request context, attachments, and
   mentioned workspaces through renderer → IPC → runtime → engine. Persistence
   retains user context/attachments and assistant tools, run id, and role
