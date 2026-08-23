@@ -24,6 +24,7 @@ interface Props {
   onConnectMcp: (id: string) => void;
   onSetNativeEnabled: (id: string, enabled: boolean) => void;
   onExplore: (listing: PluginMarketListing) => void;
+  scopeTarget: HTMLElement | null;
 }
 
 const sourceText = (listing: PluginMarketListing): string => {
@@ -43,6 +44,7 @@ export const PluginDetailModal = ({
   onConnectMcp,
   onSetNativeEnabled,
   onExplore,
+  scopeTarget,
 }: Props) => {
   const { t } = useI18n();
   if (!listing) return null;
@@ -59,30 +61,31 @@ export const PluginDetailModal = ({
       width={620}
       labelledBy="plugin-market-detail-title"
       className="plugin-market-modal plugin-market-detail"
+      scopeTarget={scopeTarget}
     >
-      <header className="plugin-market-modal__header">
-        <div className="plugin-market-detail__identity">
-          <PluginGlyph listing={listing} size={26} />
-          <div>
-            <small>{t(keys.detailsKicker)}</small>
-            <h2 id="plugin-market-detail-title">{listing.name}</h2>
-            <span>
-              {[listing.version, listing.author?.name, listing.category].filter(Boolean).join(' · ')}
-            </span>
+        <header className="plugin-market-modal__header">
+          <div className="plugin-market-detail__identity">
+            <PluginGlyph listing={listing} size={26} />
+            <div>
+              <small>{t(keys.detailsKicker)}</small>
+              <h2 id="plugin-market-detail-title">{listing.name}</h2>
+              <span>
+                {[listing.version, listing.author?.name, listing.category].filter(Boolean).join(' · ')}
+              </span>
+            </div>
           </div>
-        </div>
-        <Button variant="icon" size="md" aria-label={t(keys.close)} onClick={onClose}>
-          <X size={17} />
-        </Button>
-      </header>
-      <div className="plugin-market-modal__body plugin-market-detail__body">
-        <p className="plugin-market-detail__description">{listing.description}</p>
-        {listing.license && (
-          <div className="plugin-market-detail__metadata">
-            <span>{t(keys.license)}</span>
-            <code>{listing.license}</code>
-          </div>
-        )}
+          <Button variant="icon" size="md" aria-label={t(keys.close)} onClick={onClose}>
+            <X size={17} />
+          </Button>
+        </header>
+        <div className="plugin-market-modal__body plugin-market-detail__body">
+          <p className="plugin-market-detail__description">{listing.description}</p>
+          {listing.license && (
+            <div className="plugin-market-detail__metadata">
+              <span>{t(keys.license)}</span>
+              <code>{listing.license}</code>
+            </div>
+          )}
 
         <section className="plugin-market-detail__section">
           <h3>{t(keys.capabilities)}</h3>
@@ -141,36 +144,36 @@ export const PluginDetailModal = ({
         {(listing.error || error) && (
           <div className="plugin-market-modal__error" role="alert">{listing.error ?? error}</div>
         )}
-      </div>
-      <footer className="plugin-market-modal__actions">
-        <Button onClick={onClose}>{t(keys.close)}</Button>
-        {listing.installState === 'available' && (
-          <Button variant="primary" disabled={installing} onClick={() => onInstall(listing.id)}>
-            {installing ? t(keys.installing) : t(keys.install)}
-          </Button>
-        )}
-        {listing.installState === 'installed' && (
-          <>
-            {listing.mcpAuthState === 'connectable' && (
-              <Button
-                variant="primary"
-                disabled={connecting}
-                onClick={() => onConnectMcp(listing.id)}
-              >
-                {connecting ? t(keys.connecting) : t(keys.connect)}
-              </Button>
-            )}
-            <Button variant="danger" disabled={uninstalling} onClick={() => onUninstall(listing.id)}>
-              {uninstalling ? t(keys.uninstalling) : t(keys.uninstall)}
+        </div>
+        <footer className="plugin-market-modal__actions">
+          <Button onClick={onClose}>{t(keys.close)}</Button>
+          {listing.installState === 'available' && (
+            <Button variant="primary" disabled={installing} onClick={() => onInstall(listing.id)}>
+              {installing ? t(keys.installing) : t(keys.install)}
             </Button>
-          </>
-        )}
-        {listing.installState === 'unsupported' && (
-          <Button disabled={exploring} onClick={() => onExplore(listing)}>
-            {t(keys.explore)}
-          </Button>
-        )}
-      </footer>
+          )}
+          {listing.installState === 'installed' && (
+            <>
+              {listing.mcpAuthState === 'connectable' && (
+                <Button
+                  variant="primary"
+                  disabled={connecting}
+                  onClick={() => onConnectMcp(listing.id)}
+                >
+                  {connecting ? t(keys.connecting) : t(keys.connect)}
+                </Button>
+              )}
+              <Button variant="danger" disabled={uninstalling} onClick={() => onUninstall(listing.id)}>
+                {uninstalling ? t(keys.uninstalling) : t(keys.uninstall)}
+              </Button>
+            </>
+          )}
+          {listing.installState === 'unsupported' && (
+            <Button disabled={exploring} onClick={() => onExplore(listing)}>
+              {t(keys.explore)}
+            </Button>
+          )}
+        </footer>
     </Modal>
   );
 };

@@ -10,18 +10,23 @@ const FOCUSABLE_SELECTOR = [
 ].join(', ');
 
 /**
- * Hand-rolled focus trap for the ui/ overlay shells (Modal, Drawer) — no new
- * dependency. While `active`:
+ * Hand-rolled focus management for ui/ overlay shells (Modal, Drawer) and
+ * route-scoped dialogs. While `active`:
  *  - on activation, remembers `document.activeElement` and moves focus into
  *    `containerRef` (its first focusable descendant, or the container
  *    itself via a temporary `tabindex="-1"` when it has none);
  *  - Tab / Shift+Tab cycle within the container's focusable descendants
- *    instead of escaping to the rest of the page;
+ *    unless `trap:false` keeps a parallel app region interactive;
  *  - on deactivate/unmount, restores focus to the element that held it
  *    before activation — only if that element is still connected to the
  *    document (it may have been removed while the overlay was open).
  */
-export const useFocusTrap = (active: boolean, containerRef: RefObject<HTMLElement>): void => {
+export const useFocusTrap = (
+  active: boolean,
+  containerRef: RefObject<HTMLElement>,
+  options: { trap?: boolean } = {},
+): void => {
+  const trap = options.trap ?? true;
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -61,12 +66,12 @@ export const useFocusTrap = (active: boolean, containerRef: RefObject<HTMLElemen
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown, true);
+    if (trap) document.addEventListener('keydown', handleKeyDown, true);
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown, true);
+      if (trap) document.removeEventListener('keydown', handleKeyDown, true);
       const previous = previouslyFocusedRef.current;
       if (previous?.isConnected) previous.focus();
     };
-  }, [active, containerRef]);
+  }, [active, containerRef, trap]);
 };

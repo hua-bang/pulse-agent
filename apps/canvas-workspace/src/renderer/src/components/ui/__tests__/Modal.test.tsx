@@ -19,11 +19,19 @@ afterEach(() => {
 
 /** Controlled harness — the caller drives `open`/`onClose` like a real host.
  *  Focusable placeholders reuse the blessed Button rather than a raw tag. */
-function ModalHarness({ open, onClose }: { open: boolean; onClose: () => void }) {
+function ModalHarness({
+  open,
+  onClose,
+  scopeTarget,
+}: {
+  open: boolean;
+  onClose: () => void;
+  scopeTarget?: HTMLElement | null;
+}) {
   return (
     <div>
       <Button data-testid="outside">Outside</Button>
-      <Modal open={open} onClose={onClose} labelledBy="modal-title">
+      <Modal open={open} onClose={onClose} labelledBy="modal-title" scopeTarget={scopeTarget}>
         <h2 id="modal-title">Title</h2>
         <Button data-testid="first">First</Button>
         <Button data-testid="last">Last</Button>
@@ -62,6 +70,29 @@ describe('Modal', () => {
     expect(dialog?.getAttribute('role')).toBe('dialog');
     expect(dialog?.getAttribute('aria-modal')).toBe('true');
     expect(dialog?.getAttribute('aria-labelledby')).toBe('modal-title');
+  });
+
+  it('can scope its backdrop to a route without claiming global modality or trapping Tab', () => {
+    const scope = document.createElement('section');
+    scope.className = 'route-scope';
+    document.body.appendChild(scope);
+    render(<ModalHarness open onClose={vi.fn()} scopeTarget={scope} />);
+
+    const dialog = scope.querySelector('.ui-modal');
+    const backdrop = scope.querySelector('.ui-modal-backdrop--scoped');
+    expect(dialog?.getAttribute('role')).toBe('dialog');
+    expect(dialog?.getAttribute('aria-modal')).toBeNull();
+    expect(backdrop).not.toBeNull();
+    expect(document.querySelector('body > .ui-modal-backdrop')).toBeNull();
+
+    const last = scope.querySelector('[data-testid="last"]') as HTMLElement;
+    last.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    act(() => document.dispatchEvent(tab));
+    expect(tab.defaultPrevented).toBe(false);
+    act(() => root?.unmount());
+    root = null;
+    scope.remove();
   });
 
   it('closes on backdrop mousedown but not on a mousedown inside the card', () => {

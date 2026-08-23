@@ -8,6 +8,10 @@ const pluginMarketListCss = readFileSync(
   new URL('../../../../views/PluginMarket/list.css', import.meta.url),
   'utf8',
 );
+const modalCss = readFileSync(
+  new URL('../../../ui/Modal/index.css', import.meta.url),
+  'utf8',
+);
 
 describe('RightDock interaction styles', () => {
   it('gives the tab close control a 24px pointer target', () => {
@@ -33,5 +37,12 @@ describe('RightDock interaction styles', () => {
       /\.plugin-market\s*\{[^}]*container-type:\s*inline-size;/s,
     );
     expect(pluginMarketListCss).toContain('@container (max-width: 760px)');
+  });
+
+  it('keeps plugin detail overlays inside the route and below the persistent dock', () => {
+    expect(modalCss).toMatch(
+      /\.ui-modal-backdrop--scoped\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*var\(--layer-canvas-chrome-raised\);/s,
+    );
+    expect(dockCss).toMatch(/\.right-dock\s*\{[^}]*z-index:\s*var\(--layer-dock\);/s);
   });
 });

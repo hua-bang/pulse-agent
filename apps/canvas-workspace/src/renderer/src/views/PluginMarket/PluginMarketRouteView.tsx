@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { WarningCircle, X } from '@phosphor-icons/react';
 import type { PluginMarketListing } from '../../../../shared/plugin-market';
 import { Button, TextField } from '../../components/ui';
@@ -46,14 +46,8 @@ export const PluginMarketRouteView = ({
   const [visibility, setVisibility] = useState<'public' | 'personal'>('public');
   const [category, setCategory] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [pendingConnectId, setPendingConnectId] = useState<string | null>(null);
   const [gitOpen, setGitOpen] = useState(false);
-
-  useEffect(() => {
-    if (!pendingConnectId) return;
-    setPendingConnectId(null);
-    void market.connectMcp(pendingConnectId);
-  }, [pendingConnectId]);
+  const marketRef = useRef<HTMLElement>(null);
 
   const listings = market.snapshot?.listings ?? [];
   const installed = listings.filter((listing) => listing.installState === 'installed');
@@ -85,7 +79,7 @@ export const PluginMarketRouteView = ({
   };
 
   return (
-    <main className="plugin-market" aria-busy={market.loading}>
+    <main ref={marketRef} className="plugin-market" aria-busy={market.loading}>
       <PluginMarketToolbar
         onNavigateSkills={onNavigateSkills}
         actions={(
@@ -228,12 +222,10 @@ export const PluginMarketRouteView = ({
         onClose={() => setSelectedId(null)}
         onInstall={(id) => void market.install(id)}
         onUninstall={(id) => void market.uninstall(id)}
-        onConnectMcp={(id) => {
-          setSelectedId(null);
-          setPendingConnectId(id);
-        }}
+        onConnectMcp={(id) => void market.connectMcp(id)}
         onSetNativeEnabled={(id, enabled) => void market.setNativeEnabled(id, enabled)}
         onExplore={(listing) => void market.explore(listing)}
+        scopeTarget={marketRef.current}
       />
     </main>
   );

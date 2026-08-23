@@ -159,10 +159,28 @@ describe('PluginMarketRouteView', () => {
     })])));
 
     expect(host?.querySelector('[data-plugin-id="exa"] .plugin-market__glyph img')).not.toBeNull();
-    act(() => host?.querySelector<HTMLButtonElement>('.plugin-market__listing-main')?.click());
-    expect(document.querySelector('.ui-modal-backdrop')).not.toBeNull();
+    const trigger = host?.querySelector<HTMLButtonElement>('.plugin-market__listing-main');
+    trigger?.focus();
+    act(() => trigger?.click());
+    const dialog = host?.querySelector('.plugin-market-detail');
+    const backdrop = host?.querySelector('.ui-modal-backdrop--scoped');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.getAttribute('aria-modal')).toBeNull();
+    expect(dialog?.closest('.plugin-market')).not.toBeNull();
+    expect(backdrop?.closest('.plugin-market')).not.toBeNull();
+    expect(document.querySelector('body > .ui-modal-backdrop')).toBeNull();
     expect(document.querySelector('.plugin-market-detail__metadata')?.textContent)
       .toContain('MIT');
+
+    const lastAction = [...(dialog?.querySelectorAll<HTMLButtonElement>('button') ?? [])].at(-1);
+    lastAction?.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    act(() => document.dispatchEvent(tab));
+    expect(tab.defaultPrevented).toBe(false);
+
+    const close = dialog?.querySelector<HTMLButtonElement>('button');
+    act(() => close?.click());
+    expect(document.activeElement).toBe(trigger);
   });
 
   it('opens unsupported Git listings from both the row and detail view', async () => {
@@ -178,7 +196,7 @@ describe('PluginMarketRouteView', () => {
     });
 
     act(() => host?.querySelector<HTMLButtonElement>('.plugin-market__listing-main')?.click());
-    const detailExplore = [...document.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button')]
+    const detailExplore = [...(host?.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button') ?? [])]
       .find((button) => button.textContent?.includes('pluginMarket.explore'));
     await act(async () => {
       detailExplore?.click();
@@ -258,7 +276,7 @@ describe('PluginMarketRouteView', () => {
     act(() => details?.click());
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
 
-    const enable = [...document.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button')]
+    const enable = [...(host?.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button') ?? [])]
       .find((button) => button.textContent?.includes('pluginMarket.enableNative'));
     await act(async () => {
       enable?.click();
@@ -282,7 +300,7 @@ describe('PluginMarketRouteView', () => {
     await render(api);
 
     act(() => host?.querySelector<HTMLButtonElement>('.plugin-market__listing-main')?.click());
-    const connect = [...document.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button')]
+    const connect = [...(host?.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button') ?? [])]
       .find((button) => button.textContent?.includes('pluginMarket.connect'));
     await act(async () => {
       connect?.click();
@@ -290,7 +308,9 @@ describe('PluginMarketRouteView', () => {
     });
 
     expect(api.connectMcp).toHaveBeenCalledWith('computer-use');
-    expect(modalVisibleAtConnect).toBe(false);
-    expect(document.querySelector('.plugin-market-detail')).toBeNull();
+    expect(modalVisibleAtConnect).toBe(true);
+    expect(host?.querySelector('.plugin-market-detail')).not.toBeNull();
+    expect(host?.querySelector('.plugin-market-detail__connection')?.textContent)
+      .toContain('pluginMarket.connected');
   });
 });

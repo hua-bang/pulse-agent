@@ -1,5 +1,6 @@
 .plugin-market {
   box-sizing: border-box;
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
