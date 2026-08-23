@@ -23,10 +23,6 @@ import {
   setupCanvasAgentIpc,
   teardownCanvasAgent,
 } from "../agent/ipc";
-import {
-  setupConversationRuntimeIpc,
-  teardownConversationRuntime,
-} from "../agent/conversation-runtime/conversation-ipc";
 import { setupCodexSessionsIpc } from "../agent/codex-sessions";
 import { setupCanvasModelIpc } from "../agent/model/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
@@ -73,6 +69,8 @@ import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
 import { applyLoginShellPath, augmentProcessPath } from "../shell-path";
 import { setWindowFactory } from "./window-manager";
+
+let teardownConversationRuntime: () => void = () => undefined;
 import { setupLinkPolicy } from "./link-policy";
 import { setupWebviewShortcuts } from "./webview-shortcuts";
 import { setupWebviewContextMenu } from "./webview-context-menu";
@@ -179,7 +177,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupSkillInstallerIpc();
     await ensureAgentToolingAtStartup(writeLog);
     setupCanvasAgentIpc();
-    setupConversationRuntimeIpc(getCanvasAgentService);
+    const conversationRuntimeIpc = await import('../agent/conversation-runtime/conversation-ipc');
+    conversationRuntimeIpc.setupConversationRuntimeIpc(getCanvasAgentService);
+    teardownConversationRuntime = conversationRuntimeIpc.teardownConversationRuntime;
     setupCodexSessionsIpc();
     if (getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_TEAMS)) {
       const { setupAgentTeamsRuntime } = await import('../agent-teams/runtime');
