@@ -380,6 +380,25 @@
   animation: chat-page-rail-running-pulse 1.2s ease-in-out infinite;
 }
 
+.chat-page-rail-item-completion {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chat-page-rail-item-completion--done { color: var(--success); }
+.chat-page-rail-item-completion--failed { color: var(--error); }
+
+.chat-page-rail-item-completion-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
 @keyframes chat-page-rail-running-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }

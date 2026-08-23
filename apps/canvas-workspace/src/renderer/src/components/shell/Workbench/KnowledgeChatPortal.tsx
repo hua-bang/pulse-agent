@@ -27,6 +27,7 @@ interface Props {
   onClose: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
   onTurnComplete: () => void;
+  chatTargetActive?: boolean;
   onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }
 
@@ -43,6 +44,7 @@ export const KnowledgeChatPortal = ({
   onClose,
   onOpenAppSettings,
   onTurnComplete,
+  chatTargetActive,
   onOpenSessionInScope,
 }: Props) => {
   const { nodes, tags } = useAllWorkspaceNodeList(workspaces);
@@ -79,6 +81,7 @@ export const KnowledgeChatPortal = ({
         onClose={onClose}
         onOpenAppSettings={onOpenAppSettings}
         onTurnComplete={onTurnComplete}
+        chatTargetActive={chatTargetActive}
         onOpenSessionInScope={onOpenSessionInScope}
       />
     </div>

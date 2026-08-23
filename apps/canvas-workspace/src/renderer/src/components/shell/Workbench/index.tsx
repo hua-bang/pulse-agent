@@ -456,13 +456,14 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onClose={dock.collapse}
                   onOpenAppSettings={onOpenAppSettings}
                   onTurnComplete={dock.notifyChatActivity}
+                  chatTargetActive={chatPanelOpen}
                   onOpenSessionInScope={onOpenSessionInScope}
                 />
               </div>
             )}
             {!scheduledChatTaskId && knowledgeChatContext.active && (
               <Suspense fallback={null}>
-                <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces} contextNodes={knowledgeChatContext.explicitContext?.nodes} contextTags={knowledgeChatContext.explicitContext?.tags} contextCanvases={knowledgeChatContext.explicitContext?.canvases} composerRequest={knowledgeChatContext.explicitContext?.composerRequest} onComposerRequestHandled={onKnowledgeComposerRequestHandled} onRemoveContext={onRemoveKnowledgeChatContext} onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTurnComplete={dock.notifyChatActivity} onOpenSessionInScope={onOpenSessionInScope} />
+                <KnowledgeChatPortal selectedNode={knowledgeChatContext.selectedNode} workspaces={workspaces} contextNodes={knowledgeChatContext.explicitContext?.nodes} contextTags={knowledgeChatContext.explicitContext?.tags} contextCanvases={knowledgeChatContext.explicitContext?.canvases} composerRequest={knowledgeChatContext.explicitContext?.composerRequest} onComposerRequestHandled={onKnowledgeComposerRequestHandled} onRemoveContext={onRemoveKnowledgeChatContext} onClose={dock.collapse} onOpenAppSettings={onOpenAppSettings} onTurnComplete={dock.notifyChatActivity} chatTargetActive={chatPanelOpen} onOpenSessionInScope={onOpenSessionInScope} />
               </Suspense>
             )}</>,
           chatHost,

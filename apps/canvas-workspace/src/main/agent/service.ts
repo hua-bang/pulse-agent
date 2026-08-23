@@ -44,9 +44,9 @@ const scopeKey = (scope: AgentScope): string => {
 export class CanvasAgentService {
   private agents = new Map<string, CanvasAgent>();
   private agentActivations = new ScopeActivationGate();
-  private sessionMutations = new SessionMutationCoordinator(
+  readonly sessionMutations = new SessionMutationCoordinator(
     (scope) => this.activateScope(scope),
-    (scope) => this.getAgent(scope),
+    (scope) => this.getAgentForScope(scope),
   );
 
   private async activateScope(scope: AgentScope): Promise<void> {
@@ -67,7 +67,7 @@ export class CanvasAgentService {
     });
   }
 
-  private getAgent(scope: AgentScope): CanvasAgent | undefined {
+  getAgentForScope(scope: AgentScope): CanvasAgent | undefined {
     return this.agents.get(scopeKey(scope));
   }
 
@@ -131,7 +131,7 @@ export class CanvasAgentService {
       try {
         await this.activateScope(scope);
         markCanvasHostScopeReady(timing);
-        const agent = this.getAgent(scope)!;
+        const agent = this.getAgentForScope(scope)!;
         const persistTo = (sessionId: string, messages: CanvasAgentMessage[]) =>
           this.sessionMutations.enqueueSessionAppend(scope, sessionId, messages);
         const turn = await agent.chat(
@@ -181,12 +181,12 @@ export class CanvasAgentService {
   }
 
   abortScope(scope: AgentScope, sessionId?: string): void {
-    this.getAgent(scope)?.abort(sessionId);
+    this.getAgentForScope(scope)?.abort(sessionId);
   }
 
   /** Graceful relay stop for the scope's in-flight turn (see CanvasAgent.stopRelay). */
   stopRelayForScope(scope: AgentScope, sessionId?: string): boolean {
-    return this.getAgent(scope)?.stopRelay(sessionId) ?? false;
+    return this.getAgentForScope(scope)?.stopRelay(sessionId) ?? false;
   }
 
   /** Deliver the user's answer to a pending clarification request. */
@@ -195,13 +195,13 @@ export class CanvasAgentService {
   }
 
   answerClarificationForScope(scope: AgentScope, requestId: string, answer: string): boolean {
-    const agent = this.getAgent(scope);
+    const agent = this.getAgentForScope(scope);
     if (!agent) return false;
     return agent.answerClarification(requestId, answer);
   }
 
   getPendingClarificationForScope(scope: AgentScope, sessionId?: string) {
-    return this.getAgent(scope)?.getPendingClarification(sessionId) ?? null;
+    return this.getAgentForScope(scope)?.getPendingClarification(sessionId) ?? null;
   }
 
   /**
@@ -212,7 +212,7 @@ export class CanvasAgentService {
   }
 
   getStatusForScope(scope: AgentScope): AgentStatusResponse {
-    const agent = this.getAgent(scope);
+    const agent = this.getAgentForScope(scope);
     if (!agent) return { ok: true, active: false, messageCount: 0 };
     return { ok: true, active: true, messageCount: agent.getMessageCount() };
   }
@@ -224,11 +224,11 @@ export class CanvasAgentService {
    * current session via {@link loadSession} / {@link newSession}.
    */
   getCurrentSessionId(workspaceId: string): string | null {
-    return this.getAgent(workspaceScope(workspaceId))?.getCurrentSessionId() ?? null;
+    return this.getAgentForScope(workspaceScope(workspaceId))?.getCurrentSessionId() ?? null;
   }
 
   getCurrentSessionIdForScope(scope: AgentScope): string | null {
-    return this.getAgent(scope)?.getCurrentSessionId() ?? null;
+    return this.getAgentForScope(scope)?.getCurrentSessionId() ?? null;
   }
 
   /**
@@ -242,7 +242,7 @@ export class CanvasAgentService {
 
   async listSkillsForScope(scope: AgentScope): Promise<Array<{ name: string; description: string }>> {
     await this.activateScope(scope);
-    const agent = this.getAgent(scope)!;
+    const agent = this.getAgentForScope(scope)!;
     return agent.listSkills();
   }
 
@@ -255,7 +255,7 @@ export class CanvasAgentService {
 
   async getHistoryForScope(scope: AgentScope): Promise<CanvasAgentMessage[]> {
     await this.activateScope(scope);
-    const agent = this.getAgent(scope);
+    const agent = this.getAgentForScope(scope);
     return agent?.getHistory() ?? [];
   }
 
@@ -268,7 +268,7 @@ export class CanvasAgentService {
 
   async listSessionsForScope(scope: AgentScope): Promise<AgentSessionListEntry[]> {
     await this.activateScope(scope);
-    const agent = this.getAgent(scope)!;
+    const agent = this.getAgentForScope(scope)!;
     return agent.listSessions();
   }
 
@@ -337,7 +337,7 @@ export class CanvasAgentService {
         : g.workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
           ? { kind: 'global' }
           : workspaceScope(g.workspaceId);
-      const agent = this.getAgent(scope);
+      const agent = this.getAgentForScope(scope);
       const sessions = agent
         ? await agent.listSessions()
         : g.sessions;
@@ -447,7 +447,7 @@ export class CanvasAgentService {
    */
   async reloadSkills(workspaceId?: string): Promise<void> {
     const agents = workspaceId
-      ? [this.getAgent(workspaceScope(workspaceId))].filter((a): a is CanvasAgent => Boolean(a))
+      ? [this.getAgentForScope(workspaceScope(workspaceId))].filter((a): a is CanvasAgent => Boolean(a))
       : Array.from(this.agents.values());
     await Promise.all(agents.map((agent) => agent.rescanSkills()));
   }
@@ -462,7 +462,7 @@ export class CanvasAgentService {
     const targetScope: AgentScope = workspaceId ? workspaceScope(workspaceId) : { kind: 'global' };
     await this.activateScope(targetScope);
     const agents = workspaceId
-      ? [this.getAgent(targetScope)].filter((a): a is CanvasAgent => Boolean(a))
+      ? [this.getAgentForScope(targetScope)].filter((a): a is CanvasAgent => Boolean(a))
       : Array.from(this.agents.values());
     await Promise.all(agents.map((agent) => agent.reloadEngine()));
   }
@@ -475,9 +475,9 @@ export class CanvasAgentService {
    */
   getMcpStatuses(workspaceId?: string): Record<string, MCPServerStatus> {
     if (workspaceId) {
-      return this.getAgent(workspaceScope(workspaceId))?.getMcpStatuses() ?? {};
+      return this.getAgentForScope(workspaceScope(workspaceId))?.getMcpStatuses() ?? {};
     }
-    const global = this.getAgent({ kind: 'global' });
+    const global = this.getAgentForScope({ kind: 'global' });
     if (global) return global.getMcpStatuses();
     const first = this.agents.values().next().value as CanvasAgent | undefined;
     return first?.getMcpStatuses() ?? {};

@@ -20,6 +20,8 @@ interface SessionMutationAgent {
   loadSession(sessionId: string): Promise<CanvasAgentSession | null>;
   loadCrossWorkspaceSession(messages: CanvasAgentMessage[]): Promise<void>;
   appendToSession(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
+  readSessionById(sessionId: string): Promise<CanvasAgentSession | null>;
+  replaceSessionMessagesById(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
 }
 export type SessionMutationFailure = {
   ok: false;
@@ -309,6 +311,26 @@ export class SessionMutationCoordinator {
 
   waitForIdle(scope: AgentScope): Promise<void> {
     return this.tails.get(scopeMutationKey(scope)) ?? Promise.resolve();
+  }
+
+  readConversation(
+    scope: AgentScope,
+    sessionId: string,
+  ): Promise<CanvasAgentMessage[] | null> {
+    return this.run(scope, async () => {
+      const session = await (await this.activeAgent(scope)).readSessionById(sessionId);
+      return session?.messages ?? null;
+    });
+  }
+
+  replaceConversationMessages(
+    scope: AgentScope,
+    sessionId: string,
+    messages: CanvasAgentMessage[],
+  ): Promise<void> {
+    return this.run(scope, async () => {
+      await (await this.activeAgent(scope)).replaceSessionMessagesById(sessionId, messages);
+    });
   }
 
   async runChat<T>(

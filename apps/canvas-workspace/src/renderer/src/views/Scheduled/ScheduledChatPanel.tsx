@@ -15,6 +15,7 @@ interface ScheduledChatPanelProps {
   onClose: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
   onTurnComplete: () => void;
+  chatTargetActive?: boolean;
   onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }
 
@@ -25,6 +26,7 @@ export const ScheduledChatPanel = ({
   onClose,
   onOpenAppSettings,
   onTurnComplete,
+  chatTargetActive,
   onOpenSessionInScope,
 }: ScheduledChatPanelProps) => {
   const { t } = useI18n();
@@ -76,6 +78,7 @@ export const ScheduledChatPanel = ({
       onClose={onClose}
       onOpenAppSettings={onOpenAppSettings}
       onTurnComplete={onTurnComplete}
+      chatTargetActive={chatTargetActive}
       onOpenSessionInScope={onOpenSessionInScope}
     />
   );

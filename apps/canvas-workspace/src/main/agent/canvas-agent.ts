@@ -1020,6 +1020,8 @@ export class CanvasAgent {
     return this.sessionStore.getCurrentSession()?.sessionId ?? null;
   }
 
+  readSessionById(sessionId: string): Promise<CanvasAgentSession | null> { return this.sessionStore.readSession(sessionId); }
+
   /**
    * Get the message count for the current session.
    */
@@ -1119,15 +1121,16 @@ export class CanvasAgent {
     this.sessionStore.truncateMessages(fromIndex);
   }
 
-  /**
-   * Session-addressed append, called from the coordinator's per-scope tail
-   * queue so it never races an archive/load of the same session files.
-   */
+  /** Session-addressed append, serialized by the coordinator's scope tail. */
   async appendToSession(
     sessionId: string,
     messages: CanvasAgentMessage[],
   ): Promise<void> {
     await this.sessionStore.appendToSession(sessionId, messages);
+  }
+
+  async replaceSessionMessagesById(sessionId: string, messages: CanvasAgentMessage[]): Promise<void> {
+    await this.sessionStore.replaceMessagesInSession(sessionId, messages);
   }
 
   /**

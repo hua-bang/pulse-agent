@@ -18,13 +18,7 @@ import {
   removeSessionMetadata,
 } from './session-metadata';
 import { archiveSortKey, isListableSession, scanAllWorkspaceSessions, sessionUpdatedAt, type AgentSessionListEntry } from './session-store-scan';
-import {
-  appendSessionMessages,
-  readCurrentSessionFileAt,
-  readSessionFile,
-  type SessionFileIo,
-  writeFileAtomic,
-} from './session-file-io';
+import { appendSessionMessages, readCurrentSessionFileAt, readSessionFile, replaceSessionMessages, type SessionFileIo, writeFileAtomic } from './session-file-io';
 export type { AgentSessionListEntry } from './session-store-scan';
 // Lazy so tests can redirect storage through the environment.
 const storeDir = (): string =>
@@ -147,6 +141,10 @@ export class SessionStore {
     messages: CanvasAgentMessage[],
   ): Promise<void> {
     return appendSessionMessages(this.sessionFileIo(), sessionId, messages);
+  }
+
+  async replaceMessagesInSession(sessionId: string, messages: CanvasAgentMessage[]): Promise<void> {
+    return replaceSessionMessages(this.sessionFileIo(), sessionId, messages);
   }
 
   /** Drop the abandoned tail used by edit/regenerate flows. */

@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { useLocation } from 'wouter';
 import './App.css';
 import { AppShellProvider, useAppShell } from './components/shell/AppShellProvider';
+import { ConversationCompletionToastBridge } from './components/chat/ConversationCompletionToastBridge';
 import { DeferredSettings } from './components/shell/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
 import { isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from './components/dock/RightDock';
@@ -64,8 +65,6 @@ const AppContent = () => {
   const dock = useRightDock();
   const [location, setLocation] = useLocation();
   const { path: routePath, params: routeParams } = useMemo(() => parseCanvasLocation(location), [location]);
-  // Routes and nav items contributed by built-in plugins. Snapshot at
-  // mount: built-in plugins register synchronously at renderer bootstrap,
   // so a one-shot read is sufficient.
   const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
   const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
@@ -599,6 +598,7 @@ const AppContent = () => {
 const App = () => (
   <I18nProvider>
     <AppShellProvider>
+      <ConversationCompletionToastBridge />
       <ChatTargetProvider>
         <RightDockProvider><AppContent /></RightDockProvider>
       </ChatTargetProvider>

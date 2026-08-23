@@ -8,6 +8,7 @@ import { Button, TextField } from '../ui';
 import { useI18n } from '../../i18n';
 import { ChatSessionRailItem } from './ChatSessionRailItem';
 import type { WorkspaceOption } from './types';
+import type { ConversationCompletionStatus } from './hooks/conversationCompletionStore';
 
 const SESSION_PREVIEW_LIMIT = 10;
 const GLOBAL_CHAT_ID = '__global_chat__';
@@ -27,6 +28,7 @@ export interface UnifiedSession {
    *  background or in the current surface). Lets the rail show which
    *  conversations are alive in parallel. */
   running?: boolean;
+  completionStatus?: ConversationCompletionStatus;
 }
 
 export interface ChatSessionsRailProps {

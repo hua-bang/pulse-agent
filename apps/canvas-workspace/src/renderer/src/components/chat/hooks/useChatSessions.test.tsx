@@ -121,6 +121,40 @@ afterEach(() => {
 
 describe('useChatSessions — session detail loading', () => {
 
+  it('qualifies loaded messages with the conversation they belong to', async () => {
+    const onConversationLoaded = vi.fn();
+    agent.loadSession.mockResolvedValue({
+      ok: true,
+      activeSessionId: 'session-b',
+      messages: [message('session b')],
+    });
+    const QualifiedProbe = () => {
+      latest = useChatSessions({
+        agentScope: { kind: 'workspace', workspaceId: 'workspace-a' },
+        onMessagesLoaded,
+        onConversationLoaded,
+        skipInitialHistory: true,
+      });
+      return null;
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<I18nProvider><QualifiedProbe /></I18nProvider>);
+    });
+
+    await act(async () => {
+      await latest?.handleLoadSession('session-b');
+    });
+
+    expect(onConversationLoaded).toHaveBeenCalledWith({
+      scope: { kind: 'workspace', workspaceId: 'workspace-a' },
+      sessionId: 'session-b',
+      messages: [message('session b')],
+    });
+  });
+
   it('keeps the unified rail grouped by its committed scopes during a cross-scope thread load', async () => {
     const workspace = { id: 'workspace-a', name: 'Workspace A' };
     const thread = deferred<ThreadResult>();

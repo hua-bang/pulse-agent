@@ -8,7 +8,7 @@ import './ChatPanel.css';
 import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
-import { useChatComposerState } from './hooks/useChatComposerState';
+import { useChatComposerStateKeyed } from './hooks/useChatComposerStateKeyed';
 import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useAppShell } from '../shell/AppShellProvider';
 import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from './types';
@@ -29,19 +29,20 @@ import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
 import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from './utils/chatPageDockTabs';
 import { useChatPageNewSession } from './hooks/useChatPageNewSession';
+import { useConversationCompletionNotices } from './hooks/useConversationCompletionNotices';
 
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
   /** Context inherited from the visible target that opened this page. */
   contextSnapshot?: ChatContextSnapshot;
   executionPolicy?: ChatExecutionPolicy;
-  /** Session selected while entering a different scope. */
+  /** Initial and reactive session targets while a transition is pending. */
   initialPendingSessionId: string | null;
-  /** Reactive pendingSessionId for same-workspace clicks after mount. */
   pendingSessionId: string | null;
   pendingSessionIntentId: number | null;
-  /** Session chosen by the user, updated synchronously before its thread loads. */
+  /** Committed body conversation and the requested target awaiting load. */
   selectedSessionKey?: string | null;
+  pendingSessionKey?: string | null;
   onSessionConsumed: (intentId: number, loaded: boolean) => void;
   /** Creates a new session after the user selects another scope. */
   onCreateNewSessionInScope?: (scope: AgentScope) => Promise<AgentNewSessionResult>;
@@ -66,7 +67,6 @@ export interface ChatPageBodyProps {
   onToggleRail: () => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
-  /** Fixed-task chats hide the cross-session rail/new-chat controls. */
   fixedChat?: {
     title: string;
     banner?: ReactNode;
@@ -81,6 +81,7 @@ export const ChatPageBody = ({
   pendingSessionId,
   pendingSessionIntentId,
   selectedSessionKey = null,
+  pendingSessionKey = null,
   onSessionConsumed,
   onCreateNewSessionInScope,
   onNewSessionCreated,
@@ -202,7 +203,7 @@ export const ChatPageBody = ({
     toggleSection,
     toggleSessionPinned,
     toggleToolExpand,
-  } = useChatComposerState({
+  } = useChatComposerStateKeyed({
     agentScope,
     scopeLabel,
     allWorkspaces,
@@ -362,11 +363,9 @@ export const ChatPageBody = ({
 
   const sessionInteractionDisabled = loading || sessionLoading || busyElsewhere;
   const sessionRailDisabled = sessionLoading;
-  // New chat stays available while streaming (run is session-anchored; it keeps
-  // writing to its archived copy), blocked only during a pointer swap or when
-  // another surface owns the current session.
   const newSessionDisabled = sessionLoading || busyElsewhere;
   const runningSessionIds = useScopeRunningSessions(agentScope, scopeId); // rail "Running" markers
+  const completionStatuses = useConversationCompletionNotices({ selectedSessionKey });
   const sessionRail = useChatPageSessionRail({
     agentScope,
     allWorkspaces,
@@ -376,10 +375,11 @@ export const ChatPageBody = ({
     selectedSessionKey,
     sessions,
     sessionsStoreId,
-    pendingSessionKey: sessionLoading ? selectedSessionKey : null,
+    pendingSessionKey: sessionLoading ? pendingSessionKey : null,
     disabled: sessionRailDisabled,
     newSessionDisabled,
     runningSessionIds,
+    completionStatuses,
     focusInput,
     handleNewSession,
     onNewSessionDraft: newSession.handleNewSessionFromRail,

@@ -2,6 +2,7 @@ import type {
   AgentChatMessage,
   AgentClarificationRequest,
   AgentRequestContext,
+  AgentScope,
   AgentScopeRef,
   AgentSessionInfo,
   ChatImageAttachment,
@@ -95,6 +96,36 @@ export interface AgentApi {
     requestContext?: AgentRequestContext,
     attachments?: ChatImageAttachment[],
   ) => Promise<{ ok: boolean; sessionId?: string; code?: string; error?: string }>;
+  /**
+   * Conversation-runtime chat (phase-2/4). Drives a conversation by key
+   * (scope + sessionId); main owns the per-conversation queue/state and
+   * streams the same per-session events the legacy protocol emits.
+   */
+  conversationChat: (
+    scope: AgentScope,
+    sessionId: string,
+    message: string,
+    mentionedWorkspaceIds?: string[],
+    requestContext?: AgentRequestContext,
+    attachments?: ChatImageAttachment[],
+  ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
+  /** Abort a conversation's active turn. */
+  conversationAbort: (
+    scope: AgentScope,
+    sessionId: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  /** Graceful relay stop for a conversation's in-flight turn. */
+  conversationStopRelay: (
+    scope: AgentScope,
+    sessionId: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  /** Answer a conversation's pending clarification. */
+  conversationClarifyAnswer: (
+    scope: AgentScope,
+    sessionId: string,
+    requestId: string,
+    answer: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
   onTextDelta: (
     sessionId: string,
     callback: (delta: string) => void,

@@ -16,8 +16,8 @@ const chatView = vi.hoisted(() => ({
   latestProps: null as null | Record<string, unknown>,
 }));
 
-vi.mock('../hooks/useChatComposerState', () => ({
-  useChatComposerState: () => ({
+vi.mock('../hooks/useChatComposerStateKeyed', () => ({
+  useChatComposerStateKeyed: () => ({
     activeSessionId: null,
     attachmentSendBlocked: false,
     attachments: [],

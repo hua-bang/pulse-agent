@@ -96,6 +96,24 @@ describe('SessionStore', () => {
     expect(store.getMessages().map(m => m.content)).toEqual(['message 1']);
   });
 
+  it('replaces current or archived conversation messages without moving the pointer', async () => {
+    const store = new SessionStore('ws-replace-session');
+    await store.startSession();
+    const archivedId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    const currentId = store.getCurrentSession()!.sessionId;
+
+    await store.replaceMessagesInSession(archivedId, [makeMessage(2)]);
+    await store.replaceMessagesInSession(currentId, [makeMessage(3)]);
+
+    expect((await store.readSession(archivedId))?.messages.map(m => m.content))
+      .toEqual(['message 2']);
+    expect((await store.readSession(currentId))?.messages.map(m => m.content))
+      .toEqual(['message 3']);
+    expect(store.getCurrentSession()?.sessionId).toBe(currentId);
+  });
+
   it('drops appends for a session that no longer exists', async () => {
     const store = new SessionStore('ws-append-missing');
     await store.startSession();

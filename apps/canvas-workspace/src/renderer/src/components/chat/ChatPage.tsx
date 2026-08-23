@@ -69,12 +69,18 @@ export const ChatPage = ({
   const [pendingSessionIntent, setPendingSessionIntent] = useState<{
     id: number;
     sessionId: string;
+    sessionKey: string;
   } | null>(
-    () => initialTarget?.sessionId ? { id: 1, sessionId: initialTarget.sessionId } : null,
+    () => initialTarget?.sessionId ? {
+      id: 1,
+      sessionId: initialTarget.sessionId,
+      sessionKey: `${initialTarget.scopeId}:${initialTarget.sessionId}`,
+    } : null,
   );
   const sessionIntentSequenceRef = useRef(initialTarget?.sessionId ? 1 : 0);
   const pendingSessionIntentRef = useRef<number | null>(initialTarget?.sessionId ? 1 : null);
   const pendingSessionId = pendingSessionIntent?.sessionId ?? null;
+  const pendingSessionKey = pendingSessionIntent?.sessionKey ?? null;
   const [selectedSessionKey, setSelectedSessionKey] = useState<string | null>(
     () => initialTarget?.sessionId
       ? `${initialTarget.scopeId}:${initialTarget.sessionId}`
@@ -123,8 +129,11 @@ export const ChatPage = ({
   const navigateToSession = useCallback((session: { sessionId: string; workspaceId: string }) => {
     const intentId = ++sessionIntentSequenceRef.current;
     pendingSessionIntentRef.current = intentId;
-    setPendingSessionIntent({ id: intentId, sessionId: session.sessionId });
-    setSelectedSessionKey(`${session.workspaceId}:${session.sessionId}`);
+    setPendingSessionIntent({
+      id: intentId,
+      sessionId: session.sessionId,
+      sessionKey: `${session.workspaceId}:${session.sessionId}`,
+    });
     // The rail's `workspaceId` is really a session-STORE id, so the two
     // sentinel stores (global chat, one per scheduled task) must map back to
     // their own scope kinds — treating them as workspace ids would activate
@@ -205,8 +214,11 @@ export const ChatPage = ({
     }
 
     pendingSessionIntentRef.current = intentId;
-    setPendingSessionIntent({ id: intentId, sessionId: result.activeSessionId });
-    setSelectedSessionKey(`${scopeSessionStoreId(scope)}:${result.activeSessionId}`);
+    setPendingSessionIntent({
+      id: intentId,
+      sessionId: result.activeSessionId,
+      sessionKey: `${scopeSessionStoreId(scope)}:${result.activeSessionId}`,
+    });
     onWorkspaceScopeChange?.(workspaceIdFromScope(scope));
     setAgentScope(scope);
     return result;
@@ -214,18 +226,23 @@ export const ChatPage = ({
 
   const handleSessionConsumed = useCallback((intentId: number, loaded: boolean) => {
     if (pendingSessionIntentRef.current !== intentId) return;
+    const committedSessionKey = pendingSessionIntent?.sessionKey ?? null;
     pendingSessionIntentRef.current = null;
     setPendingSessionIntent(null);
     const rollback = scopeRollbackRef.current;
     scopeRollbackRef.current = null;
-    if (loaded || !rollback) return;
+    if (loaded) {
+      setSelectedSessionKey(committedSessionKey);
+      return;
+    }
+    if (!rollback) return;
     onWorkspaceScopeChange?.(workspaceIdFromScope(rollback.agentScope));
     setAgentScope(rollback.agentScope);
     setSelectedSessionKey(rollback.selectedSessionKey);
     setContextSnapshot(rollback.contextSnapshot);
     setExecutionPolicy(rollback.executionPolicy);
     setSessionBackStack(rollback.sessionBackStack);
-  }, [onWorkspaceScopeChange]);
+  }, [onWorkspaceScopeChange, pendingSessionIntent]);
   const handleActiveSessionResolved = useCallback((sessionId: string, workspaceId: string) => {
     setSelectedSessionKey(`${workspaceId}:${sessionId}`);
   }, []);
@@ -247,6 +264,7 @@ export const ChatPage = ({
       pendingSessionId={pendingSessionId}
       pendingSessionIntentId={pendingSessionIntent?.id ?? null}
       selectedSessionKey={selectedSessionKey}
+      pendingSessionKey={pendingSessionKey}
       onSessionConsumed={handleSessionConsumed}
       onCreateNewSessionInScope={handleCreateNewSessionInScope}
       onNewSessionCreated={handleNewSessionCreated}

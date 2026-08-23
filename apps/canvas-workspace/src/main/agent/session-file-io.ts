@@ -116,6 +116,41 @@ export async function appendSessionMessages(
   await writeFileAtomic(found.path, JSON.stringify(updated, null, 2));
 }
 
+/**
+ * Replace a session's message list in place without moving the current
+ * pointer. Session-anchored full-state writes (conversation runtime persist)
+ * need this so a run never depends on which session is "current".
+ */
+export async function replaceSessionMessages(
+  store: SessionFileIo,
+  sessionId: string,
+  messages: CanvasAgentMessage[],
+): Promise<void> {
+  await store.flushPersistence();
+  if (store.session?.sessionId === sessionId) {
+    store.session.messages = [...messages];
+    await store.persist();
+    return;
+  }
+  const found = await findSessionFile(store, sessionId);
+  if (!found) {
+    const created: CanvasAgentSession = {
+      sessionId,
+      workspaceId: store.workspaceId,
+      scope: store.scope,
+      startedAt: new Date().toISOString(),
+      messages: [...messages],
+    };
+    await store.persist(created);
+    return;
+  }
+  const updated: CanvasAgentSession = {
+    ...found.session,
+    messages: [...messages],
+  };
+  await writeFileAtomic(found.path, JSON.stringify(updated, null, 2));
+}
+
 /** Read and parse current.json; null when absent, throws when corrupted. */
 export async function readCurrentSessionFileAt(
   currentPath: string,

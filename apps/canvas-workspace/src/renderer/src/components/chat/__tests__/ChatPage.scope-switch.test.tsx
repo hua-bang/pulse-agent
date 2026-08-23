@@ -24,6 +24,7 @@ vi.mock('../ChatPageBody', async () => {
       onCreateNewSessionInScope?: (scope: { kind: 'workspace'; workspaceId: string }) => Promise<{ ok: boolean }>;
       onJumpToSession?: (session: { sessionId: string; workspaceId: string }) => void;
       selectedSessionKey?: string | null;
+      pendingSessionKey?: string | null;
       onSelectSession: (session: {
         sessionId: string;
         workspaceId: string;
@@ -41,6 +42,7 @@ vi.mock('../ChatPageBody', async () => {
             'data-chat-body': true,
             'data-mount-id': mountId,
             'data-selected-session': props.selectedSessionKey ?? '',
+            'data-pending-session': props.pendingSessionKey ?? '',
             'data-context-label': props.contextSnapshot?.label ?? '',
             'data-execution-policy': props.executionPolicy ?? '',
             'data-pending-intent': props.pendingSessionIntentId ?? '',
@@ -120,7 +122,8 @@ describe('ChatPage scope switching', () => {
 
     const body = host.querySelector<HTMLButtonElement>('[data-chat-body]');
     expect(body?.textContent).toBe(expectedScope);
-    expect(body?.dataset.selectedSession).toBe(`${workspaceId}:referenced-session`);
+    expect(body?.dataset.selectedSession).toBe('');
+    expect(body?.dataset.pendingSession).toBe(`${workspaceId}:referenced-session`);
 
     const intentId = mockState.latestProps?.pendingSessionIntentId as number;
     act(() => mockState.latestProps?.onSessionConsumed(intentId, true));
@@ -156,8 +159,14 @@ describe('ChatPage scope switching', () => {
     const switchedBody = host.querySelector('button');
     expect(switchedBody?.textContent).toBe('workspace-b');
     expect(switchedBody?.dataset.mountId).toBe('1');
-    expect(switchedBody?.dataset.selectedSession).toBe('workspace-b:session-b');
+    expect(switchedBody?.dataset.selectedSession).toBe('');
+    expect(switchedBody?.dataset.pendingSession).toBe('workspace-b:session-b');
     expect(mockState.mountCount).toBe(1);
+
+    const intentId = mockState.latestProps?.pendingSessionIntentId as number;
+    act(() => mockState.latestProps?.onSessionConsumed(intentId, true));
+    expect(host.querySelector<HTMLButtonElement>('[data-chat-body]')?.dataset.selectedSession)
+      .toBe('workspace-b:session-b');
   });
 
   it('reports the owning workspace when a cross-workspace session is selected', async () => {
@@ -316,6 +325,10 @@ describe('ChatPage scope switching', () => {
     await act(async () => {
       host?.querySelector('button')?.click();
     });
+    act(() => mockState.latestProps?.onSessionConsumed(
+      mockState.latestProps?.pendingSessionIntentId as number,
+      true,
+    ));
     expect(host.querySelector('button')?.dataset.selectedSession).toBe('workspace-b:session-b');
 
     await act(async () => {
@@ -413,6 +426,13 @@ describe('ChatPage scope switching', () => {
       await Promise.resolve();
     });
     expect(host.querySelector<HTMLButtonElement>('[data-chat-body]')?.textContent).toBe('workspace-b');
+    const body = host.querySelector<HTMLButtonElement>('[data-chat-body]');
+    expect(body?.dataset.selectedSession).toBe('');
+    expect(body?.dataset.pendingSession).toBe('workspace-b:draft-b');
+    act(() => mockState.latestProps?.onSessionConsumed(
+      mockState.latestProps?.pendingSessionIntentId as number,
+      true,
+    ));
     expect(host.querySelector<HTMLButtonElement>('[data-chat-body]')?.dataset.selectedSession)
       .toBe('workspace-b:draft-b');
 

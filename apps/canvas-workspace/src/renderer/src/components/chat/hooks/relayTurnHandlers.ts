@@ -2,8 +2,24 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { AgentChatMessage } from '../../../types';
 import type { RoleTurnEndEvent, RoleTurnRoleRef, RoleTurnStartEvent } from '../../../../../shared/agent-roles';
 import type { ToolCallStatus } from '../types';
-import { settleRunningTools } from './toolStreamState';
 import { friendlyChatFailure } from './chatTurnOutcome';
+
+/** Settle any tool still running/queued with the terminal outcome. */
+export function settleRunningTools(
+  tools: ToolCallStatus[],
+  status: 'failed' | 'cancelled',
+  error: string,
+): void {
+  for (const tool of tools) {
+    if (tool.status !== 'running' && tool.status !== 'queued') continue;
+    tool.status = status;
+    tool.error = error;
+    tool.inputStreaming = false;
+    if (tool.streamedContent != null) {
+      tool.streamedDone = true;
+    }
+  }
+}
 
 /** Relay progress for the bar above the composer (only shown when total > 1). */
 export interface RelayProgress {

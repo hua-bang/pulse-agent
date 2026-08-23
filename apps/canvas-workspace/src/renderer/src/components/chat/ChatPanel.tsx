@@ -7,7 +7,7 @@ import './ChatPanel.css';
 import './DomMention.css';
 import { ChatView } from './ChatView';
 import { SessionBackBar } from './SessionBackBar';
-import { useChatComposerState } from './hooks/useChatComposerState';
+import { useChatComposerStateKeyed } from './hooks/useChatComposerStateKeyed';
 import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useComposerRequest } from './hooks/useComposerRequest';
 import { useAppShell } from '../shell/AppShellProvider';
@@ -152,7 +152,7 @@ export const ChatPanel = ({
     submitCurrentInputDuringRun,
     toggleSection,
     toggleToolExpand,
-  } = useChatComposerState({
+  } = useChatComposerStateKeyed({
     agentScope,
     scopeLabel,
     allWorkspaces,
@@ -162,6 +162,7 @@ export const ChatPanel = ({
     knowledgeTags,
     dockTabs,
     collectStructuredContext: true,
+    conversationVisible: chatTargetActive,
     getRequestContext: () => requestContextRef.current });
 
   useEffect(() => {

@@ -15,6 +15,93 @@ chat topbar / dock content-tabs toggle, `RightDock/dock-width.ts`
 `clarification-registry.ts`, `session-store.ts`,
 `chat-failure-persistence.ts`, `useChatAttachments.ts`).
 
+## Conversation-runtime architecture (2026-09)
+
+Chat run state is now conversation-owned. The workspace owns one shared
+CanvasAgent (single Engine + tools/MCP/config/plan-mode) as a stateless runTurn
+seam; each conversation key (`ConversationKey = { storeId, sessionId }`) owns an
+independent runtime:
+
+- Main: `src/main/agent/conversation-runtime/conversation-runtime.ts`
+  (`ConversationRuntime`: messages, queue, abort, clarification, persistence)
+  + `conversation-runtime-registry.ts` (per-scope registries) +
+  `conversation-service.ts` (service facade) + `conversation-ipc.ts`
+  (IPC: `canvas-agent:conversation-chat` / `conversation-abort` /
+  `conversation-stop-relay` / `conversation-clarify-answer`).
+- Renderer: `conversationStore.ts` (useSyncExternalStore keyed by
+  ConversationKey; snapshot cache keeps getSnapshot referentially stable),
+  `useConversationRuntimeStream.ts` (keyed stream hook driving the store +
+  conversation IPC), `useChatComposerStateKeyed.ts` (composer root used by
+  BOTH `ChatPanel` and `ChatPageBody`).
+
+Two conversations in one workspace run fully in parallel; a second turn against
+the SAME conversation is queued (not interleaved). Switching conversations is
+just changing the store selector — no destroy/replay/lease. The legacy
+compensation chains (`useChatStream`, `useChatComposerState`,
+`useChatTurnLease`, `useChatScopeActivity` / `chatScopeActivityStore`,
+`useChatRunReattach` / `chatRunReattach`, `chatRunWatchdog`,
+`useConversationBranching`, `recoverChangedChatSession`, `chatThreadCache`,
+`toolStreamState`, `visualStreamSubscription`) were DELETED. The legacy main
+path (`ActiveChatRegistry` + `SessionMutationCoordinator` + prepared-chat
+protocol) remains only for conversation-less callers (scheduled tasks) and
+backward-compatible IPC; it is not the surface path anymore.
+
+Key invariants and their guards:
+
+- Changes to conversation IPC, preload, or main runtime require a full
+  Electron restart; renderer HMR cannot validate those contracts and may leave
+  an old main process exhibiting already-fixed switching behavior.
+- `conversation-chat` acknowledges transport acceptance immediately. The
+  model turn continues asynchronously and settles through the keyed
+  `chat-complete` event; awaiting model completion in the invoke handler keeps
+  successfully submitted text stuck in the composer for the whole turn.
+- Rail `Running` badges query `ConversationRuntimeRegistry`, not the legacy
+  `ActiveChatRegistry`; keyed runs never register in the legacy prepared-chat
+  path. The selected conversation suppresses its own badge, while background
+  conversation ids remain visible until their runtime returns to idle.
+- Terminal background activity is renderer-global and keyed by completion id:
+  visible conversations suppress notices; genuine background success uses a
+  short info toast, failure uses an error toast, and the rail keeps
+  `Done`/`Failed`/`Stopped` until that conversation is opened. Duplicate
+  delivery for one run must not reopen notification eligibility.
+
+- A conversation key is `scopeSessionStoreId(scope) + sessionId`; the store
+  mapping is `shared/conversation-runtime.ts` (`conversationKey`).
+- Runtime queue/abort/clarification/persist are exercised in
+  `conversation-runtime/conversation-runtime.test.ts` and
+  `conversation-runtime/service-conversation-runtime.test.ts` (parallel runs,
+  per-conversation isolation, same-conversation serialization, delta streaming).
+- Renderer store + switch-only-selector + shared snapshot:
+  `hooks/conversationStore.test.ts`, `hooks/useChatStream.keyed.test.tsx`,
+  `hooks/useChatStream.shared-snapshot.test.tsx`,
+  `hooks/useChatComposerStateKeyed.test.tsx`.
+- Session hydration is always qualified by `{ scope, sessionId }`; fetched
+  messages are written to that conversation store BEFORE React adopts its
+  selector. An unqualified `onMessagesLoaded(messages)` callback can capture
+  the previous key and recreate the false New Chat empty state.
+- Persisted hydration is rejected while that conversation's renderer snapshot
+  is running. Disk intentionally lags the live turn until completion; replacing
+  the live list would drop the current user message and make later deltas merge
+  into an older assistant. Stream text and completion target the turn-owned
+  assistant index rather than whichever assistant happens to be last.
+- Navigation keeps requested and committed conversation keys separate. Rail
+  selection and the visible body commit together only after hydration; failed
+  loads retain the previous committed conversation. Per-turn IPC listeners are
+  released on every terminal path.
+- The conversation input contract carries request context, attachments, and
+  mentioned workspaces through renderer → IPC → runtime → engine. Persistence
+  retains user context/attachments and assistant tools, run id, and role
+  metadata; a persistence failure is a failed turn, never an empty success.
+- Conversation-runtime reads and full-state writes use the same per-scope
+  `SessionMutationCoordinator` tail as load/new/delete. Its run lease remains
+  active through persistence, so pointer changes cannot redirect a completed
+  turn and deletion cannot resurrect a running conversation. Run controls
+  always address the selected conversation key.
+- The local E2E model uses the Responses API (`POST /v1/responses`), matching
+  `createOpenAI(...)`'s default model path. `harness/mock-llm.test.mjs` pins a
+  non-empty streamed response; conversation failures must remain `ok:false`
+  through runtime → service → IPC instead of rendering an empty success.
+
 ## Loading-state flags
 
 Three flags look similar and are not interchangeable.
@@ -25,9 +112,10 @@ Three flags look similar and are not interchangeable.
 - `sessionLoading` — THIS conversation's messages are being fetched. Drives
   `ChatThreadSkeleton.tsx` in place of the thread, rendered via `ChatView` →
   `ChatMessages`.
-- A third, unrelated flag: `useChatStream`'s `loading` means "the model is
-  generating". That one drives the three-dot `.chat-loading` indicator,
-  never the skeleton.
+- A third, unrelated flag: the stream hook's `loading` (from
+  `useConversationRuntimeStream` via the conversation store snapshot) means
+  "the model is generating". That one drives the three-dot `.chat-loading`
+  indicator, never the skeleton.
 
 `sessionsLoading` and `sessionLoading` both live in `hooks/useChatSessions.ts`
 (`src/renderer/src/components/chat/hooks/useChatSessions.ts`). Do not
