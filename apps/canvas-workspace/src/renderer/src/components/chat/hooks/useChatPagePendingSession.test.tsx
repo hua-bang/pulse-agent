@@ -71,4 +71,46 @@ describe('useChatPagePendingSession', () => {
     expect(onConsumed).toHaveBeenCalledWith(11, true);
     act(() => root.unmount());
   });
+
+  it('does not restart one pending intent when its load callback changes during a render', async () => {
+    let finishLoad!: (loaded: boolean) => void;
+    const loadSession = vi.fn((_sessionId: string) => new Promise<boolean>((resolve) => {
+      finishLoad = resolve;
+    }));
+    const onConsumed = vi.fn();
+    const Probe = ({ revision }: { revision: number }) => {
+      useChatPagePendingSession({
+        // Mirrors a parent hook rebuilding its callback after loading state
+        // changes. One intent must still own exactly one request.
+        handleLoadSession: async (sessionId) => loadSession(sessionId),
+        onSessionConsumed: onConsumed,
+        pendingSessionId: 'session-b',
+        pendingSessionIntentId: 12,
+        retrySession: vi.fn(async () => undefined),
+        sessionStoreId: 'workspace-a',
+      });
+      return <span>{revision}</span>;
+    };
+    const host = document.createElement('div');
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<Probe revision={0} />);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      root.render(<Probe revision={1} />);
+      await Promise.resolve();
+    });
+
+    expect(loadSession).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishLoad(true);
+      await Promise.resolve();
+    });
+    expect(onConsumed).toHaveBeenCalledOnce();
+    expect(onConsumed).toHaveBeenCalledWith(12, true);
+    act(() => root.unmount());
+  });
 });
