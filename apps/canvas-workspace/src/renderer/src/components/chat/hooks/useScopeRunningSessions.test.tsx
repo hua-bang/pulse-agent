@@ -3,6 +3,12 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useScopeRunningSessions } from './useScopeRunningSessions';
+import { conversationKey } from '../../../../../shared/conversation-runtime';
+import {
+  resetConversationStoreForTests,
+  setConversationLoading,
+  setConversationMessages,
+} from './conversationStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -16,6 +22,7 @@ const Probe = ({ scope, scopeKey }: { scope: unknown; scopeKey: string }) => {
 };
 
 beforeEach(() => {
+  resetConversationStoreForTests();
   (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = {
     agent: {
       getScopeRunningSessions: vi.fn(async () => ({ ok: true, conversationSessionIds: [] })),
@@ -28,9 +35,25 @@ afterEach(() => {
   host?.remove();
   root = null;
   vi.restoreAllMocks();
+  resetConversationStoreForTests();
 });
 
 describe('useScopeRunningSessions', () => {
+  it('reports a locally running conversation before the main polling round-trip', async () => {
+    const key = conversationKey({ kind: 'workspace', workspaceId: 'ws' }, 'conv-local');
+    setConversationMessages(key, [{ role: 'user', content: 'hello', timestamp: 1 }]);
+    setConversationLoading(key, true);
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<Probe scope={{ kind: 'workspace', workspaceId: 'ws' }} scopeKey="ws" />);
+    });
+
+    expect(latest).toEqual(new Set(['conv-local']));
+    act(() => root?.unmount());
+  });
+
   it('reports the conversation session ids with an active run', async () => {
     const spy = vi
       .spyOn(window.canvasWorkspace.agent, 'getScopeRunningSessions')

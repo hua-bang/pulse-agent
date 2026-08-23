@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import type { AgentScope } from '../types';
+import { useConversationSnapshots } from './conversationStore';
 
 /**
  * Polls main for every conversation session that currently has an active run
@@ -13,6 +15,15 @@ export function useScopeRunningSessions(
   pollMs = 800,
 ): Set<string> {
   const [running, setRunning] = useState<Set<string>>(new Set());
+  const localSnapshots = useConversationSnapshots(scopeSessionStoreId(scope));
+  const localRunning = useMemo(
+    () => new Set(
+      localSnapshots
+        .filter(snapshot => snapshot.status === 'running')
+        .map(snapshot => snapshot.key.sessionId),
+    ),
+    [localSnapshots],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -34,5 +45,5 @@ export function useScopeRunningSessions(
     };
   }, [pollMs, scope, scopeKey]);
 
-  return running;
+  return useMemo(() => new Set([...running, ...localRunning]), [localRunning, running]);
 }

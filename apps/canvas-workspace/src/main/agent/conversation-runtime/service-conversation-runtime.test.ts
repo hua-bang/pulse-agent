@@ -109,8 +109,8 @@ describe('ConversationRuntimeService.chat', () => {
     await service.chat(scope, 'session-a', 'hello-A');
     await service.chat(scope, 'session-b', 'hello-B');
 
-    const writeA = adapter.writes.find(([id]) => id === 'session-a');
-    const writeB = adapter.writes.find(([id]) => id === 'session-b');
+    const writeA = adapter.writes.filter(([id]) => id === 'session-a').at(-1);
+    const writeB = adapter.writes.filter(([id]) => id === 'session-b').at(-1);
     expect(writeA?.[1].map(m => m.content)).toEqual(['hello-A', 'echo:hello-A']);
     expect(writeB?.[1].map(m => m.content)).toEqual(['hello-B', 'echo:hello-B']);
     expect(keyA.sessionId).not.toBe(keyB.sessionId);

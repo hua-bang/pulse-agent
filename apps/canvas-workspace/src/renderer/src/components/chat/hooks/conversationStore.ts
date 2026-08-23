@@ -31,11 +31,15 @@ const initialEmpty: RendererConversationState = {
 
 /** Module-level store so both ChatPanel and ChatPage share the same runtime state. */
 const states = new Map<string, RendererConversationState>();
+const conversationKeys = new Map<string, ConversationKey>();
 const listeners = new Map<string, Set<() => void>>();
+const storeListeners = new Set<() => void>();
+const activitySignatures = new Map<string, string>();
 let nextSequence = 0;
 const sequences = new Map<string, number>();
 /** Cached snapshot per key so useSyncExternalStore's getSnapshot is referentially stable. */
 const snapshots = new Map<string, ConversationSnapshot>();
+const snapshotLists = new Map<string, readonly ConversationSnapshot[]>();
 
 const keyId = (key: ConversationKey): string => `${key.storeId}\u0000${key.sessionId}`;
 
@@ -45,17 +49,27 @@ function getState(key: ConversationKey): RendererConversationState {
   if (!state) {
     state = { ...initialEmpty };
     states.set(id, state);
+    conversationKeys.set(id, { ...key });
   }
   return state;
 }
 
 function publish(key: ConversationKey): void {
   const id = keyId(key);
+  const state = states.get(id);
+  const firstUser = state?.messages.find(message => message.role === 'user');
+  const activitySignature = `${state?.loading ? 'running' : 'idle'}\u0000${firstUser?.content ?? ''}`;
+  const activityChanged = activitySignatures.get(id) !== activitySignature;
+  activitySignatures.set(id, activitySignature);
   nextSequence += 1;
   sequences.set(id, nextSequence);
   // Invalidate the cached snapshot so the next read builds a fresh reference.
   snapshots.delete(id);
+  snapshotLists.clear();
   for (const listener of listeners.get(id) ?? []) listener();
+  if (activityChanged) {
+    for (const listener of storeListeners) listener();
+  }
 }
 
 /** Register a listener for a conversation's snapshot changes. */
@@ -71,6 +85,34 @@ export function subscribeConversation(
     set.delete(listener);
     if (set.size === 0) listeners.delete(id);
   };
+}
+
+/** Subscribe to changes across every keyed conversation in the renderer. */
+export function subscribeConversationStore(listener: () => void): () => void {
+  storeListeners.add(listener);
+  return () => storeListeners.delete(listener);
+}
+
+/** Read stable snapshots for one store, or all stores when omitted. */
+export function readConversationSnapshots(storeId?: string): readonly ConversationSnapshot[] {
+  const cacheKey = storeId ?? '*';
+  const cached = snapshotLists.get(cacheKey);
+  if (cached) return cached;
+  const prefix = storeId === undefined ? undefined : `${storeId}\u0000`;
+  const result = [...conversationKeys.entries()]
+    .filter(([id]) => prefix === undefined || id.startsWith(prefix))
+    .map(([, key]) => readConversationSnapshot(key));
+  snapshotLists.set(cacheKey, result);
+  return result;
+}
+
+/** React hook for renderer-global conversation activity projections. */
+export function useConversationSnapshots(storeId?: string): readonly ConversationSnapshot[] {
+  return useSyncExternalStore(
+    subscribeConversationStore,
+    () => readConversationSnapshots(storeId),
+    () => readConversationSnapshots(storeId),
+  );
 }
 
 /** Read the latest snapshot for a conversation (useSyncExternalStore getSnapshot). */
@@ -234,8 +276,12 @@ export function resetConversation(key: ConversationKey): void {
 /** Test helper: clear all module state between tests. */
 export function resetConversationStoreForTests(): void {
   states.clear();
+  conversationKeys.clear();
   listeners.clear();
+  snapshotLists.clear();
   sequences.clear();
   snapshots.clear();
+  activitySignatures.clear();
   nextSequence = 0;
+  for (const listener of storeListeners) listener();
 }

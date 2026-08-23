@@ -59,6 +59,11 @@ Key invariants and their guards:
   `ActiveChatRegistry`; keyed runs never register in the legacy prepared-chat
   path. The selected conversation suppresses its own badge, while background
   conversation ids remain visible until their runtime returns to idle.
+- The first user message is persisted before the model turn starts. While that
+  turn is running, the renderer's keyed conversation store contributes a live
+  session row to the rail immediately; the durable session list takes over once
+  the turn settles. This keeps a newly-created chat visible and preserves its
+  `Running` marker when the user switches away.
 - Terminal background activity is renderer-global and keyed by completion id:
   visible conversations suppress notices; genuine background success uses a
   short info toast, failure uses an error toast, and the rail keeps

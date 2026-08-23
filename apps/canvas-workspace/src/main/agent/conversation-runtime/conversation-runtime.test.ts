@@ -47,6 +47,24 @@ function makeDeps(key: ConversationKey, runner: ReturnType<typeof makeRunner>): 
 }
 
 describe('ConversationRuntime (main, async owner)', () => {
+  it('persists the user message before the model turn starts', async () => {
+    const runner = makeRunner();
+    const deps = makeDeps(keyA, runner);
+    let finish!: (result: TurnRunnerResult) => void;
+    runner.setBehavior(async () => {
+      return new Promise(resolve => { finish = resolve; });
+    });
+    const rt = new ConversationRuntime(deps);
+    await rt.open();
+
+    const pending = rt.sendAndWait({ message: 'hello' });
+    await vi.waitFor(() => expect(runner.calls).toHaveLength(1));
+    expect(deps.persisted.at(-1)?.map(message => message.content)).toEqual(['hello']);
+
+    finish({ response: 'done' });
+    await pending;
+  });
+
   it('keeps two conversations in one workspace independent, including streaming state', async () => {
     const runnerA = makeRunner();
     const runnerB = makeRunner();
@@ -91,11 +109,9 @@ describe('ConversationRuntime (main, async owner)', () => {
     expect(runner.calls.length).toBe(1);
 
     resolveFirst({ response: 'one' });
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(runner.calls.length).toBe(2));
 
     // The queued turn starts after the first settles.
-    expect(runner.calls.length).toBe(2);
     expect(runner.calls.map(c => c.message)).toEqual(['first', 'second']);
   });
 

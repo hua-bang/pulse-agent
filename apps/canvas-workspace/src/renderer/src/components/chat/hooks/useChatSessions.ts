@@ -13,6 +13,7 @@ import {
 } from './chatConversationMutation';
 import { partitionSessionGroups } from './sessionListGroups';
 import { deliverLoadedConversation, type LoadedConversation } from './loadedConversationSink';
+import { useLiveSessionLists } from './useLiveSessionLists';
 interface UseChatSessionsOptions {
   agentScope: AgentScope;
   allWorkspaces?: WorkspaceOption[];
@@ -42,7 +43,6 @@ interface CachedSessions {
 const SESSIONS_CACHE_LIMIT = 20;
 const sessionsCache = new Map<string, CachedSessions>();
 
-/** Test-only reset; production sessions intentionally survive surface remounts. */
 export const resetChatSessionsCacheForTests = (): void => {
   sessionsCache.clear();
 };
@@ -77,7 +77,6 @@ export function useChatSessions({
       : 'global';
 
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
-  // Revisited scopes repaint their cached rail immediately.
   const [sessions, setSessions] = useState<AgentSessionInfo[]>(
     () => sessionsCache.get(scopeKey)?.sessions ?? [],
   );
@@ -88,11 +87,9 @@ export function useChatSessions({
     () => scopeSessionStoreId(agentScope),
   );
   const [currentScopeName, setCurrentScopeName] = useState<string | null>(null);
-  // Avoid an empty-state flash before an eager first list fetch.
   const [sessionsLoading, setSessionsLoading] = useState(
     () => eagerLoad && !sessionsCache.has(scopeKey),
   );
-  // Seed true: mount always starts history or an explicit session fetch.
   const [sessionLoading, setSessionLoading] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<{
@@ -111,6 +108,9 @@ export function useChatSessions({
   const historyHandledScopeRef = useRef<string | null>(null);
   const localConversationMutationRef = useRef(createChatConversationMutationState());
   const mutationRef = conversationMutationRef ?? localConversationMutationRef;
+  const visibleSessionLists = useLiveSessionLists({
+    agentScope, allWorkspaces, activeSessionId, sessions, otherSessions,
+  });
 
   useLayoutEffect(() => {
     if (previousScopeKeyRef.current === scopeKey) return;
@@ -477,7 +477,7 @@ export function useChatSessions({
 
   return {
     adoptActiveSession,
-    otherSessions,
+    otherSessions: visibleSessionLists.otherSessions,
     sessionsStoreId,
     activeSessionId,
     currentScopeName,
@@ -491,7 +491,7 @@ export function useChatSessions({
     retrySession,
     sessionMenuOpen,
     sessionMenuRef,
-    sessions,
+    sessions: visibleSessionLists.sessions,
     sessionsLoading,
     sessionLoading,
     sessionError,

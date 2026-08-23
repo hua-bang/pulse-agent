@@ -248,6 +248,11 @@ export class ConversationRuntime {
     this.controller = new AbortController();
     this.publish();
 
+    // Materialize the user turn before invoking the model. This makes a new
+    // conversation durable/listable as soon as the user sends, so switching
+    // away during generation cannot hide the session from the rail.
+    const userMessagePersist = this.deps.persist([...this.messages]).catch(() => undefined);
+
     const assistant: AgentChatMessage = { role: 'assistant', content: '', timestamp: Date.now() };
     let result: TurnRunnerResult = { response: '' };
     try {
@@ -337,6 +342,7 @@ export class ConversationRuntime {
     if (assistant.content.length > 0 || assistant.toolCalls?.length || assistant.turnStatus) {
       this.messages.push(assistant);
     }
+    await userMessagePersist;
     try {
       await this.deps.persist([...this.messages]);
     } catch (err) {

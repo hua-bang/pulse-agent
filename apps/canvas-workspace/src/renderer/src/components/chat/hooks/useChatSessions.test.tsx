@@ -7,6 +7,12 @@ import type { AgentScope } from '../types';
 import { I18nProvider } from '../../../i18n';
 import { resetChatSessionsCacheForTests, useChatSessions } from './useChatSessions';
 import { useChatPageSessionRail } from './useChatPageSessionRail';
+import { conversationKey } from '../../../../../shared/conversation-runtime';
+import {
+  resetConversationStoreForTests,
+  setConversationLoading,
+  setConversationMessages,
+} from './conversationStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -104,6 +110,7 @@ async function rerender(
 
 beforeEach(() => {
   resetChatSessionsCacheForTests();
+  resetConversationStoreForTests();
   onMessagesLoaded = vi.fn();
   agent = makeAgentMocks();
   (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent };
@@ -117,9 +124,26 @@ afterEach(() => {
   latest = null;
   latestRailWorkspaceIds = [];
   vi.restoreAllMocks();
+  resetConversationStoreForTests();
 });
 
 describe('useChatSessions — session detail loading', () => {
+
+  it('shows a newly running conversation before its first reply completes', async () => {
+    const key = conversationKey({ kind: 'global' }, 'session-live');
+    setConversationMessages(key, [message('new prompt')]);
+    setConversationLoading(key, true);
+
+    await mount();
+
+    expect(latest?.sessions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sessionId: 'session-live',
+        messageCount: 1,
+        preview: 'new prompt',
+      }),
+    ]));
+  });
 
   it('qualifies loaded messages with the conversation they belong to', async () => {
     const onConversationLoaded = vi.fn();
