@@ -118,7 +118,7 @@ The v1 reader accepts stdio, streamable HTTP and SSE servers after validating th
 
 - `./` stdio commands and cwd paths are resolved to canonical package-contained paths; bare executable names are allowed for PATH lookup.
 - `${PLUGIN_ROOT}` and `${PLUGIN_DATA}` are the only plugin runtime placeholders. The adapter expands them in args/env/cwd and injects both environment variables; plugin env cannot override them.
-- Server names become `<safe-plugin-name>.<server-name>` to reduce collisions.
+- Server config keys become `<safe-plugin-name>.<server-name>` to reduce collisions. The engine preserves that key for status and OAuth lookup, but normalizes punctuation in the model-visible tool name (for example `mcp_exa.exa_search` becomes `mcp_exa_exa_search`).
 - `streamable-http` maps to Pulse `http`; `sse` remains `sse`.
 - Remote URLs must be HTTP(S), with plain HTTP limited to loopback. User information and fragments are rejected.
 - Public literal headers are preserved, but credential-bearing names such as `Authorization`, `Cookie`, `Proxy-Authorization`, `X-API-Key` and `API-Key` are rejected. Cross-origin redirect header stripping remains the transport layer's responsibility.

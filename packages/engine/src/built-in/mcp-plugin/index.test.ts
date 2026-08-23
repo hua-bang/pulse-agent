@@ -75,6 +75,25 @@ afterEach(async () => {
 });
 
 describe('createMcpPlugin disabledTools', () => {
+  it('registers provider-safe tool names when an MCP server name contains punctuation', async () => {
+    const cfgPath = await writeConfig({
+      'exa.exa': { transport: 'http', url: 'https://mcp.exa.ai/mcp' },
+    });
+    fakeTools['web.search'] = { description: 'Search with punctuation' };
+
+    try {
+      const plugin = createMcpPlugin({ configPaths: [cfgPath] });
+      const { ctx, tools } = makeContext();
+      await plugin.initialize(ctx);
+
+      expect(Object.keys(tools)).toContain('mcp_exa_exa_search');
+      expect(Object.keys(tools)).toContain('mcp_exa_exa_web_search');
+      expect(Object.keys(tools).every((name) => /^[a-zA-Z0-9_-]+$/.test(name))).toBe(true);
+    } finally {
+      delete fakeTools['web.search'];
+    }
+  });
+
   it('skips registering disabled tools but still lists them in the status', async () => {
     const cfgPath = await writeConfig({
       eido: {
