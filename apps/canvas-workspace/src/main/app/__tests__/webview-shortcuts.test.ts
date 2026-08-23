@@ -84,7 +84,7 @@ describe('webview shortcut relay', () => {
     });
   });
 
-  it('relays find from a dock page to the embedder find bar', async () => {
+  it('leaves find with the page so its DOM handler gets first refusal', async () => {
     registerGuest('dock-browser');
     const created = await install();
     const { contents, hostWebContents } = createGuest();
@@ -93,16 +93,8 @@ describe('webview shortcut relay', () => {
     const preventDefault = vi.fn();
     inputHandlerOf(contents)({ preventDefault }, { type: 'keyDown', key: 'f', control: true });
 
-    expect(preventDefault).toHaveBeenCalledOnce();
-    expect(hostWebContents.send).toHaveBeenCalledWith('dock:shortcut', {
-      command: 'find',
-      source: {
-        workspaceId: 'ws-1',
-        nodeId: 'dock-tab-1',
-        webContentsId: 42,
-        surfaceKind: 'dock-browser',
-      },
-    });
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(hostWebContents.send).not.toHaveBeenCalled();
   });
 
   it('leaves browser chords inside canvas-node guests untouched', async () => {

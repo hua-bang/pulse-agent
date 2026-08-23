@@ -7,9 +7,14 @@
  * a main-process relay every browsing shortcut would work only when the dock
  * chrome happened to be focused. `main/app/webview-shortcuts.ts` matches these
  * same chords in `before-input-event` and forwards the resolved command to the
- * renderer, which handles it identically to a locally observed key.
+ * renderer, which handles it identically to a locally observed key. `find` is
+ * the exception: it reaches the page first and falls back through the guest
+ * preload only when the DOM event was not default-prevented.
  */
 import type { WebviewRegistrationIdentity } from './webview-registration';
+
+/** Guest preload → host renderer signal that the page left Ctrl/Cmd+F unhandled. */
+export const DOCK_FIND_FALLBACK_CHANNEL = 'pulse:dock-find-fallback';
 
 export type DockBrowserCommand =
   | 'new-tab'

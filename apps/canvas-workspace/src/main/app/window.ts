@@ -5,6 +5,7 @@ import type { WriteLog } from "./logging";
 
 export interface CreateWindowOptions {
   preloadPath: string;
+  webviewFindPreloadPath: string;
   rendererIndexPath: string;
   iconPath?: string;
   writeLog: WriteLog;
@@ -12,6 +13,7 @@ export interface CreateWindowOptions {
 
 export function createWindow({
   preloadPath,
+  webviewFindPreloadPath,
   rendererIndexPath,
   iconPath,
   writeLog,
@@ -33,6 +35,18 @@ export function createWindow({
       // webContents ID to pull rendered DOM text for the Canvas Agent.
       webviewTag: true
     }
+  });
+
+  // Third-party pages keep first refusal on Ctrl/Cmd+F. This isolated preload
+  // observes the page's DOM cancellation/propagation result and asks the host
+  // to open its find bar only when the page did not claim the chord. Keep the
+  // bridge main-frame-only: enabling Node preload execution in third-party
+  // child frames widens the security boundary and is unnecessary for normal
+  // document apps such as Feishu.
+  win.webContents.on('will-attach-webview', (_event, webPreferences) => {
+    webPreferences.preload = webviewFindPreloadPath;
+    webPreferences.contextIsolation = true;
+    webPreferences.nodeIntegration = false;
   });
 
   // The main renderer should never navigate away from the app shell. If a

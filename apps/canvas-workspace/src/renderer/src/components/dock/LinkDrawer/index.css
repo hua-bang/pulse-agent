@@ -248,20 +248,33 @@
   font-size: 11px;
 }
 
-/* Find-in-page bar. Sits between the address chrome and the page, so the
-   match counter stays visible while the guest scrolls its highlights. */
+/* Find-in-page floats over the page like browser chrome. Keeping it inside
+   the webview surface avoids resizing the guest every time Find opens. */
 .link-drawer__find {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: var(--layer-canvas-chrome);
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
+  box-sizing: border-box;
+  width: min(360px, calc(100% - 24px));
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.link-drawer__find > .ui-textfield {
+  flex: 1;
+  min-width: 0;
 }
 
 .link-drawer__find-input {
-  flex: 1;
   min-width: 0;
+  height: 28px;
 }
 
 .link-drawer__find-count {

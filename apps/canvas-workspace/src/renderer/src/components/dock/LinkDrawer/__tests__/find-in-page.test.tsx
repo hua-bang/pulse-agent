@@ -10,6 +10,7 @@ import {
   consumeDockPageFocusRequest,
   requestDockPageFocus,
 } from '../../RightDock/dock-browser-commands';
+import { DOCK_FIND_FALLBACK_CHANNEL } from '../../../../../../shared/dock-shortcuts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -244,5 +245,16 @@ describe('useFindInPage', () => {
     act(() => api.close());
 
     expect(restore).toHaveBeenCalledOnce();
+  });
+
+  it('opens the host fallback when the guest reports an unhandled Find chord', () => {
+    const { webview } = createWebview();
+    render(webview);
+    const event = new Event('ipc-message') as Event & { channel?: string };
+    event.channel = DOCK_FIND_FALLBACK_CHANNEL;
+
+    act(() => { webview.dispatchEvent(event); });
+
+    expect(api.open).toBe(true);
   });
 });

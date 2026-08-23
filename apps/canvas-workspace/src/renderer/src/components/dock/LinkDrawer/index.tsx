@@ -414,16 +414,6 @@ export const LinkTabView = ({
           aria-label={t('linkDrawer.loadingPage')}
         />
       )}
-      {find.open && (
-        <FindInPageBar
-          query={find.query}
-          matches={find.matches}
-          barRef={find.barRef}
-          onQueryChange={find.onQueryChange}
-          onStep={find.step}
-          onClose={find.close}
-        />
-      )}
       {isGoogleAuthUrl(browser.currentUrl) && (
         <div className="link-drawer__auth-notice" role="status">
           {isDefaultBrowser ? (
@@ -452,6 +442,16 @@ export const LinkTabView = ({
       )}
       <div className="link-drawer__webview-surface">
         <div ref={browser.hostRef} className="link-drawer__webview-host" />
+        {find.open && (
+          <FindInPageBar
+            query={find.query}
+            matches={find.matches}
+            barRef={find.barRef}
+            onQueryChange={find.onQueryChange}
+            onStep={find.step}
+            onClose={find.close}
+          />
+        )}
         {loadState === 'queued' && (
           <div className="link-drawer__queued" role="status">
             <strong>{title || t('node.type.webPage')}</strong>
