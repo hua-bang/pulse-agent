@@ -71,7 +71,6 @@ export function useConversationRuntimeStream({
 
   useConversationVisibility(key, keyed && visible);
 
-  // snapshot changes.
   useEffect(() => {
     setMessageTools(new Map(
       snapshot.messages.flatMap((message, index) => (
@@ -150,6 +149,7 @@ export function useConversationRuntimeStream({
           ensureAssistant();
           appendConversationTextAt(key, assistantIndex, delta);
         }
+        count('chat-stream-commit');
       };
       const textBatcher = createConversationTextBatcher(flushAssistantText);
 

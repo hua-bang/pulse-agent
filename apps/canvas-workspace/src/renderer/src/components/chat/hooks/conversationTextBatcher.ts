@@ -1,9 +1,13 @@
+const MAX_BATCH_CHARS = 512;
+const MAX_BATCH_WAIT_MS = 32;
+
 export function createConversationTextBatcher(flush: (delta: string) => void) {
   let buffered = '';
-  let frame: number | undefined;
+  let timer: number | undefined;
 
   const flushNow = () => {
-    frame = undefined;
+    if (timer !== undefined) window.clearTimeout(timer);
+    timer = undefined;
     if (!buffered) return;
     const delta = buffered;
     buffered = '';
@@ -13,7 +17,11 @@ export function createConversationTextBatcher(flush: (delta: string) => void) {
   return {
     push(delta: string) {
       buffered += delta;
-      if (frame === undefined) frame = window.requestAnimationFrame(flushNow);
+      if (buffered.length >= MAX_BATCH_CHARS) {
+        flushNow();
+        return;
+      }
+      if (timer === undefined) timer = window.setTimeout(flushNow, MAX_BATCH_WAIT_MS);
     },
     flush: flushNow,
   };
