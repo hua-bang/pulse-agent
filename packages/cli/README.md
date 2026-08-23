@@ -41,6 +41,7 @@ pnpm start
 - 轻量 Markdown 渲染 - 标题/加粗/行内代码/列表/代码块在终端中着色显示
 - `@` 文件/文件夹引用 - 输入 `@` 弹出文件补全（尊重 `.gitignore`，跳过 node_modules/dist 等），`↑↓` 选择、`Tab`/`Enter` 插入；提交时把被引用的文件内容附在消息之后（目录则附目录清单），二进制/超限/越界自动跳过并提示
 - 图片输入 - `@xx.png/jpg/webp/gif` 以视觉输入（base64 data URL）直接附给模型识别，不再当作二进制跳过；单图限 5MB，超限/空文件自动跳过并提示（需当前模型支持视觉）
+- 粘贴剪贴板图片 - `/paste-image [描述]`（Ink 下也可 `Ctrl+Shift+V`）把系统剪贴板里的截图直接作为图片发给模型，绕过终端无法传输图片的限制（macOS 用系统自带 Swift 读取，Linux 需 `xclip`/`wl-paste`）
 - 技能斜杠调用 - 运行时技能自动并入斜杠命令面，`/<skill-name> <message>` 直呼；内置命令优先，同名技能不会劫持
 - 计划模式 - edit / plan 两档（`Shift+Tab` 或 `/mode` 切换），分别映射引擎 executing / planning；`/chat` `/auto` `/execute` 为兼容别名（均指向 edit）
 - 非交互模式 - `pulse-coder -p "<prompt>"`（支持 stdin 管道）跑完即退，适合脚本/CI

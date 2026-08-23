@@ -35,6 +35,25 @@ palette (`useInput` / `use-composer-layout.ts`).
   stays a plain string so history remains byte-identical for cache-friendly prompts.
 - Oversized images (>5MB) and empty image files are skipped with a reason.
 
+## Clipboard paste (`/paste-image`, Ctrl+Shift+V)
+
+The terminal protocol cannot carry clipboard IMAGES — only clipboard text reaches
+the app on Cmd/Ctrl+V. "Paste my screenshot" therefore requires the CLI to read
+the system clipboard itself, outside the terminal.
+
+- `src/shared/clipboard-image.ts` reads the clipboard image as PNG bytes and
+  returns a `data:` URL (`readClipboardImage`, injectable backend for tests).
+- macOS backend is `/usr/bin/swift` + AppKit (bundled with macOS; temp-file
+  invocation, NOT `swift -` which starts the REPL and hangs). Linux uses
+  `xclip`/`wl-paste`; Windows uses PowerShell + System.Windows.Forms.
+- `runCommand` MUST use `encoding: 'buffer'` — the default utf8 decoding
+  replaces non-text bytes with U+FFFD and corrupts the PNG.
+- Ink binds `Ctrl+Shift+V` (only fires where the terminal lets it through;
+  Linux terminals claim that chord for paste) and both hosts expose
+  `/paste-image [description]`. The image flows through the SAME
+  `buildUserContent` image-part channel as `@image.png`.
+- The clipboard image is capped at the same 5MB as `@` image references.
+
 ## Why 5MB
 
 Anthropic rejects images over 5MB per part. `maxImageBytes` is the SSOT for the

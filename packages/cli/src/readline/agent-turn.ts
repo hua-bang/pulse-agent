@@ -1,6 +1,6 @@
 import { buildModelRunOptions } from '../models/model-run-options.js';
 import { buildMemoryRunContext, memoryIntegration, recordDailyLogFromSuccessPath } from '../shared/memory-integration.js';
-import { buildUserContent, expandFileReferences } from '../shared/file-reference.js';
+import { buildUserContent, expandFileReferences, type ImageAttachment } from '../shared/file-reference.js';
 import { estimateTokens, resolveCurrentSessionId, syncSessionTaskListBinding, type ReadlineHost } from './host-context.js';
 
 /**
@@ -8,7 +8,12 @@ import { estimateTokens, resolveCurrentSessionId, syncSessionTaskListBinding, ty
  * callbacks, the abort-sentinel check, the run summary, session save and
  * daily-log capture. Queue/abort state stays with the caller's input loop.
  */
-export async function executeAgentTurn(host: ReadlineHost, messageInput: string, ac: AbortController): Promise<void> {
+export async function executeAgentTurn(
+  host: ReadlineHost,
+  messageInput: string,
+  ac: AbortController,
+  extraImages: ImageAttachment[] = [],
+): Promise<void> {
   // Regular message processing
   host.tui.session({
     sessionId: host.sessionCommands.getCurrentSessionId(),
@@ -38,7 +43,7 @@ export async function executeAgentTurn(host: ReadlineHost, messageInput: string,
 
   host.context.messages.push({
     role: 'user',
-    content: buildUserContent(expansion.text, expansion.images),
+    content: buildUserContent(expansion.text, [...expansion.images, ...extraImages]),
   });
 
 

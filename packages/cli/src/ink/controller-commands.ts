@@ -6,7 +6,8 @@ import type { CliInteractionMode } from './ink-app.js';
 import { HELP_FOOTER, HELP_ITEMS } from './controller-defs.js';
 import { applyModelOverride, currentContextWindow, describeConnection, modelRunOptions, restoreSessionModel } from './controller-model.js';
 import { openModelPicker, openSessionPicker, resumeSessionRef } from './controller-pickers.js';
-import { describeCacheHit, runExclusive, startGoalLoop } from './controller-run.js';
+import { describeCacheHit, runExclusive, runMessage, startGoalLoop } from './controller-run.js';
+import { readClipboardImage } from '../shared/clipboard-image.js';
 import { formatModelSpec, resolveModelSpec } from '../models/model-spec.js';
 import { loadModelRegistry } from '../models/model-registry.js';
 
@@ -86,6 +87,11 @@ export async function handleCommand(controller: InkCoderController, command: str
       case 'skills':
         controller.ui.info('Use /skills <name|index> <message> directly in input for one-shot skill execution.');
         break;
+      case 'paste-image': {
+        const desc = args.join(' ').trim();
+        await runPasteImage(controller, desc);
+        break;
+      }
       case 'goal': {
         const subcommand = (args[0] ?? '').toLowerCase();
         const goalService = resolveGoalService(controller);
@@ -403,4 +409,36 @@ export async function compactContext(controller: InkCoderController): Promise<vo
     `KEEP_LAST_TURNS=${keepLastTurns}`,
   ]);
   publishSession(controller, 'Ready');
+}
+
+/**
+ * `/paste-image` — reads an image from the system clipboard and sends it as a
+ * user message (optional description text + image part). The terminal protocol
+ * cannot carry clipboard images, so the CLI reads the clipboard itself via
+ * `readClipboardImage`; the data URL flows through the same image-part channel
+ * as `@image.png` references.
+ */
+export async function runPasteImage(controller: InkCoderController, description: string): Promise<void> {
+  if (controller.isProcessing) {
+    controller.ui.warn('Still processing. Press Esc to stop current request first.');
+    return;
+  }
+
+  let pasted;
+  try {
+    pasted = await readClipboardImage();
+  } catch (error) {
+    controller.ui.error(`Failed to read clipboard image: ${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
+
+  if (!pasted) {
+    controller.ui.warn('Clipboard does not contain an image. Copy a screenshot first (Cmd+Shift+4), then retry.');
+    return;
+  }
+
+  const text = description.trim() || '(pasted image)';
+  await runMessage(controller, text, [
+    { ref: '(clipboard)', mimeType: pasted.mimeType, dataUrl: pasted.dataUrl },
+  ]);
 }
