@@ -621,6 +621,10 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().splitTabIds).toEqual([TERMINAL_TAB_ID, CHAT_TAB_ID]);
 
     dock.closeTerminal();
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: CHAT_TAB_ID,
+      expanded: true,
+    });
     expect(dock.getSnapshot().splitTabIds).toBeUndefined();
   });
 
@@ -654,6 +658,46 @@ describe('DockStore', () => {
       activeTabId: workspaceTwoLinkId,
       splitTabIds: [workspaceTwoLinkId, CHAT_TAB_ID],
     });
+  });
+
+  it('keeps the compared survivor when closing the focused preview instead of selecting a hidden neighbour', () => {
+    const dock = new DockStore();
+    dock.openArtifact('ws1', 'a1');
+    const firstId = artifactTabId('ws1', 'a1');
+    dock.openArtifact('ws1', 'a2');
+    dock.openArtifact('ws1', 'a3');
+    const thirdId = artifactTabId('ws1', 'a3');
+    dock.toggleSplitView();
+    dock.activate(CHAT_TAB_ID);
+    dock.activate(firstId);
+
+    dock.close(firstId);
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: thirdId,
+      expanded: true,
+    });
+    expect(dock.getSnapshot().splitTabIds).toBeUndefined();
+  });
+
+  it('keeps the compared survivor when closing a focused terminal instead of another hidden terminal', () => {
+    const dock = new DockStore();
+    dock.openTerminal();
+    dock.newTerminal();
+    dock.activate(TERMINAL_TAB_ID);
+    dock.toggleSplitView();
+    dock.activate(CHAT_TAB_ID);
+    dock.openArtifact('ws1', 'a1');
+    const survivorId = artifactTabId('ws1', 'a1');
+    dock.activate(TERMINAL_TAB_ID);
+
+    dock.closeTerminal(TERMINAL_TAB_ID);
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: survivorId,
+      expanded: true,
+    });
+    expect(dock.getSnapshot().splitTabIds).toBeUndefined();
   });
 
   it('closing the active preview activates the right neighbour, falling back to chat', () => {

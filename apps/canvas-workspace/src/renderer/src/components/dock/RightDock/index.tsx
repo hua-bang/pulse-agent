@@ -37,7 +37,7 @@ import { DockContentTab } from './DockContentTab';
 import { DockTabIcon } from './DockTabIcon';
 import { getDockTabSwitcherItems } from './dock-tab-items';
 import { DockPanes } from './DockPanes';
-import { hasDockTab } from './dock-split-state';
+import { getRenderableComparisonPair, hasDockTab } from './dock-split-state';
 import { useDockTabIndicator } from './useDockTabIndicator';
 import { getDockTabVisualState } from './dock-tab-visual-state';
 import { dockPaneElementId, dockTabElementId } from './dock-tab-ids';
@@ -154,9 +154,7 @@ export const RightDock = ({
   const activePaneId = !chatTabEnabled && state.activeTabId === CHAT_TAB_ID
     ? null
     : state.activeTabId;
-  const splitTabIds = chatTabEnabled || !state.splitTabIds?.includes(CHAT_TAB_ID)
-    ? state.splitTabIds
-    : undefined;
+  const splitTabIds = getRenderableComparisonPair(state, chatTabEnabled);
   const splitViewActive = Boolean(splitTabIds);
   const chatVisual = getDockTabVisualState(CHAT_TAB_ID, activePaneId, splitTabIds);
   const allTabItems = useMemo(() => getDockTabSwitcherItems(state, {

@@ -9,11 +9,11 @@ export interface DockTabVisualState {
 export const getDockTabVisualState = (
   tabId: string,
   activePaneId: string | null,
-  splitTabIds: readonly [string, string] | undefined,
+  splitTabIds: Readonly<DockComparisonPair> | undefined,
 ): DockTabVisualState => {
   const splitActive = Boolean(splitTabIds);
   const splitIndex = splitTabIds?.indexOf(tabId) ?? -1;
-  const splitVisible = splitIndex >= 0;
+  const splitVisible = splitActive && isDockTabPresented(activePaneId, splitTabIds, tabId);
   return {
     focused: tabId === activePaneId,
     selected: tabId === activePaneId || splitVisible,
@@ -22,3 +22,5 @@ export const getDockTabVisualState = (
     splitPart: !splitVisible ? undefined : splitIndex === 0 ? 'left' : 'right',
   };
 };
+import { isDockTabPresented } from './dock-split-state';
+import type { DockComparisonPair } from './dock-types';

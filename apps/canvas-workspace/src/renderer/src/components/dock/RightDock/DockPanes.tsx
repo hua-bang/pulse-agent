@@ -16,7 +16,9 @@ import type {
 } from '../../../types';
 import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './dock-store';
 import { linkPaneKey } from './dock-link-tabs';
+import { isDockTabPresented } from './dock-split-state';
 import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId } from './dock-tab-ids';
+import type { DockComparisonPair } from './dock-types';
 import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 import { focusActiveDockTarget } from './dock-browser-commands';
 import { buildDockTabRefs } from './tabRefs';
@@ -44,7 +46,7 @@ interface Props {
   /** Whether the dock is actually on screen. The selected tab remains in
    *  state while collapsed, but its guest must be treated as background. */
   dockVisible: boolean;
-  splitTabIds?: readonly [string, string];
+  splitTabIds?: Readonly<DockComparisonPair>;
   chatTabEnabled: boolean;
   canvasTabEditingAllowed?: boolean;
   onCanvasNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
@@ -72,6 +74,37 @@ interface Props {
   onCloseTab?: (tabId: string) => void;
 }
 
+const isPaneVisible = (
+  id: string,
+  dockVisible: boolean,
+  activePaneId: string | null,
+  splitTabIds: Readonly<DockComparisonPair> | undefined,
+): boolean => dockVisible && isDockTabPresented(activePaneId, splitTabIds, id);
+
+const splitPaneClass = (
+  id: string,
+  splitTabIds: Readonly<DockComparisonPair> | undefined,
+): string => {
+  const index = splitTabIds?.indexOf(id) ?? -1;
+  if (index === 0) return ' right-dock__pane--split-left';
+  if (index === 1) return ' right-dock__pane--split-right';
+  return '';
+};
+
+const renderTabChatAction = (
+  tab: AgentContextTabRef | undefined,
+  targetWorkspaceId: string,
+  onAddToChat: NonNullable<Props['onAddTabToChat']>,
+) => tab ? (
+  <div className="right-dock__pane-chat-action">
+    <TabChatAction tab={tab} targetWorkspaceId={targetWorkspaceId} onAddToChat={onAddToChat} />
+  </div>
+) : null;
+
+// Link-tab webviews mount only after their first visible activation, then stay
+// mounted so switching back preserves navigation, scroll, forms, and sign-in.
+// The mounted key is workspace-qualified and pruned after close/eviction; the
+// store workspace id, not the incoming prop, owns it during transition renders.
 export const DockPanes = ({
   store,
   state,
@@ -103,17 +136,10 @@ export const DockPanes = ({
 }: Props) => {
   const { t } = useI18n();
   const splitActive = Boolean(splitTabIds);
-  const isPaneVisible = (id: string): boolean => dockVisible && (
-    splitTabIds?.includes(id) ?? id === activePaneId
-  );
-  const splitPaneClass = (id: string): string => {
-    const index = splitTabIds?.indexOf(id) ?? -1;
-    if (index === 0) return ' right-dock__pane--split-left';
-    if (index === 1) return ' right-dock__pane--split-right';
-    return '';
-  };
-  const chatVisible = chatTabEnabled && isPaneVisible(CHAT_TAB_ID);
-  const visibleTerminalId = state.terminalTabs.find((tab) => isPaneVisible(tab.id))?.id;
+  const paneVisible = (id: string) => isPaneVisible(id, dockVisible, activePaneId, splitTabIds);
+  const paneClass = (id: string) => splitPaneClass(id, splitTabIds);
+  const chatVisible = chatTabEnabled && paneVisible(CHAT_TAB_ID);
+  const visibleTerminalId = state.terminalTabs.find((tab) => paneVisible(tab.id))?.id;
   const terminalVisible = terminalHostMounted && Boolean(visibleTerminalId);
   const terminalPanelAvailable = state.terminalTabs.length > 0;
   const labelledTerminalTabId = activePaneId && isTerminalTabId(activePaneId)
@@ -121,21 +147,6 @@ export const DockPanes = ({
     : visibleTerminalId
       ? visibleTerminalId
       : state.activeTerminalTabId ?? state.terminalTabs[0]?.id;
-  // Lazy-mount link-tab webviews. Every tab's pane renders stacked (inactive
-  // ones are `visibility: hidden`), so mounting each LinkTabView's <webview>
-  // unconditionally spins up a guest process + navigation per restored tab on
-  // the cold-start critical path — N heavy pages competing at the worst
-  // moment. Mount a tab's webview only once it has been VISIBLE (active or
-  // split); after that it stays mounted, so switching back never reloads.
-  // Agent tools that activate a tab before reading it already poll for the
-  // webview registration (main/webview/ensure-operable.ts).
-  // A tab that left the dock took its guest with it — closed, or evicted past
-  // the retention limit. Dropping its key restores the "mount on first
-  // visible" rule for the NEXT time it appears; without this the set only
-  // ever grew, so returning to a workspace remounted every tab the user had
-  // ever looked at, in one commit — the exact cold-start burst this gate
-  // exists to prevent. Keys are workspace-qualified: tab ids are derived from
-  // the URL, so the same id can exist in two workspaces.
   const mountedLinkTabsRef = useRef(new Set<string>());
   // Key against the STORE's active workspace, not the `activeWorkspaceId`
   // prop. `RightDock` forwards the prop to `setActiveWorkspace` in a layout
@@ -147,15 +158,6 @@ export const DockPanes = ({
   // Confirmed on a real workspace switch.
   const ownerWorkspaceId = state.activeTerminalWorkspaceId;
   const tabRefsById = new Map(buildDockTabRefs(state, ownerWorkspaceId).map(tab => [tab.id, tab]));
-  const renderTabChatAction = (tabRef?: AgentContextTabRef) => tabRef ? (
-    <div className="right-dock__pane-chat-action">
-      <TabChatAction
-        tab={tabRef}
-        targetWorkspaceId={activeWorkspaceId}
-        onAddToChat={onAddTabToChat}
-      />
-    </div>
-  ) : null;
   const liveKeys = new Set([
     ...state.tabs.map((tab) => linkPaneKey(ownerWorkspaceId, tab.id)),
     ...state.retainedLinkTabs.flatMap(
@@ -196,7 +198,7 @@ export const DockPanes = ({
         role={chatTabEnabled ? 'tabpanel' : undefined}
         aria-labelledby={chatTabEnabled ? dockTabElementId(CHAT_TAB_ID) : undefined}
         aria-hidden={chatTabEnabled ? !chatVisible : true}
-        className={`right-dock__pane right-dock__pane--chat${chatVisible ? ' right-dock__pane--active' : ''}${splitPaneClass(CHAT_TAB_ID)}`}
+        className={`right-dock__pane right-dock__pane--chat${chatVisible ? ' right-dock__pane--active' : ''}${paneClass(CHAT_TAB_ID)}`}
         data-focused={activePaneId === 'chat'}
         onFocusCapture={() => {
           if (splitActive) store.activate(CHAT_TAB_ID);
@@ -227,7 +229,7 @@ export const DockPanes = ({
             ? dockTabElementId(labelledTerminalTabId)
             : undefined}
           aria-hidden={!terminalVisible}
-          className={`right-dock__pane right-dock__pane--terminal${terminalVisible ? ' right-dock__pane--active' : ''}${visibleTerminalId ? splitPaneClass(visibleTerminalId) : ''}`}
+          className={`right-dock__pane right-dock__pane--terminal${terminalVisible ? ' right-dock__pane--active' : ''}${visibleTerminalId ? paneClass(visibleTerminalId) : ''}`}
           data-focused={state.terminalTabs.some((tab) => tab.id === activePaneId)}
           onFocusCapture={() => {
             if (splitActive && visibleTerminalId) store.activate(visibleTerminalId);
@@ -243,7 +245,7 @@ export const DockPanes = ({
         </div>
       )}
       {state.tabs.filter((tab) => tab.kind !== 'link').map((tab) => {
-        const visible = isPaneVisible(tab.id);
+        const visible = paneVisible(tab.id);
         return (
           <div
             key={tab.id}
@@ -251,7 +253,7 @@ export const DockPanes = ({
             role="tabpanel"
             aria-labelledby={dockTabElementId(tab.id)}
             aria-hidden={!visible}
-            className={`right-dock__pane${visible ? ' right-dock__pane--active' : ''}${splitPaneClass(tab.id)}`}
+            className={`right-dock__pane${visible ? ' right-dock__pane--active' : ''}${paneClass(tab.id)}`}
             data-focused={tab.id === activePaneId}
             onFocusCapture={() => {
               if (splitActive) store.activate(tab.id);
@@ -262,7 +264,7 @@ export const DockPanes = ({
           >
           {tab.kind === 'artifact' ? (
             <>
-              {renderTabChatAction(tabRefsById.get(tab.id))}
+              {renderTabChatAction(tabRefsById.get(tab.id), activeWorkspaceId, onAddTabToChat)}
               <Suspense fallback={null}>
                 <ArtifactTabView workspaceId={tab.workspaceId} artifactId={tab.artifactId} onTitleChange={(title) => store.setTitle(tab.id, title)} />
               </Suspense>
@@ -335,7 +337,7 @@ export const DockPanes = ({
           hidden guest that navigates must not rename a same-id tab in the
           workspace the user is actually looking at. */}
       {linkPanes.map(({ workspaceId, tab, live }) => {
-        const visible = live && isPaneVisible(tab.id);
+        const visible = live && paneVisible(tab.id);
         return (
           <div
             key={linkPaneKey(workspaceId, tab.id)}
@@ -343,7 +345,7 @@ export const DockPanes = ({
             role={live ? 'tabpanel' : undefined}
             aria-labelledby={live ? dockTabElementId(tab.id) : undefined}
             aria-hidden={!visible}
-            className={`right-dock__pane${visible ? ' right-dock__pane--active' : ''}${live ? splitPaneClass(tab.id) : ''}${live ? '' : ' right-dock__pane--retained'}`}
+            className={`right-dock__pane${visible ? ' right-dock__pane--active' : ''}${live ? paneClass(tab.id) : ''}${live ? '' : ' right-dock__pane--retained'}`}
             data-focused={live && tab.id === activePaneId}
             onFocusCapture={() => {
               if (live && splitActive) store.activate(tab.id);

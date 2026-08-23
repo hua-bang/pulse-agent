@@ -20,7 +20,7 @@ import {
   type DockOpenLinkOptions,
 } from './dock-link-commands';
 import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
-import { applyDockSplitState, getSplitViewToggle } from './dock-split-state';
+import { applyDockSplitState, getComparisonSurvivorId, getSplitViewToggle } from './dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
 import { openSkillTab } from './dock-skill-tabs';
 import { getOpenChatPatch, getOpenScheduledChatPatch, getRefreshScheduledChatPatch } from './dock-chat-state';
@@ -441,6 +441,7 @@ export class DockStore {
   close(id: string): void {
     const index = this.state.tabs.findIndex((tab) => tab.id === id);
     if (index === -1) return;
+    const comparisonSurvivorId = getComparisonSurvivorId(this.state, id);
     const closed = this.state.tabs[index];
     const closingLink = closed.kind === 'link';
     // A web tab carries browsing state (history, scroll, sign-in); closing one
@@ -456,7 +457,8 @@ export class DockStore {
     let activeTabId = this.state.activeTabId;
     let chatUnread = this.state.chatUnread;
     if (activeTabId === id) {
-      activeTabId = tabs.length === 0 ? CHAT_TAB_ID : tabs[Math.min(index, tabs.length - 1)].id;
+      activeTabId = comparisonSurvivorId
+        ?? (tabs.length === 0 ? CHAT_TAB_ID : tabs[Math.min(index, tabs.length - 1)].id);
       if (activeTabId === CHAT_TAB_ID) chatUnread = false;
     }
     this.commit({

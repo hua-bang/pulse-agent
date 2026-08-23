@@ -1,5 +1,6 @@
 import type { AgentContextTabRef } from '../../../types';
 import { TERMINAL_TAB_ID, type DockState } from './dock-store';
+import { isDockTabPresented } from './dock-split-state';
 
 /**
  * The PTY session id a workspace terminal tab writes to. Mirrors the mapping
@@ -23,7 +24,7 @@ export function buildDockTabRefs(state: DockState, workspaceId: string): AgentCo
   const refs: AgentContextTabRef[] = [];
   const presentation = (id: string): Pick<AgentContextTabRef, 'isActive' | 'isVisible' | 'isSplit'> => ({
     isActive: state.activeTabId === id,
-    isVisible: state.expanded && (state.activeTabId === id || state.splitTabIds?.includes(id) === true),
+    isVisible: state.expanded && isDockTabPresented(state.activeTabId, state.splitTabIds, id),
     isSplit: state.splitTabIds?.includes(id) === true,
   });
 
