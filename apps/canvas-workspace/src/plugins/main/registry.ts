@@ -45,6 +45,16 @@ const deactivators: Array<{ id: string; deactivate: () => void | Promise<void> }
  */
 const canvasToolFactories = new Map<string, CanvasToolFactory>();
 const nodeCapabilities = new Map<string, PluginNodeCapabilityEntry>();
+const ipcHandlerChannels = new Map<string, Set<string>>();
+
+function removePluginIpcHandlers(pluginId: string): void {
+  const channels = ipcHandlerChannels.get(pluginId);
+  if (!channels) return;
+  ipcHandlerChannels.delete(pluginId);
+  for (const channel of channels) {
+    ipcMain.removeHandler(channel);
+  }
+}
 
 export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<string[]> {
   const activated: string[] = [];
@@ -64,6 +74,7 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<s
         deactivators.push({ id: plugin.id, deactivate: plugin.deactivate.bind(plugin) });
       }
     } catch (err) {
+      removePluginIpcHandlers(plugin.id);
       console.error(`[canvas-plugins] activate failed for ${plugin.id}`, err);
     }
   }
@@ -75,6 +86,7 @@ export async function deactivateCanvasPlugin(pluginId: string): Promise<void> {
   await drainAgentTraceEvents();
   loaded.delete(pluginId);
   canvasToolFactories.delete(pluginId);
+  removePluginIpcHandlers(pluginId);
   for (const [nodeType, entry] of Array.from(nodeCapabilities.entries())) {
     if (entry.pluginId === pluginId) nodeCapabilities.delete(nodeType);
   }
@@ -167,6 +179,9 @@ function createMainCtx(pluginId: string): MainCtx {
       // Cast at the boundary: MainCtx exposes a structural IpcInvokeEvent
       // to keep the shared types file free of an electron import.
       ipcMain.handle(fqChannel, handler as Parameters<typeof ipcMain.handle>[1]);
+      const channels = ipcHandlerChannels.get(pluginId) ?? new Set<string>();
+      channels.add(fqChannel);
+      ipcHandlerChannels.set(pluginId, channels);
     },
     onAgent(event, handler) {
       agentBus.on(event, handler);

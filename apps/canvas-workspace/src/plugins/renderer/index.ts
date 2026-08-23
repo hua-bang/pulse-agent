@@ -1,5 +1,6 @@
 export {
   activateCanvasPlugins,
+  deactivateCanvasPlugin,
   findMatchingChatCard,
   getRegisteredChatCards,
   getRegisteredNavItems,
@@ -18,4 +19,5 @@ export {
   getBuiltInFederatedRendererPluginSpecs,
   readFederatedRendererPluginSpecsFromEnv,
   specsFromCanvasPluginsStatus,
+  syncFederatedRendererPlugins,
 } from './federation';

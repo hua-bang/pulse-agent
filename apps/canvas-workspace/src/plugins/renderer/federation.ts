@@ -16,7 +16,11 @@ import {
   MOCK_NODE_REMOTE_ENTRY,
   MOCK_NODE_REMOTE_NAME,
 } from '../mock-node/constants';
-import { activateCanvasPlugins, isRendererPluginActivated } from './registry';
+import {
+  activateCanvasPlugins,
+  deactivateCanvasPlugin,
+  isRendererPluginActivated,
+} from './registry';
 
 const HOST_NAME = 'pulse_canvas_workspace';
 const DEFAULT_EXPOSE = './plugin';
@@ -24,6 +28,7 @@ const ENV_REMOTES_KEY = 'VITE_CANVAS_RENDERER_MF_REMOTES';
 
 let initialized = false;
 const registeredRemoteNames = new Set<string>();
+const configuredUserPluginIds = new Set<string>();
 
 // @module-federation/runtime is only needed once a federated plugin actually
 // activates, so it is imported dynamically to keep the runtime out of the
@@ -307,10 +312,26 @@ export async function activateFederatedRendererPlugins(
   return activated;
 }
 
+/** Reconcile renderer plugins backed by the mutable Canvas plugin config. */
+export async function syncFederatedRendererPlugins(
+  specs: RendererFederatedPluginSpec[],
+): Promise<RendererCanvasPlugin[]> {
+  const desiredIds = new Set(specs.map((spec) => spec.id));
+  for (const pluginId of configuredUserPluginIds) {
+    if (!desiredIds.has(pluginId)) deactivateCanvasPlugin(pluginId);
+  }
+  configuredUserPluginIds.clear();
+  for (const pluginId of desiredIds) configuredUserPluginIds.add(pluginId);
+  return activateFederatedRendererPlugins(specs);
+}
+
 export async function activateConfiguredFederatedRendererPlugins(): Promise<RendererCanvasPlugin[]> {
   const userSpecs = await readFederatedRendererPluginSpecsFromUserConfig();
-  return activateFederatedRendererPlugins([
+  const activated = await activateFederatedRendererPlugins([
     ...readFederatedRendererPluginSpecsFromEnv(),
     ...userSpecs,
   ]);
+  configuredUserPluginIds.clear();
+  for (const spec of userSpecs) configuredUserPluginIds.add(spec.id);
+  return activated;
 }

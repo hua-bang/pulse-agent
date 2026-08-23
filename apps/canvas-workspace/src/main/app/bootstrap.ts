@@ -33,6 +33,7 @@ import { setupAgentRolesIpc } from "../agent/agent-roles-ipc";
 import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
 import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
 import { setupCanvasPluginsConfigIpc } from "../settings/canvas-plugins-ipc";
+import { setupPluginMarketIpc } from "../plugin-market/ipc";
 import { getExperimentalFlagSync, setupExperimentalIpc } from "../settings/experimental-ipc";
 import {
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
@@ -212,6 +213,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupCanvasMcpIpc();
     setupBuiltInToolsConfigIpc();
     setupCanvasPluginsConfigIpc();
+    setupPluginMarketIpc();
     await applyStoredBuiltInToolsConfigToEnv();
     // Seed the meta-skills (save-as-skill, promote-skill) into the global
     // scope on first start. Idempotent — user edits are preserved.

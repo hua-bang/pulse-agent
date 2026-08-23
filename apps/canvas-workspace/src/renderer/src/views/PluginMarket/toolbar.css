@@ -1,0 +1,89 @@
+.plugin-market__toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 1120px;
+  min-height: 34px;
+  margin: 0 auto 22px;
+}
+
+.plugin-market__toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.plugin-market__toolbar-icon.ui-btn,
+.plugin-market__filter-button.ui-btn {
+  width: 32px;
+  height: 32px;
+}
+
+.plugin-market__add-button.ui-btn {
+  height: 34px;
+  padding-inline: 12px 9px;
+}
+
+.plugin-market__action-menu {
+  width: min(300px, calc(100vw - 32px));
+  padding: 6px;
+}
+
+.plugin-market__menu-item.ui-btn {
+  justify-content: flex-start;
+  width: 100%;
+  height: auto;
+  min-height: 56px;
+  padding: 9px 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  white-space: normal;
+}
+
+.plugin-market__menu-item > svg {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.plugin-market__menu-item > span {
+  display: grid;
+  gap: 3px;
+}
+
+.plugin-market__menu-item small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.plugin-market__filter-menu {
+  min-width: 210px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.plugin-market__filter-item.ui-btn {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 34px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+}
+
+.plugin-market__check-hidden {
+  opacity: 0;
+}
+
+@media (hover: hover) {
+  .plugin-market__menu-item.ui-btn:hover:not(:disabled),
+  .plugin-market__filter-item.ui-btn:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--surface-alt);
+  }
+}

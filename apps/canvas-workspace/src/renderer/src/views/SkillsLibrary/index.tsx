@@ -21,18 +21,21 @@ import { LibraryContextSelect } from './LibraryContextSelect';
 import { SkillList } from './SkillList';
 import { SkillsLibraryLoading } from './SkillsLibraryLoading';
 import { SkillsLibraryHeader } from './SkillsLibraryHeader';
+import { SkillsLibraryTabs } from './SkillsLibraryTabs';
 import type { DisplaySkill, LibraryContext, ScopeView } from './types';
 import './index.css';
 interface Props {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
   onSelectWorkspace: (workspaceId: string) => void;
+  onNavigatePlugins: () => void;
 }
 
 export const SkillsLibrary = ({
   activeWorkspaceId,
   workspaces,
   onSelectWorkspace,
+  onNavigatePlugins,
 }: Props) => {
   const { t } = useI18n();
   const { notify, confirm } = useAppShell();
@@ -252,6 +255,7 @@ export const SkillsLibrary = ({
 
   return (
     <main className="skills-library">
+      <SkillsLibraryTabs onNavigatePlugins={onNavigatePlugins} />
       <SkillsLibraryHeader
         onImport={chooseImport}
         onAdd={() => setEditorOpen(true)}

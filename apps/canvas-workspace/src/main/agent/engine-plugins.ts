@@ -9,7 +9,8 @@ import {
 
 import { scopeMcpConfigPath, scopeRootDir, skillSourceDirs } from './config-scope';
 import { getCanvasPluginSkillScanPathsSync } from '../settings/canvas-plugins-config';
-import { createCanvasMcpOAuthProvider } from './mcp/oauth';
+import { getPluginMarketMcpConfigPathsSync } from '../plugin-market/store';
+import { createCanvasMcpOAuthProvider, getCanvasMcpOAuthStatus } from './mcp/oauth';
 import type { AgentScope } from './types';
 import { canvasAgentObservabilityEnginePlugin } from './observability/engine-plugin';
 
@@ -35,10 +36,11 @@ export function createCanvasEnginePlugins(scope: AgentScope): unknown[] {
   const skillsScanPaths = [
     ...(wsScope ? skillSourceDirs(wsScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })) : []),
     ...skillSourceDirs(globalScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })),
-    ...getCanvasPluginSkillScanPathsSync().map((base) => ({ base, pattern: '**/SKILL.md' })),
+    ...getCanvasPluginSkillScanPathsSync().map((base) => ({ base, pattern: 'SKILL.md' })),
   ];
   // MCP: global first, workspace later so it overrides on same server name.
   const mcpConfigPaths = [
+    ...getPluginMarketMcpConfigPathsSync(),
     scopeMcpConfigPath(globalScope),
     ...(wsScope ? [scopeMcpConfigPath(wsScope)] : []),
   ];
@@ -56,8 +58,10 @@ export function createCanvasEnginePlugins(scope: AgentScope): unknown[] {
     builtInToolSearchPlugin,
     createMcpPlugin({
       configPaths: mcpConfigPaths,
-      authProviderFactory: ({ serverName, config }) => {
+      authProviderFactory: async ({ serverName, config }) => {
         if (config.auth !== 'oauth') return undefined;
+        const status = await getCanvasMcpOAuthStatus(serverName);
+        if (!status.connected) return undefined;
         return createCanvasMcpOAuthProvider(serverName, config.oauth);
       },
     }),

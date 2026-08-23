@@ -147,7 +147,7 @@ export const SidebarHeader = ({
         )}
         {enableSkills ? <Button
           variant="secondary"
-          className={`sidebar-nav-item${activeView === 'skills' ? ' sidebar-nav-item--active' : ''}`}
+          className={`sidebar-nav-item${activeView === 'skills' || activeView === 'plugins' ? ' sidebar-nav-item--active' : ''}`}
           onClick={onEnterSkills}
           title={t('sidebar.skillsTitle')}
         >

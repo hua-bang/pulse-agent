@@ -17,6 +17,7 @@ import { readPluginFlags } from "./bridge/flags";
 import { createHistoryApi } from "./bridge/history";
 import { createLogSender, installRendererErrorLogging } from "./bridge/logging";
 import { createPluginBridge } from "./bridge/plugin";
+import { createPluginMarketApi } from "./bridge/plugin-market";
 import { createPtyApi } from "./bridge/pty";
 import {
   createCanvasMcpApi,
@@ -92,6 +93,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   artifacts: createArtifactsApi(ipcRenderer),
   references: createReferencesApi(ipcRenderer),
   plugin: createPluginBridge(ipcRenderer),
+  pluginMarket: createPluginMarketApi(ipcRenderer),
   dock: createDockApi(ipcRenderer),
   history: createHistoryApi(ipcRenderer),
   web: createWebApi(ipcRenderer)

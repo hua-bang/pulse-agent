@@ -1,23 +1,23 @@
 import { app } from 'electron';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'fs';
 import { promises as fs } from 'fs';
-import { dirname, isAbsolute, join, normalize, resolve } from 'path';
+import { randomUUID } from 'crypto';
+import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'path';
 import type {
-  CanvasPluginConfigField,
-  CanvasPluginConfigFieldStatus,
   CanvasPluginEntry,
-  CanvasPluginMainSpec,
-  CanvasPluginManifestNode,
-  CanvasPluginRendererSpec,
   CanvasPluginSkillSpec,
   CanvasPluginsImportEntry,
   CanvasPluginsStatus,
 } from '../../shared/settings-config';
-import { normalizeManifestIcon } from './plugin-manifest-icons';
+import { readPluginPackage } from '../plugin-market/package-reader';
+import { agentPluginSkillScanPathsSync } from '../plugin-market/skill-scan';
+import { canvasEntryFromPackage, dedupeRendererSpecs } from '../plugin-market/canvas-package-adapter';
 
 interface CanvasPluginsConfigFile {
   pluginDirs?: string[];
   pluginConfig?: Record<string, Record<string, string>>;
+  /** Execution-authoritative native-code policy, keyed by normalized plugin root. */
+  pluginNativePolicy?: Record<string, boolean>;
 }
 
 interface CanvasPluginManifest {
@@ -30,8 +30,6 @@ interface CanvasPluginManifest {
 }
 
 const CONFIG_FILE_NAME = 'canvas-plugins.json';
-const DEFAULT_EXPOSE = './plugin';
-const LOCAL_SCHEME = 'pulse-canvas://local';
 
 export function canvasPluginsConfigPath(): string {
   return join(app.getPath('userData'), CONFIG_FILE_NAME);
@@ -39,26 +37,6 @@ export function canvasPluginsConfigPath(): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function encodeAbsolutePath(absPath: string): string {
-  const normalized = absPath.replace(/\\/g, '/');
-  const isWindowsDrivePath = /^[a-zA-Z]:\//.test(normalized);
-  const withLeadingSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
-
-  return withLeadingSlash
-    .split('/')
-    .map((segment, index) => {
-      if (isWindowsDrivePath && index === 1 && /^[a-zA-Z]:$/.test(segment)) {
-        return segment;
-      }
-      return encodeURIComponent(segment);
-    })
-    .join('/');
-}
-
-function toLocalPluginAssetUrl(absPath: string): string {
-  return `${LOCAL_SCHEME}${encodeAbsolutePath(absPath)}`;
 }
 
 function normalizePluginDir(dir: string): string {
@@ -78,6 +56,7 @@ async function readConfig(): Promise<CanvasPluginsConfigFile> {
             .map(normalizePluginDir)
         : [],
       pluginConfig: normalizeStoredPluginConfig(parsed.pluginConfig),
+      pluginNativePolicy: normalizeNativePolicy(parsed.pluginNativePolicy),
     };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { pluginDirs: [] };
@@ -96,6 +75,7 @@ function readConfigSync(): CanvasPluginsConfigFile {
             .map(normalizePluginDir)
         : [],
       pluginConfig: normalizeStoredPluginConfig(parsed.pluginConfig),
+      pluginNativePolicy: normalizeNativePolicy(parsed.pluginNativePolicy),
     };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { pluginDirs: [] };
@@ -106,20 +86,43 @@ function readConfigSync(): CanvasPluginsConfigFile {
 async function writeConfig(config: CanvasPluginsConfigFile): Promise<void> {
   const configPath = canvasPluginsConfigPath();
   await fs.mkdir(dirname(configPath), { recursive: true });
-  await fs.writeFile(
-    configPath,
-    JSON.stringify(
-      {
-        pluginDirs: config.pluginDirs ?? [],
-        pluginConfig: config.pluginConfig ?? {},
-      },
-      null,
-      2,
-    ),
-    'utf8',
-  );
+  const temporary = `${configPath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await fs.writeFile(
+      temporary,
+      JSON.stringify(
+        {
+          pluginDirs: config.pluginDirs ?? [],
+          pluginConfig: config.pluginConfig ?? {},
+          pluginNativePolicy: normalizeNativePolicy(config.pluginNativePolicy),
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    await fs.rename(temporary, configPath);
+  } catch (error) {
+    await fs.rm(temporary, { force: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
+let configMutationTail: Promise<void> = Promise.resolve();
+function runConfigMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = configMutationTail.then(operation);
+  configMutationTail = result.then(() => undefined, () => undefined);
+  return result;
+}
+function updateConfig(update: (
+  config: CanvasPluginsConfigFile,
+) => CanvasPluginsConfigFile): Promise<CanvasPluginsStatus> {
+  return runConfigMutation(async () => {
+    const config = await readConfig();
+    await writeConfig(update(config));
+    return getCanvasPluginsStatus();
+  });
+}
 function normalizeStoredPluginConfig(value: unknown): Record<string, Record<string, string>> {
   if (!isRecord(value)) return {};
   const out: Record<string, Record<string, string>> = {};
@@ -132,6 +135,23 @@ function normalizeStoredPluginConfig(value: unknown): Record<string, Record<stri
     if (Object.keys(fields).length > 0) out[pluginId] = fields;
   }
   return out;
+}
+
+function normalizeNativePolicy(value: unknown): Record<string, boolean> {
+  if (!isRecord(value)) return {};
+  const policy: Record<string, boolean> = {};
+  for (const [root, enabled] of Object.entries(value)) {
+    const normalizedRoot = normalizePluginDir(root);
+    if (!normalizedRoot || typeof enabled !== 'boolean') continue;
+    policy[normalizedRoot] = enabled;
+  }
+  return policy;
+}
+
+function nativePolicyWithout(config: CanvasPluginsConfigFile, root: string): Record<string, boolean> {
+  const policy = normalizeNativePolicy(config.pluginNativePolicy);
+  delete policy[root];
+  return policy;
 }
 
 function encodeConfigValue(value: string): string {
@@ -149,80 +169,18 @@ function decodeConfigValue(value: string): string | undefined {
   return value;
 }
 
-function normalizeManifestNode(dir: string, value: unknown): CanvasPluginManifestNode | null {
-  if (!isRecord(value)) return null;
-  const type = typeof value.type === 'string' ? value.type.trim() : '';
-  if (!type) return null;
-
-  const renderer = isRecord(value.renderer) ? value.renderer : undefined;
-  return {
-    type,
-    title: typeof value.title === 'string' ? value.title : undefined,
-    icon: normalizeManifestIcon(dir, value.icon),
-    capabilities: Array.isArray(value.capabilities)
-      ? value.capabilities.filter((item): item is string => typeof item === 'string')
-      : undefined,
-    actions: Array.isArray(value.actions)
-      ? value.actions.filter((item): item is string => typeof item === 'string')
-      : undefined,
-    renderer: renderer
-      ? {
-          remoteName: typeof renderer.remoteName === 'string' ? renderer.remoteName : undefined,
-          name: typeof renderer.name === 'string' ? renderer.name : undefined,
-          entry: typeof renderer.entry === 'string' ? renderer.entry : undefined,
-          expose: typeof renderer.expose === 'string' ? renderer.expose : undefined,
-          type: typeof renderer.type === 'string' ? renderer.type : undefined,
-          entryGlobalName: typeof renderer.entryGlobalName === 'string'
-            ? renderer.entryGlobalName
-            : undefined,
-        }
-      : undefined,
-  };
-}
-
-function rendererSpecFromNode(
-  pluginId: string,
-  version: string | undefined,
-  dir: string,
-  node: CanvasPluginManifestNode,
-): CanvasPluginRendererSpec | null {
-  const renderer = node.renderer;
-  if (!renderer?.entry) return null;
-  const remoteName = (renderer.remoteName ?? renderer.name ?? '').trim();
-  if (!remoteName) return null;
-
-  const sourcePath = isAbsolute(renderer.entry)
-    ? normalize(renderer.entry)
-    : normalize(join(dir, renderer.entry));
-
-  return {
-    id: pluginId,
-    name: remoteName,
-    entry: toLocalPluginAssetUrl(sourcePath),
-    expose: renderer.expose ?? DEFAULT_EXPOSE,
-    type: renderer.type,
-    entryGlobalName: renderer.entryGlobalName ?? remoteName,
-    version,
-  };
-}
-
-function mainSpecFromManifest(dir: string, value: unknown): CanvasPluginMainSpec | undefined {
-  if (!isRecord(value)) return undefined;
-  const entry = typeof value.entry === 'string' ? value.entry.trim() : '';
-  if (!entry) return undefined;
-  const sourcePath = isAbsolute(entry) ? normalize(entry) : normalize(join(dir, entry));
-  return {
-    entry: sourcePath,
-    format: typeof value.format === 'string' && value.format.trim()
-      ? value.format.trim()
-      : undefined,
-    runtime: typeof value.runtime === 'string' && value.runtime.trim()
-      ? value.runtime.trim()
-      : undefined,
-    permissions: Array.isArray(value.permissions)
-      ? value.permissions.filter((item): item is string => typeof item === 'string')
-      : undefined,
-  };
+function containedRealpathSync(root: string, candidate: string): string | undefined {
+  try {
+    const canonicalRoot = realpathSync(root);
+    const canonical = realpathSync(candidate);
+    const child = relative(canonicalRoot, canonical);
+    if (child !== '' && (child === '..' || child.startsWith(`..${sep}`) || isAbsolute(child))) {
+      return undefined;
+    }
+    return canonical;
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizeManifestSkills(dir: string, value: unknown): CanvasPluginSkillSpec[] {
@@ -232,15 +190,22 @@ function normalizeManifestSkills(dir: string, value: unknown): CanvasPluginSkill
   for (const item of value) {
     if (!isRecord(item)) continue;
     const rawPath = typeof item.path === 'string' ? item.path.trim() : '';
-    if (!rawPath) continue;
+    if (
+      !rawPath
+      || isAbsolute(rawPath)
+      || /^[a-zA-Z]:[\\/]/.test(rawPath)
+      || rawPath.startsWith('\\\\')
+    ) continue;
 
-    const sourcePath = isAbsolute(rawPath)
-      ? normalize(rawPath)
-      : normalize(join(dir, rawPath));
-    const skillFile = sourcePath.endsWith('SKILL.md')
-      ? sourcePath
-      : join(sourcePath, 'SKILL.md');
-    const scanPath = sourcePath.endsWith('SKILL.md') ? dirname(sourcePath) : sourcePath;
+    const root = containedRealpathSync(dir, dir);
+    if (!root) continue;
+    const candidate = resolve(root, rawPath);
+    const skillCandidate = rawPath.endsWith('SKILL.md')
+      ? candidate
+      : join(candidate, 'SKILL.md');
+    const skillFile = containedRealpathSync(root, skillCandidate);
+    if (!skillFile || !statSync(skillFile).isFile()) continue;
+    const scanPath = dirname(skillFile);
     if (seen.has(skillFile)) continue;
     seen.add(skillFile);
 
@@ -258,33 +223,6 @@ function normalizeManifestSkills(dir: string, value: unknown): CanvasPluginSkill
   return skills;
 }
 
-function normalizeManifestConfig(value: unknown): CanvasPluginConfigField[] {
-  if (!Array.isArray(value)) return [];
-  const fields: CanvasPluginConfigField[] = [];
-  const seen = new Set<string>();
-  for (const item of value) {
-    if (!isRecord(item)) continue;
-    const key = typeof item.key === 'string' ? item.key.trim() : '';
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    const type = item.type === 'password' || item.type === 'url' || item.type === 'string'
-      ? item.type
-      : undefined;
-    fields.push({
-      key,
-      label: typeof item.label === 'string' ? item.label : undefined,
-      description: typeof item.description === 'string' ? item.description : undefined,
-      type,
-      placeholder: typeof item.placeholder === 'string' ? item.placeholder : undefined,
-      required: typeof item.required === 'boolean' ? item.required : undefined,
-      envKeys: Array.isArray(item.envKeys)
-        ? item.envKeys.filter((envKey): envKey is string => typeof envKey === 'string' && !!envKey.trim())
-        : undefined,
-    });
-  }
-  return fields;
-}
-
 function storedPluginValue(
   config: CanvasPluginsConfigFile,
   pluginId: string,
@@ -296,104 +234,32 @@ function storedPluginValue(
   return decoded?.trim() ? decoded : undefined;
 }
 
-function envPluginValue(field: CanvasPluginConfigField): string | undefined {
-  for (const envKey of field.envKeys ?? []) {
-    const value = process.env[envKey]?.trim();
-    if (value) return value;
-  }
-  return undefined;
-}
-
-function pluginConfigStatus(
-  fields: CanvasPluginConfigField[],
-  config: CanvasPluginsConfigFile,
-  pluginId: string,
-): CanvasPluginConfigFieldStatus[] {
-  return fields.map((field) => {
-    const stored = storedPluginValue(config, pluginId, field.key);
-    const env = stored ? undefined : envPluginValue(field);
-    const value = stored ?? env;
-    return {
-      ...field,
-      configured: Boolean(value),
-      source: stored ? 'stored' : env ? 'env' : 'missing',
-      valueLength: value?.length,
-    };
-  });
-}
-
-function dedupeRendererSpecs(specs: CanvasPluginRendererSpec[]): CanvasPluginRendererSpec[] {
-  const seen = new Set<string>();
-  const out: CanvasPluginRendererSpec[] = [];
-  for (const spec of specs) {
-    const key = `${spec.id}:${spec.name}:${spec.entry}:${spec.expose ?? ''}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(spec);
-  }
-  return out;
+function envPluginValue(field: { envKeys?: string[] }): string | undefined {
+  return field.envKeys?.map((key) => process.env[key]?.trim()).find(Boolean);
 }
 
 async function readPluginEntry(
   dir: string,
   config: CanvasPluginsConfigFile,
 ): Promise<CanvasPluginEntry> {
-  const manifestPath = join(dir, 'manifest.json');
-  try {
-    const raw = await fs.readFile(manifestPath, 'utf8');
-    const manifest = JSON.parse(raw) as CanvasPluginManifest;
-    const id = typeof manifest.id === 'string' ? manifest.id.trim() : '';
-    if (!id) {
-      return {
-        id: 'unknown',
-        dir,
-        manifestPath,
-        nodes: [],
-        rendererSpecs: [],
-        error: 'manifest.json is missing id',
-      };
-    }
-
-    const version = typeof manifest.version === 'string' ? manifest.version : undefined;
-    const main = mainSpecFromManifest(dir, manifest.main);
-    const skills = normalizeManifestSkills(dir, manifest.skills);
-    const pluginConfigFields = normalizeManifestConfig(manifest.config);
-    const nodes = Array.isArray(manifest.nodes)
-      ? manifest.nodes
-          .map((node) => normalizeManifestNode(dir, node))
-          .filter((node): node is CanvasPluginManifestNode => node !== null)
-      : [];
-    const rendererSpecs = dedupeRendererSpecs(
-      nodes
-        .map((node) => rendererSpecFromNode(id, version, dir, node))
-        .filter((spec): spec is CanvasPluginRendererSpec => spec !== null),
-    );
-
-    return {
-      id,
-      version,
-      dir,
-      manifestPath,
-      main,
-      skills,
-      config: pluginConfigFields,
-      configStatus: pluginConfigStatus(pluginConfigFields, config, id),
-      nodes,
-      rendererSpecs,
-      error: nodes.length === 0 && !main && skills.length === 0
-        ? 'manifest.json has no valid nodes, main, or skills'
-        : undefined,
-    };
-  } catch (err) {
+  const result = await readPluginPackage(dir);
+  if (!result.package) {
     return {
       id: 'unknown',
       dir,
-      manifestPath,
+      manifestPath: existsSync(join(dir, 'plugin.json'))
+        ? join(dir, 'plugin.json')
+        : join(dir, 'manifest.json'),
       nodes: [],
       rendererSpecs: [],
-      error: err instanceof Error ? err.message : String(err),
+      error: result.diagnostics.map((item) => item.message).join('; ') || 'Invalid plugin package',
     };
   }
+  return canvasEntryFromPackage(
+    result.package,
+    (pluginId, key) => storedPluginValue(config, pluginId, key),
+    config.pluginNativePolicy?.[normalizePluginDir(result.package.root)],
+  );
 }
 
 export function getCanvasPluginSkillScanPathsSync(): string[] {
@@ -409,6 +275,15 @@ export function getCanvasPluginSkillScanPathsSync(): string[] {
   const seen = new Set<string>();
   for (const dir of pluginDirs) {
     try {
+      const agentPluginPaths = agentPluginSkillScanPathsSync(dir);
+      if (agentPluginPaths) {
+        for (const scanPath of agentPluginPaths) {
+          if (seen.has(scanPath)) continue;
+          seen.add(scanPath);
+          scanPaths.push(scanPath);
+        }
+        continue;
+      }
       const raw = readFileSync(join(dir, 'manifest.json'), 'utf8');
       const manifest = JSON.parse(raw) as CanvasPluginManifest;
       const skills = normalizeManifestSkills(dir, manifest.skills);
@@ -459,20 +334,84 @@ export async function getCanvasPluginsStatus(): Promise<CanvasPluginsStatus> {
 export async function addCanvasPluginDirectory(dir: string): Promise<CanvasPluginsStatus> {
   const normalized = normalizePluginDir(dir);
   if (!normalized) throw new Error('Plugin directory path is required');
-  const config = await readConfig();
-  const dirs = Array.from(new Set([...(config.pluginDirs ?? []), normalized]));
-  await writeConfig({ ...config, pluginDirs: dirs });
-  return getCanvasPluginsStatus();
+  return updateConfig((config) => ({
+    ...config,
+    pluginDirs: Array.from(new Set([...(config.pluginDirs ?? []), normalized])),
+  }));
+}
+
+export async function addCanvasPluginDirectoryWithNativePolicy(
+  dir: string,
+  nativeEnabled: boolean,
+): Promise<CanvasPluginsStatus> {
+  const normalized = normalizePluginDir(dir);
+  if (!normalized) throw new Error('Plugin directory path is required');
+  return updateConfig((config) => ({
+    ...config,
+    pluginDirs: Array.from(new Set([...(config.pluginDirs ?? []), normalized])),
+    pluginNativePolicy: {
+      ...normalizeNativePolicy(config.pluginNativePolicy),
+      [normalized]: nativeEnabled,
+    },
+  }));
+}
+
+export async function addCanvasPluginDirectoryWithoutNativePolicy(dir: string): Promise<CanvasPluginsStatus> {
+  const normalized = normalizePluginDir(dir);
+  if (!normalized) throw new Error('Plugin directory path is required');
+  return updateConfig((config) => ({
+    ...config,
+    pluginDirs: Array.from(new Set([...(config.pluginDirs ?? []), normalized])),
+    pluginNativePolicy: nativePolicyWithout(config, normalized),
+  }));
+}
+export async function setCanvasPluginNativePolicy(
+  dir: string,
+  nativeEnabled: boolean,
+): Promise<CanvasPluginsStatus> {
+  const normalized = normalizePluginDir(dir);
+  if (!normalized) throw new Error('Plugin directory path is required');
+  return updateConfig((config) => {
+    if (!(config.pluginDirs ?? []).some((item) => normalizePluginDir(item) === normalized)) {
+      throw new Error('Plugin directory is not registered');
+    }
+    return {
+      ...config,
+      pluginNativePolicy: {
+        ...normalizeNativePolicy(config.pluginNativePolicy),
+        [normalized]: nativeEnabled,
+      },
+    };
+  });
+}
+export function getCanvasPluginNativePolicySync(
+  dir: string,
+  format: 'agent-plugin' | 'legacy-canvas',
+): boolean {
+  try {
+    const config = readConfigSync();
+    const explicit = config.pluginNativePolicy?.[normalizePluginDir(dir)];
+    return explicit ?? format === 'legacy-canvas';
+  } catch {
+    return false;
+  }
+}
+
+export function getCanvasPluginExplicitNativePolicySync(dir: string): boolean | undefined {
+  try {
+    return readConfigSync().pluginNativePolicy?.[normalizePluginDir(dir)];
+  } catch {
+    return undefined;
+  }
 }
 
 export async function removeCanvasPluginDirectory(dir: string): Promise<CanvasPluginsStatus> {
   const normalized = normalizePluginDir(dir);
-  const config = await readConfig();
-  await writeConfig({
+  return updateConfig((config) => ({
     ...config,
     pluginDirs: (config.pluginDirs ?? []).filter((item) => normalizePluginDir(item) !== normalized),
-  });
-  return getCanvasPluginsStatus();
+    pluginNativePolicy: nativePolicyWithout(config, normalized),
+  }));
 }
 
 export async function resolveCanvasPluginConfigValue(
@@ -500,21 +439,21 @@ export async function setCanvasPluginConfigValue(
   const normalizedValue = value.trim();
   if (!normalizedPluginId || !normalizedKey) throw new Error('Plugin id and config key are required');
 
-  const config = await readConfig();
-  const pluginConfig = normalizeStoredPluginConfig(config.pluginConfig);
-  if (normalizedValue) {
-    pluginConfig[normalizedPluginId] = {
-      ...(pluginConfig[normalizedPluginId] ?? {}),
-      [normalizedKey]: encodeConfigValue(normalizedValue),
-    };
-  } else if (pluginConfig[normalizedPluginId]) {
-    delete pluginConfig[normalizedPluginId][normalizedKey];
-    if (Object.keys(pluginConfig[normalizedPluginId]).length === 0) {
-      delete pluginConfig[normalizedPluginId];
+  return updateConfig((config) => {
+    const pluginConfig = normalizeStoredPluginConfig(config.pluginConfig);
+    if (normalizedValue) {
+      pluginConfig[normalizedPluginId] = {
+        ...(pluginConfig[normalizedPluginId] ?? {}),
+        [normalizedKey]: encodeConfigValue(normalizedValue),
+      };
+    } else if (pluginConfig[normalizedPluginId]) {
+      delete pluginConfig[normalizedPluginId][normalizedKey];
+      if (Object.keys(pluginConfig[normalizedPluginId]).length === 0) {
+        delete pluginConfig[normalizedPluginId];
+      }
     }
-  }
-  await writeConfig({ ...config, pluginConfig });
-  return getCanvasPluginsStatus();
+    return { ...config, pluginConfig };
+  });
 }
 
 export function parseCanvasPluginsConfigJson(json: string): string[] {
@@ -534,25 +473,27 @@ export async function importCanvasPluginsConfigJson(json: string): Promise<{
   status: CanvasPluginsStatus;
 }> {
   const incoming = parseCanvasPluginsConfigJson(json);
-  const config = await readConfig();
-  const existing = new Set((config.pluginDirs ?? []).map(normalizePluginDir));
-  const entries: CanvasPluginsImportEntry[] = [];
-  for (const dir of incoming) {
-    if (!dir) continue;
-    if (existing.has(dir)) {
-      entries.push({ dir, status: 'existing' });
-      continue;
+  return runConfigMutation(async () => {
+    const config = await readConfig();
+    const existing = new Set((config.pluginDirs ?? []).map(normalizePluginDir));
+    const entries: CanvasPluginsImportEntry[] = [];
+    for (const dir of incoming) {
+      if (!dir) continue;
+      if (existing.has(dir)) {
+        entries.push({ dir, status: 'existing' });
+        continue;
+      }
+      existing.add(dir);
+      entries.push({ dir, status: 'added' });
     }
-    existing.add(dir);
-    entries.push({ dir, status: 'added' });
-  }
-  if (incoming.length === 0) {
-    entries.push({
-      dir: '',
-      status: 'skipped',
-      reason: 'Expected JSON array or { "pluginDirs": [...] }',
-    });
-  }
-  await writeConfig({ ...config, pluginDirs: Array.from(existing) });
-  return { entries, status: await getCanvasPluginsStatus() };
+    if (incoming.length === 0) {
+      entries.push({
+        dir: '',
+        status: 'skipped',
+        reason: 'Expected JSON array or { "pluginDirs": [...] }',
+      });
+    }
+    await writeConfig({ ...config, pluginDirs: Array.from(existing) });
+    return { entries, status: await getCanvasPluginsStatus() };
+  });
 }

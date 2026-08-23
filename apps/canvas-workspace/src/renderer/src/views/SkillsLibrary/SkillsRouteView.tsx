@@ -10,12 +10,14 @@ interface Props {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
   onSelectWorkspace: (workspaceId: string) => void;
+  onNavigatePlugins: () => void;
 }
 
 export const SkillsRouteView = ({
   activeWorkspaceId,
   workspaces,
   onSelectWorkspace,
+  onNavigatePlugins,
 }: Props) => (
   <PulseRouterView name="skills">
     <Suspense fallback={<SkillsRouteLoading />}>
@@ -23,6 +25,7 @@ export const SkillsRouteView = ({
         activeWorkspaceId={activeWorkspaceId}
         workspaces={workspaces}
         onSelectWorkspace={onSelectWorkspace}
+        onNavigatePlugins={onNavigatePlugins}
       />
     </Suspense>
   </PulseRouterView>
