@@ -12,6 +12,10 @@ const modalCss = readFileSync(
   new URL('../../../ui/Modal/index.css', import.meta.url),
   'utf8',
 );
+const pluginDetailCss = readFileSync(
+  new URL('../../../../views/PluginMarket/modal.css', import.meta.url),
+  'utf8',
+);
 
 describe('RightDock interaction styles', () => {
   it('gives the tab close control a 24px pointer target', () => {
@@ -44,5 +48,10 @@ describe('RightDock interaction styles', () => {
       /\.ui-modal-backdrop--scoped\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*var\(--layer-canvas-chrome-raised\);/s,
     );
     expect(dockCss).toMatch(/\.right-dock\s*\{[^}]*z-index:\s*var\(--layer-dock\);/s);
+  });
+
+  it('does not override the plugin glyph flex centering with metadata text styles', () => {
+    expect(pluginDetailCss).not.toContain('.plugin-market-detail__identity span {');
+    expect(pluginDetailCss).toContain('.plugin-market-detail__identity > div:last-child > span {');
   });
 });

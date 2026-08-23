@@ -117,7 +117,7 @@
   white-space: nowrap;
 }
 
-.plugin-market-detail__identity span {
+.plugin-market-detail__identity > div:last-child > span {
   display: block;
   overflow: hidden;
   margin-top: 4px;

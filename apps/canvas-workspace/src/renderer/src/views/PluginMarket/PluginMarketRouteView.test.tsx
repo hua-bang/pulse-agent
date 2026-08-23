@@ -183,6 +183,23 @@ describe('PluginMarketRouteView', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it('uses a known service logo for a personal install with a generic icon key', async () => {
+    await render(createApi(snapshot([listing({
+      id: 'personal:notion',
+      name: 'notion',
+      iconKey: 'plugin',
+      installState: 'installed',
+      visibility: 'personal',
+    })])));
+
+    const personal = [...(host?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])]
+      .find((button) => button.textContent?.includes('pluginMarket.personal'));
+    act(() => personal?.click());
+
+    expect(host?.querySelector('[data-plugin-id="personal:notion"] [data-logo="notion"] svg'))
+      .not.toBeNull();
+  });
+
   it('opens unsupported Git listings from both the row and detail view', async () => {
     const unsupported = listing({ installState: 'unsupported' });
     const openExternal = vi.fn(async () => ({ ok: true }));

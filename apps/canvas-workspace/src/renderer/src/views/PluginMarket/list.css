@@ -61,6 +61,11 @@
   object-fit: cover;
 }
 
+.plugin-market__glyph[data-logo] {
+  color: var(--text);
+  background: var(--surface);
+}
+
 .plugin-market__glyph[data-tone='1'] {
   color: var(--accent-term);
   background: color-mix(in srgb, var(--accent-term) 11%, var(--surface));

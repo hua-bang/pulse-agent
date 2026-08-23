@@ -61,9 +61,17 @@ const normalizeIconKey = (value: string | undefined): string => (
   value?.trim().toLowerCase().replace(/[ _]+/g, '-') ?? ''
 );
 
+const knownIconKey = (listing: PluginMarketListing): string | undefined => {
+  const explicit = normalizeIconKey(listing.iconKey);
+  if (ICONS[explicit]) return explicit;
+  const name = normalizeIconKey(listing.name);
+  return ICONS[name] ? name : undefined;
+};
+
 const chooseIcon = (listing: PluginMarketListing): Icon => {
   const key = normalizeIconKey(listing.iconKey);
-  if (ICONS[key]) return ICONS[key];
+  const known = knownIconKey(listing);
+  if (known) return ICONS[known];
   if (key.includes('github')) return GithubLogo;
   if (key.includes('figma')) return FigmaLogo;
   if (key.includes('notion')) return NotionLogo;
@@ -86,6 +94,7 @@ interface Props {
 export const PluginGlyph = ({ listing, size = 20, className }: Props) => {
   const iconKey = normalizeIconKey(listing.iconKey);
   const brandIcon = BRAND_ICONS[iconKey];
+  const logoKey = brandIcon ? undefined : knownIconKey(listing);
   const Glyph = chooseIcon(listing);
   const tone = listing.id.split('').reduce((sum, character) => sum + character.charCodeAt(0), 0) % 4;
   const classes = ['plugin-market__glyph', className].filter(Boolean).join(' ');
@@ -94,13 +103,14 @@ export const PluginGlyph = ({ listing, size = 20, className }: Props) => {
     <span
       className={classes}
       data-brand={brandIcon ? iconKey : undefined}
-      data-tone={brandIcon ? undefined : tone}
+      data-logo={logoKey}
+      data-tone={brandIcon || logoKey ? undefined : tone}
       aria-hidden="true"
     >
       {brandIcon ? (
         <img src={brandIcon} alt="" width={size} height={size} />
       ) : (
-        <Glyph size={size} weight="duotone" />
+        <Glyph size={size} weight={logoKey ? 'regular' : 'duotone'} />
       )}
     </span>
   );
