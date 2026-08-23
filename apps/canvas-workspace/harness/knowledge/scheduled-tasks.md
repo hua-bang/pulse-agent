@@ -3,7 +3,8 @@
 Scheduled is a stable top-level app surface — its own route, not a canvas
 feature — for persisted, user-defined recurring background work: an exact
 next-due main-process timer backed by a 30-minute heartbeat, startup/resume
-catch-up, manual run-now, and one isolated durable Agent chat scope per task.
+catch-up, manual run-now, and one isolated durable Agent session store per
+task. Each attempt owns a fresh conversation session inside that store.
 Getting any piece of this wrong either drops a run silently, replays a missed
 run more than once, or announces a finished background run in a way that
 hijacks the app out from under the user.
@@ -75,21 +76,30 @@ second call against an install that already has one is a no-op.)
 
 ## Run-finished announcement chain
 
+A timer-driven attempt creates a fresh scheduled-scope session in main before
+the model runs. Manual `Run now` is also one main-owned start operation: it
+validates the task, creates the fresh session, durably marks the task running,
+and returns the session id immediately while execution continues. Both paths
+anchor `chatWithScope` to the prepared session id, so changing the scope's
+current-session pointer while a run is active cannot redirect its history.
+
 A finished attempt — success AND failure — is announced by
 `announceRunFinished` (`scheduled/runtime.ts`) as a `scheduled:run-finished`
-push that `useScheduledRunToasts` turns into a STICKY toast
-(`autoCloseMs: 0`). Its action opens the task's conversation in the DOCK's
-Pulse AI tab (`useScheduledRunChatOpener` → `dock.openScheduledChat`), the
-same surface `Run now` uses — acting on a finished run must never navigate
-the whole app onto the AI Chat page and lose what the user was looking at.
+push carrying `taskId`, `sessionId`, and `trigger`. `useScheduledRunToasts`
+turns unattended outcomes into a STICKY toast (`autoCloseMs: 0`); successful
+manual runs stay quiet because their conversation is already visible. Its
+action opens the exact session in the full-page Pulse AI surface through the
+existing `ChatTarget` session navigation (`useScheduledRunChatOpener` →
+`openSessionInOwningScope`). Full-page chat accepts a new target even when it
+is already mounted, so the action never degrades to "open whichever session
+is current for this task."
 
-Routing to `/chat?scheduledTask=<id>` survives only as the fallback for
-views that hide the dock chat tab. `isDockChatTabEnabled`
+If session setup itself failed, there is no exact conversation to open. That
+exception retains the old task-scope fallback: Dock where available, otherwise
+`/chat?scheduledTask=<id>`. `isDockChatTabEnabled`
 (`components/dock/RightDock/dock-chat-availability.ts`, full path
-`src/renderer/src/components/dock/RightDock/dock-chat-availability.ts`) is the
-single predicate behind BOTH that fallback and the dock's `chatTabEnabled`
-prop, because a caller that assumes a dock chat tab where there is none
-swallows the open silently.
+`src/renderer/src/components/dock/RightDock/dock-chat-availability.ts`) remains
+the authority for that fallback only.
 
 The same module derives `isGlobalChatLauncherVisible` — the floating
 Pulse-logo launcher (`RightDock/GlobalChatLauncher.tsx`, full path
@@ -111,6 +121,11 @@ activates an agent against a workspace that does not exist.
 
 `__`-prefixed stores are allowlisted, never blanket-skipped (that is what hid
 scheduled chats from the rail).
+
+Scheduled sessions currently have no automatic retention. Each attempt is
+durable user history; do not add silent age/count deletion without an explicit
+user-controlled retention policy. If high-frequency tasks make rail scanning
+costly, add an indexed/paginated listing path before considering deletion.
 
 ## The removed OS notification (must not return)
 
@@ -166,6 +181,8 @@ Bound tests:
   success AND failure, and no OS notification
 - `src/renderer/src/views/Scheduled/__tests__/useScheduledRunToasts.test.tsx`
   — sticky toast
+- `src/renderer/src/views/Scheduled/__tests__/useScheduledRunChatOpener.test.tsx`
+  — exact completed-session target + session-setup fallback
 - `src/renderer/src/views/Scheduled/__tests__/scheduledChatTarget.test.ts`
   — dock-by-default vs route fallback
 - `src/main/agent/__tests__/scheduled-tools.test.ts`

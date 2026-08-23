@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import type { AgentScope } from '../../components/chat/types';
 import type { SettingsSection } from '../../components/settings/Settings';
 import { PulseRouterView } from '../../components/shell/router';
 
@@ -9,17 +10,19 @@ interface Props {
   scheduledTaskId: string | null;
   onExitScheduledTask: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
+  onOpenSessionInScope: (scope: AgentScope, sessionId: string, scopeLabel: string) => void | Promise<void>;
 }
 
 export const ScheduledRouteViews = ({
   scheduledTaskId,
   onExitScheduledTask,
   onOpenAppSettings,
+  onOpenSessionInScope,
 }: Props) => (
   <>
     <PulseRouterView name="scheduled">
       <Suspense fallback={null}>
-        <ScheduledPage />
+        <ScheduledPage onOpenSessionInScope={onOpenSessionInScope} />
       </Suspense>
     </PulseRouterView>
     <PulseRouterView name="scheduled-task">

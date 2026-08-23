@@ -247,7 +247,7 @@ const AppContent = () => {
     setLocation(path);
   }, [setLocation]);
 
-  useScheduledRunChatOpener({ activeView, chatRoute: ROUTE_CHAT });
+  useScheduledRunChatOpener({ activeView, chatRoute: ROUTE_CHAT, onOpenSessionInScope: openSessionInOwningScope });
 
   const handleSelectWorkspace = useCallback((id: string) => {
     ensureWorkspaceNodesLoaded(id);
@@ -564,11 +564,9 @@ const AppContent = () => {
           <SkillsRouteView activeWorkspaceId={activeId} workspaces={workspaces}
             onSelectWorkspace={(workspaceId) => { ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId); }}
           />
-          <ScheduledRouteViews
-            scheduledTaskId={scheduledTaskMatch ? decodeURIComponent(scheduledTaskMatch[1]) : null}
-            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)}
-            onOpenAppSettings={openAppSettings}
-          />
+          <ScheduledRouteViews scheduledTaskId={scheduledTaskMatch ? decodeURIComponent(scheduledTaskMatch[1]) : null}
+            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings}
+            onOpenSessionInScope={openSessionInOwningScope} />
           {pluginRoutes.map((route) => {
             return (
               <PulseRouterView key={route.path} name={route.path}>

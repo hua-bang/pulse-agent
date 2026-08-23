@@ -168,6 +168,48 @@ describe('useChatNavigation', () => {
     act(() => root.unmount());
   });
 
+  it('retargets an already-open full-page chat without leaving the page', () => {
+    let latest: ReturnType<typeof useChatNavigation> | undefined;
+    const setLocation = vi.fn();
+    const pageTarget: ChatTarget = {
+      ...target,
+      surface: 'page',
+      scope: { kind: 'scheduled', taskId: 'daily-brief' },
+      scopeId: '__scheduled__-daily-brief',
+      sessionId: 'scheduled-run-session',
+      composerId: 'page:__scheduled__-daily-brief',
+      contextSnapshot: { label: 'Morning brief' },
+      executionPolicy: 'scheduled',
+    };
+    const broker = {
+      deliver: vi.fn(async () => ({ status: 'unavailable' as const, target: null })),
+      getActiveTarget: () => target,
+      register: vi.fn(),
+      subscribe: vi.fn(),
+    } satisfies ChatTargetBroker;
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const Harness = () => {
+      latest = useChatNavigation({
+        activeView: 'chat',
+        location: '/chat',
+        setLocation,
+        activeTarget: target,
+        broker,
+        openDockChat: vi.fn(),
+        isOverlayOpen: false,
+        openShortcuts: vi.fn(),
+      });
+      return null;
+    };
+    act(() => root.render(<Harness />));
+    act(() => latest?.enterChatTarget(pageTarget));
+
+    expect(latest?.initialTarget).toEqual(pageTarget);
+    expect(setLocation).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
   it('lets Escape leave full-page chat while the composer owns focus', async () => {
     const setLocation = vi.fn();
     const broker = {

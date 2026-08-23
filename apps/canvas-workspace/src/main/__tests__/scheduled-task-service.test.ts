@@ -81,7 +81,10 @@ describe('ScheduledTaskService', () => {
     await service.runDueTasks(now);
 
     expect(execute).toHaveBeenCalledTimes(1);
-    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ id: created.id }));
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ id: created.id }),
+      { trigger: 'schedule' },
+    );
     expect(await service.getTask(created.id)).toMatchObject({
       lastAttemptAt: now,
       lastSuccessAt: now,
@@ -135,13 +138,80 @@ describe('ScheduledTaskService', () => {
       schedule: { kind: 'interval', intervalMinutes: 30 },
     });
 
-    await service.runTaskNow(task.id);
+    await service.startTaskNow(task.id, async () => 'prepared-manual-session');
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      if ((await service.getTask(task.id))?.status === 'idle') break;
+      await Promise.resolve();
+    }
 
     expect(await service.getTask(task.id)).toMatchObject({
       nextRunAt: start + 35 * 60_000,
       lastSessionId: 'session-manual',
       runCount: 1,
     });
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ id: task.id }),
+      { trigger: 'manual', sessionId: 'prepared-manual-session' },
+    );
+  });
+
+  it('starts a manual run without waiting for completion', async () => {
+    const start = Date.UTC(2026, 6, 26, 9, 0);
+    let finishExecution: (() => void) | undefined;
+    const execute = vi.fn(() => new Promise<void>((resolve) => {
+      finishExecution = resolve;
+    }));
+    const service = new ScheduledTaskService({ statePath, now: () => start, execute });
+    const task = await service.createTask({
+      title: 'Project pulse',
+      prompt: 'Summarize important workspace changes.',
+      schedule: { kind: 'interval', intervalMinutes: 30 },
+    });
+
+    const started = await service.startTaskNow(task.id, async () => 'main-owned-session');
+
+    expect(started.task.status).toBe('running');
+    expect(started.sessionId).toBe('main-owned-session');
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ id: task.id }),
+      { trigger: 'manual', sessionId: 'main-owned-session' },
+    );
+
+    finishExecution?.();
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      if ((await service.getTask(task.id))?.status === 'idle') break;
+      await Promise.resolve();
+    }
+    expect((await service.getTask(task.id))?.status).toBe('idle');
+  });
+
+  it('reserves a manual task before preparing its session', async () => {
+    const start = Date.UTC(2026, 6, 26, 9, 0);
+    let finishPreparation: ((sessionId: string) => void) | undefined;
+    let finishExecution: (() => void) | undefined;
+    const execute = vi.fn(() => new Promise<void>((resolve) => {
+      finishExecution = resolve;
+    }));
+    const service = new ScheduledTaskService({ statePath, now: () => start, execute });
+    const task = await service.createTask({
+      title: 'Project pulse',
+      prompt: 'Summarize important workspace changes.',
+      schedule: { kind: 'interval', intervalMinutes: 30 },
+    });
+    const first = service.startTaskNow(task.id, () => new Promise<string>((resolve) => {
+      finishPreparation = resolve;
+    }));
+
+    await expect(service.startTaskNow(task.id, async () => 'orphan-session'))
+      .rejects.toThrow('already running');
+    finishPreparation?.('reserved-session');
+    await expect(first).resolves.toMatchObject({ sessionId: 'reserved-session' });
+
+    finishExecution?.();
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      if ((await service.getTask(task.id))?.status === 'idle') break;
+      await Promise.resolve();
+    }
   });
 
   it('wakes at a newly created task exact due time between heartbeat checks', async () => {

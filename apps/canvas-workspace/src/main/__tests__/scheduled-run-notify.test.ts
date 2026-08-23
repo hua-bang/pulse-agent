@@ -14,6 +14,8 @@ const h = vi.hoisted(() => ({
   osNotifications: 0,
   chatResult: { ok: true } as { ok: boolean; error?: string },
   chatThrows: null as Error | null,
+  newSessionCalls: [] as unknown[],
+  chatCalls: [] as unknown[][],
 }));
 
 vi.mock('electron', () => {
@@ -46,11 +48,15 @@ vi.mock('electron', () => {
 
 vi.mock('../agent/ipc', () => ({
   getCanvasAgentService: () => ({
-    chatWithScope: async () => {
+    newSessionForScope: async (scope: unknown) => {
+      h.newSessionCalls.push(scope);
+      return { ok: true, activeSessionId: 'session-1' };
+    },
+    chatWithScope: async (...args: unknown[]) => {
+      h.chatCalls.push(args);
       if (h.chatThrows) throw h.chatThrows;
       return h.chatResult;
     },
-    resolveCurrentSessionId: async () => 'session-1',
   }),
 }));
 
@@ -81,6 +87,8 @@ beforeEach(() => {
   h.osNotifications = 0;
   h.chatResult = { ok: true };
   h.chatThrows = null;
+  h.newSessionCalls.length = 0;
+  h.chatCalls.length = 0;
 });
 
 afterEach(() => {
@@ -89,14 +97,25 @@ afterEach(() => {
 
 describe('scheduled run completion signal', () => {
   it('pushes exactly one in-app announcement when a run succeeds', async () => {
-    const result = await __testing.executeScheduledTask(task);
+    const result = await (__testing.executeScheduledTask as unknown as (
+      task: ScheduledTask,
+      context: { trigger: 'schedule' },
+    ) => Promise<{ sessionId?: string }>)(task, { trigger: 'schedule' });
 
     expect(result).toEqual({ sessionId: 'session-1' });
+    expect(h.newSessionCalls).toEqual([{ kind: 'scheduled', taskId: 'daily-brief' }]);
+    expect(h.chatCalls[0]?.[7]).toMatchObject({ expectedConversationSessionId: 'session-1' });
     assertNoOsNotification();
     expect(runFinishedPushes()).toEqual([
       {
         channel: 'scheduled:run-finished',
-        payload: { taskId: 'daily-brief', title: 'Morning brief', ok: true },
+        payload: {
+          taskId: 'daily-brief',
+          title: 'Morning brief',
+          ok: true,
+          sessionId: 'session-1',
+          trigger: 'schedule',
+        },
       },
     ]);
   });
@@ -104,7 +123,10 @@ describe('scheduled run completion signal', () => {
   it('announces a failed run instead of leaving it silent, and still rethrows', async () => {
     h.chatResult = { ok: false, error: 'model unavailable' };
 
-    await expect(__testing.executeScheduledTask(task)).rejects.toThrow('model unavailable');
+    await expect((__testing.executeScheduledTask as unknown as (
+      task: ScheduledTask,
+      context: { trigger: 'schedule' },
+    ) => Promise<unknown>)(task, { trigger: 'schedule' })).rejects.toThrow('model unavailable');
 
     assertNoOsNotification();
     expect(runFinishedPushes()[0].payload).toEqual({
@@ -112,13 +134,18 @@ describe('scheduled run completion signal', () => {
       title: 'Morning brief',
       ok: false,
       error: 'model unavailable',
+      sessionId: 'session-1',
+      trigger: 'schedule',
     });
   });
 
   it('announces a run that threw before producing a result', async () => {
     h.chatThrows = new Error('engine exploded');
 
-    await expect(__testing.executeScheduledTask(task)).rejects.toThrow('engine exploded');
+    await expect((__testing.executeScheduledTask as unknown as (
+      task: ScheduledTask,
+      context: { trigger: 'schedule' },
+    ) => Promise<unknown>)(task, { trigger: 'schedule' })).rejects.toThrow('engine exploded');
     expect(runFinishedPushes()[0].payload).toMatchObject({ ok: false, error: 'engine exploded' });
   });
 });

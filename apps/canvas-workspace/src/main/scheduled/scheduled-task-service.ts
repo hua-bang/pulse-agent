@@ -5,6 +5,7 @@ import { homedir } from 'os';
 import type {
   ScheduledSchedule,
   ScheduledTask,
+  ScheduledTaskExecutionContext,
   ScheduledTaskExecutionResult,
   ScheduledTaskInput,
   ScheduledTaskPatch,
@@ -28,7 +29,10 @@ export const SCHEDULED_CHECK_EVERY_MS = 30 * 60_000;
 export interface ScheduledTaskServiceOptions {
   statePath?: string;
   now?: () => number;
-  execute: (task: ScheduledTask) => Promise<ScheduledTaskExecutionResult | void>;
+  execute: (
+    task: ScheduledTask,
+    context: ScheduledTaskExecutionContext,
+  ) => Promise<ScheduledTaskExecutionResult | void>;
   onChange?: (tasks: ScheduledTask[]) => void;
 }
 
@@ -189,34 +193,89 @@ export class ScheduledTaskService {
     });
   }
 
-  async runTaskNow(taskId: string): Promise<ScheduledTask> {
+  /** Reserves, prepares, and starts one manual run as a single task transaction. */
+  async startTaskNow(
+    taskId: string,
+    prepareSession: () => Promise<string>,
+  ): Promise<{ task: ScheduledTask; sessionId: string }> {
     const task = await this.getTask(taskId);
     if (!task) throw new Error('Scheduled task not found');
-    await this.runTask(task, false, this.now());
-    return (await this.getTask(taskId))!;
+    if (this.running.has(task.id)) throw new Error('Scheduled task is already running');
+    this.running.add(task.id);
+    let sessionId: string;
+    const attemptedAt = this.now();
+    try {
+      sessionId = await prepareSession();
+      await this.markTaskStarted(task, { trigger: 'manual', sessionId }, attemptedAt);
+    } catch (error) {
+      this.running.delete(task.id);
+      await this.emitChange();
+      throw error;
+    }
+    const context: ScheduledTaskExecutionContext = { trigger: 'manual', sessionId };
+    void this.completeTask(task, context, attemptedAt).catch((error) => {
+      console.error(`[scheduled] Manual run failed to settle for ${task.id}:`, error);
+    });
+    return { task: (await this.getTask(taskId))!, sessionId };
   }
 
   async runDueTasks(now = this.now()): Promise<void> {
     const tasks = await this.listTasks();
     for (const task of tasks) {
       if (!task.enabled || task.nextRunAt > now || this.running.has(task.id)) continue;
-      await this.runTask(task, true, now);
+      await this.runTask(task, { trigger: 'schedule' }, now);
     }
   }
 
-  private async runTask(task: ScheduledTask, advanceSchedule: boolean, attemptedAt: number): Promise<void> {
-    if (this.running.has(task.id)) return;
+  private async runTask(
+    task: ScheduledTask,
+    context: ScheduledTaskExecutionContext,
+    attemptedAt: number,
+  ): Promise<void> {
+    if (!await this.beginTask(task, context, attemptedAt)) return;
+    await this.completeTask(task, context, attemptedAt);
+  }
+
+  private async beginTask(
+    task: ScheduledTask,
+    context: ScheduledTaskExecutionContext,
+    attemptedAt: number,
+  ): Promise<boolean> {
+    if (this.running.has(task.id)) return false;
     this.running.add(task.id);
-    await this.mutate((state) => {
+    try {
+      await this.markTaskStarted(task, context, attemptedAt);
+      return true;
+    } catch (error) {
+      this.running.delete(task.id);
+      throw error;
+    }
+  }
+
+  private markTaskStarted(
+    task: ScheduledTask,
+    context: ScheduledTaskExecutionContext,
+    attemptedAt: number,
+  ): Promise<void> {
+    return this.mutate((state) => {
       const current = state.tasks.find((candidate) => candidate.id === task.id);
       if (!current) return;
       current.lastAttemptAt = attemptedAt;
       current.runCount += 1;
       current.lastError = undefined;
-      if (advanceSchedule) current.nextRunAt = computeNextRunAt(current.schedule, attemptedAt);
+      if (context.trigger === 'schedule') {
+        current.nextRunAt = computeNextRunAt(current.schedule, attemptedAt);
+      }
     });
+  }
+
+  private async completeTask(
+    task: ScheduledTask,
+    context: ScheduledTaskExecutionContext,
+    attemptedAt: number,
+  ): Promise<void> {
     try {
-      const result = await this.execute({ ...task, status: 'running' });
+      const result = await this.execute({ ...task, status: 'running' }, context);
       await this.mutate((state) => {
         const current = state.tasks.find((candidate) => candidate.id === task.id);
         if (!current) return;

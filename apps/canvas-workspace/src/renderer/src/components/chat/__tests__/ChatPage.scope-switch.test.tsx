@@ -308,6 +308,57 @@ describe('ChatPage scope switching', () => {
     expect(restored?.dataset.executionPolicy).toBe('ask');
   });
 
+  it('loads an exact scheduled session when the page target changes after mount', async () => {
+    const initialTarget: ChatTarget = {
+      surface: 'page',
+      scope: { kind: 'global' },
+      scopeId: '__global_chat__',
+      sessionId: 'global-session',
+      composerId: 'page:__global_chat__',
+      contextSnapshot: { label: 'Global chat' },
+      executionPolicy: 'auto',
+    };
+    const scheduledTarget: ChatTarget = {
+      surface: 'page',
+      scope: { kind: 'scheduled', taskId: 'daily-brief' },
+      scopeId: '__scheduled__-daily-brief',
+      sessionId: 'scheduled-run-session',
+      composerId: 'page:__scheduled__-daily-brief',
+      contextSnapshot: { label: 'Morning brief' },
+      executionPolicy: 'scheduled',
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <ChatPage
+          allWorkspaces={[]}
+          initialTarget={initialTarget}
+          onExit={vi.fn()}
+          onOpenAppSettings={vi.fn()}
+        />,
+      );
+    });
+    await act(async () => {
+      root?.render(
+        <ChatPage
+          allWorkspaces={[]}
+          initialTarget={scheduledTarget}
+          onExit={vi.fn()}
+          onOpenAppSettings={vi.fn()}
+        />,
+      );
+    });
+
+    const body = host.querySelector<HTMLButtonElement>('[data-chat-body]');
+    expect(body?.textContent).toBe('scheduled');
+    expect(body?.dataset.pendingSession).toBe('__scheduled__-daily-brief:scheduled-run-session');
+    expect(body?.dataset.contextLabel).toBe('Morning brief');
+    expect(body?.dataset.executionPolicy).toBe('scheduled');
+  });
+
   it('clears stale rail selection when an external scheduled target opens', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);
