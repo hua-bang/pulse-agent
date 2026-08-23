@@ -4,6 +4,7 @@ import type { CanvasAgent } from '../canvas-agent';
 import type { CanvasAgentService } from '../service';
 import { ConversationRuntimeService } from './conversation-service';
 import type { AgentRequestContext, ChatImageAttachment } from '../../../shared/agent-chat';
+import { isPerfChatReplayRequest, replayPerfChatStream } from '../perf-chat-replay';
 
 let service: ConversationRuntimeService | null = null;
 
@@ -67,6 +68,10 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
     ) => {
       const runtime = ensure();
       const { scope, sessionId, message, mentionedWorkspaceIds, requestContext, attachments } = payload;
+      if (isPerfChatReplayRequest(message, process.env.PULSE_CANVAS_PERF === '1')) {
+        void replayPerfChatStream(event.sender, sessionId);
+        return { ok: true, sessionId };
+      }
       const completion = runtime.chat(scope, sessionId, message, {
         onText: (delta) => send(event.sender, 'text-delta', sessionId, delta),
         onToolCall: (data) => send(event.sender, 'tool-call', sessionId, data),

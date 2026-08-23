@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   handlers: new Map<string, (...args: any[]) => any>(),
   chat: vi.fn(),
+  replay: vi.fn(),
   runningSessionIds: vi.fn(),
 }));
 
@@ -22,6 +23,11 @@ vi.mock('./conversation-service', () => ({
     stopRelay: vi.fn(),
     answerClarification: vi.fn(),
   })),
+}));
+
+vi.mock('../perf-chat-replay', () => ({
+  isPerfChatReplayRequest: (_message: string, enabled: boolean) => enabled,
+  replayPerfChatStream: mocks.replay,
 }));
 
 import { setupConversationRuntimeIpc } from './conversation-ipc';
@@ -74,5 +80,20 @@ describe('conversation runtime IPC', () => {
       ok: true,
       conversationSessionIds: ['session-a', 'session-b'],
     });
+  });
+
+  it('uses the deterministic perf replay on the conversation IPC path', async () => {
+    vi.stubEnv('PULSE_CANVAS_PERF', '1');
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn() }) as never);
+    const handler = mocks.handlers.get('canvas-agent:conversation-chat');
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    expect(handler?.({ sender }, {
+      scope: { kind: 'global' },
+      sessionId: 'perf-session',
+      message: '__pulse_perf_chat_stream__',
+    })).toEqual({ ok: true, sessionId: 'perf-session' });
+    expect(mocks.replay).toHaveBeenCalledWith(sender, 'perf-session');
+    vi.unstubAllEnvs();
   });
 });
