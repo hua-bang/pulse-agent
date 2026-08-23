@@ -32,7 +32,6 @@ import type {
   CrossWorkspaceSessionGroup,
   SessionSearchHit,
 } from './types';
-import { rejectChangedChatSession } from './chat-session-cas';
 import { beginCanvasHostRun, failCanvasHostRun, markCanvasHostLaneEntered, markCanvasHostScopeReady } from './observability/host-run';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
@@ -45,9 +44,9 @@ const scopeKey = (scope: AgentScope): string => {
 export class CanvasAgentService {
   private agents = new Map<string, CanvasAgent>();
   private agentActivations = new ScopeActivationGate();
-  private sessionMutations = new SessionMutationCoordinator(
+  readonly sessionMutations = new SessionMutationCoordinator(
     (scope) => this.activateScope(scope),
-    (scope) => this.getAgent(scope),
+    (scope) => this.getAgentForScope(scope),
   );
 
   private async activateScope(scope: AgentScope): Promise<void> {
@@ -68,7 +67,7 @@ export class CanvasAgentService {
     });
   }
 
-  private getAgent(scope: AgentScope): CanvasAgent | undefined {
+  getAgentForScope(scope: AgentScope): CanvasAgent | undefined {
     return this.agents.get(scopeKey(scope));
   }
 
@@ -80,14 +79,7 @@ export class CanvasAgentService {
     await this.activateScope(workspaceScope(workspaceId));
   }
 
-  /**
-   * Send a chat message to the workspace's Canvas Agent.
-   * Auto-activates the agent if not already active.
-   * @param onText — optional callback receiving streaming text deltas
-   * @param onClarificationRequest — invoked when the agent needs to ask the
-   *   user a clarifying question; the caller must eventually deliver the
-   *   reply via `answerClarification` or cancel via `abort`.
-   */
+  /** Send a chat message to the workspace's Canvas Agent (thin wrapper). */
   async chat(
     workspaceId: string,
     message: string,
@@ -132,25 +124,32 @@ export class CanvasAgentService {
     observabilityRunId?: string,
   ): Promise<ChatResponse> {
     const timing = beginCanvasHostRun(scope.kind, observabilityRunId, requestContext?.expectedConversationSessionId ?? undefined);
-    const runId = timing.runId;
+    // Anchor to the conversation the renderer showed, not the current pointer.
+    const conversationSessionId = requestContext?.expectedConversationSessionId ?? undefined;
     const result = await this.sessionMutations.runChat(scope, async () => {
       markCanvasHostLaneEntered(timing);
       try {
         await this.activateScope(scope);
         markCanvasHostScopeReady(timing);
-        const agent = this.getAgent(scope)!;
-        const sessionChanged = rejectChangedChatSession(
-          requestContext?.expectedConversationSessionId,
-          agent.getCurrentSessionId(),
-        );
-        if (sessionChanged) return sessionChanged;
+        const agent = this.getAgentForScope(scope)!;
+        const persistTo = (sessionId: string, messages: CanvasAgentMessage[]) =>
+          this.sessionMutations.enqueueSessionAppend(scope, sessionId, messages);
         const turn = await agent.chat(
           message, onText, onToolCall, onToolResult, mentionedWorkspaceIds,
           onClarificationRequest, requestContext, attachments, onToolInputStart,
           onToolInputDelta, onToolInputEnd, onRoleTurnStart, onRoleTurnEnd,
           runAbortSignal, modelConfig,
           timing,
+          persistTo,
         );
+        if (turn.sessionChanged) {
+          return {
+            ok: false,
+            code: 'CHAT_SESSION_CHANGED',
+            activeSessionId: turn.sessionChanged.activeSessionId,
+            error: turn.sessionChanged.error,
+          };
+        }
         return {
           ok: true,
           response: turn.response,
@@ -163,47 +162,46 @@ export class CanvasAgentService {
         failCanvasHostRun(timing, err);
         return { ok: false, error: String(err) };
       }
-    });
-    return result ?? {
+    }, conversationSessionId);
+    if (result) {
+      // Flush queued session-addressed writes before chat-complete.
+      await this.sessionMutations.waitForIdle(scope);
+      return result;
+    }
+    return {
       ok: false,
       code: 'CHAT_SCOPE_BUSY',
       error: 'Another reply is already running for this chat scope.',
     };
   }
 
-  /**
-   * Abort the workspace's currently-running chat turn (if any). No-op when
-   * the agent is idle or not activated.
-   */
+  /** Abort the workspace's currently-running chat turn (if any). */
   abort(workspaceId: string): void {
     this.abortScope(workspaceScope(workspaceId));
   }
 
-  abortScope(scope: AgentScope): void {
-    this.getAgent(scope)?.abort();
+  abortScope(scope: AgentScope, sessionId?: string): void {
+    this.getAgentForScope(scope)?.abort(sessionId);
   }
 
   /** Graceful relay stop for the scope's in-flight turn (see CanvasAgent.stopRelay). */
-  stopRelayForScope(scope: AgentScope): boolean {
-    return this.getAgent(scope)?.stopRelay() ?? false;
+  stopRelayForScope(scope: AgentScope, sessionId?: string): boolean {
+    return this.getAgentForScope(scope)?.stopRelay(sessionId) ?? false;
   }
 
-  /**
-   * Deliver the user's answer to a pending clarification request.
-   * Returns true if a matching pending request was resolved.
-   */
+  /** Deliver the user's answer to a pending clarification request. */
   answerClarification(workspaceId: string, requestId: string, answer: string): boolean {
     return this.answerClarificationForScope(workspaceScope(workspaceId), requestId, answer);
   }
 
   answerClarificationForScope(scope: AgentScope, requestId: string, answer: string): boolean {
-    const agent = this.getAgent(scope);
+    const agent = this.getAgentForScope(scope);
     if (!agent) return false;
     return agent.answerClarification(requestId, answer);
   }
 
-  getPendingClarificationForScope(scope: AgentScope) {
-    return this.getAgent(scope)?.getPendingClarification() ?? null;
+  getPendingClarificationForScope(scope: AgentScope, sessionId?: string) {
+    return this.getAgentForScope(scope)?.getPendingClarification(sessionId) ?? null;
   }
 
   /**
@@ -214,7 +212,7 @@ export class CanvasAgentService {
   }
 
   getStatusForScope(scope: AgentScope): AgentStatusResponse {
-    const agent = this.getAgent(scope);
+    const agent = this.getAgentForScope(scope);
     if (!agent) return { ok: true, active: false, messageCount: 0 };
     return { ok: true, active: true, messageCount: agent.getMessageCount() };
   }
@@ -226,11 +224,11 @@ export class CanvasAgentService {
    * current session via {@link loadSession} / {@link newSession}.
    */
   getCurrentSessionId(workspaceId: string): string | null {
-    return this.getAgent(workspaceScope(workspaceId))?.getCurrentSessionId() ?? null;
+    return this.getAgentForScope(workspaceScope(workspaceId))?.getCurrentSessionId() ?? null;
   }
 
   getCurrentSessionIdForScope(scope: AgentScope): string | null {
-    return this.getAgent(scope)?.getCurrentSessionId() ?? null;
+    return this.getAgentForScope(scope)?.getCurrentSessionId() ?? null;
   }
 
   /**
@@ -244,7 +242,7 @@ export class CanvasAgentService {
 
   async listSkillsForScope(scope: AgentScope): Promise<Array<{ name: string; description: string }>> {
     await this.activateScope(scope);
-    const agent = this.getAgent(scope)!;
+    const agent = this.getAgentForScope(scope)!;
     return agent.listSkills();
   }
 
@@ -257,7 +255,7 @@ export class CanvasAgentService {
 
   async getHistoryForScope(scope: AgentScope): Promise<CanvasAgentMessage[]> {
     await this.activateScope(scope);
-    const agent = this.getAgent(scope);
+    const agent = this.getAgentForScope(scope);
     return agent?.getHistory() ?? [];
   }
 
@@ -270,7 +268,7 @@ export class CanvasAgentService {
 
   async listSessionsForScope(scope: AgentScope): Promise<AgentSessionListEntry[]> {
     await this.activateScope(scope);
-    const agent = this.getAgent(scope)!;
+    const agent = this.getAgentForScope(scope)!;
     return agent.listSessions();
   }
 
@@ -339,7 +337,7 @@ export class CanvasAgentService {
         : g.workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
           ? { kind: 'global' }
           : workspaceScope(g.workspaceId);
-      const agent = this.getAgent(scope);
+      const agent = this.getAgentForScope(scope);
       const sessions = agent
         ? await agent.listSessions()
         : g.sessions;
@@ -449,7 +447,7 @@ export class CanvasAgentService {
    */
   async reloadSkills(workspaceId?: string): Promise<void> {
     const agents = workspaceId
-      ? [this.getAgent(workspaceScope(workspaceId))].filter((a): a is CanvasAgent => Boolean(a))
+      ? [this.getAgentForScope(workspaceScope(workspaceId))].filter((a): a is CanvasAgent => Boolean(a))
       : Array.from(this.agents.values());
     await Promise.all(agents.map((agent) => agent.rescanSkills()));
   }
@@ -464,7 +462,7 @@ export class CanvasAgentService {
     const targetScope: AgentScope = workspaceId ? workspaceScope(workspaceId) : { kind: 'global' };
     await this.activateScope(targetScope);
     const agents = workspaceId
-      ? [this.getAgent(targetScope)].filter((a): a is CanvasAgent => Boolean(a))
+      ? [this.getAgentForScope(targetScope)].filter((a): a is CanvasAgent => Boolean(a))
       : Array.from(this.agents.values());
     await Promise.all(agents.map((agent) => agent.reloadEngine()));
   }
@@ -477,9 +475,9 @@ export class CanvasAgentService {
    */
   getMcpStatuses(workspaceId?: string): Record<string, MCPServerStatus> {
     if (workspaceId) {
-      return this.getAgent(workspaceScope(workspaceId))?.getMcpStatuses() ?? {};
+      return this.getAgentForScope(workspaceScope(workspaceId))?.getMcpStatuses() ?? {};
     }
-    const global = this.getAgent({ kind: 'global' });
+    const global = this.getAgentForScope({ kind: 'global' });
     if (global) return global.getMcpStatuses();
     const first = this.agents.values().next().value as CanvasAgent | undefined;
     return first?.getMcpStatuses() ?? {};

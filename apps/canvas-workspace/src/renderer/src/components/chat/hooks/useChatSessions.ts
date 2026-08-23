@@ -12,11 +12,14 @@ import {
   type ChatConversationMutationRef,
 } from './chatConversationMutation';
 import { partitionSessionGroups } from './sessionListGroups';
-
+import { deliverLoadedConversation, type LoadedConversation } from './loadedConversationSink';
+import { useLiveSessionLists } from './useLiveSessionLists';
 interface UseChatSessionsOptions {
   agentScope: AgentScope;
   allWorkspaces?: WorkspaceOption[];
-  onMessagesLoaded: (messages: AgentChatMessage[]) => void;
+  onMessagesLoaded?: (messages: AgentChatMessage[]) => void;
+  onConversationLoaded?: (loaded: LoadedConversation) => void;
+  onConversationLoadStart?: (scope: AgentScope) => ReadonlyMap<string, number>;
   /** When true, load the session list on mount and whenever workspaceId changes. */
   eagerLoad?: boolean;
   /** Skip mount history when the caller will load a session; that load must clear `sessionLoading`. */
@@ -32,7 +35,6 @@ interface ThreadFetchResult {
   code?: string;
   error?: string;
 }
-
 interface CachedSessions {
   sessions: AgentSessionInfo[];
   otherSessions: OtherWorkspaceSession[];
@@ -41,7 +43,6 @@ interface CachedSessions {
 const SESSIONS_CACHE_LIMIT = 20;
 const sessionsCache = new Map<string, CachedSessions>();
 
-/** Test-only reset; production sessions intentionally survive surface remounts. */
 export const resetChatSessionsCacheForTests = (): void => {
   sessionsCache.clear();
 };
@@ -60,6 +61,8 @@ export function useChatSessions({
   agentScope,
   allWorkspaces,
   onMessagesLoaded,
+  onConversationLoaded,
+  onConversationLoadStart,
   eagerLoad = false,
   skipInitialHistory = false,
   conversationMutationRef,
@@ -74,30 +77,25 @@ export function useChatSessions({
       : 'global';
 
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
-  // Revisited scopes repaint their cached rail immediately.
   const [sessions, setSessions] = useState<AgentSessionInfo[]>(
     () => sessionsCache.get(scopeKey)?.sessions ?? [],
   );
   const [otherSessions, setOtherSessions] = useState<OtherWorkspaceSession[]>(
     () => sessionsCache.get(scopeKey)?.otherSessions ?? [],
   );
-  // Keep list ownership explicit while a cross-scope thread is opening.
   const [sessionsStoreId, setSessionsStoreId] = useState(
     () => scopeSessionStoreId(agentScope),
   );
   const [currentScopeName, setCurrentScopeName] = useState<string | null>(null);
-  // Avoid an empty-state flash before an eager first list fetch.
   const [sessionsLoading, setSessionsLoading] = useState(
     () => eagerLoad && !sessionsCache.has(scopeKey),
   );
-  // Seed true: mount always starts history or an explicit session fetch.
   const [sessionLoading, setSessionLoading] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<{
     code?: string;
     message: string;
   } | null>(null);
-  // Only the newest thread request may paint or clear its busy flag.
   const threadRequestRef = useRef(0);
   const threadRetryRef = useRef<{
     scopeKey: string;
@@ -110,6 +108,9 @@ export function useChatSessions({
   const historyHandledScopeRef = useRef<string | null>(null);
   const localConversationMutationRef = useRef(createChatConversationMutationState());
   const mutationRef = conversationMutationRef ?? localConversationMutationRef;
+  const visibleSessionLists = useLiveSessionLists({
+    agentScope, allWorkspaces, activeSessionId, sessions, otherSessions,
+  });
 
   useLayoutEffect(() => {
     if (previousScopeKeyRef.current === scopeKey) return;
@@ -117,7 +118,7 @@ export function useChatSessions({
     onConversationMutationStart?.();
     sessionListRequestRef.current += 1;
     threadRequestRef.current += 1;
-    onMessagesLoaded([]);
+    onMessagesLoaded?.([]);
     setSessionsLoading(eagerLoad);
     // Block sends before the next scope's pointer fetch starts.
     setSessionLoading(true);
@@ -133,21 +134,17 @@ export function useChatSessions({
     setSessionsLoading(true);
   }, [skipInitialHistory]);
 
-  // Read the latest scope without depending on object identity.
   const agentScopeRef = useRef(agentScope);
   agentScopeRef.current = agentScope;
 
-  // Reload history only when the scope actually changes. We key on `scopeKey`
-  // (a stable string) rather than the `agentScope` object: a caller that
-  // recreates the scope object on every render would otherwise re-fire this
-  // effect on each streaming setState, and `onMessagesLoaded` (replaceMessages)
-  // would clobber the in-flight assistant message — making intermediate tool
-  // calls / streamed text disappear and the view flicker mid-turn.
-  /** Runs a latest-wins thread replacement behind `sessionLoading`. */
+  // Reload history only when the scope changes. Key on the stable `scopeKey`,
+  // not the `agentScope` object (recreated each render would re-fire this
+  // effect and clobber the in-flight stream).
   const runThreadFetch = useCallback(async (
     fetchThread: () => Promise<ThreadFetchResult>,
     expectedSessionId?: string,
   ) => {
+    const expectedSequences = onConversationLoadStart?.(agentScopeRef.current);
     const mutationGeneration = beginChatConversationMutation(mutationRef, onConversationMutationStart);
     sessionListRequestRef.current += 1;
     setSessionsLoading(false);
@@ -182,7 +179,8 @@ export function useChatSessions({
         return false;
       }
       if (result.ok && result.messages) {
-        onMessagesLoaded(result.messages);
+        const sessionId = result.activeSessionId ?? expectedSessionId;
+        deliverLoadedConversation({ scope: agentScopeRef.current, sessionId, messages: result.messages, expectedSequence: sessionId && expectedSequences ? expectedSequences.get(sessionId) ?? 0 : undefined, onMessagesLoaded, onConversationLoaded });
       }
       return true;
     } catch (error) {
@@ -200,7 +198,7 @@ export function useChatSessions({
         setSessionLoading(false);
       }
     }
-  }, [mutationRef, onConversationMutationStart, onMessagesLoaded, scopeKey, t]);
+  }, [mutationRef, onConversationLoaded, onConversationLoadStart, onConversationMutationStart, onMessagesLoaded, scopeKey, t]);
 
   useEffect(() => {
     // Keep the loading state continuous until the caller loads its session.
@@ -280,6 +278,8 @@ export function useChatSessions({
           ...(nextOtherSessions ? { otherSessions: nextOtherSessions } : {}),
         });
       }
+    } catch {
+      // Best-effort refresh; never surface an unhandled rejection.
     } finally {
       if (token === sessionListRequestRef.current) {
         setSessionsLoading(false);
@@ -333,7 +333,7 @@ export function useChatSessions({
         return result;
       }
       setActiveSessionId(result.activeSessionId ?? null);
-      onMessagesLoaded([]);
+      deliverLoadedConversation({ scope: agentScope, sessionId: result.activeSessionId, messages: [], onMessagesLoaded, onConversationLoaded });
       return result;
     } catch (error) {
       const result = {
@@ -349,7 +349,7 @@ export function useChatSessions({
       finishChatConversationMutation(mutationRef, mutationGeneration);
       if (token === threadRequestRef.current) setSessionLoading(false);
     }
-  }, [agentScope, mutationRef, onConversationMutationStart, onMessagesLoaded, t]);
+  }, [agentScope, mutationRef, onConversationLoaded, onConversationMutationStart, onMessagesLoaded, t]);
 
   const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
     setSessionMenuOpen(false);
@@ -463,7 +463,7 @@ export function useChatSessions({
         && result.messages
       ) {
         setActiveSessionId(result.activeSessionId);
-        onMessagesLoaded(result.messages);
+        deliverLoadedConversation({ scope, sessionId: result.activeSessionId, messages: result.messages, onMessagesLoaded, onConversationLoaded });
       }
       await loadSessions();
       return result;
@@ -473,11 +473,11 @@ export function useChatSessions({
         setSessionLoading(false);
       }
     }
-  }, [agentScope, failSessionMutation, loadSessions, mutationRef, onConversationMutationStart, onMessagesLoaded, t]);
+  }, [agentScope, failSessionMutation, loadSessions, mutationRef, onConversationLoaded, onConversationMutationStart, onMessagesLoaded, t]);
 
   return {
     adoptActiveSession,
-    otherSessions,
+    otherSessions: visibleSessionLists.otherSessions,
     sessionsStoreId,
     activeSessionId,
     currentScopeName,
@@ -491,7 +491,7 @@ export function useChatSessions({
     retrySession,
     sessionMenuOpen,
     sessionMenuRef,
-    sessions,
+    sessions: visibleSessionLists.sessions,
     sessionsLoading,
     sessionLoading,
     sessionError,

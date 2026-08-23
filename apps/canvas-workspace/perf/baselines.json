@@ -164,9 +164,9 @@
       "gate": { "kind": "ratchet", "baseline": 5737, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
-      "profile": "global-deterministic", "target": 550, "warning": 670,
-      "confidence": "high", "basis": "AI Chat P0-P2 将 main 从 master 621KB 增至 651KB；单文件 minify 对比可归因约 27KB，主要是 SessionMutationCoordinator、prepare/subscribe/start 所有权协议、ActiveChatRegistry、session 扫描/元数据、停止与失败持久化。这些模块共同保证同 scope 单 run、会话 mutation 串行、stop-before-start 与失败后可恢复；局部文案/去重不足以覆盖 30KB，真正移出启动入口需单独实施 Agent runtime 首次调用 lazy 重构。保留 550 target，warning 调至 670，ratchet 按当前已验证可靠性载荷落锚。", "asOf": "2026-07-31",
-      "gate": { "kind": "ratchet", "baseline": 651, "tolerancePct": 3, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 550, "warning": 690,
+      "confidence": "high", "basis": "并行 conversation runtime 将 main 从既有 651KB 载荷增加到约 679KB（含 session-anchored persistence、conversation IPC 与 runtime registry）；bootstrap 已将 conversation IPC 拆为 lazy chunk，避免其继续进入启动入口。保留 550 target，warning 调至 690，ratchet 重新落锚到这次已验证的功能载荷；后续继续优化 main lazy boundary。", "asOf": "2026-08-23",
+      "gate": { "kind": "ratchet", "baseline": 673, "tolerancePct": 3, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,

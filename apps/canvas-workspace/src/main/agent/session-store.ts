@@ -18,6 +18,7 @@ import {
   removeSessionMetadata,
 } from './session-metadata';
 import { archiveSortKey, isListableSession, scanAllWorkspaceSessions, sessionUpdatedAt, type AgentSessionListEntry } from './session-store-scan';
+import { appendSessionMessages, readCurrentSessionFileAt, readSessionFile, replaceSessionMessages, type SessionFileIo, writeFileAtomic } from './session-file-io';
 export type { AgentSessionListEntry } from './session-store-scan';
 // Lazy so tests can redirect storage through the environment.
 const storeDir = (): string =>
@@ -113,6 +114,37 @@ export class SessionStore {
   /** Return the live current message list. */
   getMessages(): CanvasAgentMessage[] {
     return this.session?.messages ?? [];
+  }
+
+  /** Structural I/O surface for session-anchored reads/appends (see session-file-io). */
+  private sessionFileIo(): SessionFileIo {
+    return {
+      currentPath: this.currentPath,
+      archiveDir: this.archiveDir,
+      session: this.session,
+      flushPersistence: () => this.flushPersistence(),
+      persist: (session) => this.persist(session),
+      readCurrentSessionFile: () => this.readCurrentSessionFile(),
+      workspaceId: this.workspaceId,
+      scope: this.scope,
+    };
+  }
+
+  /** Read a session (current or newest archive) without moving the pointer. */
+  async readSession(sessionId: string): Promise<CanvasAgentSession | null> {
+    return readSessionFile(this.sessionFileIo(), sessionId);
+  }
+
+  /** Append to a session without moving the pointer (session-anchored runs). */
+  async appendToSession(
+    sessionId: string,
+    messages: CanvasAgentMessage[],
+  ): Promise<void> {
+    return appendSessionMessages(this.sessionFileIo(), sessionId, messages);
+  }
+
+  async replaceMessagesInSession(sessionId: string, messages: CanvasAgentMessage[]): Promise<void> {
+    return replaceSessionMessages(this.sessionFileIo(), sessionId, messages);
   }
 
   /** Drop the abandoned tail used by edit/regenerate flows. */
@@ -488,8 +520,7 @@ export class SessionStore {
     return removed;
   }
 
-  // Chain captured snapshots so temp-file renames never overlap; the last
-  // queued snapshot wins and a failed write cannot poison the queue tail.
+  // Chain snapshots so renames never overlap; the last queued write wins.
   private persist(session: CanvasAgentSession | null = this.session): Promise<void> {
     if (!session) return Promise.resolve();
     const serialized = JSON.stringify(session, null, 2);
@@ -528,46 +559,14 @@ export class SessionStore {
   }
 
   private async writeSessionFile(serialized: string): Promise<void> {
-    // Unique per-write temp name (pid + random) so two SessionStore
-    // instances for the same workspace never collide on one temp file.
-    const tmp = `${this.currentPath}.${process.pid}.${randomUUID()}.tmp`;
-    try {
-      await fs.writeFile(tmp, serialized, 'utf-8');
-      await fs.rename(tmp, this.currentPath);
-      if (process.env.PULSE_CANVAS_PERF) {
-        console.log(`[perf] session-persist ${JSON.stringify({ bytes: Buffer.byteLength(serialized, 'utf-8') })}`);
-      }
-    } catch (err) {
-      await fs.unlink(tmp).catch(() => undefined);
-      console.error('[session-store] Failed to persist session:', err);
-      throw err;
-    }
+    await writeFileAtomic(this.currentPath, serialized);
   }
 
   private async readCurrentSessionFile(): Promise<{
     raw: string;
     session: CanvasAgentSession;
   } | null> {
-    let raw: string;
-    try {
-      raw = await fs.readFile(this.currentPath, 'utf-8');
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-      throw error;
-    }
-
-    let session: CanvasAgentSession;
-    try {
-      session = JSON.parse(raw) as CanvasAgentSession;
-    } catch (error) {
-      throw new Error(
-        `Current session is corrupted at ${this.currentPath}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    if (!session.sessionId || !Array.isArray(session.messages)) {
-      throw new Error(`Current session is corrupted at ${this.currentPath}: invalid session shape`);
-    }
-    return { raw, session };
+    return readCurrentSessionFileAt(this.currentPath);
   }
 
   private async writeArchiveFile(session: CanvasAgentSession, raw: string): Promise<void> {

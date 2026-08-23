@@ -2,6 +2,7 @@ import type {
   AgentChatMessage,
   AgentClarificationRequest,
   AgentRequestContext,
+  AgentScope,
   AgentScopeRef,
   AgentSessionInfo,
   ChatImageAttachment,
@@ -42,16 +43,51 @@ export interface AgentApi {
   /** Release a prepared turn when its originating surface changes scope. */
   cancelPreparedChat: (sessionId: string) => Promise<{ ok: boolean }>;
   /** Check whether main still owns a prepared run when completion was not observed. */
-  getRunStatus: (sessionId: string) => Promise<{ ok: boolean; active: boolean }>;
-  /** Detect a run started from another chat surface or renderer window. */
+  getRunStatus: (
+    sessionId: string,
+    afterSequence?: number,
+  ) => Promise<{
+    ok: boolean;
+    active: boolean;
+    replay?: {
+      active: boolean;
+      cursor: number;
+      events: Array<{
+        sequence: number;
+        channel:
+          | 'text-delta'
+          | 'chat-complete'
+          | 'tool-call'
+          | 'tool-result'
+          | 'tool-input-start'
+          | 'tool-input-delta'
+          | 'tool-input-end'
+          | 'clarify-request'
+          | 'role-turn-start'
+          | 'role-turn-end';
+        data: unknown;
+      }>;
+    };
+  }>;
+  /**
+   * Detect whether the conversation `sessionId` has an active run owned by
+   * another surface. Runs in the same workspace on a DIFFERENT conversation
+   * do not count — that is the parallel-conversations feature.
+   */
   getScopeRunStatus: (
     scopeRef: AgentScopeRef,
+    sessionId?: string,
   ) => Promise<{
     ok: boolean;
     active: boolean;
     sessionId?: string;
+    conversationSessionId?: string;
     pendingClarification?: AgentClarificationRequest;
   }>;
+  /** All conversation session ids with an active run in the scope (parallel). */
+  getScopeRunningSessions: (
+    scopeRef: AgentScopeRef,
+  ) => Promise<{ ok: boolean; conversationSessionIds: string[] }>;
   /** @deprecated Compatibility path; new code must use prepareChat/startChat. */
   chat: (
     scopeRef: AgentScopeRef,
@@ -60,6 +96,36 @@ export interface AgentApi {
     requestContext?: AgentRequestContext,
     attachments?: ChatImageAttachment[],
   ) => Promise<{ ok: boolean; sessionId?: string; code?: string; error?: string }>;
+  /**
+   * Conversation-runtime chat (phase-2/4). Drives a conversation by key
+   * (scope + sessionId); main owns the per-conversation queue/state and
+   * streams the same per-session events the legacy protocol emits.
+   */
+  conversationChat: (
+    scope: AgentScope,
+    sessionId: string,
+    message: string,
+    mentionedWorkspaceIds?: string[],
+    requestContext?: AgentRequestContext,
+    attachments?: ChatImageAttachment[],
+  ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
+  /** Abort a conversation's active turn. */
+  conversationAbort: (
+    scope: AgentScope,
+    sessionId: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  /** Graceful relay stop for a conversation's in-flight turn. */
+  conversationStopRelay: (
+    scope: AgentScope,
+    sessionId: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  /** Answer a conversation's pending clarification. */
+  conversationClarifyAnswer: (
+    scope: AgentScope,
+    sessionId: string,
+    requestId: string,
+    answer: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
   onTextDelta: (
     sessionId: string,
     callback: (delta: string) => void,

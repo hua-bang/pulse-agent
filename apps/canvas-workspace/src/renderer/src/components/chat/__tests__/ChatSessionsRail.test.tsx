@@ -54,6 +54,55 @@ const globalSession: UnifiedSession = {
 };
 
 describe('ChatSessionsRail workspace tree', () => {
+  it('marks a session with an active run as Running', async () => {
+    const runningSession: UnifiedSession = {
+      ...sessions[0]!,
+      running: true,
+    };
+    const rail = (
+      <I18nProvider>
+        <ChatSessionsRail
+          allSessions={[runningSession]}
+          workspaces={[{ id: 'workspace-a', name: 'Workspace A' }]}
+          onSelectSession={() => undefined}
+          onNewSession={() => undefined}
+        />
+      </I18nProvider>
+    );
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(rail);
+    });
+
+    const marker = host.querySelector('.chat-page-rail-item-running');
+    expect(marker).not.toBeNull();
+    expect(marker?.textContent).toContain('Running');
+    expect(marker?.querySelector('.chat-page-rail-item-running-dot')).not.toBeNull();
+  });
+
+  it('keeps a completed background session marked until it is opened', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={[{ ...sessions[0]!, completionStatus: 'done' }]}
+            workspaces={[{ id: 'workspace-a', name: 'Workspace A' }]}
+            onSelectSession={vi.fn()}
+            onNewSession={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(host.querySelector('.chat-page-rail-item-completion--done')?.textContent)
+      .toContain('Done');
+  });
+
   it('shows every real workspace and starts a draft from its row action', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);

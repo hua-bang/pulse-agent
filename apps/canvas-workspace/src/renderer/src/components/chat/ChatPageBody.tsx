@@ -8,7 +8,7 @@ import './ChatPanel.css';
 import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
-import { useChatComposerState } from './hooks/useChatComposerState';
+import { useChatComposerStateKeyed } from './hooks/useChatComposerStateKeyed';
 import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
 import { useAppShell } from '../shell/AppShellProvider';
 import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from './types';
@@ -21,6 +21,7 @@ import { ChatConversationStatus } from './ChatConversationStatus';
 import { useChatPageTargetContext } from './hooks/useChatPageTargetContext';
 import { useChatPageJumpNavigation } from './hooks/useChatPageJumpNavigation';
 import { useChatPageSessionRail } from './hooks/useChatPageSessionRail';
+import { useScopeRunningSessions } from './hooks/useScopeRunningSessions';
 import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
 import { useSubmitDomReviewComments } from './hooks/useSubmitDomReviewComments';
 import { submitQuickAction } from './hooks/submitQuickAction';
@@ -28,19 +29,20 @@ import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
 import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from './utils/chatPageDockTabs';
 import { useChatPageNewSession } from './hooks/useChatPageNewSession';
+import { useConversationCompletionNotices } from './hooks/useConversationCompletionNotices';
 
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
   /** Context inherited from the visible target that opened this page. */
   contextSnapshot?: ChatContextSnapshot;
   executionPolicy?: ChatExecutionPolicy;
-  /** Session selected while entering a different scope. */
+  /** Initial and reactive session targets while a transition is pending. */
   initialPendingSessionId: string | null;
-  /** Reactive pendingSessionId for same-workspace clicks after mount. */
   pendingSessionId: string | null;
   pendingSessionIntentId: number | null;
-  /** Session chosen by the user, updated synchronously before its thread loads. */
+  /** Committed body conversation and the requested target awaiting load. */
   selectedSessionKey?: string | null;
+  pendingSessionKey?: string | null;
   onSessionConsumed: (intentId: number, loaded: boolean) => void;
   /** Creates a new session after the user selects another scope. */
   onCreateNewSessionInScope?: (scope: AgentScope) => Promise<AgentNewSessionResult>;
@@ -65,7 +67,6 @@ export interface ChatPageBodyProps {
   onToggleRail: () => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
-  /** Fixed-task chats hide the cross-session rail/new-chat controls. */
   fixedChat?: {
     title: string;
     banner?: ReactNode;
@@ -80,6 +81,7 @@ export const ChatPageBody = ({
   pendingSessionId,
   pendingSessionIntentId,
   selectedSessionKey = null,
+  pendingSessionKey = null,
   onSessionConsumed,
   onCreateNewSessionInScope,
   onNewSessionCreated,
@@ -105,17 +107,15 @@ export const ChatPageBody = ({
   const { notify } = useAppShell();
   const dock = useRightDock();
   const dockState = useRightDockState();
-  // The dock's Tab strip lives beside this page (its chat tab is hidden here),
-  // so the control is a plain show/hide — no navigation.
+  // The dock's Tab strip sits beside this page (chat tab hidden here), so the
+  // control is a plain show/hide.
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const workspaceLabel = workspaceId
     ? allWorkspaces.find(workspace => workspace.id === workspaceId)?.name
     : undefined;
   const dockTabsVisible = isDockContentTabVisible(dockState);
   const dockTabs = useMemo(() => buildChatPageDockTabRefs(dockState), [dockState]);
-  // The control is always actionable. With no content yet, prefer this
-  // scope's canvas preview; global/scheduled/live-canvas scopes get a fresh
-  // browser tab so the panel still opens on the first click.
+  // Always actionable; empty scopes fall back to a fresh browser tab.
   const handleToggleDockTabs = useCallback(() => {
     toggleFullPageDockContentTabs(
       dockState,
@@ -157,6 +157,7 @@ export const ChatPageBody = ({
     clearInput,
     collapsedSections,
     deleteSession,
+    disposeCurrentTurn,
     editableRef,
     editUserMessage,
     expandedTools,
@@ -202,7 +203,7 @@ export const ChatPageBody = ({
     toggleSection,
     toggleSessionPinned,
     toggleToolExpand,
-  } = useChatComposerState({
+  } = useChatComposerStateKeyed({
     agentScope,
     scopeLabel,
     allWorkspaces,
@@ -217,7 +218,7 @@ export const ChatPageBody = ({
   });
 
   const chatDestinationLabel = agentScope.kind === 'workspace' ? workspaceLabel : undefined;
-  const newSession = useChatPageNewSession({ agentScope, sessionStoreId, loading, sessionLoading, busyElsewhere, pendingSessionId, focusInput, clearInput, handleNewSession, onClearBackStack, onCreateNewSessionInScope, onNewSessionCreated });
+  const newSession = useChatPageNewSession({ agentScope, sessionStoreId, sessionLoading, busyElsewhere, pendingSessionId, focusInput, clearInput, handleNewSession, onClearBackStack, onCreateNewSessionInScope, onNewSessionCreated });
 
   const handleTargetSkillChat = useCallback(async (skillName: string) => {
     if (loading || sessionLoading || busyElsewhere) throw new Error(t('chat.generating'));
@@ -244,18 +245,12 @@ export const ChatPageBody = ({
   }, [onWorkspaceContextRequest, workspaceId]);
 
   useEffect(() => {
-    // Keep the synchronous rail intent authoritative until it is consumed.
     if (!pendingSessionId && !sessionLoading && activeSessionId) {
       onActiveSessionResolved?.(activeSessionId, sessionsStoreId);
     }
   }, [activeSessionId, onActiveSessionResolved, pendingSessionId, sessionLoading, sessionsStoreId]);
-  const retrySessionTransition = useChatPagePendingSession({
-    busyElsewhere, handleLoadSession, onJumpToSession, onSessionConsumed,
-    pendingSessionId, pendingSessionIntentId, retrySession, sessionStoreId,
-  });
+  const retrySessionTransition = useChatPagePendingSession({ handleLoadSession, onAbandonCurrentTurn: disposeCurrentTurn, onJumpToSession, onSessionConsumed, pendingSessionId, pendingSessionIntentId, retrySession, sessionStoreId });
 
-  // See ChatPanel for the rationale; treat loading state as configured to
-  // avoid bouncing the user to Settings before status loads.
   const notConfigured = canvasModels.status !== undefined && !canvasModels.status.apiKeyPresent;
 
   const openModelSettingsWithHint = useCallback(() => {
@@ -367,7 +362,10 @@ export const ChatPageBody = ({
   );
 
   const sessionInteractionDisabled = loading || sessionLoading || busyElsewhere;
-  const sessionRailDisabled = loading || busyElsewhere;
+  const sessionRailDisabled = sessionLoading;
+  const newSessionDisabled = sessionLoading || busyElsewhere;
+  const runningSessionIds = useScopeRunningSessions(agentScope, scopeId); // rail "Running" markers
+  const completionStatuses = useConversationCompletionNotices({ selectedSessionKey });
   const sessionRail = useChatPageSessionRail({
     agentScope,
     allWorkspaces,
@@ -377,9 +375,11 @@ export const ChatPageBody = ({
     selectedSessionKey,
     sessions,
     sessionsStoreId,
-    pendingSessionKey: sessionLoading ? selectedSessionKey : null,
+    pendingSessionKey: sessionLoading ? pendingSessionKey : null,
     disabled: sessionRailDisabled,
-    newSessionDisabled: sessionInteractionDisabled,
+    newSessionDisabled,
+    runningSessionIds,
+    completionStatuses,
     focusInput,
     handleNewSession,
     onNewSessionDraft: newSession.handleNewSessionFromRail,
@@ -407,7 +407,7 @@ export const ChatPageBody = ({
           anchors={anchors}
           onJumpAnchor={handleJumpAnchor}
           onNewSession={newSession.handleNewSessionFromTopbar}
-          newSessionDisabled={sessionInteractionDisabled}
+          newSessionDisabled={newSessionDisabled}
           dockTabsVisible={dockTabsVisible}
           onToggleDockTabs={handleToggleDockTabs}
         />

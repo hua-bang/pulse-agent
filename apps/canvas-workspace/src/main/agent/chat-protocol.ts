@@ -85,7 +85,10 @@ export async function prepareChatTurn(opts: {
     opts.payload,
     expired => opts.activeChats.releaseReservation(expired.sessionId),
   );
-  if (!opts.activeChats.reserve(turn.sessionId, turn.scope)) {
+  // Anchor the run to the conversation session the renderer was showing so a
+  // second conversation in the same workspace can run concurrently.
+  const conversationSessionId = opts.payload.requestContext?.expectedConversationSessionId ?? undefined;
+  if (!opts.activeChats.reserve(turn.sessionId, turn.scope, conversationSessionId)) {
     opts.preparedChats.discard(turn.sessionId);
     return {
       ok: false as const,
@@ -121,6 +124,7 @@ export async function startChatTurn(opts: {
       abortSignal,
       () => opts.activeChats.settle(turn.sessionId),
       modelConfig,
+      opts.activeChats,
     );
     return { ok: true as const, ...resolution };
   } catch (error) {

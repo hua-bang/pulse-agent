@@ -6,6 +6,7 @@ import type { CanvasAgentService } from './service';
 import type { ResolvedCanvasModel } from './model/config';
 import { isPerfChatReplayRequest, replayPerfChatStream } from './perf-chat-replay';
 import { GLOBAL_CHAT_SESSION_STORE_ID, SessionStore } from './session-store';
+import { ActiveChatRegistry, type ChatRunStreamChannel } from './active-chat-registry';
 
 export interface PreparedChatPayload {
   message: string;
@@ -96,7 +97,13 @@ export class PreparedChatRegistry {
   }
 }
 
-const send = (turn: PreparedChat, channel: string, data: unknown): void => {
+const send = (
+  turn: PreparedChat,
+  channel: ChatRunStreamChannel,
+  data: unknown,
+  activeChats?: ActiveChatRegistry,
+): void => {
+  activeChats?.recordStreamEvent(turn.sessionId, channel, data);
   if (!turn.sender.isDestroyed()) {
     turn.sender.send(`canvas-agent:${channel}:${turn.sessionId}`, data);
   }
@@ -148,10 +155,14 @@ export function startPreparedChat(
   abortSignal: AbortSignal,
   onSettled: () => void,
   modelConfig?: ResolvedCanvasModel,
+  activeChats?: ActiveChatRegistry,
 ): void {
   if (isPerfChatReplayRequest(turn.payload.message, process.env.PULSE_CANVAS_PERF === '1')) {
     void replayPerfChatStream(turn.sender, turn.sessionId, {
       onComplete: content => persistPerfReplay(turn, content),
+      onStreamEvent: (channel, data) => {
+        activeChats?.recordStreamEvent(turn.sessionId, channel, data);
+      },
     }).finally(onSettled);
     return;
   }
@@ -162,25 +173,25 @@ export function startPreparedChat(
       const result = await service.chatWithScope(
         scope,
         payload.message,
-        delta => send(turn, 'text-delta', delta),
-        toolCall => send(turn, 'tool-call', toolCall),
-        toolResult => send(turn, 'tool-result', toolResult),
+        delta => send(turn, 'text-delta', delta, activeChats),
+        toolCall => send(turn, 'tool-call', toolCall, activeChats),
+        toolResult => send(turn, 'tool-result', toolResult, activeChats),
         payload.mentionedWorkspaceIds,
-        request => send(turn, 'clarify-request', request),
+        request => send(turn, 'clarify-request', request, activeChats),
         payload.requestContext,
         payload.attachments,
-        data => send(turn, 'tool-input-start', data),
-        data => send(turn, 'tool-input-delta', data),
-        data => send(turn, 'tool-input-end', data),
-        event => send(turn, 'role-turn-start', event),
-        event => send(turn, 'role-turn-end', event),
+        data => send(turn, 'tool-input-start', data, activeChats),
+        data => send(turn, 'tool-input-delta', data, activeChats),
+        data => send(turn, 'tool-input-end', data, activeChats),
+        event => send(turn, 'role-turn-start', event, activeChats),
+        event => send(turn, 'role-turn-end', event, activeChats),
         abortSignal,
         modelConfig,
         turn.sessionId,
       );
-      send(turn, 'chat-complete', result);
+      send(turn, 'chat-complete', result, activeChats);
     } catch (error) {
-      send(turn, 'chat-complete', { ok: false, error: String(error) });
+      send(turn, 'chat-complete', { ok: false, error: String(error) }, activeChats);
     } finally {
       onSettled();
     }

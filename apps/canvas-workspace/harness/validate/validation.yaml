@@ -15,6 +15,28 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
 
+  # Conversation-runtime: per-conversation run state (main registry/service/
+  # IPC + renderer store + keyed stream hooks). The default rule's full-suite
+  # run already covers these; this rule pins the fast targeted suites so a
+  # change to the conversation layer is verified without a full test pass.
+  - name: conversation-runtime
+    paths:
+      - src/main/agent/conversation-runtime/**
+      - src/shared/conversation-runtime.ts
+      - src/renderer/src/components/chat/hooks/conversationStore.ts
+      - src/renderer/src/components/chat/hooks/useConversationRuntimeStream.ts
+      - src/renderer/src/components/chat/hooks/useChatComposerStateKeyed.ts
+      - src/renderer/src/components/chat/ChatPanel.tsx
+      - src/renderer/src/components/chat/ChatPageBody.tsx
+      - harness/mock-llm.mjs
+      - harness/mock-llm.test.mjs
+    quick:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/shared/conversation-runtime.test.ts src/main/agent/conversation-runtime src/renderer/src/components/chat/hooks/conversationStore.test.ts src/renderer/src/components/chat/hooks/useChatStream.keyed.test.tsx src/renderer/src/components/chat/hooks/useChatStream.shared-snapshot.test.tsx src/renderer/src/components/chat/hooks/useChatComposerStateKeyed.test.tsx harness/mock-llm.test.mjs
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace test
+
   # The headless Electron driver (harness Tool face) carries its own vitest
   # suite (harness/tools/driver/src/__tests__/headless.test.mjs), picked up by
   # the default vitest include. Without this rule a cdp/launch/session change

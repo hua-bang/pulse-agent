@@ -19,8 +19,10 @@ interface SessionMutationAgent {
   rewindTo(fromIndex: number): void;
   loadSession(sessionId: string): Promise<CanvasAgentSession | null>;
   loadCrossWorkspaceSession(messages: CanvasAgentMessage[]): Promise<void>;
+  appendToSession(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
+  readSessionById(sessionId: string): Promise<CanvasAgentSession | null>;
+  replaceSessionMessagesById(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
 }
-
 export type SessionMutationFailure = {
   ok: false;
   activeSessionId: string | null;
@@ -61,12 +63,20 @@ const scopeMutationKey = (scope: AgentScope): string => {
   if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
   return 'global';
 };
-const CHAT_SCOPE_BUSY_ERROR = 'CHAT_SCOPE_BUSY: Another reply is already running for this chat scope.';
+
 
 /**
  * Serializes session replacement per scope. Queue order is intent order, so
  * when A is slow and B is requested later, B still commits last. Different
  * scopes retain independent queues.
+ *
+ * Chat runs are gated per conversation session: two different sessions in the
+ * same scope may run concurrently (session-anchored runs), while a second run
+ * for the same session — or any run for a conversation-less legacy caller —
+ * is rejected. Pointer mutations that would rewrite a session with an active
+ * run (new/branch/rewind/delete/import of the running session) stay blocked;
+ * view-only mutations (load, rename, pin) are allowed so the user can switch
+ * between conversations while one of them streams.
  */
 export class SessionMutationCoordinator {
   private tails = new Map<string, Promise<void>>();
@@ -77,10 +87,29 @@ export class SessionMutationCoordinator {
     private readonly getAgent: (scope: AgentScope) => SessionMutationAgent | undefined,
   ) {}
 
+  /** Run identity: per scope + conversation session. Empty session = legacy exclusive. */
+  private runKey(scope: AgentScope, conversationSessionId?: string | null): string {
+    return `${scopeMutationKey(scope)}\u0000${conversationSessionId ?? ''}`;
+  }
+
+  /** True when a run anchors to `sessionId` (or a legacy exclusive run owns the scope). */
+  private isSessionActive(scope: AgentScope, sessionId: string | null | undefined): boolean {
+    if (!sessionId) return this.activeRuns.has(this.runKey(scope, null));
+    return this.activeRuns.has(this.runKey(scope, sessionId))
+      || this.activeRuns.has(this.runKey(scope, null));
+  }
+
   newSession(scope: AgentScope): Promise<NewSessionResult> {
     return this.run(scope, async () => {
       try {
         const agent = await this.activeAgent(scope);
+        // Creating a session is safe WHILE another conversation in the scope
+        // streams: the run is session-anchored (its context + persistence do
+        // not depend on the current pointer), so archiving the current session
+        // and pointing at a fresh one leaves the run writing to its archived
+        // copy (appendToSession's slow path). Other pointer mutations
+        // (rewind/delete/branch) still reject a running session because they
+        // would destroy or fork the run's own thread.
         await agent.newSession();
         const activeSessionId = agent.getCurrentSessionId();
         if (!activeSessionId) {
@@ -100,6 +129,9 @@ export class SessionMutationCoordinator {
     return this.run(scope, async () => {
       try {
         const agent = await this.activeAgent(scope);
+        if (this.isSessionActive(scope, agent.getCurrentSessionId())) {
+          return { ok: false, error: 'Another reply is already running for this chat scope.' };
+        }
         agent.rewindTo(fromIndex);
         return { ok: true };
       } catch (err) {
@@ -139,6 +171,9 @@ export class SessionMutationCoordinator {
     return this.run(scope, async () => {
       try {
         const agent = await this.activeAgent(scope);
+        if (this.isSessionActive(scope, agent.getCurrentSessionId())) {
+          return this.scopeBusyFailure(scope);
+        }
         await agent.loadCrossWorkspaceSession(messages);
         const activeSessionId = agent.getCurrentSessionId();
         if (!activeSessionId) {
@@ -155,6 +190,9 @@ export class SessionMutationCoordinator {
     return this.run(scope, async () => {
       try {
         const agent = await this.activeAgent(scope);
+        if (this.isSessionActive(scope, agent.getCurrentSessionId())) {
+          return this.scopeBusyFailure(scope);
+        }
         const branch = await agent.branchSession(fromIndex);
         if (!branch) {
           return this.failure(scope, 'Active session not found', 'SESSION_NOT_FOUND');
@@ -201,6 +239,9 @@ export class SessionMutationCoordinator {
     return this.run(scope, async () => {
       try {
         const agent = await this.activeAgent(scope);
+        if (this.isSessionActive(scope, sessionId)) {
+          return this.scopeBusyFailure(scope);
+        }
         const deleted = await agent.deleteSession(sessionId);
         if (!deleted) {
           return this.failure(scope, 'Session not found', 'SESSION_NOT_FOUND');
@@ -222,16 +263,19 @@ export class SessionMutationCoordinator {
   }
 
   private async activeAgent(scope: AgentScope): Promise<SessionMutationAgent> {
-    if (this.activeRuns.has(scopeMutationKey(scope))) {
-      throw new Error(CHAT_SCOPE_BUSY_ERROR);
-    }
     await this.activateScope(scope);
-    if (this.activeRuns.has(scopeMutationKey(scope))) {
-      throw new Error(CHAT_SCOPE_BUSY_ERROR);
-    }
     const agent = this.getAgent(scope);
     if (!agent) throw new Error('Agent activation did not produce an active agent');
     return agent;
+  }
+
+  private scopeBusyFailure(scope: AgentScope): SessionMutationFailure {
+    return {
+      ok: false,
+      activeSessionId: this.getAgent(scope)?.getCurrentSessionId() ?? null,
+      code: 'CHAT_SCOPE_BUSY',
+      error: 'Another reply is already running for this chat scope.',
+    };
   }
 
   private failure(
@@ -269,8 +313,32 @@ export class SessionMutationCoordinator {
     return this.tails.get(scopeMutationKey(scope)) ?? Promise.resolve();
   }
 
-  async runChat<T>(scope: AgentScope, operation: () => Promise<T>): Promise<T | null> {
-    const key = scopeMutationKey(scope);
+  readConversation(
+    scope: AgentScope,
+    sessionId: string,
+  ): Promise<CanvasAgentMessage[] | null> {
+    return this.run(scope, async () => {
+      const session = await (await this.activeAgent(scope)).readSessionById(sessionId);
+      return session?.messages ?? null;
+    });
+  }
+
+  replaceConversationMessages(
+    scope: AgentScope,
+    sessionId: string,
+    messages: CanvasAgentMessage[],
+  ): Promise<void> {
+    return this.run(scope, async () => {
+      await (await this.activeAgent(scope)).replaceSessionMessagesById(sessionId, messages);
+    });
+  }
+
+  async runChat<T>(
+    scope: AgentScope,
+    operation: () => Promise<T>,
+    conversationSessionId?: string | null,
+  ): Promise<T | null> {
+    const key = this.runKey(scope, conversationSessionId);
     if (this.activeRuns.has(key)) return null;
     await this.waitForIdle(scope);
     if (this.activeRuns.has(key)) return null;
@@ -280,6 +348,30 @@ export class SessionMutationCoordinator {
     } finally {
       this.activeRuns.delete(key);
     }
+  }
+
+  /**
+   * Queue a session-addressed message append behind the scope's pointer
+   * mutations so it never races an archive/load (both read the same files).
+   * Fire-and-forget; the run awaits {@link waitForIdle} at completion so the
+   * final messages are durable before chat-complete is published.
+   */
+  enqueueSessionAppend(
+    scope: AgentScope,
+    sessionId: string,
+    messages: CanvasAgentMessage[],
+  ): void {
+    void this.run(scope, async () => {
+      try {
+        const agent = await this.activeAgent(scope);
+        await agent.appendToSession(sessionId, messages);
+      } catch (error) {
+        console.error(
+          `[session-mutation] Failed to persist ${messages.length} message(s) to ${sessionId}:`,
+          error,
+        );
+      }
+    });
   }
 
   private existingSessionAction(

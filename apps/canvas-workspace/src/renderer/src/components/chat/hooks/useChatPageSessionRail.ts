@@ -9,6 +9,7 @@ import type { ChatSessionsRailProps, UnifiedSession } from '../ChatSessionsRail'
 import { scopeFromSessionStoreId } from '../utils/sessionScope';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 import { useStableSessionRail } from './useStableSessionRail';
+import type { ConversationCompletionStatus } from './conversationCompletionStore';
 
 interface Options {
   agentScope: AgentScope;
@@ -31,6 +32,9 @@ interface Options {
   renameSession: (sessionId: string, title: string, scope: AgentScope) => Promise<unknown>;
   deleteSession: (sessionId: string, scope: AgentScope) => Promise<unknown>;
   toggleSessionPinned: (sessionId: string, pinned: boolean, scope: AgentScope) => Promise<unknown>;
+  /** Conversation session ids with an active run (parallel running markers). */
+  runningSessionIds?: ReadonlySet<string>;
+  completionStatuses?: ReadonlyMap<string, ConversationCompletionStatus>;
 }
 
 export const useChatPageSessionRail = ({
@@ -54,6 +58,8 @@ export const useChatPageSessionRail = ({
   renameSession,
   deleteSession,
   toggleSessionPinned,
+  runningSessionIds,
+  completionStatuses,
 }: Options): ChatSessionsRailProps => {
   const allSessions = useStableSessionRail({
     agentScope,
@@ -64,6 +70,8 @@ export const useChatPageSessionRail = ({
     selectedSessionKey,
     sessions,
     sessionsStoreId,
+    runningSessionIds,
+    completionStatuses,
   });
   const onNewSession = useCallback(async () => {
     if (newSessionDisabled) return;

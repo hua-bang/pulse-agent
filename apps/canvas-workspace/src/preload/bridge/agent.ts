@@ -21,11 +21,17 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   cancelPreparedChat: (sessionId) =>
     ipcRenderer.invoke("canvas-agent:cancel-prepared-chat", { sessionId }),
 
-  getRunStatus: (sessionId) =>
-    ipcRenderer.invoke("canvas-agent:run-status", { sessionId }),
+  getRunStatus: (sessionId, afterSequence) =>
+    ipcRenderer.invoke("canvas-agent:run-status", { sessionId, afterSequence }),
 
-  getScopeRunStatus: (scopeRef) =>
-    ipcRenderer.invoke("canvas-agent:scope-run-status", scopeRef),
+  getScopeRunStatus: (scopeRef, sessionId) =>
+    ipcRenderer.invoke("canvas-agent:scope-run-status", {
+      ...scopeRef,
+      sessionId,
+    }),
+
+  getScopeRunningSessions: (scopeRef) =>
+    ipcRenderer.invoke("canvas-agent:conversation-running-sessions", scopeRef),
 
   chat: (scopeRef, message, mentionedWorkspaceIds, requestContext, attachments) =>
     ipcRenderer.invoke("canvas-agent:chat", {
@@ -34,6 +40,36 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
       mentionedWorkspaceIds,
       requestContext,
       attachments
+    }),
+
+  conversationChat: (scope, sessionId, message, mentionedWorkspaceIds, requestContext, attachments) =>
+    ipcRenderer.invoke("canvas-agent:conversation-chat", {
+      scope,
+      sessionId,
+      message,
+      mentionedWorkspaceIds,
+      requestContext,
+      attachments,
+    }),
+
+  conversationAbort: (scope, sessionId) =>
+    ipcRenderer.invoke("canvas-agent:conversation-abort", {
+      scope,
+      sessionId,
+    }),
+
+  conversationStopRelay: (scope, sessionId) =>
+    ipcRenderer.invoke("canvas-agent:conversation-stop-relay", {
+      scope,
+      sessionId,
+    }),
+
+  conversationClarifyAnswer: (scope, sessionId, requestId, answer) =>
+    ipcRenderer.invoke("canvas-agent:conversation-clarify-answer", {
+      scope,
+      sessionId,
+      requestId,
+      answer,
     }),
 
   onTextDelta: (sessionId, callback) =>

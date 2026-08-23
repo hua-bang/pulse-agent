@@ -7,6 +7,12 @@ import type { AgentScope } from '../types';
 import { I18nProvider } from '../../../i18n';
 import { resetChatSessionsCacheForTests, useChatSessions } from './useChatSessions';
 import { useChatPageSessionRail } from './useChatPageSessionRail';
+import { conversationKey } from '../../../../../shared/conversation-runtime';
+import {
+  resetConversationStoreForTests,
+  setConversationLoading,
+  setConversationMessages,
+} from './conversationStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -104,6 +110,7 @@ async function rerender(
 
 beforeEach(() => {
   resetChatSessionsCacheForTests();
+  resetConversationStoreForTests();
   onMessagesLoaded = vi.fn();
   agent = makeAgentMocks();
   (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent };
@@ -117,9 +124,60 @@ afterEach(() => {
   latest = null;
   latestRailWorkspaceIds = [];
   vi.restoreAllMocks();
+  resetConversationStoreForTests();
 });
 
 describe('useChatSessions — session detail loading', () => {
+
+  it('shows a newly running conversation before its first reply completes', async () => {
+    const key = conversationKey({ kind: 'global' }, 'session-live');
+    setConversationMessages(key, [message('new prompt')]);
+    setConversationLoading(key, true);
+
+    await mount();
+
+    expect(latest?.sessions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sessionId: 'session-live',
+        messageCount: 1,
+        preview: 'new prompt',
+      }),
+    ]));
+  });
+
+  it('qualifies loaded messages with the conversation they belong to', async () => {
+    const onConversationLoaded = vi.fn();
+    agent.loadSession.mockResolvedValue({
+      ok: true,
+      activeSessionId: 'session-b',
+      messages: [message('session b')],
+    });
+    const QualifiedProbe = () => {
+      latest = useChatSessions({
+        agentScope: { kind: 'workspace', workspaceId: 'workspace-a' },
+        onMessagesLoaded,
+        onConversationLoaded,
+        skipInitialHistory: true,
+      });
+      return null;
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<I18nProvider><QualifiedProbe /></I18nProvider>);
+    });
+
+    await act(async () => {
+      await latest?.handleLoadSession('session-b');
+    });
+
+    expect(onConversationLoaded).toHaveBeenCalledWith({
+      scope: { kind: 'workspace', workspaceId: 'workspace-a' },
+      sessionId: 'session-b',
+      messages: [message('session b')],
+    });
+  });
 
   it('keeps the unified rail grouped by its committed scopes during a cross-scope thread load', async () => {
     const workspace = { id: 'workspace-a', name: 'Workspace A' };

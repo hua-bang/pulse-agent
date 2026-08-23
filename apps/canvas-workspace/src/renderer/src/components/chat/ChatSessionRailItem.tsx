@@ -179,6 +179,21 @@ export const ChatSessionRailItem = ({
           <span className="chat-page-rail-item-text">
             {session.preview ? <SessionTitle value={session.preview} /> : session.date}
           </span>
+          {session.running && (
+            <span className="chat-page-rail-item-running" title={t('chat.sessionRunning')}>
+              <span className="chat-page-rail-item-running-dot" aria-hidden="true" />
+              {t('chat.sessionRunning')}
+            </span>
+          )}
+          {!session.running && session.completionStatus && (
+            <span
+              className={`chat-page-rail-item-completion chat-page-rail-item-completion--${session.completionStatus}`}
+              title={t(`chat.session.${session.completionStatus}`)}
+            >
+              <span className="chat-page-rail-item-completion-dot" aria-hidden="true" />
+              {t(`chat.session.${session.completionStatus}`)}
+            </span>
+          )}
         </span>
       </button>
       {hasActions && (

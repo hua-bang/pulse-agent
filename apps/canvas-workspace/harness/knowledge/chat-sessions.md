@@ -2,16 +2,110 @@
 
 Scope: the Canvas Agent chat surface's session lifecycle — renderer-side
 loading states, the full-page chat route's relationship to the right dock's
-content tabs, right-dock width behavior, and the main-process layer that
-keeps one authoritative run and one session pointer per chat scope. Read this
+content tabs, right-dock width behavior, and the main-process layer that keeps
+runs session-anchored so different conversations in one workspace can stream
+concurrently. Read this
 before changing `hooks/useChatSessions.ts`
 (`src/renderer/src/components/chat/hooks/useChatSessions.ts`), the full-page
 chat topbar / dock content-tabs toggle, `RightDock/dock-width.ts`
 (`src/renderer/src/components/dock/RightDock/dock-width.ts`), or
 `src/main/agent/service.ts` and its collaborators (`active-chat-registry.ts`,
-`session-mutation-coordinator.ts`, `prepared-chat.ts`, `chat-session-cas.ts`,
+`session-mutation-coordinator.ts`, `prepared-chat.ts`,
+`canvas-run-registry.ts`, `run-session-context.ts`, `session-file-io.ts`,
 `clarification-registry.ts`, `session-store.ts`,
 `chat-failure-persistence.ts`, `useChatAttachments.ts`).
+
+## Conversation-runtime architecture (2026-09)
+
+Chat run state is now conversation-owned. The workspace owns one shared
+CanvasAgent (single Engine + tools/MCP/config/plan-mode) as a stateless runTurn
+seam; each conversation key (`ConversationKey = { storeId, sessionId }`) owns an
+independent runtime:
+
+- Main: `src/main/agent/conversation-runtime/conversation-runtime.ts`
+  (`ConversationRuntime`: messages, queue, abort, clarification, persistence)
+  + `conversation-runtime-registry.ts` (per-scope registries) +
+  `conversation-service.ts` (service facade) + `conversation-ipc.ts`
+  (IPC: `canvas-agent:conversation-chat` / `conversation-abort` /
+  `conversation-stop-relay` / `conversation-clarify-answer`).
+- Renderer: `conversationStore.ts` (useSyncExternalStore keyed by
+  ConversationKey; snapshot cache keeps getSnapshot referentially stable),
+  `useConversationRuntimeStream.ts` (keyed stream hook driving the store +
+  conversation IPC), `useChatComposerStateKeyed.ts` (composer root used by
+  BOTH `ChatPanel` and `ChatPageBody`).
+
+Two conversations in one workspace run fully in parallel; a second turn against
+the SAME conversation is queued (not interleaved). Switching conversations is
+just changing the store selector — no destroy/replay/lease. The legacy
+compensation chains (`useChatStream`, `useChatComposerState`,
+`useChatTurnLease`, `useChatScopeActivity` / `chatScopeActivityStore`,
+`useChatRunReattach` / `chatRunReattach`, `chatRunWatchdog`,
+`useConversationBranching`, `recoverChangedChatSession`, `chatThreadCache`,
+`toolStreamState`, `visualStreamSubscription`) were DELETED. The legacy main
+path (`ActiveChatRegistry` + `SessionMutationCoordinator` + prepared-chat
+protocol) remains only for conversation-less callers (scheduled tasks) and
+backward-compatible IPC; it is not the surface path anymore.
+
+Key invariants and their guards:
+
+- Changes to conversation IPC, preload, or main runtime require a full
+  Electron restart; renderer HMR cannot validate those contracts and may leave
+  an old main process exhibiting already-fixed switching behavior.
+- `conversation-chat` acknowledges transport acceptance immediately. The
+  model turn continues asynchronously and settles through the keyed
+  `chat-complete` event; awaiting model completion in the invoke handler keeps
+  successfully submitted text stuck in the composer for the whole turn.
+- Rail `Running` badges query `ConversationRuntimeRegistry`, not the legacy
+  `ActiveChatRegistry`; keyed runs never register in the legacy prepared-chat
+  path. The selected conversation suppresses its own badge, while background
+  conversation ids remain visible until their runtime returns to idle.
+- The first user message is persisted before the model turn starts. While that
+  turn is running, the renderer's keyed conversation store contributes a live
+  session row to the rail immediately; the durable session list takes over once
+  the turn settles. This keeps a newly-created chat visible and preserves its
+  `Running` marker when the user switches away.
+- Terminal background activity is renderer-global and keyed by completion id:
+  visible conversations suppress notices; genuine background success uses a
+  short info toast, failure uses an error toast, and the rail keeps
+  `Done`/`Failed`/`Stopped` until that conversation is opened. Duplicate
+  delivery for one run must not reopen notification eligibility.
+
+- A conversation key is `scopeSessionStoreId(scope) + sessionId`; the store
+  mapping is `shared/conversation-runtime.ts` (`conversationKey`).
+- Runtime queue/abort/clarification/persist are exercised in
+  `conversation-runtime/conversation-runtime.test.ts` and
+  `conversation-runtime/service-conversation-runtime.test.ts` (parallel runs,
+  per-conversation isolation, same-conversation serialization, delta streaming).
+- Renderer store + switch-only-selector + shared snapshot:
+  `hooks/conversationStore.test.ts`, `hooks/useChatStream.keyed.test.tsx`,
+  `hooks/useChatStream.shared-snapshot.test.tsx`,
+  `hooks/useChatComposerStateKeyed.test.tsx`.
+- Session hydration is always qualified by `{ scope, sessionId }`; fetched
+  messages are written to that conversation store BEFORE React adopts its
+  selector. An unqualified `onMessagesLoaded(messages)` callback can capture
+  the previous key and recreate the false New Chat empty state.
+- Persisted hydration is rejected while that conversation's renderer snapshot
+  is running. Disk intentionally lags the live turn until completion; replacing
+  the live list would drop the current user message and make later deltas merge
+  into an older assistant. Stream text and completion target the turn-owned
+  assistant index rather than whichever assistant happens to be last.
+- Navigation keeps requested and committed conversation keys separate. Rail
+  selection and the visible body commit together only after hydration; failed
+  loads retain the previous committed conversation. Per-turn IPC listeners are
+  released on every terminal path.
+- The conversation input contract carries request context, attachments, and
+  mentioned workspaces through renderer → IPC → runtime → engine. Persistence
+  retains user context/attachments and assistant tools, run id, and role
+  metadata; a persistence failure is a failed turn, never an empty success.
+- Conversation-runtime reads and full-state writes use the same per-scope
+  `SessionMutationCoordinator` tail as load/new/delete. Its run lease remains
+  active through persistence, so pointer changes cannot redirect a completed
+  turn and deletion cannot resurrect a running conversation. Run controls
+  always address the selected conversation key.
+- The local E2E model uses the Responses API (`POST /v1/responses`), matching
+  `createOpenAI(...)`'s default model path. `harness/mock-llm.test.mjs` pins a
+  non-empty streamed response; conversation failures must remain `ok:false`
+  through runtime → service → IPC instead of rendering an empty success.
 
 ## Loading-state flags
 
@@ -23,9 +117,10 @@ Three flags look similar and are not interchangeable.
 - `sessionLoading` — THIS conversation's messages are being fetched. Drives
   `ChatThreadSkeleton.tsx` in place of the thread, rendered via `ChatView` →
   `ChatMessages`.
-- A third, unrelated flag: `useChatStream`'s `loading` means "the model is
-  generating". That one drives the three-dot `.chat-loading` indicator,
-  never the skeleton.
+- A third, unrelated flag: the stream hook's `loading` (from
+  `useConversationRuntimeStream` via the conversation store snapshot) means
+  "the model is generating". That one drives the three-dot `.chat-loading`
+  indicator, never the skeleton.
 
 `sessionsLoading` and `sessionLoading` both live in `hooks/useChatSessions.ts`
 (`src/renderer/src/components/chat/hooks/useChatSessions.ts`). Do not
@@ -329,26 +424,104 @@ engines for one scope and make session switching visibly stall.
 
 Guard: `src/main/agent/__tests__/service-history.test.ts`.
 
-### One authoritative run, one session-mutation lane
+### Runs are session-anchored: parallel conversations per workspace
 
-One chat scope has one authoritative run and one session-mutation lane.
+A run is anchored to the CONVERSATION session the renderer was showing when it
+sent — `requestContext.expectedConversationSessionId` — not to the scope's
+"current" pointer. Two different sessions in the same workspace can stream
+concurrently; a second run against the SAME session is rejected. A run without
+a conversation session (legacy callers, e.g. scheduled tasks) keeps the old
+per-scope exclusivity and blocks everything in the scope.
 
-- `ActiveChatRegistry` owns IPC-visible run identity/abort/reconnect.
-- `SessionMutationCoordinator` serializes chat against
-  new/load/branch/delete/rename/pin/import mutations.
+- `ActiveChatRegistry` owns IPC-visible run identity/abort/reconnect, gated by
+  `(scope, conversationSessionId)` via `reserve(sessionId, scope, conversationSessionId)`
+  and `hasConversationSession`.
+- `SessionMutationCoordinator` serializes chat runs per `(scope, conversationSessionId)`
+  (`runChat(scope, op, conversationSessionId)`). Pointer mutations only block
+  when the TARGET session is streaming: `new`/`branch`/`rewind`/`delete`/`import`
+  of the running session return `CHAT_SCOPE_BUSY`; `load`/`rename`/`pin` are
+  allowed during a run on another session (that is the parallel feature).
+- `CanvasAgent` anchors each run through `prepareRunSession` (`run-session-context.ts`):
+  it reads the target session (current or newest archive, without moving the
+  pointer), builds an INDEPENDENT `runMessages` context, and persists via
+  `appendToSession` (queued behind the coordinator's per-scope tail so it never
+  races an archive/load). Abort/relay/clarification are per-session via
+  `CanvasRunRegistry` keyed by conversation session id.
 - Renderer scope activity is only a UX mirror of this main-side state; it is
-  not itself authoritative.
+  not itself authoritative. `useChatScopeActivity` treats a run on a DIFFERENT
+  conversation as not-busy, so the current composer stays enabled.
 
 **prepare → subscribe → start.** Current senders must use this three-step
-sequence: prepare reserves the scope before returning; start upgrades that
-reservation and freezes the main-resolved model into the persisted turn
-snapshot. A reservation owns the run's `AbortController`, so a hard Stop
-latches even before start.
+sequence: prepare reserves the run before returning (passing the anchored
+conversation session); start upgrades that reservation and freezes the
+main-resolved model into the persisted turn snapshot. A reservation owns the
+run's `AbortController`, so a hard Stop latches even before start.
 
-**Compare-and-swap (CAS) on the session pointer.** The renderer also sends
-its visible conversation-session id. After the mutation lane goes idle, main
-must compare-and-swap that pointer before calling the agent, and return the
-authoritative history on mismatch.
+**Deleted-conversation guard (replaces pointer CAS).** Because a run no longer
+follows the live pointer, main no longer CAS-compares it at start. Instead the
+renderer's `expectedConversationSessionId` IS the run's anchor: if that
+conversation was deleted while the message was in flight, the turn returns
+`CHAT_SESSION_CHANGED` with the authoritative current session id, and nothing
+is persisted.
+
+**Switching conversations while a run streams.** The rail stays usable: picking
+another session calls `disposeCurrentTurn` (via `useChatPagePendingSession`'s
+`onAbandonCurrentTurn`), which drops this surface's UI lease — `releaseScope` +
+`resetTurnState` — so `loading` clears and the newly shown conversation can send
+immediately. The old run continues main-side, session-anchored; this surface
+unsubscribes from its transient stream events. `ActiveChatRegistry` journals
+renderer-facing events with a monotonic sequence and retains a settled journal
+briefly; switching back loads durable history first, then `chatRunReattach`
+replays every event after its cursor. History must become the baseline BEFORE
+replay starts — reversing that order lets a late history fetch erase newly
+replayed deltas. Reclaiming the run also changes `busyElsewhere` from true to
+false while main still reports `active:true`; that ownership transition is NOT
+completion and must never trigger a history refresh. Only an explicit
+`active:false` for the same conversation may reconcile durable history. Scope
+changes (different workspace) already dispose the turn via the `scopeKey`
+effect.
+
+**User-facing expectation (what this feature is FOR).** The mental model is the
+same as Claude Code / ChatGPT multi-conversation concurrency, scoped to one
+workspace's chat:
+
+```
+① Session A: send a long task ("write the weekly report")   → streams
+② Switch to session B in the rail (or open another existing one) → A keeps
+   running in the background, session-anchored
+③ Session B: send another task ("organize my notes")        → starts immediately,
+   both conversations run in parallel
+④ Switch back to A any time                                  → missed events replay
+   and live output resumes; while it is still running the rail shows a
+   "Running / 运行中" marker (useScopeRunningSessions)
+```
+
+Explicit boundaries a user will hit:
+- **Same conversation stays serial.** Sending into A while A streams returns
+  `CHAT_SCOPE_BUSY` ("Another reply is already running for this chat scope.").
+  This is by design — a second turn in the same thread would corrupt context.
+- **New-session stays available while streaming.** Because a run is
+  session-anchored, creating a session archives the running conversation and
+  the run keeps writing to its archived copy — verified end-to-end
+  (`newSession` returns ok while `getScopeRunStatus` still reports the run
+  active; the archived session gains the full turn). The rail's New-chat
+  button is only disabled during a pointer swap (`sessionLoading`) or when
+  another surface owns the current session (`busyElsewhere`), not while this
+  surface merely has a stream in flight. Other pointer mutations
+  (rewind/delete/branch) still reject a RUNNING session because they would
+  destroy or fork the run's own thread.
+- **One surface shows one stream.** After switching to B, A's output does not
+  scroll on screen (it continues main-side and persists); switching back to A
+  replays output emitted while it was hidden and resumes the live stream. The
+  rail's Running marker is the "it is still working" affordance.
+- **Parallel is within a workspace.** Different workspaces / global chat were
+  already parallel; this feature adds the same guarantee for different
+  conversations inside one workspace.
+
+Verify with the mock stream: `PULSE_CANVAS_PERF=1
+PULSE_CANVAS_PERF_INTERVAL_MS=250` keeps a `__pulse_perf_chat_stream__` turn
+streaming ~2.5min, long enough to exercise the switch (see
+`perf-chat-replay.ts` for the env overrides).
 
 Renderer branch recovery must hand the acknowledged branch id to the send
 path synchronously before React adopts the new session. Delayed branch results
@@ -367,9 +540,10 @@ only that branch's replacement send may bypass the busy gate with its still-curr
 mutation generation.
 
 Guards: `active-chat-registry.test.ts`, `prepared-chat.test.ts`,
-`chat-protocol.test.ts`, `chat-session-cas.test.ts`, and
-`__tests__/service-session-mutation.test.ts` (all under `src/main/agent/`), plus
-`useChatComposerState.session-handoff.test.tsx` and
+`chat-protocol.test.ts`, and `__tests__/service-session-mutation.test.ts` (all
+under `src/main/agent/`), `useChatScopeActivity.test.tsx`,
+`useChatPagePendingSession.test.tsx`, `useChatComposerState.session-handoff.test.tsx`
+`chatRunReattach.test.ts`, `useChatRunReattach.test.tsx`, and
 `useConversationBranching.test.tsx` under renderer chat hooks.
 
 ### Input during a running turn

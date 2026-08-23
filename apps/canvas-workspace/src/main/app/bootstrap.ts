@@ -69,6 +69,8 @@ import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
 import { applyLoginShellPath, augmentProcessPath } from "../shell-path";
 import { setWindowFactory } from "./window-manager";
+
+let teardownConversationRuntime: () => void = () => undefined;
 import { setupLinkPolicy } from "./link-policy";
 import { setupWebviewShortcuts } from "./webview-shortcuts";
 import { setupWebviewContextMenu } from "./webview-context-menu";
@@ -175,6 +177,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupSkillInstallerIpc();
     await ensureAgentToolingAtStartup(writeLog);
     setupCanvasAgentIpc();
+    const conversationRuntimeIpc = await import('../agent/conversation-runtime/conversation-ipc');
+    conversationRuntimeIpc.setupConversationRuntimeIpc(getCanvasAgentService);
+    teardownConversationRuntime = conversationRuntimeIpc.teardownConversationRuntime;
     setupCodexSessionsIpc();
     if (getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_TEAMS)) {
       const { setupAgentTeamsRuntime } = await import('../agent-teams/runtime');
@@ -319,6 +324,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     teardownFileWatcher();
     teardownCanvasWatchers();
     teardownCanvasAgent();
+    teardownConversationRuntime();
     if (process.platform !== "darwin") {
       // Only on platforms where closing all windows quits the app do we tear
       // down the runtime server. On macOS the process keeps running in the

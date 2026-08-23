@@ -7,7 +7,6 @@ import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 interface Options {
   agentScope: AgentScope;
   sessionStoreId: string;
-  loading: boolean;
   sessionLoading: boolean;
   busyElsewhere: boolean;
   pendingSessionId: string | null;
@@ -23,7 +22,6 @@ interface Options {
 export const useChatPageNewSession = ({
   agentScope,
   sessionStoreId,
-  loading,
   sessionLoading,
   busyElsewhere,
   pendingSessionId,
@@ -40,7 +38,12 @@ export const useChatPageNewSession = ({
     targetScope: AgentScope,
     trigger: Element | null,
   ): Promise<boolean> => {
-    if (loading || sessionLoading || busyElsewhere) return false;
+    // New chat must stay available WHILE this surface streams: the run is
+    // session-anchored, so creating a session archives the running one and the
+    // run keeps writing to its archived copy. Only a pointer swap
+    // (sessionLoading) or another surface owning the current session
+    // (busyElsewhere) blocks it.
+    if (sessionLoading || busyElsewhere) return false;
     onClearBackStack?.();
 
     const targetStoreId = scopeSessionStoreId(targetScope);
@@ -68,7 +71,6 @@ export const useChatPageNewSession = ({
     clearInput,
     focusInput,
     handleNewSession,
-    loading,
     onClearBackStack,
     onCreateNewSessionInScope,
     onNewSessionCreated,

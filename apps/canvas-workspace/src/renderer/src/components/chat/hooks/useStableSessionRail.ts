@@ -1,9 +1,11 @@
 import { useMemo, useRef } from 'react';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
+import { conversationKeyId } from '../../../../../shared/conversation-runtime';
 import { useI18n } from '../../../i18n';
 import type { AgentSessionInfo } from '../../../types';
 import type { UnifiedSession } from '../ChatSessionsRail';
 import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
+import type { ConversationCompletionStatus } from './conversationCompletionStore';
 
 interface UseStableSessionRailOptions {
   agentScope: AgentScope;
@@ -14,6 +16,9 @@ interface UseStableSessionRailOptions {
   selectedSessionKey: string | null;
   sessions: AgentSessionInfo[];
   sessionsStoreId: string;
+  /** Conversation session ids with an active run (parallel running markers). */
+  runningSessionIds?: ReadonlySet<string>;
+  completionStatuses?: ReadonlyMap<string, ConversationCompletionStatus>;
 }
 
 /**
@@ -31,6 +36,8 @@ export function useStableSessionRail({
   selectedSessionKey,
   sessions,
   sessionsStoreId,
+  runningSessionIds,
+  completionStatuses,
 }: UseStableSessionRailOptions): UnifiedSession[] {
   const { t } = useI18n();
   const stableSessionsRef = useRef<UnifiedSession[]>([]);
@@ -45,16 +52,26 @@ export function useStableSessionRail({
         ? t('chat.scope.global')
         : allWorkspaces.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId);
     const unified: UnifiedSession[] = [
-      ...sessions.map((session) => ({
-        ...session,
-        preview: session.title ?? session.preview,
-        isPinned: session.pinned,
-        workspaceId: sessionsStoreId,
-        workspaceName,
-        isCurrent: selectedSessionKey
+      ...sessions.map((session) => {
+        const isCurrent = selectedSessionKey
           ? selectedSessionKey === `${sessionsStoreId}:${session.sessionId}`
-          : session.isCurrent,
-      })),
+          : session.isCurrent;
+        return {
+          ...session,
+          preview: session.title ?? session.preview,
+          isPinned: session.pinned,
+          // The conversation the user is VIEWING does not need a Running badge
+          // (its stream is on screen); only background-running sessions do.
+          running: runningSessionIds?.has(session.sessionId) && !isCurrent,
+          completionStatus: !isCurrent ? completionStatuses?.get(conversationKeyId({
+            storeId: sessionsStoreId,
+            sessionId: session.sessionId,
+          })) : undefined,
+          workspaceId: sessionsStoreId,
+          workspaceName,
+          isCurrent,
+        };
+      }),
       ...otherSessions.map((session) => ({
         sessionId: session.sessionId,
         workspaceId: session.sourceWorkspaceId,
@@ -66,6 +83,12 @@ export function useStableSessionRail({
         isPinned: session.pinned,
         isCurrent: selectedSessionKey
           === `${session.sourceWorkspaceId}:${session.sessionId}`,
+        completionStatus: selectedSessionKey !== `${session.sourceWorkspaceId}:${session.sessionId}`
+          ? completionStatuses?.get(conversationKeyId({
+            storeId: session.sourceWorkspaceId,
+            sessionId: session.sessionId,
+          }))
+          : undefined,
       })),
     ];
     return unified.sort((left, right) => (
@@ -73,7 +96,7 @@ export function useStableSessionRail({
       || right.date.localeCompare(left.date)
       || right.sessionId.localeCompare(left.sessionId)
     ));
-  }, [agentScope, allWorkspaces, currentScopeName, otherSessions, selectedSessionKey, sessions, sessionsStoreId, t]);
+  }, [agentScope, allWorkspaces, completionStatuses, currentScopeName, otherSessions, runningSessionIds, selectedSessionKey, sessions, sessionsStoreId, t]);
 
   return useMemo(() => {
     const nextScopeId = scopeSessionStoreId(agentScope);
