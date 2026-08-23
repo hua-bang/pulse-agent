@@ -4,28 +4,18 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
 import { AppShellProvider } from '../../../components/shell/AppShellProvider';
-import { RightDockProvider, useRightDockState } from '../../../components/dock/RightDock';
-import type { DockState } from '../../../components/dock/RightDock/dock-store';
 import { ScheduledPage } from '../ScheduledPage';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
-let dockState: DockState | undefined;
-
-const DockStateProbe = () => {
-  dockState = useRightDockState();
-  return null;
-};
+const openSessionInScope = vi.fn();
 
 const renderPage = () => (
   <I18nProvider>
     <AppShellProvider>
-      <RightDockProvider>
-        <DockStateProbe />
-        <ScheduledPage />
-      </RightDockProvider>
+      <ScheduledPage onOpenSessionInScope={openSessionInScope} />
     </AppShellProvider>
   </I18nProvider>
 );
@@ -35,7 +25,7 @@ afterEach(() => {
   host?.remove();
   root = null;
   host = null;
-  dockState = undefined;
+  openSessionInScope.mockReset();
   vi.restoreAllMocks();
 });
 
@@ -84,12 +74,13 @@ describe('ScheduledPage', () => {
   });
 
   it('starts a fresh scheduled session and opens it in Pulse AI', async () => {
-    const runNow = vi.fn(async () => ({ ok: true }));
-    const newSession = vi.fn(async () => ({ ok: true }));
+    const runNow = vi.fn(async () => ({
+      ok: true,
+      sessionId: 'manual-run-session',
+    }));
     Object.defineProperty(window, 'canvasWorkspace', {
       configurable: true,
       value: {
-        agent: { newSession },
         scheduled: {
           list: vi.fn(async () => ({
             ok: true,
@@ -125,26 +116,22 @@ describe('ScheduledPage', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(newSession).toHaveBeenCalledWith({
-      scope: { kind: 'scheduled', taskId: 'daily-brief' },
-    });
     expect(runNow).toHaveBeenCalledWith('daily-brief');
-    expect(dockState).toMatchObject({
-      expanded: true,
-      scheduledChatTaskId: 'daily-brief',
-      scheduledChatRevision: 2,
-    });
+    expect(openSessionInScope).toHaveBeenCalledWith(
+      { kind: 'scheduled', taskId: 'daily-brief' },
+      'manual-run-session',
+      'Daily brief',
+    );
   });
 
   it('shows an immediate running state and prevents duplicate manual runs', async () => {
-    let finishRun: ((value: { ok: boolean }) => void) | undefined;
-    const runNow = vi.fn(() => new Promise<{ ok: boolean }>((resolve) => {
-      finishRun = resolve;
+    let finishStart: ((value: { ok: boolean; sessionId: string }) => void) | undefined;
+    const runNow = vi.fn(() => new Promise<{ ok: boolean; sessionId: string }>((resolve) => {
+      finishStart = resolve;
     }));
     Object.defineProperty(window, 'canvasWorkspace', {
       configurable: true,
       value: {
-        agent: { newSession: vi.fn(async () => ({ ok: true })) },
         scheduled: {
           list: vi.fn(async () => ({
             ok: true,
@@ -186,17 +173,17 @@ describe('ScheduledPage', () => {
     expect(runningButton?.textContent).toContain('Running');
     runningButton?.click();
     expect(runNow).toHaveBeenCalledTimes(1);
-    expect(dockState).toMatchObject({
-      expanded: true,
-      scheduledChatTaskId: 'daily-brief',
-      scheduledChatRevision: 1,
-    });
+    expect(openSessionInScope).not.toHaveBeenCalled();
 
     await act(async () => {
-      finishRun?.({ ok: true });
+      finishStart?.({ ok: true, sessionId: 'manual-run-session' });
       await Promise.resolve();
     });
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Run now"]')?.disabled).toBe(false);
-    expect(dockState?.scheduledChatRevision).toBe(2);
+    expect(openSessionInScope).toHaveBeenCalledWith(
+      { kind: 'scheduled', taskId: 'daily-brief' },
+      'manual-run-session',
+      'Daily brief',
+    );
   });
 });

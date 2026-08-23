@@ -10,18 +10,21 @@ import {
   Trash,
 } from '@phosphor-icons/react';
 import type { ScheduledTask, ScheduledTaskInput } from '../../../../shared/scheduled';
+import type { AgentScope } from '../../components/chat/types';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../../components/shell/AppShellProvider';
-import { useDockContext } from '../../components/dock/RightDock/context';
 import { Button, EmptyState } from '../../components/ui';
 import { scheduleLabel, timeLabel } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
 import './index.css';
 
-export const ScheduledPage = () => {
+interface Props {
+  onOpenSessionInScope: (scope: AgentScope, sessionId: string, scopeLabel: string) => void | Promise<void>;
+}
+
+export const ScheduledPage = ({ onOpenSessionInScope }: Props) => {
   const { t, language } = useI18n();
   const { notify, confirm } = useAppShell();
-  const { store: dockStore } = useDockContext();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningTaskIds, setRunningTaskIds] = useState<Set<string>>(() => new Set());
@@ -70,24 +73,18 @@ export const ScheduledPage = () => {
   const runNow = async (task: ScheduledTask) => {
     if (runningTaskIds.has(task.id) || task.status === 'running') return;
     setRunningTaskIds((current) => new Set(current).add(task.id));
-    const scope = { kind: 'scheduled' as const, taskId: task.id };
     try {
-      const session = await window.canvasWorkspace.agent.newSession({ scope });
-      if (!session.ok) {
-        notify({ tone: 'error', title: t('scheduled.runFailed'), description: session.error });
+      const response = await window.canvasWorkspace.scheduled.runNow(task.id);
+      if (!response.ok || !response.sessionId) {
+        notify({ tone: 'error', title: t('scheduled.runFailed'), description: response.error });
         return;
       }
 
-      dockStore.openScheduledChat(task.id);
-      const response = await window.canvasWorkspace.scheduled.runNow(task.id);
-      dockStore.refreshScheduledChat(task.id);
-      if (!response.ok || response.task?.lastError) {
-        notify({
-          tone: 'error',
-          title: t('scheduled.runFailed'),
-          description: response.error ?? response.task?.lastError,
-        });
-      }
+      void onOpenSessionInScope(
+        { kind: 'scheduled', taskId: task.id },
+        response.sessionId,
+        task.title,
+      );
     } finally {
       setRunningTaskIds((current) => {
         const next = new Set(current);

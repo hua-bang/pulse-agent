@@ -45,7 +45,13 @@ export const useChatNavigation = ({
   const isChatView = activeView === 'chat';
 
   const enterChatTarget = useCallback((target: ChatTarget | null) => {
-    if (activeView === 'chat') return;
+    if (activeView === 'chat') {
+      // Completion toasts may target another durable conversation while the
+      // full-page chat is already visible. Publish the target in place rather
+      // than treating the navigation as a no-op.
+      setInitialTarget(target);
+      return;
+    }
     returnPointRef.current = {
       location,
       focus: document.activeElement instanceof HTMLElement

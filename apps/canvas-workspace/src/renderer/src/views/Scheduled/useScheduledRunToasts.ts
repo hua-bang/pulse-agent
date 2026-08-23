@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { ScheduledRunFinished } from '../../../../shared/scheduled';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../../components/shell/AppShellProvider';
 
@@ -12,16 +13,21 @@ import { useAppShell } from '../../components/shell/AppShellProvider';
  * a toast that expires on a timer reproduces "the run finished and I never
  * saw anything". It stays until dismissed or acted on.
  *
- * `onOpenTask` is held in a ref so callers can pass an inline arrow without
- * resubscribing on every render; routing stays with the caller.
+ * `onOpenRun` is held in a ref so callers can pass an inline arrow without
+ * resubscribing on every render; exact-session routing stays with the caller.
  */
-export const useScheduledRunToasts = (onOpenTask: (taskId: string) => void): void => {
+export const useScheduledRunToasts = (
+  onOpenRun: (run: ScheduledRunFinished) => void,
+): void => {
   const { t } = useI18n();
   const { notify } = useAppShell();
-  const openRef = useRef(onOpenTask);
-  openRef.current = onOpenTask;
+  const openRef = useRef(onOpenRun);
+  openRef.current = onOpenRun;
 
   useEffect(() => window.canvasWorkspace.scheduled.onRunFinished((run) => {
+    // Run now already opens the exact task conversation before it starts.
+    // A second success toast would point away from the result being watched.
+    if (run.trigger === 'manual' && run.ok) return;
     notify({
       tone: run.ok ? 'success' : 'error',
       title: run.ok ? t('scheduled.runFinished', { title: run.title }) : t('scheduled.runFailed'),
@@ -29,7 +35,7 @@ export const useScheduledRunToasts = (onOpenTask: (taskId: string) => void): voi
       autoCloseMs: 0,
       action: {
         label: t('scheduled.openChat'),
-        onClick: () => openRef.current(run.taskId),
+        onClick: () => openRef.current(run),
       },
     });
   }), [notify, t]);

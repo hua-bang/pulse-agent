@@ -13,7 +13,7 @@
 
 import { ipcMain } from 'electron';
 import type { ScheduledTaskInput, ScheduledTaskPatch } from '../../shared/scheduled';
-import { getScheduledTaskService } from './runtime';
+import { getScheduledTaskService, startManualScheduledTask } from './runtime';
 
 export function setupScheduledTaskIpc(): void {
   const service = getScheduledTaskService();
@@ -54,14 +54,16 @@ export function setupScheduledTaskIpc(): void {
     }
   });
 
-  ipcMain.handle('scheduled:run-now', async (_event, taskId: string) => {
-    try {
-      const task = await service.runTaskNow(taskId);
-      return task.lastError
-        ? { ok: false, task, error: task.lastError }
-        : { ok: true, task };
-    } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
+  ipcMain.handle(
+    'scheduled:run-now',
+    async (_event, payload: string | { taskId: string; sessionId?: string }) => {
+      const taskId = typeof payload === 'string' ? payload : payload.taskId;
+      try {
+        const { task, sessionId } = await startManualScheduledTask(taskId);
+        return { ok: true, task, sessionId };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    },
+  );
 }

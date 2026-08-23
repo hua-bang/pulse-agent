@@ -104,6 +104,7 @@ export const ChatPage = ({
   // and thread replacement cannot disturb it.
   const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
   const scopeKey = scopeSessionStoreId(agentScope);
+  const appliedEntryTargetRef = useRef<ChatTarget | null>(initialTarget ?? null);
 
   useEffect(() => {
     onWorkspaceScopeChange?.(workspaceIdFromScope(agentScope));
@@ -126,36 +127,63 @@ export const ChatPage = ({
 
   // Every session click keeps the body mounted. Cross-scope picks update the
   // scope and pending session together; the body swaps thread data in place.
-  const navigateToSession = useCallback((session: { sessionId: string; workspaceId: string }) => {
+  const navigateToSession = useCallback((
+    session: { sessionId: string; workspaceId: string },
+    target?: ChatTarget,
+  ) => {
     const intentId = ++sessionIntentSequenceRef.current;
     pendingSessionIntentRef.current = intentId;
     setPendingSessionIntent({
       id: intentId,
       sessionId: session.sessionId,
-      sessionKey: `${session.workspaceId}:${session.sessionId}`,
+      sessionKey: `${target?.scopeId ?? session.workspaceId}:${session.sessionId}`,
     });
     // The rail's `workspaceId` is really a session-STORE id, so the two
     // sentinel stores (global chat, one per scheduled task) must map back to
     // their own scope kinds — treating them as workspace ids would activate
     // an agent against a workspace that does not exist.
     const scheduledTaskId = scheduledTaskIdFromStoreId(session.workspaceId);
-    const nextScope: AgentScope = scheduledTaskId
+    const nextScope: AgentScope = target?.scope ?? (scheduledTaskId
       ? { kind: 'scheduled', taskId: scheduledTaskId }
       : session.workspaceId === GLOBAL_CHAT_STORE_ID
         ? { kind: 'global' }
-        : { kind: 'workspace', workspaceId: session.workspaceId };
+        : { kind: 'workspace', workspaceId: session.workspaceId });
     const nextScopeKey = scopeSessionStoreId(nextScope);
     onWorkspaceScopeChange?.(workspaceIdFromScope(nextScope));
     scopeRollbackRef.current ??= {
       agentScope, selectedSessionKey, contextSnapshot, executionPolicy, sessionBackStack,
     };
-    setContextSnapshot(undefined);
-    setExecutionPolicy(nextScope.kind === 'scheduled' ? 'scheduled' : 'auto');
+    setContextSnapshot(target?.contextSnapshot);
+    setExecutionPolicy(target?.executionPolicy ?? (nextScope.kind === 'scheduled' ? 'scheduled' : 'auto'));
     if (nextScopeKey === scopeKey) {
       return;
     }
     setAgentScope(nextScope);
   }, [agentScope, contextSnapshot, executionPolicy, onWorkspaceScopeChange, scopeKey, selectedSessionKey, sessionBackStack]);
+
+  // `initialTarget` is also a live cross-surface navigation input. Reuse the
+  // same intent/rollback transition as the session rail so overlapping Toast
+  // opens cannot create a second navigation state machine.
+  useEffect(() => {
+    if (!initialTarget || appliedEntryTargetRef.current === initialTarget) return;
+    appliedEntryTargetRef.current = initialTarget;
+    if (initialTarget.sessionId) {
+      setSessionBackStack([]);
+      navigateToSession({
+        sessionId: initialTarget.sessionId,
+        workspaceId: initialTarget.scopeId,
+      }, initialTarget);
+      return;
+    }
+    sessionIntentSequenceRef.current += 1;
+    pendingSessionIntentRef.current = null;
+    setPendingSessionIntent(null);
+    setSelectedSessionKey(null);
+    setAgentScope(initialTarget.scope);
+    setContextSnapshot(initialTarget.contextSnapshot);
+    setExecutionPolicy(initialTarget.executionPolicy);
+    setSessionBackStack([]);
+  }, [initialTarget, navigateToSession]);
 
   // Manual rail pick resets the jump trail; chip jumps (onJumpToSession)
   // keep it so the back bar can walk home.

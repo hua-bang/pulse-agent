@@ -20,6 +20,7 @@ export type ScheduledSchedule =
 
 export type ScheduledTaskSource = 'user' | 'memory-report';
 export type ScheduledTaskRunStatus = 'idle' | 'running';
+export type ScheduledRunTrigger = 'manual' | 'schedule';
 
 export interface ScheduledTask {
   id: string;
@@ -57,12 +58,21 @@ export interface ScheduledTaskExecutionResult {
   sessionId?: string;
 }
 
+export interface ScheduledTaskExecutionContext {
+  trigger: ScheduledRunTrigger;
+  /** Manual runs create the visible session before invoking the scheduler. */
+  sessionId?: string;
+}
+
 /** Emitted once per finished run attempt — success AND failure. */
 export interface ScheduledRunFinished {
   taskId: string;
   title: string;
   ok: boolean;
   error?: string;
+  /** Exact conversation produced by this attempt, when session setup succeeded. */
+  sessionId?: string;
+  trigger: ScheduledRunTrigger;
 }
 
 export interface ScheduledApi {
@@ -77,7 +87,7 @@ export interface ScheduledApi {
   remove: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
   runNow: (
     taskId: string,
-  ) => Promise<{ ok: boolean; task?: ScheduledTask; error?: string }>;
+  ) => Promise<{ ok: boolean; task?: ScheduledTask; sessionId?: string; error?: string }>;
   onChanged: (callback: (tasks: ScheduledTask[]) => void) => () => void;
   onRunFinished: (callback: (run: ScheduledRunFinished) => void) => () => void;
 }

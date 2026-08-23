@@ -12,13 +12,13 @@ import { useScheduledRunToasts } from '../useScheduledRunToasts';
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
-const Harness = ({ onOpenTask }: { onOpenTask: (taskId: string) => void }) => {
-  useScheduledRunToasts(onOpenTask);
+const Harness = ({ onOpenRun }: { onOpenRun: (run: ScheduledRunFinished) => void }) => {
+  useScheduledRunToasts(onOpenRun);
   return null;
 };
 
 /** Mounts the hook and hands back the main-process push it subscribed with. */
-const mount = async (onOpenTask: (taskId: string) => void) => {
+const mount = async (onOpenRun: (run: ScheduledRunFinished) => void) => {
   let emit: ((run: ScheduledRunFinished) => void) | undefined;
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,
@@ -39,7 +39,7 @@ const mount = async (onOpenTask: (taskId: string) => void) => {
     root?.render(
       <I18nProvider>
         <AppShellProvider>
-          <Harness onOpenTask={onOpenTask} />
+          <Harness onOpenRun={onOpenRun} />
         </AppShellProvider>
       </I18nProvider>,
     );
@@ -61,10 +61,17 @@ afterEach(() => {
 describe('useScheduledRunToasts', () => {
   it('keeps the completion toast up until it is acted on', async () => {
     vi.useFakeTimers();
-    const onOpenTask = vi.fn();
-    const emit = await mount(onOpenTask);
+    const onOpenRun = vi.fn();
+    const emit = await mount(onOpenRun);
 
-    emit({ taskId: 'daily-brief', title: 'Morning brief', ok: true });
+    const completedRun: ScheduledRunFinished = {
+      taskId: 'daily-brief',
+      title: 'Morning brief',
+      ok: true,
+      sessionId: 'session-from-run',
+      trigger: 'schedule',
+    } as ScheduledRunFinished;
+    emit(completedRun);
     expect(toasts()).toHaveLength(1);
     expect(toasts()[0].textContent).toContain('Morning brief');
 
@@ -77,7 +84,21 @@ describe('useScheduledRunToasts', () => {
     expect(action?.textContent).toContain('Open chat');
     await act(async () => { action?.click(); });
 
-    expect(onOpenTask).toHaveBeenCalledWith('daily-brief');
+    expect(onOpenRun).toHaveBeenCalledWith(completedRun);
+    expect(toasts()).toHaveLength(0);
+  });
+
+  it('does not announce a successful manual run the user is already watching', async () => {
+    const emit = await mount(vi.fn());
+
+    emit({
+      taskId: 'daily-brief',
+      title: 'Morning brief',
+      ok: true,
+      sessionId: 'manual-session',
+      trigger: 'manual',
+    } as ScheduledRunFinished);
+
     expect(toasts()).toHaveLength(0);
   });
 
@@ -89,7 +110,9 @@ describe('useScheduledRunToasts', () => {
       title: 'Morning brief',
       ok: false,
       error: 'model unavailable',
-    });
+      sessionId: 'failed-session',
+      trigger: 'schedule',
+    } as ScheduledRunFinished);
 
     expect(toasts()).toHaveLength(1);
     expect(toasts()[0].textContent).toContain('model unavailable');
