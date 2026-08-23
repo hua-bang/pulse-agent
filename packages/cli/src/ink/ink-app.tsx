@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { renderMarkdownAnsi } from '../terminal/markdown.js';
 import { applyFileReference, detectFileReferenceQuery, filterFileEntries, type FileEntry } from '../shared/file-reference.js';
+import { readClipboardImage } from '../shared/clipboard-image.js';
 import { nextCharIndex, prevCharIndex, stringWidth, truncateToWidth, wrappedRowCount, wrapToRows } from '../terminal/text-width.js';
 
 import {
@@ -22,6 +23,7 @@ import { describeInteractionMode } from './app-format.js';
 import { buildComposerActions } from './composer-actions.js';
 import { buildKeyHandler } from './app-input.js';
 import { useComposerLayout } from './use-composer-layout.js';
+import { buildPasteHandler } from './paste-handler.js';
 import { AppView } from './app-view.js';
 
 // Façade: every Ink-host consumer imports types and helpers from this module;
@@ -106,7 +108,20 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
     setPickerQuery, setPickerIndex,
   });
 
-  usePaste?.(insertPastedText);
+  // Text pastes insert into the composer as before. An EMPTY paste payload
+  // means the clipboard holds a bitmap (the terminal protocol never carries
+  // images): read the system clipboard and submit it through the same
+  // image-part channel as /paste-image, matching Cmd+V image paste in Claude
+  // Code. Ctrl+Shift+V remains the explicit fallback where a terminal claims
+  // the paste chord itself.
+  const handlePaste = buildPasteHandler({
+    insertPastedText,
+    readImage: () => readClipboardImage(),
+    submitImage: () => {
+      void controller.submitInput('/paste-image');
+    },
+  });
+  usePaste?.(handlePaste);
 
   const layout = useComposerLayout({
     terminalSize, spinnerIndex, picker, pickerQuery, pickerIndex, input, cursor, snapshot,
