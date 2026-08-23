@@ -10,6 +10,7 @@ import { TuiRenderer } from './tui-renderer.js';
 import { formatModelSpec, type ModelChoice } from '../models/model-spec.js';
 import { resolveModelChoice } from '../models/model-run-options.js';
 import { createPulseCliTools } from '../tools/runtime-tools.js';
+import type { ImageAttachment } from '../shared/file-reference.js';
 import { executeAgentTurn } from './agent-turn.js';
 import { routeSlashInput } from './command-surface.js';
 import { ReadlineCommands } from './host-commands.js';
@@ -217,6 +218,7 @@ export class CoderCLI {
       }
 
       let messageInput = trimmedInput;
+      let routeImages: ImageAttachment[] | undefined;
 
       if (trimmedInput.startsWith('/')) {
         const route = await routeSlashInput(this, this.commands, trimmedInput);
@@ -226,6 +228,7 @@ export class CoderCLI {
         }
 
         messageInput = route.message;
+        routeImages = route.images;
       }
 
       const ac = new AbortController();
@@ -233,7 +236,7 @@ export class CoderCLI {
       isProcessing = true;
 
       try {
-        await executeAgentTurn(this, messageInput, ac);
+        await executeAgentTurn(this, messageInput, ac, routeImages);
       } finally {
         isProcessing = false;
         currentAbortController = null;

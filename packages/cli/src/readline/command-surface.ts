@@ -1,4 +1,6 @@
 import type { TuiHelpItem } from '../shared/tui-types.js';
+import type { ImageAttachment } from '../shared/file-reference.js';
+import { readClipboardImage } from '../shared/clipboard-image.js';
 import type { ReadlineHost } from './host-context.js';
 import type { ReadlineCommands } from './host-commands.js';
 
@@ -14,6 +16,7 @@ export const LOCAL_COMMANDS = new Set([
   'compact',
   'model',
   'skills',
+  'paste-image',
   'wt',
   'status',
   'mode',
@@ -39,6 +42,7 @@ export const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/compact', description: 'Force compact current conversation context' },
   { command: '/model [<spec>|reset]', description: 'Show candidates or switch the model for this session' },
   { command: '/skills [list|<name|index> <message>]', description: 'Run one message with a selected skill' },
+  { command: '/paste-image [description]', description: 'Send the clipboard image as a message (Ctrl+Shift+V in Ink)' },
   { command: '/wt use <work-name>', description: 'Create a worktree + branch via worktree skill' },
   { command: '/status', description: 'Show current session status' },
   { command: '/mode', description: 'Show current plan mode' },
@@ -64,7 +68,7 @@ export const HELP_FOOTER = [
 
 export type SlashRoute =
   | { kind: 'handled' }
-  | { kind: 'message'; message: string };
+  | { kind: 'message'; message: string; images?: ImageAttachment[] };
 
 /**
  * Routes a `/`-prefixed input line: retired notices, built-in commands
@@ -125,6 +129,26 @@ export async function routeSlashInput(
     }
 
     return { kind: 'message', message: transformedMessage };
+  }
+
+  if (normalizedCommand === 'paste-image') {
+    const description = args.join(' ').trim();
+    try {
+      const pasted = await readClipboardImage();
+      if (!pasted) {
+        host.tui.warn('Clipboard does not contain an image. Copy a screenshot first (Cmd+Shift+4), then retry.');
+        return { kind: 'handled' };
+      }
+      const text = description || '(pasted image)';
+      return {
+        kind: 'message',
+        message: text,
+        images: [{ ref: '(clipboard)', mimeType: pasted.mimeType, dataUrl: pasted.dataUrl }],
+      };
+    } catch (error) {
+      host.tui.error(`Failed to read clipboard image: ${error instanceof Error ? error.message : String(error)}`);
+      return { kind: 'handled' };
+    }
   }
 
   if (normalizedCommand === 'wt') {

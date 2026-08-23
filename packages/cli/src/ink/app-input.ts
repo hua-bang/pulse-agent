@@ -162,6 +162,19 @@ export function buildKeyHandler(ctx: ComposerKeyContext): (value: string, key: I
     return;
   }
 
+  if (key.ctrl && key.shift && value === 'v') {
+    // Paste the clipboard image as a message. Note: this only fires where the
+    // terminal lets Ctrl+Shift+V through (macOS); on Linux the terminal itself
+    // claims that chord for paste, so the /paste-image command is the fallback.
+    const description = input.trim();
+    setInput('');
+    setCursor(0);
+    setHistoryIndex(null);
+    setHistoryDraft('');
+    void controller.submitInput(`/paste-image${description ? ` ${description}` : ''}`);
+    return;
+  }
+
   if (key.ctrl && (value === 'j' || value === '\n')) {
     updateComposer(insertAtCursor({ input, cursor }, '\n'));
     return;
