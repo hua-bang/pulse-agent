@@ -84,6 +84,7 @@ export interface BootstrapOptions {
 
 interface AppPaths {
   preloadPath: string;
+  webviewFindPreloadPath: string;
   rendererIndexPath: string;
   iconPath?: string;
 }
@@ -290,6 +291,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     const openWindow = () =>
       createWindow({
         preloadPath: paths.preloadPath,
+        webviewFindPreloadPath: paths.webviewFindPreloadPath,
         rendererIndexPath: paths.rendererIndexPath,
         iconPath: paths.iconPath,
         writeLog,
@@ -353,6 +355,7 @@ function resolveAppPaths(mainDir: string): AppPaths {
 
   return {
     preloadPath: resolvedPreloadPath,
+    webviewFindPreloadPath: join(mainDir, "../preload/webview-find.js"),
     rendererIndexPath: join(mainDir, "../renderer/index.html"),
     iconPath: iconCandidates.find((p) => p && existsSync(p)),
   };

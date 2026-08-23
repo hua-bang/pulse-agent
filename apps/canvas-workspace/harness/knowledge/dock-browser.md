@@ -116,7 +116,18 @@ short-lived timeout races normal mounting.
 Address, reload, and find commands are also qualified by workspace and tab.
 The active `LinkTabView` ignores commands for another guest. Find keeps a
 monotonic request id, ignores stale results, and replays the current query when
-its guest is replaced.
+its guest is replaced. Guest-focused Find is a cancellable default rather than
+an unconditional host shortcut: `src/preload/webview-find.ts` observes the DOM
+keydown through the webview preload, and sends `pulse:dock-find-fallback` only
+when site code neither canceled the default nor stopped event propagation.
+Both signals count because document apps such as Feishu may claim Find with
+`stopPropagation()` alone. This gives those apps first refusal while ordinary
+pages still receive the host find bar.
+The bridge checks in the next task, not a microtask: Electron can flush an
+isolated-preload-world microtask before page-main-world propagation resumes,
+which observes a false unhandled state before Feishu's document listener runs.
+The preload stays main-frame-only; do not enable Node preload execution in
+untrusted child frames merely to broaden shortcut observation.
 
 Browser chords are shared in `src/shared/dock-shortcuts.ts`. Guest-focused
 chords are relayed by main; dock-chrome chords are handled by

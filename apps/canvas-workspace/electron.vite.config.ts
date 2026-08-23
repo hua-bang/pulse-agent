@@ -2,6 +2,7 @@ import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
+import { fileURLToPath } from "node:url";
 import { visualizer } from "rollup-plugin-visualizer";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
@@ -185,9 +186,13 @@ export default defineConfig({
     build: {
       outDir: "dist/preload",
       rollupOptions: {
+        input: {
+          index: fileURLToPath(new URL("./src/preload/index.ts", import.meta.url)),
+          "webview-find": fileURLToPath(new URL("./src/preload/webview-find.ts", import.meta.url)),
+        },
         output: {
           format: "cjs",
-          entryFileNames: "index.js"
+          entryFileNames: "[name].js"
         }
       }
     }

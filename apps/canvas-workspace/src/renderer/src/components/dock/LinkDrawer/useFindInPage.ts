@@ -10,6 +10,7 @@
  * "step through the existing results".
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { DOCK_FIND_FALLBACK_CHANNEL } from '../../../../../shared/dock-shortcuts';
 import type { EmbeddedWebviewTag } from '../EmbeddedBrowser/types';
 import { cancelDockPageFocusRequest } from '../RightDock/dock-browser-commands';
 
@@ -120,6 +121,16 @@ export const useFindInPage = (
       input?.select();
     });
   }, [active, inputEl, query, search]);
+
+  useEffect(() => {
+    if (!webview) return;
+    const onGuestMessage = (event: Event) => {
+      const channel = (event as Event & { channel?: string }).channel;
+      if (channel === DOCK_FIND_FALLBACK_CHANNEL) openFind();
+    };
+    webview.addEventListener('ipc-message', onGuestMessage);
+    return () => webview.removeEventListener('ipc-message', onGuestMessage);
+  }, [openFind, webview]);
 
   useEffect(() => {
     if (active) return;

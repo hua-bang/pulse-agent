@@ -8,8 +8,9 @@
  * BEFORE the guest's renderer handles the key, so the chord is resolved here
  * against the shared policy and forwarded to the embedder as `dock:shortcut`.
  *
- * Only chords the dock actually owns are intercepted; everything else reaches
- * the page untouched, including ⌘C/⌘V and any site-defined shortcut.
+ * Only unconditional dock commands are intercepted. Find is intentionally
+ * page-first: the guest preload observes the DOM event and opens host Find
+ * only when site code leaves the default unclaimed.
  */
 import { app, type WebContents } from "electron";
 import {
@@ -35,6 +36,11 @@ export function setupWebviewShortcuts(): void {
         altKey: input.alt,
       });
       if (!command) return;
+      // Find is a cancellable browser default, not an unconditional host
+      // command. Let the page receive keydown; the guest preload asks the host
+      // to open its fallback bar only after site code leaves the full DOM
+      // dispatch uncancelled and unstopped.
+      if (command === 'find') return;
       const target = embedderOf(contents);
       if (!target) return;
       event.preventDefault();

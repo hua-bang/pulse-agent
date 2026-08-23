@@ -268,6 +268,18 @@ whitelist through three files, in this order:
    binds") asserts every chord in `WEBVIEW_FORWARDED_CHORDS` still resolves
    through `matchShortcut` for either the `canvas` or `app` owner, so the
    whitelist and the registry cannot drift apart.
+
+Dock-browser Find adds a browser-default layer after this generic rule. Main
+still lets Cmd/Ctrl+F reach the guest, then `src/preload/webview-find.ts` waits
+until the complete cross-world keydown dispatch finishes in the next task. A
+microtask is too early because Electron may flush the isolated preload world
+before continuing page-main-world listeners. A default-prevented or
+propagation-stopped DOM event belongs entirely to the site; an event with
+neither signal sends `pulse:dock-find-fallback` to the active `LinkTabView`,
+which opens Pulse Canvas's floating find bar. Never move Find back into an
+unconditional `before-input-event` interception, or reduce this to only one
+DOM cancellation signal: either regression makes document apps such as Feishu
+open alongside the host find bar.
 2. `src/main/webview/shortcut-forwarding.ts` — `attachShortcutForwarding`
    hooks each guest's `before-input-event` exactly once, tracked in a
    `WeakSet<WebContents>` (`hooked`) so a destroyed guest drops out with no
