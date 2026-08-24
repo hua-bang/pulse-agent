@@ -1,18 +1,4 @@
-import arcadeIcon from '../../../views/PluginMarket/assets/arcade.png';
-import exaIcon from '../../../views/PluginMarket/assets/exa.png';
-import mobbinIcon from '../../../views/PluginMarket/assets/mobbin.png';
-import opnformIcon from '../../../views/PluginMarket/assets/opnform.png';
-import resendIcon from '../../../views/PluginMarket/assets/resend.jpg';
-import transcriptApiIcon from '../../../views/PluginMarket/assets/transcriptapi.png';
-
-const BRAND_IMAGES: Record<string, string> = {
-  arcade: arcadeIcon,
-  exa: exaIcon,
-  mobbin: mobbinIcon,
-  opnform: opnformIcon,
-  resend: resendIcon,
-  transcriptapi: transcriptApiIcon,
-};
+import { PLUGIN_BRAND_IMAGES } from '../../../views/PluginMarket/pluginBrandAssets';
 
 const normalizeBrand = (value: string | undefined): string => (
   value?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '') ?? ''
@@ -20,9 +6,9 @@ const normalizeBrand = (value: string | undefined): string => (
 
 export function pluginMentionBrand(name: string, iconKey?: string): string {
   const explicit = normalizeBrand(iconKey);
-  if (BRAND_IMAGES[explicit] || explicit === 'notion') return explicit;
+  if (PLUGIN_BRAND_IMAGES[explicit] || explicit === 'notion') return explicit;
   const inferred = normalizeBrand(name);
-  if (BRAND_IMAGES[inferred] || inferred === 'notion') return inferred;
+  if (PLUGIN_BRAND_IMAGES[inferred] || inferred === 'notion') return inferred;
   return '';
 }
 
@@ -32,7 +18,7 @@ export function pluginMentionIconMarkup(
   size: number,
 ): string {
   const brand = pluginMentionBrand(name, iconKey);
-  const imageUrl = BRAND_IMAGES[brand];
+  const imageUrl = PLUGIN_BRAND_IMAGES[brand];
   if (imageUrl) {
     return `<img src="${imageUrl}" alt="" width="${size}" height="${size}" />`;
   }

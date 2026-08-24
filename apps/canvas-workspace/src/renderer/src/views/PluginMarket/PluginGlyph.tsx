@@ -22,21 +22,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import type { PluginMarketListing } from '../../../../shared/plugin-market';
-import arcadeIcon from './assets/arcade.png';
-import exaIcon from './assets/exa.png';
-import mobbinIcon from './assets/mobbin.png';
-import opnformIcon from './assets/opnform.png';
-import resendIcon from './assets/resend.jpg';
-import transcriptApiIcon from './assets/transcriptapi.png';
-
-const BRAND_ICONS: Record<string, string> = {
-  arcade: arcadeIcon,
-  exa: exaIcon,
-  mobbin: mobbinIcon,
-  opnform: opnformIcon,
-  resend: resendIcon,
-  transcriptapi: transcriptApiIcon,
-};
+import { normalizePluginIconKey, PLUGIN_BRAND_IMAGES } from './pluginBrandAssets';
 
 const ICONS: Record<string, Icon> = {
   browser: Browser,
@@ -57,19 +43,15 @@ const ICONS: Record<string, Icon> = {
   terminal: TerminalWindow,
 };
 
-const normalizeIconKey = (value: string | undefined): string => (
-  value?.trim().toLowerCase().replace(/[ _]+/g, '-') ?? ''
-);
-
 const knownIconKey = (listing: PluginMarketListing): string | undefined => {
-  const explicit = normalizeIconKey(listing.iconKey);
+  const explicit = normalizePluginIconKey(listing.iconKey);
   if (ICONS[explicit]) return explicit;
-  const name = normalizeIconKey(listing.name);
+  const name = normalizePluginIconKey(listing.name);
   return ICONS[name] ? name : undefined;
 };
 
 const chooseIcon = (listing: PluginMarketListing): Icon => {
-  const key = normalizeIconKey(listing.iconKey);
+  const key = normalizePluginIconKey(listing.iconKey);
   const known = knownIconKey(listing);
   if (known) return ICONS[known];
   if (key.includes('github')) return GithubLogo;
@@ -92,8 +74,8 @@ interface Props {
 }
 
 export const PluginGlyph = ({ listing, size = 20, className }: Props) => {
-  const iconKey = normalizeIconKey(listing.iconKey);
-  const brandIcon = BRAND_ICONS[iconKey];
+  const iconKey = normalizePluginIconKey(listing.iconKey);
+  const brandIcon = PLUGIN_BRAND_IMAGES[iconKey];
   const logoKey = brandIcon ? undefined : knownIconKey(listing);
   const Glyph = chooseIcon(listing);
   const tone = listing.id.split('').reduce((sum, character) => sum + character.charCodeAt(0), 0) % 4;
