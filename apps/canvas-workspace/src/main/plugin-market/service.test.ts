@@ -200,6 +200,15 @@ describe('normalizedGitSource', () => {
     );
   });
 
+  it.each([
+    'https://github.com/example/plugin.git?access_token=secret',
+    'https://github.com/example/plugin.git#credential',
+  ])('rejects credential-bearing URL components: %s', async (url) => {
+    const { normalizedGitSource } = await import('./service');
+    expect(() => normalizedGitSource(gitSource({ url })))
+      .toThrow('Git repository URL cannot contain a query or fragment');
+  });
+
   it('rejects refs that Git could interpret as an option', async () => {
     const { normalizedGitSource } = await import('./service');
 

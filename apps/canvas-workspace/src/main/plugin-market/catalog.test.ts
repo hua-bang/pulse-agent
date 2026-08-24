@@ -20,6 +20,7 @@ describe('PUBLIC_PLUGIN_CATALOG', () => {
       && listing.installState === 'available'
       && listing.source.kind === 'git'
       && listing.source.url?.startsWith('https://github.com/')
+      && /^[a-f0-9]{40}$/.test(listing.source.ref ?? '')
     ))).toBe(true);
   });
 
@@ -28,6 +29,7 @@ describe('PUBLIC_PLUGIN_CATALOG', () => {
       .toEqual({
         kind: 'git',
         url: 'https://github.com/OpnForm/OpnForm.git',
+        ref: 'e4bb538a2ed9f8480260abca3659150b74e9ce87',
         subdir: 'plugins/opnform',
       });
   });
