@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { promises as fs } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 
 const canvasAgentState = vi.hoisted(() => ({
   initialize: vi.fn(async () => undefined),
@@ -41,20 +44,79 @@ import { CanvasAgentService } from '../service';
 import { SessionStore } from '../session-store';
 
 describe('CanvasAgentService history', () => {
-  it('activates the agent before reading history', async () => {
-    const service = new CanvasAgentService();
+  let sessionRoot: string;
 
-    const messages = await service.getHistoryForScope({ kind: 'workspace', workspaceId: 'ws-history' });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    canvasAgentState.initialize.mockReset().mockResolvedValue(undefined);
+    canvasAgentState.chat.mockReset();
+    canvasAgentState.getCurrentSessionId.mockReset().mockReturnValue('session-current');
+    canvasAgentState.getHistory.mockReset().mockReturnValue([
+      { role: 'user', content: 'previous chat', timestamp: 1 },
+    ]);
+    canvasAgentState.listSessions.mockReset().mockResolvedValue([{
+      sessionId: 'session-current',
+      date: '2026-07-29',
+      messageCount: 0,
+      isCurrent: true,
+      preview: '',
+    }]);
+    canvasAgentState.configs.length = 0;
+    canvasAgentState.instances.length = 0;
+    sessionRoot = join(tmpdir(), `service-history-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    process.env.PULSE_CANVAS_SESSION_STORE_DIR = sessionRoot;
+  });
+
+  afterEach(async () => {
+    delete process.env.PULSE_CANVAS_SESSION_STORE_DIR;
+    await fs.rm(sessionRoot, { recursive: true, force: true });
+  });
+
+  it('reads history from an already-active agent', async () => {
+    const service = new CanvasAgentService();
+    const scope = { kind: 'workspace', workspaceId: 'ws-history' } as const;
+    await service.activate(scope.workspaceId);
+
+    const snapshot = await service.getHistorySnapshotForScope(scope);
 
     expect(canvasAgentState.initialize).toHaveBeenCalledTimes(1);
     expect(canvasAgentState.getHistory).toHaveBeenCalledTimes(1);
-    expect(messages).toEqual([{ role: 'user', content: 'previous chat', timestamp: 1 }]);
+    expect(snapshot).toEqual({
+      messages: [{ role: 'user', content: 'previous chat', timestamp: 1 }],
+      activeSessionId: 'session-current',
+    });
+  });
+
+  it('returns cold history before slow engine initialization completes', async () => {
+    let finishInitialization: (() => void) | undefined;
+    const initializationGate = new Promise<undefined>((resolve) => {
+      finishInitialization = () => resolve(undefined);
+    });
+    canvasAgentState.initialize.mockImplementationOnce(() => initializationGate);
+    const scope = { kind: 'workspace', workspaceId: 'ws-cold' } as const;
+    const diskStore = new SessionStore(scope.workspaceId, scope);
+    await diskStore.startSession();
+    const sessionId = diskStore.getCurrentSession()!.sessionId;
+    await diskStore.appendToSession(sessionId, [
+      { role: 'user', content: 'loaded from disk', timestamp: 1 },
+    ]);
+    const service = new CanvasAgentService();
+
+    await expect(service.getHistorySnapshotForScope(scope)).resolves.toEqual({
+      messages: [{ role: 'user', content: 'loaded from disk', timestamp: 1 }],
+      activeSessionId: sessionId,
+    });
+    expect(service.getAgentForScope(scope)).toBeUndefined();
+
+    finishInitialization?.();
+    await service.activate(scope.workspaceId);
+    expect(service.getAgentForScope(scope)).toBeDefined();
   });
 
   it('gives every scheduled task an isolated durable chat store', async () => {
     const service = new CanvasAgentService();
 
-    await service.getHistoryForScope({ kind: 'scheduled', taskId: 'daily-brief' });
+    await service.listSessionsForScope({ kind: 'scheduled', taskId: 'daily-brief' });
 
     expect(canvasAgentState.configs.at(-1)).toMatchObject({
       scope: { kind: 'scheduled', taskId: 'daily-brief' },
@@ -64,7 +126,7 @@ describe('CanvasAgentService history', () => {
     });
   });
 
-  it('coalesces concurrent activation reads for the same scope', async () => {
+  it('coalesces concurrent activation requests for the same scope', async () => {
     let finishInitialization: (() => void) | undefined;
     const initializationGate = new Promise<undefined>((resolve) => {
       finishInitialization = () => resolve(undefined);
@@ -74,8 +136,8 @@ describe('CanvasAgentService history', () => {
     const service = new CanvasAgentService();
     const scope = { kind: 'workspace', workspaceId: 'ws-concurrent' } as const;
 
-    const firstRead = service.getHistoryForScope(scope);
-    const secondRead = service.getHistoryForScope(scope);
+    const firstRead = service.activate(scope.workspaceId);
+    const secondRead = service.activate(scope.workspaceId);
     await vi.waitFor(() => {
       expect(canvasAgentState.configs).toHaveLength(initialConfigCount + 1);
     });
@@ -88,7 +150,7 @@ describe('CanvasAgentService history', () => {
   it('hides an active empty-chat scope from the unified session groups', async () => {
     const scan = vi.spyOn(SessionStore, 'listAllWorkspaceSessions').mockResolvedValue([]);
     const service = new CanvasAgentService();
-    await service.getHistoryForScope({ kind: 'global' });
+    await service.listSessionsForScope({ kind: 'global' });
     canvasAgentState.listSessions.mockResolvedValueOnce([]);
 
     const groups = await service.listAllSessions({});
