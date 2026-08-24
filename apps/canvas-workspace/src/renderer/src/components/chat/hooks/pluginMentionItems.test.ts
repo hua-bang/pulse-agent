@@ -24,7 +24,7 @@ describe('plugin mention items', () => {
             snapshot: {
               updatedAt: 1,
               listings: [
-                { id: 'notion', name: 'Notion', description: 'Notion workspace', installState: 'installed' },
+                { id: 'notion', name: 'Notion', iconKey: 'notion', description: 'Notion workspace', installState: 'installed' },
                 { id: 'exa', name: 'Exa', description: 'Search', installState: 'available' },
                 { id: 'broken', name: 'Broken', description: 'Broken', installState: 'installed', error: 'Unreadable' },
               ],
@@ -35,7 +35,7 @@ describe('plugin mention items', () => {
     });
 
     await expect(loadInstalledPluginMentionItems()).resolves.toEqual([
-      { type: 'plugin', pluginId: 'notion', label: 'Notion', description: 'Notion workspace' },
+      { type: 'plugin', pluginId: 'notion', pluginIconKey: 'notion', label: 'Notion', description: 'Notion workspace' },
     ]);
   });
 

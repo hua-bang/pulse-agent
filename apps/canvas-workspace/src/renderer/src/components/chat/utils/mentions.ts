@@ -3,10 +3,11 @@ import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, PLUGI
 import type { MentionItem, WorkspaceOption } from '../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
-import { MENTION_RE, encodeMentionPart, pipedMentionLabel, protectMentionMarkers, restoreMentionMarkersInAttributes, restoreMentionMarkersInText, transformHtmlText } from './mentionMarkers';
+import { MENTION_RE, decodeMentionPart, encodeMentionPart, pipedMentionLabel, protectMentionMarkers, restoreMentionMarkersInAttributes, restoreMentionMarkersInText, transformHtmlText } from './mentionMarkers';
 import { writeDomSelectionDataset } from './domMentionData';
 import { roleColorSoft } from './roleColors';
 import { sessionTitleText } from './sessionTitle';
+import { pluginMentionIconMarkup } from './pluginMentionIcons';
 import {
   buildTabMentionChip,
   renderTabMentionHtml,
@@ -252,14 +253,16 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   if (isPlugin && item.pluginId) {
     chip.className = 'chat-mention-chip chat-mention-chip--input chat-mention-chip--plugin';
     chip.contentEditable = 'false';
-    chip.dataset.mention = `${PLUGIN_MENTION_PREFIX}${encodeMentionPart(item.pluginId)}|${encodeMentionPart(item.label)}`;
+    const iconMarker = item.pluginIconKey ? `|${encodeMentionPart(item.pluginIconKey)}` : '';
+    chip.dataset.mention = `${PLUGIN_MENTION_PREFIX}${encodeMentionPart(item.pluginId)}|${encodeMentionPart(item.label)}${iconMarker}`;
     chip.dataset.mentionKind = 'plugin';
     chip.dataset.pluginId = item.pluginId;
     chip.dataset.nodeType = 'plugin';
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'chat-mention-chip-icon';
-    iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('plugin')}</svg>`;
+    iconSpan.innerHTML = pluginMentionIconMarkup(item.label, item.pluginIconKey, 12)
+      || `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('plugin')}</svg>`;
     chip.appendChild(iconSpan);
 
     const labelSpan = document.createElement('span');
@@ -367,8 +370,12 @@ export function renderMdWithMentions(
     }
 
     if (rawLabel.startsWith(PLUGIN_MENTION_PREFIX)) {
-      const pluginLabel = pipedMentionLabel(rawLabel, PLUGIN_MENTION_PREFIX, 'Plugin');
-      return `<span class="chat-mention-chip chat-mention-chip--plugin" data-node-type="plugin"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('plugin')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(pluginLabel)}</span></span>`;
+      const [encodedId = '', encodedLabel = '', encodedIconKey = ''] = rawLabel
+        .slice(PLUGIN_MENTION_PREFIX.length).split('|');
+      const pluginLabel = decodeMentionPart(encodedLabel || encodedId || 'Plugin');
+      const pluginIcon = pluginMentionIconMarkup(pluginLabel, decodeMentionPart(encodedIconKey), 12)
+        || `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('plugin')}</svg>`;
+      return `<span class="chat-mention-chip chat-mention-chip--plugin" data-node-type="plugin"><span class="chat-mention-chip-icon">${pluginIcon}</span><span class="chat-mention-chip-label">${escapeHtml(pluginLabel)}</span></span>`;
     }
 
     if (rawLabel.startsWith(FOLDER_MENTION_PREFIX)) {

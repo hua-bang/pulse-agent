@@ -122,6 +122,8 @@ export interface MentionItem {
   label: string;
   /** For type === 'plugin': stable plugin-market listing id. */
   pluginId?: string;
+  /** Client-owned brand key; Agent Plugins itself has no portable icon field. */
+  pluginIconKey?: string;
   /** For type === 'role': the chat persona's id from the role library. */
   roleId?: string;
   /** For type === 'role': the persona's accent color (popup icon tint). */

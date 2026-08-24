@@ -2075,6 +2075,16 @@
   color: rgba(55, 53, 47, 0.5);
 }
 
+.chat-plugin-brand-icon,
+.chat-plugin-brand-icon img,
+.chat-plugin-brand-icon svg,
+.chat-mention-chip--plugin img,
+.chat-mention-chip--plugin svg {
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 .chat-mention-item-label {
   flex: 1;
   overflow: hidden;

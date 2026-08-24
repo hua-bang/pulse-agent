@@ -6,6 +6,7 @@ import { roleColorSoft } from './utils/roleColors';
 import { useI18n } from '../../i18n';
 import { SessionTitle } from './SessionTitle';
 import { sessionTitleText } from './utils/sessionTitle';
+import { pluginMentionIconMarkup } from './utils/pluginMentionIcons';
 
 interface ChatMentionPopupProps {
   mentionItems: MentionItem[];
@@ -42,6 +43,9 @@ export const ChatMentionPopup = ({
       aria-label={t('chat.mention.suggestions')}
     >
       {mentionItems.map((item, index) => {
+        const pluginIcon = item.type === 'plugin'
+          ? pluginMentionIconMarkup(item.label, item.pluginIconKey, 16)
+          : '';
         const groupKey = getMentionGroupKey(item);
         const previousGroupKey = index > 0 ? getMentionGroupKey(mentionItems[index - 1]) : null;
         const showHeader = previousGroupKey !== groupKey;
@@ -96,6 +100,8 @@ export const ChatMentionPopup = ({
                 >
                   {item.type === 'tag'
                     ? <span className="chat-mention-chip-hash">#</span>
+                    : pluginIcon
+                      ? <span className="chat-plugin-brand-icon" dangerouslySetInnerHTML={{ __html: pluginIcon }} />
                     : <MentionNodeIcon size={14} nodeType={nodeType} />}
                 </span>
               )}

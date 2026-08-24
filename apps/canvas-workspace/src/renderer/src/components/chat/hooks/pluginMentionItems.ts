@@ -16,6 +16,7 @@ async function readInstalledPluginMentionItems(): Promise<MentionItem[]> {
       .map(listing => ({
         type: 'plugin' as const,
         pluginId: listing.id,
+        ...(listing.iconKey ? { pluginIconKey: listing.iconKey } : {}),
         label: listing.name,
         description: listing.description,
       }))
