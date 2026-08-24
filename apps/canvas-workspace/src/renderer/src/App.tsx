@@ -23,7 +23,7 @@ import { PulseRouter, PulseRouterView } from './components/shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
-import { ScheduledRouteViews, SkillsRouteView } from './components/shell/RouteViews';
+import { PluginMarketRouteView, ScheduledRouteViews, SkillsRouteView } from './components/shell/RouteViews';
 import { useScheduledRunChatOpener } from './views/Scheduled/useScheduledRunChatOpener';
 import {
   ChatTargetProvider,
@@ -33,7 +33,7 @@ import {
 import { useChatNavigation } from './components/chat/hooks/useChatNavigation';
 import type { AgentScope } from './components/chat/types';
 const MigrationSpinner = lazy(() => import('./components/shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
-const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
+const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_PLUGINS = '/plugins', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
 const readSidebarCollapsedPreference = (): boolean => {
@@ -78,9 +78,8 @@ const AppContent = () => {
   const nodesRouteActive =
     NODES_ENABLED && (routePath === ROUTE_NODES || detailNodeMatch !== null);
   const graphRouteActive = GRAPH_ENABLED && routePath === ROUTE_GRAPH;
-  const activeView: ActiveView =
-    routePath === ROUTE_CHAT ? 'chat'
-      : routePath === ROUTE_SKILLS ? 'skills'
+  const activeView: ActiveView = routePath === ROUTE_CHAT ? 'chat' : routePath === ROUTE_PLUGINS ? 'plugins'
+        : routePath === ROUTE_SKILLS ? 'skills'
         : scheduledTaskMatch ? 'scheduled-task'
           : routePath === ROUTE_SCHEDULED ? 'scheduled'
             : nodesRouteActive
@@ -514,7 +513,7 @@ const AppContent = () => {
           onEnterChat={enterChatView}
           onEnterNodes={enterNodesView}
           onEnterGraph={enterGraphView}
-          onEnterSkills={() => setLocation(ROUTE_SKILLS)}
+          onEnterSkills={() => setLocation(ROUTE_PLUGINS)}
           onEnterScheduled={() => setLocation(ROUTE_SCHEDULED)}
           nodesEnabled={NODES_NAV_VISIBLE && NODES_ENABLED}
           graphEnabled={GRAPH_NAV_VISIBLE && GRAPH_ENABLED}
@@ -563,7 +562,8 @@ const AppContent = () => {
           )}
           <SkillsRouteView activeWorkspaceId={activeId} workspaces={workspaces}
             onSelectWorkspace={(workspaceId) => { ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId); }}
-          />
+            onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)} />
+          <PulseRouterView name="plugins"><PluginMarketRouteView onNavigateSkills={() => setLocation(ROUTE_SKILLS)} onOpenSettings={() => openAppSettings('plugins')} /></PulseRouterView>
           <ScheduledRouteViews scheduledTaskId={scheduledTaskMatch ? decodeURIComponent(scheduledTaskMatch[1]) : null}
             onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings}
             onOpenSessionInScope={openSessionInOwningScope} />
@@ -577,7 +577,7 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
-      <RightDock workspaces={workspaces} activeWorkspaceId={dockWorkspaceId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} canvasTabEditingAllowed={isCanvasTabEditingAllowed(activeView)} onCanvasNodesChange={handleNodesChange} onCanvasSelectionChange={handleSelectionChange} reserveSpace={activeView !== 'skills'} capWidth={activeView !== 'canvas'} pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440} onOpenNodePage={openNodePage} onActivateWorkspace={activateDockWorkspace} />
+      <RightDock workspaces={workspaces} activeWorkspaceId={dockWorkspaceId} activeIdReady={activeIdReady} chatTabEnabled={isDockChatTabEnabled(activeView)} canvasTabEditingAllowed={isCanvasTabEditingAllowed(activeView)} onCanvasNodesChange={handleNodesChange} onCanvasSelectionChange={handleSelectionChange} reserveSpace capWidth={activeView !== 'canvas'} pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440} onOpenNodePage={openNodePage} onActivateWorkspace={activateDockWorkspace} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         appLoaded={appSettingsLoaded}

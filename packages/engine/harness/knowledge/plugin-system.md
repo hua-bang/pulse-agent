@@ -57,7 +57,7 @@ Pitfalls (all evidenced):
 ## Plugin Facts Worth Knowing
 
 - **Construction is fail-fast**: `PluginManager.initialize` rethrows and `Engine.ts` has no try/catch around it, so ANY single plugin's init failure aborts the entire Engine build — one bad plugin means MCP/skills/plan-mode that would have loaded fine never do. Common cause: a misspelled `dependencies` entry (throws `Dependency not found` at init).
-- **MCP registers statically at init only**: config changes need a full Engine rebuild (the `closeAll()`/reload path is a code comment, not an implementation); OAuth applies to `http`/`sse` transports only, never `stdio`; a `disabledTools` entry is still listed in `status.tools` with `enabled:false`.
+- **MCP registers statically at init only**: config changes need a full Engine rebuild (the `closeAll()`/reload path is a code comment, not an implementation); OAuth applies to `http`/`sse` transports only, never `stdio`; a `disabledTools` entry is still listed in `status.tools` with `enabled:false`. MCP server/tool punctuation is normalized to `[a-zA-Z0-9_-]` at registration because model providers can reject the wider MCP naming surface.
 - **Skills precedence**: project before user, `.pulse-coder` before other roots; dedup is realpath-based then case-insensitive-name with FIRST-scanned winning. Skills support `rescan()` hot-reload; sub-agents do NOT, and sub-agents only scan `.pulse-coder/agents`/`.coder/agents` (no home-dir location, unlike skills/MCP).
 - **Sub-agent frontmatter is regex-parsed, not YAML**: `.md` agent configs use a hand-rolled `key: value` line matcher — quotes, multi-line, and nested YAML constructs silently mis-parse; `deferLoading` must be the literal string `'true'`/`'false'`.
 

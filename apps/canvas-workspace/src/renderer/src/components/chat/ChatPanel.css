@@ -2075,6 +2075,16 @@
   color: rgba(55, 53, 47, 0.5);
 }
 
+.chat-plugin-brand-icon,
+.chat-plugin-brand-icon img,
+.chat-plugin-brand-icon svg,
+.chat-mention-chip--plugin img,
+.chat-mention-chip--plugin svg {
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 .chat-mention-item-label {
   flex: 1;
   overflow: hidden;
@@ -2312,6 +2322,17 @@
 .chat-mention-chip[data-node-type="skill"] .chat-mention-chip-icon,
 .chat-mention-chip--skill .chat-mention-chip-icon {
   color: rgba(34, 197, 94, 0.85);
+}
+
+.chat-mention-chip[data-node-type="plugin"],
+.chat-mention-chip--plugin {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.chat-mention-chip[data-node-type="plugin"] .chat-mention-chip-icon,
+.chat-mention-chip--plugin .chat-mention-chip-icon {
+  color: var(--accent);
 }
 
 .chat-mention-chip[data-node-type="folder"],

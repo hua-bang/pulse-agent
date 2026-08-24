@@ -11,6 +11,7 @@ describe('turn context snapshots', () => {
         scope: 'selected_nodes',
         selectedNodes: [{ id: 'n-1', title: 'Roadmap', type: 'text' }],
         tags: [{ name: 'planning' }],
+        plugins: [{ id: 'notion', name: 'Notion' }],
         domSelections: [{
           id: 'dom-1',
           label: 'Checkout button',
@@ -29,6 +30,7 @@ describe('turn context snapshots', () => {
       capturedAt: 42,
       selectedNodes: [{ id: 'n-1', title: 'Roadmap' }],
       tags: [{ name: 'planning' }],
+      plugins: [{ id: 'notion', name: 'Notion' }],
       domSelections: [{ id: 'dom-1', selector: '#checkout' }],
     });
   });
@@ -45,6 +47,7 @@ describe('turn context snapshots', () => {
           nodeId: 'browser-old',
           selector: '.original',
         }],
+        plugins: [{ id: 'exa', name: 'Exa' }],
       },
       { modelLabel: 'Auto', scopeLabel: 'Global', capturedAt: 1 },
     );
@@ -54,6 +57,7 @@ describe('turn context snapshots', () => {
       scope: 'selected_nodes',
       selectedNodes: [{ id: 'n-old', workspaceId: 'ws-old' }],
       domSelections: [{ id: 'dom-old', selector: '.original' }],
+      plugins: [{ id: 'exa', name: 'Exa' }],
       contextSnapshot: snapshot,
     });
   });

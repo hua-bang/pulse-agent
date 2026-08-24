@@ -14,6 +14,11 @@
   backdrop-filter: blur(6px);
 }
 
+.ui-modal-backdrop--scoped {
+  position: absolute;
+  z-index: var(--layer-canvas-chrome-raised);
+}
+
 .ui-modal {
   max-width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.72);

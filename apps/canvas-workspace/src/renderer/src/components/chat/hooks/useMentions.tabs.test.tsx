@@ -6,6 +6,7 @@ import { I18nProvider } from '../../../i18n';
 import type { AgentContextTabRef } from '../../../types';
 import { resetChatComposerDraftsForTests } from './chatComposerDraftStore';
 import { useMentions } from './useMentions';
+import { resetPluginMentionItemsForTests } from './pluginMentionItems';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -46,6 +47,7 @@ afterEach(() => {
   host = null;
   latest = null;
   resetChatComposerDraftsForTests();
+  resetPluginMentionItemsForTests();
   onSubmit.mockClear();
   vi.restoreAllMocks();
 });
@@ -53,7 +55,23 @@ afterEach(() => {
 const renderHook = async () => {
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,
-    value: { agentRoles: { list: vi.fn(async () => ({ ok: true, roles: [] })) } },
+    value: {
+      agentRoles: { list: vi.fn(async () => ({ ok: true, roles: [] })) },
+      pluginMarket: {
+        list: vi.fn(async () => ({
+          ok: true,
+          snapshot: {
+            updatedAt: 1,
+            listings: [{
+              id: 'notion',
+              name: 'Notion',
+              description: 'Work with Notion pages',
+              installState: 'installed',
+            }],
+          },
+        })),
+      },
+    },
   });
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -94,6 +112,11 @@ describe('global chat dock-tab mentions', () => {
       label: 'Roadmap',
       description: 'Canvas · Product · Current tab',
       tab: dockTab,
+    });
+    expect(latest?.mentionItems.find(item => item.type === 'plugin')).toMatchObject({
+      pluginId: 'notion',
+      label: 'Notion',
+      description: 'Work with Notion pages',
     });
 
     editable.textContent = '@Product';

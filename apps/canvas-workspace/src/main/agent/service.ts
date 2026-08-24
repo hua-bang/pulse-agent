@@ -33,6 +33,7 @@ import type {
   SessionSearchHit,
 } from './types';
 import { beginCanvasHostRun, failCanvasHostRun, markCanvasHostLaneEntered, markCanvasHostScopeReady } from './observability/host-run';
+import { readCanvasAgentHistorySnapshot, type CanvasAgentHistorySnapshot } from './history-snapshot';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
@@ -252,11 +253,14 @@ export class CanvasAgentService {
   async getHistory(workspaceId: string): Promise<CanvasAgentMessage[]> {
     return this.getHistoryForScope(workspaceScope(workspaceId));
   }
-
   async getHistoryForScope(scope: AgentScope): Promise<CanvasAgentMessage[]> {
-    await this.activateScope(scope);
-    const agent = this.getAgentForScope(scope);
-    return agent?.getHistory() ?? [];
+    return (await this.getHistorySnapshotForScope(scope)).messages;
+  }
+
+  async getHistorySnapshotForScope(scope: AgentScope): Promise<CanvasAgentHistorySnapshot> {
+    return readCanvasAgentHistorySnapshot(
+      scope, this.getAgentForScope(scope), () => this.activateScope(scope),
+    );
   }
 
   /**

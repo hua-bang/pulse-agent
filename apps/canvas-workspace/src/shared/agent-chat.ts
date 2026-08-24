@@ -387,6 +387,13 @@ export interface AgentContextTabRef {
   isSplit?: boolean;
 }
 
+/** An installed Agent Plugin the user explicitly selected for this turn. */
+export interface AgentContextPluginRef {
+  /** Stable market listing id, independent of the display name. */
+  id: string;
+  name: string;
+}
+
 export interface AgentRequestContext {
   executionMode?: 'auto' | 'ask';
   /** Renderer-visible conversation pointer used as a main-process CAS. */
@@ -401,6 +408,8 @@ export interface AgentRequestContext {
   domSelections?: AgentContextDomSelectionRef[];
   /** Right-dock tabs the user `@`-mentioned in the composer. */
   tabs?: AgentContextTabRef[];
+  /** Installed plugins the user `@`-mentioned as a turn-level preference. */
+  plugins?: AgentContextPluginRef[];
   quickAction?: string;
   /** Renderer-authored turn snapshot persisted with the user message. */
   contextSnapshot?: AgentTurnContextSnapshot;
@@ -421,6 +430,7 @@ export interface AgentTurnContextSnapshot {
   canvases?: AgentContextCanvasRef[];
   domSelections?: AgentContextDomSelectionRef[];
   tabs?: AgentContextTabRef[];
+  plugins?: AgentContextPluginRef[];
 }
 
 export interface AgentSessionInfo {

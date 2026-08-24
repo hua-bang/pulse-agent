@@ -5,6 +5,7 @@ pathRules:
     paths:
       - src/**
       - package.json
+      - vitest.config.ts
       - tsconfig.json
       - tsconfig.node.json
       - electron.vite.config.ts
@@ -14,6 +15,27 @@ pathRules:
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
+
+  # Agent Plugins is a cross-process contract: strict package ingestion in
+  # main, persisted registration, generated MCP config, preload IPC, and the
+  # renderer market must move together. This rule pins the focused suite while
+  # the default rule continues to own the full Canvas test gate.
+  - name: agent-plugin-market
+    paths:
+      - src/main/plugin-market/**
+      - src/main/agent/engine-plugins.ts
+      - src/main/settings/canvas-plugins-config.ts
+      - src/shared/plugin-market.ts
+      - src/preload/bridge/plugin-market.ts
+      - src/renderer/src/views/PluginMarket/**
+      - src/renderer/src/views/SkillsLibrary/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/main/settings/__tests__/canvas-plugins-config.test.ts src/renderer/src/views/PluginMarket
+      - pnpm --filter canvas-workspace typecheck
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace test
+      - node apps/canvas-workspace/harness/tools/describe-canvas.mjs
 
   # Conversation-runtime: per-conversation run state (main registry/service/
   # IPC + renderer store + keyed stream hooks). The default rule's full-suite

@@ -9,8 +9,8 @@ import type {
 import { useI18n } from '../../../i18n';
 import { useAppShell } from '../../shell/AppShellProvider';
 import {
-  activateFederatedRendererPlugins,
   specsFromCanvasPluginsStatus,
+  syncFederatedRendererPlugins,
 } from '../../../../../plugins/renderer';
 import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../../constants/canvasPlugins';
 import { Button, TextField } from '../../ui';
@@ -153,7 +153,7 @@ export const PluginsManager = () => {
       setStatus(nextStatus);
       window.dispatchEvent(new CustomEvent(CANVAS_PLUGINS_CHANGED_EVENT, { detail: nextStatus }));
       try {
-        await activateFederatedRendererPlugins(specsFromCanvasPluginsStatus(nextStatus));
+        await syncFederatedRendererPlugins(specsFromCanvasPluginsStatus(nextStatus));
       } catch (err) {
         notify({
           tone: 'error',

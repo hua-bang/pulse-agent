@@ -11,6 +11,17 @@
   background: var(--surface);
 }
 
+.skills-library__product-tabs-row {
+  display: flex;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto 22px;
+}
+
+.skills-library__product-tabs {
+  flex: 0 0 auto;
+}
+
 .skills-library__header {
   display: flex;
   width: 100%;

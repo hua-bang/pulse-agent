@@ -127,9 +127,28 @@ export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
       plugin.activate(ctx);
       activated.add(plugin.id);
     } catch (err) {
+      deactivateCanvasPlugin(plugin.id);
       console.error(`[canvas-plugins] activate failed for ${plugin.id}`, err);
     }
   }
+}
+
+/** Remove every host registration owned by one renderer plugin. */
+export function deactivateCanvasPlugin(pluginId: string): boolean {
+  let changed = activated.delete(pluginId);
+  const removeOwned = <T extends { pluginId: string }>(entries: T[]) => {
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (entries[index].pluginId !== pluginId) continue;
+      entries.splice(index, 1);
+      changed = true;
+    }
+  };
+  removeOwned(routes);
+  removeOwned(chatCards);
+  removeOwned(navItems);
+  removeOwned(nodeViews);
+  if (changed) emitRegistryChange();
+  return changed;
 }
 
 export function isRendererPluginActivated(pluginId: string): boolean {

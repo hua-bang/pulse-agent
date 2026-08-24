@@ -268,9 +268,8 @@ export function setupCanvasAgentIpc(): void {
     async (_event, payload: AgentScopeRef) => {
       try {
         const scope = resolveAgentScope(payload);
-        const messages = await svc.getHistoryForScope(scope);
-        const activeSessionId = svc.getCurrentSessionIdForScope(scope);
-        return { ok: true, messages, activeSessionId };
+        const snapshot = await svc.getHistorySnapshotForScope(scope);
+        return { ok: true, ...snapshot };
       } catch (err) {
         return { ok: false, error: String(err) };
       }

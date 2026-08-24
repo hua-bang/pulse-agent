@@ -94,6 +94,28 @@ describe('chat mention rendering', () => {
     expect(serializeEditable(editable)).toBe(`@[dom:dom-1|${encodeURIComponent(domLabel)}]`);
   });
 
+  it('serializes and renders a stable plugin mention marker', () => {
+    const chip = createMentionChipElement({
+      type: 'plugin',
+      pluginId: 'personal:notion:abc',
+      pluginIconKey: 'plugin',
+      label: 'Notion',
+    });
+    const editable = document.createElement('div');
+    editable.appendChild(chip);
+
+    const serialized = serializeEditable(editable);
+    expect(serialized).toBe('@[plugin:personal%3Anotion%3Aabc|Notion|plugin]');
+    expect(chip.dataset.mentionKind).toBe('plugin');
+    expect(chip.dataset.pluginId).toBe('personal:notion:abc');
+
+    const html = renderMdWithMentions(serialized);
+    expect(html).toContain('chat-mention-chip--plugin');
+    expect(html).toContain('data-node-type="plugin"');
+    expect(html).toContain('viewBox="0 0 256 256"');
+    expect(html).toContain('Notion');
+  });
+
   it('keeps a file path on file and folder chips for VS Code opening', () => {
     const fileChip = createMentionChipElement({
       type: 'file',

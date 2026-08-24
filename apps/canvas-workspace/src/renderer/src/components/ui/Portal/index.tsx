@@ -7,5 +7,10 @@ import type { ReactNode } from 'react';
  * ratchet — new overlay code should render through <Portal> instead of
  * adding another call site.
  */
-export const Portal = ({ children }: { children: ReactNode }) =>
-  createPortal(children, document.body);
+export const Portal = ({
+  children,
+  target,
+}: {
+  children: ReactNode;
+  target?: Element | DocumentFragment | null;
+}) => createPortal(children, target ?? document.body);

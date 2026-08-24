@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { SessionStore } from '../session-store';
 import { scheduledSessionStoreId } from '../../../shared/agent-chat';
 import type { CanvasAgentMessage } from '../types';
+import { peekLastSession } from '../history-snapshot';
 
 const makeMessage = (index: number): CanvasAgentMessage => ({
   role: index % 2 === 0 ? 'user' : 'assistant',
@@ -61,6 +62,23 @@ describe('SessionStore', () => {
     // Pointer is untouched: the newest session stays current.
     expect(store.getCurrentSession()?.sessionId).toBe(newestId);
     expect(await store.readSession('missing-session')).toBeNull();
+  });
+
+  it('peeks the useful archived session without promoting it over an empty draft', async () => {
+    const storeId = 'ws-peek-last';
+    const store = new SessionStore(storeId);
+    await store.startSession();
+    const archivedId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    const emptyCurrentId = store.getCurrentSession()!.sessionId;
+
+    const reader = new SessionStore(storeId);
+    const peeked = await peekLastSession(reader);
+
+    expect(peeked?.sessionId).toBe(archivedId);
+    expect(peeked?.messages.map(message => message.content)).toEqual(['message 0']);
+    expect(await SessionStore.readCurrentSessionId(storeId)).toBe(emptyCurrentId);
   });
 
   it('appends to the current session through the fast path', async () => {

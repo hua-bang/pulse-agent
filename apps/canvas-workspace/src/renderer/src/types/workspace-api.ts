@@ -5,6 +5,7 @@ import type { ScheduledApi } from '../../../shared/scheduled';
 import type { ArtifactCapabilitiesApi } from '../../../shared/artifact-capabilities';
 import type { AgentRolesApi } from '../../../shared/agent-roles';
 import type { ReferencesApi } from '../../../shared/references';
+import type { PluginMarketApi } from '../../../shared/plugin-market';
 import type {
   CanvasSaveData,
   KnowledgeTagDefinition,
@@ -209,4 +210,5 @@ export interface CanvasWorkspaceApi {
   dock: DockApi;
   history: BrowsingHistoryApi;
   plugin: PluginBridge;
+  pluginMarket: PluginMarketApi;
 }

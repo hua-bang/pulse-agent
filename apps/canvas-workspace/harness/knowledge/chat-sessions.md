@@ -137,6 +137,17 @@ let the slower one overwrite the session the user actually chose.
 can't repaint a blank new chat over whatever the user has since switched
 into.
 
+**Cold history is independent of Agent startup.** `canvas-agent:history` reads
+the visible thread and active session id from `history-snapshot.ts`, then warms
+the tool-capable Agent in the background. It must not await Engine, Skill, or
+MCP initialization: installing remote plugins can make that startup take many
+seconds, while reading the local session is fast and does not require tools.
+The cold reader peeks the same useful current/latest-archive session that
+`restoreLastSession()` will later adopt, without moving the durable pointer.
+Send and session-mutation paths still await single-flight scope activation.
+Guards: `src/main/agent/__tests__/service-history.test.ts` and
+`src/main/agent/__tests__/session-store.test.ts`.
+
 **Seeding.** `sessionLoading` is seeded TRUE at mount. Effects run after
 first paint, so a false seed would flash the empty state before the fetch
 even starts. `skipInitialHistory: true` therefore OBLIGES the caller to call
@@ -420,9 +431,10 @@ enabled does not mislabel persona-role segments that still route to Engine.
 ### Single-flight scope activation
 
 Canvas Agent scope activation must stay single-flight in
-`src/main/agent/service.ts`. Chat entry concurrently requests history and
-session lists, so an unguarded check-then-initialize would create duplicate
-engines for one scope and make session switching visibly stall.
+`src/main/agent/service.ts`. Cold history starts background warming while
+other entry points may request the same scope, so an unguarded
+check-then-initialize would create duplicate engines and make session switching
+visibly stall.
 
 Guard: `src/main/agent/__tests__/service-history.test.ts`.
 

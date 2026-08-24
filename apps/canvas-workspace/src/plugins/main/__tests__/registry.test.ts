@@ -1,17 +1,34 @@
 /**
- * Plugin registry — focused on the `registerCanvasTool` extension added
- * for the webview-page-control refactor. The `ipcMain.handle` /
- * `onAgent` halves of `MainCtx` are already exercised by the devtools
- * plugin and the e2e flow; here we just need to prove that:
+ * Plugin registry — focused on registered tools, node capabilities, and
+ * plugin-scoped IPC handler lifecycle. These tests prove that:
  *
  *   - `enabledWhen: () => false` plugins do NOT contribute tools.
  *   - `enabledWhen: () => true` plugins DO, and their factory receives
  *     the right `workspaceId` for each canvas-agent.
  *   - Multiple plugins compose; the latest registration with a given
  *     plugin id overwrites the previous one.
+ *   - Deactivation and failed activation remove only that plugin's IPC
+ *     handlers, so enabling the same id again does not collide.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { MainCanvasPlugin } from '../../types';
+
+const electronFakes = vi.hoisted(() => {
+  const activeChannels = new Set<string>();
+  return {
+    activeChannels,
+    handle: vi.fn((channel: string) => {
+      if (activeChannels.has(channel)) {
+        throw new Error(`Attempted to register a second handler for ${channel}`);
+      }
+      activeChannels.add(channel);
+    }),
+    removeHandler: vi.fn((channel: string) => {
+      activeChannels.delete(channel);
+    }),
+  };
+});
 
 // Stub `electron` BEFORE importing the registry. We need `ipcMain.handle`
 // (for the plugin handle bridge), and `app.getPath` (used by
@@ -21,16 +38,17 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // factory closure must not capture any test-file constants.
 vi.mock('electron', () => ({
   ipcMain: {
-    handle: vi.fn(),
+    handle: electronFakes.handle,
+    removeHandler: electronFakes.removeHandler,
   },
   app: {
     getPath: () => '/tmp/canvas-plugins-registry-test',
   },
 }));
 
-// Reset the registry module between tests so the WeakMap of registered
-// factories is fresh — there's no public clear() API, and we don't want
-// to add one just for tests.
+// Reset the registry module between tests so its module-local registries are
+// fresh — there's no public clear() API, and we don't want to add one just
+// for tests.
 async function loadRegistry() {
   vi.resetModules();
   return await import('../registry');
@@ -39,6 +57,9 @@ async function loadRegistry() {
 describe('setupCanvasPlugins + registerCanvasTool', () => {
   beforeEach(() => {
     vi.resetModules();
+    electronFakes.activeChannels.clear();
+    electronFakes.handle.mockClear();
+    electronFakes.removeHandler.mockClear();
   });
 
   it('plugin with enabledWhen=false does not get its tools registered', async () => {
@@ -207,5 +228,67 @@ describe('setupCanvasPlugins + registerCanvasTool', () => {
     expect(deactivate).toHaveBeenCalledTimes(1);
     expect(getRegisteredCanvasToolFactories()).toEqual([]);
     expect(getRegisteredNodeCapability('demo.dynamic')).toBeUndefined();
+  });
+
+  it('removes IPC handlers on deactivation so the same plugin id can be enabled again', async () => {
+    const { deactivateCanvasPlugin, setupCanvasPlugins } = await loadRegistry();
+    const plugin: MainCanvasPlugin = {
+      id: 'p-ipc-reload',
+      activate(ctx) {
+        ctx.handle('ping', () => 'pong');
+      },
+    };
+    const otherPlugin: MainCanvasPlugin = {
+      id: 'p-ipc-other',
+      activate(ctx) {
+        ctx.handle('ping', () => 'other-pong');
+      },
+    };
+
+    await expect(setupCanvasPlugins([plugin, otherPlugin])).resolves.toEqual([
+      'p-ipc-reload',
+      'p-ipc-other',
+    ]);
+    expect(electronFakes.activeChannels).toEqual(new Set([
+      'plugin:p-ipc-reload:ping',
+      'plugin:p-ipc-other:ping',
+    ]));
+
+    await deactivateCanvasPlugin('p-ipc-reload');
+
+    expect(electronFakes.removeHandler).toHaveBeenCalledWith('plugin:p-ipc-reload:ping');
+    expect(electronFakes.removeHandler).not.toHaveBeenCalledWith('plugin:p-ipc-other:ping');
+    expect(electronFakes.activeChannels).toEqual(new Set(['plugin:p-ipc-other:ping']));
+    await expect(setupCanvasPlugins([plugin])).resolves.toEqual(['p-ipc-reload']);
+    expect(electronFakes.handle).toHaveBeenCalledTimes(3);
+  });
+
+  it('rolls back IPC handlers when plugin activation fails', async () => {
+    const { setupCanvasPlugins } = await loadRegistry();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(setupCanvasPlugins([
+      {
+        id: 'p-ipc-failure',
+        activate(ctx) {
+          ctx.handle('partial', () => 'registered-before-failure');
+          ctx.handle('second-partial', () => 'also-registered-before-failure');
+          throw new Error('boom');
+        },
+      },
+    ])).resolves.toEqual([]);
+
+    expect(electronFakes.removeHandler).toHaveBeenCalledWith('plugin:p-ipc-failure:partial');
+    expect(electronFakes.removeHandler).toHaveBeenCalledWith('plugin:p-ipc-failure:second-partial');
+    expect(electronFakes.activeChannels).toEqual(new Set());
+    await expect(setupCanvasPlugins([
+      {
+        id: 'p-ipc-failure',
+        activate(ctx) {
+          ctx.handle('partial', () => 'registered-after-retry');
+        },
+      },
+    ])).resolves.toEqual(['p-ipc-failure']);
+    errSpy.mockRestore();
   });
 });

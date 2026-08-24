@@ -40,6 +40,10 @@ interface NormalizedServerConfigBase {
 
 type NormalizedMCPServerConfig = (HTTPOrSSEServerConfig | StdioServerConfig) & NormalizedServerConfigBase;
 
+function providerSafeToolName(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 export interface MCPPluginConfig {
   servers: Record<string, RawMCPServerConfig>;
 }
@@ -366,8 +370,11 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
               : undefined;
             toolInfos.push({ name: toolName, description, enabled });
             if (!enabled) continue;
-            // 注册工具到引擎，使用命名空间前缀
-            namespacedTools[`mcp_${serverName}_${toolName}`] = shouldDeferTools
+            // MCP permits punctuation that some model providers reject in
+            // tools[].name. Normalize at the shared registration boundary so
+            // every host and MCP source receives a provider-safe tool name.
+            const registeredName = providerSafeToolName(`mcp_${serverName}_${toolName}`);
+            namespacedTools[registeredName] = shouldDeferTools
               ? { ...(tool as any), defer_loading: true }
               : (tool as any);
           }

@@ -102,6 +102,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Add a capability shared by Tool + CLI | `../../harness/skills/add-canvas-capability/SKILL.md`; use `harness/skills/add-agent-tool/SKILL.md` for the optional task-specific Canvas Agent adapter |
 | Agent teams | `src/main/agent-teams/`, `src/renderer/src/components/node-bodies/AgentTeamFrame/` |
 | Runtime-control server | `src/main/runtime/control-server.ts` |
+| Agent Plugins market, package precedence, install/trust state, and MCP adaptation | `harness/knowledge/plugin-market.md`, `src/shared/plugin-market.ts`, `src/main/plugin-market/` |
 | Plugin node contract | `harness/knowledge/plugin-node-mf2.md`, `src/plugins/types.ts`, `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/mock-node/` |
 | Project records (perf analyses, roadmaps) | `docs/` |
 | Channel plugin | `src/plugins/main/channel/README.md`, `src/plugins/main/channel/` |

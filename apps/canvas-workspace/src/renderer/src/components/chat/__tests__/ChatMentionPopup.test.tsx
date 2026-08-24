@@ -27,6 +27,7 @@ describe('ChatMentionPopup', () => {
     });
     const mentionItems: MentionItem[] = [
       { type: 'role', roleId: 'role-1', label: 'Reviewer' },
+      { type: 'plugin', pluginId: 'arcade', pluginIconKey: 'arcade', label: 'Arcade' },
       { type: 'session', sessionId: 'session-1', workspaceId: 'workspace-1', label: 'Earlier chat' },
     ];
     host = document.createElement('div');
@@ -51,12 +52,15 @@ describe('ChatMentionPopup', () => {
     expect(listbox?.getAttribute('aria-label')).toBe('Mention suggestions');
 
     const options = Array.from(host.querySelectorAll<HTMLButtonElement>('[role="option"]'));
-    expect(options).toHaveLength(2);
+    expect(options).toHaveLength(3);
     expect(options.map((option) => option.id)).toEqual([
       'chat-mention-option-0',
       'chat-mention-option-1',
+      'chat-mention-option-2',
     ]);
-    expect(options.map((option) => option.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+    expect(options.map((option) => option.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false']);
     expect(options.every((option) => option.tabIndex === -1)).toBe(true);
+    expect(options[1].querySelector<HTMLImageElement>('.chat-plugin-brand-icon img')?.src)
+      .toContain('arcade');
   });
 });

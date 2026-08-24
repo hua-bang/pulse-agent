@@ -20,6 +20,8 @@ export function mentionIconSvg(nodeType: string): string {
       return '<rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><rect x="3.5" y="3.5" width="3" height="3" rx="0.5" stroke="currentColor" stroke-width="1"/><rect x="7.5" y="3.5" width="3" height="3" rx="0.5" stroke="currentColor" stroke-width="1"/><rect x="3.5" y="7.5" width="3" height="3" rx="0.5" stroke="currentColor" stroke-width="1"/>';
     case 'skill':
       return '<path d="M7 1.5l1.6 3.4 3.7.5-2.7 2.5.7 3.6L7 9.8l-3.3 1.7.7-3.6L1.7 5.4l3.7-.5L7 1.5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>';
+    case 'plugin':
+      return '<path d="M5.2 2.1v2.1H3.1A1.1 1.1 0 0 0 2 5.3v1.9h1.2a1.8 1.8 0 1 1 0 3.6H2v.1A1.1 1.1 0 0 0 3.1 12h2.1V10.8a1.8 1.8 0 1 1 3.6 0V12h2.1a1.1 1.1 0 0 0 1.1-1.1V8.8H10.8a1.8 1.8 0 1 1 0-3.6H12V5.3a1.1 1.1 0 0 0-1.1-1.1H8.8V2.1a1.8 1.8 0 1 0-3.6 0Z" stroke="currentColor" stroke-width="1.05" stroke-linejoin="round"/>';
     case 'folder':
       return '<path d="M1.5 4.5a1 1 0 0 1 1-1H6l1.2 1.5h4.3a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V4.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>';
     case 'session':

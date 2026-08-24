@@ -15,6 +15,9 @@ interface Props {
   /** Extra class on the card (the dialog element itself), e.g.
    *  `ui-modal--tall` for scrollable content. */
   className?: string;
+  /** Optional route-local portal target. Scoped dialogs leave parallel app
+   * regions interactive, so they omit global aria-modal and focus trapping. */
+  scopeTarget?: HTMLElement | null;
 }
 
 /**
@@ -27,17 +30,26 @@ interface Props {
  * markup (header/body/footer) as children. `className` lands on the card
  * (the dialog-role element), not the backdrop.
  */
-export const Modal = ({ open, onClose, children, width, labelledBy, className }: Props) => {
+export const Modal = ({
+  open,
+  onClose,
+  children,
+  width,
+  labelledBy,
+  className,
+  scopeTarget,
+}: Props) => {
   useEscapeClose(open, onClose);
   const cardRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(open, cardRef);
+  const scoped = Boolean(scopeTarget);
+  useFocusTrap(open, cardRef, { trap: !scoped });
 
   if (!open) return null;
 
   return (
-    <Portal>
+    <Portal target={scopeTarget}>
       <div
-        className="ui-modal-backdrop"
+        className={scoped ? 'ui-modal-backdrop ui-modal-backdrop--scoped' : 'ui-modal-backdrop'}
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) onClose();
         }}
@@ -46,7 +58,7 @@ export const Modal = ({ open, onClose, children, width, labelledBy, className }:
           ref={cardRef}
           className={className ? `ui-modal ${className}` : 'ui-modal'}
           role="dialog"
-          aria-modal="true"
+          aria-modal={scoped ? undefined : 'true'}
           aria-labelledby={labelledBy}
           style={width ? { width: `min(${width}px, 100%)` } : undefined}
         >
