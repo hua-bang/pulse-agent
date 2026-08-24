@@ -39,6 +39,8 @@ The market is a Canvas application feature, not the engine's `EnginePlugin` or `
 | Canvas plugin directory/config SSOT and skill sources | `src/main/settings/canvas-plugins-config.ts` |
 | IPC registration and preload bridge | `src/main/plugin-market/ipc.ts`, `src/preload/bridge/plugin-market.ts`, `src/preload/index.ts` |
 | Route, state, filters, rows and dialogs | `src/renderer/src/views/PluginMarket/`, wired by `src/renderer/src/App.tsx` |
+| Installed-plugin `@` mentions and request-context collection | `src/renderer/src/components/chat/hooks/pluginMentionItems.ts`, `useMentions.ts` |
+| Turn-level plugin routing guidance | `src/main/agent/plugin-selection-context.ts` |
 | Canvas Agent skills/MCP composition | `src/main/agent/engine-plugins.ts` |
 
 ## Package selection contract
@@ -69,6 +71,12 @@ The market is a Canvas application feature, not the engine's `EnginePlugin` or `
 Every operation returns JSON-safe data from `src/shared/plugin-market.ts`. Renderer code has no Electron/Node access; browsing a source uses the existing typed shell preload API.
 
 The Plugins and Skills library routes reserve the expanded RightDock width instead of letting it overlay page content. Plugin rows use a container query against the remaining page width, so the catalog is two columns when space permits and one column beside a wide dock. Plugin details use a route-scoped dialog: its backdrop and card stay inside the Plugins surface, omit global `aria-modal` semantics, and do not trap keyboard focus away from the persistent RightDock. `Connect` keeps the details visible for connection status while the OAuth link tab opens alongside it in the dock.
+
+## Chat mention semantics
+
+The chat `@` picker offers healthy installed market listings in a dedicated Plugins group. Selecting one serializes a stable `@[plugin:<encoded-listing-id>|<encoded-name>]` marker and adds `{ id, name }` to `AgentRequestContext.plugins`; turn snapshots preserve the same refs for regenerate/replay. The marker renders as a plugin chip in both the composer and transcript.
+
+An `@Plugin` is an explicit turn-level routing preference and scope hint. It does not force a tool call, connect a plugin, disable unrelated tools, or replace the agent's default ability to choose plugins automatically. When the request benefits from the selected package, the system prompt tells the agent to prefer that package's already-loaded skills or MCP tools; unavailable or disconnected capabilities must degrade honestly. Only installed listings without package-read errors are mentionable. Renderer discovery uses the existing `pluginMarket.list()` API and a short cache, so typing in the composer does not introduce a second plugin registry.
 
 ## Catalog semantics
 

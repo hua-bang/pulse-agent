@@ -1,5 +1,5 @@
 import type { CanvasNode } from '../../../types';
-import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, ROLE_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAB_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
+import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, PLUGIN_MENTION_PREFIX, ROLE_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAB_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
@@ -145,6 +145,7 @@ export { MentionNodeIcon, mentionIconSvg };
 
 export function getMentionNodeType(item: MentionItem, nodes?: CanvasNode[]): string {
   if (item.type === 'skill') return 'skill';
+  if (item.type === 'plugin') return 'plugin';
   if (item.type === 'workspace') return 'workspace';
   if (item.type === 'folder') return 'folder';
   if (item.type === 'node') return item.nodeType ?? 'file';
@@ -184,6 +185,7 @@ export { serializeEditable } from './serializeEditable';
 export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]): HTMLSpanElement {
   const isWorkspace = item.type === 'workspace';
   const isSkill = item.type === 'skill';
+  const isPlugin = item.type === 'plugin';
   const isFolder = item.type === 'folder';
   const isFile = item.type === 'file';
   const isNode = item.type === 'node';
@@ -238,6 +240,26 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
     const iconSpan = document.createElement('span');
     iconSpan.className = 'chat-mention-chip-icon';
     iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('role')}</svg>`;
+    chip.appendChild(iconSpan);
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'chat-mention-chip-label';
+    labelSpan.textContent = item.label;
+    chip.appendChild(labelSpan);
+    return chip;
+  }
+
+  if (isPlugin && item.pluginId) {
+    chip.className = 'chat-mention-chip chat-mention-chip--input chat-mention-chip--plugin';
+    chip.contentEditable = 'false';
+    chip.dataset.mention = `${PLUGIN_MENTION_PREFIX}${encodeMentionPart(item.pluginId)}|${encodeMentionPart(item.label)}`;
+    chip.dataset.mentionKind = 'plugin';
+    chip.dataset.pluginId = item.pluginId;
+    chip.dataset.nodeType = 'plugin';
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'chat-mention-chip-icon';
+    iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('plugin')}</svg>`;
     chip.appendChild(iconSpan);
 
     const labelSpan = document.createElement('span');
@@ -342,6 +364,11 @@ export function renderMdWithMentions(
     if (rawLabel.startsWith(SKILL_MENTION_PREFIX)) {
       const skillLabel = rawLabel.slice(SKILL_MENTION_PREFIX.length);
       return `<span class="chat-mention-chip chat-mention-chip--skill" data-node-type="skill"><span class="chat-mention-chip-label">${escapeHtml(skillLabel)}</span></span>`;
+    }
+
+    if (rawLabel.startsWith(PLUGIN_MENTION_PREFIX)) {
+      const pluginLabel = pipedMentionLabel(rawLabel, PLUGIN_MENTION_PREFIX, 'Plugin');
+      return `<span class="chat-mention-chip chat-mention-chip--plugin" data-node-type="plugin"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('plugin')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(pluginLabel)}</span></span>`;
     }
 
     if (rawLabel.startsWith(FOLDER_MENTION_PREFIX)) {

@@ -20,6 +20,7 @@ export function createTurnContextSnapshot(
     canvases: requestContext?.canvases,
     domSelections: requestContext?.domSelections,
     tabs: requestContext?.tabs,
+    plugins: requestContext?.plugins,
   };
 }
 
@@ -40,6 +41,7 @@ export function requestContextFromSnapshot(
     canvases: snapshot.canvases,
     domSelections: snapshot.domSelections,
     tabs: snapshot.tabs,
+    plugins: snapshot.plugins,
     contextSnapshot: snapshot,
   };
 }

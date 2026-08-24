@@ -49,6 +49,8 @@ export const ChatMentionPopup = ({
           ? 'role'
           : item.type === 'workspace'
             ? 'workspace'
+            : item.type === 'plugin'
+              ? 'plugin'
             : item.type === 'skill'
               ? 'skill'
               : item.type === 'folder'

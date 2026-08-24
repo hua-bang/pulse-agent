@@ -30,6 +30,7 @@ import { useChatAttachments } from './useChatAttachments';
 import { buildStaticMentionItems } from './staticMentionItems';
 import { useI18n, type I18nKey } from '../../../i18n';
 import { useContextMentionInsertions } from './useContextMentionInsertions';
+import { loadInstalledPluginMentionItems, withCollectedPlugins } from './pluginMentionItems';
 
 const tabKindLabelKey = (kind: AgentContextTabRef['kind']): I18nKey => {
   switch (kind) {
@@ -203,9 +204,9 @@ export function useMentions({
 
     const items: MentionItem[] = [];
 
-    // Chat roles lead the popup — addressing a persona is the primary reason
-    // to type `@` in a role-enabled conversation.
+    // Addressable personas lead, followed by installed capability bundles.
     items.push(...await loadRoleMentionItems());
+    items.push(...await loadInstalledPluginMentionItems());
 
     if (dockTabs) items.push(...buildTabMentionItems(dockTabs, describeTab));
 
@@ -370,8 +371,8 @@ export function useMentions({
 
   const collectRequestContext = useCallback((requestContext?: AgentRequestContext) => {
     let ctx = requestContext ?? getRequestContext?.();
-    // Tab mentions are collected for both hosts (see withCollectedTabs).
     if (editableRef.current) ctx = withCollectedTabs(editableRef.current, ctx);
+    if (editableRef.current) ctx = withCollectedPlugins(editableRef.current, ctx);
     // Pull workspace-aware refs out of the inline @-mention chips (global host).
     if (collectStructuredContext && editableRef.current) {
       const collected = collectContextRefsFromEditable(editableRef.current);

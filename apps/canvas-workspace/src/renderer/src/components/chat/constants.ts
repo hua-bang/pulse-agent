@@ -29,6 +29,8 @@ export type EmptyStateQuickAction =
 
 export const CANVAS_MENTION_PREFIX = 'canvas:';
 export const SKILL_MENTION_PREFIX = 'skill:';
+/** Installed Agent Plugin preference: `@[plugin:<id>|<name>]`. */
+export const PLUGIN_MENTION_PREFIX = 'plugin:';
 /** Multi-role chat persona: `@[role:<id>|<name>]` (SSOT: shared/agent-roles). */
 export { ROLE_MENTION_PREFIX } from '../../../../shared/agent-roles';
 export const FOLDER_MENTION_PREFIX = 'folder:';
@@ -41,6 +43,7 @@ export const SESSION_MENTION_PREFIX = 'session:';
 
 export const MENTION_GROUPS = [
   { key: 'role', label: 'Roles', labelKey: 'chat.mention.role' },
+  { key: 'plugin', label: 'Plugins', labelKey: 'chat.mention.plugins' },
   { key: 'skill', label: 'Skills', labelKey: 'chat.mention.skills' },
   { key: 'tab', label: 'Tabs', labelKey: 'chat.mention.tab' },
   { key: 'session', label: 'Sessions', labelKey: 'chat.mention.session' },
@@ -143,6 +146,7 @@ export const GLOBAL_QUICK_ACTIONS: GlobalQuickAction[] = [
 
 export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
   if (item.type === 'role') return 'role';
+  if (item.type === 'plugin') return 'plugin';
   if (item.type === 'skill') return 'skill';
   if (item.type === 'tab') return 'tab';
   if (item.type === 'session') return 'session';
