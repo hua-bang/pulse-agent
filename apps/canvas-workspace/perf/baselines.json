@@ -145,8 +145,8 @@
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "快捷键 SSOT 与浏览器式 Dock 合并后实测 202KB。帮助面板及展示元数据已恢复按需边界，入口 raw 降至 699KB；剩余 gzip 增量来自启动即生效的跨 surface shortcut matcher 与 webview 转发。保留 target 185 作为后续瘦身压力。", "asOf": "2026-07-31",
-      "gate": { "kind": "ratchet", "baseline": 202, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-08-24 对照 origin/master 0.1.48 实测 gzip 约 207KB；Agent Plugins 市场页已置于按路由加载边界，当前分支实测 209KB。保留 target 185 与 warning 210 作为后续瘦身压力。", "asOf": "2026-08-24",
+      "gate": { "kind": "ratchet", "baseline": 207, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,
@@ -160,8 +160,8 @@
     },
     "bundle.total_js_kb": {
       "profile": "global-deterministic", "target": 5565, "warning": 5850,
-      "confidence": "high", "basis": "AI Chat P0-P2 新增会话 rail、分支/恢复、附件生命周期、目标上下文、失败恢复、可访问状态与跨 surface 导航后，master 5679KB 到当前 5737KB；其中 Chat 首次加载约 465KB、较 master 增约 38KB，入口应用代码增约 15KB，未发现第三方依赖膨胀。保留 5565 target 与 5850 warning，ratchet 重新落锚到已验证功能载荷。", "asOf": "2026-07-31",
-      "gate": { "kind": "ratchet", "baseline": 5737, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-08-24 对照 origin/master 0.1.48 实测 total JS 约 5823KB；Agent Plugins 市场新增约 124KB 路由级 renderer 载荷与约 12KB main/共享运行时载荷，当前分支经 lazy route 与动态 IPC/reader 拆分后实测 5966KB。保留 5565 target 与 5850 warning，ratchet 落锚到当前 master 加本次已验证功能载荷。", "asOf": "2026-08-24",
+      "gate": { "kind": "ratchet", "baseline": 5825, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 690,

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, realpathSync, readdirSync, statSync } from 'fs';
 import { basename, join } from 'path';
 import type { PluginPackageDiagnostic } from '../../shared/plugin-market';
-import { validateAgentManifest } from './package-reader';
+import { validateAgentManifest } from './package-reader-manifest';
 import { parseSkillMetadata } from './package-reader-skills';
 
 function containedPath(root: string, candidate: string): string | undefined {
