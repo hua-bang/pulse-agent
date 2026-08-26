@@ -55,6 +55,7 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
         (scope, sessionId, operation) => (
           agentService.sessionMutations.runChat(scope, operation, sessionId)
         ),
+        (scope) => agentService.activateScope(scope),
       );
     }
     return service;

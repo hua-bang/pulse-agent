@@ -23,6 +23,7 @@ export interface ConversationStoreAdapter {
  */
 export class ConversationRuntimeService {
   private readonly registries = new Map<string, ConversationRuntimeRegistry>();
+  private readonly pendingRegistries = new Map<string, Promise<ConversationRuntimeRegistry>>();
 
   constructor(
     private readonly getAgent: (scope: AgentScope) => CanvasAgent | undefined,
@@ -35,26 +36,51 @@ export class ConversationRuntimeService {
       sessionId: string,
       operation: () => Promise<T>,
     ) => Promise<T | null>,
+    private readonly activateScope?: (scope: AgentScope) => Promise<void>,
   ) {}
 
-  private registryFor(scope: AgentScope): ConversationRuntimeRegistry {
+  private async registryFor(scope: AgentScope): Promise<ConversationRuntimeRegistry> {
     const key = scopeKey(scope);
-    let registry = this.registries.get(key);
-    if (!registry) {
-      const agent = this.getAgent(scope);
-      if (!agent) throw new Error(`No active agent for scope ${key}`);
-      const storeId = scopeSessionStoreId(scope);
-      const storeAdapter = this.storeAdapterFactory(storeId, scope);
-      registry = new ConversationRuntimeRegistry({
-        create: (conversationKey) => ({
-          key: conversationKey,
-          loadMessages: () => storeAdapter.loadMessages(conversationKey.sessionId),
-          persist: (messages) => storeAdapter.persist(conversationKey.sessionId, messages),
-          runTurn: createConversationRunner(agent),
-        }),
-      });
-      this.registries.set(key, registry);
+    const existing = this.registries.get(key);
+    if (existing) return existing;
+
+    const pending = this.pendingRegistries.get(key);
+    if (pending) return pending;
+
+    // Conversation IPC can be the first request after app startup. The
+    // legacy chat path activates the scope before reaching the runtime, but
+    // this service must preserve that guarantee for the direct path too.
+    const creation = this.createRegistry(scope, key);
+    this.pendingRegistries.set(key, creation);
+    try {
+      return await creation;
+    } finally {
+      if (this.pendingRegistries.get(key) === creation) {
+        this.pendingRegistries.delete(key);
+      }
     }
+  }
+
+  private async createRegistry(
+    scope: AgentScope,
+    key: string,
+  ): Promise<ConversationRuntimeRegistry> {
+    if (!this.getAgent(scope) && this.activateScope) {
+      await this.activateScope(scope);
+    }
+    const agent = this.getAgent(scope);
+    if (!agent) throw new Error(`No active agent for scope ${key}`);
+    const storeId = scopeSessionStoreId(scope);
+    const storeAdapter = this.storeAdapterFactory(storeId, scope);
+    const registry = new ConversationRuntimeRegistry({
+      create: (conversationKey) => ({
+        key: conversationKey,
+        loadMessages: () => storeAdapter.loadMessages(conversationKey.sessionId),
+        persist: (messages) => storeAdapter.persist(conversationKey.sessionId, messages),
+        runTurn: createConversationRunner(agent),
+      }),
+    });
+    this.registries.set(key, registry);
     return registry;
   }
 
@@ -67,7 +93,7 @@ export class ConversationRuntimeService {
     input?: Omit<ConversationSendInput, 'message'>,
   ): Promise<ChatResponse> {
     try {
-      const registry = this.registryFor(scope);
+      const registry = await this.registryFor(scope);
       const runtime = await registry.open(conversationKey(scope, sessionId));
       const operation = () => runtime.sendAndWait({ message, ...input }, external);
       const result = this.runConversation

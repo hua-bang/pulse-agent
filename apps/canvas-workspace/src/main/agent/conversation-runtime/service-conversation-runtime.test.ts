@@ -67,6 +67,49 @@ afterEach(() => {
 });
 
 describe('ConversationRuntimeService.chat', () => {
+  it('activates a cold scope before opening its first conversation', async () => {
+    let activeAgent: typeof mockAgent.agent | undefined;
+    const activateScope = vi.fn(async () => {
+      activeAgent = mockAgent.agent;
+    });
+    const service = new ConversationRuntimeService(
+      () => activeAgent as never,
+      () => makeStoreAdapter(),
+      undefined,
+      activateScope,
+    );
+
+    const result = await service.chat(scope, 'session-a', 'hello');
+
+    expect(result).toMatchObject({ ok: true, response: 'echo:hello' });
+    expect(activateScope).toHaveBeenCalledWith(scope);
+    expect(mockAgent.agent.chat).toHaveBeenCalledTimes(1);
+  });
+
+  it('coalesces cold activation and registry creation for concurrent conversations', async () => {
+    let activeAgent: typeof mockAgent.agent | undefined;
+    const activateScope = vi.fn(async () => {
+      activeAgent = mockAgent.agent;
+    });
+    const createAdapter = vi.fn(() => makeStoreAdapter());
+    const service = new ConversationRuntimeService(
+      () => activeAgent as never,
+      createAdapter,
+      undefined,
+      activateScope,
+    );
+
+    const [first, second] = await Promise.all([
+      service.chat(scope, 'session-a', 'first'),
+      service.chat(scope, 'session-b', 'second'),
+    ]);
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(activateScope).toHaveBeenCalledTimes(1);
+    expect(createAdapter).toHaveBeenCalledTimes(1);
+  });
+
   it('runs two conversations in one workspace in parallel (independent runtimes)', async () => {
     const service = new ConversationRuntimeService(
       () => mockAgent.agent as never,
