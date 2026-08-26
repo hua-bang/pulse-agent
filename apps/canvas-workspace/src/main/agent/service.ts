@@ -50,7 +50,7 @@ export class CanvasAgentService {
     (scope) => this.getAgentForScope(scope),
   );
 
-  private async activateScope(scope: AgentScope): Promise<void> {
+  async activateScope(scope: AgentScope): Promise<void> {
     const key = scopeKey(scope);
     if (this.agents.has(key)) return;
     await this.agentActivations.run(key, async () => {
