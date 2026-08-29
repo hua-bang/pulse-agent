@@ -84,7 +84,7 @@ describe('buildMcpAppCsp', () => {
       );
       await Promise.resolve();
     });
-    const frame = host.querySelector('iframe');
+    const frame = document.body.querySelector('iframe');
     expect(frame?.getAttribute('sandbox')).toBe('allow-scripts allow-same-origin');
     expect(frame?.getAttribute('src')).toContain('pulse-mcp-app://sandbox/index.html');
     await act(async () => { root.unmount(); });
@@ -156,7 +156,9 @@ describe('buildMcpAppCsp', () => {
       await Promise.resolve();
     });
 
-    const frame = host.querySelector('iframe')!;
+    const frame = document.body.querySelector('iframe')!;
+    const surface = frame.parentElement;
+    expect(surface?.parentElement).toBe(document.body);
     await act(async () => { frame.dispatchEvent(new Event('load')); });
     await act(async () => {
       expect(await bridgeState.current.onrequestdisplaymode?.({ mode: 'fullscreen' }))
@@ -164,7 +166,7 @@ describe('buildMcpAppCsp', () => {
     });
     expect(document.getElementById(mcpAppDockHostElementId('test:call-1'))).toBeTruthy();
     expect(frame.parentElement?.dataset.displayMode).toBe('fullscreen');
-    expect(host.querySelector('.chat-mcp-app')?.contains(frame)).toBe(true);
+    expect(frame.parentElement).toBe(surface);
     expect(document.activeElement).toBe(frame);
 
     await act(async () => {
@@ -192,11 +194,11 @@ describe('buildMcpAppCsp', () => {
       host.querySelector<HTMLButtonElement>('[data-close-app]')?.click();
     });
     expect(frame.parentElement?.dataset.displayMode).toBe('inline');
-    expect(host.querySelector('.chat-mcp-app')?.contains(frame)).toBe(true);
-    expect(document.activeElement).toBe(host.querySelector('.chat-mcp-app__display-action'));
+    expect(frame.parentElement).toBe(surface);
+    expect(document.activeElement).toBe(document.body.querySelector('.chat-mcp-app__display-action'));
 
     await act(async () => {
-      host.querySelector<HTMLButtonElement>('.chat-mcp-app__display-action')?.click();
+      document.body.querySelector<HTMLButtonElement>('.chat-mcp-app__display-action')?.click();
     });
     expect(frame.parentElement?.dataset.displayMode).toBe('fullscreen');
 
@@ -208,7 +210,7 @@ describe('buildMcpAppCsp', () => {
     });
     expect(frame.parentElement?.dataset.displayMode).toBe('inline');
     await act(async () => {
-      host.querySelector<HTMLButtonElement>('.chat-mcp-app__display-action')?.click();
+      document.body.querySelector<HTMLButtonElement>('.chat-mcp-app__display-action')?.click();
     });
 
     await act(async () => {

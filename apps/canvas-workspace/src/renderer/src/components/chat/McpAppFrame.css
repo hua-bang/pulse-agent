@@ -13,6 +13,13 @@
   min-width: 0;
 }
 
+.chat-mcp-app__surface {
+  position: fixed;
+  z-index: var(--layer-canvas-chrome);
+  visibility: hidden;
+  background: var(--surface);
+}
+
 .chat-mcp-app__surface,
 .chat-mcp-app__surface iframe {
   height: 100%;

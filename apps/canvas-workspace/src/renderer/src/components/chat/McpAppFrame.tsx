@@ -13,7 +13,7 @@ import { serializeMcpAppToolArguments } from '../../../../shared/mcp-apps';
 import { useRightDock, useRightDockMcpAppHost, useRightDockState } from '../dock/RightDock/context';
 import { mcpAppTabId } from '../dock/RightDock/dock-tab-ids';
 import { isDockTabPresented } from '../dock/RightDock/dock-split-state';
-import { Button } from '../ui';
+import { Button, Portal } from '../ui';
 import { useI18n } from '../../i18n';
 import './McpAppFrame.css';
 
@@ -171,37 +171,44 @@ export const McpAppFrame = ({ instanceId, app, args, fallbackResult, scope }: Mc
     const surface = surfaceRef.current;
     if (!surface) return;
     surface.dataset.displayMode = displayMode;
-    if (displayMode !== 'fullscreen' || !dockHost) {
-      surface.removeAttribute('style');
-      return;
-    }
-    if (!dockTabVisible) {
+    const target = displayMode === 'fullscreen' ? dockHost : inlineHostRef.current;
+    if (!target || (displayMode === 'fullscreen' && !dockTabVisible)) {
       surface.style.visibility = 'hidden';
       surface.style.pointerEvents = 'none';
       return;
     }
-    const placeOverDockHost = () => {
-      const rect = dockHost.getBoundingClientRect();
+    const placeOverTarget = () => {
+      const rect = target.getBoundingClientRect();
+      const hasLayout = rect.width > 0 || rect.height > 0;
+      const visible = !hasLayout || (
+        rect.bottom > 0
+        && rect.right > 0
+        && rect.top < window.innerHeight
+        && rect.left < window.innerWidth
+      );
       Object.assign(surface.style, {
         position: 'fixed',
         left: `${rect.left}px`,
         top: `${rect.top}px`,
         width: `${rect.width}px`,
         height: `${rect.height}px`,
-        visibility: 'visible',
-        pointerEvents: 'auto',
+        visibility: visible ? 'visible' : 'hidden',
+        pointerEvents: visible ? 'auto' : 'none',
       });
     };
-    placeOverDockHost();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(placeOverDockHost);
-    observer.observe(dockHost);
-    window.addEventListener('resize', placeOverDockHost);
+    placeOverTarget();
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(placeOverTarget);
+    observer?.observe(target);
+    window.addEventListener('resize', placeOverTarget);
+    document.addEventListener('scroll', placeOverTarget, true);
     return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', placeOverDockHost);
+      observer?.disconnect();
+      window.removeEventListener('resize', placeOverTarget);
+      document.removeEventListener('scroll', placeOverTarget, true);
     };
-  }, [displayMode, dockHost, dockTabVisible]);
+  }, [displayMode, dockHost, dockTabVisible, height]);
 
   useEffect(() => {
     if (displayMode === 'fullscreen' && !dockTabOpen) {
@@ -399,7 +406,12 @@ export const McpAppFrame = ({ instanceId, app, args, fallbackResult, scope }: Mc
   }
   return (
     <div className="chat-mcp-app" data-display-mode={displayMode}>
-      <div ref={inlineHostRef} className="chat-mcp-app__inline-host">
+      <div
+        ref={inlineHostRef}
+        className="chat-mcp-app__inline-host"
+        style={{ height: displayMode === 'inline' ? height : 0 }}
+      />
+      <Portal>
         <div
           ref={surfaceRef}
           className="chat-mcp-app__surface"
@@ -412,24 +424,25 @@ export const McpAppFrame = ({ instanceId, app, args, fallbackResult, scope }: Mc
             title={title}
             src={`pulse-mcp-app://sandbox/index.html?csp=${encodeURIComponent(resource.csp)}`}
             sandbox="allow-scripts allow-same-origin"
-            style={{ height: displayMode === 'fullscreen' ? '100%' : height }}
+            style={{ height: '100%' }}
             onLoad={() => { void connectBridge(); }}
           />
+          {displayMode === 'inline' && (
+            <Button
+              ref={expandButtonRef}
+              variant="icon"
+              size="lg"
+              className="chat-mcp-app__display-action"
+              aria-label={t('mcpApp.openInDock')}
+              title={t('mcpApp.openInDock')}
+              onClick={enterFullscreen}
+            >
+              <ArrowsOutSimple size={15} />
+            </Button>
+          )}
         </div>
-      </div>
-      {displayMode === 'inline' ? (
-        <Button
-          ref={expandButtonRef}
-          variant="icon"
-          size="lg"
-          className="chat-mcp-app__display-action"
-          aria-label={t('mcpApp.openInDock')}
-          title={t('mcpApp.openInDock')}
-          onClick={enterFullscreen}
-        >
-          <ArrowsOutSimple size={15} />
-        </Button>
-      ) : (
+      </Portal>
+      {displayMode === 'fullscreen' && (
         <Button size="sm" className="chat-mcp-app__return-inline" onClick={returnInline}>
           <ArrowUUpLeft size={15} />
           <span>{t('mcpApp.openInDockStatus', { title })}</span>
