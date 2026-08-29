@@ -385,18 +385,19 @@ export function useChatSessions({
       return next;
     });
   }, [scopeKey]);
-
   const retrySession = useCallback(async () => {
     const retry = threadRetryRef.current;
     if (retry?.scopeKey === scopeKey) {
       await runThreadFetch(retry.fetchThread, retry.expectedSessionId);
       return;
     }
-    await runThreadFetch(
-      () => window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current }),
-    );
+    await runThreadFetch(() => window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current }));
   }, [runThreadFetch, scopeKey]);
-
+  const recoverChangedSession = useCallback(async (error: string) => {
+    let recoveredSessionId: string | null | undefined;
+    const recovered = await runThreadFetch(async () => { const result = await window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current }); if (result.ok) recoveredSessionId = result.activeSessionId; return result; });
+    return recovered && recoveredSessionId ? { sessionId: recoveredSessionId, error } : null;
+  }, [runThreadFetch]);
   const failSessionMutation = useCallback((result: {
     code?: string;
     error?: string;
@@ -405,7 +406,6 @@ export function useChatSessions({
     setSessionError({ code: result.code, message });
     throw new Error(message);
   }, []);
-
   const renameSession = useCallback(async (
     sessionId: string,
     title: string,
@@ -474,7 +474,6 @@ export function useChatSessions({
       }
     }
   }, [agentScope, failSessionMutation, loadSessions, mutationRef, onConversationLoaded, onConversationMutationStart, onMessagesLoaded, t]);
-
   return {
     adoptActiveSession,
     otherSessions: visibleSessionLists.otherSessions,
@@ -488,6 +487,7 @@ export function useChatSessions({
     closeSessionMenu,
     openSessionMenu,
     renameSession,
+    recoverChangedSession,
     retrySession,
     sessionMenuOpen,
     sessionMenuRef,

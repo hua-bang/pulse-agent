@@ -25,10 +25,10 @@ import { clearConversationCompletion, recordConversationCompletion, useConversat
 export interface UseConversationRuntimeStreamOptions {
   agentScope: AgentScope;
   allWorkspaces?: WorkspaceOption[];
-  modelLabel?: string;
-  scopeLabel?: string;
   /** Fired on turn complete so the session rail refreshes previews. */
   onTurnComplete?: () => void;
+  /** Restore the authoritative current conversation after a stale-session rejection. */
+  onSessionChanged?: (error: string) => void | Promise<void>;
   /**
    * The conversation whose run state this surface drives. Optional so a
    * parent composer can mount before the session id is known; an empty key
@@ -48,9 +48,8 @@ const EMPTY_KEY: ConversationKey = { storeId: '', sessionId: '' };
 export function useConversationRuntimeStream({
   agentScope,
   allWorkspaces,
-  modelLabel,
-  scopeLabel,
   onTurnComplete,
+  onSessionChanged,
   conversationKey,
   visible = true,
 }: UseConversationRuntimeStreamOptions) {
@@ -65,10 +64,10 @@ export function useConversationRuntimeStream({
   const [messageTools, setMessageTools] = useState<Map<number, ToolCallStatus[]>>(new Map());
   const onTurnCompleteRef = useRef(onTurnComplete);
   onTurnCompleteRef.current = onTurnComplete;
+  const onSessionChangedRef = useRef(onSessionChanged);
+  onSessionChangedRef.current = onSessionChanged;
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const toolIdCounter = useRef(0);
-  const streamingMsgIdx = useRef(-1);
-
   useConversationVisibility(key, keyed && visible);
 
   useEffect(() => {
@@ -131,7 +130,6 @@ export function useConversationRuntimeStream({
         if (assistantIndex >= 0) return;
         const current = readConversationSnapshot(key).messages;
         assistantIndex = current.length;
-        streamingMsgIdx.current = current.length;
         setConversationMessages(key, [...current, { role: 'assistant', content: '', timestamp: Date.now() }]);
       };
 
@@ -232,10 +230,12 @@ export function useConversationRuntimeStream({
           if (settled) return;
           settled = true;
           if (completeResult.code === 'CHAT_SESSION_CHANGED') {
-            setConversationError(key, completeResult.error ?? 'Conversation changed');
+            const error = completeResult.error ?? 'Conversation changed';
+            setConversationError(key, error);
             setConversationLoading(key, false);
             recordConversationCompletion(key, 'failed', completeResult.runId ?? `${key.storeId}:${sessionId}:${userMessage.timestamp}`, trimmed.slice(0, 60));
             cleanupRunListeners();
+            void onSessionChangedRef.current?.(error);
             return;
           }
           textBatcher.flush();
