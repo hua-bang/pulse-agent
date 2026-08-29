@@ -522,7 +522,12 @@ follows the live pointer, main no longer CAS-compares it at start. Instead the
 renderer's `expectedConversationSessionId` IS the run's anchor: if that
 conversation was deleted while the message was in flight, the turn returns
 `CHAT_SESSION_CHANGED` with the authoritative current session id, and nothing
-is persisted.
+is persisted. The keyed renderer must then fetch authoritative history, hydrate
+that conversation without overwriting a newer live snapshot, and adopt its
+session id; leaving the error on the rejected key strands the optimistic user
+message in a conversation that no longer exists.
+
+Guard: `src/renderer/src/components/chat/hooks/useChatComposerStateKeyed.test.tsx`.
 
 **Switching conversations while a run streams.** The rail stays usable: picking
 another session calls `disposeCurrentTurn` (via `useChatPagePendingSession`'s

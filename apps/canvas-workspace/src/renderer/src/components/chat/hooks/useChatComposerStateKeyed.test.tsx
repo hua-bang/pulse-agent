@@ -114,6 +114,109 @@ describe('useChatComposerStateKeyed', () => {
     expect(latest?.messages.map(m => m.content)).toEqual(['B loaded']);
   });
 
+  it('restores the authoritative current conversation after a stale-session rejection', async () => {
+    const callbacks = new Map<string, (payload: any) => void>();
+    const listen = (name: string) => (_sessionId: string, callback: (payload: any) => void) => {
+      callbacks.set(name, callback);
+      return () => undefined;
+    };
+    const restoredMessages = [
+      { role: 'user' as const, content: 'latest thread', timestamp: 2 },
+    ];
+    const agent = {
+      loadSession: vi.fn(async () => ({
+        ok: true,
+        activeSessionId: 'session-a',
+        messages: [{ role: 'user' as const, content: 'stale thread', timestamp: 1 }],
+      })),
+      getHistory: vi.fn(async () => ({
+        ok: true,
+        activeSessionId: 'session-b',
+        messages: restoredMessages,
+      })),
+      onTextDelta: listen('text'),
+      onToolCall: listen('tool-call'),
+      onToolResult: listen('tool-result'),
+      onToolInputStart: listen('tool-input-start'),
+      onToolInputDelta: listen('tool-input-delta'),
+      onToolInputEnd: listen('tool-input-end'),
+      onClarifyRequest: listen('clarify'),
+      onChatComplete: listen('complete'),
+      onRoleTurnStart: listen('role-start'),
+      onRoleTurnEnd: listen('role-end'),
+      conversationChat: vi.fn(async () => {
+        callbacks.get('complete')?.({
+          ok: false,
+          code: 'CHAT_SESSION_CHANGED',
+          error: 'This conversation no longer exists. The latest thread was restored.',
+        });
+        return { ok: true, sessionId: 'session-a' };
+      }),
+    };
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent };
+    const nextRoot = createRoot(host!);
+    root = nextRoot;
+    await act(async () => {
+      nextRoot.render(createElement(I18nProvider, null, createElement(LiveHarness)));
+    });
+    await act(async () => {
+      await latest?.handleLoadSession('session-a');
+    });
+
+    await act(async () => {
+      expect(await latest?.sendMessage('message for deleted thread')).toBe(true);
+      await Promise.resolve();
+    });
+
+    expect(agent.getHistory).toHaveBeenCalledWith({ scope });
+    expect(latest?.activeSessionId).toBe('session-b');
+    expect(latest?.messages).toEqual(restoredMessages);
+    expect(latest?.conversationError)
+      .toBe('This conversation no longer exists. The latest thread was restored.');
+  });
+
+  it('does not let recovery override a newer explicit session load', async () => {
+    let finishRecovery!: (result: {
+      ok: true;
+      activeSessionId: string;
+      messages: Array<{ role: 'user'; content: string; timestamp: number }>;
+    }) => void;
+    const getHistory = vi.fn(() => new Promise(resolve => { finishRecovery = resolve; }));
+    const loadSession = vi.fn(async () => ({
+      ok: true,
+      activeSessionId: 'session-newer',
+      messages: [{ role: 'user' as const, content: 'newer intent', timestamp: 3 }],
+    }));
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = {
+      agent: { getHistory, loadSession },
+    };
+    const nextRoot = createRoot(host!);
+    root = nextRoot;
+    await act(async () => {
+      nextRoot.render(createElement(I18nProvider, null, createElement(LiveHarness)));
+    });
+
+    let recovering!: Promise<{ sessionId: string; error: string } | null>;
+    await act(async () => {
+      recovering = latest!.recoverChangedSession('Conversation changed');
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await latest!.handleLoadSession('session-newer');
+    });
+    await act(async () => {
+      finishRecovery({
+        ok: true,
+        activeSessionId: 'session-older',
+        messages: [{ role: 'user', content: 'older recovery', timestamp: 2 }],
+      });
+      expect(await recovering).toBeNull();
+    });
+
+    expect(latest?.activeSessionId).toBe('session-newer');
+    expect(latest?.messages.map(message => message.content)).toEqual(['newer intent']);
+  });
+
   it('does not replace a running conversation with stale persisted history', async () => {
     setConversationMessages(keyB, [
       { role: 'user', content: 'live current turn', timestamp: 2 },

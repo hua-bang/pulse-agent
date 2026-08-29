@@ -7,7 +7,11 @@ import { useChatSessions } from './useChatSessions';
 import { useConversationRuntimeStream } from './useConversationRuntimeStream';
 import { useMentions } from './useMentions';
 import { conversationKeyFromScope } from './useConversationRuntimeStream';
-import { captureConversationSequences, hydrateConversationMessages } from './conversationStore';
+import {
+  captureConversationSequences,
+  hydrateConversationMessages,
+  setConversationError,
+} from './conversationStore';
 import type { LoadedConversation } from './loadedConversationSink';
 
 interface UseChatComposerStateKeyedOptions {
@@ -59,14 +63,25 @@ export function useChatComposerStateKeyed({
   const conversationKey: ConversationKey | undefined = conversationSessionId
     ? conversationKeyFromScope(agentScope, conversationSessionId)
     : undefined;
+  const changedSessionRecoveryRef = useRef<(
+    error: string,
+  ) => Promise<{ sessionId: string; error: string } | null>>();
+
+  const recoverChangedSession = useCallback(async (error: string) => {
+    const recovered = await changedSessionRecoveryRef.current?.(error);
+    if (!recovered) return;
+    setConversationError(
+      conversationKeyFromScope(agentScope, recovered.sessionId),
+      recovered.error,
+    );
+  }, [agentScope]);
 
   const chatStream = useConversationRuntimeStream({
     agentScope,
     allWorkspaces,
-    modelLabel: canvasModels.selectedLabel,
-    scopeLabel,
     conversationKey,
     visible: conversationVisible,
+    onSessionChanged: recoverChangedSession,
     onTurnComplete: () => {
       if (sessionListRefreshTimerRef.current) window.clearTimeout(sessionListRefreshTimerRef.current);
       sessionListRefreshTimerRef.current = window.setTimeout(() => {
@@ -95,6 +110,7 @@ export function useChatComposerStateKeyed({
     eagerLoad,
     skipInitialHistory,
   });
+  changedSessionRecoveryRef.current = chatSessions.recoverChangedSession;
 
   const loadSessionsRef = useRef(chatSessions.loadSessions);
   loadSessionsRef.current = chatSessions.loadSessions;
