@@ -325,16 +325,26 @@ function boundedAppResult(value: unknown): unknown {
   }
 }
 
-function boundedMcpResponse(value: unknown, label: string): unknown {
+function serializeMcpResponse(value: unknown, label: string): string {
   let json: string | undefined;
   try {
     json = JSON.stringify(value);
   } catch {
     throw new Error(`${label} was not JSON serializable`);
   }
-  if (!json || json.length > MCP_APP_RESULT_LIMIT) {
+  if (json === undefined) throw new Error(`${label} was not JSON serializable`);
+  return json;
+}
+
+function boundedMcpResponse(value: unknown, label: string): unknown {
+  if (serializeMcpResponse(value, label).length > MCP_APP_RESULT_LIMIT) {
     throw new Error(`${label} exceeded the 2 MiB host limit`);
   }
+  return value;
+}
+
+function serializableMcpResponse(value: unknown, label: string): unknown {
+  serializeMcpResponse(value, label);
   return value;
 }
 
@@ -436,7 +446,7 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
         readResource: async (serverName, uri) => {
           const runtime = serverRuntimes[serverName];
           if (!runtime) throw new Error(`Unknown MCP server: ${serverName}`);
-          return boundedMcpResponse(
+          return serializableMcpResponse(
             await runtime.client.readResource({ uri, options: { timeout: 30_000 } }),
             'MCP resource',
           );
