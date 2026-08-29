@@ -86,7 +86,7 @@ An `@Plugin` is an explicit turn-level routing preference and scope hint. It doe
 - `installed`: the package is registered in `canvas-plugins.json` and represented in the market snapshot;
 - `unsupported`: discovery only; the UI offers `Explore` and opens the Git source.
 
-The launch catalog contains six reviewed, installable Agent Plugins v1 packages: Exa, TranscriptAPI, Arcade, Resend, OpnForm and Mobbin. Each entry points to a concrete package root that passes the strict reader; OpnForm uses a repository subdirectory. The catalog is intentionally small and compiled into the app because Agent Plugins defines package structure, not discovery or marketplace governance. Do not mark a repository installable merely because it contains reusable skills or a file named `plugin.json`.
+The launch catalog contains nine reviewed, installable Agent Plugins v1 packages: Exa, TranscriptAPI, Arcade, Resend, OpnForm, Mobbin, plus three Developer-category MCP Apps demos (Basic React, Interactive Map, Three.js). Each entry points to a concrete package root that passes the strict reader; OpnForm and the demos use repository subdirectories. Demo wrappers live under root `examples/agent-plugins/`, pin the upstream npm server version, and are referenced by the immutable wrapper commit rather than the moving branch. The catalog is intentionally small and compiled into the app because Agent Plugins defines package structure, not discovery or marketplace governance. Do not mark a repository installable merely because it contains reusable skills or a file named `plugin.json`.
 
 ## State and disk layout
 
