@@ -286,6 +286,11 @@ continue on Engine; see `docs/09-agent-backend-boundary.md`. Deprecated
 `src/main/agent/segment-execution.test.ts`,
 `src/main/agent/backends/registry.test.ts`.
 
+Every native runtime must preserve the complete renderer-facing tool-result
+contract, not only its text/status fields. In particular, Pi tool results for
+MCP Apps must resolve and retain the Engine MCP App descriptor so inline UI
+works identically whether the experimental Pi runtime is enabled or disabled.
+
 - Headless CLI spawn: Claude Code runs as `claude -p --output-format
   stream-json --verbose --include-partial-messages` (`buildClaudeCodeArgs`
   in `src/main/agent/external/claude-code.ts`), with the prompt piped

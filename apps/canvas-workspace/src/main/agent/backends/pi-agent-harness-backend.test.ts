@@ -243,6 +243,12 @@ describe('pi AgentHarness turn backend', () => {
     };
     const visible = new Set(['tool_search_tool_bm25']);
     const dispose = vi.fn();
+    const mcpApp = {
+      serverName: 'example.server',
+      toolName: 'canvas_update_node',
+      registeredToolName: 'canvas_update_node',
+      resourceUri: 'ui://example/update-node.html',
+    };
     const executeTool = vi.fn(async (name: keyof typeof sourceTools, input: unknown, context: unknown) => {
       if (!visible.has(name)) throw new Error(`Unavailable tool: ${name}`);
       if (name === 'tool_search_tool_bm25') {
@@ -259,6 +265,10 @@ describe('pi AgentHarness turn backend', () => {
         // Engine's static registry. Pi must use the policy session definition.
         getTools: () => ({ tool_search_tool_bm25: sourceTools.tool_search_tool_bm25 }),
         compactContext: async () => ({ didCompact: false }),
+        getService: (name: string) => name === 'mcp:__apps__' ? {
+          getToolApp: (toolName: string) => toolName === 'canvas_update_node' ? mcpApp : undefined,
+          getToolResult: () => undefined,
+        } : undefined,
         createToolSession: async () => ({
           getRegisteredTools: () => sourceTools,
           getTools: () => Object.fromEntries(
@@ -307,6 +317,22 @@ describe('pi AgentHarness turn backend', () => {
     });
     expect(onToolCall).toHaveBeenCalledTimes(2);
     expect(onToolResult).toHaveBeenCalledTimes(2);
+    expect(onToolResult.mock.calls[1][0]).toMatchObject({
+      mcpApp: {
+        serverName: 'example.server',
+        toolName: 'canvas_update_node',
+        resourceUri: 'ui://example/update-node.html',
+        result: 'updated',
+      },
+    });
+    expect(result.toolCalls?.[1]).toMatchObject({
+      mcpApp: {
+        serverName: 'example.server',
+        toolName: 'canvas_update_node',
+        resourceUri: 'ui://example/update-node.html',
+        result: 'updated',
+      },
+    });
     const recordedMessages = recordResponseMessages.mock.calls
       .flatMap(([messages]) => messages) as any[];
     expect(recordedMessages.map(message => message.role)).toEqual([
