@@ -17,7 +17,7 @@
 
 .chat-model-catalog-head strong {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-medium);
 }
 
 .chat-model-catalog-head span {
@@ -85,7 +85,7 @@
   background: var(--surface);
   color: var(--accent);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-medium);
   flex-shrink: 0;
 }
 
@@ -106,7 +106,7 @@
 .chat-model-model-row-copy strong {
   color: var(--text);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--font-weight-medium);
 }
 
 .chat-model-model-row-copy small {

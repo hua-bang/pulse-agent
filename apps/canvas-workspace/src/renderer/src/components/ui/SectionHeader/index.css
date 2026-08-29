@@ -1,4 +1,4 @@
-/* ui/SectionHeader — title (15px/700) + optional muted description (12px).
+/* ui/SectionHeader — title (15px/500) + optional muted description (12px).
  * Metrics lifted from the byte-identical Settings/UpdateSection.css and
  * Settings/LanguageSection/index.css `-title`/`-desc` rules. */
 
@@ -10,8 +10,8 @@
 }
 
 .ui-section-header__title {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-medium);
   color: var(--text);
 }
 

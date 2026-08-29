@@ -1,3 +1,4 @@
+import '@fontsource-variable/lexend/wght.css';
 import { createRoot } from 'react-dom/client';
 import { Showcase } from './Showcase';
 // The real renderer's global stylesheet — defines every CSS custom

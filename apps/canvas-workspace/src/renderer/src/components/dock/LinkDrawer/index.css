@@ -79,7 +79,7 @@
 
 .link-drawer__suggestion-copy strong {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;

@@ -65,7 +65,7 @@
 
 .language-section-option-label {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: var(--font-weight-medium);
 }
 
 .language-section-option-sub {

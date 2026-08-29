@@ -97,7 +97,7 @@
 
 .workspace-terminal-dock__title strong {
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--font-weight-medium);
 }
 
 .workspace-terminal-dock--pane .workspace-terminal-dock__title strong {
@@ -254,7 +254,7 @@
   background: rgba(236, 253, 245, 0.76);
   color: #0f766e;
   font: inherit;
-  font-weight: 650;
+  font-weight: var(--font-weight-medium);
 }
 
 .workspace-terminal-dock__mention-hint-close {

@@ -23,6 +23,9 @@ importers:
       '@ai-sdk/openai':
         specifier: ^3.0.21
         version: 3.0.21(zod@4.3.6)
+      '@fontsource-variable/lexend':
+        specifier: 5.3.0
+        version: 5.3.0
       '@larksuiteoapi/node-sdk':
         specifier: ^1.59.0
         version: 1.59.0
@@ -1048,6 +1051,9 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+
+  '@fontsource-variable/lexend@5.3.0':
+    resolution: {integrity: sha512-3SXtiZ8rFbT0oaPzEboCG5RM3jtyhpNxandh1jWNLqvrJRfV/eP3R+GGw+o5e3hS1uqmAGutKxSvaWG5oyrimA==}
 
   '@google/genai@1.52.0':
     resolution: {integrity: sha512-gwSvbpiN/17O9TbsqSsE/OzZcpv5Fo4RQjdngGgogtuB9RsyJ8ZHhX5KjHj1bp5N9snN2eK8LDGXSaWW2hof8Q==}
@@ -5430,6 +5436,8 @@ snapshots:
       '@floating-ui/utils': 0.2.11
 
   '@floating-ui/utils@0.2.11': {}
+
+  '@fontsource-variable/lexend@5.3.0': {}
 
   '@google/genai@1.52.0':
     dependencies:

@@ -75,7 +75,7 @@
 .command-palette-section-label {
   padding: 8px 18px 4px;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
   letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -147,7 +147,7 @@
 
 .command-palette-badge {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   padding: 2px 6px;
   border-radius: var(--radius-xs);

@@ -103,14 +103,21 @@
   --radius-xs: 4px;
   --radius-xl: 12px;
   --radius-pill: 999px;
-  --font: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
-  --font-mono: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
-  /* Humanist sans for canvas READING surfaces (node/frame/group titles) —
-   * same stack as the note editor (FileNodeBody). App chrome stays on the
-   * mono --font identity; this token is only for text the user reads as
-   * knowledge-map content, where mono's terminal texture reads as noise. */
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
-    "Inter", "Helvetica Neue", Arial, sans-serif;
+  /* Product typography: Lexend is bundled by Vite from Fontsource, while
+   * PingFang remains the native macOS CJK face. Code, paths, and terminal
+   * surfaces opt into the separate mono token. --font stays as a compatibility
+   * alias for the existing renderer styles that mean "UI text". */
+  --font-sans: "Lexend Variable", "PingFang SC", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font: var(--font-sans);
+  --font-ui: var(--font-sans);
+  --font-mono: "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-size-ui: 13px;
+  --font-size-title: 15px;
+  --font-size-page-title: 24px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-emphasis: 600;
   --sidebar-width: 240px;
   --sidebar-collapsed: 48px;
   --titlebar-height: 38px;
@@ -177,7 +184,19 @@ body {
   color: var(--text);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
-  font-size: 14px;
+  font-size: var(--font-size-ui);
+  font-weight: var(--font-weight-regular);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+strong,
+b {
+  font-weight: var(--font-weight-medium);
 }
 
 button,

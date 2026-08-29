@@ -488,7 +488,7 @@ export const GraphPage = ({
     if (shouldShowLabel && isHighlighted) {
       const label = node.label || nodeId;
       const fontSize = Math.max(8, 11 / globalScale);
-      ctx.font = `${fontSize}px "SF Mono", "Fira Code", Menlo, monospace`;
+      ctx.font = `${fontSize}px "Lexend Variable", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       const textWidth = ctx.measureText(label).width;
       const paddingX = 4;
       const paddingY = 2.5;

@@ -5,8 +5,7 @@
   overflow: auto;
   padding: 22px 32px 56px;
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
-    "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: 14.5px;
   line-height: 1.7;
   cursor: default;

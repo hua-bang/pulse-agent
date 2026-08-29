@@ -20,7 +20,7 @@
 .scheduled-editor__header > span {
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--font-weight-medium);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -28,7 +28,8 @@
 .scheduled-page__header h1 {
   margin: 7px 0 0;
   color: var(--text);
-  font-size: 22px;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-emphasis);
   line-height: 1.2;
 }
 
@@ -166,7 +167,7 @@
 .scheduled-editor__prompt-heading > span {
   color: var(--text-muted);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-medium);
   letter-spacing: 0.01em;
 }
 

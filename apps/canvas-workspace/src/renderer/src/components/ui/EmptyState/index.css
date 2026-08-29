@@ -26,7 +26,7 @@
    * renders identically to the default div. */
   margin: 0;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: var(--font-weight-medium);
   color: var(--text);
 }
 

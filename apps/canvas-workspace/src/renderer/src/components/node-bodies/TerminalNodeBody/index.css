@@ -76,7 +76,7 @@
   background: rgba(236, 253, 245, 0.76);
   color: #0f766e;
   font: inherit;
-  font-weight: 650;
+  font-weight: var(--font-weight-medium);
 }
 
 .terminal-mention-hint__close {

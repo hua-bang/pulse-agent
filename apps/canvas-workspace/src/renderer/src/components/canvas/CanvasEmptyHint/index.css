@@ -40,7 +40,7 @@
   margin-bottom: 6px;
   color: var(--accent);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-medium);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -49,7 +49,7 @@
   margin: 0 0 8px;
   color: var(--text);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: var(--font-weight-medium);
 }
 
 .hint-sub {
@@ -92,7 +92,7 @@
   margin-bottom: 10px;
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--font-weight-medium);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -117,7 +117,7 @@
 
 .canvas-empty-action__label {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--font-weight-medium);
 }
 
 .canvas-empty-action__description {
