@@ -58,6 +58,21 @@ describe('chat stop normalization', () => {
     expect(outcome.rawText).not.toContain('Request aborted');
   });
 
+  it('keeps a tool-only turn empty instead of adding a no-response placeholder', () => {
+    expect(resolveSegmentOutcome({
+      signalAborted: false,
+      resultText: '',
+      streamedText: '',
+      hasToolOutput: true,
+    })).toEqual({ stopped: false, rawText: '' });
+
+    expect(resolveSegmentOutcome({
+      signalAborted: false,
+      resultText: '',
+      streamedText: '',
+    })).toEqual({ stopped: false, rawText: '(no response)' });
+  });
+
   it('marks only unfinished tools as cancelled', () => {
     const tools = [
       { id: 1, name: 'read', status: 'succeeded' as const },

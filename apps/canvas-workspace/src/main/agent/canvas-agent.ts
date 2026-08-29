@@ -870,19 +870,19 @@ export class CanvasAgent {
         observabilityCursor = markCanvasRuntimeCompleted(performanceTiming, runtimeStartedAt, runtimeOwner);
         markTraceRuntimeCompleted(debugTrace);
 
+        const toolCalls = externalToolCalls ?? modelMessagesToToolCalls(responseMessages, (name, id) => resolveMcpApp(this.getMcpAppsManager(), name, id));
+
         // Impersonation guard runs before persist/label/handoff.
         const { stopped, rawText } = resolveSegmentOutcome({
           signalAborted: abortController.signal.aborted,
           resultText,
-          streamedText,
+          streamedText, hasToolOutput: toolCalls.length > 0,
         });
         const responseText = role
-          ? sanitizeRoleSegmentText(rawText, role.name, knownRoleNames) || (stopped ? '' : '(no response)')
+          ? sanitizeRoleSegmentText(rawText, role.name, knownRoleNames) || (stopped || toolCalls.length > 0 ? '' : '(no response)')
           : rawText;
         recordTraceMessageSnapshot(debugTrace, { systemPrompt: segmentPrompt, messages: context.messages });
 
-        // Tool frames persist so reloaded sessions keep chips/artifacts.
-        const toolCalls = externalToolCalls ?? modelMessagesToToolCalls(responseMessages, (name, id) => resolveMcpApp(this.getMcpAppsManager(), name, id));
         if (stopped) {
           settleStoppedToolCalls(toolCalls, failedTurnTools.snapshot());
           // Engine returns a sentinel on abort; preserve the exact text the

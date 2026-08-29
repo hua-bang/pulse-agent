@@ -451,7 +451,9 @@ Mechanism, in `src/main/agent/segment-execution.ts` and
   streamedText })`: `stopped` is true when `signalAborted` OR `resultText
   === ENGINE_ABORT_SENTINEL`; the returned `rawText` is `streamedText` when
   stopped (never the sentinel, so the sentinel string is never shown to the
-  user), or `resultText` (falling back to `'(no response)'`) otherwise.
+  user), or `resultText` otherwise. A genuinely empty turn falls back to
+  `'(no response)'` only when it has no tool output; a tool-only turn keeps
+  empty assistant text because its tool card or MCP App is the response.
 - Live tool events that the rejected driver's own return value could not
   carry (because the throw happened before `runExternalRoleSegment`
   returned its `toolCalls` array) are captured separately: a
