@@ -130,8 +130,6 @@
   "dependencies": {
     "@ai-sdk/openai": "^3.0.21",
     "@larksuiteoapi/node-sdk": "^1.59.0",
-    "@modelcontextprotocol/ext-apps": "1.7.5",
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^6.0.57",
     "fflate": "^0.8.2",
     "happy-dom": "^20.10.6",
@@ -143,6 +141,8 @@
   "devDependencies": {
     "@earendil-works/pi-agent-core": "0.83.0",
     "@earendil-works/pi-ai": "0.83.0",
+    "@modelcontextprotocol/ext-apps": "1.7.5",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@fontsource-variable/lexend": "5.3.0",
     "@electron/rebuild": "^4.0.3",
     "@langfuse/otel": "^5.10.0",

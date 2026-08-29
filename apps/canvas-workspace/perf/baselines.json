@@ -160,13 +160,13 @@
     },
     "bundle.total_js_kb": {
       "profile": "global-deterministic", "target": 5565, "warning": 5850,
-      "confidence": "high", "basis": "2026-08-24 对照 origin/master 0.1.48 实测 total JS 约 5823KB；Agent Plugins 市场新增约 124KB 路由级 renderer 载荷与约 12KB main/共享运行时载荷，当前分支经 lazy route 与动态 IPC/reader 拆分后实测 5966KB。保留 5565 target 与 5850 warning，ratchet 落锚到当前 master 加本次已验证功能载荷。", "asOf": "2026-08-24",
-      "gate": { "kind": "ratchet", "baseline": 5825, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-08-29 内联 MCP Apps Host 引入官方 AppBridge/PostMessage transport 与标准 schema，完整 renderer JS 实测 6103KB；依赖已移至 devDependencies，避免 Electron 产物重复携带 SDK node_modules。保留 5565 target 与 5850 warning 作为后续轻量 bridge/code-split 压力，ratchet 落锚到已验证功能载荷。", "asOf": "2026-08-29",
+      "gate": { "kind": "ratchet", "baseline": 6103, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 690,
-      "confidence": "high", "basis": "并行 conversation runtime 将 main 从既有 651KB 载荷增加到约 679KB（含 session-anchored persistence、conversation IPC 与 runtime registry）；bootstrap 已将 conversation IPC 拆为 lazy chunk，避免其继续进入启动入口。保留 550 target，warning 调至 690，ratchet 重新落锚到这次已验证的功能载荷；后续继续优化 main lazy boundary。", "asOf": "2026-08-23",
-      "gate": { "kind": "ratchet", "baseline": 673, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-08-29 内联 MCP Apps 增加独立 origin sandbox protocol、受控 IPC 与 Engine registered-tool execution/capture 边界，main 实测 699KB。保留 550 target 与 690 warning，ratchet 仅落锚必要的宿主安全/执行载荷；后续继续拆分 MCP Apps IPC 与协议服务。", "asOf": "2026-08-29",
+      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 3, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
