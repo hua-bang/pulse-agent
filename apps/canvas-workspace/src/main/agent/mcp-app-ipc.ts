@@ -8,11 +8,24 @@ import {
 import type { AgentScope, AgentScopeRef } from './types';
 import type { CanvasAgentService } from './service';
 import { serializeMcpAppToolArguments } from '../../shared/mcp-apps';
+import { McpAppSessionApprovals } from './mcp-app-session-approvals';
 
 const MAX_CONCURRENT_REQUESTS = 8;
 const TOOL_TIMEOUT_MS = 30_000;
 const activeRequests = new Map<number, number>();
 const pendingApprovals = new Set<number>();
+const sessionApprovals = new McpAppSessionApprovals();
+const approvalCleanupRegistered = new Set<number>();
+
+const registerApprovalCleanup = (event: IpcMainInvokeEvent): void => {
+  const senderId = event.sender.id;
+  if (approvalCleanupRegistered.has(senderId)) return;
+  approvalCleanupRegistered.add(senderId);
+  event.sender.once('destroyed', () => {
+    approvalCleanupRegistered.delete(senderId);
+    sessionApprovals.clear(senderId);
+  });
+};
 
 export function resolveAgentScope(payload: AgentScopeRef): AgentScope {
   if (payload.scope?.kind === 'global') return { kind: 'global' };
@@ -106,7 +119,11 @@ export function setupMcpAppIpc(service: CanvasAgentService): void {
         return { ok: false, error: 'valid serverName and toolName are required' };
       }
       const senderId = event.sender.id;
-      if (pendingApprovals.has(senderId)) return { ok: false, error: 'Another MCP App approval is pending' };
+      const scope = resolveAgentScope(payload);
+      const approvedForSession = sessionApprovals.has(senderId, scope, serverName);
+      if (!approvedForSession && pendingApprovals.has(senderId)) {
+        return { ok: false, error: 'Another MCP App approval is pending' };
+      }
       let detail: string;
       try {
         detail = serializeMcpAppToolArguments(payload.arguments);
@@ -122,16 +139,28 @@ export function setupMcpAppIpc(service: CanvasAgentService): void {
         title: 'Allow MCP App tool call?',
         message: `${serverName} wants to call ${toolName}`,
         detail,
+        checkboxLabel: `Allow all calls from ${serverName} for this Pulse session`,
+        checkboxChecked: false,
       };
-      pendingApprovals.add(senderId);
       try {
-        const owner = BrowserWindow.fromWebContents(event.sender);
-        const confirmation = owner
-          ? await dialog.showMessageBox(owner, options)
-          : await dialog.showMessageBox(options);
-        if (confirmation.response !== 0) return { ok: false, error: 'Tool call was cancelled' };
+        if (!approvedForSession) {
+          pendingApprovals.add(senderId);
+          try {
+            const owner = BrowserWindow.fromWebContents(event.sender);
+            const confirmation = owner
+              ? await dialog.showMessageBox(owner, options)
+              : await dialog.showMessageBox(options);
+            if (confirmation.response !== 0) return { ok: false, error: 'Tool call was cancelled' };
+            if (confirmation.checkboxChecked) {
+              sessionApprovals.grant(senderId, scope, serverName);
+              registerApprovalCleanup(event);
+            }
+          } finally {
+            pendingApprovals.delete(senderId);
+          }
+        }
         return await boundedRequest(event, async () => {
-          const { agent, manager } = await managerFor(service, resolveAgentScope(payload));
+          const { agent, manager } = await managerFor(service, scope);
           const registeredName = manager.getRegisteredToolName(serverName, toolName);
           if (!registeredName) throw new Error('Unknown or disabled MCP App tool');
           const abortController = new AbortController();
@@ -151,8 +180,6 @@ export function setupMcpAppIpc(service: CanvasAgentService): void {
         });
       } catch (error) {
         return errorResult(error);
-      } finally {
-        pendingApprovals.delete(senderId);
       }
     },
   );

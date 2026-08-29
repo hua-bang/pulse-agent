@@ -23,5 +23,7 @@ describe('createMcpAppSandboxResponse', () => {
     expect(html).toContain("event.key==='Escape'");
     expect(html).toContain("type:'pulse-mcp-app-host-event'");
     expect(html).toContain("send('activate')");
+    expect(html).toContain("installStorage('localStorage')");
+    expect(html).toContain('Object.defineProperty(window,name');
   });
 });

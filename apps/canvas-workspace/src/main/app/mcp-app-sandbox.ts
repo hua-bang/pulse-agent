@@ -5,7 +5,7 @@ const DEFAULT_CSP = [
   "img-src data: blob:",
   "font-src data:",
   "media-src blob:",
-  "connect-src 'none'",
+  'connect-src data:',
   "frame-src 'self'",
   "base-uri 'none'",
   "form-action 'none'",
@@ -21,7 +21,7 @@ const SANDBOX_HTML = `<!doctype html>
   document.body.appendChild(inner);
   const proxyReady = 'ui/notifications/sandbox-proxy-ready';
   const resourceReady = 'ui/notifications/sandbox-resource-ready';
-  const hostControls = "<script data-pulse-mcp-app-host-controls>(()=>{const send=action=>window.parent.postMessage({type:'pulse-mcp-app-host-event',action},'*');window.addEventListener('keydown',event=>{if(event.key==='Escape')send('escape')},true);window.addEventListener('pointerdown',()=>send('activate'),true);window.addEventListener('focusin',()=>send('activate'),true)})();<\\/script>";
+  const hostControls = "<script data-pulse-mcp-app-host-controls>(()=>{const installStorage=name=>{try{window[name].length;return}catch{}const data=new Map(),storage={get length(){return data.size},key:index=>[...data.keys()][index]??null,getItem:key=>data.get(String(key))??null,setItem:(key,value)=>data.set(String(key),String(value)),removeItem:key=>data.delete(String(key)),clear:()=>data.clear()};Object.defineProperty(window,name,{configurable:true,value:storage})};installStorage('localStorage');installStorage('sessionStorage');const send=action=>window.parent.postMessage({type:'pulse-mcp-app-host-event',action},'*');window.addEventListener('keydown',event=>{if(event.key==='Escape')send('escape')},true);window.addEventListener('pointerdown',()=>send('activate'),true);window.addEventListener('focusin',()=>send('activate'),true)})();<\\/script>";
   const notifyReady = () => window.parent.postMessage({ jsonrpc: '2.0', method: proxyReady, params: {} }, '*');
   window.addEventListener('message', (event) => {
     if (event.source === window.parent) {

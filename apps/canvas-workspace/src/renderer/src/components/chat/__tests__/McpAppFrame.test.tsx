@@ -34,7 +34,7 @@ vi.mock('@modelcontextprotocol/ext-apps/app-bridge', () => ({
 describe('buildMcpAppCsp', () => {
   it('denies undeclared network and frame access by default', () => {
     const csp = buildMcpAppCsp();
-    expect(csp).toContain("connect-src 'none'");
+    expect(csp).toContain('connect-src data:');
     expect(csp).toContain("frame-src 'self'");
     expect(csp).toContain("form-action 'none'");
   });
@@ -48,7 +48,7 @@ describe('buildMcpAppCsp', () => {
         },
       },
     });
-    expect(csp).toContain('connect-src https://api.example.com');
+    expect(csp).toContain('connect-src data: https://api.example.com');
     expect(csp).toContain('https://cdn.example.com');
     expect(csp).not.toContain('https://bad.example/x');
   });

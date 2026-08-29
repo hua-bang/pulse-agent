@@ -92,7 +92,7 @@ export function buildMcpAppCsp(meta?: unknown): string {
     `img-src data: blob:${resources.length ? ` ${resources.join(' ')}` : ''}`,
     `font-src data:${resources.length ? ` ${resources.join(' ')}` : ''}`,
     `media-src blob:${resources.length ? ` ${resources.join(' ')}` : ''}`,
-    directive('connect-src', connect),
+    directive('connect-src', ['data:', ...connect]),
     `frame-src 'self'${frames.length ? ` ${frames.join(' ')}` : ''}`,
     "base-uri 'none'",
     "form-action 'none'",
