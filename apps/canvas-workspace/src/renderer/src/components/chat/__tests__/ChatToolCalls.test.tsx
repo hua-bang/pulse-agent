@@ -20,7 +20,12 @@ afterEach(() => {
   root = null;
 });
 
-const renderToolCalls = (tools: ToolCallStatus[], expandedTools = new Set<number>()) => {
+const renderToolCalls = (
+  tools: ToolCallStatus[],
+  expandedTools = new Set<number>(),
+  isStreaming = false,
+  liveDetailsOpen = false,
+) => {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -31,6 +36,8 @@ const renderToolCalls = (tools: ToolCallStatus[], expandedTools = new Set<number
         collapsed={false}
         expandedTools={expandedTools}
         showSectionHeader={false}
+        isStreaming={isStreaming}
+        liveDetailsOpen={liveDetailsOpen}
         onToggleSection={vi.fn()}
         onToggleToolExpand={vi.fn()}
       />
@@ -93,6 +100,19 @@ describe('ChatToolCalls tab tool labels', () => {
     expect(host!.textContent).not.toContain('已执行');
   });
 
+  it('uses human actions for skill, clarification, and Tavily without repeating raw tool names', () => {
+    renderToolCalls([
+      { id: 31, name: 'skill', status: 'succeeded' },
+      { id: 32, name: 'clarify', status: 'running' },
+      { id: 33, name: 'tavily', status: 'running' },
+    ]);
+
+    const labels = Array.from(host!.querySelectorAll('.chat-tool-call-label'))
+      .map(element => element.textContent);
+    expect(labels).toEqual(['Read skill', 'Clarifying', 'Searching the web']);
+    expect(host!.querySelectorAll('.chat-tool-call-name')).toHaveLength(0);
+  });
+
   it('keeps a completed tab result persistently expandable without an undo claim', () => {
     renderToolCalls([{
       id: 42,
@@ -107,7 +127,20 @@ describe('ChatToolCalls tab tool labels', () => {
     expect(host!.textContent).not.toMatch(/undo|撤销/i);
   });
 
-  it('shows a capability-level tab activation failure instead of a successful switch', () => {
+  it('keeps live tool details out of the layout until the activity row expands them', () => {
+    renderToolCalls([{
+      id: 44,
+      name: 'bash',
+      status: 'running',
+      args: { description: 'Search GitHub pull requests' },
+    }], new Set(), true);
+
+    const reveal = host!.querySelector('.chat-tool-details-reveal');
+    expect(reveal?.classList.contains('chat-tool-details-reveal--open')).toBe(false);
+    expect(reveal?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('shows a capability-level tab activation failure without forcing raw details open', () => {
     renderToolCalls([{
       id: 43,
       name: 'dock_activate_tab',
@@ -120,7 +153,7 @@ describe('ChatToolCalls tab tool labels', () => {
     expect(row?.classList.contains('chat-tool-call--failed')).toBe(true);
     expect(row?.querySelector('.chat-tool-call-label')?.textContent).toBe('Could not switch Tab');
     expect(row?.textContent).not.toContain('Switched Tab');
-    expect(row?.querySelector('.chat-tool-call-header')?.getAttribute('aria-expanded')).toBe('true');
-    expect(row?.querySelector('.chat-tool-call-result')?.textContent).toContain('Tab closed-tab is not open');
+    expect(row?.querySelector('.chat-tool-call-header')?.getAttribute('aria-expanded')).toBe('false');
+    expect(row?.querySelector('.chat-tool-call-result')).toBeNull();
   });
 });

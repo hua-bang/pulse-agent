@@ -101,6 +101,84 @@ describe('ChatMessages accessibility', () => {
     ]);
   });
 
+  it('keeps truthful activity visible after tools settle and hides the stale streaming timestamp', async () => {
+    const el = await renderMessages(
+      [
+        { role: 'user', content: 'Summarize this canvas', timestamp: Date.now() - 180_000 },
+        { role: 'assistant', content: '', timestamp: Date.now() - 4000 },
+      ],
+      {
+        loading: true,
+        streamingTools: [{
+          id: 1,
+          name: 'bash',
+          status: 'succeeded',
+          startedAt: Date.now() - 4000,
+          finishedAt: Date.now() - 2000,
+          result: '{"output":"done","exitCode":0}',
+        }],
+      },
+    );
+
+    expect(el.querySelector('.chat-activity-status__label')?.textContent)
+      .toBe('Ran command');
+    expect(el.querySelector('.chat-activity-status__elapsed')?.textContent)
+      .toBe('3m 0s');
+    expect(el.querySelector('.chat-activity-status__spinner')).not.toBeNull();
+    expect(el.querySelector('.chat-activity-status__done')).toBeNull();
+    expect(el.querySelector('.chat-activity-status__meta')).toBeNull();
+    expect(el.querySelector('.chat-message-assistant .chat-message-timestamp')).toBeNull();
+    expect(el.querySelector('.chat-tool-details-reveal')?.getAttribute('aria-hidden')).toBe('true');
+
+    const details = el.querySelector<HTMLButtonElement>('.chat-activity-status__details');
+    expect(details?.getAttribute('aria-expanded')).toBe('false');
+    await act(async () => details?.click());
+    expect(details?.getAttribute('aria-expanded')).toBe('true');
+    expect(el.querySelector('.chat-activity-status__label')?.textContent).toBe('Working');
+    expect(el.querySelector('.chat-tool-details-reveal')?.classList.contains('chat-tool-details-reveal--open')).toBe(true);
+    expect(el.querySelector('.chat-tool-call')).not.toBeNull();
+  });
+
+  it('shows the overall Working status before the first stream event arrives', async () => {
+    const el = await renderMessages([], { loading: true });
+
+    expect(el.querySelector('.chat-activity-status__label')?.textContent).toBe('Working');
+    expect(el.querySelector('.chat-activity-status__elapsed')).toBeNull();
+    expect(el.querySelector('.chat-activity-status__meta')).toBeNull();
+    expect(el.querySelector('.chat-loading-dot')).toBeNull();
+  });
+
+  it('acknowledges a long wait before the first stream event without claiming progress', async () => {
+    const el = await renderMessages(
+      [{ role: 'user', content: 'Find the relevant pull request', timestamp: Date.now() - 21_000 }],
+      { loading: true },
+    );
+
+    expect(el.querySelector('.chat-activity-status__label')?.textContent).toBe('Working');
+    expect(el.querySelector('.chat-activity-status__elapsed')?.textContent).toMatch(/^21s$/);
+    expect(el.querySelector('.chat-activity-status__meta')).toBeNull();
+  });
+
+  it('uses a running command description instead of a generic bash label', async () => {
+    const el = await renderMessages(
+      [{ role: 'assistant', content: '', timestamp: Date.now() }],
+      {
+        loading: true,
+        streamingTools: [{
+          id: 2,
+          name: 'bash',
+          status: 'running',
+          startedAt: Date.now() - 8000,
+          args: { description: 'Search GitHub PRs related to Agent Plugins support' },
+        }],
+      },
+    );
+
+    expect(el.querySelector('.chat-activity-status__label')?.textContent)
+      .toBe('Search GitHub PRs related to Agent Plugins support');
+    expect(el.querySelector('.chat-activity-status__elapsed')?.textContent).toMatch(/^8s$/);
+  });
+
   it.each([
     ['__global_chat__', 'session-global', 3],
     ['__scheduled__-task-1', 'session-scheduled', 4],
@@ -365,7 +443,7 @@ describe('ChatMessages accessibility', () => {
     expect(status?.getAttribute('aria-live')).toBe('polite');
     expect(status?.getAttribute('aria-atomic')).toBe('true');
     expect(status?.textContent).toBe('Generating...');
-    expect(el.querySelector('.chat-message:has(.chat-loading)')?.getAttribute('aria-hidden')).toBe('true');
+    expect(el.querySelector('.chat-message:has(.chat-activity-status)')?.getAttribute('aria-hidden')).toBe('true');
 
     await act(async () => {
       root?.render(

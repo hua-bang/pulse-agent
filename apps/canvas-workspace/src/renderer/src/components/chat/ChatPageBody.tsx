@@ -30,7 +30,6 @@ import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from './utils/chatPageDockTabs';
 import { useChatPageNewSession } from './hooks/useChatPageNewSession';
 import { useConversationCompletionNotices } from './hooks/useConversationCompletionNotices';
-
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
   /** Context inherited from the visible target that opened this page. */
@@ -216,7 +215,6 @@ export const ChatPageBody = ({
     // A pending selection owns the initial history fetch across kept-alive scopes.
     skipInitialHistory: initialPendingSessionId !== null || pendingSessionId !== null,
   });
-
   const chatDestinationLabel = agentScope.kind === 'workspace' ? workspaceLabel : undefined;
   const newSession = useChatPageNewSession({ agentScope, sessionStoreId, sessionLoading, busyElsewhere, pendingSessionId, focusInput, clearInput, handleNewSession, onClearBackStack, onCreateNewSessionInScope, onNewSessionCreated });
 

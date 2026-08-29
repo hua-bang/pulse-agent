@@ -54,7 +54,7 @@ const globalSession: UnifiedSession = {
 };
 
 describe('ChatSessionsRail workspace tree', () => {
-  it('marks a session with an active run as Running', async () => {
+  it('marks a running session with a quiet single-line spinner', async () => {
     const runningSession: UnifiedSession = {
       ...sessions[0]!,
       running: true,
@@ -78,8 +78,9 @@ describe('ChatSessionsRail workspace tree', () => {
 
     const marker = host.querySelector('.chat-page-rail-item-running');
     expect(marker).not.toBeNull();
-    expect(marker?.textContent).toContain('Running');
-    expect(marker?.querySelector('.chat-page-rail-item-running-dot')).not.toBeNull();
+    expect(marker?.textContent).toBe('');
+    expect(marker?.getAttribute('aria-label')).toBe('Running');
+    expect(marker?.querySelector('.chat-page-rail-item-running-spinner')).not.toBeNull();
   });
 
   it('keeps a completed background session marked until it is opened', async () => {

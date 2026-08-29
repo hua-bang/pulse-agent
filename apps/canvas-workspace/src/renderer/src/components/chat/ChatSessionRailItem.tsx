@@ -3,6 +3,7 @@ import {
   CheckIcon,
   CloseIcon,
   PencilIcon,
+  SpinnerIcon,
   TrashIcon,
 } from '../icons';
 import { Button, TextField } from '../ui';
@@ -180,9 +181,13 @@ export const ChatSessionRailItem = ({
             {session.preview ? <SessionTitle value={session.preview} /> : session.date}
           </span>
           {session.running && (
-            <span className="chat-page-rail-item-running" title={t('chat.sessionRunning')}>
-              <span className="chat-page-rail-item-running-dot" aria-hidden="true" />
-              {t('chat.sessionRunning')}
+            <span
+              className="chat-page-rail-item-running"
+              title={t('chat.sessionRunning')}
+              aria-label={t('chat.sessionRunning')}
+              role="status"
+            >
+              <SpinnerIcon size={11} className="chat-page-rail-item-running-spinner" />
             </span>
           )}
           {!session.running && session.completionStatus && (

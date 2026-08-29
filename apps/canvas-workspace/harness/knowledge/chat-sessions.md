@@ -165,6 +165,46 @@ Tests: `hooks/useChatSessions.test.tsx`,
 `hooks/useMentions.submit-veto.test.tsx`, `__tests__/ChatSessionLoading.test.tsx`
 (all under `src/renderer/src/components/chat/`).
 
+## Live Agent activity feedback
+
+A running assistant message must never become visually empty merely because it
+already has tool calls. The compact Activity row covers the whole pre-answer
+sequence: preparing before the first tool, the latest running tool, and
+the latest settled tool action while the model continues after tool results.
+For `bash`, prefer its explicit `args.description` over the generic tool name;
+live tool records carry renderer-observed `startedAt` / `finishedAt` timestamps
+so the single Activity row can show `action · overall elapsed time`; when there
+is no tool yet, the action falls back to `Working`. The adjacent disclosure
+button toggles tool details directly. While collapsed, the row shows the
+current or latest real tool action. While expanded, the row falls back to
+`Working · elapsed` because the detailed list already names every action; do
+not repeat the current action in both summary and details. Do not add a separate
+timer row, completed-count row, or generic post-tool row. Once answer text
+starts, the text itself replaces Activity.
+
+The live details disclosure remains mounted so both opening and closing animate
+through a 160ms `0fr`/`1fr` grid-row transition plus a 120ms opacity transition.
+The closed subtree is `visibility:hidden` and `aria-hidden`, removing its
+controls from focus navigation; reduced-motion disables both transitions.
+Guards: `__tests__/ChatToolCalls.test.tsx` and
+`__tests__/ChatMessages.accessibility.test.tsx`.
+
+Activity exists only while the overall turn is still running, so its summary
+icon is always a spinner, even when the latest visible tool has settled. Check
+marks belong only to completed rows inside expanded tool details; showing one
+in the collapsed summary falsely claims that the whole turn is complete.
+
+Live tool logs stay collapsed unless the user opens them, failed operations do
+not force raw JSON/details open, and streaming assistant messages hide their
+relative transcript timestamp because that timestamp belongs to the whole
+message rather than the current operation. In the full-page rail, background
+running status occupies the title row's fixed status slot as a quiet spinner,
+never a second `Running` line. Do not add an in-thread progress banner that
+shifts the transcript.
+
+Guards: `__tests__/ChatMessages.accessibility.test.tsx`,
+`__tests__/ChatToolCalls.test.tsx`, and `__tests__/ChatSessionsRail.test.tsx`.
+
 ## Stopped-turn outcome lifecycle
 
 A stopped turn keeps a compact recovery marker while it remains the latest
@@ -196,6 +236,12 @@ structurally stable while the selected conversation changes scope.
   spinner. The full-page body must not add an in-flow opening banner: even a
   one-frame banner shifts the entire thread. Disabling or replacing the whole
   rail destroys spatial context.
+- New-chat and session transitions keep the previous thread as the stable exit
+  surface while `sessionLoading`, but fade it over 120ms before the committed
+  conversation replaces it. A genuinely empty destination enters with the
+  matching 120ms opacity/4px transition. Keep the rail and composer stationary;
+  reduced-motion disables both transitions. Guard:
+  `__tests__/ChatSessionLoading.test.tsx`.
 - Session and group recency use exact `updatedAt`; the calendar date is only a
   compatibility fallback. Main excludes active session stores from the global
   disk scan because their live agents supply the authoritative list.

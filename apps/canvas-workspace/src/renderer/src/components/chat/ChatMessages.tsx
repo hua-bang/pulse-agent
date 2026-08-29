@@ -10,6 +10,7 @@ import {
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { BotAvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
+import { ChatActivityStatus } from './ChatActivityStatus';
 import { ChatThreadSkeleton } from './ChatThreadSkeleton';
 import type { PendingClarification, ToolCallStatus } from './types';
 import { buildAnchorElementId } from './utils/anchors';
@@ -87,18 +88,20 @@ interface ChatMessagesProps {
   conversationKey?: string;
 }
 
-const LoadingPlaceholder = ({ label }: { label?: string }) => (
+const LoadingPlaceholder = ({ label, startedAt }: { label?: string; startedAt?: number }) => (
   <div className="chat-message chat-message-assistant" aria-hidden="true">
     <div className="chat-message-avatar">
       <BotAvatarIcon size={18} />
     </div>
     <div className="chat-message-body">
-      <div className="chat-loading">
-        <div className="chat-loading-dot" />
-        <div className="chat-loading-dot" />
-        <div className="chat-loading-dot" />
-        {label && <span className="chat-loading-label">{label}</span>}
-      </div>
+      {label ? (
+        <div className="chat-loading">
+          <div className="chat-loading-dot" />
+          <div className="chat-loading-dot" />
+          <div className="chat-loading-dot" />
+          <span className="chat-loading-label">{label}</span>
+        </div>
+      ) : <ChatActivityStatus tools={[]} startedAt={startedAt} />}
     </div>
   </div>
 );
@@ -401,7 +404,6 @@ export const ChatMessages = ({
     (latest, message, index) => (message.role === 'user' ? index : latest),
     -1,
   );
-
   return (
     <div className="chat-messages-wrap">
       {tabNavigationFeedback && (
@@ -424,7 +426,7 @@ export const ChatMessages = ({
       </span>
       <div
         ref={containerRef}
-        className={`chat-messages${loading ? ' chat-messages--loading' : ''}`}
+        className={`chat-messages${loading ? ' chat-messages--loading' : ''}${sessionLoading ? ' chat-messages--session-loading' : ''}`}
         onClick={handleMessageClick}
         onKeyDown={handleMessageKeyDown}
         onScroll={handleScroll}
@@ -458,12 +460,13 @@ export const ChatMessages = ({
               onEditUserMessage={onEditUserMessage}
               onRegenerate={onRegenerate}
               hideStoppedOutcome={message.turnStatus === 'stopped' && index < latestUserMessageIndex}
+              turnStartedAt={isStreaming ? messages[latestUserMessageIndex]?.timestamp : undefined}
               onSessionJump={onSessionJump}
             />
           );
         })}
         {(loading || pendingLabel) && !hasStreamingAssistantMessage && (
-          <LoadingPlaceholder label={pendingLabel} />
+          <LoadingPlaceholder label={pendingLabel} startedAt={messages[messages.length - 1]?.timestamp} />
         )}
         {pendingClarify && (
           <ChatClarificationCard

@@ -76,6 +76,9 @@ export interface AgentChatToolCall {
   id: number;
   name: string;
   args?: unknown;
+  /** Renderer-observed execution timing for live activity feedback. */
+  startedAt?: number;
+  finishedAt?: number;
   /**
    * User-facing execution truth. Persist the terminal outcome so a reloaded
    * conversation never turns a failed or cancelled operation into a success.
