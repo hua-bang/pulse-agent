@@ -3,6 +3,7 @@ import { layoutMindmap, type MindmapLayout, type LaidOutTopic } from './mindmapL
 
 const EXPORT_MARGIN = 28;
 const EXPORT_SCALE = 2;
+const MINDMAP_EXPORT_FONT_FAMILY = '"Lexend Variable", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
 export interface MindmapImageExport {
   data: string;
@@ -35,7 +36,7 @@ const drawTopic = (ctx: CanvasRenderingContext2D, topic: LaidOutTopic) => {
 
   ctx.save();
   ctx.fillStyle = '#1f2328';
-  ctx.font = `${fontWeight} ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.font = `${fontWeight} ${fontSize}px ${MINDMAP_EXPORT_FONT_FAMILY}`;
   ctx.textBaseline = 'middle';
   ctx.textAlign = isRoot ? 'center' : 'left';
 
@@ -135,6 +136,13 @@ const drawBranches = (ctx: CanvasRenderingContext2D, layout: MindmapLayout) => {
 };
 
 export const exportMindmapNodeToPng = async (node: CanvasNode): Promise<MindmapImageExport> => {
+  if (document.fonts) {
+    await Promise.all([
+      document.fonts.load(`400 14px ${MINDMAP_EXPORT_FONT_FAMILY}`, 'Aa 中文'),
+      document.fonts.load(`500 20px ${MINDMAP_EXPORT_FONT_FAMILY}`, 'Aa 中文'),
+    ]);
+  }
+
   const data = node.data as MindmapNodeData;
   const layout = layoutMindmap(data.root);
   const width = Math.ceil(layout.width + EXPORT_MARGIN * 2);

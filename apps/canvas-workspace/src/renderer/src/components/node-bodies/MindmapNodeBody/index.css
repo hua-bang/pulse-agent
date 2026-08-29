@@ -225,7 +225,7 @@
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
   cursor: pointer;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 20px;
   padding: 0 6px;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;

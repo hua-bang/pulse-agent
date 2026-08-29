@@ -60,7 +60,7 @@ function confirmNavigate(url: string): Promise<boolean> {
       maxHeight: '96px',
       overflowY: 'auto',
       fontSize: '12px',
-      fontFamily: "'SF Mono', Menlo, 'Cascadia Code', monospace",
+      fontFamily: "'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       background: 'rgba(0, 0, 0, 0.04)',
       borderRadius: '8px',
       padding: '8px 10px',

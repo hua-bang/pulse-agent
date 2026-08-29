@@ -37,7 +37,7 @@
   gap: 8px;
   max-width: 280px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: #37352f;
   border: none;
   background: transparent;
@@ -320,7 +320,7 @@
 .chat-empty-greeting {
   font-size: 20px;
   line-height: 1.25;
-  font-weight: 700;
+  font-weight: 500;
   color: #37352f;
   margin-bottom: 22px;
   letter-spacing: 0;
@@ -934,7 +934,7 @@
 }
 
 .chat-context-chip-hash {
-  font-weight: 700;
+  font-weight: 500;
   font-size: 12px;
   color: #8a8780;
 }
@@ -1055,7 +1055,7 @@
 
 .chat-clarify-label {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #8a8a87;
@@ -1156,7 +1156,7 @@
 .chat-md h3,
 .chat-md h4 {
   margin: 12px 0 4px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.4;
 }
 
@@ -1187,7 +1187,7 @@
 }
 
 .chat-md code {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
   background: rgba(55, 53, 47, 0.06);
   padding: 1px 4px;
@@ -1232,7 +1232,7 @@
 }
 
 .chat-md strong {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .chat-md table {
@@ -1251,7 +1251,7 @@
 
 .chat-md th {
   background: rgba(55, 53, 47, 0.04);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* Tables can run wider than the panel; let them scroll instead of
@@ -1274,7 +1274,7 @@
   border-radius: var(--radius-md);
   background: #fafaf8;
   overflow: hidden;
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font-mono);
 }
 
 .chat-code-block-header {
@@ -1292,7 +1292,7 @@
 .chat-code-block-lang {
   text-transform: lowercase;
   letter-spacing: 0.04em;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .chat-code-block-copy {
@@ -1300,7 +1300,7 @@
   background: transparent;
   color: rgba(55, 53, 47, 0.5);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   padding: 2px 8px;
   border-radius: var(--radius-xs);
   cursor: pointer;
@@ -1402,7 +1402,7 @@
 }
 
 .hljs-strong {
-  font-weight: 700;
+  font-weight: 500;
 }
 
 /* ─── Per-message hover toolbar (timestamp + copy / edit / regen) ── */
@@ -1471,7 +1471,7 @@
   background: #fff;
   color: rgba(55, 53, 47, 0.55);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   padding: 3px 9px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -1601,13 +1601,13 @@
 
 .chat-mermaid-error-title {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: #8b2f2a;
   margin-bottom: 4px;
 }
 
 .chat-mermaid-error-detail {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: rgba(139, 47, 42, 0.85);
   white-space: pre-wrap;
@@ -1795,7 +1795,7 @@
 }
 
 .chat-tool-call-sig {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11.5px;
   color: rgba(55, 53, 47, 0.55);
   overflow: hidden;
@@ -1845,7 +1845,7 @@
 
 .chat-tool-call-result pre {
   margin: 0;
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.5;
   color: rgba(55, 53, 47, 0.6);
@@ -1860,7 +1860,7 @@
 }
 
 .chat-tool-call-section-label {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1905,7 +1905,7 @@
 }
 
 .chat-session-ref-name {
-  font-weight: 600;
+  font-weight: 500;
   color: rgba(55, 53, 47, 0.85);
   white-space: nowrap;
 }
@@ -2030,7 +2030,7 @@
 .chat-mention-group-header {
   padding: 10px 10px 4px;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: rgba(55, 53, 47, 0.4);
@@ -2308,7 +2308,7 @@
 }
 
 .chat-mention-chip-hash {
-  font-weight: 700;
+  font-weight: 500;
   font-size: 11px;
   line-height: 1;
 }
@@ -2464,7 +2464,7 @@
 .chat-attachment-retry {
   color: var(--accent);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .chat-attachment-retry:disabled,
@@ -2790,7 +2790,7 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 500;
   cursor: pointer;
   /* Wide enough for "provider / model" — the old 132px cut a bare model name
      to a few characters, which is the whole reason the provider had to be
@@ -2951,14 +2951,14 @@
   padding: 9px 9px 5px;
   font-size: 10px;
   line-height: 1;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.055em;
   text-transform: uppercase;
   color: rgba(55, 53, 47, 0.42);
 }
 
 .chat-model-menu-provider-head span:last-child {
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
   color: rgba(55, 53, 47, 0.34);
@@ -3018,7 +3018,7 @@
 
 .chat-model-menu-title {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .chat-model-menu-subtitle,
@@ -3043,7 +3043,7 @@
 .chat-model-menu-action {
   justify-content: center;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 500;
   color: #2383e2;
 }
 
@@ -3181,7 +3181,7 @@
   gap: 5px;
   align-self: flex-start;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.4;
   margin: 1px 0 4px;
   padding: 1.5px 9px 1.5px 7px;
@@ -3201,7 +3201,7 @@
 /* Role reply avatar: colored initial instead of the default bot mark. */
 .chat-message-avatar--role {
   border: none;
-  font-weight: 700;
+  font-weight: 500;
   font-size: 12.5px;
   line-height: 1;
   user-select: none;
@@ -3245,7 +3245,7 @@
 }
 
 .chat-relay-step--speaking {
-  font-weight: 700;
+  font-weight: 500;
 }
 
 /* Auto-appended (agent@agent) queue entries: dashed underline + a "由 X
@@ -3399,7 +3399,7 @@
 
 .chat-turn-outcome__status {
   color: var(--text);
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .chat-turn-outcome__description {
@@ -3470,7 +3470,7 @@
 
 .chat-turn-context__reference-label {
   flex-shrink: 0;
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .chat-turn-context__chips {

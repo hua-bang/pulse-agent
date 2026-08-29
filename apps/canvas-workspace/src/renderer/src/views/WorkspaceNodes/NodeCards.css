@@ -95,7 +95,7 @@
   border-color: transparent;
   background: transparent;
   color: var(--accent);
-  font-weight: 620;
+  font-weight: 500;
 }
 
 .knowledge-node-filter-ai-scope.ui-btn:hover:not(:disabled) {
@@ -147,7 +147,7 @@
 
 .knowledge-node-filter-popover__header strong {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .knowledge-node-filter-section {
@@ -161,7 +161,7 @@
   padding: 5px 9px 4px;
   color: var(--nodes-faint);
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -188,7 +188,7 @@
 
 .knowledge-node-filter-option.is-selected {
   background: var(--nodes-surface-soft);
-  font-weight: 620;
+  font-weight: 500;
 }
 
 .knowledge-node-filter-option:focus-visible {
@@ -315,7 +315,7 @@
   -webkit-line-clamp: 2;
   color: var(--nodes-text);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 500;
   line-height: 1.38;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
@@ -394,7 +394,7 @@
   box-shadow: var(--shadow-sm);
   color: var(--nodes-muted);
   font-size: 10px;
-  font-weight: 620;
+  font-weight: 500;
   line-height: 1;
 }
 
@@ -476,7 +476,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .knowledge-card-preview__ai-summary-copy {
@@ -600,7 +600,7 @@
   background: var(--nodes-surface);
   color: var(--nodes-text);
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 500;
   line-height: 1.35;
   transform: translateY(-50%);
 }

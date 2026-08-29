@@ -35,7 +35,7 @@
   color: var(--text);
   cursor: pointer;
   padding: 0 10px;
-  font-weight: 800;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -93,7 +93,7 @@
 
 .agent-team-frame__title {
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -101,7 +101,7 @@
 
 .agent-team-frame__phase-label {
   color: var(--text-secondary);
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .agent-team-frame__mission {
@@ -123,7 +123,7 @@
   background: rgba(238, 242, 247, 0.92);
   color: #3d5071;
   font-family: inherit;
-  font-weight: 800;
+  font-weight: 500;
   padding: 2px 7px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -166,7 +166,7 @@
   color: #1f6f45;
   padding: 4px 9px;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 500;
   text-transform: capitalize;
 }
 
@@ -223,7 +223,7 @@
   border-radius: var(--radius-pill);
   padding: 2px 7px;
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 500;
 }
 
 .agent-team-agent-pill__role--lead {
@@ -240,7 +240,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--text);
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
 }
 
@@ -301,7 +301,7 @@
   background: #eef2f7;
   color: #3d5071;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 500;
   padding: 2px 8px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -337,7 +337,7 @@
 .agent-team-empty-panel__eyebrow {
   color: var(--text-secondary);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 500;
   text-transform: uppercase;
 }
 
@@ -441,7 +441,7 @@
   border-radius: 9px;
   background: linear-gradient(180deg, #5f94e6, #4f84d8);
   color: #fff;
-  font-weight: 700;
+  font-weight: 500;
   box-shadow: 0 6px 14px rgba(47, 102, 184, 0.24);
   transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
@@ -468,7 +468,7 @@
   min-width: 140px;
   border-radius: var(--radius-lg);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: 0.02em;
   height: 36px;
 }
@@ -520,7 +520,7 @@
 .agent-team-lead-dock__head strong {
   overflow: hidden;
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -650,7 +650,7 @@
 .agent-team-graph-panel__head strong {
   overflow: hidden;
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -751,7 +751,7 @@
   background: rgba(245, 249, 255, 0.94);
   color: var(--text-secondary);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 500;
   padding: 0 12px 0 5px;
   text-transform: uppercase;
   box-shadow: 0 6px 16px rgba(31, 54, 88, 0.05);
@@ -788,7 +788,7 @@
   background: rgba(238, 245, 255, 0.96);
   color: #285b95;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   box-shadow: 0 4px 12px rgba(31, 54, 88, 0.05);
@@ -851,7 +851,7 @@
   overflow: hidden;
   color: var(--text);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 500;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -865,7 +865,7 @@
   overflow: hidden;
   color: var(--text-secondary);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .agent-team-dag-node__meta > span:first-child {
@@ -933,7 +933,7 @@
   overflow: hidden;
   color: var(--text);
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1005,7 +1005,7 @@
   color: #7fa8dd;
   content: "→";
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 500;
   box-shadow: 0 4px 12px rgba(31, 54, 88, 0.08);
 }
 
@@ -1019,7 +1019,7 @@
   background: rgba(238, 245, 255, 0.94);
   color: var(--text-secondary);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 500;
   padding: 3px 8px 3px 4px;
   text-transform: uppercase;
 }
@@ -1081,7 +1081,7 @@
   overflow: hidden;
   color: var(--text);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 500;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: normal;
@@ -1118,7 +1118,7 @@
   background: #eef5ff;
   color: #285b95;
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 500;
   line-height: 1.2;
   padding: 2px 6px;
   text-overflow: ellipsis;
@@ -1168,7 +1168,7 @@
   background: #edf4ff;
   color: #335c91;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 500;
   padding: 2px 6px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1279,7 +1279,7 @@
 .agent-team-graph-detail__head strong {
   color: var(--text);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 500;
   line-height: 1.32;
 }
 
@@ -1312,7 +1312,7 @@
   background: #eef2f7;
   color: #3d5071;
   font-family: inherit;
-  font-weight: 800;
+  font-weight: 500;
   padding: 2px 6px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1336,7 +1336,7 @@
   background: #f4f6f9;
   color: var(--text-secondary);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 500;
   padding: 7px;
 }
 
@@ -1383,7 +1383,7 @@
 .agent-team-agent-detail__task span {
   color: var(--text-secondary);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .agent-team-agent-detail__output {
@@ -1433,7 +1433,7 @@
   overflow: hidden;
   color: var(--text);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1544,7 +1544,7 @@
   overflow: hidden;
   color: var(--text);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1577,7 +1577,7 @@
   flex: 0 0 auto;
   color: var(--text-secondary);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
@@ -1626,7 +1626,7 @@
   background: #eef2f7;
   color: #3d5071;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 500;
   padding: 2px 6px;
 }
 
@@ -1777,7 +1777,7 @@
 .agent-team-task-row__title {
   overflow: hidden;
   color: var(--text);
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1812,7 +1812,7 @@
   color: #285b95;
   background: #e9f2ff;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .agent-team-detail {
@@ -1831,7 +1831,7 @@
   color: #285b95;
   background: #e9f2ff;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 500;
 }
 
 .agent-team-detail__status--proposed,
@@ -1896,7 +1896,7 @@
 .agent-team-detail__facts strong {
   color: var(--text-secondary);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .agent-team-detail__description,
@@ -1939,7 +1939,7 @@
   color: #285b95;
   background: #e9f2ff;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 500;
   text-overflow: ellipsis;
 }
 
@@ -2052,7 +2052,7 @@
   padding: 7px 8px;
   border-radius: 7px;
   background: rgba(250, 251, 253, 0.9);
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .agent-team-plan-preview__item--task {
@@ -2085,13 +2085,13 @@
   background: #eef2f7;
   padding: 2px 6px;
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 500;
 }
 
 .agent-team-plan-preview__item > span {
   color: var(--text-secondary);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .agent-team-plan-preview__deps {
@@ -2105,7 +2105,7 @@
 .agent-team-plan-preview__deps-label {
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 500;
   text-transform: uppercase;
 }
 
@@ -2118,7 +2118,7 @@
   color: #285b95;
   background: #e9f2ff;
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 500;
   padding: 2px 6px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2259,7 +2259,7 @@
 
 .agent-team-checkpoint-banner__copy strong {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: #5a440f;
 }
 
@@ -2344,7 +2344,7 @@
 .agent-team-agent-inspector__head strong {
   overflow: hidden;
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2398,7 +2398,7 @@
   background: #f4f6f9;
   color: var(--text-secondary);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 500;
   padding: 7px 4px;
 }
 
@@ -2470,7 +2470,7 @@
   overflow: hidden;
   color: var(--text);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2526,7 +2526,7 @@
   overflow: hidden;
   color: var(--text);
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2551,7 +2551,7 @@
   background: #f5f7fa;
   color: var(--text-secondary);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .agent-team-agent-inspector__activity-grid strong {
@@ -2651,7 +2651,7 @@
 .agent-team-artifact-viewer__header strong {
   overflow: hidden;
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -93,7 +93,7 @@
 
 .node-mention-badge {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   padding: 2px 6px;
   border-radius: var(--radius-xs);
   flex-shrink: 0;

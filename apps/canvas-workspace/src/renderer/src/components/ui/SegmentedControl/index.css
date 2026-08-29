@@ -22,7 +22,7 @@
   background: transparent;
   color: var(--text-secondary);
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
 }

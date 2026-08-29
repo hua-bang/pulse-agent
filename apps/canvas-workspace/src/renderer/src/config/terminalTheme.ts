@@ -43,7 +43,7 @@ export const TERMINAL_OPTIONS: ITerminalOptions = {
   fontSize: BASE_TERMINAL_FONT_SIZE,
   lineHeight: 1.4,
   letterSpacing: 0,
-  fontFamily: "'SF Mono', 'Fira Code', Menlo, 'Cascadia Code', monospace",
+  fontFamily: "'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace",
   // CLI output often paints secondary lines with the SGR dim attribute or a
   // grey (brightBlack), which on this near-white background blends almost
   // into the surface and becomes unreadable. Enforce a minimum contrast so

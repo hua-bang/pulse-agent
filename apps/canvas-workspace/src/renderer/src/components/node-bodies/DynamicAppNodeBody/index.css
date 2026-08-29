@@ -26,7 +26,7 @@
   padding: 2px 8px;
   border-radius: var(--radius-lg);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.4px;
   line-height: 1;
@@ -125,7 +125,7 @@
   overflow: auto;
   padding: 10px 12px;
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .dynamic-app-inspector-pre {
@@ -137,7 +137,7 @@
 
 .dynamic-app-inspector-empty {
   color: #6e7781;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: 12px;
   font-style: italic;
 }
@@ -158,7 +158,7 @@
   color: #1f2328;
   cursor: pointer;
   text-align: left;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-ui);
 }
 
 .dynamic-app-inspector-action:hover:not(:disabled) {
