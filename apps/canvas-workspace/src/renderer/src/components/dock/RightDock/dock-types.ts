@@ -32,6 +32,7 @@ export type DockPreviewTab =
   }
   | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string }
   | { id: string; kind: 'canvas'; title: string; workspaceId: string }
+  | { id: string; kind: 'mcp-app'; title: string; instanceId: string }
   | { id: string; kind: 'skill'; title: string; scope: CanvasConfigScope; skill: CanvasSkillEntry };
 
 /** A workspace whose web tabs stay mounted (hidden) after switching away.

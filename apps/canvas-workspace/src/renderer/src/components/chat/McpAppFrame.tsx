@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUUpLeft, ArrowsOutSimple } from '@phosphor-icons/react';
 import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type {
   CallToolResult,
@@ -9,13 +10,22 @@ import type { AgentChatMcpApp, AgentScope } from '../../types';
 import type { ToolCallStatus } from './types';
 import { useMcpAppsHost } from './McpAppsContext';
 import { serializeMcpAppToolArguments } from '../../../../shared/mcp-apps';
+import { useRightDock, useRightDockMcpAppHost, useRightDockState } from '../dock/RightDock/context';
+import { mcpAppTabId } from '../dock/RightDock/dock-tab-ids';
+import { isDockTabPresented } from '../dock/RightDock/dock-split-state';
+import { Button } from '../ui';
+import { useI18n } from '../../i18n';
+import './McpAppFrame.css';
 
 interface McpAppFrameProps {
+  instanceId: string;
   app: AgentChatMcpApp;
   args?: unknown;
   fallbackResult?: string;
   scope: AgentScope;
 }
+
+type McpAppDisplayMode = 'inline' | 'fullscreen';
 
 interface ResourceContent {
   uri?: string;
@@ -26,6 +36,7 @@ interface ResourceContent {
 }
 
 const MCP_APP_MIME_TYPE = 'text/html;profile=mcp-app';
+const MCP_APP_HOST_EVENT = 'pulse-mcp-app-host-event';
 
 function firstResource(value: unknown): ResourceContent | undefined {
   if (!value || typeof value !== 'object') return undefined;
@@ -108,14 +119,135 @@ async function closeAppBridge(bridge: AppBridge): Promise<void> {
   await bridge.close();
 }
 
-export const McpAppFrame = ({ app, args, fallbackResult, scope }: McpAppFrameProps) => {
+const mcpAppHostContext = (displayMode: McpAppDisplayMode, container?: HTMLElement | null) => ({
+  theme: document.documentElement.classList.contains('dark') ? 'dark' as const : 'light' as const,
+  displayMode,
+  availableDisplayModes: ['inline', 'fullscreen'] as McpAppDisplayMode[],
+  ...(container && container.clientWidth > 0 && container.clientHeight > 0
+    ? { containerDimensions: { width: container.clientWidth, height: container.clientHeight } }
+    : {}),
+  locale: navigator.language,
+  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  platform: 'desktop' as const,
+  userAgent: 'Pulse Canvas/0.1.0',
+});
+
+export const McpAppFrame = ({ instanceId, app, args, fallbackResult, scope }: McpAppFrameProps) => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const expandButtonRef = useRef<HTMLButtonElement | null>(null);
+  const inlineHostRef = useRef<HTMLDivElement | null>(null);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
   const bridgeRef = useRef<AppBridge | null>(null);
+  const displayModeRef = useRef<McpAppDisplayMode>('inline');
+  const restoreInlineFocusRef = useRef(false);
   const [resource, setResource] = useState<{ html: string; csp: string }>();
   const [error, setError] = useState<string>();
   const [height, setHeight] = useState(320);
+  const [displayMode, setDisplayMode] = useState<McpAppDisplayMode>('inline');
+  const dock = useRightDock();
+  const dockState = useRightDockState();
+  const dockHost = useRightDockMcpAppHost(instanceId);
+  const { t } = useI18n();
+  const dockTabId = mcpAppTabId(instanceId);
+  const dockTabOpen = dockState.tabs.some(tab => tab.id === dockTabId);
+  const dockTabVisible = dockTabOpen
+    && dockState.expanded
+    && isDockTabPresented(dockState.activeTabId, dockState.splitTabIds, dockTabId);
 
   const title = useMemo(() => `${app.toolName} MCP App`, [app.toolName]);
+  const enterFullscreen = useCallback(() => {
+    dock.openMcpApp(instanceId, title);
+    displayModeRef.current = 'fullscreen';
+    setDisplayMode('fullscreen');
+  }, [dock, instanceId, title]);
+  const returnInline = useCallback(() => {
+    dock.closeMcpApp(instanceId);
+    displayModeRef.current = 'inline';
+    restoreInlineFocusRef.current = true;
+    setDisplayMode('inline');
+  }, [dock, instanceId]);
+
+  useLayoutEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    surface.dataset.displayMode = displayMode;
+    if (displayMode !== 'fullscreen' || !dockHost) {
+      surface.removeAttribute('style');
+      return;
+    }
+    if (!dockTabVisible) {
+      surface.style.visibility = 'hidden';
+      surface.style.pointerEvents = 'none';
+      return;
+    }
+    const placeOverDockHost = () => {
+      const rect = dockHost.getBoundingClientRect();
+      Object.assign(surface.style, {
+        position: 'fixed',
+        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+        visibility: 'visible',
+        pointerEvents: 'auto',
+      });
+    };
+    placeOverDockHost();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(placeOverDockHost);
+    observer.observe(dockHost);
+    window.addEventListener('resize', placeOverDockHost);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', placeOverDockHost);
+    };
+  }, [displayMode, dockHost, dockTabVisible]);
+
+  useEffect(() => {
+    if (displayMode === 'fullscreen' && !dockTabOpen) {
+      displayModeRef.current = 'inline';
+      restoreInlineFocusRef.current = true;
+      setDisplayMode('inline');
+    }
+  }, [displayMode, dockTabOpen]);
+
+  useLayoutEffect(() => {
+    if (displayMode === 'fullscreen' && dockTabVisible) {
+      iframeRef.current?.focus({ preventScroll: true });
+      return;
+    }
+    if (displayMode === 'inline' && restoreInlineFocusRef.current) {
+      restoreInlineFocusRef.current = false;
+      expandButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [displayMode, dockTabVisible]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (
+        event.source !== iframeRef.current?.contentWindow
+        || event.data?.type !== MCP_APP_HOST_EVENT
+        || displayModeRef.current !== 'fullscreen'
+      ) return;
+      if (event.data?.action === 'escape') returnInline();
+      if (event.data?.action === 'activate') dock.activateMcpApp(instanceId);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [dock, instanceId, returnInline]);
+
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    const target = displayMode === 'fullscreen' ? dockHost : inlineHostRef.current;
+    if (!bridge) return;
+    bridge.setHostContext(mcpAppHostContext(displayMode, target));
+    if (!target || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      bridge.setHostContext(mcpAppHostContext(displayMode, target));
+    });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [displayMode, dockHost]);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +285,10 @@ export const McpAppFrame = ({ app, args, fallbackResult, scope }: McpAppFramePro
     if (bridge) void closeAppBridge(bridge);
   }, []);
 
+  useEffect(() => () => {
+    dock.closeMcpApp(instanceId);
+  }, [dock, instanceId]);
+
   const connectBridge = async () => {
     const frameWindow = iframeRef.current?.contentWindow;
     if (!frameWindow || bridgeRef.current) return;
@@ -166,13 +302,10 @@ export const McpAppFrame = ({ app, args, fallbackResult, scope }: McpAppFramePro
       },
       {
         hostContext: {
-          theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-          displayMode: 'inline',
-          availableDisplayModes: ['inline'],
-          locale: navigator.language,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          platform: 'desktop',
-          userAgent: 'Pulse Canvas/0.1.0',
+          ...mcpAppHostContext(
+            displayMode,
+            displayMode === 'fullscreen' ? dockHost : inlineHostRef.current,
+          ),
         },
       },
     );
@@ -210,8 +343,13 @@ export const McpAppFrame = ({ app, args, fallbackResult, scope }: McpAppFramePro
       if (!result.ok) throw new Error(result.error ?? 'Failed to read resource');
       return result.value as ReadResourceResult;
     };
-    bridge.onrequestdisplaymode = async () => ({ mode: 'inline' });
+    bridge.onrequestdisplaymode = async ({ mode }) => {
+      if (mode === 'fullscreen') enterFullscreen();
+      if (mode === 'inline') returnInline();
+      return { mode: mode === 'fullscreen' || mode === 'inline' ? mode : displayModeRef.current };
+    };
     bridge.onrequestteardown = () => {
+      returnInline();
       bridgeRef.current = null;
       void closeAppBridge(bridge);
       setError('MCP App closed');
@@ -260,25 +398,54 @@ export const McpAppFrame = ({ app, args, fallbackResult, scope }: McpAppFramePro
     return <div className="chat-mcp-app chat-mcp-app--loading">Loading MCP App…</div>;
   }
   return (
-    <div className="chat-mcp-app">
-      <iframe
-        ref={iframeRef}
-        title={title}
-        src={`pulse-mcp-app://sandbox/index.html?csp=${encodeURIComponent(resource.csp)}`}
-        sandbox="allow-scripts allow-same-origin"
-        style={{ height }}
-        onLoad={() => { void connectBridge(); }}
-      />
+    <div className="chat-mcp-app" data-display-mode={displayMode}>
+      <div ref={inlineHostRef} className="chat-mcp-app__inline-host">
+        <div
+          ref={surfaceRef}
+          className="chat-mcp-app__surface"
+          data-display-mode={displayMode}
+          onMouseDown={() => { if (displayMode === 'fullscreen') dock.activateMcpApp(instanceId); }}
+          onFocusCapture={() => { if (displayMode === 'fullscreen') dock.activateMcpApp(instanceId); }}
+        >
+          <iframe
+            ref={iframeRef}
+            title={title}
+            src={`pulse-mcp-app://sandbox/index.html?csp=${encodeURIComponent(resource.csp)}`}
+            sandbox="allow-scripts allow-same-origin"
+            style={{ height: displayMode === 'fullscreen' ? '100%' : height }}
+            onLoad={() => { void connectBridge(); }}
+          />
+        </div>
+      </div>
+      {displayMode === 'inline' ? (
+        <Button
+          ref={expandButtonRef}
+          variant="icon"
+          size="lg"
+          className="chat-mcp-app__display-action"
+          aria-label={t('mcpApp.openInDock')}
+          title={t('mcpApp.openInDock')}
+          onClick={enterFullscreen}
+        >
+          <ArrowsOutSimple size={15} />
+        </Button>
+      ) : (
+        <Button size="sm" className="chat-mcp-app__return-inline" onClick={returnInline}>
+          <ArrowUUpLeft size={15} />
+          <span>{t('mcpApp.openInDockStatus', { title })}</span>
+        </Button>
+      )}
     </div>
   );
 };
 
-export const McpAppFrames = ({ tools }: { tools: ToolCallStatus[] }) => {
+export const McpAppFrames = ({ tools, instanceScope }: { tools: ToolCallStatus[]; instanceScope: string }) => {
   const host = useMcpAppsHost();
   if (!host) return null;
   return <>{tools.filter(tool => tool.status === 'succeeded' && tool.mcpApp).map(tool => (
     <McpAppFrame
       key={`mcp-app-${tool.toolCallId ?? tool.id}`}
+      instanceId={`${instanceScope}:${tool.toolCallId ?? tool.id}`}
       app={tool.mcpApp!}
       args={tool.args}
       fallbackResult={tool.result}

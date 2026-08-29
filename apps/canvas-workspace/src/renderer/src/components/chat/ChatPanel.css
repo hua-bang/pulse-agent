@@ -2006,33 +2006,6 @@
   word-break: break-all;
 }
 
-.chat-mcp-app {
-  margin: 8px 0 12px 26px;
-  overflow: hidden;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
-
-.chat-mcp-app iframe {
-  display: block;
-  width: 100%;
-  min-height: 120px;
-  border: 0;
-  background: transparent;
-}
-
-.chat-mcp-app--loading,
-.chat-mcp-app--error {
-  padding: 14px;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.chat-mcp-app--error {
-  color: var(--error);
-}
-
 .chat-tool-call-section+.chat-tool-call-section {
   margin-top: 8px;
   padding-top: 8px;

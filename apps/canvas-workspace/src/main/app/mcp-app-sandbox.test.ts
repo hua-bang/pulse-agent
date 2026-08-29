@@ -16,4 +16,12 @@ describe('createMcpAppSandboxResponse', () => {
     );
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
   });
+
+  it('injects an Escape relay into the opaque inner app document', async () => {
+    const response = createMcpAppSandboxResponse('pulse-mcp-app://sandbox/index.html');
+    const html = await response.text();
+    expect(html).toContain("event.key==='Escape'");
+    expect(html).toContain("type:'pulse-mcp-app-host-event'");
+    expect(html).toContain("send('activate')");
+  });
 });

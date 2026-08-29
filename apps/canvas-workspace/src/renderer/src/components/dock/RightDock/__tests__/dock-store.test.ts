@@ -6,6 +6,7 @@ import {
   artifactTabId,
   canvasPreviewTabId,
   linkTabId,
+  mcpAppTabId,
   nodeDetailTabId,
   skillTabId,
   terminalTabId,
@@ -135,6 +136,28 @@ describe('DockStore', () => {
     const { tabs, activeTabId } = dock.getSnapshot();
     expect(tabs).toHaveLength(2);
     expect(activeTabId).toBe(artifactTabId('ws1', 'a1'));
+  });
+
+  it('opens one deduplicated MCP App tab for a fullscreen app instance', () => {
+    const dock = new DockStore();
+
+    dock.openMcpApp('call-1', 'Interactive Map');
+    dock.openArtifact('ws1', 'a1');
+    dock.openMcpApp('call-1', 'Interactive Map (updated)');
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: mcpAppTabId('call-1'),
+      expanded: true,
+    });
+    expect(dock.getSnapshot().tabs.filter(tab => tab.kind === 'mcp-app')).toEqual([{
+      id: mcpAppTabId('call-1'),
+      kind: 'mcp-app',
+      title: 'Interactive Map (updated)',
+      instanceId: 'call-1',
+    }]);
+
+    dock.closeMcpApp('call-1');
+    expect(dock.getSnapshot().tabs.some(tab => tab.kind === 'mcp-app')).toBe(false);
   });
 
   it('promotes a node detail into one deduplicated dock tab', () => {

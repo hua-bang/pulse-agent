@@ -445,7 +445,6 @@ const en = {
   'canvas.frameChildren.collapsedList': 'Collapsed frame children',
   'canvas.frameChildren.untitled': 'Untitled',
   'canvas.frameChildren.collapsedMore': '+{count} more',
-
   'node.type.file': 'Note',
   'node.type.terminal': 'Terminal',
   'node.type.frame': 'Frame',
@@ -461,7 +460,6 @@ const en = {
   'node.type.reference': 'Reference',
   'node.type.dynamicApp': 'Dynamic app',
   'node.type.plugin': 'Plugin',
-
   'chat.showSessionList': 'Show session list',
   'chat.hideSessionList': 'Hide session list',
   'chat.sessionList': 'Chat sessions',
@@ -543,6 +541,8 @@ const en = {
   'rightDock.newWebTab': 'New web tab',
   'rightDock.openNode': 'Open node',
   'rightDock.openCanvas': 'Open canvas',
+  'mcpApp.openInDock': 'Open in Dock',
+  'mcpApp.openInDockStatus': '{title} is open in the Dock',
   'rightDock.searchNodes': 'Search title, preview, tags, workspace...',
   'rightDock.searchWorkspaces': 'Search workspaces...',
   'rightDock.noWorkspacesFound': 'No workspaces found',
@@ -2375,7 +2375,6 @@ const zh: Record<keyof typeof en, string> = {
   'canvas.frameChildren.collapsedList': '已收起的框架子节点',
   'canvas.frameChildren.untitled': '未命名',
   'canvas.frameChildren.collapsedMore': '+{count} 项',
-
   'node.type.file': '笔记',
   'node.type.terminal': '终端',
   'node.type.frame': '框架',
@@ -2391,7 +2390,6 @@ const zh: Record<keyof typeof en, string> = {
   'node.type.reference': '引用',
   'node.type.dynamicApp': '动态应用',
   'node.type.plugin': '插件',
-
   'chat.showSessionList': '显示会话列表',
   'chat.hideSessionList': '隐藏会话列表',
   'chat.sessionList': '聊天会话',
@@ -2473,6 +2471,8 @@ const zh: Record<keyof typeof en, string> = {
   'rightDock.newWebTab': '新建网页标签页',
   'rightDock.openNode': '打开节点',
   'rightDock.openCanvas': '打开画布',
+  'mcpApp.openInDock': '在 Dock 中打开',
+  'mcpApp.openInDockStatus': '{title} 已在 Dock 中打开',
   'rightDock.searchNodes': '搜索标题、预览、标签、工作区...',
   'rightDock.searchWorkspaces': '搜索工作区...',
   'rightDock.noWorkspacesFound': '没有找到工作区',

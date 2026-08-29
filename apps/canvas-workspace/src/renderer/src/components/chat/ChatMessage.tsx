@@ -287,7 +287,10 @@ export const ChatMessage = ({
             onToggleToolExpand={onToggleToolExpand}
             onSessionJump={onSessionJump}
           />
-          <McpAppFrames tools={tools} />
+          <McpAppFrames
+            tools={tools}
+            instanceScope={`${workspaceId}:${message.timestamp}:${index}`}
+          />
           {generatedImages.length > 0 && (
             <div className="chat-generated-images">
               {generatedImages.map((image, generatedIndex) => {

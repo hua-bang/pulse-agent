@@ -21,11 +21,12 @@ const SANDBOX_HTML = `<!doctype html>
   document.body.appendChild(inner);
   const proxyReady = 'ui/notifications/sandbox-proxy-ready';
   const resourceReady = 'ui/notifications/sandbox-resource-ready';
+  const hostControls = "<script data-pulse-mcp-app-host-controls>(()=>{const send=action=>window.parent.postMessage({type:'pulse-mcp-app-host-event',action},'*');window.addEventListener('keydown',event=>{if(event.key==='Escape')send('escape')},true);window.addEventListener('pointerdown',()=>send('activate'),true);window.addEventListener('focusin',()=>send('activate'),true)})();<\\/script>";
   const notifyReady = () => window.parent.postMessage({ jsonrpc: '2.0', method: proxyReady, params: {} }, '*');
   window.addEventListener('message', (event) => {
     if (event.source === window.parent) {
       if (event.data?.method === resourceReady) {
-        if (typeof event.data.params?.html === 'string') inner.srcdoc = event.data.params.html;
+        if (typeof event.data.params?.html === 'string') inner.srcdoc = event.data.params.html + hostControls;
       } else if (event.data?.method === 'pulse/sandbox-probe') {
         notifyReady();
       } else {

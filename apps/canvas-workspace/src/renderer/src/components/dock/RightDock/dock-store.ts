@@ -2,7 +2,7 @@
  * Owns activation, dedupe, workspace sessions, closing order, comparison pairing,
  * collapse retention, and chat unread policy. React binds with
  * `useSyncExternalStore` in components/dock/RightDock. */
-import { CHAT_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, nodeDetailTabId } from './dock-tab-ids';
+import { CHAT_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, mcpAppTabId, nodeDetailTabId } from './dock-tab-ids';
 import {
   closeTerminalCommit,
   newTerminalCommit,
@@ -26,9 +26,10 @@ import { openSkillTab } from './dock-skill-tabs';
 import { getOpenChatPatch, getOpenScheduledChatPatch, getRefreshScheduledChatPatch } from './dock-chat-state';
 import { getToggleContentTabsPatch } from './dock-content-tabs';
 import { getOpenWorkspaceLinkMutation, getRetainedLinkTabMutation } from './dock-retained-links';
+import { getOpenMcpAppPatch } from './dock-mcp-app';
 import type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../../types';
-export { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, nodeDetailTabId, skillTabId, terminalTabId } from './dock-tab-ids';
+export { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, mcpAppTabId, nodeDetailTabId, skillTabId, terminalTabId } from './dock-tab-ids';
 export type { DockLinkSession, DockLinkSessions, DockLinkTab, DockSessionPersistence } from './dock-link-sessions';
 export type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState, RetainedLinkWorkspace } from './dock-types';
 export type { DockOpenLinkOptions } from './dock-link-commands';
@@ -108,6 +109,8 @@ export class DockStore {
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
   }
 
+  openMcpApp(instanceId: string, title: string): void { this.commit(getOpenMcpAppPatch(this.state, instanceId, title)); }
+  closeMcpApp(instanceId: string): void { this.close(mcpAppTabId(instanceId)); }
   openNodeDetail(workspaceId: string, nodeId: string, title: string): void {
     const id = nodeDetailTabId(workspaceId, nodeId);
     const existing = this.state.tabs.find((tab) => tab.id === id);

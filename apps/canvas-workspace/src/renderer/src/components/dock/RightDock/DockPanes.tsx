@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useRef,
   type CSSProperties,
   type KeyboardEventHandler,
@@ -17,7 +18,7 @@ import type {
 import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './dock-store';
 import { linkPaneKey } from './dock-link-tabs';
 import { isDockTabPresented } from './dock-split-state';
-import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId } from './dock-tab-ids';
+import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId, mcpAppDockHostElementId } from './dock-tab-ids';
 import type { DockComparisonPair } from './dock-types';
 import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 import { focusActiveDockTarget } from './dock-browser-commands';
@@ -59,6 +60,7 @@ interface Props {
   onDividerKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   setChatHost: (element: HTMLDivElement | null) => void;
   setTerminalHost: (element: HTMLDivElement | null) => void;
+  setMcpAppHost?: (instanceId: string, element: HTMLDivElement | null) => void;
   terminalHostMounted: boolean;
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
@@ -101,6 +103,20 @@ const renderTabChatAction = (
   </div>
 ) : null;
 
+const McpAppDockHost = ({
+  instanceId,
+  setHost,
+}: {
+  instanceId: string;
+  setHost: NonNullable<Props['setMcpAppHost']>;
+}) => {
+  const registerHost = useCallback(
+    (element: HTMLDivElement | null) => setHost(instanceId, element),
+    [instanceId, setHost],
+  );
+  return <div ref={registerHost} id={mcpAppDockHostElementId(instanceId)} className="right-dock__mcp-app-host" />;
+};
+
 // Link-tab webviews mount only after their first visible activation, then stay
 // mounted so switching back preserves navigation, scroll, forms, and sign-in.
 // The mounted key is workspace-qualified and pruned after close/eviction; the
@@ -123,6 +139,7 @@ export const DockPanes = ({
   onDividerKeyDown,
   setChatHost,
   setTerminalHost,
+  setMcpAppHost = () => undefined,
   terminalHostMounted,
   activeWorkspaceId,
   workspaces,
@@ -314,6 +331,8 @@ export const DockPanes = ({
                 }}
               />
             </Suspense>
+          ) : tab.kind === 'mcp-app' ? (
+            <McpAppDockHost instanceId={tab.instanceId} setHost={setMcpAppHost} />
           ) : null}
           </div>
         );
