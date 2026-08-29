@@ -5,12 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 const rendererRoot = fileURLToPath(new URL('.', import.meta.url));
 const globalCss = readFileSync(join(rendererRoot, 'styles.css'), 'utf8');
-const mainSource = readFileSync(join(rendererRoot, 'main.tsx'), 'utf8');
 const graphPageSource = readFileSync(join(rendererRoot, 'views/WorkspaceNodes/GraphPage.tsx'), 'utf8');
 const mindmapExportSource = readFileSync(join(rendererRoot, 'utils/mindmapExport.ts'), 'utf8');
 const canvasPackage = JSON.parse(
   readFileSync(join(rendererRoot, '../../../package.json'), 'utf8'),
-) as { dependencies?: Record<string, string> };
+) as { devDependencies?: Record<string, string> };
 
 const collectCssFiles = (directory: string): string[] => readdirSync(directory, { withFileTypes: true })
   .flatMap((entry) => {
@@ -30,9 +29,11 @@ describe('renderer typography system', () => {
     expect(globalCss).toContain('--font-weight-emphasis: 600');
   });
 
-  it('bundles Lexend locally through the renderer entrypoint', () => {
-    expect(canvasPackage.dependencies?.['@fontsource-variable/lexend']).toBeTruthy();
-    expect(mainSource).toContain("import '@fontsource-variable/lexend/wght.css'");
+  it('bundles only the Latin Lexend variable font at build time', () => {
+    expect(canvasPackage.devDependencies?.['@fontsource-variable/lexend']).toBeTruthy();
+    expect(globalCss).toContain('@fontsource-variable/lexend/files/lexend-latin-wght-normal.woff2');
+    expect(globalCss).not.toContain('lexend-latin-ext-wght-normal.woff2');
+    expect(globalCss).not.toContain('lexend-vietnamese-wght-normal.woff2');
   });
 
   it('uses the product font for canvas labels and waits for it before image export', () => {

@@ -23,9 +23,6 @@ importers:
       '@ai-sdk/openai':
         specifier: ^3.0.21
         version: 3.0.21(zod@4.3.6)
-      '@fontsource-variable/lexend':
-        specifier: 5.3.0
-        version: 5.3.0
       '@larksuiteoapi/node-sdk':
         specifier: ^1.59.0
         version: 1.59.0
@@ -57,6 +54,9 @@ importers:
       '@earendil-works/pi-ai':
         specifier: 0.83.0
         version: 0.83.0(ws@8.21.0)(zod@4.3.6)
+      '@fontsource-variable/lexend':
+        specifier: 5.3.0
+        version: 5.3.0
       '@electron/rebuild':
         specifier: ^4.0.3
         version: 4.0.3
