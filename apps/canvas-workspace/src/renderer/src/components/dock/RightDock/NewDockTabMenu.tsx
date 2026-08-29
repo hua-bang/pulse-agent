@@ -47,11 +47,11 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
             role="menuitem"
             onClick={() => {
               onClose();
-              onOpenNode();
+              onNewWebTab();
             }}
           >
-            <NodeTypeIcon type="file" size={15} />
-            {t('rightDock.openNode')}
+            <NodeTypeIcon type="iframe" size={15} />
+            {t('rightDock.newWebTab')}
           </Button>
           <Button
             size="sm"
@@ -64,18 +64,6 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
           >
             <NodeTypeIcon type="frame" size={15} />
             {t('rightDock.openCanvas')}
-          </Button>
-          <Button
-            size="sm"
-            className="right-dock__new-tab-item"
-            role="menuitem"
-            onClick={() => {
-              onClose();
-              onNewWebTab();
-            }}
-          >
-            <NodeTypeIcon type="iframe" size={15} />
-            {t('rightDock.newWebTab')}
           </Button>
           {showTerminal && (
             <Button
@@ -91,6 +79,18 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
               {t('rightDock.newTerminalTab')}
             </Button>
           )}
+          <Button
+            size="sm"
+            className="right-dock__new-tab-item"
+            role="menuitem"
+            onClick={() => {
+              onClose();
+              onOpenNode();
+            }}
+          >
+            <NodeTypeIcon type="file" size={15} />
+            {t('rightDock.openNode')}
+          </Button>
         </Popover>
   );
 };

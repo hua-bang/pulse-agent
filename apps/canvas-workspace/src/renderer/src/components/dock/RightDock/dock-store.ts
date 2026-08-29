@@ -269,6 +269,9 @@ export class DockStore {
    *  hides the pinned chat tab, so `toggleChat` cannot serve it. */
   toggleContentTabs(): void { const next = getToggleContentTabsPatch(this.state); if (next) this.commit(next); }
 
+  /** Show the empty dock starter without creating a placeholder content tab. */
+  openContentStarter(): void { this.commit({ expanded: true }); }
+
   /** Toolbar chat button: collapse when already looking at chat, else show chat. */
   toggleChat(): void {
     if (this.state.expanded && this.state.activeTabId === CHAT_TAB_ID) {

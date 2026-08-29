@@ -8,6 +8,8 @@ import {
 } from 'react';
 import { useI18n } from '../../../i18n';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import { NodeTypeIcon } from '../../icons';
+import { Button } from '../../ui';
 import type { AgentContextDomSelectionRef } from '../../../types';
 import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './dock-store';
 import { linkPaneKey } from './dock-link-tabs';
@@ -56,6 +58,10 @@ interface Props {
   onAddDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onStartSkillChat?: (workspaceId: string, skillName: string) => void;
   onCloseTab?: (tabId: string) => void;
+  onOpenNode?: () => void;
+  onOpenCanvas?: () => void;
+  onNewWebTab?: () => void;
+  onNewTerminalTab?: () => void;
 }
 
 export const DockPanes = ({
@@ -81,11 +87,16 @@ export const DockPanes = ({
   onAddDomSelectionToChat,
   onStartSkillChat = () => undefined,
   onCloseTab = (tabId) => store.close(tabId),
+  onOpenNode,
+  onOpenCanvas,
+  onNewWebTab,
+  onNewTerminalTab,
 }: Props) => {
   const { t } = useI18n();
   const splitActive = Boolean(splitTabId);
   const chatVisible = chatTabEnabled && isDockChatVisible(state);
   const terminalVisible = terminalHostMounted && isDockTerminalVisible(state);
+  const starterVisible = dockVisible && state.tabs.length === 0 && !chatVisible && !terminalVisible;
   const terminalPanelAvailable = state.terminalTabs.length > 0;
   const labelledTerminalTabId = activePaneId && isTerminalTabId(activePaneId)
     ? activePaneId
@@ -151,6 +162,42 @@ export const DockPanes = ({
   } as CSSProperties;
   return (
     <div className="right-dock__panes" data-split={splitActive} style={style}>
+      {starterVisible && (
+        <div className="right-dock__pane right-dock__pane--active right-dock__pane--starter">
+          <div className="right-dock__starter" role="group" aria-label={t('rightDock.emptyStarterTitle')}>
+            <div className="right-dock__starter-copy">
+              <strong>{t('rightDock.emptyStarterTitle')}</strong>
+              <span>{t('rightDock.emptyStarterHint')}</span>
+            </div>
+            <div className="right-dock__starter-actions">
+              {onNewWebTab && (
+                <Button size="sm" className="right-dock__starter-action right-dock__starter-action--web" onClick={onNewWebTab}>
+                  <NodeTypeIcon type="iframe" size={15} />
+                  {t('rightDock.newWebTab')}
+                </Button>
+              )}
+              {onOpenCanvas && (
+                <Button size="sm" className="right-dock__starter-action right-dock__starter-action--canvas" onClick={onOpenCanvas}>
+                  <NodeTypeIcon type="frame" size={15} />
+                  {t('rightDock.openCanvas')}
+                </Button>
+              )}
+              {onNewTerminalTab && (
+                <Button size="sm" className="right-dock__starter-action right-dock__starter-action--terminal" onClick={onNewTerminalTab}>
+                  <NodeTypeIcon type="terminal" size={15} />
+                  {t('rightDock.newTerminalTab')}
+                </Button>
+              )}
+              {onOpenNode && (
+                <Button size="sm" className="right-dock__starter-action right-dock__starter-action--node" onClick={onOpenNode}>
+                  <NodeTypeIcon type="file" size={15} />
+                  {t('rightDock.openNode')}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <div
         ref={setChatHost}
         id={chatTabEnabled ? dockPaneElementId(CHAT_TAB_ID) : undefined}

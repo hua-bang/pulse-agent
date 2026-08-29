@@ -33,6 +33,7 @@ import {
   focusDockLinkTarget,
 } from './dock-browser-commands';
 import { useDockExternalFocus } from './useDockExternalFocus';
+import { requestPreviewEvictOpen } from '../../../utils/openNodeBridge';
 import { DockContentTab } from './DockContentTab';
 import { DockTabIcon } from './DockTabIcon';
 import { getDockTabSwitcherItems } from './dock-tab-items';
@@ -67,6 +68,8 @@ const DockKeyboardController = lazy(() => import('./DockKeyboardController').the
 const TerminalDockTab = lazy(() => import('./TerminalDockTab').then((m) => ({ default: m.TerminalDockTab })));
 const DockTabSwitcher = lazy(() => import('./DockTabSwitcher').then((m) => ({ default: m.DockTabSwitcher })));
 const TabContextMenu = lazy(() => import('./TabContextMenu').then((m) => ({ default: m.TabContextMenu })));
+const NodeDockPicker = lazy(() => import('./NodeDockPicker').then((m) => ({ default: m.NodeDockPicker })));
+const WorkspaceDockPicker = lazy(() => import('./WorkspaceDockPicker').then((m) => ({ default: m.WorkspaceDockPicker })));
 
 function readStoredWidth(): number | null {
   if (typeof window === 'undefined') return null;
@@ -134,28 +137,27 @@ export const RightDock = ({
   useEffect(() => {
     if (chatTabEnabled) return;
     if (state.splitTabId) store.toggleSplitView();
-    if (
-      (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId))
-      && state.tabs.length > 0
-    ) {
+    if (state.activeTabId === CHAT_TAB_ID && state.tabs.length > 0) {
       store.activate(state.tabs[0].id);
       return;
     }
-    if (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId)) {
+    // With no content tabs, keep an expanded dock open so the starter pane can
+    // offer explicit choices instead of manufacturing a blank web tab.
+    if (state.tabs.length > 0 && state.activeTabId === CHAT_TAB_ID) {
       store.collapse();
     }
   }, [chatTabEnabled, state.activeTabId, state.splitTabId, state.tabs, store]);
 
   const hasPreviews = state.tabs.length > 0;
-  const terminalTabsVisible = chatTabEnabled && state.terminalTabs.length > 0;
-  const terminalHostMounted = chatTabEnabled
-    && Object.values(state.terminalTabsByWorkspace).some((workspace) => workspace.tabs.length > 0);
-  const tabStripVisible = chatTabEnabled || hasPreviews || terminalTabsVisible;
-  const visible = state.expanded && (chatTabEnabled || hasPreviews);
+  const terminalTabsVisible = state.terminalTabs.length > 0;
+  const terminalHostMounted = Object.values(state.terminalTabsByWorkspace)
+    .some((workspace) => workspace.tabs.length > 0);
+  const starterVisible = state.expanded && !chatTabEnabled && !hasPreviews && !terminalTabsVisible;
+  const tabStripVisible = chatTabEnabled || hasPreviews || terminalTabsVisible || starterVisible;
+  const visible = state.expanded;
   // While the chat tab is unavailable a transient 'chat' active pointer
   // (route guard hasn't run yet) should highlight nothing.
-  const activePaneId = !chatTabEnabled
-    && (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId))
+  const activePaneId = !chatTabEnabled && state.activeTabId === CHAT_TAB_ID
     ? null
     : state.activeTabId;
   const splitTabId = chatTabEnabled ? state.splitTabId : undefined;
@@ -227,6 +229,10 @@ export const RightDock = ({
   const dockRef = useRef<HTMLElement>(null);
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
   const tabMenuTab = tabMenu ? state.tabs.find((tab) => tab.id === tabMenu.tabId) : undefined;
+  const [nodePickerOpen, setNodePickerOpen] = useState(false);
+  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+  const openNodePicker = useCallback(() => setNodePickerOpen(true), []);
+  const openWorkspacePicker = useCallback(() => setWorkspacePickerOpen(true), []);
   const focusActiveTarget = useCallback(() => focusActiveDockTarget(store), [store]);
   useDockExternalFocus(dockRef, t('canvas.toolbar.toggleChat'));
   const collapseFromUser = useCallback(() => {
@@ -423,12 +429,11 @@ export const RightDock = ({
           <Suspense fallback={null}>
             <DockCreationControls
               store={store}
-              workspaces={workspaces}
-              activeWorkspaceId={activeWorkspaceId}
               showTerminal={chatTabEnabled}
               newTabTitle={t('rightDock.newTabTitle')}
-              mountedWorkspaceIds={state.mountedWorkspaceIds}
-              terminalWorkspaceIds={new Set(Object.keys(state.terminalTabsByWorkspace))}
+              pickerOpen={nodePickerOpen || workspacePickerOpen}
+              onOpenNode={openNodePicker}
+              onOpenCanvas={openWorkspacePicker}
             />
           </Suspense>
         )}
@@ -474,6 +479,10 @@ export const RightDock = ({
         onAddDomSelectionToChat={addDomSelectionToChat}
         onStartSkillChat={startSkillChat}
         onCloseTab={closeFromUser}
+        onOpenNode={openNodePicker}
+        onOpenCanvas={openWorkspacePicker}
+        onNewWebTab={() => store.newLink(t('rightDock.newTabTitle'))}
+        onNewTerminalTab={() => store.newTerminal()}
       />
       {tabMenu && tabMenuTab && (
         <Suspense fallback={null}>
@@ -485,6 +494,37 @@ export const RightDock = ({
             y={tabMenu.y}
             onClose={() => setTabMenu(null)}
             onActionComplete={focusActiveTarget}
+          />
+        </Suspense>
+      )}
+      {nodePickerOpen && (
+        <Suspense fallback={null}>
+          <NodeDockPicker
+            workspaces={workspaces}
+            onClose={() => setNodePickerOpen(false)}
+            onSelect={(node) => store.openNodeDetail(
+              node.workspaceId ?? activeWorkspaceId,
+              node.id,
+              node.displayTitle ?? node.title ?? node.id,
+            )}
+          />
+        </Suspense>
+      )}
+      {workspacePickerOpen && (
+        <Suspense fallback={null}>
+          <WorkspaceDockPicker
+            workspaces={workspaces}
+            activeWorkspaceId={activeWorkspaceId}
+            mountedWorkspaceIds={state.mountedWorkspaceIds}
+            terminalWorkspaceIds={new Set(Object.keys(state.terminalTabsByWorkspace))}
+            onClose={() => setWorkspacePickerOpen(false)}
+            onSelect={(workspace) => {
+              // Refused = background-mounted: ask the Workbench to tear the
+              // live instance down and open the preview in its place.
+              if (!store.openCanvasPreview(workspace.id, workspace.name)) {
+                requestPreviewEvictOpen({ workspaceId: workspace.id, title: workspace.name });
+              }
+            }}
           />
         </Suspense>
       )}

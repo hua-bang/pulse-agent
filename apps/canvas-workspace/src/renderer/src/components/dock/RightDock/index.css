@@ -799,6 +799,81 @@
   pointer-events: auto;
 }
 
+.right-dock__pane--starter {
+  background: var(--surface);
+}
+
+.right-dock__starter {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 32px 24px 56px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.right-dock__starter-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 28ch;
+}
+
+.right-dock__starter-copy strong {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.right-dock__starter-copy span {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.right-dock__starter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  width: min(320px, 100%);
+}
+
+.right-dock__starter-action.ui-btn {
+  --starter-accent: var(--text-secondary);
+  min-width: 142px;
+  justify-content: center;
+  gap: 7px;
+  border-color: var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 0 13px;
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.right-dock__starter-action.ui-btn svg {
+  color: var(--starter-accent);
+}
+
+.right-dock__starter-action--web.ui-btn,
+.right-dock__starter-action--canvas.ui-btn,
+.right-dock__starter-action--terminal.ui-btn,
+.right-dock__starter-action--node.ui-btn {
+  --starter-accent: var(--text-secondary);
+}
+
+.right-dock__starter-action.ui-btn:hover {
+  border-color: rgba(55, 53, 47, 0.16);
+  background: rgba(55, 53, 47, 0.06);
+}
+
 /* A pane belonging to a workspace the user has LEFT: mounted so its guest
    keeps running (scroll, form state, sign-in survive the switch), never
    shown. It can never gain --active, so this only states the intent. */

@@ -45,9 +45,9 @@ export const getToggleContentTabsPatch = (state: DockState): Partial<DockState> 
  * there too would show two copies of the same editable state. Same
  * constraint `DockCreationControls`' workspace picker enforces.
  *
- * A workspace-scoped page with zero content tabs isn't truly "nothing to
- * show": its own canvas is one click away. Callers use this to keep the
- * dock-tabs toggle usable instead of dead-ending on an empty tab strip.
+ * Used by picker affordances that need to avoid previewing the same live
+ * canvas twice while still allowing background-mounted canvases to move into
+ * the dock preview slot.
  */
 export const canPreviewWorkspaceCanvas = (
   state: DockState,
@@ -55,23 +55,24 @@ export const canPreviewWorkspaceCanvas = (
 ): boolean => workspaceId != null && !state.mountedWorkspaceIds.has(workspaceId);
 
 interface FullPageDockActions {
-  openCanvasPreview: (workspaceId: string, title: string) => boolean;
-  newLink: () => void;
+  collapse: () => void;
+  openContentStarter: () => void;
   toggleContentTabs: () => void;
 }
 
 /** Execute the always-actionable full-page chat dock control. */
 export const toggleFullPageDockContentTabs = (
   state: DockState,
-  workspace: { id: string; title: string } | undefined,
+  _workspace: { id: string; title: string } | undefined,
   actions: FullPageDockActions,
 ): void => {
   if (hasDockContentTabs(state)) {
     actions.toggleContentTabs();
     return;
   }
-  if (workspace && canPreviewWorkspaceCanvas(state, workspace.id)) {
-    if (actions.openCanvasPreview(workspace.id, workspace.title)) return;
+  if (state.expanded) {
+    actions.collapse();
+    return;
   }
-  actions.newLink();
+  actions.openContentStarter();
 };

@@ -110,9 +110,9 @@ export const ChatPageBody = ({
     ? allWorkspaces.find(workspace => workspace.id === workspaceId)?.name ?? workspaceId
     : undefined;
   const dockTabsVisible = isDockContentTabVisible(dockState);
-  // The control is always actionable. With no content yet, prefer this
-  // scope's canvas preview; global/scheduled/live-canvas scopes get a fresh
-  // browser tab so the panel still opens on the first click.
+  // The control is always actionable. With no content yet, open the dock
+  // starter so the user explicitly chooses web/canvas/terminal/node instead
+  // of receiving a placeholder tab.
   const handleToggleDockTabs = useCallback(() => {
     toggleFullPageDockContentTabs(
       dockState,
