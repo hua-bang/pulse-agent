@@ -10,6 +10,7 @@ import { isImeComposing } from '../../utils/ime';
 import { renderMermaidIn } from './utils/mermaid';
 import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
 import { ChatToolCalls } from './ChatToolCalls';
+import { ChatActivityStatus } from './ChatActivityStatus';
 import { ChatImageLightbox, type LightboxImage } from './ChatImageLightbox';
 import { PluginChatCardForMessage } from '../../../../plugins/renderer';
 import {
@@ -20,7 +21,7 @@ import {
 import { CopyGeneratedImageButton, parseGeneratedImage } from './GeneratedImageActions';
 import { useI18n } from '../../i18n';
 import { ChatTurnOutcome } from './ChatTurnMeta';
-import { ChatLoadingDots, CopyMessageButton } from './ChatMessageActions';
+import { CopyMessageButton } from './ChatMessageActions';
 
 interface ChatMessageProps {
   message: AgentChatMessage;
@@ -45,6 +46,8 @@ interface ChatMessageProps {
   onRegenerate?: (index: number) => Promise<boolean> | void;
   /** Old stopped turns become transcript history once a later user turn exists. */
   hideStoppedOutcome?: boolean;
+  /** Start of the current user turn, used for the overall Working timer. */
+  turnStartedAt?: number;
   /** Jump to a session/message from a session_search result chip. */
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
 }
@@ -67,6 +70,7 @@ export const ChatMessage = ({
   onEditUserMessage,
   onRegenerate,
   hideStoppedOutcome = false,
+  turnStartedAt,
   onSessionJump,
 }: ChatMessageProps) => {
   const { t } = useI18n();
@@ -96,6 +100,7 @@ export const ChatMessage = ({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [liveToolDetailsOpen, setLiveToolDetailsOpen] = useState(false);
 
   const canEdit = message.role === 'user'
     && !!onEditUserMessage
@@ -260,6 +265,14 @@ export const ChatMessage = ({
           ))}
         </div>
       )}
+      {message.role === 'assistant' && isStreaming && !message.content && (
+        <ChatActivityStatus
+          tools={tools ?? []}
+          startedAt={turnStartedAt}
+          detailsExpanded={liveToolDetailsOpen}
+          onToggleDetails={() => setLiveToolDetailsOpen(current => !current)}
+        />
+      )}
       {message.role === 'assistant' && tools && tools.length > 0 && (
         <>
           <ChatToolCalls
@@ -267,6 +280,8 @@ export const ChatMessage = ({
             collapsed={collapsed}
             expandedTools={expandedTools}
             showSectionHeader={!loading}
+            isStreaming={isStreaming}
+            liveDetailsOpen={liveToolDetailsOpen}
             onToggleSection={onToggleSection}
             onToggleToolExpand={onToggleToolExpand}
             onSessionJump={onSessionJump}
@@ -374,8 +389,6 @@ export const ChatMessage = ({
               className="chat-message-content chat-md chat-md--streaming"
               dangerouslySetInnerHTML={{ __html: assistantHtml }}
             />
-          ) : (!tools || tools.length === 0) ? (
-            <ChatLoadingDots />
           ) : null
         ) : (
           <div
@@ -430,9 +443,9 @@ export const ChatMessage = ({
         />
       )}
       <PluginChatCardForMessage message={message} />
-      {!isEditing && (showCopyToolbar || canEdit || canRegenerate || relativeTime) && (
+      {!isEditing && (showCopyToolbar || canEdit || canRegenerate || (!isStreaming && relativeTime)) && (
         <div className="chat-message-toolbar">
-          {relativeTime && (
+          {!isStreaming && relativeTime && (
             <time
               className="chat-message-timestamp"
               dateTime={new Date(message.timestamp).toISOString()}

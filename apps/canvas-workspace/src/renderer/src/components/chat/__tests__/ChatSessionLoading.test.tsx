@@ -85,7 +85,7 @@ describe('session-detail loading state', () => {
 
     expect(el.querySelector('.chat-thread-skeleton')).toBeNull();
     expect(el.textContent).toContain('from the session we are leaving');
-    expect(el.querySelector('.chat-messages')?.className).toBe('chat-messages');
+    expect(el.querySelector('.chat-messages')?.classList.contains('chat-messages--session-loading')).toBe(true);
     expect(el.querySelector('.chat-messages')?.getAttribute('aria-busy')).toBe('true');
   });
 

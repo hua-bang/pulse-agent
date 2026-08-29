@@ -174,7 +174,7 @@ export function useConversationRuntimeStream({
               name: data.name,
               args: data.args,
               toolCallId: data.toolCallId,
-              status: 'running',
+              status: 'running', startedAt: Date.now(),
             });
           }
           publishTools();
@@ -187,7 +187,7 @@ export function useConversationRuntimeStream({
             tool.status = data.status ?? 'succeeded';
             tool.result = data.result;
             tool.error = data.error;
-            tool.inputStreaming = false;
+            tool.inputStreaming = false; tool.finishedAt = Date.now();
           }
           publishTools();
         }),
@@ -203,7 +203,7 @@ export function useConversationRuntimeStream({
               id: ++toolIdCounter.current,
               name: data.toolName,
               toolCallId: data.id,
-              status: 'running',
+              status: 'running', startedAt: Date.now(),
               partialInput: '',
               inputStreaming: true,
             });
@@ -243,7 +243,7 @@ export function useConversationRuntimeStream({
           for (const tool of segmentTools) {
             if (tool.status === 'running' || tool.status === 'queued') {
               tool.status = completeResult.stopped ? 'cancelled' : 'failed';
-              tool.error = completeResult.stopped ? 'cancelled' : 'no result';
+              tool.error = completeResult.stopped ? 'cancelled' : 'no result'; tool.finishedAt = Date.now();
             }
           }
           const current = readConversationSnapshot(key).messages;

@@ -10,6 +10,8 @@ interface ChatToolCallsProps {
   collapsed: boolean;
   expandedTools: Set<number>;
   showSectionHeader: boolean;
+  isStreaming?: boolean;
+  liveDetailsOpen?: boolean;
   onToggleSection: () => void;
   onToggleToolExpand: (toolId: number) => void;
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
@@ -70,11 +72,17 @@ const TOOL_LABEL_SLUGS: Record<string, string> = {
   grep: 'search',
   ls: 'listDir',
   bash: 'runCommand',
+  skill: 'readSkill',
+  clarify: 'clarify',
+  tavily: 'searchWeb',
+  tavily_extract: 'searchWeb',
+  tavily_crawl: 'searchWeb',
+  tavily_map: 'searchWeb',
   session_search: 'searchSession',
   session_summary: 'summarizeSession',
 };
 
-function displayToolStatus(tool: ToolCallStatus): ToolCallStatus['status'] {
+export function displayToolStatus(tool: ToolCallStatus): ToolCallStatus['status'] {
   if (tool.status !== 'succeeded' || !tool.result) return tool.status;
   try {
     const result = JSON.parse(tool.result) as { ok?: unknown } | null;
@@ -84,7 +92,7 @@ function displayToolStatus(tool: ToolCallStatus): ToolCallStatus['status'] {
   }
 }
 
-function formatToolLabel(name: string, status: ToolCallStatus['status'], t: (key: I18nKey) => string): string {
+export function formatToolLabel(name: string, status: ToolCallStatus['status'], t: (key: I18nKey) => string): string {
   if (status === 'failed') {
     return name === 'dock_activate_tab'
       ? t('toolCall.activateTab.failed')
@@ -105,6 +113,8 @@ export const ChatToolCalls = ({
   collapsed,
   expandedTools,
   showSectionHeader,
+  isStreaming = false,
+  liveDetailsOpen = false,
   onToggleSection,
   onToggleToolExpand,
   onSessionJump,
@@ -130,6 +140,7 @@ export const ChatToolCalls = ({
     : counts.failed > 0 || counts.cancelled > 0
       ? t('chat.toolCalls.summary', counts)
       : t('chat.toolCalls.completed', { count: counts.succeeded });
+  const hasLiveTools = counts.running > 0 || counts.queued > 0;
 
   if (collapsed) {
     return (
@@ -141,9 +152,13 @@ export const ChatToolCalls = ({
         onClick={onToggleSection}
       >
         <span className="chat-tool-call-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          {hasLiveTools ? (
+            <SpinnerIcon size={12} className="chat-tool-call-spinner" />
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
         </span>
         <span className="chat-tool-calls-summary">{completedLabel}</span>
         <span className="chat-tool-call-chevron">
@@ -155,7 +170,7 @@ export const ChatToolCalls = ({
     );
   }
 
-  return (
+  const toolList = (
     <div className="chat-tool-calls">
       {showSectionHeader && tools.length > 0 && (
         <button
@@ -177,7 +192,10 @@ export const ChatToolCalls = ({
         const canToggle = status !== 'running'
           && status !== 'queued'
           && !!(tool.result || tool.error || tool.args !== undefined);
-        const expanded = status === 'failed' || expandedTools.has(tool.id);
+        const expanded = expandedTools.has(tool.id);
+        const showRawName = !TOOL_LABEL_SLUGS[tool.name]
+          || status === 'failed'
+          || status === 'cancelled';
         const headerContent = (
           <>
             <span className="chat-tool-call-icon">
@@ -195,7 +213,7 @@ export const ChatToolCalls = ({
             </span>
             <span className="chat-tool-call-sig" title={formatToolSignature(tool.name, tool.args)}>
               <span className="chat-tool-call-label">{formatToolLabel(tool.name, status, t)}</span>
-              <span className="chat-tool-call-name">{tool.name}</span>
+              {showRawName && <span className="chat-tool-call-name">{tool.name}</span>}
             </span>
             {canToggle && (
               <span className={`chat-tool-call-chevron${expanded ? ' chat-tool-call-chevron--open' : ''}`}>
@@ -232,4 +250,19 @@ export const ChatToolCalls = ({
       })}
     </div>
   );
+
+  if (isStreaming) {
+    return (
+      <div
+        className={`chat-tool-details-reveal${liveDetailsOpen ? ' chat-tool-details-reveal--open' : ''}`}
+        aria-hidden={!liveDetailsOpen}
+      >
+        <div className="chat-tool-details-reveal__inner">
+          {toolList}
+        </div>
+      </div>
+    );
+  }
+
+  return toolList;
 };
