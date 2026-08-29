@@ -6,7 +6,7 @@
  * access in workspace chat and an explicit-target capability boundary globally. Runs in Electron.
  */
 import { Engine } from 'pulse-coder-engine';
-import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
+import type { MCPAppsManager, MCPClientManager, MCPServerStatus } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { join } from 'path';
 import { resolveCanvasModel, type ResolvedCanvasModel } from './model/config';
@@ -82,6 +82,7 @@ import { markCanvasHostContextReady } from './observability/host-run';
 import type { PendingClarificationRequest } from './clarification-registry';
 import { CanvasRunRegistry } from './canvas-run-registry';
 import { prepareRunSession } from './run-session-context';
+import { executeMcpAppTool, resolveMcpApp } from './mcp-app-runtime';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
 
@@ -612,21 +613,20 @@ export class CanvasAgent {
     console.info(`[canvas-agent] Engine reloaded for ${this.label}`);
   }
 
-  /**
-   * Snapshot of MCP per-server connection health from the *current* engine —
-   * captured by the engine's MCP plugin during its last initialize. Empty
-   * record if the engine hasn't yet loaded any MCP server (or the manager
-   * service isn't registered yet).
-   */
   getMcpStatuses(): Record<string, MCPServerStatus> {
-    const manager = this.engine?.getService?.('mcp:__manager__') as
-      | { getStatuses?: () => Record<string, MCPServerStatus> }
-      | undefined;
-    return manager?.getStatuses?.() ?? {};
+    return this.getMcpManager()?.getStatuses() ?? {};
   }
-
-  /**
-   * Send a user message and get the agent's response. Streaming/text/tool
+  getMcpManager(): MCPClientManager | undefined {
+    return this.engine?.getService?.('mcp:__manager__') as MCPClientManager | undefined;
+  }
+  getMcpAppsManager(): MCPAppsManager | undefined {
+    return this.engine?.getService?.('mcp:__apps__') as MCPAppsManager | undefined;
+  }
+  async executeMcpAppTool(name: string, args: unknown, signal: AbortSignal): Promise<unknown> {
+    const execution = await executeMcpAppTool(this.engine, name, args, signal);
+    return this.getMcpAppsManager()?.getToolResult(execution.toolCallId) ?? execution.result;
+  }
+  /** Send a user message and get the agent's response. Streaming/text/tool
    * callbacks feed the renderer; `onClarificationRequest` asks the user a
    * question (answered later via `answerClarification` or cancelled via
    * `abort()`). The run anchors to `requestContext.expectedConversationSessionId`.
@@ -882,7 +882,7 @@ export class CanvasAgent {
         recordTraceMessageSnapshot(debugTrace, { systemPrompt: segmentPrompt, messages: context.messages });
 
         // Tool frames persist so reloaded sessions keep chips/artifacts.
-        const toolCalls = externalToolCalls ?? modelMessagesToToolCalls(responseMessages);
+        const toolCalls = externalToolCalls ?? modelMessagesToToolCalls(responseMessages, (name, id) => resolveMcpApp(this.getMcpAppsManager(), name, id));
         if (stopped) {
           settleStoppedToolCalls(toolCalls, failedTurnTools.snapshot());
           // Engine returns a sentinel on abort; preserve the exact text the

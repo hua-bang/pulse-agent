@@ -146,6 +146,12 @@ The v1 reader accepts stdio, streamable HTTP and SSE servers after validating th
 - Never expose Pulse native main/renderer capabilities for a market-managed package unless its persisted trust bit is true.
 - Never recursively delete a linked directory or a path that is not contained by the market-managed packages root.
 
+## Inline MCP Apps host
+
+Agent Plugins packaging remains unchanged: optional UI is discovered from MCP Tool metadata, not from `plugin.json` or `mcp.json`. The engine MCP manager recognizes `_meta.ui.resourceUri`, the deprecated `ui/resourceUri`, and the OpenAI compatibility alias `openai/outputTemplate`; it retains the owning server/tool mapping and exposes bounded resource and enabled-tool calls to Canvas.
+
+Canvas tool-result events preserve a bounded, policy-approved pre-offload MCP result envelope for app tools while keeping the legacy model-facing string result for ordinary transcript rendering. The renderer reads the `ui://` resource through typed main/preload IPC and renders it inline using the official MCP Apps `AppBridge` and `PostMessageTransport`. A host-owned `pulse-mcp-app://sandbox` outer frame receives a response-header CSP and relays to an opaque-origin inner app frame; origin checks revoke the bridge immediately if the inner document navigates away. The MVP supports initialization, tool input/result delivery, same-server `tools/call`, resource list/read, logging, intrinsic size changes, and inline-only display mode. App-initiated tools use the Engine's registered-tool execution path (schema and before/after hooks, without model-visibility filtering) and require host confirmation with the complete bounded arguments; requests have concurrency and timeout limits. App-authored chat messages, fullscreen, PiP, downloads, external links, sampling, camera/microphone, and OpenAI-only `window.openai` extensions are intentionally absent.
+
 ## Validation entry points
 
 Let the repository runner select the bound Canvas checks for a change:
@@ -173,3 +179,4 @@ The focused suites cover package precedence/containment, skill scanning, MCP con
 - Public literal remote headers are supported, but the market does not independently enforce redirect-origin stripping; credential-bearing fixed headers are rejected instead.
 - Runtime refresh is not yet coordinated with an already-running chat turn. Installing, uninstalling, or changing native trust while an MCP tool call is in flight can interrupt that call; the persisted change remains authoritative and is applied on the next refresh/restart.
 - Plugin config still uses the existing `canvas-plugins.json` storage behavior; the market state must not be treated as a secret vault.
+- MCP Apps currently render inline only. App model-context updates and state persistence are not yet carried into later model turns.

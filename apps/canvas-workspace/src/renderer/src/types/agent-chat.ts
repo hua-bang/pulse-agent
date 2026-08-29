@@ -1,5 +1,6 @@
 import type {
   AgentChatMessage,
+  AgentChatMcpApp,
   AgentClarificationRequest,
   AgentRequestContext,
   AgentScope,
@@ -22,6 +23,24 @@ export interface AgentNewSessionResult {
 }
 
 export interface AgentApi {
+  mcpApps: {
+    listResources: (
+      scope: AgentScope,
+      serverName: string,
+      cursor?: string,
+    ) => Promise<{ ok: boolean; value?: unknown; error?: string }>;
+    readResource: (
+      scope: AgentScope,
+      serverName: string,
+      uri: string,
+    ) => Promise<{ ok: boolean; value?: unknown; error?: string }>;
+    callTool: (
+      scope: AgentScope,
+      serverName: string,
+      toolName: string,
+      args: unknown,
+    ) => Promise<{ ok: boolean; value?: unknown; error?: string }>;
+  };
   prepareChat: (
     scopeRef: AgentScopeRef,
     message: string,
@@ -155,6 +174,7 @@ export interface AgentApi {
       toolCallId?: string;
       status: 'succeeded' | 'failed' | 'cancelled';
       error?: string;
+      mcpApp?: AgentChatMcpApp;
     }) => void,
   ) => () => void;
   /** Tool-input streaming: fired when LLM starts emitting tool arguments. */

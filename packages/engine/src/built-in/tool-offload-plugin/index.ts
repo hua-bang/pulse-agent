@@ -101,8 +101,14 @@ export function createToolOffloadPlugin(options: ToolOffloadPluginOptions = {}):
       const dir = resolveOffloadDir(options.dir);
       const store = createFsStore(dir);
 
-      context.registerHook('afterToolCall', async ({ name, output }) => {
+      context.registerHook('afterToolCall', async ({ name, output, toolContext }) => {
         try {
+          const apps = context.getService<{
+            captureToolResult?: (toolName: string, toolCallId: string, result: unknown) => void;
+          }>('mcp:__apps__');
+          if (toolContext?.toolCallId) {
+            apps?.captureToolResult?.(name, toolContext.toolCallId, output);
+          }
           const result = await offloadToolOutput(output, { toolName: name, threshold, store });
           if (!result) return;
           context.logger.info('[ToolOffload] offloaded oversized tool output', {

@@ -7,6 +7,7 @@
  */
 
 import type { AgentTraceEvent } from '../../shared/agent-observability';
+import type { AgentChatMcpApp } from '../../shared/agent-chat';
 
 export type {
   AgentClarificationRequest,
@@ -55,6 +56,7 @@ export interface CanvasAgentToolCall {
   inputStreaming?: boolean;
   streamedContent?: string;
   streamedDone?: boolean;
+  mcpApp?: AgentChatMcpApp;
 }
 
 export interface CanvasAgentDebugTraceNodeRef {

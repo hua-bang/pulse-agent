@@ -411,6 +411,7 @@ export const ChatPageBody = ({
         />
         <ChatView
           className="chat-page-body"
+          agentScope={agentScope}
           banner={<>
             <ChatConversationStatus sessionLoadingFeedback="external"
               sessionLoading={sessionLoading}

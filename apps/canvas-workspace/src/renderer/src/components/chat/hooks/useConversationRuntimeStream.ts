@@ -184,7 +184,7 @@ export function useConversationRuntimeStream({
           if (tool) {
             tool.status = data.status ?? 'succeeded';
             tool.result = data.result;
-            tool.error = data.error;
+            tool.error = data.error; tool.mcpApp = data.mcpApp;
             tool.inputStreaming = false; tool.finishedAt = Date.now();
           }
           publishTools();

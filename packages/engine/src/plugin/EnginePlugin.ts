@@ -93,6 +93,7 @@ export interface AfterToolCallInput {
   name: string;
   input: any;
   output: any;
+  toolContext?: ToolExecutionContext;
 }
 
 export interface AfterToolCallResult {

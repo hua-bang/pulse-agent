@@ -7,7 +7,11 @@ import { join } from 'path';
 // description so we also cover the "description omitted" branch.
 const { fakeTools, mcpCalls } = vi.hoisted(() => ({
   fakeTools: {
-    search: { description: 'Search the web' },
+    search: {
+      description: 'Search the web',
+      _meta: { ui: { resourceUri: 'ui://exa/search.html' } },
+      execute: vi.fn(async (args) => ({ content: [], structuredContent: args })),
+    },
     danger_tool: { description: 'Dangerous operation' },
     plain: {},
   } as Record<string, { description?: string }>,
@@ -19,6 +23,8 @@ vi.mock('@ai-sdk/mcp', () => ({
     mcpCalls.push(config);
     return {
       tools: async () => fakeTools,
+      listResources: vi.fn(async () => ({ resources: [] })),
+      readResource: vi.fn(async ({ uri }) => ({ contents: [{ uri, text: '<main>app</main>' }] })),
       close: vi.fn(),
     };
   }),
@@ -28,7 +34,7 @@ vi.mock('@ai-sdk/mcp/mcp-stdio', () => ({
   Experimental_StdioMCPTransport: class {},
 }));
 
-import { createMcpPlugin, type MCPClientManager } from './index';
+import { createMcpPlugin, type MCPAppsManager, type MCPClientManager } from './index';
 import type { EnginePluginContext } from '../../plugin/EnginePlugin';
 
 /** Minimal EnginePluginContext that records registered tools + services. */
@@ -146,6 +152,29 @@ describe('createMcpPlugin disabledTools', () => {
     if (status.ok) {
       expect(status.tools.every((t) => t.enabled)).toBe(true);
     }
+
+    const apps = services['mcp:__apps__'] as MCPAppsManager;
+    expect(apps.getToolApp('mcp_eido_search')).toEqual({
+      serverName: 'eido',
+      toolName: 'search',
+      registeredToolName: 'mcp_eido_search',
+      resourceUri: 'ui://exa/search.html',
+    });
+    expect(apps.getRegisteredToolName('eido', 'plain')).toBe('mcp_eido_plain');
+    await expect(apps.readResource('eido', 'ui://exa/search.html')).resolves.toMatchObject({
+      contents: [{ text: '<main>app</main>' }],
+    });
+    const appResult = await tools['mcp_eido_search'].execute(
+      { query: 'pulse' },
+      { toolCallId: 'app-call-1' },
+    );
+    expect(appResult).toMatchObject({
+      structuredContent: { query: 'pulse' },
+    });
+    apps.captureToolResult('mcp_eido_search', 'app-call-1', appResult);
+    expect(apps.getToolResult('app-call-1')).toMatchObject({
+      structuredContent: { query: 'pulse' },
+    });
   });
 
   it('attaches an OAuth authProvider for oauth-enabled http servers', async () => {

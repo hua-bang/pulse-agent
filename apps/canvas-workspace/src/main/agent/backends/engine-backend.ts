@@ -2,6 +2,8 @@ import type { ModelMessage } from 'ai';
 
 import { buildEngineStreamCallbacks } from '../engine-stream-callbacks';
 import type { AgentRuntime, TurnSegmentRequest, TurnSegmentResult } from './types';
+import type { MCPAppsManager } from 'pulse-coder-engine/built-in';
+import { resolveMcpApp } from '../mcp-app-runtime';
 
 const CANVAS_AGENT_MAX_STEPS = 200;
 
@@ -21,6 +23,7 @@ export const engineTurnBackend: AgentRuntime = {
     compaction: 'native',
   },
   async runSegment(request: TurnSegmentRequest): Promise<TurnSegmentResult> {
+    const mcpApps = request.engine.getService?.<MCPAppsManager>('mcp:__apps__');
     const resultText = await request.engine.run(request.context, {
       provider: request.modelConfig.provider,
       model: request.configuredModel ?? request.modelConfig.model,
@@ -36,7 +39,11 @@ export const engineTurnBackend: AgentRuntime = {
         runtimeId: 'engine',
       },
       onClarificationRequest: request.onClarificationRequest,
-      ...buildEngineStreamCallbacks(request, request.debugTrace),
+      ...buildEngineStreamCallbacks(
+        request,
+        request.debugTrace,
+        (name, toolCallId) => resolveMcpApp(mcpApps, name, toolCallId),
+      ),
       onResponse: (messages: ModelMessage[]) => {
         request.recordResponseMessages(messages);
       },

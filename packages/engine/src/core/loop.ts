@@ -329,7 +329,13 @@ function wrapToolsWithHooks(
           // Run all afterToolCall hooks sequentially
           let finalOutput = output;
           for (const hook of afterHooks) {
-            const result = await hook({ context, name, input: finalInput, output: finalOutput });
+            const result = await hook({
+              context,
+              name,
+              input: finalInput,
+              output: finalOutput,
+              toolContext: finalToolContext,
+            });
             if (result && 'output' in result) {
               finalOutput = result.output;
             }

@@ -41,6 +41,26 @@ describe('normalizeToolResult', () => {
     });
   });
 
+  it('keeps the full MCP result envelope for an inline app', () => {
+    const result = {
+      content: [{ type: 'text', text: 'ready' }],
+      structuredContent: { rows: 3 },
+      _meta: { privateWidgetState: 'kept' },
+    };
+    const outcome = normalizeToolResult(
+      { type: 'json', value: { offloaded: true, path: '/tmp/stub' } },
+      { name: 'mcp_demo_render', toolCallId: 'app-1' },
+      { serverName: 'demo', toolName: 'render', resourceUri: 'ui://demo/app.html', result },
+    );
+
+    expect(outcome.mcpApp).toEqual({
+      serverName: 'demo',
+      toolName: 'render',
+      resourceUri: 'ui://demo/app.html',
+      result,
+    });
+  });
+
   it('persists successful and failed tool frames distinctly', () => {
     const messages = [{
       role: 'assistant',
