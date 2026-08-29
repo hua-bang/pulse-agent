@@ -224,7 +224,7 @@
 .text-node-body h2,
 .text-node-body h3 {
   margin: 0;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   letter-spacing: 0;
   line-height: 1.2;
 }
@@ -242,7 +242,7 @@
 }
 
 .text-node-body strong {
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 .text-node-body em {
@@ -381,7 +381,7 @@
 
 .text-selection-bubble__button--clear {
   width: 30px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   letter-spacing: 0;
 }
 
@@ -392,7 +392,7 @@
   border-radius: var(--radius-sm);
   padding: 0;
   font-size: 12px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   line-height: 1;
 }
 
@@ -482,7 +482,7 @@
 
 .text-color-dot-glyph {
   font-size: 9px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   line-height: 1;
   color: rgba(0, 0, 0, 0.55);
   font-family: var(--font);

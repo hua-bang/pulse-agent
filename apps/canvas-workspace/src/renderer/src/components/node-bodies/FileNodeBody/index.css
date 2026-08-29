@@ -167,7 +167,7 @@
 
 .note-tiptap-editor .ProseMirror h1 {
   font-size: 1.9em;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   margin: 0.95em 0 0.4em;
   color: var(--text);
   line-height: 1.26;
@@ -181,7 +181,7 @@
 
 .note-tiptap-editor .ProseMirror h2 {
   font-size: 1.42em;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   margin: 1.5em 0 0.5em;
   color: var(--text);
   line-height: 1.34;
@@ -191,7 +191,7 @@
 
 .note-tiptap-editor .ProseMirror h3 {
   font-size: 1.16em;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   margin: 1.25em 0 0.4em;
   color: var(--text);
   letter-spacing: -0.01em;
@@ -203,7 +203,7 @@
 }
 
 .note-tiptap-editor .ProseMirror strong {
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 .note-tiptap-editor .ProseMirror em {
@@ -371,7 +371,7 @@
 
 .note-tiptap-editor .ProseMirror th {
   background: rgba(55, 53, 47, 0.035);
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   text-align: left;
 }
 
@@ -425,7 +425,7 @@
 .note-tiptap-editor .ProseMirror .hljs-name,
 .note-tiptap-editor .ProseMirror .hljs-strong {
   color: #a626a4;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 .note-tiptap-editor .ProseMirror .hljs-string,

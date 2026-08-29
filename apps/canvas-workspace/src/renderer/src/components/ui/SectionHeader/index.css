@@ -10,8 +10,8 @@
 }
 
 .ui-section-header__title {
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-medium);
+  font-size: 15px;
+  font-weight: 500;
   color: var(--text);
 }
 

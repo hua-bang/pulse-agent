@@ -216,7 +216,7 @@
 }
 
 .canvas-gesture-hud__main {
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 .canvas-gesture-hud__meta {
@@ -231,7 +231,7 @@
   background: rgba(35, 131, 226, 0.1);
   color: var(--accent);
   font-size: 10px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 /* Focus-mode backdrop. Lives inside `.canvas-transform` (see

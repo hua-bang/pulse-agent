@@ -35,7 +35,7 @@
 
 .agent-section-card-title {
   font-size: 14px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   color: #37352f;
   margin-bottom: 4px;
 }
@@ -92,7 +92,7 @@
   margin-bottom: 3px;
   color: var(--text);
   font-size: 12px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 .agent-section-policy-select {
@@ -127,7 +127,7 @@
   margin-bottom: 3px;
   color: var(--accent);
   font-size: 12.5px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 .agent-section-update-desc {
@@ -155,7 +155,7 @@
 
 .agent-section-warning-title {
   font-size: 12.5px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   color: #92400e;
   margin-bottom: 3px;
 }
@@ -201,7 +201,7 @@
 
 .agent-section-cli-title {
   font-size: 12.5px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   color: #1f4e8a;
 }
 
@@ -256,7 +256,7 @@
 
 .agent-section-result-icon {
   font-size: 13px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   line-height: 1.4;
   flex-shrink: 0;
   width: 16px;

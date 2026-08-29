@@ -45,7 +45,7 @@
 
 .ui-drawer-kicker {
   font-size: 10px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: rgba(55, 53, 47, 0.42);

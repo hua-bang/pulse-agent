@@ -16,7 +16,7 @@
 
 .experimental-section-intro-title {
   font-size: 14px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   color: #37352f;
   margin-bottom: 4px;
 }
@@ -106,7 +106,7 @@
 
 .experimental-section-item-label {
   font-size: 13.5px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   color: #37352f;
   margin-bottom: 3px;
 }

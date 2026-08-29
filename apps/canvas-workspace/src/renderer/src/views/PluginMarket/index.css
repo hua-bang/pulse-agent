@@ -37,15 +37,15 @@
 .plugin-market__intro > div:first-child > span {
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .plugin-market__intro h1 {
   margin: 7px 0 0;
-  font-size: var(--font-size-page-title);
-  font-weight: var(--font-weight-emphasis);
+  font-size: 24px;
+  font-weight: 600;
   line-height: 1.2;
   text-wrap: balance;
 }
@@ -85,7 +85,7 @@
 .plugin-market__section-heading h2 {
   margin: 0;
   font-size: 14px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 .plugin-market__section-heading span {

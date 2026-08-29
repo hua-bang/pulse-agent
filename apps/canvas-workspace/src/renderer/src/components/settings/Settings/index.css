@@ -30,7 +30,7 @@
   padding: 0 10px 4px;
   color: rgba(55, 53, 47, 0.58);
   font-size: 11px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   line-height: 1.2;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -70,7 +70,7 @@
 
 .settings-rail-label {
   font-size: 13px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   line-height: 1.2;
 }
 

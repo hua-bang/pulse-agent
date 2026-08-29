@@ -190,7 +190,7 @@
 
 .chat-inline-visual__btn--primary {
   color: #37352f;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 .chat-inline-visual__header {
@@ -205,7 +205,7 @@
 
 .chat-inline-visual__label {
   font-size: 11px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #8a8a87;
@@ -309,7 +309,7 @@
 
 .chat-inline-visual__mermaid-error-title {
   font-size: 12px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   color: #8b2f2a;
   margin-bottom: 4px;
 }
@@ -387,7 +387,7 @@
 .chat-artifact-card__title {
   display: block;
   font-size: 13px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   color: #37352f;
   white-space: nowrap;
   overflow: hidden;
@@ -439,7 +439,7 @@
 
 .artifact-drawer__type-badge {
   font-size: 10px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #6b6b68;
@@ -555,7 +555,7 @@
 
 .artifact-drawer__mermaid-error-title {
   font-size: 13px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   color: #8b2f2a;
   margin-bottom: 6px;
 }

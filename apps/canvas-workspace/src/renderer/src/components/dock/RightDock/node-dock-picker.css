@@ -8,7 +8,7 @@
 .node-dock-picker__item--disabled { opacity: 0.5; cursor: not-allowed; }
 .node-dock-picker__item--disabled:hover { background: transparent; }
 .node-dock-picker__copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.node-dock-picker__copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: var(--font-weight-medium); }
+.node-dock-picker__copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
 .node-dock-picker__copy small, .node-dock-picker__tags { color: var(--text-muted); font-size: 11px; }
 .node-dock-picker__tags { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .node-dock-picker__empty { padding: 28px 16px; text-align: center; color: var(--text-muted); font-size: 13px; }

@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { extname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -21,12 +21,8 @@ describe('renderer typography system', () => {
   it('keeps the product, mono, size, and weight tokens explicit', () => {
     expect(globalCss).toContain('--font-sans: "Lexend Variable", "PingFang SC"');
     expect(globalCss).toContain('--font-mono: "SF Mono", SFMono-Regular');
-    expect(globalCss).toContain('--font-size-ui: 13px');
-    expect(globalCss).toContain('--font-size-title: 15px');
-    expect(globalCss).toContain('--font-size-page-title: 24px');
-    expect(globalCss).toContain('--font-weight-regular: 400');
-    expect(globalCss).toContain('--font-weight-medium: 500');
-    expect(globalCss).toContain('--font-weight-emphasis: 600');
+    expect(globalCss).toMatch(/body\s*\{[^}]*font-size:\s*13px;[^}]*font-weight:\s*400;/s);
+    expect(globalCss).toMatch(/h1,[\s\S]*?strong,[\s\S]*?b\s*\{[^}]*font-weight:\s*500;/s);
   });
 
   it('bundles only the Latin Lexend variable font at build time', () => {
@@ -47,9 +43,26 @@ describe('renderer typography system', () => {
   it('does not reintroduce heavy literal weights into renderer styles', () => {
     for (const path of collectCssFiles(rendererRoot)) {
       const css = readFileSync(path, 'utf8');
-      expect(css, path).not.toMatch(/^\s*font-weight:\s*(?:[6-9]\d{2}|bold);/m);
+      expect(css, path).not.toMatch(/^\s*font-weight:\s*(?:[7-9]\d{2}|bold);/m);
       expect(css, path).not.toMatch(/^\s*font:\s*[6-9]\d{2}\b/m);
     }
+  });
+
+  it('reserves 600 weight for page titles and the product brand', () => {
+    const allowed = new Set([
+      'components/shell/Sidebar/index.css',
+      'views/PluginMarket/index.css',
+      'views/Scheduled/index.css',
+      'views/SkillsLibrary/index.css',
+      'views/WorkspaceNodes/index.css',
+    ]);
+    const declarations = collectCssFiles(rendererRoot).flatMap((path) => {
+      const css = readFileSync(path, 'utf8');
+      const count = css.match(/^\s*font-weight:\s*600;/gm)?.length ?? 0;
+      return Array.from({ length: count }, () => relative(rendererRoot, path));
+    });
+    expect(new Set(declarations)).toEqual(allowed);
+    expect(declarations).toHaveLength(allowed.size);
   });
 
   it.each([
@@ -59,7 +72,7 @@ describe('renderer typography system', () => {
     'views/WorkspaceNodes/index.css',
   ])('uses the page-title scale in %s', (relativePath) => {
     const css = readFileSync(join(rendererRoot, relativePath), 'utf8');
-    expect(css).toContain('font-size: var(--font-size-page-title)');
-    expect(css).toContain('font-weight: var(--font-weight-emphasis)');
+    expect(css).toContain('font-size: 24px');
+    expect(css).toContain('font-weight: 600');
   });
 });

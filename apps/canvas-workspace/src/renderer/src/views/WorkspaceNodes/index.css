@@ -104,8 +104,8 @@
 
 .workspace-nodes-page__header h1 {
   margin: 0;
-  font-size: var(--font-size-page-title);
-  font-weight: var(--font-weight-emphasis);
+  font-size: 24px;
+  font-weight: 600;
   line-height: 1.2;
   letter-spacing: 0;
 }
@@ -130,7 +130,7 @@
   height: 32px;
   padding: 0 11px;
   font-size: 12px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -447,7 +447,7 @@
   border: none;
   background: transparent;
   color: var(--nodes-text);
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -585,7 +585,7 @@
 }
 
 .node-detail-panel__property-row strong {
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -686,7 +686,7 @@
 }
 
 .workspace-node-chip--toolbar-action {
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 .workspace-graph-toolbar__more {

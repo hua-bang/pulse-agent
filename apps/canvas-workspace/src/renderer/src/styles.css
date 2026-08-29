@@ -8,9 +8,6 @@
   font-weight: 100 900;
   src: url("@fontsource-variable/lexend/files/lexend-latin-wght-normal.woff2")
     format("woff2-variations");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
-    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 /* Allow --canvas-scale to be animated via CSS transition */
@@ -127,12 +124,6 @@
   --font: var(--font-sans);
   --font-ui: var(--font-sans);
   --font-mono: "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-size-ui: 13px;
-  --font-size-title: 15px;
-  --font-size-page-title: 24px;
-  --font-weight-regular: 400;
-  --font-weight-medium: 500;
-  --font-weight-emphasis: 600;
   --sidebar-width: 240px;
   --sidebar-collapsed: 48px;
   --titlebar-height: 38px;
@@ -199,8 +190,8 @@ body {
   color: var(--text);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
-  font-size: var(--font-size-ui);
-  font-weight: var(--font-weight-regular);
+  font-size: 13px;
+  font-weight: 400;
 }
 
 h1,
@@ -211,7 +202,7 @@ h5,
 h6,
 strong,
 b {
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 button,
