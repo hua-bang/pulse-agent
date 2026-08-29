@@ -191,6 +191,12 @@ describe('ConversationRuntime (main, async owner)', () => {
         result: 'node content',
         toolCallId: 'tool-1',
         status: 'succeeded',
+        mcpApp: {
+          serverName: 'example.server',
+          toolName: 'canvas_read_node',
+          resourceUri: 'ui://example/app.html',
+          result: { content: [{ type: 'text', text: 'node content' }] },
+        },
       });
       return {
         response: 'done',
@@ -226,6 +232,12 @@ describe('ConversationRuntime (main, async owner)', () => {
         toolCallId: 'tool-1',
         status: 'succeeded',
         result: 'node content',
+        mcpApp: {
+          serverName: 'example.server',
+          toolName: 'canvas_read_node',
+          resourceUri: 'ui://example/app.html',
+          result: { content: [{ type: 'text', text: 'node content' }] },
+        },
       }],
     });
   });

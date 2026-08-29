@@ -27,6 +27,7 @@ export interface TurnToolResult {
   toolCallId?: string;
   status?: 'succeeded' | 'failed' | 'cancelled';
   error?: string;
+  mcpApp?: AgentChatToolCall['mcpApp'];
 }
 
 /**
@@ -395,6 +396,7 @@ export class ConversationRuntime {
     tool.status = data.status ?? 'succeeded';
     tool.result = data.result;
     tool.error = data.error;
+    tool.mcpApp = data.mcpApp;
     tool.inputStreaming = false;
     if (tool.streamedContent != null) tool.streamedDone = true;
   }
