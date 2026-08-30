@@ -1,8 +1,7 @@
-import { readFileSync } from 'fs';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import path from 'path';
-import { globSync } from 'glob';
+import { glob } from 'glob';
 import matter from 'gray-matter';
 import { z } from 'zod';
 
@@ -222,9 +221,9 @@ class SoulRegistry {
 
     for (const { base, pattern } of scanPaths) {
       try {
-        const files = globSync(pattern, { cwd: base, absolute: true });
+        const files = await glob(pattern, { cwd: base, absolute: true });
         for (const filePath of files) {
-          const soul = this.parseSoulFile(filePath);
+          const soul = await this.parseSoulFile(filePath);
           if (soul) {
             souls.push(soul);
           }
@@ -237,9 +236,9 @@ class SoulRegistry {
     return souls;
   }
 
-  private parseSoulFile(filePath: string): SoulDefinition | null {
+  private async parseSoulFile(filePath: string): Promise<SoulDefinition | null> {
     try {
-      const content = readFileSync(filePath, 'utf-8');
+      const content = await fs.readFile(filePath, 'utf-8');
       const parsed = matter(content);
       const metadata = parsed.data as Record<string, any>;
       const prompt = parsed.content.trim();
