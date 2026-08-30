@@ -81,6 +81,16 @@ the renderer-facing API. Bridge modules:
   types — currently `renderer/src/types` via the documented allowlist, pending
   migration to `src/shared/*`).
 
+## Main-process logging
+
+`src/main/app/logging.ts` owns the app log writer. Writes are serialized in
+call order; consecutive identical entries within the dedupe window are
+collapsed and summarized; `app.log` rotates by size with bounded backups.
+Defaults are 5 MiB, three backups, and a 2 s duplicate window; override with
+`PULSE_CANVAS_LOG_MAX_BYTES`, `PULSE_CANVAS_LOG_MAX_BACKUPS`, and
+`PULSE_CANVAS_LOG_DEDUPE_MS`. Keep renderer console capture fire-and-forget,
+but never bypass this writer with independent append paths.
+
 ## Tests
 
 - Domain tests live in `src/main/__tests__/` on **vitest**

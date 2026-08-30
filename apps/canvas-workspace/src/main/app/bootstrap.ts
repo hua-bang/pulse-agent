@@ -108,7 +108,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   configureAppIdentity();
 
   const paths = resolveAppPaths(mainDir);
-  const { writeLog } = createMainLogger();
+  const { writeLog, flush: flushLogs } = createMainLogger();
 
   registerPulseCanvasSchemesAsPrivileged();
   setupLinkPolicy();
@@ -271,10 +271,13 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       event.preventDefault();
       if (pluginTeardownStarted) return;
       pluginTeardownStarted = true;
-      void teardownCanvasPlugins().finally(() => {
-        pluginTeardownComplete = true;
-        app.quit();
-      });
+      void teardownCanvasPlugins()
+        .catch(error => writeLog('main', 'plugin teardown failed', String(error)))
+        .then(() => flushLogs())
+        .finally(() => {
+          pluginTeardownComplete = true;
+          app.quit();
+        });
     });
     startupMark("pluginsActivated");
     void ensureRuntimeControlServer(writeLog).then((ok) => {
