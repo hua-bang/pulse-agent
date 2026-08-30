@@ -19,6 +19,7 @@ import {
 } from './session-metadata';
 import { archiveSortKey, isListableSession, scanAllWorkspaceSessions, sessionUpdatedAt, type AgentSessionListEntry } from './session-store-scan';
 import { appendSessionMessages, readCurrentSessionFileAt, readSessionFile, replaceSessionMessages, type SessionFileIo, writeFileAtomic } from './session-file-io';
+import { removeArchivePaths, resolveArchivedSession } from './session-archive';
 export type { AgentSessionListEntry } from './session-store-scan';
 // Lazy so tests can redirect storage through the environment.
 const storeDir = (): string =>
@@ -304,7 +305,8 @@ export class SessionStore {
   /** Promote an archived session after durably archiving current history. */
   async loadSession(sessionId: string): Promise<CanvasAgentSession | null> {
     await this.flushPersistence();
-    const cleanup = () => this.removeArchivedSessionsById(sessionId).catch(error => console.warn('[session-store] Could not clean promoted archive:', error));
+    const resolved = await resolveArchivedSession(this.archiveDir, sessionId);
+    const cleanup = () => removeArchivePaths(resolved.matchingPaths).catch(error => console.warn('[session-store] Could not clean promoted archive:', error));
     // If the requested session is already current, do not create another copy.
     if (this.session?.sessionId === sessionId) {
       await cleanup();
@@ -317,31 +319,7 @@ export class SessionStore {
       await cleanup();
       return current.session;
     }
-    let matched: CanvasAgentSession | null = null;
-    let matchedSortKey = -1;
-
-    // Find the newest archived copy by sessionId. Older versions may exist
-    // from the previous restore behavior, so choose the latest and clean up
-    // all archived copies after it is promoted to current.
-    try {
-      const files = await fs.readdir(this.archiveDir);
-      for (const file of files) {
-        if (!file.endsWith('.json')) continue;
-        const archivePath = join(this.archiveDir, file);
-        const raw = await fs.readFile(archivePath, 'utf-8');
-        const data = JSON.parse(raw) as CanvasAgentSession;
-        if (data.sessionId !== sessionId) continue;
-
-        const sortKey = await archiveSortKey(archivePath, file);
-        if (!matched || sortKey > matchedSortKey) {
-          matched = data;
-          matchedSortKey = sortKey;
-        }
-      }
-    } catch {
-      // ignore
-    }
-
+    const matched = resolved.session;
     if (!matched) return null;
 
     // Archive current session first, then promote the archived session to

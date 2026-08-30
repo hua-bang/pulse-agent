@@ -352,6 +352,51 @@ describe('SessionStore', () => {
     expect((await reloaded.restoreCurrentSession())?.sessionId).toBe(promotedSessionId);
   });
 
+  it('reads each archive only once while promoting and cleaning a session', async () => {
+    const workspaceId = 'ws-single-promotion-scan';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const promotedSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    store.addMessage(makeMessage(1));
+    await store.startSession();
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    const archiveFiles = await fs.readdir(archiveDir);
+    const readFile = vi.spyOn(fs, 'readFile');
+
+    await new SessionStore(workspaceId).loadSession(promotedSessionId);
+
+    const archiveReads = readFile.mock.calls
+      .map(([path]) => String(path))
+      .filter(path => path.startsWith(archiveDir));
+    expect(archiveReads).toHaveLength(archiveFiles.length);
+    expect(new Set(archiveReads).size).toBe(archiveFiles.length);
+  });
+
+  it('promotes the newest duplicate archive and removes every matching copy', async () => {
+    const workspaceId = 'ws-newest-duplicate';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage({ role: 'user', content: 'older copy', timestamp: 1 });
+    await store.startSession();
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    const [olderFile] = await fs.readdir(archiveDir);
+    const olderPath = join(archiveDir, olderFile);
+    const newerPath = join(archiveDir, 'newer-duplicate.json');
+    const newer = JSON.parse(await fs.readFile(olderPath, 'utf-8'));
+    newer.messages[0].content = 'newer copy';
+    await fs.writeFile(newerPath, JSON.stringify(newer), 'utf-8');
+    await fs.utimes(olderPath, new Date(1_000), new Date(1_000));
+    await fs.utimes(newerPath, new Date(2_000), new Date(2_000));
+
+    const promoted = await new SessionStore(workspaceId).loadSession(sessionId);
+
+    expect(promoted?.messages[0]?.content).toBe('newer copy');
+    expect(await fs.readdir(archiveDir)).toEqual([]);
+  });
+
   it('setMessages persists once instead of once per message', async () => {
     const store = new SessionStore('ws-2');
     await store.startSession();
