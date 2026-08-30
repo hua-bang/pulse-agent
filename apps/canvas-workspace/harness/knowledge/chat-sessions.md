@@ -154,6 +154,17 @@ also avoids a background initializer racing a newer UI pointer change.
 Guards: `src/main/agent/__tests__/service-history.test.ts` and
 `src/main/agent/__tests__/session-store.test.ts`.
 
+**Session listings are metadata-indexed.** Each store's existing
+`agent-sessions/metadata.json` is upgraded lazily to a versioned document that
+keeps title/pin metadata plus a per-file summary (session id, recency, message
+count, preview, mtime, and size). The first read, a legacy flat metadata file,
+or an inventory mismatch rebuilds the index from durable session files;
+unchanged listings use only metadata plus file stats and never parse message or
+tool-result bodies. Current/archive writes and removals update the index through
+the same atomic metadata writer; index failures are cache failures and must not
+change the success/failure semantics of the authoritative session write. The
+cross-workspace rail aggregates these indexes in parallel.
+
 **Seeding.** `sessionLoading` is seeded TRUE at mount. Effects run after
 first paint, so a false seed would flash the empty state before the fetch
 even starts. `skipInitialHistory: true` therefore OBLIGES the caller to call

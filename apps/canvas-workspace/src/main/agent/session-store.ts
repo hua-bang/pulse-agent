@@ -20,6 +20,7 @@ import {
 import { archiveSortKey, isListableSession, scanAllWorkspaceSessions, sessionUpdatedAt, type AgentSessionListEntry } from './session-store-scan';
 import { appendSessionMessages, readCurrentSessionFileAt, readSessionFile, replaceSessionMessages, type SessionFileIo, writeFileAtomic } from './session-file-io';
 import { removeArchivePaths, resolveArchivedSession } from './session-archive';
+import { listIndexedSessions, removeIndexedSessionFiles, updateIndexedSessionAbsoluteFile, updateIndexedSessionFile } from './session-index';
 export type { AgentSessionListEntry } from './session-store-scan';
 // Lazy so tests can redirect storage through the environment.
 const storeDir = (): string =>
@@ -92,7 +93,9 @@ export class SessionStore {
     if (current && current.messages.length > 0) return current;
     const [latestArchived] = await this.listArchivedSessions();
     if (!latestArchived) return current;
-    const session = await this.readSession(latestArchived.sessionId);
+    const session = (await resolveArchivedSession(
+      this.sessionsDir, this.metadataPath, latestArchived.sessionId,
+    )).session;
     if (session) this.session = session;
     return session ?? current;
   }
@@ -126,6 +129,9 @@ export class SessionStore {
       flushPersistence: () => this.flushPersistence(),
       persist: (session) => this.persist(session),
       readCurrentSessionFile: () => this.readCurrentSessionFile(),
+      onSessionFileWritten: (path, session) => updateIndexedSessionAbsoluteFile(
+        this.sessionsDir, this.metadataPath, path, session,
+      ).catch(error => console.warn('[session-store] Could not update session index:', error)),
       workspaceId: this.workspaceId,
       scope: this.scope,
     };
@@ -233,58 +239,10 @@ export class SessionStore {
 
   /** List archived sessions with persisted display metadata. */
   async listArchivedSessions(): Promise<Array<Omit<AgentSessionListEntry, 'isCurrent'>>> {
-    try {
-      const files = await fs.readdir(this.archiveDir);
-      const metadata = await readSessionMetadata(this.metadataPath);
-      const currentSessionId = this.session?.sessionId;
-      const sessionsById = new Map<string, {
-        sessionId: string;
-        date: string;
-        updatedAt: number;
-        messageCount: number;
-        preview: string;
-        title?: string;
-        pinned: boolean;
-        sortKey: number;
-      }>();
-
-      for (const file of files) {
-        if (!file.endsWith('.json')) continue;
-        try {
-          const archivePath = join(this.archiveDir, file);
-          const raw = await fs.readFile(archivePath, 'utf-8');
-          const data = JSON.parse(raw) as CanvasAgentSession;
-          // A session restored from archive becomes current. Hide any stale
-          // archived copy so the session list does not show the same thread
-          // twice while the user continues chatting in it.
-          if (!isListableSession(data) || (currentSessionId && data.sessionId === currentSessionId)) continue;
-
-          const firstUserMsg = data.messages.find(m => m.role === 'user');
-          const sortKey = await archiveSortKey(archivePath, file);
-          const session = {
-            sessionId: data.sessionId,
-            date: data.startedAt?.slice(0, 10) || file.replace('.json', '').slice(0, 10),
-            updatedAt: sessionUpdatedAt(data, sortKey),
-            messageCount: data.messages.length,
-            preview: firstUserMsg ? sessionPreview(firstUserMsg.content) : '',
-            ...listedSessionMetadata(metadata, data.sessionId),
-            sortKey,
-          };
-          const existing = sessionsById.get(data.sessionId);
-          if (!existing || sortKey > existing.sortKey) {
-            sessionsById.set(data.sessionId, session);
-          }
-        } catch {
-          // skip corrupted files
-        }
-      }
-
-      return Array.from(sessionsById.values())
-        .sort((a, b) => b.updatedAt - a.updatedAt || b.sortKey - a.sortKey || b.date.localeCompare(a.date))
-        .map(({ sortKey: _sortKey, ...session }) => session);
-    } catch {
-      return [];
-    }
+    const sessions = await listIndexedSessions(this.sessionsDir, this.metadataPath);
+    return sessions
+      .filter(session => !session.isCurrent && session.sessionId !== this.session?.sessionId)
+      .map(({ isCurrent: _isCurrent, ...session }) => session);
   }
 
   /** Read a legacy date-named archive. */
@@ -305,8 +263,10 @@ export class SessionStore {
   /** Promote an archived session after durably archiving current history. */
   async loadSession(sessionId: string): Promise<CanvasAgentSession | null> {
     await this.flushPersistence();
-    const resolved = await resolveArchivedSession(this.archiveDir, sessionId);
-    const cleanup = () => removeArchivePaths(resolved.matchingPaths).catch(error => console.warn('[session-store] Could not clean promoted archive:', error));
+    const resolved = await resolveArchivedSession(this.sessionsDir, this.metadataPath, sessionId);
+    const cleanup = () => removeArchivePaths(resolved.matchingPaths)
+      .then(() => removeIndexedSessionFiles(this.sessionsDir, this.metadataPath, resolved.matchingPaths))
+      .catch(error => console.warn('[session-store] Could not clean promoted archive:', error));
     // If the requested session is already current, do not create another copy.
     if (this.session?.sessionId === sessionId) {
       await cleanup();
@@ -474,6 +434,7 @@ export class SessionStore {
 
   private async removeArchivedSessionsById(sessionId: string): Promise<boolean> {
     let removed = false;
+    const removedPaths: string[] = [];
     const files = await fs.readdir(this.archiveDir).catch((error: NodeJS.ErrnoException) => {
       if (error.code === 'ENOENT') return [];
       throw error;
@@ -494,7 +455,10 @@ export class SessionStore {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
       removed = true;
+      removedPaths.push(archivePath);
     }));
+    await removeIndexedSessionFiles(this.sessionsDir, this.metadataPath, removedPaths)
+      .catch(error => console.warn('[session-store] Could not clean archived session index:', error));
     return removed;
   }
 
@@ -505,6 +469,8 @@ export class SessionStore {
     const run = this.persistQueue.then(async () => {
       try {
         await this.writeSessionFile(serialized);
+        await updateIndexedSessionFile(this.sessionsDir, this.metadataPath, 'current.json', session)
+          .catch(error => console.warn('[session-store] Could not update current session index:', error));
       } catch (error) {
         // Retain the first failure until a synchronization boundary observes
         // it; a later successful snapshot must not erase a lost write.
@@ -553,7 +519,8 @@ export class SessionStore {
     const sessionId = session.sessionId
       .replace(/[^a-zA-Z0-9._-]/g, '_')
       .slice(0, 120) || 'session';
-    const archivePath = join(this.archiveDir, `${date}-${sessionId}-${randomUUID()}.json`);
+    const archiveFile = `${date}-${sessionId}-${randomUUID()}.json`;
+    const archivePath = join(this.archiveDir, archiveFile);
     const tmp = `${archivePath}.${process.pid}.${randomUUID()}.tmp`;
     let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
     try {
@@ -563,6 +530,8 @@ export class SessionStore {
       await handle.close();
       handle = undefined;
       await fs.rename(tmp, archivePath);
+      await updateIndexedSessionFile(this.sessionsDir, this.metadataPath, `archive/${archiveFile}`, session)
+        .catch(error => console.warn('[session-store] Could not update archived session index:', error));
     } catch (error) {
       await handle?.close().catch(() => undefined);
       await fs.unlink(tmp).catch(() => undefined);
@@ -588,6 +557,8 @@ export class SessionStore {
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
+      await removeIndexedSessionFiles(this.sessionsDir, this.metadataPath, [this.currentPath])
+        .catch(error => console.warn('[session-store] Could not clean current session index:', error));
     }
     return current.session;
   }
