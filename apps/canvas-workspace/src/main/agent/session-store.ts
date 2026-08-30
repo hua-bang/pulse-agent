@@ -85,15 +85,15 @@ export class SessionStore {
     return current.session;
   }
 
-  /** Prefer useful current history, otherwise promote the newest archive. */
+  /** Prefer useful current history, otherwise hydrate the newest archive without moving the durable pointer. */
   async restoreLastSession(): Promise<CanvasAgentSession | null> {
     const current = await this.restoreCurrentSession();
     if (current && current.messages.length > 0) return current;
-
     const [latestArchived] = await this.listArchivedSessions();
     if (!latestArchived) return current;
-
-    return this.loadSession(latestArchived.sessionId);
+    const session = await this.readSession(latestArchived.sessionId);
+    if (session) this.session = session;
+    return session ?? current;
   }
 
   /** Add a message and enqueue persistence. */

@@ -14,16 +14,12 @@ export interface CanvasAgentHistorySnapshot {
 
 /** Read the choice restoreLastSession would make, without moving its pointer. */
 export async function peekLastSession(store: SessionStore): Promise<CanvasAgentSession | null> {
-  const current = await store.restoreCurrentSession();
-  if (current && current.messages.length > 0) return current;
-  const [latestArchived] = await store.listArchivedSessions();
-  return latestArchived ? store.readSession(latestArchived.sessionId) : current;
+  return store.restoreLastSession();
 }
 
 export async function readCanvasAgentHistorySnapshot(
   scope: AgentScope,
   activeAgent: HistoryAgent | undefined,
-  warmAgent: () => Promise<void>,
 ): Promise<CanvasAgentHistorySnapshot> {
   if (activeAgent) {
     return {
@@ -39,7 +35,6 @@ export async function readCanvasAgentHistorySnapshot(
     session = store.getCurrentSession();
   }
 
-  void warmAgent().catch(error => console.error('[canvas-agent-service] background activation failed:', error));
   return {
     messages: session?.messages ?? [],
     activeSessionId: session?.sessionId ?? null,

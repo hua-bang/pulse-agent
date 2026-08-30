@@ -58,6 +58,11 @@ export type DeleteSessionResult =
     }
   | SessionMutationFailure;
 
+interface StoredSessionLoad {
+  session: CanvasAgentSession | null;
+  activeSessionId: string | null;
+}
+
 const scopeMutationKey = (scope: AgentScope): string => {
   if (scope.kind === 'workspace') return `workspace:${scope.workspaceId}`;
   if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
@@ -144,23 +149,70 @@ export class SessionMutationCoordinator {
     return this.run(scope, async () => {
       try {
         const agent = await this.activeAgent(scope);
-        const session = await agent.loadSession(sessionId);
-        if (!session) {
-          return this.failure(scope, 'Session not found', 'SESSION_NOT_FOUND');
-        }
-
-        const activeSessionId = agent.getCurrentSessionId();
-        if (activeSessionId !== session.sessionId) {
-          return this.failure(scope, 'Loaded session did not become active');
-        }
-        return {
-          ok: true,
-          activeSessionId,
-          messages: session.messages,
-        };
+        return await this.loadAgentSession(scope, agent, sessionId);
       } catch (err) {
         return this.failure(scope, String(err));
       }
+    });
+  }
+
+  /** Move the durable pointer without activating the tool-capable Agent. */
+  loadStoredSession(
+    scope: AgentScope,
+    sessionId: string,
+    loadFromStore: () => Promise<StoredSessionLoad>,
+  ): Promise<LoadSessionResult> {
+    return this.run(scope, async () => {
+      try {
+        // An activation may have completed while this operation waited behind
+        // an earlier pointer mutation. Keep its in-memory context synchronized.
+        const agent = this.getAgent(scope);
+        if (agent) return await this.loadAgentSession(scope, agent, sessionId);
+
+        const loaded = await loadFromStore();
+        if (!loaded.session) {
+          return {
+            ok: false,
+            activeSessionId: loaded.activeSessionId,
+            code: 'SESSION_NOT_FOUND',
+            error: 'Session not found',
+          };
+        }
+        if (loaded.activeSessionId !== loaded.session.sessionId) {
+          return {
+            ok: false,
+            activeSessionId: loaded.activeSessionId,
+            code: 'SESSION_MUTATION_FAILED',
+            error: 'Loaded session did not become active',
+          };
+        }
+        const activatedAgent = this.getAgent(scope);
+        if (activatedAgent) {
+          return await this.loadAgentSession(scope, activatedAgent, sessionId);
+        }
+        return {
+          ok: true,
+          activeSessionId: loaded.activeSessionId,
+          messages: loaded.session.messages,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          activeSessionId: this.getAgent(scope)?.getCurrentSessionId() ?? null,
+          code: 'SESSION_MUTATION_FAILED',
+          error: String(err),
+        };
+      }
+    });
+  }
+
+  reconcileActiveAgent(
+    scope: AgentScope,
+    reconcile: (agent: SessionMutationAgent) => Promise<void>,
+  ): Promise<void> {
+    return this.run(scope, async () => {
+      const agent = this.getAgent(scope);
+      if (agent) await reconcile(agent);
     });
   }
 
@@ -267,6 +319,25 @@ export class SessionMutationCoordinator {
     const agent = this.getAgent(scope);
     if (!agent) throw new Error('Agent activation did not produce an active agent');
     return agent;
+  }
+
+  private async loadAgentSession(
+    scope: AgentScope,
+    agent: SessionMutationAgent,
+    sessionId: string,
+  ): Promise<LoadSessionResult> {
+    const session = await agent.loadSession(sessionId);
+    if (!session) return this.failure(scope, 'Session not found', 'SESSION_NOT_FOUND');
+
+    const activeSessionId = agent.getCurrentSessionId();
+    if (activeSessionId !== session.sessionId) {
+      return this.failure(scope, 'Loaded session did not become active');
+    }
+    return {
+      ok: true,
+      activeSessionId,
+      messages: session.messages,
+    };
   }
 
   private scopeBusyFailure(scope: AgentScope): SessionMutationFailure {

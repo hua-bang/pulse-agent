@@ -140,14 +140,17 @@ let the slower one overwrite the session the user actually chose.
 can't repaint a blank new chat over whatever the user has since switched
 into.
 
-**Cold history is independent of Agent startup.** `canvas-agent:history` reads
-the visible thread and active session id from `history-snapshot.ts`, then warms
-the tool-capable Agent in the background. It must not await Engine, Skill, or
-MCP initialization: installing remote plugins can make that startup take many
-seconds, while reading the local session is fast and does not require tools.
-The cold reader peeks the same useful current/latest-archive session that
-`restoreLastSession()` will later adopt, without moving the durable pointer.
-Send and session-mutation paths still await single-flight scope activation.
+**Cold history and UI thread switching are independent of Agent startup.**
+`canvas-agent:history` reads the visible thread and active session id from
+`history-snapshot.ts` without starting the tool-capable Agent. The renderer's
+`canvas-agent:load-session` path likewise moves the durable pointer through a
+standalone `SessionStore`; if an Agent is already active, the coordinator uses
+it instead so its in-memory context stays synchronized. Neither cold path may
+await Engine, Skill, plugin, or MCP initialization: installing remote plugins
+can make that startup take many seconds, while reading local history does not
+require tools. A later send or other Agent-only operation performs the normal
+single-flight scope activation and restores the durable current pointer. This
+also avoids a background initializer racing a newer UI pointer change.
 Guards: `src/main/agent/__tests__/service-history.test.ts` and
 `src/main/agent/__tests__/session-store.test.ts`.
 

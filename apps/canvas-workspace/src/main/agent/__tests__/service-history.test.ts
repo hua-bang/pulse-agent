@@ -8,6 +8,8 @@ const canvasAgentState = vi.hoisted(() => ({
   chat: vi.fn(),
   getCurrentSessionId: vi.fn(() => 'session-current'),
   getHistory: vi.fn(() => [{ role: 'user', content: 'previous chat', timestamp: 1 }]),
+  loadSession: vi.fn(),
+  loadGates: new Map<string, Promise<void>>(),
   listSessions: vi.fn(async () => [{
     sessionId: 'session-current',
     date: '2026-07-29',
@@ -21,6 +23,7 @@ const canvasAgentState = vi.hoisted(() => ({
     chat: (...args: unknown[]) => Promise<unknown>;
     getCurrentSessionId: () => string;
     getHistory: () => unknown[];
+    loadSession: (sessionId: string) => Promise<unknown>;
     listSessions: () => Promise<unknown[]>;
   }>,
 }));
@@ -32,6 +35,7 @@ vi.mock('../canvas-agent', () => ({
       chat: canvasAgentState.chat,
       getCurrentSessionId: canvasAgentState.getCurrentSessionId,
       getHistory: canvasAgentState.getHistory,
+      loadSession: canvasAgentState.loadSession,
       listSessions: canvasAgentState.listSessions,
     };
     canvasAgentState.configs.push(config);
@@ -54,6 +58,12 @@ describe('CanvasAgentService history', () => {
     canvasAgentState.getHistory.mockReset().mockReturnValue([
       { role: 'user', content: 'previous chat', timestamp: 1 },
     ]);
+    canvasAgentState.loadSession.mockReset().mockImplementation(async (sessionId: string) => {
+      await canvasAgentState.loadGates.get(sessionId);
+      canvasAgentState.getCurrentSessionId.mockReturnValue(sessionId);
+      return { sessionId, messages: [] };
+    });
+    canvasAgentState.loadGates.clear();
     canvasAgentState.listSessions.mockReset().mockResolvedValue([{
       sessionId: 'session-current',
       date: '2026-07-29',
@@ -106,11 +116,115 @@ describe('CanvasAgentService history', () => {
       messages: [{ role: 'user', content: 'loaded from disk', timestamp: 1 }],
       activeSessionId: sessionId,
     });
+    expect(canvasAgentState.initialize).not.toHaveBeenCalled();
     expect(service.getAgentForScope(scope)).toBeUndefined();
 
     finishInitialization?.();
     await service.activate(scope.workspaceId);
     expect(service.getAgentForScope(scope)).toBeDefined();
+  });
+
+  it('loads a cold archived session without starting Agent initialization', async () => {
+    let finishInitialization: (() => void) | undefined;
+    const initializationGate = new Promise<undefined>((resolve) => {
+      finishInitialization = () => resolve(undefined);
+    });
+    canvasAgentState.initialize.mockImplementationOnce(() => initializationGate);
+    const scope = { kind: 'workspace', workspaceId: 'ws-cold-load' } as const;
+    const diskStore = new SessionStore(scope.workspaceId, scope);
+    await diskStore.startSession();
+    const archivedSessionId = diskStore.getCurrentSession()!.sessionId;
+    await diskStore.appendToSession(archivedSessionId, [
+      { role: 'user', content: 'archived conversation', timestamp: 1 },
+    ]);
+    await diskStore.startSession();
+    const service = new CanvasAgentService();
+
+    const load = service.loadSessionForDisplayScope(scope, archivedSessionId);
+    await Promise.resolve();
+    const initializationStartedBeforeLoadSettled = canvasAgentState.initialize.mock.calls.length;
+    finishInitialization?.();
+    const result = await load;
+
+    expect(initializationStartedBeforeLoadSettled).toBe(0);
+    expect(result).toEqual({
+      ok: true,
+      activeSessionId: archivedSessionId,
+      messages: [{ role: 'user', content: 'archived conversation', timestamp: 1 }],
+    });
+  });
+
+  it('reconciles an in-flight activation to a newer display session pointer', async () => {
+    let finishInitialization: (() => void) | undefined;
+    const initializationGate = new Promise<undefined>((resolve) => {
+      finishInitialization = () => resolve(undefined);
+    });
+    canvasAgentState.initialize.mockImplementationOnce(() => initializationGate);
+    const scope = { kind: 'workspace', workspaceId: 'ws-activation-race' } as const;
+    const diskStore = new SessionStore(scope.workspaceId, scope);
+    await diskStore.startSession();
+    const selectedSessionId = diskStore.getCurrentSession()!.sessionId;
+    await diskStore.appendToSession(selectedSessionId, [
+      { role: 'user', content: 'selected while activation waits', timestamp: 1 },
+    ]);
+    await diskStore.startSession();
+    const service = new CanvasAgentService();
+
+    const activation = service.activate(scope.workspaceId);
+    await vi.waitFor(() => expect(canvasAgentState.initialize).toHaveBeenCalledTimes(1));
+    const displayLoad = await service.loadSessionForDisplayScope(scope, selectedSessionId);
+    expect(displayLoad).toMatchObject({ ok: true, activeSessionId: selectedSessionId });
+
+    finishInitialization?.();
+    await activation;
+
+    expect(canvasAgentState.loadSession).toHaveBeenCalledWith(selectedSessionId);
+    expect(service.getCurrentSessionIdForScope(scope)).toBe(selectedSessionId);
+  });
+
+  it('queues a newer display selection behind post-activation reconciliation', async () => {
+    let finishInitialization: (() => void) | undefined;
+    let finishReconciliation: (() => void) | undefined;
+    const initializationGate = new Promise<undefined>((resolve) => {
+      finishInitialization = () => resolve(undefined);
+    });
+    const reconciliationGate = new Promise<void>((resolve) => {
+      finishReconciliation = resolve;
+    });
+    canvasAgentState.initialize.mockImplementationOnce(() => initializationGate);
+    const scope = { kind: 'workspace', workspaceId: 'ws-reconcile-order' } as const;
+    const diskStore = new SessionStore(scope.workspaceId, scope);
+    await diskStore.startSession();
+    const firstSelection = diskStore.getCurrentSession()!.sessionId;
+    await diskStore.appendToSession(firstSelection, [
+      { role: 'user', content: 'first selection', timestamp: 1 },
+    ]);
+    await diskStore.startSession();
+    const newerSelection = diskStore.getCurrentSession()!.sessionId;
+    await diskStore.appendToSession(newerSelection, [
+      { role: 'user', content: 'newer selection', timestamp: 2 },
+    ]);
+    await diskStore.startSession();
+    const service = new CanvasAgentService();
+
+    const activation = service.activate(scope.workspaceId);
+    await vi.waitFor(() => expect(canvasAgentState.initialize).toHaveBeenCalledTimes(1));
+    await service.loadSessionForDisplayScope(scope, firstSelection);
+    canvasAgentState.loadGates.set(firstSelection, reconciliationGate);
+    finishInitialization?.();
+    await vi.waitFor(() => expect(canvasAgentState.loadSession).toHaveBeenCalledWith(firstSelection));
+
+    const newerLoad = service.loadSessionForDisplayScope(scope, newerSelection);
+    await Promise.resolve();
+    expect(canvasAgentState.loadSession).not.toHaveBeenCalledWith(newerSelection);
+
+    finishReconciliation?.();
+    await Promise.all([activation, newerLoad]);
+    expect(canvasAgentState.loadSession.mock.calls.map(([sessionId]) => sessionId)).toEqual([
+      firstSelection,
+      newerSelection,
+    ]);
+    expect(service.getCurrentSessionIdForScope(scope)).toBe(newerSelection);
   });
 
   it('gives every scheduled task an isolated durable chat store', async () => {

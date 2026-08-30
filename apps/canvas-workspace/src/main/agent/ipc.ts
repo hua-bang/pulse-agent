@@ -344,7 +344,7 @@ export function setupCanvasAgentIpc(): void {
     async (_event, payload: AgentScopeRef & { sessionId: string }) => {
       try {
         const scope = resolveAgentScope(payload);
-        return await svc.loadSessionForScope(scope, payload.sessionId);
+        return await svc.loadSessionForDisplayScope(scope, payload.sessionId);
       } catch (err) {
         return { ok: false, error: String(err) };
       }
