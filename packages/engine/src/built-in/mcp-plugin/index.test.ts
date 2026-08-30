@@ -183,7 +183,7 @@ describe('createMcpPlugin disabledTools', () => {
     });
   });
 
-  it('does not size-limit MCP App resources while retaining the tool-result limit', async () => {
+  it('allows bundled MCP App resources up to 16 MiB while retaining the smaller tool-result limit', async () => {
     const cfgPath = await writeConfig({
       eido: { transport: 'http', url: 'http://localhost:3060/mcp/server' },
     });
@@ -208,6 +208,12 @@ describe('createMcpPlugin disabledTools', () => {
       isError: true,
       content: [{ text: 'MCP App result exceeded the 2 MiB host limit' }],
     });
+
+    mcpResponses.resource = {
+      contents: [{ uri: 'ui://exa/search.html', text: 'x'.repeat(16 * 1024 * 1024 + 1) }],
+    };
+    await expect(apps.readResource('eido', 'ui://exa/search.html'))
+      .rejects.toThrow('MCP resource exceeded the 16 MiB host limit');
   });
 
   it('attaches an OAuth authProvider for oauth-enabled http servers', async () => {

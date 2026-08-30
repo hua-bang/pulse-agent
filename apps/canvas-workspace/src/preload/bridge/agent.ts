@@ -8,12 +8,13 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
       ipcRenderer.invoke('canvas-agent:mcp-app-list-resources', { scope, serverName, cursor }),
     readResource: (scope, serverName, uri) =>
       ipcRenderer.invoke('canvas-agent:mcp-app-read-resource', { scope, serverName, uri }),
-    callTool: (scope, serverName, toolName, args) =>
+    callTool: (scope, serverName, toolName, args, approval) =>
       ipcRenderer.invoke('canvas-agent:mcp-app-call-tool', {
         scope,
         serverName,
         toolName,
         arguments: args,
+        approval,
       }),
   },
   prepareChat: (scopeRef, message, mentionedWorkspaceIds, requestContext, attachments) =>

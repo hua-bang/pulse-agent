@@ -221,4 +221,74 @@ describe('buildMcpAppCsp', () => {
     await act(async () => { root.unmount(); });
     host.remove();
   });
+
+  it('renders an in-app approval before executing an MCP App tool call', async () => {
+    const callTool = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        approval: {
+          requestId: 'approval-1',
+          serverName: 'cowart',
+          toolName: 'save_canvas',
+          argumentsPreview: '{\n  "snapshot": "large"\n}',
+          argumentsSize: 64_000,
+          truncated: true,
+        },
+      })
+      .mockResolvedValueOnce({ ok: true, value: { content: [], structuredContent: { saved: true } } });
+    (window as any).canvasWorkspace = {
+      agent: { mcpApps: {
+        readResource: async () => ({
+          ok: true,
+          value: { contents: [{
+            uri: 'ui://cowart/app.html',
+            mimeType: 'text/html;profile=mcp-app',
+            text: '<main>Cowart</main>',
+          }] },
+        }),
+        callTool,
+      } },
+    };
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(
+        <I18nProvider><RightDockProvider><McpAppsProvider scope={{ kind: 'global' }}>
+          <McpAppFrames instanceScope="approval" tools={[{
+            id: 1,
+            name: 'mcp_cowart_render',
+            status: 'succeeded',
+            mcpApp: { serverName: 'cowart', toolName: 'render', resourceUri: 'ui://cowart/app.html' },
+          }]} />
+        </McpAppsProvider></RightDockProvider></I18nProvider>,
+      );
+      await Promise.resolve();
+    });
+    const frame = document.body.querySelector('iframe')!;
+    await act(async () => { frame.dispatchEvent(new Event('load')); });
+
+    let resultPromise!: Promise<unknown>;
+    await act(async () => {
+      resultPromise = bridgeState.current.oncalltool({ name: 'save_canvas', arguments: { snapshot: 'large' } });
+      await Promise.resolve();
+    });
+    expect(document.body.textContent).toContain('Allow this action?');
+    expect(document.body.textContent).toContain('save_canvas');
+
+    await act(async () => {
+      Array.from(document.body.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Allow once')
+        ?.click();
+      await resultPromise;
+    });
+    expect(callTool).toHaveBeenNthCalledWith(2, { kind: 'global' }, 'cowart', 'save_canvas', {
+      snapshot: 'large',
+    }, {
+      requestId: 'approval-1',
+      decision: 'once',
+    });
+    await act(async () => { root.unmount(); });
+    host.remove();
+  });
 });

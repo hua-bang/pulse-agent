@@ -1,19 +1,24 @@
-import {
-  BrowserWindow,
-  dialog,
-  ipcMain,
-  type IpcMainInvokeEvent,
-  type MessageBoxOptions,
-} from 'electron';
+import { ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { randomUUID } from 'crypto';
 import type { AgentScope, AgentScopeRef } from './types';
 import type { CanvasAgentService } from './service';
-import { serializeMcpAppToolArguments } from '../../shared/mcp-apps';
+import {
+  serializeMcpAppToolArguments,
+  type McpAppToolApprovalResponse,
+} from '../../shared/mcp-apps';
 import { McpAppSessionApprovals } from './mcp-app-session-approvals';
 
 const MAX_CONCURRENT_REQUESTS = 8;
 const TOOL_TIMEOUT_MS = 30_000;
 const activeRequests = new Map<number, number>();
-const pendingApprovals = new Set<number>();
+interface PendingMcpAppApproval {
+  requestId: string;
+  scope: AgentScope;
+  serverName: string;
+  toolName: string;
+  serializedArguments: string;
+}
+const pendingApprovals = new Map<number, PendingMcpAppApproval>();
 const sessionApprovals = new McpAppSessionApprovals();
 const approvalCleanupRegistered = new Set<number>();
 
@@ -23,6 +28,7 @@ const registerApprovalCleanup = (event: IpcMainInvokeEvent): void => {
   approvalCleanupRegistered.add(senderId);
   event.sender.once('destroyed', () => {
     approvalCleanupRegistered.delete(senderId);
+    pendingApprovals.delete(senderId);
     sessionApprovals.clear(senderId);
   });
 };
@@ -53,6 +59,17 @@ function errorResult(error: unknown) {
 
 function validMcpName(value: string): boolean {
   return value.length <= 128 && /^[a-zA-Z0-9_.-]+$/.test(value);
+}
+
+function sameScope(left: AgentScope, right: AgentScope): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === 'workspace' && right.kind === 'workspace') {
+    return left.workspaceId === right.workspaceId;
+  }
+  if (left.kind === 'scheduled' && right.kind === 'scheduled') {
+    return left.taskId === right.taskId;
+  }
+  return left.kind === 'global' && right.kind === 'global';
 }
 
 async function boundedRequest<T>(event: IpcMainInvokeEvent, run: () => Promise<T>): Promise<T> {
@@ -112,6 +129,7 @@ export function setupMcpAppIpc(service: CanvasAgentService): void {
       serverName?: string;
       toolName?: string;
       arguments?: unknown;
+      approval?: McpAppToolApprovalResponse;
     }) => {
       const serverName = payload?.serverName?.trim();
       const toolName = payload?.toolName?.trim();
@@ -121,42 +139,55 @@ export function setupMcpAppIpc(service: CanvasAgentService): void {
       const senderId = event.sender.id;
       const scope = resolveAgentScope(payload);
       const approvedForSession = sessionApprovals.has(senderId, scope, serverName);
-      if (!approvedForSession && pendingApprovals.has(senderId)) {
-        return { ok: false, error: 'Another MCP App approval is pending' };
-      }
-      let detail: string;
+      let inspectedArguments;
       try {
-        detail = serializeMcpAppToolArguments(payload.arguments);
+        inspectedArguments = serializeMcpAppToolArguments(payload.arguments);
       } catch (error) {
         return errorResult(error);
       }
-      const options: MessageBoxOptions = {
-        type: 'question',
-        buttons: ['Allow', 'Cancel'],
-        defaultId: 1,
-        cancelId: 1,
-        noLink: true,
-        title: 'Allow MCP App tool call?',
-        message: `${serverName} wants to call ${toolName}`,
-        detail,
-        checkboxLabel: `Allow all calls from ${serverName} for this Pulse session`,
-        checkboxChecked: false,
-      };
       try {
         if (!approvedForSession) {
-          pendingApprovals.add(senderId);
-          try {
-            const owner = BrowserWindow.fromWebContents(event.sender);
-            const confirmation = owner
-              ? await dialog.showMessageBox(owner, options)
-              : await dialog.showMessageBox(options);
-            if (confirmation.response !== 0) return { ok: false, error: 'Tool call was cancelled' };
-            if (confirmation.checkboxChecked) {
-              sessionApprovals.grant(senderId, scope, serverName);
-              registerApprovalCleanup(event);
-            }
-          } finally {
-            pendingApprovals.delete(senderId);
+          const pending = pendingApprovals.get(senderId);
+          if (!payload.approval) {
+            if (pending) return { ok: false, error: 'Another MCP App approval is pending' };
+            const requestId = randomUUID();
+            pendingApprovals.set(senderId, {
+              requestId,
+              scope,
+              serverName,
+              toolName,
+              serializedArguments: inspectedArguments.serialized,
+            });
+            registerApprovalCleanup(event);
+            return {
+              ok: false,
+              approval: {
+                requestId,
+                serverName,
+                toolName,
+                argumentsPreview: inspectedArguments.preview,
+                argumentsSize: inspectedArguments.size,
+                truncated: inspectedArguments.truncated,
+              },
+            };
+          }
+          if (
+            !pending
+            || pending.requestId !== payload.approval.requestId
+            || !sameScope(pending.scope, scope)
+            || pending.serverName !== serverName
+            || pending.toolName !== toolName
+            || pending.serializedArguments !== inspectedArguments.serialized
+          ) return { ok: false, error: 'MCP App approval is missing or expired' };
+          pendingApprovals.delete(senderId);
+          if (!['once', 'session', 'cancel'].includes(payload.approval.decision)) {
+            return { ok: false, error: 'Invalid MCP App approval decision' };
+          }
+          if (payload.approval.decision === 'cancel') {
+            return { ok: false, error: 'Tool call was cancelled' };
+          }
+          if (payload.approval.decision === 'session') {
+            sessionApprovals.grant(senderId, scope, serverName);
           }
         }
         return await boundedRequest(event, async () => {

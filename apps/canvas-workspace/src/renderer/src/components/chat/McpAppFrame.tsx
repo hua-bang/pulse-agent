@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUUpLeft, ArrowsOutSimple } from '@phosphor-icons/react';
-import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge';
+import type { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type {
   CallToolResult,
   ListResourcesResult,
@@ -15,6 +15,8 @@ import { mcpAppTabId } from '../dock/RightDock/dock-tab-ids';
 import { isDockTabPresented } from '../dock/RightDock/dock-split-state';
 import { Button, Portal } from '../ui';
 import { useI18n } from '../../i18n';
+import { McpAppApprovalDialog } from './McpAppApprovalDialog';
+import { useMcpAppApproval } from './useMcpAppApproval';
 import './McpAppFrame.css';
 
 interface McpAppFrameProps {
@@ -144,6 +146,7 @@ export const McpAppFrame = ({ instanceId, app, args, fallbackResult, scope }: Mc
   const [error, setError] = useState<string>();
   const [height, setHeight] = useState(320);
   const [displayMode, setDisplayMode] = useState<McpAppDisplayMode>('inline');
+  const approval = useMcpAppApproval();
   const dock = useRightDock();
   const dockState = useRightDockState();
   const dockHost = useRightDockMcpAppHost(instanceId);
@@ -299,6 +302,7 @@ export const McpAppFrame = ({ instanceId, app, args, fallbackResult, scope }: Mc
   const connectBridge = async () => {
     const frameWindow = iframeRef.current?.contentWindow;
     if (!frameWindow || bridgeRef.current) return;
+    const { AppBridge, PostMessageTransport } = await import('@modelcontextprotocol/ext-apps/app-bridge');
     const bridge = new AppBridge(
       null,
       { name: 'Pulse Canvas', version: '0.1.0' },
@@ -329,12 +333,22 @@ export const McpAppFrame = ({ instanceId, app, args, fallbackResult, scope }: Mc
           content: [{ type: 'text', text: error instanceof Error ? error.message : 'Invalid tool arguments' }],
         };
       }
-      const result = await window.canvasWorkspace.agent.mcpApps.callTool(
+      let result = await window.canvasWorkspace.agent.mcpApps.callTool(
         scope,
         app.serverName,
         name,
         toolArgs ?? {},
       );
+      if (result.approval) {
+        const decision = await approval.ask(result.approval);
+        result = await window.canvasWorkspace.agent.mcpApps.callTool(
+          scope,
+          app.serverName,
+          name,
+          toolArgs ?? {},
+          { requestId: result.approval.requestId, decision },
+        );
+      }
       return result.ok
         ? callToolResult(result.value)
         : { isError: true, content: [{ type: 'text', text: result.error ?? 'Tool call failed' }] };
@@ -448,6 +462,7 @@ export const McpAppFrame = ({ instanceId, app, args, fallbackResult, scope }: Mc
           <span>{t('mcpApp.openInDockStatus', { title })}</span>
         </Button>
       )}
+      <McpAppApprovalDialog request={approval.request} onDecision={approval.answer} />
     </div>
   );
 };

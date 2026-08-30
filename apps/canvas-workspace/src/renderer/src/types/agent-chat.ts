@@ -12,6 +12,10 @@ import type {
 } from '../../../shared/agent-chat';
 import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../../shared/agent-roles';
 import type { AgentObservabilityMarkInput } from '../../../shared/agent-observability';
+import type {
+  McpAppToolApprovalResponse,
+  McpAppToolCallResponse,
+} from '../../../shared/mcp-apps';
 
 export type * from '../../../shared/agent-chat';
 
@@ -39,7 +43,8 @@ export interface AgentApi {
       serverName: string,
       toolName: string,
       args: unknown,
-    ) => Promise<{ ok: boolean; value?: unknown; error?: string }>;
+      approval?: McpAppToolApprovalResponse,
+    ) => Promise<McpAppToolCallResponse>;
   };
   prepareChat: (
     scopeRef: AgentScopeRef,

@@ -22,7 +22,7 @@ import { CopyGeneratedImageButton, parseGeneratedImage } from './GeneratedImageA
 import { useI18n } from '../../i18n';
 import { ChatTurnOutcome } from './ChatTurnMeta';
 import { CopyMessageButton } from './ChatMessageActions';
-import { McpAppFrames } from './McpAppFrame';
+import { McpAppFramesLazy } from './McpAppFramesLazy';
 
 interface ChatMessageProps {
   message: AgentChatMessage;
@@ -287,7 +287,7 @@ export const ChatMessage = ({
             onToggleToolExpand={onToggleToolExpand}
             onSessionJump={onSessionJump}
           />
-          <McpAppFrames
+          <McpAppFramesLazy
             tools={tools}
             instanceScope={`${workspaceId}:${message.timestamp}:${index}`}
           />
