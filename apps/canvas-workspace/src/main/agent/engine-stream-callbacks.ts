@@ -6,6 +6,7 @@
  */
 
 import type { ModelMessage } from 'ai';
+import type { AgentChatMcpApp } from '../../shared/agent-chat';
 import type { CanvasAgentDebugTrace, CanvasAgentToolCall } from './types';
 import { recordTraceStreamEvent, recordTraceToolCall, recordTraceToolResult } from './debug-trace';
 
@@ -15,17 +16,20 @@ import { recordTraceStreamEvent, recordTraceToolCall, recordTraceToolResult } fr
 // loses the original payload (renderers can no longer JSON.parse the
 // tool's actual return value), so unwrap to the inner value first. Plain
 // strings and untyped objects pass through unchanged for back-compat.
-export function unwrapToolOutput(raw: unknown): string {
+function unwrapToolOutputValue(raw: unknown): unknown {
   if (typeof raw === 'string') return raw;
   if (raw && typeof raw === 'object') {
     const r = raw as { type?: unknown; value?: unknown };
     if (typeof r.type === 'string' && 'value' in r) {
-      const v = r.value;
-      if (typeof v === 'string') return v;
-      return JSON.stringify(v) ?? String(v);
+      return r.value;
     }
   }
-  return JSON.stringify(raw) ?? String(raw);
+  return raw;
+}
+
+export function unwrapToolOutput(raw: unknown): string {
+  const value = unwrapToolOutputValue(raw);
+  return typeof value === 'string' ? value : JSON.stringify(value) ?? String(value);
 }
 
 export interface CanvasToolResultEvent {
@@ -34,6 +38,7 @@ export interface CanvasToolResultEvent {
   toolCallId?: string;
   status: 'succeeded' | 'failed' | 'cancelled';
   error?: string;
+  mcpApp?: AgentChatMcpApp;
 }
 
 /**
@@ -44,6 +49,7 @@ export interface CanvasToolResultEvent {
 export function normalizeToolResult(
   raw: unknown,
   meta: { name: string; toolCallId?: string },
+  app?: AgentChatMcpApp,
 ): CanvasToolResultEvent {
   const result = unwrapToolOutput(raw);
   let failed = false;
@@ -93,10 +99,26 @@ export function normalizeToolResult(
     result,
     status: cancelled ? 'cancelled' : failed ? 'failed' : 'succeeded',
     error,
+    ...(app ? {
+      mcpApp: {
+        ...app,
+        result: Object.prototype.hasOwnProperty.call(app, 'result')
+          ? app.result
+          : unwrapToolOutputValue(raw),
+      },
+    } : {}),
   };
 }
 
-export function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentToolCall[] {
+type McpAppResolver = (
+  registeredToolName: string,
+  toolCallId?: string,
+) => AgentChatMcpApp | undefined;
+
+export function modelMessagesToToolCalls(
+  messages: ModelMessage[],
+  resolveMcpApp?: McpAppResolver,
+): CanvasAgentToolCall[] {
   const toolCalls: CanvasAgentToolCall[] = [];
   const byToolCallId = new Map<string, CanvasAgentToolCall>();
   const findOrCreate = (toolCallId: string, name: string): CanvasAgentToolCall => {
@@ -133,11 +155,16 @@ export function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentT
         const name = typeof part.toolName === 'string' ? part.toolName : '';
         if (!toolCallId || !name) continue;
         const tool = findOrCreate(toolCallId, name);
-        const outcome = normalizeToolResult(part.output ?? part.result, { name, toolCallId });
+        const outcome = normalizeToolResult(
+          part.output ?? part.result,
+          { name, toolCallId },
+          resolveMcpApp?.(name, toolCallId),
+        );
         tool.name = name;
         tool.status = outcome.status;
         tool.result = outcome.result;
         tool.error = outcome.error;
+        tool.mcpApp = outcome.mcpApp;
       }
     }
   }
@@ -161,6 +188,7 @@ export interface EngineStreamCallbacks {
 export function buildEngineStreamCallbacks(
   callbacks: EngineStreamCallbacks,
   debugTrace: CanvasAgentDebugTrace | undefined,
+  resolveMcpApp?: McpAppResolver,
 ) {
   const { onText, onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd } = callbacks;
   return {
@@ -181,7 +209,7 @@ export function buildEngineStreamCallbacks(
           const outcome = normalizeToolResult(raw, {
             name: chunk.toolName,
             toolCallId: chunk.toolCallId,
-          });
+          }, resolveMcpApp?.(chunk.toolName, chunk.toolCallId));
           console.info('[canvas-agent] tool-result chunk keys:', Object.keys(chunk), 'output:', typeof chunk.output, 'result:', typeof chunk.result);
           recordTraceToolResult(debugTrace, { name: chunk.toolName, rawResult: raw, toolCallId: chunk.toolCallId });
           onToolResult?.(outcome);

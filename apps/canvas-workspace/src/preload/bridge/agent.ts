@@ -3,6 +3,20 @@ import type { AgentApi } from "../../renderer/src/types";
 import { subscribe } from "./ipc";
 
 export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
+  mcpApps: {
+    listResources: (scope, serverName, cursor) =>
+      ipcRenderer.invoke('canvas-agent:mcp-app-list-resources', { scope, serverName, cursor }),
+    readResource: (scope, serverName, uri) =>
+      ipcRenderer.invoke('canvas-agent:mcp-app-read-resource', { scope, serverName, uri }),
+    callTool: (scope, serverName, toolName, args, approval) =>
+      ipcRenderer.invoke('canvas-agent:mcp-app-call-tool', {
+        scope,
+        serverName,
+        toolName,
+        arguments: args,
+        approval,
+      }),
+  },
   prepareChat: (scopeRef, message, mentionedWorkspaceIds, requestContext, attachments) =>
     ipcRenderer.invoke("canvas-agent:prepare-chat", {
       ...scopeRef,

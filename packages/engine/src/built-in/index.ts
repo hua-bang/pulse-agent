@@ -38,6 +38,8 @@ export { builtInMCPPlugin, createMcpPlugin } from './mcp-plugin';
 export type {
   MCPPluginOptions,
   MCPClientManager,
+  MCPAppsManager,
+  MCPAppToolDescriptor,
   MCPPluginConfig,
   MCPServerStatus,
   McpToolInfo,

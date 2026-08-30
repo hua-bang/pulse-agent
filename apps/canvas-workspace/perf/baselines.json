@@ -140,8 +140,8 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "快捷键 SSOT 增加跨 Canvas/App 的常驻匹配与 handler contract。提基线前已将帮助面板、手势说明、section/description 展示元数据移入 5.9KB 按需 chunk，入口从 706KB 降至 699KB；剩余增量是启动即生效的键盘匹配与 webview 逃生通道，不复制 binding 数据。保留 680 target 作为后续瘦身压力。", "asOf": "2026-07-31",
-      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-08-30 内联 MCP Apps Host 增加消息关联、Dock 生命周期和授权入口后实测 722KB；AppBridge、MCP App 组件与 4.8KB 样式均已拆为仅在存在 MCP App 时加载的独立 chunk。保留 680 target 作为后续常驻聊天壳瘦身压力。", "asOf": "2026-08-30",
+      "gate": { "kind": "ratchet", "baseline": 722, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
@@ -150,23 +150,23 @@
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,
-      "confidence": "high", "basis": "当前启动静态 JS 闭包仍只有单一 renderer entry，快捷键 SSOT 合并后实测 699KB；已先将帮助面板和展示元数据拆为 5.9KB 按需 chunk，并确认重依赖 watchlist 0/6。保留 650 target 作为后续启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-07-31",
-      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-08-30 MCP Apps 渲染器与官方 AppBridge 已通过 React lazy 和动态 import 移出启动闭包，启动静态 JS 实测 722KB；保留 650 target 作为后续启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-08-30",
+      "gate": { "kind": "ratchet", "baseline": 722, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,
-      "confidence": "high", "basis": "基线对齐 master 连续 4 次实测 111KB(全览徽章 + 手势期 zoom-out 优化之后);本 PR RightDock 分屏/悬浮提示/agent 标签样式再加约 3KB 至 114,仍低于 115 target", "asOf": "2026-07-22",
-      "gate": { "kind": "ratchet", "baseline": 111, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-08-30 启动 CSS 实测 115KB；MCP App frame 与授权框的 4.8KB 样式已验证为独立 lazy chunk，不进入该启动闭包。", "asOf": "2026-08-30",
+      "gate": { "kind": "ratchet", "baseline": 115, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.total_js_kb": {
       "profile": "global-deterministic", "target": 5565, "warning": 5850,
-      "confidence": "high", "basis": "2026-08-24 对照 origin/master 0.1.48 实测 total JS 约 5823KB；Agent Plugins 市场新增约 124KB 路由级 renderer 载荷与约 12KB main/共享运行时载荷，当前分支经 lazy route 与动态 IPC/reader 拆分后实测 5966KB。保留 5565 target 与 5850 warning，ratchet 落锚到当前 master 加本次已验证功能载荷。", "asOf": "2026-08-24",
-      "gate": { "kind": "ratchet", "baseline": 5825, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-08-29 内联 MCP Apps Host 引入官方 AppBridge/PostMessage transport 与标准 schema，完整 renderer JS 实测 6103KB；依赖已移至 devDependencies，避免 Electron 产物重复携带 SDK node_modules。保留 5565 target 与 5850 warning 作为后续轻量 bridge/code-split 压力，ratchet 落锚到已验证功能载荷。", "asOf": "2026-08-29",
+      "gate": { "kind": "ratchet", "baseline": 6103, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 690,
-      "confidence": "high", "basis": "并行 conversation runtime 将 main 从既有 651KB 载荷增加到约 679KB（含 session-anchored persistence、conversation IPC 与 runtime registry）；bootstrap 已将 conversation IPC 拆为 lazy chunk，避免其继续进入启动入口。保留 550 target，warning 调至 690，ratchet 重新落锚到这次已验证的功能载荷；后续继续优化 main lazy boundary。", "asOf": "2026-08-23",
-      "gate": { "kind": "ratchet", "baseline": 673, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-08-29 内联 MCP Apps 增加独立 origin sandbox protocol、受控 IPC 与 Engine registered-tool execution/capture 边界，main 实测 699KB。保留 550 target 与 690 warning，ratchet 仅落锚必要的宿主安全/执行载荷；后续继续拆分 MCP Apps IPC 与协议服务。", "asOf": "2026-08-29",
+      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 3, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
@@ -189,8 +189,8 @@
     },
     "package.dmg_mb": {
       "profile": "darwin-arm64-package", "target": 105, "warning": 115,
-      "confidence": "high", "basis": "Terser + 完整 36 种共享 grammar 后 arm64 DMG 实测 96.4MB", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 96.4, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-08-29 CI 对 MCP Apps Host 完整 arm64 安装包实测 99.1MB；app unpacked、ASAR、native unpacked 与 locale gates 同次全部通过，仍低于 105MB target。", "asOf": "2026-08-29",
+      "gate": { "kind": "ratchet", "baseline": 99.1, "tolerancePct": 3, "scope": "bundle" }
     },
     "package.app_unpacked_mib": {
       "profile": "darwin-arm64-package", "target": 250, "warning": 275,

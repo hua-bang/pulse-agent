@@ -12,6 +12,7 @@ declare module 'pulse-coder-engine' {
     getTools(): Record<string, any>;
     getSystemPrompt(): string | (() => string) | { append: string } | undefined;
     executeTool(name: string, input: unknown, context?: any): Promise<unknown>;
+    executeRegisteredTool(name: string, input: unknown, context?: any): Promise<unknown>;
     dispose(result?: string): Promise<void>;
   }
 

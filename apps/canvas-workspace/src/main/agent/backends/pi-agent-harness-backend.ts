@@ -5,8 +5,10 @@ import {
 } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
 import type { ModelMessage } from 'ai';
+import type { MCPAppsManager } from 'pulse-coder-engine/built-in';
 
 import { unwrapToolOutput } from '../engine-stream-callbacks';
+import { resolveMcpApp } from '../mcp-app-runtime';
 import type { CanvasAgentToolCall } from '../types';
 import { createPiGenerationObserver } from '../observability/pi-generation-events';
 import { createPiModelRuntime, type PiModelRuntime } from './pi-model-adapter';
@@ -238,6 +240,7 @@ export function createPiAgentHarnessTurnBackend(
     },
     async runSegment(request: TurnSegmentRequest): Promise<TurnSegmentResult> {
       if (request.abortSignal.aborted) throw new Error('Pi AgentHarness run aborted');
+      const mcpApps = request.engine.getService?.<MCPAppsManager>('mcp:__apps__');
       // Canvas remains the cross-runtime session SSOT. Reuse its established
       // compaction policy before hydrating pi, then persist the replacement.
       const compacted = await request.engine.compactContext(request.context, {
@@ -402,10 +405,15 @@ export function createPiAgentHarnessTurnBackend(
           const result = unwrapToolOutput(
             event.result?.details ?? event.result?.content ?? event.result,
           );
+          const mcpApp = resolveMcpApp(mcpApps, event.toolName, event.toolCallId);
+          if (mcpApp && !Object.prototype.hasOwnProperty.call(mcpApp, 'result')) {
+            mcpApp.result = event.result?.details ?? event.result?.content ?? event.result;
+          }
           const tool = byId.get(event.toolCallId);
           if (tool) {
             tool.status = event.isError ? 'failed' : 'succeeded';
             tool.result = result;
+            tool.mcpApp = mcpApp;
             if (event.isError) tool.error = result;
           }
           request.onToolResult?.({
@@ -414,6 +422,7 @@ export function createPiAgentHarnessTurnBackend(
             toolCallId: event.toolCallId,
             status: event.isError ? 'failed' : 'succeeded',
             error: event.isError ? result : undefined,
+            mcpApp,
           });
         }
       });

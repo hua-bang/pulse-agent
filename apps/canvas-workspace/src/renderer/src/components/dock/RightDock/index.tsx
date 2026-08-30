@@ -48,6 +48,7 @@ export {
   RightDockProvider,
   useRightDock,
   useRightDockChatHost,
+  useRightDockMcpAppHost,
   useRightDockState,
   useRightDockTerminalHost,
 } from './context';
@@ -102,7 +103,7 @@ export const RightDock = ({
   onOpenNodePage,
   onActivateWorkspace,
 }: RightDockProps) => {
-  const { store, setChatHost, setTerminalHost, pinUrlReference,
+  const { store, setChatHost, setTerminalHost, setMcpAppHost, pinUrlReference,
     addDomSelectionToChat, submitDomReviewComments, addTabToChat, startSkillChat } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
@@ -339,6 +340,7 @@ export const RightDock = ({
         onDividerKeyDown={splitView.onDividerKeyDown}
         setChatHost={setChatHost}
         setTerminalHost={setTerminalHost}
+        setMcpAppHost={setMcpAppHost}
         terminalHostMounted={terminalHostMounted}
         activeWorkspaceId={activeWorkspaceId}
         workspaces={workspaces}

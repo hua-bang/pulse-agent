@@ -65,7 +65,9 @@ export function createCanvasEnginePlugins(scope: AgentScope): unknown[] {
         return createCanvasMcpOAuthProvider(serverName, config.oauth);
       },
     }),
-    createToolOffloadPlugin({ dir: offloadDir }),
     canvasAgentObservabilityEnginePlugin,
+    // Keep model-only offloading last: it captures the policy-approved MCP
+    // envelope for Apps before replacing oversized model output with a stub.
+    createToolOffloadPlugin({ dir: offloadDir }),
   ];
 }

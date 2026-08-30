@@ -5,13 +5,20 @@ import { join } from 'path';
 
 // Fake MCP client tools shared with the hoisted module mock. `plain` has no
 // description so we also cover the "description omitted" branch.
-const { fakeTools, mcpCalls } = vi.hoisted(() => ({
+const { fakeTools, mcpCalls, mcpResponses } = vi.hoisted(() => ({
   fakeTools: {
-    search: { description: 'Search the web' },
+    search: {
+      description: 'Search the web',
+      _meta: { ui: { resourceUri: 'ui://exa/search.html' } },
+      execute: vi.fn(async (args) => ({ content: [], structuredContent: args })),
+    },
     danger_tool: { description: 'Dangerous operation' },
     plain: {},
   } as Record<string, { description?: string }>,
   mcpCalls: [] as any[],
+  mcpResponses: {
+    resource: { contents: [{ uri: 'ui://exa/search.html', text: '<main>app</main>' }] } as unknown,
+  },
 }));
 
 vi.mock('@ai-sdk/mcp', () => ({
@@ -19,6 +26,8 @@ vi.mock('@ai-sdk/mcp', () => ({
     mcpCalls.push(config);
     return {
       tools: async () => fakeTools,
+      listResources: vi.fn(async () => ({ resources: [] })),
+      readResource: vi.fn(async () => mcpResponses.resource),
       close: vi.fn(),
     };
   }),
@@ -28,7 +37,7 @@ vi.mock('@ai-sdk/mcp/mcp-stdio', () => ({
   Experimental_StdioMCPTransport: class {},
 }));
 
-import { createMcpPlugin, type MCPClientManager } from './index';
+import { createMcpPlugin, type MCPAppsManager, type MCPClientManager } from './index';
 import type { EnginePluginContext } from '../../plugin/EnginePlugin';
 
 /** Minimal EnginePluginContext that records registered tools + services. */
@@ -68,6 +77,9 @@ async function writeConfig(servers: Record<string, unknown>): Promise<string> {
 beforeEach(async () => {
   dir = await fs.mkdtemp(join(tmpdir(), 'mcp-plugin-test-'));
   mcpCalls.length = 0;
+  mcpResponses.resource = {
+    contents: [{ uri: 'ui://exa/search.html', text: '<main>app</main>' }],
+  };
 });
 
 afterEach(async () => {
@@ -146,6 +158,62 @@ describe('createMcpPlugin disabledTools', () => {
     if (status.ok) {
       expect(status.tools.every((t) => t.enabled)).toBe(true);
     }
+
+    const apps = services['mcp:__apps__'] as MCPAppsManager;
+    expect(apps.getToolApp('mcp_eido_search')).toEqual({
+      serverName: 'eido',
+      toolName: 'search',
+      registeredToolName: 'mcp_eido_search',
+      resourceUri: 'ui://exa/search.html',
+    });
+    expect(apps.getRegisteredToolName('eido', 'plain')).toBe('mcp_eido_plain');
+    await expect(apps.readResource('eido', 'ui://exa/search.html')).resolves.toMatchObject({
+      contents: [{ text: '<main>app</main>' }],
+    });
+    const appResult = await tools['mcp_eido_search'].execute(
+      { query: 'pulse' },
+      { toolCallId: 'app-call-1' },
+    );
+    expect(appResult).toMatchObject({
+      structuredContent: { query: 'pulse' },
+    });
+    apps.captureToolResult('mcp_eido_search', 'app-call-1', appResult);
+    expect(apps.getToolResult('app-call-1')).toMatchObject({
+      structuredContent: { query: 'pulse' },
+    });
+  });
+
+  it('allows bundled MCP App resources up to 16 MiB while retaining the smaller tool-result limit', async () => {
+    const cfgPath = await writeConfig({
+      eido: { transport: 'http', url: 'http://localhost:3060/mcp/server' },
+    });
+    const largePayload = 'x'.repeat(2 * 1024 * 1024 + 1);
+    mcpResponses.resource = {
+      contents: [{ uri: 'ui://exa/search.html', text: largePayload }],
+    };
+
+    const plugin = createMcpPlugin({ configPaths: [cfgPath] });
+    const { ctx, services } = makeContext();
+    await plugin.initialize(ctx);
+
+    const apps = services['mcp:__apps__'] as MCPAppsManager;
+    await expect(apps.readResource('eido', 'ui://exa/search.html')).resolves.toMatchObject({
+      contents: [{ text: largePayload }],
+    });
+
+    apps.captureToolResult('mcp_eido_search', 'large-result', {
+      structuredContent: { payload: largePayload },
+    });
+    expect(apps.getToolResult('large-result')).toMatchObject({
+      isError: true,
+      content: [{ text: 'MCP App result exceeded the 2 MiB host limit' }],
+    });
+
+    mcpResponses.resource = {
+      contents: [{ uri: 'ui://exa/search.html', text: 'x'.repeat(16 * 1024 * 1024 + 1) }],
+    };
+    await expect(apps.readResource('eido', 'ui://exa/search.html'))
+      .rejects.toThrow('MCP resource exceeded the 16 MiB host limit');
   });
 
   it('attaches an OAuth authProvider for oauth-enabled http servers', async () => {

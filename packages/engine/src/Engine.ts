@@ -22,6 +22,8 @@ export interface EngineToolSession {
   getSystemPrompt(): SystemPromptOption | undefined;
   /** Execute a currently visible tool and advance per-step policy state. */
   executeTool(name: string, input: unknown, toolContext?: ToolExecutionContext): Promise<unknown>;
+  /** Execute a post-beforeRun registered tool, bypassing only model-presentation filtering. */
+  executeRegisteredTool(name: string, input: unknown, toolContext?: ToolExecutionContext): Promise<unknown>;
   /** Close outstanding model/plugin lifecycle hooks. Idempotent. */
   dispose(result?: string): Promise<void>;
 }
@@ -500,6 +502,26 @@ export class Engine {
         await refreshVisibleTools();
         return output;
       },
+      executeRegisteredTool: async (name, input, toolContext) => {
+        if (disposed) throw new Error('Engine tool session is disposed');
+        const tool = tools[name];
+        if (!tool || typeof tool.execute !== 'function') {
+          throw new Error(`Unknown or unavailable registered tool: ${name}`);
+        }
+        await closeLLMCall('tool-calls');
+        let output: unknown;
+        try {
+          output = await this.executeResolvedTool(tool, name, input, {
+            context: policyContext,
+            toolContext,
+          });
+        } catch (error) {
+          await refreshVisibleTools();
+          throw error;
+        }
+        await refreshVisibleTools();
+        return output;
+      },
       dispose: async (result = '') => {
         if (disposed) return;
         disposed = true;
@@ -558,6 +580,7 @@ export class Engine {
         name,
         input: finalInput,
         output,
+        toolContext: finalToolContext,
       });
       if (result && 'output' in result) output = result.output;
     }

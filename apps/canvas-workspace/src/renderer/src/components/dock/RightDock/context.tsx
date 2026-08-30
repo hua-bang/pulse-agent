@@ -16,7 +16,7 @@ import type {
   AgentContextTabRef,
 } from '../../../types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../../types';
-import { skillTabId } from './dock-tab-ids';
+import { mcpAppTabId, skillTabId } from './dock-tab-ids';
 import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
 
 type SubmitDomReviewComments = (
@@ -30,6 +30,8 @@ interface RightDockContextValue {
   setChatHost: (el: HTMLDivElement | null) => void;
   terminalHost: HTMLDivElement | null;
   setTerminalHost: (el: HTMLDivElement | null) => void;
+  mcpAppHosts: Readonly<Record<string, HTMLDivElement>>;
+  setMcpAppHost: (instanceId: string, el: HTMLDivElement | null) => void;
   pinUrlReference: (url: string, title?: string) => void;
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;
   addDomSelectionToChat: (workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
@@ -50,6 +52,17 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   ), []);
   const [chatHost, setChatHost] = useState<HTMLDivElement | null>(null);
   const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
+  const [mcpAppHosts, setMcpAppHosts] = useState<Record<string, HTMLDivElement>>({});
+  const setMcpAppHost = useCallback((instanceId: string, el: HTMLDivElement | null) => {
+    setMcpAppHosts(current => {
+      if (el && current[instanceId] === el) return current;
+      if (!el && !current[instanceId]) return current;
+      const next = { ...current };
+      if (el) next[instanceId] = el;
+      else delete next[instanceId];
+      return next;
+    });
+  }, []);
   const pinUrlReferenceRef = useRef<((url: string, title?: string) => void) | null>(null);
   const addDomSelectionToChatRef = useRef<((workspaceId: string, selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>) | null>(null);
   const submitDomReviewCommentsRef = useRef<SubmitDomReviewComments | null>(null);
@@ -109,6 +122,8 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
     setChatHost,
     terminalHost,
     setTerminalHost,
+    mcpAppHosts,
+    setMcpAppHost,
     pinUrlReference,
     registerPinUrlReference,
     addDomSelectionToChat,
@@ -119,7 +134,7 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
     registerAddTabToChat,
     startSkillChat,
     registerStartSkillChat,
-  }), [store, chatHost, terminalHost, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, submitDomReviewComments, registerSubmitDomReviewComments, addTabToChat, registerAddTabToChat, startSkillChat, registerStartSkillChat]);
+  }), [store, chatHost, terminalHost, mcpAppHosts, setMcpAppHost, pinUrlReference, registerPinUrlReference, addDomSelectionToChat, registerAddDomSelectionToChat, submitDomReviewComments, registerSubmitDomReviewComments, addTabToChat, registerAddTabToChat, startSkillChat, registerStartSkillChat]);
   return <RightDockContext.Provider value={value}>{children}</RightDockContext.Provider>;
 };
 
@@ -132,6 +147,9 @@ export const useDockContext = (): RightDockContextValue => {
 /** Dock actions — safe to call from anywhere under the provider. */
 export function useRightDock(): {
   openArtifact: (workspaceId: string, artifactId: string) => void;
+  openMcpApp: (instanceId: string, title: string) => void;
+  activateMcpApp: (instanceId: string) => void;
+  closeMcpApp: (instanceId: string) => void;
   openNodeDetail: (workspaceId: string, nodeId: string, title: string) => void;
   enterNodePage: (workspaceId: string, nodeId: string) => void;
   openSkill: (scope: CanvasConfigScope, skill: CanvasSkillEntry) => void;
@@ -178,6 +196,9 @@ export function useRightDock(): {
   } = useDockContext();
   return useMemo(() => ({
     openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
+    openMcpApp: (instanceId: string, title: string) => store.openMcpApp(instanceId, title),
+    activateMcpApp: (instanceId: string) => { store.activate(mcpAppTabId(instanceId)); },
+    closeMcpApp: (instanceId: string) => store.closeMcpApp(instanceId),
     openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
     enterNodePage: (workspaceId: string, nodeId: string) => store.enterNodePage(workspaceId, nodeId),
     openSkill: (scope: CanvasConfigScope, skill: CanvasSkillEntry) => store.openSkill(scope, skill),
@@ -223,3 +244,7 @@ export const useRightDockState = (): DockState => {
 export const useRightDockChatHost = (): HTMLDivElement | null => useDockContext().chatHost;
 
 export const useRightDockTerminalHost = (): HTMLDivElement | null => useDockContext().terminalHost;
+
+export const useRightDockMcpAppHost = (instanceId: string): HTMLDivElement | null => (
+  useDockContext().mcpAppHosts[instanceId] ?? null
+);

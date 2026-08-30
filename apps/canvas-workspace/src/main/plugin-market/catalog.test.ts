@@ -33,4 +33,5 @@ describe('PUBLIC_PLUGIN_CATALOG', () => {
         subdir: 'plugins/opnform',
       });
   });
+
 });

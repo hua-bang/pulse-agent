@@ -1,5 +1,6 @@
 import type {
   AgentChatMessage,
+  AgentChatMcpApp,
   AgentClarificationRequest,
   AgentRequestContext,
   AgentScope,
@@ -11,6 +12,10 @@ import type {
 } from '../../../shared/agent-chat';
 import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../../shared/agent-roles';
 import type { AgentObservabilityMarkInput } from '../../../shared/agent-observability';
+import type {
+  McpAppToolApprovalResponse,
+  McpAppToolCallResponse,
+} from '../../../shared/mcp-apps';
 
 export type * from '../../../shared/agent-chat';
 
@@ -22,6 +27,25 @@ export interface AgentNewSessionResult {
 }
 
 export interface AgentApi {
+  mcpApps: {
+    listResources: (
+      scope: AgentScope,
+      serverName: string,
+      cursor?: string,
+    ) => Promise<{ ok: boolean; value?: unknown; error?: string }>;
+    readResource: (
+      scope: AgentScope,
+      serverName: string,
+      uri: string,
+    ) => Promise<{ ok: boolean; value?: unknown; error?: string }>;
+    callTool: (
+      scope: AgentScope,
+      serverName: string,
+      toolName: string,
+      args: unknown,
+      approval?: McpAppToolApprovalResponse,
+    ) => Promise<McpAppToolCallResponse>;
+  };
   prepareChat: (
     scopeRef: AgentScopeRef,
     message: string,
@@ -155,6 +179,7 @@ export interface AgentApi {
       toolCallId?: string;
       status: 'succeeded' | 'failed' | 'cancelled';
       error?: string;
+      mcpApp?: AgentChatMcpApp;
     }) => void,
   ) => () => void;
   /** Tool-input streaming: fired when LLM starts emitting tool arguments. */

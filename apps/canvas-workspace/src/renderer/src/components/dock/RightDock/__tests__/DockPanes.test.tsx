@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DockPanes } from '../DockPanes';
 import { CHAT_TAB_ID, DockStore, TERMINAL_TAB_ID } from '../dock-store';
-import { dockPaneElementId, dockTabElementId } from '../dock-tab-ids';
+import { dockPaneElementId, dockTabElementId, mcpAppDockHostElementId } from '../dock-tab-ids';
 import { I18nProvider } from '../../../../i18n';
 import type { AgentContextDomReviewComment, AgentContextTabRef } from '../../../../types';
 
@@ -93,6 +93,39 @@ afterEach(() => {
 });
 
 describe('DockPanes split focus', () => {
+  it('exposes an active host surface for a fullscreen MCP App tab', () => {
+    const store = new DockStore();
+    store.openMcpApp('call-1', 'Interactive Map');
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+
+    flushSync(() => root?.render(
+      <I18nProvider><DockPanes
+        store={store}
+        state={store.getSnapshot()}
+        activePaneId={store.getSnapshot().activeTabId}
+        dockVisible
+        chatTabEnabled
+        splitContentWidth={320}
+        splitDividerWidth={6}
+        onDividerMouseDown={() => undefined}
+        setChatHost={() => undefined}
+        setTerminalHost={() => undefined}
+        terminalHostMounted={false}
+        activeWorkspaceId="ws1"
+        workspaces={[]}
+        onOpenNodePage={() => undefined}
+        pinUrlReference={() => undefined}
+        onAddDomSelectionToChat={async () => ({ status: 'unavailable', target: null })}
+      /></I18nProvider>,
+    ));
+
+    const host = document.getElementById(mcpAppDockHostElementId('call-1'));
+    expect(host).toBeTruthy();
+    expect(host?.closest('[role="tabpanel"]')?.getAttribute('aria-hidden')).toBe('false');
+  });
+
   it('renders two non-chat content tabs on stable left and right panes', () => {
     const store = new DockStore();
     store.openArtifact('ws1', 'artifact-1');

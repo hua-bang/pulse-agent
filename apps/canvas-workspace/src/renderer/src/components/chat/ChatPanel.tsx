@@ -422,6 +422,7 @@ export const ChatPanel = ({
       pendingLabel={pendingLabel}
       messages={messages}
       loading={loading}
+      agentScope={agentScope}
       sessionLoading={sessionLoading}
       workspaceId={scopeId}
       rootFolder={rootFolder}

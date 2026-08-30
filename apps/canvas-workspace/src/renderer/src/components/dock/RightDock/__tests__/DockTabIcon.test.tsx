@@ -31,11 +31,12 @@ describe('DockTabIcon', () => {
         <DockAgentTabIcon agentType="pi" />
         <DockTabIcon kind="node-detail" />
         <DockTabIcon kind="canvas" />
+        <DockTabIcon kind="mcp-app" />
       </>,
     ));
 
     const slots = [...mount.querySelectorAll('.right-dock__tab-icon')];
-    expect(slots).toHaveLength(6);
+    expect(slots).toHaveLength(7);
     expect(slots.every((slot) => slot.getAttribute('aria-hidden') === 'true')).toBe(true);
     expect(mount.querySelector('.right-dock__tab-icon--chat img')).toBeTruthy();
     expect(mount.querySelector<HTMLImageElement>('.right-dock__tab-favicon')?.src)
@@ -44,5 +45,6 @@ describe('DockTabIcon', () => {
     expect(mount.querySelector('.right-dock__tab-icon--agent-pi svg')).toBeTruthy();
     expect(mount.querySelector('.right-dock__tab-icon--node-detail svg')).toBeTruthy();
     expect(mount.querySelector('.right-dock__tab-dot--canvas')).toBeTruthy();
+    expect(mount.querySelector('.right-dock__tab-icon--mcp-app svg')).toBeTruthy();
   });
 });

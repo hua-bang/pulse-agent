@@ -98,7 +98,10 @@ Key invariants and their guards:
 - The conversation input contract carries request context, attachments, and
   mentioned workspaces through renderer → IPC → runtime → engine. Persistence
   retains user context/attachments and assistant tools, run id, and role
-  metadata; a persistence failure is a failed turn, never an empty success.
+  metadata. Tool-result persistence must retain the complete renderer-facing
+  payload, including an MCP App descriptor; otherwise the settled snapshot
+  replaces the live tool event and silently removes its inline UI. A persistence
+  failure is a failed turn, never an empty success.
 - Conversation-runtime reads and full-state writes use the same per-scope
   `SessionMutationCoordinator` tail as load/new/delete. Its run lease remains
   active through persistence, so pointer changes cannot redirect a completed

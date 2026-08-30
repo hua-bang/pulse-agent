@@ -45,6 +45,7 @@ export function resolveSegmentOutcome(input: {
   signalAborted: boolean;
   resultText: string;
   streamedText: string;
+  hasToolOutput?: boolean;
 }): { stopped: boolean; rawText: string } {
   const stopped = (
     input.signalAborted
@@ -54,7 +55,7 @@ export function resolveSegmentOutcome(input: {
     stopped,
     rawText: stopped
       ? input.streamedText
-      : input.resultText || '(no response)',
+      : input.resultText || (input.hasToolOutput ? '' : '(no response)'),
   };
 }
 

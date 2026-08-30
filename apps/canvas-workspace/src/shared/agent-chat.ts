@@ -91,6 +91,16 @@ export interface AgentChatToolCall {
   inputStreaming?: boolean;
   streamedContent?: string;
   streamedDone?: boolean;
+  /** Inline MCP Apps payload associated with this tool invocation. */
+  mcpApp?: AgentChatMcpApp;
+}
+
+export interface AgentChatMcpApp {
+  serverName: string;
+  toolName: string;
+  resourceUri: string;
+  /** Full MCP tools/call result envelope delivered to the iframe. */
+  result?: unknown;
 }
 
 export interface AgentDebugTraceNodeRef {

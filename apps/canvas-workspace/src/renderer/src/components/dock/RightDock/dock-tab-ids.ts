@@ -32,6 +32,12 @@ export const nodeDetailTabId = (workspaceId: string, nodeId: string): string =>
 export const canvasPreviewTabId = (workspaceId: string): string =>
   `canvas:${encodeURIComponent(workspaceId)}`;
 
+export const mcpAppTabId = (instanceId: string): string =>
+  `mcp-app:${encodeURIComponent(instanceId)}`;
+
+export const mcpAppDockHostElementId = (instanceId: string): string =>
+  `right-dock-mcp-app-host-${encodeURIComponent(instanceId)}`;
+
 export const skillTabId = (scopeKey: string, skillName: string): string =>
   `skill:${encodeURIComponent(scopeKey)}:${encodeURIComponent(skillNameKey(skillName))}`;
 

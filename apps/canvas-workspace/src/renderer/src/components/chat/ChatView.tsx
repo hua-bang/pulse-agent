@@ -6,7 +6,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import type { AgentChatMessage, CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatMessage, AgentScope, CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
 import { ChatEmptyState, type ChatEmptyStateVariant } from './ChatEmptyState';
 import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
@@ -16,6 +16,7 @@ import type { RelayProgress } from './hooks/relayTurnHandlers';
 import type { QueuedInput } from './hooks/useChatRunQueue';
 import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
 import { restoreComposerFocusAfterRender } from './utils/focusRecovery';
+import { McpAppsProvider } from './McpAppsContext';
 
 interface ChatViewProps {
   className?: string;
@@ -28,6 +29,7 @@ interface ChatViewProps {
   // Streaming + messages
   messages: AgentChatMessage[];
   loading: boolean;
+  agentScope?: AgentScope;
   /**
    * True while the selected conversation's messages are being fetched. Keeps
    * the thread mounted (showing a skeleton) instead of falling through to the
@@ -126,6 +128,7 @@ export const ChatView = ({
   banner,
   pendingLabel,
   messages,
+  agentScope,
   loading,
   sessionLoading = false,
   workspaceId,
@@ -191,6 +194,7 @@ export const ChatView = ({
   onSessionJump,
   onResizeStart,
 }: ChatViewProps) => {
+  const mcpAppScope = agentScope ?? { kind: 'workspace' as const, workspaceId };
   const hasMessages = messages.length > 0 || loading || sessionLoading || Boolean(pendingLabel);
   const runRecoveryAction = useCallback(async (
     action: () => Promise<boolean | void> | boolean | void,
@@ -219,34 +223,36 @@ export const ChatView = ({
       {header}
       {banner}
       {hasMessages ? (
-        <ChatMessages
-          messages={messages}
-          loading={loading}
-          sessionLoading={sessionLoading}
-          nodes={nodes}
-          workspaceId={workspaceId}
-          rootFolder={rootFolder}
-          streamingTools={streamingTools}
-          messageTools={messageTools}
-          collapsedSections={collapsedSections}
-          expandedTools={expandedTools}
-          pendingClarify={pendingClarify}
-          clarifyInput={clarifyInput}
-          clarificationAnswering={clarificationAnswering}
-          interactionDisabled={interactionDisabled || sessionLoading}
-          clarificationError={clarificationError}
-          onClarifyInputChange={onClarifyInputChange}
-          onAnswerClarification={onAnswerClarification}
-          onToggleSection={onToggleSection}
-          onToggleToolExpand={onToggleToolExpand}
-          onAddImageToCanvas={onAddImageToCanvas}
-          onNodeFocus={onNodeFocus}
-          onEditUserMessage={onEditUserMessage ? handleEditUserMessage : undefined}
-          onRegenerate={onRegenerate ? handleRegenerate : undefined}
-          onSessionJump={onSessionJump}
-          pendingLabel={pendingLabel}
-          conversationKey={conversationKey}
-        />
+        <McpAppsProvider scope={mcpAppScope}>
+          <ChatMessages
+            messages={messages}
+            loading={loading}
+            sessionLoading={sessionLoading}
+            nodes={nodes}
+            workspaceId={workspaceId}
+            rootFolder={rootFolder}
+            streamingTools={streamingTools}
+            messageTools={messageTools}
+            collapsedSections={collapsedSections}
+            expandedTools={expandedTools}
+            pendingClarify={pendingClarify}
+            clarifyInput={clarifyInput}
+            clarificationAnswering={clarificationAnswering}
+            interactionDisabled={interactionDisabled || sessionLoading}
+            clarificationError={clarificationError}
+            onClarifyInputChange={onClarifyInputChange}
+            onAnswerClarification={onAnswerClarification}
+            onToggleSection={onToggleSection}
+            onToggleToolExpand={onToggleToolExpand}
+            onAddImageToCanvas={onAddImageToCanvas}
+            onNodeFocus={onNodeFocus}
+            onEditUserMessage={onEditUserMessage ? handleEditUserMessage : undefined}
+            onRegenerate={onRegenerate ? handleRegenerate : undefined}
+            onSessionJump={onSessionJump}
+            pendingLabel={pendingLabel}
+            conversationKey={conversationKey}
+          />
+        </McpAppsProvider>
       ) : emptyState !== undefined ? emptyState : (
         <ChatEmptyState
           selectedCount={selectedContext?.length ?? 0}

@@ -216,6 +216,8 @@ describe('Engine built-in tool policy', () => {
     expect(session.getTools()).not.toHaveProperty('artifact_create');
     await expect(session.executeTool('artifact_create', { title: 'Early' }))
       .rejects.toThrow(/unavailable/i);
+    await expect(session.executeRegisteredTool('artifact_create', { title: 'Approved app call' }))
+      .resolves.toBe('created');
 
     const searchResult = await session.executeTool('tool_search_tool_bm25', {
       query: 'create artifact',

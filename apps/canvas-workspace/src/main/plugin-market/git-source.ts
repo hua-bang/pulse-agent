@@ -108,7 +108,7 @@ export async function gitClone(source: PluginMarketSource): Promise<{
   const stagingDir = await fs.mkdtemp(join(pluginMarketRootDir(), 'staging-'));
   const repositoryDir = join(stagingDir, 'repository');
   try {
-    const args = ['clone', '--depth', '1'];
+    const args = ['clone', '--depth', '1', '--filter=blob:none', '--no-checkout'];
     const pinnedCommit = normalized.ref && /^[a-f0-9]{40}$/i.test(normalized.ref);
     if (normalized.ref && !pinnedCommit) args.push('--branch', normalized.ref);
     args.push(normalized.url!, repositoryDir);
@@ -117,18 +117,28 @@ export async function gitClone(source: PluginMarketSource): Promise<{
       maxBuffer: 2 * 1024 * 1024,
       env: { ...process.env, GIT_LFS_SKIP_SMUDGE: '1' },
     });
+    if (normalized.subdir) {
+      await execFileAsync('git', [
+        '-C', repositoryDir, 'sparse-checkout', 'set', '--no-cone', '--', normalized.subdir,
+      ], {
+        timeout: 30_000,
+        maxBuffer: 512 * 1024,
+      });
+    }
     if (pinnedCommit) {
       await execFileAsync('git', ['-C', repositoryDir, 'fetch', '--depth', '1', 'origin', normalized.ref!], {
         timeout: GIT_TIMEOUT_MS,
         maxBuffer: 2 * 1024 * 1024,
         env: { ...process.env, GIT_LFS_SKIP_SMUDGE: '1' },
       });
-      await execFileAsync('git', ['-C', repositoryDir, 'checkout', '--detach', normalized.ref!], {
-        timeout: 30_000,
-        maxBuffer: 512 * 1024,
-        env: { ...process.env, GIT_LFS_SKIP_SMUDGE: '1' },
-      });
     }
+    await execFileAsync('git', [
+      '-C', repositoryDir, 'checkout', '--detach', pinnedCommit ? normalized.ref! : 'HEAD',
+    ], {
+      timeout: 30_000,
+      maxBuffer: 512 * 1024,
+      env: { ...process.env, GIT_LFS_SKIP_SMUDGE: '1' },
+    });
     const { stdout } = await execFileAsync('git', ['-C', repositoryDir, 'rev-parse', 'HEAD'], {
       timeout: 15_000,
       maxBuffer: 64 * 1024,

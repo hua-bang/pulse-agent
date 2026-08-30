@@ -48,7 +48,7 @@ import { CanvasAgentService } from './service';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
 import { generateScheduledPrompt } from './scheduled-prompt-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
-import type { AgentScope, AgentScopeRef } from './types';
+import type { AgentScopeRef } from './types';
 import {
   PreparedChatRegistry,
   type PreparedChatPayload,
@@ -58,20 +58,10 @@ import { prepareChatTurn, startChatTurn } from './chat-protocol';
 import type { AgentObservabilityMarkInput } from '../../shared/agent-observability';
 import { publishAgentTraceEvent } from '../../plugins/main';
 import { isAgentObservabilityMark } from './observability/renderer-mark';
+import { resolveAgentScope, setupMcpAppIpc } from './mcp-app-ipc';
 let service: CanvasAgentService | null = null;
 const activeChats = new ActiveChatRegistry();
 const preparedChats = new PreparedChatRegistry();
-function resolveAgentScope(payload: AgentScopeRef): AgentScope {
-  if (payload.scope?.kind === 'global') return { kind: 'global' };
-  if (payload.scope?.kind === 'scheduled' && payload.scope.taskId) {
-    return { kind: 'scheduled', taskId: payload.scope.taskId };
-  }
-  if (payload.scope?.kind === 'workspace' && payload.scope.workspaceId) {
-    return { kind: 'workspace', workspaceId: payload.scope.workspaceId };
-  }
-  if (payload.workspaceId) return { kind: 'workspace', workspaceId: payload.workspaceId };
-  return { kind: 'global' };
-}
 export function getCanvasAgentService(): CanvasAgentService {
   if (!service) {
     service = new CanvasAgentService();
@@ -85,6 +75,7 @@ function getService(): CanvasAgentService {
 
 export function setupCanvasAgentIpc(): void {
   const svc = getService();
+  setupMcpAppIpc(svc);
 
   ipcMain.handle(
     'canvas-agent:polish-scheduled-prompt',
