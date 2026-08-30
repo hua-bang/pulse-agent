@@ -93,6 +93,18 @@ all future sweeps. Every capture now goes through the 2 s-bounded
 never-settling-capture regression test. Never await Electron `capturePage`
 unbounded on a possibly-hidden or occluded webContents.
 
+The shared Electron Profile also has background cache capacity maintenance
+(`src/main/app/profile-cache-maintenance.ts`). Thirty seconds after the first
+window opens, at most once per 24 hours, it measures only HTTP Cache, Code
+Cache, and Service Worker CacheStorage; above the default 2 GiB threshold it
+clears those reproducible stores through Electron's Session APIs. Cookies,
+LocalStorage, IndexedDB, File System, auth cache, and browsing history are
+never included, so login-bearing state survives. Configure or disable with
+`PULSE_CANVAS_PROFILE_CACHE_MAX_MB` (`0` disables),
+`PULSE_CANVAS_PROFILE_CACHE_CHECK_HOURS`, and
+`PULSE_CANVAS_PROFILE_CACHE_DELAY_MS`. The maintenance state file is atomic
+and the work stays off the startup critical path.
+
 `DockPanes` renders live and retained pages from one stable, key-sorted list.
 Do not split them into separate sibling lists or move a `<webview>` within its
 parent; either operation can cause Chromium to recreate the guest. Hidden
