@@ -21,6 +21,16 @@ interface UseStableSessionRailOptions {
   completionStatuses?: ReadonlyMap<string, ConversationCompletionStatus>;
 }
 
+const deduplicateSessions = (sessions: UnifiedSession[]): UnifiedSession[] => {
+  const seen = new Set<string>();
+  return sessions.filter((session) => {
+    const key = `${session.workspaceId}:${session.sessionId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 /**
  * Keeps the last complete cross-scope session tree visible while a new scope
  * loads. Scope changes are detected during render, before the loading layout
@@ -51,7 +61,10 @@ export function useStableSessionRail({
       ?? (sessionsStoreId === '__global_chat__'
         ? t('chat.scope.global')
         : allWorkspaces.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId);
-    const unified: UnifiedSession[] = [
+    // Current-scope rows come first and carry the freshest pointer/runtime
+    // state. Cross-workspace scans can briefly return the same durable row
+    // during a scope transition, so keep the first row for each conversation.
+    const unified = deduplicateSessions([
       ...sessions.map((session) => {
         const isCurrent = selectedSessionKey
           ? selectedSessionKey === `${sessionsStoreId}:${session.sessionId}`
@@ -90,7 +103,7 @@ export function useStableSessionRail({
           }))
           : undefined,
       })),
-    ];
+    ]);
     return unified.sort((left, right) => (
       (right.updatedAt ?? 0) - (left.updatedAt ?? 0)
       || right.date.localeCompare(left.date)
