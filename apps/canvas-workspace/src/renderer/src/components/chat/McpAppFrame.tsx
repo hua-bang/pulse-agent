@@ -18,6 +18,7 @@ import { useI18n } from '../../i18n';
 import { McpAppApprovalDialog } from './McpAppApprovalDialog';
 import { useMcpAppApproval } from './useMcpAppApproval';
 import './McpAppFrame.css';
+import { useMcpAppSurfacePlacement } from './useMcpAppSurfacePlacement';
 
 interface McpAppFrameProps {
   instanceId: string;
@@ -76,9 +77,9 @@ function cspDomains(meta: unknown, key: 'connectDomains' | 'resourceDomains' | '
   const values = source[key] ?? source[compatibilityKey];
   return Array.isArray(values)
     ? values.filter((value): value is string => (
-        typeof value === 'string'
-        && /^https:\/\/[a-z0-9*.-]+(?::\d+)?$/i.test(value)
-      ))
+      typeof value === 'string'
+      && /^https:\/\/[a-z0-9*.-]+(?::\d+)?$/i.test(value)
+    ))
     : [];
 }
 
@@ -170,48 +171,16 @@ export const McpAppFrame = ({ instanceId, app, args, fallbackResult, scope }: Mc
     setDisplayMode('inline');
   }, [dock, instanceId]);
 
-  useLayoutEffect(() => {
-    const surface = surfaceRef.current;
-    if (!surface) return;
-    surface.dataset.displayMode = displayMode;
-    const target = displayMode === 'fullscreen' ? dockHost : inlineHostRef.current;
-    if (!target || (displayMode === 'fullscreen' && !dockTabVisible)) {
-      surface.style.visibility = 'hidden';
-      surface.style.pointerEvents = 'none';
-      return;
-    }
-    const placeOverTarget = () => {
-      const rect = target.getBoundingClientRect();
-      const hasLayout = rect.width > 0 || rect.height > 0;
-      const visible = !hasLayout || (
-        rect.bottom > 0
-        && rect.right > 0
-        && rect.top < window.innerHeight
-        && rect.left < window.innerWidth
-      );
-      Object.assign(surface.style, {
-        position: 'fixed',
-        left: `${rect.left}px`,
-        top: `${rect.top}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        visibility: visible ? 'visible' : 'hidden',
-        pointerEvents: visible ? 'auto' : 'none',
-      });
-    };
-    placeOverTarget();
-    const observer = typeof ResizeObserver === 'undefined'
-      ? null
-      : new ResizeObserver(placeOverTarget);
-    observer?.observe(target);
-    window.addEventListener('resize', placeOverTarget);
-    document.addEventListener('scroll', placeOverTarget, true);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener('resize', placeOverTarget);
-      document.removeEventListener('scroll', placeOverTarget, true);
-    };
-  }, [displayMode, dockHost, dockTabVisible, height]);
+  useMcpAppSurfacePlacement({
+    displayMode,
+    dockHost,
+    dockTabVisible,
+    height,
+    inlineHostRef,
+    instanceId,
+    resourceKey: resource,
+    surfaceRef,
+  });
 
   useEffect(() => {
     if (displayMode === 'fullscreen' && !dockTabOpen) {
