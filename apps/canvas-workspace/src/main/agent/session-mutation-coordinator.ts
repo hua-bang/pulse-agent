@@ -104,19 +104,23 @@ export class SessionMutationCoordinator {
       || this.activeRuns.has(this.runKey(scope, null));
   }
 
-  newSession(scope: AgentScope): Promise<NewSessionResult> {
+  /** Create a durable draft without activating a cold Agent. */
+  newStoredSession(
+    scope: AgentScope,
+    startInStore: () => Promise<string | null>,
+  ): Promise<NewSessionResult> {
     return this.run(scope, async () => {
       try {
-        const agent = await this.activeAgent(scope);
-        // Creating a session is safe WHILE another conversation in the scope
-        // streams: the run is session-anchored (its context + persistence do
-        // not depend on the current pointer), so archiving the current session
-        // and pointing at a fresh one leaves the run writing to its archived
-        // copy (appendToSession's slow path). Other pointer mutations
-        // (rewind/delete/branch) still reject a running session because they
-        // would destroy or fork the run's own thread.
-        await agent.newSession();
-        const activeSessionId = agent.getCurrentSessionId();
+        const agent = this.getAgent(scope);
+        if (agent) {
+          await agent.newSession();
+          const activeSessionId = agent.getCurrentSessionId();
+          return activeSessionId
+            ? { ok: true, activeSessionId }
+            : this.failure(scope, 'New session did not become active');
+        }
+
+        const activeSessionId = await startInStore();
         if (!activeSessionId) {
           return this.failure(scope, 'New session did not become active');
         }

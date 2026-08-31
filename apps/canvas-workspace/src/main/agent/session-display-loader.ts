@@ -14,6 +14,15 @@ export async function loadCanvasAgentSessionFromStore(scope: AgentScope, session
   return { session, activeSessionId: store.getCurrentSession()?.sessionId ?? null };
 }
 
+/** Create the next durable conversation without starting the tool-capable Agent. */
+export async function startCanvasAgentSessionInStore(scope: AgentScope): Promise<string | null> {
+  const store = new SessionStore(scopeSessionStoreId(scope), scope);
+  // Preserve an already-empty draft, matching the live Agent's store behavior.
+  await store.restoreCurrentSession();
+  await store.startSession();
+  return store.getCurrentSession()?.sessionId ?? null;
+}
+
 export async function reconcileAgentWithStoredSession(
   scope: AgentScope,
   agent: SessionPointerAgent,

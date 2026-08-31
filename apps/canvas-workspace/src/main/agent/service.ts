@@ -34,7 +34,7 @@ import type {
 } from './types';
 import { beginCanvasHostRun, failCanvasHostRun, markCanvasHostLaneEntered, markCanvasHostScopeReady } from './observability/host-run';
 import { readCanvasAgentHistorySnapshot, type CanvasAgentHistorySnapshot } from './history-snapshot';
-import { loadCanvasAgentSessionFromStore, reconcileAgentWithStoredSession } from './session-display-loader';
+import { loadCanvasAgentSessionFromStore, reconcileAgentWithStoredSession, startCanvasAgentSessionInStore } from './session-display-loader';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
@@ -298,7 +298,7 @@ export class CanvasAgentService {
   }
 
   async newSessionForScope(scope: AgentScope): Promise<NewSessionResult> {
-    return this.sessionMutations.newSession(scope);
+    return this.sessionMutations.newStoredSession(scope, () => startCanvasAgentSessionInStore(scope));
   }
 
   async branchSessionForScope(scope: AgentScope, fromIndex: number): Promise<BranchSessionResult> { return this.sessionMutations.branchSession(scope, fromIndex); }

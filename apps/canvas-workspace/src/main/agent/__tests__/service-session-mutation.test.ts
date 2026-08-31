@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { promises as fs } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import type { CanvasAgentMessage, CanvasAgentSession } from '../types';
 
 const agentState = vi.hoisted(() => ({
@@ -110,6 +113,7 @@ vi.mock('../canvas-agent', () => ({
 }));
 
 import { CanvasAgentService } from '../service';
+import { SessionStore } from '../session-store';
 
 const makeSession = (sessionId: string, content: string): CanvasAgentSession => ({
   sessionId,
@@ -381,16 +385,32 @@ describe('CanvasAgentService session mutations', () => {
     expect((await second).ok).toBe(true);
   });
 
-  it('acknowledges a new session with the active session id', async () => {
+  it('acknowledges a cold new session without activating Agent', async () => {
+    const sessionRoot = await fs.mkdtemp(join(tmpdir(), 'cold-new-session-'));
+    const previousStoreRoot = process.env.PULSE_CANVAS_SESSION_STORE_DIR;
+    process.env.PULSE_CANVAS_SESSION_STORE_DIR = sessionRoot;
     const service = new CanvasAgentService();
-    const scope = { kind: 'workspace', workspaceId: 'ws-session-mutation' } as const;
+    const scope = { kind: 'global' } as const;
+    const store = new SessionStore('__global_chat__', scope);
+    await store.startSession();
+    const previousSessionId = store.getCurrentSession()!.sessionId;
+    await store.appendToSession(previousSessionId, [
+      { role: 'user', content: 'archive before starting a new chat', timestamp: 1 },
+    ]);
 
-    const result = await service.newSessionForScope(scope);
+    try {
+      const result = await service.newSessionForScope(scope);
 
-    expect(result).toEqual({
-      ok: true,
-      activeSessionId: 'session-new',
-    });
+      expect(result).toMatchObject({ ok: true });
+      expect(result.activeSessionId).not.toBe(previousSessionId);
+      expect(service.getAgentForScope(scope)).toBeUndefined();
+      await expect(SessionStore.readCurrentSessionId('__global_chat__'))
+        .resolves.toBe(result.activeSessionId);
+    } finally {
+      if (previousStoreRoot === undefined) delete process.env.PULSE_CANVAS_SESSION_STORE_DIR;
+      else process.env.PULSE_CANVAS_SESSION_STORE_DIR = previousStoreRoot;
+      await fs.rm(sessionRoot, { recursive: true, force: true });
+    }
   });
 
   it('branches the current conversation and acknowledges both session ids', async () => {
