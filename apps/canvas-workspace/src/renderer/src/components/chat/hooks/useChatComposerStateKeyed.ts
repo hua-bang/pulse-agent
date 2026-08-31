@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { AgentContextTabRef, AgentRequestContext, CanvasNode } from '../../../types';
 import type { AgentScope, WorkspaceOption } from '../types';
-import type { ConversationKey } from '../../../../../shared/conversation-runtime';
+import { conversationKeyId, type ConversationKey } from '../../../../../shared/conversation-runtime';
 import { useCanvasModels } from '../ModelSettings';
 import { useChatSessions } from './useChatSessions';
 import { useConversationRuntimeStream } from './useConversationRuntimeStream';
@@ -13,6 +13,7 @@ import {
   setConversationError,
 } from './conversationStore';
 import type { LoadedConversation } from './loadedConversationSink';
+import { serializeEditable } from '../utils/mentions';
 
 interface UseChatComposerStateKeyedOptions {
   agentScope: AgentScope;
@@ -140,6 +141,46 @@ export function useChatComposerStateKeyed({
     [],
   );
 
+  const prewarmTimerRef = useRef<number | undefined>(undefined);
+  const prewarmedConversationRef = useRef<string | null>(null);
+  const prewarmScopeRef = useRef(agentScope);
+  prewarmScopeRef.current = agentScope;
+  const prewarmConversationId = conversationKey ? conversationKeyId(conversationKey) : null;
+  const requestAgentPrewarm = useCallback(() => {
+    if (!prewarmConversationId) return;
+    if (prewarmedConversationRef.current === prewarmConversationId) return;
+    prewarmedConversationRef.current = prewarmConversationId;
+    if (prewarmTimerRef.current !== undefined) {
+      window.clearTimeout(prewarmTimerRef.current);
+      prewarmTimerRef.current = undefined;
+    }
+    window.canvasWorkspace.agent.warmScope({ scope: prewarmScopeRef.current });
+  }, [prewarmConversationId]);
+
+  useEffect(() => {
+    if (prewarmTimerRef.current !== undefined) window.clearTimeout(prewarmTimerRef.current);
+    prewarmTimerRef.current = undefined;
+    if (
+      !prewarmConversationId
+      || conversationVisible === false
+      || chatSessions.sessionLoading
+      || chatStream.messages.length > 0
+    ) return;
+    prewarmTimerRef.current = window.setTimeout(() => {
+      prewarmTimerRef.current = undefined;
+      requestAgentPrewarm();
+    }, 750);
+    return () => {
+      if (prewarmTimerRef.current !== undefined) window.clearTimeout(prewarmTimerRef.current);
+      prewarmTimerRef.current = undefined;
+    };
+  }, [chatSessions.sessionLoading, chatStream.messages.length, conversationVisible, prewarmConversationId, requestAgentPrewarm]);
+
+  const sendMessage = useCallback((...args: Parameters<typeof chatStream.sendMessage>) => {
+    requestAgentPrewarm();
+    return chatStream.sendMessage(...args);
+  }, [chatStream.sendMessage, requestAgentPrewarm]);
+
   const mentions = useMentions({
     allWorkspaces,
     agentScope,
@@ -149,16 +190,36 @@ export function useChatComposerStateKeyed({
     knowledgeTags,
     dockTabs,
     collectStructuredContext,
-    onSubmit: chatStream.sendMessage,
+    onSubmit: sendMessage,
     onSubmitDuringRun: chatStream.submitRunInput,
     getRequestContext,
     isSubmitBlocked,
   });
 
+  const handleInput = useCallback(() => {
+    mentions.handleInput();
+    const editable = mentions.editableRef.current;
+    if (editable && serializeEditable(editable).trim()) requestAgentPrewarm();
+  }, [mentions.editableRef, mentions.handleInput, requestAgentPrewarm]);
+  const handlePaste = useCallback((event: Parameters<typeof mentions.handlePaste>[0]) => {
+    const hasImage = Array.from(event.clipboardData.files)
+      .some(file => file.type.startsWith('image/'));
+    if (hasImage || event.clipboardData.getData('text/plain').trim()) requestAgentPrewarm();
+    mentions.handlePaste(event);
+  }, [mentions.handlePaste, requestAgentPrewarm]);
+  const handleAttachFiles = useCallback((files: Parameters<typeof mentions.handleAttachFiles>[0]) => {
+    if (Array.from(files).some(file => file.type.startsWith('image/'))) requestAgentPrewarm();
+    mentions.handleAttachFiles(files);
+  }, [mentions.handleAttachFiles, requestAgentPrewarm]);
+
   return {
     ...chatStream,
     ...chatSessions,
     ...mentions,
+    sendMessage,
+    handleInput,
+    handlePaste,
+    handleAttachFiles,
     canvasModels,
   };
 }

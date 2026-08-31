@@ -23,6 +23,7 @@
  *   canvas-agent:set-session-pinned — pin or unpin a session
  *   canvas-agent:delete-session    — delete a session with safe pointer replacement
  *   canvas-agent:load-session      — load an archived session
+ *   canvas-agent:warm-scope        — silently initialize a likely next scope
  *   canvas-agent:activate          — explicitly start the agent
  *   canvas-agent:deactivate        — stop the agent and archive session
  *
@@ -413,6 +414,15 @@ export function setupCanvasAgentIpc(): void {
       }
     },
   );
+
+  ipcMain.on('canvas-agent:warm-scope', (_event, payload: AgentScopeRef) => {
+    try {
+      const scope = resolveAgentScope(payload);
+      void svc.activateScope(scope).catch(error => console.warn('[canvas-agent] Background scope warmup failed:', error));
+    } catch (error) {
+      console.warn('[canvas-agent] Ignored invalid background warmup request:', error);
+    }
+  });
 
   ipcMain.handle(
     'canvas-agent:deactivate',

@@ -307,6 +307,8 @@ export interface AgentApi {
   getCurrentSession: (
     scopeRef: AgentScopeRef,
   ) => Promise<{ ok: boolean; sessionId?: string | null; error?: string }>;
+  /** Fire-and-forget Agent initialization for a likely next turn. */
+  warmScope: (scopeRef: AgentScopeRef) => void;
   loadCrossWorkspaceSession: (
     targetWorkspaceId: string,
     sourceWorkspaceId: string,

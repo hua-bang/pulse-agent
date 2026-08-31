@@ -157,6 +157,13 @@ newer UI pointer change.
 Guards: `src/main/agent/__tests__/service-history.test.ts` and
 `src/main/agent/__tests__/session-store.test.ts`.
 
+An empty selected conversation schedules a silent scope warmup after 750ms.
+The first effective composer input, paste, attachment, quick action, or send
+starts that warmup immediately and cancels the delay. Warmup is fire-and-forget
+from renderer to main; failures stay out of the composer until a real send,
+and `ScopeActivationGate` coalesces warmup with the send-time activation. This
+keeps New Chat instant without moving the entire cold-start wait to first send.
+
 **Session listings are metadata-indexed.** Each store's existing
 `agent-sessions/metadata.json` is upgraded lazily to a versioned document that
 keeps title/pin metadata plus a per-file summary (session id, recency, message
