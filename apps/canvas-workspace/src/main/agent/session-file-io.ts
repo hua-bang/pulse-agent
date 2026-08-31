@@ -20,6 +20,7 @@ export interface SessionFileIo {
   flushPersistence(): Promise<void>;
   persist(session?: CanvasAgentSession | null): Promise<void>;
   readCurrentSessionFile(): Promise<{ raw: string; session: CanvasAgentSession } | null>;
+  onSessionFileWritten(path: string, session: CanvasAgentSession): Promise<void>;
   workspaceId: string;
   scope: AgentScope;
 }
@@ -114,6 +115,7 @@ export async function appendSessionMessages(
     messages: [...found.session.messages, ...messages],
   };
   await writeFileAtomic(found.path, JSON.stringify(updated, null, 2));
+  await store.onSessionFileWritten(found.path, updated);
 }
 
 /**
@@ -149,6 +151,7 @@ export async function replaceSessionMessages(
     messages: [...messages],
   };
   await writeFileAtomic(found.path, JSON.stringify(updated, null, 2));
+  await store.onSessionFileWritten(found.path, updated);
 }
 
 /** Read and parse current.json; null when absent, throws when corrupted. */

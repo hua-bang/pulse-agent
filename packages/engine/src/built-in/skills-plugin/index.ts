@@ -5,8 +5,8 @@
 
 import { EnginePlugin, EnginePluginContext } from '../../plugin/EnginePlugin';
 import { Tool } from '../../shared/types';
-import { readFileSync, existsSync, realpathSync } from 'fs';
-import { globSync } from 'glob';
+import { promises as fs } from 'fs';
+import { glob } from 'glob';
 import matter from 'gray-matter';
 import { homedir } from 'os';
 import * as path from 'path';
@@ -27,17 +27,15 @@ export interface RemoteSkillsConfig {
 
 export async function loadRemoteSkillsConfig(cwd: string): Promise<RemoteSkillsConfig> {
   const configPath = path.join(cwd, '.pulse-coder', 'skills', 'remote.json');
-  if (!existsSync(configPath)) {
-    return { endpoints: [] };
-  }
   try {
-    const parsed = JSON.parse(readFileSync(configPath, 'utf-8'));
+    const parsed = JSON.parse(await fs.readFile(configPath, 'utf-8'));
     if (!Array.isArray(parsed.endpoints)) {
       console.warn('[Skills] skills/remote.json missing "endpoints" array');
       return { endpoints: [] };
     }
     return { endpoints: parsed.endpoints };
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { endpoints: [] };
     console.warn(`[Skills] Failed to load skills/remote.json: ${error instanceof Error ? error.message : error}`);
     return { endpoints: [] };
   }
@@ -204,12 +202,12 @@ export class BuiltInSkillRegistry {
 
     for (const { base, pattern } of scanPaths) {
       try {
-        const files = globSync(pattern, { cwd: base, absolute: true });
+        const files = await glob(pattern, { cwd: base, absolute: true });
 
         for (const filePath of files) {
           let canonical = filePath;
           try {
-            canonical = realpathSync(filePath);
+            canonical = await fs.realpath(filePath);
           } catch {
             // realpath can fail for dangling symlinks — fall back to the
             // glob-returned absolute path so we still dedupe within a run.
@@ -218,7 +216,7 @@ export class BuiltInSkillRegistry {
           seenPaths.add(canonical);
 
           try {
-            const skillInfo = this.parseSkillFile(filePath);
+            const skillInfo = await this.parseSkillFile(filePath);
             if (!skillInfo) continue;
 
             const nameKey = skillInfo.name.toLowerCase();
@@ -245,9 +243,9 @@ export class BuiltInSkillRegistry {
   /**
    * 解析技能文件
    */
-  private parseSkillFile(filePath: string): SkillInfo | null {
+  private async parseSkillFile(filePath: string): Promise<SkillInfo | null> {
     try {
-      const content = readFileSync(filePath, 'utf-8');
+      const content = await fs.readFile(filePath, 'utf-8');
       const { data, content: markdownContent } = matter(content);
 
       if (!data.name || !data.description) {

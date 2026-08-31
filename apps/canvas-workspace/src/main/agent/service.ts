@@ -34,6 +34,7 @@ import type {
 } from './types';
 import { beginCanvasHostRun, failCanvasHostRun, markCanvasHostLaneEntered, markCanvasHostScopeReady } from './observability/host-run';
 import { readCanvasAgentHistorySnapshot, type CanvasAgentHistorySnapshot } from './history-snapshot';
+import { loadCanvasAgentSessionFromStore, reconcileAgentWithStoredSession, startCanvasAgentSessionInStore } from './session-display-loader';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
@@ -46,11 +47,17 @@ export class CanvasAgentService {
   private agents = new Map<string, CanvasAgent>();
   private agentActivations = new ScopeActivationGate();
   readonly sessionMutations = new SessionMutationCoordinator(
-    (scope) => this.activateScope(scope),
+    (scope) => this.activateScopeCore(scope),
     (scope) => this.getAgentForScope(scope),
   );
-
   async activateScope(scope: AgentScope): Promise<void> {
+    await this.sessionMutations.waitForIdle(scope);
+    await this.activateScopeCore(scope);
+    await this.sessionMutations.reconcileActiveAgent(
+      scope, agent => reconcileAgentWithStoredSession(scope, agent),
+    );
+  }
+  private async activateScopeCore(scope: AgentScope): Promise<void> {
     const key = scopeKey(scope);
     if (this.agents.has(key)) return;
     await this.agentActivations.run(key, async () => {
@@ -67,7 +74,6 @@ export class CanvasAgentService {
       this.agents.set(key, agent);
     });
   }
-
   getAgentForScope(scope: AgentScope): CanvasAgent | undefined {
     return this.agents.get(scopeKey(scope));
   }
@@ -247,9 +253,6 @@ export class CanvasAgentService {
     return agent.listSkills();
   }
 
-  /**
-   * Get conversation history for the current session.
-   */
   async getHistory(workspaceId: string): Promise<CanvasAgentMessage[]> {
     return this.getHistoryForScope(workspaceScope(workspaceId));
   }
@@ -257,10 +260,8 @@ export class CanvasAgentService {
     return (await this.getHistorySnapshotForScope(scope)).messages;
   }
 
-  async getHistorySnapshotForScope(scope: AgentScope): Promise<CanvasAgentHistorySnapshot> {
-    return readCanvasAgentHistorySnapshot(
-      scope, this.getAgentForScope(scope), () => this.activateScope(scope),
-    );
+  getHistorySnapshotForScope(scope: AgentScope): Promise<CanvasAgentHistorySnapshot> {
+    return readCanvasAgentHistorySnapshot(scope, this.getAgentForScope(scope));
   }
 
   /**
@@ -297,7 +298,7 @@ export class CanvasAgentService {
   }
 
   async newSessionForScope(scope: AgentScope): Promise<NewSessionResult> {
-    return this.sessionMutations.newSession(scope);
+    return this.sessionMutations.newStoredSession(scope, () => startCanvasAgentSessionInStore(scope));
   }
 
   async branchSessionForScope(scope: AgentScope, fromIndex: number): Promise<BranchSessionResult> { return this.sessionMutations.branchSession(scope, fromIndex); }
@@ -305,9 +306,6 @@ export class CanvasAgentService {
   setSessionPinnedForScope(scope: AgentScope, sessionId: string, pinned: boolean): Promise<SessionActionResult> { return this.sessionMutations.setSessionPinned(scope, sessionId, pinned); }
   deleteSessionForScope(scope: AgentScope, sessionId: string): Promise<DeleteSessionResult> { return this.sessionMutations.deleteSession(scope, sessionId); }
 
-  /**
-   * Load a specific session by sessionId.
-   */
   async loadSession(workspaceId: string, sessionId: string): Promise<LoadSessionResult> {
     return this.loadSessionForScope(workspaceScope(workspaceId), sessionId);
   }
@@ -315,7 +313,9 @@ export class CanvasAgentService {
   async loadSessionForScope(scope: AgentScope, sessionId: string): Promise<LoadSessionResult> {
     return this.sessionMutations.loadSession(scope, sessionId);
   }
-
+  loadSessionForDisplayScope(scope: AgentScope, sessionId: string): Promise<LoadSessionResult> {
+    return this.sessionMutations.loadStoredSession(scope, sessionId, () => loadCanvasAgentSessionFromStore(scope, sessionId));
+  }
   /**
    * List sessions from ALL workspaces, grouped by workspace.
    * @param workspaceNames — map of workspaceId → display name (from renderer manifest)

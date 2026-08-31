@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -154,5 +154,30 @@ describe('builtInRoleSoulPlugin runtime registration persistence', () => {
 
     const fileStat = await stat(soulFile);
     expect(fileStat.isFile()).toBe(true);
+  });
+
+  it('preserves source ordering and skips malformed soul files with async scanning', async () => {
+    const soulId = `async-scan-order-${Date.now()}`;
+    const pulseFile = path.join(tempDir, '.pulse-coder', 'souls', 'pulse', 'SOUL.md');
+    const agentsFile = path.join(tempDir, '.agents', 'souls', 'agents', 'SOUL.md');
+    const brokenFile = path.join(tempDir, '.pulse-coder', 'souls', 'broken', 'SOUL.md');
+    await mkdir(path.dirname(pulseFile), { recursive: true });
+    await mkdir(path.dirname(agentsFile), { recursive: true });
+    await mkdir(path.dirname(brokenFile), { recursive: true });
+    await writeFile(pulseFile, `---\nid: ${soulId}\nname: Pulse Source\n---\nfirst`, 'utf-8');
+    await writeFile(agentsFile, `---\nid: ${soulId}\nname: Agents Source\n---\nsecond`, 'utf-8');
+    await writeFile(brokenFile, '---\nid: broken\n---\n', 'utf-8');
+    process.env.PULSE_CODER_SOUL_PERSIST = '0';
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue(tempDir);
+    try {
+      const harness = createPluginContextHarness();
+      await builtInRoleSoulPlugin.initialize(harness.context);
+      const souls = await harness.tools.soul_list.execute({ format: 'full' }) as Array<Record<string, any>>;
+      const scanned = souls.find(soul => soul.id === soulId);
+      expect(scanned).toMatchObject({ name: 'Agents Source', prompt: 'second' });
+      expect(souls.some(soul => soul.id === 'broken')).toBe(false);
+    } finally {
+      cwd.mockRestore();
+    }
   });
 });

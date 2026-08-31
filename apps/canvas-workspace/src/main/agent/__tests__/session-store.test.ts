@@ -352,6 +352,51 @@ describe('SessionStore', () => {
     expect((await reloaded.restoreCurrentSession())?.sessionId).toBe(promotedSessionId);
   });
 
+  it('reads each archive only once while promoting and cleaning a session', async () => {
+    const workspaceId = 'ws-single-promotion-scan';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const promotedSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    store.addMessage(makeMessage(1));
+    await store.startSession();
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    const archiveFiles = await fs.readdir(archiveDir);
+    const readFile = vi.spyOn(fs, 'readFile');
+
+    await new SessionStore(workspaceId).loadSession(promotedSessionId);
+
+    const archiveReads = readFile.mock.calls
+      .map(([path]) => String(path))
+      .filter(path => path.startsWith(archiveDir));
+    expect(archiveReads).toHaveLength(archiveFiles.length);
+    expect(new Set(archiveReads).size).toBe(archiveFiles.length);
+  });
+
+  it('promotes the newest duplicate archive and removes every matching copy', async () => {
+    const workspaceId = 'ws-newest-duplicate';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage({ role: 'user', content: 'older copy', timestamp: 1 });
+    await store.startSession();
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    const [olderFile] = await fs.readdir(archiveDir);
+    const olderPath = join(archiveDir, olderFile);
+    const newerPath = join(archiveDir, 'newer-duplicate.json');
+    const newer = JSON.parse(await fs.readFile(olderPath, 'utf-8'));
+    newer.messages[0].content = 'newer copy';
+    await fs.writeFile(newerPath, JSON.stringify(newer), 'utf-8');
+    await fs.utimes(olderPath, new Date(1_000), new Date(1_000));
+    await fs.utimes(newerPath, new Date(2_000), new Date(2_000));
+
+    const promoted = await new SessionStore(workspaceId).loadSession(sessionId);
+
+    expect(promoted?.messages[0]?.content).toBe('newer copy');
+    expect(await fs.readdir(archiveDir)).toEqual([]);
+  });
+
   it('setMessages persists once instead of once per message', async () => {
     const store = new SessionStore('ws-2');
     await store.startSession();
@@ -401,6 +446,7 @@ describe('SessionStore', () => {
     expect(restored?.sessionId).toBe(firstSessionId);
     expect(restored?.messages.map((m) => m.content)).toEqual(messages.map((m) => m.content));
     expect(reloaded.getCurrentSession()?.sessionId).toBe(firstSessionId);
+    expect((await reloaded.listSessions()).map(session => session.sessionId)).toEqual([firstSessionId]);
   });
 
   it('archiveCurrentIfExists waits for in-flight writes before archiving', async () => {
@@ -669,6 +715,375 @@ describe('SessionStore', () => {
     });
   });
 
+  it('reuses a valid metadata index without rereading session bodies', async () => {
+    const workspaceId = 'ws-indexed-list';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    store.addMessage(makeMessage(1));
+    await store.restoreCurrentSession();
+
+    await SessionStore.listAllWorkspaceSessions();
+    const readFile = vi.spyOn(fs, 'readFile');
+    await SessionStore.listAllWorkspaceSessions();
+
+    const sessionBodyReads = readFile.mock.calls
+      .map(([path]) => String(path))
+      .filter(path => path.includes(`${workspaceId}/agent-sessions/`))
+      .filter(path => path.endsWith('current.json') || path.includes('/archive/'));
+    expect(sessionBodyReads).toEqual([]);
+  });
+
+  it('updates the metadata index when the current session is persisted', async () => {
+    const workspaceId = 'ws-index-current-update';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    store.addMessage(makeMessage(0));
+    await store.restoreCurrentSession();
+    await SessionStore.listAllWorkspaceSessions();
+
+    store.addMessage(makeMessage(1));
+    await store.restoreCurrentSession();
+    const readFile = vi.spyOn(fs, 'readFile');
+    const groups = await SessionStore.listAllWorkspaceSessions();
+
+    const listed = groups.find(group => group.workspaceId === workspaceId)?.sessions[0];
+    expect(listed?.messageCount).toBe(2);
+    const sessionBodyReads = readFile.mock.calls
+      .map(([path]) => String(path))
+      .filter(path => path.includes(`${workspaceId}/agent-sessions/`))
+      .filter(path => path.endsWith('current.json') || path.includes('/archive/'));
+    expect(sessionBodyReads).toEqual([]);
+  });
+
+  it('updates the metadata index when the current pointer is archived', async () => {
+    const workspaceId = 'ws-index-archive-update';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const archivedSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.restoreCurrentSession();
+    await SessionStore.listAllWorkspaceSessions();
+
+    await store.startSession();
+    const readFile = vi.spyOn(fs, 'readFile');
+    const groups = await SessionStore.listAllWorkspaceSessions();
+
+    expect(groups.find(group => group.workspaceId === workspaceId)?.sessions)
+      .toEqual([expect.objectContaining({ sessionId: archivedSessionId, isCurrent: false })]);
+    const sessionBodyReads = readFile.mock.calls
+      .map(([path]) => String(path))
+      .filter(path => path.includes(`${workspaceId}/agent-sessions/`))
+      .filter(path => path.endsWith('current.json') || path.includes('/archive/'));
+    expect(sessionBodyReads).toEqual([]);
+  });
+
+  it('uses the metadata index to read only the selected archived body', async () => {
+    const workspaceId = 'ws-index-targeted-load';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const selectedSessionId = store.getCurrentSession()!.sessionId;
+    for (let index = 0; index < 3; index++) {
+      store.addMessage(makeMessage(index));
+      await store.startSession();
+    }
+    await SessionStore.listAllWorkspaceSessions();
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    const readFile = vi.spyOn(fs, 'readFile');
+
+    await new SessionStore(workspaceId).loadSession(selectedSessionId);
+
+    const archiveReads = readFile.mock.calls
+      .map(([path]) => String(path))
+      .filter(path => path.startsWith(archiveDir));
+    expect(archiveReads).toHaveLength(1);
+    readFile.mockClear();
+    await SessionStore.listAllWorkspaceSessions();
+    const postPromotionBodyReads = readFile.mock.calls
+      .map(([path]) => String(path))
+      .filter(path => path.includes(`${workspaceId}/agent-sessions/`))
+      .filter(path => path.endsWith('current.json') || path.includes('/archive/'));
+    expect(postPromotionBodyReads).toEqual([]);
+  });
+
+  it('rebuilds a corrupted metadata index from durable session files', async () => {
+    const workspaceId = 'ws-index-rebuild';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.restoreCurrentSession();
+    await SessionStore.listAllWorkspaceSessions();
+    const metadataPath = join(root, workspaceId, 'agent-sessions', 'metadata.json');
+    await fs.writeFile(metadataPath, '{broken index', 'utf-8');
+
+    const groups = await SessionStore.listAllWorkspaceSessions();
+
+    expect(groups.find(group => group.workspaceId === workspaceId)?.sessions[0]?.sessionId)
+      .toBe(sessionId);
+    expect(JSON.parse(await fs.readFile(metadataPath, 'utf-8'))).toMatchObject({ version: 2 });
+  });
+
+  it('tombstones a corrupt archive so later listings stay on the hot path', async () => {
+    const workspaceId = 'ws-index-corrupt-archive';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const validSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    await fs.writeFile(join(archiveDir, 'corrupt.json'), '{broken', 'utf-8');
+
+    await SessionStore.listAllWorkspaceSessions();
+    const readFile = vi.spyOn(fs, 'readFile');
+    const groups = await SessionStore.listAllWorkspaceSessions();
+
+    expect(groups.find(group => group.workspaceId === workspaceId)?.sessions[0]?.sessionId)
+      .toBe(validSessionId);
+    const sessionBodyReads = readFile.mock.calls
+      .map(([path]) => String(path))
+      .filter(path => path.includes(`${workspaceId}/agent-sessions/`))
+      .filter(path => path.endsWith('current.json') || path.includes('/archive/'));
+    expect(sessionBodyReads).toEqual([]);
+  });
+
+  it('updates indexed archived sessions after append and replace writes', async () => {
+    const workspaceId = 'ws-index-archived-update';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const archivedSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.startSession();
+    await SessionStore.listAllWorkspaceSessions();
+
+    await store.appendToSession(archivedSessionId, [makeMessage(1)]);
+    await store.replaceMessagesInSession(archivedSessionId, [makeMessage(0), makeMessage(1), makeMessage(2)]);
+    const readFile = vi.spyOn(fs, 'readFile');
+    const groups = await SessionStore.listAllWorkspaceSessions();
+
+    expect(groups.find(group => group.workspaceId === workspaceId)?.sessions[0])
+      .toMatchObject({ sessionId: archivedSessionId, messageCount: 3 });
+    const sessionBodyReads = readFile.mock.calls
+      .map(([path]) => String(path))
+      .filter(path => path.includes(`${workspaceId}/agent-sessions/`))
+      .filter(path => path.endsWith('current.json') || path.includes('/archive/'));
+    expect(sessionBodyReads).toEqual([]);
+  });
+
+  it('does not overwrite metadata after a transient metadata read failure', async () => {
+    const workspaceId = 'ws-index-read-failure';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.renameSession(sessionId, 'Keep this title');
+    const metadataPath = join(root, workspaceId, 'agent-sessions', 'metadata.json');
+    const before = await fs.readFile(metadataPath, 'utf-8');
+    const realReadFile = fs.readFile.bind(fs);
+    let failed = false;
+    vi.spyOn(fs, 'readFile').mockImplementation(async (path, ...args) => {
+      if (!failed && String(path) === metadataPath) {
+        failed = true;
+        throw Object.assign(new Error('too many files'), { code: 'EMFILE' });
+      }
+      return realReadFile(path, ...args as Parameters<typeof fs.readFile> extends [unknown, ...infer Rest] ? Rest : never) as never;
+    });
+
+    await expect(store.setSessionPinned(sessionId, true)).rejects.toThrow('too many files');
+    expect(await realReadFile(metadataPath, 'utf-8')).toBe(before);
+  });
+
+  it('verifies indexed session identity before promotion and cleanup', async () => {
+    const workspaceId = 'ws-index-forged-identity';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const firstSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage({ role: 'user', content: 'first', timestamp: 1 });
+    await store.startSession();
+    const secondSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage({ role: 'user', content: 'second', timestamp: 2 });
+    await store.startSession();
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    for (const file of await fs.readdir(archiveDir)) {
+      const path = join(archiveDir, file);
+      const archived = JSON.parse(await fs.readFile(path, 'utf-8'));
+      const timestamp = archived.sessionId === secondSessionId ? 2_000 : 1_000;
+      await fs.utimes(path, new Date(timestamp), new Date(timestamp));
+    }
+    await SessionStore.listAllWorkspaceSessions();
+    const metadataPath = join(root, workspaceId, 'agent-sessions', 'metadata.json');
+    const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf-8'));
+    const secondPath = Object.keys(metadata.files)
+      .find(path => metadata.files[path].sessionId === secondSessionId)!;
+    metadata.files[secondPath].sessionId = firstSessionId;
+    await fs.writeFile(metadataPath, JSON.stringify(metadata), 'utf-8');
+
+    const promoted = await new SessionStore(workspaceId).loadSession(firstSessionId);
+
+    expect(promoted?.messages[0]?.content).toBe('first');
+    expect((await SessionStore.readSessionFromWorkspace(workspaceId, secondSessionId))?.messages[0]?.content)
+      .toBe('second');
+    const groups = await SessionStore.listAllWorkspaceSessions();
+    expect(groups.find(group => group.workspaceId === workspaceId)?.sessions.map(session => session.sessionId))
+      .toEqual(expect.arrayContaining([firstSessionId, secondSessionId]));
+  });
+
+  it('falls back to durable scanning when indexed identity repair fails', async () => {
+    const workspaceId = 'ws-index-repair-failure';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const targetSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage({ role: 'user', content: 'target', timestamp: 1 });
+    await store.startSession();
+    const unrelatedSessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage({ role: 'user', content: 'unrelated', timestamp: 2 });
+    await store.startSession();
+    await SessionStore.listAllWorkspaceSessions();
+    const metadataPath = join(root, workspaceId, 'agent-sessions', 'metadata.json');
+    const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf-8'));
+    const unrelatedPath = Object.keys(metadata.files)
+      .find(path => metadata.files[path].sessionId === unrelatedSessionId)!;
+    metadata.files[unrelatedPath].sessionId = targetSessionId;
+    await fs.writeFile(metadataPath, JSON.stringify(metadata), 'utf-8');
+    const realRename = fs.rename.bind(fs);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+      if (String(to) === metadataPath) throw new Error('index repair denied');
+      return realRename(from, to);
+    });
+
+    const promoted = await new SessionStore(workspaceId).loadSession(targetSessionId);
+
+    expect(promoted?.messages[0]?.content).toBe('target');
+    expect((await SessionStore.readSessionFromWorkspace(workspaceId, unrelatedSessionId))?.messages[0]?.content)
+      .toBe('unrelated');
+  });
+
+  it('falls back to durable scanning when the index has no claimed match', async () => {
+    const workspaceId = 'ws-index-false-negative';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage({ role: 'user', content: 'still exists', timestamp: 1 });
+    await store.startSession();
+    await SessionStore.listAllWorkspaceSessions();
+    const metadataPath = join(root, workspaceId, 'agent-sessions', 'metadata.json');
+    const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf-8'));
+    const targetPath = Object.keys(metadata.files)
+      .find(path => metadata.files[path].sessionId === sessionId)!;
+    metadata.files[targetPath].sessionId = 'wrong-session-id';
+    await fs.writeFile(metadataPath, JSON.stringify(metadata), 'utf-8');
+
+    const promoted = await new SessionStore(workspaceId).loadSession(sessionId);
+
+    expect(promoted?.sessionId).toBe(sessionId);
+    expect(promoted?.messages[0]?.content).toBe('still exists');
+  });
+
+  it('keeps the filename date fallback for legacy archives without startedAt', async () => {
+    const workspaceId = 'ws-index-legacy-date';
+    const archiveDir = join(root, workspaceId, 'agent-sessions', 'archive');
+    await fs.mkdir(archiveDir, { recursive: true });
+    await fs.writeFile(join(archiveDir, '2024-01-02-legacy.json'), JSON.stringify({
+      sessionId: 'legacy-session',
+      workspaceId,
+      messages: [makeMessage(0)],
+    }), 'utf-8');
+
+    const groups = await SessionStore.listAllWorkspaceSessions();
+
+    expect(groups.find(group => group.workspaceId === workspaceId)?.sessions[0]?.date)
+      .toBe('2024-01-02');
+  });
+
+  it('preserves title and pin metadata while rebuilding malformed v2 files', async () => {
+    const workspaceId = 'ws-index-malformed-v2';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.renameSession(sessionId, 'Preserved title');
+    await store.setSessionPinned(sessionId, true);
+    await store.restoreCurrentSession();
+    await SessionStore.listAllWorkspaceSessions();
+    const metadataPath = join(root, workspaceId, 'agent-sessions', 'metadata.json');
+    const malformed = JSON.parse(await fs.readFile(metadataPath, 'utf-8'));
+    malformed.files = 'invalid';
+    await fs.writeFile(metadataPath, JSON.stringify(malformed), 'utf-8');
+
+    const groups = await SessionStore.listAllWorkspaceSessions();
+
+    expect(groups.find(group => group.workspaceId === workspaceId)?.sessions[0])
+      .toMatchObject({ sessionId, title: 'Preserved title', pinned: true });
+  });
+
+  it('does not replace a valid index after a transient inventory failure', async () => {
+    const workspaceId = 'ws-index-inventory-failure';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    store.addMessage(makeMessage(0));
+    await store.restoreCurrentSession();
+    await SessionStore.listAllWorkspaceSessions();
+    const metadataPath = join(root, workspaceId, 'agent-sessions', 'metadata.json');
+    const currentPath = join(root, workspaceId, 'agent-sessions', 'current.json');
+    const before = await fs.readFile(metadataPath, 'utf-8');
+    const realStat = fs.stat.bind(fs);
+    let failed = false;
+    vi.spyOn(fs, 'stat').mockImplementation(async (path) => {
+      if (!failed && String(path) === currentPath) {
+        failed = true;
+        throw Object.assign(new Error('inventory unavailable'), { code: 'EMFILE' });
+      }
+      return realStat(path);
+    });
+
+    await expect(SessionStore.listAllWorkspaceSessions()).rejects.toThrow('inventory unavailable');
+    expect(await fs.readFile(metadataPath, 'utf-8')).toBe(before);
+  });
+
+  it('rejects malformed tombstone fields and rebuilds the affected index', async () => {
+    const workspaceId = 'ws-index-malformed-tombstone';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.restoreCurrentSession();
+    await SessionStore.listAllWorkspaceSessions();
+    const metadataPath = join(root, workspaceId, 'agent-sessions', 'metadata.json');
+    const malformed = JSON.parse(await fs.readFile(metadataPath, 'utf-8'));
+    malformed.files['current.json'].invalid = 'false';
+    await fs.writeFile(metadataPath, JSON.stringify(malformed), 'utf-8');
+
+    const groups = await SessionStore.listAllWorkspaceSessions();
+
+    expect(groups.find(group => group.workspaceId === workspaceId)?.sessions[0]?.sessionId)
+      .toBe(sessionId);
+    const repaired = JSON.parse(await fs.readFile(metadataPath, 'utf-8'));
+    expect(repaired.files['current.json'].invalid).toBeUndefined();
+  });
+
+  it('returns rebuilt listings when the derived index cannot be persisted', async () => {
+    const workspaceId = 'ws-index-write-failure';
+    const store = new SessionStore(workspaceId);
+    await store.startSession();
+    const sessionId = store.getCurrentSession()!.sessionId;
+    store.addMessage(makeMessage(0));
+    await store.restoreCurrentSession();
+    const metadataPath = join(root, workspaceId, 'agent-sessions', 'metadata.json');
+    const realRename = fs.rename.bind(fs);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+      if (String(to) === metadataPath) throw new Error('index is read-only');
+      return realRename(from, to);
+    });
+
+    const groups = await SessionStore.listAllWorkspaceSessions();
+
+    expect(groups.find(group => group.workspaceId === workspaceId)?.sessions[0]?.sessionId)
+      .toBe(sessionId);
+  });
+
   it('lists scheduled task stores alongside workspaces but still hides internals', async () => {
     const scheduledId = scheduledSessionStoreId('memory-report');
     for (const storeId of ['ws-1', '__global_chat__', scheduledId]) {
@@ -679,6 +1094,7 @@ describe('SessionStore', () => {
     }
     // A non-session internal directory must stay invisible.
     await fs.mkdir(join(root, '__manifest__'), { recursive: true });
+    await fs.writeFile(join(root, 'scheduled-tasks.json'), '{}', 'utf-8');
 
     const groups = await SessionStore.listAllWorkspaceSessions();
     const ids = groups.map((group) => group.workspaceId).sort();

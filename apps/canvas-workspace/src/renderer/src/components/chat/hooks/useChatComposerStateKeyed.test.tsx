@@ -55,6 +55,28 @@ function HistoryHarness() {
   return null;
 }
 
+function InputHarness() {
+  latest = useChatComposerStateKeyed({
+    agentScope: scope,
+    skipInitialHistory: true,
+    eagerLoad: false,
+    getRequestContext: () => undefined,
+    conversationKeyOverride: 'session-a',
+  });
+  return createElement('div', { ref: latest.editableRef, contentEditable: true });
+}
+
+function VisibilityHarness({ visible }: { visible: boolean }) {
+  latest = useChatComposerStateKeyed({
+    agentScope: scope,
+    skipInitialHistory: false,
+    eagerLoad: false,
+    getRequestContext: () => undefined,
+    conversationVisible: visible,
+  });
+  return null;
+}
+
 beforeEach(() => {
   resetConversationStoreForTests();
   host = document.createElement('div');
@@ -68,10 +90,122 @@ afterEach(() => {
   host?.remove();
   host = null;
   resetConversationStoreForTests();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe('useChatComposerStateKeyed', () => {
+  it('silently prewarms an empty conversation after a short delay', async () => {
+    vi.useFakeTimers();
+    const warmScope = vi.fn();
+    const getHistory = vi.fn(async () => ({
+      ok: true,
+      activeSessionId: 'session-a',
+      messages: [],
+    }));
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = {
+      agent: { warmScope, getHistory },
+    };
+    const nextRoot = createRoot(host!);
+    root = nextRoot;
+    await act(async () => {
+      nextRoot.render(createElement(I18nProvider, null, createElement(HistoryHarness)));
+      await Promise.resolve();
+    });
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(749); });
+    expect(warmScope).not.toHaveBeenCalled();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+
+    expect(warmScope).toHaveBeenCalledOnce();
+    expect(warmScope).toHaveBeenCalledWith({ scope });
+  });
+
+  it('starts the same prewarm immediately on the first input', async () => {
+    vi.useFakeTimers();
+    const warmScope = vi.fn();
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent: { warmScope } };
+    const nextRoot = createRoot(host!);
+    root = nextRoot;
+    act(() => {
+      nextRoot.render(createElement(I18nProvider, null, createElement(InputHarness)));
+    });
+    act(() => {
+      latest!.editableRef.current!.textContent = 'hello';
+      latest?.handleInput();
+    });
+
+    expect(warmScope).toHaveBeenCalledOnce();
+    expect(warmScope).toHaveBeenCalledWith({ scope });
+    await act(async () => { await vi.advanceTimersByTimeAsync(750); });
+    expect(warmScope).toHaveBeenCalledOnce();
+  });
+
+  it('does not prewarm for an input event that leaves the composer empty', () => {
+    vi.useFakeTimers();
+    const warmScope = vi.fn();
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent: { warmScope } };
+    const nextRoot = createRoot(host!);
+    root = nextRoot;
+    act(() => {
+      nextRoot.render(createElement(I18nProvider, null, createElement(InputHarness)));
+    });
+    expect(warmScope).not.toHaveBeenCalled();
+    act(() => {
+      latest!.editableRef.current!.textContent = '';
+      latest?.handleInput();
+    });
+
+    expect(warmScope).not.toHaveBeenCalled();
+  });
+
+  it('prewarms immediately when an image attachment is accepted', async () => {
+    vi.useFakeTimers();
+    const warmScope = vi.fn();
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = {
+      agent: { warmScope },
+      file: { saveImage: vi.fn(async () => ({ ok: true, filePath: '/tmp/image.png' })) },
+    };
+    const nextRoot = createRoot(host!);
+    root = nextRoot;
+    act(() => {
+      nextRoot.render(createElement(I18nProvider, null, createElement(InputHarness)));
+    });
+    await act(async () => {
+      latest?.handleAttachFiles([new File(['image'], 'image.png', { type: 'image/png' })]);
+      await vi.runAllTimersAsync();
+    });
+
+    expect(warmScope).toHaveBeenCalledOnce();
+    expect(warmScope).toHaveBeenCalledWith({ scope });
+  });
+
+  it('cancels delayed prewarm when the conversation becomes hidden', async () => {
+    vi.useFakeTimers();
+    const warmScope = vi.fn();
+    const getHistory = vi.fn(async () => ({
+      ok: true,
+      activeSessionId: 'session-a',
+      messages: [],
+    }));
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = {
+      agent: { warmScope, getHistory },
+    };
+    const nextRoot = createRoot(host!);
+    root = nextRoot;
+    await act(async () => {
+      nextRoot.render(createElement(I18nProvider, null, createElement(VisibilityHarness, { visible: true })));
+      await Promise.resolve();
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    act(() => {
+      nextRoot.render(createElement(I18nProvider, null, createElement(VisibilityHarness, { visible: false })));
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+
+    expect(warmScope).not.toHaveBeenCalled();
+  });
+
   it('switches the store selector when the selected conversation changes', () => {
     setConversationMessages(keyA, [{ role: 'user', content: 'A', timestamp: 0 }]);
     setConversationMessages(keyB, [{ role: 'user', content: 'B', timestamp: 0 }]);
@@ -124,6 +258,7 @@ describe('useChatComposerStateKeyed', () => {
       { role: 'user' as const, content: 'latest thread', timestamp: 2 },
     ];
     const agent = {
+      warmScope: vi.fn(),
       loadSession: vi.fn(async () => ({
         ok: true,
         activeSessionId: 'session-a',

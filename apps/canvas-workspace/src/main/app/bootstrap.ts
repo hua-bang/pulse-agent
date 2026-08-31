@@ -1,5 +1,5 @@
 import { APP_NAME, configureAppIdentity } from "./identity";
-import { app, BrowserWindow, powerMonitor } from "electron";
+import { app, BrowserWindow, powerMonitor, session } from "electron";
 import { existsSync } from "fs";
 import { join } from "path";
 import { setupPtyIpc, killAllPty } from "../terminal/pty-manager";
@@ -78,6 +78,7 @@ import { setupWebviewContextMenu } from "./webview-context-menu";
 import { setupGoogleAuthCompat } from "./google-auth";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
+import { resolveProfileCachePolicy, runProfileCacheMaintenance } from './profile-cache-maintenance';
 
 export interface BootstrapOptions {
   mainDir: string;
@@ -108,7 +109,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   configureAppIdentity();
 
   const paths = resolveAppPaths(mainDir);
-  const { writeLog } = createMainLogger();
+  const { writeLog, flush: flushLogs } = createMainLogger();
 
   registerPulseCanvasSchemesAsPrivileged();
   setupLinkPolicy();
@@ -264,6 +265,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     startupMark("ipcWired");
     await setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
     await reloadConfiguredExternalMainPlugins();
+    let cacheTimer: NodeJS.Timeout | null = null;
+    let cacheMaintenance: Promise<unknown> = Promise.resolve();
+    let quitting = false;
     let pluginTeardownComplete = false;
     let pluginTeardownStarted = false;
     app.on('before-quit', (event) => {
@@ -271,10 +275,16 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       event.preventDefault();
       if (pluginTeardownStarted) return;
       pluginTeardownStarted = true;
-      void teardownCanvasPlugins().finally(() => {
-        pluginTeardownComplete = true;
-        app.quit();
-      });
+      quitting = true;
+      if (cacheTimer) clearTimeout(cacheTimer);
+      void teardownCanvasPlugins()
+        .catch(error => writeLog('main', 'plugin teardown failed', String(error)))
+        .then(() => cacheMaintenance)
+        .then(() => flushLogs())
+        .finally(() => {
+          pluginTeardownComplete = true;
+          app.quit();
+        });
     });
     startupMark("pluginsActivated");
     void ensureRuntimeControlServer(writeLog).then((ok) => {
@@ -311,6 +321,23 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     });
     startupMark("openWindow");
     setWindowFactory(openWindow, openWindow());
+    const cachePolicy = resolveProfileCachePolicy();
+    cacheTimer = setTimeout(() => {
+      if (quitting) return;
+      cacheMaintenance = runProfileCacheMaintenance({
+        userDataDir: app.getPath('userData'),
+        profileSession: session.defaultSession,
+        maxBytes: cachePolicy.maxBytes,
+        checkIntervalMs: cachePolicy.checkIntervalMs,
+      }).then((result) => {
+        if (result.cleared) {
+          void writeLog('profile-cache', 'cleared reproducible browser caches', JSON.stringify(result));
+        }
+      }).catch(error => {
+        void writeLog('profile-cache', 'maintenance failed', String(error));
+      });
+    }, cachePolicy.startupDelayMs);
+    cacheTimer.unref();
 
     app.on("activate", () => {
       // Reopening the window after a close must restore the live channel too —

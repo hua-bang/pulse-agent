@@ -174,6 +174,9 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   getCurrentSession: (scopeRef) =>
     ipcRenderer.invoke("canvas-agent:current-session", scopeRef),
 
+  warmScope: (scopeRef) =>
+    ipcRenderer.send('canvas-agent:warm-scope', scopeRef),
+
   loadCrossWorkspaceSession: (targetWorkspaceId, sourceWorkspaceId, sessionId) =>
     ipcRenderer.invoke("canvas-agent:load-cross-workspace-session", {
       targetWorkspaceId,
