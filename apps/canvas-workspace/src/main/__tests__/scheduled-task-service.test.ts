@@ -204,6 +204,7 @@ describe('ScheduledTaskService', () => {
 
     await expect(service.startTaskNow(task.id, async () => 'orphan-session'))
       .rejects.toThrow('already running');
+    await vi.waitFor(() => expect(finishPreparation).toBeTypeOf('function'));
     finishPreparation?.('reserved-session');
     await expect(first).resolves.toMatchObject({ sessionId: 'reserved-session' });
 

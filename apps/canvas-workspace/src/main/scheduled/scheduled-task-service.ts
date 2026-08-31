@@ -198,17 +198,22 @@ export class ScheduledTaskService {
     taskId: string,
     prepareSession: () => Promise<string>,
   ): Promise<{ task: ScheduledTask; sessionId: string }> {
-    const task = await this.getTask(taskId);
-    if (!task) throw new Error('Scheduled task not found');
-    if (this.running.has(task.id)) throw new Error('Scheduled task is already running');
-    this.running.add(task.id);
+    // Reserve by the caller-owned id before the first await. Two concurrent
+    // disk reads may settle out of order, so reserving after getTask() lets
+    // the later request win and makes the original request fail instead.
+    if (this.running.has(taskId)) throw new Error('Scheduled task is already running');
+    this.running.add(taskId);
+    let task: ScheduledTask;
     let sessionId: string;
     const attemptedAt = this.now();
     try {
+      const storedTask = await this.getTask(taskId);
+      if (!storedTask) throw new Error('Scheduled task not found');
+      task = storedTask;
       sessionId = await prepareSession();
       await this.markTaskStarted(task, { trigger: 'manual', sessionId }, attemptedAt);
     } catch (error) {
-      this.running.delete(task.id);
+      this.running.delete(taskId);
       await this.emitChange();
       throw error;
     }
