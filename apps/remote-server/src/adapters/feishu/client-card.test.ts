@@ -39,10 +39,12 @@ describe('Feishu run cards', () => {
     const body = texts(card).join('\n');
 
     expect(card.header).toBeUndefined();
-    expect(body).toContain('**Read AGENTS.md**');
-    expect(body).toContain('运行中 · 3s');
+    expect(body).toContain('<font color="blue">●</font> **Read AGENTS.md**');
+    expect(body).toContain('<font color="grey">运行中 · 3s</font>');
     expect(body).toContain('partial answer');
-    expect(body).toContain('Called tools 1 time');
+    expect(body).toContain('<font color="grey">Called tools 1 time</font>');
+    expect(JSON.stringify(card)).toContain('"text_size":"heading"');
+    expect(JSON.stringify(card)).toContain('"text_size":"notation"');
     expect(body).not.toContain('**当前答复**');
     expect(body).not.toContain('run-123');
     expect(JSON.stringify(card)).not.toContain('"tag":"button"');
@@ -54,9 +56,9 @@ describe('Feishu run cards', () => {
     const body = texts(card).join('\n');
 
     expect(card.header).toBeUndefined();
-    expect(body).toContain('**Completed**');
-    expect(body).toContain('已完成 1 个步骤，下面是最终答复。');
-    expect(body).toContain('Called tools 1 time');
+    expect(body).toContain('<font color="green">●</font> **Completed**');
+    expect(body).toContain('<font color="grey">已完成 1 个步骤，下面是最终答复。</font>');
+    expect(body).toContain('<font color="grey">Called tools 1 time</font>');
     expect(body).not.toContain('执行过程 · 已完成');
     expect(JSON.stringify(card)).not.toContain('"tag":"button"');
     expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);

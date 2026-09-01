@@ -534,8 +534,20 @@ function formatCardDetailText(...parts: Array<string | undefined>): string {
   return clampCardText(normalizedParts.join('\n\n'));
 }
 
-function md(content: string): object {
-  return { tag: 'markdown', content };
+function md(content: string, textSize?: 'heading' | 'normal' | 'notation'): object {
+  return { tag: 'markdown', content, ...(textSize ? { text_size: textSize } : {}) };
+}
+
+function muted(content: string): string {
+  return `<font color="grey">${content}</font>`;
+}
+
+function blue(content: string): string {
+  return `<font color="blue">${content}</font>`;
+}
+
+function green(content: string): string {
+  return `<font color="green">${content}</font>`;
 }
 
 function plainText(content: string): object {
@@ -629,15 +641,25 @@ function renderToolLine(toolCall: string): string {
   return detail ? `${title} · ${detail}` : title;
 }
 
+function toolTimeline(toolCalls: string[]): string {
+  return toolCalls
+    .flatMap((toolCall, index) => {
+      const isLast = index === toolCalls.length - 1;
+      const row = `${green('●')} ${renderToolLine(toolCall)}`;
+      return isLast ? [row] : [row, muted('│')];
+    })
+    .join('\n');
+}
+
 function toolPanel(toolCalls: string[]): object | undefined {
   if (toolCalls.length === 0) return undefined;
   return {
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: md(toolCountLine(toolCalls.length)),
+      title: md(muted(toolCountLine(toolCalls.length)), 'notation'),
     },
-    elements: [md(toolCalls.map(renderToolLine).join('\n'))],
+    elements: [md(toolTimeline(toolCalls), 'notation')],
   };
 }
 
@@ -645,10 +667,13 @@ function buildRunProcessElements(context: RunCardContext, status: string, toolCa
   const normalizedToolCalls = toolCalls.filter(Boolean);
   const title = stepTitle(status, context, normalizedToolCalls);
   const subtitle = stepSubtitle(status, context.elapsed);
-  const preview = status === '运行中' && context.detailText?.trim()
-    ? `\n\n${clampCardText(context.detailText.trim(), 700)}`
-    : '';
-  const elements: object[] = [md(`**${title}**\n${note ?? subtitle}${preview}`)];
+  const elements: object[] = [
+    md(`${status === '已完成' ? green('●') : blue('●')} **${title}**`, 'heading'),
+    md(muted(note ?? subtitle), 'notation'),
+  ];
+  if (status === '运行中' && context.detailText?.trim()) {
+    elements.push(md(clampCardText(context.detailText.trim(), 700), 'normal'));
+  }
   const foldedTools = toolPanel(normalizedToolCalls);
   if (foldedTools) elements.push(foldedTools);
   return elements;

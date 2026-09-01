@@ -27,8 +27,20 @@ export interface ToolEntry {
   elapsedSec?: number;
 }
 
-function md(content: string): object {
-  return { tag: 'markdown', content };
+function md(content: string, textSize?: 'heading' | 'normal' | 'notation'): object {
+  return { tag: 'markdown', content, ...(textSize ? { text_size: textSize } : {}) };
+}
+
+function muted(content: string): string {
+  return `<font color="grey">${content}</font>`;
+}
+
+function blue(content: string): string {
+  return `<font color="blue">${content}</font>`;
+}
+
+function green(content: string): string {
+  return `<font color="green">${content}</font>`;
 }
 
 function plainText(content: string): object {
@@ -76,15 +88,22 @@ function formButton(
   };
 }
 
-/** Render folded tool details in the same quiet style as native Agent call rows. */
-function toolLines(tools: ToolEntry[]): string {
+function toolLine(tool: ToolEntry): string {
+  const { name, detail } = splitToolLabel(tool.label);
+  const segs = [titleizeToolName(name || 'tool')];
+  if (detail) segs.push(detail);
+  if (tool.done && typeof tool.elapsedSec === 'number') segs.push(`${tool.elapsedSec}s`);
+  return segs.join(' · ');
+}
+
+/** Render folded tool details as a quiet vertical timeline. */
+function toolTimeline(tools: ToolEntry[]): string {
   return tools
-    .map((t) => {
-      const { name, detail } = splitToolLabel(t.label);
-      const segs = [titleizeToolName(name || 'tool')];
-      if (detail) segs.push(detail);
-      if (t.done && typeof t.elapsedSec === 'number') segs.push(`${t.elapsedSec}s`);
-      return segs.join(' · ');
+    .flatMap((tool, index) => {
+      const isLast = index === tools.length - 1;
+      const dot = tool.done ? green('●') : blue('●');
+      const row = `${dot} ${toolLine(tool)}`;
+      return isLast ? [row] : [row, `${muted('│')}`];
     })
     .join('\n');
 }
@@ -130,10 +149,10 @@ function toolPanel(tools: ToolEntry[]): object | undefined {
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: md(toolCountLine(tools.length)),
+      title: md(muted(toolCountLine(tools.length)), 'notation'),
       vertical_align: 'center',
     },
-    elements: [md(toolLines(tools))],
+    elements: [md(toolTimeline(tools), 'notation')],
   };
 }
 
@@ -148,10 +167,13 @@ function processElements(input: {
   const tools = input.tools ?? [];
   const title = stepTitle(input.status, tools);
   const subtitle = stepSubtitle(input.status, input.elapsedSec);
-  const preview = input.answerPreview?.trim()
-    ? `\n\n${clamp(input.answerPreview.trim()).slice(0, 700)}`
-    : '';
-  const elements: object[] = [md(`**${title}**\n${input.note ?? subtitle}${preview}`)];
+  const elements: object[] = [
+    md(`${input.status === '已完成' ? green('●') : blue('●')} **${title}**`, 'heading'),
+    md(muted(input.note ?? subtitle), 'notation'),
+  ];
+  if (input.answerPreview?.trim()) {
+    elements.push(md(clamp(input.answerPreview.trim()).slice(0, 700), 'normal'));
+  }
   const foldedTools = toolPanel(tools);
   if (foldedTools) elements.push(foldedTools);
   return elements;
