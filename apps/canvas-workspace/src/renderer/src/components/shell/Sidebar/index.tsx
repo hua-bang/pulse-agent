@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
-import { CalendarBlank, PuzzlePiece } from '@phosphor-icons/react';
+
 import { useClickOutside } from '../../../hooks/useClickOutside';
 import type { NavItem } from '../../../../../plugins/types';
 import type { WorkspaceEntry, FolderEntry } from '../../../hooks/useWorkspaces';
@@ -13,7 +13,7 @@ import { WorkspaceList } from './WorkspaceList';
 import { LayersPanel } from './LayersPanel';
 import { LayerContextMenu } from './LayerContextMenu';
 import { useAppShell } from '../AppShellProvider';
-import { AppLogoIcon, SettingsIcon } from '../../icons';
+import { AppLogoIcon, PluginIcon, ScheduledIcon, SettingsIcon } from '../../icons';
 import { Button } from '../../ui';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { buildCanvasNodeLink } from '../../../utils/canvasLinks';
@@ -435,7 +435,7 @@ export const Sidebar = ({
               title={t('sidebar.skillsTitle')}
               aria-label={t('sidebar.skills')}
             >
-              <PuzzlePiece size={14} />
+              <PluginIcon size={15} />
             </Button> : null
           }
           {
@@ -446,7 +446,7 @@ export const Sidebar = ({
               title={t('sidebar.scheduledTitle')}
               aria-label={t('sidebar.scheduled')}
             >
-              <CalendarBlank size={14} />
+              <ScheduledIcon size={15} />
             </Button>) : null
           }
 

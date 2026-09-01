@@ -132,6 +132,41 @@ export const PulseGlyphIcon = ({ size = 18, className, strokeWidth = 36 }: IconP
   </svg>
 );
 
+/** Plugin icon — puzzle-piece shape tuned to the sidebar's 16×16 line-icon family. */
+export const PluginIcon = ({ size = 14, className, strokeWidth = 1.3, style }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className} style={style}>
+    <path
+      d="M6.25 2.8H9.2v1.05a1.25 1.25 0 102.5 0V2.8h1.15c.75 0 1.35.6 1.35 1.35V6.5h-1.05a1.25 1.25 0 100 2.5h1.05v2.85c0 .75-.6 1.35-1.35 1.35H10.5v-1.05a1.25 1.25 0 10-2.5 0v1.05H5.15c-.75 0-1.35-.6-1.35-1.35V9.5H2.75a1.25 1.25 0 110-2.5H3.8V4.15c0-.75.6-1.35 1.35-1.35h1.1z"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+/** Scheduled task icon — tuned to the sidebar's 16×16 line-icon family. */
+export const ScheduledIcon = ({ size = 14, className, strokeWidth = 1.3, style }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className} style={style}>
+    <rect
+      x="2.5"
+      y="3.2"
+      width="11"
+      height="10.3"
+      rx="2"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+    />
+    <path
+      d="M5 2.3v2.4M11 2.3v2.4M2.8 6.4h10.4M5.2 9.1h2.1M5.2 11.2h4.6"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 export const TrashIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
     <path d="M3 4.5h10" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />

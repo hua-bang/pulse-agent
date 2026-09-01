@@ -59,6 +59,9 @@ describe('SidebarHeader', () => {
     expect(host.querySelector('[title="Collapse sidebar"]')).not.toBeNull();
     expect(host.querySelector('.sidebar-brand-mark')).toBeNull();
     expect(host.querySelector('.sidebar-nav-item img')?.getAttribute('width')).toBe('20');
+    const navButtons = host.querySelectorAll('.sidebar-nav-item');
+    expect(navButtons[1]?.querySelector('.sidebar-nav-icon svg')?.getAttribute('viewBox')).toBe('0 0 16 16');
+    expect(navButtons[2]?.querySelector('.sidebar-nav-icon svg')?.getAttribute('viewBox')).toBe('0 0 16 16');
 
     act(() => {
       root?.render(renderHeader(true, true));
