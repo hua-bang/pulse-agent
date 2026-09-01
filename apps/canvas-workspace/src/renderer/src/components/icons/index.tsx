@@ -132,11 +132,11 @@ export const PulseGlyphIcon = ({ size = 18, className, strokeWidth = 36 }: IconP
   </svg>
 );
 
-/** Plugin icon — puzzle-piece shape tuned to the sidebar's 16×16 line-icon family. */
+/** Plugin icon — plug shape tuned to the sidebar's 16×16 line-icon family. */
 export const PluginIcon = ({ size = 14, className, strokeWidth = 1.3, style }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className} style={style}>
     <path
-      d="M6.25 2.8H9.2v1.05a1.25 1.25 0 102.5 0V2.8h1.15c.75 0 1.35.6 1.35 1.35V6.5h-1.05a1.25 1.25 0 100 2.5h1.05v2.85c0 .75-.6 1.35-1.35 1.35H10.5v-1.05a1.25 1.25 0 10-2.5 0v1.05H5.15c-.75 0-1.35-.6-1.35-1.35V9.5H2.75a1.25 1.25 0 110-2.5H3.8V4.15c0-.75.6-1.35 1.35-1.35h1.1z"
+      d="M5.3 2.4v3M10.7 2.4v3M4 5.4h8v2.4a4 4 0 01-8 0V5.4zM8 11.8v1.8M5.9 13.6h4.2"
       stroke="currentColor"
       strokeWidth={strokeWidth}
       strokeLinecap="round"
