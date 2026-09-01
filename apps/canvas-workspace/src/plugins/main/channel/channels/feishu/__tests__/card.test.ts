@@ -49,15 +49,17 @@ describe('feishu card tool list', () => {
     expect(formatToolLabel('read', { docToken: 'doccnXyz' })).toBe('read — doccnXyz');
   });
 
-  it('progress card lists every tool with running/done status', () => {
+  it('progress card uses a compact native-like process block with step detail', () => {
     const body = texts(buildProgressCard('working', tools, 20)).join('\n');
+    expect(body).toContain('启动 Agent · 运行中 · Called tools 2 times · 20s');
+    expect(body).toContain('**当前步骤**');
+    expect(body).toContain('**当前答复**\nworking');
     // Tool name is bolded; detail and timing follow as secondary segments.
     expect(body).toContain('✅ **canvas_read_node** · node-1 · 18s');
     expect(body).toContain('⏳ **canvas_write_node** · node-2');
-    expect(body).toContain('**耗时**：20s');
   });
 
-  it('completed process card folds the tool list into a collapsible panel', () => {
+  it('completed process card collapses into an Agent process row', () => {
     const card = buildCompletedProcessCard(tools, 20) as {
       body: { elements: Array<Record<string, unknown>> };
     };
@@ -65,9 +67,9 @@ describe('feishu card tool list', () => {
     expect(panel).toBeDefined();
     expect(panel!.expanded).toBe(false);
     const body = texts(card).join('\n');
-    expect(body).toContain('**状态**：已完成');
-    expect(body).toContain('已完成 2 个步骤。');
-    expect(body).toContain('执行详情 (2)');
+    expect(body).toContain('启动 Agent · 已完成 · Called tools 2 times · 20s');
+    expect(body).toContain('已完成 2 个步骤，最终答复见下一条消息。');
+    expect(body).toContain('**执行步骤**');
     expect(body).toContain('**canvas_read_node** · node-1');
   });
 

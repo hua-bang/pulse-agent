@@ -593,45 +593,49 @@ function buttonRow(buttons: object[]): object {
   };
 }
 
-function buildRunMeta(context: RunCardContext, status: string): string {
-  const lines = [`**状态**：${status}`];
-  if (context.elapsed) lines.push(`**耗时**：${context.elapsed}`);
+function processSummary(status: string, toolCount: number, elapsed?: string): string {
+  const parts = [status, `Called tools ${toolCount} ${toolCount === 1 ? 'time' : 'times'}`];
+  if (elapsed) parts.push(elapsed);
+  return parts.join(' · ');
+}
+
+function buildRunMeta(context: RunCardContext): string {
+  const lines: string[] = [];
   if (context.runId) lines.push(`**runId**：\`${context.runId}\``);
   lines.push(`**streamId**：\`${context.streamId}\``);
   if (context.prompt) lines.push(`**请求**：${clampCardText(context.prompt, 300)}`);
   return lines.join('\n');
 }
 
-function buildRunDetailPanel(context: RunCardContext, toolCalls: string[] = []): object {
-  const detailSections = [buildRunMeta(context, context.elapsed ? '已记录' : '运行记录')];
-  const detailText = formatCardDetailText(context.latestToolHint, context.detailText);
-  if (detailText) detailSections.push(`**输出片段**\n${detailText}`);
-  if (toolCalls.length > 0) {
-    detailSections.push(`**工具调用**\n${toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n')}`);
-  }
+function buildRunProcessPanel(context: RunCardContext, status: string, toolCalls: string[] = [], note?: string): object {
+  const normalizedToolCalls = toolCalls.filter(Boolean);
+  const detailSections = [
+    note,
+    context.latestToolHint ? `**当前步骤**\n${context.latestToolHint}` : undefined,
+    context.detailText?.trim() ? `**当前答复**\n${clampCardText(context.detailText.trim(), 1600)}` : undefined,
+    normalizedToolCalls.length > 0
+      ? `**执行步骤**\n${normalizedToolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n')}`
+      : undefined,
+    buildRunMeta(context),
+  ].filter((section): section is string => Boolean(section));
+
   return {
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: plainText(`执行详情${toolCalls.length > 0 ? ` (${toolCalls.length})` : ''}`),
+      title: md(`启动 Agent · ${processSummary(status, normalizedToolCalls.length, context.elapsed)}`),
     },
-    elements: [md(detailSections.join('\n\n'))],
+    elements: [md(detailSections.join('\n\n') || '正在准备执行...')],
   };
 }
 
 function buildProgressElements(context: RunCardContext): object[] {
-  const elements: object[] = [md(buildRunMeta(context, '运行中'))];
-  if (context.latestToolHint) {
-    elements.push(md(`**当前步骤**\n${context.latestToolHint}`));
-  } else {
-    elements.push(md('正在准备执行...'));
-  }
-  if (context.detailText?.trim()) {
-    elements.push(md(`**当前答复**\n${clampCardText(context.detailText.trim(), 1600)}`));
-  }
-  if (context.toolCalls?.length || context.runId || context.prompt) {
-    elements.push(buildRunDetailPanel(context, context.toolCalls ?? []));
-  }
+  const elements: object[] = [buildRunProcessPanel(
+    context,
+    '运行中',
+    context.toolCalls ?? [],
+    context.latestToolHint ? undefined : '正在准备执行...',
+  )];
   elements.push(buttonRow([
     runActionButton('status', '状态', context, 'primary'),
     runActionButton('stop', '停止', context, 'danger'),
@@ -657,20 +661,24 @@ function buildCompletionActionElements(context: RunCardContext): object[] {
 }
 
 export function buildThinkingCard(context: RunCardContext): object {
-  return buildCard('Pulse 正在处理', 'blue', buildProgressElements({
+  return buildCard('Pulse Agent', 'blue', buildProgressElements({
     ...context,
     detailText: '已收到请求，正在准备运行环境...',
   }), false);
 }
 
 export function buildProgressCard(context: RunCardContext): object {
-  return buildCard('Pulse 正在处理', 'blue', buildProgressElements(context), false);
+  return buildCard('Pulse Agent', 'blue', buildProgressElements(context), false);
 }
 
 export function buildCompletedProcessCard(context: RunCardContext, toolCalls: string[] = []): object {
   const normalizedToolCalls = toolCalls.filter(Boolean);
-  const elements: object[] = [md(`${buildRunMeta(context, '已完成')}\n\n已完成 ${normalizedToolCalls.length} 个步骤。`)];
-  elements.push(buildRunDetailPanel(context, normalizedToolCalls));
+  const elements: object[] = [buildRunProcessPanel(
+    context,
+    '已完成',
+    normalizedToolCalls,
+    `已完成 ${normalizedToolCalls.length} 个步骤，最终答复见下一条消息。`,
+  )];
   elements.push(...buildCompletionActionElements(context));
   return buildCard('Pulse · Completed', 'green', elements, true);
 }
@@ -680,32 +688,36 @@ export function buildFinalAnswerCard(text: string): object {
   return buildCard('Pulse 最终答复', 'green', [md(finalText)], true);
 }
 
-export function buildDoneCard(text: string, options: DoneCardOptions = {}): object {
+export function buildDoneCard(_text: string, options: DoneCardOptions = {}): object {
   const context = options.context;
   const toolCalls = options.toolCalls?.filter(Boolean) ?? [];
-  const elements: object[] = [md(`**状态**：已完成\n\n这张过程卡已完成，最终答复见下一条消息。`)];
+  const elements: object[] = [];
 
   if (context) {
-    elements.push(buildRunDetailPanel(context, toolCalls));
+    elements.push(buildRunProcessPanel(context, '已完成', toolCalls, '这张过程卡已完成，最终答复见下一条消息。'));
     elements.push(...buildCompletionActionElements(context));
   } else if (toolCalls.length > 0) {
     elements.push({
       tag: 'collapsible_panel',
       expanded: false,
       header: {
-        title: plainText(`执行详情 (${toolCalls.length})`),
+        title: plainText(`启动 Agent · ${processSummary('已完成', toolCalls.length)}`),
       },
       elements: [md(toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n'))],
     });
+  } else {
+    elements.push(md('这张过程卡已完成，最终答复见下一条消息。'));
   }
 
   return buildCard('Pulse · Completed', 'green', elements, true);
 }
 
 export function buildErrorCard(message: string, context?: RunCardContext): object {
-  const elements: object[] = [md(`**状态**：出错\n\n❌ ${clampCardText(message || 'unknown error', 3000)}`)];
+  const errorText = `❌ ${clampCardText(message || 'unknown error', 3000)}`;
+  const elements: object[] = context
+    ? [buildRunProcessPanel(context, '出错', context.toolCalls ?? [], errorText)]
+    : [md(errorText)];
   if (context) {
-    elements.push(buildRunDetailPanel(context));
     elements.push(...buildCompletionActionElements(context));
   }
   return buildCard('Pulse 运行出错', 'red', elements, false);

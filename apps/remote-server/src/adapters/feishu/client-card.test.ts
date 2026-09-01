@@ -34,24 +34,24 @@ describe('Feishu run cards', () => {
     toolCalls: ['read — AGENTS.md'],
   };
 
-  it('progress card separates status, current step, current answer, and collapsible details', () => {
+  it('progress card uses a compact native-like process row with collapsible details', () => {
     const card = buildProgressCard(context);
     const body = texts(card).join('\n');
 
-    expect(body).toContain('**状态**：运行中');
+    expect(body).toContain('启动 Agent · 运行中 · Called tools 1 time · 3s');
     expect(body).toContain('**当前步骤**');
     expect(body).toContain('read — AGENTS.md');
     expect(body).toContain('**当前答复**');
     expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
   });
 
-  it('completed process card folds execution detail and points to the next answer card', () => {
+  it('completed process card folds into the Agent process row and points to the answer card', () => {
     const card = buildCompletedProcessCard(context, ['read — AGENTS.md']);
     const body = texts(card).join('\n');
 
-    expect(body).toContain('**状态**：已完成');
-    expect(body).toContain('已完成 1 个步骤。');
-    expect(body).toContain('**工具调用**');
+    expect(body).toContain('启动 Agent · 已完成 · Called tools 1 time · 3s');
+    expect(body).toContain('已完成 1 个步骤，最终答复见下一条消息。');
+    expect(body).toContain('**执行步骤**');
     expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
   });
 
