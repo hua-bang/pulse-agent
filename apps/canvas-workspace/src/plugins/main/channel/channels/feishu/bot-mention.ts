@@ -47,10 +47,22 @@ function mergeBotIdentity(base: FeishuBotIdentity, info: FeishuBotInfo): FeishuB
 }
 
 function normalizedIdentityValues(identity: FeishuBotIdentity | undefined): Set<string> {
-  const values = [identity?.appId, identity?.openId, identity?.userId, identity?.unionId]
-    .map((value) => value?.trim().toLowerCase())
-    .filter((value): value is string => Boolean(value));
-  return new Set(values);
+  return new Set(Object.values(normalizedIdentityByKind(identity)));
+}
+
+function normalizedIdentityByKind(identity: FeishuBotIdentity | undefined): Record<string, string> {
+  const pairs: Array<[string, string | undefined]> = [
+    ['app_id', identity?.appId],
+    ['open_id', identity?.openId],
+    ['user_id', identity?.userId],
+    ['union_id', identity?.unionId],
+  ];
+  const out: Record<string, string> = {};
+  for (const [kind, value] of pairs) {
+    const normalized = value?.trim().toLowerCase();
+    if (normalized) out[kind] = normalized;
+  }
+  return out;
 }
 
 function normalizedBotName(identity: FeishuBotIdentity | undefined): string | null {
@@ -64,49 +76,71 @@ function mentionName(mention: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function collectStringFields(value: unknown, out: string[]): void {
-  if (!value) return;
-  if (typeof value === 'string') {
-    if (value.trim()) out.push(value.trim());
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) collectStringFields(item, out);
-    return;
-  }
-  if (typeof value !== 'object') return;
-
-  for (const nested of Object.values(value as Record<string, unknown>)) {
-    collectStringFields(nested, out);
-  }
+interface MentionIdField {
+  kind: string;
+  value: string;
 }
 
-function collectMentionIdFields(mention: unknown): string[] {
+function normalizeIdKind(kind: string): string {
+  return kind
+    .replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`)
+    .replace(/^_/, '')
+    .toLowerCase();
+}
+
+function pushStringField(kind: string, value: unknown, out: MentionIdField[]): void {
+  if (typeof value !== 'string') return;
+  const normalized = value.trim().toLowerCase();
+  if (normalized) out.push({ kind: normalizeIdKind(kind), value: normalized });
+}
+
+function collectMentionIdFields(mention: unknown): MentionIdField[] {
   if (!mention || typeof mention !== 'object') return [];
   const record = mention as Record<string, unknown>;
-  const values: string[] = [];
-  collectStringFields(record.id, values);
-  collectStringFields(record.open_id, values);
-  collectStringFields(record.user_id, values);
-  collectStringFields(record.union_id, values);
+  const values: MentionIdField[] = [];
+  const nestedId = record.id;
+  if (nestedId && typeof nestedId === 'object' && !Array.isArray(nestedId)) {
+    const nested = nestedId as Record<string, unknown>;
+    for (const key of ['app_id', 'appId', 'open_id', 'openId', 'user_id', 'userId', 'union_id', 'unionId']) {
+      pushStringField(key, nested[key], values);
+    }
+  } else {
+    pushStringField('id', nestedId, values);
+  }
+  for (const key of ['app_id', 'appId', 'open_id', 'openId', 'user_id', 'userId', 'union_id', 'unionId']) {
+    pushStringField(key, record[key], values);
+  }
   return values;
 }
 
 function mentionMatchesBot(mention: unknown, identity: FeishuBotIdentity | undefined): boolean {
   const ids = normalizedIdentityValues(identity);
+  const idsByKind = normalizedIdentityByKind(identity);
   const name = normalizedBotName(identity);
   if (ids.size === 0 && !name) return false;
 
   const idValues = collectMentionIdFields(mention);
-  if (ids.size > 0 && idValues.length > 0) {
-    return idValues.some((value) => ids.has(value.trim().toLowerCase()));
+  const comparableIds = idValues.filter((field) => field.kind in idsByKind);
+  if (comparableIds.length > 0) {
+    return comparableIds.some((field) => idsByKind[field.kind] === field.value);
+  }
+  const genericIds = idValues.filter((field) => field.kind === 'id');
+  if (genericIds.length > 0) {
+    return genericIds.some((field) => ids.has(field.value));
   }
 
   return Boolean(name && mentionName(mention)?.toLowerCase() === name);
 }
 
+function markerIdFields(attrs: string): MentionIdField[] {
+  return Array.from(attrs.matchAll(/\b([\w:-]+)\s*=\s*["']([^"']+)["']/g))
+    .map((attr) => ({ kind: normalizeIdKind(attr[1]), value: attr[2].trim().toLowerCase() }))
+    .filter((field) => Boolean(field.value));
+}
+
 function hasBotMentionMarker(text: string, identity: FeishuBotIdentity | undefined): boolean {
   const ids = normalizedIdentityValues(identity);
+  const idsByKind = normalizedIdentityByKind(identity);
   const name = normalizedBotName(identity);
   if (ids.size === 0 && !name) return false;
 
@@ -114,11 +148,15 @@ function hasBotMentionMarker(text: string, identity: FeishuBotIdentity | undefin
   let match: RegExpExecArray | null;
   while ((match = markerPattern.exec(text))) {
     const [, attrs, label] = match;
-    const attrValues = Array.from(attrs.matchAll(/\b[\w:-]+\s*=\s*["']([^"']+)["']/g))
-      .map((attr) => attr[1].trim().toLowerCase())
-      .filter(Boolean);
-    if (ids.size > 0 && attrValues.length > 0) {
-      if (attrValues.some((value) => ids.has(value))) return true;
+    const attrValues = markerIdFields(attrs);
+    const comparableIds = attrValues.filter((field) => field.kind in idsByKind);
+    if (comparableIds.length > 0) {
+      if (comparableIds.some((field) => idsByKind[field.kind] === field.value)) return true;
+      continue;
+    }
+    const genericIds = attrValues.filter((field) => field.kind === 'id');
+    if (genericIds.length > 0) {
+      if (genericIds.some((field) => ids.has(field.value))) return true;
       continue;
     }
 

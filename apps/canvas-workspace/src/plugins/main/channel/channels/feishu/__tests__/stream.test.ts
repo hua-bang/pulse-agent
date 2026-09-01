@@ -120,7 +120,7 @@ describe('FeishuStream', () => {
     expect(latestCard).toContain('Demo');
   });
 
-  it('falls back when a card patch hangs', async () => {
+  it('still sends the final answer card when the completed process patch hangs', async () => {
     mockedUpdateCard.mockImplementationOnce(() => new Promise(() => undefined));
     const stream = new FeishuStream({} as never, {
       chatId: 'group1',
@@ -133,14 +133,12 @@ describe('FeishuStream', () => {
     await vi.advanceTimersByTimeAsync(10_000);
     await done;
 
-    expect(mockedSendText).toHaveBeenCalledWith(
-      expect.anything(),
-      { chatId: 'group1', isGroup: true, triggerMessageId: 'm1' },
-      'final answer',
-    );
+    expect(mockedSendCard).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(mockedSendCard.mock.calls[1][2])).toContain('final answer');
+    expect(mockedSendText).not.toHaveBeenCalled();
   });
 
-  it('sends final text fallback when the final card update fails', async () => {
+  it('still sends the final answer card when the completed process update fails', async () => {
     mockedUpdateCard.mockRejectedValueOnce(new Error('final failed'));
     const stream = new FeishuStream({} as never, {
       chatId: 'group1',
@@ -152,10 +150,8 @@ describe('FeishuStream', () => {
     await stream.onDone('final answer');
 
     expect(mockedUpdateCard).toHaveBeenCalledTimes(1);
-    expect(mockedSendText).toHaveBeenCalledWith(
-      expect.anything(),
-      { chatId: 'group1', isGroup: true, triggerMessageId: 'm1' },
-      'final answer',
-    );
+    expect(mockedSendCard).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(mockedSendCard.mock.calls[1][2])).toContain('final answer');
+    expect(mockedSendText).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildCompletedProcessCard,
   buildDoneCard,
+  buildFinalAnswerCard,
   buildProgressCard,
   buildWorkspacePickerCard,
   formatToolLabel,
@@ -52,20 +54,32 @@ describe('feishu card tool list', () => {
     // Tool name is bolded; detail and timing follow as secondary segments.
     expect(body).toContain('✅ **canvas_read_node** · node-1 · 18s');
     expect(body).toContain('⏳ **canvas_write_node** · node-2');
-    expect(body).toContain('⏱️ 20s');
+    expect(body).toContain('**耗时**：20s');
   });
 
-  it('done card folds the tool list into a collapsible panel', () => {
-    const card = buildDoneCard('the answer', tools) as {
+  it('completed process card folds the tool list into a collapsible panel', () => {
+    const card = buildCompletedProcessCard(tools, 20) as {
       body: { elements: Array<Record<string, unknown>> };
     };
     const panel = card.body.elements.find((e) => e.tag === 'collapsible_panel');
     expect(panel).toBeDefined();
     expect(panel!.expanded).toBe(false);
     const body = texts(card).join('\n');
-    expect(body).toContain('the answer');
-    expect(body).toContain('🛠️ 2 tool calls');
+    expect(body).toContain('**状态**：已完成');
+    expect(body).toContain('已完成 2 个步骤。');
+    expect(body).toContain('执行详情 (2)');
     expect(body).toContain('**canvas_read_node** · node-1');
+  });
+
+  it('final answer card is separate from process details', () => {
+    const card = buildFinalAnswerCard('the answer') as {
+      header: { title: { content: string } };
+      body: { elements: Array<Record<string, unknown>> };
+    };
+    const body = texts(card).join('\n');
+    expect(card.header.title.content).toBe('Pulse 最终答复');
+    expect(body).toContain('the answer');
+    expect(card.body.elements.some((e) => e.tag === 'collapsible_panel')).toBe(false);
   });
 
   it('done card with no tools is just the answer (no panel)', () => {

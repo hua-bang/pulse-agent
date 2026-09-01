@@ -17,7 +17,8 @@ import {
   updateCardMessage,
   buildThinkingCard,
   buildProgressCard,
-  buildDoneCard,
+  buildCompletedProcessCard,
+  buildFinalAnswerCard,
   buildErrorCard,
 } from './client.js';
 import { buildFeishuPlatformKey, parseFeishuPlatformKey, resolveFeishuTopicId } from './platform-key.js';
@@ -468,22 +469,18 @@ export class FeishuAdapter implements PlatformAdapter {
         finalized = true;
         await updateChain;
 
-        const doneCard = () => buildDoneCard(result, { toolCalls: toolCallSummaries, context: buildRunCardContext() });
+        const doneContext = buildRunCardContext();
+        const processCard = () => buildCompletedProcessCard(doneContext, toolCallSummaries);
+        const finalAnswerCard = () => buildFinalAnswerCard(result);
 
-        if (cardMessageId) {
-          if (!isCardUpdateDisabled()) {
-            const ok = await tryUpdateCard(doneCard, 'done', { allowFinal: true });
-            if (ok) {
-              return;
-            }
-          }
-
-          await sendCardMessage(larkClient, chatId, idType, doneCard(), replyOptions).catch((err) => {
-            console.error('[feishu] Failed to send done card fallback:', err);
-          });
-        } else {
-          await sendTextMessage(larkClient, chatId, idType, result || '✅ Done', replyOptions).catch(console.error);
+        if (cardMessageId && !isCardUpdateDisabled()) {
+          await tryUpdateCard(processCard, 'done', { allowFinal: true });
         }
+
+        await sendCardMessage(larkClient, chatId, idType, finalAnswerCard(), replyOptions).catch(async (err) => {
+          console.error('[feishu] Failed to send final answer card:', err);
+          await sendTextMessage(larkClient, chatId, idType, result || '✅ Done', replyOptions).catch(console.error);
+        });
 
         if (sourceMessageId && allowReaction) {
           addMessageReaction(sourceMessageId, 'DONE').catch((reactionErr) => {

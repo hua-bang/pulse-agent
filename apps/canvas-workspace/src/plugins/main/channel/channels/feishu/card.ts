@@ -35,10 +35,14 @@ function plainText(content: string): object {
   return { tag: 'plain_text', content };
 }
 
-function card(elements: object[], forward: boolean): object {
+function card(title: string, template: string, elements: object[], forward: boolean): object {
   return {
     schema: '2.0',
-    config: { enable_forward: forward },
+    config: { enable_forward: forward, wide_screen_mode: true },
+    header: {
+      template,
+      title: plainText(title),
+    },
     body: { elements },
   };
 }
@@ -98,15 +102,21 @@ function toolPanel(tools: ToolEntry[]): object {
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: md(`🛠️ ${n} tool call${n === 1 ? '' : 's'}`),
+      title: md(`执行详情 (${n})`),
       vertical_align: 'center',
     },
     elements: [md(toolLines(tools))],
   };
 }
 
+function statusLine(status: string, elapsedSec?: number): string {
+  return typeof elapsedSec === 'number'
+    ? `**状态**：${status}\n**耗时**：${elapsedSec}s`
+    : `**状态**：${status}`;
+}
+
 export function buildThinkingCard(): object {
-  return card([md('Pulse is thinking…')], false);
+  return card('Pulse 正在处理', 'blue', [md(`${statusLine('准备中')}\n\n已收到请求，正在准备运行环境...`)], false);
 }
 
 export function buildProgressCard(
@@ -114,22 +124,41 @@ export function buildProgressCard(
   tools: ToolEntry[] = [],
   elapsedSec?: number,
 ): object {
-  const parts: string[] = [];
-  if (text.trim()) parts.push(clamp(text.trim()));
-  if (tools.length > 0) parts.push(toolLines(tools));
-  if (parts.length === 0) parts.push('Pulse is thinking…');
-  if (typeof elapsedSec === 'number') parts.push(`---\n⏱️ ${elapsedSec}s`);
-  return card([md(parts.join('\n\n'))], false);
+  const elements: object[] = [md(statusLine('运行中', elapsedSec))];
+  const latestTool = tools.at(-1);
+  if (latestTool) {
+    const { name, detail } = splitToolLabel(latestTool.label);
+    const icon = latestTool.done ? '✅' : '⏳';
+    elements.push(md(`**当前步骤**：${icon} ${name || 'tool'}${detail ? ` · ${detail}` : ''}`));
+  } else {
+    elements.push(md('正在生成答复...'));
+  }
+  if (text.trim()) {
+    elements.push(md(`**当前答复**\n${clamp(text.trim())}`));
+  }
+  if (tools.length > 0) elements.push(toolPanel(tools));
+  return card('Pulse 正在处理', 'blue', elements, false);
+}
+
+export function buildCompletedProcessCard(tools: ToolEntry[] = [], elapsedSec?: number): object {
+  const lines = [statusLine('已完成', elapsedSec), `已完成 ${tools.length} 个步骤。`];
+  const elements: object[] = [md(lines.join('\n\n'))];
+  if (tools.length > 0) elements.push(toolPanel(tools));
+  return card('Pulse · Completed', 'green', elements, true);
+}
+
+export function buildFinalAnswerCard(text: string): object {
+  return card('Pulse 最终答复', 'green', [md(clamp(text) || '✅ Done')], true);
 }
 
 export function buildDoneCard(text: string, tools: ToolEntry[] = []): object {
-  const elements: object[] = [md(clamp(text) || '✅ Done')];
+  const elements: object[] = [md(`**状态**：已完成\n\n${clamp(text) || '✅ Done'}`)];
   if (tools.length > 0) elements.push(toolPanel(tools));
-  return card(elements, true);
+  return card('Pulse 已完成', 'green', elements, true);
 }
 
 export function buildErrorCard(message: string): object {
-  return card([md(`❌ Error: ${message}`)], false);
+  return card('Pulse 运行出错', 'red', [md(`**状态**：出错\n\n❌ ${message}`)], false);
 }
 
 export function buildWorkspacePickerCard(picker: WorkspacePicker, target?: OutboundTarget): object {

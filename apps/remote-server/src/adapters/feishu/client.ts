@@ -594,19 +594,43 @@ function buttonRow(buttons: object[]): object {
 }
 
 function buildRunMeta(context: RunCardContext, status: string): string {
-  const lines = [`**状态**: ${status}`];
-  if (context.elapsed) lines.push(`**耗时**: ${context.elapsed}`);
-  if (context.runId) lines.push(`**runId**: \`${context.runId}\``);
-  lines.push(`**streamId**: \`${context.streamId}\``);
-  if (context.prompt) lines.push(`**请求**: ${clampCardText(context.prompt, 300)}`);
+  const lines = [`**状态**：${status}`];
+  if (context.elapsed) lines.push(`**耗时**：${context.elapsed}`);
+  if (context.runId) lines.push(`**runId**：\`${context.runId}\``);
+  lines.push(`**streamId**：\`${context.streamId}\``);
+  if (context.prompt) lines.push(`**请求**：${clampCardText(context.prompt, 300)}`);
   return lines.join('\n');
+}
+
+function buildRunDetailPanel(context: RunCardContext, toolCalls: string[] = []): object {
+  const detailSections = [buildRunMeta(context, context.elapsed ? '已记录' : '运行记录')];
+  const detailText = formatCardDetailText(context.latestToolHint, context.detailText);
+  if (detailText) detailSections.push(`**输出片段**\n${detailText}`);
+  if (toolCalls.length > 0) {
+    detailSections.push(`**工具调用**\n${toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n')}`);
+  }
+  return {
+    tag: 'collapsible_panel',
+    expanded: false,
+    header: {
+      title: plainText(`执行详情${toolCalls.length > 0 ? ` (${toolCalls.length})` : ''}`),
+    },
+    elements: [md(detailSections.join('\n\n'))],
+  };
 }
 
 function buildProgressElements(context: RunCardContext): object[] {
   const elements: object[] = [md(buildRunMeta(context, '运行中'))];
-  const detailText = formatCardDetailText(context.latestToolHint, context.detailText);
-  if (detailText) {
-    elements.push(md(detailText));
+  if (context.latestToolHint) {
+    elements.push(md(`**当前步骤**\n${context.latestToolHint}`));
+  } else {
+    elements.push(md('正在准备执行...'));
+  }
+  if (context.detailText?.trim()) {
+    elements.push(md(`**当前答复**\n${clampCardText(context.detailText.trim(), 1600)}`));
+  }
+  if (context.toolCalls?.length || context.runId || context.prompt) {
+    elements.push(buildRunDetailPanel(context, context.toolCalls ?? []));
   }
   elements.push(buttonRow([
     runActionButton('status', '状态', context, 'primary'),
@@ -643,39 +667,45 @@ export function buildProgressCard(context: RunCardContext): object {
   return buildCard('Pulse 正在处理', 'blue', buildProgressElements(context), false);
 }
 
+export function buildCompletedProcessCard(context: RunCardContext, toolCalls: string[] = []): object {
+  const normalizedToolCalls = toolCalls.filter(Boolean);
+  const elements: object[] = [md(`${buildRunMeta(context, '已完成')}\n\n已完成 ${normalizedToolCalls.length} 个步骤。`)];
+  elements.push(buildRunDetailPanel(context, normalizedToolCalls));
+  elements.push(...buildCompletionActionElements(context));
+  return buildCard('Pulse · Completed', 'green', elements, true);
+}
+
+export function buildFinalAnswerCard(text: string): object {
+  const finalText = formatCardDetailText(text) || '✅ Done';
+  return buildCard('Pulse 最终答复', 'green', [md(finalText)], true);
+}
+
 export function buildDoneCard(text: string, options: DoneCardOptions = {}): object {
   const context = options.context;
-  const elements: object[] = [md(formatCardDetailText(text) || '✅ Done')];
-  if (context) {
-    elements.unshift(md(buildRunMeta(context, '已完成')));
-  }
   const toolCalls = options.toolCalls?.filter(Boolean) ?? [];
+  const elements: object[] = [md(`**状态**：已完成\n\n这张过程卡已完成，最终答复见下一条消息。`)];
 
-  if (toolCalls.length > 0) {
+  if (context) {
+    elements.push(buildRunDetailPanel(context, toolCalls));
+    elements.push(...buildCompletionActionElements(context));
+  } else if (toolCalls.length > 0) {
     elements.push({
       tag: 'collapsible_panel',
       expanded: false,
       header: {
-        title: plainText(`工具调用明细 (${toolCalls.length})`),
+        title: plainText(`执行详情 (${toolCalls.length})`),
       },
       elements: [md(toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n'))],
     });
   }
 
-  if (context) {
-    elements.push(...buildCompletionActionElements(context));
-  }
-
-  return buildCard('Pulse 已完成', 'green', elements, true);
+  return buildCard('Pulse · Completed', 'green', elements, true);
 }
 
 export function buildErrorCard(message: string, context?: RunCardContext): object {
-  const elements: object[] = [];
+  const elements: object[] = [md(`**状态**：出错\n\n❌ ${clampCardText(message || 'unknown error', 3000)}`)];
   if (context) {
-    elements.push(md(buildRunMeta(context, '出错')));
-  }
-  elements.push(md(`❌ Error: ${clampCardText(message || 'unknown error', 3000)}`));
-  if (context) {
+    elements.push(buildRunDetailPanel(context));
     elements.push(...buildCompletionActionElements(context));
   }
   return buildCard('Pulse 运行出错', 'red', elements, false);
