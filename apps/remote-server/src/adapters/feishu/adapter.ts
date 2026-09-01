@@ -18,7 +18,6 @@ import {
   buildThinkingCard,
   buildProgressCard,
   buildCompletedProcessCard,
-  buildFinalAnswerCard,
   buildErrorCard,
 } from './client.js';
 import { buildFeishuPlatformKey, parseFeishuPlatformKey, resolveFeishuTopicId } from './platform-key.js';
@@ -471,15 +470,13 @@ export class FeishuAdapter implements PlatformAdapter {
 
         const doneContext = buildRunCardContext();
         const processCard = () => buildCompletedProcessCard(doneContext, toolCallSummaries);
-        const finalAnswerCard = () => buildFinalAnswerCard(result);
 
         if (cardMessageId && !isCardUpdateDisabled()) {
           await tryUpdateCard(processCard, 'done', { allowFinal: true });
         }
 
-        await sendCardMessage(larkClient, chatId, idType, finalAnswerCard(), replyOptions).catch(async (err) => {
-          console.error('[feishu] Failed to send final answer card:', err);
-          await sendTextMessage(larkClient, chatId, idType, result || '✅ Done', replyOptions).catch(console.error);
+        await sendTextMessage(larkClient, chatId, idType, result || '✅ Done', replyOptions).catch((err) => {
+          console.error('[feishu] Failed to send final answer text:', err);
         });
 
         if (sourceMessageId && allowReaction) {
