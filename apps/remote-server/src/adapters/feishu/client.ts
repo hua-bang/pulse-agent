@@ -594,7 +594,7 @@ function buttonRow(buttons: object[]): object {
 }
 
 function processSummary(status: string, toolCount: number, elapsed?: string): string {
-  const parts = [status, `Called tools ${toolCount} ${toolCount === 1 ? 'time' : 'times'}`];
+  const parts = [status, `调用 ${toolCount} 次`];
   if (elapsed) parts.push(elapsed);
   return parts.join(' · ');
 }
@@ -623,7 +623,7 @@ function buildRunProcessPanel(context: RunCardContext, status: string, toolCalls
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: md(`启动 Agent · ${processSummary(status, normalizedToolCalls.length, context.elapsed)}`),
+      title: md(`执行过程 · ${processSummary(status, normalizedToolCalls.length, context.elapsed)}`),
     },
     elements: [md(detailSections.join('\n\n') || '正在准备执行...')],
   };
@@ -637,38 +637,27 @@ function buildProgressElements(context: RunCardContext): object[] {
     context.latestToolHint ? undefined : '正在准备执行...',
   )];
   elements.push(buttonRow([
-    runActionButton('status', '状态', context, 'primary'),
     runActionButton('stop', '停止', context, 'danger'),
-  ]));
-  elements.push(buttonRow([
-    runActionButton('runId', '查看 runId', context),
-    runActionButton('new', '新会话', context),
   ]));
   return elements;
 }
 
 function buildCompletionActionElements(context: RunCardContext): object[] {
-  return [
-    buttonRow([
-      runActionButton('retry', '重试', context, 'primary'),
-      runActionButton('new', '新会话', context),
-    ]),
-    buttonRow([
-      runActionButton('status', '状态', context),
-      runActionButton('runId', '查看 runId', context),
-    ]),
-  ];
+  return [buttonRow([
+    runActionButton('retry', '重试', context, 'primary'),
+    runActionButton('new', '新会话', context),
+  ])];
 }
 
 export function buildThinkingCard(context: RunCardContext): object {
-  return buildCard('Pulse Agent', 'blue', buildProgressElements({
+  return buildCard('Pulse 执行过程', 'blue', buildProgressElements({
     ...context,
     detailText: '已收到请求，正在准备运行环境...',
   }), false);
 }
 
 export function buildProgressCard(context: RunCardContext): object {
-  return buildCard('Pulse Agent', 'blue', buildProgressElements(context), false);
+  return buildCard('Pulse 执行过程', 'blue', buildProgressElements(context), false);
 }
 
 export function buildCompletedProcessCard(context: RunCardContext, toolCalls: string[] = []): object {
@@ -701,7 +690,7 @@ export function buildDoneCard(_text: string, options: DoneCardOptions = {}): obj
       tag: 'collapsible_panel',
       expanded: false,
       header: {
-        title: plainText(`启动 Agent · ${processSummary('已完成', toolCalls.length)}`),
+        title: plainText(`执行过程 · ${processSummary('已完成', toolCalls.length)}`),
       },
       elements: [md(toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n'))],
     });

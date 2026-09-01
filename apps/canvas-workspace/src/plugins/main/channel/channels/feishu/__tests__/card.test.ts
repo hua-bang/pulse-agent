@@ -51,7 +51,7 @@ describe('feishu card tool list', () => {
 
   it('progress card uses a compact native-like process block with step detail', () => {
     const body = texts(buildProgressCard('working', tools, 20)).join('\n');
-    expect(body).toContain('启动 Agent · 运行中 · Called tools 2 times · 20s');
+    expect(body).toContain('执行过程 · 运行中 · 调用 2 次 · 20s');
     expect(body).toContain('**当前步骤**');
     expect(body).toContain('**当前答复**\nworking');
     // Tool name is bolded; detail and timing follow as secondary segments.
@@ -67,7 +67,7 @@ describe('feishu card tool list', () => {
     expect(panel).toBeDefined();
     expect(panel!.expanded).toBe(false);
     const body = texts(card).join('\n');
-    expect(body).toContain('启动 Agent · 已完成 · Called tools 2 times · 20s');
+    expect(body).toContain('执行过程 · 已完成 · 调用 2 次 · 20s');
     expect(body).toContain('已完成 2 个步骤，最终答复见下一条消息。');
     expect(body).toContain('**执行步骤**');
     expect(body).toContain('**canvas_read_node** · node-1');

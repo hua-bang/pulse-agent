@@ -96,7 +96,7 @@ function splitToolLabel(label: string): { name: string; detail: string } {
 }
 
 function processSummary(status: string, toolCount: number, elapsedSec?: number): string {
-  const parts = [status, `Called tools ${toolCount} ${toolCount === 1 ? 'time' : 'times'}`];
+  const parts = [status, `调用 ${toolCount} 次`];
   if (typeof elapsedSec === 'number') parts.push(`${elapsedSec}s`);
   return parts.join(' · ');
 }
@@ -128,7 +128,7 @@ function processPanel(input: {
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: md(`启动 Agent · ${processSummary(input.status, tools.length, input.elapsedSec)}`),
+      title: md(`执行过程 · ${processSummary(input.status, tools.length, input.elapsedSec)}`),
       vertical_align: 'center',
     },
     elements: [md(detailSections.join('\n\n') || '正在初始化运行环境...')],
@@ -136,7 +136,7 @@ function processPanel(input: {
 }
 
 export function buildThinkingCard(): object {
-  return card('Pulse Agent', 'blue', [processPanel({
+  return card('Pulse 执行过程', 'blue', [processPanel({
     status: '准备中',
     note: '已收到请求，正在准备运行环境...',
   })], false);
@@ -147,7 +147,7 @@ export function buildProgressCard(
   tools: ToolEntry[] = [],
   elapsedSec?: number,
 ): object {
-  return card('Pulse Agent', 'blue', [processPanel({
+  return card('Pulse 执行过程', 'blue', [processPanel({
     status: '运行中',
     tools,
     elapsedSec,

@@ -38,7 +38,7 @@ describe('Feishu run cards', () => {
     const card = buildProgressCard(context);
     const body = texts(card).join('\n');
 
-    expect(body).toContain('启动 Agent · 运行中 · Called tools 1 time · 3s');
+    expect(body).toContain('执行过程 · 运行中 · 调用 1 次 · 3s');
     expect(body).toContain('**当前步骤**');
     expect(body).toContain('read — AGENTS.md');
     expect(body).toContain('**当前答复**');
@@ -49,7 +49,7 @@ describe('Feishu run cards', () => {
     const card = buildCompletedProcessCard(context, ['read — AGENTS.md']);
     const body = texts(card).join('\n');
 
-    expect(body).toContain('启动 Agent · 已完成 · Called tools 1 time · 3s');
+    expect(body).toContain('执行过程 · 已完成 · 调用 1 次 · 3s');
     expect(body).toContain('已完成 1 个步骤，最终答复见下一条消息。');
     expect(body).toContain('**执行步骤**');
     expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
