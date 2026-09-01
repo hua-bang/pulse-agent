@@ -40,7 +40,8 @@ describe('Feishu run cards', () => {
 
     expect(card.header).toBeUndefined();
     expect(body).toContain('**Read AGENTS.md**');
-    expect(body).toContain('运行中 · Called tools 1 time · 3s');
+    expect(body).toContain('运行中 · 3s');
+    expect(body).toContain('partial answer');
     expect(body).toContain('Called tools 1 time');
     expect(body).not.toContain('**当前答复**');
     expect(body).not.toContain('run-123');

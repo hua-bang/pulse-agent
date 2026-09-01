@@ -76,13 +76,12 @@ function formButton(
   };
 }
 
-/** Render the tool calls as a folded status list (details only on demand). */
+/** Render folded tool details in the same quiet style as native Agent call rows. */
 function toolLines(tools: ToolEntry[]): string {
   return tools
     .map((t) => {
-      const icon = t.done ? '✅' : '⏳';
       const { name, detail } = splitToolLabel(t.label);
-      const segs = [`${icon} **${name || 'tool'}**`];
+      const segs = [titleizeToolName(name || 'tool')];
       if (detail) segs.push(detail);
       if (t.done && typeof t.elapsedSec === 'number') segs.push(`${t.elapsedSec}s`);
       return segs.join(' · ');
@@ -119,9 +118,8 @@ function stepTitle(status: string, tools: ToolEntry[]): string {
   return detail ? `${title} ${detail}` : title;
 }
 
-function stepSubtitle(status: string, toolCount: number, elapsedSec?: number): string {
+function stepSubtitle(status: string, elapsedSec?: number): string {
   const parts = [status];
-  if (toolCount > 0) parts.push(toolCountLine(toolCount));
   if (typeof elapsedSec === 'number') parts.push(`${elapsedSec}s`);
   return parts.join(' · ');
 }
@@ -145,11 +143,15 @@ function processElements(input: {
   tools?: ToolEntry[];
   elapsedSec?: number;
   note?: string;
+  answerPreview?: string;
 }): object[] {
   const tools = input.tools ?? [];
   const title = stepTitle(input.status, tools);
-  const subtitle = stepSubtitle(input.status, tools.length, input.elapsedSec);
-  const elements: object[] = [md(`**${title}**\n${input.note ?? subtitle}`)];
+  const subtitle = stepSubtitle(input.status, input.elapsedSec);
+  const preview = input.answerPreview?.trim()
+    ? `\n\n${clamp(input.answerPreview.trim()).slice(0, 700)}`
+    : '';
+  const elements: object[] = [md(`**${title}**\n${input.note ?? subtitle}${preview}`)];
   const foldedTools = toolPanel(tools);
   if (foldedTools) elements.push(foldedTools);
   return elements;
@@ -163,7 +165,7 @@ export function buildThinkingCard(): object {
 }
 
 export function buildProgressCard(
-  _text: string,
+  text: string,
   tools: ToolEntry[] = [],
   elapsedSec?: number,
 ): object {
@@ -172,6 +174,7 @@ export function buildProgressCard(
     tools,
     elapsedSec,
     note: tools.length === 0 ? '正在生成答复...' : undefined,
+    answerPreview: text,
   }), false);
 }
 

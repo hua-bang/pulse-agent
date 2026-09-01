@@ -53,12 +53,13 @@ describe('feishu card tool list', () => {
     const body = texts(card).join('\n');
     expect(card.header).toBeUndefined();
     expect(body).toContain('**Canvas write node node-2**');
-    expect(body).toContain('运行中 · Called tools 2 times · 20s');
+    expect(body).toContain('运行中 · 20s');
+    expect(body).toContain('working');
     expect(body).toContain('Called tools 2 times');
     expect(body).not.toContain('**当前答复**\nworking');
-    // Tool name is bolded; detail and timing are only inside the folded panel.
-    expect(body).toContain('✅ **canvas_read_node** · node-1 · 18s');
-    expect(body).toContain('⏳ **canvas_write_node** · node-2');
+    // Tool rows stay quiet in the folded panel: no heavy status emoji or debug label.
+    expect(body).toContain('Canvas read node · node-1 · 18s');
+    expect(body).toContain('Canvas write node · node-2');
   });
 
   it('completed process card leaves only a completion row plus folded tool details', () => {
@@ -75,7 +76,7 @@ describe('feishu card tool list', () => {
     expect(body).toContain('已完成 2 个步骤，下面是最终答复。');
     expect(body).toContain('Called tools 2 times');
     expect(body).not.toContain('执行过程 · 已完成');
-    expect(body).toContain('**canvas_read_node** · node-1');
+    expect(body).toContain('Canvas read node · node-1');
   });
 
   it('done card with no tools is just the answer (no panel)', () => {
