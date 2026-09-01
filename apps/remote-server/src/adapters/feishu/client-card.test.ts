@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildCompletedProcessCard, buildFinalAnswerCard, buildProgressCard } from './client.js';
+import { buildCompletedProcessCard, buildProgressCard } from './client.js';
 
 function texts(card: object): string[] {
   const out: string[] = [];
@@ -34,33 +34,30 @@ describe('Feishu run cards', () => {
     toolCalls: ['read — AGENTS.md'],
   };
 
-  it('progress card uses a compact native-like process row with collapsible details', () => {
-    const card = buildProgressCard(context);
+  it('progress card shows the current stage and folds tool details', () => {
+    const card = buildProgressCard(context) as { header?: unknown };
     const body = texts(card).join('\n');
 
-    expect(body).toContain('执行过程 · 运行中 · 调用 1 次 · 3s');
-    expect(body).toContain('**当前步骤**');
-    expect(body).toContain('read — AGENTS.md');
-    expect(body).toContain('**当前答复**');
-    expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
-  });
-
-  it('completed process card folds into the Agent process row and points to the answer card', () => {
-    const card = buildCompletedProcessCard(context, ['read — AGENTS.md']);
-    const body = texts(card).join('\n');
-
-    expect(body).toContain('执行过程 · 已完成 · 调用 1 次 · 3s');
-    expect(body).toContain('已完成 1 个步骤，最终答复见下一条消息。');
-    expect(body).toContain('**执行步骤**');
-    expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
-  });
-
-  it('final answer card only contains the user-facing answer', () => {
-    const card = buildFinalAnswerCard('最终结论');
-    const body = texts(card).join('\n');
-
-    expect(body).toContain('最终结论');
+    expect(card.header).toBeUndefined();
+    expect(body).toContain('**Read AGENTS.md**');
+    expect(body).toContain('运行中 · Called tools 1 time · 3s');
+    expect(body).toContain('Called tools 1 time');
+    expect(body).not.toContain('**当前答复**');
     expect(body).not.toContain('run-123');
-    expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(false);
+    expect(JSON.stringify(card)).not.toContain('"tag":"button"');
+    expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
+  });
+
+  it('completed process card leaves only a completion row plus folded tool details', () => {
+    const card = buildCompletedProcessCard(context, ['read — AGENTS.md']) as { header?: unknown };
+    const body = texts(card).join('\n');
+
+    expect(card.header).toBeUndefined();
+    expect(body).toContain('**Completed**');
+    expect(body).toContain('已完成 1 个步骤，下面是最终答复。');
+    expect(body).toContain('Called tools 1 time');
+    expect(body).not.toContain('执行过程 · 已完成');
+    expect(JSON.stringify(card)).not.toContain('"tag":"button"');
+    expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
   });
 });

@@ -542,161 +542,156 @@ function plainText(content: string): object {
   return { tag: 'plain_text', content };
 }
 
-function buildCard(title: string, template: string, elements: object[], enableForward: boolean): object {
+function buildCard(title: string | undefined, template: string, elements: object[], enableForward: boolean): object {
   return {
     schema: '2.0',
     config: { enable_forward: enableForward, wide_screen_mode: true },
-    header: {
-      template,
-      title: plainText(title),
-    },
+    ...(title
+      ? {
+          header: {
+            template,
+            title: plainText(title),
+          },
+        }
+      : {}),
     body: { elements },
   };
 }
 
-function runActionButton(
-  command: 'status' | 'stop' | 'retry' | 'new' | 'runId',
-  text: string,
-  context: RunCardContext,
-  type: 'default' | 'primary' | 'danger' = 'default',
-): object {
-  const value = {
-    action: FEISHU_RUN_CARD_ACTION,
-    command,
-    platformKey: context.platformKey,
-    memoryKey: context.memoryKey,
-    streamId: context.streamId,
-    runId: context.runId,
-    prompt: context.prompt,
-  };
+function toolCountLine(count: number): string {
+  return `Called tools ${count} ${count === 1 ? 'time' : 'times'}`;
+}
+
+function titleizeToolName(name: string): string {
+  const words = name.replace(/[_-]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 'Tool';
+  return words.map((word, index) => (
+    index === 0 ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : word
+  )).join(' ');
+}
+
+function splitToolSummary(summary: string): { name: string; detail: string } {
+  const label = summary.replace(/^[-*\s]*[🛠️✅⏳❌\s]*/u, '').trim();
+  const dashIndex = label.indexOf(' — ');
+  if (dashIndex >= 0) {
+    return { name: label.slice(0, dashIndex), detail: label.slice(dashIndex + 3) };
+  }
+
+  const toolMatch = label.match(/Calling tool:\s*`([^`]+)`/i);
+  if (!toolMatch) {
+    return { name: label.split('\n')[0] ?? '', detail: '' };
+  }
+
+  const argsMatch = label.match(/Args:\s*`([^`]+)`/i);
   return {
-    tag: 'button',
-    text: plainText(text),
-    type,
-    width: 'fill',
-    value,
-    behaviors: [{ type: 'callback', value }],
+    name: toolMatch[1] ?? '',
+    detail: argsMatch?.[1] ? summarizeToolArgs(argsMatch[1]) : '',
   };
 }
 
-function buttonRow(buttons: object[]): object {
-  return {
-    tag: 'column_set',
-    flex_mode: 'bisect',
-    horizontal_spacing: '8px',
-    columns: buttons.map((button) => ({
-      tag: 'column',
-      width: 'weighted',
-      weight: 1,
-      elements: [button],
-    })),
-  };
+function summarizeToolArgs(rawArgs: string): string {
+  try {
+    const parsed = JSON.parse(rawArgs) as unknown;
+    if (typeof parsed === 'object' && parsed !== null) {
+      const record = parsed as Record<string, unknown>;
+      const candidate = record.path ?? record.filePath ?? record.url ?? record.query ?? record.command ?? record.prompt;
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return clampCardText(candidate.trim().split('/').pop() || candidate.trim(), 80);
+      }
+    }
+  } catch {
+    // Fall through to a short raw preview.
+  }
+  return clampCardText(rawArgs, 80);
 }
 
-function processSummary(status: string, toolCount: number, elapsed?: string): string {
-  const parts = [status, `调用 ${toolCount} 次`];
+function stepTitle(status: string, context: RunCardContext, toolCalls: string[]): string {
+  if (status === '已完成') return 'Completed';
+  if (status === '出错') return 'Error';
+
+  const latestSummary = context.latestToolHint || toolCalls.at(-1);
+  if (!latestSummary) return 'Thinking';
+
+  const { name, detail } = splitToolSummary(latestSummary);
+  const title = titleizeToolName(name);
+  return detail ? `${title} ${detail}` : title;
+}
+
+function stepSubtitle(status: string, toolCount: number, elapsed?: string): string {
+  const parts = [status];
+  if (toolCount > 0) parts.push(toolCountLine(toolCount));
   if (elapsed) parts.push(elapsed);
   return parts.join(' · ');
 }
 
-function buildRunMeta(context: RunCardContext): string {
-  const lines: string[] = [];
-  if (context.runId) lines.push(`**runId**：\`${context.runId}\``);
-  lines.push(`**streamId**：\`${context.streamId}\``);
-  if (context.prompt) lines.push(`**请求**：${clampCardText(context.prompt, 300)}`);
-  return lines.join('\n');
-}
-
-function buildRunProcessPanel(context: RunCardContext, status: string, toolCalls: string[] = [], note?: string): object {
-  const normalizedToolCalls = toolCalls.filter(Boolean);
-  const detailSections = [
-    note,
-    context.latestToolHint ? `**当前步骤**\n${context.latestToolHint}` : undefined,
-    context.detailText?.trim() ? `**当前答复**\n${clampCardText(context.detailText.trim(), 1600)}` : undefined,
-    normalizedToolCalls.length > 0
-      ? `**执行步骤**\n${normalizedToolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n')}`
-      : undefined,
-    buildRunMeta(context),
-  ].filter((section): section is string => Boolean(section));
-
+function toolPanel(toolCalls: string[]): object | undefined {
+  if (toolCalls.length === 0) return undefined;
   return {
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: md(`执行过程 · ${processSummary(status, normalizedToolCalls.length, context.elapsed)}`),
+      title: md(toolCountLine(toolCalls.length)),
     },
-    elements: [md(detailSections.join('\n\n') || '正在准备执行...')],
+    elements: [md(toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n'))],
   };
 }
 
+function buildRunProcessElements(context: RunCardContext, status: string, toolCalls: string[] = [], note?: string): object[] {
+  const normalizedToolCalls = toolCalls.filter(Boolean);
+  const title = stepTitle(status, context, normalizedToolCalls);
+  const subtitle = stepSubtitle(status, normalizedToolCalls.length, context.elapsed);
+  const elements: object[] = [md(`**${title}**\n${note ?? subtitle}`)];
+  const foldedTools = toolPanel(normalizedToolCalls);
+  if (foldedTools) elements.push(foldedTools);
+  return elements;
+}
+
 function buildProgressElements(context: RunCardContext): object[] {
-  const elements: object[] = [buildRunProcessPanel(
+  return buildRunProcessElements(
     context,
     '运行中',
     context.toolCalls ?? [],
     context.latestToolHint ? undefined : '正在准备执行...',
-  )];
-  elements.push(buttonRow([
-    runActionButton('stop', '停止', context, 'danger'),
-  ]));
-  return elements;
+  );
 }
 
-function buildCompletionActionElements(context: RunCardContext): object[] {
-  return [buttonRow([
-    runActionButton('retry', '重试', context, 'primary'),
-    runActionButton('new', '新会话', context),
-  ])];
-}
 
 export function buildThinkingCard(context: RunCardContext): object {
-  return buildCard('Pulse 执行过程', 'blue', buildProgressElements({
-    ...context,
-    detailText: '已收到请求，正在准备运行环境...',
-  }), false);
+  return buildCard(undefined, 'blue', buildRunProcessElements(
+    context,
+    '准备中',
+    context.toolCalls ?? [],
+    '已收到请求，正在准备运行环境...',
+  ), false);
 }
 
 export function buildProgressCard(context: RunCardContext): object {
-  return buildCard('Pulse 执行过程', 'blue', buildProgressElements(context), false);
+  return buildCard(undefined, 'blue', buildProgressElements(context), false);
 }
 
 export function buildCompletedProcessCard(context: RunCardContext, toolCalls: string[] = []): object {
   const normalizedToolCalls = toolCalls.filter(Boolean);
-  const elements: object[] = [buildRunProcessPanel(
+  const elements = buildRunProcessElements(
     context,
     '已完成',
     normalizedToolCalls,
-    `已完成 ${normalizedToolCalls.length} 个步骤，最终答复见下一条消息。`,
-  )];
-  elements.push(...buildCompletionActionElements(context));
-  return buildCard('Pulse · Completed', 'green', elements, true);
-}
-
-export function buildFinalAnswerCard(text: string): object {
-  const finalText = formatCardDetailText(text) || '✅ Done';
-  return buildCard('Pulse 最终答复', 'green', [md(finalText)], true);
+    normalizedToolCalls.length > 0
+      ? `已完成 ${normalizedToolCalls.length} 个步骤，下面是最终答复。`
+      : '已完成，下面是最终答复。',
+  );
+  return buildCard(undefined, 'green', elements, false);
 }
 
 export function buildDoneCard(_text: string, options: DoneCardOptions = {}): object {
   const context = options.context;
   const toolCalls = options.toolCalls?.filter(Boolean) ?? [];
-  const elements: object[] = [];
-
-  if (context) {
-    elements.push(buildRunProcessPanel(context, '已完成', toolCalls, '这张过程卡已完成，最终答复见下一条消息。'));
-    elements.push(...buildCompletionActionElements(context));
-  } else if (toolCalls.length > 0) {
-    elements.push({
-      tag: 'collapsible_panel',
-      expanded: false,
-      header: {
-        title: plainText(`执行过程 · ${processSummary('已完成', toolCalls.length)}`),
-      },
-      elements: [md(toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n'))],
-    });
-  } else {
-    elements.push(md('这张过程卡已完成，最终答复见下一条消息。'));
-  }
+  const elements = context
+    ? buildRunProcessElements(context, '已完成', toolCalls, '这张过程卡已完成，下面是最终答复。')
+    : buildRunProcessElements({
+      streamId: 'completed',
+      platformKey: '',
+      memoryKey: '',
+    }, '已完成', toolCalls, '这张过程卡已完成，最终答复见下一条消息。');
 
   return buildCard('Pulse · Completed', 'green', elements, true);
 }
@@ -704,10 +699,7 @@ export function buildDoneCard(_text: string, options: DoneCardOptions = {}): obj
 export function buildErrorCard(message: string, context?: RunCardContext): object {
   const errorText = `❌ ${clampCardText(message || 'unknown error', 3000)}`;
   const elements: object[] = context
-    ? [buildRunProcessPanel(context, '出错', context.toolCalls ?? [], errorText)]
+    ? buildRunProcessElements(context, '出错', context.toolCalls ?? [], errorText)
     : [md(errorText)];
-  if (context) {
-    elements.push(...buildCompletionActionElements(context));
-  }
   return buildCard('Pulse 运行出错', 'red', elements, false);
 }

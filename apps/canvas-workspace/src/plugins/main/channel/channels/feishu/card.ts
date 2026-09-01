@@ -35,14 +35,18 @@ function plainText(content: string): object {
   return { tag: 'plain_text', content };
 }
 
-function card(title: string, template: string, elements: object[], forward: boolean): object {
+function card(title: string | undefined, template: string, elements: object[], forward: boolean): object {
   return {
     schema: '2.0',
     config: { enable_forward: forward, wide_screen_mode: true },
-    header: {
-      template,
-      title: plainText(title),
-    },
+    ...(title
+      ? {
+          header: {
+            template,
+            title: plainText(title),
+          },
+        }
+      : {}),
     body: { elements },
   };
 }
@@ -72,14 +76,12 @@ function formButton(
   };
 }
 
-/** Render the tool calls as a status list (⏳ running · ✅ done with timing). */
+/** Render the tool calls as a folded status list (details only on demand). */
 function toolLines(tools: ToolEntry[]): string {
   return tools
     .map((t) => {
       const icon = t.done ? '✅' : '⏳';
       const { name, detail } = splitToolLabel(t.label);
-      // Bold the tool name so each row reads as "what" then "on what",
-      // keeping the detail (and timing) visually secondary.
       const segs = [`${icon} **${name || 'tool'}**`];
       if (detail) segs.push(detail);
       if (t.done && typeof t.elapsedSec === 'number') segs.push(`${t.elapsedSec}s`);
@@ -95,84 +97,99 @@ function splitToolLabel(label: string): { name: string; detail: string } {
   return { name: label, detail: '' };
 }
 
-function processSummary(status: string, toolCount: number, elapsedSec?: number): string {
-  const parts = [status, `调用 ${toolCount} 次`];
+function toolCountLine(count: number): string {
+  return `Called tools ${count} ${count === 1 ? 'time' : 'times'}`;
+}
+
+function titleizeToolName(name: string): string {
+  const words = name.replace(/[_-]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 'Tool';
+  return words.map((word, index) => (
+    index === 0 ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : word
+  )).join(' ');
+}
+
+function stepTitle(status: string, tools: ToolEntry[]): string {
+  if (status === '已完成') return 'Completed';
+  if (status === '出错') return 'Error';
+  const latest = tools.at(-1);
+  if (!latest) return 'Thinking';
+  const { name, detail } = splitToolLabel(latest.label);
+  const title = titleizeToolName(name);
+  return detail ? `${title} ${detail}` : title;
+}
+
+function stepSubtitle(status: string, toolCount: number, elapsedSec?: number): string {
+  const parts = [status];
+  if (toolCount > 0) parts.push(toolCountLine(toolCount));
   if (typeof elapsedSec === 'number') parts.push(`${elapsedSec}s`);
   return parts.join(' · ');
 }
 
-function currentStepLine(tool?: ToolEntry): string | undefined {
-  if (!tool) return undefined;
-  const { name, detail } = splitToolLabel(tool.label);
-  const icon = tool.done ? '✅' : '⏳';
-  return `**当前步骤**\n${icon} ${name || 'tool'}${detail ? ` · ${detail}` : ''}`;
-}
-
-/** Native-like Agent process block: one compact row when collapsed, details on demand. */
-function processPanel(input: {
-  status: string;
-  tools?: ToolEntry[];
-  elapsedSec?: number;
-  currentAnswer?: string;
-  note?: string;
-}): object {
-  const tools = input.tools ?? [];
-  const detailSections = [
-    input.note,
-    currentStepLine(tools.at(-1)),
-    input.currentAnswer?.trim() ? `**当前答复**\n${clamp(input.currentAnswer.trim())}` : undefined,
-    tools.length > 0 ? `**执行步骤**\n${toolLines(tools)}` : undefined,
-  ].filter((section): section is string => Boolean(section));
-
+function toolPanel(tools: ToolEntry[]): object | undefined {
+  if (tools.length === 0) return undefined;
   return {
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: md(`执行过程 · ${processSummary(input.status, tools.length, input.elapsedSec)}`),
+      title: md(toolCountLine(tools.length)),
       vertical_align: 'center',
     },
-    elements: [md(detailSections.join('\n\n') || '正在初始化运行环境...')],
+    elements: [md(toolLines(tools))],
   };
 }
 
+/** Native-like Agent process block: stage title stays visible; tool details fold away. */
+function processElements(input: {
+  status: string;
+  tools?: ToolEntry[];
+  elapsedSec?: number;
+  note?: string;
+}): object[] {
+  const tools = input.tools ?? [];
+  const title = stepTitle(input.status, tools);
+  const subtitle = stepSubtitle(input.status, tools.length, input.elapsedSec);
+  const elements: object[] = [md(`**${title}**\n${input.note ?? subtitle}`)];
+  const foldedTools = toolPanel(tools);
+  if (foldedTools) elements.push(foldedTools);
+  return elements;
+}
+
 export function buildThinkingCard(): object {
-  return card('Pulse 执行过程', 'blue', [processPanel({
+  return card(undefined, 'blue', processElements({
     status: '准备中',
     note: '已收到请求，正在准备运行环境...',
-  })], false);
+  }), false);
 }
 
 export function buildProgressCard(
-  text: string,
+  _text: string,
   tools: ToolEntry[] = [],
   elapsedSec?: number,
 ): object {
-  return card('Pulse 执行过程', 'blue', [processPanel({
+  return card(undefined, 'blue', processElements({
     status: '运行中',
     tools,
     elapsedSec,
-    currentAnswer: text,
     note: tools.length === 0 ? '正在生成答复...' : undefined,
-  })], false);
+  }), false);
 }
 
 export function buildCompletedProcessCard(tools: ToolEntry[] = [], elapsedSec?: number): object {
-  return card('Pulse · Completed', 'green', [processPanel({
+  return card(undefined, 'green', processElements({
     status: '已完成',
     tools,
     elapsedSec,
-    note: `已完成 ${tools.length} 个步骤，最终答复见下一条消息。`,
-  })], true);
-}
-
-export function buildFinalAnswerCard(text: string): object {
-  return card('Pulse 最终答复', 'green', [md(clamp(text) || '✅ Done')], true);
+    note: tools.length > 0
+      ? `已完成 ${tools.length} 个步骤，下面是最终答复。`
+      : '已完成，下面是最终答复。',
+  }), false);
 }
 
 export function buildDoneCard(text: string, tools: ToolEntry[] = []): object {
   const elements: object[] = [md(clamp(text) || '✅ Done')];
   if (tools.length > 0) {
-    elements.push(processPanel({
+    elements.push(...processElements({
       status: '已完成',
       tools,
       note: `已完成 ${tools.length} 个步骤。`,
