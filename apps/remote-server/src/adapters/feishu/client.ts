@@ -617,11 +617,16 @@ function stepTitle(status: string, context: RunCardContext, toolCalls: string[])
   return detail ? `${title} ${detail}` : title;
 }
 
-function stepSubtitle(status: string, toolCount: number, elapsed?: string): string {
+function stepSubtitle(status: string, elapsed?: string): string {
   const parts = [status];
-  if (toolCount > 0) parts.push(toolCountLine(toolCount));
   if (elapsed) parts.push(elapsed);
   return parts.join(' · ');
+}
+
+function renderToolLine(toolCall: string): string {
+  const { name, detail } = splitToolSummary(toolCall);
+  const title = titleizeToolName(name || 'tool');
+  return detail ? `${title} · ${detail}` : title;
 }
 
 function toolPanel(toolCalls: string[]): object | undefined {
@@ -632,15 +637,18 @@ function toolPanel(toolCalls: string[]): object | undefined {
     header: {
       title: md(toolCountLine(toolCalls.length)),
     },
-    elements: [md(toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n'))],
+    elements: [md(toolCalls.map(renderToolLine).join('\n'))],
   };
 }
 
 function buildRunProcessElements(context: RunCardContext, status: string, toolCalls: string[] = [], note?: string): object[] {
   const normalizedToolCalls = toolCalls.filter(Boolean);
   const title = stepTitle(status, context, normalizedToolCalls);
-  const subtitle = stepSubtitle(status, normalizedToolCalls.length, context.elapsed);
-  const elements: object[] = [md(`**${title}**\n${note ?? subtitle}`)];
+  const subtitle = stepSubtitle(status, context.elapsed);
+  const preview = status === '运行中' && context.detailText?.trim()
+    ? `\n\n${clampCardText(context.detailText.trim(), 700)}`
+    : '';
+  const elements: object[] = [md(`**${title}**\n${note ?? subtitle}${preview}`)];
   const foldedTools = toolPanel(normalizedToolCalls);
   if (foldedTools) elements.push(foldedTools);
   return elements;
