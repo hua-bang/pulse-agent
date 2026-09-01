@@ -17,8 +17,9 @@ import {
   type FeishuSendTarget,
 } from './feishu-client';
 import {
-  buildDoneCard,
+  buildCompletedProcessCard,
   buildErrorCard,
+  buildFinalAnswerCard,
   buildProgressCard,
   buildThinkingCard,
   buildWorkspacePickerCard,
@@ -356,7 +357,11 @@ export class FeishuStream implements ChannelStream {
       t.done = true;
       t.elapsedSec = Math.round((now - t.startedAt) / 1000);
     }
-    await this.finalize(() => buildDoneCard(text, this.tools), text);
+    await this.finalizeWithAnswer(
+      () => buildCompletedProcessCard(this.tools, this.elapsedSec()),
+      () => buildFinalAnswerCard(text),
+      text,
+    );
   }
 
   async onError(message: string): Promise<void> {
@@ -462,6 +467,38 @@ export class FeishuStream implements ChannelStream {
     }
   }
 
+  private async finalizeWithAnswer(
+    processFactory: () => object,
+    answerFactory: () => object,
+    fallbackText: string,
+  ): Promise<void> {
+    this.finalizing = true;
+    this.pendingProgressFactory = null;
+    if (this.updateInFlight) {
+      await this.updateInFlight;
+    }
+
+    if (!this.cardUpdateTimedOut) {
+      await this.patchCard(processFactory, 'Feishu completed process card update');
+    }
+
+    if (this.cardFailed) {
+      await this.sendFallbackText(fallbackText);
+      return;
+    }
+
+    try {
+      await withTimeout(
+        sendCardMessage(this.client, this.target, answerFactory()),
+        CARD_SEND_TIMEOUT_MS,
+        'Feishu final answer card send',
+      );
+    } catch (err) {
+      console.error('[channel:feishu] final answer card send failed', err);
+      await this.sendFallbackText(fallbackText);
+    }
+  }
+
   private async sendFallbackText(text: string): Promise<void> {
     try {
       await withTimeout(
@@ -531,6 +568,17 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapeHtmlAttr(value: string): string {
+  return escapeHtmlText(value).replace(/"/g, '&quot;');
+}
+
 function mentionString(mention: unknown, key: 'key' | 'name'): string | null {
   if (!mention || typeof mention !== 'object') return null;
   const value = (mention as Record<string, unknown>)[key];
@@ -569,7 +617,19 @@ function collectPostText(node: unknown, out: string[]): void {
   const tag = typeof record.tag === 'string' ? record.tag : '';
   if (tag === 'at') {
     const userName = typeof record.user_name === 'string' ? record.user_name.trim() : '';
-    out.push(userName ? `@${userName}` : '@');
+    const attrs = ['open_id', 'user_id', 'union_id']
+      .map((key) => {
+        const value = record[key];
+        return typeof value === 'string' && value.trim()
+          ? `${key}="${escapeHtmlAttr(value.trim())}"`
+          : null;
+      })
+      .filter((value): value is string => Boolean(value));
+    if (attrs.length > 0) {
+      out.push(`<at ${attrs.join(' ')}>${escapeHtmlText(userName)}</at>`);
+    } else {
+      out.push(userName ? `@${userName}` : '@');
+    }
     return;
   }
   if (typeof record.text === 'string' && record.text.trim()) {

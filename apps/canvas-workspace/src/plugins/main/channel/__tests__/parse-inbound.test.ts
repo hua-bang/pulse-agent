@@ -81,6 +81,20 @@ describe('parseInbound', () => {
     expect(out).toBeNull();
   });
 
+  it('group mention with user_id is accepted by name when bot identity only has open_id', () => {
+    const out = parseInbound(
+      event({
+        chatType: 'group',
+        chatId: 'gA',
+        mentions: [{ key: '@_user_bot', id: { user_id: 'bot_user' }, name: 'Pulse' }],
+        text: '@Pulse do it',
+      }),
+      { appId: 'cli_bot', openId: 'ou_bot', name: 'Pulse' },
+    );
+    expect(out).not.toBeNull();
+    expect(out!.text).toBe('do it');
+  });
+
   it('group @-mention strips the mention and marks isMention', () => {
     const out = parseInbound(
       event({ chatType: 'group', chatId: 'gA', mentions: [BOT_MENTION], text: '@bot do it' }),
@@ -155,6 +169,30 @@ describe('parseInbound', () => {
     expect(out!.conversationId).toBe('gT:th1');
     expect(out!.text).toBe('晚上好');
     expect(out!.isDirect).toBe(false);
+  });
+
+  it('topic group post at-tags keep their ids when mentions are omitted', () => {
+    const out = parseInbound(
+      event({
+        chatType: 'topic_group',
+        chatId: 'gT',
+        threadId: 'th1',
+        messageType: 'post',
+        mentions: undefined,
+        content: {
+          content: [
+            [
+              { tag: 'at', user_name: 'Pulse', user_id: 'bot_user' },
+              { tag: 'text', text: ' 晚上好' },
+            ],
+          ],
+        },
+      }),
+      BOT,
+    );
+    expect(out).not.toBeNull();
+    expect(out!.conversationId).toBe('gT:th1');
+    expect(out!.text).toBe('晚上好');
   });
 
   it('topic group: each thread is its own conversation, replies route in-thread', () => {
