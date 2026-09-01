@@ -107,7 +107,7 @@ export const LayerItem = ({
             <span className="sidebar-layer-spacer" aria-hidden="true" />
           )}
           <span className="sidebar-layer-icon">
-            <NodeTypeIcon type={node.type} colorize={!isSelected} />
+            <NodeTypeIcon type={node.type} />
           </span>
           <input
             ref={renameLayerInputRef}
@@ -145,7 +145,7 @@ export const LayerItem = ({
             <span className="sidebar-layer-spacer" aria-hidden="true" />
           )}
           <span className="sidebar-layer-icon">
-            <NodeTypeIcon type={node.type} colorize={!isSelected} />
+            <NodeTypeIcon type={node.type} />
           </span>
           <span className="sidebar-layer-name">
             {isContainer

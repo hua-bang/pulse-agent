@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type React from 'react';
-import { CalendarBlank, PuzzlePiece, SidebarSimple } from '@phosphor-icons/react';
+import { SidebarSimple } from '@phosphor-icons/react';
 import type { NavItem } from '../../../../../plugins/types';
 import {
   PlusIcon,
@@ -10,6 +10,8 @@ import {
   ImportIcon,
   KnowledgeStoreIcon,
   NodeGraphIcon,
+  PluginIcon,
+  ScheduledIcon,
 } from '../../icons';
 import { useI18n } from '../../../i18n';
 import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
@@ -152,7 +154,7 @@ export const SidebarHeader = ({
           title={t('sidebar.skillsTitle')}
         >
           <span className="sidebar-nav-icon">
-            <PuzzlePiece size={14} />
+            <PluginIcon size={15} />
           </span>
           <span className="sidebar-nav-label">{t('sidebar.skills')}</span>
         </Button> : null}
@@ -165,7 +167,7 @@ export const SidebarHeader = ({
             title={t('sidebar.scheduledTitle')}
           >
             <span className="sidebar-nav-icon">
-              <CalendarBlank size={14} />
+              <ScheduledIcon size={15} />
             </span>
             <span className="sidebar-nav-label">{t('sidebar.scheduled')}</span>
           </Button> : null

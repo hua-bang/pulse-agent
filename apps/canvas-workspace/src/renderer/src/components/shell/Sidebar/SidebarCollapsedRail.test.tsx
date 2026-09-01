@@ -58,6 +58,8 @@ describe('collapsed sidebar rail', () => {
     const expandButton = host.querySelector('[aria-label="Expand sidebar"]');
     expect(rail?.firstElementChild).toBe(expandButton);
     expect(rail?.children[1]?.querySelector('img')?.getAttribute('width')).toBe('20');
+    expect(rail?.children[2]?.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 16 16');
+    expect(rail?.children[3]?.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 16 16');
 
     act(() => root.unmount());
   });
