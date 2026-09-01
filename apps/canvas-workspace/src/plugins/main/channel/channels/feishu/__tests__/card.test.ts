@@ -48,19 +48,20 @@ describe('feishu card tool list', () => {
     expect(formatToolLabel('read', { docToken: 'doccnXyz' })).toBe('read — doccnXyz');
   });
 
-  it('progress card uses a compact native-like process block with step detail', () => {
+  it('progress card shows the current stage and folds tool details', () => {
     const card = buildProgressCard('working', tools, 20) as { header?: unknown };
     const body = texts(card).join('\n');
     expect(card.header).toBeUndefined();
-    expect(body).toContain('执行过程 · 运行中 · 调用 2 次 · 20s');
-    expect(body).toContain('**当前步骤**');
-    expect(body).toContain('**当前答复**\nworking');
-    // Tool name is bolded; detail and timing follow as secondary segments.
+    expect(body).toContain('**Canvas write node node-2**');
+    expect(body).toContain('运行中 · Called tools 2 times · 20s');
+    expect(body).toContain('Called tools 2 times');
+    expect(body).not.toContain('**当前答复**\nworking');
+    // Tool name is bolded; detail and timing are only inside the folded panel.
     expect(body).toContain('✅ **canvas_read_node** · node-1 · 18s');
     expect(body).toContain('⏳ **canvas_write_node** · node-2');
   });
 
-  it('completed process card collapses into an Agent process row', () => {
+  it('completed process card leaves only a completion row plus folded tool details', () => {
     const card = buildCompletedProcessCard(tools, 20) as {
       header?: unknown;
       body: { elements: Array<Record<string, unknown>> };
@@ -70,9 +71,10 @@ describe('feishu card tool list', () => {
     expect(panel!.expanded).toBe(false);
     expect(card.header).toBeUndefined();
     const body = texts(card).join('\n');
-    expect(body).toContain('执行过程 · 已完成 · 调用 2 次 · 20s');
+    expect(body).toContain('**Completed**');
     expect(body).toContain('已完成 2 个步骤，下面是最终答复。');
-    expect(body).toContain('**执行步骤**');
+    expect(body).toContain('Called tools 2 times');
+    expect(body).not.toContain('执行过程 · 已完成');
     expect(body).toContain('**canvas_read_node** · node-1');
   });
 

@@ -34,28 +34,30 @@ describe('Feishu run cards', () => {
     toolCalls: ['read — AGENTS.md'],
   };
 
-  it('progress card uses a compact native-like process row with collapsible details', () => {
+  it('progress card shows the current stage and folds tool details', () => {
     const card = buildProgressCard(context) as { header?: unknown };
     const body = texts(card).join('\n');
 
     expect(card.header).toBeUndefined();
-    expect(body).toContain('执行过程 · 运行中 · 调用 1 次 · 3s');
-    expect(body).toContain('**当前步骤**');
-    expect(body).toContain('read — AGENTS.md');
-    expect(body).toContain('**当前答复**');
+    expect(body).toContain('**Read AGENTS.md**');
+    expect(body).toContain('运行中 · Called tools 1 time · 3s');
+    expect(body).toContain('Called tools 1 time');
+    expect(body).not.toContain('**当前答复**');
+    expect(body).not.toContain('run-123');
     expect(JSON.stringify(card)).not.toContain('"tag":"button"');
     expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
   });
 
-  it('completed process card folds into the Agent process row and points to the following answer', () => {
+  it('completed process card leaves only a completion row plus folded tool details', () => {
     const card = buildCompletedProcessCard(context, ['read — AGENTS.md']) as { header?: unknown };
     const body = texts(card).join('\n');
 
     expect(card.header).toBeUndefined();
-    expect(body).toContain('执行过程 · 已完成 · 调用 1 次 · 3s');
+    expect(body).toContain('**Completed**');
     expect(body).toContain('已完成 1 个步骤，下面是最终答复。');
+    expect(body).toContain('Called tools 1 time');
+    expect(body).not.toContain('执行过程 · 已完成');
     expect(JSON.stringify(card)).not.toContain('"tag":"button"');
-    expect(body).toContain('**执行步骤**');
     expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
   });
 });
