@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   buildCompletedProcessCard,
   buildDoneCard,
-  buildFinalAnswerCard,
   buildProgressCard,
   buildWorkspacePickerCard,
   formatToolLabel,
@@ -50,7 +49,9 @@ describe('feishu card tool list', () => {
   });
 
   it('progress card uses a compact native-like process block with step detail', () => {
-    const body = texts(buildProgressCard('working', tools, 20)).join('\n');
+    const card = buildProgressCard('working', tools, 20) as { header?: unknown };
+    const body = texts(card).join('\n');
+    expect(card.header).toBeUndefined();
     expect(body).toContain('执行过程 · 运行中 · 调用 2 次 · 20s');
     expect(body).toContain('**当前步骤**');
     expect(body).toContain('**当前答复**\nworking');
@@ -61,27 +62,18 @@ describe('feishu card tool list', () => {
 
   it('completed process card collapses into an Agent process row', () => {
     const card = buildCompletedProcessCard(tools, 20) as {
+      header?: unknown;
       body: { elements: Array<Record<string, unknown>> };
     };
     const panel = card.body.elements.find((e) => e.tag === 'collapsible_panel');
     expect(panel).toBeDefined();
     expect(panel!.expanded).toBe(false);
+    expect(card.header).toBeUndefined();
     const body = texts(card).join('\n');
     expect(body).toContain('执行过程 · 已完成 · 调用 2 次 · 20s');
-    expect(body).toContain('已完成 2 个步骤，最终答复见下一条消息。');
+    expect(body).toContain('已完成 2 个步骤，下面是最终答复。');
     expect(body).toContain('**执行步骤**');
     expect(body).toContain('**canvas_read_node** · node-1');
-  });
-
-  it('final answer card is separate from process details', () => {
-    const card = buildFinalAnswerCard('the answer') as {
-      header: { title: { content: string } };
-      body: { elements: Array<Record<string, unknown>> };
-    };
-    const body = texts(card).join('\n');
-    expect(card.header.title.content).toBe('Pulse 最终答复');
-    expect(body).toContain('the answer');
-    expect(card.body.elements.some((e) => e.tag === 'collapsible_panel')).toBe(false);
   });
 
   it('done card with no tools is just the answer (no panel)', () => {

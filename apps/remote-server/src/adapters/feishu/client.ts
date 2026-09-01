@@ -542,54 +542,19 @@ function plainText(content: string): object {
   return { tag: 'plain_text', content };
 }
 
-function buildCard(title: string, template: string, elements: object[], enableForward: boolean): object {
+function buildCard(title: string | undefined, template: string, elements: object[], enableForward: boolean): object {
   return {
     schema: '2.0',
     config: { enable_forward: enableForward, wide_screen_mode: true },
-    header: {
-      template,
-      title: plainText(title),
-    },
+    ...(title
+      ? {
+          header: {
+            template,
+            title: plainText(title),
+          },
+        }
+      : {}),
     body: { elements },
-  };
-}
-
-function runActionButton(
-  command: 'status' | 'stop' | 'retry' | 'new' | 'runId',
-  text: string,
-  context: RunCardContext,
-  type: 'default' | 'primary' | 'danger' = 'default',
-): object {
-  const value = {
-    action: FEISHU_RUN_CARD_ACTION,
-    command,
-    platformKey: context.platformKey,
-    memoryKey: context.memoryKey,
-    streamId: context.streamId,
-    runId: context.runId,
-    prompt: context.prompt,
-  };
-  return {
-    tag: 'button',
-    text: plainText(text),
-    type,
-    width: 'fill',
-    value,
-    behaviors: [{ type: 'callback', value }],
-  };
-}
-
-function buttonRow(buttons: object[]): object {
-  return {
-    tag: 'column_set',
-    flex_mode: 'bisect',
-    horizontal_spacing: '8px',
-    columns: buttons.map((button) => ({
-      tag: 'column',
-      width: 'weighted',
-      weight: 1,
-      elements: [button],
-    })),
   };
 }
 
@@ -636,28 +601,19 @@ function buildProgressElements(context: RunCardContext): object[] {
     context.toolCalls ?? [],
     context.latestToolHint ? undefined : '正在准备执行...',
   )];
-  elements.push(buttonRow([
-    runActionButton('stop', '停止', context, 'danger'),
-  ]));
   return elements;
 }
 
-function buildCompletionActionElements(context: RunCardContext): object[] {
-  return [buttonRow([
-    runActionButton('retry', '重试', context, 'primary'),
-    runActionButton('new', '新会话', context),
-  ])];
-}
 
 export function buildThinkingCard(context: RunCardContext): object {
-  return buildCard('Pulse 执行过程', 'blue', buildProgressElements({
+  return buildCard(undefined, 'blue', buildProgressElements({
     ...context,
     detailText: '已收到请求，正在准备运行环境...',
   }), false);
 }
 
 export function buildProgressCard(context: RunCardContext): object {
-  return buildCard('Pulse 执行过程', 'blue', buildProgressElements(context), false);
+  return buildCard(undefined, 'blue', buildProgressElements(context), false);
 }
 
 export function buildCompletedProcessCard(context: RunCardContext, toolCalls: string[] = []): object {
@@ -666,15 +622,11 @@ export function buildCompletedProcessCard(context: RunCardContext, toolCalls: st
     context,
     '已完成',
     normalizedToolCalls,
-    `已完成 ${normalizedToolCalls.length} 个步骤，最终答复见下一条消息。`,
+    normalizedToolCalls.length > 0
+      ? `已完成 ${normalizedToolCalls.length} 个步骤，下面是最终答复。`
+      : '已完成，下面是最终答复。',
   )];
-  elements.push(...buildCompletionActionElements(context));
-  return buildCard('Pulse · Completed', 'green', elements, true);
-}
-
-export function buildFinalAnswerCard(text: string): object {
-  const finalText = formatCardDetailText(text) || '✅ Done';
-  return buildCard('Pulse 最终答复', 'green', [md(finalText)], true);
+  return buildCard(undefined, 'green', elements, false);
 }
 
 export function buildDoneCard(_text: string, options: DoneCardOptions = {}): object {
@@ -683,8 +635,7 @@ export function buildDoneCard(_text: string, options: DoneCardOptions = {}): obj
   const elements: object[] = [];
 
   if (context) {
-    elements.push(buildRunProcessPanel(context, '已完成', toolCalls, '这张过程卡已完成，最终答复见下一条消息。'));
-    elements.push(...buildCompletionActionElements(context));
+    elements.push(buildRunProcessPanel(context, '已完成', toolCalls, '这张过程卡已完成，下面是最终答复。'));
   } else if (toolCalls.length > 0) {
     elements.push({
       tag: 'collapsible_panel',
@@ -706,8 +657,5 @@ export function buildErrorCard(message: string, context?: RunCardContext): objec
   const elements: object[] = context
     ? [buildRunProcessPanel(context, '出错', context.toolCalls ?? [], errorText)]
     : [md(errorText)];
-  if (context) {
-    elements.push(...buildCompletionActionElements(context));
-  }
   return buildCard('Pulse 运行出错', 'red', elements, false);
 }

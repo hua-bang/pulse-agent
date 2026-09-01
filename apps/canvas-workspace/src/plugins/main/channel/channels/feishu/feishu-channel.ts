@@ -19,7 +19,6 @@ import {
 import {
   buildCompletedProcessCard,
   buildErrorCard,
-  buildFinalAnswerCard,
   buildProgressCard,
   buildThinkingCard,
   buildWorkspacePickerCard,
@@ -359,7 +358,6 @@ export class FeishuStream implements ChannelStream {
     }
     await this.finalizeWithAnswer(
       () => buildCompletedProcessCard(this.tools, this.elapsedSec()),
-      () => buildFinalAnswerCard(text),
       text,
     );
   }
@@ -469,8 +467,7 @@ export class FeishuStream implements ChannelStream {
 
   private async finalizeWithAnswer(
     processFactory: () => object,
-    answerFactory: () => object,
-    fallbackText: string,
+    answerText: string,
   ): Promise<void> {
     this.finalizing = true;
     this.pendingProgressFactory = null;
@@ -482,21 +479,7 @@ export class FeishuStream implements ChannelStream {
       await this.patchCard(processFactory, 'Feishu completed process card update');
     }
 
-    if (this.cardFailed) {
-      await this.sendFallbackText(fallbackText);
-      return;
-    }
-
-    try {
-      await withTimeout(
-        sendCardMessage(this.client, this.target, answerFactory()),
-        CARD_SEND_TIMEOUT_MS,
-        'Feishu final answer card send',
-      );
-    } catch (err) {
-      console.error('[channel:feishu] final answer card send failed', err);
-      await this.sendFallbackText(fallbackText);
-    }
+    await this.sendFallbackText(answerText || '✅ Done');
   }
 
   private async sendFallbackText(text: string): Promise<void> {

@@ -35,14 +35,18 @@ function plainText(content: string): object {
   return { tag: 'plain_text', content };
 }
 
-function card(title: string, template: string, elements: object[], forward: boolean): object {
+function card(title: string | undefined, template: string, elements: object[], forward: boolean): object {
   return {
     schema: '2.0',
     config: { enable_forward: forward, wide_screen_mode: true },
-    header: {
-      template,
-      title: plainText(title),
-    },
+    ...(title
+      ? {
+          header: {
+            template,
+            title: plainText(title),
+          },
+        }
+      : {}),
     body: { elements },
   };
 }
@@ -136,7 +140,7 @@ function processPanel(input: {
 }
 
 export function buildThinkingCard(): object {
-  return card('Pulse 执行过程', 'blue', [processPanel({
+  return card(undefined, 'blue', [processPanel({
     status: '准备中',
     note: '已收到请求，正在准备运行环境...',
   })], false);
@@ -147,7 +151,7 @@ export function buildProgressCard(
   tools: ToolEntry[] = [],
   elapsedSec?: number,
 ): object {
-  return card('Pulse 执行过程', 'blue', [processPanel({
+  return card(undefined, 'blue', [processPanel({
     status: '运行中',
     tools,
     elapsedSec,
@@ -157,16 +161,14 @@ export function buildProgressCard(
 }
 
 export function buildCompletedProcessCard(tools: ToolEntry[] = [], elapsedSec?: number): object {
-  return card('Pulse · Completed', 'green', [processPanel({
+  return card(undefined, 'green', [processPanel({
     status: '已完成',
     tools,
     elapsedSec,
-    note: `已完成 ${tools.length} 个步骤，最终答复见下一条消息。`,
-  })], true);
-}
-
-export function buildFinalAnswerCard(text: string): object {
-  return card('Pulse 最终答复', 'green', [md(clamp(text) || '✅ Done')], true);
+    note: tools.length > 0
+      ? `已完成 ${tools.length} 个步骤，下面是最终答复。`
+      : '已完成，下面是最终答复。',
+  })], false);
 }
 
 export function buildDoneCard(text: string, tools: ToolEntry[] = []): object {
