@@ -19,6 +19,12 @@ import {
 import { partitionSessionGroups } from './sessionListGroups';
 import { deliverLoadedConversation, type LoadedConversation } from './loadedConversationSink';
 import { useLiveSessionLists } from './useLiveSessionLists';
+import {
+  hasSessionsCache,
+  patchSessionsCache,
+  readSessionsCache,
+} from './sessionCache';
+export { resetChatSessionsCacheForTests } from './sessionCache';
 interface UseChatSessionsOptions {
   agentScope: AgentScope;
   allWorkspaces?: WorkspaceOption[];
@@ -40,28 +46,6 @@ interface ThreadFetchResult {
   code?: string;
   error?: string;
 }
-interface CachedSessions {
-  sessions: AgentSessionInfo[];
-  otherSessions: OtherWorkspaceSession[];
-}
-/** Cross-mount per-scope session-list cache, bounded by Map insertion recency. */
-const SESSIONS_CACHE_LIMIT = 20;
-const sessionsCache = new Map<string, CachedSessions>();
-
-export const resetChatSessionsCacheForTests = (): void => {
-  sessionsCache.clear();
-};
-function patchSessionsCache(key: string, patch: Partial<CachedSessions>): void {
-  const prev = sessionsCache.get(key) ?? { sessions: [], otherSessions: [] };
-  // Delete-then-set marks the key most recently used.
-  sessionsCache.delete(key);
-  sessionsCache.set(key, { ...prev, ...patch });
-  if (sessionsCache.size > SESSIONS_CACHE_LIMIT) {
-    const oldestKey = sessionsCache.keys().next().value;
-    if (oldestKey !== undefined) sessionsCache.delete(oldestKey);
-  }
-}
-
 export function useChatSessions({
   agentScope,
   allWorkspaces,
@@ -83,17 +67,17 @@ export function useChatSessions({
 
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const [sessions, setSessions] = useState<AgentSessionInfo[]>(
-    () => sessionsCache.get(scopeKey)?.sessions ?? [],
+    () => readSessionsCache(scopeKey).sessions,
   );
   const [otherSessions, setOtherSessions] = useState<OtherWorkspaceSession[]>(
-    () => sessionsCache.get(scopeKey)?.otherSessions ?? [],
+    () => readSessionsCache(scopeKey).otherSessions,
   );
   const [sessionsStoreId, setSessionsStoreId] = useState(
     () => scopeSessionStoreId(agentScope),
   );
   const [currentScopeName, setCurrentScopeName] = useState<string | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(
-    () => eagerLoad && !sessionsCache.has(scopeKey),
+    () => eagerLoad && !hasSessionsCache(scopeKey),
   );
   const [sessionLoading, setSessionLoading] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);

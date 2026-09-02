@@ -6,7 +6,7 @@ import { useCanvasModels } from '../../../hooks/useCanvasModels';
 import { useChatSessions } from '../../../agent-chat/sessions/useChatSessions';
 import { useConversationRuntimeStream } from '../../../agent-chat/runtime/useConversationRuntimeStream';
 import { useChatComposerInput } from './useChatComposerInput';
-import { conversationKeyFromScope } from '../../../agent-chat/runtime/useConversationRuntimeStream';
+import { conversationKeyFromScope } from '../../../agent-chat/runtime/conversationKey';
 import {
   captureConversationSequences,
   hydrateConversationMessages,
