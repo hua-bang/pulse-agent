@@ -39,7 +39,7 @@ describe('Feishu run cards', () => {
     const body = texts(card).join('\n');
 
     expect(card.header).toBeUndefined();
-    expect(body).toContain('<font color="blue">●</font> **Read AGENTS.md**');
+    expect(body).toContain('<font color="purple">●</font> **Read AGENTS.md**');
     expect(body).toContain('<font color="grey">运行中 · 3s</font>');
     expect(body).toContain('partial answer');
     expect(body).toContain('<font color="grey">Called tools 1 time</font>');
@@ -56,7 +56,7 @@ describe('Feishu run cards', () => {
     const body = texts(card).join('\n');
 
     expect(card.header).toBeUndefined();
-    expect(body).toContain('<font color="green">●</font> **Completed**');
+    expect(body).toContain('<font color="grey">●</font> **Completed**');
     expect(body).toContain('<font color="grey">已完成 1 个步骤，下面是最终答复。</font>');
     expect(body).toContain('<font color="grey">Called tools 1 time</font>');
     expect(body).not.toContain('执行过程 · 已完成');

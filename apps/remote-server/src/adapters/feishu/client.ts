@@ -542,12 +542,12 @@ function muted(content: string): string {
   return `<font color="grey">${content}</font>`;
 }
 
-function blue(content: string): string {
-  return `<font color="blue">${content}</font>`;
+function purple(content: string): string {
+  return `<font color="purple">${content}</font>`;
 }
 
-function green(content: string): string {
-  return `<font color="green">${content}</font>`;
+function red(content: string): string {
+  return `<font color="red">${content}</font>`;
 }
 
 function plainText(content: string): object {
@@ -635,6 +635,12 @@ function stepSubtitle(status: string, elapsed?: string): string {
   return parts.join(' · ');
 }
 
+function statusDot(status: string): string {
+  if (status === '出错') return red('●');
+  if (status === '已完成') return muted('●');
+  return purple('●');
+}
+
 function renderToolLine(toolCall: string): string {
   const { name, detail } = splitToolSummary(toolCall);
   const title = titleizeToolName(name || 'tool');
@@ -645,7 +651,7 @@ function toolTimeline(toolCalls: string[]): string {
   return toolCalls
     .flatMap((toolCall, index) => {
       const isLast = index === toolCalls.length - 1;
-      const row = `${green('●')} ${renderToolLine(toolCall)}`;
+      const row = `${muted('●')} ${muted(renderToolLine(toolCall))}`;
       return isLast ? [row] : [row, muted('│')];
     })
     .join('\n');
@@ -668,7 +674,7 @@ function buildRunProcessElements(context: RunCardContext, status: string, toolCa
   const title = stepTitle(status, context, normalizedToolCalls);
   const subtitle = stepSubtitle(status, context.elapsed);
   const elements: object[] = [
-    md(`${status === '已完成' ? green('●') : blue('●')} **${title}**`, 'heading'),
+    md(`${statusDot(status)} **${title}**`, 'heading'),
     md(muted(note ?? subtitle), 'notation'),
   ];
   if (status === '运行中' && context.detailText?.trim()) {

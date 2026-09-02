@@ -52,7 +52,7 @@ describe('feishu card tool list', () => {
     const card = buildProgressCard('working', tools, 20) as { header?: unknown };
     const body = texts(card).join('\n');
     expect(card.header).toBeUndefined();
-    expect(body).toContain('<font color="blue">●</font> **Canvas write node node-2**');
+    expect(body).toContain('<font color="purple">●</font> **Canvas write node node-2**');
     expect(body).toContain('<font color="grey">运行中 · 20s</font>');
     expect(body).toContain('working');
     expect(body).toContain('<font color="grey">Called tools 2 times</font>');
@@ -60,9 +60,9 @@ describe('feishu card tool list', () => {
     expect(JSON.stringify(card)).toContain('"text_size":"heading"');
     expect(JSON.stringify(card)).toContain('"text_size":"notation"');
     expect(body).not.toContain('**当前答复**\nworking');
-    // Tool rows stay quiet in the folded panel: no heavy status emoji or debug label.
-    expect(body).toContain('Canvas read node · node-1 · 18s');
-    expect(body).toContain('Canvas write node · node-2');
+    // Tool rows stay quiet in the folded panel: grey structure/text, no heavy status color or debug label.
+    expect(body).toContain('<font color="grey">Canvas read node · node-1 · 18s</font>');
+    expect(body).toContain('<font color="grey">Canvas write node · node-2</font>');
   });
 
   it('completed process card leaves only a completion row plus folded tool details', () => {
@@ -75,7 +75,7 @@ describe('feishu card tool list', () => {
     expect(panel!.expanded).toBe(false);
     expect(card.header).toBeUndefined();
     const body = texts(card).join('\n');
-    expect(body).toContain('<font color="green">●</font> **Completed**');
+    expect(body).toContain('<font color="grey">●</font> **Completed**');
     expect(body).toContain('<font color="grey">已完成 2 个步骤，下面是最终答复。</font>');
     expect(body).toContain('<font color="grey">Called tools 2 times</font>');
     expect(body).not.toContain('执行过程 · 已完成');

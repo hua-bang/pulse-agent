@@ -35,12 +35,12 @@ function muted(content: string): string {
   return `<font color="grey">${content}</font>`;
 }
 
-function blue(content: string): string {
-  return `<font color="blue">${content}</font>`;
+function purple(content: string): string {
+  return `<font color="purple">${content}</font>`;
 }
 
-function green(content: string): string {
-  return `<font color="green">${content}</font>`;
+function red(content: string): string {
+  return `<font color="red">${content}</font>`;
 }
 
 function plainText(content: string): object {
@@ -101,8 +101,8 @@ function toolTimeline(tools: ToolEntry[]): string {
   return tools
     .flatMap((tool, index) => {
       const isLast = index === tools.length - 1;
-      const dot = tool.done ? green('●') : blue('●');
-      const row = `${dot} ${toolLine(tool)}`;
+      const dot = muted(tool.done ? '●' : '◦');
+      const row = `${dot} ${muted(toolLine(tool))}`;
       return isLast ? [row] : [row, `${muted('│')}`];
     })
     .join('\n');
@@ -143,6 +143,12 @@ function stepSubtitle(status: string, elapsedSec?: number): string {
   return parts.join(' · ');
 }
 
+function statusDot(status: string): string {
+  if (status === '出错') return red('●');
+  if (status === '已完成') return muted('●');
+  return purple('●');
+}
+
 function toolPanel(tools: ToolEntry[]): object | undefined {
   if (tools.length === 0) return undefined;
   return {
@@ -168,7 +174,7 @@ function processElements(input: {
   const title = stepTitle(input.status, tools);
   const subtitle = stepSubtitle(input.status, input.elapsedSec);
   const elements: object[] = [
-    md(`${input.status === '已完成' ? green('●') : blue('●')} **${title}**`, 'heading'),
+    md(`${statusDot(input.status)} **${title}**`, 'heading'),
     md(muted(input.note ?? subtitle), 'notation'),
   ];
   if (input.answerPreview?.trim()) {
