@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import type { ToolCallStatus } from './types';
 
@@ -68,7 +69,21 @@ const parseSessionRefs = (tool: ToolCallStatus): SessionRef[] | null => {
 export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
   const { t } = useI18n();
   const sessionRefs = parseSessionRefs(tool);
-  const hasDetails = tool.result || tool.error || tool.args !== undefined;
+  const hasDetails = Boolean(tool.result || tool.error || tool.args !== undefined);
+  const [shouldRenderDetails, setShouldRenderDetails] = useState(() => expanded);
+
+  useEffect(() => {
+    if (expanded) {
+      setShouldRenderDetails(true);
+      return undefined;
+    }
+    if (!shouldRenderDetails) return undefined;
+
+    const timeout = window.setTimeout(() => setShouldRenderDetails(false), 180);
+    return () => window.clearTimeout(timeout);
+  }, [expanded, shouldRenderDetails]);
+
+  const renderDetails = hasDetails && (expanded || shouldRenderDetails);
 
   return (
     <>
@@ -104,32 +119,39 @@ export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
           ))}
         </div>
       )}
-      {expanded && hasDetails && (
-        <div className="chat-tool-call-result">
-          {tool.args !== undefined && (
-            <div className="chat-tool-call-section">
-              <div className="chat-tool-call-section-label">
-                {tool.name} · {t('chat.toolCalls.input')}
-              </div>
-              <pre>{formatArgs(tool.args)}</pre>
+      {renderDetails && (
+        <div
+          className={`chat-tool-call-result-reveal${expanded ? ' chat-tool-call-result-reveal--open' : ''}`}
+          aria-hidden={!expanded}
+        >
+          <div className="chat-tool-call-result-reveal__inner">
+            <div className="chat-tool-call-result">
+              {tool.args !== undefined && (
+                <div className="chat-tool-call-section">
+                  <div className="chat-tool-call-section-label">
+                    {tool.name} · {t('chat.toolCalls.input')}
+                  </div>
+                  <pre>{formatArgs(tool.args)}</pre>
+                </div>
+              )}
+              {tool.result && (
+                <div className="chat-tool-call-section">
+                  <div className="chat-tool-call-section-label">{t('chat.toolCalls.output')}</div>
+                  <pre>
+                    {tool.result.length > 2000
+                      ? `${tool.result.slice(0, 2000)}\n${t('chat.toolCalls.truncated')}`
+                      : tool.result}
+                  </pre>
+                </div>
+              )}
+              {tool.error && tool.error !== tool.result && (
+                <div className="chat-tool-call-section chat-tool-call-section--error">
+                  <div className="chat-tool-call-section-label">{t('chat.toolCalls.error')}</div>
+                  <pre>{tool.error}</pre>
+                </div>
+              )}
             </div>
-          )}
-          {tool.result && (
-            <div className="chat-tool-call-section">
-              <div className="chat-tool-call-section-label">{t('chat.toolCalls.output')}</div>
-              <pre>
-                {tool.result.length > 2000
-                  ? `${tool.result.slice(0, 2000)}\n${t('chat.toolCalls.truncated')}`
-                  : tool.result}
-              </pre>
-            </div>
-          )}
-          {tool.error && tool.error !== tool.result && (
-            <div className="chat-tool-call-section chat-tool-call-section--error">
-              <div className="chat-tool-call-section-label">{t('chat.toolCalls.error')}</div>
-              <pre>{tool.error}</pre>
-            </div>
-          )}
+          </div>
         </div>
       )}
     </>

@@ -48,6 +48,53 @@ function formatToolSignature(name: string, args: any): string {
   return `${name}(${parts.join(', ')})`;
 }
 
+const pickStringArg = (args: Record<string, unknown>, keys: string[]): string | null => {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+};
+
+const quoteInline = (value: string, max = 64): string => JSON.stringify(truncate(value, max));
+
+const describeSearchTarget = (args: Record<string, unknown>): string | null => (
+  pickStringArg(args, ['path'])
+  ?? pickStringArg(args, ['glob'])
+  ?? pickStringArg(args, ['type'])
+);
+
+export function formatToolDescription(tool: Pick<ToolCallStatus, 'name' | 'args'>): string | null {
+  if (!tool.args || typeof tool.args !== 'object') return null;
+  const args = tool.args as Record<string, unknown>;
+  const explicitDescription = pickStringArg(args, ['description']);
+  if (explicitDescription) return explicitDescription;
+
+  const filePath = pickStringArg(args, ['filePath', 'file_path', 'path']);
+  switch (tool.name) {
+    case 'read':
+      return filePath ? `Read ${truncate(filePath, 96)}` : null;
+    case 'write':
+      return filePath ? `Write ${truncate(filePath, 96)}` : null;
+    case 'edit':
+      return filePath ? `Edit ${truncate(filePath, 96)}` : null;
+    case 'grep': {
+      const pattern = pickStringArg(args, ['pattern', 'query']);
+      if (!pattern) return null;
+      const target = describeSearchTarget(args);
+      return target
+        ? `Search ${quoteInline(pattern)} in ${truncate(target, 72)}`
+        : `Search ${quoteInline(pattern)}`;
+    }
+    case 'ls': {
+      const path = pickStringArg(args, ['path']);
+      return path ? `List ${truncate(path, 96)}` : null;
+    }
+    default:
+      return null;
+  }
+}
+
 const TOOL_LABEL_SLUGS: Record<string, string> = {
   canvas_read_context: 'readCanvasContext',
   canvas_read_node: 'readNode',
@@ -193,9 +240,15 @@ export const ChatToolCalls = ({
           && status !== 'queued'
           && !!(tool.result || tool.error || tool.args !== undefined);
         const expanded = expandedTools.has(tool.id);
-        const showRawName = !TOOL_LABEL_SLUGS[tool.name]
+        const description = formatToolDescription(tool);
+        const label = description ?? formatToolLabel(tool.name, status, t);
+        const signature = formatToolSignature(tool.name, tool.args);
+        const showRawName = !description && (
+          !TOOL_LABEL_SLUGS[tool.name]
           || status === 'failed'
-          || status === 'cancelled';
+          || status === 'cancelled'
+        );
+        const headerTitle = description ? `${description} · ${signature}` : signature;
         const headerContent = (
           <>
             <span className="chat-tool-call-icon">
@@ -211,8 +264,8 @@ export const ChatToolCalls = ({
                 </svg>
               )}
             </span>
-            <span className="chat-tool-call-sig" title={formatToolSignature(tool.name, tool.args)}>
-              <span className="chat-tool-call-label">{formatToolLabel(tool.name, status, t)}</span>
+            <span className="chat-tool-call-sig" title={headerTitle}>
+              <span className="chat-tool-call-label">{label}</span>
               {showRawName && <span className="chat-tool-call-name">{tool.name}</span>}
             </span>
             {canToggle && (
