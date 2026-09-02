@@ -231,7 +231,7 @@ the handoff scan is gated on `handoffEnabled && role && !relayStop.stopped
 ## Renderer surfaces and the role-color cache
 
 - Mention popup: roles form the `'role'` mention-item group and are listed
-  FIRST in the `@` popup — `src/renderer/src/components/chat/hooks/useMentions.ts`'s
+  FIRST in the `@` popup — `src/renderer/src/components/chat/ChatComposer/useChatComposerInput.ts`'s
   own comment: "Chat roles lead the popup — addressing a persona is the
   primary reason to type `@` in a role-enabled conversation."
 - Speaker badge: `src/renderer/src/components/chat/ChatMessage.tsx` renders

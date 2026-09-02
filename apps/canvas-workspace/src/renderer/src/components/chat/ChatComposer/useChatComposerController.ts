@@ -5,7 +5,7 @@ import { conversationKeyId, type ConversationKey } from '../../../../../shared/c
 import { useCanvasModels } from '../../../hooks/useCanvasModels';
 import { useChatSessions } from '../../../agent-chat/sessions/useChatSessions';
 import { useConversationRuntimeStream } from '../../../agent-chat/runtime/useConversationRuntimeStream';
-import { useMentions } from './useMentions';
+import { useChatComposerInput } from './useChatComposerInput';
 import { conversationKeyFromScope } from '../../../agent-chat/runtime/useConversationRuntimeStream';
 import {
   captureConversationSequences,
@@ -15,7 +15,7 @@ import {
 import type { LoadedConversation } from '../../../agent-chat/sessions/loadedConversationSink';
 import { serializeEditable } from '../utils/mentions';
 
-interface UseChatComposerStateKeyedOptions {
+interface UseChatComposerControllerOptions {
   agentScope: AgentScope;
   scopeLabel?: string;
   allWorkspaces?: WorkspaceOption[];
@@ -41,7 +41,7 @@ interface UseChatComposerStateKeyedOptions {
  * snapshot and switching conversations never destroys/replays a sibling's
  * state. No turn lease / scope owner / reattach / replay compensation chains.
  */
-export function useChatComposerStateKeyed({
+export function useChatComposerController({
   agentScope,
   scopeLabel,
   allWorkspaces,
@@ -56,7 +56,7 @@ export function useChatComposerStateKeyed({
   getRequestContext,
   conversationKeyOverride,
   conversationVisible,
-}: UseChatComposerStateKeyedOptions) {
+}: UseChatComposerControllerOptions) {
   const canvasModels = useCanvasModels();
   const [conversationSessionId, setConversationSessionId] = useState<string | null>(
     conversationKeyOverride ?? null,
@@ -181,7 +181,7 @@ export function useChatComposerStateKeyed({
     return chatStream.sendMessage(...args);
   }, [chatStream.sendMessage, requestAgentPrewarm]);
 
-  const mentions = useMentions({
+  const mentions = useChatComposerInput({
     allWorkspaces,
     agentScope,
     nodes,

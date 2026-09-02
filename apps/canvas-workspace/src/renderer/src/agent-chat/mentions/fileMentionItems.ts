@@ -2,7 +2,7 @@ import type { DirEntry, MentionItem } from '../../types';
 
 /**
  * Flatten a project directory listing into file/folder mention candidates.
- * (Moved out of useMentions to keep the hook under the 500-line gate.)
+ * (Moved out of useChatComposerInput to keep the hook under the 500-line gate.)
  */
 export function flattenEntries(entries: DirEntry[], rootFolder: string, prefix = ''): MentionItem[] {
   const items: MentionItem[] = [];

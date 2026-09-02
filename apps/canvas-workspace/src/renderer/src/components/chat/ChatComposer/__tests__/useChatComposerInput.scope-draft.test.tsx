@@ -2,15 +2,15 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n';
-import type { AgentContextTabRef } from '../../../types';
-import type { AgentScope } from '../types';
-import { resetChatComposerDraftsForTests } from './chatComposerDraftStore';
-import { useMentions } from './useMentions';
+import { I18nProvider } from '../../../../i18n';
+import type { AgentContextTabRef } from '../../../../types';
+import type { AgentScope } from '../../types';
+import { resetChatComposerDraftsForTests } from '../../../../agent-chat/composer/chatComposerDraftStore';
+import { useChatComposerInput } from '../useChatComposerInput';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-type Hook = ReturnType<typeof useMentions>;
+type Hook = ReturnType<typeof useChatComposerInput>;
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -18,7 +18,7 @@ let latest: Hook | null = null;
 const onSubmit = vi.fn(async () => true);
 
 const Probe = ({ agentScope }: { agentScope: AgentScope }) => {
-  latest = useMentions({
+  latest = useChatComposerInput({
     agentScope,
     onSubmit,
   });

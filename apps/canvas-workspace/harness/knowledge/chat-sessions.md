@@ -32,7 +32,7 @@ independent runtime:
   ConversationKey; snapshot cache keeps getSnapshot referentially stable),
   `src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.ts`
   (keyed stream hook driving the store +
-  conversation IPC), `useChatComposerStateKeyed.ts` (composer root used by
+  conversation IPC), `useChatComposerController.ts` (composer root used by
   BOTH `ChatPanel` and `ChatPageBody`).
 
 Two conversations in one workspace run fully in parallel; a second turn against
@@ -80,7 +80,7 @@ Key invariants and their guards:
 - Renderer store + switch-only-selector + shared snapshot:
   `agent-chat/runtime/conversationStore.test.ts`, `agent-chat/runtime/useConversationRuntimeStream.test.tsx`,
   `agent-chat/runtime/useConversationRuntimeStream.shared-snapshot.test.tsx`,
-  `hooks/useChatComposerStateKeyed.test.tsx`.
+  `ChatComposer/__tests__/useChatComposerController.test.tsx`.
 - Session hydration is always qualified by `{ scope, sessionId }`; fetched
   messages are written to that conversation store BEFORE React adopts its
   selector. An unqualified `onMessagesLoaded(messages)` callback can capture
@@ -184,13 +184,13 @@ else will ever clear that seeded-true flag.
 
 **Submit veto.** Sending is vetoed while `sessionLoading` is true — the same
 rule that already blocks session switches while streaming. The veto is
-implemented in `useMentions`' `isSubmitBlocked`, not at a single call site,
+implemented in `useChatComposerInput`' `isSubmitBlocked`, not at a single call site,
 because the composer has TWO submit paths: the send button and
 `handleKeyDown`'s Enter key. A guard placed only in a caller's `handleSubmit`
 is a hole — one of the two paths would bypass it.
 
 Tests: `agent-chat/sessions/useChatSessions.test.tsx`,
-`hooks/useMentions.submit-veto.test.tsx`, `__tests__/ChatSessionLoading.test.tsx`
+`ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`, `__tests__/ChatSessionLoading.test.tsx`
 (all under `src/renderer/src/components/chat/`).
 
 ## Live Agent activity feedback
@@ -377,7 +377,7 @@ Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 `Canvas/hooks/useCanvasSyncEffects.test.ts`, `hooks/useNodes.test.tsx`, and
 `Workbench/__tests__/ChatDockLifecycle.test.tsx`. Review routing is pinned by
 `chat/__tests__/ChatPage.dom-review.test.tsx`,
-`chat/hooks/useSubmitDomReviewComments.test.tsx`, and
+`chat/ChatComposer/__tests__/useSubmitDomReviewComments.test.tsx`, and
 `Workbench/__tests__/useChatInsertionBridge.test.tsx`.
 
 ### Explicit Chat ↔ dock-tab context
@@ -555,7 +555,7 @@ that conversation without overwriting a newer live snapshot, and adopt its
 session id; leaving the error on the rejected key strands the optimistic user
 message in a conversation that no longer exists.
 
-Guard: `src/renderer/src/components/chat/hooks/useChatComposerStateKeyed.test.tsx`.
+Guard: `src/renderer/src/components/chat/ChatComposer/__tests__/useChatComposerController.test.tsx`.
 
 **Switching conversations while a run streams.** The rail stays usable: picking
 another session calls `disposeCurrentTurn` (via `useChatPagePendingSession`'s
@@ -742,7 +742,7 @@ that guard.
 Primary regression suites live in:
 
 - `src/renderer/src/agent-chat/sessions/useChatSessions.test.tsx`
-- `src/renderer/src/components/chat/hooks/useMentions.submit-veto.test.tsx`
+- `src/renderer/src/components/chat/ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`
 - `src/renderer/src/components/chat/__tests__/ChatSessionLoading.test.tsx`
 - `src/renderer/src/components/chat/__tests__/ChatSessionsRail.test.tsx`
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-content-tabs.test.ts`

@@ -7,7 +7,7 @@ import '../ChatPanel.css';
 import '../DomMention.css';
 import { ChatView } from '../ChatView';
 import { SessionBackBar } from '../SessionBackBar';
-import { useChatComposerStateKeyed } from '../hooks/useChatComposerStateKeyed';
+import { useChatComposerController } from '../ChatComposer/useChatComposerController';
 import { isExternalOnlyRoleMessage } from '../../../agent-chat/mentions/roleMentionItems';
 import { useComposerRequest } from './hooks/useComposerRequest';
 import { useAppShell } from '../../shell/AppShellProvider';
@@ -16,7 +16,7 @@ import type { AgentScope, ChatPanelProps } from '../types';
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';
 import { useStartSkillChat } from './hooks/useStartSkillChat';
-import { useSubmitDomReviewComments } from '../hooks/useSubmitDomReviewComments';
+import { useSubmitDomReviewComments } from '../ChatComposer/useSubmitDomReviewComments';
 import {
   type ChatTarget,
 } from '../../../agent-chat/target';
@@ -25,7 +25,7 @@ import { useRegisterChatTarget } from '../../../agent-chat/target/useRegisterCha
 import { ChatConversationStatus } from '../ChatConversationStatus';
 import { useChatPanelContext } from './hooks/useChatPanelContext';
 import { useChatPanelSessionNavigation } from './hooks/useChatPanelSessionNavigation';
-import { submitQuickAction } from '../hooks/submitQuickAction';
+import { submitQuickAction } from '../ChatComposer/submitQuickAction';
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,
@@ -152,7 +152,7 @@ export const ChatPanel = ({
     submitCurrentInputDuringRun,
     toggleSection,
     toggleToolExpand,
-  } = useChatComposerStateKeyed({
+  } = useChatComposerController({
     agentScope,
     scopeLabel,
     allWorkspaces,

@@ -25,7 +25,7 @@ import {
   getChatComposerDraft,
   subscribeChatComposerDraft,
   updateChatComposerDraft,
-} from './chatComposerDraftStore';
+} from '../../../agent-chat/composer/chatComposerDraftStore';
 import { useChatAttachments } from '../../../agent-chat/attachments/useChatAttachments';
 import { buildStaticMentionItems } from '../../../agent-chat/mentions/staticMentionItems';
 import { useI18n, type I18nKey } from '../../../i18n';
@@ -41,7 +41,7 @@ const tabKindLabelKey = (kind: AgentContextTabRef['kind']): I18nKey => {
     case 'terminal': return 'chat.tabKind.terminal';
   }
 };
-interface UseMentionsOptions {
+interface UseChatComposerInputOptions {
   allWorkspaces?: WorkspaceOption[];
   agentScope: AgentScope;
   nodes?: CanvasNode[];
@@ -73,7 +73,7 @@ interface UseMentionsOptions {
   isSubmitBlocked?: () => boolean;
 }
 
-export function useMentions({
+export function useChatComposerInput({
   allWorkspaces,
   agentScope,
   nodes,
@@ -86,7 +86,7 @@ export function useMentions({
   onSubmitDuringRun,
   getRequestContext,
   isSubmitBlocked,
-}: UseMentionsOptions) {
+}: UseChatComposerInputOptions) {
   const { t } = useI18n();
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);

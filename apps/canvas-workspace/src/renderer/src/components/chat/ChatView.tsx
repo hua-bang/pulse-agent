@@ -125,7 +125,7 @@ interface ChatViewProps {
 /**
  * Presentational body used by both ChatPanel (narrow right-side panel) and
  * ChatPage (full-screen page). Owns no state; callers pass the result of
- * useChatStream + useChatSessions + useMentions.
+ * useChatStream + useChatSessions + useChatComposerInput.
  */
 export const ChatView = ({
   className,

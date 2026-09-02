@@ -2,12 +2,12 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n';
-import { useMentions } from './useMentions';
+import { I18nProvider } from '../../../../i18n';
+import { useChatComposerInput } from '../useChatComposerInput';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-type Hook = ReturnType<typeof useMentions>;
+type Hook = ReturnType<typeof useChatComposerInput>;
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -28,7 +28,7 @@ async function mount(options: {
   onSubmitDuringRun?: (mode: 'steer' | 'follow-up', text: string) => Promise<boolean>;
 }): Promise<void> {
   const Probe = () => {
-    latest = useMentions({
+    latest = useChatComposerInput({
       agentScope: { kind: 'global' },
       onSubmit: options.onSubmit,
       onSubmitDuringRun: options.onSubmitDuringRun,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatImageAttachment } from '../../../types';
-import { submitQuickAction } from './submitQuickAction';
+import type { ChatImageAttachment } from '../../../../types';
+import { submitQuickAction } from '../submitQuickAction';
 
 const attachment: ChatImageAttachment = {
   id: 'ready-image',

@@ -8,7 +8,7 @@ import '../ChatPanel.css';
 import type { UnifiedSession } from '../ChatSessionsRail';
 import { ChatView } from '../ChatView';
 import { SessionBackBar, type SessionBackEntry } from '../SessionBackBar';
-import { useChatComposerStateKeyed } from '../hooks/useChatComposerStateKeyed';
+import { useChatComposerController } from '../ChatComposer/useChatComposerController';
 import { isExternalOnlyRoleMessage } from '../../../agent-chat/mentions/roleMentionItems';
 import { useAppShell } from '../../shell/AppShellProvider';
 import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from '../types';
@@ -23,8 +23,8 @@ import { useChatPageJumpNavigation } from './hooks/useChatPageJumpNavigation';
 import { useChatPageSessionRail } from './hooks/useChatPageSessionRail';
 import { useScopeRunningSessions } from '../../../agent-chat/sessions/useScopeRunningSessions';
 import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
-import { useSubmitDomReviewComments } from '../hooks/useSubmitDomReviewComments';
-import { submitQuickAction } from '../hooks/submitQuickAction';
+import { useSubmitDomReviewComments } from '../ChatComposer/useSubmitDomReviewComments';
+import { submitQuickAction } from '../ChatComposer/submitQuickAction';
 import { ChatPageRail, ChatPageTopbar } from '../ChatPageNavigationChrome';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from '../utils/chatPageDockTabs';
@@ -202,7 +202,7 @@ export const ChatPageBody = ({
     toggleSection,
     toggleSessionPinned,
     toggleToolExpand,
-  } = useChatComposerStateKeyed({
+  } = useChatComposerController({
     agentScope,
     scopeLabel,
     allWorkspaces,

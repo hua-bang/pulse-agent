@@ -6,15 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-import { useChatComposerStateKeyed } from './useChatComposerStateKeyed';
-import { I18nProvider } from '../../../i18n';
+import { useChatComposerController } from '../useChatComposerController';
+import { I18nProvider } from '../../../../i18n';
 import {
   readConversationSnapshot,
   resetConversationStoreForTests,
   setConversationLoading,
   setConversationMessages,
-} from '../../../agent-chat/runtime/conversationStore';
-import { conversationKey, type ConversationKey } from '../../../../../shared/conversation-runtime';
+} from '../../../../agent-chat/runtime/conversationStore';
+import { conversationKey, type ConversationKey } from '../../../../../../shared/conversation-runtime';
 
 const scope = { kind: 'workspace', workspaceId: 'ws-a' } as const;
 const keyA: ConversationKey = conversationKey(scope, 'session-a');
@@ -22,10 +22,10 @@ const keyB: ConversationKey = conversationKey(scope, 'session-b');
 
 let host: HTMLDivElement | null;
 let root: Root | null = null;
-let latest: ReturnType<typeof useChatComposerStateKeyed> | null = null;
+let latest: ReturnType<typeof useChatComposerController> | null = null;
 
 function Harness({ sessionId }: { sessionId: string | null }) {
-  latest = useChatComposerStateKeyed({
+  latest = useChatComposerController({
     agentScope: scope,
     skipInitialHistory: true,
     eagerLoad: false,
@@ -36,7 +36,7 @@ function Harness({ sessionId }: { sessionId: string | null }) {
 }
 
 function LiveHarness() {
-  latest = useChatComposerStateKeyed({
+  latest = useChatComposerController({
     agentScope: scope,
     skipInitialHistory: true,
     eagerLoad: false,
@@ -46,7 +46,7 @@ function LiveHarness() {
 }
 
 function HistoryHarness() {
-  latest = useChatComposerStateKeyed({
+  latest = useChatComposerController({
     agentScope: scope,
     skipInitialHistory: false,
     eagerLoad: false,
@@ -56,7 +56,7 @@ function HistoryHarness() {
 }
 
 function InputHarness() {
-  latest = useChatComposerStateKeyed({
+  latest = useChatComposerController({
     agentScope: scope,
     skipInitialHistory: true,
     eagerLoad: false,
@@ -67,7 +67,7 @@ function InputHarness() {
 }
 
 function VisibilityHarness({ visible }: { visible: boolean }) {
-  latest = useChatComposerStateKeyed({
+  latest = useChatComposerController({
     agentScope: scope,
     skipInitialHistory: false,
     eagerLoad: false,
@@ -94,7 +94,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('useChatComposerStateKeyed', () => {
+describe('useChatComposerController', () => {
   it('silently prewarms an empty conversation after a short delay', async () => {
     vi.useFakeTimers();
     const warmScope = vi.fn();

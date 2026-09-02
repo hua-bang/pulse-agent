@@ -1,4 +1,4 @@
-import type { ChatImageAttachment } from '../types';
+import type { ChatImageAttachment } from '../../types';
 
 export interface ChatComposerDraft {
   input: string;

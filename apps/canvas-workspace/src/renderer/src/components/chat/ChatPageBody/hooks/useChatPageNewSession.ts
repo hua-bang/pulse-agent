@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { scopeSessionStoreId } from '../../../../../../shared/agent-chat';
 import type { AgentNewSessionResult, AgentScope } from '../../types';
-import { clearChatComposerDraft } from '../../hooks/chatComposerDraftStore';
+import { clearChatComposerDraft } from '../../../../agent-chat/composer/chatComposerDraftStore';
 import { restoreComposerFocusAfterRender } from '../../utils/focusRecovery';
 
 interface Options {
