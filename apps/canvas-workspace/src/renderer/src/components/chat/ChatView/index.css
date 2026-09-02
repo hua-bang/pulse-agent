@@ -845,7 +845,6 @@
   .chat-md--streaming>*:last-child::after,
   .chat-spin,
   .chat-tool-call-spinner,
-  .chat-activity-status__spinner,
   .chat-message--anchor-flash,
   .chat-relay-dot {
     animation: none;
@@ -871,7 +870,6 @@
   .chat-mention-chip,
   .chat-mention-item,
   .chat-tool-call-chevron,
-  .chat-activity-status__chevron,
   .chat-tool-calls--collapsed {
     transition: none;
   }

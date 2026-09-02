@@ -164,8 +164,3 @@
 .chat-image-lightbox-nav--next {
   right: 18px;
 }
-
-.chat-tool-calls--collapsed .chat-tool-calls-summary,
-.chat-tool-calls-section-header .chat-tool-calls-summary {
-  color: #73726e;
-}

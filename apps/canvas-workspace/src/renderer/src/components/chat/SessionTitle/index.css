@@ -1,0 +1,41 @@
+/* Session previews retain structured references, but render them as compact
+   labels instead of leaking their serialized `@[...]` form and internal ids. */
+.chat-session-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* A reference chip's label is the whole point of the chip. Free-form title
+   text gives way first when the row runs out of room. */
+.chat-session-title-reference {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 132px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.chat-session-title-reference svg { flex-shrink: 0; }
+
+.chat-session-title-reference span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-session-title-text {
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -189,9 +189,9 @@ because the composer has TWO submit paths: the send button and
 `handleKeyDown`'s Enter key. A guard placed only in a caller's `handleSubmit`
 is a hole — one of the two paths would bypass it.
 
-Tests: `agent-chat/sessions/useChatSessions.test.tsx`,
-`ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`, `__tests__/ChatSessionLoading.test.tsx`
-(all under `src/renderer/src/components/chat/`).
+Tests: `src/renderer/src/agent-chat/sessions/useChatSessions.test.tsx`,
+`src/renderer/src/components/chat/ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`,
+and `src/renderer/src/components/chat/__tests__/ChatSessionLoading.test.tsx`.
 
 ## Live Agent activity feedback
 
@@ -230,8 +230,9 @@ running status occupies the title row's fixed status slot as a quiet spinner,
 never a second `Running` line. Do not add an in-thread progress banner that
 shifts the transcript.
 
-Guards: `__tests__/ChatMessages.accessibility.test.tsx`,
-`__tests__/ChatToolCalls.test.tsx`, and `__tests__/ChatSessionsRail.test.tsx`.
+Guards: `components/chat/ChatMessages/__tests__/ChatMessages.accessibility.test.tsx`,
+`components/chat/ChatMessage/ChatToolCalls/__tests__/ChatToolCalls.test.tsx`, and
+`components/chat/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`.
 
 ## Stopped-turn outcome lifecycle
 
@@ -239,7 +240,8 @@ A stopped turn keeps a compact recovery marker while it remains the latest
 user-visible outcome. Once a later user message moves the conversation on,
 that old marker is hidden; the partial assistant content stays in history.
 Failed-turn outcomes remain visible because their diagnostics and retry state
-are still relevant. Guard: `__tests__/ChatMessages.accessibility.test.tsx`.
+are still relevant. Guard:
+`components/chat/ChatMessages/__tests__/ChatMessages.accessibility.test.tsx`.
 
 ## Stable full-page session rail
 
@@ -290,7 +292,7 @@ structurally stable while the selected conversation changes scope.
 
 Guards: `agent-chat/sessions/useChatSessions.test.tsx` composes cross-scope loading with the
 unified rail and pins the one-source list contract;
-`__tests__/ChatSessionsRail.test.tsx` pins expansion preservation, pending-row
+`components/chat/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx` pins expansion preservation, pending-row
 feedback, the title-only row layout, precise recency ordering, and workspace
 row draft actions;
 `src/main/agent/__tests__/service-history.test.ts` pins active-store exclusion.
@@ -376,7 +378,7 @@ Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 `RightDock/__tests__/CanvasPreview.test.tsx`,
 `Canvas/hooks/useCanvasSyncEffects.test.ts`, `hooks/useNodes.test.tsx`, and
 `Workbench/__tests__/ChatDockLifecycle.test.tsx`. Review routing is pinned by
-`chat/__tests__/ChatPage.dom-review.test.tsx`,
+`chat/ChatPageBody/__tests__/ChatPage.dom-review.test.tsx`,
 `chat/ChatComposer/__tests__/useSubmitDomReviewComments.test.tsx`, and
 `Workbench/__tests__/useChatInsertionBridge.test.tsx`.
 
