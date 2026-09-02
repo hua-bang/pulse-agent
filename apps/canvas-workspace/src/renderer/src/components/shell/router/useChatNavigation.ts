@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   ChatTarget,
   ChatTargetBroker,
-} from '../ChatTargetContext';
+} from '../../chat/ChatTargetContext';
 import { isImeComposing } from '../../../utils/ime';
 
 interface UseChatNavigationOptions {

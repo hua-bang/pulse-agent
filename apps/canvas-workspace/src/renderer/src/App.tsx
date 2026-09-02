@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { useLocation } from 'wouter';
 import './App.css';
 import { AppShellProvider, useAppShell } from './components/shell/AppShellProvider';
-import { ConversationCompletionToastBridge } from './components/chat/ConversationCompletionToastBridge';
+import { ConversationCompletionToastBridge } from './components/shell/ConversationCompletionToastBridge';
 import { DeferredSettings } from './components/shell/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
 import { isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from './components/dock/RightDock';
@@ -30,7 +30,7 @@ import {
   useActiveChatTarget,
   useChatTargetBroker,
 } from './components/chat/ChatTargetContext';
-import { useChatNavigation } from './components/chat/hooks/useChatNavigation';
+import { useChatNavigation } from './components/shell/router/useChatNavigation';
 import type { AgentScope } from './components/chat/types';
 const MigrationSpinner = lazy(() => import('./components/shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_PLUGINS = '/plugins', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';

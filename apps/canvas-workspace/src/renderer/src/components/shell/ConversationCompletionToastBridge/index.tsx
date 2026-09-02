@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
-import { useI18n } from '../../i18n';
-import { useAppShell } from '../shell/AppShellProvider';
+import { useI18n } from '../../../i18n';
+import { useAppShell } from '../AppShellProvider';
 import {
   clearConversationCompletion,
   isConversationVisible,
   markConversationCompletionNotified,
   useConversationCompletions,
-} from './hooks/conversationCompletionStore';
+} from '../../chat/hooks/conversationCompletionStore';
 
 /** Always-mounted, low-interruption feedback for genuinely background turns. */
 export const ConversationCompletionToastBridge = () => {
