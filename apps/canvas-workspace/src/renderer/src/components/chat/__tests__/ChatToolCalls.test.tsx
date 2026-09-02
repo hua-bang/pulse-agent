@@ -113,6 +113,85 @@ describe('ChatToolCalls tab tool labels', () => {
     expect(host!.querySelectorAll('.chat-tool-call-name')).toHaveLength(0);
   });
 
+  it('uses the bash description as the command row label when available', () => {
+    renderToolCalls([{
+      id: 34,
+      name: 'bash',
+      status: 'succeeded',
+      args: {
+        command: 'gh pr list --search magibook',
+        description: 'Search Feishu docs and chats for magibook CLI references',
+      },
+      result: '{"output":"done","exitCode":0}',
+    }]);
+
+    expect(host!.querySelector('.chat-tool-call-label')?.textContent)
+      .toBe('Search Feishu docs and chats for magibook CLI references');
+    expect(host!.querySelector('.chat-tool-call-name')).toBeNull();
+    expect(host!.querySelector('.chat-tool-call-sig')?.getAttribute('title'))
+      .toContain('gh pr list --search magibook');
+  });
+
+  it('uses key arguments for filesystem and search tool row labels', () => {
+    renderToolCalls([
+      {
+        id: 35,
+        name: 'read',
+        status: 'succeeded',
+        args: { filePath: '/workspace/apps/canvas-workspace/src/App.tsx' },
+        result: 'source',
+      },
+      {
+        id: 36,
+        name: 'write',
+        status: 'succeeded',
+        args: { file_path: '/workspace/tmp/report.md', content: '# Report' },
+        result: 'ok',
+      },
+      {
+        id: 37,
+        name: 'edit',
+        status: 'succeeded',
+        args: { filePath: '/workspace/packages/core/index.ts', oldString: 'before', newString: 'after' },
+        result: 'ok',
+      },
+      {
+        id: 38,
+        name: 'grep',
+        status: 'succeeded',
+        args: { pattern: 'magibook', path: 'apps packages' },
+        result: 'matches',
+      },
+      {
+        id: 39,
+        name: 'ls',
+        status: 'succeeded',
+        args: { path: 'apps/canvas-workspace' },
+        result: 'files',
+      },
+    ]);
+
+    const labels = Array.from(host!.querySelectorAll('.chat-tool-call-label'))
+      .map(element => element.textContent);
+    expect(labels).toEqual([
+      'Read /workspace/apps/canvas-workspace/src/App.tsx',
+      'Write /workspace/tmp/report.md',
+      'Edit /workspace/packages/core/index.ts',
+      'Search "magibook" in apps packages',
+      'List apps/canvas-workspace',
+    ]);
+    expect(host!.textContent).not.toContain('Read file');
+    expect(host!.textContent).not.toContain('Search files');
+    expect(host!.textContent).not.toContain('List directory');
+    expect(host!.querySelectorAll('.chat-tool-call-name')).toHaveLength(0);
+  });
+
+  it('still falls back to localized labels when a tool has no descriptive args', () => {
+    renderToolCalls([{ id: 40, name: 'read', status: 'succeeded' }]);
+
+    expect(host!.querySelector('.chat-tool-call-label')?.textContent).toBe('Read file');
+  });
+
   it('keeps a completed tab result persistently expandable without an undo claim', () => {
     renderToolCalls([{
       id: 42,

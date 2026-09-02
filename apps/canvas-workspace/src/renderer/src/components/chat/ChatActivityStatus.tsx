@@ -3,15 +3,9 @@ import { useI18n, type I18nKey } from '../../i18n';
 import { SpinnerIcon } from '../icons';
 import { Button } from '../ui';
 import type { ToolCallStatus } from './types';
-import { displayToolStatus, formatToolLabel } from './ChatToolCalls';
+import { displayToolStatus, formatToolDescription, formatToolLabel } from './ChatToolCalls';
 
 type Translate = (key: I18nKey, params?: Record<string, string | number>) => string;
-
-const toolDescription = (tool: ToolCallStatus): string | null => {
-  if (tool.name !== 'bash' || !tool.args || typeof tool.args !== 'object') return null;
-  const description = (tool.args as { description?: unknown }).description;
-  return typeof description === 'string' && description.trim() ? description.trim() : null;
-};
 
 const activeTool = (tools: ToolCallStatus[]): ToolCallStatus | undefined => (
   [...tools].reverse().find(tool => tool.status === 'running')
@@ -39,7 +33,7 @@ export const describeChatActivity = (
 ): ActivitySnapshot => {
   const current = activeTool(tools);
   if (current) {
-    const label = toolDescription(current) ?? (current.status === 'queued'
+    const label = formatToolDescription(current) ?? (current.status === 'queued'
       ? t('chat.activity.queued')
       : formatToolLabel(current.name, current.status, t));
     return {
@@ -52,7 +46,7 @@ export const describeChatActivity = (
     const latest = tools[tools.length - 1]!;
     const status = displayToolStatus(latest);
     return {
-      label: formatToolLabel(latest.name, status, t),
+      label: formatToolDescription(latest) ?? formatToolLabel(latest.name, status, t),
       startedAt: latest.startedAt,
     };
   }

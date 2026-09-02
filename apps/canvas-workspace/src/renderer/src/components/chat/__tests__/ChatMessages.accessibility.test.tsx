@@ -179,6 +179,27 @@ describe('ChatMessages accessibility', () => {
     expect(el.querySelector('.chat-activity-status__elapsed')?.textContent).toMatch(/^8s$/);
   });
 
+  it('keeps a settled command description visible in the activity row', async () => {
+    const el = await renderMessages(
+      [{ role: 'assistant', content: '', timestamp: Date.now() }],
+      {
+        loading: true,
+        streamingTools: [{
+          id: 3,
+          name: 'bash',
+          status: 'succeeded',
+          startedAt: Date.now() - 9000,
+          finishedAt: Date.now() - 1000,
+          args: { description: 'Inspect command result summary' },
+          result: '{"output":"done","exitCode":0}',
+        }],
+      },
+    );
+
+    expect(el.querySelector('.chat-activity-status__label')?.textContent)
+      .toBe('Inspect command result summary');
+  });
+
   it.each([
     ['__global_chat__', 'session-global', 3],
     ['__scheduled__-task-1', 'session-scheduled', 4],
