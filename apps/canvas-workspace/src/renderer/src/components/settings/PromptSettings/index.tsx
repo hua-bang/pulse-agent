@@ -3,6 +3,7 @@ import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../../
 import { useI18n, type I18nKey } from '../../../i18n';
 import { Button, TextField } from '../../ui';
 import '../ModelSettings/index.css';
+import './index.css';
 
 interface UsePromptProfileResult {
   profile?: PromptProfileStatus;
