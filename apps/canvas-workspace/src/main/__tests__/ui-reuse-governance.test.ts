@@ -255,7 +255,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // createPortal directly.)
   // 9→8 (C1 lightbox re-shell): ChatImageLightbox's own `createPortal(...,
   // document.body)` call is gone — ui/Modal's internal <Portal> owns it now.
-  // 8→7 (Popover rect-anchoring batch): chat/ModelSwitcher's own
+  // 8→7 (Popover rect-anchoring batch): models/ModelSwitcher's own
   // `createPortal(..., document.body)` call is gone — it now re-shells onto
   // ui/Popover's new `anchorRef` rect-anchoring mode (added this batch to
   // unlock exactly this migration; ui/Popover's own createPortal exit was

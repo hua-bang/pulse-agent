@@ -17,6 +17,7 @@ leaf folder names were kept, only a group level was inserted):
 | `dock/` | `RightDock`, `LinkDrawer`, `ReferenceDrawer`, `EmbeddedBrowser`, `WorkspaceTerminalDock` |
 | `settings/` | `Settings`, `WorkspaceSettings`, `settings-config` |
 | `chat/` | Canvas Agent chat panel + `ChatFloatingButton` |
+| `models/` | Runtime model-selection UI shared by chat surfaces; provider/configuration editors remain under `settings/` |
 | `artifacts/`, `ui/`, `icons/` | Unchanged pre-existing domains (`ui/` is the blessed design-system set — governance and the ui-showcase reference it by path; do not move it) |
 
 ### Canvas icon family
