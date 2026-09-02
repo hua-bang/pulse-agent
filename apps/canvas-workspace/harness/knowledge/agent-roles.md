@@ -216,10 +216,12 @@ dashed underline —
 `roles.relayNamedBy` i18n key ("由 {name} 点名" in the zh locale, "Brought
 in by {name}" in en). Because a handoff can turn what started as a
 single-role turn into a relay mid-turn, the RelayBar can appear AFTER the
-turn has already started — pinned by
-`src/renderer/src/components/chat/hooks/relayTurnHandlers.test.ts`'s case
-"surfaces the bar mid-turn when a handoff grows a single-role turn into a
-relay."
+turn has already started. The keyed renderer updates `RelayProgress` from
+`role-turn-start` / `role-turn-end` inside
+`src/renderer/src/components/chat/hooks/useConversationRuntimeStream.ts`;
+`ChatView` renders the strip only once `total > 1`. The handoff-growth and
+completion-clear behavior is pinned at that public hook seam by
+`src/renderer/src/components/chat/hooks/useChatStream.keyed.test.tsx`.
 
 Default-assistant segments (no role — `role` is `null`) never hand off, and
 a pending graceful stop freezes the queue: in `src/main/agent/canvas-agent.ts`
@@ -235,14 +237,13 @@ the handoff scan is gated on `handoffEnabled && role && !relayStop.stopped
 - Speaker badge: `src/renderer/src/components/chat/ChatMessage.tsx` renders
   `message.speakerRoleName` / `message.speakerRoleColor` as the avatar
   initial and a name badge on assistant messages.
-- Per-segment bubbles + completion policy:
-  `src/renderer/src/components/chat/hooks/relayTurnHandlers.ts`
-  (`createRelayTurnHandlers` opens a fresh attributed bubble on
-  `role-turn-start` and freezes it with the authoritative response +
-  speaker snapshot on `role-turn-end`, so the NEXT segment's deltas can
-  never bleed into a finished one; `applyTurnCompletion` is the
-  final-merge policy at `chat-complete` for whatever segment is still
-  in-flight) — tested by `relayTurnHandlers.test.ts`.
+- Keyed renderer progress + completion policy:
+  `src/renderer/src/components/chat/hooks/useConversationRuntimeStream.ts`
+  uses `role-turn-start` / `role-turn-end` only for the live RelayBar
+  projection. The authoritative `chat-complete` payload settles the assistant
+  message, including its speaker snapshot and terminal status. This keeps
+  renderer state conversation-owned instead of recreating the deleted legacy
+  per-segment compensation path.
 - Progress strip: `src/renderer/src/components/chat/RelayBar.tsx`.
 - Settings editor: `src/renderer/src/components/chat/RolesSettings.tsx`,
   behind the Settings **Chat Roles** (`chat-roles`) section.
@@ -516,10 +517,9 @@ Primary regression suites live in:
   `chat-stop.ts`.
 - `src/main/agent/chat-failure-persistence.test.ts` — `createFailedTurnToolTracker`
   and `failedAssistantMessage`.
-- `src/renderer/src/components/chat/hooks/relayTurnHandlers.test.ts` —
-  segment bubble open/freeze on `role-turn-start`/`role-turn-end`, the
-  final-merge policy at `chat-complete`, and the mid-turn RelayBar
-  handoff-growth case.
+- `src/renderer/src/components/chat/hooks/useChatStream.keyed.test.tsx` —
+  conversation-keyed stream isolation, listener cleanup, run targeting, and
+  the mid-turn RelayBar handoff-growth/completion lifecycle.
 - `src/renderer/src/components/chat/hooks/roleMentionItems.test.ts` — the
   role-color TTL cache, recolor notifications, the external-only
   no-provider send guard, and the violet fallback on a failed library

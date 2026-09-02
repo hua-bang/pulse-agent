@@ -10,7 +10,11 @@ import type {
   CrossWorkspaceSessionGroup,
   SessionSearchHit,
 } from '../../../shared/agent-chat';
-import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../../shared/agent-roles';
+import type {
+  RoleTurnEndEvent,
+  RoleTurnRoleRef,
+  RoleTurnStartEvent,
+} from '../../../shared/agent-roles';
 import type { AgentObservabilityMarkInput } from '../../../shared/agent-observability';
 import type {
   McpAppToolApprovalResponse,
@@ -24,6 +28,16 @@ export interface AgentNewSessionResult {
   activeSessionId?: string | null;
   code?: string;
   error?: string;
+}
+
+/** Progress shown while a multi-role conversation advances through speakers. */
+export interface RelayProgress {
+  queue: Array<RoleTurnRoleRef | null>;
+  /** Index currently speaking; equals `total` once every segment finished. */
+  speaking: number;
+  total: number;
+  /** Set while a graceful stop is pending main-side confirmation. */
+  stopping?: boolean;
 }
 
 export interface AgentApi {

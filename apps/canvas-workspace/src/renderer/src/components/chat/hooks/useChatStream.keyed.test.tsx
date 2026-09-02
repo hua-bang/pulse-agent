@@ -151,6 +151,52 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
     expect(readConversationCompletions()[0]).toMatchObject({ key: keyA, status: 'done' });
   });
 
+  it('tracks relay progress when a handoff expands the queue mid-turn', async () => {
+    const callbacks = new Map<string, (payload: any) => void>();
+    const listen = (name: string) => (_sessionId: string, callback: (payload: any) => void) => {
+      callbacks.set(name, callback);
+      return () => undefined;
+    };
+    const agent = {
+      onTextDelta: listen('text'),
+      onToolCall: listen('tool-call'),
+      onToolResult: listen('tool-result'),
+      onToolInputStart: listen('tool-input-start'),
+      onToolInputDelta: listen('tool-input-delta'),
+      onToolInputEnd: listen('tool-input-end'),
+      onClarifyRequest: listen('clarify'),
+      onChatComplete: listen('complete'),
+      onRoleTurnStart: listen('role-start'),
+      onRoleTurnEnd: listen('role-end'),
+      conversationChat: vi.fn(async () => ({ ok: true, sessionId: keyA.sessionId })),
+    };
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent };
+    mount(keyA);
+
+    await act(async () => {
+      expect(await latest?.sendMessage('review this')).toBe(true);
+    });
+
+    const reviewer = { id: 'reviewer', name: 'Reviewer', color: '#d9730d' };
+    const architect = { id: 'architect', name: 'Architect', color: '#2383e2', namedBy: 'Reviewer' };
+    act(() => callbacks.get('role-start')?.({ index: 0, total: 1, queue: [reviewer] }));
+    expect(latest?.relay).toMatchObject({ speaking: 0, total: 1 });
+
+    act(() => callbacks.get('role-end')?.({ index: 0, total: 2 }));
+    act(() => callbacks.get('role-start')?.({ index: 1, total: 2, queue: [reviewer, architect] }));
+    expect(latest?.relay).toMatchObject({
+      speaking: 1,
+      total: 2,
+      queue: [reviewer, architect],
+    });
+
+    act(() => callbacks.get('role-end')?.({ index: 1, total: 2 }));
+    expect(latest?.relay?.speaking).toBe(2);
+
+    act(() => callbacks.get('complete')?.({ ok: true, response: 'done' }));
+    expect(latest?.relay).toBeNull();
+  });
+
   it('targets run controls at the selected conversation after switching', async () => {
     const conversationAbort = vi.fn(async () => ({ ok: true }));
     const conversationStopRelay = vi.fn(async () => ({ ok: true }));

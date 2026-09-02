@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentChatMessage, AgentRequestContext, ChatImageAttachment } from '../../../types';
+import type {
+  AgentChatMessage,
+  AgentRequestContext,
+  ChatImageAttachment,
+  RelayProgress,
+} from '../../../types';
 import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
 import type { ConversationKey } from '../../../../../shared/conversation-runtime';
 import {
@@ -17,7 +22,6 @@ import { extractMentionedWorkspaceIds } from '../utils/mentions';
 import { markAgentMilestone } from './markAgentMilestone';
 import { count } from '../../../perf/counters';
 import { useChatRunQueue } from './useChatRunQueue';
-import type { RelayProgress } from './relayTurnHandlers';
 import { createConversationTextBatcher } from './conversationTextBatcher';
 import { friendlyChatFailure } from './chatTurnOutcome';
 import { clearConversationCompletion, recordConversationCompletion, useConversationVisibility } from './conversationCompletionStore';

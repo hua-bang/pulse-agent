@@ -6,13 +6,19 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import type { AgentChatMessage, AgentScope, CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
+import type {
+  AgentChatMessage,
+  AgentScope,
+  CanvasModelStatus,
+  CanvasNode,
+  ChatImageAttachment,
+  RelayProgress,
+} from '../../types';
 import { ChatEmptyState, type ChatEmptyStateVariant } from './ChatEmptyState';
 import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
 import { ChatMessages } from './ChatMessages';
 import { RelayBar } from './RelayBar';
-import type { RelayProgress } from './hooks/relayTurnHandlers';
 import type { QueuedInput } from './hooks/useChatRunQueue';
 import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
 import { restoreComposerFocusAfterRender } from './utils/focusRecovery';
