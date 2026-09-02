@@ -9,48 +9,12 @@ import { Button, TextField } from '../../ui';
 import { useI18n } from '../../../i18n';
 import { ChatSessionRailItem } from './ChatSessionRailItem';
 import type { WorkspaceOption } from '../../../types';
-import type { ConversationCompletionStatus } from '../../../agent-chat/runtime/conversationCompletionStore';
+import type { ChatSessionsRailProps, UnifiedSession } from './types';
+export type { ChatSessionsRailProps, UnifiedSession } from './types';
 
 const SESSION_PREVIEW_LIMIT = 10;
 const GLOBAL_CHAT_ID = '__global_chat__';
 const EMPTY_WORKSPACES: WorkspaceOption[] = [];
-
-export interface UnifiedSession {
-  sessionId: string;
-  workspaceId: string;
-  workspaceName: string;
-  date: string;
-  updatedAt?: number;
-  messageCount: number;
-  preview?: string;
-  isCurrent?: boolean;
-  isPinned?: boolean;
-  /** True while this conversation has an active run (streaming in the
-   *  background or in the current surface). Lets the rail show which
-   *  conversations are alive in parallel. */
-  running?: boolean;
-  completionStatus?: ConversationCompletionStatus;
-}
-
-export interface ChatSessionsRailProps {
-  allSessions: UnifiedSession[];
-  /** Real workspace destinations, including those without any saved chats. */
-  workspaces?: WorkspaceOption[];
-  /** True while the session list is being (re)fetched, e.g. after a scope switch. */
-  loading?: boolean;
-  /** Prevents session mutations/navigation while a thread pointer is changing. */
-  disabled?: boolean;
-  /** Disables draft creation without blocking history navigation. */
-  newSessionDisabled?: boolean;
-  /** Selected conversation whose thread is currently being opened. */
-  pendingSessionKey?: string | null;
-  onNewSession: () => void | Promise<void>;
-  onNewSessionInWorkspace?: (workspaceId: string, trigger: Element | null) => void;
-  onSelectSession: (session: UnifiedSession) => void;
-  onRenameSession?: (session: UnifiedSession, title: string) => void | Promise<void>;
-  onDeleteSession?: (session: UnifiedSession) => void | Promise<void>;
-  onTogglePinSession?: (session: UnifiedSession) => void | Promise<void>;
-}
 
 /**
  * Always-visible sessions rail for ChatPage. Shows a single unified list of

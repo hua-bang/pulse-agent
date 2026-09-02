@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CanvasNode } from '../../../types';
-import type { SettingsSection } from '../../settings/Settings';
 import type { UnifiedSession } from '../ChatSessionsRail';
 import { ChatPageBody } from '../ChatPageBody';
 import type { SessionBackEntry } from '../SessionBackBar';
-import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from '../../../types';
+import type { AgentNewSessionResult, AgentScope } from '../../../types';
 import {
   GLOBAL_CHAT_STORE_ID,
   scheduledTaskIdFromStoreId,
@@ -15,27 +13,10 @@ import type {
   ChatExecutionPolicy,
   ChatTarget,
 } from '../../../agent-chat/target';
+import type { ChatPageProps } from './types';
 
 const workspaceIdFromScope = (scope: AgentScope): string | null =>
   scope.kind === 'workspace' ? scope.workspaceId : null;
-
-interface ChatPageProps {
-  allWorkspaces: WorkspaceOption[];
-  /** Scheduled task whose chat should be opened on entry (route query). */
-  openScheduledTaskId?: string | null;
-  /** Visible chat target that opened this full-page surface. */
-  initialTarget?: ChatTarget | null;
-  getWorkspaceNodes?: (workspaceId: string) => CanvasNode[];
-  getWorkspaceRootFolder?: (workspaceId: string) => string | undefined;
-  onWorkspaceContextRequest?: (workspaceId: string) => void;
-  /** Reports the workspace that owns the visible conversation. Global and
-   * scheduled conversations report null. */
-  onWorkspaceScopeChange?: (workspaceId: string | null) => void;
-  onExit: () => void;
-  onNodeFocus?: (workspaceId: string, nodeId: string) => void;
-  /** Opens the global Settings drawer focused on the given section. */
-  onOpenAppSettings: (section: SettingsSection) => void;
-}
 
 /**
  * Full-screen AI Chat page. Decoupled from the app-level activeId — the
