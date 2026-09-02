@@ -1,4 +1,5 @@
 import { useI18n } from '../../../i18n';
+import './index.css';
 
 /** One entry in the session back-navigation stack (where a jump started). */
 export interface SessionBackEntry {

@@ -2,9 +2,9 @@
 import { act, useCallback, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n';
-import { ChatSessionsRail } from '../ChatSessionsRail';
-import { useChatPageSessionRail } from '../ChatPageBody/hooks/useChatPageSessionRail';
+import { I18nProvider } from '../../../../i18n';
+import { ChatSessionsRail } from '../../ChatSessionsRail';
+import { useChatPageSessionRail } from '../hooks/useChatPageSessionRail';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

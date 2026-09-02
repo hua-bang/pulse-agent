@@ -2,9 +2,9 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentContextDomReviewComment } from '../../../types';
-import { I18nProvider } from '../../../i18n';
-import { ChatTargetProvider, useChatTargetBroker } from '../../../agent-chat/target';
+import type { AgentContextDomReviewComment } from '../../../../types';
+import { I18nProvider } from '../../../../i18n';
+import { ChatTargetProvider, useChatTargetBroker } from '../../../../agent-chat/target';
 
 const composer = vi.hoisted(() => ({
   focusInput: vi.fn(),
@@ -16,7 +16,7 @@ const chatView = vi.hoisted(() => ({
   latestProps: null as null | Record<string, unknown>,
 }));
 
-vi.mock('../ChatComposer/useChatComposerController', () => ({
+vi.mock('../../ChatComposer/useChatComposerController', () => ({
   useChatComposerController: () => ({
     activeSessionId: null,
     attachmentSendBlocked: false,
@@ -45,16 +45,16 @@ vi.mock('../ChatComposer/useChatComposerController', () => ({
   }),
 }));
 
-vi.mock('../ChatPageBody/hooks/useChatPageJumpNavigation', () => ({
+vi.mock('../hooks/useChatPageJumpNavigation', () => ({
   useChatPageJumpNavigation: () => ({ anchors: [], onJumpAnchor: vi.fn(), onSessionJump: vi.fn() }),
 }));
-vi.mock('../ChatPageBody/hooks/useChatPagePendingSession', () => ({
+vi.mock('../hooks/useChatPagePendingSession', () => ({
   useChatPagePendingSession: () => vi.fn(),
 }));
-vi.mock('../ChatPageBody/hooks/useChatPageSessionRail', () => ({
+vi.mock('../hooks/useChatPageSessionRail', () => ({
   useChatPageSessionRail: () => ({ allSessions: [], onNewSession: vi.fn() }),
 }));
-vi.mock('../../dock/RightDock/context', () => ({
+vi.mock('../../../dock/RightDock/context', () => ({
   useRightDock: () => ({ newLink: vi.fn(), openCanvasPreview: vi.fn(), toggleContentTabs: vi.fn() }),
   useRightDockState: () => ({
     activeTabId: 'chat',
@@ -63,22 +63,22 @@ vi.mock('../../dock/RightDock/context', () => ({
     tabs: [],
   }),
 }));
-vi.mock('../../shell/AppShellProvider', () => ({
+vi.mock('../../../shell/AppShellProvider', () => ({
   useAppShell: () => ({ notify: vi.fn() }),
 }));
-vi.mock('../ChatPageBody/ChatPageNavigationChrome', () => ({
+vi.mock('../ChatPageNavigationChrome', () => ({
   ChatPageRail: () => null,
   ChatPageTopbar: () => null,
 }));
-vi.mock('../ChatConversationStatus', () => ({ ChatConversationStatus: () => null }));
-vi.mock('../ChatView', () => ({
+vi.mock('../../ChatConversationStatus', () => ({ ChatConversationStatus: () => null }));
+vi.mock('../../ChatView', () => ({
   ChatView: (props: Record<string, unknown>) => {
     chatView.latestProps = props;
     return null;
   },
 }));
 
-import { ChatPageBody } from '../ChatPageBody';
+import { ChatPageBody } from '..';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

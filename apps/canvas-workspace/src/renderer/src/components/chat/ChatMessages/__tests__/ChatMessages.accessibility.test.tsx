@@ -2,9 +2,9 @@
 import { act, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n';
-import type { AgentChatMessage } from '../../../types';
-import { ChatMessages } from '../ChatMessages';
+import { I18nProvider } from '../../../../i18n';
+import type { AgentChatMessage } from '../../../../types';
+import { ChatMessages } from '..';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

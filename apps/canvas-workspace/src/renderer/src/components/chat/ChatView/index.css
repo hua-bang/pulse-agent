@@ -888,3 +888,18 @@
 .chat-mention-chip[data-node-type="dom"] .chat-mention-chip-icon {
   color: rgba(15, 118, 110, 0.82);
 }
+/* Resize handle shared by dock-hosted ChatView surfaces. */
+.chat-panel-resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.chat-panel-resize:hover,
+.chat-panel-resize--active {
+  background: rgba(55, 53, 47, 0.12);
+}

@@ -8,7 +8,7 @@ import { useChatDeliveryNotifier } from './useChatDeliveryNotifier';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const notify = vi.fn();
-vi.mock('../../components/shell/AppShellProvider', () => ({
+vi.mock('./AppShellProvider', () => ({
   useAppShell: () => ({ notify }),
 }));
 

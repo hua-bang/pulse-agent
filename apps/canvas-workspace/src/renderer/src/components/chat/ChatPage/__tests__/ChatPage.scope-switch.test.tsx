@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChatTarget } from '../../../agent-chat/target';
+import type { ChatTarget } from '../../../../agent-chat/target';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -11,7 +11,7 @@ const mockState = vi.hoisted(() => ({
   latestProps: null as null | Record<string, any>,
 }));
 
-vi.mock('../ChatPageBody', async () => {
+vi.mock('../../ChatPageBody', async () => {
   const React = await import('react');
   return {
     ChatPageBody: (props: {
@@ -82,7 +82,7 @@ vi.mock('../ChatPageBody', async () => {
   };
 });
 
-import { ChatPage } from '../ChatPage';
+import { ChatPage } from '..';
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;

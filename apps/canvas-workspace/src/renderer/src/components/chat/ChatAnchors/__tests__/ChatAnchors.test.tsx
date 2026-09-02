@@ -2,9 +2,9 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n';
-import { ChatAnchors } from '../ChatAnchors';
-import type { ChatAnchor } from '../utils/anchors';
+import { I18nProvider } from '../../../../i18n';
+import { ChatAnchors } from '..';
+import type { ChatAnchor } from '../../utils/anchors';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

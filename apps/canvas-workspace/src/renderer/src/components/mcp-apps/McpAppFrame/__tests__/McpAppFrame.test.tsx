@@ -3,13 +3,13 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import { buildMcpAppCsp } from '../../mcp-apps/McpAppFrame';
-import { McpAppsProvider } from '../../mcp-apps/McpAppsProvider';
-import { McpAppFrames } from '../ChatMessage/McpAppFrames';
-import { RightDockProvider, useDockContext, useRightDockState } from '../../dock/RightDock/context';
-import { DockPanes } from '../../dock/RightDock/DockPanes';
-import { mcpAppDockHostElementId } from '../../dock/RightDock/dock-tab-ids';
-import { I18nProvider } from '../../../i18n';
+import { buildMcpAppCsp } from '..';
+import { McpAppsProvider } from '../../McpAppsProvider';
+import { McpAppFrames } from '../../../chat/ChatMessage/McpAppFrames';
+import { RightDockProvider, useDockContext, useRightDockState } from '../../../dock/RightDock/context';
+import { DockPanes } from '../../../dock/RightDock/DockPanes';
+import { mcpAppDockHostElementId } from '../../../dock/RightDock/dock-tab-ids';
+import { I18nProvider } from '../../../../i18n';
 
 const bridgeState = vi.hoisted(() => ({ current: null as any }));
 vi.mock('@modelcontextprotocol/ext-apps/app-bridge', () => ({

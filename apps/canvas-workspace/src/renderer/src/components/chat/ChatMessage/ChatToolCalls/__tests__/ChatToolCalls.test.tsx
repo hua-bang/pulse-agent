@@ -3,9 +3,9 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { I18nProvider } from '../../../i18n';
-import { ChatToolCalls } from '../ChatMessage/ChatToolCalls';
-import type { ToolCallStatus } from '../../../types';
+import { I18nProvider } from '../../../../../i18n';
+import { ChatToolCalls } from '..';
+import type { ToolCallStatus } from '../../../../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useI18n } from '../../i18n';
-import { useAppShell } from '../../components/shell/AppShellProvider';
-import type { ChatDeliveryReceipt } from './index';
+import { useAppShell } from './AppShellProvider';
+import type { ChatDeliveryReceipt } from '../../agent-chat/target';
 
 export type ChatDeliveryNotice = ChatDeliveryReceipt | {
   status: 'failed';

@@ -721,7 +721,7 @@ The full-screen chat rail is one stable cross-scope projection.
 - Commit the current and other lists together after promotion.
 
 Guards: `src/renderer/src/agent-chat/sessions/useChatSessions.test.tsx` and
-`src/renderer/src/components/chat/__tests__/ChatSessionsRail.test.tsx`.
+`src/renderer/src/components/chat/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`.
 
 ### Stable chat-target fallbacks at the app root
 
@@ -744,7 +744,7 @@ Primary regression suites live in:
 - `src/renderer/src/agent-chat/sessions/useChatSessions.test.tsx`
 - `src/renderer/src/components/chat/ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`
 - `src/renderer/src/components/chat/__tests__/ChatSessionLoading.test.tsx`
-- `src/renderer/src/components/chat/__tests__/ChatSessionsRail.test.tsx`
+- `src/renderer/src/components/chat/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-content-tabs.test.ts`
 - `src/renderer/src/components/dock/RightDock/index.test.tsx`
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-width.test.ts`
