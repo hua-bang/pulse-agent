@@ -3,7 +3,7 @@ import {
   KNOWLEDGE_QUICK_ACTIONS,
   QUICK_ACTIONS,
   type EmptyStateQuickAction,
-} from '../constants';
+} from './quickActions';
 import { AppLogoIcon } from '../../icons';
 import { useI18n, type I18nKey } from '../../../i18n';
 

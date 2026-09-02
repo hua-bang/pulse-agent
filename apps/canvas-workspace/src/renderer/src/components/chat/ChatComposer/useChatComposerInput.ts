@@ -12,7 +12,7 @@ import { isImeComposing } from '../../../utils/ime';
 import {
   MENTION_MAX_ITEMS,
   sortAndCapMentionItems,
-} from '../constants';
+} from '../ChatMentionPopup/constants';
 import type { MentionItem, WorkspaceOption } from '../types';
 import type { AgentScope } from '../types';
 import { buildTabMentionItems, collectContextRefsFromEditable, createMentionChipElement, serializeEditable, withCollectedTabs } from '../utils/mentions';

@@ -1,38 +1,12 @@
-import type { MentionItem, QuickAction } from './types';
-import type { I18nKey } from '../../i18n';
-
-type LocalizedCanvasQuickAction = QuickAction & {
-  labelKey: I18nKey;
-  promptKey: I18nKey;
-};
-
-interface LocalizedScopedQuickAction<TKey extends string, TRequiresSelection extends boolean = boolean> {
-  key: TKey;
-  labelKey: I18nKey;
-  promptKey: I18nKey;
-  requiresSelection?: TRequiresSelection;
-}
-
-export type KnowledgeQuickAction = LocalizedScopedQuickAction<
-  'summarize_knowledge' | 'discover_themes' | 'improve_node'
->;
-
-export type GlobalQuickAction = LocalizedScopedQuickAction<
-  'review_recent_work' | 'find_connections' | 'surface_open_threads',
-  false
->;
-
-export type EmptyStateQuickAction =
-  | LocalizedCanvasQuickAction
-  | KnowledgeQuickAction
-  | GlobalQuickAction;
+import type { MentionItem } from '../../../types';
+import type { I18nKey } from '../../../i18n';
 
 export const CANVAS_MENTION_PREFIX = 'canvas:';
 export const SKILL_MENTION_PREFIX = 'skill:';
 /** Installed Agent Plugin preference: `@[plugin:<id>|<name>]`. */
 export const PLUGIN_MENTION_PREFIX = 'plugin:';
 /** Multi-role chat persona: `@[role:<id>|<name>]` (SSOT: shared/agent-roles). */
-export { ROLE_MENTION_PREFIX } from '../../../../shared/agent-roles';
+export { ROLE_MENTION_PREFIX } from '../../../../../shared/agent-roles';
 export const FOLDER_MENTION_PREFIX = 'folder:';
 export const TAG_MENTION_PREFIX = 'tag:';
 export const DOM_MENTION_PREFIX = 'dom:';
@@ -74,75 +48,6 @@ export const MENTION_GROUP_LABEL_KEY: Record<MentionGroupKey, I18nKey> = Object.
 ) as Record<MentionGroupKey, I18nKey>;
 
 export const MENTION_MAX_ITEMS = 30;
-
-export const QUICK_ACTIONS: LocalizedCanvasQuickAction[] = [
-  {
-    key: 'summarize_canvas',
-    label: 'Summarize canvas',
-    labelKey: 'chat.quick.summarizeCanvas',
-    prompt: 'Summarize the current canvas.',
-    promptKey: 'chat.quick.summarizeCanvasPrompt',
-  },
-  {
-    key: 'analyze_relations',
-    label: 'Analyze node relations',
-    labelKey: 'chat.quick.analyzeRelations',
-    prompt: 'Analyze the relationships between nodes on the current canvas.',
-    promptKey: 'chat.quick.analyzeRelationsPrompt',
-  },
-  {
-    key: 'create_mindmap',
-    label: 'Create mindmap',
-    labelKey: 'chat.quick.createMindmap',
-    prompt: 'Create a mindmap based on the current canvas.',
-    promptKey: 'chat.quick.createMindmapPrompt',
-  },
-  {
-    key: 'organize_selection',
-    label: 'Organize selection',
-    labelKey: 'chat.quick.organizeSelection',
-    prompt: 'Organize the currently selected nodes.',
-    promptKey: 'chat.quick.organizeSelectionPrompt',
-    requiresSelection: true,
-  },
-];
-
-export const KNOWLEDGE_QUICK_ACTIONS: KnowledgeQuickAction[] = [
-  {
-    key: 'summarize_knowledge',
-    labelKey: 'chat.quick.summarizeKnowledge',
-    promptKey: 'chat.quick.summarizeKnowledgePrompt',
-  },
-  {
-    key: 'discover_themes',
-    labelKey: 'chat.quick.discoverThemes',
-    promptKey: 'chat.quick.discoverThemesPrompt',
-  },
-  {
-    key: 'improve_node',
-    labelKey: 'chat.quick.improveNode',
-    promptKey: 'chat.quick.improveNodePrompt',
-    requiresSelection: true,
-  },
-];
-
-export const GLOBAL_QUICK_ACTIONS: GlobalQuickAction[] = [
-  {
-    key: 'review_recent_work',
-    labelKey: 'chat.quick.reviewRecentWork',
-    promptKey: 'chat.quick.reviewRecentWorkPrompt',
-  },
-  {
-    key: 'find_connections',
-    labelKey: 'chat.quick.findConnections',
-    promptKey: 'chat.quick.findConnectionsPrompt',
-  },
-  {
-    key: 'surface_open_threads',
-    labelKey: 'chat.quick.surfaceOpenThreads',
-    promptKey: 'chat.quick.surfaceOpenThreadsPrompt',
-  },
-];
 
 export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
   if (item.type === 'role') return 'role';

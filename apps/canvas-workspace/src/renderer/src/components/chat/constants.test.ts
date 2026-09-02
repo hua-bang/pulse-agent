@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { messages } from '../../i18n/messages';
-import { KNOWLEDGE_QUICK_ACTIONS, MENTION_GROUP_MAX_ITEMS, sortAndCapMentionItems } from './constants';
-import type { MentionItem } from './types';
+import { KNOWLEDGE_QUICK_ACTIONS } from './ChatView/quickActions';
+import { MENTION_GROUP_MAX_ITEMS, sortAndCapMentionItems } from './ChatMentionPopup/constants';
+import type { MentionItem } from '../../types';
 
 describe('KNOWLEDGE_QUICK_ACTIONS', () => {
   it('uses knowledge-specific semantic keys without embedded English copy', () => {

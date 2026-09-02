@@ -1,7 +1,6 @@
 import type { MouseEvent, ReactNode } from 'react';
 import type { AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, CanvasNode, ChatImageAttachment, WorkspaceOption } from '../../types';
 import type { SettingsSection } from '../settings/Settings';
-import type { I18nKey } from '../../i18n';
 export type { AgentNewSessionResult } from '../../types/agent-chat';
 export type {
   ChatRunInputMode,
@@ -111,12 +110,3 @@ export interface ChatPanelProps {
 }
 
 export type { ChatImageAttachment };
-
-export interface QuickAction {
-  key: 'summarize_canvas' | 'analyze_relations' | 'create_mindmap' | 'organize_selection';
-  label: string;
-  labelKey?: I18nKey;
-  prompt: string;
-  promptKey?: I18nKey;
-  requiresSelection?: boolean;
-}
