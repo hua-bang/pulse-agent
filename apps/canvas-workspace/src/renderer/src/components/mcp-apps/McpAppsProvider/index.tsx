@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import type { AgentScope } from '../../types';
+import type { AgentScope } from '../../../types';
 
 interface McpAppsContextValue {
   scope: AgentScope;

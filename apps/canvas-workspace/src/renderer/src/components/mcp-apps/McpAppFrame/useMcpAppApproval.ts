@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   McpAppToolApprovalDecision,
   McpAppToolApprovalRequest,
-} from '../../../../shared/mcp-apps';
+} from '../../../../../shared/mcp-apps';
 
 export const useMcpAppApproval = () => {
   const resolverRef = useRef<((decision: McpAppToolApprovalDecision) => void) | null>(null);

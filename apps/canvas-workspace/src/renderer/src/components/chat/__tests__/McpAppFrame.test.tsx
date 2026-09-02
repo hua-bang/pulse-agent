@@ -3,8 +3,9 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import { buildMcpAppCsp, McpAppFrames } from '../McpAppFrame';
-import { McpAppsProvider } from '../McpAppsContext';
+import { buildMcpAppCsp } from '../../mcp-apps/McpAppFrame';
+import { McpAppsProvider } from '../../mcp-apps/McpAppsProvider';
+import { McpAppFrames } from '../McpAppFrames';
 import { RightDockProvider, useDockContext, useRightDockState } from '../../dock/RightDock/context';
 import { DockPanes } from '../../dock/RightDock/DockPanes';
 import { mcpAppDockHostElementId } from '../../dock/RightDock/dock-tab-ids';

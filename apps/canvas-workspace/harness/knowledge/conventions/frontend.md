@@ -18,6 +18,7 @@ leaf folder names were kept, only a group level was inserted):
 | `settings/` | `Settings`, `WorkspaceSettings`, `settings-config` |
 | `chat/` | Canvas Agent chat panel + `ChatFloatingButton` |
 | `models/` | Runtime model-selection UI shared by chat surfaces; provider/configuration editors remain under `settings/` |
+| `mcp-apps/` | Sandboxed MCP App host, approval UI, AppBridge lifecycle, and inline↔RightDock surface placement; chat owns only the tool-result adapter |
 | `artifacts/`, `ui/`, `icons/` | Unchanged pre-existing domains (`ui/` is the blessed design-system set — governance and the ui-showcase reference it by path; do not move it) |
 
 Non-visual Agent Chat state and cross-surface coordination live outside the

@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import type { ToolCallStatus } from './types';
 
-const McpAppFrames = lazy(() => import('./McpAppFrame').then((module) => ({
+const McpAppFrames = lazy(() => import('./McpAppFrames').then((module) => ({
   default: module.McpAppFrames,
 })));
 

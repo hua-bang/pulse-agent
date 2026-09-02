@@ -22,7 +22,7 @@ import { RelayBar } from './RelayBar';
 import type { QueuedInput } from '../../agent-chat/runtime/useChatRunQueue';
 import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
 import { restoreComposerFocusAfterRender } from './utils/focusRecovery';
-import { McpAppsProvider } from './McpAppsContext';
+import { McpAppsProvider } from '../mcp-apps/McpAppsProvider';
 
 interface ChatViewProps {
   className?: string;

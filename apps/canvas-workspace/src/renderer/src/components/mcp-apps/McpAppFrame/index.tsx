@@ -6,18 +6,16 @@ import type {
   ListResourcesResult,
   ReadResourceResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import type { AgentChatMcpApp, AgentScope } from '../../types';
-import type { ToolCallStatus } from './types';
-import { useMcpAppsHost } from './McpAppsContext';
-import { serializeMcpAppToolArguments } from '../../../../shared/mcp-apps';
-import { useRightDock, useRightDockMcpAppHost, useRightDockState } from '../dock/RightDock/context';
-import { mcpAppTabId } from '../dock/RightDock/dock-tab-ids';
-import { isDockTabPresented } from '../dock/RightDock/dock-split-state';
-import { Button, Portal } from '../ui';
-import { useI18n } from '../../i18n';
+import type { AgentChatMcpApp, AgentScope } from '../../../types';
+import { serializeMcpAppToolArguments } from '../../../../../shared/mcp-apps';
+import { useRightDock, useRightDockMcpAppHost, useRightDockState } from '../../dock/RightDock/context';
+import { mcpAppTabId } from '../../dock/RightDock/dock-tab-ids';
+import { isDockTabPresented } from '../../dock/RightDock/dock-split-state';
+import { Button, Portal } from '../../ui';
+import { useI18n } from '../../../i18n';
 import { McpAppApprovalDialog } from './McpAppApprovalDialog';
 import { useMcpAppApproval } from './useMcpAppApproval';
-import './McpAppFrame.css';
+import './index.css';
 import { useMcpAppSurfacePlacement } from './useMcpAppSurfacePlacement';
 
 interface McpAppFrameProps {
@@ -434,19 +432,4 @@ export const McpAppFrame = ({ instanceId, app, args, fallbackResult, scope }: Mc
       <McpAppApprovalDialog request={approval.request} onDecision={approval.answer} />
     </div>
   );
-};
-
-export const McpAppFrames = ({ tools, instanceScope }: { tools: ToolCallStatus[]; instanceScope: string }) => {
-  const host = useMcpAppsHost();
-  if (!host) return null;
-  return <>{tools.filter(tool => tool.status === 'succeeded' && tool.mcpApp).map(tool => (
-    <McpAppFrame
-      key={`mcp-app-${tool.toolCallId ?? tool.id}`}
-      instanceId={`${instanceScope}:${tool.toolCallId ?? tool.id}`}
-      app={tool.mcpApp!}
-      args={tool.args}
-      fallbackResult={tool.result}
-      scope={host.scope}
-    />
-  ))}</>;
 };
