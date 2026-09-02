@@ -20,7 +20,7 @@ import { flattenEntries } from '../../../agent-chat/mentions/fileMentionItems';
 import { loadRoleMentionItems } from '../../../agent-chat/mentions/roleMentionItems';
 import { useEditableInputControl } from './useEditableInputControl';
 import { useSkillMentionInsertion } from './useSkillMentionInsertion';
-import { chatScopeId } from '../chatScope';
+import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import {
   getChatComposerDraft,
   subscribeChatComposerDraft,
@@ -97,7 +97,7 @@ export function useChatComposerInput({
   const filesCacheRef = useRef(new Map<string, MentionItem[]>());
   const skillsCacheRef = useRef(new Map<string, MentionItem[]>());
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
-  const scopeId = chatScopeId(agentScope);
+  const scopeId = scopeSessionStoreId(agentScope);
   const subscribeDraft = useCallback(
     (listener: () => void) => subscribeChatComposerDraft(scopeId, listener),
     [scopeId],

@@ -14,7 +14,6 @@ import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from '../type
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';
 import type { ChatContextSnapshot, ChatExecutionPolicy, ChatTarget } from '../../../agent-chat/target';
-import { chatScopeId } from '../chatScope';
 import { useRegisterChatTarget } from '../../../agent-chat/target/useRegisterChatTarget';
 import { ChatConversationStatus } from '../ChatConversationStatus';
 import { useChatPageTargetContext } from './hooks/useChatPageTargetContext';
@@ -124,7 +123,7 @@ export const ChatPageBody = ({
       dock,
     );
   }, [allWorkspaces, dock, dockState, workspaceId]);
-  const scopeId = chatScopeId(agentScope);
+  const scopeId = scopeSessionStoreId(agentScope);
   const sessionStoreId = scopeSessionStoreId(agentScope);
   const {
     inheritedContextChips,

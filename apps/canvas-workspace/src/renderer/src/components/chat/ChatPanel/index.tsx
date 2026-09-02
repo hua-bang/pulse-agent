@@ -20,7 +20,7 @@ import { useSubmitDomReviewComments } from '../ChatComposer/useSubmitDomReviewCo
 import {
   type ChatTarget,
 } from '../../../agent-chat/target';
-import { chatScopeId } from '../chatScope';
+import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import { useRegisterChatTarget } from '../../../agent-chat/target/useRegisterChatTarget';
 import { ChatConversationStatus } from '../ChatConversationStatus';
 import { useChatPanelContext } from './hooks/useChatPanelContext';
@@ -69,7 +69,7 @@ export const ChatPanel = ({
     [agentScopeProp, workspaceId],
   );
   const scopeWorkspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
-  const scopeId = chatScopeId(agentScope);
+  const scopeId = scopeSessionStoreId(agentScope);
   const scopeLabel = chatTargetLabel
     ?? (agentScope.kind === 'global'
       ? t('chat.scope.global')
