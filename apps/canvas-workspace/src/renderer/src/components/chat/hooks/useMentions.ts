@@ -26,7 +26,7 @@ import {
   subscribeChatComposerDraft,
   updateChatComposerDraft,
 } from './chatComposerDraftStore';
-import { useChatAttachments } from './useChatAttachments';
+import { useChatAttachments } from '../../../agent-chat/attachments/useChatAttachments';
 import { buildStaticMentionItems } from './staticMentionItems';
 import { useI18n, type I18nKey } from '../../../i18n';
 import { useContextMentionInsertions } from './useContextMentionInsertions';

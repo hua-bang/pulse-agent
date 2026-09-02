@@ -2,8 +2,8 @@
 import { act, useState, type Dispatch, type SetStateAction } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n';
-import type { ChatImageAttachment } from '../types';
+import { I18nProvider } from '../../i18n';
+import type { ChatImageAttachment } from '../../types';
 import { resetChatAttachmentRuntimesForTests } from './chatAttachmentRuntime';
 import { useChatAttachments } from './useChatAttachments';
 

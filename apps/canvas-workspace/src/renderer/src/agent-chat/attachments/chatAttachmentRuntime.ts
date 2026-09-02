@@ -1,4 +1,4 @@
-import type { ChatImageAttachment } from '../types';
+import type { ChatImageAttachment } from '../../types';
 
 export const CHAT_ATTACHMENT_LIMITS = {
   count: 6,

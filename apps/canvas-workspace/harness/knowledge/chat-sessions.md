@@ -13,7 +13,7 @@ chat topbar / dock content-tabs toggle, `RightDock/dock-width.ts`
 `session-mutation-coordinator.ts`, `prepared-chat.ts`,
 `canvas-run-registry.ts`, `run-session-context.ts`, `session-file-io.ts`,
 `clarification-registry.ts`, `session-store.ts`,
-`chat-failure-persistence.ts`, `useChatAttachments.ts`).
+`chat-failure-persistence.ts`, `src/renderer/src/agent-chat/attachments/useChatAttachments.ts`).
 
 ## Conversation-runtime architecture (2026-09)
 
@@ -704,7 +704,7 @@ accepted.
   its default return-string mode remains unchanged for other hosts.
 
 Guards: `useChatAttachments.test.tsx`
-(`src/renderer/src/components/chat/hooks/useChatAttachments.ts`),
+(`src/renderer/src/agent-chat/attachments/useChatAttachments.ts`),
 `segment-execution.test.ts`, `chat-protocol.test.ts`, and
 `chat-failure-persistence.test.ts` (all under `src/main/agent/`), plus
 `src/main/agent/backends/pi-agent-harness-backend.test.ts`.
@@ -755,6 +755,6 @@ Primary regression suites live in:
 - `src/main/agent/__tests__/service-session-mutation.test.ts`
 - `src/main/agent/clarification-registry.test.ts`
 - `src/main/agent/__tests__/session-store.test.ts`
-- `src/renderer/src/components/chat/hooks/useChatAttachments.test.tsx`
+- `src/renderer/src/agent-chat/attachments/useChatAttachments.test.tsx`
 - `src/main/agent/chat-failure-persistence.test.ts`
 - `src/renderer/src/components/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`

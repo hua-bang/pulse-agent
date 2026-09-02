@@ -5,7 +5,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import type { ChatImageAttachment } from '../types';
+import type { ChatImageAttachment } from '../../types';
 import { buildAttachmentFileName } from './attachmentFileName';
 import {
   cancelAttachmentWork,
@@ -15,7 +15,7 @@ import {
   reconcileAttachmentRuntime,
   reserveAttachmentFiles,
 } from './chatAttachmentRuntime';
-import { useI18n } from '../../../i18n';
+import { useI18n } from '../../i18n';
 
 interface UseChatAttachmentsOptions {
   scopeId: string;

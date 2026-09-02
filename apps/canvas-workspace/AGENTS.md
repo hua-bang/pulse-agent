@@ -150,7 +150,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   Guard: `src/main/agent/__tests__/session-store.test.ts`.
   Detail: `harness/knowledge/chat-sessions.md`.
 - Chat image uploads are bounded again in main before a prepared run is accepted; removing a ready draft attachment deletes its file, clearing a sent draft retains it, and a failed turn persists its tool-call snapshot with unfinished tools settled.
-  Guard: `useChatAttachments.test.tsx`, `chat-protocol.test.ts`, `chat-failure-persistence.test.ts`.
+  Guard: `src/renderer/src/agent-chat/attachments/useChatAttachments.test.tsx`, `chat-protocol.test.ts`, `chat-failure-persistence.test.ts`.
   Detail: `harness/knowledge/chat-sessions.md`.
 - An external-role driver rejection after its AbortSignal fires is a stopped turn, never a failed turn.
   Guard: `segment-execution.test.ts`, `chat-stop.test.ts`.
