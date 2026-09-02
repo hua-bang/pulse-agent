@@ -5,12 +5,12 @@ import {
   PencilIcon,
   SpinnerIcon,
   TrashIcon,
-} from '../icons';
-import { Button, TextField } from '../ui';
-import { useI18n } from '../../i18n';
-import { SessionTitle } from './SessionTitle';
-import type { ChatSessionsRailProps, UnifiedSession } from './ChatSessionsRail';
-import { sessionTitleText } from './utils/sessionTitle';
+} from '../../icons';
+import { Button, TextField } from '../../ui';
+import { useI18n } from '../../../i18n';
+import { SessionTitle } from '../SessionTitle';
+import type { ChatSessionsRailProps, UnifiedSession } from './';
+import { sessionTitleText } from '../utils/sessionTitle';
 
 interface Props {
   session: UnifiedSession;

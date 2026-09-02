@@ -3,7 +3,7 @@ import type { CanvasNode } from '../../../types';
 import { useRightDock, useRightDockState } from '../../dock/RightDock/context';
 import { isDockContentTabVisible, toggleFullPageDockContentTabs } from '../../dock/RightDock/dock-content-tabs';
 import type { SettingsSection } from '../../settings/Settings';
-import '../ChatPage.css';
+import './index.css';
 import type { UnifiedSession } from '../ChatSessionsRail';
 import { ChatView } from '../ChatView';
 import { SessionBackBar, type SessionBackEntry } from '../SessionBackBar';

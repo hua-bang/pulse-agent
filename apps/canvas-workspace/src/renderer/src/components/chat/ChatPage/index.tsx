@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CanvasNode } from '../../types';
-import type { SettingsSection } from '../settings/Settings';
-import type { UnifiedSession } from './ChatSessionsRail';
-import { ChatPageBody } from './ChatPageBody';
-import type { SessionBackEntry } from './SessionBackBar';
-import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from './types';
+import type { CanvasNode } from '../../../types';
+import type { SettingsSection } from '../../settings/Settings';
+import type { UnifiedSession } from '../ChatSessionsRail';
+import { ChatPageBody } from '../ChatPageBody';
+import type { SessionBackEntry } from '../SessionBackBar';
+import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from '../types';
 import {
   GLOBAL_CHAT_STORE_ID,
   scheduledTaskIdFromStoreId,
   scopeSessionStoreId,
-} from '../../../../shared/agent-chat';
+} from '../../../../../shared/agent-chat';
 import type {
   ChatContextSnapshot,
   ChatExecutionPolicy,
   ChatTarget,
-} from '../../agent-chat/target';
+} from '../../../agent-chat/target';
 
 const workspaceIdFromScope = (scope: AgentScope): string | null =>
   scope.kind === 'workspace' ? scope.workspaceId : null;
