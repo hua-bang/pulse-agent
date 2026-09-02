@@ -1,15 +1,15 @@
 import { useCallback } from 'react';
-import type { AgentSessionInfo } from '../../../types';
+import type { AgentSessionInfo } from '../../../../types';
 import type {
   AgentScope,
   OtherWorkspaceSession,
   WorkspaceOption,
-} from '../types';
-import type { ChatSessionsRailProps, UnifiedSession } from '../ChatSessionsRail';
-import { scopeFromSessionStoreId } from '../../../agent-chat/target/sessionScope';
-import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
+} from '../../types';
+import type { ChatSessionsRailProps, UnifiedSession } from '../../ChatSessionsRail';
+import { scopeFromSessionStoreId } from '../../../../agent-chat/target/sessionScope';
+import { restoreComposerFocusAfterRender } from '../../utils/focusRecovery';
 import { useStableSessionRail } from './useStableSessionRail';
-import type { ConversationCompletionStatus } from '../../../agent-chat/runtime/conversationCompletionStore';
+import type { ConversationCompletionStatus } from '../../../../agent-chat/runtime/conversationCompletionStore';
 
 interface Options {
   agentScope: AgentScope;

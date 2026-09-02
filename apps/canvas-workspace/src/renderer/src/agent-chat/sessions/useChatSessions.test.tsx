@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentChatMessage, AgentScope, AgentSessionInfo } from '../../types';
 import { I18nProvider } from '../../i18n';
 import { resetChatSessionsCacheForTests, useChatSessions } from './useChatSessions';
-import { useChatPageSessionRail } from '../../components/chat/hooks/useChatPageSessionRail';
+import { useChatPageSessionRail } from '../../components/chat/ChatPageBody/hooks/useChatPageSessionRail';
 import { conversationKey } from '../../../../shared/conversation-runtime';
 import {
   resetConversationStoreForTests,

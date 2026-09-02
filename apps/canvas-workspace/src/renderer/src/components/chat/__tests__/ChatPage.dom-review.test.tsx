@@ -45,13 +45,13 @@ vi.mock('../hooks/useChatComposerStateKeyed', () => ({
   }),
 }));
 
-vi.mock('../hooks/useChatPageJumpNavigation', () => ({
+vi.mock('../ChatPageBody/hooks/useChatPageJumpNavigation', () => ({
   useChatPageJumpNavigation: () => ({ anchors: [], onJumpAnchor: vi.fn(), onSessionJump: vi.fn() }),
 }));
-vi.mock('../hooks/useChatPagePendingSession', () => ({
+vi.mock('../ChatPageBody/hooks/useChatPagePendingSession', () => ({
   useChatPagePendingSession: () => vi.fn(),
 }));
-vi.mock('../hooks/useChatPageSessionRail', () => ({
+vi.mock('../ChatPageBody/hooks/useChatPageSessionRail', () => ({
   useChatPageSessionRail: () => ({ allSessions: [], onNewSession: vi.fn() }),
 }));
 vi.mock('../../dock/RightDock/context', () => ({

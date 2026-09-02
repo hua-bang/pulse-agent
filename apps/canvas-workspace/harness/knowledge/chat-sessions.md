@@ -310,7 +310,7 @@ menu for now. Guard:
 
 ## Full-page chat topbar vs dock content tabs
 
-The full-page chat topbar (`chat/ChatPageBody.tsx`, shared by the AI Chat
+The full-page chat topbar (`chat/ChatPageBody/index.tsx`, shared by the AI Chat
 page and a scheduled task's chat page) has NO close button. Its right-most
 control instead shows/hides the dock's CONTENT tabs (link / artifact /
 node-detail / canvas-preview) beside the chat, and must never navigate — a

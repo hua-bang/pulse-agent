@@ -48,7 +48,7 @@ pathRules:
       - src/renderer/src/agent-chat/runtime/**
       - src/renderer/src/components/chat/hooks/useChatComposerStateKeyed.ts
       - src/renderer/src/components/chat/ChatPanel.tsx
-      - src/renderer/src/components/chat/ChatPageBody.tsx
+      - src/renderer/src/components/chat/ChatPageBody/index.tsx
       - harness/mock-llm.mjs
       - harness/mock-llm.test.mjs
     quick:

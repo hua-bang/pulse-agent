@@ -1,11 +1,11 @@
 import { useCallback, useMemo } from 'react';
-import type { AgentChatMessage } from '../../../types';
-import type { AgentScope, WorkspaceOption } from '../types';
-import type { UnifiedSession } from '../ChatSessionsRail';
-import type { SessionBackEntry } from '../SessionBackBar';
-import { buildAnchorElementId, buildChatAnchors } from '../utils/anchors';
-import { sessionTitleText } from '../utils/sessionTitle';
-import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
+import type { AgentChatMessage } from '../../../../types';
+import type { AgentScope, WorkspaceOption } from '../../types';
+import type { UnifiedSession } from '../../ChatSessionsRail';
+import type { SessionBackEntry } from '../../SessionBackBar';
+import { buildAnchorElementId, buildChatAnchors } from '../../utils/anchors';
+import { sessionTitleText } from '../../utils/sessionTitle';
+import { scopeSessionStoreId } from '../../../../../../shared/agent-chat';
 
 const flashAnchor = (scopeId: string, messageIndex: number, delay = 0) => {
   window.setTimeout(() => {
