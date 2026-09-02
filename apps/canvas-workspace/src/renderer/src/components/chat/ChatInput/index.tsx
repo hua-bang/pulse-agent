@@ -1,15 +1,15 @@
 import { useMemo, type ClipboardEventHandler, type KeyboardEventHandler, type ReactNode, type RefObject } from 'react';
-import type { CanvasModelStatus, ChatImageAttachment } from '../../types';
-import { ImageIcon, PlusIcon } from '../icons';
-import { MentionNodeIcon } from './utils/mentions';
-import { ModelSwitcher } from '../models/ModelSwitcher';
-import type { SelectedContextChip } from './types';
-import { useI18n } from '../../i18n';
-import { CHAT_MENTION_LISTBOX_ID, chatMentionOptionId } from './ChatMentionPopup';
+import type { CanvasModelStatus, ChatImageAttachment } from '../../../types';
+import { ImageIcon, PlusIcon } from '../../icons';
+import { MentionNodeIcon } from '../utils/mentions';
+import { ModelSwitcher } from '../../models/ModelSwitcher';
+import type { SelectedContextChip } from '../types';
+import { useI18n } from '../../../i18n';
+import { CHAT_MENTION_LISTBOX_ID, chatMentionOptionId } from '../ChatMentionPopup';
 import { ChatInputAttachments } from './ChatInputAttachments';
 import { ChatRunQueue } from './ChatRunQueue';
-import type { QueuedInput } from '../../agent-chat/runtime/useChatRunQueue';
-import { Button } from '../ui';
+import type { QueuedInput } from '../../../agent-chat/runtime/useChatRunQueue';
+import { Button } from '../../ui';
 
 interface ChatInputProps {
   loading: boolean;

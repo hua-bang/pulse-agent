@@ -1,7 +1,7 @@
-import { useI18n } from '../../i18n';
-import { ListLinesIcon, SteerIcon, TrashIcon } from '../icons';
-import { Button } from '../ui';
-import type { QueuedInput } from '../../agent-chat/runtime/useChatRunQueue';
+import { useI18n } from '../../../i18n';
+import { ListLinesIcon, SteerIcon, TrashIcon } from '../../icons';
+import { Button } from '../../ui';
+import type { QueuedInput } from '../../../agent-chat/runtime/useChatRunQueue';
 
 interface Props {
   inputs: QueuedInput[];

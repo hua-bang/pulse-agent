@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import type { ChatImageAttachment } from '../../types';
-import { useI18n } from '../../i18n';
-import { toFileUrl } from '../../utils/fileUrl';
-import { ImageIcon } from '../icons';
-import { ChatImageLightbox, type LightboxImage } from './ChatImageLightbox';
+import type { ChatImageAttachment } from '../../../types';
+import { useI18n } from '../../../i18n';
+import { toFileUrl } from '../../../utils/fileUrl';
+import { ImageIcon } from '../../icons';
+import { ChatImageLightbox, type LightboxImage } from '../ChatImageLightbox';
 
 interface Props {
   attachments: ChatImageAttachment[];
