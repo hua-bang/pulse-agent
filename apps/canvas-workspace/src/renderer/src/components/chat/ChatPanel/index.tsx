@@ -3,7 +3,7 @@ import { ChatAnchors } from '../ChatAnchors';
 import { ChatHeader } from '../ChatHeader';
 import { SessionTitle } from '../SessionTitle';
 import { sessionTitleText } from '../utils/sessionTitle';
-import '../ChatPanel.css';
+import './index.css';
 import '../DomMention.css';
 import { ChatView } from '../ChatView';
 import { SessionBackBar } from '../SessionBackBar';

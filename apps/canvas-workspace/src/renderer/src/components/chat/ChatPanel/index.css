@@ -1,0 +1,292 @@
+/* ─── Panel container ─────────────────────────────────────── */
+
+.chat-panel {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fdfcfb;
+  border-left: 1px solid rgba(55, 53, 47, 0.08);
+  font-family: var(--font);
+  position: relative;
+}
+
+/* ─── Header ──────────────────────────────────────────────── */
+
+.chat-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 10px 14px 10px 18px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(55, 53, 47, 0.06);
+  background: #ffffff;
+}
+
+.chat-panel-title-wrapper {
+  position: relative;
+  min-width: 0;
+}
+
+.chat-panel-title-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 280px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #37352f;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  padding: 5px 7px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.chat-panel-title-btn:hover {
+  background: rgba(55, 53, 47, 0.06);
+}
+
+.chat-panel-title-btn svg {
+  color: inherit;
+}
+
+.chat-panel-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-panel-title-chevron {
+  color: #b4b4b0 !important;
+  margin-left: -2px;
+}
+
+.chat-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ─── Session menu ────────────────────────────────────────── */
+
+.chat-session-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  min-width: 260px;
+  max-width: 360px;
+  background: #fff;
+  border: 1px solid rgba(55, 53, 47, 0.09);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  padding: 4px;
+  max-height: min(560px, calc(100vh - 116px));
+  overflow-y: auto;
+  animation: chat-menu-in 0.12s ease-out;
+}
+
+@keyframes chat-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-session-menu-new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  font-size: 13px;
+  color: #37352f;
+  transition: background 0.1s;
+}
+
+.chat-session-menu-new:hover,
+.chat-session-menu-new:focus-visible {
+  outline: none;
+  background: rgba(55, 53, 47, 0.06);
+}
+
+.chat-session-menu-divider {
+  height: 1px;
+  background: rgba(55, 53, 47, 0.06);
+  margin: 4px 0;
+}
+
+.chat-session-menu-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9b9a97;
+  padding: 4px 10px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chat-session-menu-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.chat-session-menu-list--other {
+  max-height: 280px;
+}
+
+.chat-session-menu-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #9b9a97;
+}
+
+.chat-spin {
+  animation: spin 0.7s linear infinite;
+}
+
+.chat-session-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  font-size: 13px;
+  color: #37352f;
+  transition: background 0.1s;
+  text-align: left;
+}
+
+.chat-session-menu-item:hover,
+.chat-session-menu-item:focus-visible {
+  outline: none;
+  background: rgba(55, 53, 47, 0.06);
+}
+
+.chat-session-menu-item--active,
+.chat-session-menu-item--active:focus-visible {
+  background: rgba(55, 53, 47, 0.04);
+}
+
+.chat-session-menu-item svg {
+  color: #9b9a97;
+  flex-shrink: 0;
+}
+
+.chat-session-menu-item-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-session-menu-item-count {
+  font-size: 11px;
+  color: #b4b4b0;
+  flex-shrink: 0;
+}
+
+.chat-session-menu-item--other-ws .chat-session-menu-item-text {
+  opacity: 0.85;
+}
+
+.chat-session-menu-item-ws {
+  font-size: 10px;
+  color: #9b9a97;
+  background: rgba(55, 53, 47, 0.06);
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-session-menu-label-detail {
+  margin-left: 3px;
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.chat-session-menu-item.ui-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  height: auto;
+  min-height: 28px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+}
+
+.chat-session-menu-item.ui-btn:hover:not(:disabled),
+.chat-session-menu-item.ui-btn:focus-visible {
+  outline: none;
+  background: var(--surface-hover);
+}
+
+.chat-panel-action-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9b9a97;
+  transition: background 0.1s, color 0.1s;
+}
+
+/* data-active is the on-state of action buttons that toggle something (the
+ * full-page chat's Tab-panel switch), sharing the hover treatment. */
+.chat-panel-action-btn:hover,
+.chat-panel-action-btn[data-active='true'] {
+  background: rgba(55, 53, 47, 0.08);
+  color: #37352f;
+}
+
+/* Stays in place (not hidden) when there's nothing to toggle yet — e.g. the
+ * Tab-panel switch before any dock content tab exists — so the control
+ * doesn't jump around the topbar as tabs come and go. pointer-events: none
+ * keeps :hover above from ever matching, instead of restating its color as
+ * a disabled-hover override (which would count as a second hardcoded-color
+ * line against the ui-reuse-governance ratchet for the same token value). */
+.chat-panel-action-btn:disabled {
+  cursor: default;
+  opacity: 0.35;
+  pointer-events: none;
+}

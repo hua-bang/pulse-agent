@@ -1,4 +1,5 @@
 import { useMemo, type ClipboardEventHandler, type KeyboardEventHandler, type ReactNode, type RefObject } from 'react';
+import './index.css';
 import type { CanvasModelStatus, ChatImageAttachment } from '../../../types';
 import { ImageIcon, PlusIcon } from '../../icons';
 import { MentionNodeIcon } from '../utils/mentions';

@@ -6,6 +6,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import './index.css';
 import type {
   AgentChatMessage,
   AgentScope,

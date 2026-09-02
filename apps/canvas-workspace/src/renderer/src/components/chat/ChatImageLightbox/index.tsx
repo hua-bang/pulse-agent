@@ -17,11 +17,12 @@
  */
 
 import { useCallback, useEffect, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { CheckIcon, CloseIcon, CopyIcon } from '../icons';
-import { Modal } from '../ui';
-import { useI18n } from '../../i18n';
-import { copyTextToClipboard } from '../../utils/clipboard';
-import { toFileUrl } from '../../utils/fileUrl';
+import './index.css';
+import { CheckIcon, CloseIcon, CopyIcon } from '../../icons';
+import { Modal } from '../../ui';
+import { useI18n } from '../../../i18n';
+import { copyTextToClipboard } from '../../../utils/clipboard';
+import { toFileUrl } from '../../../utils/fileUrl';
 
 export interface LightboxImage {
   src: string;

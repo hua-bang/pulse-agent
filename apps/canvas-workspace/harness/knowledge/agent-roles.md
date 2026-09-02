@@ -212,7 +212,7 @@ Auto-appended queue entries carry `namedBy` (the name of the role whose
 reply @-mentioned them in). `RelayBar.tsx` renders those steps with a
 dashed underline —
 `.chat-relay-step--handoff { text-decoration: underline dashed; }` in
-`src/renderer/src/components/chat/ChatPanel.css` — and a tooltip using the
+`src/renderer/src/components/chat/ChatView/index.css` — and a tooltip using the
 `roles.relayNamedBy` i18n key ("由 {name} 点名" in the zh locale, "Brought
 in by {name}" in en). Because a handoff can turn what started as a
 single-role turn into a relay mid-turn, the RelayBar can appear AFTER the

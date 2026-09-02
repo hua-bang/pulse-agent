@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from 'react';
+import './index.css';
 import type { AgentChatMessage, CanvasNode } from '../../../types';
 import { BotAvatarIcon } from '../../icons';
 import { ChatMessage } from '../ChatMessage';

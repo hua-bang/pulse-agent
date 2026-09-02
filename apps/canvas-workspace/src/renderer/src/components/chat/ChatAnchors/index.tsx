@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { ListLinesIcon } from '../icons';
-import { useI18n } from '../../i18n';
-import { DropdownShell } from '../ui';
-import type { ChatAnchor } from './utils/anchors';
+import './index.css';
+import { ListLinesIcon } from '../../icons';
+import { useI18n } from '../../../i18n';
+import { DropdownShell } from '../../ui';
+import type { ChatAnchor } from '../utils/anchors';
 
 interface ChatAnchorsProps {
   anchors: ChatAnchor[];

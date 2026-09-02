@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
+import './index.css';
 import type { AgentChatMessage, CanvasNode } from '../../../types';
 import { toFileUrl } from '../../../utils/fileUrl';
 import { BotAvatarIcon, PencilIcon, RefreshIcon } from '../../icons';
