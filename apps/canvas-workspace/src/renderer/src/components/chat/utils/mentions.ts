@@ -5,7 +5,7 @@ import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
 import { MENTION_RE, decodeMentionPart, encodeMentionPart, pipedMentionLabel, protectMentionMarkers, restoreMentionMarkersInAttributes, restoreMentionMarkersInText, transformHtmlText } from './mentionMarkers';
 import { writeDomSelectionDataset } from './domMentionData';
-import { roleColorSoft } from './roleColors';
+import { roleColorSoft } from '../../../utils/roleColors';
 import { sessionTitleText } from './sessionTitle';
 import { pluginMentionIconMarkup } from './pluginMentionIcons';
 import {

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
  * Walks the STATIC import graph from the renderer entry (main.tsx) and fails
  * if any watch-listed package becomes statically reachable, which would
  * silently fold it back into the startup chunk. Maintained lazy boundaries:
- *  - chat/utils/mermaid.ts does `import('mermaid')` (keeps mermaid + its
+ *  - renderer utils/mermaid.ts does `import('mermaid')` (keeps mermaid + its
  *    diagram sub-chunks out of the entry).
  *  - GraphPageLazy (B6) React.lazy-loads react-force-graph-2d + d3-force.
  *  - DefaultCanvasNode (C1/C6 + webview startup) React.lazy-loads the 6
@@ -173,13 +173,13 @@ describe('bundle boundaries (static import graph from renderer entry)', () => {
   it.each(WATCHLIST)('%s stays dynamic-only (never in the startup chunk)', (pkg) => {
     expect(
       packages.has(pkg),
-      `${pkg} became statically reachable from main.tsx — it will be folded into the eagerly-parsed entry chunk. Load it via import() instead (see chat/utils/mermaid.ts).`,
+      `${pkg} became statically reachable from main.tsx — it will be folded into the eagerly-parsed entry chunk. Load it via import() instead (see utils/mermaid.ts).`,
     ).toBe(false);
   });
 
   it('mermaid lazy boundary still exists', () => {
     const mermaidUtil = readFileSync(
-      join(srcRoot, 'renderer/src/components/chat/utils/mermaid.ts'),
+      join(srcRoot, 'renderer/src/utils/mermaid.ts'),
       'utf-8',
     );
     expect(mermaidUtil).toMatch(/import\(\s*['"]mermaid['"]\s*\)/);

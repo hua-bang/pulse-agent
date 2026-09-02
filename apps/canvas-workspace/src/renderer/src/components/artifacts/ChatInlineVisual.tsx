@@ -21,7 +21,7 @@ import './artifacts.css';
 import { useRightDock } from '../dock/RightDock';
 import { extractPartialStringField } from './partialJson';
 import { STREAMING_SHELL, withAutoHeight } from './streamingShell';
-import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
+import { renderMermaidSource, type MermaidRenderResult } from '../../utils/mermaid';
 
 export interface InlineVisualPayload {
   type: ArtifactType;

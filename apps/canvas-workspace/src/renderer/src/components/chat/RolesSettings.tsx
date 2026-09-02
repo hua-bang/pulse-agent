@@ -10,7 +10,7 @@ import {
 import { useI18n } from '../../i18n';
 import { Button, SegmentedControl, SwatchRow, TextField } from '../ui';
 import { invalidateRoleMentionItems } from './hooks/roleMentionItems';
-import { roleColorSoft } from './utils/roleColors';
+import { roleColorSoft } from '../../utils/roleColors';
 import './ModelSettings.css';
 import './RolesSettings.css';
 

@@ -303,7 +303,7 @@
 - **类别**:bundle
 - **证据**:`App.tsx` 顶层 `import { GraphPage } from './components/WorkspaceNodes/GraphPage'`(及 `NodeDetailPage`/`NodesPage`)。`GraphPage.tsx:11` 静态 `import ForceGraph2D from 'react-force-graph-2d'`。路由在渲染时由 `GRAPH_ENABLED`/`NODES_ENABLED`(`App.tsx:60-61,555`,默认 disabled)gate,但静态导入使 force-graph + d3 在启动 chunk 中。`{GRAPH_ENABLED && (...)}` 只影响渲染不影响打包。
 - **用户影响**:**精确化**:这是从本地磁盘加载 bundle 的 Electron 桌面应用,无每用户网络"下载"成本;真实成本是更大启动 chunk + 启动时对 react-force-graph-2d 及其 d3-force 的一次性 parse/eval,即便 graph/nodes 视图 flag-disabled。故 low。
-- **修复建议**:把实验视图改 `React.lazy + dynamic import` gate 在 flag 后(镜像 `chat/utils/mermaid.ts` 已用的 `import('mermaid')` 模式),则 force-graph chunk 仅在 flag 开启且路由打开时加载。
+- **修复建议**:把实验视图改 `React.lazy + dynamic import` gate 在 flag 后(镜像 `utils/mermaid.ts` 已用的 `import('mermaid')` 模式),则 force-graph chunk 仅在 flag 开启且路由打开时加载。
 - **置信度**:0.92
 
 #### L-Graph-Reheat / L-Focus 等图层细节已并入 H8 与 L7,不再重复。
