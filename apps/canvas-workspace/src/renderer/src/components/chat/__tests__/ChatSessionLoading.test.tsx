@@ -35,20 +35,23 @@ const messagesProps = {
 };
 
 const viewProps = {
-  ...messagesProps,
-  onQuickAction: vi.fn(),
-  input: '',
-  editableRef: { current: null },
-  mentionOpen: false,
-  mentionItems: [],
-  mentionIndex: 0,
-  onSelectMention: vi.fn(),
-  onMentionIndexChange: vi.fn(),
-  onInput: vi.fn(),
-  onKeyDown: vi.fn(),
-  onPaste: vi.fn(),
-  onSubmit: vi.fn(async () => true),
-  onAbort: vi.fn(async () => true),
+  chrome: {},
+  thread: { ...messagesProps, messages: [], loading: false },
+  context: { onQuickAction: vi.fn() },
+  composer: {
+    input: '',
+    editableRef: { current: null },
+    mentionOpen: false,
+    mentionItems: [],
+    mentionIndex: 0,
+    onSelectMention: vi.fn(),
+    onMentionIndexChange: vi.fn(),
+    onInput: vi.fn(),
+    onKeyDown: vi.fn(),
+    onPaste: vi.fn(),
+    onSubmit: vi.fn(async () => true),
+    onAbort: vi.fn(async () => true),
+  },
 };
 
 const PRIOR_SESSION: AgentChatMessage[] = [
@@ -105,7 +108,7 @@ describe('session-detail loading state', () => {
     // sessionLoading in the seam, ChatView fell through to the empty state
     // for the whole IPC round trip.
     const el = await render(
-      <ChatView {...viewProps} messages={[]} loading={false} sessionLoading />,
+      <ChatView {...viewProps} thread={{ ...viewProps.thread, sessionLoading: true }} />,
     );
 
     expect(el.querySelector('.chat-thread-skeleton')).toBeNull();
@@ -120,7 +123,7 @@ describe('session-detail loading state', () => {
 
   it('falls back to the empty state for a genuinely empty session', async () => {
     const el = await render(
-      <ChatView {...viewProps} messages={[]} loading={false} sessionLoading={false} />,
+      <ChatView {...viewProps} thread={{ ...viewProps.thread, sessionLoading: false }} />,
     );
 
     expect(el.querySelector('.chat-thread-skeleton')).toBeNull();
@@ -132,14 +135,15 @@ describe('session-detail loading state', () => {
     const el = await render(
       <ChatView
         {...viewProps}
-        messages={[]}
-        loading={false}
-        contextComposer
-        modelStatus={UNCONFIGURED_MODEL}
-        modelSelection={{ mode: 'auto' }}
-        modelLabel="Auto"
-        onSelectModel={vi.fn(async () => undefined)}
-        onOpenModelSettings={onOpenModelSettings}
+        composer={{
+          ...viewProps.composer,
+          contextComposer: true,
+          modelStatus: UNCONFIGURED_MODEL,
+          modelSelection: { mode: 'auto' },
+          modelLabel: 'Auto',
+          onSelectModel: vi.fn(async () => undefined),
+          onOpenModelSettings,
+        }}
       />,
     );
 

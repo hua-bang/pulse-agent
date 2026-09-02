@@ -11,7 +11,6 @@ import { ChatInputAttachments } from './ChatInputAttachments';
 import { ChatRunQueue } from './ChatRunQueue';
 import type { QueuedInput } from '../../../agent-chat/runtime/useChatRunQueue';
 import { Button } from '../../ui';
-
 interface ChatInputProps {
   loading: boolean;
   input: string;

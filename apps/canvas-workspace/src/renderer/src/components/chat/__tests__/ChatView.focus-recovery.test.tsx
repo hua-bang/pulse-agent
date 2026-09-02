@@ -12,31 +12,22 @@ let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
 const baseProps = {
-  loading: false,
-  workspaceId: 'workspace-1',
-  streamingTools: [],
-  messageTools: new Map(),
-  collapsedSections: new Set<number>(),
-  expandedTools: new Set<number>(),
-  pendingClarify: null,
-  clarifyInput: '',
-  onClarifyInputChange: vi.fn(),
-  onAnswerClarification: vi.fn(async () => undefined),
-  onToggleSection: vi.fn(),
-  onToggleToolExpand: vi.fn(),
-  onQuickAction: vi.fn(),
-  input: '',
-  mentionOpen: false,
-  mentionItems: [],
-  mentionIndex: 0,
-  onSelectMention: vi.fn(),
-  onMentionIndexChange: vi.fn(),
-  onInput: vi.fn(),
-  onKeyDown: vi.fn(),
-  onPaste: vi.fn(),
-  onSubmit: vi.fn(async () => true),
-  onAbort: vi.fn(async () => true),
-} satisfies Omit<ComponentProps<typeof ChatView>, 'messages' | 'editableRef'>;
+  chrome: {},
+  thread: {
+    messages: [], loading: false, workspaceId: 'workspace-1', streamingTools: [],
+    messageTools: new Map(), collapsedSections: new Set<number>(), expandedTools: new Set<number>(),
+    pendingClarify: null, clarifyInput: '', onClarifyInputChange: vi.fn(),
+    onAnswerClarification: vi.fn(async () => undefined), onToggleSection: vi.fn(),
+    onToggleToolExpand: vi.fn(),
+  },
+  context: { onQuickAction: vi.fn() },
+  composer: {
+    input: '', editableRef: createRef<HTMLDivElement>(), mentionOpen: false, mentionItems: [], mentionIndex: 0,
+    onSelectMention: vi.fn(), onMentionIndexChange: vi.fn(), onInput: vi.fn(),
+    onKeyDown: vi.fn(), onPaste: vi.fn(), onSubmit: vi.fn(async () => true),
+    onAbort: vi.fn(async () => true),
+  },
+} satisfies ComponentProps<typeof ChatView>;
 
 afterEach(() => {
   if (root) act(() => root?.unmount());
@@ -48,7 +39,7 @@ afterEach(() => {
 
 const renderChat = async (
   messages: AgentChatMessage[],
-  overrides: Partial<ComponentProps<typeof ChatView>> = {},
+  threadOverrides: Partial<ComponentProps<typeof ChatView>['thread']> = {},
 ) => {
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -59,9 +50,8 @@ const renderChat = async (
       <I18nProvider>
         <ChatView
           {...baseProps}
-          {...overrides}
-          messages={messages}
-          editableRef={editableRef}
+          thread={{ ...baseProps.thread, ...threadOverrides, messages }}
+          composer={{ ...baseProps.composer, editableRef }}
         />
       </I18nProvider>,
     );

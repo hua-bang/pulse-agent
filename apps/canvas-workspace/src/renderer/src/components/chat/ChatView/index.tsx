@@ -1,207 +1,40 @@
-import {
-  useCallback,
-  type ClipboardEventHandler,
-  type KeyboardEventHandler,
-  type MouseEvent as ReactMouseEvent,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+import { useCallback } from 'react';
 import './index.css';
-import type {
-  AgentChatMessage,
-  AgentScope,
-  CanvasModelStatus,
-  CanvasNode,
-  ChatImageAttachment,
-  RelayProgress,
-} from '../../../types';
-import { ChatEmptyState, type ChatEmptyStateVariant } from './ChatEmptyState';
+import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInput } from '../ChatInput';
 import { ChatMentionPopup } from '../ChatMentionPopup';
 import { ChatMessages } from '../ChatMessages';
 import { RelayBar } from './RelayBar';
-import type { QueuedInput } from '../../../agent-chat/runtime/useChatRunQueue';
-import type { MentionItem, PendingClarification, ToolCallStatus } from '../../../types';
-import type { SelectedContextChip } from '../ChatComposer/types';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 import { McpAppsProvider } from '../../mcp-apps/McpAppsProvider';
-
-interface ChatViewProps {
-  className?: string;
-  header?: ReactNode;
-  beforeHeader?: ReactNode;
-  /** Rendered between the header and the messages list (e.g. session back bar). */
-  banner?: ReactNode;
-  pendingLabel?: string;
-
-  // Streaming + messages
-  messages: AgentChatMessage[];
-  loading: boolean;
-  agentScope?: AgentScope;
-  /**
-   * True while the selected conversation's messages are being fetched. Keeps
-   * the thread mounted (showing a skeleton) instead of falling through to the
-   * empty state, which is what a scope switch used to render for the whole
-   * round trip.
-   */
-  sessionLoading?: boolean;
-  workspaceId: string;
-  rootFolder?: string;
-  streamingTools: ToolCallStatus[];
-  messageTools: Map<number, ToolCallStatus[]>;
-  collapsedSections: Set<number>;
-  expandedTools: Set<number>;
-  pendingClarify: PendingClarification | null;
-  clarifyInput: string;
-  clarificationAnswering?: boolean;
-  clarificationError?: string | null;
-  onClarifyInputChange: (value: string) => void;
-  onAnswerClarification: (answerOverride?: string) => Promise<void>;
-  /** Multi-role relay progress (only rendered while a relay turn runs). */
-  relay?: RelayProgress | null;
-  onStopRelay?: () => void;
-  onToggleSection: (messageIndex: number) => void;
-  onToggleToolExpand: (toolId: number) => void;
-  onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
-
-  // Canvas context
-  nodes?: CanvasNode[];
-  selectedContext?: SelectedContextChip[];
-  showContextChips?: boolean;
-  onRemoveContext?: (key: string) => void;
-  onNodeFocus?: (nodeId: string) => void;
-
-  // Quick actions (empty state)
-  onQuickAction: (prompt: string, quickAction?: string) => Promise<void> | void;
-  emptyState?: ReactNode;
-  inputPlaceholder?: string;
-
-  // Input
-  input: string;
-  attachments?: ChatImageAttachment[];
-  editableRef: RefObject<HTMLDivElement>;
-  mentionOpen: boolean;
-  mentionItems: MentionItem[];
-  mentionIndex: number;
-  onSelectMention: (item: MentionItem) => void;
-  onMentionIndexChange: (index: number) => void;
-  onInput: () => void;
-  onKeyDown: KeyboardEventHandler<HTMLDivElement>;
-  onPaste: ClipboardEventHandler<HTMLDivElement>;
-  onAttachFiles?: (files: FileList | File[]) => void;
-  onRemoveAttachment?: (id: string) => void;
-  onRetryAttachment?: (id: string) => void;
-  sendDisabled?: boolean;
-  interactionDisabled?: boolean;
-  runInputDisabled?: boolean;
-  onSubmit: () => Promise<boolean>;
-  onQueue?: () => Promise<boolean>;
-  queuedInputs?: QueuedInput[];
-  steeringInputId?: number;
-  onSteerQueued?: (id: number) => Promise<boolean>;
-  onRemoveQueued?: (id: number) => void;
-  onAbort: () => Promise<boolean>;
-  contextComposer?: boolean;
-  knowledgeMode?: boolean;
-  emptyStateVariant?: ChatEmptyStateVariant;
-  modelStatus?: CanvasModelStatus;
-  modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
-  modelLabel?: string;
-  onSelectModel?: (providerId: string, modelId: string) => Promise<void>;
-  onOpenModelSettings?: () => void;
-  /** Stable identity for retaining per-conversation scroll position. */
-  conversationKey?: string;
-
-  // Edit / regenerate hooks — wired from ChatPanel into the per-message
-  // hover toolbar inside ChatMessage.
-  onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
-  onRegenerate?: (index: number) => Promise<boolean> | void;
-
-  // Session jump — load a session from a session_search result chip.
-  onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
-
-  // Optional decoration
-  onResizeStart?: (e: ReactMouseEvent) => void;
-}
+import type { ChatViewProps } from './types';
 
 /**
  * Presentational body used by both ChatPanel (narrow right-side panel) and
  * ChatPage (full-screen page). Owns no state; callers pass the result of
  * useChatStream + useChatSessions + useChatComposerInput.
  */
-export const ChatView = ({
-  className,
-  header,
-  beforeHeader,
-  banner,
-  pendingLabel,
-  messages,
-  agentScope,
-  loading,
-  sessionLoading = false,
-  workspaceId,
-  rootFolder,
-  streamingTools,
-  messageTools,
-  collapsedSections,
-  expandedTools,
-  pendingClarify,
-  clarifyInput,
-  clarificationAnswering = false,
-  clarificationError = null,
-  onClarifyInputChange,
-  onAnswerClarification,
-  relay,
-  onStopRelay,
-  onToggleSection,
-  onToggleToolExpand,
-  onAddImageToCanvas,
-  nodes,
-  selectedContext,
-  showContextChips = true,
-  onRemoveContext,
-  onNodeFocus,
-  onQuickAction,
-  emptyState,
-  inputPlaceholder,
-  input,
-  attachments,
-  editableRef,
-  mentionOpen,
-  mentionItems,
-  mentionIndex,
-  onSelectMention,
-  onMentionIndexChange,
-  onInput,
-  onKeyDown,
-  onPaste,
-  onAttachFiles,
-  onRemoveAttachment,
-  onRetryAttachment,
-  sendDisabled = false,
-  interactionDisabled = false,
-  runInputDisabled = false,
-  onSubmit,
-  onQueue,
-  queuedInputs,
-  steeringInputId,
-  onSteerQueued,
-  onRemoveQueued,
-  onAbort,
-  contextComposer = false,
-  knowledgeMode = false,
-  emptyStateVariant,
-  modelStatus,
-  modelSelection,
-  modelLabel,
-  onSelectModel,
-  onOpenModelSettings,
-  conversationKey,
-  onEditUserMessage,
-  onRegenerate,
-  onSessionJump,
-  onResizeStart,
-}: ChatViewProps) => {
+export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) => {
+  const { className, header, beforeHeader, banner, onResizeStart } = chrome;
+  const {
+    pendingLabel, messages, agentScope, loading, sessionLoading = false, workspaceId, rootFolder,
+    streamingTools, messageTools, collapsedSections, expandedTools, pendingClarify, clarifyInput,
+    clarificationAnswering = false, clarificationError = null, onClarifyInputChange,
+    onAnswerClarification, relay, onStopRelay, onToggleSection, onToggleToolExpand,
+    onAddImageToCanvas, onNodeFocus, onEditUserMessage, onRegenerate, onSessionJump, conversationKey,
+  } = thread;
+  const {
+    nodes, selectedContext, showContextChips = true, onRemoveContext, onQuickAction, emptyState,
+    knowledgeMode = false, emptyStateVariant,
+  } = context;
+  const {
+    inputPlaceholder, input, attachments, editableRef, mentionOpen, mentionItems, mentionIndex,
+    onSelectMention, onMentionIndexChange, onInput, onKeyDown, onPaste, onAttachFiles,
+    onRemoveAttachment, onRetryAttachment, sendDisabled = false, interactionDisabled = false,
+    runInputDisabled = false, onSubmit, onQueue, queuedInputs, steeringInputId, onSteerQueued,
+    onRemoveQueued, onAbort, contextComposer = false, modelStatus, modelSelection, modelLabel,
+    onSelectModel, onOpenModelSettings,
+  } = composer;
   const mcpAppScope = agentScope ?? { kind: 'workspace' as const, workspaceId };
   const hasMessages = messages.length > 0 || loading || sessionLoading || Boolean(pendingLabel);
   const runRecoveryAction = useCallback(async (
