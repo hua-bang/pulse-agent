@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { I18nProvider } from '../../../i18n';
-import { ChatToolCallDetails } from '../ChatToolCallDetails';
+import { ChatToolCallDetails } from '../ChatMessage/ChatToolCalls/ChatToolCallDetails';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

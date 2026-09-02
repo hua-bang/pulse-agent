@@ -1,6 +1,6 @@
-import type { ToolCallStatus } from './types';
-import { McpAppFrame } from '../mcp-apps/McpAppFrame';
-import { useMcpAppsHost } from '../mcp-apps/McpAppsProvider';
+import type { ToolCallStatus } from '../types';
+import { McpAppFrame } from '../../mcp-apps/McpAppFrame';
+import { useMcpAppsHost } from '../../mcp-apps/McpAppsProvider';
 
 export const McpAppFrames = ({
   tools,

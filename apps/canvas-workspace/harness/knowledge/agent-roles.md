@@ -234,7 +234,7 @@ the handoff scan is gated on `handoffEnabled && role && !relayStop.stopped
   FIRST in the `@` popup — `src/renderer/src/components/chat/ChatComposer/useChatComposerInput.ts`'s
   own comment: "Chat roles lead the popup — addressing a persona is the
   primary reason to type `@` in a role-enabled conversation."
-- Speaker badge: `src/renderer/src/components/chat/ChatMessage.tsx` renders
+- Speaker badge: `src/renderer/src/components/chat/ChatMessage/index.tsx` renders
   `message.speakerRoleName` / `message.speakerRoleColor` as the avatar
   initial and a name badge on assistant messages.
 - Keyed renderer progress + completion policy:

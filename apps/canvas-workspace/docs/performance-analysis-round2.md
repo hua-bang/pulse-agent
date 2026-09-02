@@ -29,7 +29,7 @@
 - **置信度**:0.85
 
 ### 1.3 [medium] RightDock / Chat 面板首屏无条件挂载,经 mentions.ts 再导出把 markdown-it + highlight.js/lib/common 静态拉进启动 chunk
-- **文件:行**:`apps/canvas-workspace/src/renderer/src/components/chat/utils/markdown.ts:1-3`(再导出于 `mentions.ts:5`,消费于 `ChatMessage.tsx:6,115,121`)
+- **文件:行**:`apps/canvas-workspace/src/renderer/src/components/chat/utils/markdown.ts:1-3`(再导出于 `mentions.ts:5`,消费于 `ChatMessage/index.tsx:6,115,121`)
 - **类别**:frontend-assets
 - **证据**:markdown.ts 第 1-3 行静态 import 全套(`highlight.js/lib/common`、`markdown-it`、`markdown-it-task-lists`),并在模块顶层 eager 实例化(`const markdown = new MarkdownIt({…})` 第 42 行,`markdown.use(taskLists,…)` 第 51 行)。`new MarkdownIt()` 构造与 ~35 个语法注册在模块 init 时跑,早于任何 chat 消息存在。隔壁 mermaid.ts 证明团队懂 lazy 范式,markdown.ts 反其道。
 - **影响**:每次冷启都 parse+eval markdown-it 核心 + hljs `lib/common`(~35 语法,每个有副作用注册)。从不打开 chat 的用户也照付。结合 xterm,这是首屏 chunk 中只在交互时才需要的 chat/terminal 库。
@@ -60,7 +60,7 @@
 ### 1.6 [low] mermaid 渲染在每次 chat re-render 用 `host.innerHTML` 写裸 SVG,无 per-message 已完成图缓存
 - **文件:行**:`apps/canvas-workspace/src/renderer/src/utils/mermaid.ts:55`
 - **类别**:runtime(资源/重解析)
-- **证据**:已核对——`renderInto`(55-70)在 async `mermaid.render()` 后 `host.innerHTML = result.svg;`。防重渲仅靠 DOM 属性:`renderMermaidIn`(83-92)选 `.chat-mermaid[data-rendered="false"]` 并翻 `host.dataset.rendered = 'pending'`。`ChatMessage.tsx:233-237` 在 `[assistantHtml, userHtml, isStreaming]` 的 useEffect 调 `renderMermaidIn`。问题:`assistantHtml` 每次内容变都被 `renderMdWithMentions` 重生成,消息 body innerHTML 被替换 → 已渲 SVG host 被销毁重建为 `data-rendered="false"` → 对同一 diagram 源的 `mermaid.render()` 从头重跑。无以源字符串为 key 的缓存。keep-alive 多 mount 或任何重置 innerHTML 的 re-render 都触发每个 mermaid 块重解析。
+- **证据**:已核对——`renderInto`(55-70)在 async `mermaid.render()` 后 `host.innerHTML = result.svg;`。防重渲仅靠 DOM 属性:`renderMermaidIn`(83-92)选 `.chat-mermaid[data-rendered="false"]` 并翻 `host.dataset.rendered = 'pending'`。`ChatMessage/index.tsx:233-237` 在 `[assistantHtml, userHtml, isStreaming]` 的 useEffect 调 `renderMermaidIn`。问题:`assistantHtml` 每次内容变都被 `renderMdWithMentions` 重生成,消息 body innerHTML 被替换 → 已渲 SVG host 被销毁重建为 `data-rendered="false"` → 对同一 diagram 源的 `mermaid.render()` 从头重跑。无以源字符串为 key 的缓存。keep-alive 多 mount 或任何重置 innerHTML 的 re-render 都触发每个 mermaid 块重解析。
 - **影响**:含 mermaid 的消息,任何重建 HTML 的后续 re-render(流式完成后的后续 token、主题切换、keep-alive 重 mount)对未变 diagram 触发完整 parse+layout+SVG-serialize。`mermaid.render` 是最贵操作之一(dagre/elk 布局),异步不阻首屏但落地时 jank。
 - **估算**:每次冗余重渲省 ~50-300ms(**估算**)。
 - **修复**:在 mermaid.ts 加模块级 `Map<string, string>`,key 为 trim 后源 → 渲染 SVG;`renderMermaidSource` 在 `loadMermaid()`/`render` 前查缓存。源跨重渲稳定,使重渲降为 O(1) innerHTML 赋值。
@@ -207,7 +207,7 @@
 - **校正(对抗性核验)**:从隐含 high 调为 medium——仅 Graph/Nodes 视图 mount 时、仅 knowledge-tag 变更事件触发,非每次画布保存/流式 tick,属 gated/bounded 而非持续热路径。
 
 ### 3.4 [medium] mermaid.render() 在 renderer 主线程同步、无 worker offload——含图回复在流式完成瞬间 jank
-- **文件:行**:`apps/canvas-workspace/src/renderer/src/utils/mermaid.ts:41-53,55-70,83-92`;`ChatMessage.tsx:233-236`
+- **文件:行**:`apps/canvas-workspace/src/renderer/src/utils/mermaid.ts:41-53,55-70,83-92`;`ChatMessage/index.tsx:233-236`
 - **类别**:runtime
 - **证据**:已核对——`renderMermaidSource` `const { svg } = await mermaid.render(id, trimmed);`(47)。虽 await,`mermaid.render` 内部 CPU 同步:在调用(主)线程解析 DSL + 跑 dagre/ELK 布局 + SVG 串装配,**无 Web Worker**。`renderMermaidIn`(83-92)遍历每个 pending host 触发 `void renderInto(host)`,无并发上限/分块,一条消息所有图背靠背渲染。`ChatMessage` gate 于流末:`useEffect(() => { if (isStreaming) return; renderMermaidIn(bodyRef.current); }, [assistantHtml, userHtml, isStreaming])`。`isStreaming` 守卫对可解析性正确,但意味含 N 图回复在流完成瞬间把 N 个 host 一起翻转并在单串行 burst 中渲染,恰逢 token 流重渲压力 + 末次绘制落同一画布线程。
 - **影响**:每个非平凡流程图/时序图约 30-150ms 阻塞主线程布局;3 图回复 → 流完成时 ~90-450ms jank(画布掉帧、chat 滚动冻结、PTY/IPC delta 停滞)。画布、force-graph rAF、chat 共用此一 renderer 线程,故 stall 是全窗口的(**估算**)。

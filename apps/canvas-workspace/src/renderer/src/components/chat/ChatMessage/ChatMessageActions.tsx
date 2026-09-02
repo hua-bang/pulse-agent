@@ -1,6 +1,6 @@
 import { memo, useCallback, useState } from 'react';
-import { CheckIcon, CopyIcon } from '../icons';
-import { useI18n } from '../../i18n';
+import { CheckIcon, CopyIcon } from '../../icons';
+import { useI18n } from '../../../i18n';
 
 export const CopyMessageButton = memo(({ content }: { content: string }) => {
   const { t } = useI18n();

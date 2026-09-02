@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import { buildMcpAppCsp } from '../../mcp-apps/McpAppFrame';
 import { McpAppsProvider } from '../../mcp-apps/McpAppsProvider';
-import { McpAppFrames } from '../McpAppFrames';
+import { McpAppFrames } from '../ChatMessage/McpAppFrames';
 import { RightDockProvider, useDockContext, useRightDockState } from '../../dock/RightDock/context';
 import { DockPanes } from '../../dock/RightDock/DockPanes';
 import { mcpAppDockHostElementId } from '../../dock/RightDock/dock-tab-ids';

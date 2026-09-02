@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseVisualToolResult } from '../../artifacts/parseVisualToolResult';
-import { parseGeneratedImage } from '../GeneratedImageActions';
+import { parseGeneratedImage } from '../ChatMessage/GeneratedImageActions';
 
 const piTextEnvelope = (payload: unknown): string => JSON.stringify([{
   type: 'text',

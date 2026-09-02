@@ -137,7 +137,7 @@ Canvas Workspace 的性能问题可归纳为 **5 个系统性根因**,贯穿两�
 | ID | 严重度 | 标题 | 关键文件 |
 |---|---|---|---|
 | F1 `[R1-H7]` | high | `markdown.render` 为每个无语言提示代码块跑 `highlightAuto`,放大每 token 重解析(O(n²)) | `chat/utils/markdown.ts:18` |
-| F2 `[R1-M-Chat1]` | medium | 逐 token `onTextDelta` 整 messages 数组拷贝;`ChatMessage` 未 memo,每 token 重解析 markdown | `chat/hooks/useChatStream.ts:240` / `ChatMessage.tsx:95` |
+| F2 `[R1-M-Chat1]` | medium | 逐 token `onTextDelta` 整 messages 数组拷贝;`ChatMessage` 未 memo,每 token 重解析 markdown | `chat/hooks/useChatStream.ts:240` / `ChatMessage/index.tsx:95` |
 | F3 `[R1-M-Chat2]` | medium | `publishTools()` 每 tool-input delta 与每 `onVisualStream` 帧拷贝数组 + 克隆 Map | `chat/hooks/useChatStream.ts:142` |
 | F4 `[R2-§3.4]` | medium | `mermaid.render()` 在 renderer 主线程同步无 worker,含图回复流式完成瞬间 jank | `utils/mermaid.ts` |
 | F5 `[R2-§3.5]` | medium | 首个图付多百 ms 的 `import('mermaid')` + initialize 主线程 stall | `utils/mermaid.ts:15` |

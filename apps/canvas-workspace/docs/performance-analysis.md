@@ -159,7 +159,7 @@
 - **置信度**:0.9
 
 #### M-Chat1 · 逐 token `onTextDelta` 做整 messages 数组拷贝 → 重渲染每个 ChatMessage;未 memo 的 ChatMessage 每 token 重解析 markdown
-- **文件**:`chat/hooks/useChatStream.ts:240-249` + `ChatMessage.tsx:95-118`
+- **文件**:`chat/hooks/useChatStream.ts:240-249` + `ChatMessage/index.tsx:95-118`
 - **类别**:re-render
 - **证据**:`onTextDelta` 每 token:`setMessages(prev => { const next=[...prev]; next[index]={...next[index], content: ...+delta}; return next; })`——每 token 新数组 + `assistantIndex` 处新对象 identity。`ChatMessages.tsx:257` 的 `.map` 对全列表重跑,`ChatMessage` 是普通函数(`95` 行,**未** `memo`),故每个兄弟消息也重渲染。`ChatMessage` 内 `assistantHtml = useMemo(() => renderMdWithMentions(message.content, nodes), [message.role, message.content, nodes])` 每 token 重解析在途消息的完整 markdown。
 - **用户影响**:流式速度下(每秒数十到数百 token),活跃消息的 markdown+语法高亮从头重跑(代码块时 `highlightAuto` 对增长 buffer 跑 = O(n²) 总 CPU)。**更正**:兄弟(非流式)消息会重渲染(函数体执行 + vdom diff),但**不**重解析 markdown(其 `useMemo` 由稳定 `message.content/nodes` 守护),故 markdown/高亮成本停留在单个流式消息——主导成本是该消息的 O(n²) 重解析。

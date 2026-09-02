@@ -1,25 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
-import type { AgentChatMessage, CanvasNode } from '../../types';
-import { toFileUrl } from '../../utils/fileUrl';
-import { BotAvatarIcon, PencilIcon, RefreshIcon } from '../icons';
-import type { ToolCallStatus } from './types';
-import { useRoleColors, useRoleNameColors } from '../../agent-chat/mentions/roleMentionItems';
-import { renderMdWithMentions } from './utils/mentions';
-import { roleColorSoft } from '../../utils/roleColors';
-import { isImeComposing } from '../../utils/ime';
-import { renderMermaidIn } from '../../utils/mermaid';
-import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
+import type { AgentChatMessage, CanvasNode } from '../../../types';
+import { toFileUrl } from '../../../utils/fileUrl';
+import { BotAvatarIcon, PencilIcon, RefreshIcon } from '../../icons';
+import type { ToolCallStatus } from '../types';
+import { useRoleColors, useRoleNameColors } from '../../../agent-chat/mentions/roleMentionItems';
+import { renderMdWithMentions } from '../utils/mentions';
+import { roleColorSoft } from '../../../utils/roleColors';
+import { isImeComposing } from '../../../utils/ime';
+import { renderMermaidIn } from '../../../utils/mermaid';
+import { formatAbsoluteTime, formatRelativeTime } from '../utils/time';
 import { ChatToolCalls } from './ChatToolCalls';
-import { ChatActivityStatus } from './ChatActivityStatus';
-import { ChatImageLightbox, type LightboxImage } from './ChatImageLightbox';
-import { PluginChatCardForMessage } from '../../../../plugins/renderer';
+import { ChatActivityStatus } from '../ChatActivityStatus';
+import { ChatImageLightbox, type LightboxImage } from '../ChatImageLightbox';
+import { PluginChatCardForMessage } from '../../../../../plugins/renderer';
 import {
   ChatArtifactCard,
   ChatInlineVisual,
   parseVisualToolResult,
-} from '../artifacts';
+} from '../../artifacts';
 import { CopyGeneratedImageButton, parseGeneratedImage } from './GeneratedImageActions';
-import { useI18n } from '../../i18n';
+import { useI18n } from '../../../i18n';
 import { ChatTurnOutcome } from './ChatTurnMeta';
 import { CopyMessageButton } from './ChatMessageActions';
 import { McpAppFramesLazy } from './McpAppFramesLazy';
