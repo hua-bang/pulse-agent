@@ -36,11 +36,6 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   // session-restore fix) that never ran this suite (no automatic trigger).
   // Raised to measured; must-not-grow applies from 636.
   'src/main/agent/session-store.ts': 636,
-  // 542→576 (2026-08-22, drift recorded): onTurnComplete rail refresh
-  // (first-message + completion) and run re-attach on switch-back
-  // (chatRunReattach / useChatRunReattach) — the parallel-conversations UX.
-  // Raised to measured; must-not-grow applies from 576.
-  'src/renderer/src/components/chat/hooks/useChatStream.ts': 576,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,
   'src/renderer/src/hooks/useFileNodeEditor.ts': 511,

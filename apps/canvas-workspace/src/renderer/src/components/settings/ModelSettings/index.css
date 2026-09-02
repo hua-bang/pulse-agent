@@ -1,7 +1,7 @@
 /* Chat ModelSettings & PromptSettings drawer body/form styles.
  * These sections are rendered both from chat surfaces and from the global
  * Settings drawer, so their chrome must be imported with the section modules
- * rather than relying on ChatPanel.css being present first. */
+ * rather than relying on a chat surface stylesheet being present first. */
 
 .chat-model-settings-body {
   flex: 1;

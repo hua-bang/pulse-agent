@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sessionTitleText } from './utils/sessionTitle';
+import { sessionTitleText } from './sessionTitle';
 
 describe('sessionTitleText', () => {
   it('uses a DOM reference label without exposing its internal id', () => {
