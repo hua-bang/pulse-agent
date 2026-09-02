@@ -5,9 +5,9 @@ import type {
   AgentContextTagRef,
   AgentRequestContext,
   CanvasNode,
-} from '../../../types';
-import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
-import type { SelectedContextChip } from '../types';
+} from '../../../../types';
+import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
+import type { SelectedContextChip } from '../../types';
 
 interface Options {
   nodes?: CanvasNode[];

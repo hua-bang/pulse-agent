@@ -56,7 +56,7 @@ const DYNAMIC_ONLY_MODULE_SUFFIXES = [
   '/components/node-bodies/FileNodeBody/index.tsx',
   '/components/node-bodies/TextNodeBody/index.tsx',
   '/components/node-bodies/IframeNodeBody/index.tsx',
-  '/components/chat/ChatPanel.tsx',
+  '/components/chat/ChatPanel/index.tsx',
   '/components/chat/chatScope.ts',
   '/agent-chat/target/useRegisterChatTarget.ts',
   '/agent-chat/target/sessionScope.ts',

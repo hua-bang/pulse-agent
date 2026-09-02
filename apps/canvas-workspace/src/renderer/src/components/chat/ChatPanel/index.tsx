@@ -1,31 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, type KeyboardEventHandler } from 'react';
-import { ChatAnchors } from './ChatAnchors';
-import { ChatHeader } from './ChatHeader';
-import { SessionTitle } from './SessionTitle';
-import { sessionTitleText } from './utils/sessionTitle';
-import './ChatPanel.css';
-import './DomMention.css';
-import { ChatView } from './ChatView';
-import { SessionBackBar } from './SessionBackBar';
-import { useChatComposerStateKeyed } from './hooks/useChatComposerStateKeyed';
-import { isExternalOnlyRoleMessage } from '../../agent-chat/mentions/roleMentionItems';
+import { ChatAnchors } from '../ChatAnchors';
+import { ChatHeader } from '../ChatHeader';
+import { SessionTitle } from '../SessionTitle';
+import { sessionTitleText } from '../utils/sessionTitle';
+import '../ChatPanel.css';
+import '../DomMention.css';
+import { ChatView } from '../ChatView';
+import { SessionBackBar } from '../SessionBackBar';
+import { useChatComposerStateKeyed } from '../hooks/useChatComposerStateKeyed';
+import { isExternalOnlyRoleMessage } from '../../../agent-chat/mentions/roleMentionItems';
 import { useComposerRequest } from './hooks/useComposerRequest';
-import { useAppShell } from '../shell/AppShellProvider';
-import type { AgentRequestContext } from '../../types';
-import type { AgentScope, ChatPanelProps } from './types';
-import { useI18n } from '../../i18n';
-import { isImeComposing } from '../../utils/ime';
+import { useAppShell } from '../../shell/AppShellProvider';
+import type { AgentRequestContext } from '../../../types';
+import type { AgentScope, ChatPanelProps } from '../types';
+import { useI18n } from '../../../i18n';
+import { isImeComposing } from '../../../utils/ime';
 import { useStartSkillChat } from './hooks/useStartSkillChat';
-import { useSubmitDomReviewComments } from './hooks/useSubmitDomReviewComments';
+import { useSubmitDomReviewComments } from '../hooks/useSubmitDomReviewComments';
 import {
   type ChatTarget,
-} from '../../agent-chat/target';
-import { chatScopeId } from './chatScope';
-import { useRegisterChatTarget } from '../../agent-chat/target/useRegisterChatTarget';
-import { ChatConversationStatus } from './ChatConversationStatus';
+} from '../../../agent-chat/target';
+import { chatScopeId } from '../chatScope';
+import { useRegisterChatTarget } from '../../../agent-chat/target/useRegisterChatTarget';
+import { ChatConversationStatus } from '../ChatConversationStatus';
 import { useChatPanelContext } from './hooks/useChatPanelContext';
 import { useChatPanelSessionNavigation } from './hooks/useChatPanelSessionNavigation';
-import { submitQuickAction } from './hooks/submitQuickAction';
+import { submitQuickAction } from '../hooks/submitQuickAction';
 export const ChatPanel = ({
   workspaceId,
   agentScope: agentScopeProp,

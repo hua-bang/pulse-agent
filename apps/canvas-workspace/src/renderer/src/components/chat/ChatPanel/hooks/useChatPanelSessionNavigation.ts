@@ -1,15 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { AgentChatMessage } from '../../../types';
-import { useI18n } from '../../../i18n';
+import type { AgentChatMessage } from '../../../../types';
+import { useI18n } from '../../../../i18n';
 import type {
   AgentScope,
   OtherWorkspaceSession,
   WorkspaceOption,
-} from '../types';
-import type { SessionBackEntry } from '../SessionBackBar';
-import { buildAnchorElementId, buildChatAnchors } from '../utils/anchors';
-import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
-import { scopeFromSessionStoreId } from '../../../agent-chat/target/sessionScope';
+} from '../../types';
+import type { SessionBackEntry } from '../../SessionBackBar';
+import { buildAnchorElementId, buildChatAnchors } from '../../utils/anchors';
+import { restoreComposerFocusAfterRender } from '../../utils/focusRecovery';
+import { scopeFromSessionStoreId } from '../../../../agent-chat/target/sessionScope';
 
 const flashAnchor = (scopeId: string, messageIndex: number, delay = 0) => {
   window.setTimeout(() => {
