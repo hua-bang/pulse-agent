@@ -168,7 +168,8 @@ describe('ChatPage DOM review delivery', () => {
       </I18nProvider>,
     ));
 
-    const composerProps = chatView.latestProps?.composer as Record<string, unknown> | undefined;
+    const latestProps = chatView.latestProps as Record<string, unknown> | null;
+    const composerProps = latestProps?.composer as Record<string, unknown> | undefined;
     expect(composerProps?.onAttachFiles)
       .toBe(composer.handleAttachFiles);
     act(() => root.unmount());

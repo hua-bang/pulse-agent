@@ -82,7 +82,8 @@ Example (real): `Sidebar/` is split into `SidebarHeader.tsx`, `WorkspaceList.tsx
 - Shared hooks live in `src/renderer/src/hooks/` named `useXxx.ts`
   (`useCanvas`, `useNodes`, `useClickOutside`, `useEscapeClose`, …).
 - Component-scoped hooks may live beside the component
-  (`useAgentNodeController.ts`, `Canvas/hooks/`, `chat/hooks/`).
+  (`useAgentNodeController.ts`, `Canvas/hooks/`, `chat/ChatComposer/`,
+  `chat/ChatPanel/hooks/`, `chat/ChatPageBody/hooks/`).
 - Hooks return typed values; keep them framework-pure (no Electron/Node imports).
 
 ## Keyboard shortcuts (registry-owned)

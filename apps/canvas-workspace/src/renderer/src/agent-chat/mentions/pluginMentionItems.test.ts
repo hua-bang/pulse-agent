@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createMentionChipElement } from '../../components/chat/utils/mentions';
 import {
   collectPluginRefsFromEditable,
   loadInstalledPluginMentionItems,
@@ -41,8 +40,18 @@ describe('plugin mention items', () => {
 
   it('collects structured plugin refs and deduplicates existing context', () => {
     const editable = document.createElement('div');
-    editable.appendChild(createMentionChipElement({ type: 'plugin', pluginId: 'notion', label: 'Notion' }));
-    editable.appendChild(createMentionChipElement({ type: 'plugin', pluginId: 'notion', label: 'Notion' }));
+    const createPluginChip = () => {
+      const chip = document.createElement('span');
+      chip.dataset.mentionKind = 'plugin';
+      chip.dataset.pluginId = 'notion';
+      const label = document.createElement('span');
+      label.className = 'chat-mention-chip-label';
+      label.textContent = 'Notion';
+      chip.appendChild(label);
+      return chip;
+    };
+    editable.appendChild(createPluginChip());
+    editable.appendChild(createPluginChip());
 
     expect(collectPluginRefsFromEditable(editable)).toEqual([{ id: 'notion', name: 'Notion' }]);
     expect(withCollectedPlugins(editable, { plugins: [{ id: 'notion', name: 'Notion' }] }))
