@@ -10,7 +10,7 @@ import {
   Trash,
 } from '@phosphor-icons/react';
 import type { ScheduledTask, ScheduledTaskInput } from '../../../../shared/scheduled';
-import type { AgentScope } from '../../components/chat/types';
+import type { AgentScope } from '../../types';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../../components/shell/AppShellProvider';
 import { Button, EmptyState } from '../../components/ui';

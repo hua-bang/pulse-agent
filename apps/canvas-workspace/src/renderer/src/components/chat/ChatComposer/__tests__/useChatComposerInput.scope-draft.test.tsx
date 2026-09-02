@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n';
 import type { AgentContextTabRef } from '../../../../types';
-import type { AgentScope } from '../../types';
+import type { AgentScope } from '../../../../types';
 import { resetChatComposerDraftsForTests } from '../../../../agent-chat/composer/chatComposerDraftStore';
 import { useChatComposerInput } from '../useChatComposerInput';
 

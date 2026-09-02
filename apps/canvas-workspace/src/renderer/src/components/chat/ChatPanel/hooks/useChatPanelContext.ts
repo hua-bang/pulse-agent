@@ -7,7 +7,7 @@ import type {
   CanvasNode,
 } from '../../../../types';
 import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
-import type { SelectedContextChip } from '../../types';
+import type { SelectedContextChip } from '../../ChatComposer/types';
 
 interface Options {
   nodes?: CanvasNode[];

@@ -7,14 +7,14 @@ import {
   useSyncExternalStore,
 } from 'react';
 import type { AgentContextTabRef, AgentRequestContext, CanvasNode, ChatImageAttachment } from '../../../types';
-import type { ChatRunInputMode } from '../types';
+import type { ChatRunInputMode } from '../../../types';
 import { isImeComposing } from '../../../utils/ime';
 import {
   MENTION_MAX_ITEMS,
   sortAndCapMentionItems,
 } from '../ChatMentionPopup/constants';
-import type { MentionItem, WorkspaceOption } from '../types';
-import type { AgentScope } from '../types';
+import type { MentionItem, WorkspaceOption } from '../../../types';
+import type { AgentScope } from '../../../types';
 import { buildTabMentionItems, collectContextRefsFromEditable, createMentionChipElement, serializeEditable, withCollectedTabs } from '../utils/mentions';
 import { flattenEntries } from '../../../agent-chat/mentions/fileMentionItems';
 import { loadRoleMentionItems } from '../../../agent-chat/mentions/roleMentionItems';

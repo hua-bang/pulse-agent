@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import './index.css';
 import { MENTION_GROUP_LABEL_KEY, getMentionGroupKey } from './constants';
-import type { MentionItem } from '../types';
+import type { MentionItem } from '../../../types';
 import { MentionNodeIcon, tabMentionIconType } from '../utils/mentions';
 import { roleColorSoft } from '../../../utils/roleColors';
 import { useI18n } from '../../../i18n';

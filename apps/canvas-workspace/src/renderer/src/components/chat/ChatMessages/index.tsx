@@ -13,7 +13,7 @@ import { BotAvatarIcon } from '../../icons';
 import { ChatMessage } from '../ChatMessage';
 import { ChatActivityStatus } from '../ChatActivityStatus';
 import { ChatThreadSkeleton } from '../ChatThreadSkeleton';
-import type { PendingClarification, ToolCallStatus } from '../types';
+import type { PendingClarification, ToolCallStatus } from '../../../types';
 import { buildAnchorElementId } from '../utils/anchors';
 import { useI18n } from '../../../i18n';
 import { isVSCodeLink } from '../utils/externalLinks';

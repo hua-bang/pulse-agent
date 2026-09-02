@@ -1,6 +1,6 @@
 import type { CanvasNode } from '../../../types';
 import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, PLUGIN_MENTION_PREFIX, ROLE_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAB_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../ChatMentionPopup/constants';
-import type { MentionItem } from '../types';
+import type { MentionItem } from '../../../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
 import { MENTION_RE, decodeMentionPart, encodeMentionPart, pipedMentionLabel, protectMentionMarkers, restoreMentionMarkersInAttributes, restoreMentionMarkersInText, transformHtmlText } from './mentionMarkers';

@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef } from 'react';
-import type { ChatComposerRequest } from '../../types';
+import type { ChatComposerRequest } from '../types';
 
 interface Options {
   request?: ChatComposerRequest;

@@ -4,7 +4,7 @@ import type { SettingsSection } from '../../settings/Settings';
 import type { UnifiedSession } from '../ChatSessionsRail';
 import { ChatPageBody } from '../ChatPageBody';
 import type { SessionBackEntry } from '../SessionBackBar';
-import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from '../types';
+import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from '../../../types';
 import {
   GLOBAL_CHAT_STORE_ID,
   scheduledTaskIdFromStoreId,

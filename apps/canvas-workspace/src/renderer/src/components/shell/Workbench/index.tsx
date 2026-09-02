@@ -23,7 +23,7 @@ import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
 import { ScheduledChatPanel } from '../../../views/Scheduled/ScheduledChatPanel';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
 import { useOptionalChatTargetBroker } from '../../../agent-chat/target';
-import type { AgentScope } from '../../chat/types';
+import type { AgentScope } from '../../../types';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
 const EMPTY_CHAT_NODES: CanvasNode[] = [];

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import type { AgentScope } from '../../components/chat/types';
+import type { AgentScope } from '../../types';
 import type { SettingsSection } from '../../components/settings/Settings';
 import { PulseRouterView } from '../../components/shell/router';
 

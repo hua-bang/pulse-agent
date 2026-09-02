@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import type { AgentChatMessage } from '../../../../types';
-import type { AgentScope, WorkspaceOption } from '../../types';
+import type { AgentScope, WorkspaceOption } from '../../../../types';
 import type { UnifiedSession } from '../../ChatSessionsRail';
 import type { SessionBackEntry } from '../../SessionBackBar';
 import { buildAnchorElementId, buildChatAnchors } from '../../utils/anchors';

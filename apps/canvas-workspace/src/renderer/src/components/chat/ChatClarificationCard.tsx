@@ -3,7 +3,7 @@ import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { BotAvatarIcon } from '../icons';
 import { Button } from '../ui';
-import type { PendingClarification } from './types';
+import type { PendingClarification } from '../../types';
 
 interface ChatClarificationCardProps {
   pendingClarify: PendingClarification;

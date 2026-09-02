@@ -1,4 +1,4 @@
-import type { ToolCallStatus } from '../types';
+import type { ToolCallStatus } from '../../../types';
 import { McpAppFrame } from '../../mcp-apps/McpAppFrame';
 import { useMcpAppsHost } from '../../mcp-apps/McpAppsProvider';
 

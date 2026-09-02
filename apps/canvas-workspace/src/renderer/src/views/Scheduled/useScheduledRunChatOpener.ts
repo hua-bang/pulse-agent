@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import type { ScheduledRunFinished } from '../../../../shared/scheduled';
-import type { AgentScope } from '../../components/chat/types';
+import type { AgentScope } from '../../types';
 import { useRightDock } from '../../components/dock/RightDock';
 import { resolveScheduledChatTarget } from './scheduledChatTarget';
 import { useScheduledRunToasts } from './useScheduledRunToasts';

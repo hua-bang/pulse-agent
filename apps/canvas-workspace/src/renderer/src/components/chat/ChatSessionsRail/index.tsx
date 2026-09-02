@@ -8,7 +8,7 @@ import {
 import { Button, TextField } from '../../ui';
 import { useI18n } from '../../../i18n';
 import { ChatSessionRailItem } from './ChatSessionRailItem';
-import type { WorkspaceOption } from '../types';
+import type { WorkspaceOption } from '../../../types';
 import type { ConversationCompletionStatus } from '../../../agent-chat/runtime/conversationCompletionStore';
 
 const SESSION_PREVIEW_LIMIT = 10;

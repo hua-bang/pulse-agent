@@ -4,7 +4,7 @@ import type {
   AgentScope,
   OtherWorkspaceSession,
   WorkspaceOption,
-} from '../../types';
+} from '../../../../types';
 import type { ChatSessionsRailProps, UnifiedSession } from '../../ChatSessionsRail';
 import { scopeFromSessionStoreId } from '../../../../agent-chat/target/sessionScope';
 import { restoreComposerFocusAfterRender } from '../../utils/focusRecovery';

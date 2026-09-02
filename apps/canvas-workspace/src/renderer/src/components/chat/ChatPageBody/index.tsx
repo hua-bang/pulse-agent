@@ -10,7 +10,7 @@ import { SessionBackBar, type SessionBackEntry } from '../SessionBackBar';
 import { useChatComposerController } from '../ChatComposer/useChatComposerController';
 import { isExternalOnlyRoleMessage } from '../../../agent-chat/mentions/roleMentionItems';
 import { useAppShell } from '../../shell/AppShellProvider';
-import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from '../types';
+import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from '../../../types';
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';
 import type { ChatContextSnapshot, ChatExecutionPolicy, ChatTarget } from '../../../agent-chat/target';

@@ -8,7 +8,8 @@ import type {
 } from '../../../types';
 import type { SettingsSection } from '../../settings/Settings';
 import { ChatPanelLazy as ChatPanel } from '../../chat/lazy';
-import type { AgentScope, ChatComposerRequest } from '../../chat/types';
+import type { AgentScope } from '../../../types';
+import type { ChatComposerRequest } from '../../chat/ChatPanel/types';
 import { useAllWorkspaceNodeList } from '../../../views/WorkspaceNodes/useWorkspaceNodes';
 import { buildKnowledgeChatContext } from './knowledgeChatContext';
 

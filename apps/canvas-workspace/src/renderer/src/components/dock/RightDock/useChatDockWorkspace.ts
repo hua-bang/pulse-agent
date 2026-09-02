@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AgentScope } from '../../chat/types';
+import type { AgentScope } from '../../../types';
 import { resolveDockWorkspaceId } from './dock-workspace';
 
 /** Keeps the full-page Chat dock aligned with its conversation while leaving

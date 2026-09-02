@@ -12,7 +12,8 @@ import { isExternalOnlyRoleMessage } from '../../../agent-chat/mentions/roleMent
 import { useComposerRequest } from './hooks/useComposerRequest';
 import { useAppShell } from '../../shell/AppShellProvider';
 import type { AgentRequestContext } from '../../../types';
-import type { AgentScope, ChatPanelProps } from '../types';
+import type { AgentScope } from '../../../types';
+import type { ChatPanelProps } from './types';
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';
 import { useStartSkillChat } from './hooks/useStartSkillChat';

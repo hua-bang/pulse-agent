@@ -5,7 +5,7 @@ import type {
   AgentScope,
   OtherWorkspaceSession,
   WorkspaceOption,
-} from '../../types';
+} from '../../../../types';
 import type { SessionBackEntry } from '../../SessionBackBar';
 import { buildAnchorElementId, buildChatAnchors } from '../../utils/anchors';
 import { restoreComposerFocusAfterRender } from '../../utils/focusRecovery';

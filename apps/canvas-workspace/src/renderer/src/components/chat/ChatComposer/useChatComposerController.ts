@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { AgentContextTabRef, AgentRequestContext, CanvasNode } from '../../../types';
-import type { AgentScope, WorkspaceOption } from '../types';
+import type { AgentScope, WorkspaceOption } from '../../../types';
 import { conversationKeyId, type ConversationKey } from '../../../../../shared/conversation-runtime';
 import { useCanvasModels } from '../../../hooks/useCanvasModels';
 import { useChatSessions } from '../../../agent-chat/sessions/useChatSessions';

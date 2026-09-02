@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { AgentRequestContext } from '../../../../types';
 import { useI18n } from '../../../../i18n';
-import type { AgentScope, SelectedContextChip, WorkspaceOption } from '../../types';
+import type { AgentScope, WorkspaceOption } from '../../../../types';
+import type { SelectedContextChip } from '../../ChatComposer/types';
 import type {
   ChatContextSnapshot,
   ChatExecutionPolicy,

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { useStableSessionRail } from '../useStableSessionRail';
 import { I18nProvider } from '../../../../../i18n';
 import type { AgentSessionInfo } from '../../../../../types';
-import type { AgentScope, OtherWorkspaceSession } from '../../../types';
+import type { AgentScope, OtherWorkspaceSession } from '../../../../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

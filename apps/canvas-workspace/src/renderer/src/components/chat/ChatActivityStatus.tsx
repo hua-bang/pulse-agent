@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useI18n, type I18nKey } from '../../i18n';
 import { SpinnerIcon } from '../icons';
 import { Button } from '../ui';
-import type { ToolCallStatus } from './types';
+import type { ToolCallStatus } from '../../types';
 import { displayToolStatus, formatToolDescription, formatToolLabel } from './ChatMessage/ChatToolCalls';
 
 type Translate = (key: I18nKey, params?: Record<string, string | number>) => string;

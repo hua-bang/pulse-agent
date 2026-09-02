@@ -31,7 +31,7 @@ import {
   useChatTargetBroker,
 } from './agent-chat/target';
 import { useChatNavigation } from './components/shell/router/useChatNavigation';
-import type { AgentScope } from './components/chat/types';
+import type { AgentScope } from './types';
 const MigrationSpinner = lazy(() => import('./components/shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_PLUGINS = '/plugins', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';

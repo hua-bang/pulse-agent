@@ -1,5 +1,5 @@
 import { useCallback, type MutableRefObject, type RefObject } from 'react';
-import type { ChatImageAttachment, MentionItem } from '../types';
+import type { ChatImageAttachment, MentionItem } from '../../../types';
 
 interface Options {
   editableRef: RefObject<HTMLDivElement>;

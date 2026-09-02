@@ -21,7 +21,8 @@ import { ChatMentionPopup } from '../ChatMentionPopup';
 import { ChatMessages } from '../ChatMessages';
 import { RelayBar } from './RelayBar';
 import type { QueuedInput } from '../../../agent-chat/runtime/useChatRunQueue';
-import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from '../types';
+import type { MentionItem, PendingClarification, ToolCallStatus } from '../../../types';
+import type { SelectedContextChip } from '../ChatComposer/types';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 import { McpAppsProvider } from '../../mcp-apps/McpAppsProvider';
 

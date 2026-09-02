@@ -4,7 +4,7 @@ import { conversationKeyId } from '../../../../../../shared/conversation-runtime
 import { useI18n } from '../../../../i18n';
 import type { AgentSessionInfo } from '../../../../types';
 import type { UnifiedSession } from '../../ChatSessionsRail';
-import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../../types';
+import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../../../../types';
 import type { ConversationCompletionStatus } from '../../../../agent-chat/runtime/conversationCompletionStore';
 
 interface UseStableSessionRailOptions {

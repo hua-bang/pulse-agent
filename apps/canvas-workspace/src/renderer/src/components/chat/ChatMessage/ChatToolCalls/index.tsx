@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useI18n } from '../../../../i18n';
 import { SpinnerIcon } from '../../../icons';
 import type { I18nKey } from '../../../../i18n/messages';
-import type { ToolCallStatus } from '../../types';
+import type { ToolCallStatus } from '../../../../types';
 import { ChatToolCallDetails } from './ChatToolCallDetails';
 
 interface ChatToolCallsProps {
