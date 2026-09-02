@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
-import { ChatPageRail, ChatPageTopbar } from '../ChatPageNavigationChrome';
+import { ChatPageRail, ChatPageTopbar } from '../ChatPageBody/ChatPageNavigationChrome';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

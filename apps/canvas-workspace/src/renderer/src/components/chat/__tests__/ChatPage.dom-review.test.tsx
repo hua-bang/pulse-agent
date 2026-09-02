@@ -66,7 +66,7 @@ vi.mock('../../dock/RightDock/context', () => ({
 vi.mock('../../shell/AppShellProvider', () => ({
   useAppShell: () => ({ notify: vi.fn() }),
 }));
-vi.mock('../ChatPageNavigationChrome', () => ({
+vi.mock('../ChatPageBody/ChatPageNavigationChrome', () => ({
   ChatPageRail: () => null,
   ChatPageTopbar: () => null,
 }));

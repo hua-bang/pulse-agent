@@ -1,4 +1,4 @@
-import { useI18n } from '../../i18n';
+import { useI18n } from '../../../i18n';
 
 /**
  * Placeholder rows the loading thread is built from. Alternating user /

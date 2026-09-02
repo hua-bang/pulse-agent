@@ -1,12 +1,12 @@
 import { ColumnsPlusRight } from '@phosphor-icons/react';
-import { useI18n } from '../../i18n';
-import { PlusIcon, WorkspaceIcon } from '../icons';
-import { Button } from '../ui';
-import { ChatAnchors } from './ChatAnchors';
-import { ChatSessionsRail, type ChatSessionsRailProps } from './ChatSessionsRail';
+import { useI18n } from '../../../i18n';
+import { PlusIcon, WorkspaceIcon } from '../../icons';
+import { Button } from '../../ui';
+import { ChatAnchors } from '../ChatAnchors';
+import { ChatSessionsRail, type ChatSessionsRailProps } from '../ChatSessionsRail';
 import { RailToggleIcon } from './RailToggleIcon';
-import type { ChatAnchor } from './utils/anchors';
-import { sessionTitleText } from './utils/sessionTitle';
+import type { ChatAnchor } from '../utils/anchors';
+import { sessionTitleText } from '../utils/sessionTitle';
 
 export const ChatPageRail = ({
   collapsed,

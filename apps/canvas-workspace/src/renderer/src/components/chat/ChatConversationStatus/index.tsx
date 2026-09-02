@@ -1,7 +1,7 @@
 import { ArrowClockwise, SpinnerGap, WarningCircle } from '@phosphor-icons/react';
-import { useI18n } from '../../i18n';
-import { Button } from '../ui';
-import './ChatConversationStatus.css';
+import { useI18n } from '../../../i18n';
+import { Button } from '../../ui';
+import './index.css';
 
 interface ChatConversationStatusProps {
   sessionLoading?: boolean;

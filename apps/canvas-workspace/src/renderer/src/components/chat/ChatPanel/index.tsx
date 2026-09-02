@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, type KeyboardEventHandler } from 'react';
 import { ChatAnchors } from '../ChatAnchors';
-import { ChatHeader } from '../ChatHeader';
+import { ChatHeader } from './ChatHeader';
 import { SessionTitle } from '../SessionTitle';
 import { sessionTitleText } from '../utils/sessionTitle';
 import './index.css';
-import '../DomMention.css';
 import { ChatView } from '../ChatView';
 import { SessionBackBar } from '../SessionBackBar';
 import { useChatComposerController } from '../ChatComposer/useChatComposerController';

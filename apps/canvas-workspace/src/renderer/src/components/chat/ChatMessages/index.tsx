@@ -11,14 +11,14 @@ import './index.css';
 import type { AgentChatMessage, CanvasNode } from '../../../types';
 import { BotAvatarIcon } from '../../icons';
 import { ChatMessage } from '../ChatMessage';
-import { ChatActivityStatus } from '../ChatActivityStatus';
-import { ChatThreadSkeleton } from '../ChatThreadSkeleton';
+import { ChatActivityStatus } from './ChatActivityStatus';
+import { ChatThreadSkeleton } from './ChatThreadSkeleton';
 import type { PendingClarification, ToolCallStatus } from '../../../types';
 import { buildAnchorElementId } from '../utils/anchors';
 import { useI18n } from '../../../i18n';
 import { isVSCodeLink } from '../utils/externalLinks';
 import { localPathFromHref } from '../utils/localFileLinks';
-import { ChatClarificationCard } from '../ChatClarificationCard';
+import { ChatClarificationCard } from './ChatClarificationCard';
 import { useChatMessagesStatus } from './useChatMessagesStatus';
 import { tabRefFromMentionElement } from '../utils/tabMentions';
 /** How close (px) to the bottom still counts as "reading the tail" — within

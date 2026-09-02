@@ -11,7 +11,7 @@ import { isImeComposing } from '../../../utils/ime';
 import { renderMermaidIn } from '../../../utils/mermaid';
 import { formatAbsoluteTime, formatRelativeTime } from '../utils/time';
 import { ChatToolCalls } from './ChatToolCalls';
-import { ChatActivityStatus } from '../ChatActivityStatus';
+import { ChatActivityStatus } from '../ChatMessages/ChatActivityStatus';
 import { ChatImageLightbox, type LightboxImage } from '../ChatImageLightbox';
 import { PluginChatCardForMessage } from '../../../../../plugins/renderer';
 import {

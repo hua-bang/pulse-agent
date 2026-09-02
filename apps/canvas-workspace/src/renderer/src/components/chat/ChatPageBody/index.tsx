@@ -23,7 +23,7 @@ import { useScopeRunningSessions } from '../../../agent-chat/sessions/useScopeRu
 import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
 import { useSubmitDomReviewComments } from '../ChatComposer/useSubmitDomReviewComments';
 import { submitQuickAction } from '../ChatComposer/submitQuickAction';
-import { ChatPageRail, ChatPageTopbar } from '../ChatPageNavigationChrome';
+import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from '../utils/chatPageDockTabs';
 import { useChatPageNewSession } from './hooks/useChatPageNewSession';

@@ -1,10 +1,10 @@
 import { useCallback, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { CopyIcon, ExternalLinkIcon, ListLinesIcon, PlusIcon, SpinnerIcon } from '../icons';
-import type { OtherWorkspaceSession } from '../../types';
-import { useI18n } from '../../i18n';
-import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
-import { SessionTitle } from './SessionTitle';
-import { Button } from '../ui';
+import { CopyIcon, ExternalLinkIcon, ListLinesIcon, PlusIcon, SpinnerIcon } from '../../icons';
+import type { OtherWorkspaceSession } from '../../../types';
+import { useI18n } from '../../../i18n';
+import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
+import { SessionTitle } from '../SessionTitle';
+import { Button } from '../../ui';
 
 interface ChatHeaderProps {
   title: ReactNode;

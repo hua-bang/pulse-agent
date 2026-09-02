@@ -1,6 +1,6 @@
-import { DOM_MENTION_PREFIX } from './ChatMentionPopup/constants';
-import { MentionNodeIcon } from './utils/mentions';
-import { sessionTitleParts, sessionTitleText } from './utils/sessionTitle';
+import { DOM_MENTION_PREFIX } from '../ChatMentionPopup/constants';
+import { MentionNodeIcon } from '../utils/mentions';
+import { sessionTitleParts, sessionTitleText } from '../utils/sessionTitle';
 
 interface Props {
   value: string;
