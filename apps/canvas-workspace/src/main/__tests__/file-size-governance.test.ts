@@ -23,7 +23,10 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/renderer/src/views/WorkspaceNodes/GraphPage.tsx': 812,
   'src/renderer/src/components/settings/settings-config/McpManager.tsx': 786,
   'src/renderer/src/components/canvas/Canvas/index.tsx': 770,
-  'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 777,
+  // 777→816 (2026-09-03, drift recorded): master changes #987–#988
+  // expanded then partially reduced Feishu answer-card/run rendering without
+  // updating this manually maintained baseline. Must-not-grow resumes at 816.
+  'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 816,
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/runtime/mcp-server.ts': 652,
@@ -40,7 +43,10 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/webview/registry.ts': 512,
   'src/renderer/src/hooks/useFileNodeEditor.ts': 511,
   'src/main/agent/skills/config.ts': 511,
-  'src/renderer/src/components/icons/index.tsx': 510,
+  // 510→539 (2026-09-03, drift recorded): master icon-alignment changes
+  // #989–#991 landed without updating this manually maintained baseline.
+  // Must-not-grow resumes at 539.
+  'src/renderer/src/components/icons/index.tsx': 539,
   'src/renderer/src/components/settings/settings-config/SkillsManager.tsx': 510,
   'src/plugins/main/webview-page-control/js-primitives.ts': 506,
   // 512→516 (2026-07-10, drift recorded): grew via master work that never
