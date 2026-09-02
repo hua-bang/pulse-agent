@@ -2,17 +2,16 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentChatMessage, AgentSessionInfo } from '../../../types';
-import type { AgentScope } from '../types';
-import { I18nProvider } from '../../../i18n';
+import type { AgentChatMessage, AgentScope, AgentSessionInfo } from '../../types';
+import { I18nProvider } from '../../i18n';
 import { resetChatSessionsCacheForTests, useChatSessions } from './useChatSessions';
-import { useChatPageSessionRail } from './useChatPageSessionRail';
-import { conversationKey } from '../../../../../shared/conversation-runtime';
+import { useChatPageSessionRail } from '../../components/chat/hooks/useChatPageSessionRail';
+import { conversationKey } from '../../../../shared/conversation-runtime';
 import {
   resetConversationStoreForTests,
   setConversationLoading,
   setConversationMessages,
-} from '../../../agent-chat/runtime/conversationStore';
+} from '../runtime/conversationStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

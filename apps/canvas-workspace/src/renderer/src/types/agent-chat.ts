@@ -38,6 +38,11 @@ export interface WorkspaceOption {
   name: string;
 }
 
+export interface OtherWorkspaceSession extends AgentSessionInfo {
+  sourceWorkspaceId: string;
+  workspaceName: string;
+}
+
 export interface MentionItem {
   type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'plugin' | 'tag' | 'session' | 'dom' | 'tab' | 'role';
   label: string;

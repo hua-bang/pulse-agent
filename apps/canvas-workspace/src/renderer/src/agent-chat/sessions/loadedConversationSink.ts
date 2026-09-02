@@ -1,5 +1,4 @@
-import type { AgentChatMessage } from '../../../types';
-import type { AgentScope } from '../types';
+import type { AgentChatMessage, AgentScope } from '../../types';
 
 export interface LoadedConversation {
   scope: AgentScope;

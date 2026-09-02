@@ -5,8 +5,8 @@ loading states, the full-page chat route's relationship to the right dock's
 content tabs, right-dock width behavior, and the main-process layer that keeps
 runs session-anchored so different conversations in one workspace can stream
 concurrently. Read this
-before changing `hooks/useChatSessions.ts`
-(`src/renderer/src/components/chat/hooks/useChatSessions.ts`), the full-page
+before changing `agent-chat/sessions/useChatSessions.ts`
+(`src/renderer/src/agent-chat/sessions/useChatSessions.ts`), the full-page
 chat topbar / dock content-tabs toggle, `RightDock/dock-width.ts`
 (`src/renderer/src/components/dock/RightDock/dock-width.ts`), or
 `src/main/agent/service.ts` and its collaborators (`active-chat-registry.ts`,
@@ -127,8 +127,8 @@ Three flags look similar and are not interchangeable.
   "the model is generating". That one drives the three-dot `.chat-loading`
   indicator, never the skeleton.
 
-`sessionsLoading` and `sessionLoading` both live in `hooks/useChatSessions.ts`
-(`src/renderer/src/components/chat/hooks/useChatSessions.ts`). Do not
+`sessionsLoading` and `sessionLoading` both live in `agent-chat/sessions/useChatSessions.ts`
+(`src/renderer/src/agent-chat/sessions/useChatSessions.ts`). Do not
 conflate them.
 
 **`runThreadFetch` and the request token.** Every thread-replacing IPC call —
@@ -188,7 +188,7 @@ because the composer has TWO submit paths: the send button and
 `handleKeyDown`'s Enter key. A guard placed only in a caller's `handleSubmit`
 is a hole — one of the two paths would bypass it.
 
-Tests: `hooks/useChatSessions.test.tsx`,
+Tests: `agent-chat/sessions/useChatSessions.test.tsx`,
 `hooks/useMentions.submit-veto.test.tsx`, `__tests__/ChatSessionLoading.test.tsx`
 (all under `src/renderer/src/components/chat/`).
 
@@ -287,7 +287,7 @@ structurally stable while the selected conversation changes scope.
   intent ordering prevents a slower earlier request from replacing a newer
   destination click.
 
-Guards: `hooks/useChatSessions.test.tsx` composes cross-scope loading with the
+Guards: `agent-chat/sessions/useChatSessions.test.tsx` composes cross-scope loading with the
 unified rail and pins the one-source list contract;
 `__tests__/ChatSessionsRail.test.tsx` pins expansion preservation, pending-row
 feedback, the title-only row layout, precise recency ordering, and workspace
@@ -719,8 +719,8 @@ The full-screen chat rail is one stable cross-scope projection.
   position.
 - Commit the current and other lists together after promotion.
 
-Guards: `useChatSessions.test.tsx` and `ChatSessionsRail.test.tsx` (both under
-`src/renderer/src/components/chat/`).
+Guards: `src/renderer/src/agent-chat/sessions/useChatSessions.test.tsx` and
+`src/renderer/src/components/chat/__tests__/ChatSessionsRail.test.tsx`.
 
 ### Stable chat-target fallbacks at the app root
 
@@ -740,7 +740,7 @@ that guard.
 
 Primary regression suites live in:
 
-- `src/renderer/src/components/chat/hooks/useChatSessions.test.tsx`
+- `src/renderer/src/agent-chat/sessions/useChatSessions.test.tsx`
 - `src/renderer/src/components/chat/hooks/useMentions.submit-veto.test.tsx`
 - `src/renderer/src/components/chat/__tests__/ChatSessionLoading.test.tsx`
 - `src/renderer/src/components/chat/__tests__/ChatSessionsRail.test.tsx`

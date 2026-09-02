@@ -3,7 +3,7 @@ import type { AgentContextTabRef, AgentRequestContext, CanvasNode } from '../../
 import type { AgentScope, WorkspaceOption } from '../types';
 import { conversationKeyId, type ConversationKey } from '../../../../../shared/conversation-runtime';
 import { useCanvasModels } from '../../../hooks/useCanvasModels';
-import { useChatSessions } from './useChatSessions';
+import { useChatSessions } from '../../../agent-chat/sessions/useChatSessions';
 import { useConversationRuntimeStream } from './useConversationRuntimeStream';
 import { useMentions } from './useMentions';
 import { conversationKeyFromScope } from './useConversationRuntimeStream';
@@ -12,7 +12,7 @@ import {
   hydrateConversationMessages,
   setConversationError,
 } from '../../../agent-chat/runtime/conversationStore';
-import type { LoadedConversation } from './loadedConversationSink';
+import type { LoadedConversation } from '../../../agent-chat/sessions/loadedConversationSink';
 import { serializeEditable } from '../utils/mentions';
 
 interface UseChatComposerStateKeyedOptions {

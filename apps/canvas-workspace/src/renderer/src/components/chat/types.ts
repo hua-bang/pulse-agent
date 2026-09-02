@@ -1,9 +1,9 @@
 import type { MouseEvent, ReactNode } from 'react';
-import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment, WorkspaceOption } from '../../types';
+import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, CanvasNode, ChatImageAttachment, WorkspaceOption } from '../../types';
 import type { SettingsSection } from '../settings/Settings';
 import type { I18nKey } from '../../i18n';
 export type { AgentNewSessionResult } from '../../types/agent-chat';
-export type { MentionItem, WorkspaceOption } from '../../types';
+export type { MentionItem, OtherWorkspaceSession, WorkspaceOption } from '../../types';
 
 export type { AgentScope };
 export type ChatRunInputMode = 'steer' | 'follow-up';
@@ -102,11 +102,6 @@ export interface ChatPanelProps {
   sessionRefreshKey?: string | number;
   /** Opens a historical conversation in its owning scope on the full-page surface. */
   onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
-}
-
-export interface OtherWorkspaceSession extends AgentSessionInfo {
-  sourceWorkspaceId: string;
-  workspaceName: string;
 }
 
 export type ToolCallStatus = AgentChatToolCall;

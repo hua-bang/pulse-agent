@@ -1,5 +1,5 @@
-import type { CrossWorkspaceSessionGroup } from '../../../../../shared/agent-chat';
-import type { OtherWorkspaceSession } from '../types';
+import type { CrossWorkspaceSessionGroup } from '../../../../shared/agent-chat';
+import type { OtherWorkspaceSession } from '../../types';
 
 export function partitionSessionGroups(
   groups: CrossWorkspaceSessionGroup[],

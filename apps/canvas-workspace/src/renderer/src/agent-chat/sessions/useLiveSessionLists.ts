@@ -1,13 +1,17 @@
 import { useMemo } from 'react';
-import type { AgentSessionInfo } from '../../../types';
+import type {
+  AgentScope,
+  AgentSessionInfo,
+  OtherWorkspaceSession,
+  WorkspaceOption,
+} from '../../types';
 import {
   GLOBAL_CHAT_STORE_ID,
   scheduledTaskIdFromStoreId,
   scopeSessionStoreId,
-} from '../../../../../shared/agent-chat';
-import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
-import { useI18n } from '../../../i18n';
-import { useConversationSnapshots } from '../../../agent-chat/runtime/conversationStore';
+} from '../../../../shared/agent-chat';
+import { useI18n } from '../../i18n';
+import { useConversationSnapshots } from '../runtime/conversationStore';
 
 interface Options {
   agentScope: AgentScope;

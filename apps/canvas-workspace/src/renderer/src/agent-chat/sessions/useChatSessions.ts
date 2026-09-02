@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { AgentChatMessage, AgentSessionInfo } from '../../../types';
-import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
-import { useClickOutside } from '../../../hooks/useClickOutside';
-import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
-import { useI18n } from '../../../i18n';
+import type {
+  AgentChatMessage,
+  AgentScope,
+  AgentSessionInfo,
+  OtherWorkspaceSession,
+  WorkspaceOption,
+} from '../../types';
+import { useClickOutside } from '../../hooks/useClickOutside';
+import { scopeSessionStoreId } from '../../../../shared/agent-chat';
+import { useI18n } from '../../i18n';
 import {
   beginChatConversationMutation,
   createChatConversationMutationState,
