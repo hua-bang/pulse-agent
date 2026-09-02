@@ -1,13 +1,9 @@
 import type { MouseEvent, ReactNode } from 'react';
-import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment, WorkspaceOption } from '../../types';
 import type { SettingsSection } from '../settings/Settings';
 import type { I18nKey } from '../../i18n';
 export type { AgentNewSessionResult } from '../../types/agent-chat';
-
-export interface WorkspaceOption {
-  id: string;
-  name: string;
-}
+export type { MentionItem, WorkspaceOption } from '../../types';
 
 export type { AgentScope };
 export type ChatRunInputMode = 'steer' | 'follow-up';
@@ -116,36 +112,6 @@ export interface OtherWorkspaceSession extends AgentSessionInfo {
 export type ToolCallStatus = AgentChatToolCall;
 
 export type { ChatImageAttachment };
-
-export interface MentionItem {
-  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'plugin' | 'tag' | 'session' | 'dom' | 'tab' | 'role';
-  label: string;
-  /** For type === 'plugin': stable plugin-market listing id. */
-  pluginId?: string;
-  /** Client-owned brand key; Agent Plugins itself has no portable icon field. */
-  pluginIconKey?: string;
-  /** For type === 'role': the chat persona's id from the role library. */
-  roleId?: string;
-  /** For type === 'role': the persona's accent color (popup icon tint). */
-  roleColor?: string;
-  nodeType?: CanvasNode['type'];
-  /** For type === 'node': the canvas node id, used to focus it when clicked. */
-  nodeId?: string;
-  path?: string;
-  workspaceId?: string;
-  /** For type === 'tag': workspaces the tag occurs in (global assistant). */
-  workspaceIds?: string[];
-  /** Extra context shown in the popup row (e.g. skill detail or node workspace). */
-  description?: string;
-  /** For type === 'session': the referenced chat session id. */
-  sessionId?: string;
-  /** For type === 'session': index of the first message matching the query. */
-  messageIndex?: number;
-  /** For type === 'dom': selected iframe/webview DOM element context. */
-  domSelection?: AgentContextDomSelectionRef;
-  /** For type === 'tab': the referenced right-dock tab. */
-  tab?: AgentContextTabRef;
-}
 
 export interface PendingClarification {
   id: string;

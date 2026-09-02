@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createMentionChipElement } from '../utils/mentions';
+import { createMentionChipElement } from '../../components/chat/utils/mentions';
 import {
   collectPluginRefsFromEditable,
   loadInstalledPluginMentionItems,

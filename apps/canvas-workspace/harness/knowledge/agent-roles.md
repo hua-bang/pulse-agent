@@ -249,7 +249,7 @@ the handoff scan is gated on `handoffEnabled && role && !relayStop.stopped
   behind the Settings **Chat Roles** (`chat-roles`) section.
 
 Role accents everywhere come from ONE renderer cache,
-`src/renderer/src/components/chat/hooks/roleMentionItems.ts`: it caches the
+`src/renderer/src/agent-chat/mentions/roleMentionItems.ts`: it caches the
 `@` popup entries plus an id → accent-color map with a 5-SECOND TTL
 (`loadRoleMentionItems`, `cache.at`), exposed to components as
 `useRoleColors()` (and `useRoleNameColors()` for the plain-text `@Name`
@@ -520,7 +520,7 @@ Primary regression suites live in:
 - `src/renderer/src/components/chat/hooks/useChatStream.keyed.test.tsx` —
   conversation-keyed stream isolation, listener cleanup, run targeting, and
   the mid-turn RelayBar handoff-growth/completion lifecycle.
-- `src/renderer/src/components/chat/hooks/roleMentionItems.test.ts` — the
+- `src/renderer/src/agent-chat/mentions/roleMentionItems.test.ts` — the
   role-color TTL cache, recolor notifications, the external-only
   no-provider send guard, and the violet fallback on a failed library
   read.

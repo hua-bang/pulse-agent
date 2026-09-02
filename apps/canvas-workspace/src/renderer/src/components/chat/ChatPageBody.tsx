@@ -9,7 +9,7 @@ import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerStateKeyed } from './hooks/useChatComposerStateKeyed';
-import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
+import { isExternalOnlyRoleMessage } from '../../agent-chat/mentions/roleMentionItems';
 import { useAppShell } from '../shell/AppShellProvider';
 import type { AgentNewSessionResult, AgentScope, WorkspaceOption } from './types';
 import { useI18n } from '../../i18n';

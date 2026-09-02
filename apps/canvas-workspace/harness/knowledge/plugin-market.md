@@ -39,7 +39,7 @@ The market is a Canvas application feature, not the engine's `EnginePlugin` or `
 | Canvas plugin directory/config SSOT and skill sources | `src/main/settings/canvas-plugins-config.ts` |
 | IPC registration and preload bridge | `src/main/plugin-market/ipc.ts`, `src/preload/bridge/plugin-market.ts`, `src/preload/index.ts` |
 | Route, state, filters, rows and dialogs | `src/renderer/src/views/PluginMarket/`, wired by `src/renderer/src/App.tsx` |
-| Installed-plugin `@` mentions and request-context collection | `src/renderer/src/components/chat/hooks/pluginMentionItems.ts`, `useMentions.ts` |
+| Installed-plugin `@` mentions and request-context collection | `src/renderer/src/agent-chat/mentions/pluginMentionItems.ts`, `components/chat/hooks/useMentions.ts` |
 | Turn-level plugin routing guidance | `src/main/agent/plugin-selection-context.ts` |
 | Canvas Agent skills/MCP composition | `src/main/agent/engine-plugins.ts` |
 

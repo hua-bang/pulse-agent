@@ -6,7 +6,7 @@ import { I18nProvider } from '../../../i18n';
 import type { AgentContextTabRef } from '../../../types';
 import { resetChatComposerDraftsForTests } from './chatComposerDraftStore';
 import { useMentions } from './useMentions';
-import { resetPluginMentionItemsForTests } from './pluginMentionItems';
+import { resetPluginMentionItemsForTests } from '../../../agent-chat/mentions/pluginMentionItems';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

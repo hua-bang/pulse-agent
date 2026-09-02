@@ -16,8 +16,8 @@ import {
 import type { MentionItem, WorkspaceOption } from '../types';
 import type { AgentScope } from '../types';
 import { buildTabMentionItems, collectContextRefsFromEditable, createMentionChipElement, serializeEditable, withCollectedTabs } from '../utils/mentions';
-import { flattenEntries } from './fileMentionItems';
-import { loadRoleMentionItems } from './roleMentionItems';
+import { flattenEntries } from '../../../agent-chat/mentions/fileMentionItems';
+import { loadRoleMentionItems } from '../../../agent-chat/mentions/roleMentionItems';
 import { useEditableInputControl } from './useEditableInputControl';
 import { useSkillMentionInsertion } from './useSkillMentionInsertion';
 import { chatScopeId } from '../chatScope';
@@ -27,10 +27,10 @@ import {
   updateChatComposerDraft,
 } from './chatComposerDraftStore';
 import { useChatAttachments } from '../../../agent-chat/attachments/useChatAttachments';
-import { buildStaticMentionItems } from './staticMentionItems';
+import { buildStaticMentionItems } from '../../../agent-chat/mentions/staticMentionItems';
 import { useI18n, type I18nKey } from '../../../i18n';
 import { useContextMentionInsertions } from './useContextMentionInsertions';
-import { loadInstalledPluginMentionItems, withCollectedPlugins } from './pluginMentionItems';
+import { loadInstalledPluginMentionItems, withCollectedPlugins } from '../../../agent-chat/mentions/pluginMentionItems';
 
 const tabKindLabelKey = (kind: AgentContextTabRef['kind']): I18nKey => {
   switch (kind) {

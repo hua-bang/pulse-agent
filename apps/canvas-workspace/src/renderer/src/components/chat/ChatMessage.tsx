@@ -3,7 +3,7 @@ import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
 import { BotAvatarIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
-import { useRoleColors, useRoleNameColors } from './hooks/roleMentionItems';
+import { useRoleColors, useRoleNameColors } from '../../agent-chat/mentions/roleMentionItems';
 import { renderMdWithMentions } from './utils/mentions';
 import { roleColorSoft } from '../../utils/roleColors';
 import { isImeComposing } from '../../utils/ime';

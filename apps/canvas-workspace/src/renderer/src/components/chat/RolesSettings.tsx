@@ -9,7 +9,7 @@ import {
 } from '../../../../shared/agent-roles';
 import { useI18n } from '../../i18n';
 import { Button, SegmentedControl, SwatchRow, TextField } from '../ui';
-import { invalidateRoleMentionItems } from './hooks/roleMentionItems';
+import { invalidateRoleMentionItems } from '../../agent-chat/mentions/roleMentionItems';
 import { roleColorSoft } from '../../utils/roleColors';
 import './ModelSettings.css';
 import './RolesSettings.css';

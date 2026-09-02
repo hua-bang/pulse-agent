@@ -8,7 +8,7 @@ import './DomMention.css';
 import { ChatView } from './ChatView';
 import { SessionBackBar } from './SessionBackBar';
 import { useChatComposerStateKeyed } from './hooks/useChatComposerStateKeyed';
-import { isExternalOnlyRoleMessage } from './hooks/roleMentionItems';
+import { isExternalOnlyRoleMessage } from '../../agent-chat/mentions/roleMentionItems';
 import { useComposerRequest } from './hooks/useComposerRequest';
 import { useAppShell } from '../shell/AppShellProvider';
 import type { AgentRequestContext } from '../../types';

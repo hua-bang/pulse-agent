@@ -1,5 +1,4 @@
-import type { DirEntry } from '../../../types';
-import type { MentionItem } from '../types';
+import type { DirEntry, MentionItem } from '../../types';
 
 /**
  * Flatten a project directory listing into file/folder mention candidates.

@@ -1,6 +1,5 @@
-import type { CanvasNode } from '../../../types';
-import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
-import type { MentionItem, WorkspaceOption } from '../types';
+import type { CanvasNode, MentionItem, WorkspaceOption } from '../../types';
+import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 
 interface StaticMentionItemsOptions {
   allWorkspaces?: WorkspaceOption[];

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { parseRoleMentions } from '../../../../../shared/agent-roles';
-import type { MentionItem } from '../types';
+import { parseRoleMentions } from '../../../../shared/agent-roles';
+import type { MentionItem } from '../../types';
 
 /**
  * Renderer-side cache of the role library: `@` popup entries plus the

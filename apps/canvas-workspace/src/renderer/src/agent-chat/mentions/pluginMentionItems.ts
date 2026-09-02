@@ -1,5 +1,4 @@
-import type { AgentContextPluginRef, AgentRequestContext } from '../../../types';
-import type { MentionItem } from '../types';
+import type { AgentContextPluginRef, AgentRequestContext, MentionItem } from '../../types';
 
 const CACHE_TTL_MS = 5_000;
 let cached: { expiresAt: number; items: MentionItem[] } | null = null;
