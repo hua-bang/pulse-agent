@@ -1,5 +1,5 @@
-import type { CanvasModelProviderStatus } from '../../types';
-import { useI18n } from '../../i18n';
+import type { CanvasModelProviderStatus } from '../../../types';
+import { useI18n } from '../../../i18n';
 
 interface ApiKeyStatusHintProps {
   status?: CanvasModelProviderStatus;

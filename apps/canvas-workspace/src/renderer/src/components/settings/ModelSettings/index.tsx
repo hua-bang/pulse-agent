@@ -4,13 +4,14 @@ import type {
   CanvasModelProviderStatus,
   CanvasModelStatus,
   CanvasProviderModel,
-} from '../../types';
-import { TrashIcon } from '../icons';
+} from '../../../types';
+import { TrashIcon } from '../../icons';
 import { ModelProviderFields } from './ModelProviderFields';
 import { ModelProviderRail } from './ModelProviderRail';
 import { useProviderModelActions } from './hooks/useProviderModelActions';
 import { useProviderModelSelection } from './hooks/useProviderModelSelection';
-import { useI18n } from '../../i18n';
+import { useI18n } from '../../../i18n';
+import './index.css';
 
 interface ModelsSectionProps {
   status?: CanvasModelStatus;

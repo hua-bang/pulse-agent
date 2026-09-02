@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../types';
-import { useI18n, type I18nKey } from '../../i18n';
-import { Button, TextField } from '../ui';
-import './ModelSettings.css';
+import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../../types';
+import { useI18n, type I18nKey } from '../../../i18n';
+import { Button, TextField } from '../../ui';
+import '../ModelSettings/index.css';
 
 interface UsePromptProfileResult {
   profile?: PromptProfileStatus;

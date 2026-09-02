@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AgentRoleDefinition } from '../../types';
+import type { AgentRoleDefinition } from '../../../types';
 import {
   AGENT_ROLE_COLORS,
   AGENT_ROLE_NAME_MAX_LENGTH,
   AGENT_ROLE_PROMPT_MAX_LENGTH,
   type AgentRoleExternalFamily,
   type AgentRoleSaveInput,
-} from '../../../../shared/agent-roles';
-import { useI18n } from '../../i18n';
-import { Button, SegmentedControl, SwatchRow, TextField } from '../ui';
-import { invalidateRoleMentionItems } from '../../agent-chat/mentions/roleMentionItems';
-import { roleColorSoft } from '../../utils/roleColors';
-import './ModelSettings.css';
-import './RolesSettings.css';
+} from '../../../../../shared/agent-roles';
+import { useI18n } from '../../../i18n';
+import { Button, SegmentedControl, SwatchRow, TextField } from '../../ui';
+import { invalidateRoleMentionItems } from '../../../agent-chat/mentions/roleMentionItems';
+import { roleColorSoft } from '../../../utils/roleColors';
+import '../ModelSettings/index.css';
+import './index.css';
 
 const familyLabel = (family: AgentRoleExternalFamily): string =>
   family === 'claude-code' ? 'Claude Code' : 'Codex';

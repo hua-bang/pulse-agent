@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useI18n } from '../../../i18n';
-import type { CanvasProviderModel } from '../../../types';
-import { Button, SegmentedControl, TextField } from '../../ui';
-import { matchesModelQuery } from '../../../utils/modelCatalog';
+import { useI18n } from '../../../../i18n';
+import type { CanvasProviderModel } from '../../../../types';
+import { Button, SegmentedControl, TextField } from '../../../ui';
+import { matchesModelQuery } from '../../../../utils/modelCatalog';
 import './index.css';
 
 interface Props {

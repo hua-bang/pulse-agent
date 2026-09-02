@@ -1,8 +1,8 @@
-import type { CanvasModelProviderConfig, CanvasModelProviderStatus } from '../../types';
-import { RefreshIcon } from '../icons';
+import type { CanvasModelProviderConfig, CanvasModelProviderStatus } from '../../../types';
+import { RefreshIcon } from '../../icons';
 import { ApiKeyStatusHint } from './ApiKeyStatusHint';
 import { ModelCatalog } from './ModelCatalog';
-import { useI18n } from '../../i18n';
+import { useI18n } from '../../../i18n';
 
 interface Props {
   activeProviderId: string;

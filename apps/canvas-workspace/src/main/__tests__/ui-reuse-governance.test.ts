@@ -530,7 +530,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 5 remain as frozen stock: AgentNodeBody/AgentPicker's tablist,
   // RightDock's tab strip (excluded by design — glider/unread/closeable,
   // not a plain pill), and 3 radiogroups (Settings/LanguageSection,
-  // chat/PromptSettings, chat/ModelProviderFields) — evaluated as optional
+  // settings/PromptSettings, settings/ModelSettings/ModelProviderFields) — evaluated as optional
   // migrations and flagged: both are card/grid-style choosers (2-col grid,
   // bordered cards, box-shadow ring), a different visual language than
   // SegmentedControl's compact pill, so migrating would be a visual

@@ -1,6 +1,6 @@
-import type { CanvasModelProviderStatus } from '../../types';
-import { PlusIcon } from '../icons';
-import { useI18n } from '../../i18n';
+import type { CanvasModelProviderStatus } from '../../../types';
+import { PlusIcon } from '../../icons';
+import { useI18n } from '../../../i18n';
 
 interface ProviderRailProps {
   activeProviderId: string;

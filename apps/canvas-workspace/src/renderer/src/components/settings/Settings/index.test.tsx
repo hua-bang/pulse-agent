@@ -36,18 +36,11 @@ vi.mock('../../ui', () => ({
   ),
 }));
 
-vi.mock('../../chat/ModelSettings', () => ({
+vi.mock('../ModelSettings', () => ({
   ModelsSection: () => <div>Models content</div>,
-  useCanvasModels: () => ({
-    status: undefined,
-    error: null,
-    upsertProvider: vi.fn(),
-    removeProvider: vi.fn(),
-    fetchModels: vi.fn(),
-  }),
 }));
 
-vi.mock('../../chat/PromptSettings', () => ({
+vi.mock('../PromptSettings', () => ({
   ReplyStyleSection: () => <div>Reply style content</div>,
   usePromptProfile: () => ({
     profile: undefined,
@@ -57,7 +50,7 @@ vi.mock('../../chat/PromptSettings', () => ({
   }),
 }));
 
-vi.mock('../../chat/RolesSettings', () => ({ RolesSection: () => <div>Roles content</div> }));
+vi.mock('../RolesSettings', () => ({ RolesSection: () => <div>Roles content</div> }));
 vi.mock('./AgentSection', () => ({ AgentSection: () => <div>Agent content</div> }));
 vi.mock('./BrowserSection', () => ({ BrowserSection: () => <div>Browser content</div> }));
 vi.mock('./BuiltInToolsSection', () => ({ BuiltInToolsSection: () => <div>Tools content</div> }));

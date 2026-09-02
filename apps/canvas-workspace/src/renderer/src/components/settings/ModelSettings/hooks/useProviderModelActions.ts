@@ -1,11 +1,11 @@
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
-import { useI18n } from '../../../i18n';
+import { useI18n } from '../../../../i18n';
 import type {
   CanvasModelProviderConfig,
   CanvasModelProviderStatus,
   CanvasModelStatus,
   CanvasProviderModel,
-} from '../../../types';
+} from '../../../../types';
 
 interface Props {
   activeProviderStatus?: CanvasModelProviderStatus;

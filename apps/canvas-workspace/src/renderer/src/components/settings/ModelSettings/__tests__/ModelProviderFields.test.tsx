@@ -2,10 +2,10 @@
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n';
-import type { CanvasModelProviderConfig, CanvasModelStatus, CanvasProviderModel } from '../../../types';
+import { I18nProvider } from '../../../../i18n';
+import type { CanvasModelProviderConfig, CanvasModelStatus, CanvasProviderModel } from '../../../../types';
 import { ModelProviderFields } from '../ModelProviderFields';
-import { ModelsSection } from '../ModelsSection';
+import { ModelsSection } from '..';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

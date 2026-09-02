@@ -1,6 +1,6 @@
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
-import type { CanvasModelProviderConfig, CanvasProviderModel } from '../../../types';
-import { mergeModels } from '../../../utils/modelCatalog';
+import type { CanvasModelProviderConfig, CanvasProviderModel } from '../../../../types';
+import { mergeModels } from '../../../../utils/modelCatalog';
 
 type ModelGroup = ReadonlyArray<CanvasProviderModel> | undefined;
 
