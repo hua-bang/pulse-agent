@@ -30,7 +30,8 @@ independent runtime:
   `conversation-stop-relay` / `conversation-clarify-answer`).
 - Renderer: `src/renderer/src/agent-chat/runtime/conversationStore.ts` (useSyncExternalStore keyed by
   ConversationKey; snapshot cache keeps getSnapshot referentially stable),
-  `useConversationRuntimeStream.ts` (keyed stream hook driving the store +
+  `src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.ts`
+  (keyed stream hook driving the store +
   conversation IPC), `useChatComposerStateKeyed.ts` (composer root used by
   BOTH `ChatPanel` and `ChatPageBody`).
 
@@ -77,8 +78,8 @@ Key invariants and their guards:
   `conversation-runtime/service-conversation-runtime.test.ts` (parallel runs,
   per-conversation isolation, same-conversation serialization, delta streaming).
 - Renderer store + switch-only-selector + shared snapshot:
-  `agent-chat/runtime/conversationStore.test.ts`, `hooks/useChatStream.keyed.test.tsx`,
-  `hooks/useChatStream.shared-snapshot.test.tsx`,
+  `agent-chat/runtime/conversationStore.test.ts`, `agent-chat/runtime/useConversationRuntimeStream.test.tsx`,
+  `agent-chat/runtime/useConversationRuntimeStream.shared-snapshot.test.tsx`,
   `hooks/useChatComposerStateKeyed.test.tsx`.
 - Session hydration is always qualified by `{ scope, sessionId }`; fetched
   messages are written to that conversation store BEFORE React adopts its
@@ -650,8 +651,8 @@ Pending text and its context snapshot are kept by scope + conversation across
 chat-surface remounts. Delivery pauses while that conversation has no mounted
 chat host and resumes when it returns; it is not a durable app-restart queue.
 Manual Stop clears pending input. Draft attachments stay untouched because run
-input is text-only. Guards: `hooks/useChatRunQueue.test.tsx` and
-`hooks/useChatStream.protocol.test.tsx`.
+input is text-only. Guard:
+`src/renderer/src/agent-chat/runtime/useChatRunQueue.test.tsx`.
 
 ### Clarification serialization
 

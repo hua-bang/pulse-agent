@@ -1,12 +1,18 @@
 import type { MouseEvent, ReactNode } from 'react';
-import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, CanvasNode, ChatImageAttachment, WorkspaceOption } from '../../types';
+import type { AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTabRef, AgentContextTagRef, AgentScope, CanvasNode, ChatImageAttachment, WorkspaceOption } from '../../types';
 import type { SettingsSection } from '../settings/Settings';
 import type { I18nKey } from '../../i18n';
 export type { AgentNewSessionResult } from '../../types/agent-chat';
-export type { MentionItem, OtherWorkspaceSession, WorkspaceOption } from '../../types';
+export type {
+  ChatRunInputMode,
+  MentionItem,
+  OtherWorkspaceSession,
+  PendingClarification,
+  ToolCallStatus,
+  WorkspaceOption,
+} from '../../types';
 
 export type { AgentScope };
-export type ChatRunInputMode = 'steer' | 'follow-up';
 
 /**
  * Pre-resolved descriptor for a "current context" chip in the composer.
@@ -104,17 +110,7 @@ export interface ChatPanelProps {
   onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }
 
-export type ToolCallStatus = AgentChatToolCall;
-
 export type { ChatImageAttachment };
-
-export interface PendingClarification {
-  id: string;
-  question: string;
-  context?: string;
-  kind?: 'clarification' | 'approval';
-  defaultAnswer?: string;
-}
 
 export interface QuickAction {
   key: 'summarize_canvas' | 'analyze_relations' | 'create_mindmap' | 'organize_selection';

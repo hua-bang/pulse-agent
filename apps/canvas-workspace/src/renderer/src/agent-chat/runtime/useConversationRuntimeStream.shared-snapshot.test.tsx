@@ -6,11 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-import type { AgentChatMessage } from '../../../types';
-import { conversationKey, type ConversationKey } from '../../../../../shared/conversation-runtime';
+import type { AgentChatMessage } from '../../types';
+import { conversationKey, type ConversationKey } from '../../../../shared/conversation-runtime';
 import { useConversationRuntimeStream } from './useConversationRuntimeStream';
-import { I18nProvider } from '../../../i18n';
-import { resetConversationStoreForTests, setConversationMessages } from '../../../agent-chat/runtime/conversationStore';
+import { I18nProvider } from '../../i18n';
+import { resetConversationStoreForTests, setConversationMessages } from './conversationStore';
 
 const scope = { kind: 'workspace', workspaceId: 'ws-a' } as const;
 const keyA: ConversationKey = conversationKey(scope, 'session-a');

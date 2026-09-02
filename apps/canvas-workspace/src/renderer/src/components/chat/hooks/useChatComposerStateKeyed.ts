@@ -4,9 +4,9 @@ import type { AgentScope, WorkspaceOption } from '../types';
 import { conversationKeyId, type ConversationKey } from '../../../../../shared/conversation-runtime';
 import { useCanvasModels } from '../../../hooks/useCanvasModels';
 import { useChatSessions } from '../../../agent-chat/sessions/useChatSessions';
-import { useConversationRuntimeStream } from './useConversationRuntimeStream';
+import { useConversationRuntimeStream } from '../../../agent-chat/runtime/useConversationRuntimeStream';
 import { useMentions } from './useMentions';
-import { conversationKeyFromScope } from './useConversationRuntimeStream';
+import { conversationKeyFromScope } from '../../../agent-chat/runtime/useConversationRuntimeStream';
 import {
   captureConversationSequences,
   hydrateConversationMessages,

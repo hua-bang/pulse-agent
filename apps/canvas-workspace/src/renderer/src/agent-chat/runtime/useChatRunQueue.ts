@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { AgentRequestContext } from '../../../types';
-import type { ChatRunInputMode } from '../types';
+import type { AgentRequestContext, ChatRunInputMode } from '../../types';
 
 export interface QueuedInput {
   id: number;

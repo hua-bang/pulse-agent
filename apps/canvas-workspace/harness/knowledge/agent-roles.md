@@ -218,10 +218,10 @@ in by {name}" in en). Because a handoff can turn what started as a
 single-role turn into a relay mid-turn, the RelayBar can appear AFTER the
 turn has already started. The keyed renderer updates `RelayProgress` from
 `role-turn-start` / `role-turn-end` inside
-`src/renderer/src/components/chat/hooks/useConversationRuntimeStream.ts`;
+`src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.ts`;
 `ChatView` renders the strip only once `total > 1`. The handoff-growth and
 completion-clear behavior is pinned at that public hook seam by
-`src/renderer/src/components/chat/hooks/useChatStream.keyed.test.tsx`.
+`src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.test.tsx`.
 
 Default-assistant segments (no role — `role` is `null`) never hand off, and
 a pending graceful stop freezes the queue: in `src/main/agent/canvas-agent.ts`
@@ -238,7 +238,7 @@ the handoff scan is gated on `handoffEnabled && role && !relayStop.stopped
   `message.speakerRoleName` / `message.speakerRoleColor` as the avatar
   initial and a name badge on assistant messages.
 - Keyed renderer progress + completion policy:
-  `src/renderer/src/components/chat/hooks/useConversationRuntimeStream.ts`
+  `src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.ts`
   uses `role-turn-start` / `role-turn-end` only for the live RelayBar
   projection. The authoritative `chat-complete` payload settles the assistant
   message, including its speaker snapshot and terminal status. This keeps
@@ -517,7 +517,7 @@ Primary regression suites live in:
   `chat-stop.ts`.
 - `src/main/agent/chat-failure-persistence.test.ts` — `createFailedTurnToolTracker`
   and `failedAssistantMessage`.
-- `src/renderer/src/components/chat/hooks/useChatStream.keyed.test.tsx` —
+- `src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.test.tsx` —
   conversation-keyed stream isolation, listener cleanup, run targeting, and
   the mid-turn RelayBar handoff-growth/completion lifecycle.
 - `src/renderer/src/agent-chat/mentions/roleMentionItems.test.ts` — the

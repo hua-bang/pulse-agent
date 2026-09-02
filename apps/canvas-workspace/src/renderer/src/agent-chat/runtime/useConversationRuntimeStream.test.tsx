@@ -5,20 +5,20 @@ import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-import { conversationKey, type ConversationKey } from '../../../../../shared/conversation-runtime';
+import { conversationKey, type ConversationKey } from '../../../../shared/conversation-runtime';
 import { useConversationRuntimeStream } from './useConversationRuntimeStream';
-import { I18nProvider } from '../../../i18n';
+import { I18nProvider } from '../../i18n';
 import {
   readConversationSnapshot,
   resetConversationStoreForTests,
   setConversationClarification,
   setConversationLoading,
   setConversationMessages,
-} from '../../../agent-chat/runtime/conversationStore';
+} from './conversationStore';
 import {
   readConversationCompletions,
   resetConversationCompletionStoreForTests,
-} from '../../../agent-chat/runtime/conversationCompletionStore';
+} from './conversationCompletionStore';
 
 const scope = { kind: 'workspace', workspaceId: 'ws-a' } as const;
 const keyA: ConversationKey = conversationKey(scope, 'session-a');

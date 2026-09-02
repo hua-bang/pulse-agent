@@ -2,11 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   AgentChatMessage,
   AgentRequestContext,
+  AgentScope,
   ChatImageAttachment,
+  PendingClarification,
   RelayProgress,
-} from '../../../types';
-import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
-import type { ConversationKey } from '../../../../../shared/conversation-runtime';
+  ToolCallStatus,
+  WorkspaceOption,
+} from '../../types';
+import type { ConversationKey } from '../../../../shared/conversation-runtime';
 import {
   appendConversationTextAt,
   pushConversationMessage,
@@ -17,14 +20,14 @@ import {
   setConversationMessages,
   setConversationStreamingTools,
   useConversationSnapshot,
-} from '../../../agent-chat/runtime/conversationStore';
-import { extractMentionedWorkspaceIds } from '../utils/mentions';
+} from './conversationStore';
+import { extractMentionedWorkspaceIds } from '../mentions/extractMentionedWorkspaceIds';
 import { markAgentMilestone } from './markAgentMilestone';
-import { count } from '../../../perf/counters';
+import { count } from '../../perf/counters';
 import { useChatRunQueue } from './useChatRunQueue';
 import { createConversationTextBatcher } from './conversationTextBatcher';
 import { friendlyChatFailure } from './chatTurnOutcome';
-import { clearConversationCompletion, recordConversationCompletion, useConversationVisibility } from '../../../agent-chat/runtime/conversationCompletionStore';
+import { clearConversationCompletion, recordConversationCompletion, useConversationVisibility } from './conversationCompletionStore';
 
 export interface UseConversationRuntimeStreamOptions {
   agentScope: AgentScope;

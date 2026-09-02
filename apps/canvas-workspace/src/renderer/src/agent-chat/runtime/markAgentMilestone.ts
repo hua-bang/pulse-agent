@@ -1,4 +1,4 @@
-import type { AgentObservabilityMarkInput } from '../../../../../shared/agent-observability';
+import type { AgentObservabilityMarkInput } from '../../../../shared/agent-observability';
 
 export const markAgentMilestone = (
   runId: string,

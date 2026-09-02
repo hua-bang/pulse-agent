@@ -141,7 +141,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   Guard: `src/main/agent/__tests__/service-history.test.ts`.
   Detail: `harness/knowledge/chat-sessions.md`.
 - Chat run state is conversation-owned: each conversation key has an independent runtime (`conversation-runtime/` in main, `src/renderer/src/agent-chat/runtime/conversationStore.ts` + `useChatComposerStateKeyed` in renderer) over one shared CanvasAgent engine; switching = changing the store selector, two conversations run in parallel, same-conversation second turn queues. Legacy compensation hooks were deleted; `ActiveChatRegistry` stays only for scheduled/back-compat.
-  Guard: `conversation-runtime/*.test.ts`, `shared/conversation-runtime.test.ts`, `src/renderer/src/agent-chat/runtime/conversationStore.test.ts`, `hooks/useChatStream.keyed.test.tsx`, `hooks/useChatStream.shared-snapshot.test.tsx`, `hooks/useChatComposerStateKeyed.test.tsx`, `active-chat-registry.test.ts`, `useChatPagePendingSession.test.tsx`.
+  Guard: `conversation-runtime/*.test.ts`, `shared/conversation-runtime.test.ts`, `src/renderer/src/agent-chat/runtime/conversationStore.test.ts`, `agent-chat/runtime/useConversationRuntimeStream.test.tsx`, `agent-chat/runtime/useConversationRuntimeStream.shared-snapshot.test.tsx`, `hooks/useChatComposerStateKeyed.test.tsx`, `active-chat-registry.test.ts`, `useChatPagePendingSession.test.tsx`.
   Detail: `harness/knowledge/chat-sessions.md`.
 - The renderer has one visible approval card, so main must serialize concurrent clarification requests, starting each timeout only once visible; answering one must reveal, not clear, the next queued request.
   Guard: `clarification-registry.test.ts`.

@@ -8,7 +8,7 @@ import { useI18n } from '../../i18n';
 import { CHAT_MENTION_LISTBOX_ID, chatMentionOptionId } from './ChatMentionPopup';
 import { ChatInputAttachments } from './ChatInputAttachments';
 import { ChatRunQueue } from './ChatRunQueue';
-import type { QueuedInput } from './hooks/useChatRunQueue';
+import type { QueuedInput } from '../../agent-chat/runtime/useChatRunQueue';
 import { Button } from '../ui';
 
 interface ChatInputProps {

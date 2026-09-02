@@ -1,6 +1,6 @@
 import type { CanvasNode } from '../../../types';
 import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, PLUGIN_MENTION_PREFIX, ROLE_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAB_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
-import type { MentionItem, WorkspaceOption } from '../types';
+import type { MentionItem } from '../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
 import { MENTION_RE, decodeMentionPart, encodeMentionPart, pipedMentionLabel, protectMentionMarkers, restoreMentionMarkersInAttributes, restoreMentionMarkersInText, transformHtmlText } from './mentionMarkers';
@@ -154,28 +154,6 @@ export function getMentionNodeType(item: MentionItem, nodes?: CanvasNode[]): str
   if (item.type === 'tab') return tabMentionIconType(item.tab?.kind);
 
   return nodes?.find(node => node.title === item.label)?.type ?? item.nodeType ?? 'file';
-}
-
-export function extractMentionedWorkspaceIds(
-  text: string,
-  allWorkspaces: WorkspaceOption[] | undefined,
-  currentWorkspaceId: string,
-): string[] {
-  if (!allWorkspaces || allWorkspaces.length === 0) return [];
-
-  const re = new RegExp(`@\\[${CANVAS_MENTION_PREFIX}([^\\]]+)\\]`, 'g');
-  const ids = new Set<string>();
-  let match: RegExpExecArray | null;
-
-  while ((match = re.exec(text)) !== null) {
-    const workspaceName = match[1];
-    const workspace = allWorkspaces.find(item => item.name === workspaceName);
-    if (workspace && workspace.id !== currentWorkspaceId) {
-      ids.add(workspace.id);
-    }
-  }
-
-  return Array.from(ids);
 }
 
 // serializeEditable lives in its own module (keeps this file under the

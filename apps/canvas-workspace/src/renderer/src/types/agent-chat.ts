@@ -1,6 +1,7 @@
 import type {
   AgentChatMessage,
   AgentChatMcpApp,
+  AgentChatToolCall,
   AgentClarificationRequest,
   AgentContextDomSelectionRef,
   AgentContextTabRef,
@@ -41,6 +42,18 @@ export interface WorkspaceOption {
 export interface OtherWorkspaceSession extends AgentSessionInfo {
   sourceWorkspaceId: string;
   workspaceName: string;
+}
+
+export type ChatRunInputMode = 'steer' | 'follow-up';
+
+export type ToolCallStatus = AgentChatToolCall;
+
+export interface PendingClarification {
+  id: string;
+  question: string;
+  context?: string;
+  kind?: 'clarification' | 'approval';
+  defaultAnswer?: string;
 }
 
 export interface MentionItem {
