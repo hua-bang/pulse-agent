@@ -14,11 +14,11 @@ import {
   setConversationClarification,
   setConversationLoading,
   setConversationMessages,
-} from './conversationStore';
+} from '../../../agent-chat/runtime/conversationStore';
 import {
   readConversationCompletions,
   resetConversationCompletionStoreForTests,
-} from './conversationCompletionStore';
+} from '../../../agent-chat/runtime/conversationCompletionStore';
 
 const scope = { kind: 'workspace', workspaceId: 'ws-a' } as const;
 const keyA: ConversationKey = conversationKey(scope, 'session-a');

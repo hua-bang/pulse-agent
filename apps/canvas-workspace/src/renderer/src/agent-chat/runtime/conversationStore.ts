@@ -3,11 +3,11 @@ import type {
   AgentChatMessage,
   AgentChatToolCall,
   AgentClarificationRequest,
-} from '../../../types';
+} from '../../types';
 import type {
   ConversationKey,
   ConversationSnapshot,
-} from '../../../../../shared/conversation-runtime';
+} from '../../../../shared/conversation-runtime';
 
 /** Renderer-side per-conversation live state, keyed by ConversationKey. */
 interface RendererConversationState {

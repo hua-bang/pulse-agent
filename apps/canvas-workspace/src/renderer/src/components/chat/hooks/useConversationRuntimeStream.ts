@@ -17,14 +17,14 @@ import {
   setConversationMessages,
   setConversationStreamingTools,
   useConversationSnapshot,
-} from './conversationStore';
+} from '../../../agent-chat/runtime/conversationStore';
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
 import { markAgentMilestone } from './markAgentMilestone';
 import { count } from '../../../perf/counters';
 import { useChatRunQueue } from './useChatRunQueue';
 import { createConversationTextBatcher } from './conversationTextBatcher';
 import { friendlyChatFailure } from './chatTurnOutcome';
-import { clearConversationCompletion, recordConversationCompletion, useConversationVisibility } from './conversationCompletionStore';
+import { clearConversationCompletion, recordConversationCompletion, useConversationVisibility } from '../../../agent-chat/runtime/conversationCompletionStore';
 
 export interface UseConversationRuntimeStreamOptions {
   agentScope: AgentScope;

@@ -13,7 +13,7 @@ import {
   resetConversationStoreForTests,
   setConversationLoading,
   setConversationMessages,
-} from './conversationStore';
+} from '../../../agent-chat/runtime/conversationStore';
 import { conversationKey, type ConversationKey } from '../../../../../shared/conversation-runtime';
 
 const scope = { kind: 'workspace', workspaceId: 'ws-a' } as const;

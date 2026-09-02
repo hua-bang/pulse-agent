@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import type { AgentScope } from '../types';
-import { useConversationSnapshots } from './conversationStore';
+import { useConversationSnapshots } from '../../../agent-chat/runtime/conversationStore';
 
 /**
  * Polls main for every conversation session that currently has an active run

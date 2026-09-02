@@ -3,7 +3,7 @@ import { conversationKeyId } from '../../../../../shared/conversation-runtime';
 import {
   clearConversationCompletion,
   useConversationCompletions,
-} from './conversationCompletionStore';
+} from '../../../agent-chat/runtime/conversationCompletionStore';
 
 interface Options {
   selectedSessionKey: string | null;

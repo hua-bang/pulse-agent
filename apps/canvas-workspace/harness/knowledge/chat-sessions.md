@@ -28,7 +28,7 @@ independent runtime:
   `conversation-service.ts` (service facade) + `conversation-ipc.ts`
   (IPC: `canvas-agent:conversation-chat` / `conversation-abort` /
   `conversation-stop-relay` / `conversation-clarify-answer`).
-- Renderer: `conversationStore.ts` (useSyncExternalStore keyed by
+- Renderer: `src/renderer/src/agent-chat/runtime/conversationStore.ts` (useSyncExternalStore keyed by
   ConversationKey; snapshot cache keeps getSnapshot referentially stable),
   `useConversationRuntimeStream.ts` (keyed stream hook driving the store +
   conversation IPC), `useChatComposerStateKeyed.ts` (composer root used by
@@ -77,7 +77,7 @@ Key invariants and their guards:
   `conversation-runtime/service-conversation-runtime.test.ts` (parallel runs,
   per-conversation isolation, same-conversation serialization, delta streaming).
 - Renderer store + switch-only-selector + shared snapshot:
-  `hooks/conversationStore.test.ts`, `hooks/useChatStream.keyed.test.tsx`,
+  `agent-chat/runtime/conversationStore.test.ts`, `hooks/useChatStream.keyed.test.tsx`,
   `hooks/useChatStream.shared-snapshot.test.tsx`,
   `hooks/useChatComposerStateKeyed.test.tsx`.
 - Session hydration is always qualified by `{ scope, sessionId }`; fetched

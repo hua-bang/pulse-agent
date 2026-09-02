@@ -12,7 +12,7 @@ import {
   resetConversationStoreForTests,
   setConversationLoading,
   setConversationMessages,
-} from './conversationStore';
+} from '../../../agent-chat/runtime/conversationStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

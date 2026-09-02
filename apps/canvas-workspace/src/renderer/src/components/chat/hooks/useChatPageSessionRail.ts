@@ -9,7 +9,7 @@ import type { ChatSessionsRailProps, UnifiedSession } from '../ChatSessionsRail'
 import { scopeFromSessionStoreId } from '../../../agent-chat/target/sessionScope';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 import { useStableSessionRail } from './useStableSessionRail';
-import type { ConversationCompletionStatus } from './conversationCompletionStore';
+import type { ConversationCompletionStatus } from '../../../agent-chat/runtime/conversationCompletionStore';
 
 interface Options {
   agentScope: AgentScope;

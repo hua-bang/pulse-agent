@@ -7,7 +7,7 @@ import {
 } from '../../../../../shared/agent-chat';
 import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
 import { useI18n } from '../../../i18n';
-import { useConversationSnapshots } from './conversationStore';
+import { useConversationSnapshots } from '../../../agent-chat/runtime/conversationStore';
 
 interface Options {
   agentScope: AgentScope;

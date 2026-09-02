@@ -45,7 +45,7 @@ pathRules:
     paths:
       - src/main/agent/conversation-runtime/**
       - src/shared/conversation-runtime.ts
-      - src/renderer/src/components/chat/hooks/conversationStore.ts
+      - src/renderer/src/agent-chat/runtime/**
       - src/renderer/src/components/chat/hooks/useConversationRuntimeStream.ts
       - src/renderer/src/components/chat/hooks/useChatComposerStateKeyed.ts
       - src/renderer/src/components/chat/ChatPanel.tsx
@@ -54,7 +54,7 @@ pathRules:
       - harness/mock-llm.test.mjs
     quick:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/shared/conversation-runtime.test.ts src/main/agent/conversation-runtime src/renderer/src/components/chat/hooks/conversationStore.test.ts src/renderer/src/components/chat/hooks/useChatStream.keyed.test.tsx src/renderer/src/components/chat/hooks/useChatStream.shared-snapshot.test.tsx src/renderer/src/components/chat/hooks/useChatComposerStateKeyed.test.tsx harness/mock-llm.test.mjs
+      - pnpm --filter canvas-workspace exec vitest run src/shared/conversation-runtime.test.ts src/main/agent/conversation-runtime src/renderer/src/agent-chat/runtime/conversationStore.test.ts src/renderer/src/components/chat/hooks/useChatStream.keyed.test.tsx src/renderer/src/components/chat/hooks/useChatStream.shared-snapshot.test.tsx src/renderer/src/components/chat/hooks/useChatComposerStateKeyed.test.tsx harness/mock-llm.test.mjs
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test

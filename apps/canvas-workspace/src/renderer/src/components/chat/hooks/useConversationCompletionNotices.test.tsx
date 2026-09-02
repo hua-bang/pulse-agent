@@ -7,7 +7,7 @@ import {
   readConversationCompletions,
   recordConversationCompletion,
   resetConversationCompletionStoreForTests,
-} from './conversationCompletionStore';
+} from '../../../agent-chat/runtime/conversationCompletionStore';
 import { useConversationCompletionNotices } from './useConversationCompletionNotices';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

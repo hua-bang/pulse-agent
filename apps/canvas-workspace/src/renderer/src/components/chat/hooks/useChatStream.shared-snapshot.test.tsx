@@ -10,7 +10,7 @@ import type { AgentChatMessage } from '../../../types';
 import { conversationKey, type ConversationKey } from '../../../../../shared/conversation-runtime';
 import { useConversationRuntimeStream } from './useConversationRuntimeStream';
 import { I18nProvider } from '../../../i18n';
-import { resetConversationStoreForTests, setConversationMessages } from './conversationStore';
+import { resetConversationStoreForTests, setConversationMessages } from '../../../agent-chat/runtime/conversationStore';
 
 const scope = { kind: 'workspace', workspaceId: 'ws-a' } as const;
 const keyA: ConversationKey = conversationKey(scope, 'session-a');

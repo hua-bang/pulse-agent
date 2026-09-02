@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { conversationKey } from '../../../../../shared/conversation-runtime';
+import { conversationKey } from '../../../../shared/conversation-runtime';
 import {
   appendConversationText,
   appendConversationTextAt,

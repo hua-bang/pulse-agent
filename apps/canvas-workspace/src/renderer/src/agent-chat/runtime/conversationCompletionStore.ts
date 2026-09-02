@@ -1,5 +1,5 @@
 import { useLayoutEffect, useSyncExternalStore } from 'react';
-import { conversationKeyId, type ConversationKey } from '../../../../../shared/conversation-runtime';
+import { conversationKeyId, type ConversationKey } from '../../../../shared/conversation-runtime';
 
 export type ConversationCompletionStatus = 'done' | 'failed' | 'stopped';
 

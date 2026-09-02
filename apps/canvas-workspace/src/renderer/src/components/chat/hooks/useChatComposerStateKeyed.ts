@@ -11,7 +11,7 @@ import {
   captureConversationSequences,
   hydrateConversationMessages,
   setConversationError,
-} from './conversationStore';
+} from '../../../agent-chat/runtime/conversationStore';
 import type { LoadedConversation } from './loadedConversationSink';
 import { serializeEditable } from '../utils/mentions';
 

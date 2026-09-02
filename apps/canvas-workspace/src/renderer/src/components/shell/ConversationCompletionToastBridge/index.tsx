@@ -6,7 +6,7 @@ import {
   isConversationVisible,
   markConversationCompletionNotified,
   useConversationCompletions,
-} from '../../chat/hooks/conversationCompletionStore';
+} from '../../../agent-chat/runtime/conversationCompletionStore';
 
 /** Always-mounted, low-interruption feedback for genuinely background turns. */
 export const ConversationCompletionToastBridge = () => {
