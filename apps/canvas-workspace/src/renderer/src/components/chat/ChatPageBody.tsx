@@ -21,7 +21,7 @@ import { ChatConversationStatus } from './ChatConversationStatus';
 import { useChatPageTargetContext } from './hooks/useChatPageTargetContext';
 import { useChatPageJumpNavigation } from './hooks/useChatPageJumpNavigation';
 import { useChatPageSessionRail } from './hooks/useChatPageSessionRail';
-import { useScopeRunningSessions } from './hooks/useScopeRunningSessions';
+import { useScopeRunningSessions } from '../../agent-chat/sessions/useScopeRunningSessions';
 import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
 import { useSubmitDomReviewComments } from './hooks/useSubmitDomReviewComments';
 import { submitQuickAction } from './hooks/submitQuickAction';
@@ -29,7 +29,7 @@ import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
 import { scopeSessionStoreId } from '../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from './utils/chatPageDockTabs';
 import { useChatPageNewSession } from './hooks/useChatPageNewSession';
-import { useConversationCompletionNotices } from './hooks/useConversationCompletionNotices';
+import { useConversationCompletionNotices } from '../../agent-chat/sessions/useConversationCompletionNotices';
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
   /** Context inherited from the visible target that opened this page. */

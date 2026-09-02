@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from 'react';
-import { conversationKeyId } from '../../../../../shared/conversation-runtime';
+import { conversationKeyId } from '../../../../shared/conversation-runtime';
 import {
   clearConversationCompletion,
   useConversationCompletions,
-} from '../../../agent-chat/runtime/conversationCompletionStore';
+} from '../runtime/conversationCompletionStore';
 
 interface Options {
   selectedSessionKey: string | null;

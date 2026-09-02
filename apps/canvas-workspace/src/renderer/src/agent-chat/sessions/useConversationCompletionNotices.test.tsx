@@ -2,12 +2,12 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
-import { conversationKeyId, conversationKey } from '../../../../../shared/conversation-runtime';
+import { conversationKeyId, conversationKey } from '../../../../shared/conversation-runtime';
 import {
   readConversationCompletions,
   recordConversationCompletion,
   resetConversationCompletionStoreForTests,
-} from '../../../agent-chat/runtime/conversationCompletionStore';
+} from '../runtime/conversationCompletionStore';
 import { useConversationCompletionNotices } from './useConversationCompletionNotices';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
