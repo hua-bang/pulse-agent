@@ -5,7 +5,7 @@ import type { AgentScope, SelectedContextChip, WorkspaceOption } from '../types'
 import type {
   ChatContextSnapshot,
   ChatExecutionPolicy,
-} from '../ChatTargetContext';
+} from '../../../agent-chat/target';
 
 interface Options {
   agentScope: AgentScope;

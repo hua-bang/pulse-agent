@@ -6,8 +6,8 @@ import {
   ChatTargetProvider,
   type ChatTarget,
   useChatTargetBroker,
-} from '../ChatTargetContext';
-import { useRegisterChatTarget } from '../useRegisterChatTarget';
+} from '../../../agent-chat/target';
+import { useRegisterChatTarget } from '../../../agent-chat/target/useRegisterChatTarget';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

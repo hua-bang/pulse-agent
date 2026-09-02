@@ -1,7 +1,7 @@
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasEdge, CanvasNode } from '../../../types';
 import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../../types/ui-interaction';
 import type { NodeReferenceEntryForCanvas } from '../../dock/ReferenceDrawer';
-import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
 
 export interface CanvasProps {
   canvasId: string;

@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { I18nProvider } from '../../../i18n';
-import type { ChatContextSnapshot } from '../ChatTargetContext';
+import type { ChatContextSnapshot } from '../../../agent-chat/target';
 import { useChatPageTargetContext } from './useChatPageTargetContext';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

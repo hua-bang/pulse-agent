@@ -3,7 +3,7 @@ import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasN
 import type { ResizeEdge } from '../../../hooks/useNodeResize';
 import type { NodeDragOffset } from '../../../hooks/useNodeDrag';
 import type { MergeMindmapTopicRequest } from '../../../utils/mindmapTransfer';
-import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
 
 export type CanvasNodeRenderMode = 'full' | 'frame-body' | 'frame-title';
 

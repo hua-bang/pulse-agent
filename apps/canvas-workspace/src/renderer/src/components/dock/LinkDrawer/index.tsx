@@ -37,8 +37,8 @@ import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../../t
 import { ExternalLinkIcon, PlusIcon } from "../../icons";
 import { Button, TextField } from "../../ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../../shared/experimental-features";
-import { useActiveChatTarget, type ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
-import { useChatDeliveryNotifier } from '../../chat/useChatDeliveryNotifier';
+import { useActiveChatTarget, type ChatDeliveryReceipt } from '../../../agent-chat/target';
+import { useChatDeliveryNotifier } from '../../../agent-chat/target/useChatDeliveryNotifier';
 import { TabChatAction } from '../RightDock/TabChatAction';
 import "./index.css";
 /** Google blocks account sign-in inside embedded browsers (WebView policy);

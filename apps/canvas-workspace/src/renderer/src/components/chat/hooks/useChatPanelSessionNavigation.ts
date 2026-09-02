@@ -9,7 +9,7 @@ import type {
 import type { SessionBackEntry } from '../SessionBackBar';
 import { buildAnchorElementId, buildChatAnchors } from '../utils/anchors';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
-import { scopeFromSessionStoreId } from '../utils/sessionScope';
+import { scopeFromSessionStoreId } from '../../../agent-chat/target/sessionScope';
 
 const flashAnchor = (scopeId: string, messageIndex: number, delay = 0) => {
   window.setTimeout(() => {

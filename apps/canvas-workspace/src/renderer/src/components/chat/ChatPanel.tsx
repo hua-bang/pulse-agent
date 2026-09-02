@@ -19,9 +19,9 @@ import { useStartSkillChat } from './hooks/useStartSkillChat';
 import { useSubmitDomReviewComments } from './hooks/useSubmitDomReviewComments';
 import {
   type ChatTarget,
-} from './ChatTargetContext';
+} from '../../agent-chat/target';
 import { chatScopeId } from './chatScope';
-import { useRegisterChatTarget } from './useRegisterChatTarget';
+import { useRegisterChatTarget } from '../../agent-chat/target/useRegisterChatTarget';
 import { ChatConversationStatus } from './ChatConversationStatus';
 import { useChatPanelContext } from './hooks/useChatPanelContext';
 import { useChatPanelSessionNavigation } from './hooks/useChatPanelSessionNavigation';

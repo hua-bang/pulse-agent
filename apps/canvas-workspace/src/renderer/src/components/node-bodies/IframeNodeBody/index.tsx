@@ -9,7 +9,7 @@ import { IframeReviewLayer } from './IframeReviewLayer';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, IframeNodeData } from '../../../types';
 import type { IframeNodeBodyProps } from './types';
 import { useIframeNodeState } from './useIframeNodeState';
-import { useChatDeliveryNotifier } from '../../chat/useChatDeliveryNotifier';
+import { useChatDeliveryNotifier } from '../../../agent-chat/target/useChatDeliveryNotifier';
 
 export const IframeNodeBody = ({
   node,

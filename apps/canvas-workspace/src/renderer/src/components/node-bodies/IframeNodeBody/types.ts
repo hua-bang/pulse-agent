@@ -1,6 +1,6 @@
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../types';
 import type { BrowserLoadState } from '../../dock/EmbeddedBrowser/types';
-import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
 
 export type EditMode = 'url' | 'html' | 'ai';
 export type LoadState = BrowserLoadState;

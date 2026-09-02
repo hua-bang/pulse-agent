@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { AgentContextDomReviewComment } from '../../../types';
 import { I18nProvider } from '../../../i18n';
-import { ChatTargetProvider, useChatTargetBroker } from '../ChatTargetContext';
+import { ChatTargetProvider, useChatTargetBroker } from '../../../agent-chat/target';
 
 const composer = vi.hoisted(() => ({
   focusInput: vi.fn(),

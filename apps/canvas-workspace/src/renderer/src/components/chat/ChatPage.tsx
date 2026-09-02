@@ -14,7 +14,7 @@ import type {
   ChatContextSnapshot,
   ChatExecutionPolicy,
   ChatTarget,
-} from './ChatTargetContext';
+} from '../../agent-chat/target';
 
 const workspaceIdFromScope = (scope: AgentScope): string | null =>
   scope.kind === 'workspace' ? scope.workspaceId : null;

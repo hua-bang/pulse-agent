@@ -29,7 +29,7 @@ import {
   ChatTargetProvider,
   useActiveChatTarget,
   useChatTargetBroker,
-} from './components/chat/ChatTargetContext';
+} from './agent-chat/target';
 import { useChatNavigation } from './components/shell/router/useChatNavigation';
 import type { AgentScope } from './components/chat/types';
 const MigrationSpinner = lazy(() => import('./components/shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
@@ -216,7 +216,7 @@ const AppContent = () => {
     sessionId: string,
     scopeLabel: string,
   ) => {
-    const { createChatPageSessionTarget } = await import('./components/chat/utils/sessionScope');
+    const { createChatPageSessionTarget } = await import('./agent-chat/target/sessionScope');
     enterChatTarget(createChatPageSessionTarget(scope, sessionId, scopeLabel));
   }, [enterChatTarget]);
   const enterNodesView = useCallback(() => {

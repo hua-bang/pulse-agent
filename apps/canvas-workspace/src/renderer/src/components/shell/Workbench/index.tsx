@@ -22,7 +22,7 @@ import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
 import { ScheduledChatPanel } from '../../../views/Scheduled/ScheduledChatPanel';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
-import { useOptionalChatTargetBroker } from '../../chat/ChatTargetContext';
+import { useOptionalChatTargetBroker } from '../../../agent-chat/target';
 import type { AgentScope } from '../../chat/types';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';

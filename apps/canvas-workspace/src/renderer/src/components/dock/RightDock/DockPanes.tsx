@@ -20,7 +20,7 @@ import { linkPaneKey } from './dock-link-tabs';
 import { isDockTabPresented } from './dock-split-state';
 import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId, mcpAppDockHostElementId } from './dock-tab-ids';
 import type { DockComparisonPair } from './dock-types';
-import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
 import { focusActiveDockTarget } from './dock-browser-commands';
 import { buildDockTabRefs } from './tabRefs';
 import { TabChatAction } from './TabChatAction';

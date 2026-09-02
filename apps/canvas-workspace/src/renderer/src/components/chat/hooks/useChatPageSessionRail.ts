@@ -6,7 +6,7 @@ import type {
   WorkspaceOption,
 } from '../types';
 import type { ChatSessionsRailProps, UnifiedSession } from '../ChatSessionsRail';
-import { scopeFromSessionStoreId } from '../utils/sessionScope';
+import { scopeFromSessionStoreId } from '../../../agent-chat/target/sessionScope';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 import { useStableSessionRail } from './useStableSessionRail';
 import type { ConversationCompletionStatus } from './conversationCompletionStore';

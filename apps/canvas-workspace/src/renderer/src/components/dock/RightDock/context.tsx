@@ -17,7 +17,7 @@ import type {
 } from '../../../types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../../types';
 import { mcpAppTabId, skillTabId } from './dock-tab-ids';
-import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
 
 type SubmitDomReviewComments = (
   workspaceId: string,

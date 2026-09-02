@@ -3,8 +3,8 @@ import type { AgentContextTabRef } from '../../../types';
 import { useI18n } from '../../../i18n';
 import { SparklesIcon } from '../../icons';
 import { Button } from '../../ui';
-import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
-import { useChatDeliveryNotifier } from '../../chat/useChatDeliveryNotifier';
+import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
+import { useChatDeliveryNotifier } from '../../../agent-chat/target/useChatDeliveryNotifier';
 
 interface Props {
   tab: AgentContextTabRef;
