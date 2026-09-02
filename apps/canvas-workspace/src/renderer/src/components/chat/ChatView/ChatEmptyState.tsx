@@ -3,9 +3,9 @@ import {
   KNOWLEDGE_QUICK_ACTIONS,
   QUICK_ACTIONS,
   type EmptyStateQuickAction,
-} from './constants';
-import { AppLogoIcon } from '../icons';
-import { useI18n, type I18nKey } from '../../i18n';
+} from '../constants';
+import { AppLogoIcon } from '../../icons';
+import { useI18n, type I18nKey } from '../../../i18n';
 
 function QuickActionIcon({ action }: { action: EmptyStateQuickAction }) {
   switch (action.key) {

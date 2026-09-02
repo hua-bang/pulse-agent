@@ -1,7 +1,7 @@
-import { useI18n } from '../../i18n';
-import { Button } from '../ui';
-import type { RelayProgress } from '../../types';
-import { roleColorSoft } from '../../utils/roleColors';
+import { useI18n } from '../../../i18n';
+import { Button } from '../../ui';
+import type { RelayProgress } from '../../../types';
+import { roleColorSoft } from '../../../utils/roleColors';
 
 interface RelayBarProps {
   relay: RelayProgress;
