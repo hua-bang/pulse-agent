@@ -47,6 +47,78 @@ describe('canvas interaction shield selection', () => {
   });
 });
 
+describe('canvas chrome pointer routing', () => {
+  let root: Root;
+  let host: HTMLElement;
+  let hook: ReturnType<typeof useCanvasMouseHandlers>;
+  let canvasMouseDown: ReturnType<typeof vi.fn>;
+
+  const Probe = () => {
+    hook = useCanvasMouseHandlers({
+      canvasId: 'canvas-1',
+      activeTool: 'hand',
+      containerRef: { current: null },
+      suppressBlankClickRef: { current: false },
+      setSelectedNodeIds: vi.fn(),
+      setSelectedEdgeId: vi.fn(),
+      contextMenu: null,
+      closeContextMenu: vi.fn(),
+      isBlankCanvasTarget: () => false,
+      canvasMouseDown,
+      canvasMouseMove: vi.fn(),
+      canvasMouseUp: vi.fn(),
+      moving: false,
+      panning: false,
+      onDragStart: vi.fn(),
+      onDragMove: vi.fn(() => false),
+      onDragEnd: vi.fn(),
+      onDragCancel: vi.fn(),
+      onResizeCancel: vi.fn(),
+      resizingId: null,
+      onResizeStart: vi.fn(),
+      onResizeMove: vi.fn(() => false),
+      onResizeEnd: vi.fn(() => false),
+      edgeInteractionState: null,
+      marquee: { active: false, begin: vi.fn() },
+      shapeToolActive: false,
+      shapeDraft: null,
+      commitHistory: vi.fn(),
+      onNodesChange: vi.fn(),
+    });
+    return null;
+  };
+
+  beforeEach(() => {
+    canvasMouseDown = vi.fn();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => root.render(<Probe />));
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it('does not route float bar clicks into hand-tool panning', () => {
+    const chrome = document.createElement('div');
+    chrome.className = 'canvas-bottom-chrome';
+    const button = document.createElement('button');
+    chrome.appendChild(button);
+
+    act(() => {
+      hook.handleRootMouseDown({
+        button: 0,
+        altKey: false,
+        target: button,
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(canvasMouseDown).not.toHaveBeenCalled();
+  });
+});
+
 describe('useCanvasMouseHandlers resize completion', () => {
   let root: Root;
   let host: HTMLElement;
