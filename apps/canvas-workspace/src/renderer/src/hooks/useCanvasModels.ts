@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { CanvasModelProviderConfig } from '../../types';
-import { useI18n } from '../../i18n';
-import type { ModelSelection, UseCanvasModelsResult } from './modelSettingsTypes';
-import { shortModelName } from './modelSettingsTypes';
+import type {
+  CanvasModelProviderConfig,
+  ModelSelection,
+  UseCanvasModelsResult,
+} from '../types';
+import { useI18n } from '../i18n';
+import { shortModelName } from '../utils/modelCatalog';
 
 const MODEL_SETTINGS_CHANGED_EVENT = 'canvas-workspace:model-settings-changed';
 

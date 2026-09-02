@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import type { CanvasModelStatus } from '../../types';
+import type { CanvasModelStatus, ModelSelection } from '../../types';
 import { CheckIcon } from '../icons';
-import type { ModelSelection } from './modelSettingsTypes';
-import { providerLabel } from './modelSettingsTypes';
-import { matchesModelQuery } from './modelCatalogUtils';
+import { matchesModelQuery, providerLabel } from '../../utils/modelCatalog';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { Popover } from '../ui/Popover';

@@ -1,4 +1,4 @@
-import type { CanvasProviderModel } from '../../types';
+import type { CanvasModelProviderType, CanvasProviderModel } from '../types';
 
 type ModelGroup = ReadonlyArray<CanvasProviderModel> | undefined;
 
@@ -15,3 +15,13 @@ export const matchesModelQuery = (model: CanvasProviderModel, normalizedQuery: s
   model.id.toLowerCase().includes(normalizedQuery)
   || (model.name ?? '').toLowerCase().includes(normalizedQuery)
 );
+
+export const providerLabel = (type?: CanvasModelProviderType) => (
+  type === 'claude' ? 'Claude' : 'OpenAI Compatible'
+);
+
+export const shortModelName = (model: string | undefined, fallback: string) => {
+  if (!model) return fallback;
+  const parts = model.split('/');
+  return parts[parts.length - 1] || model;
+};
