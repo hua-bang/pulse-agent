@@ -20,6 +20,12 @@ leaf folder names were kept, only a group level was inserted):
 | `models/` | Runtime model-selection UI shared by chat surfaces; provider/configuration editors remain under `settings/` |
 | `artifacts/`, `ui/`, `icons/` | Unchanged pre-existing domains (`ui/` is the blessed design-system set — governance and the ui-showcase reference it by path; do not move it) |
 
+Non-visual Agent Chat state and cross-surface coordination live outside the
+component tree under `src/renderer/src/agent-chat/`. In particular,
+`agent-chat/target/` owns the app-level ChatTarget broker used by Canvas, Dock,
+Workbench, and the visible chat surfaces; visual chat modules adapt to that
+interface instead of owning the broker themselves.
+
 ### Canvas icon family
 
 `components/icons/index.tsx` is the source of truth for canonical canvas node

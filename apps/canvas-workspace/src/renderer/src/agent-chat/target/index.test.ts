@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../../types';
+import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../types';
 import {
   createChatTargetBroker,
   type ChatTarget,
-} from '../ChatTargetContext';
+} from './index';
 
 const dockTarget: ChatTarget = {
   surface: 'dock',
