@@ -534,8 +534,20 @@ function formatCardDetailText(...parts: Array<string | undefined>): string {
   return clampCardText(normalizedParts.join('\n\n'));
 }
 
-function md(content: string): object {
-  return { tag: 'markdown', content };
+function md(content: string, textSize?: 'heading' | 'normal' | 'notation'): object {
+  return { tag: 'markdown', content, ...(textSize ? { text_size: textSize } : {}) };
+}
+
+function muted(content: string): string {
+  return `<font color="grey">${content}</font>`;
+}
+
+function purple(content: string): string {
+  return `<font color="purple">${content}</font>`;
+}
+
+function red(content: string): string {
+  return `<font color="red">${content}</font>`;
 }
 
 function plainText(content: string): object {
@@ -617,11 +629,32 @@ function stepTitle(status: string, context: RunCardContext, toolCalls: string[])
   return detail ? `${title} ${detail}` : title;
 }
 
-function stepSubtitle(status: string, toolCount: number, elapsed?: string): string {
+function stepSubtitle(status: string, elapsed?: string): string {
   const parts = [status];
-  if (toolCount > 0) parts.push(toolCountLine(toolCount));
   if (elapsed) parts.push(elapsed);
   return parts.join(' · ');
+}
+
+function statusDot(status: string): string {
+  if (status === '出错') return red('●');
+  if (status === '已完成') return muted('●');
+  return purple('●');
+}
+
+function renderToolLine(toolCall: string): string {
+  const { name, detail } = splitToolSummary(toolCall);
+  const title = titleizeToolName(name || 'tool');
+  return detail ? `${title} · ${detail}` : title;
+}
+
+function toolTimeline(toolCalls: string[]): string {
+  return toolCalls
+    .flatMap((toolCall, index) => {
+      const isLast = index === toolCalls.length - 1;
+      const row = `${muted('●')} ${muted(renderToolLine(toolCall))}`;
+      return isLast ? [row] : [row, muted('│')];
+    })
+    .join('\n');
 }
 
 function toolPanel(toolCalls: string[]): object | undefined {
@@ -630,17 +663,23 @@ function toolPanel(toolCalls: string[]): object | undefined {
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: md(toolCountLine(toolCalls.length)),
+      title: md(muted(toolCountLine(toolCalls.length)), 'notation'),
     },
-    elements: [md(toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n'))],
+    elements: [md(toolTimeline(toolCalls), 'notation')],
   };
 }
 
 function buildRunProcessElements(context: RunCardContext, status: string, toolCalls: string[] = [], note?: string): object[] {
   const normalizedToolCalls = toolCalls.filter(Boolean);
   const title = stepTitle(status, context, normalizedToolCalls);
-  const subtitle = stepSubtitle(status, normalizedToolCalls.length, context.elapsed);
-  const elements: object[] = [md(`**${title}**\n${note ?? subtitle}`)];
+  const subtitle = stepSubtitle(status, context.elapsed);
+  const elements: object[] = [
+    md(`${statusDot(status)} **${title}**`, 'heading'),
+    md(muted(note ?? subtitle), 'notation'),
+  ];
+  if (status === '运行中' && context.detailText?.trim()) {
+    elements.push(md(clampCardText(context.detailText.trim(), 700), 'normal'));
+  }
   const foldedTools = toolPanel(normalizedToolCalls);
   if (foldedTools) elements.push(foldedTools);
   return elements;

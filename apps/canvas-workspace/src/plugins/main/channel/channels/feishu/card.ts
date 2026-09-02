@@ -27,8 +27,20 @@ export interface ToolEntry {
   elapsedSec?: number;
 }
 
-function md(content: string): object {
-  return { tag: 'markdown', content };
+function md(content: string, textSize?: 'heading' | 'normal' | 'notation'): object {
+  return { tag: 'markdown', content, ...(textSize ? { text_size: textSize } : {}) };
+}
+
+function muted(content: string): string {
+  return `<font color="grey">${content}</font>`;
+}
+
+function purple(content: string): string {
+  return `<font color="purple">${content}</font>`;
+}
+
+function red(content: string): string {
+  return `<font color="red">${content}</font>`;
 }
 
 function plainText(content: string): object {
@@ -76,16 +88,22 @@ function formButton(
   };
 }
 
-/** Render the tool calls as a folded status list (details only on demand). */
-function toolLines(tools: ToolEntry[]): string {
+function toolLine(tool: ToolEntry): string {
+  const { name, detail } = splitToolLabel(tool.label);
+  const segs = [titleizeToolName(name || 'tool')];
+  if (detail) segs.push(detail);
+  if (tool.done && typeof tool.elapsedSec === 'number') segs.push(`${tool.elapsedSec}s`);
+  return segs.join(' · ');
+}
+
+/** Render folded tool details as a quiet vertical timeline. */
+function toolTimeline(tools: ToolEntry[]): string {
   return tools
-    .map((t) => {
-      const icon = t.done ? '✅' : '⏳';
-      const { name, detail } = splitToolLabel(t.label);
-      const segs = [`${icon} **${name || 'tool'}**`];
-      if (detail) segs.push(detail);
-      if (t.done && typeof t.elapsedSec === 'number') segs.push(`${t.elapsedSec}s`);
-      return segs.join(' · ');
+    .flatMap((tool, index) => {
+      const isLast = index === tools.length - 1;
+      const dot = muted(tool.done ? '●' : '◦');
+      const row = `${dot} ${muted(toolLine(tool))}`;
+      return isLast ? [row] : [row, `${muted('│')}`];
     })
     .join('\n');
 }
@@ -119,11 +137,16 @@ function stepTitle(status: string, tools: ToolEntry[]): string {
   return detail ? `${title} ${detail}` : title;
 }
 
-function stepSubtitle(status: string, toolCount: number, elapsedSec?: number): string {
+function stepSubtitle(status: string, elapsedSec?: number): string {
   const parts = [status];
-  if (toolCount > 0) parts.push(toolCountLine(toolCount));
   if (typeof elapsedSec === 'number') parts.push(`${elapsedSec}s`);
   return parts.join(' · ');
+}
+
+function statusDot(status: string): string {
+  if (status === '出错') return red('●');
+  if (status === '已完成') return muted('●');
+  return purple('●');
 }
 
 function toolPanel(tools: ToolEntry[]): object | undefined {
@@ -132,10 +155,10 @@ function toolPanel(tools: ToolEntry[]): object | undefined {
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: md(toolCountLine(tools.length)),
+      title: md(muted(toolCountLine(tools.length)), 'notation'),
       vertical_align: 'center',
     },
-    elements: [md(toolLines(tools))],
+    elements: [md(toolTimeline(tools), 'notation')],
   };
 }
 
@@ -145,11 +168,18 @@ function processElements(input: {
   tools?: ToolEntry[];
   elapsedSec?: number;
   note?: string;
+  answerPreview?: string;
 }): object[] {
   const tools = input.tools ?? [];
   const title = stepTitle(input.status, tools);
-  const subtitle = stepSubtitle(input.status, tools.length, input.elapsedSec);
-  const elements: object[] = [md(`**${title}**\n${input.note ?? subtitle}`)];
+  const subtitle = stepSubtitle(input.status, input.elapsedSec);
+  const elements: object[] = [
+    md(`${statusDot(input.status)} **${title}**`, 'heading'),
+    md(muted(input.note ?? subtitle), 'notation'),
+  ];
+  if (input.answerPreview?.trim()) {
+    elements.push(md(clamp(input.answerPreview.trim()).slice(0, 700), 'normal'));
+  }
   const foldedTools = toolPanel(tools);
   if (foldedTools) elements.push(foldedTools);
   return elements;
@@ -163,7 +193,7 @@ export function buildThinkingCard(): object {
 }
 
 export function buildProgressCard(
-  _text: string,
+  text: string,
   tools: ToolEntry[] = [],
   elapsedSec?: number,
 ): object {
@@ -172,6 +202,7 @@ export function buildProgressCard(
     tools,
     elapsedSec,
     note: tools.length === 0 ? '正在生成答复...' : undefined,
+    answerPreview: text,
   }), false);
 }
 

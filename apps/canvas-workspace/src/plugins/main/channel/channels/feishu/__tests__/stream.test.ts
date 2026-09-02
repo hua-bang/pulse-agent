@@ -107,7 +107,7 @@ describe('FeishuStream', () => {
     await vi.advanceTimersByTimeAsync(800);
     await flushAsync();
 
-    expect(JSON.stringify(mockedUpdateCard.mock.calls[0][2])).toContain('visual_render');
+    expect(JSON.stringify(mockedUpdateCard.mock.calls[0][2])).toContain('Visual render');
     expect(JSON.stringify(mockedUpdateCard.mock.calls[0][2])).toContain('preparing input 6B');
 
     stream.onToolCall('visual_render', { title: 'Demo' }, 'tool-1');
@@ -116,7 +116,7 @@ describe('FeishuStream', () => {
     await flushAsync();
 
     const latestCard = JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2]);
-    expect(latestCard).toContain('visual_render');
+    expect(latestCard).toContain('Visual render');
     expect(latestCard).toContain('Demo');
   });
 
