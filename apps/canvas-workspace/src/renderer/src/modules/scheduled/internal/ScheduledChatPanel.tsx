@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SpinnerGap, WarningCircle } from '@phosphor-icons/react';
 import type { ScheduledTask } from '../../../../../shared/scheduled';
-import type { SettingsSection } from '../../../components/settings/Settings';
+import type { SettingsSection } from '../../settings';
 import type { WorkspaceOption } from '../../../types';
 import type { AgentScope } from '../../../types';
 import { ChatPanelLazy as ChatPanel } from '../../../modules/chat/lazy';

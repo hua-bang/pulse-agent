@@ -10,7 +10,7 @@ import type {
   CanvasNode,
   WorkspaceOption,
 } from '../../../../types';
-import type { SettingsSection } from '../../../../components/settings/Settings';
+import type { SettingsSection } from '../../../settings';
 
 /** One-shot request from another product surface to focus or submit the composer. */
 export interface ChatComposerRequest {

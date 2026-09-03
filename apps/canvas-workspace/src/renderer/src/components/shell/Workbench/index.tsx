@@ -7,7 +7,7 @@ import { isDockChatVisible, isDockTerminalVisible, useRightDock, useRightDockCha
 import { buildDockTabRefs } from '../../dock/RightDock/tabRefs';
 import { createReferenceNodeDataSnapshot } from '../../dock/ReferenceDrawer/utils';
 import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../../dock/ReferenceDrawer/types';
-import type { SettingsSection } from '../../settings/Settings';
+import type { SettingsSection } from '../../../modules/settings';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
 import type { WorkbenchController } from './useWorkbenchState';
 import type { CanvasNode, ReferenceNodeData } from '../../../types';

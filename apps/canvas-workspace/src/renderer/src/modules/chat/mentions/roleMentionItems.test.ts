@@ -7,6 +7,7 @@ import {
   loadRoleMentionItems,
   subscribeRoleColors,
 } from './roleMentionItems';
+import { notifyRoleLibraryChanged } from '../../../shared/roleLibraryEvents';
 
 type RoleRow = {
   id: string; name: string; color: string; prompt: string;
@@ -56,6 +57,14 @@ describe('role mention cache', () => {
     await invalidateRoleMentionItems();
     expect(seen).toEqual(['#0f7b6c']);
     unsubscribe();
+  });
+
+  it('refreshes when the settings-owned role library publishes a change', async () => {
+    const list = stubRoles([{ id: 'role-1', name: 'PM', color: '#d9730d', prompt: 'p' }]);
+    await invalidateRoleMentionItems();
+    list.mockClear();
+    await notifyRoleLibraryChanged();
+    expect(list).toHaveBeenCalledTimes(1);
   });
 
   it('lets external-only turns through the no-provider guard, and nothing else', async () => {

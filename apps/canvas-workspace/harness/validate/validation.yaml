@@ -200,6 +200,18 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/models
 
+  - name: renderer-settings
+    paths:
+      - src/renderer/src/modules/settings/**
+      - src/renderer/src/shared/roleLibraryEvents.ts
+      - src/main/settings/**
+      - src/preload/bridge/settings.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/settings src/renderer/src/modules/chat/mentions/roleMentionItems.test.ts
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/settings src/renderer/src/modules/chat/mentions/roleMentionItems.test.ts src/main/settings
+
   - name: scheduled-tasks
     paths:
       - src/renderer/src/modules/scheduled/**
@@ -279,9 +291,9 @@ pathRules:
       - src/main/files/shell-path.test.ts
       - src/shared/settings-config.ts
       - src/preload/bridge/settings.ts
-      - src/renderer/src/components/settings/Settings/AgentSection.tsx
-      - src/renderer/src/components/settings/Settings/AgentShellPathCard.tsx
-      - src/renderer/src/components/settings/Settings/AgentSection.css
+      - src/renderer/src/modules/settings/internal/Settings/AgentSection.tsx
+      - src/renderer/src/modules/settings/internal/Settings/AgentShellPathCard.tsx
+      - src/renderer/src/modules/settings/internal/Settings/AgentSection.css
       - src/main/__tests__/agent-tooling-package.test.ts
       - harness/tools/smoke-packaged-agent-tooling.mjs
     quick:

@@ -476,7 +476,7 @@ The first SETTINGS-FAMILY slice of C3's "migrate `rawButtonTags`/
 precedent (IframeNodeBody, 2026-07-10) — one component family, per-instance
 judgment, not a mechanical pass. This slice is exactly the surface the pilot
 predicted would fit: `src/renderer/src/components/Settings/` (the global
-settings drawer's sections) and `src/renderer/src/components/settings-config/`
+settings drawer's sections) and `src/renderer/src/modules/settings/internal-config/`
 (the Skills/MCP/Plugins CRUD managers shared by global settings and the
 per-workspace drawer). Unlike the pilot, this slice is NOT a near-miss —
 `settings-config.css`'s own header comment already documented that its

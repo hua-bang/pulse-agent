@@ -20,7 +20,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/canvas/storage.ts': 1156,
   'src/main/agent/context-builder.ts': 856,
   'src/renderer/src/modules/workspace-nodes/internal/GraphPage.tsx': 598,
-  'src/renderer/src/components/settings/settings-config/McpManager.tsx': 786,
+  'src/renderer/src/modules/settings/internal/settings-config/McpManager.tsx': 748,
   'src/renderer/src/components/canvas/Canvas/index.tsx': 770,
   // 777→816 (2026-09-03, drift recorded): master changes #987–#988
   // expanded then partially reduced Feishu answer-card/run rendering without
@@ -46,7 +46,6 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   // #989–#991 landed without updating this manually maintained baseline.
   // Must-not-grow resumes at 539.
   'src/renderer/src/components/icons/index.tsx': 539,
-  'src/renderer/src/components/settings/settings-config/SkillsManager.tsx': 510,
   'src/plugins/main/webview-page-control/js-primitives.ts': 506,
   // 512→516 (2026-07-10, drift recorded): grew via master work that never
   // ran this suite (no automatic trigger). Raised to measured;

@@ -1,5 +1,5 @@
 import type { CanvasNode, WorkspaceOption } from '../../../../types';
-import type { SettingsSection } from '../../../../components/settings/Settings';
+import type { SettingsSection } from '../../../settings';
 import type { ChatTarget } from '../../target';
 
 export interface ChatPageProps {

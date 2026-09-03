@@ -6,7 +6,7 @@ import type {
   AgentContextTagRef,
   KnowledgeNodeSelection,
 } from '../../../types';
-import type { SettingsSection } from '../../settings/Settings';
+import type { SettingsSection } from '../../../modules/settings';
 import { ChatPanelLazy as ChatPanel } from '../../../modules/chat/lazy';
 import type { AgentScope } from '../../../types';
 import type { ChatComposerRequest } from '../../../modules/chat';

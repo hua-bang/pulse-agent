@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { CanvasNode, AgentNewSessionResult, AgentScope, WorkspaceOption } from '../../../../types';
-import type { SettingsSection } from '../../../../components/settings/Settings';
+import type { SettingsSection } from '../../../settings';
 import type { ChatContextSnapshot, ChatExecutionPolicy } from '../../target';
 import type { UnifiedSession } from '../ChatSessionsRail';
 import type { SessionBackEntry } from '../SessionBackBar';

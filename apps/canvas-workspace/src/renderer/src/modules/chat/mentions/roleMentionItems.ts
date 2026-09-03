@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { parseRoleMentions } from '../../../../../shared/agent-roles';
 import type { MentionItem } from '../../../types';
+import { subscribeRoleLibraryChanged } from '../../../shared/roleLibraryEvents';
 
 /**
  * Renderer-side cache of the role library: `@` popup entries plus the
@@ -88,6 +89,10 @@ export function invalidateRoleMentionItems(): Promise<MentionItem[]> {
   cache = null;
   return loadRoleMentionItems();
 }
+
+subscribeRoleLibraryChanged(async () => {
+  await invalidateRoleMentionItems();
+});
 
 export function getRoleColors(): ReadonlyMap<string, string> {
   return roleColors;

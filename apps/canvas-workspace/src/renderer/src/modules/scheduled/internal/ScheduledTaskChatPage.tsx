@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ScheduledTask } from '../../../../../shared/scheduled';
 import { useI18n } from '../../../i18n';
-import type { SettingsSection } from '../../../components/settings/Settings';
+import type { SettingsSection } from '../../settings';
 import { useAppShell } from '../../../components/shell/AppShellProvider';
 import { ChatPageBody } from '../../../modules/chat/embedded';
 import './index.css';

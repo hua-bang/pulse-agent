@@ -7,7 +7,7 @@ import { DeferredSettings } from './components/shell/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './modules/chat/lazy';
 import { isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from './components/dock/RightDock';
 import { GlobalChatLauncher } from './components/dock/RightDock/GlobalChatLauncher';
-import type { SettingsSection } from './components/settings/Settings';
+import type { SettingsSection } from './modules/settings';
 import { Sidebar } from './components/shell/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/shell/Workbench';

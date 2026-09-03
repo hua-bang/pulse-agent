@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import type { SettingsSection } from '../settings/Settings';
+import type { SettingsSection } from '../../modules/settings';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 
 export const NodesPageLazy = lazy(() =>
@@ -11,11 +11,11 @@ export const NodeDetailPageLazy = lazy(() =>
 );
 
 const Settings = lazy(() =>
-  import('../settings/Settings').then((module) => ({ default: module.Settings })),
+  import('../../modules/settings/app').then((module) => ({ default: module.Settings })),
 );
 
 const WorkspaceSettingsDrawer = lazy(() =>
-  import('../settings/WorkspaceSettings').then((module) => ({ default: module.WorkspaceSettingsDrawer })),
+  import('../../modules/settings/workspace').then((module) => ({ default: module.WorkspaceSettingsDrawer })),
 );
 
 interface DeferredSettingsProps {

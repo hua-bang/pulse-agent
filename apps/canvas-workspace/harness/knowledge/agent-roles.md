@@ -176,7 +176,7 @@ Per `src/main/agent/ipc.ts`'s channel doc comment:
 
 The library-level switch `allowRoleHandoff` (type `AgentRoleLibrarySettings`)
 lives in `roles.json`'s `settings`, edited from Settings → the **Chat
-Roles** section (`RolesSection` in `src/renderer/src/components/settings/RolesSettings/index.tsx`,
+Roles** section (`RolesSection` in `src/renderer/src/modules/settings/internal/RolesSettings/index.tsx`,
 Settings section id `chat-roles`) through `agent-roles:settings-get` /
 `agent-roles:settings-save`. Default is OFF
 (`DEFAULT_AGENT_ROLE_SETTINGS = { allowRoleHandoff: false }`); role writes
@@ -245,7 +245,7 @@ the handoff scan is gated on `handoffEnabled && role && !relayStop.stopped
   renderer state conversation-owned instead of recreating the deleted legacy
   per-segment compensation path.
 - Progress strip: `src/renderer/src/modules/chat/components/ChatView/RelayBar.tsx`.
-- Settings editor: `src/renderer/src/components/settings/RolesSettings/index.tsx`,
+- Settings editor: `src/renderer/src/modules/settings/internal/RolesSettings/index.tsx`,
   behind the Settings **Chat Roles** (`chat-roles`) section.
 
 Role accents everywhere come from ONE renderer cache,
