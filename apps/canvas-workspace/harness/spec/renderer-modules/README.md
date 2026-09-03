@@ -32,7 +32,8 @@ src/renderer/src/
 │   ├── models/        # reusable model selection surface
 │   ├── scheduled/     # scheduled routes, run notifications, Chat integration
 │   ├── artifacts/     # chat renderers + independently lazy dock tab
-│   └── plugin-market/ # listing state, route, dialogs, brand assets
+│   ├── plugin-market/ # listing state, route, dialogs, brand assets
+│   └── skills/        # lazy skill library/editor route
 ├── components/        # remaining product visuals + shared UI mixed together
 ├── views/             # route-owned product surfaces
 ├── hooks/             # generic and product-specific hooks mixed together

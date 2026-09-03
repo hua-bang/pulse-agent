@@ -1,4 +1,4 @@
-import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
+import type { CanvasConfigScope, CanvasSkillEntry } from '../../../types';
 
 export type ScopeView = 'effective' | 'workspace' | 'global';
 

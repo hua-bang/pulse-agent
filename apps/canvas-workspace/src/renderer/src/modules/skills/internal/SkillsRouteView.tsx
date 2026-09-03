@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
-import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import { PulseRouterView } from '../../components/shell/router';
+import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import { PulseRouterView } from '../../../components/shell/router';
 import { SkillsRouteLoading } from './SkillsLibraryLoading';
 import './index.css';
 

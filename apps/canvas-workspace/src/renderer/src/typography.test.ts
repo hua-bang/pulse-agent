@@ -53,7 +53,7 @@ describe('renderer typography system', () => {
       'components/shell/Sidebar/index.css',
       'modules/plugin-market/internal/index.css',
       'modules/scheduled/internal/index.css',
-      'views/SkillsLibrary/index.css',
+      'modules/skills/internal/index.css',
       'views/WorkspaceNodes/index.css',
     ]);
     const declarations = collectCssFiles(rendererRoot).flatMap((path) => {
@@ -66,7 +66,7 @@ describe('renderer typography system', () => {
   });
 
   it.each([
-    'views/SkillsLibrary/index.css',
+    'modules/skills/internal/index.css',
     'modules/scheduled/internal/index.css',
     'modules/plugin-market/internal/index.css',
     'views/WorkspaceNodes/index.css',

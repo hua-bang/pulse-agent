@@ -1,5 +1,5 @@
-import { SegmentedControl } from '../../components/ui';
-import { useI18n } from '../../i18n';
+import { SegmentedControl } from '../../../components/ui';
+import { useI18n } from '../../../i18n';
 
 export const SkillsLibraryTabs = ({ onNavigatePlugins }: { onNavigatePlugins: () => void }) => {
   const { t } = useI18n();

@@ -1,4 +1,4 @@
-import { useI18n } from '../../i18n';
+import { useI18n } from '../../../i18n';
 
 const Skeleton = ({ width, height, grow = false }: { width: string; height: string; grow?: boolean }) => (
   <span className="skills-library__skeleton" style={{ width, height, flex: grow ? 1 : undefined }} />

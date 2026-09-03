@@ -4,8 +4,8 @@ import {
   PuzzlePiece,
   Trash,
 } from '@phosphor-icons/react';
-import { useI18n } from '../../i18n';
-import { Button, EmptyState } from '../../components/ui';
+import { useI18n } from '../../../i18n';
+import { Button, EmptyState } from '../../../components/ui';
 import type { DisplaySkill } from './types';
 
 interface Props {

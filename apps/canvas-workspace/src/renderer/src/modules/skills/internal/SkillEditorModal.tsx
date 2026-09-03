@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { FolderSimple, Globe } from '@phosphor-icons/react';
-import type { CanvasConfigScope, CanvasSkillInput } from '../../types';
-import { useI18n } from '../../i18n';
-import { Button, Modal, SegmentedControl, TextField } from '../../components/ui';
+import type { CanvasConfigScope, CanvasSkillInput } from '../../../types';
+import { useI18n } from '../../../i18n';
+import { Button, Modal, SegmentedControl, TextField } from '../../../components/ui';
 
 interface Props {
   open: boolean;

@@ -1,6 +1,6 @@
 import { Plus, UploadSimple } from '@phosphor-icons/react';
-import { useI18n } from '../../i18n';
-import { Button } from '../../components/ui';
+import { useI18n } from '../../../i18n';
+import { Button } from '../../../components/ui';
 
 interface Props {
   onImport: () => void;

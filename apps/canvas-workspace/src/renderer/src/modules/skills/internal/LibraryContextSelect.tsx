@@ -1,7 +1,7 @@
 import { FolderSimple, Globe } from '@phosphor-icons/react';
-import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import { useI18n } from '../../i18n';
-import { Select } from '../../components/ui';
+import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import { useI18n } from '../../../i18n';
+import { Select } from '../../../components/ui';
 import type { LibraryContext } from './types';
 
 const GLOBAL_LIBRARY_VALUE = '__global_library__';
