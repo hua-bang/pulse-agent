@@ -1,3 +1,4 @@
+import './index.css';
 import { AgentIcon } from '../../../coding-agent/icon';
 import type { AgentTeamAgentRecord } from '../../../../types';
 import { AgentTypeSelect } from '../AgentTeamFrame/AgentTypeSelect';
