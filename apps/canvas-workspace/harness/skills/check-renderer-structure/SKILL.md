@@ -40,8 +40,10 @@ Strict mode exits non-zero for target gaps or dependency-direction violations.
   folders.
 - `flatComponentFiles`: inspect whether each non-trivial visual module needs
   an owner folder with local CSS, types, controller, and tests.
-- `pressure`: use as investigation leads. Existing file-size governance is the
-  authority; do not equate line count with shallow design.
+- `pressure`: use as investigation leads. Visual pressure covers both legacy
+  root visuals and `modules/*/components|views`, so moving a file cannot hide
+  it. Existing file-size governance is the authority; do not equate line count
+  with shallow design.
 - `separatedStyles` and `centralTests`: inspect ownership manually. Heuristics
   cannot prove CSS selector ownership or whether a test is genuinely
   cross-module.

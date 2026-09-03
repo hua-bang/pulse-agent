@@ -59,7 +59,7 @@ Current pressure points, measured on 2026-09-03:
 |---|---|---|
 | Canvas document | `modules/canvas/document/useCanvasDocument.ts` ~338 lines plus owner-local history/merge/command modules | persistence scheduling remains in the React adapter; the non-React seam and transaction modules are established |
 | Coding-agent session | `modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts` ~938 lines plus lifecycle, Codex-capture, and mirror-terminal modules | owner PTY spawning/persistence and form state remain interleaved in the React adapter |
-| Agent Team workspace | `modules/agent-team/components/AgentTeamFrame/index.tsx` ~1913 lines; CSS ~2722 lines; public model ~332 lines | polling/actions and task/agent/gate/artifact visual surfaces remain interleaved; snapshot-to-task/round projection and DAG layout are now independently tested |
+| Agent Team workspace | `modules/agent-team/components/AgentTeamFrame/index.tsx` ~1816 lines; public model ~332 lines; TaskDagCanvas is owner-local | polling/actions and task/agent/gate/artifact visual surfaces remain interleaved; snapshot-to-task/round projection and DAG layout are now independently tested |
 | Workspace graph | `WorkspaceNodes/GraphPage.tsx` ~771 lines | graph projection/search/highlight and the ForceGraph adapter are inseparable |
 | Settings | MCP/Skills/Plugins managers share a flat folder and stylesheet | each domain combines bridge mutation, draft state, and visual implementation |
 

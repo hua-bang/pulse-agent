@@ -151,7 +151,10 @@ export const analyzeRendererStructure = (rendererRoot) => {
     .sort((a, b) => b.lines - a.lines);
 
   const visualOver300 = productionFiles
-    .filter(file => extname(file.path) === '.tsx' && /^(components|views)\//.test(file.path))
+    .filter(file => extname(file.path) === '.tsx' && (
+      /^(components|views)\//.test(file.path)
+      || /^modules\/[^/]+\/(components|views)\//.test(file.path)
+    ))
     .filter(file => !/^use[A-Z]/.test(file.path.split('/').pop() ?? ''))
     .map(file => ({ path: file.path, lines: countLines(readFileSync(file.absolutePath, 'utf8')) }))
     .filter(file => file.lines > 300)

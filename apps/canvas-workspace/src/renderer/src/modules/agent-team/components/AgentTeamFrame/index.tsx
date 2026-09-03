@@ -8,6 +8,7 @@ import {
   type AgentTeamGraphTask,
 } from '../../model/workspaceModel';
 import { AgentTypeSelect } from './AgentTypeSelect';
+import { TaskDagCanvas } from '../TaskDagCanvas';
 import { NodeMentionPicker } from '../../../../components/node-bodies/NodeMentionPicker';
 import { SegmentedControl } from '../../../../components/ui';
 import { useAppShell } from '../../../../components/shell/AppShellProvider';
@@ -192,8 +193,6 @@ interface GraphAgentItem {
   sourceAgent?: AgentTeamAgentRecord;
   sessionHealth?: string;
 }
-
-const DAG_LEFT = 38;
 
 export const AgentTeamFrame = ({
   node,
@@ -830,112 +829,16 @@ export const AgentTeamFrame = ({
         </div>
       );
     }
-
-    const markerId = variant === 'fullscreen' ? `${edgeMarkerId}-fullscreen` : edgeMarkerId;
-    const dagLayout = variant === 'fullscreen' ? fullscreenDagLayout : inlineDagLayout;
     return (
-      <div
-        className={`agent-team-dag-canvas${variant === 'fullscreen' ? ' agent-team-dag-canvas--fullscreen' : ''}`}
-        style={{ width: dagLayout.width, height: dagLayout.height }}
-      >
-        <svg
-          className="agent-team-dag-edges"
-          width={dagLayout.width}
-          height={dagLayout.height}
-          viewBox={`0 0 ${dagLayout.width} ${dagLayout.height}`}
-          aria-hidden="true"
-        >
-          <defs>
-            <marker
-              id={markerId}
-              markerWidth="8"
-              markerHeight="8"
-              refX="7"
-              refY="4"
-              orient="auto"
-              markerUnits="strokeWidth"
-            >
-              <path d="M 0 0 L 8 4 L 0 8 z" />
-            </marker>
-          </defs>
-          {dagLayout.edges.map((edge) => {
-            const highlighted = selectedGraphTask
-              ? edge.sourceKey === selectedGraphTask.key || edge.targetKey === selectedGraphTask.key
-              : false;
-            return (
-              <path
-                key={edge.key}
-                className={`agent-team-dag-edge${highlighted ? ' agent-team-dag-edge--highlighted' : ''}`}
-                d={edge.path}
-                markerEnd={`url(#${markerId})`}
-              />
-            );
-          })}
-        </svg>
-
-        {dagLayout.rounds.map((round) =>
-          round.showDivider ? (
-            <div
-              key={`${round.key}-divider`}
-              className="agent-team-dag-round-divider"
-              style={{ top: round.dividerTop, width: dagLayout.width }}
-            />
-          ) : null,
-        )}
-
-        {dagLayout.rounds.map((round) =>
-          round.showLabel ? (
-            <span
-              key={`${round.key}-label`}
-              className="agent-team-dag-round-label"
-              style={{ left: DAG_LEFT, top: round.labelTop }}
-            >
-              {round.label}
-            </span>
-          ) : null,
-        )}
-
-        {dagLayout.stages.map((stage) => (
-          <span
-            key={stage.key}
-            className="agent-team-dag-stage"
-            style={{ left: stage.x, top: stage.y }}
-          >
-            <span className="agent-team-dag-stage__index">{stage.index}</span>
-            {stage.label}
-          </span>
-        ))}
-
-        {dagLayout.nodes.map((item) => {
-          const task = item.task;
-          const selected = selectedGraphTask?.key === task.key;
-          const ownerHighlighted = !!selectedAgentKey && task.ownerKey === selectedAgentKey;
-          return (
-            <button
-              key={task.key}
-              type="button"
-              className={`agent-team-dag-node agent-team-dag-node--${task.status}${selected ? ' agent-team-dag-node--selected' : ''}${ownerHighlighted ? ' agent-team-dag-node--owner-highlight' : ''}${task.dependencyWarning ? ' agent-team-dag-node--warning' : ''}`}
-              style={{
-                left: item.x,
-                top: item.y,
-                width: item.width,
-                height: item.height,
-              }}
-              onClick={() => selectGraphTask(task)}
-              title={task.title}
-            >
-              <span className={`agent-team-task-row__dot agent-team-task-row__dot--${task.status}`} />
-              <span className="agent-team-dag-node__copy">
-                <strong>{task.title}</strong>
-                <span className="agent-team-dag-node__meta">
-                  <span>{statusLabel(task.status)}</span>
-                  {renderOwnerChip(task.ownerKey, task.ownerName)}
-                </span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <TaskDagCanvas
+        layout={variant === 'fullscreen' ? fullscreenDagLayout : inlineDagLayout}
+        markerId={variant === 'fullscreen' ? `${edgeMarkerId}-fullscreen` : edgeMarkerId}
+        fullscreen={variant === 'fullscreen'}
+        selectedTask={selectedGraphTask}
+        selectedAgentKey={selectedAgentKey}
+        agentTypeByOwnerKey={agentTypeByOwnerKey}
+        onSelectTask={selectGraphTask}
+      />
     );
   };
 
