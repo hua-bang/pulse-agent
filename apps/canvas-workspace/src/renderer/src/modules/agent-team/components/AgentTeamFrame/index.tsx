@@ -12,7 +12,7 @@ import { TaskDagCanvas } from '../TaskDagCanvas';
 import { HumanGateCard, hasConcreteHumanGatePrompt } from '../HumanGateCard';
 import { TeamCommand } from '../TeamCommand';
 import { AgentsStrip, type AgentSummaryItem } from '../AgentsStrip';
-import { agentSessionHealthSuffix as sessionHealthSuffix, agentTeamStatusLabel as statusLabel } from '../visualLabels';
+import { agentSessionHealthSuffix as sessionHealthSuffix, agentTeamStatusLabel as statusLabel, agentTypeDisplayLabel } from '../visualLabels';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { SegmentedControl } from '../../../../components/ui';
 import { useAppShell } from '../../../../shared/appShell';
@@ -122,8 +122,7 @@ const isTeamAgentNode = (node: CanvasNode, teamId: string): node is CanvasNode &
   && (node.data as AgentNodeData).agentTeamId === teamId
   && !!(node.data as AgentNodeData).agentTeamAgentId;
 
-const agentTypeLabel = (agentType?: string): string =>
-  AGENT_REGISTRY.find((def) => def.id === agentType)?.label ?? agentType ?? 'Coding Agent';
+const agentTypeLabel = (agentType?: string): string => agentTypeDisplayLabel(agentType, AGENT_REGISTRY);
 
 // Agent Teams currently supports only Claude Code and Codex for teammates.
 const TEAM_AGENT_OPTIONS = AGENT_REGISTRY.filter((def) => def.id === 'claude-code' || def.id === 'codex');

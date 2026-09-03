@@ -13,3 +13,8 @@ export const agentSessionHealthSuffix = (health?: string): string => (
     ? ' · offline'
     : health === 'queued' ? ' · queued' : ''
 );
+
+export const agentTypeDisplayLabel = (agentType: string | undefined, registry: readonly AgentDef[]): string => (
+  registry.find((item) => item.id === agentType)?.label ?? agentType ?? 'Coding Agent'
+);
+import type { AgentDef } from '../../../config/agentRegistry';
