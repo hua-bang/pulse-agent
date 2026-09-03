@@ -1,7 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
-import { BASE_TERMINAL_FONT_SIZE } from '../../../../config/terminalTheme';
-import { count } from '../../../../perf/counters';
+import { BASE_TERMINAL_FONT_SIZE } from '../../../../../config/terminalTheme';
+import { count } from '../../../../../perf/counters';
 
 export const SCROLLBACK_SAVE_INTERVAL = 2000;
 export const MAX_SCROLLBACK_CHARS = 50000;

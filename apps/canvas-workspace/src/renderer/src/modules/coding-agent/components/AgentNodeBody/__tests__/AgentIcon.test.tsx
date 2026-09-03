@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AgentIcon } from '../AgentIcon';
-import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
+import { AGENT_REGISTRY } from '../../../../../config/agentRegistry';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

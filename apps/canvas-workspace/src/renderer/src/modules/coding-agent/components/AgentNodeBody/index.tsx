@@ -1,16 +1,16 @@
 import './index.css';
 import '@xterm/xterm/css/xterm.css';
 import { useEffect, useMemo, useState } from 'react';
-import { NodeMentionPicker } from '../NodeMentionPicker';
+import { NodeMentionPicker } from '../../../../components/node-bodies/NodeMentionPicker';
 import { AgentPicker } from './AgentPicker';
 import { AgentRestart } from './AgentRestart';
 import { AgentTeamManaged } from './AgentTeamManaged';
 import { AgentTerminal } from './AgentTerminal';
-import type { AgentTeamEventRecord, AgentTeamSnapshot } from '../../../types';
+import type { AgentTeamEventRecord, AgentTeamSnapshot } from '../../../../types';
 import type { AgentNodeBodyProps } from './types';
 import { detectAgentView, useAgentNodeController } from './useAgentNodeController';
-import { useWorkspaceActive } from '../../../hooks/useWorkspaceActive';
-import { count } from '../../../perf/counters';
+import { useWorkspaceActive } from '../../../../hooks/useWorkspaceActive';
+import { count } from '../../../../perf/counters';
 
 export { detectAgentView };
 

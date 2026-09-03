@@ -27,7 +27,7 @@ import type { ChatDeliveryReceipt } from '../../../modules/chat';
 // scheduler (iframe bodies) stay out of the eagerly-parsed entry chunk. Each
 // chunk loads on first mount of its node type; the canvas is keepAlive, so
 // subsequent same-type nodes render synchronously.
-const AgentNodeBody = lazy(() => import('../../node-bodies/AgentNodeBody').then((m) => ({ default: m.AgentNodeBody })));
+const AgentNodeBody = lazy(() => import('../../../modules/coding-agent/surface').then((m) => ({ default: m.AgentNodeBody })));
 const FileNodeBody = lazy(() => import('../../node-bodies/FileNodeBodyLazy').then((m) => ({ default: m.FileNodeBodyLazy })));
 const FrameNodeBody = lazy(() => import('../../node-bodies/FrameNodeBody').then((m) => ({ default: m.FrameNodeBody })));
 const IframeNodeBody = lazy(() => import('../../node-bodies/IframeNodeBody').then((m) => ({ default: m.IframeNodeBody })));

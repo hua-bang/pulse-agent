@@ -7,8 +7,8 @@ migration phase lands. This spec does not authorize a big-bang directory move.
 
 The renderer currently groups most React code under `components/`, while
 feature state and coordination are split between root `hooks/`, `views/`, and
-`utils/`. The first module-first phase has established `modules/canvas/` and
-consolidated Chat under `modules/chat/`. The earlier Chat architecture
+`utils/`. The migration has established `modules/canvas/`, consolidated Chat
+under `modules/chat/`, and started the coding-agent session seam. The earlier Chat architecture
 migration proved that owner-local folders, one-way imports, and small public
 entry points improve locality, but it also exposed the next navigation
 problem: placing feature folders beside `components/` would flatten the
@@ -24,7 +24,8 @@ infrastructure with no product-domain meaning.
 src/renderer/src/
 ├── modules/
 │   ├── canvas/        # document state, transactions, history, external merge
-│   └── chat/          # Chat visuals + runtime/session/target logic
+│   ├── chat/          # Chat visuals + runtime/session/target logic
+│   └── coding-agent/  # AgentNodeBody visuals + session policy/runtime
 ├── components/        # remaining product visuals + shared UI mixed together
 ├── views/             # route-owned product surfaces
 ├── hooks/             # generic and product-specific hooks mixed together
@@ -47,13 +48,16 @@ Current healthy properties:
 - Canvas document history, external merge, core transactions, and content
   materialization now live behind `modules/canvas/index.ts`; the React adapter
   is `modules/canvas/document/useCanvasDocument.ts`.
+- Coding-agent session bindings, launch command planning, and team auto-resume
+  backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
+  its owner-local tests/styles have moved into the same module.
 
 Current pressure points, measured on 2026-09-03:
 
 | Area | Evidence | Main friction |
 |---|---|---|
 | Canvas document | `modules/canvas/document/useCanvasDocument.ts` ~338 lines plus owner-local history/merge/command modules | persistence scheduling remains in the React adapter; the non-React seam and transaction modules are established |
-| Coding-agent session | `AgentNodeBody/useAgentNodeController.ts` ~1280 lines | PTY/xterm ownership, provider session recovery, mirror terminals, and form state are interleaved |
+| Coding-agent session | `modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts` ~1194 lines plus a public pure lifecycle seam | PTY/xterm ownership, Codex discovery, mirror terminals, and form state remain interleaved |
 | Agent Team workspace | `AgentTeamFrame/index.tsx` ~2232 lines; CSS ~2722 lines; no direct spec | snapshot projection, polling, actions, DAG layout, six visual surfaces, and artifact loading have no testable internal seam |
 | Workspace graph | `WorkspaceNodes/GraphPage.tsx` ~771 lines | graph projection/search/highlight and the ForceGraph adapter are inseparable |
 | Settings | MCP/Skills/Plugins managers share a flat folder and stylesheet | each domain combines bridge mutation, draft state, and visual implementation |
@@ -182,7 +186,9 @@ fullscreen placement adapter.
    Chat runtime and visuals under `modules/chat/`. This phase is implemented;
    remaining Canvas visuals still migrate incrementally from root components.
 2. Deepen coding-agent session lifecycle, then move AgentNodeBody visuals and
-   session runtime into `modules/coding-agent/`.
+   session runtime into `modules/coding-agent/`. The public binding/command/
+   retry policy and visual ownership are implemented; PTY and mirror runtime
+   extraction remains.
 3. Form an Agent Team workspace model/controller interface before splitting
    AgentTeamFrame visuals and CSS. Do not replace one large file with dozens of
    pass-through props.

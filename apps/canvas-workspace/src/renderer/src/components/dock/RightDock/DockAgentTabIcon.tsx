@@ -1,4 +1,4 @@
-import { AgentIcon } from '../../node-bodies/AgentNodeBody/AgentIcon';
+import { AgentIcon } from '../../../modules/coding-agent/icon';
 
 /** Agent ids that own a brand color in `index.css`; others fall back to the neutral slot. */
 const BRANDED_AGENT_TYPES = ['claude-code', 'codex', 'pi'];

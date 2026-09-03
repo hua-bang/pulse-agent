@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
-import { AgentNodeBody } from '../AgentNodeBody';
-import { AgentIcon } from '../AgentNodeBody/AgentIcon';
+import { AgentNodeBody } from '../../../modules/coding-agent/surface';
+import { AgentIcon } from '../../../modules/coding-agent/icon';
 import { AgentTypeSelect } from './AgentTypeSelect';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 import { SegmentedControl } from '../../ui';

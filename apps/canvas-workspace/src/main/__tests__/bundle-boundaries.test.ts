@@ -56,6 +56,7 @@ const DYNAMIC_ONLY_MODULE_SUFFIXES = [
   '/components/node-bodies/FileNodeBody/index.tsx',
   '/components/node-bodies/TextNodeBody/index.tsx',
   '/components/node-bodies/IframeNodeBody/index.tsx',
+  '/modules/coding-agent/components/AgentNodeBody/index.tsx',
   '/modules/chat/components/ChatPanel/index.tsx',
   '/modules/chat/target/useRegisterChatTarget.ts',
   '/modules/chat/target/sessionScope.ts',
@@ -186,7 +187,7 @@ describe('bundle boundaries (static import graph from renderer entry)', () => {
 
   it.each([
     'renderer/src/components/dock/WorkspaceTerminalDock/index.tsx',
-    'renderer/src/components/node-bodies/AgentNodeBody/index.tsx',
+    'renderer/src/modules/coding-agent/components/AgentNodeBody/index.tsx',
     'renderer/src/components/node-bodies/TerminalNodeBody/index.tsx',
   ])('%s loads the xterm base styles with its lazy chunk', (path) => {
     const entry = readFileSync(join(srcRoot, path), 'utf-8');

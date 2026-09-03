@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
-import type { AgentNodeData, CanvasNode } from '../../../types';
-import { getAgentCommand } from '../../../config/agentRegistry';
-import { TERMINAL_OPTIONS } from '../../../config/terminalTheme';
-import { buildNodeMentionInsertion } from '../../../utils/nodeMention';
-import { handleTerminalShortcut } from '../../../shortcuts/terminalShortcuts';
+import type { AgentNodeData, CanvasNode } from '../../../../types';
+import { getAgentCommand } from '../../../../config/agentRegistry';
+import { TERMINAL_OPTIONS } from '../../../../config/terminalTheme';
+import { buildNodeMentionInsertion } from '../../../../utils/nodeMention';
+import { handleTerminalShortcut } from '../../../../shortcuts/terminalShortcuts';
+import {
+  getCodingAgentResumeBinding,
+  getTeamAutoResumeDecision,
+  nextTeamAutoResumeState,
+  planCodingAgentLaunchCommand,
+  shouldAutoResumeCodingAgentSession,
+  shouldConsiderTeamAutoResume,
+} from '../../session/sessionLifecycle';
 import { createTerminalKeyArbiter } from './utils/terminalFocus';
 import type { AgentNodeBodyProps, ViewMode } from './types';
 import {
@@ -23,8 +31,6 @@ import {
 import { resolvePiSessionBinding } from './utils/piSession';
 
 const mintSessionId = (nodeId: string): string => `${nodeId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const shellQuote = (value: string): string => `'${value.replace(/'/g, "'\\''")}'`;
-const clearTerminalCommand = "printf '\\033[2J\\033[H'";
 const CODEX_BINDING_MARKER_PREFIX = 'pulse-canvas-codex-binding';
 const DEFAULT_AGENT_TYPE = 'claude-code';
 const makeCodexBindingMarker = (nodeId: string): string => `${CODEX_BINDING_MARKER_PREFIX}:${nodeId}:${crypto.randomUUID()}`;
@@ -43,8 +49,6 @@ interface MirrorTerminalCacheEntry {
 }
 const RETRY_MIRROR_CONNECTION_MS = 1_000;
 const MAX_MIRROR_TERMINALS = 12;
-const TEAM_AUTO_RESUME_MAX_ATTEMPTS = 2;
-const TEAM_AUTO_RESUME_RETRY_AFTER_MS = 8_000;
 const MIRROR_TERMINAL_STASH_ID = 'agent-mirror-terminal-stash';
 const mirrorTerminalCache = new Map<string, MirrorTerminalCacheEntry>();
 const mirrorTerminalCacheKey = (workspaceId: string | undefined, nodeId: string, sessionId: string) =>
@@ -99,70 +103,6 @@ const hasTeamWarmupLaunch = (data: AgentNodeData): boolean =>
   !!data.agentTeamId && data.agentTeamWarmup === true;
 const normalizeAgentType = (agentType?: string): string =>
   agentType && getAgentCommand(agentType) ? agentType : DEFAULT_AGENT_TYPE;
-const canResumeCliConversation = (data: AgentNodeData): boolean => {
-  if (data.agentType === 'claude-code') return !!data.cliSessionId;
-  if (data.agentType === 'codex') return !!data.codexSessionId;
-  if (data.agentType === 'pi') return !!data.piSessionKey;
-  return false;
-};
-const cliConversationKey = (data: AgentNodeData): string | undefined => {
-  if (data.agentType === 'claude-code') return data.cliSessionId;
-  if (data.agentType === 'codex') return data.codexSessionId;
-  if (data.agentType === 'pi') return data.piSessionKey;
-  return undefined;
-};
-
-const shouldAutoResume = (data: AgentNodeData): boolean => {
-  if (data.status !== 'running') return false;
-  if (data.viewMode !== 'running') return false;
-  if (hasQueuedLaunchPrompt(data) || hasTeamWarmupLaunch(data)) return false;
-  const hasPriorSession =
-    !!(data.sessionId && data.sessionId.length > 0)
-    || !!(data.scrollback && data.scrollback.length > 0);
-  if (!hasPriorSession) return false;
-  return canResumeCliConversation(data);
-};
-
-const shouldConsiderTeamAutoResume = (data: AgentNodeData): boolean => {
-  if (!canResumeCliConversation(data)) return false;
-  if (hasQueuedLaunchPrompt(data)) return false;
-  return data.viewMode !== 'setup';
-};
-
-const teamAutoResumeRetryDelay = (data: AgentNodeData, now = Date.now()): number | null => {
-  const key = cliConversationKey(data);
-  if (!key) return null;
-  const previous = data.agentTeamAutoResume;
-  if (previous?.sessionKey !== key) return null;
-  if ((previous.attempts ?? 0) < TEAM_AUTO_RESUME_MAX_ATTEMPTS) return null;
-  if (!previous.lastAttemptAt) return 0;
-  return Math.max(0, TEAM_AUTO_RESUME_RETRY_AFTER_MS - (now - previous.lastAttemptAt));
-};
-
-const canAttemptTeamAutoResume = (data: AgentNodeData, now = Date.now()): boolean => {
-  const key = cliConversationKey(data);
-  if (!key) return false;
-  const previous = data.agentTeamAutoResume;
-  if (previous?.sessionKey !== key) return true;
-  if ((previous.attempts ?? 0) < TEAM_AUTO_RESUME_MAX_ATTEMPTS) return true;
-  return teamAutoResumeRetryDelay(data, now) === 0;
-};
-
-const nextTeamAutoResumeState = (data: AgentNodeData): NonNullable<AgentNodeData['agentTeamAutoResume']> => {
-  const key = cliConversationKey(data);
-  const previous = data.agentTeamAutoResume;
-  const now = Date.now();
-  const previousExpired = previous?.lastAttemptAt
-    ? now - previous.lastAttemptAt >= TEAM_AUTO_RESUME_RETRY_AFTER_MS
-    : false;
-  const attempts = previous?.sessionKey === key && !previousExpired ? previous?.attempts ?? 0 : 0;
-  return {
-    sessionKey: key,
-    attempts: attempts + 1,
-    lastAttemptAt: now,
-  };
-};
-
 export const useAgentNodeController = ({
   node,
   getAllNodes,
@@ -187,7 +127,8 @@ export const useAgentNodeController = ({
   const isMirrorTerminal = terminalMode === 'mirror';
   const isTeamManagedAgent = !!data.agentTeamId;
   const defaultCwd = data.cwd || (isTeamManagedAgent ? rootFolder || '' : '');
-  const shouldResumeOnMount = !isMirrorTerminal && !isTeamManagedAgent && shouldAutoResume(data);
+  const shouldResumeOnMount = !isMirrorTerminal && !isTeamManagedAgent
+    && shouldAutoResumeCodingAgentSession(data);
   const [selectedAgent, setSelectedAgent] = useState(normalizeAgentType(data.agentType));
   const [cwdInput, setCwdInput] = useState(defaultCwd);
   const [promptInput, setPromptInput] = useState(data.inlinePrompt || data.lastInitPrompt || '');
@@ -674,59 +615,29 @@ export const useAgentNodeController = ({
           ? dataRef.current.codexSessionMarker || makeCodexBindingMarker(nodeIdRef.current)
           : undefined;
         const codexBindingPrompt = codexBindingMarker ? codexBindingComment(codexBindingMarker) : '';
-        const promptForCommand = codexBindingMarker && effectivePrompt
-          ? `${effectivePrompt}\n\n${codexBindingPrompt}`
-          : codexBindingMarker && !promptFile
-            ? codexBindingPrompt
-            : effectivePrompt;
-        const dangerousFlag = dangerousMode
-          ? agentType === 'claude-code'
-            ? ' --dangerously-skip-permissions'
-            : agentType === 'codex'
-              ? ' --dangerously-bypass-approvals-and-sandbox'
-              : ''
-          : '';
-        const commonFlags = dangerousFlag + (agentArgs ? ` ${agentArgs}` : '');
-        // Team nodes run the CLI inside an interactive shell. If the CLI dies
-        // (crash, /quit, context exhaustion) the shell survives, so the node
-        // still reports a live "running" session — and every team
-        // notification queued for this agent gets typed INTO BASH: lost for
-        // the agent and executed as shell commands. Exiting the shell with
-        // the CLI turns CLI death into an observable PTY exit, which feeds
-        // the session-exit review path and the auto-resume relaunch.
-        const teamExitSuffix = dataRef.current.agentTeamId ? '; exit' : '';
-
-        if (agentType === 'claude-code' && resumeMode && canResumeClaude && !effectivePrompt && !promptFile) {
-          const resumeFlags = ` --resume ${cliSessionId}${commonFlags}`;
-          api.write(sessionId, `${clearTerminalCommand}; ${command}${resumeFlags}${teamExitSuffix}\n`);
-        } else if (agentType === 'codex' && resumeMode && !effectivePrompt && !promptFile) {
-          const codexSessionId = dataRef.current.codexSessionId;
-          if (!codexSessionId) {
-            writeTerminalOutput(term, '\x1b[33mCannot resume Codex: saved session id is missing.\x1b[0m', snapshotPersister, true);
-            setLoading(false);
-            return;
-          }
-          api.write(sessionId, `${clearTerminalCommand}; ${command}${commonFlags} resume ${shellQuote(codexSessionId)}${teamExitSuffix}\n`);
-        } else {
-          const flags =
-            (agentType === 'claude-code'
-              ? ` ${resumeMode && canResumeClaude ? '--resume' : '--session-id'} ${cliSessionId}`
-              : piSession.flags(resumeMode)) + commonFlags;
-          if (promptForCommand) {
-            api.write(sessionId, `${clearTerminalCommand}; ${command}${flags} ${shellQuote(promptForCommand)}${teamExitSuffix}\n`);
-          } else if (promptFile) {
-            if (codexBindingMarker) {
-              api.write(
-                sessionId,
-                `__prompt=$(printf '%s\\n\\n%s' "$(cat ${shellQuote(promptFile)})" ${shellQuote(codexBindingComment(codexBindingMarker))}) && ${clearTerminalCommand} && ${command}${flags} "$__prompt"${teamExitSuffix}\n`,
-              );
-            } else {
-              api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${clearTerminalCommand} && ${command}${flags} "$__prompt"${teamExitSuffix}\n`);
-            }
-          } else {
-            api.write(sessionId, `${clearTerminalCommand}; ${command}${flags}${teamExitSuffix}\n`);
-          }
+        const commandPlan = planCodingAgentLaunchCommand({
+          agentType,
+          command,
+          resume: resumeMode && (agentType !== 'claude-code' || canResumeClaude),
+          cliSessionId,
+          codexSessionId: dataRef.current.codexSessionId,
+          piFlags: piSession.flags(resumeMode),
+          prompt: effectivePrompt,
+          promptFile,
+          codexBindingPrompt,
+          dangerousMode,
+          agentArgs,
+          teamManaged: !!dataRef.current.agentTeamId,
+        });
+        if ('error' in commandPlan) {
+          const message = commandPlan.error === 'missing-codex-session'
+            ? 'Cannot resume Codex: saved session id is missing.'
+            : `Unknown agent type: ${agentType}`;
+          writeTerminalOutput(term, `\x1b[33m${message}\x1b[0m`, snapshotPersister, true);
+          setLoading(false);
+          return;
         }
+        api.write(sessionId, commandPlan.commandLine);
 
         if (shouldCaptureNewCodexSession) {
           startCodexSessionCapture({
@@ -911,7 +822,8 @@ export const useAgentNodeController = ({
     if (data.viewMode !== 'running' && data.status !== 'running') return;
 
     const hasLaunchPrompt = hasQueuedLaunchPrompt(data);
-    const shouldResumeSavedConversation = !isTeamManagedAgent && !hasLaunchPrompt && canResumeCliConversation(data);
+    const shouldResumeSavedConversation = !isTeamManagedAgent && !hasLaunchPrompt
+      && getCodingAgentResumeBinding(data).canResume;
     if (!hasLaunchPrompt && !hasTeamWarmupLaunch(data) && !shouldResumeSavedConversation) return;
 
     pendingAgentRef.current = normalizeAgentType(data.agentType);
@@ -945,8 +857,9 @@ export const useAgentNodeController = ({
     if (!workspaceId || !data.agentTeamId || !data.agentTeamAgentId) return;
     if (!shouldConsiderTeamAutoResume(data)) return;
 
-    const retryDelay = teamAutoResumeRetryDelay(data);
-    if (!canAttemptTeamAutoResume(data)) {
+    const autoResumeDecision = getTeamAutoResumeDecision(data);
+    if (!autoResumeDecision.eligible) {
+      const retryDelay = autoResumeDecision.retryAfterMs;
       if (retryDelay != null) {
         setTeamAutoResumePending(true);
         const timer = setTimeout(() => {
@@ -1189,7 +1102,8 @@ export const useAgentNodeController = ({
     const savedCwd = data.cwd || rootFolder || '';
     const savedPrompt = data.lastInitPrompt || '';
     const shouldResumeSavedSession =
-      savedAgent === dataRef.current.agentType && canResumeCliConversation(dataRef.current);
+      savedAgent === dataRef.current.agentType
+      && getCodingAgentResumeBinding(dataRef.current).canResume;
     pendingAgentRef.current = savedAgent;
     pendingCwdRef.current = savedCwd;
     pendingPromptRef.current = shouldResumeSavedSession ? '' : savedPrompt;

@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CanvasNode } from '../../../types';
+import type { CanvasNode } from '../../../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -101,7 +101,7 @@ const agentNode: CanvasNode = {
 beforeAll(async () => {
   vi.doMock('@xterm/xterm', () => ({ Terminal: MockTerminal }));
   vi.doMock('@xterm/addon-fit', () => ({ FitAddon: MockFitAddon }));
-  vi.doMock('../../../i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
+  vi.doMock('../../../../i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
   ({ AgentNodeBody } = await import('./index'));
 });
 
@@ -161,7 +161,7 @@ afterEach(async () => {
 afterAll(() => {
   vi.doUnmock('@xterm/xterm');
   vi.doUnmock('@xterm/addon-fit');
-  vi.doUnmock('../../../i18n');
+  vi.doUnmock('../../../../i18n');
 });
 
 describe('AgentNodeBody PTY ownership', () => {

@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CanvasNode } from '../../../../types';
+import type { CanvasNode } from '../../../../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -77,7 +77,7 @@ const SESSION_DIR = /--session-dir "\$HOME\/\.pi\/agent\/sessions\/pulse-canvas\
 beforeAll(async () => {
   vi.doMock('@xterm/xterm', () => ({ Terminal: MockTerminal }));
   vi.doMock('@xterm/addon-fit', () => ({ FitAddon: MockFitAddon }));
-  vi.doMock('../../../../i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
+  vi.doMock('../../../../../i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
   ({ AgentNodeBody } = await import('../index'));
 });
 
@@ -133,7 +133,7 @@ afterEach(async () => {
 afterAll(() => {
   vi.doUnmock('@xterm/xterm');
   vi.doUnmock('@xterm/addon-fit');
-  vi.doUnmock('../../../../i18n');
+  vi.doUnmock('../../../../../i18n');
 });
 
 describe('Pi per-node session binding', () => {

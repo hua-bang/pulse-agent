@@ -24,8 +24,7 @@ import {
   detectCodingAgentExit,
   hasLikelyReturnedToShellPrompt,
 } from '../../../utils/codingAgentCommand';
-import { fitTerminalIfSane } from '../../node-bodies/AgentNodeBody/utils/terminal';
-import { createTerminalKeyArbiter } from '../../node-bodies/AgentNodeBody/utils/terminalFocus';
+import { createTerminalKeyArbiter, fitTerminalIfSane } from '../../../modules/coding-agent/terminal';
 import { scheduleBootOverlayDismiss } from './boot-overlay';
 import './index.css';
 

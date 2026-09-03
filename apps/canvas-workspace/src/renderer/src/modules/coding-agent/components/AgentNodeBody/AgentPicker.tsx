@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { AGENT_REGISTRY, type AgentDef } from '../../../config/agentRegistry';
+import { AGENT_REGISTRY, type AgentDef } from '../../../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
-import { isImeComposing } from '../../../utils/ime';
-import { useI18n } from '../../../i18n';
-import { NodeMentionPicker } from '../NodeMentionPicker';
-import { useTextareaMention } from '../../../hooks/useTextareaMention';
-import type { CanvasNode } from '../../../types';
+import { isImeComposing } from '../../../../utils/ime';
+import { useI18n } from '../../../../i18n';
+import { NodeMentionPicker } from '../../../../components/node-bodies/NodeMentionPicker';
+import { useTextareaMention } from '../../../../hooks/useTextareaMention';
+import type { CanvasNode } from '../../../../types';
 
 interface AgentPickerProps {
   selectedAgent: string;

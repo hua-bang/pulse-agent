@@ -64,7 +64,8 @@ narrow node widths.
 
 ## Per-agent launch behavior
 
-`AgentNodeBody/useAgentNodeController.ts` composes the shell line. Everything
+`modules/coding-agent/session/sessionLifecycle.ts` composes the shell line;
+`AgentNodeBody/useAgentNodeController.ts` executes the resulting plan. Everything
 agent-specific there is opt-in — an id it does not recognize gets a bare
 `<command> [prompt]`, which is the correct default for a CLI that takes its
 prompt positionally and needs no flags.
@@ -76,7 +77,7 @@ prompt positionally and needs no flags.
   Keep the picker's flag map and the controller's `dangerousFlag` chain in
   sync — they are two copies of the same mapping.
 - **Resume.** See "Binding a node to one conversation" below. The rule the
-  code enforces: `AgentRestart` offers "resume" only when the node can name
+  lifecycle interface enforces: `AgentRestart` offers "resume" only when the node can name
   its OWN conversation. A bare "continue the most recent session" fallback
   never qualifies — it can attach the node to a sibling node's conversation,
   or to one the user started by hand in a terminal.
@@ -90,9 +91,9 @@ each mechanism is what decides whether resume is offered at all.
 
 | Agent | Mechanism | Where it lives |
 |---|---|---|
-| Claude Code | caller-supplied id: `--session-id <uuid>` on first launch, `--resume <uuid>` after | `cliSessionId` on the node |
+| Claude Code | caller-supplied id: `--session-id <uuid>` on first launch, `--resume <uuid>` after | `cliSessionId` on the node; `modules/coding-agent/index.ts` |
 | Codex | discovered after the fact: a marker comment is appended to the first prompt, then `~/.codex/state_5.sqlite` is polled for the thread containing it (session-index diffing as fallback), then `codex exec resume <id>` | `codexSessionId` / `codexSessionMarker`; `main/agent/codex-sessions.ts` |
-| Pi | private storage: `--session-dir <node dir>` on every launch, plus `--continue` to resume | `piSessionKey` on the node |
+| Pi | private storage: `--session-dir <node dir>` on every launch, plus `--continue` to resume | `piSessionKey` on the node; `modules/coding-agent/index.ts` |
 
 Prefer the cheapest mechanism the CLI actually supports, in this order:
 

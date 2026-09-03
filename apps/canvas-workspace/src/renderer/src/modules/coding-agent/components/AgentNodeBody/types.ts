@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { AgentTeamStatus, CanvasNode } from '../../../types';
+import type { AgentTeamStatus, CanvasNode } from '../../../../types';
 
 export interface AgentNodeBodyProps {
   node: CanvasNode;

@@ -1,4 +1,4 @@
-import { AgentIcon } from '../AgentNodeBody/AgentIcon';
+import { AgentIcon } from '../../../modules/coding-agent/icon';
 import type { AgentDef } from '../../../config/agentRegistry';
 import { Select } from '../../ui';
 

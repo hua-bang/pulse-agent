@@ -1,8 +1,8 @@
 import type React from 'react';
-import { AGENT_REGISTRY } from '../../../config/agentRegistry';
+import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
-import { useI18n, type I18nKey } from '../../../i18n';
+import { useI18n, type I18nKey } from '../../../../i18n';
 
 interface AgentTerminalProps {
   containerRef: React.RefObject<HTMLDivElement>;

@@ -6,7 +6,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import type { CanvasNode, TerminalNodeData } from '../../../types';
 import { TERMINAL_OPTIONS } from '../../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../../utils/nodeMention';
-import { createTerminalKeyArbiter } from '../AgentNodeBody/utils/terminalFocus';
+import { createTerminalKeyArbiter } from '../../../modules/coding-agent/terminal';
 import { formatShortcutId } from '../../../shortcuts/registry';
 import { handleTerminalShortcut } from '../../../shortcuts/terminalShortcuts';
 import { NodeMentionPicker } from '../NodeMentionPicker';
@@ -22,7 +22,7 @@ import {
   serializeBuffer,
   syncTerminalFontSizeToCanvas,
   writeTerminalOutput,
-} from '../AgentNodeBody/utils/terminal';
+} from '../../../modules/coding-agent/terminal';
 import { useI18n } from '../../../i18n';
 import {
   appendTerminalOutputTail,

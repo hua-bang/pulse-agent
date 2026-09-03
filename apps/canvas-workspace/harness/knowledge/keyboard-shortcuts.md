@@ -303,7 +303,7 @@ open alongside the host find bar.
 
 A focused terminal keeps Ctrl-chords but yields Cmd-chords and releases
 focus on double-Escape. The arbitration function is `decideTerminalKey` in
-`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminal.ts`. A focused
+`src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminal.ts`. A focused
 terminal is otherwise its own keyboard black hole: xterm's helper element is
 a `<textarea>`, so the canvas dispatcher's editable guard silently drops
 every shortcut typed while it has focus, with no route back out. The split
@@ -370,8 +370,8 @@ The rule's `paths` cover: `src/renderer/src/shortcuts/**`,
 `src/renderer/src/components/shell/AppShellProvider/ShortcutsDialog.tsx`,
 `src/shared/webview-shortcuts.ts`,
 `src/main/webview/shortcut-forwarding.ts`, `src/main/app/menu.ts`,
-`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminal.ts`,
-`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.ts`, and the four
+`src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminal.ts`,
+`src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.ts`, and the four
 xterm surfaces that dispatch terminal-owned shortcuts
 (`AgentNodeBody/useAgentNodeController.ts`, `TerminalNodeBody/index.tsx`,
 `WorkspaceTerminalDock/index.tsx`, `NodeMentionPicker/index.tsx`).
@@ -379,7 +379,7 @@ xterm surfaces that dispatch terminal-owned shortcuts
 Its `quick` step and its `required` step both run:
 
 ```
-pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalKeys.test.ts
+pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts
 ```
 
 `required` additionally runs `pnpm --filter canvas-workspace typecheck`
@@ -396,8 +396,8 @@ Primary regression suites live in:
 - `src/renderer/src/hooks/useCanvasKeyboard.test.ts`
 - `src/renderer/src/hooks/useAppShortcuts.test.ts`
 - `src/main/webview/__tests__/shortcut-forwarding.test.ts`
-- `src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalKeys.test.ts` — the
+- `src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts` — the
   pure decision rule
-- `src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.test.ts` — the
+- `src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.test.ts` — the
   stateful hatch: double-Escape, the window boundary, the post-release reset,
   the time-zero sentinel, and the blur sequence
