@@ -18,7 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../../../hooks/useWorkspaces';
 import { Drawer, Button, TextField, FieldRow } from '../../../../components/ui';
 import { McpManager } from '../settings-config/McpManager';
-import { useAppShell } from '../../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../../shared/appShell';
 import { useI18n } from '../../../../i18n';
 import { isImeComposing } from '../../../../utils/ime';
 import './index.css';

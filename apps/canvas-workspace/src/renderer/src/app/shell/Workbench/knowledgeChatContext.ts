@@ -6,7 +6,7 @@ import type {
   KnowledgeTagDefinition,
   WorkspaceNodeListItem,
 } from '../../../types';
-import type { ChatComposerRequest } from '../../../modules/chat';
+import type { KnowledgeChatExplicitContext } from '../../../shared/knowledgeChat';
 import {
   getNodeTags,
   getNodeTitle,
@@ -20,12 +20,7 @@ export interface KnowledgeChatRouteContext {
   explicitContext?: KnowledgeChatExplicitContext;
 }
 
-export interface KnowledgeChatExplicitContext {
-  nodes: AgentContextNodeRef[];
-  tags?: AgentContextTagRef[];
-  canvases?: AgentContextCanvasRef[];
-  composerRequest?: ChatComposerRequest;
-}
+export type { KnowledgeChatExplicitContext } from '../../../shared/knowledgeChat';
 
 interface ResolveKnowledgeChatRouteContextOptions {
   activeView: string;

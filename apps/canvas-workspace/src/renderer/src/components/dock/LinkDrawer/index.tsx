@@ -37,7 +37,7 @@ import { ExternalLinkIcon, PlusIcon } from "../../icons";
 import { Button, TextField } from "../../ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../../shared/experimental-features";
 import { useActiveChatTarget, type ChatDeliveryReceipt } from '../../../modules/chat';
-import { useChatDeliveryNotifier } from '../../../app/shell/useChatDeliveryNotifier';
+import { useChatDeliveryNotifier } from '../../../modules/chat/delivery';
 import { TabChatAction } from '../RightDock/TabChatAction';
 import "./index.css";
 /** Google blocks account sign-in inside embedded browsers (WebView policy);

@@ -11,7 +11,7 @@ import type {
   CanvasMcpTransport,
 } from '../../../../types';
 import { useI18n } from '../../../../i18n';
-import { useAppShell } from '../../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../../shared/appShell';
 import { Button, Select, TextField } from '../../../../components/ui';
 import { HealthBadge, ToolsList } from './McpManagerParts';
 import './settings-config.css';

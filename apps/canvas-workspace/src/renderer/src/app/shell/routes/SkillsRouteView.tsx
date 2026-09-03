@@ -1,10 +1,9 @@
 import { lazy, Suspense } from 'react';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
-import { PulseRouterView } from '../../../app/shell/router';
-import { SkillsRouteLoading } from './SkillsLibraryLoading';
-import './index.css';
+import { PulseRouterView } from '../router';
+import { SkillsRouteLoading } from '../../../modules/skills/loading';
 
-const SkillsLibrary = lazy(() => import('.').then((module) => ({ default: module.SkillsLibrary })));
+const SkillsLibrary = lazy(() => import('../../../modules/skills/library').then((module) => ({ default: module.SkillsLibrary })));
 
 interface Props {
   activeWorkspaceId: string;

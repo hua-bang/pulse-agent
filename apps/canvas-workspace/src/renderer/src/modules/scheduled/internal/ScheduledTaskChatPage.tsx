@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ScheduledTask } from '../../../../../shared/scheduled';
 import { useI18n } from '../../../i18n';
 import type { SettingsSection } from '../../settings';
-import { useAppShell } from '../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../shared/appShell';
 import { ChatPageBody } from '../../../modules/chat/embedded';
 import './index.css';
 

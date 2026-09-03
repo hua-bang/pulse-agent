@@ -16,5 +16,5 @@ export {
   useWorkspaceNodeList,
 } from './internal/useWorkspaceNodes';
 export * from './internal/utils';
-export { useKnowledgeAiContext } from './internal/knowledgeAiContext';
+export { useKnowledgeAiContext, type NodesAiContext } from './internal/knowledgeAiContext';
 export { useNodeDetailBridges } from './internal/useNodeDetailBridges';

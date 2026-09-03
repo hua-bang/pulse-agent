@@ -4,7 +4,7 @@ import type {
   AgentContextNodeRef,
   AgentContextTagRef,
 } from '../../../types';
-import type { KnowledgeChatExplicitContext } from '../../../app/shell/Workbench/knowledgeChatContext';
+import type { KnowledgeChatExplicitContext } from '../../../shared/knowledgeChat';
 
 export interface NodesAiContext {
   nodes: AgentContextNodeRef[];

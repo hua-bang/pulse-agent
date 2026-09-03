@@ -1,7 +1,7 @@
 import './index.css';
 import './iframeBar.css';
 import { useState } from 'react';
-import { useAppShell } from '../../../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../../../shared/appShell';
 import { useRightDock } from '../../../../../components/dock/RightDock';
 import { IframeEditor } from './IframeEditor';
 import { IframeRenderedView } from './IframeRenderedView';
@@ -9,7 +9,7 @@ import { IframeReviewLayer } from './IframeReviewLayer';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, IframeNodeData } from '../../../../../types';
 import type { IframeNodeBodyProps } from './types';
 import { useIframeNodeState } from './useIframeNodeState';
-import { useChatDeliveryNotifier } from '../../../../../app/shell/useChatDeliveryNotifier';
+import { useChatDeliveryNotifier } from '../../../../chat/delivery';
 
 export const IframeNodeBody = ({
   node,

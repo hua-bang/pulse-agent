@@ -4,7 +4,7 @@ import type {
   BuiltInToolCredentialStatus,
   BuiltInToolsConfigStatus,
 } from '../../../../types';
-import { useAppShell } from '../../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../../shared/appShell';
 import { useI18n } from '../../../../i18n';
 import { Button, TextField } from '../../../../components/ui';
 import './BuiltInToolsSection.css';

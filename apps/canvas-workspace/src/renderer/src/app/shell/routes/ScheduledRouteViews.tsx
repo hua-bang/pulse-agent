@@ -1,10 +1,10 @@
 import { lazy, Suspense } from 'react';
 import type { AgentScope } from '../../../types';
-import type { SettingsSection } from '../../settings';
-import { PulseRouterView } from '../../../app/shell/router';
+import type { SettingsSection } from '../../../modules/settings';
+import { PulseRouterView } from '../router';
 
-const ScheduledPage = lazy(() => import('./ScheduledPage').then((module) => ({ default: module.ScheduledPage })));
-const ScheduledTaskChatPage = lazy(() => import('./ScheduledTaskChatPage').then((module) => ({ default: module.ScheduledTaskChatPage })));
+const ScheduledPage = lazy(() => import('../../../modules/scheduled/page').then((module) => ({ default: module.ScheduledPage })));
+const ScheduledTaskChatPage = lazy(() => import('../../../modules/scheduled/task-page').then((module) => ({ default: module.ScheduledTaskChatPage })));
 
 interface Props {
   scheduledTaskId: string | null;

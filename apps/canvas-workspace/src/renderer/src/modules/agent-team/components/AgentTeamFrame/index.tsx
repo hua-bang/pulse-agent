@@ -12,7 +12,7 @@ import { TaskDagCanvas } from '../TaskDagCanvas';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { NodeMentionPicker } from '../../../node-mentions';
 import { SegmentedControl } from '../../../../components/ui';
-import { useAppShell } from '../../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../../shared/appShell';
 import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
 import { useTextareaMention } from '../../../../hooks/useTextareaMention';
 import { useWorkspaceActive } from '../../../../hooks/useWorkspaceActive';

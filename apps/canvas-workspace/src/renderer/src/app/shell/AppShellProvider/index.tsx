@@ -1,9 +1,7 @@
 import {
-  createContext,
   lazy,
   Suspense,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -14,20 +12,9 @@ import { DEFAULT_TOAST_DURATION_MS } from '../../../constants/interaction';
 import type { ConfirmOptions, ToastInput, ToastRecord } from '../../../types/ui-interaction';
 import { useI18n } from '../../../i18n';
 import { Modal } from '../../../components/ui';
+import { AppShellPortProvider, useAppShell, type AppShellPort } from '../../../shared/appShell';
 import './index.css';
 
-interface AppShellContextValue {
-  notify: (toast: ToastInput) => string;
-  updateToast: (id: string, patch: Partial<Omit<ToastRecord, 'id' | 'createdAt'>>) => void;
-  dismissToast: (id: string) => void;
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
-  openShortcuts: () => void;
-  closeShortcuts: () => void;
-  shortcutsOpen: boolean;
-  isOverlayOpen: boolean;
-}
-
-const AppShellContext = createContext<AppShellContextValue | null>(null);
 const ShortcutsDialog = lazy(() =>
   import('./ShortcutsDialog').then((module) => ({ default: module.ShortcutsDialog })),
 );
@@ -141,7 +128,7 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
 
   const isOverlayOpen = shortcutsOpen || Boolean(confirmState);
 
-  const value = useMemo<AppShellContextValue>(() => ({
+  const value = useMemo<AppShellPort>(() => ({
     notify,
     updateToast,
     dismissToast,
@@ -153,7 +140,7 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
   }), [notify, updateToast, dismissToast, confirm, openShortcuts, closeShortcuts, shortcutsOpen, isOverlayOpen]);
 
   return (
-    <AppShellContext.Provider value={value}>
+    <AppShellPortProvider value={value}>
       {children}
       <ToastViewport toasts={toasts} onDismiss={dismissToast} onPause={pauseToast} onResume={resumeToast} />
       {confirmState && (
@@ -169,17 +156,11 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
           <ShortcutsDialog onClose={closeShortcuts} />
         </Suspense>
       )}
-    </AppShellContext.Provider>
+    </AppShellPortProvider>
   );
 };
 
-export const useAppShell = (): AppShellContextValue => {
-  const context = useContext(AppShellContext);
-  if (!context) {
-    throw new Error('useAppShell must be used within AppShellProvider');
-  }
-  return context;
-};
+export { useAppShell };
 
 const ToastViewport = ({
   toasts,

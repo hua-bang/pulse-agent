@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ShellPathResult } from '../../../../types';
-import { useAppShell } from '../../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../../shared/appShell';
 import { useI18n } from '../../../../i18n';
 import { Button } from '../../../../components/ui';
 

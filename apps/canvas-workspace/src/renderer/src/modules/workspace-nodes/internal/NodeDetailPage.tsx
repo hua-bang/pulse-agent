@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from './useWorkspaceNodes';
-import { useAppShell } from '../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../shared/appShell';
 import { isImeComposing } from '../../../utils/ime';
 import './index.css';
 

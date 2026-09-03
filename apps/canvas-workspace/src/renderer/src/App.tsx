@@ -12,7 +12,7 @@ import { Sidebar } from './app/shell/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './app/shell/Workbench';
 import { resolveKnowledgeChatRouteContext } from './app/shell/Workbench/knowledgeChatContext';
-import { GraphPageLazy as GraphPage, NodesRouteViews } from './modules/workspace-nodes/surface';
+import { GraphPageLazy as GraphPage } from './modules/workspace-nodes/surface';
 import { useKnowledgeAiContext, useNodeDetailBridges } from './modules/workspace-nodes';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { useAppShortcutBindings } from './hooks/useAppShortcuts';
@@ -21,7 +21,7 @@ import { PulseRouter, PulseRouterView } from './app/shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
-import { PluginMarketRouteView, ScheduledRouteViews, SkillsRouteView } from './app/shell/RouteViews';
+import { NodesRouteViews, PluginMarketRouteView, ScheduledRouteViews, SkillsRouteView } from './app/shell/RouteViews';
 import { useScheduledRunChatOpener } from './modules/scheduled';
 import {
   ChatTargetProvider,

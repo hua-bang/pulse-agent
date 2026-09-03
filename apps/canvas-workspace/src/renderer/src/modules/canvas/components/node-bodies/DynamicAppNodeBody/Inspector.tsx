@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useAppShell } from "../../../../../app/shell/AppShellProvider";
+import { useAppShell } from "../../../../../shared/appShell";
 
 /** What the main-side `get-spec` IPC returns. */
 interface GetSpecOk {

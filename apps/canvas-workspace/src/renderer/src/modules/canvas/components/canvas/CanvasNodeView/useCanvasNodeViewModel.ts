@@ -12,7 +12,7 @@ import type { CanvasNode } from '../../../../../types';
 import type { ResizeEdge } from '../../../../../hooks/useNodeResize';
 import { isImeComposing } from '../../../../../utils/ime';
 import { collectContainerDescendants } from '../../../../../utils/frameHierarchy';
-import { useChatDeliveryNotifier } from '../../../../../app/shell/useChatDeliveryNotifier';
+import { useChatDeliveryNotifier } from '../../../../chat/delivery';
 import { FULLSCREEN_NODE_TYPES } from './constants';
 import type { CanvasNodeViewProps } from './types';
 import {

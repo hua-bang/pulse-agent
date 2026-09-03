@@ -4,7 +4,7 @@ import { useI18n } from '../../../i18n';
 import { SparklesIcon } from '../../icons';
 import { Button } from '../../ui';
 import type { ChatDeliveryReceipt } from '../../../modules/chat';
-import { useChatDeliveryNotifier } from '../../../app/shell/useChatDeliveryNotifier';
+import { useChatDeliveryNotifier } from '../../../modules/chat/delivery';
 
 interface Props {
   tab: AgentContextTabRef;

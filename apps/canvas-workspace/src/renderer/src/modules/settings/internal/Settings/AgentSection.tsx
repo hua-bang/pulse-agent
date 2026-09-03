@@ -5,7 +5,7 @@ import type {
   SkillsStatusResult,
   SkillTargetResult,
 } from '../../../../types';
-import { useAppShell } from '../../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../../shared/appShell';
 import { useI18n } from '../../../../i18n';
 import { Button, FieldRow, Select } from '../../../../components/ui';
 import './AgentSection.css';

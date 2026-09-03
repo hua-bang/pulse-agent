@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useI18n } from '../../../../../i18n';
-import { useAppShell } from '../../../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../../../shared/appShell';
 import type { SessionBackEntry } from '../../SessionBackBar';
 
 interface NewSessionResult {

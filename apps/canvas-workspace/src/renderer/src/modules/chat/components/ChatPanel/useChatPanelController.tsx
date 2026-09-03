@@ -9,7 +9,7 @@ import { SessionBackBar } from '../SessionBackBar';
 import { useChatComposerController } from '../ChatComposer/useChatComposerController';
 import { isExternalOnlyRoleMessage } from '../../mentions/roleMentionItems';
 import { useComposerRequest } from './hooks/useComposerRequest';
-import { useAppShell } from '../../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../../shared/appShell';
 import type { AgentRequestContext } from '../../../../types';
 import type { AgentScope } from '../../../../types';
 import type { ChatPanelProps } from './types';

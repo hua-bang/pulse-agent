@@ -12,7 +12,7 @@ import {
 import type { ScheduledTask, ScheduledTaskInput } from '../../../../../shared/scheduled';
 import type { AgentScope } from '../../../types';
 import { useI18n } from '../../../i18n';
-import { useAppShell } from '../../../app/shell/AppShellProvider';
+import { useAppShell } from '../../../shared/appShell';
 import { Button, EmptyState } from '../../../components/ui';
 import { scheduleLabel, timeLabel } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
