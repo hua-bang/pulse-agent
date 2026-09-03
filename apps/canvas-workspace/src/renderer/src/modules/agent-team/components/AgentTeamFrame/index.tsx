@@ -9,6 +9,7 @@ import {
 } from '../../model/workspaceModel';
 import { AgentTypeSelect } from './AgentTypeSelect';
 import { TaskDagCanvas } from '../TaskDagCanvas';
+import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { NodeMentionPicker } from '../../../../components/node-bodies/NodeMentionPicker';
 import { SegmentedControl } from '../../../../components/ui';
 import { useAppShell } from '../../../../components/shell/AppShellProvider';
@@ -16,13 +17,11 @@ import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
 import { useTextareaMention } from '../../../../hooks/useTextareaMention';
 import { useWorkspaceActive } from '../../../../hooks/useWorkspaceActive';
 import { isImeComposing } from '../../../../utils/ime';
-import { count } from '../../../../perf/counters';
 import type {
   AgentNodeData,
   AgentTeamAgentRecord,
   AgentTeamArtifactRecord,
   AgentTeamHumanGateRecord,
-  AgentTeamSnapshot,
   AgentTeamTaskRecord,
   CanvasNode,
   FrameNodeData,
@@ -207,17 +206,9 @@ export const AgentTeamFrame = ({
   const data = node.data as FrameNodeData;
   const teamId = data.agentTeamId;
   const workspaceActive = useWorkspaceActive();
-  const [snapshot, setSnapshot] = useState<AgentTeamSnapshot | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [teamAction, setTeamAction] = useState<'pause' | 'resume' | 'delete' | 'dispatch' | null>(null);
-  // In-flight guard for the plan-phase actions (Approve & Run / Continue /
-  // Finish). These fire IPC calls that re-plan or advance the team — a
-  // double-click must not submit the action twice.
-  const [planAction, setPlanAction] = useState<'confirm' | 'advance' | 'finalize' | null>(null);
   // In-flight guard for the composer (brief / message / revise) so a second
   // Enter during the send round-trip doesn't dispatch the same text twice.
   const [commandSending, setCommandSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [briefDraft, setBriefDraft] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState('');
@@ -242,8 +233,13 @@ export const AgentTeamFrame = ({
   const inlineGraphViewportRef = useRef<HTMLDivElement>(null);
   const fullscreenGraphViewportRef = useRef<HTMLDivElement>(null);
   const { confirm } = useAppShell();
-
-  const api = window.canvasWorkspace?.agentTeams;
+  const controller = useAgentTeamWorkspaceController({
+    api: window.canvasWorkspace?.agentTeams,
+    workspaceId,
+    teamId,
+    workspaceActive,
+  });
+  const { snapshot, loading, error, planAction, teamAction } = controller;
   const runtime = snapshot?.runtime;
   const workspaceModel = useMemo(
     () => snapshot ? createAgentTeamWorkspaceModel(snapshot) : null,
@@ -532,139 +528,16 @@ export const AgentTeamFrame = ({
     setSelectedTaskId(defaultTask?.id ?? orderedTasks[0].id);
   }, [defaultTask, orderedTasks, selectedTaskId, taskById]);
 
-  const refreshInFlight = useRef(false);
-  const refreshQueued = useRef(false);
-  const refresh = useCallback(async () => {
-    if (!api || !workspaceId || !teamId) return;
-    // Coalesce: pushes and the poll can overlap during event bursts; a
-    // snapshot call is not free (it runs the team's repair/nudge pass), so
-    // run one at a time and fold concurrent requests into a single rerun.
-    if (refreshInFlight.current) {
-      refreshQueued.current = true;
-      return;
-    }
-    refreshInFlight.current = true;
-    try {
-      setLoading(true);
-      const result = await api.snapshot(workspaceId, teamId);
-      setLoading(false);
-      if (!result.ok || !result.snapshot) {
-        setError(result.error ?? 'Unable to load team.');
-        return;
-      }
-      setError(null);
-      setSnapshot(result.snapshot);
-    } finally {
-      refreshInFlight.current = false;
-      if (refreshQueued.current) {
-        refreshQueued.current = false;
-        void refresh();
-      }
-    }
-  }, [api, workspaceId, teamId]);
+  const handleBriefLead = async () => {
+    if (await controller.briefLead(briefDraft)) setBriefDraft('');
+  };
 
-  useEffect(() => {
-    // B3: pause while this workspace is backgrounded (keep-alive, display:
-    // none) — the main-process heartbeat advances the team independently of
-    // this poll, and onExternalUpdate below is the primary push path anyway.
-    // Re-running on re-show fires an immediate refresh via the call below.
-    if (!workspaceActive) return undefined;
-    count('agent-team-frame-poll');
-    void refresh();
-    // Push (onExternalUpdate below) is the primary update path; the poll is a
-    // fallback only, so it can be slow.
-    const timer = setInterval(() => {
-      count('agent-team-frame-poll');
-      void refresh();
-    }, 15000);
-    return () => clearInterval(timer);
-  }, [refresh, workspaceActive]);
+  const handleConfirmPlan = controller.confirmPlan;
+  const handleAdvanceRound = controller.advanceRound;
+  const handleFinalizeCheckpoint = controller.finalizeCheckpoint;
+  const handleUpdatePlanTeammate = controller.updatePlanTeammate;
 
-  // Team activity is pushed from the main process (debounced runtime events
-  // broadcast as agent-teams canvas updates); refresh immediately instead of
-  // waiting for the next poll. The interval above stays as a fallback.
-  useEffect(() => {
-    const storeApi = window.canvasWorkspace?.store;
-    if (!storeApi?.onExternalUpdate || !workspaceId) return;
-    return storeApi.onExternalUpdate((event) => {
-      if (event.workspaceId !== workspaceId || event.source !== 'agent-teams') return;
-      void refresh();
-    });
-  }, [refresh, workspaceId]);
-
-  const handleBriefLead = useCallback(async () => {
-    const content = briefDraft.trim();
-    if (!api || !workspaceId || !teamId || !content) return;
-    const result = await api.briefLead(workspaceId, teamId, content);
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setBriefDraft('');
-      setError(null);
-    } else {
-      setError(result.error ?? 'Unable to brief the leader.');
-    }
-  }, [api, workspaceId, teamId, briefDraft]);
-
-  const handleConfirmPlan = useCallback(async () => {
-    if (!api || !workspaceId || !teamId || planAction) return;
-    setPlanAction('confirm');
-    try {
-      const result = await api.confirmPlan(workspaceId, teamId);
-      if (result.ok && result.snapshot) {
-        setSnapshot(result.snapshot);
-        setError(null);
-      } else {
-        setError(result.error ?? 'Unable to confirm plan.');
-      }
-    } finally {
-      setPlanAction(null);
-    }
-  }, [api, workspaceId, teamId, planAction]);
-
-  const handleAdvanceRound = useCallback(async () => {
-    if (!api || !workspaceId || !teamId || planAction) return;
-    setPlanAction('advance');
-    try {
-      const result = await api.advanceRound(workspaceId, teamId);
-      if (result.ok && result.snapshot) {
-        setSnapshot(result.snapshot);
-        setError(null);
-      } else {
-        setError(result.error ?? 'Unable to advance to next round.');
-      }
-    } finally {
-      setPlanAction(null);
-    }
-  }, [api, workspaceId, teamId, planAction]);
-
-  const handleFinalizeCheckpoint = useCallback(async () => {
-    if (!api || !workspaceId || !teamId || planAction) return;
-    setPlanAction('finalize');
-    try {
-      const result = await api.finalizeFromCheckpoint(workspaceId, teamId);
-      if (result.ok && result.snapshot) {
-        setSnapshot(result.snapshot);
-        setError(null);
-      } else {
-        setError(result.error ?? 'Unable to finalize team.');
-      }
-    } finally {
-      setPlanAction(null);
-    }
-  }, [api, workspaceId, teamId, planAction]);
-
-  const handleUpdatePlanTeammate = useCallback(async (teammateName: string, agentType: string) => {
-    if (!api || !workspaceId || !teamId) return;
-    const result = await api.updatePlanTeammate(workspaceId, teamId, teammateName, agentType);
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setError(null);
-    } else {
-      setError(result.error ?? 'Unable to update teammate agent.');
-    }
-  }, [api, workspaceId, teamId]);
-
-  const handleTeamCommand = useCallback(async () => {
+  const handleTeamCommand = async () => {
     if (commandSending) return;
     setCommandSending(true);
     try {
@@ -672,69 +545,27 @@ export const AgentTeamFrame = ({
         await handleBriefLead();
         return;
       }
-
       const content = messageDraft.trim();
-      if (!api || !workspaceId || !teamId || !lead || !content) return;
+      if (!lead || !content) return;
       const revisePrefix = phase === 'plan_review'
-        ? 'The user wants to revise the current plan before approving it. Regenerate the plan incorporating this feedback:\n\n'
+        ? 'The user wants to revise the current plan before approving it. Regenerate the plan incorporating this feedback:\\n\\n'
         : '';
       const taskContext = !revisePrefix && teamStatus !== 'completed' && selectedTask
-        ? `Task context: "${selectedTask.title}" (${selectedTask.status}).\n`
+        ? `Task context: "${selectedTask.title}" (${selectedTask.status}).\\n`
         : '';
-      const result = await api.sendInput(workspaceId, teamId, lead.id, `${revisePrefix}${taskContext}${content}`);
-      if (result.ok && result.snapshot) {
-        setSnapshot(result.snapshot);
+      if (await controller.sendInput(lead.id, `${revisePrefix}${taskContext}${content}`)) {
         setMessageDraft('');
-        setError(null);
-      } else {
-        setError(result.error ?? 'Unable to send command.');
       }
     } finally {
       setCommandSending(false);
     }
-  }, [api, commandSending, handleBriefLead, lead, messageDraft, phase, selectedTask, teamId, teamStatus, workspaceId]);
+  };
 
-  const handlePauseTeam = useCallback(async () => {
-    if (!api || !workspaceId || !teamId) return;
-    setTeamAction('pause');
-    const result = await api.pause(workspaceId, teamId);
-    setTeamAction(null);
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setError(null);
-    } else {
-      setError(result.error ?? 'Unable to pause the Agent Team.');
-    }
-  }, [api, workspaceId, teamId]);
+  const handlePauseTeam = controller.pauseTeam;
+  const handleResumeTeam = controller.resumeTeam;
+  const handleDispatch = controller.dispatch;
 
-  const handleResumeTeam = useCallback(async () => {
-    if (!api || !workspaceId || !teamId) return;
-    setTeamAction('resume');
-    const result = await api.resume(workspaceId, teamId);
-    setTeamAction(null);
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setError(null);
-    } else {
-      setError(result.error ?? 'Unable to resume the Agent Team.');
-    }
-  }, [api, workspaceId, teamId]);
-
-  const handleDispatch = useCallback(async () => {
-    if (!api || !workspaceId || !teamId) return;
-    setTeamAction('dispatch');
-    const result = await api.dispatch(workspaceId, teamId);
-    setTeamAction(null);
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setError(null);
-    } else {
-      setError(result.error ?? 'Unable to dispatch tasks.');
-    }
-  }, [api, workspaceId, teamId]);
-
-  const handleDeleteTeam = useCallback(async () => {
-    if (!api || !workspaceId || !teamId) return;
+  const handleDeleteTeam = async () => {
     const accepted = await confirm({
       intent: 'danger',
       title: `Delete Agent Team "${teamTitle}"?`,
@@ -743,38 +574,19 @@ export const AgentTeamFrame = ({
       confirmLabel: 'Delete team',
     });
     if (!accepted) return;
+    const deletedNodeIds = await controller.deleteTeam();
+    if (deletedNodeIds?.length) onRemoveNodes?.(deletedNodeIds);
+  };
 
-    setTeamAction('delete');
-    const result = await api.delete(workspaceId, teamId);
-    setTeamAction(null);
-    if (result.ok) {
-      if (result.deletedNodeIds?.length) {
-        onRemoveNodes?.(result.deletedNodeIds);
-      }
-      setSnapshot(null);
-      setError(null);
-    } else {
-      setError(result.error ?? 'Unable to delete the Agent Team.');
-    }
-  }, [api, confirm, onRemoveNodes, teamId, teamTitle, workspaceId]);
-
-  const handleAnswerGate = useCallback(async (gateId: string) => {
-    if (!api || !workspaceId) return;
+  const handleAnswerGate = async (gateId: string) => {
     const answer = gateAnswers[gateId]?.trim();
-    if (!answer) return;
-    const result = await api.answerGate(workspaceId, gateId, answer);
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setGateAnswers((current) => {
-        const next = { ...current };
-        delete next[gateId];
-        return next;
-      });
-    } else {
-      setError(result.error ?? 'Unable to answer gate.');
-    }
-  }, [api, workspaceId, gateAnswers]);
-
+    if (!answer || !(await controller.answerGate(gateId, answer))) return;
+    setGateAnswers((current) => {
+      const next = { ...current };
+      delete next[gateId];
+      return next;
+    });
+  };
   const leadNodeId = typeof lead?.metadata?.canvasNodeId === 'string'
     ? lead.metadata.canvasNodeId
     : typeof lead?.sessionRef?.metadata?.nodeId === 'string'

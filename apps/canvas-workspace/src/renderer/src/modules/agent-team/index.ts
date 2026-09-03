@@ -7,3 +7,4 @@ export {
   type AgentTeamRoundOption,
   type AgentTeamWorkspaceModel,
 } from './model/workspaceModel';
+export { useAgentTeamWorkspaceController } from './controller/useAgentTeamWorkspaceController';
