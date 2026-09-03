@@ -8,7 +8,7 @@ import {
   ChatTargetProvider,
   useActiveChatTarget,
   type ChatTarget,
-} from '../../../../agent-chat/target';
+} from '../../../../modules/chat';
 import type { WorkbenchController } from '../useWorkbenchState';
 import { Workbench } from '../index';
 import { AppShellProvider } from '../../../shell/AppShellProvider';
@@ -37,9 +37,9 @@ vi.mock('../../../canvas/Canvas', () => ({
   ),
 }));
 
-vi.mock('../../../chat/lazy', async () => {
+vi.mock('../../../../modules/chat/lazy', async () => {
   const { useMemo: useReactMemo } = await import('react');
-  const { useRegisterChatTarget: useRegister } = await import('../../../../agent-chat/target/useRegisterChatTarget');
+  const { useRegisterChatTarget: useRegister } = await import('../../../../modules/chat/target/useRegisterChatTarget');
 
   return {
     ChatPanelLazy: ({

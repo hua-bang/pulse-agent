@@ -6,12 +6,13 @@ migration phase lands. This spec does not authorize a big-bang directory move.
 ## Why this exists
 
 The renderer currently groups most React code under `components/`, while
-feature state and coordination are split between root `hooks/`, `views/`,
-`utils/`, and a first extracted domain folder, `agent-chat/`. The Chat
-architecture migration proved that owner-local folders, one-way imports, and
-small public entry points improve locality, but it also exposed the next
-navigation problem: placing several feature folders beside `components/`
-would flatten the renderer root again.
+feature state and coordination are split between root `hooks/`, `views/`, and
+`utils/`. The first module-first phase has established `modules/canvas/` and
+consolidated Chat under `modules/chat/`. The earlier Chat architecture
+migration proved that owner-local folders, one-way imports, and small public
+entry points improve locality, but it also exposed the next navigation
+problem: placing feature folders beside `components/` would flatten the
+renderer root again.
 
 The target is module-first. A product capability owns its visual and
 non-visual implementation together. Root `components/` is reserved for visual
@@ -21,9 +22,10 @@ infrastructure with no product-domain meaning.
 
 ```text
 src/renderer/src/
-├── modules/canvas/    # first module-first slice: document state/transactions
-├── agent-chat/        # non-visual Chat runtime/session/target logic
-├── components/        # shell + product visuals + shared UI mixed together
+├── modules/
+│   ├── canvas/        # document state, transactions, history, external merge
+│   └── chat/          # Chat visuals + runtime/session/target logic
+├── components/        # remaining product visuals + shared UI mixed together
 ├── views/             # route-owned product surfaces
 ├── hooks/             # generic and product-specific hooks mixed together
 ├── types/             # cross-renderer contracts
@@ -138,7 +140,10 @@ main → app → modules → components / platform / shared
 Rules:
 
 1. `app/` composes modules but does not implement their product behavior.
-2. A module may import another module only through its `index.ts` interface.
+2. A module imports another module through its `index.ts` interface. A small,
+   named secondary entrypoint is allowed only when a measured lazy-loading or
+   bundle boundary would be broken by the root barrel (for example Chat's
+   `lazy.tsx`, `session.ts`, `completion.ts`, and `floating.ts`).
 3. Cross-module dependencies must be acyclic. The lower-level module never
    imports the caller to learn caller-specific types.
 4. Root `components/` cannot import a product module.
@@ -173,9 +178,9 @@ fullscreen placement adapter.
 
 ## Migration sequence
 
-1. Establish `modules/` while deepening Canvas document state. Move current
-   `agent-chat/` and Chat visuals together into `modules/chat/` in the same
-   phase so the renderer root does not gain another temporary taxonomy.
+1. Establish `modules/` while deepening Canvas document state, then combine
+   Chat runtime and visuals under `modules/chat/`. This phase is implemented;
+   remaining Canvas visuals still migrate incrementally from root components.
 2. Deepen coding-agent session lifecycle, then move AgentNodeBody visuals and
    session runtime into `modules/coding-agent/`.
 3. Form an Agent Team workspace model/controller interface before splitting

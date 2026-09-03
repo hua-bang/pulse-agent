@@ -9,7 +9,7 @@ import {
   recordConversationCompletion,
   resetConversationCompletionStoreForTests,
   setConversationVisible,
-} from '../../../agent-chat/runtime/conversationCompletionStore';
+} from '../../../modules/chat/completion';
 import { ConversationCompletionToastBridge } from './index';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

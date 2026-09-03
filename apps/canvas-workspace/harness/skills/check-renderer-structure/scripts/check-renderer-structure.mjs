@@ -109,7 +109,10 @@ const analyzeDependencyDirection = (rendererRoot, productionFiles) => {
       }
       if (sourceOwner && targetOwner && sourceOwner !== targetOwner && targetParts.length > 2) {
         const remaining = targetParts.slice(2).join('/');
-        if (!/^index(?:\.[cm]?[jt]sx?)?$/.test(remaining)) {
+        const isRootEntryFile = !remaining.includes('/') && ['.ts', '.tsx'].some(
+          extension => existsSync(`${resolve(rendererRoot, target)}${extension}`),
+        );
+        if (!/^index(?:\.[cm]?[jt]sx?)?$/.test(remaining) && !isRootEntryFile) {
           errors.push({
             file: file.path,
             import: specifier,

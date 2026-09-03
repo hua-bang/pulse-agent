@@ -2,7 +2,7 @@ import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 
 import { createPortal } from 'react-dom';
 import { Canvas } from '../../canvas/Canvas';
 import { FileNodeEditorRegistryProvider } from '../../../hooks/useFileNodeEditorRegistry';
-import { ChatPanelLazy as ChatPanel } from '../../chat/lazy';
+import { ChatPanelLazy as ChatPanel } from '../../../modules/chat/lazy';
 import { isDockChatVisible, isDockTerminalVisible, useRightDock, useRightDockChatHost, useRightDockState } from '../../dock/RightDock';
 import { buildDockTabRefs } from '../../dock/RightDock/tabRefs';
 import { createReferenceNodeDataSnapshot } from '../../dock/ReferenceDrawer/utils';
@@ -22,7 +22,7 @@ import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
 import { ScheduledChatPanel } from '../../../views/Scheduled/ScheduledChatPanel';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
-import { useOptionalChatTargetBroker } from '../../../agent-chat/target';
+import { useOptionalChatTargetBroker } from '../../../modules/chat';
 import type { AgentScope } from '../../../types';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';

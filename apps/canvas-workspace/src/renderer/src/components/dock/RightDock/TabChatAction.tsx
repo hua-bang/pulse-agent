@@ -3,7 +3,7 @@ import type { AgentContextTabRef } from '../../../types';
 import { useI18n } from '../../../i18n';
 import { SparklesIcon } from '../../icons';
 import { Button } from '../../ui';
-import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
+import type { ChatDeliveryReceipt } from '../../../modules/chat';
 import { useChatDeliveryNotifier } from '../../shell/useChatDeliveryNotifier';
 
 interface Props {

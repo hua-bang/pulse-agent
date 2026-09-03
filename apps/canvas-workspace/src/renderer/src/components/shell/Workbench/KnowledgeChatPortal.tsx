@@ -7,9 +7,9 @@ import type {
   KnowledgeNodeSelection,
 } from '../../../types';
 import type { SettingsSection } from '../../settings/Settings';
-import { ChatPanelLazy as ChatPanel } from '../../chat/lazy';
+import { ChatPanelLazy as ChatPanel } from '../../../modules/chat/lazy';
 import type { AgentScope } from '../../../types';
-import type { ChatComposerRequest } from '../../chat';
+import type { ChatComposerRequest } from '../../../modules/chat';
 import { useAllWorkspaceNodeList } from '../../../views/WorkspaceNodes/useWorkspaceNodes';
 import { buildKnowledgeChatContext } from './knowledgeChatContext';
 

@@ -4,7 +4,7 @@ import type { ScheduledTask } from '../../../../shared/scheduled';
 import type { SettingsSection } from '../../components/settings/Settings';
 import type { WorkspaceOption } from '../../types';
 import type { AgentScope } from '../../types';
-import { ChatPanelLazy as ChatPanel } from '../../components/chat/lazy';
+import { ChatPanelLazy as ChatPanel } from '../../modules/chat/lazy';
 import { useI18n } from '../../i18n';
 import './index.css';
 

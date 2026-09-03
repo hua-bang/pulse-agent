@@ -212,16 +212,16 @@ Auto-appended queue entries carry `namedBy` (the name of the role whose
 reply @-mentioned them in). `RelayBar.tsx` renders those steps with a
 dashed underline —
 `.chat-relay-step--handoff { text-decoration: underline dashed; }` in
-`src/renderer/src/components/chat/ChatView/index.css` — and a tooltip using the
+`src/renderer/src/modules/chat/components/ChatView/index.css` — and a tooltip using the
 `roles.relayNamedBy` i18n key ("由 {name} 点名" in the zh locale, "Brought
 in by {name}" in en). Because a handoff can turn what started as a
 single-role turn into a relay mid-turn, the RelayBar can appear AFTER the
 turn has already started. The keyed renderer updates `RelayProgress` from
 `role-turn-start` / `role-turn-end` inside
-`src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.ts`;
+`src/renderer/src/modules/chat/runtime/useConversationRuntimeStream.ts`;
 `ChatView` renders the strip only once `total > 1`. The handoff-growth and
 completion-clear behavior is pinned at that public hook seam by
-`src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.test.tsx`.
+`src/renderer/src/modules/chat/runtime/useConversationRuntimeStream.test.tsx`.
 
 Default-assistant segments (no role — `role` is `null`) never hand off, and
 a pending graceful stop freezes the queue: in `src/main/agent/canvas-agent.ts`
@@ -231,25 +231,25 @@ the handoff scan is gated on `handoffEnabled && role && !relayStop.stopped
 ## Renderer surfaces and the role-color cache
 
 - Mention popup: roles form the `'role'` mention-item group and are listed
-  FIRST in the `@` popup — `src/renderer/src/components/chat/ChatComposer/useChatComposerInput.ts`'s
+  FIRST in the `@` popup — `src/renderer/src/modules/chat/components/ChatComposer/useChatComposerInput.ts`'s
   own comment: "Chat roles lead the popup — addressing a persona is the
   primary reason to type `@` in a role-enabled conversation."
-- Speaker badge: `src/renderer/src/components/chat/ChatMessage/index.tsx` renders
+- Speaker badge: `src/renderer/src/modules/chat/components/ChatMessage/index.tsx` renders
   `message.speakerRoleName` / `message.speakerRoleColor` as the avatar
   initial and a name badge on assistant messages.
 - Keyed renderer progress + completion policy:
-  `src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.ts`
+  `src/renderer/src/modules/chat/runtime/useConversationRuntimeStream.ts`
   uses `role-turn-start` / `role-turn-end` only for the live RelayBar
   projection. The authoritative `chat-complete` payload settles the assistant
   message, including its speaker snapshot and terminal status. This keeps
   renderer state conversation-owned instead of recreating the deleted legacy
   per-segment compensation path.
-- Progress strip: `src/renderer/src/components/chat/RelayBar.tsx`.
+- Progress strip: `src/renderer/src/modules/chat/components/ChatView/RelayBar.tsx`.
 - Settings editor: `src/renderer/src/components/settings/RolesSettings/index.tsx`,
   behind the Settings **Chat Roles** (`chat-roles`) section.
 
 Role accents everywhere come from ONE renderer cache,
-`src/renderer/src/agent-chat/mentions/roleMentionItems.ts`: it caches the
+`src/renderer/src/modules/chat/mentions/roleMentionItems.ts`: it caches the
 `@` popup entries plus an id → accent-color map with a 5-SECOND TTL
 (`loadRoleMentionItems`, `cache.at`), exposed to components as
 `useRoleColors()` (and `useRoleNameColors()` for the plain-text `@Name`
@@ -258,7 +258,7 @@ Settings save/delete (`invalidateRoleMentionItems()`, called from
 `useAgentRoles`'s `save`/`remove` in `RolesSettings.tsx`). Chips recolor by
 overriding the `--role-accent`, `--role-accent-icon`, `--role-accent-soft`
 CSS custom properties INLINE per chip in
-`src/renderer/src/components/chat/utils/mentions.ts`, so an unknown or
+`src/renderer/src/modules/chat/components/utils/mentions.ts`, so an unknown or
 deleted role id simply falls back to the chip class's default violet
 tokens instead of erroring.
 
@@ -517,10 +517,10 @@ Primary regression suites live in:
   `chat-stop.ts`.
 - `src/main/agent/chat-failure-persistence.test.ts` — `createFailedTurnToolTracker`
   and `failedAssistantMessage`.
-- `src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.test.tsx` —
+- `src/renderer/src/modules/chat/runtime/useConversationRuntimeStream.test.tsx` —
   conversation-keyed stream isolation, listener cleanup, run targeting, and
   the mid-turn RelayBar handoff-growth/completion lifecycle.
-- `src/renderer/src/agent-chat/mentions/roleMentionItems.test.ts` — the
+- `src/renderer/src/modules/chat/mentions/roleMentionItems.test.ts` — the
   role-color TTL cache, recolor notifications, the external-only
   no-provider send guard, and the violet fallback on a failed library
   read.

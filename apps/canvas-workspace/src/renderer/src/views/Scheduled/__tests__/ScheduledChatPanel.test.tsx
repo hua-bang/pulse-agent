@@ -9,7 +9,7 @@ const captured = vi.hoisted(() => ({
   refreshKey: -1 as string | number,
 }));
 
-vi.mock('../../../components/chat/lazy', () => ({
+vi.mock('../../../modules/chat/lazy', () => ({
   ChatPanelLazy: ({ sessionRefreshKey }: { sessionRefreshKey?: string | number }) => {
     const [draft, setDraft] = useState(() => {
       captured.mountCount += 1;

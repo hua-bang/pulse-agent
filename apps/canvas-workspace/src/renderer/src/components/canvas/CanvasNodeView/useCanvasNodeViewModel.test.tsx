@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import type { CanvasNode } from '../../../types';
 import { I18nProvider } from '../../../i18n';
 import { AppShellProvider } from '../../shell/AppShellProvider';
-import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
+import type { ChatDeliveryReceipt } from '../../../modules/chat';
 import { useCanvasNodeViewModel } from './useCanvasNodeViewModel';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

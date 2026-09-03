@@ -12,7 +12,7 @@ const captured = vi.hoisted(() => ({
   mountCount: 0,
 }));
 
-vi.mock('../../../components/chat/ChatPageBody', () => ({
+vi.mock('../../../modules/chat/components/ChatPageBody', () => ({
   ChatPageBody: ({ agentScope, fixedChat }: {
     agentScope: AgentScope;
     fixedChat?: { title: string; banner?: unknown };

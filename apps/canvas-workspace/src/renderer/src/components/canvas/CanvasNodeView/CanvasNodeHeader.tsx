@@ -23,7 +23,7 @@ import {
 import { NodeTypeBadge } from './NodeTypeBadge';
 import { isKnowledgeNodeType } from '../../../views/WorkspaceNodes/utils';
 import { isReferenceableNode } from '../../../utils/referenceNodes';
-import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
+import type { ChatDeliveryReceipt } from '../../../modules/chat';
 
 interface CanvasNodeHeaderProps {
   fullscreenButton: ReactNode;

@@ -2,7 +2,7 @@
 import { act, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatTarget, ChatTargetBroker } from '../../../../agent-chat/target';
+import type { ChatTarget, ChatTargetBroker } from '../../../../modules/chat';
 import { useChatNavigation } from '../useChatNavigation';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

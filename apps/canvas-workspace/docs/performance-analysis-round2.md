@@ -29,12 +29,12 @@
 - **置信度**:0.85
 
 ### 1.3 [medium] RightDock / Chat 面板首屏无条件挂载,经 mentions.ts 再导出把 markdown-it + highlight.js/lib/common 静态拉进启动 chunk
-- **文件:行**:`apps/canvas-workspace/src/renderer/src/components/chat/utils/markdown.ts:1-3`(再导出于 `mentions.ts:5`,消费于 `ChatMessage/index.tsx:6,115,121`)
+- **文件:行**:`apps/canvas-workspace/src/renderer/src/modules/chat/components/utils/markdown.ts:1-3`(再导出于 `mentions.ts:5`,消费于 `ChatMessage/index.tsx:6,115,121`)
 - **类别**:frontend-assets
 - **证据**:markdown.ts 第 1-3 行静态 import 全套(`highlight.js/lib/common`、`markdown-it`、`markdown-it-task-lists`),并在模块顶层 eager 实例化(`const markdown = new MarkdownIt({…})` 第 42 行,`markdown.use(taskLists,…)` 第 51 行)。`new MarkdownIt()` 构造与 ~35 个语法注册在模块 init 时跑,早于任何 chat 消息存在。隔壁 mermaid.ts 证明团队懂 lazy 范式,markdown.ts 反其道。
 - **影响**:每次冷启都 parse+eval markdown-it 核心 + hljs `lib/common`(~35 语法,每个有副作用注册)。从不打开 chat 的用户也照付。结合 xterm,这是首屏 chunk 中只在交互时才需要的 chat/terminal 库。
 - **估算**:~250KB min / ~75KB gzip(markdown-it ~100KB + hljs common ~150KB)移出启动;~20-40ms MarkdownIt 构造 + 35 语法注册移出首屏(**估算,偏高,视为粗估**)。
-- **修复**:把 renderMarkdown 改 lazy(镜像 mermaid.ts:`loadMarkdown(): Promise<(s)=>string>` 用 `Promise.all([import('markdown-it'), import('highlight.js/lib/common'), …])`)。因 `renderMdWithMentions` 在 ChatMessage 同步渲染中调用,最干净的切点是路由级动态 import:`React.lazy(() => import('./components/chat/ChatView'))`,让整个 chat 子树(含 markdown 栈)成为面板/路由首次激活时加载的独立 chunk。这可作为全仓**第一个** React.lazy 边界。
+- **修复**:把 renderMarkdown 改 lazy(镜像 mermaid.ts:`loadMarkdown(): Promise<(s)=>string>` 用 `Promise.all([import('markdown-it'), import('highlight.js/lib/common'), …])`)。因 `renderMdWithMentions` 在 ChatMessage 同步渲染中调用,最干净的切点是路由级动态 import:`React.lazy(() => import('./modules/chat/components/ChatView'))`,让整个 chat 子树(含 markdown 栈)成为面板/路由首次激活时加载的独立 chunk。这可作为全仓**第一个** React.lazy 边界。
 - **置信度**:0.85
 - **校正(对抗性核验)**:finding 把 RightDock 写成挂载点,但真实静态可达性走的是 `Workbench`(`App.tsx:514` 无条件渲染),而非 RightDock(后者由 Workbench portal 注入 ChatPanels);`ChatPage` 提供第二条无 flag 静态路径。结论不变;字节/耗时估算偏高。
 

@@ -30,8 +30,9 @@ Strict mode exits non-zero for target gaps or dependency-direction violations.
 ## Interpret the report
 
 - `boundaryErrors`: fix before accepting a module move. Cross-module imports
-  must use the target module's root interface; shared/platform code cannot
-  import upward.
+  must use the target module's root interface or an intentional root-level
+  performance entrypoint; shared/platform code cannot import upward. Internal
+  implementation belongs below a subdirectory, never in a root entry file.
 - `businessComponentGroups`: current product visuals still grouped under root
   `components/`. They may depend on their destination module during a phased
   move; they remain target gaps, not shared-component boundary errors.

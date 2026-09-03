@@ -4,7 +4,7 @@ import './App.css';
 import { AppShellProvider, useAppShell } from './components/shell/AppShellProvider';
 import { ConversationCompletionToastBridge } from './components/shell/ConversationCompletionToastBridge';
 import { DeferredSettings } from './components/shell/AppLazyBoundaries';
-import { ChatPageLazy as ChatPage } from './components/chat/lazy';
+import { ChatPageLazy as ChatPage } from './modules/chat/lazy';
 import { isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from './components/dock/RightDock';
 import { GlobalChatLauncher } from './components/dock/RightDock/GlobalChatLauncher';
 import type { SettingsSection } from './components/settings/Settings';
@@ -29,7 +29,7 @@ import {
   ChatTargetProvider,
   useActiveChatTarget,
   useChatTargetBroker,
-} from './agent-chat/target';
+} from './modules/chat';
 import { useChatNavigation } from './components/shell/router/useChatNavigation';
 import type { AgentScope } from './types';
 const MigrationSpinner = lazy(() => import('./components/shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
@@ -216,7 +216,7 @@ const AppContent = () => {
     sessionId: string,
     scopeLabel: string,
   ) => {
-    const { createChatPageSessionTarget } = await import('./agent-chat/target/sessionScope');
+    const { createChatPageSessionTarget } = await import('./modules/chat/session');
     enterChatTarget(createChatPageSessionTarget(scope, sessionId, scopeLabel));
   }, [enterChatTarget]);
   const enterNodesView = useCallback(() => {

@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url';
  *  - DefaultCanvasNode (C1/C6 + webview startup) React.lazy-loads the 6
  *    non-trivial node bodies (text/file/agent/frame/terminal/iframe), evicting
  *    editor packages and the embedded-browser scheduler from the entry.
- *  - chat/lazy.tsx (C3) React.lazy-loads ChatPage + ChatPanel, evicting
+ *  - modules/chat/lazy.tsx (C3) React.lazy-loads ChatPage + ChatPanel, evicting
  *    highlight.js + markdown-it + the chat tree.
  *  - WorkspaceTerminalPortal (C2) React.lazy-loads WorkspaceTerminalDock,
  *    evicting @xterm/xterm and its CSS from the startup closure.
@@ -56,9 +56,9 @@ const DYNAMIC_ONLY_MODULE_SUFFIXES = [
   '/components/node-bodies/FileNodeBody/index.tsx',
   '/components/node-bodies/TextNodeBody/index.tsx',
   '/components/node-bodies/IframeNodeBody/index.tsx',
-  '/components/chat/ChatPanel/index.tsx',
-  '/agent-chat/target/useRegisterChatTarget.ts',
-  '/agent-chat/target/sessionScope.ts',
+  '/modules/chat/components/ChatPanel/index.tsx',
+  '/modules/chat/target/useRegisterChatTarget.ts',
+  '/modules/chat/target/sessionScope.ts',
   '/components/dock/ReferenceDrawer/index.tsx',
   '/components/canvas/CommandPalette/index.tsx',
   '/components/canvas/SearchBar/index.tsx',

@@ -30,9 +30,9 @@ describe('analyzeRendererStructure', () => {
     write(root, 'components/chat/ChatPanel.tsx', Array.from({ length: 305 }, () => '// line').join('\n'));
     write(root, 'components/ui/Bad.tsx', "import '../../modules/chat';\n");
     write(root, 'modules/chat/index.ts');
-    write(root, 'modules/chat/consumer.ts', "import '../mcp-apps/internal';\n");
+    write(root, 'modules/chat/consumer.ts', "import '../mcp-apps/runtime/internal';\n");
     write(root, 'modules/mcp-apps/index.ts');
-    write(root, 'modules/mcp-apps/internal.ts');
+    write(root, 'modules/mcp-apps/runtime/internal.ts');
     write(root, 'modules/mcp-apps/consumer.ts', "import '../chat';\n");
 
     const report = analyzeRendererStructure(root);

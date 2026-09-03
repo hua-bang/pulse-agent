@@ -8,7 +8,7 @@ import type { PaletteCommand } from '../CommandPalette';
 import type { UseCanvasSearchReturn } from '../../../hooks/useCanvasSearch';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
 import { EdgeLabel } from '../EdgeLabel';
-import { ChatFloatingButton } from '../../chat/ChatFloatingButton';
+import { ChatFloatingButton } from '../../../modules/chat/floating';
 import { useI18n } from '../../../i18n';
 import type { CreatableCanvasNodeType } from '../../../utils/nodeFactory';
 import type { AddNodeOptions } from '../../../modules/canvas';

@@ -22,7 +22,7 @@ import type { CanvasNodeRenderMode } from '../CanvasNodeView/types';
 import type { MindmapTransferHandlers } from '../../../utils/mindmapTransfer';
 import { markOnce } from '../../../perf/monitor';
 import { CanvasGestureHud, MarqueePreview, ShapeDraftPreview } from './CanvasGestureOverlays';
-import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
+import type { ChatDeliveryReceipt } from '../../../modules/chat';
 
 const FIT_TRANSITION =
   'transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94), --canvas-scale 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94)';

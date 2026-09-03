@@ -1,5 +1,5 @@
 import { useI18n } from '../../../i18n';
-import { ChatFloatingButton } from '../../chat/ChatFloatingButton';
+import { ChatFloatingButton } from '../../../modules/chat/floating';
 import { useRightDock, useRightDockState } from '.';
 import { isDockChatVisible } from './dock-visibility';
 

@@ -22,8 +22,8 @@ leaf folder names were kept, only a group level was inserted):
 | `artifacts/`, `ui/`, `icons/` | Unchanged pre-existing domains (`ui/` is the blessed design-system set — governance and the ui-showcase reference it by path; do not move it) |
 
 Non-visual Agent Chat state and cross-surface coordination live outside the
-component tree under `src/renderer/src/agent-chat/`. In particular,
-`agent-chat/target/` owns the app-level ChatTarget broker used by Canvas, Dock,
+component tree under `src/renderer/src/modules/chat/`. In particular,
+`modules/chat/target/` owns the app-level ChatTarget broker used by Canvas, Dock,
 Workbench, and the visible chat surfaces; visual chat modules adapt to that
 interface instead of owning the broker themselves.
 
@@ -45,7 +45,7 @@ contract.
 Routed full-page surfaces that are their own domain live OUTSIDE
 `components/`, in `src/renderer/src/views/` (`Scheduled`, `SkillsLibrary`,
 `WorkspaceNodes`). The boundary: a page owned by a larger domain stays with
-that domain (`ChatPage` in `components/chat/`, the settings surfaces in
+that domain (`ChatPage` in `modules/chat/components/`, the settings surfaces in
 `components/settings/`); a page domain whose only reason to exist is the
 route goes in `views/`. The lazy route tables (`shell/RouteViews.ts`,
 `shell/AppLazyBoundaries.tsx`) stay in `components/shell/` — they are
@@ -89,8 +89,10 @@ Example (real): `Sidebar/` is split into `SidebarHeader.tsx`, `WorkspaceList.tsx
   (`useCanvas`, `useClickOutside`, `useEscapeClose`, …). Canvas document
   state is product-owned under `modules/canvas/document/useCanvasDocument.ts`.
 - Component-scoped hooks may live beside the component
-  (`useAgentNodeController.ts`, `Canvas/hooks/`, `chat/ChatComposer/`,
-  `chat/ChatPanel/hooks/`, `chat/ChatPageBody/hooks/`).
+  (`useAgentNodeController.ts`, `Canvas/hooks/`,
+  `modules/chat/components/ChatComposer/`,
+  `modules/chat/components/ChatPanel/hooks/`,
+  `modules/chat/components/ChatPageBody/hooks/`).
 - Hooks return typed values; keep them framework-pure (no Electron/Node imports).
 
 ## Keyboard shortcuts (registry-owned)

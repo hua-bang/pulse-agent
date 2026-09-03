@@ -20,7 +20,7 @@ import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
 import { dispatchOpenNodePage } from '../../../utils/openNodeBridge';
-import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
+import type { ChatDeliveryReceipt } from '../../../modules/chat';
 
 // Non-trivial node bodies are React.lazy so xterm (terminal/agent bodies),
 // tiptap/prosemirror + lowlight (text/file bodies), and the embedded-browser

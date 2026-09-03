@@ -4,7 +4,7 @@ import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from '../../
 import { getNodeTitle } from '../../../views/WorkspaceNodes/utils';
 import { useI18n } from '../../../i18n';
 import type { AgentContextTabRef } from '../../../types';
-import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
+import type { ChatDeliveryReceipt } from '../../../modules/chat';
 import { TabChatAction } from './TabChatAction';
 
 interface NodeDetailDockTabProps {

@@ -8,7 +8,7 @@ vi.mock('../../../../views/WorkspaceNodes/useWorkspaceNodes', () => ({
   useAllWorkspaceNodeList: () => ({ nodes: [], tags: [] }),
 }));
 
-vi.mock('../../../chat/lazy', () => ({
+vi.mock('../../../../modules/chat/lazy', () => ({
   ChatPanelLazy: ({ agentScope, knowledgeMode, contextNodes, contextTags, contextCanvases }: {
     agentScope: { kind: string };
     knowledgeMode?: boolean;
