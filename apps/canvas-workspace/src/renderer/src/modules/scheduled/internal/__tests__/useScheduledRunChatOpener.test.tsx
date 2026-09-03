@@ -2,10 +2,10 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ScheduledRunFinished } from '../../../../../shared/scheduled';
-import type { AgentScope } from '../../../types';
-import { I18nProvider } from '../../../i18n';
-import { AppShellProvider } from '../../../components/shell/AppShellProvider';
+import type { ScheduledRunFinished } from '../../../../../../shared/scheduled';
+import type { AgentScope } from '../../../../types';
+import { I18nProvider } from '../../../../i18n';
+import { AppShellProvider } from '../../../../components/shell/AppShellProvider';
 
 const dock = vi.hoisted(() => ({
   openScheduledChat: vi.fn(),
@@ -13,7 +13,7 @@ const dock = vi.hoisted(() => ({
 }));
 const setLocation = vi.hoisted(() => vi.fn());
 
-vi.mock('../../../components/dock/RightDock', () => ({ useRightDock: () => dock }));
+vi.mock('../../../../components/dock/RightDock', () => ({ useRightDock: () => dock }));
 vi.mock('wouter', () => ({ useLocation: () => ['/', setLocation] }));
 
 import { useScheduledRunChatOpener } from '../useScheduledRunChatOpener';

@@ -2,14 +2,14 @@
 import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n';
+import { I18nProvider } from '../../../../i18n';
 
 const captured = vi.hoisted(() => ({
   mountCount: 0,
   refreshKey: -1 as string | number,
 }));
 
-vi.mock('../../../modules/chat/lazy', () => ({
+vi.mock('../../../../modules/chat/lazy', () => ({
   ChatPanelLazy: ({ sessionRefreshKey }: { sessionRefreshKey?: string | number }) => {
     const [draft, setDraft] = useState(() => {
       captured.mountCount += 1;

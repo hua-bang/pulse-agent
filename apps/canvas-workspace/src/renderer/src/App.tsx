@@ -24,7 +24,7 @@ import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } 
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
 import { PluginMarketRouteView, ScheduledRouteViews, SkillsRouteView } from './components/shell/RouteViews';
-import { useScheduledRunChatOpener } from './views/Scheduled/useScheduledRunChatOpener';
+import { useScheduledRunChatOpener } from './modules/scheduled';
 import {
   ChatTargetProvider,
   useActiveChatTarget,

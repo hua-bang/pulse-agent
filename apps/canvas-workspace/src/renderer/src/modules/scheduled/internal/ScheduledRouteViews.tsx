@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
-import type { AgentScope } from '../../types';
-import type { SettingsSection } from '../../components/settings/Settings';
-import { PulseRouterView } from '../../components/shell/router';
+import type { AgentScope } from '../../../types';
+import type { SettingsSection } from '../../../components/settings/Settings';
+import { PulseRouterView } from '../../../components/shell/router';
 
 const ScheduledPage = lazy(() => import('./ScheduledPage').then((module) => ({ default: module.ScheduledPage })));
 const ScheduledTaskChatPage = lazy(() => import('./ScheduledTaskChatPage').then((module) => ({ default: module.ScheduledTaskChatPage })));

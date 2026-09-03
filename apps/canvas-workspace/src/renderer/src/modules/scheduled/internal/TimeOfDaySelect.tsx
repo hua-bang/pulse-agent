@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { formatTimeOfDay, parseTimeOfDay } from '../../../../shared/scheduled';
-import { FieldRow, Select, type SelectOption } from '../../components/ui';
-import { useI18n } from '../../i18n';
+import { formatTimeOfDay, parseTimeOfDay } from '../../../../../shared/scheduled';
+import { FieldRow, Select, type SelectOption } from '../../../components/ui';
+import { useI18n } from '../../../i18n';
 
 /**
  * Hour + minute pickers for a `HH:mm` schedule, built on `ui/Select` so the

@@ -1,6 +1,6 @@
 import { createElement, lazy, Suspense, type ComponentProps } from 'react';
 
-export { ScheduledRouteViews } from '../../views/Scheduled/ScheduledRouteViews';
+export { ScheduledRouteViews } from '../../modules/scheduled/surface';
 export { SkillsRouteView } from '../../views/SkillsLibrary/SkillsRouteView';
 
 const PluginMarketRouteViewInner = lazy(() => (

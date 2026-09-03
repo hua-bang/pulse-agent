@@ -20,7 +20,7 @@ import { useEvictAndPreview, usePeekNode, usePreviewNodeActionBridge } from './u
 import { useReferenceEntries } from './useReferenceEntries';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
-import { ScheduledChatPanel } from '../../../views/Scheduled/ScheduledChatPanel';
+import { ScheduledChatPanel } from '../../../modules/scheduled/surface';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
 import { useOptionalChatTargetBroker } from '../../../modules/chat';
 import type { AgentScope } from '../../../types';

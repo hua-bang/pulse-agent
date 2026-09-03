@@ -29,7 +29,8 @@ src/renderer/src/
 │   ├── agent-team/    # workspace projection/DAG model + frame visuals
 │   ├── workspace-nodes/ # graph model; legacy views migrate next
 │   ├── mcp-apps/      # MCP App host/provider independent of Chat
-│   └── models/        # reusable model selection surface
+│   ├── models/        # reusable model selection surface
+│   └── scheduled/     # scheduled routes, run notifications, Chat integration
 ├── components/        # remaining product visuals + shared UI mixed together
 ├── views/             # route-owned product surfaces
 ├── hooks/             # generic and product-specific hooks mixed together

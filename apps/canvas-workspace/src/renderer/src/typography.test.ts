@@ -52,7 +52,7 @@ describe('renderer typography system', () => {
     const allowed = new Set([
       'components/shell/Sidebar/index.css',
       'views/PluginMarket/index.css',
-      'views/Scheduled/index.css',
+      'modules/scheduled/internal/index.css',
       'views/SkillsLibrary/index.css',
       'views/WorkspaceNodes/index.css',
     ]);
@@ -67,7 +67,7 @@ describe('renderer typography system', () => {
 
   it.each([
     'views/SkillsLibrary/index.css',
-    'views/Scheduled/index.css',
+    'modules/scheduled/internal/index.css',
     'views/PluginMarket/index.css',
     'views/WorkspaceNodes/index.css',
   ])('uses the page-title scale in %s', (relativePath) => {

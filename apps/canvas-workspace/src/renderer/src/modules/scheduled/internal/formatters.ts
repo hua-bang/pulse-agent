@@ -1,5 +1,5 @@
-import type { ScheduledSchedule, ScheduledWeekday } from '../../../../shared/scheduled';
-import type { useI18n } from '../../i18n';
+import type { ScheduledSchedule, ScheduledWeekday } from '../../../../../shared/scheduled';
+import type { useI18n } from '../../../i18n';
 
 type Translate = ReturnType<typeof useI18n>['t'];
 type Language = ReturnType<typeof useI18n>['language'];
