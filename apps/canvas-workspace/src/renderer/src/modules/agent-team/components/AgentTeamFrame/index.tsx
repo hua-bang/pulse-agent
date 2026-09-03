@@ -11,6 +11,7 @@ import { AgentTypeSelect } from './AgentTypeSelect';
 import { TaskDagCanvas } from '../TaskDagCanvas';
 import { HumanGateCard, hasConcreteHumanGatePrompt } from '../HumanGateCard';
 import { TeamCommand } from '../TeamCommand';
+import { agentSessionHealthSuffix as sessionHealthSuffix, agentTeamStatusLabel as statusLabel } from '../visualLabels';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { SegmentedControl } from '../../../../components/ui';
 import { useAppShell } from '../../../../shared/appShell';
@@ -36,32 +37,6 @@ interface AgentTeamFrameProps {
   workspaceName?: string;
   readOnly?: boolean;
 }
-
-const TASK_STATUS_LABELS: Record<string, string> = {
-  proposed: 'Proposed',
-  planned: 'Planned',
-  todo: 'Todo',
-  in_progress: 'Running',
-  needs_input: 'Needs input',
-  needs_review: 'Needs review',
-  blocked: 'Blocked',
-  done: 'Done',
-  failed: 'Failed',
-  round_checkpoint: 'Checkpoint',
-};
-
-const statusLabel = (status: string) =>
-  TASK_STATUS_LABELS[status] ?? status.replace(/_/g, ' ');
-
-// Appended to an agent's status chip when its PTY session cannot receive
-// input right now: 'offline' needs a relaunch (reopen/restart the node),
-// 'queued' means messages wait for the renderer to spawn it.
-const sessionHealthSuffix = (health?: string): string =>
-  health === 'dead' || health === 'missing'
-    ? ' · offline'
-    : health === 'queued'
-      ? ' · queued'
-      : '';
 
 const shortText = (value: string | undefined, fallback: string) =>
   value?.trim() || fallback;
