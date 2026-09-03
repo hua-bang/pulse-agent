@@ -6,7 +6,7 @@ import { ChatMentionPopup } from '../ChatMentionPopup';
 import { ChatMessages } from '../ChatMessages';
 import { RelayBar } from './RelayBar';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
-import { McpAppsProvider } from '../../../../components/mcp-apps/McpAppsProvider';
+import { McpAppsProvider } from '../../../mcp-apps';
 import type { ChatViewProps } from './types';
 
 /**

@@ -26,7 +26,9 @@ src/renderer/src/
 │   ├── canvas/        # document state, transactions, history, external merge
 │   ├── chat/          # Chat visuals + runtime/session/target logic
 │   ├── coding-agent/  # AgentNodeBody visuals + session policy/runtime
-│   └── agent-team/    # workspace projection/DAG model + frame visuals
+│   ├── agent-team/    # workspace projection/DAG model + frame visuals
+│   ├── workspace-nodes/ # graph model; legacy views migrate next
+│   └── mcp-apps/      # MCP App host/provider independent of Chat
 ├── components/        # remaining product visuals + shared UI mixed together
 ├── views/             # route-owned product surfaces
 ├── hooks/             # generic and product-specific hooks mixed together
@@ -42,7 +44,8 @@ Current healthy properties:
   controllers, types, and tests.
 - Chat runtime, sessions, target coordination, attachments, mentions, and
   composer state no longer live in one flat component hooks directory.
-- ModelSwitcher and the MCP App host are independent from Chat internals.
+- ModelSwitcher is independent from Chat internals. The MCP App host/provider
+  now live in `modules/mcp-apps`; Chat consumes only that public interface.
 - RightDock already has a framework-free store interface and strong
   interface-level tests; its size alone is not a reason to split it.
 - `i18n/messages.ts` is a data source of truth, not a module-depth problem.

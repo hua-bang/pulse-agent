@@ -3,9 +3,9 @@ import { CaretRight, ShieldCheck } from '@phosphor-icons/react';
 import type {
   McpAppToolApprovalDecision,
   McpAppToolApprovalRequest,
-} from '../../../../../shared/mcp-apps';
-import { useI18n } from '../../../i18n';
-import { Button, Modal } from '../../ui';
+} from '../../../../../../shared/mcp-apps';
+import { useI18n } from '../../../../i18n';
+import { Button, Modal } from '../../../../components/ui';
 
 interface McpAppApprovalDialogProps {
   request?: McpAppToolApprovalRequest;
