@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import type { CanvasModelStatus, ModelSelection } from '../../../types';
-import { CheckIcon } from '../../icons';
-import { matchesModelQuery, providerLabel } from '../../../utils/modelCatalog';
-import { useI18n } from '../../../i18n';
-import { isImeComposing } from '../../../utils/ime';
-import { Popover } from '../../ui/Popover';
-import { SegmentedControl } from '../../ui/SegmentedControl';
-import { TextField } from '../../ui/TextField';
+import type { CanvasModelStatus, ModelSelection } from '../../../../types';
+import { CheckIcon } from '../../../../components/icons';
+import { matchesModelQuery, providerLabel } from '../../../../utils/modelCatalog';
+import { useI18n } from '../../../../i18n';
+import { isImeComposing } from '../../../../utils/ime';
+import { Popover } from '../../../../components/ui/Popover';
+import { SegmentedControl } from '../../../../components/ui/SegmentedControl';
+import { TextField } from '../../../../components/ui/TextField';
 import './index.css';
 
 interface Props {

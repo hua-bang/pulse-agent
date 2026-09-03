@@ -688,7 +688,7 @@ opens the menu; the shell's own arrow-nav is already covered by
 `Popover.test.tsx`), not asserted on faith.
 
 10 new behavior tests in
-`src/renderer/src/components/models/ModelSwitcher/__tests__/ModelSwitcher.test.tsx`
+`src/renderer/src/modules/models/components/ModelSwitcher/__tests__/ModelSwitcher.test.tsx`
 (ModelSwitcher is fully prop-driven — no direct `window.canvasWorkspace`
 calls — so unlike the Settings-family slice this one mounts cleanly):
 opens on trigger click and lists Auto + provider models, portals to

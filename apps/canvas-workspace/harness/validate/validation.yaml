@@ -190,6 +190,17 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps src/main/agent/mcp-apps.test.ts
 
+  - name: model-selection
+    paths:
+      - src/renderer/src/modules/models/**
+      - src/renderer/src/utils/modelCatalog.ts
+      - src/renderer/src/types/models.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/models
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/models
+
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.
   # The canvas-cli mirror paths are bound by the root validation overlay.

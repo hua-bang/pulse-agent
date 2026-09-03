@@ -3,7 +3,7 @@ import './index.css';
 import type { CanvasModelStatus, ChatImageAttachment } from '../../../../types';
 import { ImageIcon, PlusIcon } from '../../../../components/icons';
 import { MentionNodeIcon } from '../utils/mentions';
-import { ModelSwitcher } from '../../../../components/models/ModelSwitcher';
+import { ModelSwitcher } from '../../../models';
 import type { SelectedContextChip } from '../ChatComposer/types';
 import { useI18n } from '../../../../i18n';
 import { CHAT_MENTION_LISTBOX_ID, chatMentionOptionId } from '../ChatMentionPopup';
