@@ -11,6 +11,7 @@ import { AgentTypeSelect } from './AgentTypeSelect';
 import { TaskDagCanvas } from '../TaskDagCanvas';
 import { HumanGateCard, hasConcreteHumanGatePrompt } from '../HumanGateCard';
 import { TeamCommand } from '../TeamCommand';
+import { AgentsStrip, type AgentSummaryItem } from '../AgentsStrip';
 import { agentSessionHealthSuffix as sessionHealthSuffix, agentTeamStatusLabel as statusLabel } from '../visualLabels';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { SegmentedControl } from '../../../../components/ui';
@@ -141,7 +142,7 @@ const metadataNumber = (
 
 type GraphTaskItem = AgentTeamGraphTask;
 
-interface GraphAgentItem {
+interface GraphAgentItem extends AgentSummaryItem {
   key: string;
   name: string;
   role: 'lead' | 'teammate';
@@ -969,73 +970,7 @@ export const AgentTeamFrame = ({
     );
   };
 
-  const renderAgentsStrip = () => (
-    <div className="agent-team-agent-area" aria-label="Agents">
-      <div className="agent-team-agent-area__head">
-        <span className="agent-team-panel-heading__label">Agents</span>
-        <strong>{graphAgents.length} agent{graphAgents.length === 1 ? '' : 's'}</strong>
-      </div>
-      <div className="agent-team-agent-strip">
-        {graphAgents.length === 0 ? (
-          <div className="agent-team-agent-strip__empty">
-            Agents appear here after the Team Lead proposes a plan.
-          </div>
-        ) : graphAgents.map((agent) => {
-          const selectAgent = () => {
-            setSelectedAgentKey(agent.key);
-            setDetailPanelMode('agent');
-          };
-          const editable = phase === 'plan_review' && agent.role === 'teammate' && !readOnly;
-          const agentClasses = `agent-team-summary-agent agent-team-summary-agent--${agent.status}${selectedAgentKey === agent.key ? ' agent-team-summary-agent--selected' : ''}${selectedGraphTask?.ownerKey === agent.key ? ' agent-team-summary-agent--task-owner' : ''}`;
-          const taskLabel = agent.currentTaskTitle ?? `${agent.taskCount} task${agent.taskCount === 1 ? '' : 's'}`;
-          return (
-            <div key={agent.key} className={agentClasses}>
-              <button
-                type="button"
-                className="agent-team-summary-agent__identity"
-                aria-pressed={selectedAgentKey === agent.key}
-                aria-label={`Select ${agent.name}`}
-                onClick={selectAgent}
-              >
-                <span className="agent-team-summary-agent__name">
-                  <span className="agent-team-summary-agent__logo">
-                    <AgentIcon id={agent.agentType ?? 'claude-code'} size={14} />
-                  </span>
-                  {agent.name}
-                </span>
-                <span className={`agent-team-detail__status agent-team-detail__status--${agent.status}`}>
-                  {statusLabel(agent.status)}{sessionHealthSuffix(agent.sessionHealth)}
-                </span>
-                {!editable ? (
-                  <span className="agent-team-summary-agent__task">
-                    {taskLabel}
-                  </span>
-                ) : null}
-              </button>
-              {editable ? (
-                <div className="agent-team-summary-agent__agent-select">
-                  <span className="agent-team-summary-agent__agent-select-label">Coding agent</span>
-                  <AgentTypeSelect
-                    value={TEAM_AGENT_OPTIONS.some((def) => def.id === agent.agentType)
-                      ? (agent.agentType as string)
-                      : TEAM_AGENT_OPTIONS[0].id}
-                    options={TEAM_AGENT_OPTIONS}
-                    ariaLabel={`Coding agent for ${agent.name}`}
-                    onChange={(id) => void handleUpdatePlanTeammate(agent.name, id)}
-                  />
-                </div>
-              ) : null}
-              <span className="agent-team-summary-agent__stats">
-                <span>Tasks {agent.doneCount}/{agent.taskCount}</span>
-                <span>Tools {agent.toolCount ?? '—'}</span>
-                <span>Artifacts {agent.artifactCount}</span>
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  const renderAgentsStrip = () => <AgentsStrip agents={graphAgents} selectedAgentKey={selectedAgentKey} selectedTaskOwnerKey={selectedGraphTask?.ownerKey} planReview={phase === 'plan_review'} readOnly={readOnly} agentOptions={TEAM_AGENT_OPTIONS} onSelect={(agent) => { setSelectedAgentKey(agent.key); setDetailPanelMode('agent'); }} onChangeAgentType={(name, type) => void handleUpdatePlanTeammate(name, type)} />;
 
   const renderTaskGraph = (variant: 'inline' | 'fullscreen' = 'inline') => (
     <section className={`agent-team-graph-panel agent-team-graph-panel--${variant}`} aria-label="Task Graph">
