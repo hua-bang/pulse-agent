@@ -2,7 +2,7 @@ import { useCallback, useState, type RefObject } from 'react';
 import type { CanvasNode } from '../../../../types';
 import { getNodeDefaultSize, type CreatableCanvasNodeType } from '../../../../utils/nodeFactory';
 import type { ToastInput } from '../../../../types/ui-interaction';
-import type { AddNodeOptions } from '../../../../hooks/useNodes';
+import type { AddNodeOptions } from '../../../../modules/canvas';
 import { useI18n, type I18nKey } from '../../../../i18n';
 
 interface ContextMenuState {

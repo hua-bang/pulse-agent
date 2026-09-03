@@ -2,7 +2,7 @@ import { useMemo, type MutableRefObject } from 'react';
 import type { CanvasNode } from '../../../../types';
 import type { CreatableCanvasNodeType } from '../../../../utils/nodeFactory';
 import type { PaletteCommand } from '../../CommandPalette';
-import type { AddNodeOptions } from '../../../../hooks/useNodes';
+import type { AddNodeOptions } from '../../../../modules/canvas';
 import { useI18n } from '../../../../i18n';
 import { useRightDock } from '../../../dock/RightDock';
 import { formatShortcutId } from '../../../../shortcuts/registry';

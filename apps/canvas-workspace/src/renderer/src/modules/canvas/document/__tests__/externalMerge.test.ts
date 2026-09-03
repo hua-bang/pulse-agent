@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { shouldReloadForExternalUpdate } from './useNodes';
-import { mergeExternalEdgeUpdate } from './external-edge-sync';
+import {
+  mergeExternalDocumentUpdate,
+  shouldReloadForExternalUpdate,
+} from '../..';
 
 describe('shouldReloadForExternalUpdate', () => {
   it('reloads for an edge-only external update', () => {
@@ -22,7 +24,7 @@ describe('shouldReloadForExternalUpdate', () => {
   });
 });
 
-describe('mergeExternalEdgeUpdate', () => {
+describe('mergeExternalDocumentUpdate', () => {
   it('keeps a locally-created unsaved edge while applying an external edge create', () => {
     const local = {
       id: 'local',
@@ -35,11 +37,15 @@ describe('mergeExternalEdgeUpdate', () => {
       target: { kind: 'point' as const, x: 30, y: 30 },
     };
 
-    expect(mergeExternalEdgeUpdate(
-      [local],
-      [external],
-      new Set(['external']),
-      new Set(),
-    ).map((edge) => edge.id)).toEqual(['local', 'external']);
+    expect(mergeExternalDocumentUpdate({
+      currentNodes: [],
+      currentEdges: [local],
+      diskNodes: [],
+      diskEdges: [external],
+      changedNodeIds: new Set(),
+      changedEdgeIds: new Set(['external']),
+      persistedNodeIds: new Set(),
+      persistedEdgeIds: new Set(),
+    }).edges.map((item) => item.id)).toEqual(['local', 'external']);
   });
 });

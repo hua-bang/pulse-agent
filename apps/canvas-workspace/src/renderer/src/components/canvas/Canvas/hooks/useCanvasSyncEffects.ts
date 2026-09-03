@@ -24,7 +24,7 @@ interface Options {
    *  delivered when the gesture commits. */
   isDraggingRef: MutableRefObject<boolean>;
   pendingParentNodesRef: MutableRefObject<CanvasNode[] | null>;
-  /** Shared with the `useNodes` saved-transform callback so loading a
+  /** Shared with the `useCanvasDocument` saved-transform callback so loading a
    *  workspace with a persisted viewport skips the one-shot auto-fit. */
   hasAutoFittedRef: MutableRefObject<boolean>;
   setTransformForSave: (transform: CanvasTransform) => void;

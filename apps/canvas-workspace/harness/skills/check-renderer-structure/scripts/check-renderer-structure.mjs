@@ -94,7 +94,11 @@ const analyzeDependencyDirection = (rendererRoot, productionFiles) => {
       if (sourceRoot === 'modules' && targetRoot === 'app') {
         errors.push({ file: file.path, import: specifier, reason: 'module imports app' });
       }
-      if (sourceRoot === 'components' && targetRoot === 'modules') {
+      if (
+        sourceRoot === 'components'
+        && SHARED_COMPONENT_GROUPS.has(file.path.split('/')[1])
+        && targetRoot === 'modules'
+      ) {
         errors.push({ file: file.path, import: specifier, reason: 'shared component imports product module' });
       }
       if (sourceRoot === 'shared' && ['app', 'modules', 'components', 'platform'].includes(targetRoot)) {

@@ -170,7 +170,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   watcher events carry edge ids, renderer reloads must accept edge-only events,
   and stale saves merge edges by `updatedAt` without dropping unsaved local
   edges. Guards: `src/main/__tests__/canvas-store-merge.test.ts` and
-  `src/renderer/src/hooks/useNodes.external-update.test.ts`.
+  `src/renderer/src/modules/canvas/document/__tests__/externalMerge.test.ts`.
 - Live-app capabilities live under `src/main/runtime/capabilities/` behind tiered access (`read`/`operate`/`unsafe`) and the runtime server's bearer-auth boundary; Pulse CLI gets `read`/`operate` by default, with `browser.page.eval` (`page_eval` tool) and `host.renderer.eval` (`host_renderer_eval` tool / `pulse-canvas runtime host-eval`) as the only `unsafe` exceptions, each independently flag-gated; external Canvas node updates stay limited to title/content.
   Guard: `src/main/runtime/capabilities/*.test.ts`, `src/main/runtime/__tests__/control-server.test.ts`.
   Detail: `harness/knowledge/security-posture.md` ("Runtime-control capability tiers and registry").
@@ -181,7 +181,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 - Cross-mindmap topic transfers are canvas-level atomic transactions: rekey
   every moved topic subtree, update both maps in one history snapshot, and
   degrade bound edges in that same snapshot when a whole source map is removed.
-  Topic components own only drag intent; `useNodes` owns mutation and undo.
+  Topic components own only drag intent; `useCanvasDocument` owns mutation and undo.
 - Plugin nodes use stable host type `plugin` with plugin-owned
   `data.payload`. **New node capabilities default to plugin nodes** (decided
   2026-07-08); extending the host `CanvasNode['type']` union is the

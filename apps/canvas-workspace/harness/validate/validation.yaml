@@ -30,6 +30,20 @@ pathRules:
       - pnpm --filter canvas-workspace exec vitest run harness/skills/check-renderer-structure/scripts/check-renderer-structure.test.mjs
       - node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --json
 
+  # Canvas document state is a data-integrity seam: nodes+edges history,
+  # external CLI merge, persistence scheduling, and content side effects must
+  # stay coherent through the public modules/canvas interface.
+  - name: canvas-document
+    paths:
+      - src/renderer/src/modules/canvas/**
+      - src/renderer/src/components/canvas/Canvas/**
+    quick:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/canvas/document src/renderer/src/components/canvas/Canvas
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace test
+
   # Agent Plugins is a cross-process contract: strict package ingestion in
   # main, persisted registration, generated MCP config, preload IPC, and the
   # renderer market must move together. This rule pins the focused suite while

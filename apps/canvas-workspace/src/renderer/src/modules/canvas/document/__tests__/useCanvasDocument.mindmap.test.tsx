@@ -7,8 +7,8 @@ import type {
   CanvasNode,
   MindmapNodeData,
   MindmapTopic,
-} from '../types';
-import { useNodes } from './useNodes';
+} from '../../../../types';
+import { useCanvasDocument } from '../..';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -42,14 +42,14 @@ const edge: CanvasEdge = {
   target: { kind: 'node', nodeId: 'target', anchor: 'left' },
 };
 
-describe('useNodes mindmap transactions', () => {
+describe('useCanvasDocument mindmap transactions', () => {
   let root: Root;
   let host: HTMLElement;
-  let hook: ReturnType<typeof useNodes>;
+  let hook: ReturnType<typeof useCanvasDocument>;
   let originalCanvasWorkspace: typeof window.canvasWorkspace;
 
   const Probe = () => {
-    hook = useNodes('canvas-mindmaps');
+    hook = useCanvasDocument('canvas-mindmaps');
     return null;
   };
 

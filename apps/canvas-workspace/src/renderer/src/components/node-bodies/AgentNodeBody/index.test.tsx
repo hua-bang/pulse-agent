@@ -75,7 +75,7 @@ let onData = vi.fn((_sessionId: string, _callback: (data: string) => void) => ()
 let onExit = vi.fn(() => () => undefined);
 
 // This branch persists terminal scrollback churn without occupying an undo
-// slot (see useNodes.test.tsx); every persister write carries this option.
+// slot (see useCanvasDocument.test.tsx); every persister write carries this option.
 const NO_HISTORY = { history: false };
 
 const agentNode: CanvasNode = {

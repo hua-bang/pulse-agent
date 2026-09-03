@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import { useCanvas } from '../../../hooks/useCanvas';
-import { useNodes } from '../../../hooks/useNodes';
+import { useCanvasDocument } from '../../../modules/canvas';
 import { useNodeDrag } from '../../../hooks/useNodeDrag';
 import { useNodeResize } from '../../../hooks/useNodeResize';
 import { useCanvasContext } from '../../../hooks/useCanvasContext';
@@ -94,7 +94,7 @@ export const Canvas = ({
 
   // Persistent save-failure toast with a Retry action. Repeated failures
   // replace the previous toast instead of stacking; flushSave is assigned
-  // to the ref after useNodes returns it below.
+  // to the ref after useCanvasDocument returns it below.
   const flushSaveRef = useRef<() => void>(() => undefined);
   const saveErrorToastIdRef = useRef<string | null>(null);
   const handleSaveError = useCallback(() => {
@@ -193,7 +193,7 @@ export const Canvas = ({
     undo, redo, duplicateNode, pasteNodes,
     groupNodes, ungroupNodes, wrapNodesInFrame,
     mergeMindmapTopic, splitMindmapTopic,
-  } = useNodes(
+  } = useCanvasDocument(
     canvasId,
     persistViewport
       ? (savedTransform) => {

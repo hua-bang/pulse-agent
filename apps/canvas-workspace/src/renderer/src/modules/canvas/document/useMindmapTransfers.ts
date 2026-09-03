@@ -1,19 +1,19 @@
 import { useCallback, type MutableRefObject } from 'react';
-import type { CanvasEdge, CanvasNode } from '../types';
-import { degradeEndpointsForDeletedNode } from '../utils/edgeFactory';
+import type { CanvasEdge, CanvasNode } from '../../../types';
+import { degradeEndpointsForDeletedNode } from '../../../utils/edgeFactory';
 import {
   mergeMindmapTopic as mergeMindmapTopicState,
   splitMindmapTopic as splitMindmapTopicState,
   type MergeMindmapTopicRequest,
   type SplitMindmapTopicRequest,
-} from '../utils/mindmapTransfer';
-import { resizeGroupsToChildren } from '../utils/resizeGroupsToChildren';
-import type { CanvasSnapshot } from './useNodeHistory';
+} from '../../../utils/mindmapTransfer';
+import { resizeGroupsToChildren } from '../../../utils/resizeGroupsToChildren';
+import type { CanvasDocumentSnapshot } from './CanvasDocumentHistory';
 
 interface UseMindmapTransfersOptions {
   nodesRef: MutableRefObject<CanvasNode[]>;
   edgesRef: MutableRefObject<CanvasEdge[]>;
-  applyState: (patch: Partial<CanvasSnapshot>, addToHistory?: boolean) => void;
+  applyState: (patch: Partial<CanvasDocumentSnapshot>, addToHistory?: boolean) => void;
 }
 
 export const useMindmapTransfers = ({

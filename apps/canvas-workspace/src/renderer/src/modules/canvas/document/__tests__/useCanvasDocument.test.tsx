@@ -2,15 +2,15 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CanvasNode } from '../types';
-import { useNodes } from './useNodes';
+import type { CanvasNode } from '../../../../types';
+import { useCanvasDocument } from '../..';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-describe('useNodes text resize commit', () => {
+describe('useCanvasDocument text resize commit', () => {
   let root: Root;
   let host: HTMLElement;
-  let hook: ReturnType<typeof useNodes>;
+  let hook: ReturnType<typeof useCanvasDocument>;
   let save: ReturnType<typeof vi.fn>;
   let originalCanvasWorkspace: typeof window.canvasWorkspace;
 
@@ -27,7 +27,7 @@ describe('useNodes text resize commit', () => {
   } as CanvasNode;
 
   const Probe = () => {
-    hook = useNodes('canvas-1');
+    hook = useCanvasDocument('canvas-1');
     return null;
   };
 

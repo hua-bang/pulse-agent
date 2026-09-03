@@ -376,7 +376,7 @@ to a hidden workspace composer while `/chat` is visible.
 Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 `RightDock/index.test.tsx`, `RightDock/__tests__/DockPanes.test.tsx`,
 `RightDock/__tests__/CanvasPreview.test.tsx`,
-`Canvas/hooks/useCanvasSyncEffects.test.ts`, `hooks/useNodes.test.tsx`, and
+`Canvas/hooks/useCanvasSyncEffects.test.ts`, `modules/canvas/document/__tests__/useCanvasDocument.test.tsx`, and
 `Workbench/__tests__/ChatDockLifecycle.test.tsx`. Review routing is pinned by
 `chat/ChatPageBody/__tests__/ChatPage.dom-review.test.tsx`,
 `chat/ChatComposer/__tests__/useSubmitDomReviewComments.test.tsx`, and

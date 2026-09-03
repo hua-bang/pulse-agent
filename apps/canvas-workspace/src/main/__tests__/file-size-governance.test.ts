@@ -18,7 +18,6 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/renderer/src/components/node-bodies/AgentNodeBody/useAgentNodeController.ts': 1286,
   'src/main/agent/canvas-agent.ts': 1158,
   'src/main/canvas/storage.ts': 1156,
-  'src/renderer/src/hooks/useNodes.ts': 918,
   'src/main/agent/context-builder.ts': 856,
   'src/renderer/src/views/WorkspaceNodes/GraphPage.tsx': 812,
   'src/renderer/src/components/settings/settings-config/McpManager.tsx': 786,

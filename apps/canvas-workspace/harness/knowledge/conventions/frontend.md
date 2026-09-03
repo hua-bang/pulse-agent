@@ -86,7 +86,8 @@ Example (real): `Sidebar/` is split into `SidebarHeader.tsx`, `WorkspaceList.tsx
 ## Hooks
 
 - Shared hooks live in `src/renderer/src/hooks/` named `useXxx.ts`
-  (`useCanvas`, `useNodes`, `useClickOutside`, `useEscapeClose`, …).
+  (`useCanvas`, `useClickOutside`, `useEscapeClose`, …). Canvas document
+  state is product-owned under `modules/canvas/document/useCanvasDocument.ts`.
 - Component-scoped hooks may live beside the component
   (`useAgentNodeController.ts`, `Canvas/hooks/`, `chat/ChatComposer/`,
   `chat/ChatPanel/hooks/`, `chat/ChatPageBody/hooks/`).

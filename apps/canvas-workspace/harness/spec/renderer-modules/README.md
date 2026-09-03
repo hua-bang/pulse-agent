@@ -21,6 +21,7 @@ infrastructure with no product-domain meaning.
 
 ```text
 src/renderer/src/
+├── modules/canvas/    # first module-first slice: document state/transactions
 ├── agent-chat/        # non-visual Chat runtime/session/target logic
 ├── components/        # shell + product visuals + shared UI mixed together
 ├── views/             # route-owned product surfaces
@@ -41,12 +42,15 @@ Current healthy properties:
 - RightDock already has a framework-free store interface and strong
   interface-level tests; its size alone is not a reason to split it.
 - `i18n/messages.ts` is a data source of truth, not a module-depth problem.
+- Canvas document history, external merge, core transactions, and content
+  materialization now live behind `modules/canvas/index.ts`; the React adapter
+  is `modules/canvas/document/useCanvasDocument.ts`.
 
 Current pressure points, measured on 2026-09-03:
 
 | Area | Evidence | Main friction |
 |---|---|---|
-| Canvas document | `hooks/useNodes.ts` ~911 lines, ~29 returned values | transactions, history, persistence, external merge, and file effects share a React-hook seam |
+| Canvas document | `modules/canvas/document/useCanvasDocument.ts` ~338 lines plus owner-local history/merge/command modules | persistence scheduling remains in the React adapter; the non-React seam and transaction modules are established |
 | Coding-agent session | `AgentNodeBody/useAgentNodeController.ts` ~1280 lines | PTY/xterm ownership, provider session recovery, mirror terminals, and form state are interleaved |
 | Agent Team workspace | `AgentTeamFrame/index.tsx` ~2232 lines; CSS ~2722 lines; no direct spec | snapshot projection, polling, actions, DAG layout, six visual surfaces, and artifact loading have no testable internal seam |
 | Workspace graph | `WorkspaceNodes/GraphPage.tsx` ~771 lines | graph projection/search/highlight and the ForceGraph adapter are inseparable |

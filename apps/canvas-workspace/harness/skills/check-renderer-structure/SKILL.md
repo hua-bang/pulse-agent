@@ -33,7 +33,8 @@ Strict mode exits non-zero for target gaps or dependency-direction violations.
   must use the target module's root interface; shared/platform code cannot
   import upward.
 - `businessComponentGroups`: current product visuals still grouped under root
-  `components/`. They are migration candidates, not automatic defects.
+  `components/`. They may depend on their destination module during a phased
+  move; they remain target gaps, not shared-component boundary errors.
 - `legacyFeatureRoots`: feature ownership still split across renderer root
   folders.
 - `flatComponentFiles`: inspect whether each non-trivial visual module needs

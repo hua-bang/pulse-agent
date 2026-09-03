@@ -11,7 +11,7 @@ import { EdgeLabel } from '../EdgeLabel';
 import { ChatFloatingButton } from '../../chat/ChatFloatingButton';
 import { useI18n } from '../../../i18n';
 import type { CreatableCanvasNodeType } from '../../../utils/nodeFactory';
-import type { AddNodeOptions } from '../../../hooks/useNodes';
+import type { AddNodeOptions } from '../../../modules/canvas';
 import { applyEdgeInteractionPreview } from '../CanvasEdgesLayer';
 
 const CommandPalette = lazy(() =>
