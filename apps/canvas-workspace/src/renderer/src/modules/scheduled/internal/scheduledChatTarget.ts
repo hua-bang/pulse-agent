@@ -1,4 +1,4 @@
-import { isDockChatTabEnabled } from '../../../components/dock/RightDock/dock-chat-availability';
+import { isDockChatTabEnabled } from '../../../shared/dock/dock-chat-availability';
 
 export type ScheduledChatTarget =
   | { kind: 'dock' }

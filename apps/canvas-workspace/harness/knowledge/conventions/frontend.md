@@ -14,7 +14,7 @@ leaf folder names were kept, only a group level was inserted):
 | `canvas/` | Canvas surface + chrome: `Canvas`, `CanvasNodeView`, edges layer, alignment guides, node/edge context menus, `EdgeStylePanel`, toolbars, `SearchBar`, `ZoomIndicator`, `CommandPalette`, `CanvasEmptyHint` |
 | `node-bodies/` | Legacy body implementations for remaining canvas node types plus the terminal-surface `NodeMentionPicker`; Agent and Agent Team bodies now live in their owner modules |
 | `note-editor/` | Rich-text editing surface for file/text nodes: `FileNodeEditorSurface`, `FileNodeBubbleMenu`, `SlashCommandMenu`, `EditorCommandIcon`, `Note*` pieces |
-| `dock/` | `RightDock`, `LinkDrawer`, `ReferenceDrawer`, `EmbeddedBrowser`, `WorkspaceTerminalDock` |
+| `modules/dock/` | `RightDock`, `LinkDrawer`, `ReferenceDrawer`, `WorkspaceTerminalDock`; embedded-browser lifecycle is in `platform/browser/` |
 | `settings/` | `Settings`, `WorkspaceSettings`, `settings-config` |
 | `chat/` | Canvas Agent chat panel + `ChatFloatingButton` |
 | `models/` | Runtime model-selection UI shared by chat surfaces; provider/configuration editors remain under `settings/` |

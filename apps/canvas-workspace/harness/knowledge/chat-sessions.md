@@ -8,7 +8,7 @@ concurrently. Read this
 before changing `modules/chat/sessions/useChatSessions.ts`
 (`src/renderer/src/modules/chat/sessions/useChatSessions.ts`), the full-page
 chat topbar / dock content-tabs toggle, `RightDock/dock-width.ts`
-(`src/renderer/src/components/dock/RightDock/dock-width.ts`), or
+(`src/renderer/src/modules/dock/internal/RightDock/dock-width.ts`), or
 `src/main/agent/service.ts` and its collaborators (`active-chat-registry.ts`,
 `session-mutation-coordinator.ts`, `prepared-chat.ts`,
 `canvas-run-registry.ts`, `run-session-context.ts`, `session-file-io.ts`,
@@ -437,7 +437,7 @@ Guards: `utils/chatPageDockTabs.test.ts`, `utils/mentions.test.ts`,
 
 ## Dock width policy
 
-`RightDock/dock-width.ts` (`src/renderer/src/components/dock/RightDock/dock-width.ts`).
+`RightDock/dock-width.ts` (`src/renderer/src/modules/dock/internal/RightDock/dock-width.ts`).
 
 - On the canvas, the dock may grow to ~95% of the viewport — the canvas
   reflows behind it, so a near-full-screen dock is legitimate there.
@@ -747,9 +747,9 @@ Primary regression suites live in:
 - `src/renderer/src/modules/chat/components/ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`
 - `src/renderer/src/modules/chat/components/__tests__/ChatSessionLoading.test.tsx`
 - `src/renderer/src/modules/chat/components/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`
-- `src/renderer/src/components/dock/RightDock/__tests__/dock-content-tabs.test.ts`
-- `src/renderer/src/components/dock/RightDock/index.test.tsx`
-- `src/renderer/src/components/dock/RightDock/__tests__/dock-width.test.ts`
+- `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-content-tabs.test.ts`
+- `src/renderer/src/modules/dock/internal/RightDock/index.test.tsx`
+- `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-width.test.ts`
 - `src/main/agent/__tests__/service-history.test.ts`
 - `src/main/agent/active-chat-registry.test.ts`
 - `src/main/agent/prepared-chat.test.ts`

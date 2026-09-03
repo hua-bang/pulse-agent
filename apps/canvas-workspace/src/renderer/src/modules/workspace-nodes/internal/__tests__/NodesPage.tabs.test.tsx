@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceEntry } from '../../../../hooks/useWorkspaces';
 import type { WorkspaceNodeListItem } from '../../../../types';
 import { I18nProvider } from '../../../../i18n';
-import { RightDockProvider, useRightDockState } from '../../../../components/dock/RightDock';
+import { RightDockProvider, useRightDockState } from '../../../dock/internal/RightDock';
 
 const NODE: WorkspaceNodeListItem = {
   id: 'node-1',

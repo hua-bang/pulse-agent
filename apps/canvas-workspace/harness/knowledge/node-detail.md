@@ -17,7 +17,7 @@ TWO hosts:
 - the `/nodes/<ws>/<id>` page route
   (`src/renderer/src/modules/workspace-nodes/internal/NodeDetailPage.tsx`);
 - the dock tab
-  (`src/renderer/src/components/dock/RightDock/NodeDetailDockTab.tsx`, which
+  (`src/renderer/src/modules/dock/internal/RightDock/NodeDetailDockTab.tsx`, which
   renders the panel with `mode="dock"`).
 
 The dock is the primary entry point: list cards, graph nodes, and note
@@ -39,7 +39,7 @@ the page-only `NodeDetailContextRail` renders.
 ## Entering the page: the `RightDock.enterNodePage` contract
 
 Entering a full-page detail MUST go through `RightDock.enterNodePage`
-(`src/renderer/src/components/dock/RightDock/dock-store.ts`). Its contract:
+(`src/renderer/src/modules/dock/internal/RightDock/dock-store.ts`). Its contract:
 
 - it removes the matching dock tab (the node's dock preview and its full
   page are mutually exclusive — the same node should not show twice);
@@ -58,7 +58,7 @@ enterNodePage(workspaceId: string, nodeId: string): void {
 }
 ```
 
-Bound test: `src/renderer/src/components/dock/RightDock/__tests__/dock-store.test.ts`.
+Bound test: `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-store.test.ts`.
 
 ## Subject and rendering: `WorkspaceNodeRecord` → `CanvasNode`
 
@@ -228,7 +228,7 @@ Bound tests:
 - `src/renderer/src/modules/workspace-nodes/internal/__tests__/NodeCanvasPreview.test.tsx`
   — save-failure + rich-presentation guards
 - `src/renderer/src/modules/workspace-nodes/internal/__tests__/nodeDetailStyles.test.ts`
-- `src/renderer/src/components/dock/RightDock/__tests__/dock-store.test.ts`
+- `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-store.test.ts`
 - `src/renderer/src/modules/workspace-nodes/internal/__tests__/NodeDetailPage.escape.test.tsx`
 - `src/renderer/src/modules/workspace-nodes/internal/useWorkspaceNodes.test.tsx`
 - `src/renderer/src/app/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`

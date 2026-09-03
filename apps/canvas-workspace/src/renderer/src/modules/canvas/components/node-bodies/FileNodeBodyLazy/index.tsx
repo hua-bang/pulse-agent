@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { CanvasNode, FileNodeData } from '../../../../../types';
 import { dispatchOpenNode, parseNodeLinkHref } from '../../../../../utils/openNodeBridge';
-import { useRightDock } from '../../../../../components/dock/RightDock';
+import { useRightDock } from '../../../../../shared/dockPort';
 import './index.css';
 
 interface Props {

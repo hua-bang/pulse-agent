@@ -4,7 +4,7 @@ import type { CreatableCanvasNodeType } from '../../../../../../utils/nodeFactor
 import type { PaletteCommand } from '../../CommandPalette';
 import type { AddNodeOptions } from '../../../..';
 import { useI18n } from '../../../../../../i18n';
-import { useRightDock } from '../../../../../../components/dock/RightDock';
+import { useRightDock } from '../../../../../../shared/dockPort';
 import { formatShortcutId } from '../../../../../../shortcuts/registry';
 
 interface Options {

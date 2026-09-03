@@ -15,9 +15,9 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { AgentChatMcpApp, AgentScope } from '../../../../types';
 import { serializeMcpAppToolArguments } from '../../../../../../shared/mcp-apps';
-import { useRightDock, useRightDockMcpAppHost, useRightDockState } from '../../../../components/dock/RightDock/context';
-import { mcpAppTabId } from '../../../../components/dock/RightDock/dock-tab-ids';
-import { isDockTabPresented } from '../../../../components/dock/RightDock/dock-split-state';
+import { useRightDock, useRightDockMcpAppHost, useRightDockState } from '../../../../shared/dockPort';
+import { mcpAppTabId } from '../../../../shared/dock/dock-tab-ids';
+import { isDockTabPresented } from '../../../../shared/dock/dock-split-state';
 import { useMcpAppApproval } from './useMcpAppApproval';
 import { useMcpAppSurfacePlacement } from './useMcpAppSurfacePlacement';
 

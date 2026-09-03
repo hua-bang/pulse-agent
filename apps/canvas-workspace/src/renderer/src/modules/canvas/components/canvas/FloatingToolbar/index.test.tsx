@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
 import { FloatingToolbar } from './index';
 
-vi.mock('../../../../../components/dock/RightDock', () => ({
+vi.mock('../../../../../shared/dockPort', () => ({
   useRightDock: () => ({
     toggleTerminal: vi.fn(),
     newTerminal: vi.fn(),

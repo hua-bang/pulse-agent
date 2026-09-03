@@ -13,7 +13,7 @@ const dock = vi.hoisted(() => ({
 }));
 const setLocation = vi.hoisted(() => vi.fn());
 
-vi.mock('../../../../components/dock/RightDock', () => ({ useRightDock: () => dock }));
+vi.mock('../../../../shared/dockPort', () => ({ useRightDock: () => dock }));
 vi.mock('wouter', () => ({ useLocation: () => ['/', setLocation] }));
 
 import { useScheduledRunChatOpener } from '../useScheduledRunChatOpener';

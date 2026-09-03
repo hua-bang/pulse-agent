@@ -15,7 +15,7 @@ import {
   SEARCH_ENGINES,
   setStoredSearchEngine,
   type SearchEngineId,
-} from '../../../../components/dock/EmbeddedBrowser/address-input';
+} from '../../../../platform/browser/address-input';
 import { useI18n } from '../../../../i18n';
 import { SectionHeader, FieldRow, SegmentedControl } from '../../../../components/ui';
 import './BrowserSection.css';

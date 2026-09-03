@@ -55,7 +55,7 @@ vi.mock('../../../../note-editor/surface', () => ({
   FileNodeEditorSurface: () => <div data-testid="editor-surface" />,
 }));
 
-vi.mock('../../../../../components/dock/RightDock', () => ({
+vi.mock('../../../../../shared/dockPort', () => ({
   useRightDock: () => ({ openLink: vi.fn() }),
 }));
 

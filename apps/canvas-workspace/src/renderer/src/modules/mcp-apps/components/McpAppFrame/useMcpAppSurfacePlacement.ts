@@ -1,5 +1,5 @@
 import { useLayoutEffect, type RefObject } from 'react';
-import { mcpAppDockHostElementId } from '../../../../components/dock/RightDock/dock-tab-ids';
+import { mcpAppDockHostElementId } from '../../../../shared/dock/dock-tab-ids';
 type McpAppDisplayMode = 'inline' | 'fullscreen';
 interface Options {
   displayMode: McpAppDisplayMode;

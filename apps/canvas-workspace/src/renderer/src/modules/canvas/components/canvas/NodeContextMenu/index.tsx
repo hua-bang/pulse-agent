@@ -2,7 +2,7 @@ import "./index.css";
 import { Popover } from "../../../../../components/ui/Popover";
 import { useI18n } from "../../../../../i18n";
 import type { CreatableCanvasNodeType } from "../../../../../utils/nodeFactory";
-import { useRightDock } from "../../../../../components/dock/RightDock";
+import { useRightDock } from "../../../../../shared/dockPort";
 import { ExportIcon, NodeTypeIcon } from "../../../../../components/icons";
 
 interface Props {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, type KeyboardEventHandler } from 'react';
-import { useRightDock, useRightDockState } from '../../../../components/dock/RightDock/context';
-import { isDockContentTabVisible, toggleFullPageDockContentTabs } from '../../../../components/dock/RightDock/dock-content-tabs';
+import { useRightDock, useRightDockState } from '../../../../shared/dockPort';
+import { isDockContentTabVisible, toggleFullPageDockContentTabs } from '../../../../shared/dock/dock-content-tabs';
 import { SessionBackBar } from '../SessionBackBar';
 import { useChatComposerController } from '../ChatComposer/useChatComposerController';
 import { isExternalOnlyRoleMessage } from '../../mentions/roleMentionItems';

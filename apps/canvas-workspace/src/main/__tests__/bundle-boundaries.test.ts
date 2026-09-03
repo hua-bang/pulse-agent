@@ -60,7 +60,7 @@ const DYNAMIC_ONLY_MODULE_SUFFIXES = [
   '/modules/chat/components/ChatPanel/index.tsx',
   '/modules/chat/target/useRegisterChatTarget.ts',
   '/modules/chat/target/sessionScope.ts',
-  '/components/dock/ReferenceDrawer/index.tsx',
+  '/modules/dock/internal/ReferenceDrawer/index.tsx',
   '/modules/canvas/components/canvas/CommandPalette/index.tsx',
   '/modules/canvas/components/canvas/SearchBar/index.tsx',
   '/modules/canvas/components/canvas/EdgeStylePanel/index.tsx',
@@ -186,7 +186,7 @@ describe('bundle boundaries (static import graph from renderer entry)', () => {
   });
 
   it.each([
-    'renderer/src/components/dock/WorkspaceTerminalDock/index.tsx',
+    'renderer/src/modules/dock/internal/WorkspaceTerminalDock/index.tsx',
     'renderer/src/modules/coding-agent/components/AgentNodeBody/index.tsx',
     'renderer/src/modules/canvas/components/node-bodies/TerminalNodeBody/index.tsx',
   ])('%s loads the xterm base styles with its lazy chunk', (path) => {

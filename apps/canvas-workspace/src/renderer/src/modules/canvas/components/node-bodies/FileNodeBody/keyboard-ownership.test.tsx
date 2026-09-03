@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
 import type { CanvasNode } from '../../../../../types';
-import { RightDockProvider } from '../../../../../components/dock/RightDock';
+import { RightDockProvider } from '../../../../dock/internal/RightDock';
 import {
   FileNodeEditorRegistryProvider,
   useFileNodeEditorRegistry,

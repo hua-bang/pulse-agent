@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const chatPageCss = readFileSync(new URL('../index.css', import.meta.url), 'utf8');
-const rightDockCss = readFileSync(new URL('../../../../../components/dock/RightDock/index.css', import.meta.url), 'utf8');
+const rightDockCss = readFileSync(new URL('../../../../dock/internal/RightDock/index.css', import.meta.url), 'utf8');
 const rendererCss = readFileSync(new URL('../../../../../styles.css', import.meta.url), 'utf8');
 
 describe('ChatPage narrow-window layout', () => {

@@ -1,7 +1,7 @@
 /**
  * Right-dock tab content that previews one artifact with live updates and
  * a pin-to-canvas control. Tab chrome (label, close, switching) lives in
- * components/dock/RightDock; the loaded artifact's title is reported up via
+ * shared/dockPort; the loaded artifact's title is reported up via
  * `onTitleChange` so the tab label tracks renames.
  */
 

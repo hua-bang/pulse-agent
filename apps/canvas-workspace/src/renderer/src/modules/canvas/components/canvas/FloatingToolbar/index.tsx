@@ -14,7 +14,7 @@ import type {
   CanvasPluginsStatus,
 } from '../../../../../types/settings-config';
 import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../../../../constants/canvasPlugins';
-import { useRightDock, useRightDockState } from '../../../../../components/dock/RightDock';
+import { useRightDock, useRightDockState } from '../../../../../shared/dockPort';
 
 interface AddNodeUiOptions {
   label?: string;

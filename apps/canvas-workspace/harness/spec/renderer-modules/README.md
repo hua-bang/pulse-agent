@@ -38,8 +38,11 @@ src/renderer/src/
 │   ├── skills/        # lazy skill library/editor route
 │   ├── note-editor/   # editor runtime/extensions + owner-local visual modules
 │   ├── settings/      # distinct model/role/MCP/plugin settings under one owner
-│   └── node-mentions/ # shared leaf picker used by canvas/terminal/agent modules
-├── components/        # dock awaiting migration + shared icons/ui
+│   ├── node-mentions/ # shared leaf picker used by canvas/terminal/agent modules
+│   └── dock/          # tab/session state, pane visuals, terminal/reference hosts
+├── components/        # domain-free icons/ui only
+├── platform/
+│   └── browser/       # embedded webview lifecycle and URL adapters
 ├── hooks/             # generic and product-specific hooks mixed together
 ├── types/             # cross-renderer contracts
 ├── utils/             # pure helpers, some still feature-specific
@@ -69,6 +72,10 @@ Current healthy properties:
   Feature node bodies may be composed by Canvas, but shared mention UI and
   pure knowledge-node predicates live in leaf/shared seams so those features
   never depend back on Canvas and create a module cycle.
+- Dock consumers use `shared/dockPort.tsx`; Dock owns the concrete store and
+  may compose product panes without those product modules depending back on
+  Dock. Pure tab/split/content policy lives under `shared/dock/`, and embedded
+  webview lifecycle lives under `platform/browser/`.
 
 Current pressure points, measured on 2026-09-03:
 

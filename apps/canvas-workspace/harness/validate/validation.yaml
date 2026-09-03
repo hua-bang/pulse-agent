@@ -128,7 +128,7 @@ pathRules:
       - src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.ts
       - src/renderer/src/modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts
       - src/renderer/src/modules/canvas/components/node-bodies/TerminalNodeBody/index.tsx
-      - src/renderer/src/components/dock/WorkspaceTerminalDock/index.tsx
+      - src/renderer/src/modules/dock/internal/WorkspaceTerminalDock/index.tsx
       - src/renderer/src/modules/node-mentions/components/NodeMentionPicker/index.tsx
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.test.ts
@@ -148,13 +148,13 @@ pathRules:
       - src/renderer/src/config/agentRegistry.ts
       - src/renderer/src/modules/coding-agent/**
       - src/renderer/src/utils/codingAgentCommand.ts
-      - src/renderer/src/components/dock/RightDock/DockAgentTabIcon.tsx
+      - src/renderer/src/modules/dock/internal/RightDock/DockAgentTabIcon.tsx
       - src/main/agent/codex-sessions.ts
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/dock/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/dock/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
 
   - name: agent-team-workspace
     paths:
@@ -211,6 +211,19 @@ pathRules:
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/settings src/renderer/src/modules/chat/mentions/roleMentionItems.test.ts src/main/settings
+
+  - name: renderer-dock
+    paths:
+      - src/renderer/src/modules/dock/**
+      - src/renderer/src/shared/dockPort.tsx
+      - src/renderer/src/shared/dockTypes.ts
+      - src/renderer/src/shared/dock/**
+      - src/renderer/src/platform/browser/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/dock src/renderer/src/shared/dock src/renderer/src/platform/browser
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/dock src/renderer/src/shared/dock src/renderer/src/platform/browser
 
   - name: scheduled-tasks
     paths:

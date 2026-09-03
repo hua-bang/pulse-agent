@@ -2,7 +2,7 @@ import './index.css';
 import './iframeBar.css';
 import { useState } from 'react';
 import { useAppShell } from '../../../../../shared/appShell';
-import { useRightDock } from '../../../../../components/dock/RightDock';
+import { useRightDock } from '../../../../../shared/dockPort';
 import { IframeEditor } from './IframeEditor';
 import { IframeRenderedView } from './IframeRenderedView';
 import { IframeReviewLayer } from './IframeReviewLayer';

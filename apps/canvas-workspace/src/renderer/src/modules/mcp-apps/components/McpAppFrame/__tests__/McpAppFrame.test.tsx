@@ -6,9 +6,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildMcpAppCsp } from '..';
 import { McpAppsProvider } from '../../McpAppsProvider';
 import { McpAppFrames } from '../../../../../modules/chat/components/ChatMessage/McpAppFrames';
-import { RightDockProvider, useDockContext, useRightDockState } from '../../../../../components/dock/RightDock/context';
-import { DockPanes } from '../../../../../components/dock/RightDock/DockPanes';
-import { mcpAppDockHostElementId } from '../../../../../components/dock/RightDock/dock-tab-ids';
+import { RightDockProvider, useDockContext, useRightDockState } from '../../../../dock/internal/RightDock/context';
+import { DockPanes } from '../../../../dock/internal/RightDock/DockPanes';
+import { mcpAppDockHostElementId } from '../../../../../shared/dock/dock-tab-ids';
 import { I18nProvider } from '../../../../../i18n';
 
 const bridgeState = vi.hoisted(() => ({ current: null as any }));

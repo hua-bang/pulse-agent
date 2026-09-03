@@ -54,7 +54,7 @@ vi.mock('../hooks/useChatPagePendingSession', () => ({
 vi.mock('../hooks/useChatPageSessionRail', () => ({
   useChatPageSessionRail: () => ({ allSessions: [], onNewSession: vi.fn() }),
 }));
-vi.mock('../../../../../components/dock/RightDock/context', () => ({
+vi.mock('../../../../../shared/dockPort', () => ({
   useRightDock: () => ({ newLink: vi.fn(), openCanvasPreview: vi.fn(), toggleContentTabs: vi.fn() }),
   useRightDockState: () => ({
     activeTabId: 'chat',
@@ -63,7 +63,7 @@ vi.mock('../../../../../components/dock/RightDock/context', () => ({
     tabs: [],
   }),
 }));
-vi.mock('../../../../../app/shell/AppShellProvider', () => ({
+vi.mock('../../../../../shared/appShell', () => ({
   useAppShell: () => ({ notify: vi.fn() }),
 }));
 vi.mock('../ChatPageNavigationChrome', () => ({

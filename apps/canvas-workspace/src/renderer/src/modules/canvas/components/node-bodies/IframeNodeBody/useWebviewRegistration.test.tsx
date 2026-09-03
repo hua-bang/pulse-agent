@@ -2,7 +2,7 @@
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { EmbeddedWebviewTag } from '../../../../../components/dock/EmbeddedBrowser/types';
+import type { EmbeddedWebviewTag } from '../../../../../platform/browser/types';
 import { useWebviewRegistration } from './useWebviewRegistration';
 import { mountedWebviewIdentityForWebContents } from './webview-identities';
 

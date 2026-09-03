@@ -3,7 +3,7 @@ import type { CanvasNode } from '../../../types';
 import type { CanvasNodeRenameRequest } from '../../../types/ui-interaction';
 import { OPEN_NODE_EVENT, type OpenNodeDetail } from '../../../utils/openNodeBridge';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
-import { useRightDock } from '../../../components/dock/RightDock';
+import { useRightDock } from '../../../modules/dock';
 
 interface WorkbenchNodeRequest {
   workspaceId: string;

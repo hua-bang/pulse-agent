@@ -32,7 +32,7 @@ import { useAppShell } from '../../../../../shared/appShell';
 import { useI18n } from '../../../../../i18n';
 import { getNodeDefaultSize } from '../../../../../utils/nodeFactory';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';
-import { getUrlHostname, normalizeReferenceUrl } from '../../../../../components/dock/ReferenceDrawer/utils';
+import { getUrlHostname, normalizeReferenceUrl } from '../../../../../shared/reference/utils';
 import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../../../../types';
 import type { CanvasProps } from './types';
 import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../../../../shared/experimental-features';

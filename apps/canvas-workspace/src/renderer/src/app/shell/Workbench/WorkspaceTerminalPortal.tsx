@@ -1,16 +1,16 @@
 import { lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { useRightDockTerminalHost } from '../../../components/dock/RightDock';
+import { useRightDockTerminalHost } from '../../../modules/dock';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
 import type { CanvasNode } from '../../../types';
-import type { DockTerminalWorkspaceState } from '../../../components/dock/RightDock';
+import type { DockTerminalWorkspaceState } from '../../../modules/dock';
 
 // The dock terminal pulls @xterm/xterm (+ addons). React.lazy keeps that out
 // of the eagerly-parsed entry chunk (C2); the chunk loads on the first
 // terminal tab. Terminal/agent node bodies load xterm via their own lazy
 // boundary (DefaultCanvasNode, C1/C6) — Vite shares the chunk between them.
 const WorkspaceTerminalDock = lazy(() =>
-  import('../../../components/dock/WorkspaceTerminalDock').then((m) => ({ default: m.WorkspaceTerminalDock })),
+  import('../../../modules/dock/terminal').then((m) => ({ default: m.WorkspaceTerminalDock })),
 );
 
 interface WorkspaceTerminalPortalProps {

@@ -1,15 +1,6 @@
 import type { CanvasNode, IframeNodeData } from '../../../../../types';
-
-export const BLANK_PAGE_URL = 'about:blank';
-
-export function normalizeUrl(input: string): string {
-  if (!input) return '';
-  const lowered = input.toLowerCase();
-  if (lowered === 'blank' || lowered === BLANK_PAGE_URL) return BLANK_PAGE_URL;
-  if (/^[a-z]+:\/\//i.test(input)) return input;
-  if (/^\/\//.test(input)) return `https:${input}`;
-  return `https://${input}`;
-}
+import { BLANK_PAGE_URL } from '../../../../../platform/browser/url';
+export { BLANK_PAGE_URL, normalizeUrl } from '../../../../../platform/browser/url';
 
 export function prettyTitle(url: string): string {
   if (url === BLANK_PAGE_URL) return 'Blank page';

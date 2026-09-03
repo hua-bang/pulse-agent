@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   pickDomElement: vi.fn(),
 }));
 
-vi.mock('../../../../../components/dock/RightDock', () => ({
+vi.mock('../../../../../shared/dockPort', () => ({
   useRightDock: () => ({
     openArtifact: vi.fn(),
     addDomSelectionToChat: mocks.addDomSelectionToChat,

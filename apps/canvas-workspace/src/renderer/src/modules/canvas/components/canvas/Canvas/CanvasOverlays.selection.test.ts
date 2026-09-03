@@ -3,7 +3,7 @@ import { act, createElement, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
-import { RightDockProvider } from '../../../../../components/dock/RightDock';
+import { RightDockProvider } from '../../../../dock/internal/RightDock';
 import { CanvasOverlays } from './CanvasOverlays';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

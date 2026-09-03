@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import type { CanvasNode } from '../../../../../../types';
 import type { CanvasClipboard } from '../../../../../../types/ui-interaction';
-import type { NodeReferenceEntryForCanvas } from '../../../../../../components/dock/ReferenceDrawer';
+import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../../../../../../shared/reference/types';
 
 interface UseCanvasReferenceActionsParams {
   addNode: (type: CanvasNode['type'], x: number, y: number) => CanvasNode;

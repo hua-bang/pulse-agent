@@ -14,7 +14,7 @@ import { useI18n } from '../../../i18n';
 import { subscribeCanvasSkillsChanged } from '../../../utils/skillsEvents';
 import { skillNameKey } from '../../../../../shared/skill-name';
 import { useAppShell } from '../../../shared/appShell';
-import { useRightDock } from '../../../components/dock/RightDock';
+import { useRightDock } from '../../../shared/dockPort';
 import { SegmentedControl, TextField } from '../../../components/ui';
 import { SkillEditorModal } from './SkillEditorModal';
 import { LibraryContextSelect } from './LibraryContextSelect';

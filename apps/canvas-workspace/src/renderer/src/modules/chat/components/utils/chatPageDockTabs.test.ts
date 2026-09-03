@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DockState } from '../../../../components/dock/RightDock/dock-store';
+import type { DockState } from '../../../dock/internal/RightDock/dock-store';
 import { buildChatPageDockTabRefs } from './chatPageDockTabs';
 
 const state = (overrides: Partial<DockState> = {}): DockState => ({

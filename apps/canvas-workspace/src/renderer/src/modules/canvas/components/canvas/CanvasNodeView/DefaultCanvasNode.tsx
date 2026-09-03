@@ -15,7 +15,7 @@ import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasN
 import { DynamicAppNodeBody } from '../../node-bodies/DynamicAppNodeBody';
 import { PluginNodeBody } from '../../node-bodies/PluginNodeBody';
 import { useAppShell } from '../../../../../shared/appShell';
-import { useRightDock } from '../../../../../components/dock/RightDock';
+import { useRightDock } from '../../../../../shared/dockPort';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';

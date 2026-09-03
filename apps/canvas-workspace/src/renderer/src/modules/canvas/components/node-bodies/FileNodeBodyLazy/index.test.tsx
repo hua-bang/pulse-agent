@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasNode } from '../../../../../types';
 
-vi.mock('../../../../../components/dock/RightDock', () => ({
+vi.mock('../../../../../shared/dockPort', () => ({
   useRightDock: () => ({ openLink: vi.fn() }),
 }));
 

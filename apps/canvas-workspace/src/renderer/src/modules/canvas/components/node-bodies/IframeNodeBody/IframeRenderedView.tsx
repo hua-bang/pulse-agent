@@ -2,7 +2,7 @@ import { useEffect, useMemo, type KeyboardEventHandler, type RefObject } from 'r
 import type { Artifact } from '../../../../../types';
 import { Button } from '../../../../../components/ui/Button';
 import { ExternalLinkIcon } from '../../../../../components/icons';
-import { BrowserNavigationButtons } from '../../../../../components/dock/EmbeddedBrowser/BrowserNavigationButtons';
+import { BrowserNavigationButtons } from '../../../../../components/ui/BrowserNavigationButtons';
 import { STREAMING_SHELL } from '../../../../artifacts/rendering';
 import { appendDomPickerBridge } from './domPickerBridge';
 import { IframeOverviewBadge } from './IframeOverviewBadge';

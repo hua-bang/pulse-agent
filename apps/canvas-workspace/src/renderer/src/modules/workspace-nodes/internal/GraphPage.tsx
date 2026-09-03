@@ -20,7 +20,7 @@ import { getNodeTitle, getNodeWorkspaceId } from './utils';
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';
 import { DropdownShell } from '../../../components/ui';
-import { useRightDock } from '../../../components/dock/RightDock';
+import { useRightDock } from '../../../shared/dockPort';
 import {
   buildWorkspaceGraph,
   getGraphId,

@@ -3,7 +3,7 @@ import { act, Component, useMemo, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n';
-import { RightDock, RightDockProvider } from '../../../../components/dock/RightDock';
+import { RightDock, RightDockProvider } from '../../../../modules/dock/internal/RightDock';
 import {
   ChatTargetProvider,
   useActiveChatTarget,
@@ -77,11 +77,11 @@ vi.mock('../../../../modules/chat/lazy', async () => {
   };
 });
 
-vi.mock('../../../../components/dock/RightDock/DockCreationControls', () => ({
+vi.mock('../../../../modules/dock/internal/RightDock/DockCreationControls', () => ({
   DockCreationControls: () => null,
 }));
 
-vi.mock('../../../../components/dock/RightDock/useDockAgentBridge', () => ({
+vi.mock('../../../../modules/dock/internal/RightDock/useDockAgentBridge', () => ({
   useDockAgentBridge: () => undefined,
 }));
 

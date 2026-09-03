@@ -6,9 +6,9 @@ import {
   type KeyboardEvent,
 } from 'react';
 import type { IframeNodeData } from '../../../../../types';
-import { useEmbeddedBrowser } from '../../../../../components/dock/EmbeddedBrowser/useEmbeddedBrowser';
+import { useEmbeddedBrowser } from '../../../../../platform/browser/useEmbeddedBrowser';
 import { useDeferredVisibleMount } from './useDeferredVisibleMount';
-import { useInitialWebviewLoadSlot } from '../../../../../components/dock/EmbeddedBrowser/useInitialWebviewLoadSlot';
+import { useInitialWebviewLoadSlot } from '../../../../../platform/browser/useInitialWebviewLoadSlot';
 import { useWebviewDiscard, useWebviewRestore } from './useWebviewDiscard';
 import { useWebviewRegistration } from './useWebviewRegistration';
 import type { EditMode, IframeNodeBodyProps } from './types';

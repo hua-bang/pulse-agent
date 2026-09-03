@@ -1,6 +1,6 @@
 import type { AgentContextTabRef } from '../../../../types';
-import type { DockState } from '../../../../components/dock/RightDock/dock-store';
-import { buildDockTabRefs } from '../../../../components/dock/RightDock/tabRefs';
+import type { DockState } from '../../../../shared/dockTypes';
+import { buildDockTabRefs } from '../../../../shared/dock/tabRefs';
 
 const UNBOUND_DOCK_WORKSPACE_ID = '__default__';
 

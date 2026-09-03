@@ -3,7 +3,7 @@ import {
   DEFAULT_WEBVIEW_SURFACE_KIND,
   type WebviewSurfaceKind,
 } from '../../../../../../../shared/webview-registration';
-import type { EmbeddedWebviewTag } from '../../../../../components/dock/EmbeddedBrowser/types';
+import type { EmbeddedWebviewTag } from '../../../../../platform/browser/types';
 import { registerMountedWebviewIdentity } from './webview-identities';
 
 /**

@@ -8,7 +8,7 @@ import { useNoteOutlineEscape } from '../../../../../hooks/useNoteOutlineEscape'
 import { dispatchOpenNode, parseNodeLinkHref } from '../../../../../utils/openNodeBridge';
 import { FileNodeEditorSurface } from '../../../../note-editor/surface';
 import { SpinnerIcon } from '../../../../../components/icons';
-import { useRightDock } from '../../../../../components/dock/RightDock';
+import { useRightDock } from '../../../../../shared/dockPort';
 import { Button } from '../../../../../components/ui';
 import { useI18n } from '../../../../../i18n';
 

@@ -1,5 +1,5 @@
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../../../types';
-import type { BrowserLoadState } from '../../../../../components/dock/EmbeddedBrowser/types';
+import type { BrowserLoadState } from '../../../../../platform/browser/types';
 import type { ChatDeliveryReceipt } from '../../../../chat';
 
 export type EditMode = 'url' | 'html' | 'ai';

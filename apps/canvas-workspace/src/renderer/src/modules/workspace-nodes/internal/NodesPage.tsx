@@ -23,7 +23,7 @@ import {
   tagName,
 } from './utils';
 import { useI18n } from '../../../i18n';
-import { useRightDock, useRightDockState } from '../../../components/dock/RightDock';
+import { useRightDock, useRightDockState } from '../../../shared/dockPort';
 import type { NodesAiContext } from './knowledgeAiContext';
 import { dispatchOpenNodePage } from '../../../utils/openNodeBridge';
 import './index.css';
