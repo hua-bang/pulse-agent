@@ -1,3 +1,4 @@
+import './index.css';
 import { useRef, useState } from 'react';
 import type {
   AgentTeamAgentRecord,
