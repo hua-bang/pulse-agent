@@ -5,7 +5,7 @@ import type {
   ChatInsertion,
   ChatTarget,
   ChatTargetBroker,
-} from '../../chat/ChatTargetContext';
+} from '../../../agent-chat/target';
 
 interface UseChatInsertionBridgeOptions {
   allNodes: Record<string, CanvasNode[]>;

@@ -10,7 +10,7 @@ import type {
 } from '../../../../types';
 import { I18nProvider } from '../../../../i18n';
 import { AppShellProvider } from '../../../shell/AppShellProvider';
-import type { ChatDeliveryReceipt } from '../../../chat/ChatTargetContext';
+import type { ChatDeliveryReceipt } from '../../../../agent-chat/target';
 import type { CanvasClipboard } from '../../../../types/ui-interaction';
 
 const controls = vi.hoisted(() => ({

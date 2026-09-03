@@ -20,7 +20,7 @@ import {
 import { WorkspaceActiveProvider } from '../../../hooks/useWorkspaceActive';
 import { FileNodeEditorRegistryProvider } from '../../../hooks/useFileNodeEditorRegistry';
 import { CanvasPreviewChrome, CanvasPreviewState } from './CanvasPreviewChrome';
-import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
+import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
 import { TabChatAction } from './TabChatAction';
 import {
   EMPTY_CANVAS_PREVIEW_SNAPSHOT,

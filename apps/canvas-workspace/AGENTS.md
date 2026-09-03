@@ -49,6 +49,7 @@ container, aligned with `packages/engine/harness/`:
   app: `canvas-harness`, `canvas-onboard-harness` (drive the real app),
   `diagnose-agent-latency` (trace and optimize Agent turn latency),
   `validate-canvas-change` (choose quick/standard/release evidence),
+  `check-renderer-structure` (audit renderer directory/module health),
   `add-canvas-node`, `add-agent-tool`, `add-builtin-main-plugin`,
   `extend-blessed-ui`, `add-ipc-surface` (safe-change procedures for the
   five recurring extension shapes).
@@ -71,6 +72,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Confirmed-but-unfixed defects | `harness/knowledge/known-defects.md` |
 | Main/renderer/preload boundaries | `harness/knowledge/conventions/README.md`, `harness/knowledge/conventions/architecture-boundaries.md` |
 | Renderer conventions | `harness/knowledge/conventions/frontend.md` |
+| Renderer current→module-first architecture and directory health | `harness/spec/renderer-modules/README.md`; run `harness/skills/check-renderer-structure/SKILL.md` |
 | Main-process conventions | `harness/knowledge/conventions/backend.md` |
 | PATH for anything the app spawns | `src/main/shell-path.ts` — a GUI launch inherits a stripped PATH, and every child (agent `bash`, which the engine spawns with NO `env`, MCP stdio servers, the bundled CLI) takes `process.env` verbatim, so a missing binary surfaces as a bare "command not found". Repaired once in `bootstrap.ts` before any spawn: `augmentProcessPath()` (sync, well-known per-user bin dirs incl. `~/.pulse-coder/bin`) then a best-effort `applyLoginShellPath()` (async, timeout-bounded `$SHELL -ilc`, only ever widens). PTY env shares the same bin-dir list — do not fork a second copy. Tests: `src/main/__tests__/shell-path.test.ts` |
 | Main domain map | `harness/knowledge/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
@@ -88,8 +90,8 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Diagnose Canvas Agent latency or verify an optimization | `harness/skills/diagnose-agent-latency/SKILL.md`; trace model and exporter details: `harness/knowledge/langfuse-observability.md` |
 | Canvas Agent full-chain Langfuse observability | `harness/knowledge/langfuse-observability.md` |
 | xterm sizing for agent/terminal surfaces | Read `harness/knowledge/terminal-surfaces.md` before changing xterm sizing/fit behavior for agent nodes, terminal nodes, or the workspace terminal dock. Key contracts: `AgentNodeBody/utils/terminal.ts`, `TerminalNodeBody/index.tsx`, `WorkspaceTerminalDock/index.tsx`. Tests: `AgentNodeBody/utils/terminalFit.test.ts` |
-| AI Chat loading states | Read `harness/knowledge/chat-sessions.md` before changing session loading flags (`sessionsLoading` vs `sessionLoading` vs stream `loading`) or the submit veto. Key contracts: `src/renderer/src/components/chat/hooks/useChatSessions.ts`, `hooks/useMentions.ts`, `ChatSessionsRail.tsx`, `ChatHeader.tsx`, `ChatThreadSkeleton.tsx`. Tests: `hooks/useChatSessions.test.tsx`, `hooks/useMentions.submit-veto.test.tsx`, `__tests__/ChatSessionLoading.test.tsx` |
-| Full-page chat ↔ dock Tabs | Read `harness/knowledge/chat-sessions.md` before changing the full-page chat topbar, its dock-content-tabs toggle, or the dock inset rule. Key contracts: `chat/ChatPageBody.tsx`, `RightDock/dock-content-tabs.ts`. Tests: `RightDock/__tests__/dock-content-tabs.test.ts`, `RightDock/index.test.tsx` |
+| AI Chat loading states | Read `harness/knowledge/chat-sessions.md` before changing session loading flags (`sessionsLoading` vs `sessionLoading` vs stream `loading`) or the submit veto. Key contracts: `src/renderer/src/agent-chat/sessions/useChatSessions.ts`, `components/chat/ChatComposer/useChatComposerInput.ts`, `components/chat/ChatSessionsRail/index.tsx`, `components/chat/ChatPanel/ChatHeader.tsx`, `components/chat/ChatMessages/ChatThreadSkeleton.tsx`. Tests: `agent-chat/sessions/useChatSessions.test.tsx`, `components/chat/ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`, `components/chat/__tests__/ChatSessionLoading.test.tsx` |
+| Full-page chat ↔ dock Tabs | Read `harness/knowledge/chat-sessions.md` before changing the full-page chat topbar, its dock-content-tabs toggle, or the dock inset rule. Key contracts: `chat/ChatPageBody/index.tsx`, `RightDock/dock-content-tabs.ts`. Tests: `RightDock/__tests__/dock-content-tabs.test.ts`, `RightDock/index.test.tsx` |
 | Dock width policy | Read `harness/knowledge/chat-sessions.md` before changing right-dock width behavior. Key contract: `RightDock/dock-width.ts`. Tests: `RightDock/__tests__/dock-width.test.ts`, `RightDock/index.test.tsx` |
 | Coding agents in the Coding Agent node (roster, brand marks, launch flags, per-node session binding) | Read `harness/knowledge/coding-agent-registry.md` before adding/removing an agent, changing per-agent launch flags, or changing how a node binds to one CLI conversation. Key contracts: `src/renderer/src/config/agentRegistry.ts`, `AgentNodeBody/utils/piSession.ts`, `src/main/agent/codex-sessions.ts`. Bound tests (`coding-agent-roster` rule, `harness/validate/validation.yaml`): `AgentNodeBody/__tests__/AgentPicker.test.tsx`, `AgentNodeBody/__tests__/AgentIcon.test.tsx`, `AgentNodeBody/__tests__/piSessionBinding.test.tsx`, `AgentNodeBody/utils/piSession.test.ts`, `utils/__tests__/codingAgentCommand.test.ts`. |
 | Multi-role chat (@角色 group chat + relay) | Read `harness/knowledge/agent-roles.md` before changing role marker/routing, the relay stream protocol, handoff policy, renderer role rendering, external CLI drivers, or the stopped-vs-failed turn rule. Key contracts: `src/shared/agent-roles.ts`, `src/main/agent/role-turn.ts`, `src/main/agent/roles-store.ts`, `src/main/agent/external/`, `src/main/agent/chat-stop.ts`. Tests: `src/main/agent/__tests__/role-turn.test.ts`, `src/main/agent/__tests__/external-driver.test.ts`, `src/main/agent/segment-execution.test.ts`, `src/main/agent/chat-stop.test.ts`. |
@@ -140,8 +142,8 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 - Canvas Agent scope activation must stay single-flight in `src/main/agent/service.ts`, or an unguarded check-then-initialize creates duplicate engines for one scope and session switching visibly stalls.
   Guard: `src/main/agent/__tests__/service-history.test.ts`.
   Detail: `harness/knowledge/chat-sessions.md`.
-- Chat run state is conversation-owned: each conversation key has an independent runtime (`conversation-runtime/` in main, `conversationStore.ts` + `useChatComposerStateKeyed` in renderer) over one shared CanvasAgent engine; switching = changing the store selector, two conversations run in parallel, same-conversation second turn queues. Legacy compensation hooks were deleted; `ActiveChatRegistry` stays only for scheduled/back-compat.
-  Guard: `conversation-runtime/*.test.ts`, `shared/conversation-runtime.test.ts`, `hooks/conversationStore.test.ts`, `hooks/useChatStream.keyed.test.tsx`, `hooks/useChatStream.shared-snapshot.test.tsx`, `hooks/useChatComposerStateKeyed.test.tsx`, `active-chat-registry.test.ts`, `useChatPagePendingSession.test.tsx`.
+- Chat run state is conversation-owned: each conversation key has an independent runtime (`conversation-runtime/` in main, `src/renderer/src/agent-chat/runtime/conversationStore.ts` + `useChatComposerController` in renderer) over one shared CanvasAgent engine; switching = changing the store selector, two conversations run in parallel, same-conversation second turn queues. Legacy compensation hooks were deleted; `ActiveChatRegistry` stays only for scheduled/back-compat.
+  Guard: `conversation-runtime/*.test.ts`, `shared/conversation-runtime.test.ts`, `src/renderer/src/agent-chat/runtime/conversationStore.test.ts`, `agent-chat/runtime/useConversationRuntimeStream.test.tsx`, `agent-chat/runtime/useConversationRuntimeStream.shared-snapshot.test.tsx`, `ChatComposer/__tests__/useChatComposerController.test.tsx`, `active-chat-registry.test.ts`, `useChatPagePendingSession.test.tsx`.
   Detail: `harness/knowledge/chat-sessions.md`.
 - The renderer has one visible approval card, so main must serialize concurrent clarification requests, starting each timeout only once visible; answering one must reveal, not clear, the next queued request.
   Guard: `clarification-registry.test.ts`.
@@ -150,13 +152,13 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
   Guard: `src/main/agent/__tests__/session-store.test.ts`.
   Detail: `harness/knowledge/chat-sessions.md`.
 - Chat image uploads are bounded again in main before a prepared run is accepted; removing a ready draft attachment deletes its file, clearing a sent draft retains it, and a failed turn persists its tool-call snapshot with unfinished tools settled.
-  Guard: `useChatAttachments.test.tsx`, `chat-protocol.test.ts`, `chat-failure-persistence.test.ts`.
+  Guard: `src/renderer/src/agent-chat/attachments/useChatAttachments.test.tsx`, `chat-protocol.test.ts`, `chat-failure-persistence.test.ts`.
   Detail: `harness/knowledge/chat-sessions.md`.
 - An external-role driver rejection after its AbortSignal fires is a stopped turn, never a failed turn.
   Guard: `segment-execution.test.ts`, `chat-stop.test.ts`.
   Detail: `harness/knowledge/agent-roles.md` (stopped-vs-failed turn rule).
 - The full-screen chat rail is one stable cross-scope projection: never swap per-scope list caches into it or fetch a list while `loadSession` is promoting an archive; commit current/other lists together after promotion.
-  Guard: `useChatSessions.test.tsx`, `ChatSessionsRail.test.tsx`.
+  Guard: `src/renderer/src/agent-chat/sessions/useChatSessions.test.tsx`, `src/renderer/src/components/chat/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`.
   Detail: `harness/knowledge/chat-sessions.md`.
 - Chat-target registration is synchronously observed at the app root: props feeding a mounted `ChatPanel` target or its handlers must use stable empty-collection fallbacks, never an inline `[]`, or the target unregisters/re-registers every root render and hits React's max update depth.
   Guard: `Workbench/__tests__/ChatDockLifecycle.test.tsx` (knowledge chat follows the same rule but isn't covered by this guard).

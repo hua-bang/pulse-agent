@@ -17,7 +17,21 @@ leaf folder names were kept, only a group level was inserted):
 | `dock/` | `RightDock`, `LinkDrawer`, `ReferenceDrawer`, `EmbeddedBrowser`, `WorkspaceTerminalDock` |
 | `settings/` | `Settings`, `WorkspaceSettings`, `settings-config` |
 | `chat/` | Canvas Agent chat panel + `ChatFloatingButton` |
+| `models/` | Runtime model-selection UI shared by chat surfaces; provider/configuration editors remain under `settings/` |
+| `mcp-apps/` | Sandboxed MCP App host, approval UI, AppBridge lifecycle, and inline↔RightDock surface placement; chat owns only the tool-result adapter |
 | `artifacts/`, `ui/`, `icons/` | Unchanged pre-existing domains (`ui/` is the blessed design-system set — governance and the ui-showcase reference it by path; do not move it) |
+
+Non-visual Agent Chat state and cross-surface coordination live outside the
+component tree under `src/renderer/src/agent-chat/`. In particular,
+`agent-chat/target/` owns the app-level ChatTarget broker used by Canvas, Dock,
+Workbench, and the visible chat surfaces; visual chat modules adapt to that
+interface instead of owning the broker themselves.
+
+This is the implemented structure, not the final renderer taxonomy. The
+planned module-first target, dependency direction, phased migration, and
+directory-health audit live in
+[`../../spec/renderer-modules/README.md`](../../spec/renderer-modules/README.md).
+Do not move files to match that target outside an approved migration phase.
 
 ### Canvas icon family
 
@@ -74,7 +88,8 @@ Example (real): `Sidebar/` is split into `SidebarHeader.tsx`, `WorkspaceList.tsx
 - Shared hooks live in `src/renderer/src/hooks/` named `useXxx.ts`
   (`useCanvas`, `useNodes`, `useClickOutside`, `useEscapeClose`, …).
 - Component-scoped hooks may live beside the component
-  (`useAgentNodeController.ts`, `Canvas/hooks/`, `chat/hooks/`).
+  (`useAgentNodeController.ts`, `Canvas/hooks/`, `chat/ChatComposer/`,
+  `chat/ChatPanel/hooks/`, `chat/ChatPageBody/hooks/`).
 - Hooks return typed values; keep them framework-pure (no Electron/Node imports).
 
 ## Keyboard shortcuts (registry-owned)

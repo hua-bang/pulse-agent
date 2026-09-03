@@ -16,9 +16,10 @@
 
 import { useEffect, useState } from 'react';
 import { Drawer, SegmentedControl } from '../../ui';
-import { ModelsSection, useCanvasModels } from '../../chat/ModelSettings';
-import { ReplyStyleSection, usePromptProfile } from '../../chat/PromptSettings';
-import { RolesSection } from '../../chat/RolesSettings';
+import { ModelsSection } from '../ModelSettings';
+import { useCanvasModels } from '../../../hooks/useCanvasModels';
+import { ReplyStyleSection, usePromptProfile } from '../PromptSettings';
+import { RolesSection } from '../RolesSettings';
 import { AgentSection } from './AgentSection';
 import { BrowserSection } from './BrowserSection';
 import { BuiltInToolsSection } from './BuiltInToolsSection';

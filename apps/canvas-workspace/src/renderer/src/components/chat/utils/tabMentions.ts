@@ -1,7 +1,7 @@
 import { createElement, type ReactNode } from 'react';
 import type { AgentContextTabRef, AgentRequestContext } from '../../../types';
-import { TAB_MENTION_PREFIX } from '../constants';
-import type { MentionItem } from '../types';
+import { TAB_MENTION_PREFIX } from '../ChatMentionPopup/constants';
+import type { MentionItem } from '../../../types';
 import { decodeMentionPart, encodeMentionPart } from './mentionMarkers';
 import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
 

@@ -1,0 +1,110 @@
+/* ─── @ Mention popup ────────────────────────────────────── */
+
+.chat-mention-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 4px;
+  background: #fff;
+  border: 1px solid rgba(55, 53, 47, 0.09);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(15, 15, 15, 0.1), 0 0 0 1px rgba(15, 15, 15, 0.04);
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  z-index: 20;
+}
+
+.chat-mention-group-header {
+  padding: 10px 10px 4px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: rgba(55, 53, 47, 0.4);
+  pointer-events: none;
+  user-select: none;
+}
+
+.chat-mention-popup>.chat-mention-group-header:first-child {
+  padding-top: 6px;
+}
+
+.chat-mention-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgb(55, 53, 47);
+  text-align: left;
+  line-height: 1.4;
+}
+
+.chat-mention-item:hover,
+.chat-mention-item--active {
+  background: rgba(55, 53, 47, 0.06);
+}
+
+.chat-mention-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-xs);
+  background: rgba(55, 53, 47, 0.06);
+  color: rgba(55, 53, 47, 0.5);
+}
+
+.chat-plugin-brand-icon,
+.chat-plugin-brand-icon img,
+.chat-plugin-brand-icon svg,
+.chat-mention-chip--plugin img,
+.chat-mention-chip--plugin svg {
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.chat-mention-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.chat-mention-item-type {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.35);
+  text-transform: capitalize;
+}
+
+.chat-mention-item-description {
+  flex: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.45);
+}
+
+/* Session results lead with the first user message, while workspace and date
+   remain available as compact disambiguating metadata. */
+.chat-mention-item--session .chat-mention-item-label {
+  flex: 2;
+}
+
+.chat-mention-item--session .chat-mention-item-description {
+  flex: 1;
+}

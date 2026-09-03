@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode } from '../../../types';
 import type { NodeReferenceEntry } from '../../dock/ReferenceDrawer/types';
-import type { ChatDeliveryReceipt } from '../../chat/ChatTargetContext';
-import { useChatDeliveryNotifier } from '../../chat/useChatDeliveryNotifier';
+import type { ChatDeliveryReceipt } from '../../../agent-chat/target';
+import { useChatDeliveryNotifier } from '../useChatDeliveryNotifier';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import {
   PREVIEW_EVICT_OPEN_EVENT,

@@ -1,4 +1,4 @@
-import { DOM_MENTION_PREFIX, TAB_MENTION_PREFIX } from '../constants';
+import { DOM_MENTION_PREFIX, TAB_MENTION_PREFIX } from '../ChatMentionPopup/constants';
 import { MENTION_RE, pipedMentionLabel } from './mentionMarkers';
 import { parseTabMention } from './tabMentions';
 

@@ -6,7 +6,7 @@ import type {
   KnowledgeTagDefinition,
   WorkspaceNodeListItem,
 } from '../../../types';
-import type { ChatComposerRequest } from '../../chat/types';
+import type { ChatComposerRequest } from '../../chat';
 import {
   getNodeTags,
   getNodeTitle,

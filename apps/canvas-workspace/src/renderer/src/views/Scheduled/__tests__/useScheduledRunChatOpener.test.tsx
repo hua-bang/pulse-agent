@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ScheduledRunFinished } from '../../../../../shared/scheduled';
-import type { AgentScope } from '../../../components/chat/types';
+import type { AgentScope } from '../../../types';
 import { I18nProvider } from '../../../i18n';
 import { AppShellProvider } from '../../../components/shell/AppShellProvider';
 

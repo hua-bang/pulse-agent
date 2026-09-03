@@ -10,6 +10,25 @@ import type {
 
 export type * from '../../../shared/model-config';
 
+export interface ModelSelection {
+  mode: 'auto' | 'model';
+  providerId?: string;
+  modelId?: string;
+}
+
+export interface UseCanvasModelsResult {
+  status?: CanvasModelStatus;
+  loading: boolean;
+  error?: string;
+  selection: ModelSelection;
+  selectedLabel: string;
+  refresh: () => Promise<void>;
+  selectModel: (providerId: string, modelId: string) => Promise<void>;
+  upsertProvider: (provider: CanvasModelProviderConfig) => Promise<CanvasModelStatus | undefined>;
+  removeProvider: (providerId: string) => Promise<void>;
+  fetchModels: (provider: CanvasModelProviderConfig) => Promise<CanvasProviderModel[]>;
+}
+
 export interface PromptProfileApi {
   get: () => Promise<{ ok: boolean; profile?: PromptProfileStatus; error?: string }>;
   save: (

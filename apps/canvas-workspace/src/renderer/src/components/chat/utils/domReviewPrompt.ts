@@ -1,4 +1,4 @@
-import { DOM_MENTION_PREFIX } from '../constants';
+import { DOM_MENTION_PREFIX } from '../ChatMentionPopup/constants';
 import type { AgentContextDomReviewComment } from '../../../types';
 
 function escapeDomMentionPart(value: string): string {

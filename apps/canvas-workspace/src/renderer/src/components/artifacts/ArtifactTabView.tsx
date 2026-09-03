@@ -14,7 +14,7 @@ import {
 } from '../../../../shared/artifact-capabilities';
 import { useAppShell } from '../shell/AppShellProvider';
 import { Select } from '../ui';
-import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
+import { renderMermaidSource, type MermaidRenderResult } from '../../utils/mermaid';
 import { buildCapabilityBridgeScript } from './capabilityBridge';
 import './artifacts.css';
 
